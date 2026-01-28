@@ -23,7 +23,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
-import { Download, RefreshCw, AlertTriangle, Trophy, AlertCircle } from "lucide-react";
+import { Download, RefreshCw, AlertTriangle, Trophy, AlertCircle, ShieldCheck } from "lucide-react";
 import { TeamEditDialog } from "@/components/TeamEditDialog";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
