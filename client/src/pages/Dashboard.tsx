@@ -112,15 +112,15 @@ export default function Dashboard() {
           {/* Chart Section */}
           <div className="grid grid-cols-1 gap-6">
              <Card className="shadow-lg border-border/50">
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-xl">
-                  <Trophy className="w-6 h-6 text-yellow-500" />
-                  팀별 안전 성능 순위
-                </CardTitle>
-                <CardDescription>실시간 안전 점수 현황 (높을수록 우수)</CardDescription>
-              </CardHeader>
-              <CardContent className="h-[280px] pt-4 relative">
-                <div className="absolute top-2 right-2 z-10 text-xs text-muted-foreground space-y-0.5 text-right">
+              <CardHeader className="pb-2 flex flex-row items-start justify-between gap-4">
+                <div>
+                  <CardTitle className="flex items-center gap-2 text-xl">
+                    <Trophy className="w-6 h-6 text-yellow-500" />
+                    팀별 안전 성능 순위
+                  </CardTitle>
+                  <CardDescription>실시간 안전 점수 현황 (높을수록 우수)</CardDescription>
+                </div>
+                <div className="flex items-center gap-3 text-xs text-muted-foreground">
                   <div className="flex items-center gap-1">
                     <span className="w-2 h-2 rounded-full bg-green-500"></span>
                     <span>우수 90+</span>
@@ -134,6 +134,8 @@ export default function Dashboard() {
                     <span>심각 80미만</span>
                   </div>
                 </div>
+              </CardHeader>
+              <CardContent className="h-[280px] pt-4">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={sortedTeams} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.5} />
