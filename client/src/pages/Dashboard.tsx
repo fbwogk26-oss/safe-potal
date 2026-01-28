@@ -1,4 +1,4 @@
-import { useTeams } from "@/hooks/use-teams";
+import { useTeams, useResetTeam, useResetAllTeams } from "@/hooks/use-teams";
 import { useLockStatus } from "@/hooks/use-settings";
 import { 
   BarChart, 
@@ -23,7 +23,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
-import { Download, RefreshCw, AlertTriangle, Trophy, AlertCircle, ShieldCheck } from "lucide-react";
+import { Download, RefreshCw, AlertTriangle, Trophy, AlertCircle, ShieldCheck, RotateCcw } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import { TeamEditDialog } from "@/components/TeamEditDialog";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
@@ -35,6 +36,29 @@ export default function Dashboard() {
   const { data: teams, isLoading, refetch, isRefetching } = useTeams(year);
   const { data: lockData } = useLockStatus();
   const isLocked = lockData?.isLocked;
+  const resetTeam = useResetTeam();
+  const resetAllTeams = useResetAllTeams();
+  const { toast } = useToast();
+
+  const handleResetAll = () => {
+    if (confirm(`${year}년도 모든 팀의 점수를 초기화하시겠습니까?`)) {
+      resetAllTeams.mutate(year, {
+        onSuccess: (data) => {
+          toast({ title: "초기화 완료", description: `${data.count}개 팀의 점수가 초기화되었습니다.` });
+        }
+      });
+    }
+  };
+
+  const handleResetTeam = (id: number, name: string) => {
+    if (confirm(`${name}의 점수를 초기화하시겠습니까?`)) {
+      resetTeam.mutate(id, {
+        onSuccess: () => {
+          toast({ title: "초기화 완료", description: `${name}의 점수가 초기화되었습니다.` });
+        }
+      });
+    }
+  };
 
   // Sort teams by score descending
   const sortedTeams = teams ? [...teams].sort((a, b) => b.totalScore - a.totalScore) : [];
@@ -94,6 +118,18 @@ export default function Dashboard() {
           <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isRefetching}>
             <RefreshCw className={cn("w-4 h-4 mr-2", isRefetching && "animate-spin")} />
             새로고침
+          </Button>
+
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleResetAll} 
+            disabled={isLocked || resetAllTeams.isPending}
+            className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+            data-testid="button-reset-all"
+          >
+            <RotateCcw className={cn("w-4 h-4 mr-2", resetAllTeams.isPending && "animate-spin")} />
+            전체 초기화
           </Button>
 
           <Button variant="secondary" size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white border-0">
@@ -251,7 +287,17 @@ export default function Dashboard() {
                           {team.totalScore}
                         </span>
                       </TableCell>
-                      <TableCell className="pr-4 text-right">
+                      <TableCell className="pr-4 text-right flex items-center justify-end gap-1">
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          onClick={() => handleResetTeam(team.id, team.name)}
+                          disabled={isLocked || resetTeam.isPending}
+                          className="hover:bg-red-50 hover:text-red-600"
+                          data-testid={`button-reset-team-${team.id}`}
+                        >
+                          <RotateCcw className="w-4 h-4" />
+                        </Button>
                         <TeamEditDialog team={team} disabled={isLocked} />
                       </TableCell>
                     </motion.tr>

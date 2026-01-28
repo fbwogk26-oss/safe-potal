@@ -50,6 +50,22 @@ export const api = {
         404: errorSchemas.notFound,
       },
     },
+    reset: {
+      method: 'POST' as const,
+      path: '/api/teams/:id/reset',
+      responses: {
+        200: z.custom<typeof teams.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+    resetAll: {
+      method: 'POST' as const,
+      path: '/api/teams/reset-all',
+      input: z.object({ year: z.number() }),
+      responses: {
+        200: z.object({ success: z.boolean(), count: z.number() }),
+      },
+    },
   },
   notices: {
     list: {

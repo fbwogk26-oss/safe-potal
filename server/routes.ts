@@ -87,6 +87,51 @@ export async function registerRoutes(
     res.status(204).send();
   });
 
+  // Reset single team scores
+  app.post('/api/teams/:id/reset', async (req, res) => {
+    const id = Number(req.params.id);
+    const existing = await storage.getTeam(id);
+    if (!existing) return res.status(404).json({ message: "Team not found" });
+
+    const resetData = {
+      workAccident: 0,
+      fineSpeed: 0,
+      fineSignal: 0,
+      fineLane: 0,
+      inspectionMiss: 0,
+      suggestion: 0,
+      activity: 0,
+      vehicleAccidents: {},
+      totalScore: 100,
+    };
+    const team = await storage.updateTeam(id, resetData);
+    res.json(team);
+  });
+
+  // Reset all teams for a year
+  app.post('/api/teams/reset-all', async (req, res) => {
+    const { year } = req.body;
+    const teams = await storage.getTeams(year);
+    
+    const resetData = {
+      workAccident: 0,
+      fineSpeed: 0,
+      fineSignal: 0,
+      fineLane: 0,
+      inspectionMiss: 0,
+      suggestion: 0,
+      activity: 0,
+      vehicleAccidents: {},
+      totalScore: 100,
+    };
+
+    for (const team of teams) {
+      await storage.updateTeam(team.id, resetData);
+    }
+    
+    res.json({ success: true, count: teams.length });
+  });
+
   // === NOTICES ===
   app.get(api.notices.list.path, async (req, res) => {
     const category = req.query.category as string;

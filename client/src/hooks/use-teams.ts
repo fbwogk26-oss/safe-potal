@@ -75,3 +75,35 @@ export function useDeleteTeam() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: [api.teams.list.path] }),
   });
 }
+
+export function useResetTeam() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const res = await fetch(`/api/teams/${id}/reset`, {
+        method: 'POST',
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to reset team");
+      return res.json();
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [api.teams.list.path] }),
+  });
+}
+
+export function useResetAllTeams() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (year: number) => {
+      const res = await fetch('/api/teams/reset-all', {
+        method: 'POST',
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ year }),
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to reset all teams");
+      return res.json();
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [api.teams.list.path] }),
+  });
+}
