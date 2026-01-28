@@ -88,7 +88,7 @@ export function TeamEditDialog({ team, disabled }: Props) {
         <DialogHeader className="p-6 pb-2">
           <DialogTitle className="text-xl font-display text-primary flex items-center gap-2">
             <Edit2 className="w-5 h-5" />
-            Edit Team: {team.name}
+            팀 편집: {team.name}
           </DialogTitle>
         </DialogHeader>
         
@@ -97,40 +97,40 @@ export function TeamEditDialog({ team, disabled }: Props) {
             
             {/* Basic Info */}
             <div className="space-y-4 border rounded-xl p-4 bg-muted/20">
-              <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Basic Stats</h3>
+              <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">기본 정보</h3>
               <div className="grid gap-2">
-                <Label>Vehicle Count</Label>
+                <Label>차량 수</Label>
                 <Input type="number" {...form.register("vehicleCount", { valueAsNumber: true })} />
               </div>
             </div>
 
             {/* Deductions - Major */}
             <div className="space-y-4 border rounded-xl p-4 bg-red-50/50 border-red-100 dark:bg-red-900/10 dark:border-red-900/30">
-              <h3 className="font-semibold text-sm text-red-600 uppercase tracking-wider">Major Deductions</h3>
+              <h3 className="font-semibold text-sm text-red-600 uppercase tracking-wider">주요 감점</h3>
               <div className="grid gap-2">
-                <Label>Work Accidents (-40)</Label>
+                <Label>작업사고 (-40점)</Label>
                 <Input type="number" {...form.register("workAccident", { valueAsNumber: true })} className="border-red-200" />
               </div>
               <div className="grid gap-2">
-                <Label>Inspection Miss (-3)</Label>
+                <Label>점검 미준수 (-3점)</Label>
                 <Input type="number" {...form.register("inspectionMiss", { valueAsNumber: true })} className="border-red-200" />
               </div>
             </div>
 
             {/* Fines */}
             <div className="space-y-4 border rounded-xl p-4 bg-orange-50/50 border-orange-100 dark:bg-orange-900/10 dark:border-orange-900/30">
-              <h3 className="font-semibold text-sm text-orange-600 uppercase tracking-wider">Traffic Fines (-1)</h3>
+              <h3 className="font-semibold text-sm text-orange-600 uppercase tracking-wider">교통 벌금 (-1점)</h3>
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <Label className="text-xs">Speed</Label>
+                  <Label className="text-xs">과속</Label>
                   <Input type="number" {...form.register("fineSpeed", { valueAsNumber: true })} />
                 </div>
                 <div>
-                  <Label className="text-xs">Signal</Label>
+                  <Label className="text-xs">신호</Label>
                   <Input type="number" {...form.register("fineSignal", { valueAsNumber: true })} />
                 </div>
                 <div>
-                  <Label className="text-xs">Lane</Label>
+                  <Label className="text-xs">차선</Label>
                   <Input type="number" {...form.register("fineLane", { valueAsNumber: true })} />
                 </div>
               </div>
@@ -138,14 +138,14 @@ export function TeamEditDialog({ team, disabled }: Props) {
 
              {/* Bonus */}
              <div className="space-y-4 border rounded-xl p-4 bg-green-50/50 border-green-100 dark:bg-green-900/10 dark:border-green-900/30">
-              <h3 className="font-semibold text-sm text-green-600 uppercase tracking-wider">Bonuses (+3)</h3>
+              <h3 className="font-semibold text-sm text-green-600 uppercase tracking-wider">가점 (+3점)</h3>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label className="text-xs">Suggestions</Label>
+                  <Label className="text-xs">우수제안</Label>
                   <Input type="number" {...form.register("suggestion", { valueAsNumber: true })} />
                 </div>
                 <div>
-                  <Label className="text-xs">Activities</Label>
+                  <Label className="text-xs">우수활동</Label>
                   <Input type="number" {...form.register("activity", { valueAsNumber: true })} />
                 </div>
               </div>
@@ -155,7 +155,7 @@ export function TeamEditDialog({ team, disabled }: Props) {
             <div className="col-span-1 md:col-span-2 space-y-4 border rounded-xl p-4 bg-slate-50 border-slate-200 dark:bg-slate-900/20 dark:border-slate-800">
               <h3 className="font-semibold text-sm flex items-center gap-2">
                 <Car className="w-4 h-4" />
-                Vehicle Accidents Breakdown
+                차량사고 상세
               </h3>
               <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
                 {[
