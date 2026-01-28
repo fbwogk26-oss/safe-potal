@@ -119,8 +119,8 @@ export default function Dashboard() {
                 </CardTitle>
                 <CardDescription>실시간 안전 점수 현황 (높을수록 우수)</CardDescription>
               </CardHeader>
-              <CardContent className="h-[400px] pt-4 relative">
-                <div className="absolute top-2 left-2 z-10 text-xs text-muted-foreground space-y-0.5">
+              <CardContent className="h-[280px] pt-4 relative">
+                <div className="absolute top-2 right-2 z-10 text-xs text-muted-foreground space-y-0.5 text-right">
                   <div className="flex items-center gap-1">
                     <span className="w-2 h-2 rounded-full bg-green-500"></span>
                     <span>우수 90+</span>
