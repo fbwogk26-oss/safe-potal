@@ -91,13 +91,18 @@ export default function VehicleManagement() {
 
   const stats = useMemo(() => {
     if (!vehicles) return { total: 0, operating: 0, maintenance: 0, idle: 0 };
+    const filtered = filterTeam === "all" ? vehicles : vehicles.filter(v => v.team === filterTeam);
     return {
-      total: vehicles.length,
-      operating: vehicles.filter(v => v.status === "운행중").length,
-      maintenance: vehicles.filter(v => v.status === "정비중").length,
-      idle: vehicles.filter(v => v.status === "대기").length,
+      total: filtered.length,
+      operating: filtered.filter(v => v.status === "운행중").length,
+      maintenance: filtered.filter(v => v.status === "정비중").length,
+      idle: filtered.filter(v => v.status === "대기").length,
     };
-  }, [vehicles]);
+  }, [vehicles, filterTeam]);
+
+  const handleStatClick = (status: string) => {
+    setFilterStatus(prev => prev === status ? "all" : status);
+  };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -220,7 +225,11 @@ export default function VehicleManagement() {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-slate-200 dark:border-slate-700">
+        <Card 
+          className={`bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-slate-200 dark:border-slate-700 cursor-pointer transition-all hover:shadow-lg ${filterStatus === "all" ? "ring-2 ring-slate-400 dark:ring-slate-500" : ""}`}
+          onClick={() => setFilterStatus("all")}
+          data-testid="stat-card-total"
+        >
           <CardContent className="p-4 flex items-center gap-4">
             <div className="p-3 bg-slate-200 dark:bg-slate-700 rounded-xl">
               <Car className="w-6 h-6 text-slate-600 dark:text-slate-300" />
@@ -231,7 +240,11 @@ export default function VehicleManagement() {
             </div>
           </CardContent>
         </Card>
-        <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/30 dark:to-green-800/20 border-green-200 dark:border-green-800">
+        <Card 
+          className={`bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/30 dark:to-green-800/20 border-green-200 dark:border-green-800 cursor-pointer transition-all hover:shadow-lg ${filterStatus === "운행중" ? "ring-2 ring-green-400 dark:ring-green-500" : ""}`}
+          onClick={() => handleStatClick("운행중")}
+          data-testid="stat-card-operating"
+        >
           <CardContent className="p-4 flex items-center gap-4">
             <div className="p-3 bg-green-200 dark:bg-green-800 rounded-xl">
               <CheckCircle className="w-6 h-6 text-green-600 dark:text-green-300" />
@@ -242,7 +255,11 @@ export default function VehicleManagement() {
             </div>
           </CardContent>
         </Card>
-        <Card className="bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-900/30 dark:to-amber-800/20 border-amber-200 dark:border-amber-800">
+        <Card 
+          className={`bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-900/30 dark:to-amber-800/20 border-amber-200 dark:border-amber-800 cursor-pointer transition-all hover:shadow-lg ${filterStatus === "정비중" ? "ring-2 ring-amber-400 dark:ring-amber-500" : ""}`}
+          onClick={() => handleStatClick("정비중")}
+          data-testid="stat-card-maintenance"
+        >
           <CardContent className="p-4 flex items-center gap-4">
             <div className="p-3 bg-amber-200 dark:bg-amber-800 rounded-xl">
               <Wrench className="w-6 h-6 text-amber-600 dark:text-amber-300" />
@@ -253,7 +270,11 @@ export default function VehicleManagement() {
             </div>
           </CardContent>
         </Card>
-        <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/20 border-blue-200 dark:border-blue-800">
+        <Card 
+          className={`bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/20 border-blue-200 dark:border-blue-800 cursor-pointer transition-all hover:shadow-lg ${filterStatus === "대기" ? "ring-2 ring-blue-400 dark:ring-blue-500" : ""}`}
+          onClick={() => handleStatClick("대기")}
+          data-testid="stat-card-idle"
+        >
           <CardContent className="p-4 flex items-center gap-4">
             <div className="p-3 bg-blue-200 dark:bg-blue-800 rounded-xl">
               <Shield className="w-6 h-6 text-blue-600 dark:text-blue-300" />
