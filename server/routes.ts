@@ -489,7 +489,7 @@ export async function registerRoutes(
   app.post(api.settings.setLock.path, async (req, res) => {
     const { isLocked, pin } = req.body;
     // Simple PIN check
-    if (pin && pin !== '2026') {
+    if (pin && pin !== '159753') {
       return res.status(401).json({ message: "Invalid PIN" });
     }
     await storage.setSetting('global_lock', String(isLocked));

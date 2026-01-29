@@ -107,13 +107,12 @@ function AdminButton({ isLocked }: { isLocked: boolean }) {
             <label className="text-sm font-medium">PIN 번호 입력</label>
             <Input 
               type="password" 
-              placeholder="••••" 
+              placeholder="••••••" 
               className="text-center tracking-widest text-lg font-mono"
-              maxLength={4}
+              maxLength={6}
               value={pin}
               onChange={(e) => setPin(e.target.value)}
             />
-            <p className="text-xs text-muted-foreground text-center">기본 PIN: 2026</p>
           </div>
           <Button 
             className="w-full" 
