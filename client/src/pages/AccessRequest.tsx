@@ -1,5 +1,4 @@
 import { useNotices, useCreateNotice, useDeleteNotice } from "@/hooks/use-notices";
-import { useLockStatus } from "@/hooks/use-settings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -45,8 +44,8 @@ export default function AccessRequest() {
   const { data: materials, isLoading } = useNotices("access");
   const { mutate: createMaterial, isPending: isCreating } = useCreateNotice();
   const { mutate: deleteMaterial } = useDeleteNotice();
-  const { data: lockData } = useLockStatus();
-  const isLocked = lockData?.isLocked;
+  // 출입신청은 잠금 상태에서도 사용 가능
+  const isLocked = false;
   const { toast } = useToast();
 
   const [formData, setFormData] = useState<AccessFormData>({
