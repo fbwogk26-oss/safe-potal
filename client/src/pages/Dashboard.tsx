@@ -22,8 +22,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useState } from "react";
-import { Download, RefreshCw, AlertTriangle, Trophy, AlertCircle, ShieldCheck, RotateCcw } from "lucide-react";
+import { useState, useRef } from "react";
+import * as XLSX from "xlsx";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { Download, RefreshCw, AlertTriangle, Trophy, AlertCircle, ShieldCheck, RotateCcw, Upload } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { TeamEditDialog } from "@/components/TeamEditDialog";
 import { cn } from "@/lib/utils";
@@ -32,6 +34,8 @@ import { motion } from "framer-motion";
 export default function Dashboard() {
   const [year, setYear] = useState(2026);
   const [baseVehicleCount, setBaseVehicleCount] = useState(15);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const { data: teams, isLoading, refetch, isRefetching } = useTeams(year);
   const { data: lockData } = useLockStatus();
@@ -39,6 +43,41 @@ export default function Dashboard() {
   const resetTeam = useResetTeam();
   const resetAllTeams = useResetAllTeams();
   const { toast } = useToast();
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const workbook = XLSX.read(arrayBuffer);
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet) as Record<string, unknown>[];
+
+      const mappedData = jsonData.map(row => ({
+        name: row['팀명'] || row['name'],
+        vehicleCount: Number(row['차량대수'] || row['vehicleCount']) || 0,
+        workAccident: Number(row['산업재해'] || row['workAccident']) || 0,
+        fineSpeed: Number(row['과속'] || row['fineSpeed']) || 0,
+        fineSignal: Number(row['신호위반'] || row['fineSignal']) || 0,
+        fineLane: Number(row['차선위반'] || row['fineLane']) || 0,
+        inspectionMiss: Number(row['점검미실시'] || row['inspectionMiss']) || 0,
+        suggestion: Number(row['제안'] || row['suggestion']) || 0,
+        activity: Number(row['활동'] || row['activity']) || 0,
+      }));
+
+      await apiRequest('POST', '/api/teams/import', { data: mappedData, year });
+      queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
+      toast({ title: "업로드 완료", description: `${mappedData.length}개 팀 데이터가 업로드되었습니다.` });
+    } catch (err) {
+      console.error(err);
+      toast({ variant: "destructive", title: "업로드 실패", description: "엑셀 파일 형식을 확인해주세요." });
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   const handleResetAll = () => {
     if (confirm(`${year}년도 모든 팀의 점수를 초기화하시겠습니까?`)) {
@@ -135,9 +174,31 @@ export default function Dashboard() {
             전체 초기화
           </Button>
 
-          <Button variant="secondary" size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white border-0">
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileUpload}
+            accept=".xlsx,.xls"
+            className="hidden"
+            data-testid="input-team-upload"
+          />
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isLocked || isUploading}
+          >
+            <Upload className={cn("w-4 h-4 mr-2", isUploading && "animate-spin")} />
+            엑셀 업로드
+          </Button>
+          <Button 
+            variant="secondary" 
+            size="sm" 
+            className="bg-emerald-600 hover:bg-emerald-700 text-white border-0"
+            onClick={() => window.location.href = `/api/teams/export?year=${year}`}
+          >
             <Download className="w-4 h-4 mr-2" />
-            내보내기
+            엑셀 다운로드
           </Button>
         </div>
       </div>

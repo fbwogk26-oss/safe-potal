@@ -158,6 +158,113 @@ export async function registerRoutes(
     res.json({ success: true, count: teams.length });
   });
 
+  // Team Excel Import
+  app.post('/api/teams/import', async (req, res) => {
+    try {
+      const { data, year } = req.body;
+      if (!Array.isArray(data)) {
+        return res.status(400).json({ message: "Invalid data format" });
+      }
+      
+      let updated = 0;
+      for (const row of data) {
+        const existingTeams = await storage.getTeams(year || 2026);
+        const team = existingTeams.find(t => t.name === row.name);
+        
+        if (team) {
+          const updateData = {
+            vehicleCount: row.vehicleCount || team.vehicleCount,
+            workAccident: row.workAccident ?? team.workAccident,
+            fineSpeed: row.fineSpeed ?? team.fineSpeed,
+            fineSignal: row.fineSignal ?? team.fineSignal,
+            fineLane: row.fineLane ?? team.fineLane,
+            inspectionMiss: row.inspectionMiss ?? team.inspectionMiss,
+            suggestion: row.suggestion ?? team.suggestion,
+            activity: row.activity ?? team.activity,
+          };
+          const totalScore = calculateScore(updateData);
+          await storage.updateTeam(team.id, { ...updateData, totalScore });
+          updated++;
+        } else if (row.name) {
+          const newTeam = {
+            name: row.name,
+            year: year || 2026,
+            vehicleCount: row.vehicleCount || 0,
+            workAccident: row.workAccident || 0,
+            fineSpeed: row.fineSpeed || 0,
+            fineSignal: row.fineSignal || 0,
+            fineLane: row.fineLane || 0,
+            inspectionMiss: row.inspectionMiss || 0,
+            suggestion: row.suggestion || 0,
+            activity: row.activity || 0,
+            vehicleAccidents: {},
+          };
+          const totalScore = calculateScore(newTeam);
+          await storage.createTeam({ ...newTeam, totalScore });
+          updated++;
+        }
+      }
+      
+      res.json({ success: true, count: updated });
+    } catch (err) {
+      console.error('Team import error:', err);
+      res.status(500).json({ message: "Import failed" });
+    }
+  });
+
+  // Team Excel Export
+  app.get('/api/teams/export', async (req, res) => {
+    const year = req.query.year ? Number(req.query.year) : 2026;
+    const teams = await storage.getTeams(year);
+    
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('팀안전점수');
+    
+    worksheet.columns = [
+      { header: '순번', key: 'no', width: 8 },
+      { header: '팀명', key: 'name', width: 15 },
+      { header: '차량대수', key: 'vehicleCount', width: 12 },
+      { header: '산업재해', key: 'workAccident', width: 12 },
+      { header: '과속', key: 'fineSpeed', width: 10 },
+      { header: '신호위반', key: 'fineSignal', width: 10 },
+      { header: '차선위반', key: 'fineLane', width: 10 },
+      { header: '점검미실시', key: 'inspectionMiss', width: 12 },
+      { header: '제안', key: 'suggestion', width: 10 },
+      { header: '활동', key: 'activity', width: 10 },
+      { header: '점수', key: 'totalScore', width: 10 },
+    ];
+    
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE0E0E0' }
+    };
+    
+    teams.forEach((t, idx) => {
+      worksheet.addRow({
+        no: idx + 1,
+        name: t.name,
+        vehicleCount: t.vehicleCount,
+        workAccident: t.workAccident,
+        fineSpeed: t.fineSpeed,
+        fineSignal: t.fineSignal,
+        fineLane: t.fineLane,
+        inspectionMiss: t.inspectionMiss,
+        suggestion: t.suggestion,
+        activity: t.activity,
+        totalScore: t.totalScore,
+      });
+    });
+    
+    const buffer = await workbook.xlsx.writeBuffer();
+    const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename=team_scores_${today}.xlsx`);
+    res.send(buffer);
+  });
+
   // === IMAGE UPLOAD ===
   app.use('/uploads', (await import('express')).default.static(uploadDir));
   
