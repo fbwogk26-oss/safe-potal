@@ -215,6 +215,23 @@ export async function registerRoutes(
     res.status(201).json(notice);
   });
 
+  app.put(api.notices.update.path, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const existing = await storage.getNotice(id);
+      if (!existing) return res.status(404).json({ message: "Notice not found" });
+      
+      const input = api.notices.update.input.parse(req.body);
+      const updated = await storage.updateNotice(id, input);
+      res.json(updated);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      throw err;
+    }
+  });
+
   app.delete(api.notices.delete.path, async (req, res) => {
     await storage.deleteNotice(Number(req.params.id));
     res.status(204).send();
