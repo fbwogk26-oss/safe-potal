@@ -1,10 +1,8 @@
 import { useNotices, useCreateNotice, useDeleteNotice } from "@/hooks/use-notices";
 import { useLockStatus } from "@/hooks/use-settings";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { MonitorPlay, Plus, Trash2, Upload, X, ChevronLeft, ChevronRight, Play, Pause, Image, Maximize2, Images } from "lucide-react";
+import { MonitorPlay, Trash2, Upload, X, ChevronLeft, ChevronRight, Play, Pause, Maximize2, Images } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { useState, useRef, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -19,17 +17,12 @@ export default function DigitalBoard() {
   const isLocked = lockData?.isLocked;
   const { toast } = useToast();
 
-  const [title, setTitle] = useState("");
-  const [content, setContent] = useState("");
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [bulkFiles, setBulkFiles] = useState<File[]>([]);
   const [bulkUploadProgress, setBulkUploadProgress] = useState(0);
   const [isBulkUploading, setIsBulkUploading] = useState(false);
-  const imageInputRef = useRef<HTMLInputElement>(null);
   const bulkInputRef = useRef<HTMLInputElement>(null);
   const slideshowRef = useRef<HTMLDivElement>(null);
 
@@ -42,31 +35,6 @@ export default function DigitalBoard() {
     }, 5000);
     return () => clearInterval(interval);
   }, [isPlaying, slideList.length]);
-
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    
-    setIsUploading(true);
-    const formData = new FormData();
-    formData.append('image', file);
-    
-    try {
-      const res = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
-      const data = await res.json();
-      if (data.imageUrl) {
-        setImageUrl(data.imageUrl);
-        toast({ title: "이미지 업로드 완료" });
-      }
-    } catch (err) {
-      toast({ variant: "destructive", title: "업로드 실패" });
-    } finally {
-      setIsUploading(false);
-    }
-  };
 
   const handleBulkFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -127,25 +95,6 @@ export default function DigitalBoard() {
     setBulkUploadProgress(0);
     if (bulkInputRef.current) bulkInputRef.current.value = "";
     toast({ title: `${successCount}개 슬라이드 등록 완료` });
-  };
-
-  const handleAdd = () => {
-    if (!title) {
-      toast({ variant: "destructive", title: "제목을 입력해주세요." });
-      return;
-    }
-    const contentData = JSON.stringify({
-      text: content,
-      imageUrl: imageUrl,
-    });
-    createSlide({ title, content: contentData, category: "digital_board" }, {
-      onSuccess: () => {
-        setTitle("");
-        setContent("");
-        setImageUrl(null);
-        toast({ title: "슬라이드 등록 완료" });
-      }
-    });
   };
 
   const handleDelete = (id: number) => {
@@ -352,90 +301,6 @@ export default function DigitalBoard() {
               </Button>
             </div>
           )}
-        </CardContent>
-      </Card>
-
-      <Card className="border-indigo-200 dark:border-indigo-900/30">
-        <CardHeader className="bg-indigo-50/50 dark:bg-indigo-900/10 border-b">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Plus className="w-5 h-5 text-indigo-600" />
-            개별 슬라이드 추가
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-6 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm font-medium mb-2 block">제목</label>
-                <Input 
-                  placeholder="슬라이드 제목" 
-                  value={title} 
-                  onChange={e => setTitle(e.target.value)}
-                  disabled={isLocked}
-                  data-testid="input-slide-title"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium mb-2 block">내용 (선택)</label>
-                <Textarea 
-                  placeholder="슬라이드에 표시할 내용..." 
-                  value={content} 
-                  onChange={e => setContent(e.target.value)}
-                  disabled={isLocked}
-                  className="min-h-[100px]"
-                  data-testid="input-slide-content"
-                />
-              </div>
-            </div>
-            <div className="space-y-4">
-              <label className="text-sm font-medium mb-2 block">이미지 (선택)</label>
-              <input
-                type="file"
-                accept="image/*"
-                ref={imageInputRef}
-                onChange={handleImageUpload}
-                className="hidden"
-                data-testid="input-slide-image"
-              />
-              {imageUrl ? (
-                <div className="relative">
-                  <img src={imageUrl} alt="미리보기" className="w-full h-48 object-cover rounded-lg border" />
-                  <Button
-                    variant="destructive"
-                    size="icon"
-                    className="absolute top-2 right-2 h-8 w-8"
-                    onClick={() => setImageUrl(null)}
-                  >
-                    <X className="w-4 h-4" />
-                  </Button>
-                </div>
-              ) : (
-                <div 
-                  onClick={() => !isLocked && imageInputRef.current?.click()}
-                  className={`w-full h-48 border-2 border-dashed rounded-lg flex flex-col items-center justify-center gap-2 transition-colors ${isLocked ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/50 dark:hover:bg-indigo-900/10'}`}
-                >
-                  {isUploading ? (
-                    <p className="text-muted-foreground">업로드 중...</p>
-                  ) : (
-                    <>
-                      <Image className="w-8 h-8 text-muted-foreground" />
-                      <p className="text-sm text-muted-foreground">클릭하여 이미지 업로드</p>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-          <div className="flex justify-end">
-            <Button 
-              onClick={handleAdd} 
-              disabled={isLocked || isCreating || !title}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2"
-              data-testid="button-add-slide"
-            >
-              <Plus className="w-4 h-4" /> 슬라이드 추가
-            </Button>
-          </div>
         </CardContent>
       </Card>
 
