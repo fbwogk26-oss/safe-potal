@@ -25,7 +25,7 @@ export function Topbar() {
         {/* Top Level */}
         <div className="px-4 py-3 md:px-6 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div className="md:hidden font-display font-bold text-xl">SafeBoard</div>
+            <div className="md:hidden font-display font-bold text-xl">종합안전포털</div>
             {isLocked && (
               <div className="hidden md:flex items-center gap-2 px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-bold border border-red-200 animate-pulse">
                 <Lock className="w-3 h-3" /> 시스템 잠김

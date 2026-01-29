@@ -264,7 +264,7 @@ export async function registerRoutes(
       const row1Cell = worksheet.getCell('A1');
       const entranceLocation = data.entranceLocation || '';
       const visitPurpose = data.visitPurpose || '';
-      row1Cell.value = `kt MOS남부 대구본부  ${visitPurpose}를 위한 출입신청(출입장소: ${entranceLocation})`;
+      row1Cell.value = `kt MOS남부 대구본부 "${visitPurpose}" 을/를 위한 출입신청(출입장소: "${entranceLocation}")`;
 
       const supervisorDept = data.supervisorDepartment || '';
       const supervisorName = data.supervisorName || '';
@@ -296,9 +296,11 @@ export async function registerRoutes(
         worksheet.getCell('A3').value = `방문기간 : ${formattedStart} ${startTime} ~ ${formattedEnd} ${endTime}`;
       }
 
+      worksheet.spliceColumns(8, 2);
+
       const templateRow = worksheet.getRow(5);
       const templateStyle: any = {};
-      for (let col = 1; col <= 8; col++) {
+      for (let col = 1; col <= 7; col++) {
         const cell = templateRow.getCell(col);
         templateStyle[col] = {
           font: cell.font ? { ...cell.font } : undefined,
@@ -338,7 +340,7 @@ export async function registerRoutes(
       const buffer = await workbook.xlsx.writeBuffer();
       
       const today = new Date().toISOString().slice(0, 10).replace(/-/g, '.');
-      const filename = encodeURIComponent(`효목사옥_출입신청서_${today}.xlsx`);
+      const filename = encodeURIComponent(`kt MOS남부 대구본부 ${visitPurpose} 을를 위한 출입신청(출입장소 ${entranceLocation})_${today}.xlsx`);
       
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);

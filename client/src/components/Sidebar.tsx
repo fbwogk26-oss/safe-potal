@@ -61,8 +61,8 @@ export function Sidebar() {
               <ShieldCheck className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="font-display font-bold text-lg leading-tight">안전보드</h1>
-              <p className="text-xs text-muted-foreground">포털 시스템</p>
+              <h1 className="font-display font-bold text-lg leading-tight">종합안전</h1>
+              <p className="text-xs text-muted-foreground">포털시스템</p>
             </div>
           </div>
         </div>
@@ -88,7 +88,7 @@ export function Sidebar() {
                 <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-white">
                   <ShieldCheck className="w-5 h-5" />
                 </div>
-                <h2 className="font-bold text-lg">SafeBoard</h2>
+                <h2 className="font-bold text-lg">종합안전포털</h2>
               </div>
             </div>
             <div className="px-4">
