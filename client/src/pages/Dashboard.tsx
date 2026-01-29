@@ -68,9 +68,9 @@ export default function Dashboard() {
   const sortedTeams = teams ? [...teams].sort((a, b) => b.totalScore - a.totalScore) : [];
 
   const getScoreColor = (score: number) => {
-    if (score >= 90) return "var(--score-good)";
-    if (score >= 80) return "var(--score-warning)";
-    return "var(--score-danger)";
+    if (score >= 90) return "#10b981";
+    if (score >= 80) return "#f59e0b";
+    return "#ef4444";
   };
 
   const getScoreBadge = (score: number) => {
@@ -177,27 +177,27 @@ export default function Dashboard() {
               <CardContent className="h-[280px] pt-4">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={orderedTeams} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.5} />
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" opacity={0.5} />
                     <XAxis 
                       dataKey="name" 
                       axisLine={false} 
                       tickLine={false} 
-                      tick={{ fill: 'var(--foreground)', fontSize: 13, fontWeight: 600 }}
+                      tick={{ fill: '#1e293b', fontSize: 13, fontWeight: 600 }}
                       interval={0}
                     />
                     <YAxis 
                       domain={[0, 100]} 
                       axisLine={false} 
                       tickLine={false}
-                      tick={{ fill: 'var(--muted-foreground)', fontSize: 12 }}
+                      tick={{ fill: '#64748b', fontSize: 12 }}
                     />
                     <Tooltip 
-                      cursor={{ fill: 'var(--primary)', opacity: 0.05 }}
+                      cursor={{ fill: '#3b82f6', opacity: 0.05 }}
                       content={({ active, payload }) => {
                         if (active && payload && payload.length) {
                           const data = payload[0].payload;
                           return (
-                            <div className="bg-background/95 backdrop-blur-md border shadow-xl p-4 rounded-xl">
+                            <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-xl p-4 rounded-xl">
                               <p className="font-bold text-lg mb-2 border-b pb-1">{data.name}</p>
                               <div className="space-y-1 text-sm">
                                 <div className="flex justify-between gap-4">
