@@ -32,7 +32,7 @@ export default function DigitalBoard() {
     if (!isPlaying || slideList.length === 0) return;
     const interval = setInterval(() => {
       setCurrentSlide(prev => (prev + 1) % slideList.length);
-    }, 5000);
+    }, 10000);
     return () => clearInterval(interval);
   }, [isPlaying, slideList.length]);
 
