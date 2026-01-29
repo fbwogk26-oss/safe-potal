@@ -256,18 +256,30 @@ export default function VehicleManagement() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <div className="flex items-center gap-4">
-          <div className="bg-gradient-to-br from-cyan-500 to-blue-600 p-4 rounded-2xl text-white shadow-lg shadow-cyan-500/30">
-            <Car className="w-8 h-8" />
+    <div className="max-w-7xl mx-auto space-y-4 sm:space-y-6">
+      <div className="flex flex-col gap-3 sm:gap-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 sm:gap-4">
+            <div className="bg-gradient-to-br from-cyan-500 to-blue-600 p-2.5 sm:p-3 md:p-4 rounded-xl sm:rounded-2xl text-white shadow-lg shadow-cyan-500/30">
+              <Car className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8" />
+            </div>
+            <div>
+              <h2 className="text-xl sm:text-2xl md:text-3xl font-display font-bold text-foreground">차량 관리</h2>
+              <p className="text-xs sm:text-sm text-muted-foreground">업무용 차량 관리</p>
+            </div>
           </div>
-          <div>
-            <h2 className="text-3xl font-display font-bold text-foreground">차량 관리</h2>
-            <p className="text-muted-foreground mt-1">회사 업무용 차량을 관리합니다.</p>
-          </div>
+          {!isLocked && (
+            <Button 
+              size="sm"
+              onClick={() => { resetForm(); setShowAddDialog(true); }}
+              className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white gap-1.5 shadow-lg h-8 sm:h-9 text-xs sm:text-sm"
+              data-testid="button-add-vehicle"
+            >
+              <Plus className="w-4 h-4" /> <span className="hidden sm:inline">차량 등록</span><span className="sm:hidden">등록</span>
+            </Button>
+          )}
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-1.5 sm:gap-2">
           <input
             type="file"
             ref={excelInputRef}
@@ -278,46 +290,39 @@ export default function VehicleManagement() {
           />
           <Button 
             variant="outline"
+            size="sm"
             onClick={() => excelInputRef.current?.click()}
             disabled={isLocked || isExcelUploading}
-            className="gap-2"
+            className="gap-1.5 h-8 text-xs"
             data-testid="button-upload-vehicles"
           >
-            <Upload className="w-4 h-4" /> {isExcelUploading ? "업로드 중..." : "엑셀 업로드"}
+            <Upload className="w-3.5 h-3.5" /> <span className="hidden sm:inline">{isExcelUploading ? "업로드 중..." : "엑셀 업로드"}</span><span className="sm:hidden">업로드</span>
           </Button>
           <Button 
             variant="outline"
+            size="sm"
             onClick={() => window.location.href = '/api/vehicles/export'}
-            className="gap-2"
+            className="gap-1.5 h-8 text-xs"
             data-testid="button-export-vehicles"
           >
-            <Download className="w-4 h-4" /> 엑셀 다운로드
+            <Download className="w-3.5 h-3.5" /> <span className="hidden sm:inline">엑셀 다운로드</span><span className="sm:hidden">다운로드</span>
           </Button>
-          {!isLocked && (
-            <Button 
-              onClick={() => { resetForm(); setShowAddDialog(true); }}
-              className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white gap-2 shadow-lg"
-              data-testid="button-add-vehicle"
-            >
-              <Plus className="w-4 h-4" /> 차량 등록
-            </Button>
-          )}
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4">
         <Card 
           className={`bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-slate-200 dark:border-slate-700 cursor-pointer transition-all hover:shadow-lg ${filterStatus === "all" ? "ring-2 ring-slate-400 dark:ring-slate-500" : ""}`}
           onClick={() => setFilterStatus("all")}
           data-testid="stat-card-total"
         >
-          <CardContent className="p-4 flex items-center gap-4">
-            <div className="p-3 bg-slate-200 dark:bg-slate-700 rounded-xl">
-              <Car className="w-6 h-6 text-slate-600 dark:text-slate-300" />
+          <CardContent className="p-2.5 sm:p-4 flex items-center gap-2 sm:gap-4">
+            <div className="p-2 sm:p-3 bg-slate-200 dark:bg-slate-700 rounded-lg sm:rounded-xl">
+              <Car className="w-4 h-4 sm:w-6 sm:h-6 text-slate-600 dark:text-slate-300" />
             </div>
             <div>
-              <p className="text-2xl font-bold">{stats.total}</p>
-              <p className="text-sm text-muted-foreground">전체 차량</p>
+              <p className="text-lg sm:text-2xl font-bold">{stats.total}</p>
+              <p className="text-xs sm:text-sm text-muted-foreground">전체</p>
             </div>
           </CardContent>
         </Card>
@@ -326,13 +331,13 @@ export default function VehicleManagement() {
           onClick={() => handleStatClick("운행중")}
           data-testid="stat-card-operating"
         >
-          <CardContent className="p-4 flex items-center gap-4">
-            <div className="p-3 bg-green-200 dark:bg-green-800 rounded-xl">
-              <CheckCircle className="w-6 h-6 text-green-600 dark:text-green-300" />
+          <CardContent className="p-2.5 sm:p-4 flex items-center gap-2 sm:gap-4">
+            <div className="p-2 sm:p-3 bg-green-200 dark:bg-green-800 rounded-lg sm:rounded-xl">
+              <CheckCircle className="w-4 h-4 sm:w-6 sm:h-6 text-green-600 dark:text-green-300" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-green-700 dark:text-green-400">{stats.operating}</p>
-              <p className="text-sm text-muted-foreground">운행중</p>
+              <p className="text-lg sm:text-2xl font-bold text-green-700 dark:text-green-400">{stats.operating}</p>
+              <p className="text-xs sm:text-sm text-muted-foreground">운행중</p>
             </div>
           </CardContent>
         </Card>
@@ -341,13 +346,13 @@ export default function VehicleManagement() {
           onClick={() => handleStatClick("정비중")}
           data-testid="stat-card-maintenance"
         >
-          <CardContent className="p-4 flex items-center gap-4">
-            <div className="p-3 bg-amber-200 dark:bg-amber-800 rounded-xl">
-              <Wrench className="w-6 h-6 text-amber-600 dark:text-amber-300" />
+          <CardContent className="p-2.5 sm:p-4 flex items-center gap-2 sm:gap-4">
+            <div className="p-2 sm:p-3 bg-amber-200 dark:bg-amber-800 rounded-lg sm:rounded-xl">
+              <Wrench className="w-4 h-4 sm:w-6 sm:h-6 text-amber-600 dark:text-amber-300" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-amber-700 dark:text-amber-400">{stats.maintenance}</p>
-              <p className="text-sm text-muted-foreground">정비중</p>
+              <p className="text-lg sm:text-2xl font-bold text-amber-700 dark:text-amber-400">{stats.maintenance}</p>
+              <p className="text-xs sm:text-sm text-muted-foreground">정비중</p>
             </div>
           </CardContent>
         </Card>
@@ -356,34 +361,34 @@ export default function VehicleManagement() {
           onClick={() => handleStatClick("대기")}
           data-testid="stat-card-idle"
         >
-          <CardContent className="p-4 flex items-center gap-4">
-            <div className="p-3 bg-blue-200 dark:bg-blue-800 rounded-xl">
-              <Shield className="w-6 h-6 text-blue-600 dark:text-blue-300" />
+          <CardContent className="p-2.5 sm:p-4 flex items-center gap-2 sm:gap-4">
+            <div className="p-2 sm:p-3 bg-blue-200 dark:bg-blue-800 rounded-lg sm:rounded-xl">
+              <Shield className="w-4 h-4 sm:w-6 sm:h-6 text-blue-600 dark:text-blue-300" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-blue-700 dark:text-blue-400">{stats.idle}</p>
-              <p className="text-sm text-muted-foreground">대기</p>
+              <p className="text-lg sm:text-2xl font-bold text-blue-700 dark:text-blue-400">{stats.idle}</p>
+              <p className="text-xs sm:text-sm text-muted-foreground">대기</p>
             </div>
           </CardContent>
         </Card>
       </div>
 
       <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-wrap gap-3">
-            <div className="relative flex-1 min-w-[200px]">
+        <CardContent className="p-2.5 sm:p-4">
+          <div className="flex flex-wrap gap-2 sm:gap-3">
+            <div className="relative flex-1 min-w-[120px]">
               <Input 
-                placeholder="차량번호, 모델, 담당자 검색..." 
+                placeholder="검색..." 
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                className="pr-9"
+                className="pr-8 h-9 text-sm"
                 data-testid="input-search-vehicles"
               />
-              <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             </div>
             <Select value={filterTeam} onValueChange={setFilterTeam}>
-              <SelectTrigger className="w-[160px]" data-testid="select-filter-team">
-                <SelectValue placeholder="팀 선택" />
+              <SelectTrigger className="w-[100px] sm:w-[140px] h-9 text-xs sm:text-sm" data-testid="select-filter-team">
+                <SelectValue placeholder="팀" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">전체 팀</SelectItem>

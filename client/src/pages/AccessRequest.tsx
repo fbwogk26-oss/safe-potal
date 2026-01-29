@@ -160,32 +160,32 @@ export default function AccessRequest() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
-      <div className="flex items-center justify-between">
+    <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6 md:space-y-8">
+      <div className="flex items-center gap-2 sm:gap-3">
+        <div className="bg-purple-100 p-2 sm:p-2.5 rounded-lg sm:rounded-xl text-purple-600 dark:bg-purple-900/30 dark:text-purple-400">
+          <DoorOpen className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8" />
+        </div>
         <div>
-          <h2 className="text-3xl font-display font-bold text-foreground flex items-center gap-3">
-            <div className="bg-purple-100 p-2 rounded-xl text-purple-600 dark:bg-purple-900/30 dark:text-purple-400">
-              <DoorOpen className="w-8 h-8" />
-            </div>
+          <h2 className="text-xl sm:text-2xl md:text-3xl font-display font-bold text-foreground">
             출입신청(효목)
           </h2>
-          <p className="text-muted-foreground mt-2">효목 사업소 출입신청을 관리합니다.</p>
+          <p className="text-xs sm:text-sm text-muted-foreground">효목 사업소 출입신청</p>
         </div>
       </div>
 
       <Card className="glass-card overflow-hidden border-purple-200 dark:border-purple-900/30">
-        <CardContent className="p-6 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>방문기간 (시작)</Label>
-              <div className="flex gap-2">
+        <CardContent className="p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+            <div className="space-y-1.5 sm:space-y-2">
+              <Label className="text-xs sm:text-sm">방문기간 (시작)</Label>
+              <div className="flex gap-1.5 sm:gap-2">
                 <Input 
                   type="date"
                   value={formData.visitPeriodStartDate}
                   onChange={e => handleChange("visitPeriodStartDate", e.target.value)}
                   disabled={isLocked}
                   data-testid="input-visit-start-date"
-                  className="flex-1"
+                  className="flex-1 h-9 text-sm"
                 />
                 <Input 
                   type="time"
@@ -193,20 +193,20 @@ export default function AccessRequest() {
                   onChange={e => handleChange("visitPeriodStartTime", e.target.value)}
                   disabled={isLocked}
                   data-testid="input-visit-start-time"
-                  className="w-28"
+                  className="w-20 sm:w-24 h-9 text-sm"
                 />
               </div>
             </div>
-            <div className="space-y-2">
-              <Label>방문기간 (종료)</Label>
-              <div className="flex gap-2">
+            <div className="space-y-1.5 sm:space-y-2">
+              <Label className="text-xs sm:text-sm">방문기간 (종료)</Label>
+              <div className="flex gap-1.5 sm:gap-2">
                 <Input 
                   type="date"
                   value={formData.visitPeriodEndDate}
                   onChange={e => handleChange("visitPeriodEndDate", e.target.value)}
                   disabled={isLocked}
                   data-testid="input-visit-end-date"
-                  className="flex-1"
+                  className="flex-1 h-9 text-sm"
                 />
                 <Input 
                   type="time"
@@ -214,66 +214,71 @@ export default function AccessRequest() {
                   onChange={e => handleChange("visitPeriodEndTime", e.target.value)}
                   disabled={isLocked}
                   data-testid="input-visit-end-time"
-                  className="w-28"
+                  className="w-20 sm:w-24 h-9 text-sm"
                 />
               </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>방문목적 *</Label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+            <div className="space-y-1.5 sm:space-y-2">
+              <Label className="text-xs sm:text-sm">방문목적 *</Label>
               <Input 
                 placeholder="예: 주간업무회의" 
                 value={formData.visitPurpose}
                 onChange={e => handleChange("visitPurpose", e.target.value)}
                 disabled={isLocked}
                 data-testid="input-visit-purpose"
+                className="h-9 text-sm"
               />
             </div>
-            <div className="space-y-2">
-              <Label>출입장소</Label>
+            <div className="space-y-1.5 sm:space-y-2">
+              <Label className="text-xs sm:text-sm">출입장소</Label>
               <Input 
                 placeholder="예: 9층" 
                 value={formData.entranceLocation}
                 onChange={e => handleChange("entranceLocation", e.target.value)}
                 disabled={isLocked}
                 data-testid="input-entrance-location"
+                className="h-9 text-sm"
               />
             </div>
           </div>
 
-          <div className="border-t pt-4">
-            <h3 className="font-semibold mb-3 text-purple-700 dark:text-purple-400">인솔자 정보</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label>인솔자 소속</Label>
+          <div className="border-t pt-3 sm:pt-4">
+            <h3 className="font-semibold mb-2 sm:mb-3 text-sm sm:text-base text-purple-700 dark:text-purple-400">인솔자 정보</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+              <div className="space-y-1.5 sm:space-y-2">
+                <Label className="text-xs sm:text-sm">인솔자 소속</Label>
                 <Input 
-                  placeholder="예: kt MOS남부 대구본부 현장경영팀" 
+                  placeholder="소속" 
                   value={formData.supervisorDepartment}
                   onChange={e => handleChange("supervisorDepartment", e.target.value)}
                   disabled={isLocked}
                   data-testid="input-supervisor-department"
+                  className="h-9 text-sm"
                 />
               </div>
-              <div className="space-y-2">
-                <Label>인솔자 이름</Label>
+              <div className="space-y-1.5 sm:space-y-2">
+                <Label className="text-xs sm:text-sm">인솔자 이름</Label>
                 <Input 
                   placeholder="이름" 
                   value={formData.supervisorName}
                   onChange={e => handleChange("supervisorName", e.target.value)}
                   disabled={isLocked}
                   data-testid="input-supervisor-name"
+                  className="h-9 text-sm"
                 />
               </div>
-              <div className="space-y-2">
-                <Label>인솔자 연락처</Label>
+              <div className="space-y-1.5 sm:space-y-2">
+                <Label className="text-xs sm:text-sm">인솔자 연락처</Label>
                 <Input 
                   placeholder="010-0000-0000" 
                   value={formData.supervisorPhone}
                   onChange={e => handleChange("supervisorPhone", e.target.value)}
                   disabled={isLocked}
                   data-testid="input-supervisor-phone"
+                  className="h-9 text-sm"
                 />
               </div>
             </div>

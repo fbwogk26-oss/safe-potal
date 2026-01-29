@@ -141,14 +141,14 @@ export default function DigitalBoard() {
   }, []);
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8">
-      <div className="flex items-center gap-4">
-        <div className="bg-indigo-100 p-3 rounded-xl text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400">
-          <MonitorPlay className="w-8 h-8" />
+    <div className="max-w-6xl mx-auto space-y-4 sm:space-y-6 md:space-y-8">
+      <div className="flex items-center gap-2 sm:gap-3">
+        <div className="bg-indigo-100 p-2 sm:p-2.5 md:p-3 rounded-lg sm:rounded-xl text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400">
+          <MonitorPlay className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8" />
         </div>
         <div>
-          <h2 className="text-3xl font-display font-bold text-foreground">전자게시판</h2>
-          <p className="text-muted-foreground mt-1">슬라이드 형태로 공지사항을 게시합니다.</p>
+          <h2 className="text-xl sm:text-2xl md:text-3xl font-display font-bold text-foreground">전자게시판</h2>
+          <p className="text-xs sm:text-sm text-muted-foreground">슬라이드 공지사항</p>
         </div>
       </div>
 
@@ -240,13 +240,13 @@ export default function DigitalBoard() {
       </div>
 
       <Card className="border-indigo-200 dark:border-indigo-900/30">
-        <CardHeader className="bg-indigo-50/50 dark:bg-indigo-900/10 border-b">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Images className="w-5 h-5 text-indigo-600" />
+        <CardHeader className="bg-indigo-50/50 dark:bg-indigo-900/10 border-b p-3 sm:p-4 md:p-6">
+          <CardTitle className="text-sm sm:text-base md:text-lg flex items-center gap-2">
+            <Images className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-600" />
             대량 업로드 (최대 30개)
           </CardTitle>
         </CardHeader>
-        <CardContent className="p-6 space-y-4">
+        <CardContent className="p-3 sm:p-4 md:p-6 space-y-3 sm:space-y-4">
           <input
             type="file"
             accept="image/*"
@@ -258,12 +258,12 @@ export default function DigitalBoard() {
           />
           <div 
             onClick={() => !isLocked && !isBulkUploading && bulkInputRef.current?.click()}
-            className={`w-full border-2 border-dashed rounded-lg p-8 flex flex-col items-center justify-center gap-3 transition-colors ${isLocked || isBulkUploading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/50 dark:hover:bg-indigo-900/10'}`}
+            className={`w-full border-2 border-dashed rounded-lg p-4 sm:p-6 md:p-8 flex flex-col items-center justify-center gap-2 sm:gap-3 transition-colors ${isLocked || isBulkUploading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/50 dark:hover:bg-indigo-900/10'}`}
           >
-            <Images className="w-12 h-12 text-indigo-500" />
+            <Images className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 text-indigo-500" />
             <div className="text-center">
-              <p className="font-medium">클릭하여 이미지 선택</p>
-              <p className="text-sm text-muted-foreground">한 번에 최대 30개까지 업로드 가능</p>
+              <p className="font-medium text-sm sm:text-base">클릭하여 이미지 선택</p>
+              <p className="text-xs sm:text-sm text-muted-foreground">최대 30개까지 업로드 가능</p>
             </div>
           </div>
           

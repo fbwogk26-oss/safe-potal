@@ -66,16 +66,16 @@ export default function Notices() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
-      <div className="flex items-center justify-between">
+    <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6 md:space-y-8">
+      <div className="flex items-center gap-2 sm:gap-3">
+        <div className="bg-orange-100 p-2 sm:p-2.5 rounded-lg sm:rounded-xl text-orange-600 dark:bg-orange-900/30 dark:text-orange-400">
+          <Megaphone className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8" />
+        </div>
         <div>
-          <h2 className="text-3xl font-display font-bold text-foreground flex items-center gap-3">
-            <div className="bg-orange-100 p-2 rounded-xl text-orange-600 dark:bg-orange-900/30 dark:text-orange-400">
-              <Megaphone className="w-8 h-8" />
-            </div>
+          <h2 className="text-xl sm:text-2xl md:text-3xl font-display font-bold text-foreground">
             공지 및 알림
           </h2>
-          <p className="text-muted-foreground mt-2">시스템 전반의 공지사항 및 업데이트입니다.</p>
+          <p className="text-xs sm:text-sm text-muted-foreground">시스템 공지사항</p>
         </div>
       </div>
 

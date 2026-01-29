@@ -1,4 +1,4 @@
-import { Bell, Lock, Unlock, Settings, RotateCw } from "lucide-react";
+import { Bell, Lock, Unlock, Settings, RotateCw, Menu } from "lucide-react";
 import { useLockStatus, useSetLock } from "@/hooks/use-settings";
 import { Button } from "@/components/ui/button";
 import { useNotices } from "@/hooks/use-notices";
@@ -9,31 +9,103 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { Link, useLocation } from "wouter";
+import { 
+  LayoutDashboard, 
+  ShieldCheck, 
+  GraduationCap, 
+  DoorOpen,
+  Car,
+  HardHat,
+  MonitorPlay
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+
+const NAV_ITEMS = [
+  { label: "대시보드", href: "/", icon: LayoutDashboard },
+  { label: "안전수칙", href: "/rules", icon: ShieldCheck },
+  { label: "공지/알림", href: "/notices", icon: Bell },
+  { label: "안전교육", href: "/education", icon: GraduationCap },
+  { label: "차량관리", href: "/vehicle", icon: Car },
+  { label: "안전보호구", href: "/equipment", icon: HardHat },
+  { label: "출입신청", href: "/access", icon: DoorOpen },
+  { label: "전자게시판", href: "/digital-board", icon: MonitorPlay },
+];
 
 export function Topbar() {
   const { data: lockData, isLoading: lockLoading } = useLockStatus();
   const { data: notices } = useNotices("notice");
   const latestNotice = notices && notices.length > 0 ? notices[0] : null;
   const isLocked = lockData?.isLocked;
+  const [location] = useLocation();
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   return (
-    <header className="sticky top-0 z-20 w-full glass-panel border-b-0 rounded-none md:rounded-b-2xl mb-6">
+    <header className="sticky top-0 z-20 w-full glass-panel border-b-0 rounded-none md:rounded-b-2xl mb-4 md:mb-6">
       <div className="flex flex-col">
         {/* Top Level */}
-        <div className="px-4 py-3 md:px-6 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="md:hidden font-display font-bold text-xl">종합안전포털</div>
+        <div className="px-3 py-2 md:px-6 md:py-3 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 md:gap-4">
+            {/* Mobile Menu Button */}
+            <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon" className="md:hidden h-9 w-9">
+                  <Menu className="w-5 h-5" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="w-72 p-0">
+                <div className="p-4 border-b bg-primary/5">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-primary to-blue-600 flex items-center justify-center text-white shadow-lg">
+                      <ShieldCheck className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h2 className="font-display font-bold text-base">종합안전포털</h2>
+                      <p className="text-xs text-muted-foreground">시스템</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="px-3 py-2">
+                  <div className="flex flex-col gap-1">
+                    {NAV_ITEMS.map((item) => (
+                      <Link 
+                        key={item.href} 
+                        href={item.href}
+                        onClick={() => setSheetOpen(false)}
+                        className={cn(
+                          "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 font-medium text-sm",
+                          location === item.href 
+                            ? "bg-primary text-primary-foreground shadow-md" 
+                            : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                        )}
+                      >
+                        <item.icon className="w-4 h-4" />
+                        <span>{item.label}</span>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              </SheetContent>
+            </Sheet>
+            
+            <div className="md:hidden font-display font-bold text-base truncate">종합안전포털</div>
             {isLocked && (
               <div className="hidden md:flex items-center gap-2 px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-bold border border-red-200 animate-pulse">
                 <Lock className="w-3 h-3" /> 시스템 잠김
               </div>
             )}
+            {isLocked && (
+              <div className="md:hidden flex items-center">
+                <Lock className="w-4 h-4 text-red-500" />
+              </div>
+            )}
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <AdminButton isLocked={isLocked || false} />
           </div>
         </div>

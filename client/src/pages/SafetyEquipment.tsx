@@ -133,20 +133,20 @@ export default function SafetyEquipment() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8">
-      <div className="flex items-center justify-between">
+    <div className="max-w-5xl mx-auto space-y-4 sm:space-y-6 md:space-y-8">
+      <div className="flex items-center gap-2 sm:gap-3">
+        <div className="bg-amber-100 p-2 sm:p-2.5 rounded-lg sm:rounded-xl text-amber-600 dark:bg-amber-900/30 dark:text-amber-400">
+          <HardHat className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8" />
+        </div>
         <div>
-          <h2 className="text-3xl font-display font-bold text-foreground flex items-center gap-3">
-            <div className="bg-amber-100 p-2 rounded-xl text-amber-600 dark:bg-amber-900/30 dark:text-amber-400">
-              <HardHat className="w-8 h-8" />
-            </div>
+          <h2 className="text-xl sm:text-2xl md:text-3xl font-display font-bold text-foreground">
             안전보호구 관리
           </h2>
-          <p className="text-muted-foreground mt-2">안전보호구 관리 자료 및 문서를 관리합니다.</p>
+          <p className="text-xs sm:text-sm text-muted-foreground">보호구 관리 및 문서</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 md:gap-6">
         {SUBMENU_ITEMS.map((item) => (
           <Link key={item.href} href={item.href}>
             <Card className={`group cursor-pointer hover:shadow-lg transition-all duration-300 ${item.borderColor}`} data-testid={`card-submenu-${item.href.split('/').pop()}`}>

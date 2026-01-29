@@ -125,17 +125,13 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between glass-card p-6 rounded-2xl">
-        <div>
-          <h2 className="text-2xl font-display font-bold text-foreground">종합 현황</h2>
-        </div>
-        
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2 bg-background p-1 rounded-lg border">
-            <span className="text-xs font-medium px-2 text-muted-foreground">연도</span>
+    <div className="space-y-4 md:space-y-6">
+      <div className="flex flex-col gap-3 glass-card p-3 sm:p-4 md:p-6 rounded-xl md:rounded-2xl">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg sm:text-xl md:text-2xl font-display font-bold text-foreground">종합 현황</h2>
+          <div className="flex items-center gap-1.5 sm:gap-2">
             <Select value={String(year)} onValueChange={(v) => setYear(Number(v))}>
-              <SelectTrigger className="h-8 w-24 border-0 shadow-none focus:ring-0">
+              <SelectTrigger className="h-8 w-20 sm:w-24 text-xs sm:text-sm">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -144,34 +140,35 @@ export default function Dashboard() {
                 <SelectItem value="2026">2026</SelectItem>
               </SelectContent>
             </Select>
+            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => refetch()} disabled={isRefetching}>
+              <RefreshCw className={cn("w-4 h-4", isRefetching && "animate-spin")} />
+            </Button>
           </div>
-
-          <div className="flex items-center gap-2 bg-background p-1 rounded-lg border">
-            <span className="text-xs font-medium px-2 text-muted-foreground">기준 차량수</span>
+        </div>
+        
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+          <div className="flex items-center gap-1 bg-background px-2 py-1 rounded-lg border text-xs">
+            <span className="text-muted-foreground hidden sm:inline">기준</span>
+            <span className="text-muted-foreground">차량</span>
             <Input 
               type="number" 
               value={baseVehicleCount} 
               onChange={(e) => setBaseVehicleCount(Number(e.target.value))}
-              className="h-8 w-16 border-0 shadow-none focus-visible:ring-0 text-right"
+              className="h-6 w-12 border-0 shadow-none focus-visible:ring-0 text-right text-xs p-0"
               disabled={isLocked}
             />
           </div>
-
-          <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isRefetching}>
-            <RefreshCw className={cn("w-4 h-4 mr-2", isRefetching && "animate-spin")} />
-            새로고침
-          </Button>
 
           <Button 
             variant="outline" 
             size="sm" 
             onClick={handleResetAll} 
             disabled={isLocked || resetAllTeams.isPending}
-            className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+            className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 h-7 text-xs px-2"
             data-testid="button-reset-all"
           >
-            <RotateCcw className={cn("w-4 h-4 mr-2", resetAllTeams.isPending && "animate-spin")} />
-            전체 초기화
+            <RotateCcw className={cn("w-3 h-3 sm:mr-1", resetAllTeams.isPending && "animate-spin")} />
+            <span className="hidden sm:inline">초기화</span>
           </Button>
 
           <input
@@ -184,21 +181,22 @@ export default function Dashboard() {
           />
           <Button 
             variant="outline" 
-            size="sm" 
+            size="sm"
+            className="h-7 text-xs px-2"
             onClick={() => fileInputRef.current?.click()}
             disabled={isLocked || isUploading}
           >
-            <Upload className={cn("w-4 h-4 mr-2", isUploading && "animate-spin")} />
-            엑셀 업로드
+            <Upload className={cn("w-3 h-3 sm:mr-1", isUploading && "animate-spin")} />
+            <span className="hidden sm:inline">업로드</span>
           </Button>
           <Button 
             variant="secondary" 
             size="sm" 
-            className="bg-emerald-600 hover:bg-emerald-700 text-white border-0"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white border-0 h-7 text-xs px-2"
             onClick={() => window.location.href = `/api/teams/export?year=${year}`}
           >
-            <Download className="w-4 h-4 mr-2" />
-            엑셀 다운로드
+            <Download className="w-3 h-3 sm:mr-1" />
+            <span className="hidden sm:inline">다운로드</span>
           </Button>
         </div>
       </div>
@@ -210,48 +208,52 @@ export default function Dashboard() {
       ) : (
         <>
           {/* Chart Section */}
-          <div className="grid grid-cols-1 gap-6">
+          <div className="grid grid-cols-1 gap-4 md:gap-6">
              <Card className="shadow-lg border-border/50">
-              <CardHeader className="pb-2 flex flex-row items-start justify-between gap-4">
+              <CardHeader className="p-3 sm:p-4 md:p-6 pb-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                 <div>
-                  <CardTitle className="flex items-center gap-2 text-xl">
-                    <Trophy className="w-6 h-6 text-yellow-500" />
+                  <CardTitle className="flex items-center gap-2 text-base sm:text-lg md:text-xl">
+                    <Trophy className="w-5 h-5 md:w-6 md:h-6 text-yellow-500" />
                     팀별 안전점수
                   </CardTitle>
-                  <CardDescription>실시간 안전 점수 현황</CardDescription>
+                  <CardDescription className="text-xs sm:text-sm">실시간 안전 점수 현황</CardDescription>
                 </div>
-                <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                <div className="flex items-center gap-2 sm:gap-3 text-[10px] sm:text-xs text-muted-foreground">
                   <div className="flex items-center gap-1">
                     <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                    <span>우수 90+</span>
+                    <span>90+</span>
                   </div>
                   <div className="flex items-center gap-1">
                     <span className="w-2 h-2 rounded-full bg-yellow-500"></span>
-                    <span>주의 80-89</span>
+                    <span>80-89</span>
                   </div>
                   <div className="flex items-center gap-1">
                     <span className="w-2 h-2 rounded-full bg-red-500"></span>
-                    <span>심각 80미만</span>
+                    <span>80미만</span>
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="pt-4">
-                <div style={{ width: '100%', height: 280, minHeight: 280 }}>
-                  <ResponsiveContainer width="100%" height={280}>
-                    <BarChart data={orderedTeams} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <CardContent className="p-2 sm:p-4 md:p-6 pt-2">
+                <div className="w-full h-[200px] sm:h-[240px] md:h-[280px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={orderedTeams} margin={{ top: 10, right: 5, left: -25, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" opacity={0.5} />
                       <XAxis 
                         dataKey="name" 
                         axisLine={false} 
                         tickLine={false} 
-                        tick={{ fill: '#1e293b', fontSize: 13, fontWeight: 600 }}
+                        tick={{ fill: '#1e293b', fontSize: 10, fontWeight: 600 }}
                         interval={0}
+                        angle={-45}
+                        textAnchor="end"
+                        height={60}
                       />
                       <YAxis 
                         domain={[0, 100]} 
                         axisLine={false} 
                         tickLine={false}
-                        tick={{ fill: '#64748b', fontSize: 12 }}
+                        tick={{ fill: '#64748b', fontSize: 10 }}
+                        width={30}
                       />
                       <Tooltip 
                         cursor={{ fill: '#3b82f6', opacity: 0.05 }}
@@ -259,17 +261,11 @@ export default function Dashboard() {
                           if (active && payload && payload.length) {
                             const data = payload[0].payload;
                             return (
-                              <div style={{ backgroundColor: 'white', border: '1px solid #e5e7eb', padding: 16, borderRadius: 12, boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }}>
-                                <p style={{ fontWeight: 'bold', fontSize: 18, marginBottom: 8, borderBottom: '1px solid #e5e7eb', paddingBottom: 4 }}>{data.name}</p>
-                                <div style={{ fontSize: 14 }}>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
-                                    <span style={{ color: '#64748b' }}>안전 점수:</span>
-                                    <span style={{ fontWeight: 'bold', color: '#3b82f6' }}>{data.totalScore}점</span>
-                                  </div>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
-                                    <span style={{ color: '#64748b' }}>차량 수:</span>
-                                    <span>{data.vehicleCount}대</span>
-                                  </div>
+                              <div style={{ backgroundColor: 'white', border: '1px solid #e5e7eb', padding: 12, borderRadius: 8, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: 12 }}>
+                                <p style={{ fontWeight: 'bold', fontSize: 14, marginBottom: 4 }}>{data.name}</p>
+                                <div>
+                                  <span style={{ color: '#64748b' }}>점수: </span>
+                                  <span style={{ fontWeight: 'bold', color: '#3b82f6' }}>{data.totalScore}점</span>
                                 </div>
                               </div>
                             );
@@ -279,8 +275,8 @@ export default function Dashboard() {
                       />
                       <Bar 
                         dataKey="totalScore" 
-                        radius={[6, 6, 0, 0]}
-                        barSize={45}
+                        radius={[4, 4, 0, 0]}
+                        maxBarSize={40}
                       >
                         {orderedTeams.map((entry, index) => (
                           <Cell 
@@ -298,29 +294,29 @@ export default function Dashboard() {
 
           {/* Table Section */}
           <Card className="shadow-xl border-border/50 overflow-hidden">
-            <div className="bg-muted/30 px-6 py-4 border-b flex items-center justify-between">
-              <h3 className="font-bold text-lg flex items-center gap-2">
-                <ShieldCheck className="w-5 h-5 text-primary" />
-                상세 데이터 분석
+            <div className="bg-muted/30 px-3 sm:px-6 py-2 sm:py-4 border-b flex items-center justify-between">
+              <h3 className="font-bold text-sm sm:text-base md:text-lg flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+                상세 데이터
               </h3>
-              <span className="text-xs text-muted-foreground font-medium">단위: 건수 / 점수</span>
+              <span className="text-[10px] sm:text-xs text-muted-foreground font-medium">단위: 건수</span>
             </div>
             <div className="overflow-x-auto">
-              <Table>
+              <Table className="min-w-[600px]">
                 <TableHeader className="bg-muted/50">
                   <TableRow className="hover:bg-transparent">
-                    <TableHead className="w-[140px] font-bold text-foreground py-1 text-xs">부서명</TableHead>
-                    <TableHead className="text-center font-bold text-foreground text-xs py-1">차량</TableHead>
-                    <TableHead className="text-center font-bold text-red-600 text-xs py-1"><div>작업</div><div>사고</div></TableHead>
-                    <TableHead className="text-center font-bold text-orange-600 text-xs py-1"><div>차량</div><div>사고</div></TableHead>
-                    <TableHead className="text-center font-bold text-orange-600 text-xs py-1">과속</TableHead>
-                    <TableHead className="text-center font-bold text-orange-600 text-xs py-1">신호</TableHead>
-                    <TableHead className="text-center font-bold text-orange-600 text-xs py-1">차선</TableHead>
-                    <TableHead className="text-center font-bold text-red-600 text-xs py-1"><div>점검</div><div>미준수</div></TableHead>
-                    <TableHead className="text-center font-bold text-green-600 text-xs py-1"><div>우수</div><div>제안</div></TableHead>
-                    <TableHead className="text-center font-bold text-green-600 text-xs py-1"><div>우수</div><div>활동</div></TableHead>
-                    <TableHead className="text-right font-black text-primary text-xs pr-6 py-1"><div>최종</div><div>점수</div></TableHead>
-                    <TableHead className="w-[50px] py-1"></TableHead>
+                    <TableHead className="w-[80px] sm:w-[100px] font-bold text-foreground py-1 text-[10px] sm:text-xs sticky left-0 bg-muted/50 z-10">부서</TableHead>
+                    <TableHead className="text-center font-bold text-foreground text-[10px] sm:text-xs py-1 w-10">차량</TableHead>
+                    <TableHead className="text-center font-bold text-red-600 text-[10px] sm:text-xs py-1 w-10">산재</TableHead>
+                    <TableHead className="text-center font-bold text-orange-600 text-[10px] sm:text-xs py-1 w-10">사고</TableHead>
+                    <TableHead className="text-center font-bold text-orange-600 text-[10px] sm:text-xs py-1 w-10">과속</TableHead>
+                    <TableHead className="text-center font-bold text-orange-600 text-[10px] sm:text-xs py-1 w-10">신호</TableHead>
+                    <TableHead className="text-center font-bold text-orange-600 text-[10px] sm:text-xs py-1 w-10">차선</TableHead>
+                    <TableHead className="text-center font-bold text-red-600 text-[10px] sm:text-xs py-1 w-10">점검</TableHead>
+                    <TableHead className="text-center font-bold text-green-600 text-[10px] sm:text-xs py-1 w-10">제안</TableHead>
+                    <TableHead className="text-center font-bold text-green-600 text-[10px] sm:text-xs py-1 w-10">활동</TableHead>
+                    <TableHead className="text-center font-black text-primary text-[10px] sm:text-xs py-1 w-12">점수</TableHead>
+                    <TableHead className="w-[60px] py-1"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -332,36 +328,36 @@ export default function Dashboard() {
                       transition={{ delay: idx * 0.05 }}
                       className="group border-b last:border-0 hover:bg-muted/20 transition-colors"
                     >
-                      <TableCell className="font-bold py-1 text-sm">{team.name}</TableCell>
-                      <TableCell className="text-center font-medium text-sm py-1">{team.vehicleCount}</TableCell>
-                      <TableCell className="text-center text-red-600 font-bold text-sm py-1">{team.workAccident}</TableCell>
-                      <TableCell className="text-center text-orange-600 font-medium text-sm py-1">
+                      <TableCell className="font-bold py-1 text-[11px] sm:text-xs sticky left-0 bg-card z-10">{team.name.replace('운용팀', '')}</TableCell>
+                      <TableCell className="text-center font-medium text-[11px] sm:text-xs py-1">{team.vehicleCount}</TableCell>
+                      <TableCell className="text-center text-red-600 font-bold text-[11px] sm:text-xs py-1">{team.workAccident}</TableCell>
+                      <TableCell className="text-center text-orange-600 font-medium text-[11px] sm:text-xs py-1">
                         {calculateVehicleAccidentCount(team.vehicleAccidents)}
                       </TableCell>
-                      <TableCell className="text-center text-orange-500 text-sm py-1">{team.fineSpeed}</TableCell>
-                      <TableCell className="text-center text-orange-500 text-sm py-1">{team.fineSignal}</TableCell>
-                      <TableCell className="text-center text-orange-500 text-sm py-1">{team.fineLane}</TableCell>
-                      <TableCell className="text-center text-red-500 font-medium text-sm py-1">{team.inspectionMiss}</TableCell>
-                      <TableCell className="text-center text-green-600 font-medium text-sm py-1">{team.suggestion}</TableCell>
-                      <TableCell className="text-center text-green-600 font-medium text-sm py-1">{team.activity}</TableCell>
-                      <TableCell className="text-right pr-6 py-1">
+                      <TableCell className="text-center text-orange-500 text-[11px] sm:text-xs py-1">{team.fineSpeed}</TableCell>
+                      <TableCell className="text-center text-orange-500 text-[11px] sm:text-xs py-1">{team.fineSignal}</TableCell>
+                      <TableCell className="text-center text-orange-500 text-[11px] sm:text-xs py-1">{team.fineLane}</TableCell>
+                      <TableCell className="text-center text-red-500 font-medium text-[11px] sm:text-xs py-1">{team.inspectionMiss}</TableCell>
+                      <TableCell className="text-center text-green-600 font-medium text-[11px] sm:text-xs py-1">{team.suggestion}</TableCell>
+                      <TableCell className="text-center text-green-600 font-medium text-[11px] sm:text-xs py-1">{team.activity}</TableCell>
+                      <TableCell className="text-center py-1">
                         <span className={cn(
-                          "inline-flex items-center justify-center w-12 h-7 rounded-lg font-bold text-sm shadow-sm border",
+                          "inline-flex items-center justify-center w-9 sm:w-11 h-6 rounded-md font-bold text-[11px] sm:text-xs shadow-sm border",
                           getScoreBadge(team.totalScore)
                         )}>
                           {team.totalScore}
                         </span>
                       </TableCell>
-                      <TableCell className="pr-4 text-right flex items-center justify-end gap-1">
+                      <TableCell className="pr-2 text-right flex items-center justify-end gap-0.5">
                         <Button 
                           variant="ghost" 
                           size="icon"
                           onClick={() => handleResetTeam(team.id, team.name)}
                           disabled={isLocked || resetTeam.isPending}
-                          className="hover:bg-red-50 hover:text-red-600"
+                          className="hover:bg-red-50 hover:text-red-600 h-7 w-7"
                           data-testid={`button-reset-team-${team.id}`}
                         >
-                          <RotateCcw className="w-4 h-4" />
+                          <RotateCcw className="w-3.5 h-3.5" />
                         </Button>
                         <TeamEditDialog team={team} disabled={isLocked} />
                       </TableCell>

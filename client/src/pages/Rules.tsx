@@ -92,47 +92,48 @@ export default function Rules() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8">
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <div className="flex items-center gap-4">
-          <div className="bg-gradient-to-br from-emerald-500 to-teal-600 p-4 rounded-2xl text-white shadow-lg shadow-emerald-500/30">
-            <ShieldCheck className="w-8 h-8" />
+    <div className="max-w-6xl mx-auto space-y-4 sm:space-y-6 md:space-y-8">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+        <div className="flex items-center gap-3">
+          <div className="bg-gradient-to-br from-emerald-500 to-teal-600 p-2.5 sm:p-3 md:p-4 rounded-xl sm:rounded-2xl text-white shadow-lg shadow-emerald-500/30">
+            <ShieldCheck className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8" />
           </div>
           <div>
-            <h2 className="text-3xl font-display font-bold text-foreground">안전 수칙</h2>
-            <p className="text-muted-foreground mt-1">필수 안전 프로토콜 및 가이드라인</p>
+            <h2 className="text-xl sm:text-2xl md:text-3xl font-display font-bold text-foreground">안전 수칙</h2>
+            <p className="text-xs sm:text-sm text-muted-foreground">필수 안전 가이드라인</p>
           </div>
         </div>
-        <div className="flex items-center gap-3 w-full sm:w-auto">
-          <div className="relative flex-1 sm:w-64">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <div className="relative flex-1 sm:w-48 md:w-64">
             <Input 
-              placeholder="수칙 검색..." 
+              placeholder="검색..." 
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="pr-9 bg-background/50 backdrop-blur-sm"
+              className="pr-8 bg-background/50 backdrop-blur-sm h-9 text-sm"
               data-testid="input-search-rules"
             />
-            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           </div>
           {!isLocked && (
             <Button 
               onClick={() => setShowAddForm(true)} 
-              className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white gap-2 shadow-lg"
+              size="sm"
+              className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white gap-1.5 shadow-lg h-9 text-xs sm:text-sm"
               data-testid="button-open-add-rule"
             >
-              <Plus className="w-4 h-4" /> 새 수칙
+              <Plus className="w-4 h-4" /> <span className="hidden sm:inline">새 수칙</span><span className="sm:hidden">추가</span>
             </Button>
           )}
         </div>
       </div>
 
       {isLocked && (
-        <div className="flex items-center gap-2 text-sm text-amber-600 bg-amber-50 dark:bg-amber-900/20 dark:text-amber-400 p-3 rounded-xl border border-amber-200 dark:border-amber-800">
-          <AlertCircle className="w-4 h-4" /> 시스템이 잠겨 있습니다. 편집이 비활성화되었습니다.
+        <div className="flex items-center gap-2 text-xs sm:text-sm text-amber-600 bg-amber-50 dark:bg-amber-900/20 dark:text-amber-400 p-2.5 sm:p-3 rounded-lg sm:rounded-xl border border-amber-200 dark:border-amber-800">
+          <AlertCircle className="w-4 h-4 flex-shrink-0" /> 시스템 잠김 - 편집 비활성화
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-5">
         {isLoading ? (
           [1,2,3,4,5,6].map(i => (
             <div key={i} className="h-64 bg-gradient-to-br from-muted/30 to-muted/10 rounded-2xl animate-pulse" />
