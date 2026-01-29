@@ -15,7 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 
 export function Topbar() {
   const { data: lockData, isLoading: lockLoading } = useLockStatus();
-  const { data: notices } = useNotices();
+  const { data: notices } = useNotices("notice");
   const latestNotice = notices && notices.length > 0 ? notices[0] : null;
   const isLocked = lockData?.isLocked;
 
