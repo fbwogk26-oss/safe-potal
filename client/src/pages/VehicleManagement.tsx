@@ -532,7 +532,7 @@ export default function VehicleManagement() {
             <div className="space-y-2">
               <label className="text-sm font-medium">보험연령</label>
               <Input 
-                type="date" 
+                placeholder="예: 26만" 
                 value={formData.inspectionDate || ""}
                 onChange={e => setFormData(prev => ({ ...prev, inspectionDate: e.target.value }))}
                 data-testid="input-vehicle-inspection"
