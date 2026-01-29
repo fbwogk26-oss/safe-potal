@@ -8,8 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { 
   Car, Plus, Trash2, Edit2, Search, Calendar, Phone, User, MapPin, 
-  Gauge, Shield, AlertTriangle, CheckCircle, XCircle, Wrench, X, ImagePlus, Download
+  Gauge, Shield, AlertTriangle, CheckCircle, XCircle, Wrench, X, ImagePlus, Download, Upload
 } from "lucide-react";
+import * as XLSX from "xlsx";
 import { useState, useMemo, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -75,7 +76,9 @@ export default function VehicleManagement() {
   });
   
   const [isUploading, setIsUploading] = useState(false);
+  const [isExcelUploading, setIsExcelUploading] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const excelInputRef = useRef<HTMLInputElement>(null);
 
   const filteredVehicles = useMemo(() => {
     if (!vehicles) return [];
@@ -127,6 +130,54 @@ export default function VehicleManagement() {
       toast({ variant: "destructive", title: "업로드 실패" });
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  const handleExcelUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    setIsExcelUploading(true);
+    try {
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: 'array' });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet) as Record<string, unknown>[];
+      
+      const mappedData = jsonData.map(row => ({
+        plateNumber: row['차량번호'] as string || '',
+        team: row['부서'] as string || '',
+        model: row['차량명'] as string || '',
+        vehicleType: row['차종'] as string || '승용차',
+        driver: row['주운행자'] as string || '',
+        secondDriver: row['부운행자'] as string || '',
+        status: row['상태'] as string || '운행중',
+        purchaseDate: row['계약시작일'] as string || '',
+        insuranceExpiry: row['계약종료일'] as string || '',
+        inspectionDate: row['보험연령'] as string || '',
+        notes: row['비고'] as string || '',
+      })).filter(row => row.plateNumber);
+      
+      const response = await fetch('/api/vehicles/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: mappedData }),
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        toast({ title: `차량 ${result.created}건 등록, ${result.updated}건 수정 완료` });
+        window.location.reload();
+      } else {
+        throw new Error('Import failed');
+      }
+    } catch (error) {
+      console.error('Excel upload error:', error);
+      toast({ variant: "destructive", title: "엑셀 업로드 실패" });
+    } finally {
+      setIsExcelUploading(false);
+      if (excelInputRef.current) excelInputRef.current.value = '';
     }
   };
 
@@ -217,6 +268,23 @@ export default function VehicleManagement() {
           </div>
         </div>
         <div className="flex gap-2">
+          <input
+            type="file"
+            ref={excelInputRef}
+            onChange={handleExcelUpload}
+            accept=".xlsx,.xls"
+            className="hidden"
+            data-testid="input-excel-upload"
+          />
+          <Button 
+            variant="outline"
+            onClick={() => excelInputRef.current?.click()}
+            disabled={isLocked || isExcelUploading}
+            className="gap-2"
+            data-testid="button-upload-vehicles"
+          >
+            <Upload className="w-4 h-4" /> {isExcelUploading ? "업로드 중..." : "엑셀 업로드"}
+          </Button>
           <Button 
             variant="outline"
             onClick={() => window.location.href = '/api/vehicles/export'}

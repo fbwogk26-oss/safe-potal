@@ -591,6 +591,66 @@ export async function registerRoutes(
     res.send(buffer);
   });
 
+  // Vehicle Excel Import
+  app.post("/api/vehicles/import", async (req, res) => {
+    try {
+      const { data } = req.body;
+      if (!Array.isArray(data)) {
+        return res.status(400).json({ message: "Invalid data format" });
+      }
+      
+      const existingVehicles = await storage.getVehicles();
+      let created = 0;
+      let updated = 0;
+      
+      for (const row of data) {
+        if (!row.plateNumber) continue;
+        
+        const existing = existingVehicles.find(v => v.plateNumber === row.plateNumber);
+        
+        if (existing) {
+          await storage.updateVehicle(existing.id, {
+            team: row.team ?? existing.team,
+            model: row.model ?? existing.model,
+            vehicleType: row.vehicleType ?? existing.vehicleType,
+            driver: row.driver ?? existing.driver,
+            secondDriver: row.secondDriver ?? existing.secondDriver,
+            status: row.status ?? existing.status,
+            purchaseDate: row.purchaseDate ?? existing.purchaseDate,
+            insuranceExpiry: row.insuranceExpiry ?? existing.insuranceExpiry,
+            inspectionDate: row.inspectionDate ?? existing.inspectionDate,
+            notes: row.notes ?? existing.notes,
+          });
+          updated++;
+        } else {
+          await storage.createVehicle({
+            plateNumber: row.plateNumber,
+            team: row.team ?? "동대구운용팀",
+            model: row.model ?? "",
+            vehicleType: row.vehicleType ?? "승용차",
+            driver: row.driver ?? "",
+            secondDriver: row.secondDriver ?? "",
+            status: row.status ?? "운행중",
+            purchaseDate: row.purchaseDate ?? "",
+            insuranceExpiry: row.insuranceExpiry ?? "",
+            inspectionDate: row.inspectionDate ?? "",
+            notes: row.notes ?? "",
+            year: new Date().getFullYear(),
+            contact: "",
+            mileage: 0,
+            imageUrl: "",
+          });
+          created++;
+        }
+      }
+      
+      res.json({ success: true, created, updated });
+    } catch (err) {
+      console.error('Vehicle import error:', err);
+      res.status(500).json({ message: "Import failed" });
+    }
+  });
+
   // Seed Data
   await seedDatabase();
 
