@@ -14,7 +14,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
 
-const TEAMS = ["동대구운용팀", "서대구운용팀", "남대구운용팀", "포항운용팀", "안동운용팀", "구미운용팀", "문경운용팀"];
+const TEAMS = ["동대구운용팀", "서대구운용팀", "남대구운용팀", "포항운용팀", "안동운용팀", "구미운용팀", "문경운용팀", "운용지원팀", "운용계획팀", "사업지원팀", "현장경영팀"];
 
 export default function EquipmentRequest() {
   const { data: requests, isLoading } = useNotices("equip_request");
@@ -148,7 +148,7 @@ export default function EquipmentRequest() {
             </div>
             용품 신청
           </h2>
-          <p className="text-muted-foreground mt-2">안전보호구 및 용품을 신청합니다.</p>
+          <p className="text-muted-foreground mt-2">안전용품을 신청합니다.</p>
         </div>
       </div>
 

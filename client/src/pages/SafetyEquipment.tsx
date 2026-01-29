@@ -23,7 +23,7 @@ const SUBMENU_ITEMS = [
   },
   {
     title: "용품 신청",
-    description: "안전보호구 및 용품을 신청합니다.",
+    description: "안전용품을 신청합니다.",
     icon: ShoppingCart,
     href: "/equipment/request",
     bgColor: "bg-purple-100 dark:bg-purple-900/30",

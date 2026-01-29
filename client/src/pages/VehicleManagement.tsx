@@ -16,7 +16,7 @@ import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Vehicle, InsertVehicle } from "@shared/schema";
 
-const TEAMS = ["동대구운용팀", "서대구운용팀", "남대구운용팀", "포항운용팀", "안동운용팀", "구미운용팀", "문경운용팀"];
+const TEAMS = ["동대구운용팀", "서대구운용팀", "남대구운용팀", "포항운용팀", "안동운용팀", "구미운용팀", "문경운용팀", "운용지원팀", "운용계획팀", "사업지원팀", "현장경영팀"];
 const VEHICLE_TYPES = ["승용차", "SUV", "트럭", "밴", "전기차", "하이브리드", "기타"];
 const STATUS_OPTIONS = ["운행중", "정비중", "대기", "폐차예정"];
 
