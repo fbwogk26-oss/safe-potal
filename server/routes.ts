@@ -6,6 +6,7 @@ import { z } from "zod";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import XLSX from "xlsx";
 
 const uploadDir = path.join(process.cwd(), "uploads");
 if (!fs.existsSync(uploadDir)) {
@@ -184,6 +185,67 @@ export async function registerRoutes(
   app.delete(api.notices.delete.path, async (req, res) => {
     await storage.deleteNotice(Number(req.params.id));
     res.status(204).send();
+  });
+
+  // === ACCESS REQUEST EXCEL DOWNLOAD ===
+  app.get('/api/access/excel', async (req, res) => {
+    try {
+      const notices = await storage.getNotices("access");
+      const templatePath = path.join(process.cwd(), "server/templates/access_template.xlsx");
+      
+      if (!fs.existsSync(templatePath)) {
+        return res.status(404).json({ message: "Template not found" });
+      }
+
+      const wb = XLSX.readFile(templatePath);
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      
+      let rowIndex = 4;
+      let seqNum = 1;
+      
+      for (const notice of notices) {
+        try {
+          const data = JSON.parse(notice.content);
+          
+          ws[`A${rowIndex + 1}`] = { t: 'n', v: seqNum };
+          ws[`B${rowIndex + 1}`] = { t: 's', v: data.department || '' };
+          ws[`C${rowIndex + 1}`] = { t: 's', v: data.applicantName || '' };
+          ws[`D${rowIndex + 1}`] = { t: 's', v: data.idNumber || '' };
+          ws[`E${rowIndex + 1}`] = { t: 's', v: data.phone || '' };
+          ws[`F${rowIndex + 1}`] = { t: 's', v: '' };
+          ws[`G${rowIndex + 1}`] = { t: 's', v: data.hasVehicle === '있음' ? data.vehicleNumber : '' };
+          ws[`H${rowIndex + 1}`] = { t: 's', v: data.visitPurpose || '' };
+          
+          rowIndex++;
+          seqNum++;
+        } catch (e) {
+          continue;
+        }
+      }
+
+      if (notices.length > 0) {
+        try {
+          const firstData = JSON.parse(notices[0].content);
+          const visitStart = firstData.visitPeriodStart || '';
+          const visitEnd = firstData.visitPeriodEnd || '';
+          ws['A3'] = { t: 's', v: `방문기간 : ${visitStart} ~ ${visitEnd}` };
+        } catch (e) {}
+      }
+      
+      ws['!ref'] = `A1:I${rowIndex + 2}`;
+
+      const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+      
+      const today = new Date().toISOString().slice(0, 10).replace(/-/g, '.');
+      const filename = encodeURIComponent(`효목사옥_출입신청서_${today}.xlsx`);
+      
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.send(buffer);
+    } catch (err) {
+      console.error('Excel generation error:', err);
+      res.status(500).json({ message: "Failed to generate Excel" });
+    }
   });
 
   // === SETTINGS (LOCK) ===

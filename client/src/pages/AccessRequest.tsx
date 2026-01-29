@@ -9,7 +9,6 @@ import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import { Label } from "@/components/ui/label";
-import * as XLSX from "xlsx";
 
 interface AccessFormData {
   visitPeriodStart: string;
@@ -86,55 +85,30 @@ export default function AccessRequest() {
     }
   };
 
-  const handleExcelDownload = () => {
+  const handleExcelDownload = async () => {
     if (!materials || materials.length === 0) {
       toast({ variant: "destructive", title: "다운로드할 데이터가 없습니다" });
       return;
     }
 
-    const excelData = materials.map((item) => {
-      const parsed = parseContent(item.content);
-      if (parsed) {
-        return {
-          "신청일": item.createdAt ? format(new Date(item.createdAt), "yyyy-MM-dd") : "",
-          "방문기간(시작)": parsed.visitPeriodStart,
-          "방문기간(종료)": parsed.visitPeriodEnd,
-          "방문목적": parsed.visitPurpose,
-          "소속": parsed.department,
-          "신청자": parsed.applicantName,
-          "신분확인번호": parsed.idNumber,
-          "연락처": parsed.phone,
-          "차량유무": parsed.hasVehicle,
-          "차량번호": parsed.vehicleNumber,
-        };
-      }
-      return {
-        "신청일": item.createdAt ? format(new Date(item.createdAt), "yyyy-MM-dd") : "",
-        "방문기간(시작)": "",
-        "방문기간(종료)": "",
-        "방문목적": item.content,
-        "소속": "",
-        "신청자": item.title,
-        "신분확인번호": "",
-        "연락처": "",
-        "차량유무": "",
-        "차량번호": "",
-      };
-    });
-
-    const ws = XLSX.utils.json_to_sheet(excelData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "출입신청목록");
-    
-    const colWidths = [
-      { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 20 },
-      { wch: 15 }, { wch: 10 }, { wch: 15 }, { wch: 15 },
-      { wch: 8 }, { wch: 12 }
-    ];
-    ws["!cols"] = colWidths;
-
-    XLSX.writeFile(wb, `출입신청_${format(new Date(), "yyyyMMdd")}.xlsx`);
-    toast({ title: "엑셀 다운로드 완료" });
+    try {
+      const response = await fetch('/api/access/excel');
+      if (!response.ok) throw new Error('Download failed');
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `효목사옥_출입신청서_${format(new Date(), "yyyy.MM.dd")}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast({ title: "엑셀 다운로드 완료" });
+    } catch (err) {
+      toast({ variant: "destructive", title: "다운로드 실패" });
+    }
   };
 
   return (
