@@ -47,11 +47,11 @@ export function Topbar() {
             <div className="animate-ticker pause-hover px-4 text-sm font-medium text-foreground/80 flex items-center gap-10">
               {latestNotice ? (
                  <>
-                   <span>🚨 {latestNotice.title}: {latestNotice.content}</span>
+                   <span>{latestNotice.title}: {latestNotice.content}</span>
                    <span className="opacity-50">•</span>
-                   <span>🚨 {latestNotice.title}: {latestNotice.content}</span>
+                   <span>{latestNotice.title}: {latestNotice.content}</span>
                    <span className="opacity-50">•</span>
-                   <span>🚨 {latestNotice.title}: {latestNotice.content}</span>
+                   <span>{latestNotice.title}: {latestNotice.content}</span>
                  </>
               ) : (
                 <span>시스템 정상 작동 중. 현재 활성화된 긴급 알림이 없습니다.</span>

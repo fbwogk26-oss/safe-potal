@@ -37,6 +37,7 @@ export const notices = pgTable("notices", {
   category: text("category").notNull(), // 'rule', 'notice', 'edu'
   title: text("title").notNull(),
   content: text("content").notNull(),
+  imageUrl: text("image_url"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

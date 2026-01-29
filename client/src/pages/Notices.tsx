@@ -4,8 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
-import { Bell, Plus, Trash2, Megaphone } from "lucide-react";
-import { useState } from "react";
+import { Bell, Plus, Trash2, Megaphone, ImagePlus, X } from "lucide-react";
+import { useState, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
@@ -20,13 +20,42 @@ export default function Notices() {
 
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    setIsUploading(true);
+    const formData = new FormData();
+    formData.append('image', file);
+    
+    try {
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json();
+      if (data.imageUrl) {
+        setImageUrl(data.imageUrl);
+        toast({ title: "이미지 업로드 완료" });
+      }
+    } catch (err) {
+      toast({ variant: "destructive", title: "업로드 실패" });
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   const handleAdd = () => {
     if (!title || !content) return;
-    createNotice({ title, content, category: "notice" }, {
+    createNotice({ title, content, category: "notice", imageUrl: imageUrl || undefined }, {
       onSuccess: () => {
         setTitle("");
         setContent("");
+        setImageUrl(null);
         toast({ title: "공지 등록 완료", description: "상단 티커에 표시됩니다." });
       }
     });
@@ -57,15 +86,53 @@ export default function Notices() {
             value={title} 
             onChange={e => setTitle(e.target.value)}
             disabled={isLocked}
+            data-testid="input-notice-title"
           />
           <Textarea 
             placeholder="메시지 내용..." 
             value={content} 
             onChange={e => setContent(e.target.value)}
             disabled={isLocked}
+            data-testid="input-notice-content"
           />
+          
+          <input
+            type="file"
+            accept="image/*"
+            ref={fileInputRef}
+            onChange={handleImageUpload}
+            className="hidden"
+            data-testid="input-notice-image"
+          />
+          
+          {imageUrl ? (
+            <div className="relative inline-block">
+              <img src={imageUrl} alt="미리보기" className="max-h-32 rounded-lg border" />
+              <Button
+                variant="destructive"
+                size="icon"
+                className="absolute -top-2 -right-2 h-6 w-6"
+                onClick={() => setImageUrl(null)}
+                data-testid="button-remove-image"
+              >
+                <X className="w-3 h-3" />
+              </Button>
+            </div>
+          ) : (
+            <Button
+              variant="outline"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isLocked || isUploading}
+              className="gap-2"
+              data-testid="button-add-image"
+            >
+              <ImagePlus className="w-4 h-4" />
+              {isUploading ? "업로드 중..." : "이미지 추가"}
+            </Button>
+          )}
+          
           <div className="flex justify-end">
-            <Button onClick={handleAdd} disabled={isLocked || isCreating || !title} className="bg-orange-600 hover:bg-orange-700 text-white gap-2">
+            <Button onClick={handleAdd} disabled={isLocked || isCreating || !title} className="bg-orange-600 hover:bg-orange-700 text-white gap-2" data-testid="button-post-notice">
               <Plus className="w-4 h-4" /> 공지 게시
             </Button>
           </div>
@@ -81,11 +148,12 @@ export default function Notices() {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 20 }}
               className="group flex gap-4 bg-card rounded-2xl p-6 border border-border/50 shadow-sm items-start"
+              data-testid={`card-notice-${notice.id}`}
             >
               <div className="bg-muted w-12 h-12 rounded-full flex items-center justify-center shrink-0">
                 <Bell className="w-5 h-5 text-muted-foreground" />
               </div>
-              <div className="flex-1 space-y-1">
+              <div className="flex-1 space-y-2">
                 <div className="flex items-center justify-between">
                   <h3 className="font-bold text-lg">{notice.title}</h3>
                   <span className="text-xs text-muted-foreground">
@@ -93,6 +161,13 @@ export default function Notices() {
                   </span>
                 </div>
                 <p className="text-muted-foreground">{notice.content}</p>
+                {notice.imageUrl && (
+                  <img 
+                    src={notice.imageUrl} 
+                    alt="첨부 이미지" 
+                    className="max-w-full max-h-64 rounded-lg border mt-2"
+                  />
+                )}
               </div>
               <Button 
                 variant="ghost" 
@@ -100,6 +175,7 @@ export default function Notices() {
                 className="opacity-0 group-hover:opacity-100"
                 onClick={() => handleDelete(notice.id)}
                 disabled={isLocked}
+                data-testid={`button-delete-notice-${notice.id}`}
               >
                 <Trash2 className="w-4 h-4 text-destructive" />
               </Button>
