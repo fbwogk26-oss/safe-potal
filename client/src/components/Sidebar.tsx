@@ -5,8 +5,7 @@ import {
   Bell, 
   GraduationCap, 
   DoorOpen,
-  Car,
-  HardHat,
+  ShoppingCart,
   MonitorPlay
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -16,8 +15,7 @@ const NAV_ITEMS = [
   { label: "안전수칙", href: "/rules", icon: ShieldCheck },
   { label: "공지/알림", href: "/notices", icon: Bell },
   { label: "안전교육", href: "/education", icon: GraduationCap },
-  { label: "차량관리", href: "/vehicle", icon: Car },
-  { label: "안전보호구", href: "/equipment", icon: HardHat },
+  { label: "안전용품신청", href: "/equipment", icon: ShoppingCart },
   { label: "출입신청", href: "/access", icon: DoorOpen },
   { label: "전자게시판", href: "/digital-board", icon: MonitorPlay },
 ];
