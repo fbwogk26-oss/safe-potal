@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { HardHat, Plus, Trash2, ChevronLeft, Save, Shield, Wrench, Box, Edit2 } from "lucide-react";
+import { HardHat, Plus, Trash2, ChevronLeft, Save, Edit2, Cone, Package } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
@@ -13,9 +13,9 @@ import { Link } from "wouter";
 const TEAMS = ["동대구운용팀", "서대구운용팀", "남대구운용팀", "포항운용팀", "안동운용팀", "구미운용팀", "문경운용팀"];
 
 const CATEGORIES = [
-  { id: "보호구", label: "보호구", icon: Shield },
-  { id: "안전용품", label: "안전용품", icon: Wrench },
-  { id: "기타품목", label: "기타품목", icon: Box },
+  { id: "보호구", label: "보호구", icon: HardHat },
+  { id: "안전용품", label: "안전용품", icon: Cone },
+  { id: "기타품목", label: "기타품목", icon: Package },
 ];
 
 const STATUS_OPTIONS = ["등록", "양호", "불량"];
