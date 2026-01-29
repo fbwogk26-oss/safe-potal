@@ -6,7 +6,7 @@ import { z } from "zod";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
-import XLSX from "xlsx";
+import ExcelJS from "exceljs";
 
 const uploadDir = path.join(process.cwd(), "uploads");
 if (!fs.existsSync(uploadDir)) {
@@ -197,25 +197,52 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Template not found" });
       }
 
-      const wb = XLSX.readFile(templatePath);
-      const ws = wb.Sheets[wb.SheetNames[0]];
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.readFile(templatePath);
+      const worksheet = workbook.getWorksheet(1);
       
-      let rowIndex = 4;
+      if (!worksheet) {
+        return res.status(500).json({ message: "Worksheet not found" });
+      }
+
+      const templateRow = worksheet.getRow(5);
+      const templateStyle: any = {};
+      for (let col = 1; col <= 8; col++) {
+        const cell = templateRow.getCell(col);
+        templateStyle[col] = {
+          font: cell.font ? { ...cell.font } : undefined,
+          alignment: cell.alignment ? { ...cell.alignment } : undefined,
+          border: cell.border ? { ...cell.border } : undefined,
+          fill: cell.fill ? { ...cell.fill } : undefined,
+        };
+      }
+
+      let rowIndex = 5;
       let seqNum = 1;
       
       for (const notice of notices) {
         try {
           const data = JSON.parse(notice.content);
+          const row = worksheet.getRow(rowIndex);
           
-          ws[`A${rowIndex + 1}`] = { t: 'n', v: seqNum };
-          ws[`B${rowIndex + 1}`] = { t: 's', v: data.department || '' };
-          ws[`C${rowIndex + 1}`] = { t: 's', v: data.applicantName || '' };
-          ws[`D${rowIndex + 1}`] = { t: 's', v: data.idNumber || '' };
-          ws[`E${rowIndex + 1}`] = { t: 's', v: data.phone || '' };
-          ws[`F${rowIndex + 1}`] = { t: 's', v: '' };
-          ws[`G${rowIndex + 1}`] = { t: 's', v: data.hasVehicle === '있음' ? data.vehicleNumber : '' };
-          ws[`H${rowIndex + 1}`] = { t: 's', v: data.visitPurpose || '' };
+          row.getCell(1).value = seqNum;
+          row.getCell(2).value = data.department || '';
+          row.getCell(3).value = data.applicantName || '';
+          row.getCell(4).value = data.idNumber || '';
+          row.getCell(5).value = data.phone || '';
+          row.getCell(6).value = '';
+          row.getCell(7).value = data.hasVehicle === '있음' ? data.vehicleNumber : '';
+          row.getCell(8).value = data.visitPurpose || '';
+
+          for (let col = 1; col <= 8; col++) {
+            const cell = row.getCell(col);
+            if (templateStyle[col].font) cell.font = templateStyle[col].font;
+            if (templateStyle[col].alignment) cell.alignment = templateStyle[col].alignment;
+            if (templateStyle[col].border) cell.border = templateStyle[col].border;
+            if (templateStyle[col].fill) cell.fill = templateStyle[col].fill;
+          }
           
+          row.commit();
           rowIndex++;
           seqNum++;
         } catch (e) {
@@ -228,20 +255,18 @@ export async function registerRoutes(
           const firstData = JSON.parse(notices[0].content);
           const visitStart = firstData.visitPeriodStart || '';
           const visitEnd = firstData.visitPeriodEnd || '';
-          ws['A3'] = { t: 's', v: `방문기간 : ${visitStart} ~ ${visitEnd}` };
+          worksheet.getCell('A3').value = `방문기간 : ${visitStart} ~ ${visitEnd}`;
         } catch (e) {}
       }
-      
-      ws['!ref'] = `A1:I${rowIndex + 2}`;
 
-      const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+      const buffer = await workbook.xlsx.writeBuffer();
       
       const today = new Date().toISOString().slice(0, 10).replace(/-/g, '.');
       const filename = encodeURIComponent(`효목사옥_출입신청서_${today}.xlsx`);
       
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-      res.send(buffer);
+      res.send(Buffer.from(buffer));
     } catch (err) {
       console.error('Excel generation error:', err);
       res.status(500).json({ message: "Failed to generate Excel" });
