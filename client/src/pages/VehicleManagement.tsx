@@ -521,7 +521,7 @@ export default function VehicleManagement() {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">구매일</label>
+              <label className="text-sm font-medium">계약시작일</label>
               <Input 
                 type="date" 
                 value={formData.purchaseDate || ""}
@@ -530,7 +530,7 @@ export default function VehicleManagement() {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">정기점검일</label>
+              <label className="text-sm font-medium">보험연령</label>
               <Input 
                 type="date" 
                 value={formData.inspectionDate || ""}
@@ -539,7 +539,7 @@ export default function VehicleManagement() {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">보험만료일</label>
+              <label className="text-sm font-medium">계약종료일</label>
               <Input 
                 type="date" 
                 value={formData.insuranceExpiry || ""}
@@ -659,15 +659,15 @@ export default function VehicleManagement() {
                     <p className="font-medium">{selectedVehicle.mileage?.toLocaleString() || 0} km</p>
                   </div>
                   <div className="space-y-1">
-                    <p className="text-sm text-muted-foreground">구매일</p>
+                    <p className="text-sm text-muted-foreground">계약시작일</p>
                     <p className="font-medium">{selectedVehicle.purchaseDate || "-"}</p>
                   </div>
                   <div className="space-y-1">
-                    <p className="text-sm text-muted-foreground">정기점검일</p>
+                    <p className="text-sm text-muted-foreground">보험연령</p>
                     <p className="font-medium">{selectedVehicle.inspectionDate || "-"}</p>
                   </div>
                   <div className="space-y-1">
-                    <p className="text-sm text-muted-foreground">보험만료일</p>
+                    <p className="text-sm text-muted-foreground">계약종료일</p>
                     <p className="font-medium">{selectedVehicle.insuranceExpiry || "-"}</p>
                   </div>
                 </div>
