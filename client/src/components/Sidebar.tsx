@@ -4,6 +4,7 @@ import {
   ShieldCheck, 
   Bell, 
   GraduationCap, 
+  DoorOpen,
   Menu,
   X
 } from "lucide-react";
@@ -17,6 +18,7 @@ const NAV_ITEMS = [
   { label: "안전수칙", href: "/rules", icon: ShieldCheck },
   { label: "공지/알림", href: "/notices", icon: Bell },
   { label: "안전교육", href: "/education", icon: GraduationCap },
+  { label: "출입신청(효목)", href: "/access", icon: DoorOpen },
 ];
 
 export function Sidebar() {
