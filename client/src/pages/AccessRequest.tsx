@@ -406,76 +406,104 @@ export default function AccessRequest() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="flex flex-col gap-4">
         <AnimatePresence>
-          {materials?.map((item) => {
+          {[...(materials || [])].sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()).map((item) => {
             const parsed = parseContent(item.content);
             return (
               <motion.div
                 key={item.id}
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                className="group bg-card rounded-2xl p-6 border border-border/50 shadow-sm hover:shadow-lg transition-all duration-300 flex flex-col justify-between h-full"
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="group bg-card rounded-xl p-4 sm:p-5 border border-border/50 shadow-sm hover:shadow-lg transition-all duration-300"
                 data-testid={`card-access-${item.id}`}
               >
-                <div className="space-y-3">
-                  <div className="flex justify-between items-start">
-                    <div className="p-3 bg-purple-50 text-purple-600 rounded-lg dark:bg-purple-900/20">
-                      <FileText className="w-6 h-6" />
-                    </div>
-                    <div className="flex gap-1">
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        onClick={() => handleSingleExcelDownload(item.id)}
-                        data-testid={`button-excel-access-${item.id}`}
-                        title="엑셀 다운로드"
-                      >
-                        <Download className="w-4 h-4 text-green-600" />
-                      </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="opacity-0 group-hover:opacity-100"
-                        onClick={() => handleDelete(item.id)}
-                        disabled={isLocked}
-                        data-testid={`button-delete-access-${item.id}`}
-                      >
-                        <Trash2 className="w-4 h-4 text-destructive" />
-                      </Button>
-                    </div>
+                <div className="flex items-start gap-3 sm:gap-4">
+                  <div className="p-2.5 bg-purple-50 text-purple-600 rounded-lg dark:bg-purple-900/20 shrink-0">
+                    <FileText className="w-5 h-5" />
                   </div>
-                  {parsed ? (
-                    <div className="space-y-2 text-sm">
-                      <h3 className="font-bold text-lg">{parsed.visitPurpose}</h3>
-                      <div className="grid grid-cols-2 gap-1 text-muted-foreground">
-                        <span>출입장소:</span><span>{parsed.entranceLocation || "-"}</span>
-                        <span>기간:</span>
-                        <span>
-                          {parsed.visitPeriodStartDate} {parsed.visitPeriodStartTime} ~ {parsed.visitPeriodEndDate} {parsed.visitPeriodEndTime}
-                        </span>
-                        <span>인솔자:</span>
-                        <span>{parsed.supervisorName ? `${parsed.supervisorDepartment} / ${parsed.supervisorName}` : "-"}</span>
-                        <span>인원:</span><span>{parsed.people?.length || 0}명</span>
-                      </div>
-                      {parsed.people && parsed.people.length > 0 && (
-                        <div className="mt-2 pt-2 border-t">
-                          <div className="text-xs text-muted-foreground">
-                            {parsed.people.map((p, i) => p.applicantName).join(", ")}
+                  <div className="flex-1 min-w-0">
+                    {parsed ? (
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-bold text-base sm:text-lg truncate">{parsed.visitPurpose}</h3>
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs sm:text-sm text-muted-foreground mt-1">
+                            <span>{parsed.entranceLocation || "장소 미지정"}</span>
+                            <span className="hidden sm:inline text-border">|</span>
+                            <span>{parsed.visitPeriodStartDate} ~ {parsed.visitPeriodEndDate}</span>
+                            <span className="hidden sm:inline text-border">|</span>
+                            <span>{parsed.people?.length || 0}명</span>
+                            {parsed.supervisorName && (
+                              <>
+                                <span className="hidden sm:inline text-border">|</span>
+                                <span>인솔: {parsed.supervisorName}</span>
+                              </>
+                            )}
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            {parsed.people && parsed.people.length > 0 && parsed.people.map((p) => p.applicantName).join(", ")}
                           </div>
                         </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div>
-                      <h3 className="font-bold text-lg mb-1">{item.title}</h3>
-                      <p className="text-sm text-muted-foreground">{item.content}</p>
-                    </div>
-                  )}
-                </div>
-                <div className="mt-4 pt-4 border-t text-xs text-muted-foreground">
-                  신청일: {item.createdAt && format(new Date(item.createdAt), "yyyy-MM-dd HH:mm")}
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-xs text-muted-foreground whitespace-nowrap">
+                            {item.createdAt && format(new Date(item.createdAt), "MM/dd HH:mm")}
+                          </span>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8"
+                            onClick={() => handleSingleExcelDownload(item.id)}
+                            data-testid={`button-excel-access-${item.id}`}
+                            title="엑셀 다운로드"
+                          >
+                            <Download className="w-4 h-4 text-green-600" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8 opacity-0 group-hover:opacity-100"
+                            onClick={() => handleDelete(item.id)}
+                            disabled={isLocked}
+                            data-testid={`button-delete-access-${item.id}`}
+                          >
+                            <Trash2 className="w-4 h-4 text-destructive" />
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="font-bold text-base mb-1">{item.title}</h3>
+                          <p className="text-sm text-muted-foreground">{item.content}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground">
+                            {item.createdAt && format(new Date(item.createdAt), "MM/dd HH:mm")}
+                          </span>
+                          <Button 
+                            variant="ghost" 
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => handleSingleExcelDownload(item.id)}
+                            data-testid={`button-excel-access-${item.id}`}
+                          >
+                            <Download className="w-4 h-4 text-green-600" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8 opacity-0 group-hover:opacity-100"
+                            onClick={() => handleDelete(item.id)}
+                            disabled={isLocked}
+                            data-testid={`button-delete-access-${item.id}`}
+                          >
+                            <Trash2 className="w-4 h-4 text-destructive" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </motion.div>
             );

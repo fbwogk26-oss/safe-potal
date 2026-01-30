@@ -405,18 +405,18 @@ export default function Dashboard() {
                     <Table className="min-w-[600px]">
                       <TableHeader className="bg-muted/50">
                         <TableRow className="hover:bg-transparent">
-                          <TableHead className="w-[80px] sm:w-[100px] font-bold text-foreground py-1 text-[10px] sm:text-xs sticky left-0 bg-muted/50 z-10">부서</TableHead>
-                          <TableHead className="text-center font-bold text-foreground text-[10px] sm:text-xs py-1 w-10">차량</TableHead>
-                          <TableHead className="text-center font-bold text-red-600 text-[10px] sm:text-xs py-1 w-10">산재</TableHead>
-                          <TableHead className="text-center font-bold text-orange-600 text-[10px] sm:text-xs py-1 w-10">사고</TableHead>
-                          <TableHead className="text-center font-bold text-orange-600 text-[10px] sm:text-xs py-1 w-10">과속</TableHead>
-                          <TableHead className="text-center font-bold text-orange-600 text-[10px] sm:text-xs py-1 w-10">신호</TableHead>
-                          <TableHead className="text-center font-bold text-orange-600 text-[10px] sm:text-xs py-1 w-10">차선</TableHead>
-                          <TableHead className="text-center font-bold text-red-600 text-[10px] sm:text-xs py-1 w-10">점검</TableHead>
-                          <TableHead className="text-center font-bold text-green-600 text-[10px] sm:text-xs py-1 w-10">제안</TableHead>
-                          <TableHead className="text-center font-bold text-green-600 text-[10px] sm:text-xs py-1 w-10">활동</TableHead>
-                          <TableHead className="text-center font-black text-primary text-[10px] sm:text-xs py-1 w-12">점수</TableHead>
-                          <TableHead className="w-[60px] py-1"></TableHead>
+                          <TableHead className="w-[80px] sm:w-[100px] font-bold text-foreground py-2 text-xs sm:text-sm sticky left-0 bg-muted/50 z-10">부서</TableHead>
+                          <TableHead className="text-center font-bold text-foreground text-xs sm:text-sm py-2 w-12">차량</TableHead>
+                          <TableHead className="text-center font-bold text-red-600 text-xs sm:text-sm py-2 w-12">산재</TableHead>
+                          <TableHead className="text-center font-bold text-orange-600 text-xs sm:text-sm py-2 w-12">사고</TableHead>
+                          <TableHead className="text-center font-bold text-orange-600 text-xs sm:text-sm py-2 w-12">과속</TableHead>
+                          <TableHead className="text-center font-bold text-orange-600 text-xs sm:text-sm py-2 w-12">신호</TableHead>
+                          <TableHead className="text-center font-bold text-orange-600 text-xs sm:text-sm py-2 w-12">차선</TableHead>
+                          <TableHead className="text-center font-bold text-red-600 text-xs sm:text-sm py-2 w-12">점검</TableHead>
+                          <TableHead className="text-center font-bold text-green-600 text-xs sm:text-sm py-2 w-12">제안</TableHead>
+                          <TableHead className="text-center font-bold text-green-600 text-xs sm:text-sm py-2 w-12">활동</TableHead>
+                          <TableHead className="text-center font-black text-primary text-xs sm:text-sm py-2 w-14">점수</TableHead>
+                          <TableHead className="w-[60px] py-2"></TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -428,21 +428,21 @@ export default function Dashboard() {
                             transition={{ delay: idx * 0.05 }}
                             className="group border-b last:border-0 hover:bg-muted/20 transition-colors"
                           >
-                            <TableCell className="font-bold py-1 text-[11px] sm:text-xs sticky left-0 bg-card z-10">{team.name.replace('운용팀', '')}</TableCell>
-                            <TableCell className="text-center font-medium text-[11px] sm:text-xs py-1">{team.vehicleCount}</TableCell>
-                            <TableCell className="text-center text-red-600 font-bold text-[11px] sm:text-xs py-1">{team.workAccident}</TableCell>
-                            <TableCell className="text-center text-orange-600 font-medium text-[11px] sm:text-xs py-1">
+                            <TableCell className="font-bold py-2 text-sm sm:text-base sticky left-0 bg-card z-10">{team.name.replace('운용팀', '')}</TableCell>
+                            <TableCell className="text-center font-medium text-sm sm:text-base py-2">{team.vehicleCount}</TableCell>
+                            <TableCell className="text-center text-red-600 font-bold text-sm sm:text-base py-2">{team.workAccident}</TableCell>
+                            <TableCell className="text-center text-orange-600 font-medium text-sm sm:text-base py-2">
                               {calculateVehicleAccidentCount(team.vehicleAccidents)}
                             </TableCell>
-                            <TableCell className="text-center text-orange-500 text-[11px] sm:text-xs py-1">{team.fineSpeed}</TableCell>
-                            <TableCell className="text-center text-orange-500 text-[11px] sm:text-xs py-1">{team.fineSignal}</TableCell>
-                            <TableCell className="text-center text-orange-500 text-[11px] sm:text-xs py-1">{team.fineLane}</TableCell>
-                            <TableCell className="text-center text-red-500 font-medium text-[11px] sm:text-xs py-1">{team.inspectionMiss}</TableCell>
-                            <TableCell className="text-center text-green-600 font-medium text-[11px] sm:text-xs py-1">{team.suggestion}</TableCell>
-                            <TableCell className="text-center text-green-600 font-medium text-[11px] sm:text-xs py-1">{team.activity}</TableCell>
-                            <TableCell className="text-center py-1">
+                            <TableCell className="text-center text-orange-500 text-sm sm:text-base py-2">{team.fineSpeed}</TableCell>
+                            <TableCell className="text-center text-orange-500 text-sm sm:text-base py-2">{team.fineSignal}</TableCell>
+                            <TableCell className="text-center text-orange-500 text-sm sm:text-base py-2">{team.fineLane}</TableCell>
+                            <TableCell className="text-center text-red-500 font-medium text-sm sm:text-base py-2">{team.inspectionMiss}</TableCell>
+                            <TableCell className="text-center text-green-600 font-medium text-sm sm:text-base py-2">{team.suggestion}</TableCell>
+                            <TableCell className="text-center text-green-600 font-medium text-sm sm:text-base py-2">{team.activity}</TableCell>
+                            <TableCell className="text-center py-2">
                               <span className={cn(
-                                "inline-flex items-center justify-center w-9 sm:w-11 h-6 rounded-md font-bold text-[11px] sm:text-xs shadow-sm border",
+                                "inline-flex items-center justify-center w-12 sm:w-14 h-7 rounded-md font-bold text-sm sm:text-base shadow-sm border",
                                 getScoreBadge(team.totalScore)
                               )}>
                                 {team.totalScore}
