@@ -49,19 +49,27 @@ export default function Education() {
     if (!file) return;
     
     setIsUploading(true);
-    const formData = new FormData();
-    formData.append('image', file);
     
     try {
-      const res = await fetch('/api/upload', {
+      const urlRes = await fetch('/api/uploads/request-url', {
         method: 'POST',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: file.name,
+          size: file.size,
+          contentType: file.type,
+        }),
       });
-      const data = await res.json();
-      if (data.imageUrl) {
-        setImageUrl(data.imageUrl);
-        toast({ title: "이미지 업로드 완료" });
-      }
+      const { uploadURL, objectPath } = await urlRes.json();
+      
+      await fetch(uploadURL, {
+        method: 'PUT',
+        body: file,
+        headers: { 'Content-Type': file.type },
+      });
+      
+      setImageUrl(objectPath);
+      toast({ title: "이미지 업로드 완료" });
     } catch (err) {
       toast({ variant: "destructive", title: "업로드 실패" });
     } finally {

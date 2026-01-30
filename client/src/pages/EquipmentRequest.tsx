@@ -50,17 +50,24 @@ export default function EquipmentRequest() {
     
     try {
       for (const file of filesToUpload) {
-        const formData = new FormData();
-        formData.append('image', file);
-        
-        const res = await fetch('/api/upload', {
+        const urlRes = await fetch('/api/uploads/request-url', {
           method: 'POST',
-          body: formData,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: file.name,
+            size: file.size,
+            contentType: file.type,
+          }),
         });
-        const data = await res.json();
-        if (data.imageUrl) {
-          setImages(prev => [...prev, { url: data.imageUrl, name: file.name }]);
-        }
+        const { uploadURL, objectPath } = await urlRes.json();
+        
+        await fetch(uploadURL, {
+          method: 'PUT',
+          body: file,
+          headers: { 'Content-Type': file.type },
+        });
+        
+        setImages(prev => [...prev, { url: objectPath, name: file.name }]);
       }
       toast({ title: `${filesToUpload.length}개 사진 업로드 완료` });
     } catch (err) {

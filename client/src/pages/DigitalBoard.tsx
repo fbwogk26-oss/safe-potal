@@ -56,33 +56,42 @@ export default function DigitalBoard() {
     
     for (let i = 0; i < bulkFiles.length; i++) {
       const file = bulkFiles[i];
-      const formData = new FormData();
-      formData.append('image', file);
       
       try {
-        const res = await fetch('/api/upload', {
+        // Step 1: Request presigned URL
+        const urlRes = await fetch('/api/uploads/request-url', {
           method: 'POST',
-          body: formData,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: file.name,
+            size: file.size,
+            contentType: file.type,
+          }),
         });
-        const data = await res.json();
+        const { uploadURL, objectPath } = await urlRes.json();
         
-        if (data.imageUrl) {
-          const fileName = file.name.replace(/\.[^/.]+$/, "");
-          const contentData = JSON.stringify({
-            text: "",
-            imageUrl: data.imageUrl,
+        // Step 2: Upload to presigned URL
+        await fetch(uploadURL, {
+          method: 'PUT',
+          body: file,
+          headers: { 'Content-Type': file.type },
+        });
+        
+        const fileName = file.name.replace(/\.[^/.]+$/, "");
+        const contentData = JSON.stringify({
+          text: "",
+          imageUrl: objectPath,
+        });
+        
+        await new Promise<void>((resolve) => {
+          createSlide({ title: fileName, content: contentData, category: "digital_board" }, {
+            onSuccess: () => {
+              successCount++;
+              resolve();
+            },
+            onError: () => resolve()
           });
-          
-          await new Promise<void>((resolve) => {
-            createSlide({ title: fileName, content: contentData, category: "digital_board" }, {
-              onSuccess: () => {
-                successCount++;
-                resolve();
-              },
-              onError: () => resolve()
-            });
-          });
-        }
+        });
       } catch (err) {
         console.error('Upload failed for:', file.name);
       }

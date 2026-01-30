@@ -7,6 +7,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import ExcelJS from "exceljs";
+import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 
 const uploadDir = path.join(process.cwd(), "uploads");
 if (!fs.existsSync(uploadDir)) {
@@ -283,6 +284,9 @@ export async function registerRoutes(
 
   // === IMAGE UPLOAD ===
   app.use('/uploads', (await import('express')).default.static(uploadDir));
+  
+  // Register Object Storage routes for persistent file uploads
+  registerObjectStorageRoutes(app);
   
   app.post('/api/upload', upload.single('image'), (req, res) => {
     if (!req.file) {
