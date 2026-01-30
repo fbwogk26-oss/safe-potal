@@ -154,7 +154,7 @@ export default function Dashboard() {
   // Chart data with shortened team names
   const chartData = orderedTeams.map(team => ({
     ...team,
-    shortName: team.name.replace('운용팀', '')
+    shortName: team.name.replace('운용팀', 'T')
   }));
   
   // Sort teams by score descending for table
@@ -208,7 +208,7 @@ export default function Dashboard() {
             data-testid="tab-vehicle"
           >
             <Car className="w-3.5 h-3.5" />
-            <span>차량관리현황</span>
+            <span>차량관리 현황</span>
           </Button>
           <Button
             variant={activeTab === "equipment" ? "default" : "outline"}
@@ -433,10 +433,7 @@ export default function Dashboard() {
                             className="group border-b last:border-0 hover:bg-muted/20 transition-colors"
                           >
                             <TableCell className="font-bold py-2 text-sm sm:text-base sticky left-0 bg-card z-10">
-                              <span className="inline-flex items-center gap-1">
-                                <span className="text-purple-600 dark:text-purple-400">{team.name.replace('운용팀', '')}</span>
-                                <span className="text-[10px] text-muted-foreground font-normal">팀</span>
-                              </span>
+                              <span className="text-purple-600 dark:text-purple-400">{team.name.replace('운용팀', 'T')}</span>
                             </TableCell>
                             <TableCell className="text-center font-medium text-sm sm:text-base py-2">{team.vehicleCount}</TableCell>
                             <TableCell className="text-center text-red-600 font-bold text-sm sm:text-base py-2">{team.workAccident}</TableCell>
