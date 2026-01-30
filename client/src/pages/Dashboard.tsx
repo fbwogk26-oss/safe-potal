@@ -151,6 +151,12 @@ export default function Dashboard() {
   const teamOrder = ["동대구운용팀", "서대구운용팀", "남대구운용팀", "포항운용팀", "안동운용팀", "구미운용팀", "문경운용팀"];
   const orderedTeams = teams ? teamOrder.map(name => teams.find(t => t.name === name)).filter(Boolean) as typeof teams : [];
   
+  // Chart data with shortened team names
+  const chartData = orderedTeams.map(team => ({
+    ...team,
+    shortName: team.name.replace('운용팀', '')
+  }));
+  
   // Sort teams by score descending for table
   const sortedTeams = teams ? [...teams].sort((a, b) => b.totalScore - a.totalScore) : [];
 
@@ -336,17 +342,15 @@ export default function Dashboard() {
               <CardContent className="p-2 sm:p-4 md:p-6 pt-2">
                 <div className="w-full h-[200px] sm:h-[240px] md:h-[280px]">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={orderedTeams} margin={{ top: 10, right: 5, left: -25, bottom: 0 }}>
+                    <BarChart data={chartData} margin={{ top: 10, right: 5, left: -25, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" opacity={0.5} />
                       <XAxis 
-                        dataKey="name" 
+                        dataKey="shortName" 
                         axisLine={false} 
                         tickLine={false} 
-                        tick={{ fill: '#1e293b', fontSize: 10, fontWeight: 600 }}
+                        tick={{ fill: '#6b21a8', fontSize: 11, fontWeight: 700 }}
                         interval={0}
-                        angle={-45}
-                        textAnchor="end"
-                        height={60}
+                        height={35}
                       />
                       <YAxis 
                         domain={[0, 100]} 
@@ -378,7 +382,7 @@ export default function Dashboard() {
                         radius={[4, 4, 0, 0]}
                         maxBarSize={40}
                       >
-                        {orderedTeams.map((entry, index) => (
+                        {chartData.map((entry, index) => (
                           <Cell 
                             key={`cell-${index}`} 
                             fill={entry.totalScore >= 90 ? '#10b981' : entry.totalScore >= 80 ? '#f59e0b' : '#ef4444'} 
@@ -428,7 +432,12 @@ export default function Dashboard() {
                             transition={{ delay: idx * 0.05 }}
                             className="group border-b last:border-0 hover:bg-muted/20 transition-colors"
                           >
-                            <TableCell className="font-bold py-2 text-sm sm:text-base sticky left-0 bg-card z-10">{team.name.replace('운용팀', '')}</TableCell>
+                            <TableCell className="font-bold py-2 text-sm sm:text-base sticky left-0 bg-card z-10">
+                              <span className="inline-flex items-center gap-1">
+                                <span className="text-purple-600 dark:text-purple-400">{team.name.replace('운용팀', '')}</span>
+                                <span className="text-[10px] text-muted-foreground font-normal">팀</span>
+                              </span>
+                            </TableCell>
                             <TableCell className="text-center font-medium text-sm sm:text-base py-2">{team.vehicleCount}</TableCell>
                             <TableCell className="text-center text-red-600 font-bold text-sm sm:text-base py-2">{team.workAccident}</TableCell>
                             <TableCell className="text-center text-orange-600 font-medium text-sm sm:text-base py-2">
