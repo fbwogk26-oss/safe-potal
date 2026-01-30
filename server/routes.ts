@@ -364,127 +364,8 @@ export async function registerRoutes(
     res.status(204).send();
   });
 
-  // === ACCESS REQUEST EXCEL DOWNLOAD (Single Item) ===
-  app.get('/api/access/excel/:id', async (req, res) => {
-    try {
-      const notice = await storage.getNotice(Number(req.params.id));
-      if (!notice) {
-        return res.status(404).json({ message: "Not found" });
-      }
-
-      const templatePath = path.join(process.cwd(), "server/templates/access_template.xlsx");
-      
-      if (!fs.existsSync(templatePath)) {
-        return res.status(404).json({ message: "Template not found" });
-      }
-
-      const workbook = new ExcelJS.Workbook();
-      await workbook.xlsx.readFile(templatePath);
-      const worksheet = workbook.getWorksheet(1);
-      
-      if (!worksheet) {
-        return res.status(500).json({ message: "Worksheet not found" });
-      }
-
-      const data = JSON.parse(notice.content);
-
-      const row1Cell = worksheet.getCell('A1');
-      const entranceLocation = data.entranceLocation || '';
-      const visitPurpose = data.visitPurpose || '';
-      row1Cell.value = `kt MOS남부 대구본부 "${visitPurpose}" 을/를 위한 출입신청(출입장소: "${entranceLocation}")`;
-
-      const supervisorDept = data.supervisorDepartment || '';
-      const supervisorName = data.supervisorName || '';
-      const supervisorPhone = data.supervisorPhone || '';
-      worksheet.getCell('A2').value = `인솔자 : ${supervisorDept} / ${supervisorName} (${supervisorPhone})`;
-
-      const startDate = data.visitPeriodStartDate || '';
-      const startTime = data.visitPeriodStartTime || '';
-      const endDate = data.visitPeriodEndDate || '';
-      const endTime = data.visitPeriodEndTime || '';
-      
-      const formatDateWithDay = (dateStr: string) => {
-        if (!dateStr) return '';
-        const date = new Date(dateStr);
-        const days = ['일', '월', '화', '수', '목', '금', '토'];
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        const dayName = days[date.getDay()];
-        return `${year}.${month}.${day}(${dayName})`;
-      };
-
-      const formattedStart = formatDateWithDay(startDate);
-      const formattedEnd = formatDateWithDay(endDate);
-      
-      if (startDate === endDate || !endDate) {
-        worksheet.getCell('A3').value = `방문기간 : ${formattedStart} ${startTime} ~ ${endTime}`;
-      } else {
-        worksheet.getCell('A3').value = `방문기간 : ${formattedStart} ${startTime} ~ ${formattedEnd} ${endTime}`;
-      }
-
-      for (let r = 4; r <= 100; r++) {
-        const row = worksheet.getRow(r);
-        row.getCell(8).value = null;
-        row.getCell(9).value = null;
-      }
-      worksheet.getColumn(8).width = 0.1;
-      worksheet.getColumn(9).width = 0.1;
-
-      const templateRow = worksheet.getRow(5);
-      const templateStyle: any = {};
-      for (let col = 1; col <= 7; col++) {
-        const cell = templateRow.getCell(col);
-        templateStyle[col] = {
-          font: cell.font ? { ...cell.font } : undefined,
-          alignment: cell.alignment ? { ...cell.alignment } : undefined,
-          border: cell.border ? { ...cell.border } : undefined,
-          fill: cell.fill ? { ...cell.fill } : undefined,
-        };
-      }
-
-      const people = data.people || [];
-      let rowIndex = 5;
-      
-      for (let i = 0; i < people.length; i++) {
-        const person = people[i];
-        const row = worksheet.getRow(rowIndex);
-        
-        row.getCell(1).value = i + 1;
-        row.getCell(2).value = person.department || '';
-        row.getCell(3).value = person.applicantName || '';
-        row.getCell(4).value = person.idNumber || '';
-        row.getCell(5).value = person.phone || '';
-        row.getCell(6).value = '';
-        row.getCell(7).value = person.hasVehicle === '있음' ? person.vehicleNumber : '';
-
-        for (let col = 1; col <= 7; col++) {
-          const cell = row.getCell(col);
-          if (templateStyle[col]?.font) cell.font = templateStyle[col].font;
-          if (templateStyle[col]?.alignment) cell.alignment = templateStyle[col].alignment;
-          if (templateStyle[col]?.border) cell.border = templateStyle[col].border;
-          if (templateStyle[col]?.fill) cell.fill = templateStyle[col].fill;
-        }
-        
-        row.commit();
-        rowIndex++;
-      }
-
-      const buffer = await workbook.xlsx.writeBuffer();
-      
-      const today = new Date().toISOString().slice(0, 10).replace(/-/g, '.');
-      const filename = encodeURIComponent(`kt MOS남부 대구본부 ${visitPurpose} 을를 위한 출입신청(출입장소 ${entranceLocation})_${today}.xlsx`);
-      
-      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-      res.send(Buffer.from(buffer));
-    } catch (err) {
-      console.error('Excel generation error:', err);
-      res.status(500).json({ message: "Failed to generate Excel" });
-    }
-  });
-
   // === ACCESS REQUEST EXCEL DOWNLOAD (Batch - Multiple Items) ===
+  // NOTE: This must be registered BEFORE the single item route to avoid route collision
   app.get('/api/access/excel/batch', async (req, res) => {
     try {
       const idsParam = req.query.ids as string;
@@ -606,6 +487,126 @@ export async function registerRoutes(
     } catch (err) {
       console.error('Batch Excel generation error:', err);
       res.status(500).json({ message: "Failed to generate batch Excel" });
+    }
+  });
+
+  // === ACCESS REQUEST EXCEL DOWNLOAD (Single Item) ===
+  app.get('/api/access/excel/:id', async (req, res) => {
+    try {
+      const notice = await storage.getNotice(Number(req.params.id));
+      if (!notice) {
+        return res.status(404).json({ message: "Not found" });
+      }
+
+      const templatePath = path.join(process.cwd(), "server/templates/access_template.xlsx");
+      
+      if (!fs.existsSync(templatePath)) {
+        return res.status(404).json({ message: "Template not found" });
+      }
+
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.readFile(templatePath);
+      const worksheet = workbook.getWorksheet(1);
+      
+      if (!worksheet) {
+        return res.status(500).json({ message: "Worksheet not found" });
+      }
+
+      const data = JSON.parse(notice.content);
+
+      const row1Cell = worksheet.getCell('A1');
+      const entranceLocation = data.entranceLocation || '';
+      const visitPurpose = data.visitPurpose || '';
+      row1Cell.value = `kt MOS남부 대구본부 "${visitPurpose}" 을/를 위한 출입신청(출입장소: "${entranceLocation}")`;
+
+      const supervisorDept = data.supervisorDepartment || '';
+      const supervisorName = data.supervisorName || '';
+      const supervisorPhone = data.supervisorPhone || '';
+      worksheet.getCell('A2').value = `인솔자 : ${supervisorDept} / ${supervisorName} (${supervisorPhone})`;
+
+      const startDate = data.visitPeriodStartDate || '';
+      const startTime = data.visitPeriodStartTime || '';
+      const endDate = data.visitPeriodEndDate || '';
+      const endTime = data.visitPeriodEndTime || '';
+      
+      const formatDateWithDay = (dateStr: string) => {
+        if (!dateStr) return '';
+        const date = new Date(dateStr);
+        const days = ['일', '월', '화', '수', '목', '금', '토'];
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const dayName = days[date.getDay()];
+        return `${year}.${month}.${day}(${dayName})`;
+      };
+
+      const formattedStart = formatDateWithDay(startDate);
+      const formattedEnd = formatDateWithDay(endDate);
+      
+      if (startDate === endDate || !endDate) {
+        worksheet.getCell('A3').value = `방문기간 : ${formattedStart} ${startTime} ~ ${endTime}`;
+      } else {
+        worksheet.getCell('A3').value = `방문기간 : ${formattedStart} ${startTime} ~ ${formattedEnd} ${endTime}`;
+      }
+
+      for (let r = 4; r <= 100; r++) {
+        const row = worksheet.getRow(r);
+        row.getCell(8).value = null;
+        row.getCell(9).value = null;
+      }
+      worksheet.getColumn(8).width = 0.1;
+      worksheet.getColumn(9).width = 0.1;
+
+      const templateRow = worksheet.getRow(5);
+      const templateStyle: any = {};
+      for (let col = 1; col <= 7; col++) {
+        const cell = templateRow.getCell(col);
+        templateStyle[col] = {
+          font: cell.font ? { ...cell.font } : undefined,
+          alignment: cell.alignment ? { ...cell.alignment } : undefined,
+          border: cell.border ? { ...cell.border } : undefined,
+          fill: cell.fill ? { ...cell.fill } : undefined,
+        };
+      }
+
+      const people = data.people || [];
+      let rowIndex = 5;
+      
+      for (let i = 0; i < people.length; i++) {
+        const person = people[i];
+        const row = worksheet.getRow(rowIndex);
+        
+        row.getCell(1).value = i + 1;
+        row.getCell(2).value = person.department || '';
+        row.getCell(3).value = person.applicantName || '';
+        row.getCell(4).value = person.idNumber || '';
+        row.getCell(5).value = person.phone || '';
+        row.getCell(6).value = '';
+        row.getCell(7).value = person.hasVehicle === '있음' ? person.vehicleNumber : '';
+
+        for (let col = 1; col <= 7; col++) {
+          const cell = row.getCell(col);
+          if (templateStyle[col]?.font) cell.font = templateStyle[col].font;
+          if (templateStyle[col]?.alignment) cell.alignment = templateStyle[col].alignment;
+          if (templateStyle[col]?.border) cell.border = templateStyle[col].border;
+          if (templateStyle[col]?.fill) cell.fill = templateStyle[col].fill;
+        }
+        
+        row.commit();
+        rowIndex++;
+      }
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      
+      const today = new Date().toISOString().slice(0, 10).replace(/-/g, '.');
+      const filename = encodeURIComponent(`kt MOS남부 대구본부 ${visitPurpose} 을를 위한 출입신청(출입장소 ${entranceLocation})_${today}.xlsx`);
+      
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.send(Buffer.from(buffer));
+    } catch (err) {
+      console.error('Excel generation error:', err);
+      res.status(500).json({ message: "Failed to generate Excel" });
     }
   });
 
