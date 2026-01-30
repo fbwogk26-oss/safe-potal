@@ -131,18 +131,29 @@ export function FAQChatbot() {
         <button
           data-testid="button-open-faq-chatbot"
           onClick={() => setIsOpen(true)}
-          className="fixed bottom-4 right-4 z-50 h-16 w-16 rounded-full shadow-2xl bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-600 hover:via-teal-600 hover:to-cyan-600 transition-all duration-300 hover:scale-110 flex items-center justify-center group"
+          className="fixed bottom-4 right-4 z-50 h-16 w-16 rounded-2xl shadow-2xl bg-gradient-to-br from-violet-500 via-purple-500 to-fuchsia-500 hover:from-violet-600 hover:via-purple-600 hover:to-fuchsia-600 transition-all duration-500 hover:scale-110 hover:rotate-3 flex items-center justify-center group overflow-visible"
         >
-          <div className="absolute inset-0 rounded-full bg-gradient-to-br from-emerald-400 via-teal-400 to-cyan-400 opacity-0 group-hover:opacity-100 blur-md transition-opacity duration-300" />
+          <div className="absolute -inset-1 rounded-2xl bg-gradient-to-br from-violet-400 via-purple-400 to-fuchsia-400 opacity-0 group-hover:opacity-75 blur-lg transition-all duration-500 group-hover:animate-pulse" />
+          <div className="absolute inset-0 rounded-2xl bg-white/10 backdrop-blur-sm" />
           <div className="relative flex items-center justify-center">
-            <HelpCircle className="h-7 w-7 text-white drop-shadow-lg" />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="h-10 w-10 rounded-full bg-white/20 animate-ping" style={{ animationDuration: '2s' }} />
+            </div>
+            <Sparkles className="h-8 w-8 text-white drop-shadow-lg relative z-10" />
           </div>
+          <span className="absolute -top-1 -right-1 flex h-4 w-4">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-4 w-4 bg-green-500 border-2 border-white" />
+          </span>
+          <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 text-xs font-medium text-muted-foreground whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity bg-background/80 px-2 py-1 rounded-full backdrop-blur-sm">
+            도움이 필요하세요?
+          </span>
         </button>
       )}
 
       {isOpen && (
         <Card className="fixed bottom-4 right-4 z-50 w-[380px] h-[560px] flex flex-col shadow-2xl">
-          <CardHeader className="flex flex-row items-center justify-between gap-2 py-3 px-4 border-b bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-t-lg">
+          <CardHeader className="flex flex-row items-center justify-between gap-2 py-3 px-4 border-b bg-gradient-to-r from-violet-500 via-purple-500 to-fuchsia-500 text-white rounded-t-lg">
             <div className="flex items-center gap-2">
               <HelpCircle className="h-5 w-5" />
               <CardTitle className="text-base font-medium">안전 FAQ 도우미</CardTitle>
@@ -164,7 +175,7 @@ export function FAQChatbot() {
                 {messages.length === 0 && (
                   <div className="space-y-4">
                     <div className="text-center py-4 text-muted-foreground">
-                      <Sparkles className="h-10 w-10 mx-auto mb-3 text-emerald-500 opacity-70" />
+                      <Sparkles className="h-10 w-10 mx-auto mb-3 text-purple-500 opacity-70" />
                       <p className="text-sm font-medium">안녕하세요!</p>
                       <p className="text-sm">안전 관련 질문에 답해드려요.</p>
                     </div>
@@ -189,14 +200,14 @@ export function FAQChatbot() {
                     className={`flex gap-2 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                   >
                     {msg.role === "assistant" && (
-                      <div className="h-7 w-7 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
-                        <HelpCircle className="h-4 w-4 text-emerald-600" />
+                      <div className="h-7 w-7 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
+                        <Sparkles className="h-4 w-4 text-purple-600" />
                       </div>
                     )}
                     <div
                       className={`max-w-[75%] rounded-lg px-3 py-2 text-sm ${
                         msg.role === "user"
-                          ? "bg-emerald-500 text-white"
+                          ? "bg-gradient-to-r from-violet-500 to-purple-500 text-white"
                           : "bg-muted"
                       }`}
                     >
@@ -227,7 +238,7 @@ export function FAQChatbot() {
                   type="submit"
                   size="icon"
                   disabled={!message.trim()}
-                  className="bg-emerald-500 hover:bg-emerald-600"
+                  className="bg-gradient-to-r from-violet-500 to-purple-500 hover:from-violet-600 hover:to-purple-600"
                 >
                   <Send className="h-4 w-4" />
                 </Button>
