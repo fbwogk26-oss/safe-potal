@@ -7,7 +7,6 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import ExcelJS from "exceljs";
-import { registerChatRoutes } from "./replit_integrations/chat";
 
 const uploadDir = path.join(process.cwd(), "uploads");
 if (!fs.existsSync(uploadDir)) {
@@ -651,9 +650,6 @@ export async function registerRoutes(
       res.status(500).json({ message: "Import failed" });
     }
   });
-
-  // === AI CHATBOT ===
-  registerChatRoutes(app);
 
   // Seed Data
   await seedDatabase();
