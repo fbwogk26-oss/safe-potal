@@ -365,9 +365,8 @@ export default function Dashboard() {
                       </div>
                     </div>
                     <Button
-                      variant="ghost"
+                      variant={showDetailTable ? "default" : "ghost"}
                       size="sm"
-                      className={cn("text-xs", showDetailTable && "text-primary")}
                       onClick={() => setShowDetailTable(!showDetailTable)}
                       data-testid="button-toggle-detail"
                     >
@@ -533,9 +532,8 @@ export default function Dashboard() {
                     <CardDescription className="text-xs sm:text-sm">전체 팀</CardDescription>
                   </div>
                   <Button
-                    variant="ghost"
+                    variant={showVehicleDetail ? "default" : "ghost"}
                     size="sm"
-                    className={cn("text-xs", showVehicleDetail && "text-primary")}
                     onClick={() => setShowVehicleDetail(!showVehicleDetail)}
                     data-testid="button-toggle-vehicle-detail"
                   >
@@ -611,9 +609,8 @@ export default function Dashboard() {
                     <CardDescription className="text-xs sm:text-sm">보호구 관리 현황</CardDescription>
                   </div>
                   <Button
-                    variant="ghost"
+                    variant={showEquipmentDetail ? "default" : "ghost"}
                     size="sm"
-                    className={cn("text-xs", showEquipmentDetail && "text-primary")}
                     onClick={() => setShowEquipmentDetail(!showEquipmentDetail)}
                     data-testid="button-toggle-equipment-detail"
                   >
