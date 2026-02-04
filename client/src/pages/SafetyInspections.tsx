@@ -250,18 +250,27 @@ export default function SafetyInspections() {
       worksheet.getColumn(9 + idx).key = `check_${idx}`;
     });
 
-    // Add images column
-    const imageColIdx = 9 + DEFAULT_CHECKLIST.length;
-    worksheet.getColumn(imageColIdx).width = 80;
-    worksheet.getColumn(imageColIdx).key = 'images';
-    const totalCols = imageColIdx;
+    // Add 10 image columns (사진1 ~ 사진10)
+    const MAX_IMAGES = 10;
+    const firstImageCol = 9 + DEFAULT_CHECKLIST.length;
+    const imageColWidth = 11.5; // ~2.99cm
+    
+    for (let i = 0; i < MAX_IMAGES; i++) {
+      worksheet.getColumn(firstImageCol + i).width = imageColWidth;
+      worksheet.getColumn(firstImageCol + i).key = `image_${i}`;
+    }
+    const totalCols = firstImageCol + MAX_IMAGES - 1;
 
     // Style header row
     const headerRow = worksheet.getRow(1);
     DEFAULT_CHECKLIST.forEach((item, idx) => {
       headerRow.getCell(9 + idx).value = item.item;
     });
-    headerRow.getCell(imageColIdx).value = '사진';
+    
+    // Add image column headers (사진1 ~ 사진10)
+    for (let i = 0; i < MAX_IMAGES; i++) {
+      headerRow.getCell(firstImageCol + i).value = `사진${i + 1}`;
+    }
     
     headerRow.font = { bold: true, size: 10 };
     headerRow.fill = {
@@ -347,11 +356,11 @@ export default function SafetyInspections() {
         }
       }
 
-      // Add images if available
+      // Add images - one per column (사진1 ~ 사진10)
       const images = inspection.images || [];
       if (images.length > 0) {
-        const numImages = Math.min(images.length, 4);
-        row.height = 70;
+        const numImages = Math.min(images.length, MAX_IMAGES);
+        row.height = 69; // ~2.43cm
         
         for (let i = 0; i < numImages; i++) {
           try {
@@ -372,22 +381,15 @@ export default function SafetyInspections() {
               extension: 'jpeg',
             });
 
-            // Place images in a grid within the cell (2x2 layout)
-            const colOffset = (i % 2) * 0.45;
-            const rowOffset = Math.floor(i / 2) * 0.5;
-            
+            // Place image in its own column (사진1, 사진2, etc.)
+            // Size: width 2.99cm (~113px), height 2.43cm (~92px)
             worksheet.addImage(imageId, {
-              tl: { col: imageColIdx - 1 + colOffset, row: rowNum + rowOffset * 0.1 },
-              ext: { width: 32, height: 32 },
+              tl: { col: firstImageCol - 1 + i, row: rowNum + 0.05 },
+              ext: { width: 113, height: 92 },
             });
           } catch (err) {
             console.error('이미지 로드 실패:', err);
           }
-        }
-        
-        if (images.length > 4) {
-          row.getCell(imageColIdx).value = `외 ${images.length - 4}장`;
-          row.getCell(imageColIdx).alignment = { vertical: 'bottom', horizontal: 'right' };
         }
       }
 
