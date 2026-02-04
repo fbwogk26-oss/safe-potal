@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { ShoppingCart, Plus, Trash2, ChevronLeft, Clock, CheckCircle2, FileText, Send, Minus, Download } from "lucide-react";
 import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 import { useState, useRef, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -275,118 +276,99 @@ export default function EquipmentRequest() {
     const parsed = parseContent(item.content);
     const items = parsed.items || [];
     
-    const doc = new jsPDF({
-      orientation: 'portrait',
-      unit: 'mm',
-      format: 'a4'
-    });
-    
-    const pageWidth = 210;
-    const pageHeight = 297;
-    const margin = 15;
-    const contentWidth = pageWidth - (margin * 2);
-    
     const issueDate = parsed.signedAt ? format(new Date(parsed.signedAt), 'yy.MM.dd') : '-';
     const teamName = parsed.team || '-';
     const requesterName = parsed.requester || '-';
     
-    doc.setFontSize(16);
-    doc.setFont("helvetica", "bold");
-    doc.text("보호구지급대장", pageWidth / 2, 20, { align: "center" });
-    doc.setLineWidth(0.5);
-    doc.line(pageWidth / 2 - 30, 22, pageWidth / 2 + 30, 22);
-    
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    
-    let y = 35;
-    const rowHeight = 8;
-    const colWidths = [12, 22, 58, 18, 35, 25, 30];
-    const startX = margin;
-    const headers = ["순번", "지급일자", "보호구 명칭", "수량", "부서명", "성명", "서명"];
-    
-    doc.setFillColor(230, 230, 230);
-    doc.rect(startX, y, contentWidth, rowHeight, 'F');
-    
-    let xPos = startX;
-    headers.forEach((header, idx) => {
-      doc.rect(xPos, y, colWidths[idx], rowHeight);
-      doc.text(header, xPos + colWidths[idx] / 2, y + 5.5, { align: "center" });
-      xPos += colWidths[idx];
-    });
-    
-    y += rowHeight;
-    
-    const maxRowsPerPage = Math.floor((pageHeight - y - 20) / rowHeight);
     const totalRows = Math.max(items.length, 25);
     
-    for (let rowIdx = 0; rowIdx < totalRows; rowIdx++) {
-      if (y + rowHeight > pageHeight - 15) {
-        doc.addPage();
-        y = 20;
-        
-        doc.setFillColor(230, 230, 230);
-        doc.rect(startX, y, contentWidth, rowHeight, 'F');
-        xPos = startX;
-        headers.forEach((header, idx) => {
-          doc.rect(xPos, y, colWidths[idx], rowHeight);
-          doc.text(header, xPos + colWidths[idx] / 2, y + 5.5, { align: "center" });
-          xPos += colWidths[idx];
-        });
-        y += rowHeight;
+    const container = document.createElement('div');
+    container.style.cssText = 'position: absolute; left: -9999px; top: 0; width: 794px; padding: 40px; background: white; font-family: "Malgun Gothic", "맑은 고딕", sans-serif;';
+    
+    let rowsHtml = '';
+    for (let i = 0; i < totalRows; i++) {
+      const currentItem = items[i];
+      if (currentItem) {
+        rowsHtml += `
+          <tr>
+            <td style="border: 1px solid #000; padding: 6px 4px; text-align: center;">${i + 1}</td>
+            <td style="border: 1px solid #000; padding: 6px 4px; text-align: center;">${issueDate}</td>
+            <td style="border: 1px solid #000; padding: 6px 4px;">${currentItem.name}</td>
+            <td style="border: 1px solid #000; padding: 6px 4px; text-align: center;">${currentItem.quantity}</td>
+            <td style="border: 1px solid #000; padding: 6px 4px; text-align: center;">${teamName}</td>
+            <td style="border: 1px solid #000; padding: 6px 4px; text-align: center;">${requesterName}</td>
+            <td style="border: 1px solid #000; padding: 2px; text-align: center;">${parsed.signature ? `<img src="${parsed.signature}" style="max-height: 20px; max-width: 60px;" />` : ''}</td>
+          </tr>
+        `;
+      } else {
+        rowsHtml += `
+          <tr>
+            <td style="border: 1px solid #000; padding: 6px 4px; text-align: center;">${i + 1}</td>
+            <td style="border: 1px solid #000; padding: 6px 4px;"></td>
+            <td style="border: 1px solid #000; padding: 6px 4px;"></td>
+            <td style="border: 1px solid #000; padding: 6px 4px;"></td>
+            <td style="border: 1px solid #000; padding: 6px 4px;"></td>
+            <td style="border: 1px solid #000; padding: 6px 4px;"></td>
+            <td style="border: 1px solid #000; padding: 6px 4px;"></td>
+          </tr>
+        `;
       }
-      
-      const currentItem = items[rowIdx];
-      xPos = startX;
-      
-      colWidths.forEach((width) => {
-        doc.rect(xPos, y, width, rowHeight);
-        xPos += width;
+    }
+    
+    container.innerHTML = `
+      <h1 style="text-align: center; font-size: 20px; margin-bottom: 5px; text-decoration: underline;">보호구지급대장</h1>
+      <table style="width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 20px;">
+        <thead>
+          <tr style="background: #e6e6e6;">
+            <th style="border: 1px solid #000; padding: 8px 4px; width: 40px;">순번</th>
+            <th style="border: 1px solid #000; padding: 8px 4px; width: 70px;">지급일자</th>
+            <th style="border: 1px solid #000; padding: 8px 4px; width: 180px;">보호구 명칭</th>
+            <th style="border: 1px solid #000; padding: 8px 4px; width: 50px;">수량</th>
+            <th style="border: 1px solid #000; padding: 8px 4px; width: 100px;">부서명</th>
+            <th style="border: 1px solid #000; padding: 8px 4px; width: 70px;">성명</th>
+            <th style="border: 1px solid #000; padding: 8px 4px; width: 80px;">서명</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rowsHtml}
+        </tbody>
+      </table>
+      <p style="text-align: center; font-size: 10px; margin-top: 15px;">「한번 실수 평생 후회 한번 안전 일생 행복」</p>
+    `;
+    
+    document.body.appendChild(container);
+    
+    try {
+      const canvas = await html2canvas(container, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff'
       });
       
-      xPos = startX;
-      doc.text(String(rowIdx + 1), xPos + colWidths[0] / 2, y + 5.5, { align: "center" });
-      xPos += colWidths[0];
+      const imgData = canvas.toDataURL('image/png');
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
       
-      if (currentItem) {
-        doc.text(issueDate, xPos + colWidths[1] / 2, y + 5.5, { align: "center" });
-        xPos += colWidths[1];
-        
-        const itemName = currentItem.name.length > 20 ? currentItem.name.substring(0, 20) + '..' : currentItem.name;
-        doc.text(itemName, xPos + 2, y + 5.5);
-        xPos += colWidths[2];
-        
-        doc.text(String(currentItem.quantity), xPos + colWidths[3] / 2, y + 5.5, { align: "center" });
-        xPos += colWidths[3];
-        
-        doc.text(teamName, xPos + colWidths[4] / 2, y + 5.5, { align: "center" });
-        xPos += colWidths[4];
-        
-        doc.text(requesterName, xPos + colWidths[5] / 2, y + 5.5, { align: "center" });
-        xPos += colWidths[5];
-        
-        if (parsed.signature) {
-          try {
-            doc.addImage(parsed.signature, 'PNG', xPos + 3, y + 1, 24, 6);
-          } catch (e) {
-            doc.text("V", xPos + colWidths[6] / 2, y + 5.5, { align: "center" });
-          }
-        }
-      }
+      const pdfWidth = 210;
+      const pdfHeight = 297;
+      const imgWidth = pdfWidth - 20;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
       
-      y += rowHeight;
+      doc.addImage(imgData, 'PNG', 10, 10, imgWidth, Math.min(imgHeight, pdfHeight - 20));
+      
+      const fileName = `보호구지급대장_${teamName.replace(/\s/g, '_')}_${format(new Date(), 'yyyyMMdd')}.pdf`;
+      doc.save(fileName);
+      
+      toast({ title: "다운로드 완료", description: "보호구 지급대장이 다운로드되었습니다." });
+    } catch (e) {
+      toast({ variant: "destructive", title: "오류", description: "PDF 생성 중 오류가 발생했습니다." });
+    } finally {
+      document.body.removeChild(container);
     }
-    
-    y += 8;
-    if (y < pageHeight - 15) {
-      doc.setFontSize(8);
-      doc.text("「한번 실수 평생 후회 한번 안전 일생 행복」", pageWidth / 2, y, { align: "center" });
-    }
-    
-    const fileName = `보호구지급대장_${teamName.replace(/\s/g, '_')}_${format(new Date(), 'yyyyMMdd')}.pdf`;
-    doc.save(fileName);
-    
-    toast({ title: "PDF 다운로드 완료", description: "보호구 지급대장이 다운로드되었습니다." });
   };
 
   const filteredRequests = requests || [];
@@ -543,7 +525,7 @@ export default function EquipmentRequest() {
                 <TableHead className="font-bold">제목</TableHead>
                 <TableHead className="font-bold">신청품목</TableHead>
                 <TableHead className="font-bold">신청일</TableHead>
-                <TableHead className="font-bold text-center">PDF</TableHead>
+                <TableHead className="font-bold text-center">지급대장</TableHead>
                 <TableHead className="w-[60px]"></TableHead>
               </TableRow>
             </TableHeader>
@@ -608,7 +590,7 @@ export default function EquipmentRequest() {
                             data-testid={`button-pdf-${item.id}`}
                           >
                             <Download className="w-3 h-3" />
-                            PDF
+                            지급대장
                           </Button>
                         ) : "-"}
                       </TableCell>
