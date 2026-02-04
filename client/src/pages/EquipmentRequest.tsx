@@ -91,6 +91,7 @@ export default function EquipmentRequest() {
   const [newEquipCategory, setNewEquipCategory] = useState("보호구");
   const [newEquipImageFile, setNewEquipImageFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [editingEquipment, setEditingEquipment] = useState<{ [key: number]: string }>({});
   
   const [signatureModalOpen, setSignatureModalOpen] = useState(false);
   const [currentSigningItem, setCurrentSigningItem] = useState<any>(null);
@@ -125,6 +126,17 @@ export default function EquipmentRequest() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/safety-equipment'] });
       toast({ title: "용품이 삭제되었습니다." });
+    }
+  });
+
+  const updateEquipmentMutation = useMutation({
+    mutationFn: async ({ id, name }: { id: number; name: string }) => {
+      return apiRequest("PUT", `/api/safety-equipment/${id}`, { name });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/safety-equipment'] });
+      toast({ title: "용품명이 수정되었습니다." });
+      setEditingEquipment({});
     }
   });
 
@@ -494,9 +506,9 @@ export default function EquipmentRequest() {
               />
             </div>
             <div>
-              <label className="text-sm font-medium mb-2 block">신청 제목</label>
+              <label className="text-sm font-medium mb-2 block">신청 사유</label>
               <Input 
-                placeholder="예: 안전모 10개 신청" 
+                placeholder="예: 안전모 파손으로 교체 필요" 
                 value={title} 
                 onChange={e => setTitle(e.target.value)}
                 data-testid="input-request-title"
@@ -622,7 +634,7 @@ export default function EquipmentRequest() {
                 <TableHead className="font-bold">상태</TableHead>
                 <TableHead className="font-bold">팀</TableHead>
                 <TableHead className="font-bold">신청자</TableHead>
-                <TableHead className="font-bold">제목</TableHead>
+                <TableHead className="font-bold">사유</TableHead>
                 <TableHead className="font-bold">신청품목</TableHead>
                 <TableHead className="font-bold">신청일</TableHead>
                 <TableHead className="font-bold text-center">지급대장</TableHead>
@@ -831,35 +843,52 @@ export default function EquipmentRequest() {
             <div className="space-y-2">
               <h4 className="font-medium">등록된 용품 목록</h4>
               {dbEquipment && dbEquipment.length > 0 ? (
-                <div className="space-y-2 max-h-80 overflow-y-auto">
+                <div className="space-y-4 max-h-96 overflow-y-auto">
                   {["보호구", "안전용품", "기타품목"].map(category => {
                     const items = dbEquipment.filter(e => e.category === category);
                     if (items.length === 0) return null;
                     return (
-                      <div key={category} className="space-y-1">
+                      <div key={category} className="space-y-2">
                         <p className="text-sm font-medium text-muted-foreground">{category}</p>
-                        {items.map(item => (
-                          <div key={item.id} className="flex items-center justify-between gap-2 p-2 border rounded bg-background">
-                            <div className="flex items-center gap-2">
-                              {item.imageUrl ? (
-                                <img src={item.imageUrl} alt={item.name} className="w-8 h-8 object-cover rounded" />
-                              ) : (
-                                <div className="w-8 h-8 bg-muted rounded flex items-center justify-center">
-                                  <ShoppingCart className="w-4 h-4 text-muted-foreground" />
-                                </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                          {items.map(item => (
+                            <div key={item.id} className="flex flex-col p-2 border rounded bg-background">
+                              <div className="flex items-center gap-2 mb-2">
+                                {item.imageUrl ? (
+                                  <img src={item.imageUrl} alt={item.name} className="w-10 h-10 object-cover rounded" />
+                                ) : (
+                                  <div className="w-10 h-10 bg-muted rounded flex items-center justify-center">
+                                    <ShoppingCart className="w-5 h-5 text-muted-foreground" />
+                                  </div>
+                                )}
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon"
+                                  className="ml-auto h-6 w-6"
+                                  onClick={() => deleteEquipmentMutation.mutate(item.id)}
+                                  disabled={deleteEquipmentMutation.isPending}
+                                >
+                                  <Trash2 className="w-3 h-3 text-destructive" />
+                                </Button>
+                              </div>
+                              <Input 
+                                value={editingEquipment[item.id] ?? item.name}
+                                onChange={e => setEditingEquipment({ ...editingEquipment, [item.id]: e.target.value })}
+                                className="text-xs h-7"
+                              />
+                              {editingEquipment[item.id] !== undefined && editingEquipment[item.id] !== item.name && (
+                                <Button 
+                                  size="sm" 
+                                  className="mt-1 h-6 text-xs"
+                                  onClick={() => updateEquipmentMutation.mutate({ id: item.id, name: editingEquipment[item.id] })}
+                                  disabled={updateEquipmentMutation.isPending}
+                                >
+                                  저장
+                                </Button>
                               )}
-                              <span>{item.name}</span>
                             </div>
-                            <Button 
-                              variant="ghost" 
-                              size="icon"
-                              onClick={() => deleteEquipmentMutation.mutate(item.id)}
-                              disabled={deleteEquipmentMutation.isPending}
-                            >
-                              <Trash2 className="w-4 h-4 text-destructive" />
-                            </Button>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
                     );
                   })}
