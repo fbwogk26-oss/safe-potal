@@ -12,7 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { SafetyInspection } from "@shared/schema";
+import type { SafetyInspection, Team } from "@shared/schema";
 import ExcelJS from "exceljs";
 
 type ChecklistStatus = '양호' | '미흡' | '미점검';
@@ -43,6 +43,10 @@ const MAX_IMAGES = 10;
 export default function SafetyInspections() {
   const { data: inspections, isLoading } = useQuery<SafetyInspection[]>({
     queryKey: ["/api/safety-inspections"],
+  });
+  
+  const { data: teams } = useQuery<Team[]>({
+    queryKey: ["/api/teams"],
   });
   
   const createMutation = useMutation({
@@ -80,7 +84,8 @@ export default function SafetyInspections() {
   const { toast } = useToast();
 
   const [inspectionType, setInspectionType] = useState<string>("안전점검");
-  const [title, setTitle] = useState("");
+  const [department, setDepartment] = useState("");
+  const [workContent, setWorkContent] = useState("");
   const [location, setLocation] = useState("");
   const [inspector, setInspector] = useState("");
   const [inspectionDate, setInspectionDate] = useState(format(new Date(), "yyyy-MM-dd"));
@@ -93,7 +98,8 @@ export default function SafetyInspections() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const resetForm = () => {
-    setTitle("");
+    setDepartment("");
+    setWorkContent("");
     setLocation("");
     setInspector("");
     setInspectionDate(format(new Date(), "yyyy-MM-dd"));
@@ -154,10 +160,12 @@ export default function SafetyInspections() {
   };
 
   const handleSubmit = () => {
-    if (!title) {
-      toast({ variant: "destructive", title: "점검 제목을 입력하세요" });
+    if (!department) {
+      toast({ variant: "destructive", title: "부서명을 선택하세요" });
       return;
     }
+    
+    const title = workContent ? `${department} - ${workContent}` : department;
     
     createMutation.mutate({
       inspectionType,
@@ -214,7 +222,8 @@ export default function SafetyInspections() {
 
     worksheet.columns = [
       { header: '점검유형', key: 'type', width: 12 },
-      { header: '점검제목', key: 'title', width: 30 },
+      { header: '부서명', key: 'department', width: 15 },
+      { header: '작업내용', key: 'workContent', width: 25 },
       { header: '점검국소', key: 'location', width: 20 },
       { header: '작업자', key: 'inspector', width: 15 },
       { header: '점검일', key: 'date', width: 12 },
@@ -237,9 +246,14 @@ export default function SafetyInspections() {
         .map(item => `${item.item}: ${item.status}`)
         .join('\n');
 
+      const titleParts = (inspection.title || '').split(' - ');
+      const deptName = titleParts[0] || '-';
+      const workDesc = titleParts.slice(1).join(' - ') || '-';
+      
       const row = worksheet.addRow({
         type: inspection.inspectionType,
-        title: inspection.title,
+        department: deptName,
+        workContent: workDesc,
         location: inspection.location || '-',
         inspector: inspection.inspector || '-',
         date: inspection.inspectionDate,
@@ -250,7 +264,7 @@ export default function SafetyInspections() {
 
       const images = inspection.images || [];
       if (images.length > 0) {
-        let imageCol = 8;
+        let imageCol = 9;
         const imageHeight = 100;
         row.height = imageHeight * 0.75;
 
@@ -279,7 +293,7 @@ export default function SafetyInspections() {
         }
         
         if (images.length > 1) {
-          worksheet.getColumn(8).width = 20 + (images.length * 15);
+          worksheet.getColumn(9).width = 20 + (images.length * 15);
         }
       }
       currentRow++;
@@ -383,14 +397,31 @@ export default function SafetyInspections() {
                   </div>
                 </div>
                 
-                <div className="space-y-2">
-                  <Label>점검 제목</Label>
-                  <Input
-                    placeholder="예: 1월 정기 안전점검"
-                    value={title}
-                    onChange={e => setTitle(e.target.value)}
-                    data-testid="input-inspection-title"
-                  />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>부서명</Label>
+                    <Select value={department} onValueChange={setDepartment}>
+                      <SelectTrigger data-testid="select-department">
+                        <SelectValue placeholder="부서 선택" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {teams?.map((team) => (
+                          <SelectItem key={team.id} value={team.name}>
+                            {team.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>작업내용</Label>
+                    <Input
+                      placeholder="작업 내용 입력"
+                      value={workContent}
+                      onChange={e => setWorkContent(e.target.value)}
+                      data-testid="input-work-content"
+                    />
+                  </div>
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
