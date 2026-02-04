@@ -660,6 +660,43 @@ export async function registerRoutes(
     }
   });
 
+  // === SAFETY EQUIPMENT ===
+  app.get("/api/safety-equipment", async (req, res) => {
+    const equipment = await storage.getSafetyEquipment();
+    res.json(equipment);
+  });
+
+  app.post("/api/safety-equipment", async (req, res) => {
+    try {
+      const { name, category, imageUrl } = req.body;
+      if (!name || !category) {
+        return res.status(400).json({ message: "Name and category are required" });
+      }
+      const equipment = await storage.createSafetyEquipment({ name, category, imageUrl, isActive: true });
+      res.status(201).json(equipment);
+    } catch (err) {
+      console.error('Create equipment error:', err);
+      res.status(500).json({ message: "Failed to create equipment" });
+    }
+  });
+
+  app.put("/api/safety-equipment/:id", async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const { name, category, imageUrl } = req.body;
+      const equipment = await storage.updateSafetyEquipment(id, { name, category, imageUrl });
+      res.json(equipment);
+    } catch (err) {
+      console.error('Update equipment error:', err);
+      res.status(500).json({ message: "Failed to update equipment" });
+    }
+  });
+
+  app.delete("/api/safety-equipment/:id", async (req, res) => {
+    await storage.deleteSafetyEquipment(Number(req.params.id));
+    res.status(204).send();
+  });
+
   // Seed Data
   await seedDatabase();
 

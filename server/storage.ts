@@ -1,10 +1,11 @@
 import { db } from "./db";
 import {
-  teams, notices, settings, vehicles,
+  teams, notices, settings, vehicles, safetyEquipment,
   type Team, type InsertTeam, type UpdateTeamRequest,
   type Notice, type InsertNotice,
   type Setting,
-  type Vehicle, type InsertVehicle, type UpdateVehicleRequest
+  type Vehicle, type InsertVehicle, type UpdateVehicleRequest,
+  type SafetyEquipment, type InsertSafetyEquipment
 } from "@shared/schema";
 import { eq, desc, asc } from "drizzle-orm";
 
@@ -33,6 +34,12 @@ export interface IStorage {
   createVehicle(vehicle: InsertVehicle): Promise<Vehicle>;
   updateVehicle(id: number, updates: UpdateVehicleRequest): Promise<Vehicle>;
   deleteVehicle(id: number): Promise<void>;
+
+  // Safety Equipment
+  getSafetyEquipment(): Promise<SafetyEquipment[]>;
+  createSafetyEquipment(equipment: InsertSafetyEquipment): Promise<SafetyEquipment>;
+  updateSafetyEquipment(id: number, updates: Partial<InsertSafetyEquipment>): Promise<SafetyEquipment>;
+  deleteSafetyEquipment(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -127,6 +134,25 @@ export class DatabaseStorage implements IStorage {
 
   async deleteVehicle(id: number): Promise<void> {
     await db.delete(vehicles).where(eq(vehicles.id, id));
+  }
+
+  // === SAFETY EQUIPMENT ===
+  async getSafetyEquipment(): Promise<SafetyEquipment[]> {
+    return await db.select().from(safetyEquipment).where(eq(safetyEquipment.isActive, true)).orderBy(asc(safetyEquipment.category), asc(safetyEquipment.name));
+  }
+
+  async createSafetyEquipment(equipment: InsertSafetyEquipment): Promise<SafetyEquipment> {
+    const [created] = await db.insert(safetyEquipment).values(equipment).returning();
+    return created;
+  }
+
+  async updateSafetyEquipment(id: number, updates: Partial<InsertSafetyEquipment>): Promise<SafetyEquipment> {
+    const [updated] = await db.update(safetyEquipment).set(updates).where(eq(safetyEquipment.id, id)).returning();
+    return updated;
+  }
+
+  async deleteSafetyEquipment(id: number): Promise<void> {
+    await db.update(safetyEquipment).set({ isActive: false }).where(eq(safetyEquipment.id, id));
   }
 }
 

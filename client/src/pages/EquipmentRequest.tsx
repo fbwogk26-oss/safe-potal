@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { ShoppingCart, Plus, Trash2, ChevronLeft, Clock, CheckCircle2, FileText, Send, Minus, Download } from "lucide-react";
+import { ShoppingCart, Plus, Trash2, ChevronLeft, Clock, CheckCircle2, FileText, Send, Minus, Download, Image, Settings, PenLine } from "lucide-react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { useState, useRef, useEffect } from "react";
@@ -15,10 +15,13 @@ import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const TEAMS = ["동대구운용팀", "서대구운용팀", "남대구운용팀", "포항운용팀", "안동운용팀", "구미운용팀", "문경운용팀", "운용지원팀", "운용계획팀", "사업지원팀", "현장경영팀"];
 
-const EQUIPMENT_LIST = [
+const DEFAULT_EQUIPMENT = [
   { name: "안전모(일반)", category: "보호구" },
   { name: "일반안전화", category: "보호구" },
   { name: "하계안전화", category: "보호구" },
@@ -49,7 +52,15 @@ interface SelectedItem {
   category: string;
 }
 
+interface SafetyEquipment {
+  id: number;
+  name: string;
+  category: string;
+  imageUrl?: string;
+}
+
 export default function EquipmentRequest() {
+  const queryClient = useQueryClient();
   const { data: requests, isLoading } = useNotices("equip_request");
   const { mutate: createRequest, isPending: isCreating } = useCreateNotice();
   const { mutate: deleteRequest } = useDeleteNotice();
@@ -58,19 +69,58 @@ export default function EquipmentRequest() {
   const isLocked = lockData?.isLocked;
   const { toast } = useToast();
 
+  const { data: dbEquipment } = useQuery<SafetyEquipment[]>({
+    queryKey: ['/api/safety-equipment'],
+  });
+
+  const EQUIPMENT_LIST = dbEquipment && dbEquipment.length > 0 
+    ? dbEquipment.map(e => ({ name: e.name, category: e.category, imageUrl: e.imageUrl }))
+    : DEFAULT_EQUIPMENT;
+
   const [selectedTeam, setSelectedTeam] = useState("");
   const [requesterName, setRequesterName] = useState("");
   const [title, setTitle] = useState("");
   const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
+  const [viewMode, setViewMode] = useState<"list" | "grid">("list");
+  
+  const [customItemName, setCustomItemName] = useState("");
+  const [customItemCategory, setCustomItemCategory] = useState("기타품목");
+  
+  const [adminModalOpen, setAdminModalOpen] = useState(false);
+  const [newEquipName, setNewEquipName] = useState("");
+  const [newEquipCategory, setNewEquipCategory] = useState("보호구");
+  const [newEquipImageUrl, setNewEquipImageUrl] = useState("");
   
   const [signatureModalOpen, setSignatureModalOpen] = useState(false);
   const [currentSigningItem, setCurrentSigningItem] = useState<any>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
 
-  const handleAddEquipment = (equipName: string) => {
+  const createEquipmentMutation = useMutation({
+    mutationFn: async (data: { name: string; category: string; imageUrl?: string }) => {
+      return apiRequest('/api/safety-equipment', { method: 'POST', body: JSON.stringify(data) });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/safety-equipment'] });
+      toast({ title: "용품이 추가되었습니다." });
+      setNewEquipName("");
+      setNewEquipImageUrl("");
+    }
+  });
+
+  const deleteEquipmentMutation = useMutation({
+    mutationFn: async (id: number) => {
+      return apiRequest(`/api/safety-equipment/${id}`, { method: 'DELETE' });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/safety-equipment'] });
+      toast({ title: "용품이 삭제되었습니다." });
+    }
+  });
+
+  const handleAddEquipment = (equipName: string, category?: string) => {
     const equipment = EQUIPMENT_LIST.find(e => e.name === equipName);
-    if (!equipment) return;
+    const cat = category || equipment?.category || "기타품목";
     
     const existing = selectedItems.find(i => i.name === equipName);
     if (existing) {
@@ -78,8 +128,18 @@ export default function EquipmentRequest() {
         i.name === equipName ? { ...i, quantity: i.quantity + 1 } : i
       ));
     } else {
-      setSelectedItems([...selectedItems, { name: equipName, quantity: 1, category: equipment.category }]);
+      setSelectedItems([...selectedItems, { name: equipName, quantity: 1, category: cat }]);
     }
+  };
+
+  const handleAddCustomItem = () => {
+    if (!customItemName.trim()) {
+      toast({ variant: "destructive", title: "용품명을 입력해주세요." });
+      return;
+    }
+    handleAddEquipment(customItemName.trim(), customItemCategory);
+    setCustomItemName("");
+    toast({ title: "직접입력 용품이 추가되었습니다." });
   };
 
   const handleRemoveEquipment = (equipName: string) => {
@@ -291,49 +351,49 @@ export default function EquipmentRequest() {
       if (currentItem) {
         rowsHtml += `
           <tr>
-            <td style="border: 1px solid #000; padding: 6px 4px; text-align: center;">${i + 1}</td>
-            <td style="border: 1px solid #000; padding: 6px 4px; text-align: center;">${issueDate}</td>
-            <td style="border: 1px solid #000; padding: 6px 4px;">${currentItem.name}</td>
-            <td style="border: 1px solid #000; padding: 6px 4px; text-align: center;">${currentItem.quantity}</td>
-            <td style="border: 1px solid #000; padding: 6px 4px; text-align: center;">${teamName}</td>
-            <td style="border: 1px solid #000; padding: 6px 4px; text-align: center;">${requesterName}</td>
-            <td style="border: 1px solid #000; padding: 2px; text-align: center;">${parsed.signature ? `<img src="${parsed.signature}" style="max-height: 20px; max-width: 60px;" />` : ''}</td>
+            <td style="border: 1px solid #000; padding: 8px 6px; text-align: center; font-size: 14px;">${i + 1}</td>
+            <td style="border: 1px solid #000; padding: 8px 6px; text-align: center; font-size: 14px;">${issueDate}</td>
+            <td style="border: 1px solid #000; padding: 8px 6px; font-size: 14px;">${currentItem.name}</td>
+            <td style="border: 1px solid #000; padding: 8px 6px; text-align: center; font-size: 14px;">${currentItem.quantity}</td>
+            <td style="border: 1px solid #000; padding: 8px 6px; text-align: center; font-size: 14px;">${teamName}</td>
+            <td style="border: 1px solid #000; padding: 8px 6px; text-align: center; font-size: 14px;">${requesterName}</td>
+            <td style="border: 1px solid #000; padding: 4px; text-align: center;">${parsed.signature ? `<img src="${parsed.signature}" style="max-height: 24px; max-width: 70px;" />` : ''}</td>
           </tr>
         `;
       } else {
         rowsHtml += `
           <tr>
-            <td style="border: 1px solid #000; padding: 6px 4px; text-align: center;">${i + 1}</td>
-            <td style="border: 1px solid #000; padding: 6px 4px;"></td>
-            <td style="border: 1px solid #000; padding: 6px 4px;"></td>
-            <td style="border: 1px solid #000; padding: 6px 4px;"></td>
-            <td style="border: 1px solid #000; padding: 6px 4px;"></td>
-            <td style="border: 1px solid #000; padding: 6px 4px;"></td>
-            <td style="border: 1px solid #000; padding: 6px 4px;"></td>
+            <td style="border: 1px solid #000; padding: 8px 6px; text-align: center; font-size: 14px;">${i + 1}</td>
+            <td style="border: 1px solid #000; padding: 8px 6px;"></td>
+            <td style="border: 1px solid #000; padding: 8px 6px;"></td>
+            <td style="border: 1px solid #000; padding: 8px 6px;"></td>
+            <td style="border: 1px solid #000; padding: 8px 6px;"></td>
+            <td style="border: 1px solid #000; padding: 8px 6px;"></td>
+            <td style="border: 1px solid #000; padding: 8px 6px;"></td>
           </tr>
         `;
       }
     }
     
     container.innerHTML = `
-      <h1 style="text-align: center; font-size: 20px; margin-bottom: 5px; text-decoration: underline;">보호구지급대장</h1>
-      <table style="width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 20px;">
+      <h1 style="text-align: center; font-size: 24px; margin-bottom: 8px; text-decoration: underline;">보호구지급대장</h1>
+      <table style="width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 25px;">
         <thead>
           <tr style="background: #e6e6e6;">
-            <th style="border: 1px solid #000; padding: 8px 4px; width: 40px;">순번</th>
-            <th style="border: 1px solid #000; padding: 8px 4px; width: 70px;">지급일자</th>
-            <th style="border: 1px solid #000; padding: 8px 4px; width: 180px;">보호구 명칭</th>
-            <th style="border: 1px solid #000; padding: 8px 4px; width: 50px;">수량</th>
-            <th style="border: 1px solid #000; padding: 8px 4px; width: 100px;">부서명</th>
-            <th style="border: 1px solid #000; padding: 8px 4px; width: 70px;">성명</th>
-            <th style="border: 1px solid #000; padding: 8px 4px; width: 80px;">서명</th>
+            <th style="border: 1px solid #000; padding: 10px 6px; width: 45px; font-size: 14px;">순번</th>
+            <th style="border: 1px solid #000; padding: 10px 6px; width: 80px; font-size: 14px;">지급일자</th>
+            <th style="border: 1px solid #000; padding: 10px 6px; width: 180px; font-size: 14px;">보호구 명칭</th>
+            <th style="border: 1px solid #000; padding: 10px 6px; width: 55px; font-size: 14px;">수량</th>
+            <th style="border: 1px solid #000; padding: 10px 6px; width: 110px; font-size: 14px;">부서명</th>
+            <th style="border: 1px solid #000; padding: 10px 6px; width: 75px; font-size: 14px;">성명</th>
+            <th style="border: 1px solid #000; padding: 10px 6px; width: 85px; font-size: 14px;">서명</th>
           </tr>
         </thead>
         <tbody>
           ${rowsHtml}
         </tbody>
       </table>
-      <p style="text-align: center; font-size: 10px; margin-top: 15px;">「한번 실수 평생 후회 한번 안전 일생 행복」</p>
+      <p style="text-align: center; font-size: 12px; margin-top: 20px;">「한번 실수 평생 후회 한번 안전 일생 행복」</p>
     `;
     
     document.body.appendChild(container);
@@ -428,20 +488,98 @@ export default function EquipmentRequest() {
             </div>
           </div>
           
-          <div>
-            <label className="text-sm font-medium mb-2 block">용품 선택</label>
-            <Select onValueChange={handleAddEquipment}>
-              <SelectTrigger data-testid="select-equipment">
-                <SelectValue placeholder="용품을 선택하세요" />
-              </SelectTrigger>
-              <SelectContent>
-                {EQUIPMENT_LIST.map(equip => (
-                  <SelectItem key={equip.name} value={equip.name}>
-                    [{equip.category}] {equip.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium">용품 선택</label>
+              <div className="flex gap-2">
+                <Button 
+                  variant={viewMode === "list" ? "default" : "outline"} 
+                  size="sm" 
+                  onClick={() => setViewMode("list")}
+                >
+                  목록
+                </Button>
+                <Button 
+                  variant={viewMode === "grid" ? "default" : "outline"} 
+                  size="sm" 
+                  onClick={() => setViewMode("grid")}
+                >
+                  <Image className="w-4 h-4 mr-1" />
+                  사진
+                </Button>
+                {!isLocked && (
+                  <Button variant="outline" size="sm" onClick={() => setAdminModalOpen(true)}>
+                    <Settings className="w-4 h-4 mr-1" />
+                    관리
+                  </Button>
+                )}
+              </div>
+            </div>
+            
+            {viewMode === "list" ? (
+              <Select onValueChange={(val) => handleAddEquipment(val)}>
+                <SelectTrigger data-testid="select-equipment">
+                  <SelectValue placeholder="용품을 선택하세요" />
+                </SelectTrigger>
+                <SelectContent>
+                  {EQUIPMENT_LIST.map(equip => (
+                    <SelectItem key={equip.name} value={equip.name}>
+                      [{equip.category}] {equip.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2 max-h-64 overflow-y-auto border rounded-lg p-2">
+                {EQUIPMENT_LIST.map(equip => {
+                  const eq = equip as { name: string; category: string; imageUrl?: string };
+                  return (
+                    <div 
+                      key={eq.name}
+                      className="flex flex-col items-center p-2 border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => handleAddEquipment(eq.name)}
+                    >
+                      {eq.imageUrl ? (
+                        <img src={eq.imageUrl} alt={eq.name} className="w-12 h-12 object-cover rounded mb-1" />
+                      ) : (
+                        <div className="w-12 h-12 bg-muted rounded flex items-center justify-center mb-1">
+                          <ShoppingCart className="w-5 h-5 text-muted-foreground" />
+                        </div>
+                      )}
+                      <span className="text-xs text-center line-clamp-2">{eq.name}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            
+            <div className="border rounded-lg p-3 bg-muted/20">
+              <div className="flex items-center gap-2 mb-2">
+                <PenLine className="w-4 h-4" />
+                <span className="text-sm font-medium">직접입력</span>
+              </div>
+              <div className="flex gap-2">
+                <Select value={customItemCategory} onValueChange={setCustomItemCategory}>
+                  <SelectTrigger className="w-28">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="보호구">보호구</SelectItem>
+                    <SelectItem value="안전용품">안전용품</SelectItem>
+                    <SelectItem value="기타품목">기타품목</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input 
+                  placeholder="용품명 입력" 
+                  value={customItemName}
+                  onChange={e => setCustomItemName(e.target.value)}
+                  className="flex-1"
+                />
+                <Button onClick={handleAddCustomItem} size="sm">
+                  <Plus className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
           </div>
 
           {selectedItems.length > 0 && (
@@ -550,7 +688,7 @@ export default function EquipmentRequest() {
                         <Select 
                           value={parsed.status || "지급요청"} 
                           onValueChange={(val) => handleStatusChange(item, val)}
-                          disabled={isUpdating}
+                          disabled={isUpdating || isLocked}
                         >
                           <SelectTrigger className="w-[110px] h-8" data-testid={`select-status-${item.id}`}>
                             <SelectValue />
@@ -665,6 +803,102 @@ export default function EquipmentRequest() {
               전송
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={adminModalOpen} onOpenChange={setAdminModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>안전용품 관리</DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="border rounded-lg p-4 bg-muted/20">
+              <h4 className="font-medium mb-3">새 용품 추가</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+                <Select value={newEquipCategory} onValueChange={setNewEquipCategory}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="보호구">보호구</SelectItem>
+                    <SelectItem value="안전용품">안전용품</SelectItem>
+                    <SelectItem value="기타품목">기타품목</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input 
+                  placeholder="용품명" 
+                  value={newEquipName}
+                  onChange={e => setNewEquipName(e.target.value)}
+                />
+                <Input 
+                  placeholder="이미지 URL (선택)" 
+                  value={newEquipImageUrl}
+                  onChange={e => setNewEquipImageUrl(e.target.value)}
+                />
+                <Button 
+                  onClick={() => {
+                    if (!newEquipName.trim()) {
+                      toast({ variant: "destructive", title: "용품명을 입력해주세요." });
+                      return;
+                    }
+                    createEquipmentMutation.mutate({ 
+                      name: newEquipName.trim(), 
+                      category: newEquipCategory,
+                      imageUrl: newEquipImageUrl || undefined
+                    });
+                  }}
+                  disabled={createEquipmentMutation.isPending}
+                >
+                  <Plus className="w-4 h-4 mr-1" />
+                  추가
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <h4 className="font-medium">등록된 용품 목록</h4>
+              {dbEquipment && dbEquipment.length > 0 ? (
+                <div className="space-y-2 max-h-80 overflow-y-auto">
+                  {["보호구", "안전용품", "기타품목"].map(category => {
+                    const items = dbEquipment.filter(e => e.category === category);
+                    if (items.length === 0) return null;
+                    return (
+                      <div key={category} className="space-y-1">
+                        <p className="text-sm font-medium text-muted-foreground">{category}</p>
+                        {items.map(item => (
+                          <div key={item.id} className="flex items-center justify-between gap-2 p-2 border rounded bg-background">
+                            <div className="flex items-center gap-2">
+                              {item.imageUrl ? (
+                                <img src={item.imageUrl} alt={item.name} className="w-8 h-8 object-cover rounded" />
+                              ) : (
+                                <div className="w-8 h-8 bg-muted rounded flex items-center justify-center">
+                                  <ShoppingCart className="w-4 h-4 text-muted-foreground" />
+                                </div>
+                              )}
+                              <span>{item.name}</span>
+                            </div>
+                            <Button 
+                              variant="ghost" 
+                              size="icon"
+                              onClick={() => deleteEquipmentMutation.mutate(item.id)}
+                              disabled={deleteEquipmentMutation.isPending}
+                            >
+                              <Trash2 className="w-4 h-4 text-destructive" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground py-4 text-center">
+                  등록된 용품이 없습니다. 새 용품을 추가하면 기본 용품 대신 표시됩니다.
+                </p>
+              )}
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

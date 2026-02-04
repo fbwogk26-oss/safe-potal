@@ -91,6 +91,20 @@ export type CreateNoticeRequest = InsertNotice;
 export type CreateVehicleRequest = InsertVehicle;
 export type UpdateVehicleRequest = Partial<InsertVehicle>;
 
+// === SAFETY EQUIPMENT ===
+export const safetyEquipment = pgTable("safety_equipment", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  category: text("category").notNull(), // '보호구', '안전용품', '기타품목'
+  imageUrl: text("image_url"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertSafetyEquipmentSchema = createInsertSchema(safetyEquipment).omit({ id: true, createdAt: true });
+export type SafetyEquipment = typeof safetyEquipment.$inferSelect;
+export type InsertSafetyEquipment = z.infer<typeof insertSafetyEquipmentSchema>;
+
 // === CONVERSATIONS (AI Chatbot) ===
 export const conversations = pgTable("conversations", {
   id: serial("id").primaryKey(),
