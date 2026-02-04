@@ -38,9 +38,9 @@ function Router() {
             <Route path="/notices" component={Notices} />
             <Route path="/education" component={Education} />
             <Route path="/inspections" component={SafetyInspections} />
-            <Route path="/vehicle" component={VehicleManagement} />
-            <Route path="/equipment" component={SafetyEquipment} />
-            <Route path="/equipment/status" component={EquipmentStatus} />
+            <Route path="/vehicle">{() => <VehicleManagement />}</Route>
+            <Route path="/equipment">{() => <SafetyEquipment />}</Route>
+            <Route path="/equipment/status">{() => <EquipmentStatus />}</Route>
             <Route path="/equipment/request" component={EquipmentRequest} />
             <Route path="/access" component={AccessRequest} />
             <Route path="/digital-board" component={DigitalBoard} />

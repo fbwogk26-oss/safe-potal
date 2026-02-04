@@ -45,9 +45,9 @@ export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       queryFn: getQueryFn({ on401: "throw" }),
-      refetchInterval: false,
-      refetchOnWindowFocus: false,
-      staleTime: Infinity,
+      refetchInterval: 5000, // 5초마다 자동 새로고침 (실시간 동기화)
+      refetchOnWindowFocus: true, // 탭 복귀 시 새로고침
+      staleTime: 3000, // 3초 후 데이터 갱신 가능
       retry: false,
     },
     mutations: {

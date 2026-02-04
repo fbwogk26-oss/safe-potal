@@ -22,7 +22,9 @@ import {
   DoorOpen,
   Car,
   HardHat,
-  MonitorPlay
+  MonitorPlay,
+  ClipboardCheck,
+  ShoppingCart
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -31,6 +33,8 @@ const NAV_ITEMS = [
   { label: "안전수칙", href: "/rules", icon: ShieldCheck },
   { label: "공지/알림", href: "/notices", icon: Bell },
   { label: "안전교육", href: "/education", icon: GraduationCap },
+  { label: "안전점검", href: "/inspections", icon: ClipboardCheck },
+  { label: "안전용품신청", href: "/equipment", icon: ShoppingCart },
   { label: "출입신청", href: "/access", icon: DoorOpen },
   { label: "전자게시판", href: "/digital-board", icon: MonitorPlay },
 ];
