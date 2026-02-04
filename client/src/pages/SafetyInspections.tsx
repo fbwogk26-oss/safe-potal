@@ -552,7 +552,7 @@ export default function SafetyInspections() {
                   </Button>
                   <Button
                     onClick={handleSubmit}
-                    disabled={isLocked || createMutation.isPending || !title}
+                    disabled={isLocked || createMutation.isPending || !department}
                     className="bg-green-600 hover:bg-green-700 text-white"
                     data-testid="button-submit-inspection"
                   >

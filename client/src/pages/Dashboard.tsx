@@ -699,39 +699,22 @@ export default function Dashboard() {
               <AlertCircle className="w-5 h-5 text-primary" />
               공지사항
             </DialogTitle>
-            <DialogDescription>
-              {currentNotice?.title}
-            </DialogDescription>
+            <DialogDescription className="sr-only">공지 내용</DialogDescription>
           </DialogHeader>
           
           <div className="py-4 space-y-4">
-            {currentNotice && (() => {
-              try {
-                const parsed = JSON.parse(currentNotice.content);
-                return (
-                  <>
-                    {parsed.imageUrl && (
-                      <div className="rounded-lg overflow-hidden border">
-                        <img 
-                          src={parsed.imageUrl} 
-                          alt="공지 이미지" 
-                          className="w-full h-auto object-cover"
-                        />
-                      </div>
-                    )}
-                    <div className="text-sm whitespace-pre-wrap leading-relaxed">
-                      {parsed.message || parsed.text || currentNotice.content}
-                    </div>
-                  </>
-                );
-              } catch {
-                return (
-                  <div className="text-sm whitespace-pre-wrap leading-relaxed">
-                    {currentNotice.content}
-                  </div>
-                );
-              }
-            })()}
+            {currentNotice?.imageUrl && (
+              <div className="rounded-lg overflow-hidden border">
+                <img 
+                  src={currentNotice.imageUrl} 
+                  alt="공지 이미지" 
+                  className="w-full h-auto object-cover max-h-64"
+                />
+              </div>
+            )}
+            <div className="text-sm whitespace-pre-wrap leading-relaxed">
+              {currentNotice?.content}
+            </div>
           </div>
           
           <DialogFooter className="flex-col sm:flex-row gap-3">
