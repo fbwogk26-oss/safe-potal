@@ -81,15 +81,16 @@ export default function EquipmentRequest() {
   const [requesterName, setRequesterName] = useState("");
   const [title, setTitle] = useState("");
   const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
-  const [viewMode, setViewMode] = useState<"list" | "grid">("list");
   
   const [customItemName, setCustomItemName] = useState("");
   const [customItemCategory, setCustomItemCategory] = useState("기타품목");
+  const [customInputModalOpen, setCustomInputModalOpen] = useState(false);
   
   const [adminModalOpen, setAdminModalOpen] = useState(false);
   const [newEquipName, setNewEquipName] = useState("");
   const [newEquipCategory, setNewEquipCategory] = useState("보호구");
-  const [newEquipImageUrl, setNewEquipImageUrl] = useState("");
+  const [newEquipImageFile, setNewEquipImageFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [signatureModalOpen, setSignatureModalOpen] = useState(false);
   const [currentSigningItem, setCurrentSigningItem] = useState<any>(null);
@@ -97,20 +98,29 @@ export default function EquipmentRequest() {
   const [isDrawing, setIsDrawing] = useState(false);
 
   const createEquipmentMutation = useMutation({
-    mutationFn: async (data: { name: string; category: string; imageUrl?: string }) => {
-      return apiRequest('/api/safety-equipment', { method: 'POST', body: JSON.stringify(data) });
+    mutationFn: async (data: { name: string; category: string; imageFile?: File }) => {
+      const formData = new FormData();
+      formData.append('name', data.name);
+      formData.append('category', data.category);
+      if (data.imageFile) {
+        formData.append('image', data.imageFile);
+      }
+      const res = await fetch('/api/safety-equipment', { method: 'POST', body: formData });
+      if (!res.ok) throw new Error('Failed to create equipment');
+      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/safety-equipment'] });
       toast({ title: "용품이 추가되었습니다." });
       setNewEquipName("");
-      setNewEquipImageUrl("");
+      setNewEquipImageFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   });
 
   const deleteEquipmentMutation = useMutation({
     mutationFn: async (id: number) => {
-      return apiRequest(`/api/safety-equipment/${id}`, { method: 'DELETE' });
+      return apiRequest("DELETE", `/api/safety-equipment/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/safety-equipment'] });
@@ -450,6 +460,12 @@ export default function EquipmentRequest() {
           </h2>
           <p className="text-muted-foreground mt-2">안전용품을 신청합니다.</p>
         </div>
+        {!isLocked && (
+          <Button variant="outline" size="sm" onClick={() => setAdminModalOpen(true)} className="ml-auto">
+            <Settings className="w-4 h-4 mr-1" />
+            관리
+          </Button>
+        )}
       </div>
 
       <Card className="glass-card overflow-hidden border-purple-200 dark:border-purple-900/30">
@@ -489,95 +505,41 @@ export default function EquipmentRequest() {
           </div>
           
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium">용품 선택</label>
-              <div className="flex gap-2">
-                <Button 
-                  variant={viewMode === "list" ? "default" : "outline"} 
-                  size="sm" 
-                  onClick={() => setViewMode("list")}
-                >
-                  목록
-                </Button>
-                <Button 
-                  variant={viewMode === "grid" ? "default" : "outline"} 
-                  size="sm" 
-                  onClick={() => setViewMode("grid")}
-                >
-                  <Image className="w-4 h-4 mr-1" />
-                  사진
-                </Button>
-                {!isLocked && (
-                  <Button variant="outline" size="sm" onClick={() => setAdminModalOpen(true)}>
-                    <Settings className="w-4 h-4 mr-1" />
-                    관리
-                  </Button>
-                )}
-              </div>
-            </div>
+            <label className="text-sm font-medium">용품 선택</label>
             
-            {viewMode === "list" ? (
-              <Select onValueChange={(val) => handleAddEquipment(val)}>
-                <SelectTrigger data-testid="select-equipment">
-                  <SelectValue placeholder="용품을 선택하세요" />
-                </SelectTrigger>
-                <SelectContent>
-                  {EQUIPMENT_LIST.map(equip => (
-                    <SelectItem key={equip.name} value={equip.name}>
-                      [{equip.category}] {equip.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : (
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2 max-h-64 overflow-y-auto border rounded-lg p-2">
-                {EQUIPMENT_LIST.map(equip => {
-                  const eq = equip as { name: string; category: string; imageUrl?: string };
-                  return (
-                    <div 
-                      key={eq.name}
-                      className="flex flex-col items-center p-2 border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
-                      onClick={() => handleAddEquipment(eq.name)}
-                    >
-                      {eq.imageUrl ? (
-                        <img src={eq.imageUrl} alt={eq.name} className="w-12 h-12 object-cover rounded mb-1" />
-                      ) : (
-                        <div className="w-12 h-12 bg-muted rounded flex items-center justify-center mb-1">
-                          <ShoppingCart className="w-5 h-5 text-muted-foreground" />
-                        </div>
-                      )}
-                      <span className="text-xs text-center line-clamp-2">{eq.name}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-            
-            <div className="border rounded-lg p-3 bg-muted/20">
-              <div className="flex items-center gap-2 mb-2">
-                <PenLine className="w-4 h-4" />
-                <span className="text-sm font-medium">직접입력</span>
-              </div>
-              <div className="flex gap-2">
-                <Select value={customItemCategory} onValueChange={setCustomItemCategory}>
-                  <SelectTrigger className="w-28">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="보호구">보호구</SelectItem>
-                    <SelectItem value="안전용품">안전용품</SelectItem>
-                    <SelectItem value="기타품목">기타품목</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Input 
-                  placeholder="용품명 입력" 
-                  value={customItemName}
-                  onChange={e => setCustomItemName(e.target.value)}
-                  className="flex-1"
-                />
-                <Button onClick={handleAddCustomItem} size="sm">
-                  <Plus className="w-4 h-4" />
-                </Button>
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 border rounded-lg p-3">
+              {EQUIPMENT_LIST.map(equip => {
+                const eq = equip as { name: string; category: string; imageUrl?: string };
+                const selected = selectedItems.find(i => i.name === eq.name);
+                return (
+                  <div 
+                    key={eq.name}
+                    className={`flex flex-col items-center p-2 border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors relative ${selected ? 'ring-2 ring-purple-500 bg-purple-50 dark:bg-purple-900/20' : ''}`}
+                    onClick={() => handleAddEquipment(eq.name)}
+                  >
+                    {selected && (
+                      <Badge className="absolute -top-2 -right-2 bg-purple-600 text-white text-xs px-1.5 py-0.5">{selected.quantity}</Badge>
+                    )}
+                    {eq.imageUrl ? (
+                      <img src={eq.imageUrl} alt={eq.name} className="w-12 h-12 object-cover rounded mb-1" />
+                    ) : (
+                      <div className="w-12 h-12 bg-muted rounded flex items-center justify-center mb-1">
+                        <ShoppingCart className="w-5 h-5 text-muted-foreground" />
+                      </div>
+                    )}
+                    <span className="text-xs text-center line-clamp-2">{eq.name}</span>
+                  </div>
+                );
+              })}
+              
+              <div 
+                className="flex flex-col items-center justify-center p-2 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
+                onClick={() => setCustomInputModalOpen(true)}
+              >
+                <div className="w-12 h-12 bg-muted rounded flex items-center justify-center mb-1">
+                  <PenLine className="w-5 h-5 text-muted-foreground" />
+                </div>
+                <span className="text-xs text-center">직접입력</span>
               </div>
             </div>
           </div>
@@ -815,27 +777,36 @@ export default function EquipmentRequest() {
           <div className="space-y-4">
             <div className="border rounded-lg p-4 bg-muted/20">
               <h4 className="font-medium mb-3">새 용품 추가</h4>
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
-                <Select value={newEquipCategory} onValueChange={setNewEquipCategory}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="보호구">보호구</SelectItem>
-                    <SelectItem value="안전용품">안전용품</SelectItem>
-                    <SelectItem value="기타품목">기타품목</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Input 
-                  placeholder="용품명" 
-                  value={newEquipName}
-                  onChange={e => setNewEquipName(e.target.value)}
-                />
-                <Input 
-                  placeholder="이미지 URL (선택)" 
-                  value={newEquipImageUrl}
-                  onChange={e => setNewEquipImageUrl(e.target.value)}
-                />
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <Select value={newEquipCategory} onValueChange={setNewEquipCategory}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="보호구">보호구</SelectItem>
+                      <SelectItem value="안전용품">안전용품</SelectItem>
+                      <SelectItem value="기타품목">기타품목</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Input 
+                    placeholder="용품명" 
+                    value={newEquipName}
+                    onChange={e => setNewEquipName(e.target.value)}
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <input 
+                    type="file" 
+                    accept="image/*"
+                    ref={fileInputRef}
+                    onChange={e => setNewEquipImageFile(e.target.files?.[0] || null)}
+                    className="flex-1 text-sm"
+                  />
+                  {newEquipImageFile && (
+                    <span className="text-xs text-muted-foreground">{newEquipImageFile.name}</span>
+                  )}
+                </div>
                 <Button 
                   onClick={() => {
                     if (!newEquipName.trim()) {
@@ -845,10 +816,11 @@ export default function EquipmentRequest() {
                     createEquipmentMutation.mutate({ 
                       name: newEquipName.trim(), 
                       category: newEquipCategory,
-                      imageUrl: newEquipImageUrl || undefined
+                      imageFile: newEquipImageFile || undefined
                     });
                   }}
                   disabled={createEquipmentMutation.isPending}
+                  className="w-full"
                 >
                   <Plus className="w-4 h-4 mr-1" />
                   추가
@@ -899,6 +871,47 @@ export default function EquipmentRequest() {
               )}
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={customInputModalOpen} onOpenChange={setCustomInputModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>직접 입력</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium mb-2 block">분류</label>
+              <Select value={customItemCategory} onValueChange={setCustomItemCategory}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="보호구">보호구</SelectItem>
+                  <SelectItem value="안전용품">안전용품</SelectItem>
+                  <SelectItem value="기타품목">기타품목</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-2 block">용품명</label>
+              <Input 
+                placeholder="용품명을 입력하세요" 
+                value={customItemName}
+                onChange={e => setCustomItemName(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCustomInputModalOpen(false)}>취소</Button>
+            <Button onClick={() => {
+              handleAddCustomItem();
+              setCustomInputModalOpen(false);
+            }}>
+              <Plus className="w-4 h-4 mr-1" />
+              추가
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

@@ -666,11 +666,15 @@ export async function registerRoutes(
     res.json(equipment);
   });
 
-  app.post("/api/safety-equipment", async (req, res) => {
+  app.post("/api/safety-equipment", upload.single('image'), async (req, res) => {
     try {
-      const { name, category, imageUrl } = req.body;
+      const { name, category } = req.body;
       if (!name || !category) {
         return res.status(400).json({ message: "Name and category are required" });
+      }
+      let imageUrl: string | undefined;
+      if (req.file) {
+        imageUrl = `/uploads/${req.file.filename}`;
       }
       const equipment = await storage.createSafetyEquipment({ name, category, imageUrl, isActive: true });
       res.status(201).json(equipment);
