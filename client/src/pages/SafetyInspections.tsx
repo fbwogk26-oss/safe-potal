@@ -40,6 +40,13 @@ const DEFAULT_CHECKLIST: ChecklistItem[] = [
 
 const MAX_IMAGES = 10;
 
+const EXTRA_DEPARTMENTS = [
+  "운용지원팀",
+  "운용계획팀",
+  "사업지원팀",
+  "현장경영팀",
+];
+
 export default function SafetyInspections() {
   const { data: inspections, isLoading } = useQuery<SafetyInspection[]>({
     queryKey: ["/api/safety-inspections"],
@@ -154,9 +161,14 @@ export default function SafetyInspections() {
   };
 
   const handleChecklistChange = (index: number, status: ChecklistStatus) => {
-    setChecklist(prev => prev.map((item, i) => 
-      i === index ? { ...item, status } : item
-    ));
+    setChecklist(prev => prev.map((item, i) => {
+      if (i !== index) return item;
+      // Toggle: if same status clicked again, reset to 미점검
+      if (item.status === status) {
+        return { ...item, status: '미점검' as ChecklistStatus };
+      }
+      return { ...item, status };
+    }));
   };
 
   const handleSubmit = () => {
@@ -220,90 +232,119 @@ export default function SafetyInspections() {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('안전점검 내역');
 
+    // Column definitions with better widths
     worksheet.columns = [
-      { header: '점검유형', key: 'type', width: 12 },
-      { header: '부서명', key: 'department', width: 15 },
-      { header: '작업내용', key: 'workContent', width: 25 },
-      { header: '점검국소', key: 'location', width: 20 },
-      { header: '작업자', key: 'inspector', width: 15 },
-      { header: '점검일', key: 'date', width: 12 },
-      { header: '체크리스트', key: 'checklist', width: 50 },
-      { header: '비고', key: 'notes', width: 30 },
-      { header: '사진', key: 'images', width: 80 },
+      { header: 'No', key: 'no', width: 6 },
+      { header: '점검유형', key: 'type', width: 14 },
+      { header: '부서명', key: 'department', width: 18 },
+      { header: '작업내용', key: 'workContent', width: 30 },
+      { header: '점검국소', key: 'location', width: 22 },
+      { header: '작업자', key: 'inspector', width: 12 },
+      { header: '점검일', key: 'date', width: 14 },
+      { header: '비고', key: 'notes', width: 25 },
     ];
 
-    worksheet.getRow(1).font = { bold: true };
-    worksheet.getRow(1).fill = {
+    // Add checklist item headers
+    DEFAULT_CHECKLIST.forEach((item, idx) => {
+      worksheet.getColumn(9 + idx).width = 12;
+      worksheet.getColumn(9 + idx).key = `check_${idx}`;
+    });
+
+    // Style header row
+    const headerRow = worksheet.getRow(1);
+    DEFAULT_CHECKLIST.forEach((item, idx) => {
+      headerRow.getCell(9 + idx).value = item.item;
+    });
+    
+    headerRow.font = { bold: true, size: 10 };
+    headerRow.fill = {
       type: 'pattern',
       pattern: 'solid',
-      fgColor: { argb: 'FFE0E0E0' }
+      fgColor: { argb: 'FF4472C4' }
     };
+    headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 };
+    headerRow.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    headerRow.height = 35;
 
-    let currentRow = 2;
+    // Add borders to header
+    for (let i = 1; i <= 8 + DEFAULT_CHECKLIST.length; i++) {
+      headerRow.getCell(i).border = {
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'thin' }
+      };
+    }
+
+    let rowNum = 1;
     for (const inspection of inspections) {
       const checklistItems = normalizeChecklist(inspection.checklist);
-      const checklistText = checklistItems
-        .map(item => `${item.item}: ${item.status}`)
-        .join('\n');
-
       const titleParts = (inspection.title || '').split(' - ');
       const deptName = titleParts[0] || '-';
       const workDesc = titleParts.slice(1).join(' - ') || '-';
       
-      const row = worksheet.addRow({
+      const rowData: Record<string, unknown> = {
+        no: rowNum,
         type: inspection.inspectionType,
         department: deptName,
         workContent: workDesc,
         location: inspection.location || '-',
         inspector: inspection.inspector || '-',
         date: inspection.inspectionDate,
-        checklist: checklistText,
         notes: inspection.notes || '-',
-        images: '',
+      };
+
+      // Add checklist statuses
+      checklistItems.forEach((item, idx) => {
+        rowData[`check_${idx}`] = item.status;
       });
 
-      const images = inspection.images || [];
-      if (images.length > 0) {
-        let imageCol = 9;
-        const imageHeight = 100;
-        row.height = imageHeight * 0.75;
+      const row = worksheet.addRow(rowData);
+      row.height = 22;
+      row.alignment = { vertical: 'middle', wrapText: true };
 
-        for (let i = 0; i < images.length; i++) {
-          try {
-            const response = await fetch(images[i]);
-            const blob = await response.blob();
-            const base64 = await new Promise<string>((resolve) => {
-              const reader = new FileReader();
-              reader.onloadend = () => resolve(reader.result as string);
-              reader.readAsDataURL(blob);
-            });
+      // Style checklist cells based on status
+      checklistItems.forEach((item, idx) => {
+        const cell = row.getCell(9 + idx);
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        
+        if (item.status === '양호') {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFC6EFCE' } };
+          cell.font = { color: { argb: 'FF006100' } };
+        } else if (item.status === '미흡') {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFC7CE' } };
+          cell.font = { color: { argb: 'FF9C0006' } };
+        } else {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEB9C' } };
+          cell.font = { color: { argb: 'FF9C6500' } };
+        }
+      });
 
-            const imageId = workbook.addImage({
-              base64: base64.split(',')[1],
-              extension: 'jpeg',
-            });
+      // Add borders to data cells
+      for (let i = 1; i <= 8 + DEFAULT_CHECKLIST.length; i++) {
+        row.getCell(i).border = {
+          top: { style: 'thin' },
+          left: { style: 'thin' },
+          bottom: { style: 'thin' },
+          right: { style: 'thin' }
+        };
+      }
 
-            worksheet.addImage(imageId, {
-              tl: { col: imageCol - 1 + i * 1.5, row: currentRow - 1 },
-              ext: { width: 80, height: 80 },
-            });
-          } catch (err) {
-            console.error('이미지 로드 실패:', err);
+      // Alternate row colors for better readability
+      if (rowNum % 2 === 0) {
+        for (let i = 1; i <= 8; i++) {
+          const cell = row.getCell(i);
+          if (!cell.fill || (cell.fill as ExcelJS.FillPattern).fgColor?.argb === undefined) {
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2F2F2' } };
           }
         }
-        
-        if (images.length > 1) {
-          worksheet.getColumn(9).width = 20 + (images.length * 15);
-        }
       }
-      currentRow++;
+
+      rowNum++;
     }
 
-    worksheet.eachRow((row, rowNumber) => {
-      if (rowNumber > 1) {
-        row.alignment = { wrapText: true, vertical: 'middle' };
-      }
-    });
+    // Freeze header row
+    worksheet.views = [{ state: 'frozen', ySplit: 1 }];
 
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -408,6 +449,11 @@ export default function SafetyInspections() {
                         {teams?.map((team) => (
                           <SelectItem key={team.id} value={team.name}>
                             {team.name}
+                          </SelectItem>
+                        ))}
+                        {EXTRA_DEPARTMENTS.map((dept) => (
+                          <SelectItem key={dept} value={dept}>
+                            {dept}
                           </SelectItem>
                         ))}
                       </SelectContent>
