@@ -23,14 +23,19 @@ interface ChecklistItem {
 }
 
 const DEFAULT_CHECKLIST: ChecklistItem[] = [
-  { item: "안전모 착용 상태", status: "미점검" },
-  { item: "안전화 착용 상태", status: "미점검" },
-  { item: "안전조끼 착용 상태", status: "미점검" },
-  { item: "작업장 정리정돈", status: "미점검" },
-  { item: "소화기 비치 상태", status: "미점검" },
-  { item: "비상구 확보 상태", status: "미점검" },
-  { item: "전기 안전 상태", status: "미점검" },
-  { item: "위험물 보관 상태", status: "미점검" },
+  { item: "검전기 사용", status: "미점검" },
+  { item: "안전모 착용", status: "미점검" },
+  { item: "안전화 착용", status: "미점검" },
+  { item: "안전대 착용방법", status: "미점검" },
+  { item: "이동식사다리 작업지침 준수", status: "미점검" },
+  { item: "고임목 사용", status: "미점검" },
+  { item: "2인1조 준수", status: "미점검" },
+  { item: "작업(절연)장갑 착용", status: "미점검" },
+  { item: "라바콘설치", status: "미점검" },
+  { item: "유해위험요인 확인", status: "미점검" },
+  { item: "관계수급인 고위험 작업 입회", status: "미점검" },
+  { item: "입회 임무 준수", status: "미점검" },
+  { item: "고위험 작업절차 준수", status: "미점검" },
 ];
 
 const MAX_IMAGES = 10;
@@ -202,6 +207,8 @@ export default function SafetyInspections() {
       return;
     }
 
+    toast({ title: "엑셀 파일 생성 중..." });
+
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('안전점검 내역');
 
@@ -213,7 +220,7 @@ export default function SafetyInspections() {
       { header: '점검일', key: 'date', width: 12 },
       { header: '체크리스트', key: 'checklist', width: 50 },
       { header: '비고', key: 'notes', width: 30 },
-      { header: '사진수', key: 'imageCount', width: 10 },
+      { header: '사진', key: 'images', width: 80 },
     ];
 
     worksheet.getRow(1).font = { bold: true };
@@ -223,13 +230,14 @@ export default function SafetyInspections() {
       fgColor: { argb: 'FFE0E0E0' }
     };
 
+    let currentRow = 2;
     for (const inspection of inspections) {
       const checklistItems = normalizeChecklist(inspection.checklist);
       const checklistText = checklistItems
         .map(item => `${item.item}: ${item.status}`)
         .join('\n');
 
-      worksheet.addRow({
+      const row = worksheet.addRow({
         type: inspection.inspectionType,
         title: inspection.title,
         location: inspection.location || '-',
@@ -237,13 +245,49 @@ export default function SafetyInspections() {
         date: inspection.inspectionDate,
         checklist: checklistText,
         notes: inspection.notes || '-',
-        imageCount: inspection.images?.length || 0,
+        images: '',
       });
+
+      const images = inspection.images || [];
+      if (images.length > 0) {
+        let imageCol = 8;
+        const imageHeight = 100;
+        row.height = imageHeight * 0.75;
+
+        for (let i = 0; i < images.length; i++) {
+          try {
+            const response = await fetch(images[i]);
+            const blob = await response.blob();
+            const base64 = await new Promise<string>((resolve) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve(reader.result as string);
+              reader.readAsDataURL(blob);
+            });
+
+            const imageId = workbook.addImage({
+              base64: base64.split(',')[1],
+              extension: 'jpeg',
+            });
+
+            worksheet.addImage(imageId, {
+              tl: { col: imageCol - 1 + i * 1.5, row: currentRow - 1 },
+              ext: { width: 80, height: 80 },
+            });
+          } catch (err) {
+            console.error('이미지 로드 실패:', err);
+          }
+        }
+        
+        if (images.length > 1) {
+          worksheet.getColumn(8).width = 20 + (images.length * 15);
+        }
+      }
+      currentRow++;
     }
 
     worksheet.eachRow((row, rowNumber) => {
       if (rowNumber > 1) {
-        row.alignment = { wrapText: true, vertical: 'top' };
+        row.alignment = { wrapText: true, vertical: 'middle' };
       }
     });
 
