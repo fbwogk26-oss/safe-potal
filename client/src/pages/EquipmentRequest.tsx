@@ -2,12 +2,13 @@ import { useNotices, useCreateNotice, useDeleteNotice, useUpdateNotice } from "@
 import { useLockStatus } from "@/hooks/use-settings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ShoppingCart, Plus, Trash2, Upload, Image, X, ChevronLeft, Clock, CheckCircle2, XCircle } from "lucide-react";
-import { useState, useRef } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { ShoppingCart, Plus, Trash2, ChevronLeft, Clock, CheckCircle2, FileText, Send, Minus, Download } from "lucide-react";
+import jsPDF from "jspdf";
+import { useState, useRef, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
@@ -15,6 +16,37 @@ import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
 
 const TEAMS = ["동대구운용팀", "서대구운용팀", "남대구운용팀", "포항운용팀", "안동운용팀", "구미운용팀", "문경운용팀", "운용지원팀", "운용계획팀", "사업지원팀", "현장경영팀"];
+
+const EQUIPMENT_LIST = [
+  { name: "안전모(일반)", category: "보호구" },
+  { name: "일반안전화", category: "보호구" },
+  { name: "하계안전화", category: "보호구" },
+  { name: "실내안전화", category: "보호구" },
+  { name: "안전장화", category: "보호구" },
+  { name: "안전대(복합식)", category: "보호구" },
+  { name: "절연장갑", category: "보호구" },
+  { name: "안전모(임업)", category: "보호구" },
+  { name: "안전모(신호수)", category: "보호구" },
+  { name: "추락방지대(로프식)", category: "보호구" },
+  { name: "추락방지대(와이어식)", category: "보호구" },
+  { name: "휴대용소화기", category: "안전용품" },
+  { name: "반사조끼(주황색조끼)", category: "안전용품" },
+  { name: "수평구명줄SET", category: "안전용품" },
+  { name: "비상용삼각대", category: "안전용품" },
+  { name: "접이식 라바콘", category: "안전용품" },
+  { name: "차량 고임목", category: "안전용품" },
+  { name: "A형사다리", category: "기타품목" },
+  { name: "아웃트리거", category: "기타품목" },
+  { name: "블랙박스", category: "기타품목" },
+  { name: "후방센서", category: "기타품목" },
+  { name: "후방카메라", category: "기타품목" },
+];
+
+interface SelectedItem {
+  name: string;
+  quantity: number;
+  category: string;
+}
 
 export default function EquipmentRequest() {
   const { data: requests, isLoading } = useNotices("equip_request");
@@ -28,76 +60,65 @@ export default function EquipmentRequest() {
   const [selectedTeam, setSelectedTeam] = useState("");
   const [requesterName, setRequesterName] = useState("");
   const [title, setTitle] = useState("");
-  const [content, setContent] = useState("");
-  const [images, setImages] = useState<{url: string; name: string}[]>([]);
-  const [isImageUploading, setIsImageUploading] = useState(false);
-  const imageInputRef = useRef<HTMLInputElement>(null);
+  const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
+  
+  const [signatureModalOpen, setSignatureModalOpen] = useState(false);
+  const [currentSigningItem, setCurrentSigningItem] = useState<any>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [isDrawing, setIsDrawing] = useState(false);
 
-  const MAX_IMAGES = 10;
-
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+  const handleAddEquipment = (equipName: string) => {
+    const equipment = EQUIPMENT_LIST.find(e => e.name === equipName);
+    if (!equipment) return;
     
-    const remainingSlots = MAX_IMAGES - images.length;
-    if (remainingSlots <= 0) {
-      toast({ variant: "destructive", title: `최대 ${MAX_IMAGES}개까지 첨부할 수 있습니다.` });
-      return;
-    }
-
-    const filesToUpload = Array.from(files).slice(0, remainingSlots);
-    setIsImageUploading(true);
-    
-    try {
-      for (const file of filesToUpload) {
-        const urlRes = await fetch('/api/uploads/request-url', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: file.name,
-            size: file.size,
-            contentType: file.type,
-          }),
-        });
-        const { uploadURL, objectPath } = await urlRes.json();
-        
-        await fetch(uploadURL, {
-          method: 'PUT',
-          body: file,
-          headers: { 'Content-Type': file.type },
-        });
-        
-        setImages(prev => [...prev, { url: objectPath, name: file.name }]);
-      }
-      toast({ title: `${filesToUpload.length}개 사진 업로드 완료` });
-    } catch (err) {
-      toast({ variant: "destructive", title: "업로드 실패" });
-    } finally {
-      setIsImageUploading(false);
-      if (imageInputRef.current) imageInputRef.current.value = "";
+    const existing = selectedItems.find(i => i.name === equipName);
+    if (existing) {
+      setSelectedItems(selectedItems.map(i => 
+        i.name === equipName ? { ...i, quantity: i.quantity + 1 } : i
+      ));
+    } else {
+      setSelectedItems([...selectedItems, { name: equipName, quantity: 1, category: equipment.category }]);
     }
   };
 
-  const handleRemoveImage = (index: number) => {
-    setImages(prev => prev.filter((_, i) => i !== index));
+  const handleRemoveEquipment = (equipName: string) => {
+    const existing = selectedItems.find(i => i.name === equipName);
+    if (existing && existing.quantity > 1) {
+      setSelectedItems(selectedItems.map(i => 
+        i.name === equipName ? { ...i, quantity: i.quantity - 1 } : i
+      ));
+    } else {
+      setSelectedItems(selectedItems.filter(i => i.name !== equipName));
+    }
+  };
+
+  const handleQuantityChange = (equipName: string, quantity: number) => {
+    if (quantity <= 0) {
+      setSelectedItems(selectedItems.filter(i => i.name !== equipName));
+    } else {
+      setSelectedItems(selectedItems.map(i => 
+        i.name === equipName ? { ...i, quantity } : i
+      ));
+    }
   };
 
   const handleAdd = () => {
-    if (!selectedTeam || !title || !requesterName) return;
+    if (!selectedTeam || !title || !requesterName || selectedItems.length === 0) {
+      toast({ variant: "destructive", title: "필수 항목을 모두 입력해주세요." });
+      return;
+    }
     const contentData = JSON.stringify({
       team: selectedTeam,
       requester: requesterName,
-      text: content,
+      items: selectedItems,
       status: "지급요청",
-      images: images,
     });
     createRequest({ title, content: contentData, category: "equip_request" }, {
       onSuccess: () => {
         setTitle("");
-        setContent("");
         setSelectedTeam("");
         setRequesterName("");
-        setImages([]);
+        setSelectedItems([]);
         toast({ title: "신청 완료", description: "용품 신청이 등록되었습니다." });
       }
     });
@@ -115,27 +136,235 @@ export default function EquipmentRequest() {
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "지급완료":
-        return <Badge className="bg-green-100 text-green-700 border-green-200"><CheckCircle2 className="w-3 h-3 mr-1" />지급완료</Badge>;
-      case "지급요청":
-      default:
-        return <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200"><Clock className="w-3 h-3 mr-1" />지급요청</Badge>;
+  const handleStatusChange = (item: any, newStatus: string) => {
+    if (newStatus === "지급완료") {
+      setCurrentSigningItem(item);
+      setSignatureModalOpen(true);
+    } else {
+      const parsed = parseContent(item.content);
+      const updatedContent = JSON.stringify({
+        ...parsed,
+        status: newStatus,
+      });
+      updateRequest({ id: item.id, title: item.title, content: updatedContent }, {
+        onSuccess: () => {
+          toast({ title: "상태 변경 완료", description: `상태가 "${newStatus}"(으)로 변경되었습니다.` });
+        }
+      });
     }
   };
 
-  const handleStatusChange = (item: any, newStatus: string) => {
-    const parsed = parseContent(item.content);
+  useEffect(() => {
+    if (signatureModalOpen && canvasRef.current) {
+      const canvas = canvasRef.current;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 2;
+        ctx.lineCap = 'round';
+      }
+    }
+  }, [signatureModalOpen]);
+
+  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    setIsDrawing(true);
+    const rect = canvas.getBoundingClientRect();
+    let clientX, clientY;
+    
+    if ('touches' in e) {
+      clientX = e.touches[0].clientX;
+      clientY = e.touches[0].clientY;
+    } else {
+      clientX = e.clientX;
+      clientY = e.clientY;
+    }
+    
+    ctx.beginPath();
+    ctx.moveTo(clientX - rect.left, clientY - rect.top);
+  };
+
+  const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    if (!isDrawing) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const rect = canvas.getBoundingClientRect();
+    let clientX, clientY;
+    
+    if ('touches' in e) {
+      e.preventDefault();
+      clientX = e.touches[0].clientX;
+      clientY = e.touches[0].clientY;
+    } else {
+      clientX = e.clientX;
+      clientY = e.clientY;
+    }
+    
+    ctx.lineTo(clientX - rect.left, clientY - rect.top);
+    ctx.stroke();
+  };
+
+  const stopDrawing = () => {
+    setIsDrawing(false);
+  };
+
+  const clearSignature = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  };
+
+  const isCanvasBlank = (): boolean => {
+    const canvas = canvasRef.current;
+    if (!canvas) return true;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return true;
+    
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imageData.data;
+    
+    for (let i = 0; i < data.length; i += 4) {
+      if (data[i] !== 255 || data[i + 1] !== 255 || data[i + 2] !== 255) {
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const handleSignatureSubmit = () => {
+    const canvas = canvasRef.current;
+    if (!canvas || !currentSigningItem) return;
+    
+    if (isCanvasBlank()) {
+      toast({ variant: "destructive", title: "서명을 입력해주세요." });
+      return;
+    }
+    
+    const signatureData = canvas.toDataURL('image/png');
+    const parsed = parseContent(currentSigningItem.content);
+    
     const updatedContent = JSON.stringify({
       ...parsed,
-      status: newStatus,
+      status: "지급완료",
+      signature: signatureData,
+      signedAt: new Date().toISOString(),
     });
-    updateRequest({ id: item.id, title: item.title, content: updatedContent }, {
+    
+    updateRequest({ id: currentSigningItem.id, title: currentSigningItem.title, content: updatedContent }, {
       onSuccess: () => {
-        toast({ title: "상태 변경 완료", description: `상태가 "${newStatus}"(으)로 변경되었습니다.` });
+        toast({ title: "서명 완료", description: "보호구 지급이 완료되었습니다." });
+        setSignatureModalOpen(false);
+        setCurrentSigningItem(null);
       }
     });
+  };
+
+  const generatePDF = async (item: any) => {
+    const parsed = parseContent(item.content);
+    const items = parsed.items || [];
+    
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    
+    doc.setFontSize(18);
+    doc.text("Safety Equipment Distribution Record", pageWidth / 2, 20, { align: "center" });
+    doc.text("(보호구 지급대장)", pageWidth / 2, 28, { align: "center" });
+    
+    doc.setFontSize(10);
+    let y = 45;
+    
+    doc.setFillColor(240, 240, 240);
+    doc.rect(15, y, 40, 8, 'F');
+    doc.rect(15, y + 8, 40, 8, 'F');
+    doc.rect(105, y, 40, 8, 'F');
+    doc.rect(105, y + 8, 40, 8, 'F');
+    
+    doc.setDrawColor(0);
+    doc.rect(15, y, 40, 8);
+    doc.rect(55, y, 50, 8);
+    doc.rect(105, y, 40, 8);
+    doc.rect(145, y, 50, 8);
+    doc.rect(15, y + 8, 40, 8);
+    doc.rect(55, y + 8, 50, 8);
+    doc.rect(105, y + 8, 40, 8);
+    doc.rect(145, y + 8, 50, 8);
+    
+    doc.text("Team (부서명)", 17, y + 6);
+    doc.text(parsed.team || '-', 57, y + 6);
+    doc.text("Request Date (신청일)", 107, y + 6);
+    doc.text(item.createdAt ? format(new Date(item.createdAt), 'yyyy-MM-dd') : '-', 147, y + 6);
+    
+    doc.text("Requester (신청자)", 17, y + 14);
+    doc.text(parsed.requester || '-', 57, y + 14);
+    doc.text("Issue Date (지급일)", 107, y + 14);
+    doc.text(parsed.signedAt ? format(new Date(parsed.signedAt), 'yyyy-MM-dd') : '-', 147, y + 14);
+    
+    y += 25;
+    
+    doc.setFillColor(240, 240, 240);
+    doc.rect(15, y, 20, 8, 'F');
+    doc.rect(35, y, 70, 8, 'F');
+    doc.rect(105, y, 50, 8, 'F');
+    doc.rect(155, y, 40, 8, 'F');
+    
+    doc.rect(15, y, 20, 8);
+    doc.rect(35, y, 70, 8);
+    doc.rect(105, y, 50, 8);
+    doc.rect(155, y, 40, 8);
+    
+    doc.text("No.", 17, y + 6);
+    doc.text("Item Name (품목명)", 37, y + 6);
+    doc.text("Category (분류)", 107, y + 6);
+    doc.text("Qty (수량)", 157, y + 6);
+    
+    y += 8;
+    
+    items.forEach((i: SelectedItem, idx: number) => {
+      doc.rect(15, y, 20, 8);
+      doc.rect(35, y, 70, 8);
+      doc.rect(105, y, 50, 8);
+      doc.rect(155, y, 40, 8);
+      
+      doc.text(String(idx + 1), 17, y + 6);
+      doc.text(i.name, 37, y + 6);
+      doc.text(i.category, 107, y + 6);
+      doc.text(String(i.quantity), 157, y + 6);
+      
+      y += 8;
+    });
+    
+    y += 15;
+    doc.setFontSize(10);
+    doc.text("I confirm receipt of the above safety equipment.", pageWidth - 20, y, { align: "right" });
+    doc.text("(위 보호구를 정히 수령하였음을 확인합니다.)", pageWidth - 20, y + 6, { align: "right" });
+    
+    y += 15;
+    doc.text("Signature (서명):", pageWidth - 70, y);
+    
+    if (parsed.signature) {
+      try {
+        doc.addImage(parsed.signature, 'PNG', pageWidth - 60, y + 2, 40, 20);
+      } catch (e) {
+        doc.text("(Signed)", pageWidth - 20, y + 12, { align: "right" });
+      }
+    }
+    
+    const fileName = `equipment_record_${parsed.team?.replace(/\s/g, '_') || 'unknown'}_${format(new Date(), 'yyyyMMdd')}.pdf`;
+    doc.save(fileName);
+    
+    toast({ title: "PDF 다운로드 완료", description: "보호구 지급대장이 다운로드되었습니다." });
   };
 
   const filteredRequests = requests || [];
@@ -196,68 +425,79 @@ export default function EquipmentRequest() {
           </div>
           
           <div>
-            <label className="text-sm font-medium mb-2 block">상세 내용</label>
-            <Textarea 
-              placeholder="신청할 용품의 상세 내용을 입력하세요 (품목, 수량, 사유 등)..." 
-              value={content} 
-              onChange={e => setContent(e.target.value)}
-              className="min-h-[100px]"
-              data-testid="input-request-content"
-            />
-          </div>
-          
-          <input
-            type="file"
-            accept="image/*"
-            multiple
-            ref={imageInputRef}
-            onChange={handleImageUpload}
-            className="hidden"
-            data-testid="input-request-image"
-          />
-
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                onClick={() => imageInputRef.current?.click()}
-                disabled={isImageUploading || images.length >= MAX_IMAGES}
-                className="gap-2"
-                data-testid="button-add-request-image"
-              >
-                <Image className="w-4 h-4" />
-                {isImageUploading ? "업로드 중..." : "사진 첨부"}
-              </Button>
-              <span className="text-sm text-muted-foreground">
-                {images.length}/{MAX_IMAGES}개
-              </span>
-            </div>
-            
-            {images.length > 0 && (
-              <div className="flex flex-wrap gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg dark:bg-blue-900/20 dark:border-blue-800">
-                {images.map((img, index) => (
-                  <div key={index} className="relative group">
-                    <img 
-                      src={img.url} 
-                      alt={img.name} 
-                      className="w-20 h-20 object-cover rounded border"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveImage(index)}
-                      className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                      data-testid={`button-remove-image-${index}`}
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </div>
+            <label className="text-sm font-medium mb-2 block">용품 선택</label>
+            <Select onValueChange={handleAddEquipment}>
+              <SelectTrigger data-testid="select-equipment">
+                <SelectValue placeholder="용품을 선택하세요" />
+              </SelectTrigger>
+              <SelectContent>
+                {EQUIPMENT_LIST.map(equip => (
+                  <SelectItem key={equip.name} value={equip.name}>
+                    [{equip.category}] {equip.name}
+                  </SelectItem>
                 ))}
-              </div>
-            )}
+              </SelectContent>
+            </Select>
           </div>
+
+          {selectedItems.length > 0 && (
+            <div className="border rounded-lg p-4 space-y-2 bg-muted/20">
+              <p className="text-sm font-medium mb-2">선택된 용품</p>
+              {selectedItems.map((item, idx) => (
+                <div key={idx} className="flex items-center justify-between gap-2 p-2 bg-background rounded border">
+                  <div className="flex-1">
+                    <span className="text-xs text-muted-foreground">[{item.category}]</span>
+                    <span className="ml-2 font-medium">{item.name}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      className="h-7 w-7"
+                      onClick={() => handleRemoveEquipment(item.name)}
+                      data-testid={`button-decrease-${idx}`}
+                    >
+                      <Minus className="w-3 h-3" />
+                    </Button>
+                    <Input 
+                      type="number" 
+                      value={item.quantity} 
+                      onChange={e => handleQuantityChange(item.name, parseInt(e.target.value) || 0)}
+                      className="w-16 h-7 text-center"
+                      min={1}
+                      data-testid={`input-quantity-${idx}`}
+                    />
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      className="h-7 w-7"
+                      onClick={() => handleAddEquipment(item.name)}
+                      data-testid={`button-increase-${idx}`}
+                    >
+                      <Plus className="w-3 h-3" />
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-7 w-7 text-destructive"
+                      onClick={() => setSelectedItems(selectedItems.filter((_, i) => i !== idx))}
+                      data-testid={`button-remove-${idx}`}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
           
           <div className="flex justify-end">
-            <Button onClick={handleAdd} disabled={isCreating || !selectedTeam || !title || !requesterName} className="bg-purple-600 hover:bg-purple-700 text-white gap-2" data-testid="button-submit-request">
+            <Button 
+              onClick={handleAdd} 
+              disabled={isCreating || !selectedTeam || !title || !requesterName || selectedItems.length === 0} 
+              className="bg-purple-600 hover:bg-purple-700 text-white gap-2" 
+              data-testid="button-submit-request"
+            >
               <Plus className="w-4 h-4" /> 신청하기
             </Button>
           </div>
@@ -279,9 +519,9 @@ export default function EquipmentRequest() {
                 <TableHead className="font-bold">팀</TableHead>
                 <TableHead className="font-bold">신청자</TableHead>
                 <TableHead className="font-bold">제목</TableHead>
-                <TableHead className="font-bold">내용</TableHead>
+                <TableHead className="font-bold">신청품목</TableHead>
                 <TableHead className="font-bold">신청일</TableHead>
-                <TableHead className="font-bold text-center">첨부 사진</TableHead>
+                <TableHead className="font-bold text-center">PDF</TableHead>
                 <TableHead className="w-[60px]"></TableHead>
               </TableRow>
             </TableHeader>
@@ -289,6 +529,11 @@ export default function EquipmentRequest() {
               <AnimatePresence>
                 {filteredRequests.map((item) => {
                   const parsed = parseContent(item.content);
+                  const items = parsed.items || [];
+                  const itemsSummary = items.length > 0 
+                    ? items.map((i: SelectedItem) => `${i.name}(${i.quantity})`).join(', ')
+                    : parsed.text || '-';
+                  
                   return (
                     <motion.tr
                       key={item.id}
@@ -325,45 +570,24 @@ export default function EquipmentRequest() {
                       <TableCell className="font-medium">{parsed.team || "-"}</TableCell>
                       <TableCell>{parsed.requester || "-"}</TableCell>
                       <TableCell className="font-medium">{item.title}</TableCell>
-                      <TableCell className="text-muted-foreground max-w-[150px] truncate">{parsed.text || "-"}</TableCell>
+                      <TableCell className="text-muted-foreground max-w-[200px] truncate" title={itemsSummary}>
+                        {itemsSummary}
+                      </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {item.createdAt && format(new Date(item.createdAt), "yyyy-MM-dd")}
                       </TableCell>
                       <TableCell className="text-center">
-                        {parsed.images && parsed.images.length > 0 ? (
-                          <div className="flex gap-1 justify-center flex-wrap">
-                            {parsed.images.slice(0, 3).map((img: {url: string; name: string}, idx: number) => (
-                              <a 
-                                key={idx}
-                                href={img.url} 
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-block"
-                              >
-                                <img 
-                                  src={img.url} 
-                                  alt={img.name} 
-                                  className="w-10 h-10 object-cover rounded border hover:opacity-80 transition-opacity cursor-pointer"
-                                />
-                              </a>
-                            ))}
-                            {parsed.images.length > 3 && (
-                              <span className="text-xs text-muted-foreground self-center">+{parsed.images.length - 3}</span>
-                            )}
-                          </div>
-                        ) : parsed.imageUrl ? (
-                          <a 
-                            href={parsed.imageUrl} 
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-block"
+                        {parsed.status === "지급완료" && parsed.signature ? (
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => generatePDF(item)}
+                            className="gap-1"
+                            data-testid={`button-pdf-${item.id}`}
                           >
-                            <img 
-                              src={parsed.imageUrl} 
-                              alt="첨부 사진" 
-                              className="w-10 h-10 object-cover rounded border hover:opacity-80 transition-opacity cursor-pointer"
-                            />
-                          </a>
+                            <Download className="w-3 h-3" />
+                            PDF
+                          </Button>
                         ) : "-"}
                       </TableCell>
                       <TableCell>
@@ -392,6 +616,53 @@ export default function EquipmentRequest() {
           </Table>
         </div>
       </Card>
+
+      <Dialog open={signatureModalOpen} onOpenChange={setSignatureModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Send className="w-5 h-5 text-purple-600" />
+              수령 서명
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              보호구 수령을 확인하는 서명을 해주세요.
+            </p>
+            <div className="border rounded-lg p-2 bg-white">
+              <canvas
+                ref={canvasRef}
+                width={350}
+                height={150}
+                className="border rounded cursor-crosshair touch-none"
+                onMouseDown={startDrawing}
+                onMouseMove={draw}
+                onMouseUp={stopDrawing}
+                onMouseLeave={stopDrawing}
+                onTouchStart={startDrawing}
+                onTouchMove={draw}
+                onTouchEnd={stopDrawing}
+              />
+            </div>
+            <Button variant="outline" onClick={clearSignature} className="w-full">
+              서명 지우기
+            </Button>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSignatureModalOpen(false)}>
+              취소
+            </Button>
+            <Button 
+              onClick={handleSignatureSubmit}
+              className="bg-purple-600 hover:bg-purple-700 text-white gap-2"
+              disabled={isUpdating}
+            >
+              <Send className="w-4 h-4" />
+              전송
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
