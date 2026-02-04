@@ -5,26 +5,35 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { ClipboardCheck, Plus, Trash2, ImagePlus, X, Calendar, MapPin, User, ChevronDown, ChevronUp } from "lucide-react";
+import { ClipboardCheck, Plus, Trash2, ImagePlus, X, Calendar, MapPin, User, ChevronDown, ChevronUp, Download, Check, AlertCircle } from "lucide-react";
 import { useState, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { SafetyInspection } from "@shared/schema";
+import ExcelJS from "exceljs";
 
-const DEFAULT_CHECKLIST = [
-  { item: "안전모 착용 상태", checked: false },
-  { item: "안전화 착용 상태", checked: false },
-  { item: "안전조끼 착용 상태", checked: false },
-  { item: "작업장 정리정돈", checked: false },
-  { item: "소화기 비치 상태", checked: false },
-  { item: "비상구 확보 상태", checked: false },
-  { item: "전기 안전 상태", checked: false },
-  { item: "위험물 보관 상태", checked: false },
+type ChecklistStatus = '양호' | '미흡' | '미점검';
+
+interface ChecklistItem {
+  item: string;
+  status: ChecklistStatus;
+}
+
+const DEFAULT_CHECKLIST: ChecklistItem[] = [
+  { item: "안전모 착용 상태", status: "미점검" },
+  { item: "안전화 착용 상태", status: "미점검" },
+  { item: "안전조끼 착용 상태", status: "미점검" },
+  { item: "작업장 정리정돈", status: "미점검" },
+  { item: "소화기 비치 상태", status: "미점검" },
+  { item: "비상구 확보 상태", status: "미점검" },
+  { item: "전기 안전 상태", status: "미점검" },
+  { item: "위험물 보관 상태", status: "미점검" },
 ];
+
+const MAX_IMAGES = 10;
 
 export default function SafetyInspections() {
   const { data: inspections, isLoading } = useQuery<SafetyInspection[]>({
@@ -38,15 +47,11 @@ export default function SafetyInspections() {
       location?: string;
       inspector?: string;
       inspectionDate: string;
-      checklist: Array<{ item: string; checked: boolean }>;
+      checklist: ChecklistItem[];
       notes?: string;
       images: string[];
     }) => {
-      return apiRequest("/api/safety-inspections", {
-        method: "POST",
-        body: JSON.stringify(data),
-        headers: { "Content-Type": "application/json" },
-      });
+      return apiRequest("POST", "/api/safety-inspections", data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/safety-inspections"] });
@@ -57,7 +62,7 @@ export default function SafetyInspections() {
   
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      return apiRequest(`/api/safety-inspections/${id}`, { method: "DELETE" });
+      return apiRequest("DELETE", `/api/safety-inspections/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/safety-inspections"] });
@@ -74,7 +79,7 @@ export default function SafetyInspections() {
   const [location, setLocation] = useState("");
   const [inspector, setInspector] = useState("");
   const [inspectionDate, setInspectionDate] = useState(format(new Date(), "yyyy-MM-dd"));
-  const [checklist, setChecklist] = useState(DEFAULT_CHECKLIST);
+  const [checklist, setChecklist] = useState<ChecklistItem[]>(DEFAULT_CHECKLIST);
   const [notes, setNotes] = useState("");
   const [images, setImages] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -97,10 +102,18 @@ export default function SafetyInspections() {
     const files = e.target.files;
     if (!files || files.length === 0) return;
     
+    const remainingSlots = MAX_IMAGES - images.length;
+    if (remainingSlots <= 0) {
+      toast({ variant: "destructive", title: `최대 ${MAX_IMAGES}장까지 등록 가능합니다.` });
+      return;
+    }
+    
+    const filesToUpload = Array.from(files).slice(0, remainingSlots);
+    
     setIsUploading(true);
     
     try {
-      for (const file of Array.from(files)) {
+      for (const file of filesToUpload) {
         const urlRes = await fetch('/api/uploads/request-url', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -129,9 +142,9 @@ export default function SafetyInspections() {
     }
   };
 
-  const handleChecklistChange = (index: number, checked: boolean) => {
+  const handleChecklistChange = (index: number, status: ChecklistStatus) => {
     setChecklist(prev => prev.map((item, i) => 
-      i === index ? { ...item, checked } : item
+      i === index ? { ...item, status } : item
     ));
   };
 
@@ -159,7 +172,94 @@ export default function SafetyInspections() {
     }
   };
 
-  const checkedCount = checklist.filter(c => c.checked).length;
+  const getStatusColor = (status: ChecklistStatus) => {
+    switch (status) {
+      case '양호': return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
+      case '미흡': return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400';
+      default: return 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400';
+    }
+  };
+
+  const normalizeChecklist = (rawChecklist: unknown): ChecklistItem[] => {
+    if (!Array.isArray(rawChecklist)) return [];
+    return rawChecklist.map((item: any) => {
+      if ('status' in item && typeof item.status === 'string') {
+        return item as ChecklistItem;
+      }
+      if ('checked' in item) {
+        return {
+          item: item.item || '',
+          status: item.checked ? '양호' : '미점검' as ChecklistStatus
+        };
+      }
+      return { item: item.item || '', status: '미점검' as ChecklistStatus };
+    });
+  };
+
+  const handleExcelDownload = async () => {
+    if (!inspections || inspections.length === 0) {
+      toast({ variant: "destructive", title: "다운로드할 점검 내역이 없습니다." });
+      return;
+    }
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('안전점검 내역');
+
+    worksheet.columns = [
+      { header: '점검유형', key: 'type', width: 12 },
+      { header: '점검제목', key: 'title', width: 30 },
+      { header: '점검국소', key: 'location', width: 20 },
+      { header: '작업자', key: 'inspector', width: 15 },
+      { header: '점검일', key: 'date', width: 12 },
+      { header: '체크리스트', key: 'checklist', width: 50 },
+      { header: '비고', key: 'notes', width: 30 },
+      { header: '사진수', key: 'imageCount', width: 10 },
+    ];
+
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE0E0E0' }
+    };
+
+    for (const inspection of inspections) {
+      const checklistItems = normalizeChecklist(inspection.checklist);
+      const checklistText = checklistItems
+        .map(item => `${item.item}: ${item.status}`)
+        .join('\n');
+
+      worksheet.addRow({
+        type: inspection.inspectionType,
+        title: inspection.title,
+        location: inspection.location || '-',
+        inspector: inspection.inspector || '-',
+        date: inspection.inspectionDate,
+        checklist: checklistText,
+        notes: inspection.notes || '-',
+        imageCount: inspection.images?.length || 0,
+      });
+    }
+
+    worksheet.eachRow((row, rowNumber) => {
+      if (rowNumber > 1) {
+        row.alignment = { wrapText: true, vertical: 'top' };
+      }
+    });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `안전점검내역_${format(new Date(), 'yyyyMMdd')}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast({ title: "엑셀 다운로드 완료" });
+  };
+
+  const goodCount = checklist.filter(c => c.status === '양호').length;
+  const poorCount = checklist.filter(c => c.status === '미흡').length;
   const totalCount = checklist.length;
 
   return (
@@ -176,15 +276,27 @@ export default function SafetyInspections() {
             <p className="text-xs sm:text-sm text-muted-foreground">점검 내역 관리</p>
           </div>
         </div>
-        <Button
-          onClick={() => setShowForm(!showForm)}
-          disabled={isLocked}
-          className="bg-green-600 hover:bg-green-700 text-white gap-2"
-          data-testid="button-toggle-form"
-        >
-          <Plus className="w-4 h-4" />
-          새 점검 등록
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={handleExcelDownload}
+            disabled={!inspections || inspections.length === 0}
+            className="gap-2"
+            data-testid="button-excel-download"
+          >
+            <Download className="w-4 h-4" />
+            <span className="hidden sm:inline">엑셀 다운로드</span>
+          </Button>
+          <Button
+            onClick={() => setShowForm(!showForm)}
+            disabled={isLocked}
+            className="bg-green-600 hover:bg-green-700 text-white gap-2"
+            data-testid="button-toggle-form"
+          >
+            <Plus className="w-4 h-4" />
+            새 점검 등록
+          </Button>
+        </div>
       </div>
 
       <AnimatePresence>
@@ -239,11 +351,11 @@ export default function SafetyInspections() {
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>점검 장소</Label>
+                    <Label>점검국소</Label>
                     <div className="relative">
                       <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       <Input
-                        placeholder="점검 장소 입력"
+                        placeholder="점검 국소 입력"
                         value={location}
                         onChange={e => setLocation(e.target.value)}
                         className="pl-10"
@@ -252,11 +364,11 @@ export default function SafetyInspections() {
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label>점검자</Label>
+                    <Label>작업자</Label>
                     <div className="relative">
                       <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       <Input
-                        placeholder="점검자 이름"
+                        placeholder="작업자 이름"
                         value={inspector}
                         onChange={e => setInspector(e.target.value)}
                         className="pl-10"
@@ -268,23 +380,41 @@ export default function SafetyInspections() {
 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <Label>체크리스트 ({checkedCount}/{totalCount})</Label>
-                    <span className="text-xs text-muted-foreground">
-                      {Math.round((checkedCount / totalCount) * 100)}% 완료
-                    </span>
+                    <Label>체크리스트</Label>
+                    <div className="flex gap-2 text-xs">
+                      <span className="text-green-600 dark:text-green-400">양호: {goodCount}</span>
+                      <span className="text-red-600 dark:text-red-400">미흡: {poorCount}</span>
+                      <span className="text-muted-foreground">미점검: {totalCount - goodCount - poorCount}</span>
+                    </div>
                   </div>
                   <div className="bg-muted/50 rounded-lg p-4 space-y-3">
                     {checklist.map((item, index) => (
-                      <div key={index} className="flex items-center gap-3">
-                        <Checkbox
-                          id={`check-${index}`}
-                          checked={item.checked}
-                          onCheckedChange={(checked) => handleChecklistChange(index, checked as boolean)}
-                          data-testid={`checkbox-item-${index}`}
-                        />
-                        <Label htmlFor={`check-${index}`} className="cursor-pointer flex-1">
-                          {item.item}
-                        </Label>
+                      <div key={index} className="flex items-center justify-between gap-3 py-2 border-b border-border/50 last:border-0">
+                        <span className="flex-1 text-sm">{item.item}</span>
+                        <div className="flex gap-1">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className={`h-8 px-3 ${item.status === '양호' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : ''}`}
+                            onClick={() => handleChecklistChange(index, '양호')}
+                            data-testid={`btn-good-${index}`}
+                          >
+                            <Check className="w-3 h-3 mr-1" />
+                            양호
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className={`h-8 px-3 ${item.status === '미흡' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : ''}`}
+                            onClick={() => handleChecklistChange(index, '미흡')}
+                            data-testid={`btn-poor-${index}`}
+                          >
+                            <AlertCircle className="w-3 h-3 mr-1" />
+                            미흡
+                          </Button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -301,7 +431,7 @@ export default function SafetyInspections() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>사진 첨부</Label>
+                  <Label>사진 첨부 ({images.length}/{MAX_IMAGES})</Label>
                   <input
                     type="file"
                     accept="image/*"
@@ -326,16 +456,18 @@ export default function SafetyInspections() {
                         </Button>
                       </div>
                     ))}
-                    <Button
-                      variant="outline"
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={isUploading}
-                      className="h-20 w-20 flex flex-col gap-1"
-                      data-testid="button-add-image"
-                    >
-                      <ImagePlus className="w-5 h-5" />
-                      <span className="text-xs">{isUploading ? "업로드..." : "추가"}</span>
-                    </Button>
+                    {images.length < MAX_IMAGES && (
+                      <Button
+                        variant="outline"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isUploading}
+                        className="h-20 w-20 flex flex-col gap-1"
+                        data-testid="button-add-image"
+                      >
+                        <ImagePlus className="w-5 h-5" />
+                        <span className="text-xs">{isUploading ? "업로드..." : "추가"}</span>
+                      </Button>
+                    )}
                   </div>
                 </div>
 
@@ -358,73 +490,138 @@ export default function SafetyInspections() {
         )}
       </AnimatePresence>
 
-      <div className="space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {isLoading ? (
-          <div className="text-center py-8 text-muted-foreground">로딩 중...</div>
+          <div className="col-span-full text-center py-8 text-muted-foreground">로딩 중...</div>
         ) : inspections?.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground">
+          <div className="col-span-full text-center py-12 text-muted-foreground">
             등록된 점검 내역이 없습니다.
           </div>
         ) : (
           <AnimatePresence>
-            {inspections?.map((inspection) => (
-              <motion.div
-                key={inspection.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-              >
-                <Card
-                  className="overflow-hidden group"
-                  data-testid={`card-inspection-${inspection.id}`}
+            {inspections?.map((inspection) => {
+              const checklistItems = normalizeChecklist(inspection.checklist);
+              const goodItems = checklistItems.filter(c => c.status === '양호').length;
+              const poorItems = checklistItems.filter(c => c.status === '미흡').length;
+              const thumbnailImage = inspection.images?.[0];
+              
+              return (
+                <motion.div
+                  key={inspection.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="col-span-1"
                 >
-                  <CardContent className="p-4">
-                    <div className="flex items-start gap-4">
-                      <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${
-                        inspection.inspectionType === "동행점검"
-                          ? "bg-blue-100 dark:bg-blue-900/30"
-                          : "bg-green-100 dark:bg-green-900/30"
-                      }`}>
-                        <ClipboardCheck className={`w-5 h-5 ${
-                          inspection.inspectionType === "동행점검"
-                            ? "text-blue-600 dark:text-blue-400"
-                            : "text-green-600 dark:text-green-400"
-                        }`} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className={`text-xs px-2 py-0.5 rounded-full ${
+                  <Card
+                    className="overflow-hidden group hover-elevate cursor-pointer"
+                    onClick={() => setExpandedId(expandedId === inspection.id ? null : inspection.id)}
+                    data-testid={`card-inspection-${inspection.id}`}
+                  >
+                    <CardContent className="p-0">
+                      <div className="flex">
+                        {thumbnailImage ? (
+                          <div className="w-24 h-24 sm:w-32 sm:h-32 shrink-0">
+                            <img 
+                              src={thumbnailImage} 
+                              alt="썸네일" 
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        ) : (
+                          <div className={`w-24 h-24 sm:w-32 sm:h-32 shrink-0 flex items-center justify-center ${
                             inspection.inspectionType === "동행점검"
-                              ? "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
-                              : "bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400"
+                              ? "bg-blue-100 dark:bg-blue-900/30"
+                              : "bg-green-100 dark:bg-green-900/30"
                           }`}>
-                            {inspection.inspectionType}
-                          </span>
-                          <h3 className="font-bold">{inspection.title}</h3>
+                            <ClipboardCheck className={`w-8 h-8 ${
+                              inspection.inspectionType === "동행점검"
+                                ? "text-blue-600 dark:text-blue-400"
+                                : "text-green-600 dark:text-green-400"
+                            }`} />
+                          </div>
+                        )}
+                        <div className="flex-1 p-3 sm:p-4 min-w-0">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2 flex-wrap mb-1">
+                                <span className={`text-xs px-2 py-0.5 rounded-full ${
+                                  inspection.inspectionType === "동행점검"
+                                    ? "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
+                                    : "bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400"
+                                }`}>
+                                  {inspection.inspectionType}
+                                </span>
+                                {inspection.images && inspection.images.length > 0 && (
+                                  <span className="text-xs text-muted-foreground">
+                                    사진 {inspection.images.length}장
+                                  </span>
+                                )}
+                              </div>
+                              <h3 className="font-bold text-sm sm:text-base truncate">{inspection.title}</h3>
+                              <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground mt-1">
+                                <span>{inspection.inspectionDate}</span>
+                                {inspection.location && <span>{inspection.location}</span>}
+                                {inspection.inspector && <span>{inspection.inspector}</span>}
+                              </div>
+                              <div className="flex gap-2 mt-2 text-xs">
+                                <span className="text-green-600 dark:text-green-400">양호 {goodItems}</span>
+                                <span className="text-red-600 dark:text-red-400">미흡 {poorItems}</span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setExpandedId(expandedId === inspection.id ? null : inspection.id);
+                                }}
+                                data-testid={`button-expand-${inspection.id}`}
+                              >
+                                {expandedId === inspection.id ? (
+                                  <ChevronUp className="w-4 h-4" />
+                                ) : (
+                                  <ChevronDown className="w-4 h-4" />
+                                )}
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 opacity-0 group-hover:opacity-100"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDelete(inspection.id);
+                                }}
+                                disabled={isLocked}
+                                data-testid={`button-delete-${inspection.id}`}
+                              >
+                                <Trash2 className="w-4 h-4 text-destructive" />
+                              </Button>
+                            </div>
+                          </div>
                         </div>
-                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground mt-1">
-                          <span>{inspection.inspectionDate}</span>
-                          {inspection.location && <span>{inspection.location}</span>}
-                          {inspection.inspector && <span>{inspection.inspector}</span>}
-                        </div>
-                        
-                        <AnimatePresence>
-                          {expandedId === inspection.id && (
-                            <motion.div
-                              initial={{ opacity: 0, height: 0 }}
-                              animate={{ opacity: 1, height: "auto" }}
-                              exit={{ opacity: 0, height: 0 }}
-                              className="mt-4 space-y-3"
-                            >
-                              {inspection.checklist && (inspection.checklist as Array<{ item: string; checked: boolean }>).length > 0 && (
+                      </div>
+                      
+                      <AnimatePresence>
+                        {expandedId === inspection.id && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: "auto" }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="border-t"
+                          >
+                            <div className="p-4 space-y-3">
+                              {checklistItems.length > 0 && (
                                 <div className="space-y-2">
                                   <Label className="text-sm">체크리스트</Label>
                                   <div className="bg-muted/50 rounded-lg p-3 space-y-2">
-                                    {(inspection.checklist as Array<{ item: string; checked: boolean }>).map((item, idx) => (
-                                      <div key={idx} className="flex items-center gap-2">
-                                        <Checkbox checked={item.checked} disabled />
-                                        <span className={item.checked ? "" : "text-muted-foreground"}>
-                                          {item.item}
+                                    {checklistItems.map((item, idx) => (
+                                      <div key={idx} className="flex items-center justify-between gap-2">
+                                        <span className="text-sm">{item.item}</span>
+                                        <span className={`text-xs px-2 py-0.5 rounded-full ${getStatusColor(item.status)}`}>
+                                          {item.status}
                                         </span>
                                       </div>
                                     ))}
@@ -441,7 +638,7 @@ export default function SafetyInspections() {
                               )}
                               {inspection.images && inspection.images.length > 0 && (
                                 <div className="space-y-1">
-                                  <Label className="text-sm">첨부 사진</Label>
+                                  <Label className="text-sm">첨부 사진 ({inspection.images.length}장)</Label>
                                   <div className="flex flex-wrap gap-2">
                                     {inspection.images.map((img, idx) => (
                                       <img
@@ -449,45 +646,24 @@ export default function SafetyInspections() {
                                         src={img}
                                         alt={`점검 사진 ${idx + 1}`}
                                         className="h-24 w-24 object-cover rounded-lg border cursor-pointer hover:opacity-80"
-                                        onClick={() => window.open(img, "_blank")}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          window.open(img, "_blank");
+                                        }}
                                       />
                                     ))}
                                   </div>
                                 </div>
                               )}
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setExpandedId(expandedId === inspection.id ? null : inspection.id)}
-                          data-testid={`button-expand-${inspection.id}`}
-                        >
-                          {expandedId === inspection.id ? (
-                            <ChevronUp className="w-4 h-4" />
-                          ) : (
-                            <ChevronDown className="w-4 h-4" />
-                          )}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="opacity-0 group-hover:opacity-100"
-                          onClick={() => handleDelete(inspection.id)}
-                          disabled={isLocked}
-                          data-testid={`button-delete-${inspection.id}`}
-                        >
-                          <Trash2 className="w-4 h-4 text-destructive" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ))}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              );
+            })}
           </AnimatePresence>
         )}
       </div>

@@ -505,6 +505,22 @@ export async function registerRoutes(
     res.json({ success: true });
   });
 
+  // === PINNED NOTICE ===
+  app.get("/api/settings/pinned-notice", async (req, res) => {
+    const setting = await storage.getSetting('pinned_notice_id');
+    res.json({ pinnedNoticeId: setting?.value ? Number(setting.value) : null });
+  });
+
+  app.post("/api/settings/pinned-notice", async (req, res) => {
+    const { noticeId } = req.body;
+    if (noticeId === null) {
+      await storage.setSetting('pinned_notice_id', '');
+    } else {
+      await storage.setSetting('pinned_notice_id', String(noticeId));
+    }
+    res.json({ success: true, pinnedNoticeId: noticeId });
+  });
+
   // === VEHICLES ===
   app.get(api.vehicles.list.path, async (req, res) => {
     const vehicles = await storage.getVehicles();

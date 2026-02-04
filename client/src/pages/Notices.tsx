@@ -6,10 +6,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Bell, Plus, Trash2, Megaphone, ImagePlus, X, Settings, Pin, PinOff } from "lucide-react";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 export default function Notices() {
   const { data: notices, isLoading } = useNotices("notice");
@@ -24,21 +26,27 @@ export default function Notices() {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [pinnedNoticeId, setPinnedNoticeId] = useState<number | null>(null);
   
-  useEffect(() => {
-    const stored = localStorage.getItem('pinnedNoticeId');
-    if (stored) setPinnedNoticeId(Number(stored));
-  }, []);
+  const { data: pinnedData } = useQuery<{ pinnedNoticeId: number | null }>({
+    queryKey: ["/api/settings/pinned-notice"],
+  });
+  const pinnedNoticeId = pinnedData?.pinnedNoticeId ?? null;
+  
+  const setPinnedMutation = useMutation({
+    mutationFn: async (noticeId: number | null) => {
+      return apiRequest("POST", "/api/settings/pinned-notice", { noticeId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/settings/pinned-notice"] });
+    },
+  });
   
   const handleSetPinned = (id: number) => {
     if (pinnedNoticeId === id) {
-      localStorage.removeItem('pinnedNoticeId');
-      setPinnedNoticeId(null);
+      setPinnedMutation.mutate(null);
       toast({ title: "상단공지 해제", description: "최신 공지가 대시보드에 표시됩니다." });
     } else {
-      localStorage.setItem('pinnedNoticeId', String(id));
-      setPinnedNoticeId(id);
+      setPinnedMutation.mutate(id);
       toast({ title: "상단공지 설정", description: "이 공지가 대시보드에 표시됩니다." });
     }
   };

@@ -2,6 +2,7 @@ import { useTeams, useResetTeam, useResetAllTeams } from "@/hooks/use-teams";
 import { useVehicles } from "@/hooks/use-vehicles";
 import { useNotices } from "@/hooks/use-notices";
 import { useLockStatus } from "@/hooks/use-settings";
+import { useQuery } from "@tanstack/react-query";
 import { 
   BarChart, 
   Bar, 
@@ -64,17 +65,21 @@ export default function Dashboard() {
   const resetAllTeams = useResetAllTeams();
   const { toast } = useToast();
   
+  const { data: pinnedData } = useQuery<{ pinnedNoticeId: number | null }>({
+    queryKey: ["/api/settings/pinned-notice"],
+  });
+  
   // Check for new notices and show popup
   useEffect(() => {
     if (!notices || notices.length === 0) return;
     
     // Get dismissed notice IDs from localStorage
     const dismissedNotices = JSON.parse(localStorage.getItem('dismissedNotices') || '[]');
-    const pinnedNoticeId = localStorage.getItem('pinnedNoticeId');
+    const pinnedNoticeId = pinnedData?.pinnedNoticeId;
     
     // First check for pinned notice
     if (pinnedNoticeId) {
-      const pinnedNotice = notices.find(n => n.id === Number(pinnedNoticeId));
+      const pinnedNotice = notices.find(n => n.id === pinnedNoticeId);
       if (pinnedNotice && !dismissedNotices.includes(pinnedNotice.id)) {
         setCurrentNotice(pinnedNotice);
         setNoticePopupOpen(true);
@@ -91,7 +96,7 @@ export default function Dashboard() {
       setCurrentNotice(latestNotice);
       setNoticePopupOpen(true);
     }
-  }, [notices]);
+  }, [notices, pinnedData]);
   
   const handleCloseNoticePopup = () => {
     if (dontShowAgain && currentNotice) {

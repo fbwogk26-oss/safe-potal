@@ -133,10 +133,10 @@ export const safetyInspections = pgTable("safety_inspections", {
   id: serial("id").primaryKey(),
   inspectionType: text("inspection_type").notNull(), // '안전점검', '동행점검'
   title: text("title").notNull(),
-  location: text("location"),
-  inspector: text("inspector"),
+  location: text("location"), // 점검국소
+  inspector: text("inspector"), // 작업자
   inspectionDate: text("inspection_date").notNull(),
-  checklist: jsonb("checklist").$type<Array<{ item: string; checked: boolean }>>().notNull().default([]),
+  checklist: jsonb("checklist").$type<Array<{ item: string; status: '양호' | '미흡' | '미점검' }>>().notNull().default([]),
   notes: text("notes"),
   images: text("images").array().notNull().default([]),
   createdAt: timestamp("created_at").defaultNow(),
