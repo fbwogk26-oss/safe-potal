@@ -253,7 +253,7 @@ export default function SafetyInspections() {
     // Add 10 image columns (사진1 ~ 사진10)
     const MAX_IMAGES = 10;
     const firstImageCol = 9 + DEFAULT_CHECKLIST.length;
-    const imageColWidth = 11.5; // ~2.99cm
+    const imageColWidth = 16; // ~2.99cm (Excel width units)
     
     for (let i = 0; i < MAX_IMAGES; i++) {
       worksheet.getColumn(firstImageCol + i).width = imageColWidth;
