@@ -97,6 +97,10 @@ export default function EquipmentRequest() {
   const [currentSigningItem, setCurrentSigningItem] = useState<any>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
+  
+  const [disposalConfirmOpen, setDisposalConfirmOpen] = useState(false);
+  const [signatureData, setSignatureData] = useState<string | null>(null);
+  const [isDisposed, setIsDisposed] = useState<boolean | null>(null);
 
   const createEquipmentMutation = useMutation({
     mutationFn: async (data: { name: string; category: string; imageFile?: File }) => {
@@ -335,7 +339,15 @@ export default function EquipmentRequest() {
       return;
     }
     
-    const signatureData = canvas.toDataURL('image/png');
+    const sigData = canvas.toDataURL('image/png');
+    setSignatureData(sigData);
+    setSignatureModalOpen(false);
+    setDisposalConfirmOpen(true);
+  };
+
+  const handleCompleteWithDisposal = async (disposed: boolean) => {
+    if (!currentSigningItem || !signatureData) return;
+    
     const parsed = parseContent(currentSigningItem.content);
     
     const updatedContent = JSON.stringify({
@@ -343,13 +355,32 @@ export default function EquipmentRequest() {
       status: "지급완료",
       signature: signatureData,
       signedAt: new Date().toISOString(),
+      disposed: disposed,
     });
     
     updateRequest({ id: currentSigningItem.id, title: currentSigningItem.title, content: updatedContent }, {
-      onSuccess: () => {
-        toast({ title: "서명 완료", description: "보호구 지급이 완료되었습니다." });
-        setSignatureModalOpen(false);
+      onSuccess: async () => {
+        if (!disposed && parsed.team) {
+          try {
+            await apiRequest("POST", "/api/teams/update-equipment", {
+              team: parsed.team,
+              items: parsed.items,
+            });
+          } catch (err) {
+            console.error("Failed to update equipment count:", err);
+          }
+        }
+        
+        toast({ 
+          title: "지급 완료", 
+          description: disposed 
+            ? "보호구 지급이 완료되었습니다. (기존 용품 폐기됨)" 
+            : "보호구 지급이 완료되었습니다. 안전보호구 현황이 업데이트됩니다." 
+        });
+        setDisposalConfirmOpen(false);
         setCurrentSigningItem(null);
+        setSignatureData(null);
+        setIsDisposed(null);
       }
     });
   };
@@ -939,6 +970,53 @@ export default function EquipmentRequest() {
             }}>
               <Plus className="w-4 h-4 mr-1" />
               추가
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={disposalConfirmOpen} onOpenChange={(open) => {
+        if (!open) {
+          setDisposalConfirmOpen(false);
+          setSignatureModalOpen(true);
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>기존 용품 폐기 확인</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-muted-foreground mb-4">
+              신규 용품이 지급됩니다. 기존에 사용하던 용품을 폐기하셨나요?
+            </p>
+            <div className="flex flex-col gap-3">
+              <Button 
+                variant="outline" 
+                onClick={() => handleCompleteWithDisposal(true)}
+                disabled={isUpdating}
+                data-testid="button-disposal-yes"
+              >
+                예, 폐기했습니다 (현황 추가 안함)
+              </Button>
+              <Button 
+                onClick={() => handleCompleteWithDisposal(false)}
+                disabled={isUpdating}
+                data-testid="button-disposal-no"
+              >
+                아니오, 폐기 안함 (현황에 추가)
+              </Button>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="ghost" 
+              onClick={() => {
+                setDisposalConfirmOpen(false);
+                setSignatureModalOpen(true);
+              }}
+              data-testid="button-disposal-back"
+            >
+              뒤로
             </Button>
           </DialogFooter>
         </DialogContent>

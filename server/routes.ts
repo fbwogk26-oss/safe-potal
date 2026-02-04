@@ -701,6 +701,38 @@ export async function registerRoutes(
     res.status(204).send();
   });
 
+  // Update team equipment (when new equipment is issued without disposal)
+  app.post("/api/teams/update-equipment", async (req, res) => {
+    try {
+      const { team, items } = req.body;
+      if (!team || !items) {
+        return res.status(400).json({ message: "Team and items are required" });
+      }
+      
+      // Create a notice to track the equipment update
+      const equipmentSummary = items.map((item: { name: string; quantity: number }) => 
+        `${item.name} x${item.quantity}`
+      ).join(", ");
+      
+      await storage.createNotice({
+        category: "equipment_update",
+        title: `${team} 안전보호구 추가`,
+        content: JSON.stringify({
+          team,
+          items,
+          updatedAt: new Date().toISOString(),
+          type: "equipment_addition"
+        })
+      });
+      
+      console.log(`Equipment updated for team ${team}: ${equipmentSummary}`);
+      res.json({ success: true, message: "Equipment count updated" });
+    } catch (err) {
+      console.error("Update equipment error:", err);
+      res.status(500).json({ message: "Failed to update equipment" });
+    }
+  });
+
   // Seed Data
   await seedDatabase();
 
