@@ -250,11 +250,18 @@ export default function SafetyInspections() {
       worksheet.getColumn(9 + idx).key = `check_${idx}`;
     });
 
+    // Add images column
+    const imageColIdx = 9 + DEFAULT_CHECKLIST.length;
+    worksheet.getColumn(imageColIdx).width = 80;
+    worksheet.getColumn(imageColIdx).key = 'images';
+    const totalCols = imageColIdx;
+
     // Style header row
     const headerRow = worksheet.getRow(1);
     DEFAULT_CHECKLIST.forEach((item, idx) => {
       headerRow.getCell(9 + idx).value = item.item;
     });
+    headerRow.getCell(imageColIdx).value = '사진';
     
     headerRow.font = { bold: true, size: 10 };
     headerRow.fill = {
@@ -267,7 +274,7 @@ export default function SafetyInspections() {
     headerRow.height = 35;
 
     // Add borders to header
-    for (let i = 1; i <= 8 + DEFAULT_CHECKLIST.length; i++) {
+    for (let i = 1; i <= totalCols; i++) {
       headerRow.getCell(i).border = {
         top: { style: 'thin' },
         left: { style: 'thin' },
@@ -321,7 +328,7 @@ export default function SafetyInspections() {
       });
 
       // Add borders to data cells
-      for (let i = 1; i <= 8 + DEFAULT_CHECKLIST.length; i++) {
+      for (let i = 1; i <= totalCols; i++) {
         row.getCell(i).border = {
           top: { style: 'thin' },
           left: { style: 'thin' },
@@ -337,6 +344,50 @@ export default function SafetyInspections() {
           if (!cell.fill || (cell.fill as ExcelJS.FillPattern).fgColor?.argb === undefined) {
             cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2F2F2' } };
           }
+        }
+      }
+
+      // Add images if available
+      const images = inspection.images || [];
+      if (images.length > 0) {
+        const numImages = Math.min(images.length, 4);
+        row.height = 70;
+        
+        for (let i = 0; i < numImages; i++) {
+          try {
+            // Convert relative path to absolute URL
+            const imageUrl = images[i].startsWith('/') 
+              ? window.location.origin + images[i] 
+              : images[i];
+            const response = await fetch(imageUrl);
+            const blob = await response.blob();
+            const base64 = await new Promise<string>((resolve) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve(reader.result as string);
+              reader.readAsDataURL(blob);
+            });
+
+            const imageId = workbook.addImage({
+              base64: base64.split(',')[1],
+              extension: 'jpeg',
+            });
+
+            // Place images in a grid within the cell (2x2 layout)
+            const colOffset = (i % 2) * 0.45;
+            const rowOffset = Math.floor(i / 2) * 0.5;
+            
+            worksheet.addImage(imageId, {
+              tl: { col: imageColIdx - 1 + colOffset, row: rowNum + rowOffset * 0.1 },
+              ext: { width: 32, height: 32 },
+            });
+          } catch (err) {
+            console.error('이미지 로드 실패:', err);
+          }
+        }
+        
+        if (images.length > 4) {
+          row.getCell(imageColIdx).value = `외 ${images.length - 4}장`;
+          row.getCell(imageColIdx).alignment = { vertical: 'bottom', horizontal: 'right' };
         }
       }
 

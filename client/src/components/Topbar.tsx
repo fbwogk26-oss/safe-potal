@@ -2,6 +2,7 @@ import { Bell, Lock, Unlock, Settings, RotateCw, Menu } from "lucide-react";
 import { useLockStatus, useSetLock } from "@/hooks/use-settings";
 import { Button } from "@/components/ui/button";
 import { useNotices } from "@/hooks/use-notices";
+import { useQuery } from "@tanstack/react-query";
 import {
   Dialog,
   DialogContent,
@@ -11,7 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Link, useLocation } from "wouter";
 import { 
@@ -37,7 +38,24 @@ const NAV_ITEMS = [
 export function Topbar() {
   const { data: lockData, isLoading: lockLoading } = useLockStatus();
   const { data: notices } = useNotices("notice");
-  const latestNotice = notices && notices.length > 0 ? notices[0] : null;
+  const { data: pinnedData } = useQuery<{ pinnedNoticeId: number | null }>({
+    queryKey: ["/api/settings/pinned-notice"],
+  });
+  
+  // Use pinned notice first, or fall back to latest notice
+  const tickerNotice = useMemo(() => {
+    if (!notices || notices.length === 0) return null;
+    const pinnedNoticeId = pinnedData?.pinnedNoticeId;
+    
+    if (pinnedNoticeId) {
+      const pinned = notices.find(n => n.id === pinnedNoticeId);
+      if (pinned) return pinned;
+    }
+    
+    // Fall back to most recent notice
+    return [...notices].sort((a, b) => b.id - a.id)[0] || null;
+  }, [notices, pinnedData]);
+  
   const isLocked = lockData?.isLocked;
   const [location] = useLocation();
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -113,15 +131,15 @@ export function Topbar() {
           <div className="absolute left-0 z-10 px-3 h-full flex items-center bg-background/50 backdrop-blur-sm text-xs font-bold text-primary uppercase tracking-wider">
             공지
           </div>
-          <div className="w-full overflow-hidden">
+          <div className="w-full overflow-hidden pl-14">
             <div className="animate-ticker pause-hover px-4 text-sm font-medium text-foreground/80 flex items-center gap-10">
-              {latestNotice ? (
+              {tickerNotice ? (
                  <>
-                   <span>{latestNotice.title}: {latestNotice.content}</span>
+                   <span>{tickerNotice.content}</span>
                    <span className="opacity-50">•</span>
-                   <span>{latestNotice.title}: {latestNotice.content}</span>
+                   <span>{tickerNotice.content}</span>
                    <span className="opacity-50">•</span>
-                   <span>{latestNotice.title}: {latestNotice.content}</span>
+                   <span>{tickerNotice.content}</span>
                  </>
               ) : (
                 <span>시스템 정상 작동 중. 현재 활성화된 긴급 알림이 없습니다.</span>

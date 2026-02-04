@@ -30,7 +30,7 @@ import { Input } from "@/components/ui/input";
 import { useState, useRef, useMemo, useEffect } from "react";
 import * as XLSX from "xlsx";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Download, RefreshCw, AlertTriangle, Trophy, AlertCircle, ShieldCheck, RotateCcw, Upload, Car, CheckCircle, Wrench, Shield, HardHat, ChevronDown, ChevronUp, X, Settings2, Bell } from "lucide-react";
+import { Download, RefreshCw, AlertTriangle, Trophy, AlertCircle, ShieldCheck, RotateCcw, Upload, Car, CheckCircle, Wrench, Shield, HardHat, ChevronDown, ChevronUp, X, Settings2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { TeamEditDialog } from "@/components/TeamEditDialog";
 import { cn } from "@/lib/utils";
@@ -107,20 +107,6 @@ export default function Dashboard() {
     setNoticePopupOpen(false);
     setDontShowAgain(false);
   };
-
-  // Ticker notice: pinned notice or latest notice
-  const tickerNotice = useMemo(() => {
-    if (!notices || notices.length === 0) return null;
-    const pinnedNoticeId = pinnedData?.pinnedNoticeId;
-    
-    if (pinnedNoticeId) {
-      const pinned = notices.find(n => n.id === pinnedNoticeId);
-      if (pinned) return pinned;
-    }
-    
-    // Fall back to most recent notice
-    return notices.sort((a, b) => b.id - a.id)[0] || null;
-  }, [notices, pinnedData]);
 
   // Vehicle stats (all teams - for summary dashboard)
   const vehicleStatsAll = useMemo(() => {
@@ -246,18 +232,6 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-4 md:space-y-6">
-      {/* Top Ticker Notice */}
-      {tickerNotice && (
-        <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg px-4 py-2.5 flex items-center gap-3 shadow-md overflow-hidden group">
-          <Bell className="w-4 h-4 flex-shrink-0" />
-          <div className="flex-1 overflow-hidden">
-            <span className="animate-ticker text-sm font-medium group-hover:[animation-play-state:paused]">
-              {tickerNotice.content}
-            </span>
-          </div>
-        </div>
-      )}
-
       {/* Tab Navigation */}
       <div className="flex flex-col gap-3 glass-card p-3 sm:p-4 rounded-xl">
         <div className="flex items-center justify-between">
