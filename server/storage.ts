@@ -1,11 +1,12 @@
 import { db } from "./db";
 import {
-  teams, notices, settings, vehicles, safetyEquipment,
+  teams, notices, settings, vehicles, safetyEquipment, safetyInspections,
   type Team, type InsertTeam, type UpdateTeamRequest,
   type Notice, type InsertNotice,
   type Setting,
   type Vehicle, type InsertVehicle, type UpdateVehicleRequest,
-  type SafetyEquipment, type InsertSafetyEquipment
+  type SafetyEquipment, type InsertSafetyEquipment,
+  type SafetyInspection, type InsertSafetyInspection
 } from "@shared/schema";
 import { eq, desc, asc } from "drizzle-orm";
 
@@ -40,6 +41,11 @@ export interface IStorage {
   createSafetyEquipment(equipment: InsertSafetyEquipment): Promise<SafetyEquipment>;
   updateSafetyEquipment(id: number, updates: Partial<InsertSafetyEquipment>): Promise<SafetyEquipment>;
   deleteSafetyEquipment(id: number): Promise<void>;
+  
+  // Safety Inspections
+  getSafetyInspections(): Promise<SafetyInspection[]>;
+  createSafetyInspection(inspection: InsertSafetyInspection): Promise<SafetyInspection>;
+  deleteSafetyInspection(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -153,6 +159,20 @@ export class DatabaseStorage implements IStorage {
 
   async deleteSafetyEquipment(id: number): Promise<void> {
     await db.update(safetyEquipment).set({ isActive: false }).where(eq(safetyEquipment.id, id));
+  }
+  
+  // === SAFETY INSPECTIONS ===
+  async getSafetyInspections(): Promise<SafetyInspection[]> {
+    return await db.select().from(safetyInspections).orderBy(desc(safetyInspections.createdAt));
+  }
+  
+  async createSafetyInspection(inspection: InsertSafetyInspection): Promise<SafetyInspection> {
+    const [created] = await db.insert(safetyInspections).values(inspection).returning();
+    return created;
+  }
+  
+  async deleteSafetyInspection(id: number): Promise<void> {
+    await db.delete(safetyInspections).where(eq(safetyInspections.id, id));
   }
 }
 

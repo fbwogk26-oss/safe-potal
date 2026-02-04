@@ -15,6 +15,7 @@ import EquipmentStatus from "@/pages/EquipmentStatus";
 import EquipmentRequest from "@/pages/EquipmentRequest";
 import AccessRequest from "@/pages/AccessRequest";
 import DigitalBoard from "@/pages/DigitalBoard";
+import SafetyInspections from "@/pages/SafetyInspections";
 import NotFound from "@/pages/NotFound";
 import { useLocation } from "wouter";
 
@@ -36,6 +37,7 @@ function Router() {
             <Route path="/rules" component={Rules} />
             <Route path="/notices" component={Notices} />
             <Route path="/education" component={Education} />
+            <Route path="/inspections" component={SafetyInspections} />
             <Route path="/vehicle" component={VehicleManagement} />
             <Route path="/equipment" component={SafetyEquipment} />
             <Route path="/equipment/status" component={EquipmentStatus} />

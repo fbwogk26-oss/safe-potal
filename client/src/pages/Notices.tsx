@@ -168,7 +168,14 @@ export default function Notices() {
 
       <div className="space-y-4">
         <AnimatePresence>
-          {notices?.map((notice) => (
+          {notices
+            ?.slice()
+            .sort((a, b) => {
+              if (a.id === pinnedNoticeId) return -1;
+              if (b.id === pinnedNoticeId) return 1;
+              return b.id - a.id;
+            })
+            .map((notice) => (
             <motion.div
               key={notice.id}
               initial={{ opacity: 0, x: -20 }}
@@ -177,15 +184,20 @@ export default function Notices() {
               className="group flex gap-4 bg-card rounded-2xl p-6 border border-border/50 shadow-sm items-start"
               data-testid={`card-notice-${notice.id}`}
             >
-              <div className="bg-muted w-12 h-12 rounded-full flex items-center justify-center shrink-0">
-                <Bell className="w-5 h-5 text-muted-foreground" />
+              <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${
+                pinnedNoticeId === notice.id 
+                  ? "bg-orange-100 dark:bg-orange-900/30" 
+                  : "bg-muted"
+              }`}>
+                <Bell className={`w-5 h-5 ${
+                  pinnedNoticeId === notice.id 
+                    ? "text-orange-500 dark:text-orange-400" 
+                    : "text-muted-foreground"
+                }`} />
               </div>
               <div className="flex-1 space-y-2">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    {pinnedNoticeId === notice.id && (
-                      <span className="text-xs bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 px-2 py-0.5 rounded-full">상단공지</span>
-                    )}
                     <h3 className="font-bold text-lg">{notice.title}</h3>
                   </div>
                   <div className="flex items-center gap-2">

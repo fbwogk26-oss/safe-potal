@@ -128,3 +128,21 @@ export type InsertConversation = z.infer<typeof insertConversationSchema>;
 export type Message = typeof messages.$inferSelect;
 export type InsertMessage = z.infer<typeof insertMessageSchema>;
 
+// === SAFETY INSPECTIONS ===
+export const safetyInspections = pgTable("safety_inspections", {
+  id: serial("id").primaryKey(),
+  inspectionType: text("inspection_type").notNull(), // '안전점검', '동행점검'
+  title: text("title").notNull(),
+  location: text("location"),
+  inspector: text("inspector"),
+  inspectionDate: text("inspection_date").notNull(),
+  checklist: jsonb("checklist").$type<Array<{ item: string; checked: boolean }>>().notNull().default([]),
+  notes: text("notes"),
+  images: text("images").array().notNull().default([]),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertSafetyInspectionSchema = createInsertSchema(safetyInspections).omit({ id: true, createdAt: true });
+export type SafetyInspection = typeof safetyInspections.$inferSelect;
+export type InsertSafetyInspection = z.infer<typeof insertSafetyInspectionSchema>;
+

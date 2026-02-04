@@ -782,6 +782,40 @@ export async function registerRoutes(
     }
   });
 
+  // === SAFETY INSPECTIONS ===
+  app.get("/api/safety-inspections", async (req, res) => {
+    const inspections = await storage.getSafetyInspections();
+    res.json(inspections);
+  });
+
+  app.post("/api/safety-inspections", async (req, res) => {
+    try {
+      const { inspectionType, title, location, inspector, inspectionDate, checklist, notes, images } = req.body;
+      if (!inspectionType || !title || !inspectionDate) {
+        return res.status(400).json({ message: "Required fields missing" });
+      }
+      const inspection = await storage.createSafetyInspection({
+        inspectionType,
+        title,
+        location,
+        inspector,
+        inspectionDate,
+        checklist: checklist || [],
+        notes,
+        images: images || [],
+      });
+      res.status(201).json(inspection);
+    } catch (err) {
+      console.error("Create inspection error:", err);
+      res.status(500).json({ message: "Failed to create inspection" });
+    }
+  });
+
+  app.delete("/api/safety-inspections/:id", async (req, res) => {
+    await storage.deleteSafetyInspection(Number(req.params.id));
+    res.status(204).send();
+  });
+
   // Seed Data
   await seedDatabase();
 
