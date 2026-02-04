@@ -4,8 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
-import { Bell, Plus, Trash2, Megaphone, ImagePlus, X } from "lucide-react";
-import { useState, useRef } from "react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Bell, Plus, Trash2, Megaphone, ImagePlus, X, Settings, Pin, PinOff } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
@@ -23,6 +24,24 @@ export default function Notices() {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [pinnedNoticeId, setPinnedNoticeId] = useState<number | null>(null);
+  
+  useEffect(() => {
+    const stored = localStorage.getItem('pinnedNoticeId');
+    if (stored) setPinnedNoticeId(Number(stored));
+  }, []);
+  
+  const handleSetPinned = (id: number) => {
+    if (pinnedNoticeId === id) {
+      localStorage.removeItem('pinnedNoticeId');
+      setPinnedNoticeId(null);
+      toast({ title: "상단공지 해제", description: "최신 공지가 대시보드에 표시됩니다." });
+    } else {
+      localStorage.setItem('pinnedNoticeId', String(id));
+      setPinnedNoticeId(id);
+      toast({ title: "상단공지 설정", description: "이 공지가 대시보드에 표시됩니다." });
+    }
+  };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -162,11 +181,48 @@ export default function Notices() {
                 <Bell className="w-5 h-5 text-muted-foreground" />
               </div>
               <div className="flex-1 space-y-2">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-bold text-lg">{notice.title}</h3>
-                  <span className="text-xs text-muted-foreground">
-                    {notice.createdAt && format(new Date(notice.createdAt), "yyyy-MM-dd HH:mm")}
-                  </span>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    {pinnedNoticeId === notice.id && (
+                      <span className="text-xs bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 px-2 py-0.5 rounded-full">상단공지</span>
+                    )}
+                    <h3 className="font-bold text-lg">{notice.title}</h3>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">
+                      {notice.createdAt && format(new Date(notice.createdAt), "yyyy-MM-dd HH:mm")}
+                    </span>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          className="h-8 w-8"
+                          data-testid={`button-settings-notice-${notice.id}`}
+                        >
+                          <Settings className="w-4 h-4 text-muted-foreground" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem 
+                          onClick={() => handleSetPinned(notice.id)}
+                          data-testid={`menu-pin-notice-${notice.id}`}
+                        >
+                          {pinnedNoticeId === notice.id ? (
+                            <>
+                              <PinOff className="w-4 h-4 mr-2" />
+                              상단공지 해제
+                            </>
+                          ) : (
+                            <>
+                              <Pin className="w-4 h-4 mr-2" />
+                              상단공지 설정
+                            </>
+                          )}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 </div>
                 <p className="text-muted-foreground">{notice.content}</p>
                 {notice.imageUrl && (

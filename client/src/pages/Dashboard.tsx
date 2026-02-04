@@ -29,7 +29,7 @@ import { Input } from "@/components/ui/input";
 import { useState, useRef, useMemo, useEffect } from "react";
 import * as XLSX from "xlsx";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Download, RefreshCw, AlertTriangle, Trophy, AlertCircle, ShieldCheck, RotateCcw, Upload, Car, CheckCircle, Wrench, Shield, HardHat, ChevronDown, ChevronUp, X } from "lucide-react";
+import { Download, RefreshCw, AlertTriangle, Trophy, AlertCircle, ShieldCheck, RotateCcw, Upload, Car, CheckCircle, Wrench, Shield, HardHat, ChevronDown, ChevronUp, X, Settings2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { TeamEditDialog } from "@/components/TeamEditDialog";
 import { cn } from "@/lib/utils";
@@ -70,8 +70,19 @@ export default function Dashboard() {
     
     // Get dismissed notice IDs from localStorage
     const dismissedNotices = JSON.parse(localStorage.getItem('dismissedNotices') || '[]');
+    const pinnedNoticeId = localStorage.getItem('pinnedNoticeId');
     
-    // Find the most recent notice that hasn't been dismissed
+    // First check for pinned notice
+    if (pinnedNoticeId) {
+      const pinnedNotice = notices.find(n => n.id === Number(pinnedNoticeId));
+      if (pinnedNotice && !dismissedNotices.includes(pinnedNotice.id)) {
+        setCurrentNotice(pinnedNotice);
+        setNoticePopupOpen(true);
+        return;
+      }
+    }
+    
+    // Fall back to most recent notice that hasn't been dismissed
     const latestNotice = notices
       .filter(n => !dismissedNotices.includes(n.id))
       .sort((a, b) => b.id - a.id)[0];
@@ -365,11 +376,13 @@ export default function Dashboard() {
                       </div>
                     </div>
                     <Button
-                      variant={showDetailTable ? "default" : "ghost"}
+                      variant={showDetailTable ? "default" : "outline"}
                       size="sm"
+                      className="gap-1.5 border-primary/30 text-primary"
                       onClick={() => setShowDetailTable(!showDetailTable)}
                       data-testid="button-toggle-detail"
                     >
+                      <Settings2 className="w-3.5 h-3.5" />
                       현황관리
                     </Button>
                   </div>
@@ -532,11 +545,13 @@ export default function Dashboard() {
                     <CardDescription className="text-xs sm:text-sm">전체 팀</CardDescription>
                   </div>
                   <Button
-                    variant={showVehicleDetail ? "default" : "ghost"}
+                    variant={showVehicleDetail ? "default" : "outline"}
                     size="sm"
+                    className="gap-1.5 border-primary/30 text-primary"
                     onClick={() => setShowVehicleDetail(!showVehicleDetail)}
                     data-testid="button-toggle-vehicle-detail"
                   >
+                    <Settings2 className="w-3.5 h-3.5" />
                     현황관리
                   </Button>
                 </CardHeader>
@@ -609,11 +624,13 @@ export default function Dashboard() {
                     <CardDescription className="text-xs sm:text-sm">보호구 관리 현황</CardDescription>
                   </div>
                   <Button
-                    variant={showEquipmentDetail ? "default" : "ghost"}
+                    variant={showEquipmentDetail ? "default" : "outline"}
                     size="sm"
+                    className="gap-1.5 border-primary/30 text-primary"
                     onClick={() => setShowEquipmentDetail(!showEquipmentDetail)}
                     data-testid="button-toggle-equipment-detail"
                   >
+                    <Settings2 className="w-3.5 h-3.5" />
                     현황관리
                   </Button>
                 </CardHeader>
