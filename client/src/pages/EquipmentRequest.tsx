@@ -366,6 +366,8 @@ export default function EquipmentRequest() {
               team: parsed.team,
               items: parsed.items,
             });
+            // Invalidate equipment status cache to refresh data
+            queryClient.invalidateQueries({ queryKey: ["/api/notices", "equip_status"] });
           } catch (err) {
             console.error("Failed to update equipment count:", err);
           }

@@ -705,25 +705,74 @@ export async function registerRoutes(
   app.post("/api/teams/update-equipment", async (req, res) => {
     try {
       const { team, items } = req.body;
-      if (!team || !items) {
+      if (!team || !items || !Array.isArray(items)) {
         return res.status(400).json({ message: "Team and items are required" });
       }
       
-      // Create a notice to track the equipment update
-      const equipmentSummary = items.map((item: { name: string; quantity: number }) => 
-        `${item.name} x${item.quantity}`
-      ).join(", ");
+      // Get existing equip_status notices
+      const existingRecords = await storage.getNotices("equip_status");
       
-      await storage.createNotice({
-        category: "equipment_update",
-        title: `${team} 안전보호구 추가`,
-        content: JSON.stringify({
-          team,
-          items,
-          updatedAt: new Date().toISOString(),
-          type: "equipment_addition"
-        })
+      // Find the team's equipment record
+      let teamRecord = existingRecords.find(r => {
+        try {
+          const parsed = JSON.parse(r.content);
+          return parsed.team === team;
+        } catch {
+          return false;
+        }
       });
+      
+      if (teamRecord) {
+        // Update existing record
+        const parsed = JSON.parse(teamRecord.content);
+        const existingItems = parsed.items || [];
+        
+        // Add quantities for matching items
+        for (const newItem of items) {
+          const existingItem = existingItems.find((i: { name: string }) => i.name === newItem.name);
+          if (existingItem) {
+            existingItem.quantity = (existingItem.quantity || 0) + (newItem.quantity || 1);
+          } else {
+            existingItems.push({
+              name: newItem.name,
+              quantity: newItem.quantity || 1,
+              category: newItem.category || "보호구",
+              status: "등록"
+            });
+          }
+        }
+        
+        await storage.updateNotice(teamRecord.id, {
+          title: `${team} 보호구 현황`,
+          content: JSON.stringify({
+            team,
+            items: existingItems,
+            lastUpdated: new Date().toISOString()
+          })
+        });
+      } else {
+        // Create new record for team
+        const newItems = items.map((item: { name: string; quantity?: number; category?: string }) => ({
+          name: item.name,
+          quantity: item.quantity || 1,
+          category: item.category || "보호구",
+          status: "등록"
+        }));
+        
+        await storage.createNotice({
+          category: "equip_status",
+          title: `${team} 보호구 현황`,
+          content: JSON.stringify({
+            team,
+            items: newItems,
+            lastUpdated: new Date().toISOString()
+          })
+        });
+      }
+      
+      const equipmentSummary = items.map((item: { name: string; quantity: number }) => 
+        `${item.name} x${item.quantity || 1}`
+      ).join(", ");
       
       console.log(`Equipment updated for team ${team}: ${equipmentSummary}`);
       res.json({ success: true, message: "Equipment count updated" });
