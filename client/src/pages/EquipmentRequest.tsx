@@ -277,91 +277,95 @@ export default function EquipmentRequest() {
     
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
+    const issueDate = parsed.signedAt ? format(new Date(parsed.signedAt), 'yy.MM.dd') : '-';
+    const teamName = parsed.team || '-';
+    const requesterName = parsed.requester || '-';
     
-    doc.setFontSize(18);
-    doc.text("Safety Equipment Distribution Record", pageWidth / 2, 20, { align: "center" });
-    doc.text("(보호구 지급대장)", pageWidth / 2, 28, { align: "center" });
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    const title = `Safety Equipment Record (${teamName})`;
+    doc.text(title, pageWidth / 2, 15, { align: "center" });
+    doc.setLineWidth(0.5);
+    doc.line(pageWidth / 2 - 60, 17, pageWidth / 2 + 60, 17);
     
-    doc.setFontSize(10);
-    let y = 45;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
     
-    doc.setFillColor(240, 240, 240);
-    doc.rect(15, y, 40, 8, 'F');
-    doc.rect(15, y + 8, 40, 8, 'F');
-    doc.rect(105, y, 40, 8, 'F');
-    doc.rect(105, y + 8, 40, 8, 'F');
-    
-    doc.setDrawColor(0);
-    doc.rect(15, y, 40, 8);
-    doc.rect(55, y, 50, 8);
-    doc.rect(105, y, 40, 8);
-    doc.rect(145, y, 50, 8);
-    doc.rect(15, y + 8, 40, 8);
-    doc.rect(55, y + 8, 50, 8);
-    doc.rect(105, y + 8, 40, 8);
-    doc.rect(145, y + 8, 50, 8);
-    
-    doc.text("Team (부서명)", 17, y + 6);
-    doc.text(parsed.team || '-', 57, y + 6);
-    doc.text("Request Date (신청일)", 107, y + 6);
-    doc.text(item.createdAt ? format(new Date(item.createdAt), 'yyyy-MM-dd') : '-', 147, y + 6);
-    
-    doc.text("Requester (신청자)", 17, y + 14);
-    doc.text(parsed.requester || '-', 57, y + 14);
-    doc.text("Issue Date (지급일)", 107, y + 14);
-    doc.text(parsed.signedAt ? format(new Date(parsed.signedAt), 'yyyy-MM-dd') : '-', 147, y + 14);
-    
-    y += 25;
+    let y = 25;
+    const rowHeight = 7;
+    const colWidths = [15, 25, 55, 20, 30, 25, 25];
+    const startX = 15;
+    const headers = ["No.", "Date", "Equipment Name", "Qty", "Department", "Name", "Sign"];
     
     doc.setFillColor(240, 240, 240);
-    doc.rect(15, y, 20, 8, 'F');
-    doc.rect(35, y, 70, 8, 'F');
-    doc.rect(105, y, 50, 8, 'F');
-    doc.rect(155, y, 40, 8, 'F');
+    doc.rect(startX, y, colWidths.reduce((a, b) => a + b, 0), rowHeight, 'F');
     
-    doc.rect(15, y, 20, 8);
-    doc.rect(35, y, 70, 8);
-    doc.rect(105, y, 50, 8);
-    doc.rect(155, y, 40, 8);
-    
-    doc.text("No.", 17, y + 6);
-    doc.text("Item Name (품목명)", 37, y + 6);
-    doc.text("Category (분류)", 107, y + 6);
-    doc.text("Qty (수량)", 157, y + 6);
-    
-    y += 8;
-    
-    items.forEach((i: SelectedItem, idx: number) => {
-      doc.rect(15, y, 20, 8);
-      doc.rect(35, y, 70, 8);
-      doc.rect(105, y, 50, 8);
-      doc.rect(155, y, 40, 8);
-      
-      doc.text(String(idx + 1), 17, y + 6);
-      doc.text(i.name, 37, y + 6);
-      doc.text(i.category, 107, y + 6);
-      doc.text(String(i.quantity), 157, y + 6);
-      
-      y += 8;
+    let xPos = startX;
+    headers.forEach((header, idx) => {
+      doc.rect(xPos, y, colWidths[idx], rowHeight);
+      doc.text(header, xPos + colWidths[idx] / 2, y + 5, { align: "center" });
+      xPos += colWidths[idx];
     });
     
-    y += 15;
-    doc.setFontSize(10);
-    doc.text("I confirm receipt of the above safety equipment.", pageWidth - 20, y, { align: "right" });
-    doc.text("(위 보호구를 정히 수령하였음을 확인합니다.)", pageWidth - 20, y + 6, { align: "right" });
+    y += rowHeight;
     
-    y += 15;
-    doc.text("Signature (서명):", pageWidth - 70, y);
+    const totalRows = Math.max(items.length, 20);
     
-    if (parsed.signature) {
-      try {
-        doc.addImage(parsed.signature, 'PNG', pageWidth - 60, y + 2, 40, 20);
-      } catch (e) {
-        doc.text("(Signed)", pageWidth - 20, y + 12, { align: "right" });
+    for (let rowIdx = 0; rowIdx < totalRows; rowIdx++) {
+      const currentItem = items[rowIdx];
+      xPos = startX;
+      
+      colWidths.forEach((width, colIdx) => {
+        doc.rect(xPos, y, width, rowHeight);
+        xPos += width;
+      });
+      
+      if (currentItem) {
+        xPos = startX;
+        doc.text(String(rowIdx + 1), xPos + colWidths[0] / 2, y + 5, { align: "center" });
+        xPos += colWidths[0];
+        
+        doc.text(issueDate, xPos + colWidths[1] / 2, y + 5, { align: "center" });
+        xPos += colWidths[1];
+        
+        const itemName = currentItem.name.length > 18 ? currentItem.name.substring(0, 18) + '..' : currentItem.name;
+        doc.text(itemName, xPos + 2, y + 5);
+        xPos += colWidths[2];
+        
+        doc.text(String(currentItem.quantity), xPos + colWidths[3] / 2, y + 5, { align: "center" });
+        xPos += colWidths[3];
+        
+        const deptName = teamName.length > 10 ? teamName.substring(0, 10) + '..' : teamName;
+        doc.text(deptName, xPos + colWidths[4] / 2, y + 5, { align: "center" });
+        xPos += colWidths[4];
+        
+        doc.text(requesterName, xPos + colWidths[5] / 2, y + 5, { align: "center" });
+        xPos += colWidths[5];
+        
+        if (parsed.signature && rowIdx === 0) {
+          try {
+            doc.addImage(parsed.signature, 'PNG', xPos + 2, y + 1, 20, 5);
+          } catch (e) {
+            doc.text("OK", xPos + colWidths[6] / 2, y + 5, { align: "center" });
+          }
+        }
+      } else {
+        doc.text(String(rowIdx + 1), startX + colWidths[0] / 2, y + 5, { align: "center" });
+      }
+      
+      y += rowHeight;
+      
+      if (y > 270) {
+        doc.addPage();
+        y = 20;
       }
     }
     
-    const fileName = `equipment_record_${parsed.team?.replace(/\s/g, '_') || 'unknown'}_${format(new Date(), 'yyyyMMdd')}.pdf`;
+    y += 5;
+    doc.setFontSize(8);
+    doc.text("One mistake, lifetime regret. One safety, lifetime happiness.", pageWidth / 2, y, { align: "center" });
+    
+    const fileName = `equipment_record_${teamName.replace(/\s/g, '_')}_${format(new Date(), 'yyyyMMdd')}.pdf`;
     doc.save(fileName);
     
     toast({ title: "PDF 다운로드 완료", description: "보호구 지급대장이 다운로드되었습니다." });
