@@ -220,6 +220,8 @@ export default function DigitalBoard() {
                     key={idx}
                     onClick={() => setCurrentSlide(idx)}
                     className={`w-2 h-2 rounded-full transition-all ${idx === currentSlide ? 'bg-white w-4' : 'bg-white/50'}`}
+                    data-testid={`button-slide-dot-${idx}`}
+                    aria-label={`슬라이드 ${idx + 1}`}
                   />
                 ))}
               </div>
@@ -310,56 +312,73 @@ export default function DigitalBoard() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader className="border-b">
-          <CardTitle className="text-lg">등록된 슬라이드 ({slideList.length})</CardTitle>
+      <Card className="border-indigo-200 dark:border-indigo-900/30 overflow-hidden">
+        <CardHeader className="bg-indigo-50/50 dark:bg-indigo-900/10 border-b p-3 sm:p-4">
+          <CardTitle className="text-sm sm:text-base flex items-center justify-between">
+            <span className="flex items-center gap-2">
+              <MonitorPlay className="w-4 h-4 text-indigo-600" />
+              등록된 슬라이드
+            </span>
+            <span className="text-xs font-normal text-muted-foreground bg-indigo-100 dark:bg-indigo-900/30 px-2 py-0.5 rounded-full">
+              {slideList.length}개
+            </span>
+          </CardTitle>
         </CardHeader>
-        <CardContent className="p-4">
+        <CardContent className="p-3 sm:p-4">
           {slideList.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              등록된 슬라이드가 없습니다.
+              <MonitorPlay className="w-12 h-12 mx-auto mb-3 opacity-30" />
+              <p className="text-sm">등록된 슬라이드가 없습니다.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 sm:gap-3">
               {slideList.map((slide, idx) => {
                 const parsed = parseContent(slide.content);
                 return (
                   <motion.div
                     key={slide.id}
-                    initial={{ opacity: 0, scale: 0.9 }}
+                    initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    className={`relative group rounded-lg overflow-hidden border-2 transition-all cursor-pointer ${idx === currentSlide ? 'border-indigo-500 ring-2 ring-indigo-500/20' : 'border-border hover:border-indigo-300'}`}
+                    transition={{ delay: idx * 0.02 }}
+                    className={`relative group rounded-lg overflow-hidden border-2 transition-all cursor-pointer shadow-sm hover:shadow-md ${
+                      idx === currentSlide 
+                        ? 'border-indigo-500 ring-2 ring-indigo-500/30 shadow-indigo-200 dark:shadow-indigo-900/30' 
+                        : 'border-border/50 hover:border-indigo-400'
+                    }`}
                     onClick={() => setCurrentSlide(idx)}
+                    data-testid={`slide-thumbnail-${slide.id}`}
                   >
-                    <div className="aspect-video bg-muted">
+                    <div className="aspect-video bg-muted relative">
                       {parsed.imageUrl ? (
-                        <img src={parsed.imageUrl} alt={slide.title} className="w-full h-full object-cover" />
+                        <img src={parsed.imageUrl} alt={slide.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-indigo-500 to-purple-600 text-white p-2">
-                          <p className="text-xs font-medium text-center line-clamp-3">{slide.title}</p>
+                          <p className="text-xs font-medium text-center line-clamp-2">{slide.title}</p>
                         </div>
                       )}
+                      {idx === currentSlide && (
+                        <div className="absolute inset-0 bg-indigo-500/10 flex items-center justify-center">
+                          <div className="bg-indigo-500 text-white text-xs px-2 py-0.5 rounded-full font-medium shadow-sm">
+                            재생중
+                          </div>
+                        </div>
+                      )}
+                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <p className="text-xs text-white font-medium truncate">{slide.title}</p>
+                      </div>
                     </div>
-                    <div className="p-2 bg-background">
-                      <p className="text-sm font-medium truncate">{slide.title}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {slide.createdAt && format(new Date(slide.createdAt), "yyyy-MM-dd")}
-                      </p>
+                    <div className="absolute top-0.5 left-0.5 bg-black/50 text-white text-[10px] px-1 py-0.5 rounded font-mono">
+                      {idx + 1}
                     </div>
                     <Button
                       variant="destructive"
                       size="icon"
-                      className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="absolute top-0.5 right-0.5 h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
                       onClick={(e) => { e.stopPropagation(); handleDelete(slide.id); }}
                       data-testid={`button-delete-slide-${slide.id}`}
                     >
-                      <Trash2 className="w-3 h-3" />
+                      <Trash2 className="w-2.5 h-2.5" />
                     </Button>
-                    {idx === currentSlide && (
-                      <div className="absolute top-1 left-1 bg-indigo-500 text-white text-xs px-2 py-0.5 rounded">
-                        현재
-                      </div>
-                    )}
                   </motion.div>
                 );
               })}

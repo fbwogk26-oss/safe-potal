@@ -104,7 +104,7 @@ export function Topbar() {
               <div className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity">
                 <div className="flex items-center gap-1.5">
                   <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-sm">
-                    <ShieldCheck className="w-4.5 h-4.5 text-primary-foreground" />
+                    <ShieldCheck className="w-4 h-4 text-primary-foreground" />
                   </div>
                   <div className="flex flex-col">
                     <span className="text-[11px] font-bold text-primary leading-none">kt MOS</span>
