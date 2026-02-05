@@ -133,14 +133,14 @@ export default function SafetyEquipment({ embedded = false }: SafetyEquipmentPro
           </div>
           <div>
             <h2 className="text-xl sm:text-2xl md:text-3xl font-display font-bold text-foreground">
-              안전보호구 관리
+              안전용품 신청
             </h2>
-            <p className="text-xs sm:text-sm text-muted-foreground">보호구 관리 및 문서</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">보호구 관리</p>
           </div>
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 md:gap-6">
+      <div className="grid grid-cols-1 gap-3 sm:gap-4 md:gap-6">
         {SUBMENU_ITEMS.map((item) => (
           <Link key={item.href} href={item.href}>
             <Card className={`group cursor-pointer hover:shadow-lg transition-all duration-300 ${item.borderColor}`} data-testid={`card-submenu-${item.href.split('/').pop()}`}>
@@ -261,7 +261,7 @@ export default function SafetyEquipment({ embedded = false }: SafetyEquipmentPro
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6">
         <AnimatePresence>
           {materials?.map((item) => {
             const parsed = parseContent(item.content);

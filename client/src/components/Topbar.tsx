@@ -76,9 +76,15 @@ export function Topbar() {
               </SheetTrigger>
               <SheetContent side="left" className="w-72 p-0">
                 <nav className="flex flex-col p-4 gap-1">
-                  <div className="px-3 py-4 border-b mb-2">
-                    <h2 className="text-lg font-bold text-primary">kt MOS남부</h2>
-                    <p className="text-xs text-muted-foreground">종합안전포털시스템</p>
+                  <div className="px-3 py-4 border-b mb-2 flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-[#0066CC] flex flex-col items-center justify-center text-white">
+                      <span className="text-[8px] font-bold leading-none">kt</span>
+                      <span className="text-[6px] font-semibold leading-none">MOS</span>
+                    </div>
+                    <div>
+                      <h2 className="text-sm font-bold text-foreground">종합안전포털시스템</h2>
+                      <p className="text-xs text-muted-foreground">Safety Portal System</p>
+                    </div>
                   </div>
                   {NAV_ITEMS.map(item => (
                     <Link key={item.href} href={item.href}>
@@ -101,18 +107,13 @@ export function Topbar() {
             </Sheet>
             
             <Link href="/">
-              <div className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-sm">
-                    <ShieldCheck className="w-4 h-4 text-primary-foreground" />
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-[11px] font-bold text-primary leading-none">kt MOS</span>
-                    <span className="text-[9px] text-muted-foreground leading-none">남부</span>
-                  </div>
+              <div className="flex items-center gap-2.5 cursor-pointer hover:opacity-80 transition-opacity">
+                <div className="w-9 h-9 rounded-lg bg-[#0066CC] flex flex-col items-center justify-center shadow-sm text-white">
+                  <span className="text-[9px] font-bold leading-none tracking-tight">kt</span>
+                  <span className="text-[7px] font-semibold leading-none tracking-tight">MOS</span>
                 </div>
-                <div className="hidden sm:block pl-1.5 border-l border-border/50">
-                  <h1 className="text-sm font-bold leading-tight text-foreground">종합안전포털</h1>
+                <div>
+                  <h1 className="text-sm font-bold leading-tight text-foreground">종합안전포털시스템</h1>
                   <p className="text-[10px] text-muted-foreground -mt-0.5">Safety Portal System</p>
                 </div>
               </div>
