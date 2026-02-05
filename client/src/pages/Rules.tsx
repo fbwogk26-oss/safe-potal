@@ -1,5 +1,4 @@
 import { useNotices, useCreateNotice, useDeleteNotice } from "@/hooks/use-notices";
-import { useLockStatus } from "@/hooks/use-settings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -15,8 +14,6 @@ export default function Rules() {
   const { data: rules, isLoading } = useNotices("rule");
   const { mutate: createRule, isPending: isCreating } = useCreateNotice();
   const { mutate: deleteRule } = useDeleteNotice();
-  const { data: lockData } = useLockStatus();
-  const isLocked = lockData?.isLocked;
   const { toast } = useToast();
 
   const [title, setTitle] = useState("");
@@ -124,24 +121,16 @@ export default function Rules() {
             />
             <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           </div>
-          {!isLocked && (
-            <Button 
-              onClick={() => setShowAddForm(true)} 
-              size="sm"
-              className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white gap-1.5 shadow-lg h-9 text-xs sm:text-sm"
-              data-testid="button-open-add-rule"
-            >
-              <Plus className="w-4 h-4" /> <span className="hidden sm:inline">새 수칙</span><span className="sm:hidden">추가</span>
-            </Button>
-          )}
+          <Button 
+            onClick={() => setShowAddForm(true)} 
+            size="sm"
+            className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white gap-1.5 shadow-lg h-9 text-xs sm:text-sm"
+            data-testid="button-open-add-rule"
+          >
+            <Plus className="w-4 h-4" /> <span className="hidden sm:inline">새 수칙</span><span className="sm:hidden">추가</span>
+          </Button>
         </div>
       </div>
-
-      {isLocked && (
-        <div className="flex items-center gap-2 text-xs sm:text-sm text-amber-600 bg-amber-50 dark:bg-amber-900/20 dark:text-amber-400 p-2.5 sm:p-3 rounded-lg sm:rounded-xl border border-amber-200 dark:border-amber-800">
-          <AlertCircle className="w-4 h-4 flex-shrink-0" /> 시스템 잠김 - 편집 비활성화
-        </div>
-      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-5">
         {isLoading ? (
@@ -190,17 +179,15 @@ export default function Rules() {
                   </div>
                 </div>
 
-                {!isLocked && (
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="absolute top-2 right-2 bg-black/30 backdrop-blur-sm text-white hover:bg-red-500 hover:text-white opacity-0 group-hover:opacity-100 transition-all h-8 w-8"
-                    onClick={(e) => handleDelete(rule.id, e)}
-                    data-testid={`button-delete-rule-${rule.id}`}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                )}
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="absolute top-2 right-2 bg-black/30 backdrop-blur-sm text-white hover:bg-red-500 hover:text-white opacity-0 group-hover:opacity-100 transition-all h-8 w-8"
+                  onClick={(e) => handleDelete(rule.id, e)}
+                  data-testid={`button-delete-rule-${rule.id}`}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
               </motion.div>
             ))}
           </AnimatePresence>
@@ -213,7 +200,7 @@ export default function Rules() {
           <p className="text-lg font-medium">
             {searchQuery ? `"${searchQuery}"에 대한 검색 결과가 없습니다.` : "아직 등록된 수칙이 없습니다."}
           </p>
-          {!searchQuery && !isLocked && (
+          {!searchQuery && (
             <Button onClick={() => setShowAddForm(true)} variant="outline" className="mt-4 gap-2">
               <Plus className="w-4 h-4" /> 첫 번째 수칙 추가하기
             </Button>
@@ -316,16 +303,14 @@ export default function Rules() {
                     <Calendar className="w-4 h-4" />
                     {selectedRule.createdAt && format(new Date(selectedRule.createdAt), "yyyy년 MM월 dd일")}
                   </span>
-                  {!isLocked && (
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      className="text-red-500 hover:text-red-600 hover:bg-red-50"
-                      onClick={() => handleDelete(selectedRule.id)}
-                    >
-                      <Trash2 className="w-4 h-4 mr-1" /> 삭제
-                    </Button>
-                  )}
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                    onClick={() => handleDelete(selectedRule.id)}
+                  >
+                    <Trash2 className="w-4 h-4 mr-1" /> 삭제
+                  </Button>
                 </div>
               </div>
             </>

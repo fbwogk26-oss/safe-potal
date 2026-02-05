@@ -1,7 +1,6 @@
 import { useTeams, useResetTeam, useResetAllTeams } from "@/hooks/use-teams";
 import { useVehicles } from "@/hooks/use-vehicles";
 import { useNotices } from "@/hooks/use-notices";
-import { useLockStatus } from "@/hooks/use-settings";
 import { useQuery } from "@tanstack/react-query";
 import { 
   BarChart, 
@@ -59,8 +58,6 @@ export default function Dashboard() {
   const { data: vehicles } = useVehicles();
   const { data: equipmentRecords } = useNotices("equip_status");
   const { data: notices } = useNotices("notice");
-  const { data: lockData } = useLockStatus();
-  const isLocked = lockData?.isLocked;
   const resetTeam = useResetTeam();
   const resetAllTeams = useResetAllTeams();
   const { toast } = useToast();
@@ -310,7 +307,6 @@ export default function Dashboard() {
                       value={baseVehicleCount} 
                       onChange={(e) => setBaseVehicleCount(Number(e.target.value))}
                       className="h-6 w-10 border-0 shadow-none focus-visible:ring-0 text-right text-xs p-0"
-                      disabled={isLocked}
                     />
                     <span className="text-muted-foreground">대</span>
                   </div>
@@ -318,7 +314,7 @@ export default function Dashboard() {
                     variant="outline" 
                     size="sm" 
                     onClick={handleResetAll} 
-                    disabled={isLocked || resetAllTeams.isPending}
+                    disabled={resetAllTeams.isPending}
                     className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 h-7 text-xs px-2"
                     data-testid="button-reset-all"
                   >
@@ -338,7 +334,7 @@ export default function Dashboard() {
                     size="sm"
                     className="h-7 text-xs px-2"
                     onClick={() => fileInputRef.current?.click()}
-                    disabled={isLocked || isUploading}
+                    disabled={isUploading}
                   >
                     <Upload className={cn("w-3 h-3 sm:mr-1", isUploading && "animate-spin")} />
                     <span className="hidden sm:inline">업로드</span>
@@ -512,13 +508,13 @@ export default function Dashboard() {
                                 variant="ghost" 
                                 size="icon"
                                 onClick={() => handleResetTeam(team.id, team.name)}
-                                disabled={isLocked || resetTeam.isPending}
+                                disabled={resetTeam.isPending}
                                 className="hover:bg-red-50 hover:text-red-600 h-7 w-7"
                                 data-testid={`button-reset-team-${team.id}`}
                               >
                                 <RotateCcw className="w-3.5 h-3.5" />
                               </Button>
-                              <TeamEditDialog team={team} disabled={isLocked} />
+                              <TeamEditDialog team={team} disabled={false} />
                             </TableCell>
                           </motion.tr>
                         ))}

@@ -1,5 +1,4 @@
 import { useNotices, useCreateNotice, useDeleteNotice, useUpdateNotice } from "@/hooks/use-notices";
-import { useLockStatus } from "@/hooks/use-settings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -65,8 +64,6 @@ export default function EquipmentRequest() {
   const { mutate: createRequest, isPending: isCreating } = useCreateNotice();
   const { mutate: deleteRequest } = useDeleteNotice();
   const { mutate: updateRequest, isPending: isUpdating } = useUpdateNotice();
-  const { data: lockData } = useLockStatus();
-  const isLocked = lockData?.isLocked;
   const { toast } = useToast();
 
   const { data: dbEquipment } = useQuery<SafetyEquipment[]>({
@@ -510,12 +507,10 @@ export default function EquipmentRequest() {
           </h2>
           <p className="text-muted-foreground mt-2">안전용품을 신청합니다.</p>
         </div>
-        {!isLocked && (
-          <Button variant="outline" size="sm" onClick={() => setAdminModalOpen(true)} className="ml-auto">
-            <Settings className="w-4 h-4 mr-1" />
-            관리
-          </Button>
-        )}
+        <Button variant="outline" size="sm" onClick={() => setAdminModalOpen(true)} className="ml-auto">
+          <Settings className="w-4 h-4 mr-1" />
+          관리
+        </Button>
       </div>
 
       <Card className="glass-card overflow-hidden border-purple-200 dark:border-purple-900/30">
@@ -700,7 +695,7 @@ export default function EquipmentRequest() {
                         <Select 
                           value={parsed.status || "지급요청"} 
                           onValueChange={(val) => handleStatusChange(item, val)}
-                          disabled={isUpdating || isLocked}
+                          disabled={isUpdating}
                         >
                           <SelectTrigger className="w-[110px] h-8" data-testid={`select-status-${item.id}`}>
                             <SelectValue />

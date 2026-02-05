@@ -1,5 +1,4 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useLockStatus } from "@/hooks/use-settings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -86,8 +85,6 @@ export default function SafetyInspections() {
     },
   });
 
-  const { data: lockData } = useLockStatus();
-  const isLocked = lockData?.isLocked;
   const { toast } = useToast();
 
   const [inspectionType, setInspectionType] = useState<string>("안전 / 동행점검");
@@ -441,7 +438,6 @@ export default function SafetyInspections() {
           </Button>
           <Button
             onClick={() => setShowForm(!showForm)}
-            disabled={isLocked}
             className="bg-green-600 hover:bg-green-700 text-white gap-2"
             data-testid="button-toggle-form"
           >
@@ -650,7 +646,7 @@ export default function SafetyInspections() {
                   </Button>
                   <Button
                     onClick={handleSubmit}
-                    disabled={isLocked || createMutation.isPending || !department}
+                    disabled={createMutation.isPending || !department}
                     className="bg-green-600 hover:bg-green-700 text-white"
                     data-testid="button-submit-inspection"
                   >
@@ -755,7 +751,6 @@ export default function SafetyInspections() {
                                   e.stopPropagation();
                                   handleDelete(inspection.id);
                                 }}
-                                disabled={isLocked}
                                 data-testid={`button-delete-${inspection.id}`}
                               >
                                 <Trash2 className="w-4 h-4 text-destructive" />

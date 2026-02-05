@@ -45,7 +45,6 @@ export default function AccessRequest() {
   const { data: materials, isLoading } = useNotices("access");
   const { mutate: createMaterial, isPending: isCreating } = useCreateNotice();
   const { mutate: deleteMaterial } = useDeleteNotice();
-  const isLocked = false;
   const { toast } = useToast();
 
   const [filterVisitDate, setFilterVisitDate] = useState("");
@@ -237,7 +236,7 @@ export default function AccessRequest() {
                   type="date"
                   value={formData.visitPeriodStartDate}
                   onChange={e => handleChange("visitPeriodStartDate", e.target.value)}
-                  disabled={isLocked}
+                  
                   data-testid="input-visit-start-date"
                   className="flex-1 h-9 text-sm"
                 />
@@ -245,7 +244,7 @@ export default function AccessRequest() {
                   type="time"
                   value={formData.visitPeriodStartTime}
                   onChange={e => handleChange("visitPeriodStartTime", e.target.value)}
-                  disabled={isLocked}
+                  
                   data-testid="input-visit-start-time"
                   className="w-20 sm:w-24 h-9 text-sm"
                 />
@@ -258,7 +257,7 @@ export default function AccessRequest() {
                   type="date"
                   value={formData.visitPeriodEndDate}
                   onChange={e => handleChange("visitPeriodEndDate", e.target.value)}
-                  disabled={isLocked}
+                  
                   data-testid="input-visit-end-date"
                   className="flex-1 h-9 text-sm"
                 />
@@ -266,7 +265,7 @@ export default function AccessRequest() {
                   type="time"
                   value={formData.visitPeriodEndTime}
                   onChange={e => handleChange("visitPeriodEndTime", e.target.value)}
-                  disabled={isLocked}
+                  
                   data-testid="input-visit-end-time"
                   className="w-20 sm:w-24 h-9 text-sm"
                 />
@@ -281,7 +280,7 @@ export default function AccessRequest() {
                 placeholder="예: 주간업무회의" 
                 value={formData.visitPurpose}
                 onChange={e => handleChange("visitPurpose", e.target.value)}
-                disabled={isLocked}
+                
                 data-testid="input-visit-purpose"
                 className="h-9 text-sm"
               />
@@ -292,7 +291,7 @@ export default function AccessRequest() {
                 placeholder="예: 9층" 
                 value={formData.entranceLocation}
                 onChange={e => handleChange("entranceLocation", e.target.value)}
-                disabled={isLocked}
+                
                 data-testid="input-entrance-location"
                 className="h-9 text-sm"
               />
@@ -308,7 +307,7 @@ export default function AccessRequest() {
                   placeholder="소속" 
                   value={formData.supervisorDepartment}
                   onChange={e => handleChange("supervisorDepartment", e.target.value)}
-                  disabled={isLocked}
+                  
                   data-testid="input-supervisor-department"
                   className="h-9 text-sm"
                 />
@@ -319,7 +318,7 @@ export default function AccessRequest() {
                   placeholder="이름" 
                   value={formData.supervisorName}
                   onChange={e => handleChange("supervisorName", e.target.value)}
-                  disabled={isLocked}
+                  
                   data-testid="input-supervisor-name"
                   className="h-9 text-sm"
                 />
@@ -330,7 +329,7 @@ export default function AccessRequest() {
                   placeholder="010-0000-0000" 
                   value={formData.supervisorPhone}
                   onChange={e => handleChange("supervisorPhone", e.target.value)}
-                  disabled={isLocked}
+                  
                   data-testid="input-supervisor-phone"
                   className="h-9 text-sm"
                 />
@@ -348,7 +347,7 @@ export default function AccessRequest() {
                 variant="outline"
                 size="sm"
                 onClick={addPerson}
-                disabled={isLocked || formData.people.length >= 30}
+                disabled={formData.people.length >= 30}
                 className="gap-1"
                 data-testid="button-add-person"
               >
@@ -365,7 +364,7 @@ export default function AccessRequest() {
                       type="button"
                       onClick={() => removePerson(index)}
                       className="absolute top-2 right-2 p-1 hover:bg-destructive/20 rounded"
-                      disabled={isLocked}
+                      
                       data-testid={`button-remove-person-${index}`}
                     >
                       <X className="w-4 h-4 text-destructive" />
@@ -379,7 +378,7 @@ export default function AccessRequest() {
                         placeholder="소속" 
                         value={person.department}
                         onChange={e => handlePersonChange(index, "department", e.target.value)}
-                        disabled={isLocked}
+                        
                         className="h-8 text-sm"
                         data-testid={`input-person-department-${index}`}
                       />
@@ -390,7 +389,7 @@ export default function AccessRequest() {
                         placeholder="이름" 
                         value={person.applicantName}
                         onChange={e => handlePersonChange(index, "applicantName", e.target.value)}
-                        disabled={isLocked}
+                        
                         className="h-8 text-sm"
                         data-testid={`input-person-name-${index}`}
                       />
@@ -401,7 +400,7 @@ export default function AccessRequest() {
                         placeholder="사번/생년월일" 
                         value={person.idNumber}
                         onChange={e => handlePersonChange(index, "idNumber", e.target.value)}
-                        disabled={isLocked}
+                        
                         className="h-8 text-sm"
                         data-testid={`input-person-id-${index}`}
                       />
@@ -412,7 +411,7 @@ export default function AccessRequest() {
                         placeholder="010-0000-0000" 
                         value={person.phone}
                         onChange={e => handlePersonChange(index, "phone", e.target.value)}
-                        disabled={isLocked}
+                        
                         className="h-8 text-sm"
                         data-testid={`input-person-phone-${index}`}
                       />
@@ -423,7 +422,7 @@ export default function AccessRequest() {
                         className="w-full h-8 px-2 rounded-md border border-input bg-background text-sm"
                         value={person.hasVehicle}
                         onChange={e => handlePersonChange(index, "hasVehicle", e.target.value)}
-                        disabled={isLocked}
+                        
                         data-testid={`select-person-vehicle-${index}`}
                       >
                         <option value="없음">없음</option>
@@ -436,7 +435,7 @@ export default function AccessRequest() {
                         placeholder="12가 3456" 
                         value={person.vehicleNumber}
                         onChange={e => handlePersonChange(index, "vehicleNumber", e.target.value)}
-                        disabled={isLocked || person.hasVehicle === "없음"}
+                        disabled={person.hasVehicle === "없음"}
                         className="h-8 text-sm"
                         data-testid={`input-person-vehicle-number-${index}`}
                       />
@@ -450,7 +449,7 @@ export default function AccessRequest() {
           <div className="flex justify-end pt-2">
             <Button 
               onClick={handleAdd} 
-              disabled={isLocked || isCreating || !formData.visitPurpose} 
+              disabled={isCreating || !formData.visitPurpose} 
               className="bg-purple-600 hover:bg-purple-700 text-white gap-2" 
               data-testid="button-submit-access"
             >
@@ -565,7 +564,7 @@ export default function AccessRequest() {
                             size="icon" 
                             className="h-8 w-8 opacity-0 group-hover:opacity-100"
                             onClick={() => handleDelete(item.id)}
-                            disabled={isLocked}
+                            
                             data-testid={`button-delete-access-${item.id}`}
                           >
                             <Trash2 className="w-4 h-4 text-destructive" />
@@ -596,7 +595,7 @@ export default function AccessRequest() {
                             size="icon" 
                             className="h-8 w-8 opacity-0 group-hover:opacity-100"
                             onClick={() => handleDelete(item.id)}
-                            disabled={isLocked}
+                            
                             data-testid={`button-delete-access-${item.id}`}
                           >
                             <Trash2 className="w-4 h-4 text-destructive" />

@@ -1,5 +1,4 @@
 import { useNotices, useCreateNotice, useDeleteNotice } from "@/hooks/use-notices";
-import { useLockStatus } from "@/hooks/use-settings";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MonitorPlay, Trash2, Upload, X, ChevronLeft, ChevronRight, Play, Pause, Maximize2, Images } from "lucide-react";
@@ -13,8 +12,6 @@ export default function DigitalBoard() {
   const { data: slides, isLoading } = useNotices("digital_board");
   const { mutate: createSlide, isPending: isCreating } = useCreateNotice();
   const { mutate: deleteSlide } = useDeleteNotice();
-  const { data: lockData } = useLockStatus();
-  const isLocked = lockData?.isLocked;
   const { toast } = useToast();
 
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -266,8 +263,8 @@ export default function DigitalBoard() {
             data-testid="input-bulk-images"
           />
           <div 
-            onClick={() => !isLocked && !isBulkUploading && bulkInputRef.current?.click()}
-            className={`w-full border-2 border-dashed rounded-lg p-4 sm:p-6 md:p-8 flex flex-col items-center justify-center gap-2 sm:gap-3 transition-colors ${isLocked || isBulkUploading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/50 dark:hover:bg-indigo-900/10'}`}
+            onClick={() => !isBulkUploading && bulkInputRef.current?.click()}
+            className={`w-full border-2 border-dashed rounded-lg p-4 sm:p-6 md:p-8 flex flex-col items-center justify-center gap-2 sm:gap-3 transition-colors ${isBulkUploading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/50 dark:hover:bg-indigo-900/10'}`}
           >
             <Images className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 text-indigo-500" />
             <div className="text-center">
@@ -302,7 +299,7 @@ export default function DigitalBoard() {
               )}
               <Button 
                 onClick={handleBulkUpload} 
-                disabled={isLocked || isBulkUploading}
+                disabled={isBulkUploading}
                 className="w-full bg-indigo-600 hover:bg-indigo-700 text-white gap-2"
                 data-testid="button-bulk-upload"
               >
@@ -354,7 +351,6 @@ export default function DigitalBoard() {
                       size="icon"
                       className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
                       onClick={(e) => { e.stopPropagation(); handleDelete(slide.id); }}
-                      disabled={isLocked}
                       data-testid={`button-delete-slide-${slide.id}`}
                     >
                       <Trash2 className="w-3 h-3" />

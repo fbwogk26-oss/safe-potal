@@ -1,5 +1,4 @@
 import { useNotices, useCreateNotice, useDeleteNotice } from "@/hooks/use-notices";
-import { useLockStatus } from "@/hooks/use-settings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -17,8 +16,6 @@ export default function Notices() {
   const { data: notices, isLoading } = useNotices("notice");
   const { mutate: createNotice, isPending: isCreating } = useCreateNotice();
   const { mutate: deleteNotice } = useDeleteNotice();
-  const { data: lockData } = useLockStatus();
-  const isLocked = lockData?.isLocked;
   const { toast } = useToast();
 
   const [title, setTitle] = useState("");
@@ -120,14 +117,12 @@ export default function Notices() {
             placeholder="공지 제목" 
             value={title} 
             onChange={e => setTitle(e.target.value)}
-            disabled={isLocked}
             data-testid="input-notice-title"
           />
           <Textarea 
             placeholder="메시지 내용..." 
             value={content} 
             onChange={e => setContent(e.target.value)}
-            disabled={isLocked}
             data-testid="input-notice-content"
           />
           
@@ -157,7 +152,7 @@ export default function Notices() {
             <Button
               variant="outline"
               onClick={() => fileInputRef.current?.click()}
-              disabled={isLocked || isUploading}
+              disabled={isUploading}
               className="gap-2"
               data-testid="button-add-image"
             >
@@ -167,7 +162,7 @@ export default function Notices() {
           )}
           
           <div className="flex justify-end">
-            <Button onClick={handleAdd} disabled={isLocked || isCreating || !title} className="bg-orange-600 hover:bg-orange-700 text-white gap-2" data-testid="button-post-notice">
+            <Button onClick={handleAdd} disabled={isCreating || !title} className="bg-orange-600 hover:bg-orange-700 text-white gap-2" data-testid="button-post-notice">
               <Plus className="w-4 h-4" /> 공지 게시
             </Button>
           </div>
@@ -258,7 +253,6 @@ export default function Notices() {
                 size="icon" 
                 className="opacity-0 group-hover:opacity-100"
                 onClick={() => handleDelete(notice.id)}
-                disabled={isLocked}
                 data-testid={`button-delete-notice-${notice.id}`}
               >
                 <Trash2 className="w-4 h-4 text-destructive" />

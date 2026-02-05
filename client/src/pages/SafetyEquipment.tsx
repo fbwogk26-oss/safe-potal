@@ -3,7 +3,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { HardHat, ShoppingCart, ArrowRight, FileText, Plus, Trash2, ImagePlus, X, Upload, Download, FileSpreadsheet } from "lucide-react";
 import { Link } from "wouter";
 import { useNotices, useCreateNotice, useDeleteNotice } from "@/hooks/use-notices";
-import { useLockStatus } from "@/hooks/use-settings";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useState, useRef } from "react";
@@ -31,8 +30,6 @@ export default function SafetyEquipment({ embedded = false }: SafetyEquipmentPro
   const { data: materials, isLoading } = useNotices("equipment");
   const { mutate: createMaterial, isPending: isCreating } = useCreateNotice();
   const { mutate: deleteMaterial } = useDeleteNotice();
-  const { data: lockData } = useLockStatus();
-  const isLocked = lockData?.isLocked;
   const { toast } = useToast();
 
   const [title, setTitle] = useState("");
@@ -174,14 +171,12 @@ export default function SafetyEquipment({ embedded = false }: SafetyEquipmentPro
             placeholder="자료 제목" 
             value={title} 
             onChange={e => setTitle(e.target.value)}
-            disabled={isLocked}
             data-testid="input-equipment-title"
           />
           <Textarea 
             placeholder="내용 설명..." 
             value={content} 
             onChange={e => setContent(e.target.value)}
-            disabled={isLocked}
             data-testid="input-equipment-content"
           />
           
@@ -221,7 +216,7 @@ export default function SafetyEquipment({ embedded = false }: SafetyEquipmentPro
               <Button
                 variant="outline"
                 onClick={() => fileInputRef.current?.click()}
-                disabled={isLocked || isUploading}
+                disabled={isUploading}
                 className="gap-2"
                 data-testid="button-add-equipment-image"
               >
@@ -248,7 +243,7 @@ export default function SafetyEquipment({ embedded = false }: SafetyEquipmentPro
               <Button
                 variant="outline"
                 onClick={() => excelInputRef.current?.click()}
-                disabled={isLocked || isExcelUploading}
+                disabled={isExcelUploading}
                 className="gap-2"
                 data-testid="button-add-equipment-excel"
               >
@@ -259,7 +254,7 @@ export default function SafetyEquipment({ embedded = false }: SafetyEquipmentPro
           </div>
           
           <div className="flex justify-end">
-            <Button onClick={handleAdd} disabled={isLocked || isCreating || !title} className="bg-amber-600 hover:bg-amber-700 text-white gap-2" data-testid="button-add-equipment">
+            <Button onClick={handleAdd} disabled={isCreating || !title} className="bg-amber-600 hover:bg-amber-700 text-white gap-2" data-testid="button-add-equipment">
               <Plus className="w-4 h-4" /> 자료 추가
             </Button>
           </div>
@@ -289,7 +284,6 @@ export default function SafetyEquipment({ embedded = false }: SafetyEquipmentPro
                       size="icon" 
                       className="opacity-0 group-hover:opacity-100"
                       onClick={() => handleDelete(item.id)}
-                      disabled={isLocked}
                       data-testid={`button-delete-equipment-${item.id}`}
                     >
                       <Trash2 className="w-4 h-4 text-destructive" />

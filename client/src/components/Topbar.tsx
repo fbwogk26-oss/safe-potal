@@ -1,34 +1,22 @@
-import { Bell, Lock, Unlock, Settings, RotateCw, Menu, LogIn, LogOut, User, Users } from "lucide-react";
-import { useLockStatus, useSetLock } from "@/hooks/use-settings";
+import { Bell, Menu, LogOut, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNotices } from "@/hooks/use-notices";
 import { useQuery } from "@tanstack/react-query";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { Input } from "@/components/ui/input";
 import { useState, useMemo } from "react";
-import { useToast } from "@/hooks/use-toast";
 import { Link, useLocation } from "wouter";
 import { 
   LayoutDashboard, 
   ShieldCheck, 
   GraduationCap, 
   DoorOpen,
-  Car,
-  HardHat,
-  MonitorPlay,
   ClipboardCheck,
-  ShoppingCart
+  ShoppingCart,
+  MonitorPlay
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -49,7 +37,6 @@ const NAV_ITEMS = [
 ];
 
 export function Topbar() {
-  const { data: lockData, isLoading: lockLoading } = useLockStatus();
   const { data: notices } = useNotices("notice");
   const { data: pinnedData } = useQuery<{ pinnedNoticeId: number | null }>({
     queryKey: ["/api/settings/pinned-notice"],
@@ -61,7 +48,6 @@ export function Topbar() {
   });
   const isAdmin = roleData?.role === "admin";
   
-  // Use pinned notice first, or fall back to latest notice
   const tickerNotice = useMemo(() => {
     if (!notices || notices.length === 0) return null;
     const pinnedNoticeId = pinnedData?.pinnedNoticeId;
@@ -71,73 +57,79 @@ export function Topbar() {
       if (pinned) return pinned;
     }
     
-    // Fall back to most recent notice
     return [...notices].sort((a, b) => b.id - a.id)[0] || null;
   }, [notices, pinnedData]);
   
-  const isLocked = lockData?.isLocked;
   const [location] = useLocation();
   const [sheetOpen, setSheetOpen] = useState(false);
 
   return (
-    <header className="sticky top-0 z-20 w-full glass-panel border-b-0 rounded-none md:rounded-b-2xl mb-4 md:mb-6">
+    <header className="sticky top-0 z-50 bg-background border-b shadow-sm">
       <div className="flex flex-col">
-        {/* Top Level */}
-        <div className="px-3 py-2 md:px-6 md:py-3 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 md:gap-4">
-            {/* Mobile Menu Button */}
+        <div className="flex items-center justify-between px-4 py-3 gap-2">
+          <div className="flex items-center gap-3 min-w-0">
             <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="md:hidden h-9 w-9">
+                <Button variant="ghost" size="icon" className="md:hidden shrink-0" data-testid="button-mobile-menu">
                   <Menu className="w-5 h-5" />
                 </Button>
               </SheetTrigger>
               <SheetContent side="left" className="w-72 p-0">
-                <div className="p-4 border-b bg-primary/5">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-primary to-blue-600 flex items-center justify-center text-white shadow-lg">
-                      <ShieldCheck className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h2 className="font-display font-bold text-base">종합안전포털</h2>
-                      <p className="text-xs text-muted-foreground">시스템</p>
-                    </div>
+                <nav className="flex flex-col p-4 gap-1">
+                  <div className="px-3 py-4 border-b mb-2">
+                    <h2 className="text-lg font-bold text-primary">kt MOS남부</h2>
+                    <p className="text-xs text-muted-foreground">종합안전포털시스템</p>
                   </div>
-                </div>
-                <div className="px-3 py-2">
-                  <div className="flex flex-col gap-1">
-                    {NAV_ITEMS.map((item) => (
-                      <Link 
-                        key={item.href} 
-                        href={item.href}
-                        onClick={() => setSheetOpen(false)}
+                  {NAV_ITEMS.map(item => (
+                    <Link key={item.href} href={item.href}>
+                      <Button
+                        variant={location === item.href ? "secondary" : "ghost"}
                         className={cn(
-                          "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 font-medium text-sm",
-                          location === item.href 
-                            ? "bg-primary text-primary-foreground shadow-md" 
-                            : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                          "w-full justify-start gap-3 text-sm",
+                          location === item.href && "bg-primary/10 text-primary"
                         )}
+                        onClick={() => setSheetOpen(false)}
+                        data-testid={`nav-mobile-${item.label}`}
                       >
                         <item.icon className="w-4 h-4" />
-                        <span>{item.label}</span>
-                      </Link>
-                    ))}
-                  </div>
-                </div>
+                        {item.label}
+                      </Button>
+                    </Link>
+                  ))}
+                </nav>
               </SheetContent>
             </Sheet>
             
-            <div className="md:hidden font-display font-bold text-base truncate">종합안전포털</div>
-            {isLocked && (
-              <div className="hidden md:flex items-center gap-2 px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-bold border border-red-200 animate-pulse">
-                <Lock className="w-3 h-3" /> 시스템 잠김
+            <Link href="/">
+              <div className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity">
+                <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+                  <span className="text-primary-foreground font-bold text-sm">kt</span>
+                </div>
+                <div className="hidden sm:block">
+                  <h1 className="text-base font-bold leading-tight text-foreground">MOS남부</h1>
+                  <p className="text-[10px] text-muted-foreground -mt-0.5">종합안전포털</p>
+                </div>
               </div>
-            )}
-            {isLocked && (
-              <div className="md:hidden flex items-center">
-                <Lock className="w-4 h-4 text-red-500" />
-              </div>
-            )}
+            </Link>
+            
+            <nav className="hidden md:flex items-center gap-1 ml-6">
+              {NAV_ITEMS.map(item => (
+                <Link key={item.href} href={item.href}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className={cn(
+                      "gap-1.5 text-xs font-medium",
+                      location === item.href && "bg-primary/10 text-primary"
+                    )}
+                    data-testid={`nav-${item.label}`}
+                  >
+                    <item.icon className="w-3.5 h-3.5" />
+                    {item.label}
+                  </Button>
+                </Link>
+              ))}
+            </nav>
           </div>
 
           <div className="flex items-center gap-2">
@@ -192,11 +184,9 @@ export function Topbar() {
                 ) : null}
               </>
             )}
-            <AdminButton isLocked={isLocked || false} isAdmin={isAdmin} />
           </div>
         </div>
 
-        {/* Ticker - Only if there are notices */}
         <div className="bg-primary/5 border-y border-primary/10 overflow-hidden h-9 flex items-center relative">
           <div className="absolute left-0 z-10 px-3 h-full flex items-center bg-background/50 backdrop-blur-sm text-xs font-bold text-primary uppercase tracking-wider">
             공지
@@ -219,76 +209,5 @@ export function Topbar() {
         </div>
       </div>
     </header>
-  );
-}
-
-function AdminButton({ isLocked, isAdmin }: { isLocked: boolean; isAdmin?: boolean }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [pin, setPin] = useState("");
-  const { mutate: setLock, isPending } = useSetLock();
-  const { toast } = useToast();
-
-  const handleToggle = () => {
-    setLock({ isLocked: !isLocked, pin }, {
-      onSuccess: () => {
-        setIsOpen(false);
-        setPin("");
-        toast({
-          title: !isLocked ? "시스템 잠금" : "시스템 잠금 해제",
-          description: !isLocked ? "모든 편집 기능이 비활성화되었습니다." : "편집 기능이 활성화되었습니다.",
-        });
-      },
-      onError: (error: any) => {
-        const message = error.message?.includes("403") ? "관리자 권한이 필요합니다." : "잘못된 PIN 코드입니다.";
-        toast({
-          variant: "destructive",
-          title: "접근 거부",
-          description: message,
-        });
-      }
-    });
-  };
-
-  // Only show admin button to admin users
-  if (!isAdmin) {
-    return null;
-  }
-
-  return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        <Button variant={isLocked ? "destructive" : "outline"} size="sm" className="gap-2 shadow-sm" data-testid="button-admin-lock">
-          {isLocked ? <Lock className="w-4 h-4" /> : <Settings className="w-4 h-4" />}
-          <span className="hidden sm:inline">{isLocked ? "시스템 잠금 해제" : "관리"}</span>
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-xs">
-        <DialogHeader>
-          <DialogTitle>관리자 접속</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4 py-4">
-          <div className="space-y-2">
-            <label className="text-sm font-medium">PIN 번호 입력</label>
-            <Input 
-              type="password" 
-              placeholder="••••••" 
-              className="text-center tracking-widest text-lg font-mono"
-              maxLength={6}
-              value={pin}
-              onChange={(e) => setPin(e.target.value)}
-            />
-          </div>
-          <Button 
-            className="w-full" 
-            onClick={handleToggle} 
-            disabled={isPending || pin.length < 4}
-            variant={isLocked ? "default" : "destructive"}
-          >
-            {isPending && <RotateCw className="mr-2 h-4 w-4 animate-spin" />}
-            {isLocked ? "시스템 잠금 해제" : "시스템 잠금"}
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
   );
 }

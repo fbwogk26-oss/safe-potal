@@ -1,5 +1,4 @@
 import { useNotices, useCreateNotice, useDeleteNotice } from "@/hooks/use-notices";
-import { useLockStatus } from "@/hooks/use-settings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,8 +13,6 @@ export default function Education() {
   const { data: materials, isLoading } = useNotices("edu");
   const { mutate: createMaterial, isPending: isCreating } = useCreateNotice();
   const { mutate: deleteMaterial } = useDeleteNotice();
-  const { data: lockData } = useLockStatus();
-  const isLocked = lockData?.isLocked;
   const { toast } = useToast();
 
   const [title, setTitle] = useState("");
@@ -121,24 +118,16 @@ export default function Education() {
             />
             <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           </div>
-          {!isLocked && (
-            <Button 
-              onClick={() => setShowAddForm(true)} 
-              size="sm"
-              className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white gap-1.5 shadow-lg h-9 text-xs sm:text-sm"
-              data-testid="button-open-add-edu"
-            >
-              <Plus className="w-4 h-4" /> <span className="hidden sm:inline">새 자료</span><span className="sm:hidden">추가</span>
-            </Button>
-          )}
+          <Button 
+            onClick={() => setShowAddForm(true)} 
+            size="sm"
+            className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white gap-1.5 shadow-lg h-9 text-xs sm:text-sm"
+            data-testid="button-open-add-edu"
+          >
+            <Plus className="w-4 h-4" /> <span className="hidden sm:inline">새 자료</span><span className="sm:hidden">추가</span>
+          </Button>
         </div>
       </div>
-
-      {isLocked && (
-        <div className="flex items-center gap-2 text-xs sm:text-sm text-amber-600 bg-amber-50 dark:bg-amber-900/20 dark:text-amber-400 p-2.5 sm:p-3 rounded-lg sm:rounded-xl border border-amber-200 dark:border-amber-800">
-          <AlertCircle className="w-4 h-4" /> 시스템이 잠겨 있습니다. 편집이 비활성화되었습니다.
-        </div>
-      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {isLoading ? (
@@ -187,17 +176,15 @@ export default function Education() {
                   </div>
                 </div>
 
-                {!isLocked && (
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="absolute top-2 right-2 bg-black/30 backdrop-blur-sm text-white hover:bg-red-500 hover:text-white opacity-0 group-hover:opacity-100 transition-all h-8 w-8"
-                    onClick={(e) => handleDelete(item.id, e)}
-                    data-testid={`button-delete-edu-${item.id}`}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                )}
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="absolute top-2 right-2 bg-black/30 backdrop-blur-sm text-white hover:bg-red-500 hover:text-white opacity-0 group-hover:opacity-100 transition-all h-8 w-8"
+                  onClick={(e) => handleDelete(item.id, e)}
+                  data-testid={`button-delete-edu-${item.id}`}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
               </motion.div>
             ))}
           </AnimatePresence>
@@ -210,7 +197,7 @@ export default function Education() {
           <p className="text-lg font-medium">
             {searchQuery ? `"${searchQuery}"에 대한 검색 결과가 없습니다.` : "아직 등록된 교육 자료가 없습니다."}
           </p>
-          {!searchQuery && !isLocked && (
+          {!searchQuery && (
             <Button onClick={() => setShowAddForm(true)} variant="outline" className="mt-4 gap-2">
               <Plus className="w-4 h-4" /> 첫 번째 자료 추가하기
             </Button>
@@ -313,16 +300,14 @@ export default function Education() {
                     <Calendar className="w-4 h-4" />
                     {selectedItem.createdAt && format(new Date(selectedItem.createdAt), "yyyy년 MM월 dd일")}
                   </span>
-                  {!isLocked && (
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      className="text-red-500 hover:text-red-600 hover:bg-red-50"
-                      onClick={() => handleDelete(selectedItem.id)}
-                    >
-                      <Trash2 className="w-4 h-4 mr-1" /> 삭제
-                    </Button>
-                  )}
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                    onClick={() => handleDelete(selectedItem.id)}
+                  >
+                    <Trash2 className="w-4 h-4 mr-1" /> 삭제
+                  </Button>
                 </div>
               </div>
             </>

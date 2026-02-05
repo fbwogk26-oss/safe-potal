@@ -18,6 +18,7 @@ export const users = pgTable("users", {
   username: varchar("username").unique().notNull(),
   password: varchar("password").notNull(), // hashed password
   name: varchar("name"), // display name
+  department: varchar("department"), // 부서명
   role: varchar("role").notNull().default("user"), // 'admin' or 'user'
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

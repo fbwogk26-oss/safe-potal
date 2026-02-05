@@ -104,22 +104,7 @@ export const api = {
     },
   },
   settings: {
-    getLock: {
-      method: 'GET' as const,
-      path: '/api/settings/lock',
-      responses: {
-        200: z.object({ isLocked: z.boolean() }),
-      },
-    },
-    setLock: {
-      method: 'POST' as const,
-      path: '/api/settings/lock',
-      input: z.object({ isLocked: z.boolean(), pin: z.string().optional() }),
-      responses: {
-        200: z.object({ success: z.boolean() }),
-        401: errorSchemas.internal,
-      },
-    },
+    // Lock functionality removed
   },
   vehicles: {
     list: {

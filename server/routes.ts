@@ -606,33 +606,6 @@ export async function registerRoutes(
     }
   });
 
-  // === SETTINGS (LOCK) ===
-  app.get(api.settings.getLock.path, async (req, res) => {
-    const setting = await storage.getSetting('global_lock');
-    res.json({ isLocked: setting?.value === 'true' });
-  });
-
-  app.post(api.settings.setLock.path, isAuthenticated, async (req: any, res) => {
-    try {
-      // Check if user is admin
-      const userId = req.user.claims.sub;
-      const user = await authStorage.getUser(userId);
-      if (user?.role !== "admin") {
-        return res.status(403).json({ message: "관리자 권한이 필요합니다" });
-      }
-      
-      const { isLocked, pin } = req.body;
-      // Simple PIN check
-      if (pin && pin !== '159753') {
-        return res.status(401).json({ message: "Invalid PIN" });
-      }
-      await storage.setSetting('global_lock', String(isLocked));
-      res.json({ success: true });
-    } catch (error) {
-      res.status(500).json({ message: "설정 변경에 실패했습니다" });
-    }
-  });
-
   // === PINNED NOTICE ===
   app.get("/api/settings/pinned-notice", async (req, res) => {
     const setting = await storage.getSetting('pinned_notice_id');

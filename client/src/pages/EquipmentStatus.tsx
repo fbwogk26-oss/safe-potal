@@ -1,5 +1,4 @@
 import { useNotices, useCreateNotice, useDeleteNotice, useUpdateNotice } from "@/hooks/use-notices";
-import { useLockStatus } from "@/hooks/use-settings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -160,8 +159,6 @@ export default function EquipmentStatus({ embedded = false }: EquipmentStatusPro
   const { mutate: createRecord, isPending: isCreating } = useCreateNotice();
   const { mutate: updateRecord, isPending: isUpdating } = useUpdateNotice();
   const { mutate: deleteRecord } = useDeleteNotice();
-  const { data: lockData } = useLockStatus();
-  const isLocked = lockData?.isLocked;
   const { toast } = useToast();
 
   const [selectedTeam, setSelectedTeam] = useState("");
@@ -228,7 +225,7 @@ export default function EquipmentStatus({ embedded = false }: EquipmentStatusPro
       });
       
       let successCount = 0;
-      for (const [teamName, items] of teamItemsMap) {
+      for (const [teamName, items] of Array.from(teamItemsMap)) {
         const existingRecord = statusRecords?.find(r => {
           try {
             const parsed = JSON.parse(r.content) as TeamData;
@@ -550,7 +547,7 @@ export default function EquipmentStatus({ embedded = false }: EquipmentStatusPro
         <Button 
           variant="outline"
           onClick={() => fileInputRef.current?.click()}
-          disabled={isLocked || isUploading}
+          disabled={isUploading}
           className="gap-2"
           data-testid="button-upload-equipment"
         >
@@ -684,7 +681,7 @@ export default function EquipmentStatus({ embedded = false }: EquipmentStatusPro
             <CardTitle className="text-lg">{selectedTeam} 보호구 편집</CardTitle>
             <Button 
               onClick={handleSave} 
-              disabled={isLocked || isCreating || isUpdating}
+              disabled={isCreating || isUpdating}
               className="bg-amber-600 hover:bg-amber-700 text-white gap-2"
               data-testid="button-save"
             >

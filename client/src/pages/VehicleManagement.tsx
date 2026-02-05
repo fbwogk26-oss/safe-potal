@@ -1,5 +1,4 @@
 import { useVehicles, useCreateVehicle, useUpdateVehicle, useDeleteVehicle } from "@/hooks/use-vehicles";
-import { useLockStatus } from "@/hooks/use-settings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -50,8 +49,6 @@ export default function VehicleManagement({ embedded = false }: VehicleManagemen
   const { mutate: createVehicle, isPending: isCreating } = useCreateVehicle();
   const { mutate: updateVehicle } = useUpdateVehicle();
   const { mutate: deleteVehicle } = useDeleteVehicle();
-  const { data: lockData } = useLockStatus();
-  const isLocked = lockData?.isLocked;
   const { toast } = useToast();
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -273,16 +270,14 @@ export default function VehicleManagement({ embedded = false }: VehicleManagemen
                 <p className="text-xs sm:text-sm text-muted-foreground">업무용 차량 관리</p>
               </div>
             </div>
-            {!isLocked && (
-              <Button 
-                size="sm"
-                onClick={() => { resetForm(); setShowAddDialog(true); }}
-                className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white gap-1.5 shadow-lg h-8 sm:h-9 text-xs sm:text-sm"
-                data-testid="button-add-vehicle"
-              >
-                <Plus className="w-4 h-4" /> <span className="hidden sm:inline">차량 등록</span><span className="sm:hidden">등록</span>
-              </Button>
-            )}
+            <Button 
+              size="sm"
+              onClick={() => { resetForm(); setShowAddDialog(true); }}
+              className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white gap-1.5 shadow-lg h-8 sm:h-9 text-xs sm:text-sm"
+              data-testid="button-add-vehicle"
+            >
+              <Plus className="w-4 h-4" /> <span className="hidden sm:inline">차량 등록</span><span className="sm:hidden">등록</span>
+            </Button>
           </div>
           <div className="flex flex-wrap gap-1.5 sm:gap-2">
           <input
@@ -297,7 +292,7 @@ export default function VehicleManagement({ embedded = false }: VehicleManagemen
             variant="outline"
             size="sm"
             onClick={() => excelInputRef.current?.click()}
-            disabled={isLocked || isExcelUploading}
+            disabled={isExcelUploading}
             className="gap-1.5 h-8 text-xs"
             data-testid="button-upload-vehicles"
           >
@@ -327,21 +322,19 @@ export default function VehicleManagement({ embedded = false }: VehicleManagemen
             data-testid="input-excel-upload-embedded"
           />
           <div className="flex flex-wrap gap-1.5">
-            {!isLocked && (
-              <Button 
-                size="sm"
-                onClick={() => { resetForm(); setShowAddDialog(true); }}
-                className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white gap-1.5 h-8 text-xs"
-                data-testid="button-add-vehicle-embedded"
-              >
-                <Plus className="w-3.5 h-3.5" /> 차량 등록
-              </Button>
-            )}
+            <Button 
+              size="sm"
+              onClick={() => { resetForm(); setShowAddDialog(true); }}
+              className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white gap-1.5 h-8 text-xs"
+              data-testid="button-add-vehicle-embedded"
+            >
+              <Plus className="w-3.5 h-3.5" /> 차량 등록
+            </Button>
             <Button 
               variant="outline"
               size="sm"
               onClick={() => excelInputRef.current?.click()}
-              disabled={isLocked || isExcelUploading}
+              disabled={isExcelUploading}
               className="gap-1.5 h-8 text-xs"
             >
               <Upload className="w-3.5 h-3.5" /> 업로드
@@ -519,28 +512,26 @@ export default function VehicleManagement({ embedded = false }: VehicleManagemen
                   )}
                 </div>
 
-                {!isLocked && (
-                  <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="bg-black/30 backdrop-blur-sm text-white hover:bg-blue-500 hover:text-white h-8 w-8"
-                      onClick={(e) => { e.stopPropagation(); openEditDialog(vehicle); }}
-                      data-testid={`button-edit-vehicle-${vehicle.id}`}
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="bg-black/30 backdrop-blur-sm text-white hover:bg-red-500 hover:text-white h-8 w-8"
-                      onClick={(e) => handleDelete(vehicle.id, e)}
-                      data-testid={`button-delete-vehicle-${vehicle.id}`}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                )}
+                <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="bg-black/30 backdrop-blur-sm text-white hover:bg-blue-500 hover:text-white h-8 w-8"
+                    onClick={(e) => { e.stopPropagation(); openEditDialog(vehicle); }}
+                    data-testid={`button-edit-vehicle-${vehicle.id}`}
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="bg-black/30 backdrop-blur-sm text-white hover:bg-red-500 hover:text-white h-8 w-8"
+                    onClick={(e) => handleDelete(vehicle.id, e)}
+                    data-testid={`button-delete-vehicle-${vehicle.id}`}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
               </motion.div>
             ))}
           </AnimatePresence>
@@ -555,7 +546,7 @@ export default function VehicleManagement({ embedded = false }: VehicleManagemen
               ? "검색 결과가 없습니다." 
               : "등록된 차량이 없습니다."}
           </p>
-          {!isLocked && !searchQuery && filterTeam === "all" && filterStatus === "all" && (
+          {!searchQuery && filterTeam === "all" && filterStatus === "all" && (
             <Button onClick={() => { resetForm(); setShowAddDialog(true); }} variant="outline" className="mt-4 gap-2">
               <Plus className="w-4 h-4" /> 첫 번째 차량 등록하기
             </Button>
@@ -832,25 +823,23 @@ export default function VehicleManagement({ embedded = false }: VehicleManagemen
                     <Calendar className="w-4 h-4" />
                     등록일: {selectedVehicle.createdAt && format(new Date(selectedVehicle.createdAt), "yyyy-MM-dd")}
                   </span>
-                  {!isLocked && (
-                    <div className="flex gap-2">
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => { openEditDialog(selectedVehicle); setSelectedVehicle(null); }}
-                      >
-                        <Edit2 className="w-4 h-4 mr-1" /> 수정
-                      </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
-                        className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => { openEditDialog(selectedVehicle); setSelectedVehicle(null); }}
+                    >
+                      <Edit2 className="w-4 h-4 mr-1" /> 수정
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      className="text-red-500 hover:text-red-600 hover:bg-red-50"
                         onClick={() => handleDelete(selectedVehicle.id)}
                       >
                         <Trash2 className="w-4 h-4 mr-1" /> 삭제
                       </Button>
-                    </div>
-                  )}
+                  </div>
                 </div>
               </div>
             </>
