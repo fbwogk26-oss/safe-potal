@@ -244,22 +244,28 @@ function AdminButton({ isLocked, isAdmin }: { isLocked: boolean; isAdmin?: boole
           description: !isLocked ? "모든 편집 기능이 비활성화되었습니다." : "편집 기능이 활성화되었습니다.",
         });
       },
-      onError: () => {
+      onError: (error: any) => {
+        const message = error.message?.includes("403") ? "관리자 권한이 필요합니다." : "잘못된 PIN 코드입니다.";
         toast({
           variant: "destructive",
           title: "접근 거부",
-          description: "잘못된 PIN 코드입니다.",
+          description: message,
         });
       }
     });
   };
 
+  // Only show admin button to admin users
+  if (!isAdmin) {
+    return null;
+  }
+
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button variant={isLocked ? "destructive" : "outline"} size="sm" className="gap-2 shadow-sm">
+        <Button variant={isLocked ? "destructive" : "outline"} size="sm" className="gap-2 shadow-sm" data-testid="button-admin-lock">
           {isLocked ? <Lock className="w-4 h-4" /> : <Settings className="w-4 h-4" />}
-          <span className="hidden sm:inline">{isLocked ? "시스템 잠금 해제" : "관리자"}</span>
+          <span className="hidden sm:inline">{isLocked ? "시스템 잠금 해제" : "관리"}</span>
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-xs">
