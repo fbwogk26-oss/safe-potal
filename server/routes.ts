@@ -32,6 +32,24 @@ const upload = multer({
   }
 });
 
+const excelUpload = multer({
+  storage: multer.diskStorage({
+    destination: uploadDir,
+    filename: (req, file, cb) => {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      cb(null, uniqueSuffix + path.extname(file.originalname));
+    }
+  }),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowedExt = /xlsx|xls|csv/;
+    const allowedMime = /spreadsheet|excel|csv|text\/csv/;
+    const ext = allowedExt.test(path.extname(file.originalname).toLowerCase());
+    const mime = allowedMime.test(file.mimetype);
+    cb(null, ext || mime);
+  }
+});
+
 function calculateScore(team: any) {
   let score = 100;
   
@@ -126,7 +144,7 @@ export async function registerRoutes(
   });
 
   // Admin: Bulk upload users via Excel/CSV
-  app.post("/api/users/bulk-upload", requireAdmin, upload.single("file"), async (req: any, res) => {
+  app.post("/api/users/bulk-upload", requireAdmin, excelUpload.single("file"), async (req: any, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ message: "파일이 필요합니다" });
@@ -199,9 +217,10 @@ export async function registerRoutes(
   // Admin: Update user
   app.put("/api/users/:id", requireAdmin, async (req: any, res) => {
     try {
-      const { name, role, password } = req.body;
+      const { name, department, role, password } = req.body;
       const updateData: any = {};
       if (name !== undefined) updateData.name = name;
+      if (department !== undefined) updateData.department = department;
       if (role !== undefined) {
         if (!["admin", "user"].includes(role)) {
           return res.status(400).json({ message: "유효하지 않은 역할입니다" });
@@ -218,6 +237,7 @@ export async function registerRoutes(
         id: user.id,
         username: user.username,
         name: user.name,
+        department: user.department,
         role: user.role,
       });
     } catch (error) {
