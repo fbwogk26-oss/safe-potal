@@ -3,7 +3,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { Shield, User, Lock, Eye, EyeOff } from "lucide-react";
+import { User, Lock, Eye, EyeOff } from "lucide-react";
 import { motion } from "framer-motion";
 
 export default function Login() {
@@ -47,9 +47,10 @@ export default function Login() {
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-            className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-primary/80 shadow-lg shadow-primary/25 mb-4"
+            className="inline-flex flex-col items-center justify-center w-20 h-20 rounded-2xl bg-[#0066CC] shadow-lg shadow-primary/25 mb-4 text-white"
           >
-            <Shield className="w-10 h-10 text-primary-foreground" />
+            <span className="text-xl font-bold leading-none tracking-tight">kt</span>
+            <span className="text-sm font-semibold leading-none tracking-tight">MOS</span>
           </motion.div>
           <motion.h1
             initial={{ opacity: 0 }}
