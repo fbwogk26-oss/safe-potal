@@ -2,7 +2,9 @@ import { useNotices, useCreateNotice, useDeleteNotice } from "@/hooks/use-notice
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { GraduationCap, Plus, Trash2, ImagePlus, X, BookOpen, Calendar, Search, AlertCircle, ChevronRight } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { GraduationCap, Plus, Trash2, ImagePlus, X, BookOpen, Calendar, Search, Eye, FileText, Image } from "lucide-react";
 import { useState, useRef, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -96,114 +98,128 @@ export default function Education() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-4 sm:space-y-6 md:space-y-8">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
-        <div className="flex items-center gap-3">
-          <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-2.5 sm:p-3 md:p-4 rounded-xl sm:rounded-2xl text-white shadow-lg shadow-blue-500/30">
-            <GraduationCap className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8" />
-          </div>
-          <div>
-            <h2 className="text-xl sm:text-2xl md:text-3xl font-display font-bold text-foreground">안전 교육</h2>
-            <p className="text-xs sm:text-sm text-muted-foreground">안전 문서 관리</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <div className="relative flex-1 sm:w-48 md:w-64">
-            <Input 
-              placeholder="검색..." 
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              className="pr-8 bg-background/50 backdrop-blur-sm h-9 text-sm"
-              data-testid="input-search-edu"
-            />
-            <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          </div>
-          <Button 
-            onClick={() => setShowAddForm(true)} 
-            size="sm"
-            className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white gap-1.5 shadow-lg h-9 text-xs sm:text-sm"
-            data-testid="button-open-add-edu"
-          >
-            <Plus className="w-4 h-4" /> <span className="hidden sm:inline">새 자료</span><span className="sm:hidden">추가</span>
-          </Button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {isLoading ? (
-          [1,2,3,4,5,6].map(i => (
-            <div key={i} className="h-72 bg-gradient-to-br from-muted/30 to-muted/10 rounded-2xl animate-pulse" />
-          ))
-        ) : (
-          <AnimatePresence mode="popLayout">
-            {filteredMaterials.map((item, idx) => (
-              <motion.div
-                key={item.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                transition={{ delay: idx * 0.05 }}
-                onClick={() => setSelectedItem(item)}
-                className="group relative bg-card rounded-2xl overflow-hidden border border-border/50 shadow-sm hover:shadow-xl hover:border-blue-300 dark:hover:border-blue-700 transition-all duration-300 cursor-pointer"
-                data-testid={`card-edu-${item.id}`}
+    <div className="max-w-5xl mx-auto space-y-4">
+      <Card className="border-blue-200/50 dark:border-blue-900/30 overflow-hidden">
+        <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border-b p-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <CardTitle className="flex items-center gap-3">
+              <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-2 rounded-lg text-white">
+                <GraduationCap className="w-5 h-5" />
+              </div>
+              <div>
+                <span className="text-lg font-bold">안전 교육</span>
+                <p className="text-xs font-normal text-muted-foreground">안전 문서 관리</p>
+              </div>
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1 sm:w-48">
+                <Input 
+                  placeholder="검색..." 
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  className="pr-8 h-9 text-sm bg-white/80 dark:bg-background/80"
+                  data-testid="input-search-edu"
+                />
+                <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              </div>
+              <Button 
+                onClick={() => setShowAddForm(true)} 
+                size="sm"
+                className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white gap-1.5 h-9"
+                data-testid="button-open-add-edu"
               >
-                {item.imageUrl ? (
-                  <div className="h-44 overflow-hidden">
-                    <img 
-                      src={item.imageUrl} 
-                      alt={item.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-                  </div>
-                ) : (
-                  <div className="h-44 bg-gradient-to-br from-blue-500/20 via-indigo-500/10 to-purple-500/20 flex items-center justify-center">
-                    <BookOpen className="w-16 h-16 text-blue-500/30" />
-                  </div>
+                <Plus className="w-4 h-4" /> 
+                <span className="hidden sm:inline">새 자료</span>
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="divide-y divide-border/50">
+            {isLoading ? (
+              [1,2,3,4,5].map(i => (
+                <div key={i} className="h-16 bg-muted/20 animate-pulse" />
+              ))
+            ) : filteredMaterials.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <BookOpen className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                <p className="text-sm">
+                  {searchQuery ? `"${searchQuery}"에 대한 검색 결과가 없습니다.` : "아직 등록된 교육 자료가 없습니다."}
+                </p>
+                {!searchQuery && (
+                  <Button onClick={() => setShowAddForm(true)} variant="outline" size="sm" className="mt-3 gap-1.5">
+                    <Plus className="w-4 h-4" /> 첫 번째 자료 추가
+                  </Button>
                 )}
-                
-                <div className="p-5 space-y-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <h3 className="font-bold text-lg line-clamp-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                      {item.title}
-                    </h3>
-                    <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-blue-500 group-hover:translate-x-1 transition-all flex-shrink-0 mt-1" />
-                  </div>
-                  <p className="text-sm text-muted-foreground line-clamp-2">{item.content}</p>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2">
-                    <Calendar className="w-3 h-3" />
-                    {item.createdAt && format(new Date(item.createdAt), "yyyy-MM-dd")}
-                  </div>
-                </div>
-
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="absolute top-2 right-2 bg-black/30 backdrop-blur-sm text-white hover:bg-red-500 hover:text-white opacity-0 group-hover:opacity-100 transition-all h-8 w-8"
-                  onClick={(e) => handleDelete(item.id, e)}
-                  data-testid={`button-delete-edu-${item.id}`}
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-              </motion.div>
-            ))}
-          </AnimatePresence>
-        )}
-      </div>
-
-      {!isLoading && filteredMaterials.length === 0 && (
-        <div className="text-center py-16 text-muted-foreground bg-gradient-to-br from-muted/20 to-transparent rounded-2xl border border-dashed">
-          <BookOpen className="w-16 h-16 mx-auto mb-4 text-muted-foreground/30" />
-          <p className="text-lg font-medium">
-            {searchQuery ? `"${searchQuery}"에 대한 검색 결과가 없습니다.` : "아직 등록된 교육 자료가 없습니다."}
-          </p>
-          {!searchQuery && (
-            <Button onClick={() => setShowAddForm(true)} variant="outline" className="mt-4 gap-2">
-              <Plus className="w-4 h-4" /> 첫 번째 자료 추가하기
-            </Button>
+              </div>
+            ) : (
+              <AnimatePresence mode="popLayout">
+                {filteredMaterials.map((item, idx) => (
+                  <motion.div
+                    key={item.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    transition={{ delay: idx * 0.03 }}
+                    onClick={() => setSelectedItem(item)}
+                    className="group flex items-center gap-4 px-4 py-3 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 cursor-pointer transition-colors"
+                    data-testid={`row-edu-${item.id}`}
+                  >
+                    <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                      {item.imageUrl ? (
+                        <Image className="w-4 h-4" />
+                      ) : (
+                        <BookOpen className="w-4 h-4" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-medium text-sm truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                          {item.title}
+                        </h3>
+                        {item.imageUrl && (
+                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">첨부</Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground truncate mt-0.5">{item.content}</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-muted-foreground hidden sm:flex items-center gap-1">
+                        <Calendar className="w-3 h-3" />
+                        {item.createdAt && format(new Date(item.createdAt), "MM.dd")}
+                      </span>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-blue-600"
+                        onClick={(e) => { e.stopPropagation(); setSelectedItem(item); }}
+                        data-testid={`button-view-edu-${item.id}`}
+                      >
+                        <Eye className="w-4 h-4" />
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-red-500"
+                        onClick={(e) => handleDelete(item.id, e)}
+                        data-testid={`button-delete-edu-${item.id}`}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            )}
+          </div>
+          {filteredMaterials.length > 0 && (
+            <div className="px-4 py-2 bg-muted/20 border-t text-xs text-muted-foreground flex items-center justify-between">
+              <span>총 {filteredMaterials.length}개</span>
+              <span>클릭하여 상세보기</span>
+            </div>
           )}
-        </div>
-      )}
+        </CardContent>
+      </Card>
 
       <Dialog open={showAddForm} onOpenChange={setShowAddForm}>
         <DialogContent className="sm:max-w-lg">

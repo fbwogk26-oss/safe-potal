@@ -2,7 +2,7 @@ import { useNotices, useCreateNotice, useDeleteNotice } from "@/hooks/use-notice
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { DoorOpen, Plus, Trash2, FileText, Download, UserPlus, X, Filter, Calendar } from "lucide-react";
+import { DoorOpen, Plus, Trash2, FileText, Download, UserPlus, X, Calendar } from "lucide-react";
 import { useState, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO, isSameDay } from "date-fns";
@@ -459,157 +459,156 @@ export default function AccessRequest() {
         </CardContent>
       </Card>
 
-      <Card className="p-4 border-purple-200 dark:border-purple-900/30">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
-          <div className="flex items-center gap-2 text-sm font-medium text-purple-700 dark:text-purple-400">
-            <Filter className="w-4 h-4" />
-            <span>필터</span>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 flex-1">
-            <div className="flex items-center gap-1.5">
-              <Label className="text-xs text-muted-foreground whitespace-nowrap">방문기간:</Label>
-              <Select value={filterVisitDate} onValueChange={setFilterVisitDate}>
-                <SelectTrigger className="h-8 w-32 text-xs" data-testid="select-filter-visit-date">
-                  <SelectValue placeholder="전체" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">전체</SelectItem>
-                  {uniqueVisitDates.map(date => (
-                    <SelectItem key={date} value={date}>{date}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+      <Card className="border-purple-200/50 dark:border-purple-900/30 overflow-hidden">
+        <div className="bg-gradient-to-r from-purple-50 to-violet-50 dark:from-purple-900/20 dark:to-violet-900/20 border-b px-4 py-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="bg-gradient-to-br from-purple-500 to-violet-600 p-2 rounded-lg text-white">
+                <FileText className="w-4 h-4" />
+              </div>
+              <div>
+                <span className="text-sm font-bold">신청 목록</span>
+                <p className="text-xs text-muted-foreground">총 {filteredMaterials.length}건</p>
+              </div>
             </div>
-            <div className="flex items-center gap-1.5">
-              <Label className="text-xs text-muted-foreground whitespace-nowrap">등록일:</Label>
-              <Select value={filterRegistrationDate} onValueChange={setFilterRegistrationDate}>
-                <SelectTrigger className="h-8 w-32 text-xs" data-testid="select-filter-registration-date">
-                  <SelectValue placeholder="전체" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">전체</SelectItem>
-                  {uniqueRegistrationDates.map(date => (
-                    <SelectItem key={date} value={date}>{date}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1.5">
+                <Label className="text-xs text-muted-foreground whitespace-nowrap">방문:</Label>
+                <Select value={filterVisitDate} onValueChange={setFilterVisitDate}>
+                  <SelectTrigger className="h-8 w-28 text-xs bg-white/80 dark:bg-background/80" data-testid="select-filter-visit-date">
+                    <SelectValue placeholder="전체" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">전체</SelectItem>
+                    {uniqueVisitDates.map(date => (
+                      <SelectItem key={date} value={date}>{date}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Label className="text-xs text-muted-foreground whitespace-nowrap">등록:</Label>
+                <Select value={filterRegistrationDate} onValueChange={setFilterRegistrationDate}>
+                  <SelectTrigger className="h-8 w-28 text-xs bg-white/80 dark:bg-background/80" data-testid="select-filter-registration-date">
+                    <SelectValue placeholder="전체" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">전체</SelectItem>
+                    {uniqueRegistrationDates.map(date => (
+                      <SelectItem key={date} value={date}>{date}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {((filterVisitDate && filterVisitDate !== "all") || (filterRegistrationDate && filterRegistrationDate !== "all")) && (
+                <Button variant="ghost" size="sm" onClick={clearFilters} className="h-8 text-xs px-2">
+                  <X className="w-3 h-3 mr-1" /> 초기화
+                </Button>
+              )}
             </div>
-            {((filterVisitDate && filterVisitDate !== "all") || (filterRegistrationDate && filterRegistrationDate !== "all")) && (
-              <Button variant="ghost" size="sm" onClick={clearFilters} className="h-8 text-xs">
-                초기화
-              </Button>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">{filteredMaterials.length}건</span>
           </div>
         </div>
-      </Card>
-
-      <div className="flex flex-col gap-4">
-        <AnimatePresence>
-          {filteredMaterials.map((item) => {
-            const parsed = parseContent(item.content);
-            return (
-              <motion.div
-                key={item.id}
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="group bg-card rounded-xl p-4 sm:p-5 border border-border/50 shadow-sm hover:shadow-lg transition-all duration-300"
-                data-testid={`card-access-${item.id}`}
-              >
-                <div className="flex items-start gap-3 sm:gap-4">
-                  <div className="p-2.5 bg-purple-50 text-purple-600 rounded-lg dark:bg-purple-900/20 shrink-0">
-                    <FileText className="w-5 h-5" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    {parsed ? (
-                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-bold text-base sm:text-lg truncate">{parsed.visitPurpose}</h3>
-                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs sm:text-sm text-muted-foreground mt-1">
-                            <span>{parsed.entranceLocation || "장소 미지정"}</span>
-                            <span className="hidden sm:inline text-border">|</span>
-                            <span>{parsed.visitPeriodStartDate} ~ {parsed.visitPeriodEndDate}</span>
-                            <span className="hidden sm:inline text-border">|</span>
-                            <span>{parsed.people?.length || 0}명</span>
-                            {parsed.supervisorName && (
-                              <>
-                                <span className="hidden sm:inline text-border">|</span>
-                                <span>인솔: {parsed.supervisorName}</span>
-                              </>
+        <div className="divide-y divide-border/50">
+          {isLoading ? (
+            [1,2,3,4,5].map(i => (
+              <div key={i} className="h-16 bg-muted/20 animate-pulse" />
+            ))
+          ) : filteredMaterials.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <FileText className="w-12 h-12 mx-auto mb-3 opacity-30" />
+              <p className="text-sm">신청 내역이 없습니다.</p>
+            </div>
+          ) : (
+            <AnimatePresence mode="popLayout">
+              {filteredMaterials.map((item, idx) => {
+                const parsed = parseContent(item.content);
+                return (
+                  <motion.div
+                    key={item.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    transition={{ delay: idx * 0.03 }}
+                    className="group flex items-center gap-3 px-4 py-3 hover:bg-purple-50/50 dark:hover:bg-purple-900/10 cursor-pointer transition-colors"
+                    data-testid={`row-access-${item.id}`}
+                  >
+                    <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-purple-600 dark:text-purple-400">
+                      <DoorOpen className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      {parsed ? (
+                        <>
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-medium text-sm truncate group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">
+                              {parsed.visitPurpose}
+                            </h3>
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300">
+                              {parsed.people?.length || 0}명
+                            </span>
+                            {parsed.entranceLocation && (
+                              <span className="text-[10px] text-muted-foreground hidden sm:inline">{parsed.entranceLocation}</span>
                             )}
                           </div>
-                          <div className="text-xs text-muted-foreground mt-1">
-                            {parsed.people && parsed.people.length > 0 && parsed.people.map((p) => p.applicantName).join(", ")}
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                            <span className="flex items-center gap-1">
+                              <Calendar className="w-3 h-3" />
+                              {parsed.visitPeriodStartDate}
+                            </span>
+                            {parsed.supervisorName && (
+                              <>
+                                <span className="hidden sm:inline">-</span>
+                                <span className="hidden sm:inline">인솔: {parsed.supervisorName}</span>
+                              </>
+                            )}
+                            <span className="hidden sm:inline truncate">
+                              ({parsed.people?.map(p => p.applicantName).join(", ")})
+                            </span>
                           </div>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className="text-xs text-muted-foreground whitespace-nowrap">
-                            {item.createdAt && format(new Date(item.createdAt), "MM/dd HH:mm")}
-                          </span>
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-8 w-8"
-                            onClick={() => handleSingleExcelDownload(item.id)}
-                            data-testid={`button-excel-access-${item.id}`}
-                            title="엑셀 다운로드"
-                          >
-                            <Download className="w-4 h-4 text-green-600" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-8 w-8 opacity-0 group-hover:opacity-100"
-                            onClick={() => handleDelete(item.id)}
-                            
-                            data-testid={`button-delete-access-${item.id}`}
-                          >
-                            <Trash2 className="w-4 h-4 text-destructive" />
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h3 className="font-bold text-base mb-1">{item.title}</h3>
-                          <p className="text-sm text-muted-foreground">{item.content}</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-muted-foreground">
-                            {item.createdAt && format(new Date(item.createdAt), "MM/dd HH:mm")}
-                          </span>
-                          <Button 
-                            variant="ghost" 
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => handleSingleExcelDownload(item.id)}
-                            data-testid={`button-excel-access-${item.id}`}
-                          >
-                            <Download className="w-4 h-4 text-green-600" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-8 w-8 opacity-0 group-hover:opacity-100"
-                            onClick={() => handleDelete(item.id)}
-                            
-                            data-testid={`button-delete-access-${item.id}`}
-                          >
-                            <Trash2 className="w-4 h-4 text-destructive" />
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </motion.div>
-            );
-          })}
-        </AnimatePresence>
-      </div>
+                        </>
+                      ) : (
+                        <>
+                          <h3 className="font-medium text-sm truncate">{item.title}</h3>
+                          <p className="text-xs text-muted-foreground truncate">{item.content}</p>
+                        </>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground hidden sm:flex items-center gap-1 whitespace-nowrap">
+                        {item.createdAt && format(new Date(item.createdAt), "MM.dd HH:mm")}
+                      </span>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
+                        onClick={(e) => { e.stopPropagation(); handleSingleExcelDownload(item.id); }}
+                        data-testid={`button-excel-access-${item.id}`}
+                        title="엑셀 다운로드"
+                      >
+                        <Download className="w-4 h-4" />
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-red-500"
+                        onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }}
+                        data-testid={`button-delete-access-${item.id}`}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </AnimatePresence>
+          )}
+        </div>
+        {filteredMaterials.length > 0 && (
+          <div className="px-4 py-2 bg-muted/20 border-t text-xs text-muted-foreground flex items-center justify-between">
+            <span>총 {filteredMaterials.length}건</span>
+            <span>엑셀 아이콘으로 개별 다운로드</span>
+          </div>
+        )}
+      </Card>
     </div>
   );
 }
