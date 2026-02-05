@@ -102,12 +102,18 @@ export function Topbar() {
             
             <Link href="/">
               <div className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity">
-                <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-                  <span className="text-primary-foreground font-bold text-sm">kt</span>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-sm">
+                    <ShieldCheck className="w-4.5 h-4.5 text-primary-foreground" />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-[11px] font-bold text-primary leading-none">kt MOS</span>
+                    <span className="text-[9px] text-muted-foreground leading-none">남부</span>
+                  </div>
                 </div>
-                <div className="hidden sm:block">
-                  <h1 className="text-base font-bold leading-tight text-foreground">MOS남부</h1>
-                  <p className="text-[10px] text-muted-foreground -mt-0.5">종합안전포털</p>
+                <div className="hidden sm:block pl-1.5 border-l border-border/50">
+                  <h1 className="text-sm font-bold leading-tight text-foreground">종합안전포털</h1>
+                  <p className="text-[10px] text-muted-foreground -mt-0.5">Safety Portal System</p>
                 </div>
               </div>
             </Link>
