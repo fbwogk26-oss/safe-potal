@@ -74,6 +74,19 @@ class AuthStorage implements IAuthStorage {
     const [{ userCount }] = await db.select({ userCount: count() }).from(users);
     return userCount;
   }
+
+  async initializeDefaultAdmin(): Promise<void> {
+    try {
+      const adminExists = await this.getUserByUsername("admin");
+      if (!adminExists) {
+        console.log("Creating default admin user...");
+        await this.createUser("admin", "admin123", "관리자", "admin");
+        console.log("Default admin user created successfully");
+      }
+    } catch (error) {
+      console.error("Failed to initialize default admin:", error);
+    }
+  }
 }
 
 export const authStorage = new AuthStorage();
