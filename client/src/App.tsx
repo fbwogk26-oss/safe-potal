@@ -16,6 +16,7 @@ import EquipmentRequest from "@/pages/EquipmentRequest";
 import AccessRequest from "@/pages/AccessRequest";
 import DigitalBoard from "@/pages/DigitalBoard";
 import SafetyInspections from "@/pages/SafetyInspections";
+import AdminUsers from "@/pages/AdminUsers";
 import NotFound from "@/pages/NotFound";
 import { useLocation } from "wouter";
 
@@ -44,6 +45,7 @@ function Router() {
             <Route path="/equipment/request" component={EquipmentRequest} />
             <Route path="/access" component={AccessRequest} />
             <Route path="/digital-board" component={DigitalBoard} />
+            <Route path="/admin/users" component={AdminUsers} />
             <Route component={NotFound} />
           </Switch>
         </div>

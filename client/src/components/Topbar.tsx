@@ -1,4 +1,4 @@
-import { Bell, Lock, Unlock, Settings, RotateCw, Menu } from "lucide-react";
+import { Bell, Lock, Unlock, Settings, RotateCw, Menu, LogIn, LogOut, User, Users } from "lucide-react";
 import { useLockStatus, useSetLock } from "@/hooks/use-settings";
 import { Button } from "@/components/ui/button";
 import { useNotices } from "@/hooks/use-notices";
@@ -27,6 +27,15 @@ import {
   ShoppingCart
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/use-auth";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const NAV_ITEMS = [
   { label: "대시보드", href: "/", icon: LayoutDashboard },
@@ -45,6 +54,12 @@ export function Topbar() {
   const { data: pinnedData } = useQuery<{ pinnedNoticeId: number | null }>({
     queryKey: ["/api/settings/pinned-notice"],
   });
+  const { user, isLoading: authLoading, isAuthenticated } = useAuth();
+  const { data: roleData } = useQuery<{ role: string }>({
+    queryKey: ["/api/auth/user-role"],
+    enabled: isAuthenticated,
+  });
+  const isAdmin = roleData?.role === "admin";
   
   // Use pinned notice first, or fall back to latest notice
   const tickerNotice = useMemo(() => {
@@ -126,7 +141,64 @@ export function Topbar() {
           </div>
 
           <div className="flex items-center gap-2">
-            <AdminButton isLocked={isLocked || false} />
+            {!authLoading && (
+              <>
+                {isAuthenticated && user ? (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="sm" className="gap-2 px-2" data-testid="button-user-menu">
+                        <Avatar className="h-7 w-7">
+                          <AvatarImage src={user.profileImageUrl || undefined} />
+                          <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                            {(user.firstName?.[0] || user.email?.[0] || "U").toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="hidden sm:inline text-sm font-medium max-w-[100px] truncate">
+                          {user.firstName || user.email?.split("@")[0] || "사용자"}
+                        </span>
+                        {isAdmin && (
+                          <span className="hidden sm:inline px-1.5 py-0.5 text-[10px] rounded bg-primary text-primary-foreground font-bold">
+                            관리자
+                          </span>
+                        )}
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48">
+                      <div className="px-2 py-1.5 text-sm">
+                        <p className="font-medium">{user.firstName} {user.lastName}</p>
+                        <p className="text-xs text-muted-foreground">{user.email}</p>
+                      </div>
+                      <DropdownMenuSeparator />
+                      {isAdmin && (
+                        <>
+                          <DropdownMenuItem asChild>
+                            <Link href="/admin/users" className="flex items-center gap-2 cursor-pointer">
+                              <Users className="w-4 h-4" />
+                              사용자 관리
+                            </Link>
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                        </>
+                      )}
+                      <DropdownMenuItem asChild>
+                        <a href="/api/logout" className="flex items-center gap-2 cursor-pointer text-red-600">
+                          <LogOut className="w-4 h-4" />
+                          로그아웃
+                        </a>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                ) : (
+                  <Button variant="outline" size="sm" asChild data-testid="button-login">
+                    <a href="/api/login" className="gap-2">
+                      <LogIn className="w-4 h-4" />
+                      <span className="hidden sm:inline">로그인</span>
+                    </a>
+                  </Button>
+                )}
+              </>
+            )}
+            <AdminButton isLocked={isLocked || false} isAdmin={isAdmin} />
           </div>
         </div>
 
@@ -156,7 +228,7 @@ export function Topbar() {
   );
 }
 
-function AdminButton({ isLocked }: { isLocked: boolean }) {
+function AdminButton({ isLocked, isAdmin }: { isLocked: boolean; isAdmin?: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
   const [pin, setPin] = useState("");
   const { mutate: setLock, isPending } = useSetLock();
