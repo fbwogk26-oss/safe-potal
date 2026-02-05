@@ -36,6 +36,7 @@ import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import VehicleManagement from "./VehicleManagement";
 import EquipmentStatus from "./EquipmentStatus";
+import { usePermissions } from "@/hooks/use-permissions";
 
 type DashboardTab = "safety" | "vehicle" | "equipment";
 
@@ -48,6 +49,7 @@ export default function Dashboard() {
   const [baseVehicleCount, setBaseVehicleCount] = useState(15);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { canEditDashboard, canEditSafetyScores, canEditVehicles, canEditEquipmentStatus } = usePermissions();
   
   // Notice popup states
   const [noticePopupOpen, setNoticePopupOpen] = useState(false);
@@ -310,35 +312,39 @@ export default function Dashboard() {
                     />
                     <span className="text-muted-foreground">대</span>
                   </div>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={handleResetAll} 
-                    disabled={resetAllTeams.isPending}
-                    className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 h-7 text-xs px-2"
-                    data-testid="button-reset-all"
-                  >
-                    <RotateCcw className={cn("w-3 h-3 sm:mr-1", resetAllTeams.isPending && "animate-spin")} />
-                    <span className="hidden sm:inline">초기화</span>
-                  </Button>
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleFileUpload}
-                    accept=".xlsx,.xls"
-                    className="hidden"
-                    data-testid="input-team-upload"
-                  />
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    className="h-7 text-xs px-2"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={isUploading}
-                  >
-                    <Upload className={cn("w-3 h-3 sm:mr-1", isUploading && "animate-spin")} />
-                    <span className="hidden sm:inline">업로드</span>
-                  </Button>
+                  {canEditSafetyScores && (
+                    <>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={handleResetAll} 
+                        disabled={resetAllTeams.isPending}
+                        className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 h-7 text-xs px-2"
+                        data-testid="button-reset-all"
+                      >
+                        <RotateCcw className={cn("w-3 h-3 sm:mr-1", resetAllTeams.isPending && "animate-spin")} />
+                        <span className="hidden sm:inline">초기화</span>
+                      </Button>
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleFileUpload}
+                        accept=".xlsx,.xls"
+                        className="hidden"
+                        data-testid="input-team-upload"
+                      />
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        className="h-7 text-xs px-2"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isUploading}
+                      >
+                        <Upload className={cn("w-3 h-3 sm:mr-1", isUploading && "animate-spin")} />
+                        <span className="hidden sm:inline">업로드</span>
+                      </Button>
+                    </>
+                  )}
                   <Button 
                     variant="secondary" 
                     size="sm" 
@@ -504,17 +510,21 @@ export default function Dashboard() {
                               </span>
                             </TableCell>
                             <TableCell className="pr-2 text-right flex items-center justify-end gap-0.5">
-                              <Button 
-                                variant="ghost" 
-                                size="icon"
-                                onClick={() => handleResetTeam(team.id, team.name)}
-                                disabled={resetTeam.isPending}
-                                className="hover:bg-red-50 hover:text-red-600 h-7 w-7"
-                                data-testid={`button-reset-team-${team.id}`}
-                              >
-                                <RotateCcw className="w-3.5 h-3.5" />
-                              </Button>
-                              <TeamEditDialog team={team} disabled={false} />
+                              {canEditSafetyScores && (
+                                <>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon"
+                                    onClick={() => handleResetTeam(team.id, team.name)}
+                                    disabled={resetTeam.isPending}
+                                    className="hover:bg-red-50 hover:text-red-600 h-7 w-7"
+                                    data-testid={`button-reset-team-${team.id}`}
+                                  >
+                                    <RotateCcw className="w-3.5 h-3.5" />
+                                  </Button>
+                                  <TeamEditDialog team={team} disabled={false} />
+                                </>
+                              )}
                             </TableCell>
                           </motion.tr>
                         ))}

@@ -98,6 +98,24 @@ const requireAdmin: any = async (req: any, res: any, next: any) => {
   }
 };
 
+// Editor middleware (admin or manager)
+const requireEditor: any = async (req: any, res: any, next: any) => {
+  try {
+    const session = req.session as any;
+    if (!session.userId) {
+      return res.status(401).json({ message: "로그인이 필요합니다" });
+    }
+    const user = await authStorage.getUser(session.userId);
+    if (!user || (user.role !== "admin" && user.role !== "manager")) {
+      return res.status(403).json({ message: "편집 권한이 필요합니다" });
+    }
+    req.user = user;
+    next();
+  } catch (error) {
+    res.status(500).json({ message: "권한 확인에 실패했습니다" });
+  }
+};
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -222,7 +240,7 @@ export async function registerRoutes(
       if (name !== undefined) updateData.name = name;
       if (department !== undefined) updateData.department = department;
       if (role !== undefined) {
-        if (!["admin", "user"].includes(role)) {
+        if (!["admin", "manager", "user"].includes(role)) {
           return res.status(400).json({ message: "유효하지 않은 역할입니다" });
         }
         updateData.role = role;
@@ -283,7 +301,7 @@ export async function registerRoutes(
     res.json(teams);
   });
 
-  app.post(api.teams.create.path, requireAdmin, async (req: any, res) => {
+  app.post(api.teams.create.path, requireEditor, async (req: any, res) => {
     try {
       const input = api.teams.create.input.parse(req.body);
       // Calculate score
@@ -298,7 +316,7 @@ export async function registerRoutes(
     }
   });
 
-  app.put(api.teams.update.path, requireAdmin, async (req: any, res) => {
+  app.put(api.teams.update.path, requireEditor, async (req: any, res) => {
     try {
       const id = Number(req.params.id);
       const existing = await storage.getTeam(id);
@@ -319,13 +337,13 @@ export async function registerRoutes(
     }
   });
 
-  app.delete(api.teams.delete.path, requireAdmin, async (req: any, res) => {
+  app.delete(api.teams.delete.path, requireEditor, async (req: any, res) => {
     await storage.deleteTeam(Number(req.params.id));
     res.status(204).send();
   });
 
   // Reset single team scores
-  app.post('/api/teams/:id/reset', requireAdmin, async (req: any, res) => {
+  app.post('/api/teams/:id/reset', requireEditor, async (req: any, res) => {
     const id = Number(req.params.id);
     const existing = await storage.getTeam(id);
     if (!existing) return res.status(404).json({ message: "Team not found" });
@@ -346,7 +364,7 @@ export async function registerRoutes(
   });
 
   // Reset all teams for a year
-  app.post('/api/teams/reset-all', requireAdmin, async (req: any, res) => {
+  app.post('/api/teams/reset-all', requireEditor, async (req: any, res) => {
     const { year } = req.body;
     const teams = await storage.getTeams(year);
     
@@ -370,7 +388,7 @@ export async function registerRoutes(
   });
 
   // Team Excel Import
-  app.post('/api/teams/import', requireAdmin, async (req: any, res) => {
+  app.post('/api/teams/import', requireEditor, async (req: any, res) => {
     try {
       const { data, year } = req.body;
       if (!Array.isArray(data)) {
@@ -498,7 +516,7 @@ export async function registerRoutes(
   // Register Object Storage routes for persistent file uploads
   registerObjectStorageRoutes(app);
   
-  app.post('/api/upload', requireAdmin, upload.single('image'), (req: any, res) => {
+  app.post('/api/upload', requireEditor, upload.single('image'), (req: any, res) => {
     if (!req.file) {
       return res.status(400).json({ message: "No file uploaded" });
     }
@@ -531,7 +549,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post('/api/upload/file', requireAdmin, fileUpload.single('file'), (req: any, res) => {
+  app.post('/api/upload/file', requireEditor, fileUpload.single('file'), (req: any, res) => {
     if (!req.file) {
       return res.status(400).json({ message: "No file uploaded" });
     }
@@ -546,13 +564,13 @@ export async function registerRoutes(
     res.json(notices);
   });
 
-  app.post(api.notices.create.path, requireAdmin, async (req: any, res) => {
+  app.post(api.notices.create.path, requireEditor, async (req: any, res) => {
     const input = api.notices.create.input.parse(req.body);
     const notice = await storage.createNotice(input);
     res.status(201).json(notice);
   });
 
-  app.put(api.notices.update.path, requireAdmin, async (req: any, res) => {
+  app.put(api.notices.update.path, requireEditor, async (req: any, res) => {
     try {
       const id = Number(req.params.id);
       const existing = await storage.getNotice(id);
@@ -569,7 +587,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete(api.notices.delete.path, requireAdmin, async (req: any, res) => {
+  app.delete(api.notices.delete.path, requireEditor, async (req: any, res) => {
     await storage.deleteNotice(Number(req.params.id));
     res.status(204).send();
   });
@@ -705,7 +723,7 @@ export async function registerRoutes(
     res.json({ pinnedNoticeId: setting?.value ? Number(setting.value) : null });
   });
 
-  app.post("/api/settings/pinned-notice", requireAdmin, async (req: any, res) => {
+  app.post("/api/settings/pinned-notice", requireEditor, async (req: any, res) => {
     const { noticeId } = req.body;
     if (noticeId === null) {
       await storage.setSetting('pinned_notice_id', '');
@@ -721,7 +739,7 @@ export async function registerRoutes(
     res.json(vehicles);
   });
 
-  app.post(api.vehicles.create.path, requireAdmin, async (req: any, res) => {
+  app.post(api.vehicles.create.path, requireEditor, async (req: any, res) => {
     try {
       const input = api.vehicles.create.input.parse(req.body);
       const vehicle = await storage.createVehicle(input);
@@ -734,7 +752,7 @@ export async function registerRoutes(
     }
   });
 
-  app.put(api.vehicles.update.path, requireAdmin, async (req: any, res) => {
+  app.put(api.vehicles.update.path, requireEditor, async (req: any, res) => {
     try {
       const id = Number(req.params.id);
       const existing = await storage.getVehicle(id);
@@ -751,7 +769,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete(api.vehicles.delete.path, requireAdmin, async (req: any, res) => {
+  app.delete(api.vehicles.delete.path, requireEditor, async (req: any, res) => {
     await storage.deleteVehicle(Number(req.params.id));
     res.status(204).send();
   });
@@ -811,7 +829,7 @@ export async function registerRoutes(
   });
 
   // Vehicle Excel Import
-  app.post("/api/vehicles/import", requireAdmin, async (req: any, res) => {
+  app.post("/api/vehicles/import", requireEditor, async (req: any, res) => {
     try {
       const { data } = req.body;
       if (!Array.isArray(data)) {
@@ -902,7 +920,7 @@ export async function registerRoutes(
   });
 
   // Seed default equipment (idempotent - only adds missing defaults)
-  app.post("/api/safety-equipment/seed-defaults", requireAdmin, async (req: any, res) => {
+  app.post("/api/safety-equipment/seed-defaults", requireEditor, async (req: any, res) => {
     try {
       const existing = await storage.getSafetyEquipment();
       const existingNames = new Set(existing.map(e => e.name));
@@ -921,7 +939,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/safety-equipment", requireAdmin, upload.single('image'), async (req: any, res) => {
+  app.post("/api/safety-equipment", requireEditor, upload.single('image'), async (req: any, res) => {
     try {
       const { name, category } = req.body;
       if (!name || !category) {
@@ -949,7 +967,7 @@ export async function registerRoutes(
     }
   });
 
-  app.put("/api/safety-equipment/:id", requireAdmin, async (req: any, res) => {
+  app.put("/api/safety-equipment/:id", requireEditor, async (req: any, res) => {
     try {
       const id = Number(req.params.id);
       const { name, category, imageUrl } = req.body;
@@ -961,13 +979,13 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/safety-equipment/:id", requireAdmin, async (req: any, res) => {
+  app.delete("/api/safety-equipment/:id", requireEditor, async (req: any, res) => {
     await storage.deleteSafetyEquipment(Number(req.params.id));
     res.status(204).send();
   });
 
   // Update team equipment (when new equipment is issued without disposal)
-  app.post("/api/teams/update-equipment", requireAdmin, async (req: any, res) => {
+  app.post("/api/teams/update-equipment", requireEditor, async (req: any, res) => {
     try {
       const { team, items } = req.body;
       if (!team || !items || !Array.isArray(items)) {
@@ -1053,7 +1071,7 @@ export async function registerRoutes(
     res.json(inspections);
   });
 
-  app.post("/api/safety-inspections", requireAdmin, async (req: any, res) => {
+  app.post("/api/safety-inspections", requireEditor, async (req: any, res) => {
     try {
       const { inspectionType, title, location, inspector, inspectionDate, checklist, notes, images } = req.body;
       if (!inspectionType || !title || !inspectionDate) {
@@ -1076,7 +1094,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/safety-inspections/:id", requireAdmin, async (req: any, res) => {
+  app.delete("/api/safety-inspections/:id", requireEditor, async (req: any, res) => {
     await storage.deleteSafetyInspection(Number(req.params.id));
     res.status(204).send();
   });

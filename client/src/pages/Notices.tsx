@@ -13,8 +13,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { usePermissions } from "@/hooks/use-permissions";
 
 export default function Notices() {
+  const { canRegisterNotices } = usePermissions();
   const { data: notices, isLoading } = useNotices("notice");
   const { mutate: createNotice, isPending: isCreating } = useCreateNotice();
   const { mutate: deleteNotice } = useDeleteNotice();
@@ -157,15 +159,17 @@ export default function Notices() {
                 />
                 <Bell className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               </div>
-              <Button 
-                onClick={() => setShowAddForm(true)} 
-                size="sm"
-                className="bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white gap-1.5 h-9"
-                data-testid="button-open-add-notice"
-              >
-                <Plus className="w-4 h-4" /> 
-                <span className="hidden sm:inline">공지 등록</span>
-              </Button>
+              {canRegisterNotices && (
+                <Button 
+                  onClick={() => setShowAddForm(true)} 
+                  size="sm"
+                  className="bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white gap-1.5 h-9"
+                  data-testid="button-open-add-notice"
+                >
+                  <Plus className="w-4 h-4" /> 
+                  <span className="hidden sm:inline">공지 등록</span>
+                </Button>
+              )}
             </div>
           </div>
         </CardHeader>
@@ -181,7 +185,7 @@ export default function Notices() {
                 <p className="text-sm">
                   {searchQuery ? `"${searchQuery}"에 대한 검색 결과가 없습니다.` : "아직 등록된 공지가 없습니다."}
                 </p>
-                {!searchQuery && (
+                {!searchQuery && canRegisterNotices && (
                   <Button onClick={() => setShowAddForm(true)} variant="outline" size="sm" className="mt-3 gap-1.5">
                     <Plus className="w-4 h-4" /> 첫 번째 공지 등록
                   </Button>
@@ -269,13 +273,15 @@ export default function Notices() {
                               </>
                             )}
                           </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            onClick={(e) => handleDelete(notice.id, e)}
-                            className="text-red-600"
-                          >
-                            <Trash2 className="w-4 h-4 mr-2" />
-                            삭제
-                          </DropdownMenuItem>
+                          {canRegisterNotices && (
+                            <DropdownMenuItem 
+                              onClick={(e) => handleDelete(notice.id, e)}
+                              className="text-red-600"
+                            >
+                              <Trash2 className="w-4 h-4 mr-2" />
+                              삭제
+                            </DropdownMenuItem>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>

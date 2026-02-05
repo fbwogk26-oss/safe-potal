@@ -10,8 +10,10 @@ import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { usePermissions } from "@/hooks/use-permissions";
 
 export default function Rules() {
+  const { canRegisterRules } = usePermissions();
   const { data: rules, isLoading } = useNotices("rule");
   const { mutate: createRule, isPending: isCreating } = useCreateNotice();
   const { mutate: deleteRule } = useDeleteNotice();
@@ -122,15 +124,17 @@ export default function Rules() {
                 />
                 <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               </div>
-              <Button 
-                onClick={() => setShowAddForm(true)} 
-                size="sm"
-                className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white gap-1.5 h-9"
-                data-testid="button-open-add-rule"
-              >
-                <Plus className="w-4 h-4" /> 
-                <span className="hidden sm:inline">새 수칙</span>
-              </Button>
+              {canRegisterRules && (
+                <Button 
+                  onClick={() => setShowAddForm(true)} 
+                  size="sm"
+                  className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white gap-1.5 h-9"
+                  data-testid="button-open-add-rule"
+                >
+                  <Plus className="w-4 h-4" /> 
+                  <span className="hidden sm:inline">새 수칙</span>
+                </Button>
+              )}
             </div>
           </div>
         </CardHeader>
@@ -146,7 +150,7 @@ export default function Rules() {
                 <p className="text-sm">
                   {searchQuery ? `"${searchQuery}"에 대한 검색 결과가 없습니다.` : "아직 등록된 수칙이 없습니다."}
                 </p>
-                {!searchQuery && (
+                {!searchQuery && canRegisterRules && (
                   <Button onClick={() => setShowAddForm(true)} variant="outline" size="sm" className="mt-3 gap-1.5">
                     <Plus className="w-4 h-4" /> 첫 번째 수칙 추가
                   </Button>
@@ -197,15 +201,17 @@ export default function Rules() {
                       >
                         <Eye className="w-4 h-4" />
                       </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-red-500"
-                        onClick={(e) => handleDelete(rule.id, e)}
-                        data-testid={`button-delete-rule-${rule.id}`}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                      {canRegisterRules && (
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-red-500"
+                          onClick={(e) => handleDelete(rule.id, e)}
+                          data-testid={`button-delete-rule-${rule.id}`}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
                     </div>
                   </motion.div>
                 ))}

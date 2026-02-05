@@ -7,8 +7,10 @@ import { useState, useRef, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
+import { usePermissions } from "@/hooks/use-permissions";
 
 export default function DigitalBoard() {
+  const { canEditDigitalBoard } = usePermissions();
   const { data: slides, isLoading } = useNotices("digital_board");
   const { mutate: createSlide, isPending: isCreating } = useCreateNotice();
   const { mutate: deleteSlide } = useDeleteNotice();
@@ -247,33 +249,34 @@ export default function DigitalBoard() {
         )}
       </div>
 
-      <Card className="border-indigo-200 dark:border-indigo-900/30">
-        <CardHeader className="bg-indigo-50/50 dark:bg-indigo-900/10 border-b p-3 sm:p-4 md:p-6">
-          <CardTitle className="text-sm sm:text-base md:text-lg flex items-center gap-2">
-            <Images className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-600" />
-            대량 업로드 (최대 30개)
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-3 sm:p-4 md:p-6 space-y-3 sm:space-y-4">
-          <input
-            type="file"
-            accept="image/*"
-            multiple
-            ref={bulkInputRef}
-            onChange={handleBulkFileSelect}
-            className="hidden"
-            data-testid="input-bulk-images"
-          />
-          <div 
-            onClick={() => !isBulkUploading && bulkInputRef.current?.click()}
-            className={`w-full border-2 border-dashed rounded-lg p-4 sm:p-6 md:p-8 flex flex-col items-center justify-center gap-2 sm:gap-3 transition-colors ${isBulkUploading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/50 dark:hover:bg-indigo-900/10'}`}
-          >
-            <Images className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 text-indigo-500" />
-            <div className="text-center">
-              <p className="font-medium text-sm sm:text-base">클릭하여 이미지 선택</p>
-              <p className="text-xs sm:text-sm text-muted-foreground">최대 30개까지 업로드 가능</p>
+      {canEditDigitalBoard && (
+        <Card className="border-indigo-200 dark:border-indigo-900/30">
+          <CardHeader className="bg-indigo-50/50 dark:bg-indigo-900/10 border-b p-3 sm:p-4 md:p-6">
+            <CardTitle className="text-sm sm:text-base md:text-lg flex items-center gap-2">
+              <Images className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-600" />
+              대량 업로드 (최대 30개)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-3 sm:p-4 md:p-6 space-y-3 sm:space-y-4">
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              ref={bulkInputRef}
+              onChange={handleBulkFileSelect}
+              className="hidden"
+              data-testid="input-bulk-images"
+            />
+            <div 
+              onClick={() => !isBulkUploading && bulkInputRef.current?.click()}
+              className={`w-full border-2 border-dashed rounded-lg p-4 sm:p-6 md:p-8 flex flex-col items-center justify-center gap-2 sm:gap-3 transition-colors ${isBulkUploading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/50 dark:hover:bg-indigo-900/10'}`}
+            >
+              <Images className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 text-indigo-500" />
+              <div className="text-center">
+                <p className="font-medium text-sm sm:text-base">클릭하여 이미지 선택</p>
+                <p className="text-xs sm:text-sm text-muted-foreground">최대 30개까지 업로드 가능</p>
+              </div>
             </div>
-          </div>
           
           {bulkFiles.length > 0 && (
             <div className="space-y-3">
@@ -309,8 +312,9 @@ export default function DigitalBoard() {
               </Button>
             </div>
           )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="border-indigo-200 dark:border-indigo-900/30 overflow-hidden">
         <CardHeader className="bg-indigo-50/50 dark:bg-indigo-900/10 border-b p-3 sm:p-4">
@@ -370,15 +374,17 @@ export default function DigitalBoard() {
                     <div className="absolute top-0.5 left-0.5 bg-black/50 text-white text-[10px] px-1 py-0.5 rounded font-mono">
                       {idx + 1}
                     </div>
-                    <Button
-                      variant="destructive"
-                      size="icon"
-                      className="absolute top-0.5 right-0.5 h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
-                      onClick={(e) => { e.stopPropagation(); handleDelete(slide.id); }}
-                      data-testid={`button-delete-slide-${slide.id}`}
-                    >
-                      <Trash2 className="w-2.5 h-2.5" />
-                    </Button>
+                    {canEditDigitalBoard && (
+                      <Button
+                        variant="destructive"
+                        size="icon"
+                        className="absolute top-0.5 right-0.5 h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+                        onClick={(e) => { e.stopPropagation(); handleDelete(slide.id); }}
+                        data-testid={`button-delete-slide-${slide.id}`}
+                      >
+                        <Trash2 className="w-2.5 h-2.5" />
+                      </Button>
+                    )}
                   </motion.div>
                 );
               })}

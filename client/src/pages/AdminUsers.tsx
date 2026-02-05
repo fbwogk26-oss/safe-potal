@@ -37,6 +37,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { getRoleLabel, getRoleVariant } from "@/hooks/use-permissions";
 
 interface UserData {
   id: string;
@@ -180,35 +181,27 @@ export default function AdminUsers() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2 flex-wrap justify-end">
-                    <Badge variant={user.role === "admin" ? "default" : "secondary"}>
-                      {user.role === "admin" ? "관리자" : "일반 사용자"}
+                    <Badge variant={getRoleVariant(user.role)}>
+                      {getRoleLabel(user.role)}
                     </Badge>
                     {user.id !== currentUser?.id && (
                       <>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() =>
-                            updateRoleMutation.mutate({
-                              userId: user.id,
-                              role: user.role === "admin" ? "user" : "admin",
-                            })
+                        <Select
+                          value={user.role}
+                          onValueChange={(newRole) =>
+                            updateRoleMutation.mutate({ userId: user.id, role: newRole })
                           }
                           disabled={updateRoleMutation.isPending}
-                          data-testid={`button-toggle-role-${user.id}`}
                         >
-                          {user.role === "admin" ? (
-                            <>
-                              <ShieldOff className="w-4 h-4 mr-1" />
-                              권한 해제
-                            </>
-                          ) : (
-                            <>
-                              <Shield className="w-4 h-4 mr-1" />
-                              관리자 지정
-                            </>
-                          )}
-                        </Button>
+                          <SelectTrigger className="w-[120px] h-8" data-testid={`select-role-${user.id}`}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="admin">관리자</SelectItem>
+                            <SelectItem value="manager">담당자</SelectItem>
+                            <SelectItem value="user">일반 사용자</SelectItem>
+                          </SelectContent>
+                        </Select>
                         <Button
                           variant="ghost"
                           size="icon"
@@ -486,8 +479,9 @@ function CreateUserDialog() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="user">일반 사용자</SelectItem>
                 <SelectItem value="admin">관리자</SelectItem>
+                <SelectItem value="manager">담당자</SelectItem>
+                <SelectItem value="user">일반 사용자</SelectItem>
               </SelectContent>
             </Select>
           </div>

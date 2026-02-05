@@ -13,6 +13,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { SafetyInspection, Team } from "@shared/schema";
 import ExcelJS from "exceljs";
+import { usePermissions } from "@/hooks/use-permissions";
 
 type ChecklistStatus = '양호' | '미흡' | '미점검';
 
@@ -47,6 +48,7 @@ const EXTRA_DEPARTMENTS = [
 ];
 
 export default function SafetyInspections() {
+  const { canEditInspections } = usePermissions();
   const { data: inspections, isLoading } = useQuery<SafetyInspection[]>({
     queryKey: ["/api/safety-inspections"],
   });
@@ -436,14 +438,16 @@ export default function SafetyInspections() {
             <Download className="w-4 h-4" />
             <span className="hidden sm:inline">엑셀 다운로드</span>
           </Button>
-          <Button
-            onClick={() => setShowForm(!showForm)}
-            className="bg-green-600 hover:bg-green-700 text-white gap-2"
-            data-testid="button-toggle-form"
-          >
-            <Plus className="w-4 h-4" />
-            새 점검 등록
-          </Button>
+          {canEditInspections && (
+            <Button
+              onClick={() => setShowForm(!showForm)}
+              className="bg-green-600 hover:bg-green-700 text-white gap-2"
+              data-testid="button-toggle-form"
+            >
+              <Plus className="w-4 h-4" />
+              새 점검 등록
+            </Button>
+          )}
         </div>
       </div>
 
@@ -743,18 +747,20 @@ export default function SafetyInspections() {
                                   <ChevronDown className="w-4 h-4" />
                                 )}
                               </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 opacity-0 group-hover:opacity-100"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDelete(inspection.id);
-                                }}
-                                data-testid={`button-delete-${inspection.id}`}
-                              >
-                                <Trash2 className="w-4 h-4 text-destructive" />
-                              </Button>
+                              {canEditInspections && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 opacity-0 group-hover:opacity-100"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDelete(inspection.id);
+                                  }}
+                                  data-testid={`button-delete-${inspection.id}`}
+                                >
+                                  <Trash2 className="w-4 h-4 text-destructive" />
+                                </Button>
+                              )}
                             </div>
                           </div>
                         </div>

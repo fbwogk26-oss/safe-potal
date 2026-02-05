@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { usePermissions } from "@/hooks/use-permissions";
 
 const TEAMS = ["동대구운용팀", "서대구운용팀", "남대구운용팀", "포항운용팀", "안동운용팀", "구미운용팀", "문경운용팀", "운용지원팀", "운용계획팀", "사업지원팀", "현장경영팀"];
 
@@ -59,6 +60,7 @@ interface SafetyEquipment {
 }
 
 export default function EquipmentRequest() {
+  const { canManageEquipmentRequests, canAddEquipmentMaterials } = usePermissions();
   const queryClient = useQueryClient();
   const { data: requests, isLoading } = useNotices("equip_request");
   const { mutate: createRequest, isPending: isCreating } = useCreateNotice();
@@ -507,10 +509,12 @@ export default function EquipmentRequest() {
           </h2>
           <p className="text-muted-foreground mt-2">안전용품을 신청합니다.</p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => setAdminModalOpen(true)} className="ml-auto">
-          <Settings className="w-4 h-4 mr-1" />
-          관리
-        </Button>
+        {canManageEquipmentRequests && (
+          <Button variant="outline" size="sm" onClick={() => setAdminModalOpen(true)} className="ml-auto">
+            <Settings className="w-4 h-4 mr-1" />
+            관리
+          </Button>
+        )}
       </div>
 
       <Card className="glass-card overflow-hidden border-purple-200 dark:border-purple-900/30">
