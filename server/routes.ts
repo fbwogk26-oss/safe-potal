@@ -677,9 +677,54 @@ export async function registerRoutes(
   });
 
   // === SAFETY EQUIPMENT ===
+  const DEFAULT_EQUIPMENT_LIST = [
+    { name: "안전모(일반)", category: "보호구" },
+    { name: "일반안전화", category: "보호구" },
+    { name: "하계안전화", category: "보호구" },
+    { name: "실내안전화", category: "보호구" },
+    { name: "안전장화", category: "보호구" },
+    { name: "안전대(복합식)", category: "보호구" },
+    { name: "절연장갑", category: "보호구" },
+    { name: "안전모(임업)", category: "보호구" },
+    { name: "안전모(신호수)", category: "보호구" },
+    { name: "추락방지대(로프식)", category: "보호구" },
+    { name: "추락방지대(와이어식)", category: "보호구" },
+    { name: "휴대용소화기", category: "안전용품" },
+    { name: "반사조끼(주황색조끼)", category: "안전용품" },
+    { name: "수평구명줄SET", category: "안전용품" },
+    { name: "비상용삼각대", category: "안전용품" },
+    { name: "접이식 라바콘", category: "안전용품" },
+    { name: "차량 고임목", category: "안전용품" },
+    { name: "A형사다리", category: "기타품목" },
+    { name: "아웃트리거", category: "기타품목" },
+    { name: "블랙박스", category: "기타품목" },
+    { name: "후방센서", category: "기타품목" },
+    { name: "후방카메라", category: "기타품목" },
+  ];
+
   app.get("/api/safety-equipment", async (req, res) => {
     const equipment = await storage.getSafetyEquipment();
     res.json(equipment);
+  });
+
+  // Seed default equipment (idempotent - only adds missing defaults)
+  app.post("/api/safety-equipment/seed-defaults", async (req, res) => {
+    try {
+      const existing = await storage.getSafetyEquipment();
+      const existingNames = new Set(existing.map(e => e.name));
+      
+      let count = 0;
+      for (const item of DEFAULT_EQUIPMENT_LIST) {
+        if (!existingNames.has(item.name)) {
+          await storage.createSafetyEquipment({ name: item.name, category: item.category, isActive: true });
+          count++;
+        }
+      }
+      res.json({ message: count > 0 ? "Defaults seeded" : "All defaults already exist", count });
+    } catch (err) {
+      console.error('Seed defaults error:', err);
+      res.status(500).json({ message: "Failed to seed defaults" });
+    }
   });
 
   app.post("/api/safety-equipment", upload.single('image'), async (req, res) => {
@@ -688,6 +733,16 @@ export async function registerRoutes(
       if (!name || !category) {
         return res.status(400).json({ message: "Name and category are required" });
       }
+      
+      // If defaults are missing, seed them first (idempotent)
+      const existing = await storage.getSafetyEquipment();
+      const existingNames = new Set(existing.map(e => e.name));
+      for (const item of DEFAULT_EQUIPMENT_LIST) {
+        if (!existingNames.has(item.name)) {
+          await storage.createSafetyEquipment({ name: item.name, category: item.category, isActive: true });
+        }
+      }
+      
       let imageUrl: string | undefined;
       if (req.file) {
         imageUrl = `/uploads/${req.file.filename}`;

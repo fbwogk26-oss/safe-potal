@@ -77,6 +77,11 @@ export default function EquipmentRequest() {
     ? dbEquipment.map(e => ({ name: e.name, category: e.category, imageUrl: e.imageUrl }))
     : DEFAULT_EQUIPMENT;
 
+  // Check if any default equipment is missing from DB
+  const dbEquipmentNames = new Set(dbEquipment?.map(e => e.name) || []);
+  const missingDefaults = DEFAULT_EQUIPMENT.filter(d => !dbEquipmentNames.has(d.name));
+  const hasMissingDefaults = missingDefaults.length > 0;
+
   const [selectedTeam, setSelectedTeam] = useState("");
   const [requesterName, setRequesterName] = useState("");
   const [title, setTitle] = useState("");
@@ -927,9 +932,36 @@ export default function EquipmentRequest() {
                   })}
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground py-4 text-center">
-                  등록된 용품이 없습니다. 새 용품을 추가하면 기본 용품 대신 표시됩니다.
-                </p>
+                <div className="py-4 text-center space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    등록된 용품이 없습니다.
+                  </p>
+                </div>
+              )}
+              
+              {hasMissingDefaults && (
+                <div className="border-t pt-4 mt-4">
+                  <p className="text-sm text-muted-foreground mb-2">
+                    기본 용품 {missingDefaults.length}개가 누락되어 있습니다.
+                  </p>
+                  <Button 
+                    variant="outline"
+                    onClick={async () => {
+                      try {
+                        const res = await fetch('/api/safety-equipment/seed-defaults', { method: 'POST' });
+                        const data = await res.json();
+                        queryClient.invalidateQueries({ queryKey: ['/api/safety-equipment'] });
+                        toast({ title: `기본 용품 ${data.count}개가 추가되었습니다.` });
+                      } catch (err) {
+                        toast({ variant: "destructive", title: "기본 용품 등록에 실패했습니다." });
+                      }
+                    }}
+                    data-testid="button-seed-defaults"
+                  >
+                    <Plus className="w-4 h-4 mr-1" />
+                    기본 용품 불러오기 ({missingDefaults.length}개)
+                  </Button>
+                </div>
               )}
             </div>
           </div>
