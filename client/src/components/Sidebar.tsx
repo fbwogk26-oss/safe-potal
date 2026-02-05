@@ -29,12 +29,13 @@ export function Sidebar() {
     <aside className="hidden md:flex flex-col w-60 border-r bg-card/50 backdrop-blur-xl h-screen sticky top-0 z-30">
       <Link href="/" className="block p-4 border-b border-border/50 hover-elevate transition-colors cursor-pointer" data-testid="link-sidebar-logo">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-primary to-blue-600 flex items-center justify-center text-white shadow-lg shadow-primary/30">
-            <ShieldCheck className="w-5 h-5" />
+          <div className="w-9 h-9 rounded-xl bg-[#0066CC] flex flex-col items-center justify-center text-white shadow-lg">
+            <span className="text-[10px] font-bold leading-none tracking-tight">kt</span>
+            <span className="text-[7px] font-semibold leading-none tracking-tight">MOS</span>
           </div>
           <div>
-            <h1 className="font-display font-bold text-base leading-tight">종합안전</h1>
-            <p className="text-xs text-muted-foreground">포털시스템</p>
+            <h1 className="font-display font-bold text-base leading-tight">종합안전포털시스템</h1>
+            <p className="text-xs text-muted-foreground">Safety Portal System</p>
           </div>
         </div>
       </Link>
