@@ -7,8 +7,8 @@ import bcrypt from "bcryptjs";
 export interface IAuthStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(username: string, password: string, name: string, role?: string): Promise<User>;
-  updateUser(id: string, data: Partial<{ name: string; role: string; password: string }>): Promise<User | undefined>;
+  createUser(username: string, password: string, name: string, role?: string, department?: string): Promise<User>;
+  updateUser(id: string, data: Partial<{ name: string; role: string; password: string; department: string }>): Promise<User | undefined>;
   deleteUser(id: string): Promise<void>;
   getAllUsers(): Promise<User[]>;
   verifyPassword(password: string, hashedPassword: string): Promise<boolean>;
@@ -26,7 +26,7 @@ class AuthStorage implements IAuthStorage {
     return user;
   }
 
-  async createUser(username: string, password: string, name: string, role: string = "user"): Promise<User> {
+  async createUser(username: string, password: string, name: string, role: string = "user", department?: string): Promise<User> {
     const hashedPassword = await bcrypt.hash(password, 10);
     const [user] = await db
       .insert(users)
@@ -35,15 +35,17 @@ class AuthStorage implements IAuthStorage {
         password: hashedPassword,
         name,
         role,
+        department: department || null,
       })
       .returning();
     return user;
   }
 
-  async updateUser(id: string, data: Partial<{ name: string; role: string; password: string }>): Promise<User | undefined> {
+  async updateUser(id: string, data: Partial<{ name: string; role: string; password: string; department: string }>): Promise<User | undefined> {
     const updateData: any = { updatedAt: new Date() };
     if (data.name !== undefined) updateData.name = data.name;
     if (data.role !== undefined) updateData.role = data.role;
+    if (data.department !== undefined) updateData.department = data.department;
     if (data.password !== undefined) {
       updateData.password = await bcrypt.hash(data.password, 10);
     }

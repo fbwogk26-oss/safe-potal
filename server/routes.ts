@@ -103,7 +103,7 @@ export async function registerRoutes(
   // Admin: Create new user
   app.post("/api/users", requireAdmin, async (req: any, res) => {
     try {
-      const { username, password, name, role } = req.body;
+      const { username, password, name, department, role } = req.body;
       if (!username || !password) {
         return res.status(400).json({ message: "아이디와 비밀번호는 필수입니다" });
       }
@@ -111,16 +111,88 @@ export async function registerRoutes(
       if (existingUser) {
         return res.status(400).json({ message: "이미 존재하는 아이디입니다" });
       }
-      const user = await authStorage.createUser(username, password, name || username, role || "user");
+      const user = await authStorage.createUser(username, password, name || username, role || "user", department);
       res.status(201).json({
         id: user.id,
         username: user.username,
         name: user.name,
+        department: user.department,
         role: user.role,
       });
     } catch (error) {
       console.error("Error creating user:", error);
       res.status(500).json({ message: "사용자 생성에 실패했습니다" });
+    }
+  });
+
+  // Admin: Bulk upload users via Excel/CSV
+  app.post("/api/users/bulk-upload", requireAdmin, upload.single("file"), async (req: any, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "파일이 필요합니다" });
+      }
+
+      const filePath = req.file.path;
+      const ext = path.extname(req.file.originalname).toLowerCase();
+      let users: Array<{ department: string; name: string; username: string; password: string }> = [];
+
+      if (ext === ".csv") {
+        const content = fs.readFileSync(filePath, "utf-8");
+        const lines = content.split(/\r?\n/).filter(line => line.trim());
+        
+        for (let i = 1; i < lines.length; i++) {
+          const cols = lines[i].split(",").map(s => s.trim());
+          if (cols.length >= 4 && cols[2] && cols[3]) {
+            users.push({
+              department: cols[0] || "",
+              name: cols[1] || cols[2],
+              username: cols[2],
+              password: cols[3],
+            });
+          }
+        }
+      } else {
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.readFile(filePath);
+        const worksheet = workbook.worksheets[0];
+        
+        worksheet.eachRow((row, rowNumber) => {
+          if (rowNumber > 1) {
+            const department = String(row.getCell(1).value || "").trim();
+            const name = String(row.getCell(2).value || "").trim();
+            const username = String(row.getCell(3).value || "").trim();
+            const password = String(row.getCell(4).value || "").trim();
+            
+            if (username && password) {
+              users.push({ department, name: name || username, username, password });
+            }
+          }
+        });
+      }
+
+      fs.unlinkSync(filePath);
+
+      let successCount = 0;
+      let skipCount = 0;
+
+      for (const userData of users) {
+        try {
+          const existing = await authStorage.getUserByUsername(userData.username);
+          if (existing) {
+            skipCount++;
+            continue;
+          }
+          await authStorage.createUser(userData.username, userData.password, userData.name, "user", userData.department);
+          successCount++;
+        } catch (err) {
+          skipCount++;
+        }
+      }
+
+      res.json({ successCount, skipCount });
+    } catch (error) {
+      console.error("Bulk upload error:", error);
+      res.status(500).json({ message: "일괄 등록에 실패했습니다" });
     }
   });
 
@@ -175,6 +247,7 @@ export async function registerRoutes(
         id: u.id,
         username: u.username,
         name: u.name,
+        department: u.department,
         role: u.role,
         createdAt: u.createdAt,
       })));
