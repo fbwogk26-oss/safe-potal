@@ -62,20 +62,18 @@ function calculateScore(team: any) {
   return score;
 }
 
-// Admin-only middleware
+// Admin-only middleware (session-based)
 const requireAdmin: any = async (req: any, res: any, next: any) => {
   try {
-    if (!req.isAuthenticated || !req.isAuthenticated()) {
+    const session = req.session as any;
+    if (!session.userId) {
       return res.status(401).json({ message: "로그인이 필요합니다" });
     }
-    const userId = req.user?.claims?.sub;
-    if (!userId) {
-      return res.status(401).json({ message: "로그인이 필요합니다" });
-    }
-    const user = await authStorage.getUser(userId);
-    if (user?.role !== "admin") {
+    const user = await authStorage.getUser(session.userId);
+    if (!user || user.role !== "admin") {
       return res.status(403).json({ message: "관리자 권한이 필요합니다" });
     }
+    req.user = user;
     next();
   } catch (error) {
     res.status(500).json({ message: "권한 확인에 실패했습니다" });
@@ -94,41 +92,92 @@ export async function registerRoutes(
   // Add routes to get/update user role
   app.get("/api/auth/user-role", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const user = await authStorage.getUser(userId);
+      const session = req.session as any;
+      const user = await authStorage.getUser(session.userId);
       res.json({ role: user?.role || "user" });
     } catch (error) {
       res.status(500).json({ message: "Failed to get user role" });
     }
   });
 
-  app.put("/api/users/:id/role", isAuthenticated, async (req: any, res) => {
+  // Admin: Create new user
+  app.post("/api/users", requireAdmin, async (req: any, res) => {
     try {
-      const currentUserId = req.user.claims.sub;
-      const currentUser = await authStorage.getUser(currentUserId);
-      if (currentUser?.role !== "admin") {
-        return res.status(403).json({ message: "관리자 권한이 필요합니다" });
+      const { username, password, name, role } = req.body;
+      if (!username || !password) {
+        return res.status(400).json({ message: "아이디와 비밀번호는 필수입니다" });
       }
-      const { role } = req.body;
-      if (!["admin", "user"].includes(role)) {
-        return res.status(400).json({ message: "유효하지 않은 역할입니다" });
+      const existingUser = await authStorage.getUserByUsername(username);
+      if (existingUser) {
+        return res.status(400).json({ message: "이미 존재하는 아이디입니다" });
       }
-      await storage.updateUserRole(req.params.id, role);
-      res.json({ success: true });
+      const user = await authStorage.createUser(username, password, name || username, role || "user");
+      res.status(201).json({
+        id: user.id,
+        username: user.username,
+        name: user.name,
+        role: user.role,
+      });
     } catch (error) {
-      res.status(500).json({ message: "역할 변경에 실패했습니다" });
+      console.error("Error creating user:", error);
+      res.status(500).json({ message: "사용자 생성에 실패했습니다" });
     }
   });
 
-  app.get("/api/users", isAuthenticated, async (req: any, res) => {
+  // Admin: Update user
+  app.put("/api/users/:id", requireAdmin, async (req: any, res) => {
     try {
-      const currentUserId = req.user.claims.sub;
-      const currentUser = await authStorage.getUser(currentUserId);
-      if (currentUser?.role !== "admin") {
-        return res.status(403).json({ message: "관리자 권한이 필요합니다" });
+      const { name, role, password } = req.body;
+      const updateData: any = {};
+      if (name !== undefined) updateData.name = name;
+      if (role !== undefined) {
+        if (!["admin", "user"].includes(role)) {
+          return res.status(400).json({ message: "유효하지 않은 역할입니다" });
+        }
+        updateData.role = role;
       }
-      const users = await storage.getAllUsers();
-      res.json(users);
+      if (password) updateData.password = password;
+      
+      const user = await authStorage.updateUser(req.params.id, updateData);
+      if (!user) {
+        return res.status(404).json({ message: "사용자를 찾을 수 없습니다" });
+      }
+      res.json({
+        id: user.id,
+        username: user.username,
+        name: user.name,
+        role: user.role,
+      });
+    } catch (error) {
+      res.status(500).json({ message: "사용자 정보 변경에 실패했습니다" });
+    }
+  });
+
+  // Admin: Delete user
+  app.delete("/api/users/:id", requireAdmin, async (req: any, res) => {
+    try {
+      const session = req.session as any;
+      if (session.userId === req.params.id) {
+        return res.status(400).json({ message: "자기 자신은 삭제할 수 없습니다" });
+      }
+      await authStorage.deleteUser(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "사용자 삭제에 실패했습니다" });
+    }
+  });
+
+  // Admin: Get all users
+  app.get("/api/users", requireAdmin, async (req: any, res) => {
+    try {
+      const users = await authStorage.getAllUsers();
+      res.json(users.map(u => ({
+        id: u.id,
+        username: u.username,
+        name: u.name,
+        role: u.role,
+        createdAt: u.createdAt,
+      })));
     } catch (error) {
       res.status(500).json({ message: "사용자 목록을 불러올 수 없습니다" });
     }

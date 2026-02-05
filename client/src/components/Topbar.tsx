@@ -54,7 +54,7 @@ export function Topbar() {
   const { data: pinnedData } = useQuery<{ pinnedNoticeId: number | null }>({
     queryKey: ["/api/settings/pinned-notice"],
   });
-  const { user, isLoading: authLoading, isAuthenticated } = useAuth();
+  const { user, isLoading: authLoading, isAuthenticated, logout, isLoggingOut } = useAuth();
   const { data: roleData } = useQuery<{ role: string }>({
     queryKey: ["/api/auth/user-role"],
     enabled: isAuthenticated,
@@ -148,13 +148,12 @@ export function Topbar() {
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="sm" className="gap-2 px-2" data-testid="button-user-menu">
                         <Avatar className="h-7 w-7">
-                          <AvatarImage src={user.profileImageUrl || undefined} />
                           <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                            {(user.firstName?.[0] || user.email?.[0] || "U").toUpperCase()}
+                            {(user.name?.[0] || user.username?.[0] || "U").toUpperCase()}
                           </AvatarFallback>
                         </Avatar>
                         <span className="hidden sm:inline text-sm font-medium max-w-[100px] truncate">
-                          {user.firstName || user.email?.split("@")[0] || "사용자"}
+                          {user.name || user.username || "사용자"}
                         </span>
                         {isAdmin && (
                           <span className="hidden sm:inline px-1.5 py-0.5 text-[10px] rounded bg-primary text-primary-foreground font-bold">
@@ -165,8 +164,8 @@ export function Topbar() {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-48">
                       <div className="px-2 py-1.5 text-sm">
-                        <p className="font-medium">{user.firstName} {user.lastName}</p>
-                        <p className="text-xs text-muted-foreground">{user.email}</p>
+                        <p className="font-medium">{user.name || user.username}</p>
+                        <p className="text-xs text-muted-foreground">@{user.username}</p>
                       </div>
                       <DropdownMenuSeparator />
                       {isAdmin && (
@@ -180,22 +179,17 @@ export function Topbar() {
                           <DropdownMenuSeparator />
                         </>
                       )}
-                      <DropdownMenuItem asChild>
-                        <a href="/api/logout" className="flex items-center gap-2 cursor-pointer text-red-600">
-                          <LogOut className="w-4 h-4" />
-                          로그아웃
-                        </a>
+                      <DropdownMenuItem 
+                        onClick={() => logout()}
+                        disabled={isLoggingOut}
+                        className="flex items-center gap-2 cursor-pointer text-red-600"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        {isLoggingOut ? "로그아웃 중..." : "로그아웃"}
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
-                ) : (
-                  <Button variant="outline" size="sm" asChild data-testid="button-login">
-                    <a href="/api/login" className="gap-2">
-                      <LogIn className="w-4 h-4" />
-                      <span className="hidden sm:inline">로그인</span>
-                    </a>
-                  </Button>
-                )}
+                ) : null}
               </>
             )}
             <AdminButton isLocked={isLocked || false} isAdmin={isAdmin} />

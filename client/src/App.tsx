@@ -17,17 +17,15 @@ import AccessRequest from "@/pages/AccessRequest";
 import DigitalBoard from "@/pages/DigitalBoard";
 import SafetyInspections from "@/pages/SafetyInspections";
 import AdminUsers from "@/pages/AdminUsers";
+import Login from "@/pages/Login";
 import NotFound from "@/pages/NotFound";
-import { useLocation } from "wouter";
+import { useAuth } from "@/hooks/use-auth";
 
-function Router() {
-  const [location] = useLocation();
-  
+function MainLayout() {
   return (
     <div className="flex min-h-screen bg-background text-foreground font-body">
       <Sidebar />
       <main className="flex-1 flex flex-col min-w-0 bg-background/50 relative overflow-x-hidden">
-        {/* Background gradient orb */}
         <div className="fixed top-0 left-0 w-full h-96 bg-primary/5 blur-3xl pointer-events-none -z-10" />
         
         <Topbar />
@@ -54,11 +52,29 @@ function Router() {
   );
 }
 
+function AppContent() {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Login />;
+  }
+
+  return <MainLayout />;
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <Router />
+        <AppContent />
         <Toaster />
       </TooltipProvider>
     </QueryClientProvider>
