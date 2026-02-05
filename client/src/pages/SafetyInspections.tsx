@@ -90,7 +90,7 @@ export default function SafetyInspections() {
   const isLocked = lockData?.isLocked;
   const { toast } = useToast();
 
-  const [inspectionType, setInspectionType] = useState<string>("안전점검");
+  const [inspectionType, setInspectionType] = useState<string>("안전 / 동행점검");
   const [department, setDepartment] = useState("");
   const [workContent, setWorkContent] = useState("");
   const [location, setLocation] = useState("");
@@ -471,8 +471,7 @@ export default function SafetyInspections() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="안전점검">안전점검</SelectItem>
-                        <SelectItem value="동행점검">동행점검</SelectItem>
+                        <SelectItem value="안전 / 동행점검">안전 / 동행점검</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -703,27 +702,15 @@ export default function SafetyInspections() {
                             />
                           </div>
                         ) : (
-                          <div className={`w-24 h-24 sm:w-32 sm:h-32 shrink-0 flex items-center justify-center ${
-                            inspection.inspectionType === "동행점검"
-                              ? "bg-blue-100 dark:bg-blue-900/30"
-                              : "bg-green-100 dark:bg-green-900/30"
-                          }`}>
-                            <ClipboardCheck className={`w-8 h-8 ${
-                              inspection.inspectionType === "동행점검"
-                                ? "text-blue-600 dark:text-blue-400"
-                                : "text-green-600 dark:text-green-400"
-                            }`} />
+                          <div className="w-24 h-24 sm:w-32 sm:h-32 shrink-0 flex items-center justify-center bg-green-100 dark:bg-green-900/30">
+                            <ClipboardCheck className="w-8 h-8 text-green-600 dark:text-green-400" />
                           </div>
                         )}
                         <div className="flex-1 p-3 sm:p-4 min-w-0">
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-2 flex-wrap mb-1">
-                                <span className={`text-xs px-2 py-0.5 rounded-full ${
-                                  inspection.inspectionType === "동행점검"
-                                    ? "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
-                                    : "bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400"
-                                }`}>
+                                <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400">
                                   {inspection.inspectionType}
                                 </span>
                                 {inspection.images && inspection.images.length > 0 && (
