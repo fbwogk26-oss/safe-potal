@@ -1,12 +1,14 @@
 import { db } from "./db";
 import {
   teams, notices, settings, vehicles, safetyEquipment, safetyInspections,
+  users,
   type Team, type InsertTeam, type UpdateTeamRequest,
   type Notice, type InsertNotice,
   type Setting,
   type Vehicle, type InsertVehicle, type UpdateVehicleRequest,
   type SafetyEquipment, type InsertSafetyEquipment,
-  type SafetyInspection, type InsertSafetyInspection
+  type SafetyInspection, type InsertSafetyInspection,
+  type User
 } from "@shared/schema";
 import { eq, desc, asc } from "drizzle-orm";
 
@@ -46,6 +48,10 @@ export interface IStorage {
   getSafetyInspections(): Promise<SafetyInspection[]>;
   createSafetyInspection(inspection: InsertSafetyInspection): Promise<SafetyInspection>;
   deleteSafetyInspection(id: number): Promise<void>;
+
+  // Users
+  getAllUsers(): Promise<User[]>;
+  updateUserRole(id: string, role: string): Promise<User>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -173,6 +179,16 @@ export class DatabaseStorage implements IStorage {
   
   async deleteSafetyInspection(id: number): Promise<void> {
     await db.delete(safetyInspections).where(eq(safetyInspections.id, id));
+  }
+
+  // === USERS ===
+  async getAllUsers(): Promise<User[]> {
+    return await db.select().from(users).orderBy(desc(users.createdAt));
+  }
+
+  async updateUserRole(id: string, role: string): Promise<User> {
+    const [user] = await db.update(users).set({ role, updatedAt: new Date() }).where(eq(users.id, id)).returning();
+    return user;
   }
 }
 

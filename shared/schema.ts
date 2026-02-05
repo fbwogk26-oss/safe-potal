@@ -146,3 +146,5 @@ export const insertSafetyInspectionSchema = createInsertSchema(safetyInspections
 export type SafetyInspection = typeof safetyInspections.$inferSelect;
 export type InsertSafetyInspection = z.infer<typeof insertSafetyInspectionSchema>;
 
+// Export auth schema
+export * from "./models/auth";

@@ -8,6 +8,7 @@ import path from "path";
 import fs from "fs";
 import ExcelJS from "exceljs";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
+import { setupAuth, registerAuthRoutes, isAuthenticated, authStorage } from "./replit_integrations/auth";
 
 const uploadDir = path.join(process.cwd(), "uploads");
 if (!fs.existsSync(uploadDir)) {
@@ -66,6 +67,53 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   
+  // Setup authentication (must be before other routes)
+  await setupAuth(app);
+  registerAuthRoutes(app);
+  
+  // Add routes to get/update user role
+  app.get("/api/auth/user-role", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await authStorage.getUser(userId);
+      res.json({ role: user?.role || "user" });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to get user role" });
+    }
+  });
+
+  app.put("/api/users/:id/role", isAuthenticated, async (req: any, res) => {
+    try {
+      const currentUserId = req.user.claims.sub;
+      const currentUser = await authStorage.getUser(currentUserId);
+      if (currentUser?.role !== "admin") {
+        return res.status(403).json({ message: "관리자 권한이 필요합니다" });
+      }
+      const { role } = req.body;
+      if (!["admin", "user"].includes(role)) {
+        return res.status(400).json({ message: "유효하지 않은 역할입니다" });
+      }
+      await storage.updateUserRole(req.params.id, role);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ message: "역할 변경에 실패했습니다" });
+    }
+  });
+
+  app.get("/api/users", isAuthenticated, async (req: any, res) => {
+    try {
+      const currentUserId = req.user.claims.sub;
+      const currentUser = await authStorage.getUser(currentUserId);
+      if (currentUser?.role !== "admin") {
+        return res.status(403).json({ message: "관리자 권한이 필요합니다" });
+      }
+      const users = await storage.getAllUsers();
+      res.json(users);
+    } catch (error) {
+      res.status(500).json({ message: "사용자 목록을 불러올 수 없습니다" });
+    }
+  });
+
   // === TEAMS ===
   app.get(api.teams.list.path, async (req, res) => {
     const year = req.query.year ? Number(req.query.year) : 2025;
