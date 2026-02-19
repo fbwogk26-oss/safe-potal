@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { 
@@ -20,7 +21,12 @@ import {
   Upload,
   FileSpreadsheet,
   Download,
-  Building2
+  Building2,
+  Settings,
+  ChevronDown,
+  ChevronUp,
+  Check,
+  X
 } from "lucide-react";
 import { Link } from "wouter";
 import {
@@ -37,7 +43,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { getRoleLabel, getRoleVariant } from "@/hooks/use-permissions";
+import { getRoleLabel, getRoleVariant, PERMISSION_LABELS } from "@/hooks/use-permissions";
+import type { UserPermissions } from "@shared/models/auth";
+import { ALL_PERMISSIONS, DEFAULT_PERMISSIONS } from "@shared/models/auth";
 
 interface UserData {
   id: string;
@@ -45,6 +53,7 @@ interface UserData {
   name: string | null;
   department: string | null;
   role: string;
+  permissions: UserPermissions;
   createdAt: string | null;
 }
 
@@ -56,6 +65,7 @@ export default function AdminUsers() {
     enabled: isAuthenticated,
   });
   const isAdmin = roleData?.role === "admin";
+  const [expandedUser, setExpandedUser] = useState<string | null>(null);
 
   const { data: users, isLoading } = useQuery<UserData[]>({
     queryKey: ["/api/users"],
@@ -75,6 +85,20 @@ export default function AdminUsers() {
     },
   });
 
+  const updatePermissionsMutation = useMutation({
+    mutationFn: async ({ userId, permissions }: { userId: string; permissions: UserPermissions }) => {
+      return apiRequest("PUT", `/api/users/${userId}`, { permissions });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/permissions"] });
+      toast({ title: "권한이 변경되었습니다." });
+    },
+    onError: () => {
+      toast({ variant: "destructive", title: "권한 변경에 실패했습니다." });
+    },
+  });
+
   const deleteUserMutation = useMutation({
     mutationFn: async (userId: string) => {
       return apiRequest("DELETE", `/api/users/${userId}`);
@@ -87,6 +111,17 @@ export default function AdminUsers() {
       toast({ variant: "destructive", title: "사용자 삭제에 실패했습니다." });
     },
   });
+
+  const togglePermission = (user: UserData, permKey: keyof UserPermissions) => {
+    const current = user.permissions || DEFAULT_PERMISSIONS;
+    const updated = { ...DEFAULT_PERMISSIONS, ...current, [permKey]: !current[permKey] };
+    updatePermissionsMutation.mutate({ userId: user.id, permissions: updated });
+  };
+
+  const setAllPermissions = (user: UserData, enabled: boolean) => {
+    const perms = enabled ? ALL_PERMISSIONS : DEFAULT_PERMISSIONS;
+    updatePermissionsMutation.mutate({ userId: user.id, permissions: perms });
+  };
 
   if (!isAuthenticated) {
     return (
@@ -129,7 +164,7 @@ export default function AdminUsers() {
             </div>
             <div>
               <h1 className="text-2xl font-bold">사용자 관리</h1>
-              <p className="text-sm text-muted-foreground">사용자 계정을 생성하고 관리합니다</p>
+              <p className="text-sm text-muted-foreground">사용자 계정 및 기능별 권한을 관리합니다</p>
             </div>
           </div>
           <div className="flex gap-2">
@@ -140,7 +175,7 @@ export default function AdminUsers() {
       </div>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between gap-2">
           <CardTitle className="text-lg">등록된 사용자 ({users?.length || 0}명)</CardTitle>
         </CardHeader>
         <CardContent>
@@ -149,78 +184,149 @@ export default function AdminUsers() {
           ) : !users || users.length === 0 ? (
             <div className="py-8 text-center text-muted-foreground">등록된 사용자가 없습니다.</div>
           ) : (
-            <div className="space-y-3">
-              {users.map((user) => (
-                <div
-                  key={user.id}
-                  className="flex items-center justify-between p-4 rounded-lg border bg-card"
-                  data-testid={`user-row-${user.id}`}
-                >
-                  <div className="flex items-center gap-3">
-                    <Avatar className="h-10 w-10">
-                      <AvatarFallback className="bg-primary/10 text-primary">
-                        {(user.name?.[0] || user.username?.[0] || "U").toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <p className="font-medium">
-                        {user.name || user.username}
-                        {user.id === currentUser?.id && (
-                          <span className="ml-2 text-xs text-muted-foreground">(나)</span>
-                        )}
-                      </p>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <span>@{user.username}</span>
-                        {user.department && (
-                          <span className="flex items-center gap-1">
-                            <Building2 className="w-3 h-3" />
-                            {user.department}
-                          </span>
+            <div className="space-y-2">
+              {users.map((user) => {
+                const isExpanded = expandedUser === user.id;
+                const isCurrentUser = user.id === currentUser?.id;
+                const isUserAdmin = user.role === "admin";
+                const userPerms = user.permissions || DEFAULT_PERMISSIONS;
+
+                return (
+                  <div
+                    key={user.id}
+                    className="rounded-lg border bg-card overflow-visible"
+                    data-testid={`user-row-${user.id}`}
+                  >
+                    <div className="flex items-center justify-between p-4">
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-10 w-10">
+                          <AvatarFallback className="bg-primary/10 text-primary">
+                            {(user.name?.[0] || user.username?.[0] || "U").toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <p className="font-medium">
+                            {user.name || user.username}
+                            {isCurrentUser && (
+                              <span className="ml-2 text-xs text-muted-foreground">(나)</span>
+                            )}
+                          </p>
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
+                            <span>@{user.username}</span>
+                            {user.department && (
+                              <span className="flex items-center gap-1">
+                                <Building2 className="w-3 h-3" />
+                                {user.department}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap justify-end">
+                        <Badge variant={getRoleVariant(user.role)}>
+                          {getRoleLabel(user.role)}
+                        </Badge>
+                        {!isCurrentUser && (
+                          <>
+                            <Select
+                              value={user.role}
+                              onValueChange={(newRole) =>
+                                updateRoleMutation.mutate({ userId: user.id, role: newRole })
+                              }
+                              disabled={updateRoleMutation.isPending}
+                            >
+                              <SelectTrigger className="w-[120px] h-8" data-testid={`select-role-${user.id}`}>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="admin">관리자</SelectItem>
+                                <SelectItem value="manager">담당자</SelectItem>
+                                <SelectItem value="user">일반 사용자</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            {!isUserAdmin && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="gap-1.5"
+                                onClick={() => setExpandedUser(isExpanded ? null : user.id)}
+                                data-testid={`button-permissions-${user.id}`}
+                              >
+                                <Settings className="w-3.5 h-3.5" />
+                                <span className="hidden sm:inline">권한설정</span>
+                                {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                              </Button>
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() => {
+                                if (confirm("정말로 이 사용자를 삭제하시겠습니까?")) {
+                                  deleteUserMutation.mutate(user.id);
+                                }
+                              }}
+                              disabled={deleteUserMutation.isPending}
+                              data-testid={`button-delete-${user.id}`}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </>
                         )}
                       </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2 flex-wrap justify-end">
-                    <Badge variant={getRoleVariant(user.role)}>
-                      {getRoleLabel(user.role)}
-                    </Badge>
-                    {user.id !== currentUser?.id && (
-                      <>
-                        <Select
-                          value={user.role}
-                          onValueChange={(newRole) =>
-                            updateRoleMutation.mutate({ userId: user.id, role: newRole })
-                          }
-                          disabled={updateRoleMutation.isPending}
-                        >
-                          <SelectTrigger className="w-[120px] h-8" data-testid={`select-role-${user.id}`}>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="admin">관리자</SelectItem>
-                            <SelectItem value="manager">담당자</SelectItem>
-                            <SelectItem value="user">일반 사용자</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-destructive hover:text-destructive"
-                          onClick={() => {
-                            if (confirm("정말로 이 사용자를 삭제하시겠습니까?")) {
-                              deleteUserMutation.mutate(user.id);
-                            }
-                          }}
-                          disabled={deleteUserMutation.isPending}
-                          data-testid={`button-delete-${user.id}`}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </>
+
+                    {isExpanded && !isUserAdmin && (
+                      <div className="border-t bg-muted/30 p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="text-sm font-semibold flex items-center gap-2">
+                            <Shield className="w-4 h-4 text-primary" />
+                            기능별 권한 설정
+                          </h4>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="gap-1 text-xs"
+                              onClick={() => setAllPermissions(user, true)}
+                              disabled={updatePermissionsMutation.isPending}
+                            >
+                              <Check className="w-3 h-3" />
+                              전체 허용
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="gap-1 text-xs"
+                              onClick={() => setAllPermissions(user, false)}
+                              disabled={updatePermissionsMutation.isPending}
+                            >
+                              <X className="w-3 h-3" />
+                              전체 해제
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {(Object.keys(PERMISSION_LABELS) as Array<keyof UserPermissions>).map((permKey) => (
+                            <div
+                              key={permKey}
+                              className="flex items-center justify-between py-2 px-3 rounded-md bg-background border"
+                            >
+                              <span className="text-sm">{PERMISSION_LABELS[permKey]}</span>
+                              <Switch
+                                checked={!!userPerms[permKey]}
+                                onCheckedChange={() => togglePermission(user, permKey)}
+                                disabled={updatePermissionsMutation.isPending}
+                                data-testid={`switch-perm-${permKey}-${user.id}`}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>

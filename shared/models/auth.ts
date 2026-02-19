@@ -12,14 +12,60 @@ export const sessions = pgTable(
   (table) => [index("IDX_session_expire").on(table.expire)]
 );
 
+export interface UserPermissions {
+  editDashboard: boolean;
+  editSafetyScores: boolean;
+  editVehicles: boolean;
+  editEquipmentStatus: boolean;
+  registerRules: boolean;
+  registerNotices: boolean;
+  registerEducation: boolean;
+  editInspections: boolean;
+  manageEquipmentRequests: boolean;
+  addEquipmentMaterials: boolean;
+  editDigitalBoard: boolean;
+  editVehicleLogs: boolean;
+}
+
+export const DEFAULT_PERMISSIONS: UserPermissions = {
+  editDashboard: false,
+  editSafetyScores: false,
+  editVehicles: false,
+  editEquipmentStatus: false,
+  registerRules: false,
+  registerNotices: false,
+  registerEducation: false,
+  editInspections: false,
+  manageEquipmentRequests: false,
+  addEquipmentMaterials: false,
+  editDigitalBoard: false,
+  editVehicleLogs: false,
+};
+
+export const ALL_PERMISSIONS: UserPermissions = {
+  editDashboard: true,
+  editSafetyScores: true,
+  editVehicles: true,
+  editEquipmentStatus: true,
+  registerRules: true,
+  registerNotices: true,
+  registerEducation: true,
+  editInspections: true,
+  manageEquipmentRequests: true,
+  addEquipmentMaterials: true,
+  editDigitalBoard: true,
+  editVehicleLogs: true,
+};
+
 // User storage table with username/password for custom auth
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   username: varchar("username").unique().notNull(),
-  password: varchar("password").notNull(), // hashed password
-  name: varchar("name"), // display name
-  department: varchar("department"), // 부서명
-  role: varchar("role").notNull().default("user"), // 'admin' or 'user'
+  password: varchar("password").notNull(),
+  name: varchar("name"),
+  department: varchar("department"),
+  role: varchar("role").notNull().default("user"),
+  permissions: jsonb("permissions").$type<UserPermissions>().notNull().default(DEFAULT_PERMISSIONS),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

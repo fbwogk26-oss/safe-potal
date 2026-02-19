@@ -146,5 +146,31 @@ export const insertSafetyInspectionSchema = createInsertSchema(safetyInspections
 export type SafetyInspection = typeof safetyInspections.$inferSelect;
 export type InsertSafetyInspection = z.infer<typeof insertSafetyInspectionSchema>;
 
+// === VEHICLE LOGS ===
+export const vehicleLogs = pgTable("vehicle_logs", {
+  id: serial("id").primaryKey(),
+  vehicleId: integer("vehicle_id").notNull(),
+  plateNumber: text("plate_number").notNull(),
+  vehicleModel: text("vehicle_model").notNull(),
+  team: text("team").notNull(),
+  driver: text("driver").notNull(),
+  logDate: text("log_date").notNull(),
+  departureTime: text("departure_time"),
+  arrivalTime: text("arrival_time"),
+  departureLocation: text("departure_location"),
+  arrivalLocation: text("arrival_location"),
+  purpose: text("purpose"),
+  beforeMileage: integer("before_mileage").default(0),
+  afterMileage: integer("after_mileage").default(0),
+  fuelAmount: text("fuel_amount"),
+  notes: text("notes"),
+  createdBy: text("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertVehicleLogSchema = createInsertSchema(vehicleLogs).omit({ id: true, createdAt: true });
+export type VehicleLog = typeof vehicleLogs.$inferSelect;
+export type InsertVehicleLog = z.infer<typeof insertVehicleLogSchema>;
+
 // Export auth schema
 export * from "./models/auth";

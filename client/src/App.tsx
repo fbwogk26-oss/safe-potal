@@ -16,6 +16,7 @@ import EquipmentRequest from "@/pages/EquipmentRequest";
 import AccessRequest from "@/pages/AccessRequest";
 import DigitalBoard from "@/pages/DigitalBoard";
 import SafetyInspections from "@/pages/SafetyInspections";
+import VehicleLogs from "@/pages/VehicleLogs";
 import AdminUsers from "@/pages/AdminUsers";
 import Login from "@/pages/Login";
 import NotFound from "@/pages/NotFound";
@@ -42,6 +43,7 @@ function MainLayout() {
             <Route path="/equipment/status">{() => <EquipmentStatus />}</Route>
             <Route path="/equipment/request" component={EquipmentRequest} />
             <Route path="/access" component={AccessRequest} />
+            <Route path="/vehicle-logs" component={VehicleLogs} />
             <Route path="/digital-board" component={DigitalBoard} />
             <Route path="/admin/users" component={AdminUsers} />
             <Route component={NotFound} />

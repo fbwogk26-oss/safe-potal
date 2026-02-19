@@ -1,4 +1,4 @@
-import { users, type User, type UpsertUser } from "@shared/models/auth";
+import { users, type User, type UpsertUser, type UserPermissions, ALL_PERMISSIONS, DEFAULT_PERMISSIONS } from "@shared/models/auth";
 import { db } from "../../db";
 import { eq, count } from "drizzle-orm";
 import bcrypt from "bcryptjs";
@@ -8,7 +8,7 @@ export interface IAuthStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(username: string, password: string, name: string, role?: string, department?: string): Promise<User>;
-  updateUser(id: string, data: Partial<{ name: string; role: string; password: string; department: string }>): Promise<User | undefined>;
+  updateUser(id: string, data: Partial<{ name: string; role: string; password: string; department: string; permissions: UserPermissions }>): Promise<User | undefined>;
   deleteUser(id: string): Promise<void>;
   getAllUsers(): Promise<User[]>;
   verifyPassword(password: string, hashedPassword: string): Promise<boolean>;
@@ -28,6 +28,7 @@ class AuthStorage implements IAuthStorage {
 
   async createUser(username: string, password: string, name: string, role: string = "user", department?: string): Promise<User> {
     const hashedPassword = await bcrypt.hash(password, 10);
+    const perms = role === "admin" ? ALL_PERMISSIONS : DEFAULT_PERMISSIONS;
     const [user] = await db
       .insert(users)
       .values({
@@ -36,16 +37,23 @@ class AuthStorage implements IAuthStorage {
         name,
         role,
         department: department || null,
+        permissions: perms,
       })
       .returning();
     return user;
   }
 
-  async updateUser(id: string, data: Partial<{ name: string; role: string; password: string; department: string }>): Promise<User | undefined> {
+  async updateUser(id: string, data: Partial<{ name: string; role: string; password: string; department: string; permissions: UserPermissions }>): Promise<User | undefined> {
     const updateData: any = { updatedAt: new Date() };
     if (data.name !== undefined) updateData.name = data.name;
-    if (data.role !== undefined) updateData.role = data.role;
+    if (data.role !== undefined) {
+      updateData.role = data.role;
+      if (data.role === "admin") {
+        updateData.permissions = ALL_PERMISSIONS;
+      }
+    }
     if (data.department !== undefined) updateData.department = data.department;
+    if (data.permissions !== undefined) updateData.permissions = data.permissions;
     if (data.password !== undefined) {
       updateData.password = await bcrypt.hash(data.password, 10);
     }

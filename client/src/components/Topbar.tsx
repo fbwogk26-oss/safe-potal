@@ -1,20 +1,9 @@
-import { Bell, Menu, LogOut, Users } from "lucide-react";
+import { Bell, LogOut, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNotices } from "@/hooks/use-notices";
 import { useQuery } from "@tanstack/react-query";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { useState, useMemo } from "react";
-import { Link, useLocation } from "wouter";
-import { 
-  LayoutDashboard, 
-  ShieldCheck, 
-  GraduationCap, 
-  DoorOpen,
-  ClipboardCheck,
-  ShoppingCart,
-  MonitorPlay
-} from "lucide-react";
-import { cn } from "@/lib/utils";
+import { useMemo } from "react";
+import { Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -24,17 +13,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-
-const NAV_ITEMS = [
-  { label: "대시보드", href: "/", icon: LayoutDashboard },
-  { label: "안전수칙", href: "/rules", icon: ShieldCheck },
-  { label: "공지/알림", href: "/notices", icon: Bell },
-  { label: "안전교육", href: "/education", icon: GraduationCap },
-  { label: "안전점검", href: "/inspections", icon: ClipboardCheck },
-  { label: "안전용품신청", href: "/equipment", icon: ShoppingCart },
-  { label: "출입신청", href: "/access", icon: DoorOpen },
-  { label: "전자게시판", href: "/digital-board", icon: MonitorPlay },
-];
 
 export function Topbar() {
   const { data: notices } = useNotices("notice");
@@ -59,53 +37,12 @@ export function Topbar() {
     
     return [...notices].sort((a, b) => b.id - a.id)[0] || null;
   }, [notices, pinnedData]);
-  
-  const [location] = useLocation();
-  const [sheetOpen, setSheetOpen] = useState(false);
 
   return (
     <header className="sticky top-0 z-50 bg-background border-b shadow-sm">
       <div className="flex flex-col">
         <div className="flex items-center justify-between px-4 py-3 gap-2">
           <div className="flex items-center gap-3 min-w-0">
-            <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-              <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="md:hidden shrink-0" data-testid="button-mobile-menu">
-                  <Menu className="w-5 h-5" />
-                </Button>
-              </SheetTrigger>
-              <SheetContent side="left" className="w-72 p-0">
-                <nav className="flex flex-col p-4 gap-1">
-                  <div className="px-3 py-4 border-b mb-2 flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-[#0066CC] flex flex-col items-center justify-center text-white">
-                      <span className="text-[8px] font-bold leading-none">kt</span>
-                      <span className="text-[6px] font-semibold leading-none">MOS</span>
-                    </div>
-                    <div>
-                      <h2 className="text-sm font-bold text-foreground">종합안전포털시스템</h2>
-                      <p className="text-xs text-muted-foreground">Safety Portal System</p>
-                    </div>
-                  </div>
-                  {NAV_ITEMS.map(item => (
-                    <Link key={item.href} href={item.href}>
-                      <Button
-                        variant={location === item.href ? "secondary" : "ghost"}
-                        className={cn(
-                          "w-full justify-start gap-3 text-sm",
-                          location === item.href && "bg-primary/10 text-primary"
-                        )}
-                        onClick={() => setSheetOpen(false)}
-                        data-testid={`nav-mobile-${item.label}`}
-                      >
-                        <item.icon className="w-4 h-4" />
-                        {item.label}
-                      </Button>
-                    </Link>
-                  ))}
-                </nav>
-              </SheetContent>
-            </Sheet>
-            
             <Link href="/">
               <div className="flex items-center gap-2.5 cursor-pointer hover:opacity-80 transition-opacity">
                 <div className="w-9 h-9 rounded-lg bg-[#0066CC] flex flex-col items-center justify-center shadow-sm text-white">
@@ -118,25 +55,6 @@ export function Topbar() {
                 </div>
               </div>
             </Link>
-            
-            <nav className="hidden md:flex items-center gap-1 ml-6">
-              {NAV_ITEMS.map(item => (
-                <Link key={item.href} href={item.href}>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className={cn(
-                      "gap-1.5 text-xs font-medium",
-                      location === item.href && "bg-primary/10 text-primary"
-                    )}
-                    data-testid={`nav-${item.label}`}
-                  >
-                    <item.icon className="w-3.5 h-3.5" />
-                    {item.label}
-                  </Button>
-                </Link>
-              ))}
-            </nav>
           </div>
 
           <div className="flex items-center gap-2">

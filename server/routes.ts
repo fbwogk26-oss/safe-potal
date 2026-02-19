@@ -9,6 +9,7 @@ import fs from "fs";
 import ExcelJS from "exceljs";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 import { setupAuth, registerAuthRoutes, isAuthenticated, authStorage } from "./replit_integrations/auth";
+import { ALL_PERMISSIONS, type UserPermissions } from "@shared/models/auth";
 
 const uploadDir = path.join(process.cwd(), "uploads");
 if (!fs.existsSync(uploadDir)) {
@@ -98,7 +99,35 @@ const requireAdmin: any = async (req: any, res: any, next: any) => {
   }
 };
 
-// Editor middleware (admin or manager)
+// Permission-based middleware: checks specific permission key
+const requirePermission = (permKey: keyof UserPermissions): any => {
+  return async (req: any, res: any, next: any) => {
+    try {
+      const session = req.session as any;
+      if (!session.userId) {
+        return res.status(401).json({ message: "로그인이 필요합니다" });
+      }
+      const user = await authStorage.getUser(session.userId);
+      if (!user) {
+        return res.status(403).json({ message: "편집 권한이 필요합니다" });
+      }
+      if (user.role === "admin") {
+        req.user = user;
+        return next();
+      }
+      const perms = user.permissions || {};
+      if (!(perms as any)[permKey]) {
+        return res.status(403).json({ message: "해당 기능에 대한 권한이 없습니다" });
+      }
+      req.user = user;
+      next();
+    } catch (error) {
+      res.status(500).json({ message: "권한 확인에 실패했습니다" });
+    }
+  };
+};
+
+// General editor middleware (any editing permission)
 const requireEditor: any = async (req: any, res: any, next: any) => {
   try {
     const session = req.session as any;
@@ -106,7 +135,16 @@ const requireEditor: any = async (req: any, res: any, next: any) => {
       return res.status(401).json({ message: "로그인이 필요합니다" });
     }
     const user = await authStorage.getUser(session.userId);
-    if (!user || (user.role !== "admin" && user.role !== "manager")) {
+    if (!user) {
+      return res.status(403).json({ message: "편집 권한이 필요합니다" });
+    }
+    if (user.role === "admin") {
+      req.user = user;
+      return next();
+    }
+    const perms = user.permissions || {};
+    const hasAnyPerm = Object.values(perms).some(v => v === true);
+    if (!hasAnyPerm) {
       return res.status(403).json({ message: "편집 권한이 필요합니다" });
     }
     req.user = user;
@@ -235,7 +273,7 @@ export async function registerRoutes(
   // Admin: Update user
   app.put("/api/users/:id", requireAdmin, async (req: any, res) => {
     try {
-      const { name, department, role, password } = req.body;
+      const { name, department, role, password, permissions } = req.body;
       const updateData: any = {};
       if (name !== undefined) updateData.name = name;
       if (department !== undefined) updateData.department = department;
@@ -245,6 +283,7 @@ export async function registerRoutes(
         }
         updateData.role = role;
       }
+      if (permissions !== undefined) updateData.permissions = permissions;
       if (password) updateData.password = password;
       
       const user = await authStorage.updateUser(req.params.id, updateData);
@@ -287,6 +326,7 @@ export async function registerRoutes(
         name: u.name,
         department: u.department,
         role: u.role,
+        permissions: u.permissions,
         createdAt: u.createdAt,
       })));
     } catch (error) {
@@ -1101,6 +1141,62 @@ export async function registerRoutes(
 
   // Seed Data
   await seedDatabase();
+
+  // === VEHICLE LOGS ===
+  app.get("/api/vehicle-logs", isAuthenticated, async (req: any, res) => {
+    const logs = await storage.getVehicleLogs();
+    res.json(logs);
+  });
+
+  const vehicleLogCreateSchema = z.object({
+    vehicleId: z.number(),
+    plateNumber: z.string().min(1),
+    vehicleModel: z.string().default(""),
+    team: z.string().default(""),
+    driver: z.string().default(""),
+    logDate: z.string().min(1),
+    departureTime: z.string().nullable().optional(),
+    arrivalTime: z.string().nullable().optional(),
+    departureLocation: z.string().nullable().optional(),
+    arrivalLocation: z.string().nullable().optional(),
+    purpose: z.string().nullable().optional(),
+    beforeMileage: z.number().default(0),
+    afterMileage: z.number().default(0),
+    fuelAmount: z.string().nullable().optional(),
+    notes: z.string().nullable().optional(),
+  });
+
+  app.post("/api/vehicle-logs", requirePermission("editVehicleLogs"), async (req: any, res) => {
+    try {
+      const parsed = vehicleLogCreateSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "필수 항목을 입력해주세요", errors: parsed.error.flatten() });
+      }
+      const data = parsed.data;
+      const session = req.session as any;
+      const user = await authStorage.getUser(session.userId);
+      const log = await storage.createVehicleLog({
+        ...data,
+        departureTime: data.departureTime || null,
+        arrivalTime: data.arrivalTime || null,
+        departureLocation: data.departureLocation || null,
+        arrivalLocation: data.arrivalLocation || null,
+        purpose: data.purpose || null,
+        fuelAmount: data.fuelAmount || null,
+        notes: data.notes || null,
+        createdBy: user?.name || user?.username || null,
+      });
+      res.status(201).json(log);
+    } catch (error) {
+      console.error("Error creating vehicle log:", error);
+      res.status(500).json({ message: "운행일지 생성에 실패했습니다" });
+    }
+  });
+
+  app.delete("/api/vehicle-logs/:id", requirePermission("editVehicleLogs"), async (req: any, res) => {
+    await storage.deleteVehicleLog(Number(req.params.id));
+    res.status(204).send();
+  });
 
   return httpServer;
 }

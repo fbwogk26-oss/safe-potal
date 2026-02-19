@@ -1,6 +1,6 @@
 import { db } from "./db";
 import {
-  teams, notices, settings, vehicles, safetyEquipment, safetyInspections,
+  teams, notices, settings, vehicles, safetyEquipment, safetyInspections, vehicleLogs,
   users,
   type Team, type InsertTeam, type UpdateTeamRequest,
   type Notice, type InsertNotice,
@@ -8,6 +8,7 @@ import {
   type Vehicle, type InsertVehicle, type UpdateVehicleRequest,
   type SafetyEquipment, type InsertSafetyEquipment,
   type SafetyInspection, type InsertSafetyInspection,
+  type VehicleLog, type InsertVehicleLog,
   type User
 } from "@shared/schema";
 import { eq, desc, asc } from "drizzle-orm";
@@ -48,6 +49,11 @@ export interface IStorage {
   getSafetyInspections(): Promise<SafetyInspection[]>;
   createSafetyInspection(inspection: InsertSafetyInspection): Promise<SafetyInspection>;
   deleteSafetyInspection(id: number): Promise<void>;
+
+  // Vehicle Logs
+  getVehicleLogs(): Promise<VehicleLog[]>;
+  createVehicleLog(log: InsertVehicleLog): Promise<VehicleLog>;
+  deleteVehicleLog(id: number): Promise<void>;
 
   // Users
   getAllUsers(): Promise<User[]>;
@@ -179,6 +185,20 @@ export class DatabaseStorage implements IStorage {
   
   async deleteSafetyInspection(id: number): Promise<void> {
     await db.delete(safetyInspections).where(eq(safetyInspections.id, id));
+  }
+
+  // === VEHICLE LOGS ===
+  async getVehicleLogs(): Promise<VehicleLog[]> {
+    return await db.select().from(vehicleLogs).orderBy(desc(vehicleLogs.createdAt));
+  }
+
+  async createVehicleLog(log: InsertVehicleLog): Promise<VehicleLog> {
+    const [created] = await db.insert(vehicleLogs).values(log).returning();
+    return created;
+  }
+
+  async deleteVehicleLog(id: number): Promise<void> {
+    await db.delete(vehicleLogs).where(eq(vehicleLogs.id, id));
   }
 
   // === USERS ===
