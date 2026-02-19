@@ -9,6 +9,7 @@ import { format, parseISO, isSameDay } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { usePermissions } from "@/hooks/use-permissions";
 
 interface PersonData {
   department: string;
@@ -46,6 +47,7 @@ export default function AccessRequest() {
   const { mutate: createMaterial, isPending: isCreating } = useCreateNotice();
   const { mutate: deleteMaterial } = useDeleteNotice();
   const { toast } = useToast();
+  const { canManageAccessRequests } = usePermissions();
 
   const [filterVisitDate, setFilterVisitDate] = useState("");
   const [filterRegistrationDate, setFilterRegistrationDate] = useState("");
@@ -586,15 +588,17 @@ export default function AccessRequest() {
                       >
                         <Download className="w-4 h-4" />
                       </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-red-500"
-                        onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }}
-                        data-testid={`button-delete-access-${item.id}`}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                      {canManageAccessRequests && (
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-red-500"
+                          onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }}
+                          data-testid={`button-delete-access-${item.id}`}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
                     </div>
                   </motion.div>
                 );

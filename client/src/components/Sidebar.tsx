@@ -17,11 +17,11 @@ const NAV_ITEMS = [
   { label: "대시보드", href: "/", icon: LayoutDashboard },
   { label: "안전수칙", href: "/rules", icon: ShieldCheck },
   { label: "공지/알림", href: "/notices", icon: Bell },
-  { label: "안전교육", href: "/education", icon: GraduationCap },
+  { label: "안전교육 자료", href: "/education", icon: GraduationCap },
   { label: "교육일지", href: "/education-logs", icon: FileText },
   { label: "안전점검", href: "/inspections", icon: ClipboardCheck },
   { label: "차량운행일지", href: "/vehicle-logs", icon: BookOpen },
-  { label: "안전용품신청", href: "/equipment", icon: ShoppingCart },
+  { label: "안전용품 신청", href: "/equipment", icon: ShoppingCart },
   { label: "출입신청", href: "/access", icon: DoorOpen },
   { label: "전자게시판", href: "/digital-board", icon: MonitorPlay },
 ];

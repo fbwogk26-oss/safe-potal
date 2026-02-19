@@ -18,6 +18,7 @@ export interface Permissions {
   canAddEquipmentMaterials: boolean;
   canEditDigitalBoard: boolean;
   canEditVehicleLogs: boolean;
+  canManageAccessRequests: boolean;
   canManageUsers: boolean;
   isAdmin: boolean;
   role: string | null;
@@ -57,6 +58,7 @@ export function usePermissions(): Permissions & { isLoading: boolean } {
     canAddEquipmentMaterials: isAdmin || !!perms?.addEquipmentMaterials,
     canEditDigitalBoard: isAdmin || !!perms?.editDigitalBoard,
     canEditVehicleLogs: isAdmin || !!perms?.editVehicleLogs,
+    canManageAccessRequests: isAdmin || !!perms?.manageAccessRequests,
   };
 }
 
@@ -74,6 +76,7 @@ export const PERMISSION_LABELS: Record<keyof UserPermissions, string> = {
   addEquipmentMaterials: "안전용품 추가",
   editDigitalBoard: "전자게시판 편집",
   editVehicleLogs: "차량운행일지 편집",
+  manageAccessRequests: "출입신청 관리",
 };
 
 export function getRoleLabel(role: string): string {

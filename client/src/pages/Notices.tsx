@@ -257,22 +257,24 @@ export default function Notices() {
                             <Eye className="w-4 h-4 mr-2" />
                             상세보기
                           </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            onClick={(e) => { e.stopPropagation(); handleSetPinned(notice.id); }}
-                            data-testid={`menu-pin-notice-${notice.id}`}
-                          >
-                            {pinnedNoticeId === notice.id ? (
-                              <>
-                                <PinOff className="w-4 h-4 mr-2" />
-                                상단공지 해제
-                              </>
-                            ) : (
-                              <>
-                                <Pin className="w-4 h-4 mr-2" />
-                                상단공지 설정
-                              </>
-                            )}
-                          </DropdownMenuItem>
+                          {canRegisterNotices && (
+                            <DropdownMenuItem 
+                              onClick={(e) => { e.stopPropagation(); handleSetPinned(notice.id); }}
+                              data-testid={`menu-pin-notice-${notice.id}`}
+                            >
+                              {pinnedNoticeId === notice.id ? (
+                                <>
+                                  <PinOff className="w-4 h-4 mr-2" />
+                                  상단공지 해제
+                                </>
+                              ) : (
+                                <>
+                                  <Pin className="w-4 h-4 mr-2" />
+                                  상단공지 설정
+                                </>
+                              )}
+                            </DropdownMenuItem>
+                          )}
                           {canRegisterNotices && (
                             <DropdownMenuItem 
                               onClick={(e) => handleDelete(notice.id, e)}
@@ -398,27 +400,29 @@ export default function Notices() {
                     <Calendar className="w-4 h-4" />
                     {selectedNotice.createdAt && format(new Date(selectedNotice.createdAt), "yyyy년 MM월 dd일 HH:mm")}
                   </span>
-                  <div className="flex gap-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => handleSetPinned(selectedNotice.id)}
-                    >
-                      {pinnedNoticeId === selectedNotice.id ? (
-                        <><PinOff className="w-4 h-4 mr-1" /> 고정 해제</>
-                      ) : (
-                        <><Pin className="w-4 h-4 mr-1" /> 상단 고정</>
-                      )}
-                    </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      className="text-red-500 hover:text-red-600 hover:bg-red-50"
-                      onClick={() => handleDelete(selectedNotice.id)}
-                    >
-                      <Trash2 className="w-4 h-4 mr-1" /> 삭제
-                    </Button>
-                  </div>
+                  {canRegisterNotices && (
+                    <div className="flex gap-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => handleSetPinned(selectedNotice.id)}
+                      >
+                        {pinnedNoticeId === selectedNotice.id ? (
+                          <><PinOff className="w-4 h-4 mr-1" /> 고정 해제</>
+                        ) : (
+                          <><Pin className="w-4 h-4 mr-1" /> 상단 고정</>
+                        )}
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                        onClick={() => handleDelete(selectedNotice.id)}
+                      >
+                        <Trash2 className="w-4 h-4 mr-1" /> 삭제
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
             </>

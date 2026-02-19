@@ -26,6 +26,7 @@ export interface UserPermissions {
   addEquipmentMaterials: boolean;
   editDigitalBoard: boolean;
   editVehicleLogs: boolean;
+  manageAccessRequests: boolean;
 }
 
 export const DEFAULT_PERMISSIONS: UserPermissions = {
@@ -42,6 +43,7 @@ export const DEFAULT_PERMISSIONS: UserPermissions = {
   addEquipmentMaterials: false,
   editDigitalBoard: false,
   editVehicleLogs: false,
+  manageAccessRequests: false,
 };
 
 export const ALL_PERMISSIONS: UserPermissions = {
@@ -58,6 +60,7 @@ export const ALL_PERMISSIONS: UserPermissions = {
   addEquipmentMaterials: true,
   editDigitalBoard: true,
   editVehicleLogs: true,
+  manageAccessRequests: true,
 };
 
 // User storage table with username/password for custom auth

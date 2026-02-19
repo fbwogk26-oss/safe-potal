@@ -322,14 +322,16 @@ export default function Rules() {
                     <Calendar className="w-4 h-4" />
                     {selectedRule.createdAt && format(new Date(selectedRule.createdAt), "yyyy년 MM월 dd일")}
                   </span>
-                  <Button 
-                    variant="ghost" 
-                    size="sm"
-                    className="text-red-500 hover:text-red-600 hover:bg-red-50"
-                    onClick={() => handleDelete(selectedRule.id)}
-                  >
-                    <Trash2 className="w-4 h-4 mr-1" /> 삭제
-                  </Button>
+                  {canRegisterRules && (
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                      onClick={() => handleDelete(selectedRule.id)}
+                    >
+                      <Trash2 className="w-4 h-4 mr-1" /> 삭제
+                    </Button>
+                  )}
                 </div>
               </div>
             </>

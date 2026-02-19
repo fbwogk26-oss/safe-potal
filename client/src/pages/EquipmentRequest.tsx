@@ -823,7 +823,7 @@ export default function EquipmentRequest() {
                         ) : "-"}
                       </TableCell>
                       <TableCell>
-                        {!isCompleted && (
+                        {!isCompleted && canManageEquipmentRequests && (
                           <Button 
                             variant="ghost" 
                             size="icon"

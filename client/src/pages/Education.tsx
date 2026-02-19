@@ -322,14 +322,16 @@ export default function Education() {
                     <Calendar className="w-4 h-4" />
                     {selectedItem.createdAt && format(new Date(selectedItem.createdAt), "yyyy년 MM월 dd일")}
                   </span>
-                  <Button 
-                    variant="ghost" 
-                    size="sm"
-                    className="text-red-500 hover:text-red-600 hover:bg-red-50"
-                    onClick={() => handleDelete(selectedItem.id)}
-                  >
-                    <Trash2 className="w-4 h-4 mr-1" /> 삭제
-                  </Button>
+                  {canRegisterEducation && (
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                      onClick={() => handleDelete(selectedItem.id)}
+                    >
+                      <Trash2 className="w-4 h-4 mr-1" /> 삭제
+                    </Button>
+                  )}
                 </div>
               </div>
             </>
