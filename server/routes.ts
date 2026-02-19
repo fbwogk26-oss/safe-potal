@@ -1148,6 +1148,18 @@ export async function registerRoutes(
     res.json(logs);
   });
 
+  app.get("/api/vehicle-logs/by-vehicle/:vehicleId", isAuthenticated, async (req: any, res) => {
+    const vehicleId = Number(req.params.vehicleId);
+    const logs = await storage.getVehicleLogsByVehicle(vehicleId);
+    res.json(logs);
+  });
+
+  app.get("/api/vehicle-logs/last/:vehicleId", isAuthenticated, async (req: any, res) => {
+    const vehicleId = Number(req.params.vehicleId);
+    const log = await storage.getLastVehicleLog(vehicleId);
+    res.json(log || null);
+  });
+
   const vehicleLogCreateSchema = z.object({
     vehicleId: z.number(),
     plateNumber: z.string().min(1),
@@ -1163,6 +1175,7 @@ export async function registerRoutes(
     beforeMileage: z.number().default(0),
     afterMileage: z.number().default(0),
     fuelAmount: z.string().nullable().optional(),
+    fuelReceiptUrl: z.string().nullable().optional(),
     notes: z.string().nullable().optional(),
   });
 
@@ -1183,6 +1196,7 @@ export async function registerRoutes(
         arrivalLocation: data.arrivalLocation || null,
         purpose: data.purpose || null,
         fuelAmount: data.fuelAmount || null,
+        fuelReceiptUrl: data.fuelReceiptUrl || null,
         notes: data.notes || null,
         createdBy: user?.name || user?.username || null,
       });
@@ -1196,6 +1210,104 @@ export async function registerRoutes(
   app.delete("/api/vehicle-logs/:id", requirePermission("editVehicleLogs"), async (req: any, res) => {
     await storage.deleteVehicleLog(Number(req.params.id));
     res.status(204).send();
+  });
+
+  // Excel export for vehicle logs
+  app.get("/api/vehicle-logs/export/:vehicleId", isAuthenticated, async (req: any, res) => {
+    try {
+      const vehicleId = Number(req.params.vehicleId);
+      const logs = await storage.getVehicleLogsByVehicle(vehicleId);
+      if (logs.length === 0) {
+        return res.status(404).json({ message: "운행 기록이 없습니다." });
+      }
+
+      const workbook = new ExcelJS.Workbook();
+      const sheet = workbook.addWorksheet("차량운행일지");
+
+      const firstLog = logs[0];
+      sheet.mergeCells("A1:L1");
+      sheet.getCell("A1").value = `차량운행일지 - ${firstLog.plateNumber} (${firstLog.vehicleModel})`;
+      sheet.getCell("A1").font = { size: 16, bold: true };
+      sheet.getCell("A1").alignment = { horizontal: "center" };
+
+      sheet.getRow(2).values = ["팀", firstLog.team, "", "차량번호", firstLog.plateNumber, "", "모델", firstLog.vehicleModel];
+      sheet.getRow(2).font = { bold: true };
+
+      const headerRow = 4;
+      sheet.getRow(headerRow).values = [
+        "No", "운행일", "운전자", "출발시간", "도착시간",
+        "출발지", "도착지", "용도",
+        "출발전(km)", "도착후(km)", "운행거리(km)",
+        "주유량", "비고"
+      ];
+      const hRow = sheet.getRow(headerRow);
+      hRow.font = { bold: true };
+      hRow.alignment = { horizontal: "center" };
+      hRow.eachCell((cell) => {
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE8F5E9" } };
+        cell.border = {
+          top: { style: "thin" }, bottom: { style: "thin" },
+          left: { style: "thin" }, right: { style: "thin" }
+        };
+      });
+
+      const sortedLogs = [...logs].reverse();
+      let totalDistance = 0;
+      sortedLogs.forEach((log, idx) => {
+        const distance = Math.max(0, (log.afterMileage || 0) - (log.beforeMileage || 0));
+        totalDistance += distance;
+        const row = sheet.getRow(headerRow + 1 + idx);
+        row.values = [
+          idx + 1,
+          log.logDate,
+          log.driver,
+          log.departureTime || "",
+          log.arrivalTime || "",
+          log.departureLocation || "",
+          log.arrivalLocation || "",
+          log.purpose || "",
+          log.beforeMileage || 0,
+          log.afterMileage || 0,
+          distance,
+          log.fuelAmount || "",
+          log.notes || ""
+        ];
+        row.alignment = { horizontal: "center" };
+        row.eachCell((cell) => {
+          cell.border = {
+            top: { style: "thin" }, bottom: { style: "thin" },
+            left: { style: "thin" }, right: { style: "thin" }
+          };
+        });
+      });
+
+      const totalRow = sheet.getRow(headerRow + 1 + sortedLogs.length);
+      totalRow.values = ["", "", "", "", "", "", "", "합계", "", "", totalDistance, "", ""];
+      totalRow.font = { bold: true };
+      totalRow.alignment = { horizontal: "center" };
+      totalRow.eachCell((cell) => {
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF5F5F5" } };
+        cell.border = {
+          top: { style: "thin" }, bottom: { style: "thin" },
+          left: { style: "thin" }, right: { style: "thin" }
+        };
+      });
+
+      sheet.columns = [
+        { width: 6 }, { width: 14 }, { width: 10 }, { width: 10 }, { width: 10 },
+        { width: 16 }, { width: 16 }, { width: 14 },
+        { width: 14 }, { width: 14 }, { width: 14 },
+        { width: 10 }, { width: 18 }
+      ];
+
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader("Content-Disposition", `attachment; filename=vehicle_log_${firstLog.plateNumber}_${new Date().toISOString().split("T")[0]}.xlsx`);
+      await workbook.xlsx.write(res);
+      res.end();
+    } catch (error) {
+      console.error("Error exporting vehicle logs:", error);
+      res.status(500).json({ message: "엑셀 내보내기에 실패했습니다" });
+    }
   });
 
   return httpServer;

@@ -52,6 +52,8 @@ export interface IStorage {
 
   // Vehicle Logs
   getVehicleLogs(): Promise<VehicleLog[]>;
+  getVehicleLogsByVehicle(vehicleId: number): Promise<VehicleLog[]>;
+  getLastVehicleLog(vehicleId: number): Promise<VehicleLog | undefined>;
   createVehicleLog(log: InsertVehicleLog): Promise<VehicleLog>;
   deleteVehicleLog(id: number): Promise<void>;
 
@@ -190,6 +192,20 @@ export class DatabaseStorage implements IStorage {
   // === VEHICLE LOGS ===
   async getVehicleLogs(): Promise<VehicleLog[]> {
     return await db.select().from(vehicleLogs).orderBy(desc(vehicleLogs.createdAt));
+  }
+
+  async getVehicleLogsByVehicle(vehicleId: number): Promise<VehicleLog[]> {
+    return await db.select().from(vehicleLogs)
+      .where(eq(vehicleLogs.vehicleId, vehicleId))
+      .orderBy(desc(vehicleLogs.logDate), desc(vehicleLogs.createdAt));
+  }
+
+  async getLastVehicleLog(vehicleId: number): Promise<VehicleLog | undefined> {
+    const [log] = await db.select().from(vehicleLogs)
+      .where(eq(vehicleLogs.vehicleId, vehicleId))
+      .orderBy(desc(vehicleLogs.logDate), desc(vehicleLogs.createdAt))
+      .limit(1);
+    return log;
   }
 
   async createVehicleLog(log: InsertVehicleLog): Promise<VehicleLog> {

@@ -163,6 +163,7 @@ export const vehicleLogs = pgTable("vehicle_logs", {
   beforeMileage: integer("before_mileage").default(0),
   afterMileage: integer("after_mileage").default(0),
   fuelAmount: text("fuel_amount"),
+  fuelReceiptUrl: text("fuel_receipt_url"),
   notes: text("notes"),
   createdBy: text("created_by"),
   createdAt: timestamp("created_at").defaultNow(),
