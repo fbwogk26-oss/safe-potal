@@ -15,7 +15,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   GraduationCap, Plus, Trash2, ArrowLeft, Users, Calendar, FileText,
   PenTool, CheckCircle2, Clock, BarChart3, TrendingUp, Award, X, Search, Eye, Download,
-  ChevronDown, ChevronRight, Copy, Pencil
+  ChevronDown, ChevronRight, Copy, Pencil, Camera, ImagePlus, Save
 } from "lucide-react";
 import type { EducationSession, EducationSignature } from "@shared/schema";
 import { jsPDF } from "jspdf";
@@ -439,9 +439,24 @@ export default function EducationLogs() {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [editingGroup, setEditingGroup] = useState<{ key: string; title: string; date: string; type: string; sessions: EducationSession[] } | null>(null);
 
+  const [isEditingDescription, setIsEditingDescription] = useState(false);
+  const [inlineDescription, setInlineDescription] = useState("");
+  const [uploadingPhotos, setUploadingPhotos] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const [showPhotoPreview, setShowPhotoPreview] = useState<string | null>(null);
+
   const { data: sessions, isLoading: sessionsLoading } = useQuery<EducationSession[]>({
     queryKey: ["/api/education-sessions"],
   });
+
+  useEffect(() => {
+    if (selectedSession && sessions) {
+      const updated = sessions.find(s => s.id === selectedSession.id);
+      if (updated && JSON.stringify(updated) !== JSON.stringify(selectedSession)) {
+        setSelectedSession(updated);
+      }
+    }
+  }, [sessions]);
 
   const { data: signatures } = useQuery<EducationSignature[]>({
     queryKey: ["/api/education-sessions", selectedSession?.id, "signatures"],
@@ -553,6 +568,57 @@ export default function EducationLogs() {
     },
     onError: () => toast({ variant: "destructive", title: "서명 등록 실패" }),
   });
+
+  const inlineEditMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: any }) =>
+      apiRequest("PATCH", `/api/education-sessions/${id}`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/education-sessions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/education-progress"] });
+      setIsEditingDescription(false);
+      toast({ title: "수정되었습니다." });
+    },
+    onError: () => toast({ variant: "destructive", title: "수정 실패" }),
+  });
+
+  const handlePhotoUpload = async (files: FileList) => {
+    if (!selectedSession) return;
+    setUploadingPhotos(true);
+    try {
+      const newImages: string[] = [...(selectedSession.images || [])];
+      for (const file of Array.from(files)) {
+        const res = await apiRequest("POST", "/api/uploads/request-url", {
+          name: file.name,
+          size: file.size,
+          contentType: file.type,
+        });
+        const { uploadURL, objectPath } = await res.json();
+        await fetch(uploadURL, {
+          method: "PUT",
+          body: file,
+          headers: { "Content-Type": file.type },
+        });
+        newImages.push(objectPath);
+      }
+      await apiRequest("PATCH", `/api/education-sessions/${selectedSession.id}`, { images: newImages });
+      queryClient.invalidateQueries({ queryKey: ["/api/education-sessions"] });
+      toast({ title: `${files.length}장의 사진이 등록되었습니다.` });
+    } catch (err) {
+      toast({ variant: "destructive", title: "사진 업로드 실패" });
+    } finally {
+      setUploadingPhotos(false);
+      if (photoInputRef.current) photoInputRef.current.value = "";
+    }
+  };
+
+  const handleRemovePhoto = async (index: number) => {
+    if (!selectedSession) return;
+    const newImages = [...(selectedSession.images || [])];
+    newImages.splice(index, 1);
+    await apiRequest("PATCH", `/api/education-sessions/${selectedSession.id}`, { images: newImages });
+    queryClient.invalidateQueries({ queryKey: ["/api/education-sessions"] });
+    toast({ title: "사진이 삭제되었습니다." });
+  };
 
   const resetForm = () => {
     setNewTitle("");
@@ -906,13 +972,126 @@ export default function EducationLogs() {
           </Card>
         </div>
 
-        {selectedSession.description && (
-          <Card>
-            <CardContent className="p-4">
-              <p className="text-xs text-muted-foreground mb-1">교육 내용</p>
-              <p className="text-sm text-foreground whitespace-pre-wrap">{selectedSession.description}</p>
-            </CardContent>
-          </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <p className="text-xs text-muted-foreground">교육 내용</p>
+              {canRegisterEducation && !isEditingDescription && (
+                <Button variant="ghost" size="sm" className="h-6 text-xs gap-1" onClick={() => {
+                  setInlineDescription(selectedSession.description || "");
+                  setIsEditingDescription(true);
+                }} data-testid="button-inline-edit-desc">
+                  <Pencil className="w-3 h-3" />
+                  수정
+                </Button>
+              )}
+            </div>
+            {isEditingDescription ? (
+              <div className="space-y-2">
+                <Textarea
+                  value={inlineDescription}
+                  onChange={e => setInlineDescription(e.target.value)}
+                  className="min-h-[100px] text-sm"
+                  data-testid="textarea-inline-desc"
+                />
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setIsEditingDescription(false)}>취소</Button>
+                  <Button size="sm" className="gap-1.5 bg-gradient-to-r from-indigo-500 to-purple-600 text-white"
+                    disabled={inlineEditMutation.isPending}
+                    onClick={() => inlineEditMutation.mutate({ id: selectedSession.id, data: { description: inlineDescription } })}
+                    data-testid="button-save-inline-desc"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    저장
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-foreground whitespace-pre-wrap">
+                {selectedSession.description || <span className="text-muted-foreground italic">교육 내용이 없습니다. 수정 버튼을 눌러 입력해주세요.</span>}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                <Camera className="w-3.5 h-3.5" />
+                교육 사진 ({(selectedSession.images || []).length}장)
+              </p>
+              {canRegisterEducation && (
+                <>
+                  <input
+                    ref={photoInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={e => e.target.files && e.target.files.length > 0 && handlePhotoUpload(e.target.files)}
+                    data-testid="input-photo-upload"
+                  />
+                  <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5"
+                    disabled={uploadingPhotos}
+                    onClick={() => photoInputRef.current?.click()}
+                    data-testid="button-upload-photos"
+                  >
+                    <ImagePlus className="w-3.5 h-3.5" />
+                    {uploadingPhotos ? "업로드 중..." : "사진 추가"}
+                  </Button>
+                </>
+              )}
+            </div>
+            {(selectedSession.images || []).length > 0 ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {(selectedSession.images || []).map((img, idx) => (
+                  <div key={idx} className="relative group border rounded-lg overflow-visible">
+                    <img
+                      src={img}
+                      alt={`교육 사진 ${idx + 1}`}
+                      className="w-full h-32 sm:h-40 object-cover rounded-lg cursor-pointer"
+                      onClick={() => setShowPhotoPreview(img)}
+                      data-testid={`img-education-photo-${idx}`}
+                    />
+                    {canRegisterEducation && (
+                      <Button variant="destructive" size="icon" className="absolute top-1.5 right-1.5 h-6 w-6 invisible group-hover:visible"
+                        onClick={() => handleRemovePhoto(idx)}
+                        data-testid={`button-remove-photo-${idx}`}
+                      >
+                        <X className="w-3 h-3" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="border-2 border-dashed border-muted rounded-lg p-6 text-center text-muted-foreground">
+                <Camera className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                <p className="text-xs">교육 사진을 등록해주세요</p>
+                {canRegisterEducation && (
+                  <Button variant="outline" size="sm" className="mt-2 gap-1.5 text-xs"
+                    onClick={() => photoInputRef.current?.click()}
+                    disabled={uploadingPhotos}
+                  >
+                    <ImagePlus className="w-3.5 h-3.5" />
+                    사진 추가
+                  </Button>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {showPhotoPreview && (
+          <Dialog open={!!showPhotoPreview} onOpenChange={() => setShowPhotoPreview(null)}>
+            <DialogContent className="sm:max-w-3xl p-2">
+              <DialogHeader>
+                <DialogTitle className="sr-only">사진 미리보기</DialogTitle>
+              </DialogHeader>
+              <img src={showPhotoPreview} alt="교육 사진 확대" className="w-full h-auto rounded-lg" />
+            </DialogContent>
+          </Dialog>
         )}
 
         {selectedSession.instructor && (
