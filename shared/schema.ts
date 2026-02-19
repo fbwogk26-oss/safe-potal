@@ -183,6 +183,7 @@ export const educationSessions = pgTable("education_sessions", {
   instructor: text("instructor"),
   totalParticipants: integer("total_participants").notNull().default(0),
   description: text("description"),
+  images: text("images").array().notNull().default([]),
   status: text("status").notNull().default("진행중"),
   createdBy: text("created_by"),
   createdAt: timestamp("created_at").defaultNow(),
