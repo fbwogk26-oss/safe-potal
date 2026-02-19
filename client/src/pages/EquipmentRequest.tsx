@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { ShoppingCart, Plus, Trash2, ChevronLeft, Clock, CheckCircle2, FileText, Send, Minus, Download, Image, Settings, PenLine } from "lucide-react";
+import { ShoppingCart, Plus, Trash2, ChevronLeft, Clock, CheckCircle2, FileText, Send, Minus, Download, Image, Settings, PenLine, AlertCircle } from "lucide-react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { useState, useRef, useEffect } from "react";
@@ -18,6 +18,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePermissions } from "@/hooks/use-permissions";
+import { useAuth } from "@/hooks/use-auth";
 
 const TEAMS = ["동대구운용팀", "서대구운용팀", "남대구운용팀", "포항운용팀", "안동운용팀", "구미운용팀", "문경운용팀", "운용지원팀", "운용계획팀", "사업지원팀", "현장경영팀", "공공망관제팀"];
 
@@ -60,6 +61,7 @@ interface SafetyEquipment {
 }
 
 export default function EquipmentRequest() {
+  const { user } = useAuth();
   const { canManageEquipmentRequests, canAddEquipmentMaterials } = usePermissions();
   const queryClient = useQueryClient();
   const { data: requests, isLoading } = useNotices("equip_request");
@@ -76,7 +78,6 @@ export default function EquipmentRequest() {
     ? dbEquipment.map(e => ({ name: e.name, category: e.category, imageUrl: e.imageUrl }))
     : DEFAULT_EQUIPMENT;
 
-  // Check if any default equipment is missing from DB
   const dbEquipmentNames = new Set(dbEquipment?.map(e => e.name) || []);
   const missingDefaults = DEFAULT_EQUIPMENT.filter(d => !dbEquipmentNames.has(d.name));
   const hasMissingDefaults = missingDefaults.length > 0;
@@ -105,6 +106,13 @@ export default function EquipmentRequest() {
   const [disposalConfirmOpen, setDisposalConfirmOpen] = useState(false);
   const [signatureData, setSignatureData] = useState<string | null>(null);
   const [isDisposed, setIsDisposed] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (user) {
+      setRequesterName(user.name || user.username || "");
+      setSelectedTeam(user.department || "");
+    }
+  }, [user]);
 
   const createEquipmentMutation = useMutation({
     mutationFn: async (data: { name: string; category: string; imageFile?: File }) => {
@@ -201,14 +209,13 @@ export default function EquipmentRequest() {
     const contentData = JSON.stringify({
       team: selectedTeam,
       requester: requesterName,
+      requesterId: user?.username || "",
       items: selectedItems,
       status: "지급요청",
     });
     createRequest({ title, content: contentData, category: "equip_request" }, {
       onSuccess: () => {
         setTitle("");
-        setSelectedTeam("");
-        setRequesterName("");
         setSelectedItems([]);
         toast({ title: "신청 완료", description: "용품 신청이 등록되었습니다." });
       }
@@ -228,21 +235,23 @@ export default function EquipmentRequest() {
   };
 
   const handleStatusChange = (item: any, newStatus: string) => {
-    if (newStatus === "지급완료") {
-      setCurrentSigningItem(item);
-      setSignatureModalOpen(true);
-    } else {
-      const parsed = parseContent(item.content);
-      const updatedContent = JSON.stringify({
-        ...parsed,
-        status: newStatus,
-      });
-      updateRequest({ id: item.id, title: item.title, content: updatedContent }, {
-        onSuccess: () => {
-          toast({ title: "상태 변경 완료", description: `상태가 "${newStatus}"(으)로 변경되었습니다.` });
-        }
-      });
-    }
+    if (newStatus === "수령완료") return;
+
+    const parsed = parseContent(item.content);
+    const updatedContent = JSON.stringify({
+      ...parsed,
+      status: newStatus,
+    });
+    updateRequest({ id: item.id, title: item.title, content: updatedContent }, {
+      onSuccess: () => {
+        toast({ title: "상태 변경 완료", description: `상태가 "${newStatus}"(으)로 변경되었습니다.` });
+      }
+    });
+  };
+
+  const handleReceiptSign = (item: any) => {
+    setCurrentSigningItem(item);
+    setSignatureModalOpen(true);
   };
 
   useEffect(() => {
@@ -356,7 +365,7 @@ export default function EquipmentRequest() {
     
     const updatedContent = JSON.stringify({
       ...parsed,
-      status: "지급완료",
+      status: "수령완료",
       signature: signatureData,
       signedAt: new Date().toISOString(),
       disposed: disposed,
@@ -370,7 +379,6 @@ export default function EquipmentRequest() {
               team: parsed.team,
               items: parsed.items,
             });
-            // Invalidate equipment status cache to refresh data
             queryClient.invalidateQueries({ queryKey: ["/api/notices", "equip_status"] });
           } catch (err) {
             console.error("Failed to update equipment count:", err);
@@ -378,10 +386,10 @@ export default function EquipmentRequest() {
         }
         
         toast({ 
-          title: "지급 완료", 
+          title: "수령 완료", 
           description: disposed 
-            ? "보호구 지급이 완료되었습니다. (기존 용품 폐기됨)" 
-            : "보호구 지급이 완료되었습니다. 안전보호구 현황이 업데이트됩니다." 
+            ? "보호구 수령이 완료되었습니다. (기존 용품 폐기됨)" 
+            : "보호구 수령이 완료되었습니다. 안전보호구 현황이 업데이트됩니다." 
         });
         setDisposalConfirmOpen(false);
         setCurrentSigningItem(null);
@@ -491,6 +499,11 @@ export default function EquipmentRequest() {
   };
 
   const filteredRequests = requests || [];
+
+  const pendingReceiptRequests = filteredRequests.filter((item) => {
+    const parsed = parseContent(item.content);
+    return parsed.status === "지급완료" && parsed.requesterId === user?.username;
+  });
 
   return (
     <div className="max-w-5xl mx-auto space-y-8">
@@ -657,6 +670,43 @@ export default function EquipmentRequest() {
         </CardContent>
       </Card>
 
+      {pendingReceiptRequests.length > 0 && (
+        <Card className="border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-950/30" data-testid="receipt-notification-banner">
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+              <span className="font-semibold text-blue-800 dark:text-blue-300">수령 서명이 필요합니다</span>
+            </div>
+            <p className="text-sm text-blue-700 dark:text-blue-400">
+              아래 신청 건의 용품이 지급 완료되었습니다. 수령 확인을 위해 서명해주세요.
+            </p>
+            <div className="space-y-2">
+              {pendingReceiptRequests.map((item) => {
+                const parsed = parseContent(item.content);
+                const items = parsed.items || [];
+                const itemsSummary = items.map((i: SelectedItem) => `${i.name}(${i.quantity})`).join(', ');
+                return (
+                  <div key={item.id} className="flex items-center justify-between gap-3 p-3 bg-background rounded-lg border">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{item.title}</p>
+                      <p className="text-xs text-muted-foreground truncate">{itemsSummary}</p>
+                    </div>
+                    <Button
+                      onClick={() => handleReceiptSign(item)}
+                      className="bg-blue-600 hover:bg-blue-700 text-white gap-1 shrink-0"
+                      data-testid={`button-receipt-sign-${item.id}`}
+                    >
+                      <Send className="w-4 h-4" />
+                      수령서명
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Card className="shadow-lg border-border/50 overflow-hidden">
         <CardHeader className="bg-muted/30 border-b">
           <CardTitle className="text-lg flex items-center gap-2">
@@ -687,6 +737,12 @@ export default function EquipmentRequest() {
                     ? items.map((i: SelectedItem) => `${i.name}(${i.quantity})`).join(', ')
                     : parsed.text || '-';
                   
+                  const currentStatus = parsed.status || "지급요청";
+                  const isCompleted = currentStatus === "수령완료";
+                  const isAwaitingReceipt = currentStatus === "지급완료";
+                  const isMyRequest = parsed.requesterId === user?.username;
+                  const statusDisabled = isUpdating || isCompleted || !canManageEquipmentRequests;
+
                   return (
                     <motion.tr
                       key={item.id}
@@ -697,11 +753,11 @@ export default function EquipmentRequest() {
                     >
                       <TableCell>
                         <Select 
-                          value={parsed.status || "지급요청"} 
+                          value={currentStatus} 
                           onValueChange={(val) => handleStatusChange(item, val)}
-                          disabled={isUpdating}
+                          disabled={statusDisabled}
                         >
-                          <SelectTrigger className="w-[110px] h-8" data-testid={`select-status-${item.id}`}>
+                          <SelectTrigger className="w-[120px] h-8" data-testid={`select-status-${item.id}`}>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -713,8 +769,14 @@ export default function EquipmentRequest() {
                             </SelectItem>
                             <SelectItem value="지급완료">
                               <div className="flex items-center gap-1">
+                                <AlertCircle className="w-3 h-3 text-blue-600" />
+                                {isAwaitingReceipt && isMyRequest ? "수령대기" : "지급완료"}
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="수령완료" disabled>
+                              <div className="flex items-center gap-1">
                                 <CheckCircle2 className="w-3 h-3 text-green-600" />
-                                지급완료
+                                수령완료
                               </div>
                             </SelectItem>
                           </SelectContent>
@@ -730,7 +792,7 @@ export default function EquipmentRequest() {
                         {item.createdAt && format(new Date(item.createdAt), "yyyy-MM-dd")}
                       </TableCell>
                       <TableCell className="text-center">
-                        {parsed.status === "지급완료" && parsed.signature ? (
+                        {isCompleted && parsed.signature ? (
                           <Button 
                             variant="outline" 
                             size="sm"
@@ -744,15 +806,17 @@ export default function EquipmentRequest() {
                         ) : "-"}
                       </TableCell>
                       <TableCell>
-                        <Button 
-                          variant="ghost" 
-                          size="icon"
-                          onClick={() => handleDelete(item.id)}
-                          className="opacity-0 group-hover:opacity-100"
-                          data-testid={`button-delete-request-${item.id}`}
-                        >
-                          <Trash2 className="w-4 h-4 text-destructive" />
-                        </Button>
+                        {!isCompleted && (
+                          <Button 
+                            variant="ghost" 
+                            size="icon"
+                            onClick={() => handleDelete(item.id)}
+                            className="invisible group-hover:visible"
+                            data-testid={`button-delete-request-${item.id}`}
+                          >
+                            <Trash2 className="w-4 h-4 text-destructive" />
+                          </Button>
+                        )}
                       </TableCell>
                     </motion.tr>
                   );
