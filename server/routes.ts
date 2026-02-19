@@ -1438,49 +1438,51 @@ export async function registerRoutes(
           }
         }
 
-        const photoSheet = workbook.addWorksheet(`${dept}_교육사진`);
-        photoSheet.properties.defaultColWidth = 12;
-        for (let c = 1; c <= 8; c++) { photoSheet.getColumn(c).width = 12; }
+      }
 
-        photoSheet.mergeCells("A1:H1");
-        const photoTitleCell = photoSheet.getCell("A1");
-        photoTitleCell.value = `"${title}" 교육 시행 사진`;
-        photoTitleCell.font = { bold: true, size: 16 };
-        photoTitleCell.alignment = { horizontal: "center", vertical: "middle" };
-        photoTitleCell.border = { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } };
-        photoSheet.getRow(1).height = 36;
+      // === Single photo sheet with all departments stacked vertically ===
+      const photoSheet = workbook.addWorksheet("교육 진행 사진");
+      photoSheet.properties.defaultColWidth = 12;
+      for (let c = 1; c <= 8; c++) { photoSheet.getColumn(c).width = 12; }
 
-        photoSheet.mergeCells("A2:D2");
-        const photoDeptCell = photoSheet.getCell("A2");
+      // Row 1: Title
+      photoSheet.mergeCells("A1:H1");
+      const photoTitleCell = photoSheet.getCell("A1");
+      photoTitleCell.value = `"${title}" 교육 시행 사진`;
+      photoTitleCell.font = { bold: true, size: 16 };
+      photoTitleCell.alignment = { horizontal: "center", vertical: "middle" };
+      photoTitleCell.border = { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } };
+      photoSheet.getRow(1).height = 36;
+
+      let currentRow = 2;
+
+      for (const session of groupSessions) {
+        const dept = session.department;
+
+        // Department label row
+        const deptRowNum = currentRow;
+        photoSheet.mergeCells(`A${deptRowNum}:D${deptRowNum}`);
+        const photoDeptCell = photoSheet.getCell(`A${deptRowNum}`);
         photoDeptCell.value = `■ ${dept}`;
         photoDeptCell.font = { bold: true, size: 12 };
         photoDeptCell.alignment = { vertical: "middle" };
         photoDeptCell.border = { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } };
-        photoSheet.getRow(2).height = 28;
+        photoSheet.getRow(deptRowNum).height = 28;
+        currentRow++;
 
-        photoSheet.mergeCells("A3:D13");
-        photoSheet.mergeCells("E3:H13");
-        for (let r = 3; r <= 13; r++) {
+        // Photo area: 11 rows (currentRow to currentRow+10)
+        const photoStartRow = currentRow;
+        const photoEndRow = currentRow + 10;
+        photoSheet.mergeCells(`A${photoStartRow}:D${photoEndRow}`);
+        photoSheet.mergeCells(`E${photoStartRow}:H${photoEndRow}`);
+        for (let r = photoStartRow; r <= photoEndRow; r++) {
           photoSheet.getRow(r).height = 30;
           for (let c = 1; c <= 8; c++) {
             photoSheet.getRow(r).getCell(c).border = { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } };
           }
         }
 
-        photoSheet.mergeCells("A14:D14");
-        photoSheet.mergeCells("E14:H14");
-        const labelLeft = photoSheet.getCell("A14");
-        labelLeft.value = "교육사진";
-        labelLeft.font = { bold: true, size: 10 };
-        labelLeft.alignment = { horizontal: "center", vertical: "middle" };
-        labelLeft.border = { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } };
-        const labelRight = photoSheet.getCell("E14");
-        labelRight.value = "교육사진";
-        labelRight.font = { bold: true, size: 10 };
-        labelRight.alignment = { horizontal: "center", vertical: "middle" };
-        labelRight.border = { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } };
-        photoSheet.getRow(14).height = 24;
-
+        // Embed photos
         const images = session.images || [];
         for (let pi = 0; pi < Math.min(images.length, 2); pi++) {
           try {
@@ -1490,14 +1492,37 @@ export async function registerRoutes(
             const contentType = images[pi].toLowerCase().endsWith(".png") ? "png" : "jpeg";
             const imageId = workbook.addImage({ base64, extension: contentType as "png" | "jpeg" });
             if (pi === 0) {
-              (photoSheet as any).addImage(imageId, { tl: { col: 0, row: 2 }, br: { col: 4, row: 13 }, editAs: "oneCell" });
+              (photoSheet as any).addImage(imageId, { tl: { col: 0, row: photoStartRow - 1 }, br: { col: 4, row: photoEndRow }, editAs: "oneCell" });
             } else {
-              (photoSheet as any).addImage(imageId, { tl: { col: 4, row: 2 }, br: { col: 8, row: 13 }, editAs: "oneCell" });
+              (photoSheet as any).addImage(imageId, { tl: { col: 4, row: photoStartRow - 1 }, br: { col: 8, row: photoEndRow }, editAs: "oneCell" });
             }
           } catch (e) {
             console.error(`Failed to embed photo ${pi} for ${dept}:`, e);
           }
         }
+
+        currentRow = photoEndRow + 1;
+
+        // Labels row
+        const labelRowNum = currentRow;
+        photoSheet.mergeCells(`A${labelRowNum}:D${labelRowNum}`);
+        photoSheet.mergeCells(`E${labelRowNum}:H${labelRowNum}`);
+        const labelLeft = photoSheet.getCell(`A${labelRowNum}`);
+        labelLeft.value = "교육사진";
+        labelLeft.font = { bold: true, size: 10 };
+        labelLeft.alignment = { horizontal: "center", vertical: "middle" };
+        labelLeft.border = { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } };
+        const labelRight = photoSheet.getCell(`E${labelRowNum}`);
+        labelRight.value = "교육사진";
+        labelRight.font = { bold: true, size: 10 };
+        labelRight.alignment = { horizontal: "center", vertical: "middle" };
+        labelRight.border = { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } };
+        photoSheet.getRow(labelRowNum).height = 24;
+        currentRow++;
+
+        // Spacing row between departments
+        photoSheet.getRow(currentRow).height = 10;
+        currentRow++;
       }
 
       const buffer = await workbook.xlsx.writeBuffer();
