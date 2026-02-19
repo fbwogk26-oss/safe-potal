@@ -140,6 +140,7 @@ export default function SafetyInspections() {
   const [editAccompanyTeamjang, setEditAccompanyTeamjang] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dashboardPeriod, setDashboardPeriod] = useState<"month" | "year">("month");
+  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
 
   const resetForm = () => {
     setInspectionType("안전점검");
@@ -459,12 +460,13 @@ export default function SafetyInspections() {
   const inspectionStats = useMemo(() => {
     if (!inspections || inspections.length === 0 || !teams) return null;
     const now = new Date();
-    const currentMonth = format(now, "yyyy-MM");
     const currentYear = format(now, "yyyy");
+    const monthStr = String(selectedMonth).padStart(2, "0");
+    const targetMonth = `${currentYear}-${monthStr}`;
 
     const filtered = inspections.filter(insp => {
       if (dashboardPeriod === "month") {
-        return insp.inspectionDate.startsWith(currentMonth);
+        return insp.inspectionDate.startsWith(targetMonth);
       }
       return insp.inspectionDate.startsWith(currentYear);
     });
@@ -517,9 +519,9 @@ export default function SafetyInspections() {
       safetyTotal,
       accompanyTotal,
       chartData,
-      periodLabel: dashboardPeriod === "month" ? `${now.getMonth() + 1}월` : `${now.getFullYear()}년`,
+      periodLabel: dashboardPeriod === "month" ? `${selectedMonth}월` : `${now.getFullYear()}년`,
     };
-  }, [inspections, teams, inspectionTargets, dashboardPeriod]);
+  }, [inspections, teams, inspectionTargets, dashboardPeriod, selectedMonth]);
 
   const [showInspDashboard, setShowInspDashboard] = useState(true);
 
@@ -610,15 +612,15 @@ export default function SafetyInspections() {
                 className="overflow-hidden"
               >
                 <CardContent className="p-3 sm:p-4 space-y-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex gap-1">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-1 flex-wrap">
                       <Button
                         variant={dashboardPeriod === "month" ? "default" : "outline"}
                         size="sm"
                         onClick={(e) => { e.stopPropagation(); setDashboardPeriod("month"); }}
                         data-testid="button-period-month"
                       >
-                        해당월
+                        월별
                       </Button>
                       <Button
                         variant={dashboardPeriod === "year" ? "default" : "outline"}
@@ -628,6 +630,18 @@ export default function SafetyInspections() {
                       >
                         연간
                       </Button>
+                      {dashboardPeriod === "month" && (
+                        <Select value={String(selectedMonth)} onValueChange={(v) => { setSelectedMonth(Number(v)); }}>
+                          <SelectTrigger className="w-[80px] h-8" data-testid="select-dashboard-month" onClick={(e) => e.stopPropagation()}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                              <SelectItem key={m} value={String(m)}>{m}월</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
                     </div>
                     <Badge variant="secondary" className="text-xs">{inspectionStats.periodLabel} 현황</Badge>
                   </div>

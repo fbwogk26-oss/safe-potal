@@ -106,6 +106,8 @@ export default function EquipmentRequest() {
   const [disposalConfirmOpen, setDisposalConfirmOpen] = useState(false);
   const [signatureData, setSignatureData] = useState<string | null>(null);
   const [isDisposed, setIsDisposed] = useState<boolean | null>(null);
+  const [receiptPopupOpen, setReceiptPopupOpen] = useState(false);
+  const [receiptPopupShown, setReceiptPopupShown] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -505,6 +507,13 @@ export default function EquipmentRequest() {
     return parsed.status === "지급완료" && parsed.requesterId === user?.username;
   });
 
+  useEffect(() => {
+    if (pendingReceiptRequests.length > 0 && !receiptPopupShown) {
+      setReceiptPopupOpen(true);
+      setReceiptPopupShown(true);
+    }
+  }, [pendingReceiptRequests.length, receiptPopupShown]);
+
   return (
     <div className="max-w-5xl mx-auto space-y-8">
       <div className="flex items-center gap-4">
@@ -670,42 +679,50 @@ export default function EquipmentRequest() {
         </CardContent>
       </Card>
 
-      {pendingReceiptRequests.length > 0 && (
-        <Card className="border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-950/30" data-testid="receipt-notification-banner">
-          <CardContent className="p-4 space-y-3">
-            <div className="flex items-center gap-2">
-              <AlertCircle className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-              <span className="font-semibold text-blue-800 dark:text-blue-300">수령 서명이 필요합니다</span>
-            </div>
-            <p className="text-sm text-blue-700 dark:text-blue-400">
-              아래 신청 건의 용품이 지급 완료되었습니다. 수령 확인을 위해 서명해주세요.
+      <Dialog open={receiptPopupOpen} onOpenChange={setReceiptPopupOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-blue-600" />
+              수령 서명 안내
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              신청하신 용품이 지급 완료되었습니다. 수령 확인을 위해 서명해주세요.
             </p>
-            <div className="space-y-2">
+            <div className="space-y-2 max-h-60 overflow-y-auto">
               {pendingReceiptRequests.map((item) => {
                 const parsed = parseContent(item.content);
                 const items = parsed.items || [];
                 const itemsSummary = items.map((i: SelectedItem) => `${i.name}(${i.quantity})`).join(', ');
                 return (
-                  <div key={item.id} className="flex items-center justify-between gap-3 p-3 bg-background rounded-lg border">
+                  <div key={item.id} className="flex items-center justify-between gap-3 p-3 bg-muted/30 rounded-lg border">
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{item.title}</p>
+                      <p className="font-medium text-sm truncate">{item.title}</p>
                       <p className="text-xs text-muted-foreground truncate">{itemsSummary}</p>
                     </div>
                     <Button
-                      onClick={() => handleReceiptSign(item)}
+                      size="sm"
+                      onClick={() => { setReceiptPopupOpen(false); handleReceiptSign(item); }}
                       className="bg-blue-600 hover:bg-blue-700 text-white gap-1 shrink-0"
                       data-testid={`button-receipt-sign-${item.id}`}
                     >
                       <Send className="w-4 h-4" />
-                      수령서명
+                      서명
                     </Button>
                   </div>
                 );
               })}
             </div>
-          </CardContent>
-        </Card>
-      )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReceiptPopupOpen(false)}>
+              나중에
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Card className="shadow-lg border-border/50 overflow-hidden">
         <CardHeader className="bg-muted/30 border-b">
