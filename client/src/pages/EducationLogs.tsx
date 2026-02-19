@@ -437,6 +437,7 @@ export default function EducationLogs() {
 
   const [pdfLoading, setPdfLoading] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [editingGroup, setEditingGroup] = useState<{ key: string; title: string; date: string; type: string; sessions: EducationSession[] } | null>(null);
 
   const { data: sessions, isLoading: sessionsLoading } = useQuery<EducationSession[]>({
     queryKey: ["/api/education-sessions"],
@@ -479,6 +480,38 @@ export default function EducationLogs() {
       setSelectedSession(null);
       toast({ title: "교육일지가 삭제되었습니다." });
     },
+  });
+
+  const batchDeleteMutation = useMutation({
+    mutationFn: async (ids: number[]) => {
+      for (const id of ids) {
+        await apiRequest("DELETE", `/api/education-sessions/${id}`);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/education-sessions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/education-progress"] });
+      setSelectedSession(null);
+      toast({ title: "교육 카테고리가 삭제되었습니다." });
+    },
+    onError: () => toast({ variant: "destructive", title: "삭제 실패" }),
+  });
+
+  const batchEditMutation = useMutation({
+    mutationFn: async ({ ids, data }: { ids: number[]; data: any }) => {
+      for (const id of ids) {
+        await apiRequest("PATCH", `/api/education-sessions/${id}`, data);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/education-sessions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/education-progress"] });
+      setShowEditDialog(false);
+      setEditingSession(null);
+      setEditingGroup(null);
+      toast({ title: "교육 카테고리가 수정되었습니다." });
+    },
+    onError: () => toast({ variant: "destructive", title: "수정 실패" }),
   });
 
   const updateStatusMutation = useMutation({
@@ -628,7 +661,6 @@ export default function EducationLogs() {
   };
 
   const handleSaveEdit = () => {
-    if (!editingSession) return;
     if (!editTitle) {
       toast({ variant: "destructive", title: "교육 제목을 입력해주세요." });
       return;
@@ -637,6 +669,23 @@ export default function EducationLogs() {
       toast({ variant: "destructive", title: "교육일자를 입력해주세요." });
       return;
     }
+
+    if (editingGroup) {
+      const data: any = {
+        title: editTitle,
+        educationDate: editDate,
+        educationType: editType,
+        instructor: editInstructor || undefined,
+        description: editDescription || undefined,
+      };
+      batchEditMutation.mutate({
+        ids: editingGroup.sessions.map(s => s.id),
+        data,
+      });
+      return;
+    }
+
+    if (!editingSession) return;
     if (!editDepartment) {
       toast({ variant: "destructive", title: "부서를 선택해주세요." });
       return;
@@ -658,6 +707,40 @@ export default function EducationLogs() {
         description: editDescription || undefined,
       },
     });
+  };
+
+  const handleGroupCopy = (group: { sessions: EducationSession[]; title: string; date: string; type: string }) => {
+    resetForm();
+    setNewTitle(group.title);
+    setNewDate(new Date().toISOString().split("T")[0]);
+    setNewType(group.type || "정기교육");
+    const depts = group.sessions.map(s => s.department);
+    setSelectedDepts(depts);
+    const participantsMap: Record<string, string> = {};
+    group.sessions.forEach(s => { participantsMap[s.department] = String(s.totalParticipants); });
+    setDeptParticipants(participantsMap);
+    setNewInstructor(group.sessions[0]?.instructor || "");
+    setNewDescription(group.sessions[0]?.description || "");
+    setShowCreateDialog(true);
+  };
+
+  const handleGroupEdit = (group: { key: string; title: string; date: string; type: string; sessions: EducationSession[] }) => {
+    setEditingGroup(group);
+    setEditingSession(null);
+    setEditTitle(group.title);
+    setEditDate(group.date);
+    setEditType(group.type || "정기교육");
+    setEditInstructor(group.sessions[0]?.instructor || "");
+    setEditDescription(group.sessions[0]?.description || "");
+    setEditDepartment("");
+    setEditParticipants("");
+    setShowEditDialog(true);
+  };
+
+  const handleGroupDelete = (group: { sessions: EducationSession[] }) => {
+    if (confirm(`이 교육 카테고리의 ${group.sessions.length}개 부서 교육일지를 모두 삭제하시겠습니까?`)) {
+      batchDeleteMutation.mutate(group.sessions.map(s => s.id));
+    }
   };
 
   const handleSign = (signatureData: string) => {
@@ -785,16 +868,10 @@ export default function EducationLogs() {
               </Button>
             )}
             {canRegisterEducation && (
-              <>
-                <Button variant="outline" size="sm" onClick={() => handleCopy(selectedSession)} className="gap-1.5" data-testid="button-copy-detail">
-                  <Copy className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">복사</span>
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => handleStartEdit(selectedSession)} className="gap-1.5" data-testid="button-edit-detail">
-                  <Pencil className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">수정</span>
-                </Button>
-              </>
+              <Button variant="outline" size="sm" onClick={() => handleStartEdit(selectedSession)} className="gap-1.5" data-testid="button-edit-detail">
+                <Pencil className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">수정</span>
+              </Button>
             )}
           </div>
         </div>
@@ -1164,8 +1241,24 @@ export default function EducationLogs() {
                                 <span>{completedCount}/{group.sessions.length} 완료</span>
                               </div>
                             </div>
-                            <div className="shrink-0 text-muted-foreground">
-                              {isExpanded ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
+                            <div className="flex items-center gap-1 shrink-0">
+                              {canRegisterEducation && (
+                                <>
+                                  <Button variant="ghost" size="icon"
+                                    onClick={(e) => { e.stopPropagation(); handleGroupCopy(group); }}
+                                    data-testid={`button-group-copy-${group.key}`}
+                                  ><Copy className="w-4 h-4" /></Button>
+                                  <Button variant="ghost" size="icon"
+                                    onClick={(e) => { e.stopPropagation(); handleGroupEdit(group); }}
+                                    data-testid={`button-group-edit-${group.key}`}
+                                  ><Pencil className="w-4 h-4" /></Button>
+                                  <Button variant="ghost" size="icon"
+                                    onClick={(e) => { e.stopPropagation(); handleGroupDelete(group); }}
+                                    data-testid={`button-group-delete-${group.key}`}
+                                  ><Trash2 className="w-4 h-4" /></Button>
+                                </>
+                              )}
+                              {isExpanded ? <ChevronDown className="w-5 h-5 text-muted-foreground" /> : <ChevronRight className="w-5 h-5 text-muted-foreground" />}
                             </div>
                           </div>
 
@@ -1202,23 +1295,7 @@ export default function EducationLogs() {
                                         </div>
                                       </div>
                                       <div className="flex items-center gap-1 shrink-0 text-xs text-muted-foreground">
-                                        <span className="flex items-center gap-1 mr-1"><Users className="w-3 h-3" />{session.totalParticipants}명</span>
-                                        {canRegisterEducation && (
-                                          <>
-                                            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground"
-                                              onClick={(e) => { e.stopPropagation(); handleCopy(session); }}
-                                              data-testid={`button-copy-session-${session.id}`}
-                                            ><Copy className="w-3.5 h-3.5" /></Button>
-                                            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground"
-                                              onClick={(e) => { e.stopPropagation(); handleStartEdit(session); }}
-                                              data-testid={`button-edit-session-${session.id}`}
-                                            ><Pencil className="w-3.5 h-3.5" /></Button>
-                                            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground"
-                                              onClick={(e) => { e.stopPropagation(); if (confirm("이 교육일지를 삭제하시겠습니까?")) deleteMutation.mutate(session.id); }}
-                                              data-testid={`button-delete-session-${session.id}`}
-                                            ><Trash2 className="w-3.5 h-3.5" /></Button>
-                                          </>
-                                        )}
+                                        <span className="flex items-center gap-1"><Users className="w-3 h-3" />{session.totalParticipants}명</span>
                                       </div>
                                     </div>
                                   ))}
@@ -1422,12 +1499,12 @@ export default function EducationLogs() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={showEditDialog} onOpenChange={(open) => { if (!open) { setShowEditDialog(false); setEditingSession(null); } }}>
+      <Dialog open={showEditDialog} onOpenChange={(open) => { if (!open) { setShowEditDialog(false); setEditingSession(null); setEditingGroup(null); } }}>
         <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Pencil className="w-5 h-5 text-indigo-500" />
-              교육일지 수정
+              {editingGroup ? `교육 카테고리 수정 (${editingGroup.sessions.length}개 부서)` : "교육일지 수정"}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-2">
@@ -1463,30 +1540,56 @@ export default function EducationLogs() {
                 </Select>
               </div>
             </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">부서</label>
-              <Select value={editDepartment} onValueChange={setEditDepartment}>
-                <SelectTrigger data-testid="select-edit-department">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {DEPARTMENTS.map(d => (
-                    <SelectItem key={d} value={d}>{d}</SelectItem>
+            {editingGroup && (
+              <div className="border rounded-lg p-3 bg-muted/10">
+                <p className="text-xs font-medium text-muted-foreground mb-2">포함 부서 ({editingGroup.sessions.length}개)</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {editingGroup.sessions.map(s => (
+                    <Badge key={s.id} variant="secondary" className="text-[10px]">
+                      {s.department} ({s.totalParticipants}명)
+                    </Badge>
                   ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">교육인원 *</label>
-                <Input
-                  type="number"
-                  value={editParticipants}
-                  onChange={e => setEditParticipants(e.target.value)}
-                  min={1}
-                  data-testid="input-edit-participants"
-                />
+                </div>
               </div>
+            )}
+            {!editingGroup && (
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">부서</label>
+                <Select value={editDepartment} onValueChange={setEditDepartment}>
+                  <SelectTrigger data-testid="select-edit-department">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {DEPARTMENTS.map(d => (
+                      <SelectItem key={d} value={d}>{d}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            {!editingGroup && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">교육인원 *</label>
+                  <Input
+                    type="number"
+                    value={editParticipants}
+                    onChange={e => setEditParticipants(e.target.value)}
+                    min={1}
+                    data-testid="input-edit-participants"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">교육자</label>
+                  <Input
+                    value={editInstructor}
+                    onChange={e => setEditInstructor(e.target.value)}
+                    data-testid="input-edit-instructor"
+                  />
+                </div>
+              </div>
+            )}
+            {editingGroup && (
               <div>
                 <label className="text-xs font-medium text-muted-foreground mb-1 block">교육자</label>
                 <Input
@@ -1495,7 +1598,7 @@ export default function EducationLogs() {
                   data-testid="input-edit-instructor"
                 />
               </div>
-            </div>
+            )}
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">교육 내용</label>
               <Textarea
@@ -1506,17 +1609,17 @@ export default function EducationLogs() {
               />
             </div>
             <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={() => { setShowEditDialog(false); setEditingSession(null); }}>
+              <Button variant="outline" onClick={() => { setShowEditDialog(false); setEditingSession(null); setEditingGroup(null); }}>
                 취소
               </Button>
               <Button
                 onClick={handleSaveEdit}
-                disabled={editMutation.isPending || !editTitle}
+                disabled={(editMutation.isPending || batchEditMutation.isPending) || !editTitle}
                 className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white gap-2"
                 data-testid="button-save-edit"
               >
                 <Pencil className="w-4 h-4" />
-                수정 저장
+                {editingGroup ? `${editingGroup.sessions.length}개 부서 일괄 수정` : "수정 저장"}
               </Button>
             </div>
           </div>
