@@ -62,7 +62,11 @@ export default function SafetyInspections() {
     queryKey: ["/api/teams"],
   });
 
-  const { data: inspectionTargets } = useQuery<{ safetyTarget: number; accompanyTarget: number }>({
+  const { data: inspectionTargets } = useQuery<{
+    safetyBujang: number; safetyTeamjang: number;
+    accompanyBujang: number; accompanyTeamjang: number;
+    safetyTarget: number; accompanyTarget: number;
+  }>({
     queryKey: ["/api/settings/inspection-targets"],
   });
 
@@ -73,7 +77,7 @@ export default function SafetyInspections() {
   const isAdmin = userRole?.role === "admin";
 
   const saveTargetsMutation = useMutation({
-    mutationFn: (data: { safetyTarget: number; accompanyTarget: number }) =>
+    mutationFn: (data: { safetyBujang: number; safetyTeamjang: number; accompanyBujang: number; accompanyTeamjang: number }) =>
       apiRequest("POST", "/api/settings/inspection-targets", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/settings/inspection-targets"] });
@@ -130,8 +134,10 @@ export default function SafetyInspections() {
   const [showForm, setShowForm] = useState(false);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [showTargetDialog, setShowTargetDialog] = useState(false);
-  const [editSafetyTarget, setEditSafetyTarget] = useState("");
-  const [editAccompanyTarget, setEditAccompanyTarget] = useState("");
+  const [editSafetyBujang, setEditSafetyBujang] = useState("");
+  const [editSafetyTeamjang, setEditSafetyTeamjang] = useState("");
+  const [editAccompanyBujang, setEditAccompanyBujang] = useState("");
+  const [editAccompanyTeamjang, setEditAccompanyTeamjang] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dashboardPeriod, setDashboardPeriod] = useState<"month" | "year">("month");
 
@@ -464,8 +470,12 @@ export default function SafetyInspections() {
     });
 
     const allDepts = teams.map(t => t.name);
-    const safetyTarget = inspectionTargets?.safetyTarget || 0;
-    const accompanyTarget = inspectionTargets?.accompanyTarget || 0;
+    const safetyBujang = inspectionTargets?.safetyBujang || 0;
+    const safetyTeamjang = inspectionTargets?.safetyTeamjang || 0;
+    const accompanyBujang = inspectionTargets?.accompanyBujang || 0;
+    const accompanyTeamjang = inspectionTargets?.accompanyTeamjang || 0;
+    const safetyTotal = safetyBujang + safetyTeamjang;
+    const accompanyTotal = accompanyBujang + accompanyTeamjang;
 
     const deptMap = new Map<string, { safetyCount: number; accompanyCount: number }>();
     for (const dept of allDepts) {
@@ -500,8 +510,12 @@ export default function SafetyInspections() {
       total: filtered.length,
       totalSafety,
       totalAccompany,
-      safetyTarget,
-      accompanyTarget,
+      safetyBujang,
+      safetyTeamjang,
+      accompanyBujang,
+      accompanyTeamjang,
+      safetyTotal,
+      accompanyTotal,
       chartData,
       periodLabel: dashboardPeriod === "month" ? `${now.getMonth() + 1}월` : `${now.getFullYear()}년`,
     };
@@ -571,8 +585,10 @@ export default function SafetyInspections() {
                     size="icon"
                     onClick={(e) => {
                       e.stopPropagation();
-                      setEditSafetyTarget(String(inspectionStats.safetyTarget || ""));
-                      setEditAccompanyTarget(String(inspectionStats.accompanyTarget || ""));
+                      setEditSafetyBujang(String(inspectionTargets?.safetyBujang || ""));
+                      setEditSafetyTeamjang(String(inspectionTargets?.safetyTeamjang || ""));
+                      setEditAccompanyBujang(String(inspectionTargets?.accompanyBujang || ""));
+                      setEditAccompanyTeamjang(String(inspectionTargets?.accompanyTeamjang || ""));
                       setShowTargetDialog(true);
                     }}
                     data-testid="button-target-settings"
@@ -621,15 +637,15 @@ export default function SafetyInspections() {
                       <p className="text-lg font-bold text-green-600" data-testid="text-total-inspections">{inspectionStats.total}건</p>
                     </div>
                     <div className="text-center p-2 rounded-lg bg-muted/30">
-                      <p className="text-[11px] text-muted-foreground">안전점검 (운용팀장)</p>
+                      <p className="text-[11px] text-muted-foreground">안전점검</p>
                       <p className="text-lg font-bold text-blue-600" data-testid="text-safety-count">
-                        {inspectionStats.totalSafety}{inspectionStats.safetyTarget > 0 ? `/${inspectionStats.safetyTarget}` : ""}건
+                        {inspectionStats.totalSafety}{inspectionStats.safetyTotal > 0 ? `/${inspectionStats.safetyTotal}` : ""}건
                       </p>
                     </div>
                     <div className="text-center p-2 rounded-lg bg-muted/30">
-                      <p className="text-[11px] text-muted-foreground">동행점검 (운용부장)</p>
+                      <p className="text-[11px] text-muted-foreground">동행점검</p>
                       <p className="text-lg font-bold text-emerald-600" data-testid="text-accompany-count">
-                        {inspectionStats.totalAccompany}{inspectionStats.accompanyTarget > 0 ? `/${inspectionStats.accompanyTarget}` : ""}건
+                        {inspectionStats.totalAccompany}{inspectionStats.accompanyTotal > 0 ? `/${inspectionStats.accompanyTotal}` : ""}건
                       </p>
                     </div>
                   </div>
@@ -1053,27 +1069,59 @@ export default function SafetyInspections() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-2">
-            <div className="space-y-2">
-              <Label>운용팀장 목표 (안전점검)</Label>
-              <Input
-                type="number"
-                min={0}
-                value={editSafetyTarget}
-                onChange={e => setEditSafetyTarget(e.target.value)}
-                placeholder="0 (미설정)"
-                data-testid="input-safety-target"
-              />
+            <div className="space-y-3">
+              <Label className="text-blue-600 font-semibold">안전점검</Label>
+              <div className="grid grid-cols-2 gap-3 pl-2">
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">운용부장 목표</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={editSafetyBujang}
+                    onChange={e => setEditSafetyBujang(e.target.value)}
+                    placeholder="0"
+                    data-testid="input-safety-bujang"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">운용팀장 목표</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={editSafetyTeamjang}
+                    onChange={e => setEditSafetyTeamjang(e.target.value)}
+                    placeholder="0"
+                    data-testid="input-safety-teamjang"
+                  />
+                </div>
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label>운용부장 목표 (동행점검)</Label>
-              <Input
-                type="number"
-                min={0}
-                value={editAccompanyTarget}
-                onChange={e => setEditAccompanyTarget(e.target.value)}
-                placeholder="0 (미설정)"
-                data-testid="input-accompany-target"
-              />
+            <div className="space-y-3">
+              <Label className="text-emerald-600 font-semibold">동행점검</Label>
+              <div className="grid grid-cols-2 gap-3 pl-2">
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">운용부장 목표</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={editAccompanyBujang}
+                    onChange={e => setEditAccompanyBujang(e.target.value)}
+                    placeholder="0"
+                    data-testid="input-accompany-bujang"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">운용팀장 목표</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={editAccompanyTeamjang}
+                    onChange={e => setEditAccompanyTeamjang(e.target.value)}
+                    placeholder="0"
+                    data-testid="input-accompany-teamjang"
+                  />
+                </div>
+              </div>
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" onClick={() => setShowTargetDialog(false)}>
@@ -1082,8 +1130,10 @@ export default function SafetyInspections() {
               <Button
                 onClick={() => {
                   saveTargetsMutation.mutate({
-                    safetyTarget: Number(editSafetyTarget) || 0,
-                    accompanyTarget: Number(editAccompanyTarget) || 0,
+                    safetyBujang: Number(editSafetyBujang) || 0,
+                    safetyTeamjang: Number(editSafetyTeamjang) || 0,
+                    accompanyBujang: Number(editAccompanyBujang) || 0,
+                    accompanyTeamjang: Number(editAccompanyTeamjang) || 0,
                   });
                 }}
                 disabled={saveTargetsMutation.isPending}

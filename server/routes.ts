@@ -775,21 +775,35 @@ export async function registerRoutes(
 
   // === INSPECTION TARGETS ===
   app.get("/api/settings/inspection-targets", async (req, res) => {
-    const safetyTarget = await storage.getSetting('inspection_target_safety');
-    const accompanyTarget = await storage.getSetting('inspection_target_accompany');
+    const safetyBujang = await storage.getSetting('inspection_target_safety_bujang');
+    const safetyTeamjang = await storage.getSetting('inspection_target_safety_teamjang');
+    const accompanyBujang = await storage.getSetting('inspection_target_accompany_bujang');
+    const accompanyTeamjang = await storage.getSetting('inspection_target_accompany_teamjang');
+    const legacySafety = await storage.getSetting('inspection_target_safety');
+    const legacyAccompany = await storage.getSetting('inspection_target_accompany');
     res.json({
-      safetyTarget: safetyTarget?.value ? Number(safetyTarget.value) : 0,
-      accompanyTarget: accompanyTarget?.value ? Number(accompanyTarget.value) : 0,
+      safetyBujang: safetyBujang?.value ? Number(safetyBujang.value) : 0,
+      safetyTeamjang: safetyTeamjang?.value ? Number(safetyTeamjang.value) : 0,
+      accompanyBujang: accompanyBujang?.value ? Number(accompanyBujang.value) : 0,
+      accompanyTeamjang: accompanyTeamjang?.value ? Number(accompanyTeamjang.value) : 0,
+      safetyTarget: legacySafety?.value ? Number(legacySafety.value) : 0,
+      accompanyTarget: legacyAccompany?.value ? Number(legacyAccompany.value) : 0,
     });
   });
 
   app.post("/api/settings/inspection-targets", requireAdmin, async (req: any, res) => {
-    const { safetyTarget, accompanyTarget } = req.body;
-    if (safetyTarget !== undefined) {
-      await storage.setSetting('inspection_target_safety', String(safetyTarget));
+    const { safetyBujang, safetyTeamjang, accompanyBujang, accompanyTeamjang } = req.body;
+    if (safetyBujang !== undefined) {
+      await storage.setSetting('inspection_target_safety_bujang', String(safetyBujang));
     }
-    if (accompanyTarget !== undefined) {
-      await storage.setSetting('inspection_target_accompany', String(accompanyTarget));
+    if (safetyTeamjang !== undefined) {
+      await storage.setSetting('inspection_target_safety_teamjang', String(safetyTeamjang));
+    }
+    if (accompanyBujang !== undefined) {
+      await storage.setSetting('inspection_target_accompany_bujang', String(accompanyBujang));
+    }
+    if (accompanyTeamjang !== undefined) {
+      await storage.setSetting('inspection_target_accompany_teamjang', String(accompanyTeamjang));
     }
     res.json({ success: true });
   });
