@@ -15,7 +15,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   GraduationCap, Plus, Trash2, ArrowLeft, Users, Calendar, FileText,
   PenTool, CheckCircle2, Clock, BarChart3, TrendingUp, Award, X, Search, Eye, Download,
-  ChevronDown, ChevronRight
+  ChevronDown, ChevronRight, Copy, Pencil
 } from "lucide-react";
 import type { EducationSession, EducationSignature } from "@shared/schema";
 import { jsPDF } from "jspdf";
@@ -23,7 +23,8 @@ import html2canvas from "html2canvas";
 
 const DEPARTMENTS = [
   "동대구운용팀", "서대구운용팀", "남대구운용팀", "포항운용팀",
-  "안동운용팀", "구미운용팀", "문경운용팀"
+  "안동운용팀", "구미운용팀", "문경운용팀",
+  "운용지원팀", "운용계획팀", "사업지원팀", "현장경영팀", "공공망관제팀"
 ];
 
 const EDUCATION_TYPES = ["정기교육", "신규교육", "특별교육", "안전교육", "직무교육"];
@@ -408,6 +409,8 @@ export default function EducationLogs() {
   const [activeTab, setActiveTab] = useState<"dashboard" | "sessions">("dashboard");
   const [selectedSession, setSelectedSession] = useState<EducationSession | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editingSession, setEditingSession] = useState<EducationSession | null>(null);
   const [showSignDialog, setShowSignDialog] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterDept, setFilterDept] = useState<string>("all");
@@ -420,6 +423,14 @@ export default function EducationLogs() {
   const [newInstructor, setNewInstructor] = useState("");
   const [newParticipants, setNewParticipants] = useState("");
   const [newDescription, setNewDescription] = useState("");
+
+  const [editTitle, setEditTitle] = useState("");
+  const [editDate, setEditDate] = useState("");
+  const [editType, setEditType] = useState("정기교육");
+  const [editInstructor, setEditInstructor] = useState("");
+  const [editParticipants, setEditParticipants] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editDepartment, setEditDepartment] = useState("");
 
   const [signerName, setSignerName] = useState("");
   const [signerDept, setSignerDept] = useState("");
@@ -478,6 +489,22 @@ export default function EducationLogs() {
       queryClient.invalidateQueries({ queryKey: ["/api/education-progress"] });
       toast({ title: "상태가 변경되었습니다." });
     },
+  });
+
+  const editMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: any }) =>
+      apiRequest("PATCH", `/api/education-sessions/${id}`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/education-sessions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/education-progress"] });
+      setShowEditDialog(false);
+      setEditingSession(null);
+      if (selectedSession && editingSession && selectedSession.id === editingSession.id) {
+        setSelectedSession(null);
+      }
+      toast({ title: "교육일지가 수정되었습니다." });
+    },
+    onError: () => toast({ variant: "destructive", title: "교육일지 수정 실패" }),
   });
 
   const signMutation = useMutation({
@@ -573,6 +600,64 @@ export default function EducationLogs() {
         description: newDescription || undefined,
       });
     }
+  };
+
+  const handleCopy = (session: EducationSession) => {
+    resetForm();
+    setNewTitle(session.title);
+    setNewDate(new Date().toISOString().split("T")[0]);
+    setSelectedDepts([session.department]);
+    setDeptParticipants({ [session.department]: String(session.totalParticipants) });
+    setNewType(session.educationType || "정기교육");
+    setNewInstructor(session.instructor || "");
+    setNewParticipants(String(session.totalParticipants));
+    setNewDescription(session.description || "");
+    setShowCreateDialog(true);
+  };
+
+  const handleStartEdit = (session: EducationSession) => {
+    setEditingSession(session);
+    setEditTitle(session.title);
+    setEditDate(session.educationDate);
+    setEditType(session.educationType || "정기교육");
+    setEditInstructor(session.instructor || "");
+    setEditParticipants(String(session.totalParticipants));
+    setEditDescription(session.description || "");
+    setEditDepartment(session.department);
+    setShowEditDialog(true);
+  };
+
+  const handleSaveEdit = () => {
+    if (!editingSession) return;
+    if (!editTitle) {
+      toast({ variant: "destructive", title: "교육 제목을 입력해주세요." });
+      return;
+    }
+    if (!editDate) {
+      toast({ variant: "destructive", title: "교육일자를 입력해주세요." });
+      return;
+    }
+    if (!editDepartment) {
+      toast({ variant: "destructive", title: "부서를 선택해주세요." });
+      return;
+    }
+    const participants = Number(editParticipants);
+    if (!participants || participants < 1) {
+      toast({ variant: "destructive", title: "인원수를 입력해주세요." });
+      return;
+    }
+    editMutation.mutate({
+      id: editingSession.id,
+      data: {
+        title: editTitle,
+        educationDate: editDate,
+        department: editDepartment,
+        educationType: editType,
+        instructor: editInstructor || undefined,
+        totalParticipants: participants,
+        description: editDescription || undefined,
+      },
+    });
   };
 
   const handleSign = (signatureData: string) => {
@@ -698,6 +783,18 @@ export default function EducationLogs() {
                 <Clock className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">재개</span>
               </Button>
+            )}
+            {canRegisterEducation && (
+              <>
+                <Button variant="outline" size="sm" onClick={() => handleCopy(selectedSession)} className="gap-1.5" data-testid="button-copy-detail">
+                  <Copy className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">복사</span>
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => handleStartEdit(selectedSession)} className="gap-1.5" data-testid="button-edit-detail">
+                  <Pencil className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">수정</span>
+                </Button>
+              </>
             )}
           </div>
         </div>
@@ -1020,12 +1117,22 @@ export default function EducationLogs() {
                                   <span className="flex items-center gap-1"><Users className="w-3 h-3" />{session.totalParticipants}명</span>
                                 </div>
                               </div>
-                              <div className="flex items-center gap-2 shrink-0">
+                              <div className="flex items-center gap-1 shrink-0">
                                 {canRegisterEducation && (
-                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground"
-                                    onClick={(e) => { e.stopPropagation(); if (confirm("이 교육일지를 삭제하시겠습니까?")) deleteMutation.mutate(session.id); }}
-                                    data-testid={`button-delete-session-${session.id}`}
-                                  ><Trash2 className="w-4 h-4" /></Button>
+                                  <>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground"
+                                      onClick={(e) => { e.stopPropagation(); handleCopy(session); }}
+                                      data-testid={`button-copy-session-${session.id}`}
+                                    ><Copy className="w-4 h-4" /></Button>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground"
+                                      onClick={(e) => { e.stopPropagation(); handleStartEdit(session); }}
+                                      data-testid={`button-edit-session-${session.id}`}
+                                    ><Pencil className="w-4 h-4" /></Button>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground"
+                                      onClick={(e) => { e.stopPropagation(); if (confirm("이 교육일지를 삭제하시겠습니까?")) deleteMutation.mutate(session.id); }}
+                                      data-testid={`button-delete-session-${session.id}`}
+                                    ><Trash2 className="w-4 h-4" /></Button>
+                                  </>
                                 )}
                               </div>
                             </div>
@@ -1094,13 +1201,23 @@ export default function EducationLogs() {
                                           <Badge variant={session.status === "완료" ? "default" : "secondary"} className="text-[10px]">{session.status}</Badge>
                                         </div>
                                       </div>
-                                      <div className="flex items-center gap-3 shrink-0 text-xs text-muted-foreground">
-                                        <span className="flex items-center gap-1"><Users className="w-3 h-3" />{session.totalParticipants}명</span>
+                                      <div className="flex items-center gap-1 shrink-0 text-xs text-muted-foreground">
+                                        <span className="flex items-center gap-1 mr-1"><Users className="w-3 h-3" />{session.totalParticipants}명</span>
                                         {canRegisterEducation && (
-                                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground"
-                                            onClick={(e) => { e.stopPropagation(); if (confirm("이 교육일지를 삭제하시겠습니까?")) deleteMutation.mutate(session.id); }}
-                                            data-testid={`button-delete-session-${session.id}`}
-                                          ><Trash2 className="w-3.5 h-3.5" /></Button>
+                                          <>
+                                            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground"
+                                              onClick={(e) => { e.stopPropagation(); handleCopy(session); }}
+                                              data-testid={`button-copy-session-${session.id}`}
+                                            ><Copy className="w-3.5 h-3.5" /></Button>
+                                            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground"
+                                              onClick={(e) => { e.stopPropagation(); handleStartEdit(session); }}
+                                              data-testid={`button-edit-session-${session.id}`}
+                                            ><Pencil className="w-3.5 h-3.5" /></Button>
+                                            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground"
+                                              onClick={(e) => { e.stopPropagation(); if (confirm("이 교육일지를 삭제하시겠습니까?")) deleteMutation.mutate(session.id); }}
+                                              data-testid={`button-delete-session-${session.id}`}
+                                            ><Trash2 className="w-3.5 h-3.5" /></Button>
+                                          </>
                                         )}
                                       </div>
                                     </div>
@@ -1299,6 +1416,107 @@ export default function EducationLogs() {
               >
                 <Plus className="w-4 h-4" />
                 {selectedDepts.length > 1 ? `${selectedDepts.length}개 부서 일괄 등록` : "교육 등록"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showEditDialog} onOpenChange={(open) => { if (!open) { setShowEditDialog(false); setEditingSession(null); } }}>
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="w-5 h-5 text-indigo-500" />
+              교육일지 수정
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">교육 제목 *</label>
+              <Input
+                value={editTitle}
+                onChange={e => setEditTitle(e.target.value)}
+                data-testid="input-edit-title"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">교육일자 *</label>
+                <Input
+                  type="date"
+                  value={editDate}
+                  onChange={e => setEditDate(e.target.value)}
+                  data-testid="input-edit-date"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">교육유형</label>
+                <Select value={editType} onValueChange={setEditType}>
+                  <SelectTrigger data-testid="select-edit-type">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {EDUCATION_TYPES.map(t => (
+                      <SelectItem key={t} value={t}>{t}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">부서</label>
+              <Select value={editDepartment} onValueChange={setEditDepartment}>
+                <SelectTrigger data-testid="select-edit-department">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {DEPARTMENTS.map(d => (
+                    <SelectItem key={d} value={d}>{d}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">교육인원 *</label>
+                <Input
+                  type="number"
+                  value={editParticipants}
+                  onChange={e => setEditParticipants(e.target.value)}
+                  min={1}
+                  data-testid="input-edit-participants"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">교육자</label>
+                <Input
+                  value={editInstructor}
+                  onChange={e => setEditInstructor(e.target.value)}
+                  data-testid="input-edit-instructor"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">교육 내용</label>
+              <Textarea
+                value={editDescription}
+                onChange={e => setEditDescription(e.target.value)}
+                className="min-h-[80px]"
+                data-testid="input-edit-description"
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => { setShowEditDialog(false); setEditingSession(null); }}>
+                취소
+              </Button>
+              <Button
+                onClick={handleSaveEdit}
+                disabled={editMutation.isPending || !editTitle}
+                className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white gap-2"
+                data-testid="button-save-edit"
+              >
+                <Pencil className="w-4 h-4" />
+                수정 저장
               </Button>
             </div>
           </div>
