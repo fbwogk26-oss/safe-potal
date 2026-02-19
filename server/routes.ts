@@ -773,6 +773,27 @@ export async function registerRoutes(
     res.json({ success: true, pinnedNoticeId: noticeId });
   });
 
+  // === INSPECTION TARGETS ===
+  app.get("/api/settings/inspection-targets", async (req, res) => {
+    const safetyTarget = await storage.getSetting('inspection_target_safety');
+    const accompanyTarget = await storage.getSetting('inspection_target_accompany');
+    res.json({
+      safetyTarget: safetyTarget?.value ? Number(safetyTarget.value) : 0,
+      accompanyTarget: accompanyTarget?.value ? Number(accompanyTarget.value) : 0,
+    });
+  });
+
+  app.post("/api/settings/inspection-targets", requireAdmin, async (req: any, res) => {
+    const { safetyTarget, accompanyTarget } = req.body;
+    if (safetyTarget !== undefined) {
+      await storage.setSetting('inspection_target_safety', String(safetyTarget));
+    }
+    if (accompanyTarget !== undefined) {
+      await storage.setSetting('inspection_target_accompany', String(accompanyTarget));
+    }
+    res.json({ success: true });
+  });
+
   // === VEHICLES ===
   app.get(api.vehicles.list.path, async (req, res) => {
     const vehicles = await storage.getVehicles();

@@ -669,6 +669,7 @@ export default function EducationLogs() {
   };
 
   const handleStartEdit = (session: EducationSession) => {
+    setEditingGroup(null);
     setEditingSession(session);
     setEditTitle(session.title);
     setEditDate(session.educationDate);

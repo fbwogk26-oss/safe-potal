@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { ClipboardCheck, Plus, Trash2, ImagePlus, X, Calendar, MapPin, User, ChevronDown, ChevronUp, Download, Check, AlertCircle, BarChart3 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ClipboardCheck, Plus, Trash2, ImagePlus, X, Calendar, MapPin, User, ChevronDown, ChevronUp, Download, Check, AlertCircle, BarChart3, Settings } from "lucide-react";
 import { useState, useRef, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -15,6 +16,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { SafetyInspection, Team } from "@shared/schema";
 import ExcelJS from "exceljs";
 import { usePermissions } from "@/hooks/use-permissions";
+import { useAuth } from "@/hooks/use-auth";
 
 type ChecklistStatus = '양호' | '미흡' | '미점검';
 
@@ -50,12 +52,34 @@ const EXTRA_DEPARTMENTS = [
 
 export default function SafetyInspections() {
   const { canEditInspections } = usePermissions();
+  const { user } = useAuth();
   const { data: inspections, isLoading } = useQuery<SafetyInspection[]>({
     queryKey: ["/api/safety-inspections"],
   });
   
   const { data: teams } = useQuery<Team[]>({
     queryKey: ["/api/teams"],
+  });
+
+  const { data: inspectionTargets } = useQuery<{ safetyTarget: number; accompanyTarget: number }>({
+    queryKey: ["/api/settings/inspection-targets"],
+  });
+
+  const { data: userRole } = useQuery<{ role: string }>({
+    queryKey: ["/api/auth/user-role"],
+  });
+
+  const isAdmin = userRole?.role === "admin";
+
+  const saveTargetsMutation = useMutation({
+    mutationFn: (data: { safetyTarget: number; accompanyTarget: number }) =>
+      apiRequest("POST", "/api/settings/inspection-targets", data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/settings/inspection-targets"] });
+      setShowTargetDialog(false);
+      toast({ title: "목표건수가 저장되었습니다." });
+    },
+    onError: () => toast({ variant: "destructive", title: "저장 실패" }),
   });
   
   const createMutation = useMutation({
@@ -90,7 +114,7 @@ export default function SafetyInspections() {
 
   const { toast } = useToast();
 
-  const [inspectionType, setInspectionType] = useState<string>("안전 / 동행점검");
+  const [inspectionType, setInspectionType] = useState<string>("안전점검");
   const [department, setDepartment] = useState("");
   const [workContent, setWorkContent] = useState("");
   const [location, setLocation] = useState("");
@@ -102,13 +126,17 @@ export default function SafetyInspections() {
   const [isUploading, setIsUploading] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [showTargetDialog, setShowTargetDialog] = useState(false);
+  const [editSafetyTarget, setEditSafetyTarget] = useState("");
+  const [editAccompanyTarget, setEditAccompanyTarget] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const resetForm = () => {
+    setInspectionType("안전점검");
     setDepartment("");
     setWorkContent("");
     setLocation("");
-    setInspector("");
+    setInspector(user?.name || user?.username || "");
     setInspectionDate(format(new Date(), "yyyy-MM-dd"));
     setChecklist(DEFAULT_CHECKLIST);
     setNotes("");
@@ -239,7 +267,7 @@ export default function SafetyInspections() {
       { header: '부서명', key: 'department', width: 18 },
       { header: '작업내용', key: 'workContent', width: 30 },
       { header: '점검국소', key: 'location', width: 22 },
-      { header: '작업자', key: 'inspector', width: 12 },
+      { header: '점검자', key: 'inspector', width: 12 },
       { header: '점검일', key: 'date', width: 14 },
       { header: '비고', key: 'notes', width: 25 },
     ];
@@ -417,36 +445,47 @@ export default function SafetyInspections() {
   const inspectionStats = useMemo(() => {
     if (!inspections || inspections.length === 0 || !teams) return null;
     const allDepts = teams.map(t => t.name);
-    const deptMap = new Map<string, { count: number; goodTotal: number; poorTotal: number; checkTotal: number }>();
+    const safetyTarget = inspectionTargets?.safetyTarget || 0;
+    const accompanyTarget = inspectionTargets?.accompanyTarget || 0;
+
+    const deptMap = new Map<string, { safetyCount: number; accompanyCount: number }>();
     for (const dept of allDepts) {
-      deptMap.set(dept, { count: 0, goodTotal: 0, poorTotal: 0, checkTotal: 0 });
+      deptMap.set(dept, { safetyCount: 0, accompanyCount: 0 });
     }
+    let totalSafety = 0;
+    let totalAccompany = 0;
     for (const insp of inspections) {
       const matchedDept = allDepts.find(d => insp.title.startsWith(d));
       const entry = matchedDept ? deptMap.get(matchedDept) : null;
       if (entry) {
-        entry.count++;
-        const cl = normalizeChecklist(insp.checklist);
-        entry.goodTotal += cl.filter(c => c.status === "양호").length;
-        entry.poorTotal += cl.filter(c => c.status === "미흡").length;
-        entry.checkTotal += cl.length;
+        if (insp.inspectionType === "동행점검") {
+          entry.accompanyCount++;
+          totalAccompany++;
+        } else {
+          entry.safetyCount++;
+          totalSafety++;
+        }
       }
     }
-    const result = Array.from(deptMap.entries()).map(([dept, stats]) => ({
+    const departments = Array.from(deptMap.entries()).map(([dept, stats]) => ({
       department: dept,
-      ...stats,
-      rate: stats.checkTotal > 0 ? Math.round((stats.goodTotal / stats.checkTotal) * 100) : 0,
+      safetyCount: stats.safetyCount,
+      accompanyCount: stats.accompanyCount,
+      totalCount: stats.safetyCount + stats.accompanyCount,
+      safetyRate: safetyTarget > 0 ? Math.min(100, Math.round((stats.safetyCount / safetyTarget) * 100)) : 0,
+      accompanyRate: accompanyTarget > 0 ? Math.min(100, Math.round((stats.accompanyCount / accompanyTarget) * 100)) : 0,
     }));
-    result.sort((a, b) => b.count - a.count);
+    departments.sort((a, b) => b.totalCount - a.totalCount);
     return {
       total: inspections.length,
-      departments: result,
-      overallGood: result.reduce((s, d) => s + d.goodTotal, 0),
-      overallPoor: result.reduce((s, d) => s + d.poorTotal, 0),
-      overallCheck: result.reduce((s, d) => s + d.checkTotal, 0),
-      deptWithInspections: result.filter(d => d.count > 0).length,
+      totalSafety,
+      totalAccompany,
+      safetyTarget,
+      accompanyTarget,
+      departments,
+      deptWithInspections: departments.filter(d => d.totalCount > 0).length,
     };
-  }, [inspections, teams]);
+  }, [inspections, teams, inspectionTargets]);
 
   const [showInspDashboard, setShowInspDashboard] = useState(true);
 
@@ -477,7 +516,12 @@ export default function SafetyInspections() {
           </Button>
           {canEditInspections && (
             <Button
-              onClick={() => setShowForm(!showForm)}
+              onClick={() => {
+                if (!showForm) {
+                  setInspector(user?.name || user?.username || "");
+                }
+                setShowForm(!showForm);
+              }}
               className="bg-green-600 hover:bg-green-700 text-white gap-2"
               data-testid="button-toggle-form"
             >
@@ -500,7 +544,25 @@ export default function SafetyInspections() {
                 <BarChart3 className="w-4 h-4 text-green-600" />
                 점검 진행 현황
               </div>
-              {showInspDashboard ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+              <div className="flex items-center gap-1">
+                {isAdmin && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditSafetyTarget(String(inspectionStats.safetyTarget || ""));
+                      setEditAccompanyTarget(String(inspectionStats.accompanyTarget || ""));
+                      setShowTargetDialog(true);
+                    }}
+                    data-testid="button-target-settings"
+                  >
+                    <Settings className="w-3.5 h-3.5" />
+                  </Button>
+                )}
+                {showInspDashboard ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+              </div>
             </CardTitle>
           </CardHeader>
           <AnimatePresence>
@@ -519,45 +581,73 @@ export default function SafetyInspections() {
                       <p className="text-lg font-bold text-green-600" data-testid="text-total-inspections">{inspectionStats.total}건</p>
                     </div>
                     <div className="text-center p-2 rounded-lg bg-muted/30">
+                      <p className="text-[11px] text-muted-foreground">안전점검</p>
+                      <p className="text-lg font-bold text-blue-600" data-testid="text-safety-count">
+                        {inspectionStats.totalSafety}{inspectionStats.safetyTarget > 0 ? `/${inspectionStats.safetyTarget}` : ""}건
+                      </p>
+                    </div>
+                    <div className="text-center p-2 rounded-lg bg-muted/30">
+                      <p className="text-[11px] text-muted-foreground">동행점검</p>
+                      <p className="text-lg font-bold text-emerald-600" data-testid="text-accompany-count">
+                        {inspectionStats.totalAccompany}{inspectionStats.accompanyTarget > 0 ? `/${inspectionStats.accompanyTarget}` : ""}건
+                      </p>
+                    </div>
+                    <div className="text-center p-2 rounded-lg bg-muted/30">
                       <p className="text-[11px] text-muted-foreground">점검 부서</p>
-                      <p className="text-lg font-bold text-blue-600" data-testid="text-dept-count">{inspectionStats.deptWithInspections}/{inspectionStats.departments.length}</p>
-                    </div>
-                    <div className="text-center p-2 rounded-lg bg-muted/30">
-                      <p className="text-[11px] text-muted-foreground">양호 항목</p>
-                      <p className="text-lg font-bold text-emerald-600" data-testid="text-good-count">{inspectionStats.overallGood}</p>
-                    </div>
-                    <div className="text-center p-2 rounded-lg bg-muted/30">
-                      <p className="text-[11px] text-muted-foreground">미흡 항목</p>
-                      <p className="text-lg font-bold text-red-500" data-testid="text-poor-count">{inspectionStats.overallPoor}</p>
+                      <p className="text-lg font-bold text-amber-600" data-testid="text-dept-count">{inspectionStats.deptWithInspections}/{inspectionStats.departments.length}</p>
                     </div>
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     {inspectionStats.departments.map((dept) => (
-                      <div key={dept.department} className="flex items-center gap-3 text-sm" data-testid={`inspection-dept-${dept.department}`}>
-                        <span className="truncate min-w-0 flex-1 text-sm">{dept.department}</span>
-                        <Badge variant="secondary" className="text-[10px] shrink-0">{dept.count}건</Badge>
-                        <div className="w-20 bg-muted/50 rounded-full h-2 overflow-hidden shrink-0">
-                          <div
-                            className={`h-full rounded-full ${
-                              dept.rate >= 80 ? "bg-emerald-500" :
-                              dept.rate >= 50 ? "bg-amber-500" :
-                              dept.count === 0 ? "bg-gray-300 dark:bg-gray-600" :
-                              "bg-red-500"
-                            }`}
-                            style={{ width: `${dept.count === 0 ? 0 : dept.rate}%` }}
-                          />
+                      <div key={dept.department} className="space-y-1" data-testid={`inspection-dept-${dept.department}`}>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="truncate min-w-0 text-sm font-medium">{dept.department}</span>
+                          <span className="text-xs text-muted-foreground shrink-0">
+                            총 {dept.totalCount}건
+                          </span>
                         </div>
-                        <span className={`text-xs font-bold w-10 text-right shrink-0 ${
-                          dept.count === 0 ? "text-muted-foreground" :
-                          dept.rate >= 80 ? "text-emerald-600" :
-                          dept.rate >= 50 ? "text-amber-600" :
-                          "text-red-500"
-                        }`}>
-                          {dept.count === 0 ? "-" : `${dept.rate}%`}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-muted-foreground w-14 shrink-0">안전점검</span>
+                          <div className="flex-1 bg-muted/50 rounded-full h-2 overflow-hidden">
+                            <div
+                              className={`h-full rounded-full ${
+                                dept.safetyRate >= 80 ? "bg-blue-500" :
+                                dept.safetyRate >= 50 ? "bg-amber-500" :
+                                dept.safetyCount === 0 ? "bg-gray-300 dark:bg-gray-600" :
+                                "bg-red-500"
+                              }`}
+                              style={{ width: `${inspectionStats.safetyTarget > 0 ? dept.safetyRate : (dept.safetyCount > 0 ? 100 : 0)}%` }}
+                            />
+                          </div>
+                          <span className="text-[10px] font-bold w-16 text-right shrink-0">
+                            {dept.safetyCount}{inspectionStats.safetyTarget > 0 ? `/${inspectionStats.safetyTarget}` : ""}건
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-muted-foreground w-14 shrink-0">동행점검</span>
+                          <div className="flex-1 bg-muted/50 rounded-full h-2 overflow-hidden">
+                            <div
+                              className={`h-full rounded-full ${
+                                dept.accompanyRate >= 80 ? "bg-emerald-500" :
+                                dept.accompanyRate >= 50 ? "bg-amber-500" :
+                                dept.accompanyCount === 0 ? "bg-gray-300 dark:bg-gray-600" :
+                                "bg-red-500"
+                              }`}
+                              style={{ width: `${inspectionStats.accompanyTarget > 0 ? dept.accompanyRate : (dept.accompanyCount > 0 ? 100 : 0)}%` }}
+                            />
+                          </div>
+                          <span className="text-[10px] font-bold w-16 text-right shrink-0">
+                            {dept.accompanyCount}{inspectionStats.accompanyTarget > 0 ? `/${inspectionStats.accompanyTarget}` : ""}건
+                          </span>
+                        </div>
                       </div>
                     ))}
                   </div>
+                  {(inspectionStats.safetyTarget === 0 && inspectionStats.accompanyTarget === 0) && isAdmin && (
+                    <p className="text-xs text-muted-foreground text-center">
+                      목표건수를 설정하면 진행율이 표시됩니다. 상단 설정 버튼을 눌러주세요.
+                    </p>
+                  )}
                 </CardContent>
               </motion.div>
             )}
@@ -585,7 +675,8 @@ export default function SafetyInspections() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="안전 / 동행점검">안전 / 동행점검</SelectItem>
+                        <SelectItem value="안전점검">안전점검</SelectItem>
+                        <SelectItem value="동행점검">동행점검</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -651,11 +742,11 @@ export default function SafetyInspections() {
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label>작업자</Label>
+                    <Label>점검자</Label>
                     <div className="relative">
                       <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       <Input
-                        placeholder="작업자 이름"
+                        placeholder="점검자 이름"
                         value={inspector}
                         onChange={e => setInspector(e.target.value)}
                         className="pl-10"
@@ -943,6 +1034,60 @@ export default function SafetyInspections() {
           </AnimatePresence>
         )}
       </div>
+
+      <Dialog open={showTargetDialog} onOpenChange={setShowTargetDialog}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Settings className="w-5 h-5 text-green-600" />
+              점검 목표건수 설정
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="space-y-2">
+              <Label>안전점검 목표건수 (부서당)</Label>
+              <Input
+                type="number"
+                min={0}
+                value={editSafetyTarget}
+                onChange={e => setEditSafetyTarget(e.target.value)}
+                placeholder="0 (미설정)"
+                data-testid="input-safety-target"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>동행점검 목표건수 (부서당)</Label>
+              <Input
+                type="number"
+                min={0}
+                value={editAccompanyTarget}
+                onChange={e => setEditAccompanyTarget(e.target.value)}
+                placeholder="0 (미설정)"
+                data-testid="input-accompany-target"
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setShowTargetDialog(false)}>
+                취소
+              </Button>
+              <Button
+                onClick={() => {
+                  saveTargetsMutation.mutate({
+                    safetyTarget: Number(editSafetyTarget) || 0,
+                    accompanyTarget: Number(editAccompanyTarget) || 0,
+                  });
+                }}
+                disabled={saveTargetsMutation.isPending}
+                className="bg-green-600 text-white gap-2"
+                data-testid="button-save-targets"
+              >
+                <Check className="w-4 h-4" />
+                저장
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
