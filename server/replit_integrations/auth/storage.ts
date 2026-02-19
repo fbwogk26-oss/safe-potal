@@ -7,7 +7,7 @@ import bcrypt from "bcryptjs";
 export interface IAuthStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(username: string, password: string, name: string, role?: string, department?: string): Promise<User>;
+  createUser(username: string, password: string, name: string, role?: string, department?: string, permissions?: UserPermissions): Promise<User>;
   updateUser(id: string, data: Partial<{ name: string; role: string; password: string; department: string; permissions: UserPermissions }>): Promise<User | undefined>;
   deleteUser(id: string): Promise<void>;
   getAllUsers(): Promise<User[]>;
@@ -26,9 +26,9 @@ class AuthStorage implements IAuthStorage {
     return user;
   }
 
-  async createUser(username: string, password: string, name: string, role: string = "user", department?: string): Promise<User> {
+  async createUser(username: string, password: string, name: string, role: string = "user", department?: string, permissions?: UserPermissions): Promise<User> {
     const hashedPassword = await bcrypt.hash(password, 10);
-    const perms = role === "admin" ? ALL_PERMISSIONS : DEFAULT_PERMISSIONS;
+    const perms = role === "admin" ? ALL_PERMISSIONS : (permissions || DEFAULT_PERMISSIONS);
     const [user] = await db
       .insert(users)
       .values({

@@ -185,7 +185,15 @@ export async function registerRoutes(
       if (existingUser) {
         return res.status(400).json({ message: "이미 존재하는 아이디입니다" });
       }
-      const user = await authStorage.createUser(username, password, name || username, role || "user", department);
+      const userRole = role || "user";
+      let presetPerms = undefined;
+      if (userRole !== "admin") {
+        const preset = await storage.getSetting(`role_preset_${userRole}`);
+        if (preset?.value) {
+          presetPerms = JSON.parse(preset.value);
+        }
+      }
+      const user = await authStorage.createUser(username, password, name || username, userRole, department, presetPerms);
       res.status(201).json({
         id: user.id,
         username: user.username,
@@ -256,7 +264,9 @@ export async function registerRoutes(
             skipCount++;
             continue;
           }
-          await authStorage.createUser(userData.username, userData.password, userData.name, "user", userData.department);
+          const userPreset = await storage.getSetting('role_preset_user');
+          const presetPerms = userPreset?.value ? JSON.parse(userPreset.value) : undefined;
+          await authStorage.createUser(userData.username, userData.password, userData.name, "user", userData.department, presetPerms);
           successCount++;
         } catch (err) {
           skipCount++;
@@ -282,6 +292,12 @@ export async function registerRoutes(
           return res.status(400).json({ message: "유효하지 않은 역할입니다" });
         }
         updateData.role = role;
+        if (role !== "admin" && permissions === undefined) {
+          const preset = await storage.getSetting(`role_preset_${role}`);
+          if (preset?.value) {
+            updateData.permissions = JSON.parse(preset.value);
+          }
+        }
       }
       if (permissions !== undefined) updateData.permissions = permissions;
       if (password) updateData.password = password;
@@ -805,6 +821,28 @@ export async function registerRoutes(
     if (accompanyTeamjang !== undefined) {
       await storage.setSetting('inspection_target_accompany_teamjang', String(accompanyTeamjang));
     }
+    res.json({ success: true });
+  });
+
+  // === ROLE PERMISSION PRESETS ===
+  app.get("/api/settings/role-presets", isAuthenticated, async (req: any, res) => {
+    const userPreset = await storage.getSetting('role_preset_user');
+    const managerPreset = await storage.getSetting('role_preset_manager');
+    res.json({
+      user: userPreset?.value ? JSON.parse(userPreset.value) : null,
+      manager: managerPreset?.value ? JSON.parse(managerPreset.value) : null,
+    });
+  });
+
+  app.post("/api/settings/role-presets", requireAdmin, async (req: any, res) => {
+    const { role, permissions } = req.body;
+    if (!role || !permissions) {
+      return res.status(400).json({ message: "역할과 권한 설정이 필요합니다" });
+    }
+    if (role !== "user" && role !== "manager") {
+      return res.status(400).json({ message: "일반사용자 또는 담당자만 설정할 수 있습니다" });
+    }
+    await storage.setSetting(`role_preset_${role}`, JSON.stringify(permissions));
     res.json({ success: true });
   });
 

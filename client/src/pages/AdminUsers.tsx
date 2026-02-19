@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,7 +26,8 @@ import {
   ChevronDown,
   ChevronUp,
   Check,
-  X
+  X,
+  Save
 } from "lucide-react";
 import { Link } from "wouter";
 import {
@@ -57,6 +58,11 @@ interface UserData {
   createdAt: string | null;
 }
 
+interface RolePresets {
+  user: UserPermissions | null;
+  manager: UserPermissions | null;
+}
+
 export default function AdminUsers() {
   const { toast } = useToast();
   const { user: currentUser, isAuthenticated } = useAuth();
@@ -66,9 +72,16 @@ export default function AdminUsers() {
   });
   const isAdmin = roleData?.role === "admin";
   const [expandedUser, setExpandedUser] = useState<string | null>(null);
+  const [presetTab, setPresetTab] = useState<"user" | "manager">("user");
+  const [showPresetSection, setShowPresetSection] = useState(false);
 
   const { data: users, isLoading } = useQuery<UserData[]>({
     queryKey: ["/api/users"],
+    enabled: isAdmin,
+  });
+
+  const { data: presets } = useQuery<RolePresets>({
+    queryKey: ["/api/settings/role-presets"],
     enabled: isAdmin,
   });
 
@@ -123,6 +136,15 @@ export default function AdminUsers() {
     updatePermissionsMutation.mutate({ userId: user.id, permissions: perms });
   };
 
+  const applyPresetToUser = (user: UserData) => {
+    const preset = user.role === "manager" ? presets?.manager : presets?.user;
+    if (preset) {
+      updatePermissionsMutation.mutate({ userId: user.id, permissions: preset });
+    } else {
+      toast({ variant: "destructive", title: `${getRoleLabel(user.role)} 프리셋이 아직 설정되지 않았습니다.` });
+    }
+  };
+
   if (!isAuthenticated) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -167,12 +189,30 @@ export default function AdminUsers() {
               <p className="text-sm text-muted-foreground">사용자 계정 및 기능별 권한을 관리합니다</p>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
+            <Button 
+              variant="outline" 
+              className="gap-2" 
+              onClick={() => setShowPresetSection(!showPresetSection)}
+              data-testid="button-toggle-presets"
+            >
+              <Shield className="w-4 h-4" />
+              권한 프리셋 설정
+              {showPresetSection ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </Button>
             <ExcelUploadDialog />
             <CreateUserDialog />
           </div>
         </div>
       </div>
+
+      {showPresetSection && (
+        <RolePresetManager
+          presets={presets || { user: null, manager: null }}
+          activeTab={presetTab}
+          onTabChange={setPresetTab}
+        />
+      )}
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-2">
@@ -278,12 +318,23 @@ export default function AdminUsers() {
 
                     {isExpanded && !isUserAdmin && (
                       <div className="border-t bg-muted/30 p-4">
-                        <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                           <h4 className="text-sm font-semibold flex items-center gap-2">
                             <Shield className="w-4 h-4 text-primary" />
                             기능별 권한 설정
                           </h4>
-                          <div className="flex gap-2">
+                          <div className="flex gap-2 flex-wrap">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="gap-1 text-xs"
+                              onClick={() => applyPresetToUser(user)}
+                              disabled={updatePermissionsMutation.isPending}
+                              data-testid={`button-apply-preset-${user.id}`}
+                            >
+                              <Shield className="w-3 h-3" />
+                              프리셋 적용
+                            </Button>
                             <Button
                               variant="outline"
                               size="sm"
@@ -332,6 +383,149 @@ export default function AdminUsers() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function RolePresetManager({ 
+  presets, 
+  activeTab, 
+  onTabChange 
+}: { 
+  presets: RolePresets; 
+  activeTab: "user" | "manager"; 
+  onTabChange: (tab: "user" | "manager") => void;
+}) {
+  const { toast } = useToast();
+  const currentPreset = activeTab === "user" ? presets.user : presets.manager;
+  const [localPerms, setLocalPerms] = useState<UserPermissions>(currentPreset || DEFAULT_PERMISSIONS);
+  const [hasChanges, setHasChanges] = useState(false);
+
+  useEffect(() => {
+    const preset = activeTab === "user" ? presets.user : presets.manager;
+    setLocalPerms(preset || DEFAULT_PERMISSIONS);
+    setHasChanges(false);
+  }, [presets.user, presets.manager, activeTab]);
+
+  const handleTabChange = (tab: "user" | "manager") => {
+    onTabChange(tab);
+  };
+
+  const toggleLocalPerm = (key: keyof UserPermissions) => {
+    setLocalPerms(prev => ({ ...prev, [key]: !prev[key] }));
+    setHasChanges(true);
+  };
+
+  const setAllLocal = (enabled: boolean) => {
+    setLocalPerms(enabled ? { ...ALL_PERMISSIONS } : { ...DEFAULT_PERMISSIONS });
+    setHasChanges(true);
+  };
+
+  const savePresetMutation = useMutation({
+    mutationFn: async ({ role, permissions }: { role: string; permissions: UserPermissions }) => {
+      return apiRequest("POST", "/api/settings/role-presets", { role, permissions });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/settings/role-presets"] });
+      setHasChanges(false);
+      toast({ title: `${activeTab === "user" ? "일반사용자" : "담당자"} 권한 프리셋이 저장되었습니다.` });
+    },
+    onError: () => {
+      toast({ variant: "destructive", title: "프리셋 저장에 실패했습니다." });
+    },
+  });
+
+  const handleSave = () => {
+    savePresetMutation.mutate({ role: activeTab, permissions: localPerms });
+  };
+
+  return (
+    <Card className="mb-6">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Shield className="w-5 h-5 text-primary" />
+            역할별 권한 프리셋
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">
+            사용자 추가 시 선택한 역할의 프리셋 권한이 자동 적용됩니다
+          </p>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="flex gap-2 mb-4">
+          <Button
+            variant={activeTab === "user" ? "default" : "outline"}
+            size="sm"
+            onClick={() => handleTabChange("user")}
+            data-testid="button-preset-tab-user"
+          >
+            일반사용자 설정
+            {presets.user && <Badge variant="secondary" className="ml-2 text-[10px]">저장됨</Badge>}
+          </Button>
+          <Button
+            variant={activeTab === "manager" ? "default" : "outline"}
+            size="sm"
+            onClick={() => handleTabChange("manager")}
+            data-testid="button-preset-tab-manager"
+          >
+            담당자 설정
+            {presets.manager && <Badge variant="secondary" className="ml-2 text-[10px]">저장됨</Badge>}
+          </Button>
+        </div>
+
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+          <p className="text-sm text-muted-foreground">
+            {activeTab === "user" ? "일반사용자" : "담당자"}로 등록되는 사용자에게 기본 적용될 권한을 설정합니다
+          </p>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1 text-xs"
+              onClick={() => setAllLocal(true)}
+            >
+              <Check className="w-3 h-3" />
+              전체 허용
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1 text-xs"
+              onClick={() => setAllLocal(false)}
+            >
+              <X className="w-3 h-3" />
+              전체 해제
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
+          {(Object.keys(PERMISSION_LABELS) as Array<keyof UserPermissions>).map((permKey) => (
+            <div
+              key={permKey}
+              className="flex items-center justify-between py-2 px-3 rounded-md bg-muted/50 border"
+            >
+              <span className="text-sm">{PERMISSION_LABELS[permKey]}</span>
+              <Switch
+                checked={!!localPerms[permKey]}
+                onCheckedChange={() => toggleLocalPerm(permKey)}
+                data-testid={`switch-preset-${permKey}-${activeTab}`}
+              />
+            </div>
+          ))}
+        </div>
+
+        <Button
+          className="w-full gap-2"
+          onClick={handleSave}
+          disabled={savePresetMutation.isPending || !hasChanges}
+          data-testid="button-save-preset"
+        >
+          <Save className="w-4 h-4" />
+          {savePresetMutation.isPending ? "저장 중..." : `${activeTab === "user" ? "일반사용자" : "담당자"} 프리셋 저장`}
+        </Button>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -484,6 +678,19 @@ function CreateUserDialog() {
   const [showPassword, setShowPassword] = useState(false);
   const { toast } = useToast();
 
+  const { data: presets } = useQuery<RolePresets>({
+    queryKey: ["/api/settings/role-presets"],
+  });
+
+  const getPresetStatus = (r: string) => {
+    if (r === "admin") return null;
+    const preset = r === "manager" ? presets?.manager : presets?.user;
+    if (!preset) return "미설정";
+    const enabledCount = Object.values(preset).filter(Boolean).length;
+    const totalCount = Object.keys(PERMISSION_LABELS).length;
+    return `${enabledCount}/${totalCount}개 권한`;
+  };
+
   const createUserMutation = useMutation({
     mutationFn: async (data: { username: string; password: string; name: string; department: string; role: string }) => {
       return apiRequest("POST", "/api/users", data);
@@ -579,7 +786,7 @@ function CreateUserDialog() {
             </div>
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium">권한</label>
+            <label className="text-sm font-medium">역할</label>
             <Select value={role} onValueChange={setRole}>
               <SelectTrigger data-testid="select-new-role">
                 <SelectValue />
@@ -590,6 +797,14 @@ function CreateUserDialog() {
                 <SelectItem value="user">일반 사용자</SelectItem>
               </SelectContent>
             </Select>
+            {role !== "admin" && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 rounded-md px-3 py-2">
+                <Shield className="w-3.5 h-3.5" />
+                <span>
+                  {role === "manager" ? "담당자" : "일반사용자"} 프리셋 권한 적용: {getPresetStatus(role) || ""}
+                </span>
+              </div>
+            )}
           </div>
           <Button 
             type="submit" 
