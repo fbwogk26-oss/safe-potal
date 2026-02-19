@@ -8,7 +8,8 @@ import {
   ShoppingCart,
   MonitorPlay,
   ClipboardCheck,
-  BookOpen
+  BookOpen,
+  FileText
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -17,6 +18,7 @@ const NAV_ITEMS = [
   { label: "안전수칙", href: "/rules", icon: ShieldCheck },
   { label: "공지/알림", href: "/notices", icon: Bell },
   { label: "안전교육", href: "/education", icon: GraduationCap },
+  { label: "교육일지", href: "/education-logs", icon: FileText },
   { label: "안전점검", href: "/inspections", icon: ClipboardCheck },
   { label: "차량운행일지", href: "/vehicle-logs", icon: BookOpen },
   { label: "안전용품신청", href: "/equipment", icon: ShoppingCart },

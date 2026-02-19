@@ -173,5 +173,36 @@ export const insertVehicleLogSchema = createInsertSchema(vehicleLogs).omit({ id:
 export type VehicleLog = typeof vehicleLogs.$inferSelect;
 export type InsertVehicleLog = z.infer<typeof insertVehicleLogSchema>;
 
+// === EDUCATION SESSIONS (교육일지) ===
+export const educationSessions = pgTable("education_sessions", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  educationDate: text("education_date").notNull(),
+  department: text("department").notNull(),
+  educationType: text("education_type").notNull().default("정기교육"),
+  instructor: text("instructor"),
+  totalParticipants: integer("total_participants").notNull().default(0),
+  description: text("description"),
+  status: text("status").notNull().default("진행중"),
+  createdBy: text("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const educationSignatures = pgTable("education_signatures", {
+  id: serial("id").primaryKey(),
+  sessionId: integer("session_id").notNull(),
+  signerName: text("signer_name").notNull(),
+  signerDepartment: text("signer_department"),
+  signatureData: text("signature_data").notNull(),
+  signedAt: timestamp("signed_at").defaultNow(),
+});
+
+export const insertEducationSessionSchema = createInsertSchema(educationSessions).omit({ id: true, createdAt: true });
+export const insertEducationSignatureSchema = createInsertSchema(educationSignatures).omit({ id: true, signedAt: true });
+export type EducationSession = typeof educationSessions.$inferSelect;
+export type InsertEducationSession = z.infer<typeof insertEducationSessionSchema>;
+export type EducationSignature = typeof educationSignatures.$inferSelect;
+export type InsertEducationSignature = z.infer<typeof insertEducationSignatureSchema>;
+
 // Export auth schema
 export * from "./models/auth";

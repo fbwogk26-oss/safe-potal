@@ -9,6 +9,7 @@ import Dashboard from "@/pages/Dashboard";
 import Rules from "@/pages/Rules";
 import Notices from "@/pages/Notices";
 import Education from "@/pages/Education";
+import EducationLogs from "@/pages/EducationLogs";
 import VehicleManagement from "@/pages/VehicleManagement";
 import SafetyEquipment from "@/pages/SafetyEquipment";
 import EquipmentStatus from "@/pages/EquipmentStatus";
@@ -37,6 +38,7 @@ function MainLayout() {
             <Route path="/rules" component={Rules} />
             <Route path="/notices" component={Notices} />
             <Route path="/education" component={Education} />
+            <Route path="/education-logs" component={EducationLogs} />
             <Route path="/inspections" component={SafetyInspections} />
             <Route path="/vehicle">{() => <VehicleManagement />}</Route>
             <Route path="/equipment">{() => <SafetyEquipment />}</Route>

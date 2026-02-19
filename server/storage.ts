@@ -1,6 +1,7 @@
 import { db } from "./db";
 import {
   teams, notices, settings, vehicles, safetyEquipment, safetyInspections, vehicleLogs,
+  educationSessions, educationSignatures,
   users,
   type Team, type InsertTeam, type UpdateTeamRequest,
   type Notice, type InsertNotice,
@@ -9,9 +10,11 @@ import {
   type SafetyEquipment, type InsertSafetyEquipment,
   type SafetyInspection, type InsertSafetyInspection,
   type VehicleLog, type InsertVehicleLog,
+  type EducationSession, type InsertEducationSession,
+  type EducationSignature, type InsertEducationSignature,
   type User
 } from "@shared/schema";
-import { eq, desc, asc } from "drizzle-orm";
+import { eq, desc, asc, and } from "drizzle-orm";
 
 export interface IStorage {
   // Teams
@@ -56,6 +59,18 @@ export interface IStorage {
   getLastVehicleLog(vehicleId: number): Promise<VehicleLog | undefined>;
   createVehicleLog(log: InsertVehicleLog): Promise<VehicleLog>;
   deleteVehicleLog(id: number): Promise<void>;
+
+  // Education Sessions
+  getEducationSessions(department?: string): Promise<EducationSession[]>;
+  getEducationSession(id: number): Promise<EducationSession | undefined>;
+  createEducationSession(session: InsertEducationSession): Promise<EducationSession>;
+  updateEducationSession(id: number, updates: Partial<InsertEducationSession>): Promise<EducationSession>;
+  deleteEducationSession(id: number): Promise<void>;
+
+  // Education Signatures
+  getSignaturesBySession(sessionId: number): Promise<EducationSignature[]>;
+  createSignature(signature: InsertEducationSignature): Promise<EducationSignature>;
+  deleteSignature(id: number): Promise<void>;
 
   // Users
   getAllUsers(): Promise<User[]>;
@@ -215,6 +230,52 @@ export class DatabaseStorage implements IStorage {
 
   async deleteVehicleLog(id: number): Promise<void> {
     await db.delete(vehicleLogs).where(eq(vehicleLogs.id, id));
+  }
+
+  // === EDUCATION SESSIONS ===
+  async getEducationSessions(department?: string): Promise<EducationSession[]> {
+    if (department) {
+      return await db.select().from(educationSessions)
+        .where(eq(educationSessions.department, department))
+        .orderBy(desc(educationSessions.createdAt));
+    }
+    return await db.select().from(educationSessions).orderBy(desc(educationSessions.createdAt));
+  }
+
+  async getEducationSession(id: number): Promise<EducationSession | undefined> {
+    const [session] = await db.select().from(educationSessions).where(eq(educationSessions.id, id));
+    return session;
+  }
+
+  async createEducationSession(session: InsertEducationSession): Promise<EducationSession> {
+    const [created] = await db.insert(educationSessions).values(session).returning();
+    return created;
+  }
+
+  async updateEducationSession(id: number, updates: Partial<InsertEducationSession>): Promise<EducationSession> {
+    const [updated] = await db.update(educationSessions).set(updates).where(eq(educationSessions.id, id)).returning();
+    return updated;
+  }
+
+  async deleteEducationSession(id: number): Promise<void> {
+    await db.delete(educationSignatures).where(eq(educationSignatures.sessionId, id));
+    await db.delete(educationSessions).where(eq(educationSessions.id, id));
+  }
+
+  // === EDUCATION SIGNATURES ===
+  async getSignaturesBySession(sessionId: number): Promise<EducationSignature[]> {
+    return await db.select().from(educationSignatures)
+      .where(eq(educationSignatures.sessionId, sessionId))
+      .orderBy(asc(educationSignatures.signedAt));
+  }
+
+  async createSignature(signature: InsertEducationSignature): Promise<EducationSignature> {
+    const [created] = await db.insert(educationSignatures).values(signature).returning();
+    return created;
+  }
+
+  async deleteSignature(id: number): Promise<void> {
+    await db.delete(educationSignatures).where(eq(educationSignatures.id, id));
   }
 
   // === USERS ===

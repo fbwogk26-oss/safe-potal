@@ -1311,6 +1311,125 @@ export async function registerRoutes(
     }
   });
 
+  // === EDUCATION SESSIONS (교육일지) ===
+  app.get("/api/education-sessions", isAuthenticated, async (req: any, res) => {
+    const department = req.query.department as string | undefined;
+    const sessions = await storage.getEducationSessions(department);
+    res.json(sessions);
+  });
+
+  app.get("/api/education-sessions/:id", isAuthenticated, async (req: any, res) => {
+    const session = await storage.getEducationSession(Number(req.params.id));
+    if (!session) return res.status(404).json({ message: "교육일지를 찾을 수 없습니다" });
+    res.json(session);
+  });
+
+  app.post("/api/education-sessions", requirePermission("registerEducation"), async (req: any, res) => {
+    try {
+      const bodySchema = z.object({
+        title: z.string().min(1),
+        educationDate: z.string().min(1),
+        department: z.string().min(1),
+        educationType: z.string().optional(),
+        instructor: z.string().optional(),
+        totalParticipants: z.number().int().min(1),
+        description: z.string().optional(),
+      });
+      const parsed = bodySchema.parse(req.body);
+      const session = await storage.createEducationSession({
+        ...parsed,
+        createdBy: req.user?.username || req.user?.name || "unknown",
+      });
+      res.status(201).json(session);
+    } catch (error: any) {
+      if (error?.name === "ZodError") return res.status(400).json({ message: "입력값이 올바르지 않습니다" });
+      console.error("Error creating education session:", error);
+      res.status(500).json({ message: "교육일지 생성에 실패했습니다" });
+    }
+  });
+
+  app.patch("/api/education-sessions/:id", requirePermission("registerEducation"), async (req: any, res) => {
+    try {
+      const session = await storage.updateEducationSession(Number(req.params.id), req.body);
+      res.json(session);
+    } catch (error) {
+      console.error("Error updating education session:", error);
+      res.status(500).json({ message: "교육일지 수정에 실패했습니다" });
+    }
+  });
+
+  app.delete("/api/education-sessions/:id", requirePermission("registerEducation"), async (req: any, res) => {
+    await storage.deleteEducationSession(Number(req.params.id));
+    res.status(204).send();
+  });
+
+  // === EDUCATION SIGNATURES ===
+  app.get("/api/education-sessions/:id/signatures", isAuthenticated, async (req: any, res) => {
+    const signatures = await storage.getSignaturesBySession(Number(req.params.id));
+    res.json(signatures);
+  });
+
+  app.post("/api/education-sessions/:id/signatures", isAuthenticated, async (req: any, res) => {
+    try {
+      const sigSchema = z.object({
+        signerName: z.string().min(1),
+        signerDepartment: z.string().optional(),
+        signatureData: z.string().min(1),
+      });
+      const parsed = sigSchema.parse(req.body);
+      const signature = await storage.createSignature({
+        ...parsed,
+        sessionId: Number(req.params.id),
+      });
+      res.status(201).json(signature);
+    } catch (error: any) {
+      if (error?.name === "ZodError") return res.status(400).json({ message: "입력값이 올바르지 않습니다" });
+      console.error("Error creating signature:", error);
+      res.status(500).json({ message: "서명 등록에 실패했습니다" });
+    }
+  });
+
+  app.delete("/api/education-signatures/:id", requirePermission("registerEducation"), async (req: any, res) => {
+    await storage.deleteSignature(Number(req.params.id));
+    res.status(204).send();
+  });
+
+  // === EDUCATION PROGRESS (부서별 진행율) ===
+  app.get("/api/education-progress", isAuthenticated, async (req: any, res) => {
+    try {
+      const sessions = await storage.getEducationSessions();
+      const departments = [...new Set(sessions.map(s => s.department))];
+      
+      const progress = await Promise.all(departments.map(async (dept) => {
+        const deptSessions = sessions.filter(s => s.department === dept);
+        let totalParticipants = 0;
+        let totalSigned = 0;
+        let completedSessions = 0;
+        
+        for (const session of deptSessions) {
+          const signatures = await storage.getSignaturesBySession(session.id);
+          totalParticipants += session.totalParticipants;
+          totalSigned += signatures.length;
+          if (session.status === "완료") completedSessions++;
+        }
+        
+        return {
+          department: dept,
+          totalSessions: deptSessions.length,
+          completedSessions,
+          totalParticipants,
+          totalSigned,
+          progressRate: totalParticipants > 0 ? Math.round((totalSigned / totalParticipants) * 100) : 0,
+        };
+      }));
+      
+      res.json(progress);
+    } catch (error) {
+      console.error("Error fetching education progress:", error);
+      res.status(500).json({ message: "진행율 조회에 실패했습니다" });
+    }
+  });
+
   return httpServer;
 }
 
