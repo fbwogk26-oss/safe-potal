@@ -8,14 +8,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { usePermissions } from "@/hooks/use-permissions";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   GraduationCap, Plus, Trash2, ArrowLeft, Users, Calendar, FileText,
-  PenTool, CheckCircle2, Clock, BarChart3, TrendingUp, Award, X, Search, Eye
+  PenTool, CheckCircle2, Clock, BarChart3, TrendingUp, Award, X, Search, Eye, Download
 } from "lucide-react";
 import type { EducationSession, EducationSignature } from "@shared/schema";
+import { jsPDF } from "jspdf";
+import html2canvas from "html2canvas";
 
 const DEPARTMENTS = [
   "동대구운용팀", "서대구운용팀", "남대구운용팀", "포항운용팀",
@@ -154,6 +157,127 @@ function SignaturePad({ onSave, onCancel }: { onSave: (data: string) => void; on
   );
 }
 
+async function generateAttendancePDF(session: EducationSession, signatures: EducationSignature[]) {
+  const deptGroups: Record<string, EducationSignature[]> = {};
+  for (const sig of signatures) {
+    const dept = sig.signerDepartment || session.department;
+    if (!deptGroups[dept]) deptGroups[dept] = [];
+    deptGroups[dept].push(sig);
+  }
+  if (Object.keys(deptGroups).length === 0) {
+    deptGroups[session.department] = [];
+  }
+
+  const pagesData: Array<{ dept: string; sigs: EducationSignature[] }> = [];
+  for (const dept of Object.keys(deptGroups)) {
+    const sigs = deptGroups[dept];
+    const pagesNeeded = Math.max(1, Math.ceil(sigs.length / 40));
+    for (let p = 0; p < pagesNeeded; p++) {
+      pagesData.push({ dept, sigs: sigs.slice(p * 40, (p + 1) * 40) });
+    }
+  }
+
+  const container = document.createElement("div");
+  container.style.position = "fixed";
+  container.style.left = "-9999px";
+  container.style.top = "0";
+  document.body.appendChild(container);
+
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+
+  for (let pageIdx = 0; pageIdx < pagesData.length; pageIdx++) {
+    const { dept, sigs } = pagesData[pageIdx];
+
+    const pageEl = document.createElement("div");
+    pageEl.style.width = "794px";
+    pageEl.style.height = "1123px";
+    pageEl.style.padding = "40px 50px";
+    pageEl.style.fontFamily = "'Malgun Gothic', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif";
+    pageEl.style.backgroundColor = "#ffffff";
+    pageEl.style.boxSizing = "border-box";
+    pageEl.style.position = "relative";
+
+    const renderRow = (idx: number, sig: EducationSignature | null) => {
+      const deptName = sig ? (sig.signerDepartment || dept) : "";
+      const name = sig ? sig.signerName : "";
+      const sigImg = sig?.signatureData?.startsWith("data:image")
+        ? `<img src="${sig.signatureData}" style="width:100%;height:28px;object-fit:contain;" />`
+        : "";
+      return `<tr style="height:28px;">
+        <td style="border:1px solid #999;text-align:center;width:32px;font-size:11px;color:#666;">${idx}</td>
+        <td style="border:1px solid #999;text-align:center;width:90px;font-size:11px;padding:2px 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${deptName}</td>
+        <td style="border:1px solid #999;text-align:center;width:80px;font-size:12px;font-weight:500;padding:2px 4px;">${name}</td>
+        <td style="border:1px solid #999;text-align:center;width:100px;padding:2px;">${sigImg}</td>
+      </tr>`;
+    };
+
+    let leftRows = "";
+    let rightRows = "";
+    for (let r = 0; r < 20; r++) {
+      const lIdx = r;
+      const rIdx = r + 20;
+      leftRows += renderRow(lIdx + 1, lIdx < sigs.length ? sigs[lIdx] : null);
+      rightRows += renderRow(rIdx + 1, rIdx < sigs.length ? sigs[rIdx] : null);
+    }
+
+    pageEl.innerHTML = `
+      <div style="text-align:right;margin-bottom:8px;">
+        <span style="font-size:18px;font-weight:bold;color:#e30613;letter-spacing:-1px;">kt</span>
+        <span style="font-size:13px;color:#888;margin-left:2px;">MOS</span>
+      </div>
+      <h1 style="text-align:center;font-size:24px;font-weight:bold;margin:20px 0 8px 0;">[교육 참석자 명단]</h1>
+      <p style="text-align:center;font-size:12px;color:#555;margin-bottom:18px;">${session.educationDate} / ${session.title} / ${dept}</p>
+      <div style="display:flex;gap:0;">
+        <table style="border-collapse:collapse;flex:1;" cellpadding="0" cellspacing="0">
+          <thead>
+            <tr style="background:#e8f0fe;">
+              <th style="border:1px solid #999;padding:6px 2px;font-size:11px;font-weight:bold;width:32px;">연번</th>
+              <th style="border:1px solid #999;padding:6px 2px;font-size:11px;font-weight:bold;width:90px;">부서명</th>
+              <th style="border:1px solid #999;padding:6px 2px;font-size:11px;font-weight:bold;width:80px;">성명</th>
+              <th style="border:1px solid #999;padding:6px 2px;font-size:11px;font-weight:bold;width:100px;">서명</th>
+            </tr>
+          </thead>
+          <tbody>${leftRows}</tbody>
+        </table>
+        <table style="border-collapse:collapse;flex:1;" cellpadding="0" cellspacing="0">
+          <thead>
+            <tr style="background:#e8f0fe;">
+              <th style="border:1px solid #999;padding:6px 2px;font-size:11px;font-weight:bold;width:32px;">연번</th>
+              <th style="border:1px solid #999;padding:6px 2px;font-size:11px;font-weight:bold;width:90px;">부서명</th>
+              <th style="border:1px solid #999;padding:6px 2px;font-size:11px;font-weight:bold;width:80px;">성명</th>
+              <th style="border:1px solid #999;padding:6px 2px;font-size:11px;font-weight:bold;width:100px;">서명</th>
+            </tr>
+          </thead>
+          <tbody>${rightRows}</tbody>
+        </table>
+      </div>
+      <div style="position:absolute;bottom:40px;left:50px;right:50px;display:flex;justify-content:space-between;font-size:11px;color:#888;">
+        <span>안전관리팀</span>
+        <span>${pageIdx + 1} / ${pagesData.length}</span>
+      </div>
+    `;
+
+    container.innerHTML = "";
+    container.appendChild(pageEl);
+
+    const canvas = await html2canvas(pageEl, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: "#ffffff",
+      logging: false,
+    });
+
+    const imgData = canvas.toDataURL("image/jpeg", 0.95);
+
+    if (pageIdx > 0) doc.addPage();
+    doc.addImage(imgData, "JPEG", 0, 0, 210, 297);
+  }
+
+  document.body.removeChild(container);
+  const fileName = `교육참석자명단_${session.title}_${session.educationDate}.pdf`;
+  doc.save(fileName);
+}
+
 function ProgressDashboard() {
   const { data: progress, isLoading } = useQuery<ProgressData[]>({
     queryKey: ["/api/education-progress"],
@@ -289,7 +413,7 @@ export default function EducationLogs() {
 
   const [newTitle, setNewTitle] = useState("");
   const [newDate, setNewDate] = useState(new Date().toISOString().split("T")[0]);
-  const [newDept, setNewDept] = useState("");
+  const [selectedDepts, setSelectedDepts] = useState<string[]>([]);
   const [newType, setNewType] = useState("정기교육");
   const [newInstructor, setNewInstructor] = useState("");
   const [newParticipants, setNewParticipants] = useState("");
@@ -297,6 +421,8 @@ export default function EducationLogs() {
 
   const [signerName, setSignerName] = useState("");
   const [signerDept, setSignerDept] = useState("");
+
+  const [pdfLoading, setPdfLoading] = useState(false);
 
   const { data: sessions, isLoading: sessionsLoading } = useQuery<EducationSession[]>({
     queryKey: ["/api/education-sessions"],
@@ -317,6 +443,18 @@ export default function EducationLogs() {
       toast({ title: "교육일지가 생성되었습니다." });
     },
     onError: () => toast({ variant: "destructive", title: "교육일지 생성 실패" }),
+  });
+
+  const batchCreateMutation = useMutation({
+    mutationFn: (data: any) => apiRequest("POST", "/api/education-sessions/batch", data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/education-sessions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/education-progress"] });
+      resetForm();
+      setShowCreateDialog(false);
+      toast({ title: `${selectedDepts.length}개 부서에 교육일지가 일괄 생성되었습니다.` });
+    },
+    onError: () => toast({ variant: "destructive", title: "일괄 교육일지 생성 실패" }),
   });
 
   const deleteMutation = useMutation({
@@ -356,24 +494,54 @@ export default function EducationLogs() {
   const resetForm = () => {
     setNewTitle("");
     setNewDate(new Date().toISOString().split("T")[0]);
-    setNewDept("");
+    setSelectedDepts([]);
     setNewType("정기교육");
     setNewInstructor("");
     setNewParticipants("");
     setNewDescription("");
   };
 
+  const toggleDept = (dept: string) => {
+    setSelectedDepts(prev =>
+      prev.includes(dept) ? prev.filter(d => d !== dept) : [...prev, dept]
+    );
+  };
+
+  const toggleAllDepts = () => {
+    if (selectedDepts.length === DEPARTMENTS.length) {
+      setSelectedDepts([]);
+    } else {
+      setSelectedDepts([...DEPARTMENTS]);
+    }
+  };
+
   const handleCreate = () => {
-    if (!newTitle || !newDept || !newParticipants) return;
-    createMutation.mutate({
-      title: newTitle,
-      educationDate: newDate,
-      department: newDept,
-      educationType: newType,
-      instructor: newInstructor || undefined,
-      totalParticipants: Number(newParticipants),
-      description: newDescription || undefined,
-    });
+    if (!newTitle || selectedDepts.length === 0 || !newParticipants) {
+      toast({ variant: "destructive", title: "교육 제목, 부서, 인원수를 모두 입력해주세요." });
+      return;
+    }
+
+    if (selectedDepts.length === 1) {
+      createMutation.mutate({
+        title: newTitle,
+        educationDate: newDate,
+        department: selectedDepts[0],
+        educationType: newType,
+        instructor: newInstructor || undefined,
+        totalParticipants: Number(newParticipants),
+        description: newDescription || undefined,
+      });
+    } else {
+      batchCreateMutation.mutate({
+        title: newTitle,
+        educationDate: newDate,
+        departments: selectedDepts,
+        educationType: newType,
+        instructor: newInstructor || undefined,
+        totalParticipants: Number(newParticipants),
+        description: newDescription || undefined,
+      });
+    }
   };
 
   const handleSign = (signatureData: string) => {
@@ -384,6 +552,20 @@ export default function EducationLogs() {
       signerDepartment: signerDept || selectedSession.department,
       signatureData,
     });
+  };
+
+  const handleDownloadPDF = async () => {
+    if (!selectedSession) return;
+    setPdfLoading(true);
+    try {
+      await generateAttendancePDF(selectedSession, signatures || []);
+      toast({ title: "PDF가 다운로드되었습니다." });
+    } catch (e) {
+      console.error("PDF generation error:", e);
+      toast({ variant: "destructive", title: "PDF 생성에 실패했습니다." });
+    } finally {
+      setPdfLoading(false);
+    }
   };
 
   const filteredSessions = useMemo(() => {
@@ -427,6 +609,17 @@ export default function EducationLogs() {
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDownloadPDF}
+              disabled={pdfLoading}
+              className="gap-1.5"
+              data-testid="button-download-pdf"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">PDF</span>
+            </Button>
             {canRegisterEducation && selectedSession.status === "진행중" && (
               <Button
                 variant="outline"
@@ -860,22 +1053,46 @@ export default function EducationLogs() {
                 </Select>
               </div>
             </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-medium text-muted-foreground">부서 선택 * (복수 선택 가능)</label>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={toggleAllDepts}
+                  className="text-xs h-6 px-2"
+                  data-testid="button-toggle-all-depts"
+                >
+                  {selectedDepts.length === DEPARTMENTS.length ? "전체 해제" : "전체 선택"}
+                </Button>
+              </div>
+              <div className="border rounded-lg p-3 space-y-2 bg-muted/10">
+                {DEPARTMENTS.map(dept => (
+                  <label
+                    key={dept}
+                    className="flex items-center gap-2.5 cursor-pointer hover:bg-muted/30 rounded-md px-2 py-1.5 transition-colors"
+                    data-testid={`checkbox-dept-${dept}`}
+                  >
+                    <Checkbox
+                      checked={selectedDepts.includes(dept)}
+                      onCheckedChange={() => toggleDept(dept)}
+                    />
+                    <span className="text-sm">{dept}</span>
+                  </label>
+                ))}
+              </div>
+              {selectedDepts.length > 0 && (
+                <p className="text-xs text-muted-foreground mt-1.5">
+                  {selectedDepts.length}개 부서 선택됨
+                  {selectedDepts.length > 1 && " - 각 부서별로 교육일지가 생성됩니다"}
+                </p>
+              )}
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">부서 *</label>
-                <Select value={newDept} onValueChange={setNewDept}>
-                  <SelectTrigger data-testid="select-session-dept">
-                    <SelectValue placeholder="부서 선택" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {DEPARTMENTS.map(d => (
-                      <SelectItem key={d} value={d}>{d}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">교육인원 *</label>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">부서별 교육인원 *</label>
                 <Input
                   type="number"
                   placeholder="인원수"
@@ -885,15 +1102,15 @@ export default function EducationLogs() {
                   data-testid="input-session-participants"
                 />
               </div>
-            </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">교육자</label>
-              <Input
-                placeholder="교육 진행자 이름"
-                value={newInstructor}
-                onChange={e => setNewInstructor(e.target.value)}
-                data-testid="input-session-instructor"
-              />
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">교육자</label>
+                <Input
+                  placeholder="교육 진행자 이름"
+                  value={newInstructor}
+                  onChange={e => setNewInstructor(e.target.value)}
+                  data-testid="input-session-instructor"
+                />
+              </div>
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">교육 내용</label>
@@ -911,11 +1128,12 @@ export default function EducationLogs() {
               </Button>
               <Button
                 onClick={handleCreate}
-                disabled={createMutation.isPending || !newTitle || !newDept || !newParticipants}
+                disabled={createMutation.isPending || batchCreateMutation.isPending || !newTitle || selectedDepts.length === 0 || !newParticipants}
                 className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white gap-2"
                 data-testid="button-submit-session"
               >
-                <Plus className="w-4 h-4" /> 교육 등록
+                <Plus className="w-4 h-4" />
+                {selectedDepts.length > 1 ? `${selectedDepts.length}개 부서 일괄 등록` : "교육 등록"}
               </Button>
             </div>
           </div>

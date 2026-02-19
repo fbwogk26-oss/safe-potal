@@ -1348,6 +1348,41 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/education-sessions/batch", requirePermission("registerEducation"), async (req: any, res) => {
+    try {
+      const batchSchema = z.object({
+        title: z.string().min(1),
+        educationDate: z.string().min(1),
+        departments: z.array(z.string().min(1)).min(1),
+        educationType: z.string().optional(),
+        instructor: z.string().optional(),
+        totalParticipants: z.number().int().min(1),
+        description: z.string().optional(),
+      });
+      const parsed = batchSchema.parse(req.body);
+      const createdBy = req.user?.username || req.user?.name || "unknown";
+      const results = [];
+      for (const dept of parsed.departments) {
+        const session = await storage.createEducationSession({
+          title: parsed.title,
+          educationDate: parsed.educationDate,
+          department: dept,
+          educationType: parsed.educationType,
+          instructor: parsed.instructor,
+          totalParticipants: parsed.totalParticipants,
+          description: parsed.description,
+          createdBy,
+        });
+        results.push(session);
+      }
+      res.status(201).json(results);
+    } catch (error: any) {
+      if (error?.name === "ZodError") return res.status(400).json({ message: "입력값이 올바르지 않습니다" });
+      console.error("Error batch creating education sessions:", error);
+      res.status(500).json({ message: "일괄 교육일지 생성에 실패했습니다" });
+    }
+  });
+
   app.patch("/api/education-sessions/:id", requirePermission("registerEducation"), async (req: any, res) => {
     try {
       const session = await storage.updateEducationSession(Number(req.params.id), req.body);
