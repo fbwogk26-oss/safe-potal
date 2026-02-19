@@ -20,6 +20,7 @@ export interface UserPermissions {
   registerRules: boolean;
   registerNotices: boolean;
   registerEducation: boolean;
+  editEducationLogs: boolean;
   editInspections: boolean;
   manageEquipmentRequests: boolean;
   addEquipmentMaterials: boolean;
@@ -35,6 +36,7 @@ export const DEFAULT_PERMISSIONS: UserPermissions = {
   registerRules: false,
   registerNotices: false,
   registerEducation: false,
+  editEducationLogs: false,
   editInspections: false,
   manageEquipmentRequests: false,
   addEquipmentMaterials: false,
@@ -50,6 +52,7 @@ export const ALL_PERMISSIONS: UserPermissions = {
   registerRules: true,
   registerNotices: true,
   registerEducation: true,
+  editEducationLogs: true,
   editInspections: true,
   manageEquipmentRequests: true,
   addEquipmentMaterials: true,

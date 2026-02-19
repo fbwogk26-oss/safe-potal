@@ -1603,7 +1603,26 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/education-sessions/:id", requirePermission("registerEducation"), async (req: any, res) => {
+  const requireAnyPermission = (...permKeys: (keyof UserPermissions)[]): any => {
+    return async (req: any, res: any, next: any) => {
+      try {
+        const session = req.session as any;
+        if (!session.userId) return res.status(401).json({ message: "로그인이 필요합니다" });
+        const user = await authStorage.getUser(session.userId);
+        if (!user) return res.status(403).json({ message: "편집 권한이 필요합니다" });
+        if (user.role === "admin") { req.user = user; return next(); }
+        const perms = user.permissions || {};
+        const hasAny = permKeys.some(k => (perms as any)[k]);
+        if (!hasAny) return res.status(403).json({ message: "해당 기능에 대한 권한이 없습니다" });
+        req.user = user;
+        next();
+      } catch (error) {
+        res.status(500).json({ message: "권한 확인에 실패했습니다" });
+      }
+    };
+  };
+
+  app.patch("/api/education-sessions/:id", requireAnyPermission("registerEducation", "editEducationLogs"), async (req: any, res) => {
     try {
       const session = await storage.updateEducationSession(Number(req.params.id), req.body);
       res.json(session);
@@ -1649,35 +1668,59 @@ export async function registerRoutes(
     res.status(204).send();
   });
 
-  // === EDUCATION PROGRESS (부서별 진행율) ===
+  // === EDUCATION PROGRESS (교육별 진행율) ===
   app.get("/api/education-progress", isAuthenticated, async (req: any, res) => {
     try {
       const sessions = await storage.getEducationSessions();
-      const departments = [...new Set(sessions.map(s => s.department))];
-      
-      const progress = await Promise.all(departments.map(async (dept) => {
-        const deptSessions = sessions.filter(s => s.department === dept);
-        let totalParticipants = 0;
-        let totalSigned = 0;
-        let completedSessions = 0;
-        
-        for (const session of deptSessions) {
-          const signatures = await storage.getSignaturesBySession(session.id);
-          totalParticipants += session.totalParticipants;
-          totalSigned += signatures.length;
-          if (session.status === "완료") completedSessions++;
-        }
-        
-        return {
-          department: dept,
-          totalSessions: deptSessions.length,
-          completedSessions,
-          totalParticipants,
-          totalSigned,
-          progressRate: totalParticipants > 0 ? Math.round((totalSigned / totalParticipants) * 100) : 0,
-        };
-      }));
-      
+      const educationGroups = new Map<string, typeof sessions>();
+      for (const s of sessions) {
+        const key = `${s.title}||${s.educationDate}`;
+        if (!educationGroups.has(key)) educationGroups.set(key, []);
+        educationGroups.get(key)!.push(s);
+      }
+
+      const progress = await Promise.all(
+        Array.from(educationGroups.entries()).map(async ([key, groupSessions]) => {
+          const [title, educationDate] = key.split("||");
+          let totalParticipants = 0;
+          let totalSigned = 0;
+          let completedSessions = 0;
+
+          const departments = await Promise.all(
+            groupSessions.map(async (session) => {
+              const signatures = await storage.getSignaturesBySession(session.id);
+              totalParticipants += session.totalParticipants;
+              totalSigned += signatures.length;
+              if (session.status === "완료") completedSessions++;
+              const rate = session.totalParticipants > 0
+                ? Math.round((signatures.length / session.totalParticipants) * 100) : 0;
+              return {
+                department: session.department,
+                sessionId: session.id,
+                status: session.status,
+                totalParticipants: session.totalParticipants,
+                signed: signatures.length,
+                progressRate: rate,
+                educationType: session.educationType,
+              };
+            })
+          );
+
+          return {
+            title,
+            educationDate,
+            educationType: groupSessions[0].educationType,
+            totalDepartments: groupSessions.length,
+            completedSessions,
+            totalParticipants,
+            totalSigned,
+            progressRate: totalParticipants > 0 ? Math.round((totalSigned / totalParticipants) * 100) : 0,
+            departments,
+          };
+        })
+      );
+
+      progress.sort((a, b) => b.educationDate.localeCompare(a.educationDate));
       res.json(progress);
     } catch (error) {
       console.error("Error fetching education progress:", error);

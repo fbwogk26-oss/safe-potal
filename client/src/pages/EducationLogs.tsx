@@ -27,13 +27,26 @@ const DEPARTMENTS = [
 
 const EDUCATION_TYPES = ["정기교육", "신규교육", "특별교육", "안전교육", "직무교육"];
 
-interface ProgressData {
+interface DeptProgress {
   department: string;
-  totalSessions: number;
+  sessionId: number;
+  status: string;
+  totalParticipants: number;
+  signed: number;
+  progressRate: number;
+  educationType: string;
+}
+
+interface ProgressData {
+  title: string;
+  educationDate: string;
+  educationType: string;
+  totalDepartments: number;
   completedSessions: number;
   totalParticipants: number;
   totalSigned: number;
   progressRate: number;
+  departments: DeptProgress[];
 }
 
 function SignaturePad({ onSave, onCancel }: { onSave: (data: string) => void; onCancel: () => void }) {
@@ -162,14 +175,15 @@ function ProgressDashboard() {
   const { data: progress, isLoading } = useQuery<ProgressData[]>({
     queryKey: ["/api/education-progress"],
   });
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {[1, 2, 3, 4, 5, 6].map(i => (
+      <div className="space-y-3">
+        {[1, 2, 3].map(i => (
           <Card key={i}>
             <CardContent className="p-4">
-              <div className="h-32 bg-muted/30 animate-pulse rounded-lg" />
+              <div className="h-16 bg-muted/30 animate-pulse rounded-lg" />
             </CardContent>
           </Card>
         ))}
@@ -177,11 +191,15 @@ function ProgressDashboard() {
     );
   }
 
-  const totalSessions = progress?.reduce((a, b) => a + b.totalSessions, 0) || 0;
-  const completedSessions = progress?.reduce((a, b) => a + b.completedSessions, 0) || 0;
+  const totalEducations = progress?.length || 0;
   const totalParticipants = progress?.reduce((a, b) => a + b.totalParticipants, 0) || 0;
   const totalSigned = progress?.reduce((a, b) => a + b.totalSigned, 0) || 0;
   const overallRate = totalParticipants > 0 ? Math.round((totalSigned / totalParticipants) * 100) : 0;
+  const completedAll = progress?.filter(p => p.progressRate === 100).length || 0;
+
+  const toggleExpand = (key: string) => {
+    setExpandedKey(prev => prev === key ? null : key);
+  };
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -190,28 +208,28 @@ function ProgressDashboard() {
           <CardContent className="p-3 sm:p-4 text-center">
             <FileText className="w-5 h-5 mx-auto mb-1 text-blue-500" />
             <p className="text-[11px] text-muted-foreground">총 교육</p>
-            <p className="text-xl font-bold text-blue-600">{totalSessions}건</p>
+            <p className="text-xl font-bold text-blue-600" data-testid="text-total-educations">{totalEducations}건</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-3 sm:p-4 text-center">
             <CheckCircle2 className="w-5 h-5 mx-auto mb-1 text-emerald-500" />
             <p className="text-[11px] text-muted-foreground">완료</p>
-            <p className="text-xl font-bold text-emerald-600">{completedSessions}건</p>
+            <p className="text-xl font-bold text-emerald-600" data-testid="text-completed-educations">{completedAll}건</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-3 sm:p-4 text-center">
             <Users className="w-5 h-5 mx-auto mb-1 text-purple-500" />
             <p className="text-[11px] text-muted-foreground">서명 현황</p>
-            <p className="text-xl font-bold text-purple-600">{totalSigned}/{totalParticipants}</p>
+            <p className="text-xl font-bold text-purple-600" data-testid="text-sign-status">{totalSigned}/{totalParticipants}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-3 sm:p-4 text-center">
             <TrendingUp className="w-5 h-5 mx-auto mb-1 text-amber-500" />
             <p className="text-[11px] text-muted-foreground">전체 진행율</p>
-            <p className="text-xl font-bold text-amber-600">{overallRate}%</p>
+            <p className="text-xl font-bold text-amber-600" data-testid="text-overall-rate">{overallRate}%</p>
           </CardContent>
         </Card>
       </div>
@@ -220,59 +238,116 @@ function ProgressDashboard() {
         <CardHeader className="bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-indigo-900/20 dark:to-blue-900/20 border-b p-3 sm:p-4">
           <CardTitle className="text-sm sm:text-base flex items-center gap-2">
             <BarChart3 className="w-4 h-4 text-indigo-600" />
-            부서별 교육 진행율
+            교육별 진행율
           </CardTitle>
         </CardHeader>
-        <CardContent className="p-4 space-y-4">
+        <CardContent className="p-3 sm:p-4 space-y-2">
           {(!progress || progress.length === 0) ? (
             <div className="py-8 text-center text-muted-foreground">
               <BarChart3 className="w-10 h-10 mx-auto mb-3 opacity-30" />
               <p className="text-sm">아직 등록된 교육이 없습니다.</p>
             </div>
           ) : (
-            progress.map((dept, idx) => (
-              <motion.div
-                key={dept.department}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: idx * 0.05 }}
-                className="space-y-1.5"
-                data-testid={`progress-dept-${dept.department}`}
-              >
-                <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="font-medium truncate">{dept.department}</span>
-                    <Badge variant="secondary" className="text-[10px] shrink-0">
-                      {dept.completedSessions}/{dept.totalSessions}건
-                    </Badge>
+            progress.map((edu, idx) => {
+              const key = `${edu.title}||${edu.educationDate}`;
+              const isExpanded = expandedKey === key;
+              return (
+                <motion.div
+                  key={key}
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: idx * 0.03 }}
+                  data-testid={`progress-edu-${idx}`}
+                >
+                  <div
+                    className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover-elevate transition-colors"
+                    onClick={() => toggleExpand(key)}
+                    data-testid={`button-expand-edu-${idx}`}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-medium truncate">{edu.title}</span>
+                        <Badge variant="secondary" className="text-[10px] shrink-0">{edu.educationType}</Badge>
+                      </div>
+                      <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
+                        <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{edu.educationDate}</span>
+                        <span>{edu.totalDepartments}개 부서</span>
+                        <span className="flex items-center gap-1"><Users className="w-3 h-3" />{edu.totalSigned}/{edu.totalParticipants}명</span>
+                      </div>
+                      <div className="w-full bg-muted/50 rounded-full h-2 overflow-hidden mt-2">
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${edu.progressRate}%` }}
+                          transition={{ duration: 0.8, delay: idx * 0.05 }}
+                          className={`h-full rounded-full ${
+                            edu.progressRate >= 80 ? "bg-gradient-to-r from-emerald-400 to-emerald-600" :
+                            edu.progressRate >= 50 ? "bg-gradient-to-r from-amber-400 to-amber-600" :
+                            "bg-gradient-to-r from-red-400 to-red-500"
+                          }`}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className={`text-sm font-bold ${
+                        edu.progressRate >= 80 ? "text-emerald-600" :
+                        edu.progressRate >= 50 ? "text-amber-600" :
+                        "text-red-500"
+                      }`}>
+                        {edu.progressRate}%
+                      </span>
+                      {isExpanded ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-xs text-muted-foreground">
-                      {dept.totalSigned}/{dept.totalParticipants}명
-                    </span>
-                    <span className={`text-sm font-bold ${
-                      dept.progressRate >= 80 ? "text-emerald-600" :
-                      dept.progressRate >= 50 ? "text-amber-600" :
-                      "text-red-500"
-                    }`}>
-                      {dept.progressRate}%
-                    </span>
-                  </div>
-                </div>
-                <div className="w-full bg-muted/50 rounded-full h-2.5 overflow-hidden">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${dept.progressRate}%` }}
-                    transition={{ duration: 0.8, delay: idx * 0.1 }}
-                    className={`h-full rounded-full ${
-                      dept.progressRate >= 80 ? "bg-gradient-to-r from-emerald-400 to-emerald-600" :
-                      dept.progressRate >= 50 ? "bg-gradient-to-r from-amber-400 to-amber-600" :
-                      "bg-gradient-to-r from-red-400 to-red-500"
-                    }`}
-                  />
-                </div>
-              </motion.div>
-            ))
+                  <AnimatePresence>
+                    {isExpanded && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="ml-3 pl-3 border-l-2 border-indigo-200 dark:border-indigo-800 space-y-2 py-2">
+                          {edu.departments.map((dept) => (
+                            <div key={dept.department} className="flex items-center justify-between text-sm p-2 rounded-md bg-muted/30" data-testid={`progress-dept-${dept.department}`}>
+                              <div className="flex items-center gap-2 min-w-0 flex-1">
+                                <span className="truncate text-sm">{dept.department}</span>
+                                <Badge
+                                  variant={dept.status === "완료" ? "default" : "outline"}
+                                  className={`text-[10px] shrink-0 ${dept.status === "완료" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : ""}`}
+                                >
+                                  {dept.status}
+                                </Badge>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <span className="text-xs text-muted-foreground">{dept.signed}/{dept.totalParticipants}명</span>
+                                <div className="w-16 bg-muted/50 rounded-full h-1.5 overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full ${
+                                      dept.progressRate >= 80 ? "bg-emerald-500" :
+                                      dept.progressRate >= 50 ? "bg-amber-500" :
+                                      "bg-red-500"
+                                    }`}
+                                    style={{ width: `${dept.progressRate}%` }}
+                                  />
+                                </div>
+                                <span className={`text-xs font-bold w-10 text-right ${
+                                  dept.progressRate >= 80 ? "text-emerald-600" :
+                                  dept.progressRate >= 50 ? "text-amber-600" :
+                                  "text-red-500"
+                                }`}>
+                                  {dept.progressRate}%
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              );
+            })
           )}
         </CardContent>
       </Card>
@@ -281,7 +356,8 @@ function ProgressDashboard() {
 }
 
 export default function EducationLogs() {
-  const { canRegisterEducation } = usePermissions();
+  const { canRegisterEducation, canEditEducationLogs } = usePermissions();
+  const canEditLogs = canRegisterEducation || canEditEducationLogs;
   const { toast } = useToast();
 
   const [activeTab, setActiveTab] = useState<"dashboard" | "sessions">("dashboard");
@@ -790,7 +866,7 @@ export default function EducationLogs() {
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            {canRegisterEducation && selectedSession.status === "진행중" && (
+            {canEditLogs && selectedSession.status === "진행중" && (
               <Button
                 variant="outline"
                 size="sm"
@@ -802,7 +878,7 @@ export default function EducationLogs() {
                 <span className="hidden sm:inline">완료</span>
               </Button>
             )}
-            {canRegisterEducation && selectedSession.status === "완료" && (
+            {canEditLogs && selectedSession.status === "완료" && (
               <Button
                 variant="outline"
                 size="sm"
@@ -814,7 +890,7 @@ export default function EducationLogs() {
                 <span className="hidden sm:inline">재개</span>
               </Button>
             )}
-            {canRegisterEducation && (
+            {canEditLogs && (
               <Button variant="outline" size="sm" onClick={() => handleStartEdit(selectedSession)} className="gap-1.5" data-testid="button-edit-detail">
                 <Pencil className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">수정</span>
@@ -857,7 +933,7 @@ export default function EducationLogs() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between gap-2 mb-2">
               <p className="text-xs text-muted-foreground">교육 내용</p>
-              {canRegisterEducation && !isEditingDescription && (
+              {canEditLogs && !isEditingDescription && (
                 <Button variant="ghost" size="sm" className="h-6 text-xs gap-1" onClick={() => {
                   setInlineDescription(selectedSession.description || "");
                   setIsEditingDescription(true);
@@ -902,7 +978,7 @@ export default function EducationLogs() {
                 <Camera className="w-3.5 h-3.5" />
                 교육 사진 ({(selectedSession.images || []).length}장)
               </p>
-              {canRegisterEducation && (
+              {canEditLogs && (
                 <>
                   <input
                     ref={photoInputRef}
@@ -935,7 +1011,7 @@ export default function EducationLogs() {
                       onClick={() => setShowPhotoPreview(img)}
                       data-testid={`img-education-photo-${idx}`}
                     />
-                    {canRegisterEducation && (
+                    {canEditLogs && (
                       <Button variant="destructive" size="icon" className="absolute top-1.5 right-1.5 h-6 w-6 invisible group-hover:visible"
                         onClick={() => handleRemovePhoto(idx)}
                         data-testid={`button-remove-photo-${idx}`}
@@ -950,7 +1026,7 @@ export default function EducationLogs() {
               <div className="border-2 border-dashed border-muted rounded-lg p-6 text-center text-muted-foreground">
                 <Camera className="w-8 h-8 mx-auto mb-2 opacity-30" />
                 <p className="text-xs">교육 사진을 등록해주세요</p>
-                {canRegisterEducation && (
+                {canEditLogs && (
                   <Button variant="outline" size="sm" className="mt-2 gap-1.5 text-xs"
                     onClick={() => photoInputRef.current?.click()}
                     disabled={uploadingPhotos}
@@ -1255,16 +1331,18 @@ export default function EducationLogs() {
                                 </div>
                               </div>
                               <div className="flex items-center gap-1 shrink-0">
+                                {canEditLogs && (
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground"
+                                    onClick={(e) => { e.stopPropagation(); handleStartEdit(session); }}
+                                    data-testid={`button-edit-session-${session.id}`}
+                                  ><Pencil className="w-4 h-4" /></Button>
+                                )}
                                 {canRegisterEducation && (
                                   <>
                                     <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground"
                                       onClick={(e) => { e.stopPropagation(); handleCopy(session); }}
                                       data-testid={`button-copy-session-${session.id}`}
                                     ><Copy className="w-4 h-4" /></Button>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground"
-                                      onClick={(e) => { e.stopPropagation(); handleStartEdit(session); }}
-                                      data-testid={`button-edit-session-${session.id}`}
-                                    ><Pencil className="w-4 h-4" /></Button>
                                     <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground"
                                       onClick={(e) => { e.stopPropagation(); if (confirm("이 교육일지를 삭제하시겠습니까?")) deleteMutation.mutate(session.id); }}
                                       data-testid={`button-delete-session-${session.id}`}
@@ -1308,16 +1386,18 @@ export default function EducationLogs() {
                                 data-testid={`button-group-excel-${group.key}`}
                                 title="엑셀 다운로드"
                               ><Download className="w-4 h-4" /></Button>
+                              {canEditLogs && (
+                                <Button variant="ghost" size="icon"
+                                  onClick={(e) => { e.stopPropagation(); handleGroupEdit(group); }}
+                                  data-testid={`button-group-edit-${group.key}`}
+                                ><Pencil className="w-4 h-4" /></Button>
+                              )}
                               {canRegisterEducation && (
                                 <>
                                   <Button variant="ghost" size="icon"
                                     onClick={(e) => { e.stopPropagation(); handleGroupCopy(group); }}
                                     data-testid={`button-group-copy-${group.key}`}
                                   ><Copy className="w-4 h-4" /></Button>
-                                  <Button variant="ghost" size="icon"
-                                    onClick={(e) => { e.stopPropagation(); handleGroupEdit(group); }}
-                                    data-testid={`button-group-edit-${group.key}`}
-                                  ><Pencil className="w-4 h-4" /></Button>
                                   <Button variant="ghost" size="icon"
                                     onClick={(e) => { e.stopPropagation(); handleGroupDelete(group); }}
                                     data-testid={`button-group-delete-${group.key}`}

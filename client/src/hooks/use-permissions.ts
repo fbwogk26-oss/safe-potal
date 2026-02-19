@@ -12,6 +12,7 @@ export interface Permissions {
   canRegisterRules: boolean;
   canRegisterNotices: boolean;
   canRegisterEducation: boolean;
+  canEditEducationLogs: boolean;
   canEditInspections: boolean;
   canManageEquipmentRequests: boolean;
   canAddEquipmentMaterials: boolean;
@@ -50,6 +51,7 @@ export function usePermissions(): Permissions & { isLoading: boolean } {
     canRegisterRules: isAdmin || !!perms?.registerRules,
     canRegisterNotices: isAdmin || !!perms?.registerNotices,
     canRegisterEducation: isAdmin || !!perms?.registerEducation,
+    canEditEducationLogs: isAdmin || !!perms?.editEducationLogs,
     canEditInspections: isAdmin || !!perms?.editInspections,
     canManageEquipmentRequests: isAdmin || !!perms?.manageEquipmentRequests,
     canAddEquipmentMaterials: isAdmin || !!perms?.addEquipmentMaterials,
@@ -66,6 +68,7 @@ export const PERMISSION_LABELS: Record<keyof UserPermissions, string> = {
   registerRules: "안전수칙 등록",
   registerNotices: "공지/알림 등록",
   registerEducation: "안전교육 등록",
+  editEducationLogs: "교육일지 수정",
   editInspections: "안전점검 편집",
   manageEquipmentRequests: "안전용품신청 관리",
   addEquipmentMaterials: "안전용품 추가",

@@ -5,8 +5,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { ClipboardCheck, Plus, Trash2, ImagePlus, X, Calendar, MapPin, User, ChevronDown, ChevronUp, Download, Check, AlertCircle } from "lucide-react";
-import { useState, useRef } from "react";
+import { Badge } from "@/components/ui/badge";
+import { ClipboardCheck, Plus, Trash2, ImagePlus, X, Calendar, MapPin, User, ChevronDown, ChevronUp, Download, Check, AlertCircle, BarChart3 } from "lucide-react";
+import { useState, useRef, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
@@ -413,6 +414,42 @@ export default function SafetyInspections() {
   const poorCount = checklist.filter(c => c.status === '미흡').length;
   const totalCount = checklist.length;
 
+  const inspectionStats = useMemo(() => {
+    if (!inspections || inspections.length === 0 || !teams) return null;
+    const allDepts = teams.map(t => t.name);
+    const deptMap = new Map<string, { count: number; goodTotal: number; poorTotal: number; checkTotal: number }>();
+    for (const dept of allDepts) {
+      deptMap.set(dept, { count: 0, goodTotal: 0, poorTotal: 0, checkTotal: 0 });
+    }
+    for (const insp of inspections) {
+      const matchedDept = allDepts.find(d => insp.title.startsWith(d));
+      const entry = matchedDept ? deptMap.get(matchedDept) : null;
+      if (entry) {
+        entry.count++;
+        const cl = normalizeChecklist(insp.checklist);
+        entry.goodTotal += cl.filter(c => c.status === "양호").length;
+        entry.poorTotal += cl.filter(c => c.status === "미흡").length;
+        entry.checkTotal += cl.length;
+      }
+    }
+    const result = Array.from(deptMap.entries()).map(([dept, stats]) => ({
+      department: dept,
+      ...stats,
+      rate: stats.checkTotal > 0 ? Math.round((stats.goodTotal / stats.checkTotal) * 100) : 0,
+    }));
+    result.sort((a, b) => b.count - a.count);
+    return {
+      total: inspections.length,
+      departments: result,
+      overallGood: result.reduce((s, d) => s + d.goodTotal, 0),
+      overallPoor: result.reduce((s, d) => s + d.poorTotal, 0),
+      overallCheck: result.reduce((s, d) => s + d.checkTotal, 0),
+      deptWithInspections: result.filter(d => d.count > 0).length,
+    };
+  }, [inspections, teams]);
+
+  const [showInspDashboard, setShowInspDashboard] = useState(true);
+
   return (
     <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6 md:space-y-8">
       <div className="flex items-center justify-between gap-2 sm:gap-3">
@@ -450,6 +487,83 @@ export default function SafetyInspections() {
           )}
         </div>
       </div>
+
+      {inspectionStats && (
+        <Card>
+          <CardHeader
+            className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-b p-3 sm:p-4 cursor-pointer"
+            onClick={() => setShowInspDashboard(!showInspDashboard)}
+            data-testid="button-toggle-dashboard"
+          >
+            <CardTitle className="text-sm sm:text-base flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <BarChart3 className="w-4 h-4 text-green-600" />
+                점검 진행 현황
+              </div>
+              {showInspDashboard ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+            </CardTitle>
+          </CardHeader>
+          <AnimatePresence>
+            {showInspDashboard && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="overflow-hidden"
+              >
+                <CardContent className="p-3 sm:p-4 space-y-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="text-center p-2 rounded-lg bg-muted/30">
+                      <p className="text-[11px] text-muted-foreground">총 점검</p>
+                      <p className="text-lg font-bold text-green-600" data-testid="text-total-inspections">{inspectionStats.total}건</p>
+                    </div>
+                    <div className="text-center p-2 rounded-lg bg-muted/30">
+                      <p className="text-[11px] text-muted-foreground">점검 부서</p>
+                      <p className="text-lg font-bold text-blue-600" data-testid="text-dept-count">{inspectionStats.deptWithInspections}/{inspectionStats.departments.length}</p>
+                    </div>
+                    <div className="text-center p-2 rounded-lg bg-muted/30">
+                      <p className="text-[11px] text-muted-foreground">양호 항목</p>
+                      <p className="text-lg font-bold text-emerald-600" data-testid="text-good-count">{inspectionStats.overallGood}</p>
+                    </div>
+                    <div className="text-center p-2 rounded-lg bg-muted/30">
+                      <p className="text-[11px] text-muted-foreground">미흡 항목</p>
+                      <p className="text-lg font-bold text-red-500" data-testid="text-poor-count">{inspectionStats.overallPoor}</p>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    {inspectionStats.departments.map((dept) => (
+                      <div key={dept.department} className="flex items-center gap-3 text-sm" data-testid={`inspection-dept-${dept.department}`}>
+                        <span className="truncate min-w-0 flex-1 text-sm">{dept.department}</span>
+                        <Badge variant="secondary" className="text-[10px] shrink-0">{dept.count}건</Badge>
+                        <div className="w-20 bg-muted/50 rounded-full h-2 overflow-hidden shrink-0">
+                          <div
+                            className={`h-full rounded-full ${
+                              dept.rate >= 80 ? "bg-emerald-500" :
+                              dept.rate >= 50 ? "bg-amber-500" :
+                              dept.count === 0 ? "bg-gray-300 dark:bg-gray-600" :
+                              "bg-red-500"
+                            }`}
+                            style={{ width: `${dept.count === 0 ? 0 : dept.rate}%` }}
+                          />
+                        </div>
+                        <span className={`text-xs font-bold w-10 text-right shrink-0 ${
+                          dept.count === 0 ? "text-muted-foreground" :
+                          dept.rate >= 80 ? "text-emerald-600" :
+                          dept.rate >= 50 ? "text-amber-600" :
+                          "text-red-500"
+                        }`}>
+                          {dept.count === 0 ? "-" : `${dept.rate}%`}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </Card>
+      )}
 
       <AnimatePresence>
         {showForm && (
