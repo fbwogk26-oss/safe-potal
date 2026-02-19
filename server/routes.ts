@@ -1353,10 +1353,12 @@ export async function registerRoutes(
       const batchSchema = z.object({
         title: z.string().min(1),
         educationDate: z.string().min(1),
-        departments: z.array(z.string().min(1)).min(1),
+        departments: z.array(z.object({
+          name: z.string().min(1),
+          participants: z.number().int().min(1),
+        })).min(1),
         educationType: z.string().optional(),
         instructor: z.string().optional(),
-        totalParticipants: z.number().int().min(1),
         description: z.string().optional(),
       });
       const parsed = batchSchema.parse(req.body);
@@ -1366,10 +1368,10 @@ export async function registerRoutes(
         const session = await storage.createEducationSession({
           title: parsed.title,
           educationDate: parsed.educationDate,
-          department: dept,
+          department: dept.name,
           educationType: parsed.educationType,
           instructor: parsed.instructor,
-          totalParticipants: parsed.totalParticipants,
+          totalParticipants: dept.participants,
           description: parsed.description,
           createdBy,
         });

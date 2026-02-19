@@ -14,7 +14,8 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   GraduationCap, Plus, Trash2, ArrowLeft, Users, Calendar, FileText,
-  PenTool, CheckCircle2, Clock, BarChart3, TrendingUp, Award, X, Search, Eye, Download
+  PenTool, CheckCircle2, Clock, BarChart3, TrendingUp, Award, X, Search, Eye, Download,
+  ChevronDown, ChevronRight
 } from "lucide-react";
 import type { EducationSession, EducationSignature } from "@shared/schema";
 import { jsPDF } from "jspdf";
@@ -414,6 +415,7 @@ export default function EducationLogs() {
   const [newTitle, setNewTitle] = useState("");
   const [newDate, setNewDate] = useState(new Date().toISOString().split("T")[0]);
   const [selectedDepts, setSelectedDepts] = useState<string[]>([]);
+  const [deptParticipants, setDeptParticipants] = useState<Record<string, string>>({});
   const [newType, setNewType] = useState("정기교육");
   const [newInstructor, setNewInstructor] = useState("");
   const [newParticipants, setNewParticipants] = useState("");
@@ -423,6 +425,7 @@ export default function EducationLogs() {
   const [signerDept, setSignerDept] = useState("");
 
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
   const { data: sessions, isLoading: sessionsLoading } = useQuery<EducationSession[]>({
     queryKey: ["/api/education-sessions"],
@@ -495,6 +498,7 @@ export default function EducationLogs() {
     setNewTitle("");
     setNewDate(new Date().toISOString().split("T")[0]);
     setSelectedDepts([]);
+    setDeptParticipants({});
     setNewType("정기교육");
     setNewInstructor("");
     setNewParticipants("");
@@ -502,43 +506,70 @@ export default function EducationLogs() {
   };
 
   const toggleDept = (dept: string) => {
-    setSelectedDepts(prev =>
-      prev.includes(dept) ? prev.filter(d => d !== dept) : [...prev, dept]
-    );
+    setSelectedDepts(prev => {
+      if (prev.includes(dept)) {
+        const updated = { ...deptParticipants };
+        delete updated[dept];
+        setDeptParticipants(updated);
+        return prev.filter(d => d !== dept);
+      }
+      return [...prev, dept];
+    });
   };
 
   const toggleAllDepts = () => {
     if (selectedDepts.length === DEPARTMENTS.length) {
       setSelectedDepts([]);
+      setDeptParticipants({});
     } else {
       setSelectedDepts([...DEPARTMENTS]);
     }
   };
 
+  const applyParticipantsToAll = () => {
+    if (!newParticipants) return;
+    const updated: Record<string, string> = {};
+    selectedDepts.forEach(d => { updated[d] = newParticipants; });
+    setDeptParticipants(updated);
+  };
+
   const handleCreate = () => {
-    if (!newTitle || selectedDepts.length === 0 || !newParticipants) {
-      toast({ variant: "destructive", title: "교육 제목, 부서, 인원수를 모두 입력해주세요." });
+    if (!newTitle || selectedDepts.length === 0) {
+      toast({ variant: "destructive", title: "교육 제목과 부서를 입력해주세요." });
       return;
     }
 
     if (selectedDepts.length === 1) {
+      const participants = Number(deptParticipants[selectedDepts[0]] || newParticipants);
+      if (!participants || participants < 1) {
+        toast({ variant: "destructive", title: "인원수를 입력해주세요." });
+        return;
+      }
       createMutation.mutate({
         title: newTitle,
         educationDate: newDate,
         department: selectedDepts[0],
         educationType: newType,
         instructor: newInstructor || undefined,
-        totalParticipants: Number(newParticipants),
+        totalParticipants: participants,
         description: newDescription || undefined,
       });
     } else {
+      const departments = selectedDepts.map(dept => ({
+        name: dept,
+        participants: Number(deptParticipants[dept] || newParticipants || 0),
+      }));
+      const missing = departments.filter(d => !d.participants || d.participants < 1);
+      if (missing.length > 0) {
+        toast({ variant: "destructive", title: `${missing.map(m => m.name).join(", ")} 부서의 인원수를 입력해주세요.` });
+        return;
+      }
       batchCreateMutation.mutate({
         title: newTitle,
         educationDate: newDate,
-        departments: selectedDepts,
+        departments,
         educationType: newType,
         instructor: newInstructor || undefined,
-        totalParticipants: Number(newParticipants),
         description: newDescription || undefined,
       });
     }
@@ -584,6 +615,30 @@ export default function EducationLogs() {
     }
     return result;
   }, [sessions, filterDept, searchQuery]);
+
+  const groupedSessions = useMemo(() => {
+    const groups: { key: string; title: string; date: string; type: string; sessions: EducationSession[] }[] = [];
+    const groupMap = new Map<string, typeof groups[0]>();
+    for (const s of filteredSessions) {
+      const gKey = `${s.title}__${s.educationDate}`;
+      if (!groupMap.has(gKey)) {
+        const group = { key: gKey, title: s.title, date: s.educationDate, type: s.educationType || "", sessions: [] as EducationSession[] };
+        groupMap.set(gKey, group);
+        groups.push(group);
+      }
+      groupMap.get(gKey)!.sessions.push(s);
+    }
+    return groups;
+  }, [filteredSessions]);
+
+  const toggleGroup = (key: string) => {
+    setExpandedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
 
   if (selectedSession) {
     const signedCount = signatures?.length || 0;
@@ -927,83 +982,137 @@ export default function EducationLogs() {
                     )}
                   </div>
                 ) : (
-                  <AnimatePresence mode="popLayout">
-                    {filteredSessions.map((session, idx) => (
-                      <motion.div
-                        key={session.id}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, x: -20 }}
-                        transition={{ delay: idx * 0.03 }}
-                        onClick={() => setSelectedSession(session)}
-                        className="group border rounded-lg p-3 sm:p-4 hover:bg-indigo-50/50 dark:hover:bg-indigo-900/10 cursor-pointer transition-colors"
-                        data-testid={`session-card-${session.id}`}
-                      >
-                        <div className="flex items-start gap-3">
-                          <div className={`shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${
-                            session.status === "완료"
-                              ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400"
-                              : "bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400"
-                          }`}>
-                            {session.status === "완료" ? (
-                              <CheckCircle2 className="w-5 h-5" />
-                            ) : (
-                              <Clock className="w-5 h-5" />
-                            )}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <h3 className="font-medium text-sm truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-                                {session.title}
-                              </h3>
-                              <Badge variant={session.status === "완료" ? "default" : "secondary"} className="text-[10px]">
-                                {session.status}
-                              </Badge>
-                              <Badge variant="outline" className="text-[10px]">{session.educationType}</Badge>
+                  <div className="space-y-3">
+                    {groupedSessions.map((group) => {
+                      const isExpanded = expandedGroups.has(group.key);
+                      const isSingleDept = group.sessions.length === 1;
+                      const completedCount = group.sessions.filter(s => s.status === "완료").length;
+                      const totalParticipants = group.sessions.reduce((sum, s) => sum + s.totalParticipants, 0);
+
+                      if (isSingleDept) {
+                        const session = group.sessions[0];
+                        return (
+                          <motion.div
+                            key={session.id}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            onClick={() => setSelectedSession(session)}
+                            className="group border rounded-lg p-3 sm:p-4 hover:bg-indigo-50/50 dark:hover:bg-indigo-900/10 cursor-pointer transition-colors"
+                            data-testid={`session-card-${session.id}`}
+                          >
+                            <div className="flex items-start gap-3">
+                              <div className={`shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${
+                                session.status === "완료"
+                                  ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400"
+                                  : "bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400"
+                              }`}>
+                                {session.status === "완료" ? <CheckCircle2 className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <h3 className="font-medium text-sm truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">{session.title}</h3>
+                                  <Badge variant={session.status === "완료" ? "default" : "secondary"} className="text-[10px]">{session.status}</Badge>
+                                  <Badge variant="outline" className="text-[10px]">{session.educationType}</Badge>
+                                </div>
+                                <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
+                                  <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{session.educationDate}</span>
+                                  <span>{session.department}</span>
+                                  <span className="flex items-center gap-1"><Users className="w-3 h-3" />{session.totalParticipants}명</span>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                {canRegisterEducation && (
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground"
+                                    onClick={(e) => { e.stopPropagation(); if (confirm("이 교육일지를 삭제하시겠습니까?")) deleteMutation.mutate(session.id); }}
+                                    data-testid={`button-delete-session-${session.id}`}
+                                  ><Trash2 className="w-4 h-4" /></Button>
+                                )}
+                              </div>
                             </div>
-                            <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
-                              <span className="flex items-center gap-1">
-                                <Calendar className="w-3 h-3" />
-                                {session.educationDate}
-                              </span>
-                              <span>{session.department}</span>
-                              <span className="flex items-center gap-1">
-                                <Users className="w-3 h-3" />
-                                {session.totalParticipants}명
-                              </span>
+                          </motion.div>
+                        );
+                      }
+
+                      return (
+                        <div key={group.key} className="border rounded-lg overflow-hidden" data-testid={`session-group-${group.key}`}>
+                          <div
+                            className="flex items-center gap-3 p-3 sm:p-4 cursor-pointer hover:bg-indigo-50/30 dark:hover:bg-indigo-900/5 transition-colors"
+                            onClick={() => toggleGroup(group.key)}
+                          >
+                            <div className="shrink-0 w-10 h-10 rounded-lg flex items-center justify-center bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400">
+                              <GraduationCap className="w-5 h-5" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <h3 className="font-medium text-sm truncate">{group.title}</h3>
+                                <Badge variant="outline" className="text-[10px]">{group.type}</Badge>
+                                <Badge variant="secondary" className="text-[10px]">{group.sessions.length}개 부서</Badge>
+                                {completedCount === group.sessions.length && (
+                                  <Badge className="text-[10px] bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">전체완료</Badge>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
+                                <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{group.date}</span>
+                                <span className="flex items-center gap-1"><Users className="w-3 h-3" />총 {totalParticipants}명</span>
+                                <span>{completedCount}/{group.sessions.length} 완료</span>
+                              </div>
+                            </div>
+                            <div className="shrink-0 text-muted-foreground">
+                              {isExpanded ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
                             </div>
                           </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-muted-foreground"
-                              onClick={(e) => { e.stopPropagation(); setSelectedSession(session); }}
-                              data-testid={`button-view-session-${session.id}`}
-                            >
-                              <Eye className="w-4 h-4" />
-                            </Button>
-                            {canRegisterEducation && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-muted-foreground"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (confirm("이 교육일지를 삭제하시겠습니까?")) {
-                                    deleteMutation.mutate(session.id);
-                                  }
-                                }}
-                                data-testid={`button-delete-session-${session.id}`}
+
+                          <AnimatePresence>
+                            {isExpanded && (
+                              <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: "auto", opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                transition={{ duration: 0.2 }}
+                                className="overflow-hidden"
                               >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
+                                <div className="border-t divide-y bg-muted/5">
+                                  {group.sessions.map((session) => (
+                                    <div
+                                      key={session.id}
+                                      className="flex items-center gap-3 px-4 sm:px-6 py-2.5 cursor-pointer hover:bg-indigo-50/50 dark:hover:bg-indigo-900/10 transition-colors group"
+                                      onClick={() => setSelectedSession(session)}
+                                      data-testid={`session-card-${session.id}`}
+                                    >
+                                      <div className={`shrink-0 w-7 h-7 rounded-md flex items-center justify-center ${
+                                        session.status === "완료"
+                                          ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400"
+                                          : "bg-indigo-50 text-indigo-500 dark:bg-indigo-900/20 dark:text-indigo-400"
+                                      }`}>
+                                        {session.status === "완료" ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Clock className="w-3.5 h-3.5" />}
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                          <span className="text-sm font-medium truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                                            {session.department}
+                                          </span>
+                                          <Badge variant={session.status === "완료" ? "default" : "secondary"} className="text-[10px]">{session.status}</Badge>
+                                        </div>
+                                      </div>
+                                      <div className="flex items-center gap-3 shrink-0 text-xs text-muted-foreground">
+                                        <span className="flex items-center gap-1"><Users className="w-3 h-3" />{session.totalParticipants}명</span>
+                                        {canRegisterEducation && (
+                                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground"
+                                            onClick={(e) => { e.stopPropagation(); if (confirm("이 교육일지를 삭제하시겠습니까?")) deleteMutation.mutate(session.id); }}
+                                            data-testid={`button-delete-session-${session.id}`}
+                                          ><Trash2 className="w-3.5 h-3.5" /></Button>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </motion.div>
                             )}
-                          </div>
+                          </AnimatePresence>
                         </div>
-                      </motion.div>
-                    ))}
-                  </AnimatePresence>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
             )}
@@ -1067,19 +1176,32 @@ export default function EducationLogs() {
                   {selectedDepts.length === DEPARTMENTS.length ? "전체 해제" : "전체 선택"}
                 </Button>
               </div>
-              <div className="border rounded-lg p-3 space-y-2 bg-muted/10">
+              <div className="border rounded-lg p-3 space-y-1 bg-muted/10">
                 {DEPARTMENTS.map(dept => (
-                  <label
+                  <div
                     key={dept}
-                    className="flex items-center gap-2.5 cursor-pointer hover:bg-muted/30 rounded-md px-2 py-1.5 transition-colors"
+                    className="flex items-center gap-2.5 hover:bg-muted/30 rounded-md px-2 py-1.5 transition-colors"
                     data-testid={`checkbox-dept-${dept}`}
                   >
-                    <Checkbox
-                      checked={selectedDepts.includes(dept)}
-                      onCheckedChange={() => toggleDept(dept)}
-                    />
-                    <span className="text-sm">{dept}</span>
-                  </label>
+                    <label className="flex items-center gap-2.5 cursor-pointer flex-1 min-w-0">
+                      <Checkbox
+                        checked={selectedDepts.includes(dept)}
+                        onCheckedChange={() => toggleDept(dept)}
+                      />
+                      <span className="text-sm truncate">{dept}</span>
+                    </label>
+                    {selectedDepts.includes(dept) && (
+                      <Input
+                        type="number"
+                        placeholder="인원"
+                        value={deptParticipants[dept] || ""}
+                        onChange={e => setDeptParticipants(prev => ({ ...prev, [dept]: e.target.value }))}
+                        min={1}
+                        className="w-20 h-7 text-xs text-center"
+                        data-testid={`input-dept-participants-${dept}`}
+                      />
+                    )}
+                  </div>
                 ))}
               </div>
               {selectedDepts.length > 0 && (
@@ -1090,18 +1212,61 @@ export default function EducationLogs() {
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">부서별 교육인원 *</label>
+            {selectedDepts.length > 1 && (
+              <div className="flex items-center gap-2">
                 <Input
                   type="number"
-                  placeholder="인원수"
+                  placeholder="일괄 인원수"
                   value={newParticipants}
                   onChange={e => setNewParticipants(e.target.value)}
                   min={1}
+                  className="w-32"
                   data-testid="input-session-participants"
                 />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={applyParticipantsToAll}
+                  disabled={!newParticipants}
+                  data-testid="button-apply-all-participants"
+                >
+                  전체 적용
+                </Button>
+                <span className="text-xs text-muted-foreground">선택된 부서에 동일 인원 적용</span>
               </div>
+            )}
+
+            {selectedDepts.length <= 1 && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">교육인원 *</label>
+                  <Input
+                    type="number"
+                    placeholder="인원수"
+                    value={selectedDepts.length === 1 ? (deptParticipants[selectedDepts[0]] || newParticipants) : newParticipants}
+                    onChange={e => {
+                      if (selectedDepts.length === 1) {
+                        setDeptParticipants(prev => ({ ...prev, [selectedDepts[0]]: e.target.value }));
+                      }
+                      setNewParticipants(e.target.value);
+                    }}
+                    min={1}
+                    data-testid="input-session-participants"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">교육자</label>
+                  <Input
+                    placeholder="교육 진행자 이름"
+                    value={newInstructor}
+                    onChange={e => setNewInstructor(e.target.value)}
+                    data-testid="input-session-instructor"
+                  />
+                </div>
+              </div>
+            )}
+
+            {selectedDepts.length > 1 && (
               <div>
                 <label className="text-xs font-medium text-muted-foreground mb-1 block">교육자</label>
                 <Input
@@ -1111,7 +1276,7 @@ export default function EducationLogs() {
                   data-testid="input-session-instructor"
                 />
               </div>
-            </div>
+            )}
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">교육 내용</label>
               <Textarea
@@ -1128,7 +1293,7 @@ export default function EducationLogs() {
               </Button>
               <Button
                 onClick={handleCreate}
-                disabled={createMutation.isPending || batchCreateMutation.isPending || !newTitle || selectedDepts.length === 0 || !newParticipants}
+                disabled={createMutation.isPending || batchCreateMutation.isPending || !newTitle || selectedDepts.length === 0}
                 className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white gap-2"
                 data-testid="button-submit-session"
               >
