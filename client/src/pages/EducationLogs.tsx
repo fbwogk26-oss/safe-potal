@@ -809,6 +809,33 @@ export default function EducationLogs() {
     }
   };
 
+  const [excelDownloading, setExcelDownloading] = useState(false);
+
+  const handleGroupExcelDownload = async (group: { title: string; date: string }) => {
+    setExcelDownloading(true);
+    try {
+      const params = new URLSearchParams({ title: group.title, date: group.date });
+      const response = await fetch(`/api/education-sessions/group-excel?${params}`, {
+        credentials: "include",
+      });
+      if (!response.ok) throw new Error("Download failed");
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${group.title}_안전보건교육_참석자_서명_${group.date}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast({ title: "엑셀 파일이 다운로드되었습니다." });
+    } catch (e) {
+      toast({ variant: "destructive", title: "엑셀 다운로드 실패" });
+    } finally {
+      setExcelDownloading(false);
+    }
+  };
+
   const handleSign = (signatureData: string) => {
     if (!selectedSession || !signerName) return;
     signMutation.mutate({
@@ -1421,6 +1448,12 @@ export default function EducationLogs() {
                               </div>
                             </div>
                             <div className="flex items-center gap-1 shrink-0">
+                              <Button variant="ghost" size="icon"
+                                disabled={excelDownloading}
+                                onClick={(e) => { e.stopPropagation(); handleGroupExcelDownload(group); }}
+                                data-testid={`button-group-excel-${group.key}`}
+                                title="엑셀 다운로드"
+                              ><Download className="w-4 h-4" /></Button>
                               {canRegisterEducation && (
                                 <>
                                   <Button variant="ghost" size="icon"
