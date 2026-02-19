@@ -6,6 +6,7 @@ interface AuthUser {
   username: string;
   name: string | null;
   role: string;
+  department: string;
 }
 
 async function fetchUser(): Promise<AuthUser | null> {

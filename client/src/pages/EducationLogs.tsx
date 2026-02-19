@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { usePermissions } from "@/hooks/use-permissions";
+import { useAuth } from "@/hooks/use-auth";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   GraduationCap, Plus, Trash2, ArrowLeft, Users, Calendar, FileText,
@@ -358,6 +359,7 @@ function ProgressDashboard() {
 export default function EducationLogs() {
   const { canRegisterEducation, canEditEducationLogs } = usePermissions();
   const canEditLogs = canRegisterEducation || canEditEducationLogs;
+  const { user } = useAuth();
   const { toast } = useToast();
 
   const [activeTab, setActiveTab] = useState<"dashboard" | "sessions">("dashboard");
@@ -1081,7 +1083,11 @@ export default function EducationLogs() {
             {selectedSession.status === "진행중" && (
               <Button
                 size="sm"
-                onClick={() => setShowSignDialog(true)}
+                onClick={() => {
+                  setSignerName(user?.name || user?.username || "");
+                  setSignerDept(user?.department || selectedSession.department || "");
+                  setShowSignDialog(true);
+                }}
                 className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white gap-1.5"
                 data-testid="button-open-sign"
               >
@@ -1127,7 +1133,11 @@ export default function EducationLogs() {
                     variant="outline"
                     size="sm"
                     className="mt-3 gap-1.5"
-                    onClick={() => setShowSignDialog(true)}
+                    onClick={() => {
+                      setSignerName(user?.name || user?.username || "");
+                      setSignerDept(user?.department || selectedSession.department || "");
+                      setShowSignDialog(true);
+                    }}
                   >
                     <PenTool className="w-3.5 h-3.5" /> 첫 번째 서명하기
                   </Button>
@@ -1148,34 +1158,28 @@ export default function EducationLogs() {
             <div className="space-y-4 pt-2">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">이름 *</label>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">이름</label>
                   <Input
-                    placeholder="서명자 이름"
                     value={signerName}
-                    onChange={e => setSignerName(e.target.value)}
+                    readOnly
+                    className="bg-muted/50"
                     data-testid="input-signer-name"
                   />
                 </div>
                 <div>
                   <label className="text-xs font-medium text-muted-foreground mb-1 block">소속</label>
                   <Input
-                    placeholder="소속 부서"
                     value={signerDept}
-                    onChange={e => setSignerDept(e.target.value)}
+                    readOnly
+                    className="bg-muted/50"
                     data-testid="input-signer-dept"
                   />
                 </div>
               </div>
-              {signerName.trim() ? (
-                <SignaturePad
-                  onSave={handleSign}
-                  onCancel={() => setShowSignDialog(false)}
-                />
-              ) : (
-                <div className="border-2 border-dashed border-muted rounded-lg p-8 text-center text-muted-foreground text-sm">
-                  이름을 입력하면 서명 영역이 나타납니다
-                </div>
-              )}
+              <SignaturePad
+                onSave={handleSign}
+                onCancel={() => setShowSignDialog(false)}
+              />
             </div>
           </DialogContent>
         </Dialog>

@@ -21,6 +21,7 @@ export function registerAuthRoutes(app: Express): void {
         username: user.username,
         name: user.name,
         role: user.role,
+        department: user.department || "",
       });
     } catch (error) {
       console.error("Error fetching user:", error);
