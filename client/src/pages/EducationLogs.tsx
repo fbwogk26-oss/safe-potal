@@ -1441,8 +1441,14 @@ export default function EducationLogs() {
                                           <Badge variant={session.status === "완료" ? "default" : "secondary"} className="text-[10px]">{session.status}</Badge>
                                         </div>
                                       </div>
-                                      <div className="flex items-center gap-1 shrink-0 text-xs text-muted-foreground">
-                                        <span className="flex items-center gap-1"><Users className="w-3 h-3" />{session.totalParticipants}명</span>
+                                      <div className="flex items-center gap-1 shrink-0">
+                                        {canEditLogs && (
+                                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground"
+                                            onClick={(e) => { e.stopPropagation(); handleStartEdit(session); }}
+                                            data-testid={`button-edit-dept-session-${session.id}`}
+                                          ><Pencil className="w-3.5 h-3.5" /></Button>
+                                        )}
+                                        <span className="text-xs text-muted-foreground flex items-center gap-1"><Users className="w-3 h-3" />{session.totalParticipants}명</span>
                                       </div>
                                     </div>
                                   ))}

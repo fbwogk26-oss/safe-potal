@@ -134,7 +134,8 @@ export const safetyInspections = pgTable("safety_inspections", {
   inspectionType: text("inspection_type").notNull(), // '안전점검', '동행점검'
   title: text("title").notNull(),
   location: text("location"), // 점검국소
-  inspector: text("inspector"), // 작업자
+  inspector: text("inspector"), // 점검자
+  workerName: text("worker_name"), // 작업자
   inspectionDate: text("inspection_date").notNull(),
   checklist: jsonb("checklist").$type<Array<{ item: string; status: '양호' | '미흡' | '미점검' }>>().notNull().default([]),
   notes: text("notes"),

@@ -17,6 +17,7 @@ import type { SafetyInspection, Team } from "@shared/schema";
 import ExcelJS from "exceljs";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useAuth } from "@/hooks/use-auth";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
 type ChecklistStatus = '양호' | '미흡' | '미점검';
 
@@ -88,6 +89,7 @@ export default function SafetyInspections() {
       title: string;
       location?: string;
       inspector?: string;
+      workerName?: string;
       inspectionDate: string;
       checklist: ChecklistItem[];
       notes?: string;
@@ -119,6 +121,7 @@ export default function SafetyInspections() {
   const [workContent, setWorkContent] = useState("");
   const [location, setLocation] = useState("");
   const [inspector, setInspector] = useState("");
+  const [workerName, setWorkerName] = useState("");
   const [inspectionDate, setInspectionDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [checklist, setChecklist] = useState<ChecklistItem[]>(DEFAULT_CHECKLIST);
   const [notes, setNotes] = useState("");
@@ -130,6 +133,7 @@ export default function SafetyInspections() {
   const [editSafetyTarget, setEditSafetyTarget] = useState("");
   const [editAccompanyTarget, setEditAccompanyTarget] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [dashboardPeriod, setDashboardPeriod] = useState<"month" | "year">("month");
 
   const resetForm = () => {
     setInspectionType("안전점검");
@@ -137,6 +141,7 @@ export default function SafetyInspections() {
     setWorkContent("");
     setLocation("");
     setInspector(user?.name || user?.username || "");
+    setWorkerName("");
     setInspectionDate(format(new Date(), "yyyy-MM-dd"));
     setChecklist(DEFAULT_CHECKLIST);
     setNotes("");
@@ -212,6 +217,7 @@ export default function SafetyInspections() {
       title,
       location: location || undefined,
       inspector: inspector || undefined,
+      workerName: workerName || undefined,
       inspectionDate,
       checklist,
       notes: notes || undefined,
@@ -268,19 +274,20 @@ export default function SafetyInspections() {
       { header: '작업내용', key: 'workContent', width: 30 },
       { header: '점검국소', key: 'location', width: 22 },
       { header: '점검자', key: 'inspector', width: 12 },
+      { header: '작업자', key: 'workerName', width: 12 },
       { header: '점검일', key: 'date', width: 14 },
       { header: '비고', key: 'notes', width: 25 },
     ];
 
     // Add checklist item headers
     DEFAULT_CHECKLIST.forEach((item, idx) => {
-      worksheet.getColumn(9 + idx).width = 12;
-      worksheet.getColumn(9 + idx).key = `check_${idx}`;
+      worksheet.getColumn(10 + idx).width = 12;
+      worksheet.getColumn(10 + idx).key = `check_${idx}`;
     });
 
     // Add 10 image columns (사진1 ~ 사진10)
     const MAX_IMAGES = 10;
-    const firstImageCol = 9 + DEFAULT_CHECKLIST.length;
+    const firstImageCol = 10 + DEFAULT_CHECKLIST.length;
     const imageColWidth = 16; // ~2.99cm (Excel width units)
     
     for (let i = 0; i < MAX_IMAGES; i++) {
@@ -292,7 +299,7 @@ export default function SafetyInspections() {
     // Style header row
     const headerRow = worksheet.getRow(1);
     DEFAULT_CHECKLIST.forEach((item, idx) => {
-      headerRow.getCell(9 + idx).value = item.item;
+      headerRow.getCell(10 + idx).value = item.item;
     });
     
     // Add image column headers (사진1 ~ 사진10)
@@ -334,6 +341,7 @@ export default function SafetyInspections() {
         workContent: workDesc,
         location: inspection.location || '-',
         inspector: inspection.inspector || '-',
+        workerName: inspection.workerName || '-',
         date: inspection.inspectionDate,
         notes: inspection.notes || '-',
       };
@@ -349,7 +357,7 @@ export default function SafetyInspections() {
 
       // Style checklist cells based on status
       checklistItems.forEach((item, idx) => {
-        const cell = row.getCell(9 + idx);
+        const cell = row.getCell(10 + idx);
         cell.alignment = { horizontal: 'center', vertical: 'middle' };
         
         if (item.status === '양호') {
@@ -444,6 +452,17 @@ export default function SafetyInspections() {
 
   const inspectionStats = useMemo(() => {
     if (!inspections || inspections.length === 0 || !teams) return null;
+    const now = new Date();
+    const currentMonth = format(now, "yyyy-MM");
+    const currentYear = format(now, "yyyy");
+
+    const filtered = inspections.filter(insp => {
+      if (dashboardPeriod === "month") {
+        return insp.inspectionDate.startsWith(currentMonth);
+      }
+      return insp.inspectionDate.startsWith(currentYear);
+    });
+
     const allDepts = teams.map(t => t.name);
     const safetyTarget = inspectionTargets?.safetyTarget || 0;
     const accompanyTarget = inspectionTargets?.accompanyTarget || 0;
@@ -454,7 +473,7 @@ export default function SafetyInspections() {
     }
     let totalSafety = 0;
     let totalAccompany = 0;
-    for (const insp of inspections) {
+    for (const insp of filtered) {
       const matchedDept = allDepts.find(d => insp.title.startsWith(d));
       const entry = matchedDept ? deptMap.get(matchedDept) : null;
       if (entry) {
@@ -467,25 +486,26 @@ export default function SafetyInspections() {
         }
       }
     }
-    const departments = Array.from(deptMap.entries()).map(([dept, stats]) => ({
-      department: dept,
-      safetyCount: stats.safetyCount,
-      accompanyCount: stats.accompanyCount,
-      totalCount: stats.safetyCount + stats.accompanyCount,
-      safetyRate: safetyTarget > 0 ? Math.min(100, Math.round((stats.safetyCount / safetyTarget) * 100)) : 0,
-      accompanyRate: accompanyTarget > 0 ? Math.min(100, Math.round((stats.accompanyCount / accompanyTarget) * 100)) : 0,
-    }));
-    departments.sort((a, b) => b.totalCount - a.totalCount);
+    const chartData = allDepts.map(dept => {
+      const stats = deptMap.get(dept)!;
+      const shortName = dept.replace("운용팀", "").replace("팀", "");
+      return {
+        name: shortName,
+        안전점검: stats.safetyCount,
+        동행점검: stats.accompanyCount,
+      };
+    });
+
     return {
-      total: inspections.length,
+      total: filtered.length,
       totalSafety,
       totalAccompany,
       safetyTarget,
       accompanyTarget,
-      departments,
-      deptWithInspections: departments.filter(d => d.totalCount > 0).length,
+      chartData,
+      periodLabel: dashboardPeriod === "month" ? `${now.getMonth() + 1}월` : `${now.getFullYear()}년`,
     };
-  }, [inspections, teams, inspectionTargets]);
+  }, [inspections, teams, inspectionTargets, dashboardPeriod]);
 
   const [showInspDashboard, setShowInspDashboard] = useState(true);
 
@@ -549,7 +569,6 @@ export default function SafetyInspections() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-7 w-7"
                     onClick={(e) => {
                       e.stopPropagation();
                       setEditSafetyTarget(String(inspectionStats.safetyTarget || ""));
@@ -575,79 +594,58 @@ export default function SafetyInspections() {
                 className="overflow-hidden"
               >
                 <CardContent className="p-3 sm:p-4 space-y-4">
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex gap-1">
+                      <Button
+                        variant={dashboardPeriod === "month" ? "default" : "outline"}
+                        size="sm"
+                        onClick={(e) => { e.stopPropagation(); setDashboardPeriod("month"); }}
+                        data-testid="button-period-month"
+                      >
+                        해당월
+                      </Button>
+                      <Button
+                        variant={dashboardPeriod === "year" ? "default" : "outline"}
+                        size="sm"
+                        onClick={(e) => { e.stopPropagation(); setDashboardPeriod("year"); }}
+                        data-testid="button-period-year"
+                      >
+                        연간
+                      </Button>
+                    </div>
+                    <Badge variant="secondary" className="text-xs">{inspectionStats.periodLabel} 현황</Badge>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
                     <div className="text-center p-2 rounded-lg bg-muted/30">
                       <p className="text-[11px] text-muted-foreground">총 점검</p>
                       <p className="text-lg font-bold text-green-600" data-testid="text-total-inspections">{inspectionStats.total}건</p>
                     </div>
                     <div className="text-center p-2 rounded-lg bg-muted/30">
-                      <p className="text-[11px] text-muted-foreground">안전점검</p>
+                      <p className="text-[11px] text-muted-foreground">안전점검 (운용팀장)</p>
                       <p className="text-lg font-bold text-blue-600" data-testid="text-safety-count">
                         {inspectionStats.totalSafety}{inspectionStats.safetyTarget > 0 ? `/${inspectionStats.safetyTarget}` : ""}건
                       </p>
                     </div>
                     <div className="text-center p-2 rounded-lg bg-muted/30">
-                      <p className="text-[11px] text-muted-foreground">동행점검</p>
+                      <p className="text-[11px] text-muted-foreground">동행점검 (운용부장)</p>
                       <p className="text-lg font-bold text-emerald-600" data-testid="text-accompany-count">
                         {inspectionStats.totalAccompany}{inspectionStats.accompanyTarget > 0 ? `/${inspectionStats.accompanyTarget}` : ""}건
                       </p>
                     </div>
-                    <div className="text-center p-2 rounded-lg bg-muted/30">
-                      <p className="text-[11px] text-muted-foreground">점검 부서</p>
-                      <p className="text-lg font-bold text-amber-600" data-testid="text-dept-count">{inspectionStats.deptWithInspections}/{inspectionStats.departments.length}</p>
-                    </div>
                   </div>
-                  <div className="space-y-3">
-                    {inspectionStats.departments.map((dept) => (
-                      <div key={dept.department} className="space-y-1" data-testid={`inspection-dept-${dept.department}`}>
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="truncate min-w-0 text-sm font-medium">{dept.department}</span>
-                          <span className="text-xs text-muted-foreground shrink-0">
-                            총 {dept.totalCount}건
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] text-muted-foreground w-14 shrink-0">안전점검</span>
-                          <div className="flex-1 bg-muted/50 rounded-full h-2 overflow-hidden">
-                            <div
-                              className={`h-full rounded-full ${
-                                dept.safetyRate >= 80 ? "bg-blue-500" :
-                                dept.safetyRate >= 50 ? "bg-amber-500" :
-                                dept.safetyCount === 0 ? "bg-gray-300 dark:bg-gray-600" :
-                                "bg-red-500"
-                              }`}
-                              style={{ width: `${inspectionStats.safetyTarget > 0 ? dept.safetyRate : (dept.safetyCount > 0 ? 100 : 0)}%` }}
-                            />
-                          </div>
-                          <span className="text-[10px] font-bold w-16 text-right shrink-0">
-                            {dept.safetyCount}{inspectionStats.safetyTarget > 0 ? `/${inspectionStats.safetyTarget}` : ""}건
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] text-muted-foreground w-14 shrink-0">동행점검</span>
-                          <div className="flex-1 bg-muted/50 rounded-full h-2 overflow-hidden">
-                            <div
-                              className={`h-full rounded-full ${
-                                dept.accompanyRate >= 80 ? "bg-emerald-500" :
-                                dept.accompanyRate >= 50 ? "bg-amber-500" :
-                                dept.accompanyCount === 0 ? "bg-gray-300 dark:bg-gray-600" :
-                                "bg-red-500"
-                              }`}
-                              style={{ width: `${inspectionStats.accompanyTarget > 0 ? dept.accompanyRate : (dept.accompanyCount > 0 ? 100 : 0)}%` }}
-                            />
-                          </div>
-                          <span className="text-[10px] font-bold w-16 text-right shrink-0">
-                            {dept.accompanyCount}{inspectionStats.accompanyTarget > 0 ? `/${inspectionStats.accompanyTarget}` : ""}건
-                          </span>
-                        </div>
-                      </div>
-                    ))}
+                  <div className="w-full" style={{ height: 260 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={inspectionStats.chartData} margin={{ top: 5, right: 5, left: -15, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                        <XAxis dataKey="name" tick={{ fontSize: 11 }} interval={0} angle={-25} textAnchor="end" height={50} />
+                        <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                        <Tooltip />
+                        <Legend wrapperStyle={{ fontSize: 12 }} />
+                        <Bar dataKey="안전점검" stackId="a" fill="#3b82f6" radius={[0, 0, 0, 0]} />
+                        <Bar dataKey="동행점검" stackId="a" fill="#10b981" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
                   </div>
-                  {(inspectionStats.safetyTarget === 0 && inspectionStats.accompanyTarget === 0) && isAdmin && (
-                    <p className="text-xs text-muted-foreground text-center">
-                      목표건수를 설정하면 진행율이 표시됩니다. 상단 설정 버튼을 눌러주세요.
-                    </p>
-                  )}
                 </CardContent>
               </motion.div>
             )}
@@ -754,6 +752,16 @@ export default function SafetyInspections() {
                       />
                     </div>
                   </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>작업자</Label>
+                  <Input
+                    placeholder="작업자 이름 입력"
+                    value={workerName}
+                    onChange={e => setWorkerName(e.target.value)}
+                    data-testid="input-worker-name"
+                  />
                 </div>
 
                 <div className="space-y-2">
@@ -929,6 +937,7 @@ export default function SafetyInspections() {
                                 <span>{inspection.inspectionDate}</span>
                                 {inspection.location && <span>{inspection.location}</span>}
                                 {inspection.inspector && <span>{inspection.inspector}</span>}
+                              {inspection.workerName && <span>작업자: {inspection.workerName}</span>}
                               </div>
                               <div className="flex gap-2 mt-2 text-xs">
                                 <span className="text-green-600 dark:text-green-400">양호 {goodItems}</span>
@@ -1045,7 +1054,7 @@ export default function SafetyInspections() {
           </DialogHeader>
           <div className="space-y-4 pt-2">
             <div className="space-y-2">
-              <Label>안전점검 목표건수 (부서당)</Label>
+              <Label>운용팀장 목표 (안전점검)</Label>
               <Input
                 type="number"
                 min={0}
@@ -1056,7 +1065,7 @@ export default function SafetyInspections() {
               />
             </div>
             <div className="space-y-2">
-              <Label>동행점검 목표건수 (부서당)</Label>
+              <Label>운용부장 목표 (동행점검)</Label>
               <Input
                 type="number"
                 min={0}

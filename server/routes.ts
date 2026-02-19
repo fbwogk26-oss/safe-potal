@@ -1134,7 +1134,7 @@ export async function registerRoutes(
 
   app.post("/api/safety-inspections", requireEditor, async (req: any, res) => {
     try {
-      const { inspectionType, title, location, inspector, inspectionDate, checklist, notes, images } = req.body;
+      const { inspectionType, title, location, inspector, workerName, inspectionDate, checklist, notes, images } = req.body;
       if (!inspectionType || !title || !inspectionDate) {
         return res.status(400).json({ message: "Required fields missing" });
       }
@@ -1143,6 +1143,7 @@ export async function registerRoutes(
         title,
         location,
         inspector,
+        workerName,
         inspectionDate,
         checklist: checklist || [],
         notes,
