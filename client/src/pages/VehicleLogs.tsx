@@ -112,21 +112,33 @@ export default function VehicleLogs() {
   const handleExcelDownload = useCallback(async (vehicleId: number) => {
     try {
       const response = await fetch(`/api/vehicle-logs/export/${vehicleId}`, { credentials: "include" });
-      if (!response.ok) throw new Error("Export failed");
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.message || "Export failed");
+      }
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
       const disposition = response.headers.get("content-disposition");
-      const filename = disposition?.match(/filename=(.+)/)?.[1] || "vehicle_log.xlsx";
+      let filename = "vehicle_log.xlsx";
+      if (disposition) {
+        const utf8Match = disposition.match(/filename\*=UTF-8''(.+)/);
+        if (utf8Match) {
+          filename = decodeURIComponent(utf8Match[1]);
+        } else {
+          const basicMatch = disposition.match(/filename="?(.+?)"?$/);
+          if (basicMatch) filename = basicMatch[1];
+        }
+      }
       a.download = filename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
       toast({ title: "엑셀 파일이 다운로드되었습니다." });
-    } catch {
-      toast({ variant: "destructive", title: "엑셀 다운로드에 실패했습니다." });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: err?.message || "엑셀 다운로드에 실패했습니다." });
     }
   }, [toast]);
 
@@ -151,15 +163,17 @@ export default function VehicleLogs() {
             </h2>
             <p className="text-xs text-muted-foreground">{selectedVehicleForHistory.model} / {selectedVehicleForHistory.team}</p>
           </div>
-          <Button
-            variant="outline"
-            className="gap-2"
-            onClick={() => handleExcelDownload(selectedVehicleForHistory.id)}
-            data-testid="button-export-excel"
-          >
-            <Download className="w-4 h-4" />
-            <span className="hidden sm:inline">엑셀 다운로드</span>
-          </Button>
+          {canEditVehicleLogs && (
+            <Button
+              variant="outline"
+              className="gap-2"
+              onClick={() => handleExcelDownload(selectedVehicleForHistory.id)}
+              data-testid="button-export-excel"
+            >
+              <Download className="w-4 h-4" />
+              <span className="hidden sm:inline">엑셀 다운로드</span>
+            </Button>
+          )}
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -330,15 +344,17 @@ export default function VehicleLogs() {
                     <Button variant="ghost" size="icon" className="h-7 w-7" data-testid={`button-view-history-${v.id}`}>
                       <Eye className="w-3.5 h-3.5" />
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={(e) => { e.stopPropagation(); handleExcelDownload(v.id); }}
-                      data-testid={`button-download-${v.id}`}
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                    </Button>
+                    {canEditVehicleLogs && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={(e) => { e.stopPropagation(); handleExcelDownload(v.id); }}
+                        data-testid={`button-download-${v.id}`}
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))}

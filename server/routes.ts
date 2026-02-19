@@ -1213,7 +1213,7 @@ export async function registerRoutes(
   });
 
   // Excel export for vehicle logs
-  app.get("/api/vehicle-logs/export/:vehicleId", isAuthenticated, async (req: any, res) => {
+  app.get("/api/vehicle-logs/export/:vehicleId", requirePermission("editVehicleLogs"), async (req: any, res) => {
     try {
       const vehicleId = Number(req.params.vehicleId);
       const logs = await storage.getVehicleLogsByVehicle(vehicleId);
@@ -1224,8 +1224,11 @@ export async function registerRoutes(
       const workbook = new ExcelJS.Workbook();
       const sheet = workbook.addWorksheet("차량운행일지");
 
+      const colWidths = [6, 14, 10, 10, 10, 16, 16, 14, 14, 14, 14, 10, 18];
+      sheet.columns = colWidths.map(w => ({ width: w }));
+
       const firstLog = logs[0];
-      sheet.mergeCells("A1:L1");
+      sheet.mergeCells("A1:M1");
       sheet.getCell("A1").value = `차량운행일지 - ${firstLog.plateNumber} (${firstLog.vehicleModel})`;
       sheet.getCell("A1").font = { size: 16, bold: true };
       sheet.getCell("A1").alignment = { horizontal: "center" };
@@ -1234,22 +1237,24 @@ export async function registerRoutes(
       sheet.getRow(2).font = { bold: true };
 
       const headerRow = 4;
-      sheet.getRow(headerRow).values = [
+      const headers = [
         "No", "운행일", "운전자", "출발시간", "도착시간",
         "출발지", "도착지", "용도",
         "출발전(km)", "도착후(km)", "운행거리(km)",
         "주유량", "비고"
       ];
+      sheet.getRow(headerRow).values = headers;
       const hRow = sheet.getRow(headerRow);
       hRow.font = { bold: true };
       hRow.alignment = { horizontal: "center" };
-      hRow.eachCell((cell) => {
+      for (let i = 1; i <= headers.length; i++) {
+        const cell = hRow.getCell(i);
         cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE8F5E9" } };
         cell.border = {
           top: { style: "thin" }, bottom: { style: "thin" },
           left: { style: "thin" }, right: { style: "thin" }
         };
-      });
+      }
 
       const sortedLogs = [...logs].reverse();
       let totalDistance = 0;
@@ -1273,35 +1278,31 @@ export async function registerRoutes(
           log.notes || ""
         ];
         row.alignment = { horizontal: "center" };
-        row.eachCell((cell) => {
-          cell.border = {
+        for (let i = 1; i <= headers.length; i++) {
+          row.getCell(i).border = {
             top: { style: "thin" }, bottom: { style: "thin" },
             left: { style: "thin" }, right: { style: "thin" }
           };
-        });
+        }
       });
 
       const totalRow = sheet.getRow(headerRow + 1 + sortedLogs.length);
       totalRow.values = ["", "", "", "", "", "", "", "합계", "", "", totalDistance, "", ""];
       totalRow.font = { bold: true };
       totalRow.alignment = { horizontal: "center" };
-      totalRow.eachCell((cell) => {
+      for (let i = 1; i <= headers.length; i++) {
+        const cell = totalRow.getCell(i);
         cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF5F5F5" } };
         cell.border = {
           top: { style: "thin" }, bottom: { style: "thin" },
           left: { style: "thin" }, right: { style: "thin" }
         };
-      });
+      }
 
-      sheet.columns = [
-        { width: 6 }, { width: 14 }, { width: 10 }, { width: 10 }, { width: 10 },
-        { width: 16 }, { width: 16 }, { width: 14 },
-        { width: 14 }, { width: 14 }, { width: 14 },
-        { width: 10 }, { width: 18 }
-      ];
-
+      const plateEncoded = encodeURIComponent(firstLog.plateNumber);
+      const dateStr = new Date().toISOString().split("T")[0];
       res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-      res.setHeader("Content-Disposition", `attachment; filename=vehicle_log_${firstLog.plateNumber}_${new Date().toISOString().split("T")[0]}.xlsx`);
+      res.setHeader("Content-Disposition", `attachment; filename*=UTF-8''vehicle_log_${plateEncoded}_${dateStr}.xlsx`);
       await workbook.xlsx.write(res);
       res.end();
     } catch (error) {
