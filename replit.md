@@ -41,8 +41,17 @@ Preferred communication style: Simple, everyday language.
 - **Storage Interface**: IStorage interface in server/storage.ts abstracts database operations
 - **Score Calculation**: Server-side calculation of safety scores based on weighted factors (accidents -40, fines -1, suggestions +3, etc.)
 
+### AI Chatbot (server/chatbot.ts)
+- **Model**: OpenAI gpt-5-nano via Replit AI Integrations (no additional cost)
+- **Capabilities**: Natural language intent parsing for CREATE_EDUCATION, CREATE_INSPECTION, QUERY_EDUCATION, QUERY_INSPECTION, GENERAL_QUERY
+- **Security**: Permission checks (registerEducation, editInspections) enforced per action, Zod schema validation on parsed AI data
+- **Photo Upload**: Up to 10 images via Multer, stored in /uploads
+- **UI**: Floating chat widget (ChatBot.tsx) in bottom-right corner with conversation history (max 6 messages)
+
 ### Authentication & Authorization
-- PIN-based admin locking system (no user authentication)
+- Replit Auth login with role-based permissions (admin, manager, user, viewer, custom)
+- Role preset system for batch permission assignment
+- Permission checks on both regular API routes and chatbot actions
 - Global lock toggle prevents edits when system is locked
 - Lock status refreshes every 10 seconds on client
 
