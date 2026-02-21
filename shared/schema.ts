@@ -208,3 +208,6 @@ export type InsertEducationSignature = z.infer<typeof insertEducationSignatureSc
 
 // Export auth schema
 export * from "./models/auth";
+
+// Export chat schema
+export * from "./models/chat";
