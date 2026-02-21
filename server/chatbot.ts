@@ -70,56 +70,40 @@ const SYSTEM_PROMPT = `당신은 kt MOS남부 종합안전포털시스템의 AI 
 사용자의 자연어 요청을 분석하여 적절한 액션을 수행합니다.
 
 지원하는 액션:
-1. CREATE_EDUCATION - 교육일지 등록
-2. QUERY_EDUCATION - 교육 현황 조회
-3. CREATE_INSPECTION - 안전점검 등록
-4. QUERY_INSPECTION - 안전점검 현황 조회
-5. GENERAL_QUERY - 일반 질의응답/요약/안내
+1. CREATE_EDUCATION - 교육일지 등록 (교육했어, 교육 등록, 교육일지 작성 등)
+2. QUERY_EDUCATION - 교육 현황 조회 (교육 현황, 교육 목록, 몇 건 등)
+3. CREATE_INSPECTION - 안전점검 등록 (점검했어, 점검 등록 등)
+4. QUERY_INSPECTION - 안전점검 현황 조회 (점검 현황, 점검 목록 등)
+5. GENERAL_QUERY - 일반 질의응답
 
 부서 목록: ${DEPARTMENTS.join(", ")}
 
-응답 형식 (반드시 JSON):
+중요: 반드시 아래 JSON 형식으로만 응답하세요. 다른 텍스트는 절대 포함하지 마세요.
+
 {
-  "action": "ACTION_TYPE",
-  "message": "사용자에게 표시할 메시지",
+  "action": "CREATE_EDUCATION",
+  "message": "교육일지를 등록하겠습니다",
   "data": {
-    // 액션별 필요 데이터
+    "title": "안전보건점검의날",
+    "educationDate": "2026-02-21",
+    "department": "사용자 부서",
+    "educationType": "정기교육",
+    "totalParticipants": 1,
+    "instructor": "사용자 이름",
+    "description": "안전보건점검의날 교육"
   },
-  "needsConfirmation": true/false,
-  "followUp": "추가 질문이 필요한 경우"
+  "needsConfirmation": false
 }
 
-CREATE_EDUCATION 필요 데이터:
-{
-  "title": "교육 제목",
-  "educationDate": "YYYY-MM-DD",
-  "department": "부서명",
-  "educationType": "정기교육/수시교육/특별교육 등",
-  "totalParticipants": 숫자,
-  "instructor": "교육자 이름",
-  "description": "교육 내용 설명"
-}
-
-CREATE_INSPECTION 필요 데이터:
-{
-  "inspectionType": "안전점검/동행점검",
-  "title": "점검 제목",
-  "inspectionDate": "YYYY-MM-DD",
-  "inspector": "점검자 이름",
-  "workerName": "작업자 이름 (선택)",
-  "location": "위치 (선택)",
-  "notes": "비고 (선택)"
-}
-
-규칙:
-- 오늘 날짜를 모르면 현재 날짜를 사용하세요.
-- 필수 정보가 부족하면 needsConfirmation을 true로 설정하고 followUp으로 물어보세요.
-- 사용자의 부서와 이름 정보가 주어지면 활용하세요.
-- 교육 인원이 지정되지 않으면 부서 기본 인원(1)을 사용하세요.
-- 항상 한국어로 응답하세요.
-- 사진이 첨부되었다는 정보가 있으면 사진 업로드 처리를 안내하세요.
-- "안전보건점검의날"은 교육 제목으로 자주 사용됩니다.
-- 데이터 생성(CREATE_*) 시 필수 항목(제목, 날짜, 부서)이 확인되면 needsConfirmation을 false로 설정하여 즉시 등록하세요.`;
+핵심 규칙:
+1. "교육했어", "교육 등록", "교육일지" 등의 키워드가 있으면 반드시 action을 "CREATE_EDUCATION"으로 설정하세요.
+2. "점검했어", "점검 등록" 등의 키워드가 있으면 반드시 action을 "CREATE_INSPECTION"으로 설정하세요.
+3. needsConfirmation은 반드시 false로 설정하세요. 부족한 정보는 사용자 정보에서 자동으로 채웁니다.
+4. 오늘 날짜는 사용자 컨텍스트에서 제공됩니다.
+5. 부서가 명시되지 않으면 사용자의 부서를 사용하세요.
+6. "안전보건점검의날"은 매우 자주 사용되는 교육 제목입니다.
+7. message 필드에는 반드시 의미있는 한국어 메시지를 넣으세요. 비워두지 마세요.
+8. 교육/점검 현황을 물어보면 QUERY_EDUCATION 또는 QUERY_INSPECTION으로 설정하세요.`;
 
 async function executeEducationCreate(data: any, user: any, today: string, uploadedImages: string[]) {
   const validated = educationDataSchema.parse({
@@ -179,6 +163,40 @@ async function executeInspectionCreate(data: any, user: any, today: string, uplo
   };
 }
 
+function detectIntentFromKeywords(message: string): string | null {
+  const msg = message.toLowerCase();
+  if (msg.includes("교육") && (msg.includes("현황") || msg.includes("조회") || msg.includes("목록") || msg.includes("몇"))) {
+    return "QUERY_EDUCATION";
+  }
+  if (msg.includes("점검") && (msg.includes("현황") || msg.includes("조회") || msg.includes("목록") || msg.includes("몇"))) {
+    return "QUERY_INSPECTION";
+  }
+  if (msg.includes("교육") && (msg.includes("했") || msg.includes("등록") || msg.includes("작성") || msg.includes("올려") || msg.includes("해줘"))) {
+    return "CREATE_EDUCATION";
+  }
+  if (msg.includes("점검") && (msg.includes("했") || msg.includes("등록") || msg.includes("작성") || msg.includes("올려") || msg.includes("해줘"))) {
+    return "CREATE_INSPECTION";
+  }
+  return null;
+}
+
+function extractTitleFromMessage(message: string): string {
+  const patterns = [
+    /안전보건점검의날/,
+    /안전보건교육/,
+    /정기안전교육/,
+    /특별안전교육/,
+    /수시교육/,
+  ];
+  for (const pattern of patterns) {
+    const match = message.match(pattern);
+    if (match) return match[0];
+  }
+  if (message.includes("교육")) return "안전교육";
+  if (message.includes("점검")) return "안전점검";
+  return "교육";
+}
+
 export function registerChatbotRoutes(app: Express): void {
   app.post(
     "/api/chatbot/message",
@@ -214,65 +232,139 @@ export function registerChatbotRoutes(app: Express): void {
           }
         } catch {}
 
-        const chatMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
-          { role: "system", content: SYSTEM_PROMPT },
-          ...history.map((h) => ({
-            role: h.role as "user" | "assistant",
-            content: h.content,
-          })),
-          {
-            role: "user",
-            content: `${userContext}${photoContext}\n\n사용자 요청: ${message}`,
-          },
-        ];
+        let parsed: any = null;
+        let aiError: string | null = null;
 
-        const response = await openai.chat.completions.create({
-          model: "gpt-5-nano",
-          messages: chatMessages,
-          max_completion_tokens: 1024,
-          response_format: { type: "json_object" },
-        });
-
-        const aiContent = response.choices[0]?.message?.content || "{}";
-        let parsed: any;
         try {
-          parsed = JSON.parse(aiContent);
-        } catch {
-          parsed = {
-            action: "GENERAL_QUERY",
-            message: aiContent,
-            data: {},
-          };
+          const chatMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+            { role: "system", content: SYSTEM_PROMPT },
+            ...history.slice(-6).map((h) => ({
+              role: h.role as "user" | "assistant",
+              content: h.content,
+            })),
+            {
+              role: "user",
+              content: `${userContext}${photoContext}\n\n사용자 요청: ${message}`,
+            },
+          ];
+
+          console.log("[Chatbot] Calling AI with message:", message);
+
+          const response = await openai.chat.completions.create({
+            model: "gpt-5-nano",
+            messages: chatMessages,
+            max_tokens: 1024,
+            response_format: { type: "json_object" },
+          });
+
+          const aiContent = response.choices[0]?.message?.content || "";
+          console.log("[Chatbot] AI response:", aiContent.substring(0, 500));
+
+          if (aiContent) {
+            try {
+              parsed = JSON.parse(aiContent);
+            } catch (parseErr) {
+              console.log("[Chatbot] JSON parse failed, using keyword fallback");
+              parsed = null;
+            }
+          }
+        } catch (err: any) {
+          console.error("[Chatbot] AI API error:", err.message);
+          aiError = err.message;
+        }
+
+        if (!parsed || !parsed.action) {
+          console.log("[Chatbot] Using keyword-based fallback for:", message);
+          const detectedIntent = detectIntentFromKeywords(message);
+          const title = extractTitleFromMessage(message);
+          
+          if (detectedIntent === "CREATE_EDUCATION") {
+            parsed = {
+              action: "CREATE_EDUCATION",
+              message: `"${title}" 교육일지를 등록하겠습니다.`,
+              data: {
+                title: title,
+                educationDate: today,
+                department: user.department || "미지정",
+                educationType: "정기교육",
+                totalParticipants: 1,
+                instructor: user.name || user.username,
+                description: `${title} 교육 실시`,
+              },
+              needsConfirmation: false,
+            };
+          } else if (detectedIntent === "CREATE_INSPECTION") {
+            parsed = {
+              action: "CREATE_INSPECTION",
+              message: `"${title}" 안전점검을 등록하겠습니다.`,
+              data: {
+                inspectionType: "안전점검",
+                title: title,
+                inspectionDate: today,
+                inspector: user.name || user.username,
+              },
+              needsConfirmation: false,
+            };
+          } else if (detectedIntent === "QUERY_EDUCATION") {
+            parsed = {
+              action: "QUERY_EDUCATION",
+              message: "교육 현황을 조회합니다.",
+              data: {},
+            };
+          } else if (detectedIntent === "QUERY_INSPECTION") {
+            parsed = {
+              action: "QUERY_INSPECTION",
+              message: "안전점검 현황을 조회합니다.",
+              data: {},
+            };
+          } else {
+            parsed = {
+              action: "GENERAL_QUERY",
+              message: aiError
+                ? "AI 서비스 연결에 일시적인 문제가 있습니다. 잠시 후 다시 시도해주세요.\n\n다음과 같은 요청을 하실 수 있어요:\n• \"오늘 안전보건점검의날 교육했어\"\n• \"교육 현황 알려줘\"\n• \"안전점검 등록해줘\""
+                : "요청을 이해하지 못했습니다. 다음과 같은 요청을 해보세요:\n• \"오늘 안전보건점검의날 교육했어\"\n• \"교육 현황 알려줘\"\n• \"안전점검 등록해줘\"",
+              data: {},
+            };
+          }
+        }
+
+        if (parsed.needsConfirmation === true && (parsed.action === "CREATE_EDUCATION" || parsed.action === "CREATE_INSPECTION")) {
+          console.log("[Chatbot] Overriding needsConfirmation to false for auto-execute");
+          parsed.needsConfirmation = false;
         }
 
         let actionResult: any = null;
 
-        if (parsed.action === "CREATE_EDUCATION" && !parsed.needsConfirmation) {
+        if (parsed.action === "CREATE_EDUCATION") {
           if (!hasPermission(user, "registerEducation")) {
             parsed.message = "교육일지 등록 권한이 없습니다. 관리자에게 문의해주세요.";
             parsed.action = "PERMISSION_DENIED";
           } else {
             try {
-              const result = await executeEducationCreate(parsed.data, user, today, uploadedImages);
+              const result = await executeEducationCreate(parsed.data || {}, user, today, uploadedImages);
               actionResult = result.actionResult;
               parsed.message = result.message;
+              console.log("[Chatbot] Education created successfully, id:", result.actionResult.sessionId);
             } catch (error: any) {
+              console.error("[Chatbot] Education create error:", error.message);
               actionResult = { success: false, error: error.message };
               parsed.message = `교육일지 등록 중 오류가 발생했습니다: ${error.message}`;
             }
           }
         }
 
-        if (parsed.action === "CREATE_INSPECTION" && !parsed.needsConfirmation) {
+        if (parsed.action === "CREATE_INSPECTION") {
           if (!hasPermission(user, "editInspections")) {
             parsed.message = "안전점검 등록 권한이 없습니다. 관리자에게 문의해주세요.";
             parsed.action = "PERMISSION_DENIED";
           } else {
             try {
-              const result = await executeInspectionCreate(parsed.data, user, today, uploadedImages);
+              const result = await executeInspectionCreate(parsed.data || {}, user, today, uploadedImages);
               actionResult = result.actionResult;
               parsed.message = result.message;
+              console.log("[Chatbot] Inspection created successfully, id:", result.actionResult.inspectionId);
             } catch (error: any) {
+              console.error("[Chatbot] Inspection create error:", error.message);
               actionResult = { success: false, error: error.message };
               parsed.message = `안전점검 등록 중 오류가 발생했습니다: ${error.message}`;
             }
@@ -286,7 +378,9 @@ export function registerChatbotRoutes(app: Express): void {
             const summary = recentSessions.map((s) =>
               `• ${s.title} (${s.educationDate}) - ${s.department} [${s.status}]`
             ).join("\n");
-            parsed.message = `최근 교육 현황:\n\n${summary || "등록된 교육이 없습니다."}`;
+            parsed.message = recentSessions.length > 0
+              ? `최근 교육 현황 (총 ${sessions.length}건):\n\n${summary}`
+              : "등록된 교육이 없습니다.";
             actionResult = { success: true, type: "education_query", count: sessions.length };
           } catch {
             parsed.message = "교육 현황 조회 중 오류가 발생했습니다.";
@@ -300,24 +394,28 @@ export function registerChatbotRoutes(app: Express): void {
             const summary = recent.map((i: any) =>
               `• ${i.title} (${i.inspectionDate}) - ${i.inspectionType} [${i.inspector}]`
             ).join("\n");
-            parsed.message = `최근 안전점검 현황:\n\n${summary || "등록된 점검이 없습니다."}`;
+            parsed.message = recent.length > 0
+              ? `최근 안전점검 현황 (총 ${inspections.length}건):\n\n${summary}`
+              : "등록된 점검이 없습니다.";
             actionResult = { success: true, type: "inspection_query", count: inspections.length };
           } catch {
             parsed.message = "점검 현황 조회 중 오류가 발생했습니다.";
           }
         }
 
+        console.log("[Chatbot] Final response - action:", parsed.action, "message length:", parsed.message?.length);
+
         res.json({
-          message: parsed.message,
+          message: parsed.message || "요청을 처리했습니다.",
           action: parsed.action,
           actionResult,
-          needsConfirmation: parsed.needsConfirmation || false,
-          confirmData: parsed.needsConfirmation ? parsed.data : null,
+          needsConfirmation: false,
+          confirmData: null,
           followUp: parsed.followUp || null,
           uploadedImages,
         });
       } catch (error: any) {
-        console.error("Chatbot error:", error);
+        console.error("[Chatbot] Unhandled error:", error);
         res.status(500).json({
           message: "죄송합니다, 요청 처리 중 오류가 발생했습니다. 다시 시도해주세요.",
           error: error.message,
@@ -355,7 +453,7 @@ export function registerChatbotRoutes(app: Express): void {
 
       res.status(400).json({ error: "지원하지 않는 액션입니다" });
     } catch (error: any) {
-      console.error("Chatbot confirm error:", error);
+      console.error("[Chatbot] Confirm error:", error);
       res.status(500).json({ error: error.message });
     }
   });
