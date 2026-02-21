@@ -22,6 +22,7 @@ import AdminUsers from "@/pages/AdminUsers";
 import Login from "@/pages/Login";
 import NotFound from "@/pages/NotFound";
 import { useAuth } from "@/hooks/use-auth";
+import { ChatBot } from "@/components/ChatBot";
 
 function MainLayout() {
   return (
@@ -52,6 +53,7 @@ function MainLayout() {
           </Switch>
         </div>
       </main>
+      <ChatBot />
     </div>
   );
 }

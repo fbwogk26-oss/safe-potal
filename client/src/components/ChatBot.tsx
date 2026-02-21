@@ -1,0 +1,422 @@
+import { useState, useRef, useCallback } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { useAuth } from "@/hooks/use-auth";
+import { useToast } from "@/hooks/use-toast";
+import {
+  MessageCircle,
+  X,
+  Send,
+  Image as ImageIcon,
+  Loader2,
+  Check,
+  Bot,
+  User,
+  Trash2,
+} from "lucide-react";
+
+interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+  images?: string[];
+  actionResult?: any;
+  needsConfirmation?: boolean;
+  confirmData?: any;
+  confirmAction?: string;
+  uploadedImages?: string[];
+}
+
+export function ChatBot() {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [isOpen, setIsOpen] = useState(false);
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    {
+      role: "assistant",
+      content: `안녕하세요, ${user?.name || "사용자"}님! 무엇을 도와드릴까요?\n\n다음과 같은 요청을 하실 수 있어요:\n• "오늘 안전보건점검의날 교육했어"\n• "이번 달 교육 현황 알려줘"\n• "안전점검 등록해줘"\n• "교육 현황 요약해줘"`,
+    },
+  ]);
+  const [input, setInput] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = useCallback(() => {
+    setTimeout(() => {
+      if (scrollContainerRef.current) {
+        scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+      }
+    }, 100);
+  }, []);
+
+  const handleSend = async () => {
+    const trimmed = input.trim();
+    if (!trimmed && selectedFiles.length === 0) return;
+    if (isLoading) return;
+
+    const userMessage: ChatMessage = {
+      role: "user",
+      content: trimmed,
+      images: selectedFiles.map((f) => URL.createObjectURL(f)),
+    };
+    setMessages((prev) => [...prev, userMessage]);
+    setInput("");
+    setIsLoading(true);
+    scrollToBottom();
+
+    try {
+      const formData = new FormData();
+      formData.append("message", trimmed);
+
+      const history = messages
+        .filter((m) => m.role === "user" || m.role === "assistant")
+        .slice(-6)
+        .map((m) => ({ role: m.role, content: m.content }));
+      formData.append("conversationHistory", JSON.stringify(history));
+
+      for (const file of selectedFiles) {
+        formData.append("photos", file);
+      }
+
+      const response = await fetch("/api/chatbot/message", {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error("서버 요청에 실패했습니다");
+      }
+
+      const data = await response.json();
+
+      const assistantMessage: ChatMessage = {
+        role: "assistant",
+        content: data.message || "처리되었습니다.",
+        actionResult: data.actionResult,
+        needsConfirmation: data.needsConfirmation,
+        confirmData: data.confirmData,
+        confirmAction: data.action,
+        uploadedImages: data.uploadedImages,
+      };
+      setMessages((prev) => [...prev, assistantMessage]);
+
+      if (data.actionResult?.success) {
+        toast({
+          title: "처리 완료",
+          description: data.actionResult.type === "education_created"
+            ? "교육일지가 등록되었습니다"
+            : data.actionResult.type === "inspection_created"
+              ? "안전점검이 등록되었습니다"
+              : "요청이 처리되었습니다",
+        });
+      }
+    } catch (error: any) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: "죄송합니다, 오류가 발생했습니다. 다시 시도해주세요.",
+        },
+      ]);
+    } finally {
+      setIsLoading(false);
+      setSelectedFiles([]);
+      scrollToBottom();
+    }
+  };
+
+  const handleConfirm = async (msg: ChatMessage) => {
+    if (!msg.confirmAction || !msg.confirmData) return;
+    setIsLoading(true);
+
+    try {
+      const response = await fetch("/api/chatbot/confirm", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: msg.confirmAction,
+          data: msg.confirmData,
+          uploadedImages: msg.uploadedImages || [],
+        }),
+      });
+
+      const data = await response.json();
+      setMessages((prev) =>
+        prev.map((m) =>
+          m === msg ? { ...m, needsConfirmation: false } : m
+        )
+      );
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: data.message || "처리되었습니다." },
+      ]);
+
+      if (data.success) {
+        toast({ title: "처리 완료", description: "요청이 등록되었습니다" });
+      }
+    } catch {
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: "확인 처리 중 오류가 발생했습니다." },
+      ]);
+    } finally {
+      setIsLoading(false);
+      scrollToBottom();
+    }
+  };
+
+  const handleFileSelect = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFilesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    setSelectedFiles((prev) => [...prev, ...files]);
+    e.target.value = "";
+  };
+
+  const removeFile = (index: number) => {
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const clearChat = () => {
+    setMessages([
+      {
+        role: "assistant",
+        content: `대화가 초기화되었습니다. 무엇을 도와드릴까요?`,
+      },
+    ]);
+  };
+
+  if (!user) return null;
+
+  return (
+    <>
+      {!isOpen && (
+        <button
+          onClick={() => setIsOpen(true)}
+          className="fixed bottom-4 right-4 z-50 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center hover:scale-105 active:scale-95"
+          data-testid="button-chatbot-open"
+        >
+          <MessageCircle className="w-6 h-6" />
+        </button>
+      )}
+
+      {isOpen && (
+        <div className="fixed bottom-4 right-4 z-50 w-[360px] max-w-[calc(100vw-2rem)] h-[520px] max-h-[calc(100vh-6rem)] bg-background border rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-5 duration-300"
+          data-testid="chatbot-panel"
+        >
+          <div className="flex items-center justify-between px-4 py-3 border-b bg-primary/5">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                <Bot className="w-4 h-4 text-primary" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold">AI 어시스턴트</h3>
+                <p className="text-[10px] text-muted-foreground">안전포털 도우미</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={clearChat}
+                data-testid="button-chatbot-clear"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => setIsOpen(false)}
+                data-testid="button-chatbot-close"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+
+          <div
+            ref={scrollContainerRef}
+            className="flex-1 overflow-y-auto p-3 space-y-3"
+          >
+            {messages.map((msg, i) => (
+              <div
+                key={i}
+                className={`flex gap-2 ${msg.role === "user" ? "flex-row-reverse" : ""}`}
+              >
+                <div
+                  className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                    msg.role === "user"
+                      ? "bg-primary/10"
+                      : "bg-muted"
+                  }`}
+                >
+                  {msg.role === "user" ? (
+                    <User className="w-3 h-3 text-primary" />
+                  ) : (
+                    <Bot className="w-3 h-3 text-muted-foreground" />
+                  )}
+                </div>
+                <div
+                  className={`max-w-[80%] rounded-xl px-3 py-2 text-sm ${
+                    msg.role === "user"
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted/70"
+                  }`}
+                >
+                  <div className="whitespace-pre-wrap break-words">{msg.content}</div>
+
+                  {msg.images && msg.images.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {msg.images.map((img, j) => (
+                        <img
+                          key={j}
+                          src={img}
+                          alt="첨부"
+                          className="w-16 h-16 object-cover rounded-md"
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  {msg.actionResult?.success && (
+                    <div className="mt-2 flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
+                      <Check className="w-3 h-3" />
+                      <span>처리 완료</span>
+                    </div>
+                  )}
+
+                  {msg.needsConfirmation && (
+                    <div className="mt-2 flex gap-2">
+                      <Button
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => handleConfirm(msg)}
+                        disabled={isLoading}
+                        data-testid={`button-chatbot-confirm-${i}`}
+                      >
+                        확인
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs"
+                        onClick={() => {
+                          setMessages((prev) =>
+                            prev.map((m) =>
+                              m === msg
+                                ? { ...m, needsConfirmation: false }
+                                : m
+                            )
+                          );
+                          setMessages((prev) => [
+                            ...prev,
+                            { role: "assistant", content: "취소되었습니다. 다른 요청이 있으신가요?" },
+                          ]);
+                        }}
+                        data-testid={`button-chatbot-cancel-${i}`}
+                      >
+                        취소
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            {isLoading && (
+              <div className="flex gap-2">
+                <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                  <Bot className="w-3 h-3 text-muted-foreground" />
+                </div>
+                <div className="bg-muted/70 rounded-xl px-3 py-2">
+                  <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                </div>
+              </div>
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+
+          {selectedFiles.length > 0 && (
+            <div className="px-3 py-2 border-t bg-muted/30">
+              <div className="flex flex-wrap gap-1">
+                {selectedFiles.map((file, i) => (
+                  <div key={i} className="relative group">
+                    <img
+                      src={URL.createObjectURL(file)}
+                      alt={file.name}
+                      className="w-12 h-12 object-cover rounded-md"
+                    />
+                    <button
+                      onClick={() => removeFile(i)}
+                      className="absolute -top-1 -right-1 w-4 h-4 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <X className="w-2.5 h-2.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="border-t p-2">
+            <div className="flex items-center gap-1.5">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={handleFilesChange}
+              />
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 flex-shrink-0"
+                onClick={handleFileSelect}
+                disabled={isLoading}
+                data-testid="button-chatbot-attach"
+              >
+                <ImageIcon className="w-4 h-4" />
+              </Button>
+              <Input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSend();
+                  }
+                }}
+                placeholder="메시지를 입력하세요..."
+                className="h-8 text-sm"
+                disabled={isLoading}
+                data-testid="input-chatbot-message"
+              />
+              <Button
+                size="icon"
+                className="h-8 w-8 flex-shrink-0"
+                onClick={handleSend}
+                disabled={isLoading || (!input.trim() && selectedFiles.length === 0)}
+                data-testid="button-chatbot-send"
+              >
+                {isLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Send className="w-4 h-4" />
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}

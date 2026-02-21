@@ -10,6 +10,7 @@ import ExcelJS from "exceljs";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 import { setupAuth, registerAuthRoutes, isAuthenticated, authStorage } from "./replit_integrations/auth";
 import { ALL_PERMISSIONS, type UserPermissions } from "@shared/models/auth";
+import { registerChatbotRoutes } from "./chatbot";
 
 const uploadDir = path.join(process.cwd(), "uploads");
 if (!fs.existsSync(uploadDir)) {
@@ -162,6 +163,7 @@ export async function registerRoutes(
   // Setup authentication (must be before other routes)
   await setupAuth(app);
   registerAuthRoutes(app);
+  registerChatbotRoutes(app);
   
   // Add routes to get/update user role
   app.get("/api/auth/user-role", isAuthenticated, async (req: any, res) => {
