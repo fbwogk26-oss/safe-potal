@@ -70,40 +70,60 @@ const SYSTEM_PROMPT = `당신은 kt MOS남부 종합안전포털시스템의 AI 
 사용자의 자연어 요청을 분석하여 적절한 액션을 수행합니다.
 
 지원하는 액션:
-1. CREATE_EDUCATION - 교육일지 등록 (교육했어, 교육 등록, 교육일지 작성 등)
-2. QUERY_EDUCATION - 교육 현황 조회 (교육 현황, 교육 목록, 몇 건 등)
-3. CREATE_INSPECTION - 안전점검 등록 (점검했어, 점검 등록 등)
-4. QUERY_INSPECTION - 안전점검 현황 조회 (점검 현황, 점검 목록 등)
+1. CREATE_EDUCATION - 교육일지 등록
+2. QUERY_EDUCATION - 교육 현황 조회
+3. CREATE_INSPECTION - 안전점검 등록
+4. QUERY_INSPECTION - 안전점검 현황 조회
 5. GENERAL_QUERY - 일반 질의응답
 
 부서 목록: ${DEPARTMENTS.join(", ")}
 
-중요: 반드시 아래 JSON 형식으로만 응답하세요. 다른 텍스트는 절대 포함하지 마세요.
+중요: 반드시 아래 JSON 형식으로만 응답하세요.
 
+등록 요청(CREATE_EDUCATION, CREATE_INSPECTION) 시:
+- 사용자가 제공한 정보를 data에 넣고, needsConfirmation을 true로 설정하세요.
+- 사용자가 명시하지 않은 정보는 사용자 컨텍스트에서 기본값으로 채우세요.
+- message에는 등록할 내용을 요약하여 "다음 내용으로 등록할까요?" 형태로 확인을 요청하세요.
+
+확인 후 등록 요청인 경우(사용자가 "확인", "등록해줘", "네", "ㅇㅇ" 등으로 응답):
+- needsConfirmation을 false로 설정하고, 이전 대화에서 확인된 data를 그대로 사용하세요.
+- action은 이전에 확인 요청한 액션(CREATE_EDUCATION/CREATE_INSPECTION)을 유지하세요.
+
+수정 요청인 경우(사용자가 "부서 바꿔줘", "인원 10명으로" 등으로 수정 요청):
+- data를 수정하고, needsConfirmation을 true로 설정하여 다시 확인을 요청하세요.
+
+JSON 형식:
 {
   "action": "CREATE_EDUCATION",
-  "message": "교육일지를 등록하겠습니다",
+  "message": "한국어 메시지",
   "data": {
-    "title": "안전보건점검의날",
-    "educationDate": "2026-02-21",
-    "department": "사용자 부서",
-    "educationType": "정기교육",
+    "title": "교육 제목",
+    "educationDate": "YYYY-MM-DD",
+    "department": "부서명",
+    "educationType": "정기교육/수시교육/특별교육",
     "totalParticipants": 1,
-    "instructor": "사용자 이름",
-    "description": "안전보건점검의날 교육"
+    "instructor": "교육자",
+    "description": "설명"
   },
-  "needsConfirmation": false
+  "needsConfirmation": true
 }
 
-핵심 규칙:
-1. "교육했어", "교육 등록", "교육일지" 등의 키워드가 있으면 반드시 action을 "CREATE_EDUCATION"으로 설정하세요.
-2. "점검했어", "점검 등록" 등의 키워드가 있으면 반드시 action을 "CREATE_INSPECTION"으로 설정하세요.
-3. needsConfirmation은 반드시 false로 설정하세요. 부족한 정보는 사용자 정보에서 자동으로 채웁니다.
-4. 오늘 날짜는 사용자 컨텍스트에서 제공됩니다.
-5. 부서가 명시되지 않으면 사용자의 부서를 사용하세요.
-6. "안전보건점검의날"은 매우 자주 사용되는 교육 제목입니다.
-7. message 필드에는 반드시 의미있는 한국어 메시지를 넣으세요. 비워두지 마세요.
-8. 교육/점검 현황을 물어보면 QUERY_EDUCATION 또는 QUERY_INSPECTION으로 설정하세요.`;
+CREATE_INSPECTION data:
+{
+  "inspectionType": "안전점검/동행점검",
+  "title": "점검 제목",
+  "inspectionDate": "YYYY-MM-DD",
+  "inspector": "점검자",
+  "workerName": "작업자 (선택)",
+  "location": "위치 (선택)",
+  "notes": "비고 (선택)"
+}
+
+규칙:
+- "안전보건점검의날"은 교육 제목으로 자주 사용됩니다.
+- 부서가 명시되지 않으면 사용자의 부서를 기본값으로 사용하세요.
+- message 필드에는 반드시 의미있는 한국어 메시지를 넣으세요.
+- 항상 한국어로 응답하세요.`;
 
 async function executeEducationCreate(data: any, user: any, today: string, uploadedImages: string[]) {
   const validated = educationDataSchema.parse({
@@ -197,6 +217,22 @@ function extractTitleFromMessage(message: string): string {
   return "교육";
 }
 
+function isConfirmMessage(message: string): boolean {
+  const confirmWords = ["확인", "등록해", "네", "ㅇㅇ", "응", "맞아", "그래", "좋아", "해줘", "부탁", "ㅇㅋ", "ok", "yes"];
+  const msg = message.toLowerCase().trim();
+  return confirmWords.some(w => msg.includes(w));
+}
+
+function buildConfirmationMessage(action: string, data: any): string {
+  if (action === "CREATE_EDUCATION") {
+    return `다음 내용으로 교육일지를 등록할까요?\n\n📋 제목: ${data.title || "미정"}\n📅 날짜: ${data.educationDate || "미정"}\n🏢 부서: ${data.department || "미정"}\n📝 유형: ${data.educationType || "정기교육"}\n👨‍🏫 교육자: ${data.instructor || "미정"}\n👥 인원: ${data.totalParticipants || 1}명\n\n수정이 필요하면 말씀해주세요!`;
+  }
+  if (action === "CREATE_INSPECTION") {
+    return `다음 내용으로 안전점검을 등록할까요?\n\n📋 유형: ${data.inspectionType || "안전점검"}\n📝 제목: ${data.title || "미정"}\n📅 날짜: ${data.inspectionDate || "미정"}\n👷 점검자: ${data.inspector || "미정"}\n\n수정이 필요하면 말씀해주세요!`;
+  }
+  return "";
+}
+
 export function registerChatbotRoutes(app: Express): void {
   app.post(
     "/api/chatbot/message",
@@ -263,7 +299,7 @@ export function registerChatbotRoutes(app: Express): void {
           if (aiContent) {
             try {
               parsed = JSON.parse(aiContent);
-            } catch (parseErr) {
+            } catch {
               console.log("[Chatbot] JSON parse failed, using keyword fallback");
               parsed = null;
             }
@@ -279,31 +315,33 @@ export function registerChatbotRoutes(app: Express): void {
           const title = extractTitleFromMessage(message);
           
           if (detectedIntent === "CREATE_EDUCATION") {
+            const data = {
+              title: title,
+              educationDate: today,
+              department: user.department || "미지정",
+              educationType: "정기교육",
+              totalParticipants: 1,
+              instructor: user.name || user.username,
+              description: `${title} 교육 실시`,
+            };
             parsed = {
               action: "CREATE_EDUCATION",
-              message: `"${title}" 교육일지를 등록하겠습니다.`,
-              data: {
-                title: title,
-                educationDate: today,
-                department: user.department || "미지정",
-                educationType: "정기교육",
-                totalParticipants: 1,
-                instructor: user.name || user.username,
-                description: `${title} 교육 실시`,
-              },
-              needsConfirmation: false,
+              message: buildConfirmationMessage("CREATE_EDUCATION", data),
+              data,
+              needsConfirmation: true,
             };
           } else if (detectedIntent === "CREATE_INSPECTION") {
+            const data = {
+              inspectionType: "안전점검",
+              title: title,
+              inspectionDate: today,
+              inspector: user.name || user.username,
+            };
             parsed = {
               action: "CREATE_INSPECTION",
-              message: `"${title}" 안전점검을 등록하겠습니다.`,
-              data: {
-                inspectionType: "안전점검",
-                title: title,
-                inspectionDate: today,
-                inspector: user.name || user.username,
-              },
-              needsConfirmation: false,
+              message: buildConfirmationMessage("CREATE_INSPECTION", data),
+              data,
+              needsConfirmation: true,
             };
           } else if (detectedIntent === "QUERY_EDUCATION") {
             parsed = {
@@ -328,14 +366,28 @@ export function registerChatbotRoutes(app: Express): void {
           }
         }
 
-        if (parsed.needsConfirmation === true && (parsed.action === "CREATE_EDUCATION" || parsed.action === "CREATE_INSPECTION")) {
-          console.log("[Chatbot] Overriding needsConfirmation to false for auto-execute");
-          parsed.needsConfirmation = false;
+        if (parsed.action === "CREATE_EDUCATION" || parsed.action === "CREATE_INSPECTION") {
+          if (parsed.needsConfirmation === true || parsed.needsConfirmation === undefined) {
+            if (!parsed.message || parsed.message.length < 10) {
+              parsed.message = buildConfirmationMessage(parsed.action, parsed.data || {});
+            }
+            
+            console.log("[Chatbot] Asking for confirmation:", parsed.action);
+            return res.json({
+              message: parsed.message,
+              action: parsed.action,
+              actionResult: null,
+              needsConfirmation: true,
+              confirmData: parsed.data || {},
+              followUp: parsed.followUp || null,
+              uploadedImages,
+            });
+          }
         }
 
         let actionResult: any = null;
 
-        if (parsed.action === "CREATE_EDUCATION") {
+        if (parsed.action === "CREATE_EDUCATION" && parsed.needsConfirmation === false) {
           if (!hasPermission(user, "registerEducation")) {
             parsed.message = "교육일지 등록 권한이 없습니다. 관리자에게 문의해주세요.";
             parsed.action = "PERMISSION_DENIED";
@@ -353,7 +405,7 @@ export function registerChatbotRoutes(app: Express): void {
           }
         }
 
-        if (parsed.action === "CREATE_INSPECTION") {
+        if (parsed.action === "CREATE_INSPECTION" && parsed.needsConfirmation === false) {
           if (!hasPermission(user, "editInspections")) {
             parsed.message = "안전점검 등록 권한이 없습니다. 관리자에게 문의해주세요.";
             parsed.action = "PERMISSION_DENIED";
