@@ -37,7 +37,7 @@ export function ChatBot() {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       role: "assistant",
-      content: `안녕하세요, ${user?.name || "사용자"}님! 무엇을 도와드릴까요?\n\n다음과 같은 요청을 하실 수 있어요:\n• "오늘 안전보건점검의날 교육했어"\n• "이번 달 교육 현황 알려줘"\n• "안전점검 등록해줘"`,
+      content: `안녕하세요, ${user?.name || "사용자"}님! 무엇을 도와드릴까요?\n\n다음과 같은 요청을 하실 수 있어요:\n📚 "오늘 안전교육 했어" / "교육 현황 알려줘"\n🔍 "안전점검 등록해줘" / "점검 현황 조회"\n🚗 "운행일지 작성해줘" / "운행기록 조회"\n🛡️ "안전용품 현황 알려줘"\n📢 "공지사항 알려줘" / "규정 조회"\n🚙 "차량 정보 조회"`,
     },
   ]);
   const [input, setInput] = useState("");
@@ -107,14 +107,15 @@ export function ChatBot() {
       };
       setMessages((prev) => [...prev, assistantMessage]);
 
-      if (data.actionResult?.success) {
+      if (data.actionResult?.success && (data.actionResult.type === "education_created" || data.actionResult.type === "inspection_created" || data.actionResult.type === "vehicle_log_created")) {
+        const descMap2: Record<string, string> = {
+          education_created: "교육일지가 등록되었습니다",
+          inspection_created: "안전점검이 등록되었습니다",
+          vehicle_log_created: "운행일지가 등록되었습니다",
+        };
         toast({
           title: "처리 완료",
-          description: data.actionResult.type === "education_created"
-            ? "교육일지가 등록되었습니다"
-            : data.actionResult.type === "inspection_created"
-              ? "안전점검이 등록되었습니다"
-              : "요청이 처리되었습니다",
+          description: descMap2[data.actionResult.type] || "요청이 처리되었습니다",
         });
       }
     } catch (error: any) {
@@ -157,19 +158,27 @@ export function ChatBot() {
       const data = await response.json();
 
       if (data.success) {
+        const typeMap: Record<string, string> = {
+          CREATE_EDUCATION: "education_created",
+          CREATE_INSPECTION: "inspection_created",
+          CREATE_VEHICLE_LOG: "vehicle_log_created",
+        };
+        const descMap: Record<string, string> = {
+          CREATE_EDUCATION: "교육일지가 등록되었습니다",
+          CREATE_INSPECTION: "안전점검이 등록되었습니다",
+          CREATE_VEHICLE_LOG: "운행일지가 등록되었습니다",
+        };
         setMessages((prev) => [
           ...prev,
           {
             role: "assistant",
             content: data.message || "등록이 완료되었습니다!",
-            actionResult: { success: true, type: msg.confirmAction === "CREATE_EDUCATION" ? "education_created" : "inspection_created" },
+            actionResult: { success: true, type: typeMap[msg.confirmAction || ""] || "created" },
           },
         ]);
         toast({
           title: "등록 완료",
-          description: msg.confirmAction === "CREATE_EDUCATION"
-            ? "교육일지가 등록되었습니다"
-            : "안전점검이 등록되었습니다",
+          description: descMap[msg.confirmAction || ""] || "등록이 완료되었습니다",
         });
       } else {
         setMessages((prev) => [
