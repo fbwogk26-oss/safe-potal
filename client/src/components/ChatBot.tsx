@@ -13,6 +13,8 @@ import {
   Bot,
   User,
   Trash2,
+  CheckCircle2,
+  XCircle,
 } from "lucide-react";
 
 interface ChatMessage {
@@ -24,6 +26,8 @@ interface ChatMessage {
   confirmData?: any;
   confirmAction?: string;
   uploadedImages?: string[];
+  confirmed?: boolean;
+  cancelled?: boolean;
 }
 
 export function ChatBot() {
@@ -33,7 +37,7 @@ export function ChatBot() {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       role: "assistant",
-      content: `안녕하세요, ${user?.name || "사용자"}님! 무엇을 도와드릴까요?\n\n다음과 같은 요청을 하실 수 있어요:\n• "오늘 안전보건점검의날 교육했어"\n• "이번 달 교육 현황 알려줘"\n• "안전점검 등록해줘"\n• "교육 현황 요약해줘"`,
+      content: `안녕하세요, ${user?.name || "사용자"}님! 무엇을 도와드릴까요?\n\n다음과 같은 요청을 하실 수 있어요:\n• "오늘 안전보건점검의날 교육했어"\n• "이번 달 교육 현황 알려줘"\n• "안전점검 등록해줘"`,
     },
   ]);
   const [input, setInput] = useState("");
@@ -96,7 +100,7 @@ export function ChatBot() {
         role: "assistant",
         content: data.message || "처리되었습니다.",
         actionResult: data.actionResult,
-        needsConfirmation: data.needsConfirmation,
+        needsConfirmation: data.needsConfirmation === true,
         confirmData: data.confirmData,
         confirmAction: data.action,
         uploadedImages: data.uploadedImages,
@@ -132,6 +136,12 @@ export function ChatBot() {
     if (!msg.confirmAction || !msg.confirmData) return;
     setIsLoading(true);
 
+    setMessages((prev) =>
+      prev.map((m) =>
+        m === msg ? { ...m, needsConfirmation: false, confirmed: true } : m
+      )
+    );
+
     try {
       const response = await fetch("/api/chatbot/confirm", {
         method: "POST",
@@ -145,28 +155,50 @@ export function ChatBot() {
       });
 
       const data = await response.json();
-      setMessages((prev) =>
-        prev.map((m) =>
-          m === msg ? { ...m, needsConfirmation: false } : m
-        )
-      );
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: data.message || "처리되었습니다." },
-      ]);
 
       if (data.success) {
-        toast({ title: "처리 완료", description: "요청이 등록되었습니다" });
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: data.message || "등록이 완료되었습니다!",
+            actionResult: { success: true, type: msg.confirmAction === "CREATE_EDUCATION" ? "education_created" : "inspection_created" },
+          },
+        ]);
+        toast({
+          title: "등록 완료",
+          description: msg.confirmAction === "CREATE_EDUCATION"
+            ? "교육일지가 등록되었습니다"
+            : "안전점검이 등록되었습니다",
+        });
+      } else {
+        setMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: data.error || data.message || "등록에 실패했습니다." },
+        ]);
       }
     } catch {
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: "확인 처리 중 오류가 발생했습니다." },
+        { role: "assistant", content: "등록 처리 중 오류가 발생했습니다. 다시 시도해주세요." },
       ]);
     } finally {
       setIsLoading(false);
       scrollToBottom();
     }
+  };
+
+  const handleCancel = (msg: ChatMessage) => {
+    setMessages((prev) =>
+      prev.map((m) =>
+        m === msg ? { ...m, needsConfirmation: false, cancelled: true } : m
+      )
+    );
+    setMessages((prev) => [
+      ...prev,
+      { role: "assistant", content: "취소되었습니다. 다른 요청이 있으신가요?" },
+    ]);
+    scrollToBottom();
   };
 
   const handleFileSelect = () => {
@@ -265,7 +297,7 @@ export function ChatBot() {
                   )}
                 </div>
                 <div
-                  className={`max-w-[80%] rounded-xl px-3 py-2 text-sm ${
+                  className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${
                     msg.role === "user"
                       ? "bg-primary text-primary-foreground"
                       : "bg-muted/70"
@@ -293,36 +325,41 @@ export function ChatBot() {
                     </div>
                   )}
 
-                  {msg.needsConfirmation && (
-                    <div className="mt-2 flex gap-2">
+                  {msg.confirmed && (
+                    <div className="mt-2 flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>확인됨</span>
+                    </div>
+                  )}
+
+                  {msg.cancelled && (
+                    <div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <XCircle className="w-3.5 h-3.5" />
+                      <span>취소됨</span>
+                    </div>
+                  )}
+
+                  {msg.needsConfirmation && !msg.confirmed && !msg.cancelled && (
+                    <div className="mt-3 flex gap-2">
                       <Button
                         size="sm"
-                        className="h-7 text-xs"
+                        className="h-8 text-xs px-4 bg-green-600 hover:bg-green-700 text-white"
                         onClick={() => handleConfirm(msg)}
                         disabled={isLoading}
                         data-testid={`button-chatbot-confirm-${i}`}
                       >
-                        확인
+                        <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+                        등록하기
                       </Button>
                       <Button
                         size="sm"
                         variant="outline"
-                        className="h-7 text-xs"
-                        onClick={() => {
-                          setMessages((prev) =>
-                            prev.map((m) =>
-                              m === msg
-                                ? { ...m, needsConfirmation: false }
-                                : m
-                            )
-                          );
-                          setMessages((prev) => [
-                            ...prev,
-                            { role: "assistant", content: "취소되었습니다. 다른 요청이 있으신가요?" },
-                          ]);
-                        }}
+                        className="h-8 text-xs px-4"
+                        onClick={() => handleCancel(msg)}
+                        disabled={isLoading}
                         data-testid={`button-chatbot-cancel-${i}`}
                       >
+                        <XCircle className="w-3.5 h-3.5 mr-1" />
                         취소
                       </Button>
                     </div>

@@ -80,17 +80,10 @@ const SYSTEM_PROMPT = `당신은 kt MOS남부 종합안전포털시스템의 AI 
 
 중요: 반드시 아래 JSON 형식으로만 응답하세요.
 
-등록 요청(CREATE_EDUCATION, CREATE_INSPECTION) 시:
-- 사용자가 제공한 정보를 data에 넣고, needsConfirmation을 true로 설정하세요.
+등록 요청(CREATE_EDUCATION, CREATE_INSPECTION)일 때:
+- 사용자가 말한 정보를 data에 넣으세요.
 - 사용자가 명시하지 않은 정보는 사용자 컨텍스트에서 기본값으로 채우세요.
-- message에는 등록할 내용을 요약하여 "다음 내용으로 등록할까요?" 형태로 확인을 요청하세요.
-
-확인 후 등록 요청인 경우(사용자가 "확인", "등록해줘", "네", "ㅇㅇ" 등으로 응답):
-- needsConfirmation을 false로 설정하고, 이전 대화에서 확인된 data를 그대로 사용하세요.
-- action은 이전에 확인 요청한 액션(CREATE_EDUCATION/CREATE_INSPECTION)을 유지하세요.
-
-수정 요청인 경우(사용자가 "부서 바꿔줘", "인원 10명으로" 등으로 수정 요청):
-- data를 수정하고, needsConfirmation을 true로 설정하여 다시 확인을 요청하세요.
+- message에는 등록할 내용을 요약해주세요.
 
 JSON 형식:
 {
@@ -100,30 +93,33 @@ JSON 형식:
     "title": "교육 제목",
     "educationDate": "YYYY-MM-DD",
     "department": "부서명",
-    "educationType": "정기교육/수시교육/특별교육",
+    "educationType": "정기교육",
     "totalParticipants": 1,
     "instructor": "교육자",
     "description": "설명"
-  },
-  "needsConfirmation": true
+  }
 }
 
-CREATE_INSPECTION data:
+CREATE_INSPECTION JSON:
 {
-  "inspectionType": "안전점검/동행점검",
-  "title": "점검 제목",
-  "inspectionDate": "YYYY-MM-DD",
-  "inspector": "점검자",
-  "workerName": "작업자 (선택)",
-  "location": "위치 (선택)",
-  "notes": "비고 (선택)"
+  "action": "CREATE_INSPECTION",
+  "message": "한국어 메시지",
+  "data": {
+    "inspectionType": "안전점검",
+    "title": "점검 제목",
+    "inspectionDate": "YYYY-MM-DD",
+    "inspector": "점검자"
+  }
 }
 
 규칙:
 - "안전보건점검의날"은 교육 제목으로 자주 사용됩니다.
 - 부서가 명시되지 않으면 사용자의 부서를 기본값으로 사용하세요.
 - message 필드에는 반드시 의미있는 한국어 메시지를 넣으세요.
-- 항상 한국어로 응답하세요.`;
+- 항상 한국어로 응답하세요.
+- "교육했어", "교육 등록" → CREATE_EDUCATION
+- "점검했어", "점검 등록" → CREATE_INSPECTION
+- "현황", "조회", "목록" → QUERY_EDUCATION 또는 QUERY_INSPECTION`;
 
 async function executeEducationCreate(data: any, user: any, today: string, uploadedImages: string[]) {
   const validated = educationDataSchema.parse({
@@ -217,15 +213,9 @@ function extractTitleFromMessage(message: string): string {
   return "교육";
 }
 
-function isConfirmMessage(message: string): boolean {
-  const confirmWords = ["확인", "등록해", "네", "ㅇㅇ", "응", "맞아", "그래", "좋아", "해줘", "부탁", "ㅇㅋ", "ok", "yes"];
-  const msg = message.toLowerCase().trim();
-  return confirmWords.some(w => msg.includes(w));
-}
-
 function buildConfirmationMessage(action: string, data: any): string {
   if (action === "CREATE_EDUCATION") {
-    return `다음 내용으로 교육일지를 등록할까요?\n\n📋 제목: ${data.title || "미정"}\n📅 날짜: ${data.educationDate || "미정"}\n🏢 부서: ${data.department || "미정"}\n📝 유형: ${data.educationType || "정기교육"}\n👨‍🏫 교육자: ${data.instructor || "미정"}\n👥 인원: ${data.totalParticipants || 1}명\n\n수정이 필요하면 말씀해주세요!`;
+    return `다음 내용으로 교육일지를 등록할까요?\n\n📋 제목: ${data.title || "미정"}\n📅 날짜: ${data.educationDate || "미정"}\n🏢 부서: ${data.department || "미정"}\n📝 유형: ${data.educationType || "정기교육"}\n👨‍🏫 교육자: ${data.instructor || "미정"}\n👥 인원: ${data.totalParticipants || 1}명\n\n수정이 필요하면 말씀해주세요! (예: "부서 포항운용팀으로", "인원 5명")`;
   }
   if (action === "CREATE_INSPECTION") {
     return `다음 내용으로 안전점검을 등록할까요?\n\n📋 유형: ${data.inspectionType || "안전점검"}\n📝 제목: ${data.title || "미정"}\n📅 날짜: ${data.inspectionDate || "미정"}\n👷 점검자: ${data.inspector || "미정"}\n\n수정이 필요하면 말씀해주세요!`;
@@ -269,7 +259,6 @@ export function registerChatbotRoutes(app: Express): void {
         } catch {}
 
         let parsed: any = null;
-        let aiError: string | null = null;
 
         try {
           const chatMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
@@ -301,12 +290,10 @@ export function registerChatbotRoutes(app: Express): void {
               parsed = JSON.parse(aiContent);
             } catch {
               console.log("[Chatbot] JSON parse failed, using keyword fallback");
-              parsed = null;
             }
           }
         } catch (err: any) {
           console.error("[Chatbot] AI API error:", err.message);
-          aiError = err.message;
         }
 
         if (!parsed || !parsed.action) {
@@ -315,112 +302,100 @@ export function registerChatbotRoutes(app: Express): void {
           const title = extractTitleFromMessage(message);
           
           if (detectedIntent === "CREATE_EDUCATION") {
-            const data = {
-              title: title,
-              educationDate: today,
-              department: user.department || "미지정",
-              educationType: "정기교육",
-              totalParticipants: 1,
-              instructor: user.name || user.username,
-              description: `${title} 교육 실시`,
-            };
             parsed = {
               action: "CREATE_EDUCATION",
-              message: buildConfirmationMessage("CREATE_EDUCATION", data),
-              data,
-              needsConfirmation: true,
+              data: {
+                title,
+                educationDate: today,
+                department: user.department || "미지정",
+                educationType: "정기교육",
+                totalParticipants: 1,
+                instructor: user.name || user.username,
+                description: `${title} 교육 실시`,
+              },
             };
           } else if (detectedIntent === "CREATE_INSPECTION") {
-            const data = {
-              inspectionType: "안전점검",
-              title: title,
-              inspectionDate: today,
-              inspector: user.name || user.username,
-            };
             parsed = {
               action: "CREATE_INSPECTION",
-              message: buildConfirmationMessage("CREATE_INSPECTION", data),
-              data,
-              needsConfirmation: true,
+              data: {
+                inspectionType: "안전점검",
+                title,
+                inspectionDate: today,
+                inspector: user.name || user.username,
+              },
             };
           } else if (detectedIntent === "QUERY_EDUCATION") {
-            parsed = {
-              action: "QUERY_EDUCATION",
-              message: "교육 현황을 조회합니다.",
-              data: {},
-            };
+            parsed = { action: "QUERY_EDUCATION", data: {} };
           } else if (detectedIntent === "QUERY_INSPECTION") {
-            parsed = {
-              action: "QUERY_INSPECTION",
-              message: "안전점검 현황을 조회합니다.",
-              data: {},
-            };
+            parsed = { action: "QUERY_INSPECTION", data: {} };
           } else {
-            parsed = {
-              action: "GENERAL_QUERY",
-              message: aiError
-                ? "AI 서비스 연결에 일시적인 문제가 있습니다. 잠시 후 다시 시도해주세요.\n\n다음과 같은 요청을 하실 수 있어요:\n• \"오늘 안전보건점검의날 교육했어\"\n• \"교육 현황 알려줘\"\n• \"안전점검 등록해줘\""
-                : "요청을 이해하지 못했습니다. 다음과 같은 요청을 해보세요:\n• \"오늘 안전보건점검의날 교육했어\"\n• \"교육 현황 알려줘\"\n• \"안전점검 등록해줘\"",
-              data: {},
-            };
-          }
-        }
-
-        if (parsed.action === "CREATE_EDUCATION" || parsed.action === "CREATE_INSPECTION") {
-          if (parsed.needsConfirmation === true || parsed.needsConfirmation === undefined) {
-            if (!parsed.message || parsed.message.length < 10) {
-              parsed.message = buildConfirmationMessage(parsed.action, parsed.data || {});
-            }
-            
-            console.log("[Chatbot] Asking for confirmation:", parsed.action);
             return res.json({
-              message: parsed.message,
-              action: parsed.action,
+              message: "요청을 이해하지 못했습니다. 다음과 같은 요청을 해보세요:\n• \"오늘 안전보건점검의날 교육했어\"\n• \"교육 현황 알려줘\"\n• \"안전점검 등록해줘\"",
+              action: "GENERAL_QUERY",
               actionResult: null,
-              needsConfirmation: true,
-              confirmData: parsed.data || {},
-              followUp: parsed.followUp || null,
+              needsConfirmation: false,
+              confirmData: null,
               uploadedImages,
             });
           }
         }
 
-        let actionResult: any = null;
-
-        if (parsed.action === "CREATE_EDUCATION" && parsed.needsConfirmation === false) {
+        if (parsed.action === "CREATE_EDUCATION") {
           if (!hasPermission(user, "registerEducation")) {
-            parsed.message = "교육일지 등록 권한이 없습니다. 관리자에게 문의해주세요.";
-            parsed.action = "PERMISSION_DENIED";
-          } else {
-            try {
-              const result = await executeEducationCreate(parsed.data || {}, user, today, uploadedImages);
-              actionResult = result.actionResult;
-              parsed.message = result.message;
-              console.log("[Chatbot] Education created successfully, id:", result.actionResult.sessionId);
-            } catch (error: any) {
-              console.error("[Chatbot] Education create error:", error.message);
-              actionResult = { success: false, error: error.message };
-              parsed.message = `교육일지 등록 중 오류가 발생했습니다: ${error.message}`;
-            }
+            return res.json({
+              message: "교육일지 등록 권한이 없습니다. 관리자에게 문의해주세요.",
+              action: "PERMISSION_DENIED",
+              actionResult: null,
+              needsConfirmation: false,
+              confirmData: null,
+              uploadedImages,
+            });
           }
+          const data = parsed.data || {};
+          data.title = data.title || "교육";
+          data.educationDate = data.educationDate || today;
+          data.department = data.department || user.department || "미지정";
+          data.educationType = data.educationType || "정기교육";
+          data.instructor = data.instructor || user.name || user.username;
+          data.totalParticipants = typeof data.totalParticipants === "number" ? data.totalParticipants : 1;
+
+          console.log("[Chatbot] Asking confirmation for CREATE_EDUCATION:", JSON.stringify(data));
+          return res.json({
+            message: buildConfirmationMessage("CREATE_EDUCATION", data),
+            action: "CREATE_EDUCATION",
+            actionResult: null,
+            needsConfirmation: true,
+            confirmData: data,
+            uploadedImages,
+          });
         }
 
-        if (parsed.action === "CREATE_INSPECTION" && parsed.needsConfirmation === false) {
+        if (parsed.action === "CREATE_INSPECTION") {
           if (!hasPermission(user, "editInspections")) {
-            parsed.message = "안전점검 등록 권한이 없습니다. 관리자에게 문의해주세요.";
-            parsed.action = "PERMISSION_DENIED";
-          } else {
-            try {
-              const result = await executeInspectionCreate(parsed.data || {}, user, today, uploadedImages);
-              actionResult = result.actionResult;
-              parsed.message = result.message;
-              console.log("[Chatbot] Inspection created successfully, id:", result.actionResult.inspectionId);
-            } catch (error: any) {
-              console.error("[Chatbot] Inspection create error:", error.message);
-              actionResult = { success: false, error: error.message };
-              parsed.message = `안전점검 등록 중 오류가 발생했습니다: ${error.message}`;
-            }
+            return res.json({
+              message: "안전점검 등록 권한이 없습니다. 관리자에게 문의해주세요.",
+              action: "PERMISSION_DENIED",
+              actionResult: null,
+              needsConfirmation: false,
+              confirmData: null,
+              uploadedImages,
+            });
           }
+          const data = parsed.data || {};
+          data.inspectionType = data.inspectionType || "안전점검";
+          data.title = data.title || "안전점검";
+          data.inspectionDate = data.inspectionDate || today;
+          data.inspector = data.inspector || user.name || user.username;
+
+          console.log("[Chatbot] Asking confirmation for CREATE_INSPECTION:", JSON.stringify(data));
+          return res.json({
+            message: buildConfirmationMessage("CREATE_INSPECTION", data),
+            action: "CREATE_INSPECTION",
+            actionResult: null,
+            needsConfirmation: true,
+            confirmData: data,
+            uploadedImages,
+          });
         }
 
         if (parsed.action === "QUERY_EDUCATION") {
@@ -430,12 +405,25 @@ export function registerChatbotRoutes(app: Express): void {
             const summary = recentSessions.map((s) =>
               `• ${s.title} (${s.educationDate}) - ${s.department} [${s.status}]`
             ).join("\n");
-            parsed.message = recentSessions.length > 0
-              ? `최근 교육 현황 (총 ${sessions.length}건):\n\n${summary}`
-              : "등록된 교육이 없습니다.";
-            actionResult = { success: true, type: "education_query", count: sessions.length };
+            return res.json({
+              message: recentSessions.length > 0
+                ? `최근 교육 현황 (총 ${sessions.length}건):\n\n${summary}`
+                : "등록된 교육이 없습니다.",
+              action: "QUERY_EDUCATION",
+              actionResult: { success: true, type: "education_query", count: sessions.length },
+              needsConfirmation: false,
+              confirmData: null,
+              uploadedImages,
+            });
           } catch {
-            parsed.message = "교육 현황 조회 중 오류가 발생했습니다.";
+            return res.json({
+              message: "교육 현황 조회 중 오류가 발생했습니다.",
+              action: "QUERY_EDUCATION",
+              actionResult: null,
+              needsConfirmation: false,
+              confirmData: null,
+              uploadedImages,
+            });
           }
         }
 
@@ -446,24 +434,34 @@ export function registerChatbotRoutes(app: Express): void {
             const summary = recent.map((i: any) =>
               `• ${i.title} (${i.inspectionDate}) - ${i.inspectionType} [${i.inspector}]`
             ).join("\n");
-            parsed.message = recent.length > 0
-              ? `최근 안전점검 현황 (총 ${inspections.length}건):\n\n${summary}`
-              : "등록된 점검이 없습니다.";
-            actionResult = { success: true, type: "inspection_query", count: inspections.length };
+            return res.json({
+              message: recent.length > 0
+                ? `최근 안전점검 현황 (총 ${inspections.length}건):\n\n${summary}`
+                : "등록된 점검이 없습니다.",
+              action: "QUERY_INSPECTION",
+              actionResult: { success: true, type: "inspection_query", count: inspections.length },
+              needsConfirmation: false,
+              confirmData: null,
+              uploadedImages,
+            });
           } catch {
-            parsed.message = "점검 현황 조회 중 오류가 발생했습니다.";
+            return res.json({
+              message: "점검 현황 조회 중 오류가 발생했습니다.",
+              action: "QUERY_INSPECTION",
+              actionResult: null,
+              needsConfirmation: false,
+              confirmData: null,
+              uploadedImages,
+            });
           }
         }
 
-        console.log("[Chatbot] Final response - action:", parsed.action, "message length:", parsed.message?.length);
-
-        res.json({
+        return res.json({
           message: parsed.message || "요청을 처리했습니다.",
-          action: parsed.action,
-          actionResult,
+          action: parsed.action || "GENERAL_QUERY",
+          actionResult: null,
           needsConfirmation: false,
           confirmData: null,
-          followUp: parsed.followUp || null,
           uploadedImages,
         });
       } catch (error: any) {
@@ -492,6 +490,7 @@ export function registerChatbotRoutes(app: Express): void {
           return res.status(403).json({ error: "교육일지 등록 권한이 없습니다" });
         }
         const result = await executeEducationCreate(data, user, today, uploadedImages || []);
+        console.log("[Chatbot] Education confirmed and created, id:", result.actionResult.sessionId);
         return res.json({ success: true, message: result.message, sessionId: result.actionResult.sessionId });
       }
 
@@ -500,6 +499,7 @@ export function registerChatbotRoutes(app: Express): void {
           return res.status(403).json({ error: "안전점검 등록 권한이 없습니다" });
         }
         const result = await executeInspectionCreate(data, user, today, uploadedImages || []);
+        console.log("[Chatbot] Inspection confirmed and created, id:", result.actionResult.inspectionId);
         return res.json({ success: true, message: result.message, inspectionId: result.actionResult.inspectionId });
       }
 
