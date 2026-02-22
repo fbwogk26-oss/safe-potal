@@ -46,6 +46,28 @@ const DEPARTMENTS = [
   "남대구운용팀", "구미운용팀", "문경운용팀", "현장경영팀", "운용부"
 ];
 
+const EXTRA_DEPARTMENTS = [
+  "운용지원팀", "운용계획팀", "사업지원팀", "현장경영팀", "공공망관제팀"
+];
+
+const ALL_DEPARTMENTS = [...DEPARTMENTS, ...EXTRA_DEPARTMENTS.filter(d => !DEPARTMENTS.includes(d))];
+
+const DEFAULT_CHECKLIST = [
+  { item: "검전기 사용", status: "미점검" },
+  { item: "안전모 착용", status: "미점검" },
+  { item: "안전화 착용", status: "미점검" },
+  { item: "안전대 착용방법", status: "미점검" },
+  { item: "이동식사다리 작업지침 준수", status: "미점검" },
+  { item: "고임목 사용", status: "미점검" },
+  { item: "2인1조 준수", status: "미점검" },
+  { item: "작업(절연)장갑 착용", status: "미점검" },
+  { item: "라바콘설치", status: "미점검" },
+  { item: "유해위험요인 확인", status: "미점검" },
+  { item: "관계수급인 고위험 작업 입회", status: "미점검" },
+  { item: "입회 임무 준수", status: "미점검" },
+  { item: "고위험 작업절차 준수", status: "미점검" },
+];
+
 interface FieldDef {
   key: string;
   label: string;
@@ -60,58 +82,68 @@ const ACTION_FIELDS: Record<string, { label: string; permKey: keyof UserPermissi
     label: "교육일지",
     permKey: "registerEducation",
     fields: [
-      { key: "title", label: "제목", question: "교육 제목을 알려주세요.\n\n예: 안전보건교육, 정기안전교육, 특별안전교육 등", required: true, askAlways: true },
-      { key: "educationType", label: "교육유형", question: "교육 유형을 알려주세요.\n\n예: 정기교육, 특별교육, 수시교육, 신규교육", required: true, askAlways: true },
-      { key: "educationDate", label: "날짜", question: "교육 날짜를 알려주세요. (오늘이면 '오늘'이라고 입력)\n\n예: 2025-03-15 또는 오늘", required: true, askAlways: true },
-      { key: "department", label: "부서", question: `교육 실시 부서를 알려주세요.\n\n부서 목록: ${DEPARTMENTS.join(", ")}`, required: true, askAlways: true, autoFill: (u) => u.department },
-      { key: "totalParticipants", label: "참석인원", question: "참석 인원 수를 알려주세요.\n\n예: 5명", required: true, askAlways: true },
-      { key: "instructor", label: "교육자", question: "교육자(강사) 이름을 알려주세요.", required: true, autoFill: (u) => u.name || u.username },
-      { key: "description", label: "설명", question: "교육 내용이나 설명을 입력해주세요. (선택사항, '없음' 입력 시 생략)", required: false },
+      { key: "title", label: "제목", question: "📝 교육 제목을 알려주세요.\n\n예: 안전보건교육, 정기안전교육, 특별안전교육 등", required: true, askAlways: true },
+      { key: "educationType", label: "교육유형", question: "📚 교육 유형을 선택해주세요.\n\n• 정기교육\n• 신규교육\n• 특별교육\n• 안전교육\n• 직무교육", required: true, askAlways: true },
+      { key: "educationDate", label: "교육일자", question: "📅 교육 날짜를 알려주세요.\n\n예: 2025-03-15 또는 '오늘'", required: true, askAlways: true, autoFill: (_u, today) => today },
+      { key: "department", label: "부서", question: `🏢 교육 실시 부서를 알려주세요.\n\n부서 목록:\n${ALL_DEPARTMENTS.join(", ")}`, required: true, askAlways: true, autoFill: (u) => u.department },
+      { key: "totalParticipants", label: "참석인원", question: "👥 참석 인원 수를 알려주세요.\n\n예: 5", required: true, askAlways: true },
+      { key: "instructor", label: "교육자(강사)", question: "👨‍🏫 교육자(강사) 이름을 알려주세요.", required: true, autoFill: (u) => u.name || u.username },
+      { key: "description", label: "교육내용/설명", question: "📄 교육 내용이나 설명을 입력해주세요.", required: false },
     ],
   },
   CREATE_INSPECTION: {
     label: "안전점검",
     permKey: "editInspections",
     fields: [
-      { key: "inspectionType", label: "점검유형", question: "점검 유형을 알려주세요.\n\n예: 안전점검, 일상점검, 정기점검, 특별점검", required: true, askAlways: true },
-      { key: "title", label: "제목", question: "점검 제목을 알려주세요.\n\n예: 안전보건점검의날, 현장 안전점검 등", required: true, askAlways: true },
-      { key: "inspectionDate", label: "날짜", question: "점검 날짜를 알려주세요. (오늘이면 '오늘'이라고 입력)\n\n예: 2025-03-15 또는 오늘", required: true, askAlways: true },
-      { key: "inspector", label: "점검자", question: "점검자 이름을 알려주세요.", required: true, autoFill: (u) => u.name || u.username },
-      { key: "location", label: "장소", question: "점검 장소/국소를 알려주세요. (선택사항, '없음' 입력 시 생략)", required: false },
+      { key: "inspectionType", label: "점검유형", question: "🔍 점검 유형을 선택해주세요.\n\n• 안전점검\n• 동행점검", required: true, askAlways: true },
+      { key: "department", label: "부서", question: `🏢 점검 대상 부서(팀)를 알려주세요.\n\n부서 목록:\n${ALL_DEPARTMENTS.join(", ")}`, required: true, askAlways: true, autoFill: (u) => u.department },
+      { key: "workContent", label: "작업내용", question: "📝 작업내용을 알려주세요.\n\n예: 선로점검, 전주작업, 케이블 포설 등", required: true, askAlways: true },
+      { key: "inspectionDate", label: "점검일자", question: "📅 점검 날짜를 알려주세요.\n\n예: 2025-03-15 또는 '오늘'", required: true, askAlways: true, autoFill: (_u, today) => today },
+      { key: "inspector", label: "점검자", question: "👷 점검자 이름을 알려주세요.", required: true, autoFill: (u) => u.name || u.username },
+      { key: "workerName", label: "작업자", question: "👤 작업자 이름을 알려주세요.", required: true, askAlways: true },
+      { key: "location", label: "점검국소", question: "📍 점검 국소(장소)를 알려주세요.\n\n예: OO동 전주, OO국소 등", required: true, askAlways: true },
+      { key: "checklistStatus", label: "체크리스트", question: "📋 체크리스트 13개 항목의 전체 결과를 알려주세요.\n\n• '양호' → 전체 항목 양호 처리\n• '미흡' → 전체 항목 미흡 처리\n• '개별' → 항목별로 하나씩 확인\n\n항목: 검전기 사용, 안전모 착용, 안전화 착용, 안전대 착용방법, 이동식사다리 작업지침 준수, 고임목 사용, 2인1조 준수, 작업장갑 착용, 라바콘설치, 유해위험요인 확인, 관계수급인 고위험 작업 입회, 입회 임무 준수, 고위험 작업절차 준수", required: true, askAlways: true },
+      { key: "notes", label: "비고", question: "📝 비고사항을 입력해주세요.", required: false },
     ],
   },
   CREATE_VEHICLE_LOG: {
     label: "운행일지",
     permKey: "editVehicleLogs",
     fields: [
-      { key: "logDate", label: "날짜", question: "운행 날짜를 알려주세요. (오늘이면 '오늘'이라고 입력)\n\n예: 2025-03-15 또는 오늘", required: true, askAlways: true },
-      { key: "driver", label: "운전자", question: "운전자 이름을 알려주세요.", required: true, autoFill: (u) => u.name || u.username },
-      { key: "departureLocation", label: "출발지", question: "출발지를 알려주세요.\n\n예: 대구, 포항 등", required: true, askAlways: true },
-      { key: "arrivalLocation", label: "도착지", question: "도착지를 알려주세요.", required: true, askAlways: true },
-      { key: "purpose", label: "목적", question: "운행 목적을 알려주세요.\n\n예: 현장점검, 출장, 자재운반 등", required: true, askAlways: true },
-      { key: "plateNumber", label: "차량번호", question: "차량번호를 알려주세요.\n\n예: 12가3456 (본인 배정 차량이 있으면 자동 검색됩니다)", required: false },
-      { key: "departureTime", label: "출발시간", question: "출발 시간을 알려주세요.\n\n예: 09:00", required: false },
-      { key: "arrivalTime", label: "도착시간", question: "도착 시간을 알려주세요.\n\n예: 11:30", required: false },
+      { key: "plateNumber", label: "차량", question: "🚗 운행할 차량번호를 알려주세요.\n\n예: 231허4092 (본인 배정 차량이 있으면 자동 검색됩니다)", required: true, askAlways: true },
+      { key: "logDate", label: "운행일자", question: "📅 운행 날짜를 알려주세요.\n\n예: 2025-03-15 또는 '오늘'", required: true, askAlways: true, autoFill: (_u, today) => today },
+      { key: "driver", label: "운전자", question: "👤 운전자 이름을 알려주세요.", required: true, autoFill: (u) => u.name || u.username },
+      { key: "departureLocation", label: "출발지", question: "📍 출발지를 알려주세요.\n\n예: 대구사무소, 포항국소 등", required: true, askAlways: true },
+      { key: "arrivalLocation", label: "도착지", question: "📍 도착지를 알려주세요.", required: true, askAlways: true },
+      { key: "purpose", label: "운행목적", question: "📝 운행 목적을 알려주세요.\n\n예: 현장점검, 출장, 자재운반 등", required: true, askAlways: true },
+      { key: "departureTime", label: "출발시간", question: "🕐 출발 시간을 알려주세요.\n\n예: 09:00", required: false, askAlways: true },
+      { key: "arrivalTime", label: "도착시간", question: "🕐 도착 시간을 알려주세요.\n\n예: 11:30", required: false, askAlways: true },
+      { key: "beforeMileage", label: "출발전 주행거리(km)", question: "🔢 출발 전 주행거리(km)를 알려주세요.\n\n예: 15000", required: false, askAlways: true },
+      { key: "afterMileage", label: "도착후 주행거리(km)", question: "🔢 도착 후 주행거리(km)를 알려주세요.\n\n예: 15080", required: false, askAlways: true },
+      { key: "notes", label: "비고", question: "📝 비고사항이 있으면 입력해주세요.", required: false },
     ],
   },
   CREATE_NOTICE: {
     label: "공지사항",
     permKey: "registerNotices",
     fields: [
-      { key: "category", label: "유형", question: "어떤 유형으로 등록할까요?\n\n1. 공지사항\n2. 규정\n\n예: 공지사항 또는 규정", required: true, askAlways: true },
-      { key: "title", label: "제목", question: "제목을 알려주세요.", required: true, askAlways: true },
-      { key: "content", label: "내용", question: "내용을 입력해주세요.", required: true, askAlways: true },
+      { key: "category", label: "유형", question: "📢 어떤 유형으로 등록할까요?\n\n• 공지사항\n• 규정", required: true, askAlways: true },
+      { key: "title", label: "제목", question: "📝 제목을 알려주세요.", required: true, askAlways: true },
+      { key: "content", label: "내용", question: "📄 내용을 입력해주세요.", required: true, askAlways: true },
     ],
   },
   CREATE_VEHICLE: {
     label: "차량",
     permKey: "editVehicles",
     fields: [
-      { key: "plateNumber", label: "차량번호", question: "차량번호를 알려주세요.\n\n예: 12가3456", required: true, askAlways: true },
-      { key: "vehicleType", label: "차종", question: "차종을 알려주세요.\n\n예: 승용, 화물, 승합, SUV", required: true, askAlways: true },
-      { key: "model", label: "모델", question: "차량 모델명을 알려주세요.\n\n예: 쏘나타, 투싼, 포터 등", required: true, askAlways: true },
-      { key: "team", label: "배정팀", question: `배정 팀을 알려주세요.\n\n팀 목록: ${DEPARTMENTS.join(", ")}`, required: true, askAlways: true, autoFill: (u) => u.department },
-      { key: "driver", label: "운전자", question: "배정 운전자 이름을 알려주세요.", required: true, askAlways: true },
+      { key: "plateNumber", label: "차량번호", question: "🚙 차량번호를 알려주세요.\n\n예: 231허4092", required: true, askAlways: true },
+      { key: "vehicleType", label: "차종", question: "🏷️ 차종을 알려주세요.\n\n예: 승용차, 화물차, 승합차, SUV", required: true, askAlways: true },
+      { key: "model", label: "모델", question: "📋 차량 모델명을 알려주세요.\n\n예: 셀토스, 레이, 스포티지, 포터 등", required: true, askAlways: true },
+      { key: "team", label: "배정팀", question: `🏢 배정 팀을 알려주세요.\n\n팀 목록: ${ALL_DEPARTMENTS.join(", ")}`, required: true, askAlways: true, autoFill: (u) => u.department },
+      { key: "driver", label: "배정 운전자", question: "👤 배정 운전자 이름을 알려주세요.", required: true, askAlways: true },
+      { key: "secondDriver", label: "부운전자", question: "👤 부운전자가 있으면 이름을 알려주세요.", required: false },
+      { key: "purchaseDate", label: "구매일자", question: "📅 구매일자를 알려주세요.\n\n예: 2025-06-30", required: false },
+      { key: "insuranceExpiry", label: "보험만료일", question: "📅 보험만료일을 알려주세요.\n\n예: 2029-06-30", required: false },
     ],
   },
 };
@@ -122,7 +154,7 @@ const SYSTEM_PROMPT = `당신은 kt MOS남부 종합안전포털시스템의 AI 
 지원하는 액션:
 1. CREATE_EDUCATION - 교육일지 등록
 2. QUERY_EDUCATION - 교육 현황 조회
-3. CREATE_INSPECTION - 안전점검 등록
+3. CREATE_INSPECTION - 안전점검 등록 (안전점검/동행점검)
 4. QUERY_INSPECTION - 안전점검 현황 조회
 5. CREATE_VEHICLE_LOG - 운행일지 등록
 6. QUERY_VEHICLE_LOG - 운행일지 조회
@@ -141,6 +173,7 @@ const SYSTEM_PROMPT = `당신은 kt MOS남부 종합안전포털시스템의 AI 
 - 사용자가 이전에 등록 확인을 요청받은 상태(pendingConfirmation)에서 세부 정보를 수정하려는 경우, action을 "MODIFY_PENDING"으로 설정하고, data에 수정할 필드만 넣으세요.
   예: "부서 포항운용팀으로" → { "action": "MODIFY_PENDING", "data": { "department": "포항운용팀" } }
   예: "인원 5명으로" → { "action": "MODIFY_PENDING", "data": { "totalParticipants": 5 } }
+  예: "작업자 홍길동으로" → { "action": "MODIFY_PENDING", "data": { "workerName": "홍길동" } }
 - 사용자가 정보 수집 중(collectingInfo) 필드 값을 제공하는 경우, action을 "FILL_FIELD"로 설정하고 data에 해당 필드와 값을 넣으세요.
   예: 현재 "title" 필드를 물어보는 중이고 사용자가 "안전보건교육"이라고 답한 경우 → { "action": "FILL_FIELD", "data": { "title": "안전보건교육" } }
   예: 사용자가 "5명"이라고 답한 경우 → { "action": "FILL_FIELD", "data": { "totalParticipants": 5 } }
@@ -153,7 +186,7 @@ const SYSTEM_PROMPT = `당신은 kt MOS남부 종합안전포털시스템의 AI 
 - "오늘"이라고 하면 오늘 날짜로, "내일"이라고 하면 내일 날짜로 변환하세요.
 - "공지사항" → category: "notice", "규정" → category: "rule"로 변환하세요.
 
-부서 목록: ${DEPARTMENTS.join(", ")}
+부서 목록: ${ALL_DEPARTMENTS.join(", ")}
 
 JSON 형식:
 {
@@ -162,11 +195,15 @@ JSON 형식:
   "data": { ... }
 }
 
-CREATE_EDUCATION data: { "title", "educationDate", "department", "educationType", "totalParticipants", "instructor", "description" }
-CREATE_INSPECTION data: { "inspectionType", "title", "inspectionDate", "inspector", "location", "workerName" }
-CREATE_VEHICLE_LOG data: { "plateNumber", "driver", "logDate", "departureTime", "arrivalTime", "departureLocation", "arrivalLocation", "purpose" }
-CREATE_VEHICLE data: { "plateNumber", "vehicleType", "model", "team", "driver", "status" }
-CREATE_NOTICE data: { "category"("notice"|"rule"), "title", "content" }
+각 CREATE 액션의 data 필드 구조:
+CREATE_EDUCATION: { "title", "educationType"("정기교육"|"신규교육"|"특별교육"|"안전교육"|"직무교육"), "educationDate", "department", "totalParticipants"(숫자), "instructor", "description" }
+CREATE_INSPECTION: { "inspectionType"("안전점검"|"동행점검"), "department", "workContent"(작업내용), "inspectionDate", "inspector", "workerName"(작업자), "location"(점검국소), "checklistStatus"("양호"|"미흡"|"개별"), "notes" }
+  - 안전점검 제목은 "부서 - 작업내용" 형태로 자동 생성됩니다.
+  - 체크리스트 13개 항목(검전기, 안전모, 안전화, 안전대 등)이며 checklistStatus로 전체 상태를 설정합니다.
+  - "양호" = 전체 양호, "미흡" = 전체 미흡, "개별" = 개별 항목 확인 필요(기본 미점검으로 저장)
+CREATE_VEHICLE_LOG: { "plateNumber"(차량번호), "logDate", "driver", "departureLocation", "arrivalLocation", "purpose", "departureTime", "arrivalTime", "beforeMileage"(숫자), "afterMileage"(숫자), "notes" }
+CREATE_VEHICLE: { "plateNumber", "vehicleType"("승용차"|"화물차"|"승합차"), "model", "team", "driver", "secondDriver", "purchaseDate", "insuranceExpiry" }
+CREATE_NOTICE: { "category"("notice"|"rule"), "title", "content" }
 QUERY 액션: data에 검색 조건 포함 가능 (department, team 등)
 
 - 부서가 명시되지 않으면 사용자의 부서를 기본값으로 사용하세요.
@@ -242,9 +279,19 @@ function detectModifyIntent(message: string): Record<string, any> | null {
     modifications.inspectionType = val;
   }
 
-  const locationMatch2 = msg.match(/(?:장소|국소|위치)\s*(?:을|를)?\s*(.+?)(?:으로|로)\s*(?:변경|바꿔|수정)?/);
+  const locationMatch2 = msg.match(/(?:장소|국소|위치|점검국소)\s*(?:을|를)?\s*(.+?)(?:으로|로)\s*(?:변경|바꿔|수정)?/);
   if (locationMatch2) {
     modifications.location = locationMatch2[1].trim();
+  }
+
+  const workerMatch = msg.match(/(?:작업자)\s*(?:을|를)?\s*(.+?)(?:으로|로)\s*(?:변경|바꿔|수정)?/);
+  if (workerMatch) {
+    modifications.workerName = workerMatch[1].trim();
+  }
+
+  const workContentMatch = msg.match(/(?:작업내용|작업)\s*(?:을|를)?\s*(.+?)(?:으로|로)\s*(?:변경|바꿔|수정)?/);
+  if (workContentMatch) {
+    modifications.workContent = workContentMatch[1].trim();
   }
 
   const contentMatch = msg.match(/(?:내용)\s*(?:을|를)?\s*(.+?)(?:으로|로)\s*(?:변경|바꿔|수정)?/);
@@ -256,6 +303,11 @@ function detectModifyIntent(message: string): Record<string, any> | null {
   if (categoryMatch) {
     const cat = categoryMatch[1].trim();
     modifications.category = cat.includes("규정") ? "rule" : "notice";
+  }
+
+  const checklistMatch = msg.match(/(?:체크리스트|점검결과)\s*(?:을|를)?\s*(양호|미흡|미점검|개별)(?:으로|로)?/);
+  if (checklistMatch) {
+    modifications.checklistStatus = checklistMatch[1].trim();
   }
 
   return Object.keys(modifications).length > 0 ? modifications : null;
@@ -384,14 +436,20 @@ function buildConfirmationMessage(action: string, data: any): string {
       `확인되면 아래 [등록하기] 버튼을 눌러주세요.`;
   }
   if (action === "CREATE_INSPECTION") {
+    const checklistLabel = data.checklistStatus === "양호" ? "✅ 전체 양호" : data.checklistStatus === "미흡" ? "⚠️ 전체 미흡" : data.checklistStatus === "개별" ? "📝 개별 확인 필요" : "기본(미점검)";
     return `📋 다음 내용으로 안전점검을 등록할까요?\n\n` +
       `━━━━━━━━━━━━━━━━━━━━\n` +
-      `🔍 유형: ${data.inspectionType || "안전점검"}\n` +
-      `📝 제목: ${data.title || "미정"}\n` +
-      `📅 날짜: ${data.inspectionDate || "미정"}\n` +
+      `🔍 점검유형: ${data.inspectionType || "안전점검"}\n` +
+      `🏢 부서: ${data.department || "미정"}\n` +
+      `📝 작업내용: ${data.workContent || "미정"}\n` +
+      `📅 점검일자: ${data.inspectionDate || "미정"}\n` +
       `👷 점검자: ${data.inspector || "미정"}\n` +
-      `${data.location ? `📍 장소: ${data.location}\n` : ""}` +
+      `👤 작업자: ${data.workerName || "미정"}\n` +
+      `📍 점검국소: ${data.location || "미정"}\n` +
+      `📋 체크리스트: ${checklistLabel} (13개 항목)\n` +
+      `${data.notes ? `📝 비고: ${data.notes}\n` : ""}` +
       `━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `📸 사진은 첨부파일로 올려주세요 (최대 10장)\n\n` +
       `✏️ 수정이 필요하면 댓글로 말씀해주세요!\n` +
       `확인되면 아래 [등록하기] 버튼을 눌러주세요.`;
   }
@@ -400,13 +458,15 @@ function buildConfirmationMessage(action: string, data: any): string {
       `━━━━━━━━━━━━━━━━━━━━\n` +
       `🚗 차량번호: ${data.plateNumber || "자동 검색"}\n` +
       `👤 운전자: ${data.driver || "미정"}\n` +
-      `📅 날짜: ${data.logDate || "미정"}\n` +
-      `🏢 팀: ${data.team || "자동"}\n` +
-      `${data.departureLocation ? `📍 출발지: ${data.departureLocation}\n` : ""}` +
-      `${data.arrivalLocation ? `📍 도착지: ${data.arrivalLocation}\n` : ""}` +
+      `📅 운행일자: ${data.logDate || "미정"}\n` +
+      `📍 출발지: ${data.departureLocation || "미정"}\n` +
+      `📍 도착지: ${data.arrivalLocation || "미정"}\n` +
+      `📝 운행목적: ${data.purpose || "미정"}\n` +
       `${data.departureTime ? `🕐 출발시간: ${data.departureTime}\n` : ""}` +
       `${data.arrivalTime ? `🕐 도착시간: ${data.arrivalTime}\n` : ""}` +
-      `${data.purpose ? `📝 목적: ${data.purpose}\n` : ""}` +
+      `${data.beforeMileage ? `🔢 출발전 주행거리: ${data.beforeMileage}km\n` : ""}` +
+      `${data.afterMileage ? `🔢 도착후 주행거리: ${data.afterMileage}km\n` : ""}` +
+      `${data.notes ? `📝 비고: ${data.notes}\n` : ""}` +
       `━━━━━━━━━━━━━━━━━━━━\n\n` +
       `✏️ 수정이 필요하면 댓글로 말씀해주세요!\n` +
       `확인되면 아래 [등록하기] 버튼을 눌러주세요.`;
@@ -428,8 +488,11 @@ function buildConfirmationMessage(action: string, data: any): string {
       `🚙 차량번호: ${data.plateNumber || "미정"}\n` +
       `🏷️ 차종: ${data.vehicleType || "미정"}\n` +
       `📋 모델: ${data.model || "미정"}\n` +
-      `🏢 팀: ${data.team || "미정"}\n` +
+      `🏢 배정팀: ${data.team || "미정"}\n` +
       `👤 운전자: ${data.driver || "미정"}\n` +
+      `${data.secondDriver ? `👤 부운전자: ${data.secondDriver}\n` : ""}` +
+      `${data.purchaseDate ? `📅 구매일자: ${data.purchaseDate}\n` : ""}` +
+      `${data.insuranceExpiry ? `📅 보험만료: ${data.insuranceExpiry}\n` : ""}` +
       `━━━━━━━━━━━━━━━━━━━━\n\n` +
       `✏️ 수정이 필요하면 댓글로 말씀해주세요!\n` +
       `확인되면 아래 [등록하기] 버튼을 눌러주세요.`;
@@ -457,21 +520,35 @@ async function executeEducationCreate(data: any, user: any, today: string, uploa
 }
 
 async function executeInspectionCreate(data: any, user: any, today: string, uploadedImages: string[]) {
+  const department = data.department || user.department || "";
+  const workContent = data.workContent || "";
+  const title = data.title || (workContent ? `${department} - ${workContent}` : department || "안전점검");
+
+  let checklist = data.checklist || [];
+  if (checklist.length === 0) {
+    const status = data.checklistStatus || "미점검";
+    let fillStatus: string;
+    if (status === "양호") fillStatus = "양호";
+    else if (status === "미흡") fillStatus = "미흡";
+    else fillStatus = "미점검";
+    checklist = DEFAULT_CHECKLIST.map(item => ({ ...item, status: fillStatus }));
+  }
+
   const inspectionData = {
     inspectionType: data.inspectionType || "안전점검",
-    title: data.title || "안전점검",
+    title,
     inspectionDate: data.inspectionDate || today,
     inspector: data.inspector || user.name || user.username,
     workerName: data.workerName || "",
     location: data.location || "",
     notes: data.notes || "",
-    checklist: data.checklist || [],
+    checklist,
     images: uploadedImages,
   };
   const created = await storage.createSafetyInspection(inspectionData);
   return {
     actionResult: { success: true, type: "inspection_created", inspectionId: created.id, data: inspectionData },
-    message: `✅ 안전점검이 등록되었습니다!\n\n📋 유형: ${inspectionData.inspectionType}\n📅 날짜: ${inspectionData.inspectionDate}\n👷 점검자: ${inspectionData.inspector}${uploadedImages.length > 0 ? `\n📸 사진: ${uploadedImages.length}장` : ""}`,
+    message: `✅ 안전점검이 등록되었습니다!\n\n🔍 유형: ${inspectionData.inspectionType}\n🏢 부서: ${department}\n📝 작업: ${workContent}\n📅 날짜: ${inspectionData.inspectionDate}\n👷 점검자: ${inspectionData.inspector}\n👤 작업자: ${inspectionData.workerName}\n📍 국소: ${inspectionData.location}\n📋 체크리스트: ${data.checklistStatus || "미점검"} (13항목)${uploadedImages.length > 0 ? `\n📸 사진: ${uploadedImages.length}장` : ""}`,
   };
 }
 
@@ -538,16 +615,19 @@ async function executeNoticeCreate(data: any, user: any) {
 async function executeVehicleCreate(data: any, user: any) {
   const vehicleData = {
     plateNumber: data.plateNumber || "",
-    vehicleType: data.vehicleType || "승용",
+    vehicleType: data.vehicleType || "승용차",
     model: data.model || "",
     team: data.team || user.department || "",
     driver: data.driver || "",
+    secondDriver: data.secondDriver || "",
     status: data.status || "운행중",
+    purchaseDate: data.purchaseDate || "",
+    insuranceExpiry: data.insuranceExpiry || "",
   };
   const created = await storage.createVehicle(vehicleData);
   return {
     actionResult: { success: true, type: "vehicle_created", vehicleId: created.id, data: vehicleData },
-    message: `✅ 차량이 등록되었습니다!\n\n🚙 차량번호: ${vehicleData.plateNumber}\n🏷️ 차종: ${vehicleData.vehicleType}\n📋 모델: ${vehicleData.model}\n🏢 팀: ${vehicleData.team}\n👤 운전자: ${vehicleData.driver}`,
+    message: `✅ 차량이 등록되었습니다!\n\n🚙 차량번호: ${vehicleData.plateNumber}\n🏷️ 차종: ${vehicleData.vehicleType}\n📋 모델: ${vehicleData.model}\n🏢 팀: ${vehicleData.team}\n👤 운전자: ${vehicleData.driver}${vehicleData.secondDriver ? `\n👤 부운전자: ${vehicleData.secondDriver}` : ""}`,
   };
 }
 
@@ -627,11 +707,27 @@ export function registerChatbotRoutes(app: Express): void {
                   }
                 } else if (trimmed === "없음" || trimmed === "생략" || trimmed === "패스" || trimmed === "스킵") {
                   updatedData[parsedCurrentField] = "";
-                } else if (parsedCurrentField === "totalParticipants") {
+                } else if (parsedCurrentField === "totalParticipants" || parsedCurrentField === "beforeMileage" || parsedCurrentField === "afterMileage") {
                   const num = parseInt(trimmed.replace(/[^0-9]/g, ""));
-                  updatedData[parsedCurrentField] = isNaN(num) ? 1 : num;
+                  updatedData[parsedCurrentField] = isNaN(num) ? 0 : num;
                 } else if (parsedCurrentField === "category") {
                   updatedData[parsedCurrentField] = trimmed.includes("규정") ? "rule" : "notice";
+                } else if (parsedCurrentField === "checklistStatus") {
+                  if (trimmed.includes("양호") || trimmed === "전체 양호" || trimmed === "전부 양호") {
+                    updatedData[parsedCurrentField] = "양호";
+                  } else if (trimmed.includes("미흡") || trimmed === "전체 미흡" || trimmed === "전부 미흡") {
+                    updatedData[parsedCurrentField] = "미흡";
+                  } else if (trimmed.includes("개별") || trimmed.includes("하나씩") || trimmed.includes("각각")) {
+                    updatedData[parsedCurrentField] = "개별";
+                  } else {
+                    updatedData[parsedCurrentField] = trimmed;
+                  }
+                } else if (parsedCurrentField === "inspectionType") {
+                  if (trimmed.includes("동행")) {
+                    updatedData[parsedCurrentField] = "동행점검";
+                  } else {
+                    updatedData[parsedCurrentField] = "안전점검";
+                  }
                 } else if (parsedCurrentField === "educationDate" || parsedCurrentField === "inspectionDate" || parsedCurrentField === "logDate") {
                   if (trimmed === "오늘" || trimmed.includes("오늘")) {
                     updatedData[parsedCurrentField] = today;
