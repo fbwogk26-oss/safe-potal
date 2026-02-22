@@ -46,6 +46,76 @@ const DEPARTMENTS = [
   "남대구운용팀", "구미운용팀", "문경운용팀", "현장경영팀", "운용부"
 ];
 
+interface FieldDef {
+  key: string;
+  label: string;
+  question: string;
+  required: boolean;
+  askAlways?: boolean;
+  autoFill?: (user: any, today: string) => string | number | undefined;
+}
+
+const ACTION_FIELDS: Record<string, { label: string; permKey: keyof UserPermissions; fields: FieldDef[] }> = {
+  CREATE_EDUCATION: {
+    label: "교육일지",
+    permKey: "registerEducation",
+    fields: [
+      { key: "title", label: "제목", question: "교육 제목을 알려주세요.\n\n예: 안전보건교육, 정기안전교육, 특별안전교육 등", required: true, askAlways: true },
+      { key: "educationType", label: "교육유형", question: "교육 유형을 알려주세요.\n\n예: 정기교육, 특별교육, 수시교육, 신규교육", required: true, askAlways: true },
+      { key: "educationDate", label: "날짜", question: "교육 날짜를 알려주세요. (오늘이면 '오늘'이라고 입력)\n\n예: 2025-03-15 또는 오늘", required: true, askAlways: true },
+      { key: "department", label: "부서", question: `교육 실시 부서를 알려주세요.\n\n부서 목록: ${DEPARTMENTS.join(", ")}`, required: true, askAlways: true, autoFill: (u) => u.department },
+      { key: "totalParticipants", label: "참석인원", question: "참석 인원 수를 알려주세요.\n\n예: 5명", required: true, askAlways: true },
+      { key: "instructor", label: "교육자", question: "교육자(강사) 이름을 알려주세요.", required: true, autoFill: (u) => u.name || u.username },
+      { key: "description", label: "설명", question: "교육 내용이나 설명을 입력해주세요. (선택사항, '없음' 입력 시 생략)", required: false },
+    ],
+  },
+  CREATE_INSPECTION: {
+    label: "안전점검",
+    permKey: "editInspections",
+    fields: [
+      { key: "inspectionType", label: "점검유형", question: "점검 유형을 알려주세요.\n\n예: 안전점검, 일상점검, 정기점검, 특별점검", required: true, askAlways: true },
+      { key: "title", label: "제목", question: "점검 제목을 알려주세요.\n\n예: 안전보건점검의날, 현장 안전점검 등", required: true, askAlways: true },
+      { key: "inspectionDate", label: "날짜", question: "점검 날짜를 알려주세요. (오늘이면 '오늘'이라고 입력)\n\n예: 2025-03-15 또는 오늘", required: true, askAlways: true },
+      { key: "inspector", label: "점검자", question: "점검자 이름을 알려주세요.", required: true, autoFill: (u) => u.name || u.username },
+      { key: "location", label: "장소", question: "점검 장소/국소를 알려주세요. (선택사항, '없음' 입력 시 생략)", required: false },
+    ],
+  },
+  CREATE_VEHICLE_LOG: {
+    label: "운행일지",
+    permKey: "editVehicleLogs",
+    fields: [
+      { key: "logDate", label: "날짜", question: "운행 날짜를 알려주세요. (오늘이면 '오늘'이라고 입력)\n\n예: 2025-03-15 또는 오늘", required: true, askAlways: true },
+      { key: "driver", label: "운전자", question: "운전자 이름을 알려주세요.", required: true, autoFill: (u) => u.name || u.username },
+      { key: "departureLocation", label: "출발지", question: "출발지를 알려주세요.\n\n예: 대구, 포항 등", required: true, askAlways: true },
+      { key: "arrivalLocation", label: "도착지", question: "도착지를 알려주세요.", required: true, askAlways: true },
+      { key: "purpose", label: "목적", question: "운행 목적을 알려주세요.\n\n예: 현장점검, 출장, 자재운반 등", required: true, askAlways: true },
+      { key: "plateNumber", label: "차량번호", question: "차량번호를 알려주세요.\n\n예: 12가3456 (본인 배정 차량이 있으면 자동 검색됩니다)", required: false },
+      { key: "departureTime", label: "출발시간", question: "출발 시간을 알려주세요.\n\n예: 09:00", required: false },
+      { key: "arrivalTime", label: "도착시간", question: "도착 시간을 알려주세요.\n\n예: 11:30", required: false },
+    ],
+  },
+  CREATE_NOTICE: {
+    label: "공지사항",
+    permKey: "registerNotices",
+    fields: [
+      { key: "category", label: "유형", question: "어떤 유형으로 등록할까요?\n\n1. 공지사항\n2. 규정\n\n예: 공지사항 또는 규정", required: true, askAlways: true },
+      { key: "title", label: "제목", question: "제목을 알려주세요.", required: true, askAlways: true },
+      { key: "content", label: "내용", question: "내용을 입력해주세요.", required: true, askAlways: true },
+    ],
+  },
+  CREATE_VEHICLE: {
+    label: "차량",
+    permKey: "editVehicles",
+    fields: [
+      { key: "plateNumber", label: "차량번호", question: "차량번호를 알려주세요.\n\n예: 12가3456", required: true, askAlways: true },
+      { key: "vehicleType", label: "차종", question: "차종을 알려주세요.\n\n예: 승용, 화물, 승합, SUV", required: true, askAlways: true },
+      { key: "model", label: "모델", question: "차량 모델명을 알려주세요.\n\n예: 쏘나타, 투싼, 포터 등", required: true, askAlways: true },
+      { key: "team", label: "배정팀", question: `배정 팀을 알려주세요.\n\n팀 목록: ${DEPARTMENTS.join(", ")}`, required: true, askAlways: true, autoFill: (u) => u.department },
+      { key: "driver", label: "운전자", question: "배정 운전자 이름을 알려주세요.", required: true, askAlways: true },
+    ],
+  },
+};
+
 const SYSTEM_PROMPT = `당신은 kt MOS남부 종합안전포털시스템의 AI 어시스턴트입니다.
 사용자의 자연어 요청을 분석하여 적절한 액션을 수행합니다.
 
@@ -63,16 +133,25 @@ const SYSTEM_PROMPT = `당신은 kt MOS남부 종합안전포털시스템의 AI 
 11. QUERY_NOTICE - 공지사항/규정 조회
 12. QUERY_TEAM - 팀 안전점수 조회
 13. MODIFY_PENDING - 확인 대기 중인 등록 내용 수정
-14. GENERAL_QUERY - 일반 질의응답
+14. FILL_FIELD - 정보 수집 중 필드 값 제공
+15. GENERAL_QUERY - 일반 질의응답
 
 중요 규칙:
 - 반드시 JSON 형식으로만 응답하세요.
 - 사용자가 이전에 등록 확인을 요청받은 상태(pendingConfirmation)에서 세부 정보를 수정하려는 경우, action을 "MODIFY_PENDING"으로 설정하고, data에 수정할 필드만 넣으세요.
   예: "부서 포항운용팀으로" → { "action": "MODIFY_PENDING", "data": { "department": "포항운용팀" } }
   예: "인원 5명으로" → { "action": "MODIFY_PENDING", "data": { "totalParticipants": 5 } }
-  예: "날짜 2025-03-15로" → { "action": "MODIFY_PENDING", "data": { "educationDate": "2025-03-15" } }
-  예: "출발지 대구로" → { "action": "MODIFY_PENDING", "data": { "departureLocation": "대구" } }
+- 사용자가 정보 수집 중(collectingInfo) 필드 값을 제공하는 경우, action을 "FILL_FIELD"로 설정하고 data에 해당 필드와 값을 넣으세요.
+  예: 현재 "title" 필드를 물어보는 중이고 사용자가 "안전보건교육"이라고 답한 경우 → { "action": "FILL_FIELD", "data": { "title": "안전보건교육" } }
+  예: 사용자가 "5명"이라고 답한 경우 → { "action": "FILL_FIELD", "data": { "totalParticipants": 5 } }
+  예: 사용자가 "없음" 또는 "생략"이라고 답한 경우 → { "action": "FILL_FIELD", "data": { "CURRENT_FIELD": "" } }
+  - CURRENT_FIELD는 현재 물어보고 있는 필드의 key로 대체하세요.
+- 사용자가 한 번에 여러 정보를 제공하면 가능한 모든 필드를 추출하세요.
+  예: "안전보건교육, 포항운용팀, 5명" → { "action": "FILL_FIELD", "data": { "title": "안전보건교육", "department": "포항운용팀", "totalParticipants": 5 } }
+- CREATE 요청 시 사용자가 한번에 모든 정보를 제공하면 data에 가능한 모든 필드를 추출하세요.
 - 사용자의 대화 흐름을 이해하세요. "~로 바꿔줘", "~으로 변경", "~명으로", "~팀으로" 등의 수정 표현을 인식하세요.
+- "오늘"이라고 하면 오늘 날짜로, "내일"이라고 하면 내일 날짜로 변환하세요.
+- "공지사항" → category: "notice", "규정" → category: "rule"로 변환하세요.
 
 부서 목록: ${DEPARTMENTS.join(", ")}
 
@@ -168,6 +247,17 @@ function detectModifyIntent(message: string): Record<string, any> | null {
     modifications.location = locationMatch2[1].trim();
   }
 
+  const contentMatch = msg.match(/(?:내용)\s*(?:을|를)?\s*(.+?)(?:으로|로)\s*(?:변경|바꿔|수정)?/);
+  if (contentMatch) {
+    modifications.content = contentMatch[1].trim();
+  }
+
+  const categoryMatch = msg.match(/(?:유형|카테고리)\s*(?:을|를)?\s*(공지사항|공지|규정)(?:으로|로)?/);
+  if (categoryMatch) {
+    const cat = categoryMatch[1].trim();
+    modifications.category = cat.includes("규정") ? "rule" : "notice";
+  }
+
   return Object.keys(modifications).length > 0 ? modifications : null;
 }
 
@@ -192,30 +282,157 @@ function detectIntentFromKeywords(message: string): string | null {
   return null;
 }
 
-function extractTitleFromMessage(message: string): string {
-  const patterns = [/안전보건점검의날/, /안전보건교육/, /정기안전교육/, /특별안전교육/, /수시교육/];
-  for (const p of patterns) { const m = message.match(p); if (m) return m[0]; }
-  if (message.includes("교육")) return "안전교육";
-  if (message.includes("점검")) return "안전점검";
-  return "교육";
+function getMissingRequiredFields(action: string, data: any, user: any, today: string): FieldDef[] {
+  const config = ACTION_FIELDS[action];
+  if (!config) return [];
+  const missing: FieldDef[] = [];
+  for (const field of config.fields) {
+    if (!field.required) continue;
+    const val = data[field.key];
+    if (val !== undefined && val !== null && val !== "") continue;
+    if (field.askAlways) {
+      missing.push(field);
+      continue;
+    }
+    if (field.autoFill) {
+      const auto = field.autoFill(user, today);
+      if (auto !== undefined && auto !== null && auto !== "") continue;
+    }
+    missing.push(field);
+  }
+  return missing;
+}
+
+function applyAutoFills(action: string, data: any, user: any, today: string): any {
+  const config = ACTION_FIELDS[action];
+  if (!config) return data;
+  const filled = { ...data };
+  for (const field of config.fields) {
+    if (filled[field.key] !== undefined && filled[field.key] !== null && filled[field.key] !== "") continue;
+    if (field.askAlways) continue;
+    if (field.autoFill) {
+      const auto = field.autoFill(user, today);
+      if (auto !== undefined && auto !== null && auto !== "") {
+        filled[field.key] = auto;
+      }
+    }
+  }
+  return filled;
+}
+
+function getNextMissingField(action: string, data: any): FieldDef | null {
+  const config = ACTION_FIELDS[action];
+  if (!config) return null;
+  for (const field of config.fields) {
+    if (!field.required) continue;
+    const val = data[field.key];
+    if (val === undefined || val === null || val === "") {
+      return field;
+    }
+  }
+  for (const field of config.fields) {
+    if (field.required) continue;
+    const val = data[field.key];
+    if (val === undefined || val === null || val === "") {
+      return field;
+    }
+  }
+  return null;
+}
+
+function buildFieldQuestion(field: FieldDef, user: any, today: string): string {
+  let question = field.question;
+  if (field.askAlways && field.autoFill) {
+    const defaultVal = field.autoFill(user, today);
+    if (defaultVal) {
+      question += `\n\n💡 기본값: ${defaultVal} (그대로 사용하려면 '확인' 입력)`;
+    }
+  }
+  const tag = field.required ? " (필수)" : " (선택, '없음' 입력 시 생략)";
+  return `${question}${tag}`;
+}
+
+function getFilledFieldsSummary(action: string, data: any): string {
+  const config = ACTION_FIELDS[action];
+  if (!config) return "";
+  const lines: string[] = [];
+  for (const field of config.fields) {
+    const val = data[field.key];
+    if (val !== undefined && val !== null && val !== "") {
+      let displayVal = val;
+      if (field.key === "category") displayVal = val === "rule" ? "규정" : "공지사항";
+      lines.push(`  ✅ ${field.label}: ${displayVal}`);
+    }
+  }
+  return lines.length > 0 ? `\n\n현재 입력된 정보:\n${lines.join("\n")}` : "";
 }
 
 function buildConfirmationMessage(action: string, data: any): string {
   if (action === "CREATE_EDUCATION") {
-    return `다음 내용으로 교육일지를 등록할까요?\n\n📋 제목: ${data.title || "미정"}\n📅 날짜: ${data.educationDate || "미정"}\n🏢 부서: ${data.department || "미정"}\n📝 유형: ${data.educationType || "정기교육"}\n👨‍🏫 교육자: ${data.instructor || "미정"}\n👥 인원: ${data.totalParticipants || 1}명\n\n수정이 필요하면 말씀해주세요! (예: "부서 포항운용팀으로", "인원 5명")`;
+    return `📋 다음 내용으로 교육일지를 등록할까요?\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n` +
+      `📝 제목: ${data.title || "미정"}\n` +
+      `📅 날짜: ${data.educationDate || "미정"}\n` +
+      `🏢 부서: ${data.department || "미정"}\n` +
+      `📚 유형: ${data.educationType || "정기교육"}\n` +
+      `👨‍🏫 교육자: ${data.instructor || "미정"}\n` +
+      `👥 인원: ${data.totalParticipants || 1}명\n` +
+      `${data.description ? `📄 설명: ${data.description}\n` : ""}` +
+      `━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `✏️ 수정이 필요하면 댓글로 말씀해주세요!\n` +
+      `예: "부서 포항운용팀으로", "인원 5명으로"\n\n` +
+      `확인되면 아래 [등록하기] 버튼을 눌러주세요.`;
   }
   if (action === "CREATE_INSPECTION") {
-    return `다음 내용으로 안전점검을 등록할까요?\n\n📋 유형: ${data.inspectionType || "안전점검"}\n📝 제목: ${data.title || "미정"}\n📅 날짜: ${data.inspectionDate || "미정"}\n👷 점검자: ${data.inspector || "미정"}${data.location ? `\n📍 장소: ${data.location}` : ""}\n\n수정이 필요하면 말씀해주세요!`;
+    return `📋 다음 내용으로 안전점검을 등록할까요?\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n` +
+      `🔍 유형: ${data.inspectionType || "안전점검"}\n` +
+      `📝 제목: ${data.title || "미정"}\n` +
+      `📅 날짜: ${data.inspectionDate || "미정"}\n` +
+      `👷 점검자: ${data.inspector || "미정"}\n` +
+      `${data.location ? `📍 장소: ${data.location}\n` : ""}` +
+      `━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `✏️ 수정이 필요하면 댓글로 말씀해주세요!\n` +
+      `확인되면 아래 [등록하기] 버튼을 눌러주세요.`;
   }
   if (action === "CREATE_VEHICLE_LOG") {
-    return `다음 내용으로 운행일지를 등록할까요?\n\n🚗 차량번호: ${data.plateNumber || "자동 검색"}\n👤 운전자: ${data.driver || "미정"}\n📅 날짜: ${data.logDate || "미정"}\n🏢 팀: ${data.team || "자동"}${data.departureLocation ? `\n📍 출발지: ${data.departureLocation}` : ""}${data.arrivalLocation ? `\n📍 도착지: ${data.arrivalLocation}` : ""}${data.departureTime ? `\n🕐 출발시간: ${data.departureTime}` : ""}${data.arrivalTime ? `\n🕐 도착시간: ${data.arrivalTime}` : ""}${data.purpose ? `\n📝 목적: ${data.purpose}` : ""}\n\n수정이 필요하면 말씀해주세요!`;
+    return `📋 다음 내용으로 운행일지를 등록할까요?\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n` +
+      `🚗 차량번호: ${data.plateNumber || "자동 검색"}\n` +
+      `👤 운전자: ${data.driver || "미정"}\n` +
+      `📅 날짜: ${data.logDate || "미정"}\n` +
+      `🏢 팀: ${data.team || "자동"}\n` +
+      `${data.departureLocation ? `📍 출발지: ${data.departureLocation}\n` : ""}` +
+      `${data.arrivalLocation ? `📍 도착지: ${data.arrivalLocation}\n` : ""}` +
+      `${data.departureTime ? `🕐 출발시간: ${data.departureTime}\n` : ""}` +
+      `${data.arrivalTime ? `🕐 도착시간: ${data.arrivalTime}\n` : ""}` +
+      `${data.purpose ? `📝 목적: ${data.purpose}\n` : ""}` +
+      `━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `✏️ 수정이 필요하면 댓글로 말씀해주세요!\n` +
+      `확인되면 아래 [등록하기] 버튼을 눌러주세요.`;
   }
   if (action === "CREATE_NOTICE") {
     const catLabel = data.category === "rule" ? "규정" : "공지사항";
-    return `다음 내용으로 ${catLabel}을 등록할까요?\n\n📢 유형: ${catLabel}\n📋 제목: ${data.title || "미정"}\n📝 내용: ${(data.content || "").substring(0, 100)}${(data.content || "").length > 100 ? "..." : ""}\n\n수정이 필요하면 말씀해주세요!`;
+    return `📋 다음 내용으로 ${catLabel}을 등록할까요?\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n` +
+      `📢 유형: ${catLabel}\n` +
+      `📝 제목: ${data.title || "미정"}\n` +
+      `📄 내용: ${(data.content || "").substring(0, 150)}${(data.content || "").length > 150 ? "..." : ""}\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `✏️ 수정이 필요하면 댓글로 말씀해주세요!\n` +
+      `확인되면 아래 [등록하기] 버튼을 눌러주세요.`;
   }
   if (action === "CREATE_VEHICLE") {
-    return `다음 내용으로 차량을 등록할까요?\n\n🚙 차량번호: ${data.plateNumber || "미정"}\n🏷️ 차종: ${data.vehicleType || "미정"}\n📋 모델: ${data.model || "미정"}\n🏢 팀: ${data.team || "미정"}\n👤 운전자: ${data.driver || "미정"}\n\n수정이 필요하면 말씀해주세요!`;
+    return `📋 다음 내용으로 차량을 등록할까요?\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n` +
+      `🚙 차량번호: ${data.plateNumber || "미정"}\n` +
+      `🏷️ 차종: ${data.vehicleType || "미정"}\n` +
+      `📋 모델: ${data.model || "미정"}\n` +
+      `🏢 팀: ${data.team || "미정"}\n` +
+      `👤 운전자: ${data.driver || "미정"}\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `✏️ 수정이 필요하면 댓글로 말씀해주세요!\n` +
+      `확인되면 아래 [등록하기] 버튼을 눌러주세요.`;
   }
   return "";
 }
@@ -235,7 +452,7 @@ async function executeEducationCreate(data: any, user: any, today: string, uploa
   const created = await storage.createEducationSession(sessionData);
   return {
     actionResult: { success: true, type: "education_created", sessionId: created.id, data: sessionData },
-    message: `교육일지가 등록되었습니다!\n\n📋 제목: ${sessionData.title}\n📅 날짜: ${sessionData.educationDate}\n🏢 부서: ${sessionData.department}\n👨‍🏫 교육자: ${sessionData.instructor}\n👥 인원: ${sessionData.totalParticipants}명${uploadedImages.length > 0 ? `\n📸 사진: ${uploadedImages.length}장` : ""}`,
+    message: `✅ 교육일지가 등록되었습니다!\n\n📋 제목: ${sessionData.title}\n📅 날짜: ${sessionData.educationDate}\n🏢 부서: ${sessionData.department}\n👨‍🏫 교육자: ${sessionData.instructor}\n👥 인원: ${sessionData.totalParticipants}명${uploadedImages.length > 0 ? `\n📸 사진: ${uploadedImages.length}장` : ""}`,
   };
 }
 
@@ -254,7 +471,7 @@ async function executeInspectionCreate(data: any, user: any, today: string, uplo
   const created = await storage.createSafetyInspection(inspectionData);
   return {
     actionResult: { success: true, type: "inspection_created", inspectionId: created.id, data: inspectionData },
-    message: `안전점검이 등록되었습니다!\n\n📋 유형: ${inspectionData.inspectionType}\n📅 날짜: ${inspectionData.inspectionDate}\n👷 점검자: ${inspectionData.inspector}${uploadedImages.length > 0 ? `\n📸 사진: ${uploadedImages.length}장` : ""}`,
+    message: `✅ 안전점검이 등록되었습니다!\n\n📋 유형: ${inspectionData.inspectionType}\n📅 날짜: ${inspectionData.inspectionDate}\n👷 점검자: ${inspectionData.inspector}${uploadedImages.length > 0 ? `\n📸 사진: ${uploadedImages.length}장` : ""}`,
   };
 }
 
@@ -299,7 +516,7 @@ async function executeVehicleLogCreate(data: any, user: any, today: string) {
   const created = await storage.createVehicleLog(logData);
   return {
     actionResult: { success: true, type: "vehicle_log_created", logId: created.id, data: logData },
-    message: `운행일지가 등록되었습니다!\n\n🚗 차량: ${plateNumber} (${vehicleModel})\n👤 운전자: ${logData.driver}\n📅 날짜: ${logData.logDate}\n🏢 팀: ${team}${logData.departureLocation ? `\n📍 출발: ${logData.departureLocation}` : ""}${logData.arrivalLocation ? `\n📍 도착: ${logData.arrivalLocation}` : ""}${logData.purpose ? `\n📝 목적: ${logData.purpose}` : ""}`,
+    message: `✅ 운행일지가 등록되었습니다!\n\n🚗 차량: ${plateNumber} (${vehicleModel})\n👤 운전자: ${logData.driver}\n📅 날짜: ${logData.logDate}\n🏢 팀: ${team}${logData.departureLocation ? `\n📍 출발: ${logData.departureLocation}` : ""}${logData.arrivalLocation ? `\n📍 도착: ${logData.arrivalLocation}` : ""}${logData.purpose ? `\n📝 목적: ${logData.purpose}` : ""}`,
   };
 }
 
@@ -314,7 +531,7 @@ async function executeNoticeCreate(data: any, user: any) {
   const catLabel = noticeData.category === "rule" ? "규정" : "공지사항";
   return {
     actionResult: { success: true, type: "notice_created", noticeId: created.id, data: noticeData },
-    message: `${catLabel}이 등록되었습니다!\n\n📢 유형: ${catLabel}\n📋 제목: ${noticeData.title}\n📝 내용: ${noticeData.content.substring(0, 100)}${noticeData.content.length > 100 ? "..." : ""}`,
+    message: `✅ ${catLabel}이 등록되었습니다!\n\n📢 유형: ${catLabel}\n📋 제목: ${noticeData.title}\n📝 내용: ${noticeData.content.substring(0, 100)}${noticeData.content.length > 100 ? "..." : ""}`,
   };
 }
 
@@ -330,7 +547,7 @@ async function executeVehicleCreate(data: any, user: any) {
   const created = await storage.createVehicle(vehicleData);
   return {
     actionResult: { success: true, type: "vehicle_created", vehicleId: created.id, data: vehicleData },
-    message: `차량이 등록되었습니다!\n\n🚙 차량번호: ${vehicleData.plateNumber}\n🏷️ 차종: ${vehicleData.vehicleType}\n📋 모델: ${vehicleData.model}\n🏢 팀: ${vehicleData.team}\n👤 운전자: ${vehicleData.driver}`,
+    message: `✅ 차량이 등록되었습니다!\n\n🚙 차량번호: ${vehicleData.plateNumber}\n🏷️ 차종: ${vehicleData.vehicleType}\n📋 모델: ${vehicleData.model}\n🏢 팀: ${vehicleData.team}\n👤 운전자: ${vehicleData.driver}`,
   };
 }
 
@@ -341,7 +558,7 @@ export function registerChatbotRoutes(app: Express): void {
     chatUpload.array("photos", 10),
     async (req: any, res) => {
       try {
-        const { message, conversationHistory, pendingAction, pendingData } = req.body;
+        const { message, conversationHistory, pendingAction, pendingData, collectingAction, collectingData, currentField } = req.body;
         const session = req.session as any;
         const user = await authStorage.getUser(session.userId);
 
@@ -360,9 +577,15 @@ export function registerChatbotRoutes(app: Express): void {
 
         let parsedPendingData: any = null;
         let parsedPendingAction: string | null = null;
+        let parsedCollectingData: any = null;
+        let parsedCollectingAction: string | null = null;
+        let parsedCurrentField: string | null = null;
         try {
           if (pendingData) parsedPendingData = JSON.parse(pendingData);
           if (pendingAction) parsedPendingAction = pendingAction;
+          if (collectingData) parsedCollectingData = JSON.parse(collectingData);
+          if (collectingAction) parsedCollectingAction = collectingAction;
+          if (currentField) parsedCurrentField = currentField;
         } catch {}
 
         if (parsedPendingAction && parsedPendingData) {
@@ -381,10 +604,117 @@ export function registerChatbotRoutes(app: Express): void {
           }
         }
 
+        if (parsedCollectingAction && parsedCollectingData) {
+          const localMods = detectModifyIntent(message);
+          const isSimpleAnswer = !message.includes("등록") && !message.includes("조회") && !message.includes("현황");
+
+          if (isSimpleAnswer || localMods) {
+            const config = ACTION_FIELDS[parsedCollectingAction];
+            if (config) {
+              let updatedData = { ...parsedCollectingData };
+
+              if (localMods && Object.keys(localMods).length > 0) {
+                Object.assign(updatedData, localMods);
+              } else if (parsedCurrentField) {
+                const trimmed = message.trim();
+                const fieldDef = config.fields.find((f) => f.key === parsedCurrentField);
+                const isAcceptDefault = trimmed === "확인" || trimmed === "네" || trimmed === "ㅇㅇ" || trimmed === "예" || trimmed === "ok" || trimmed === "OK";
+
+                if (isAcceptDefault && fieldDef?.askAlways && fieldDef?.autoFill) {
+                  const defaultVal = fieldDef.autoFill(user, today);
+                  if (defaultVal !== undefined && defaultVal !== null) {
+                    updatedData[parsedCurrentField] = defaultVal;
+                  }
+                } else if (trimmed === "없음" || trimmed === "생략" || trimmed === "패스" || trimmed === "스킵") {
+                  updatedData[parsedCurrentField] = "";
+                } else if (parsedCurrentField === "totalParticipants") {
+                  const num = parseInt(trimmed.replace(/[^0-9]/g, ""));
+                  updatedData[parsedCurrentField] = isNaN(num) ? 1 : num;
+                } else if (parsedCurrentField === "category") {
+                  updatedData[parsedCurrentField] = trimmed.includes("규정") ? "rule" : "notice";
+                } else if (parsedCurrentField === "educationDate" || parsedCurrentField === "inspectionDate" || parsedCurrentField === "logDate") {
+                  if (trimmed === "오늘" || trimmed.includes("오늘")) {
+                    updatedData[parsedCurrentField] = today;
+                  } else if (trimmed === "내일" || trimmed.includes("내일")) {
+                    const tomorrow = new Date();
+                    tomorrow.setDate(tomorrow.getDate() + 1);
+                    updatedData[parsedCurrentField] = tomorrow.toISOString().split("T")[0];
+                  } else {
+                    updatedData[parsedCurrentField] = trimmed.replace(/[./]/g, "-");
+                  }
+                } else {
+                  updatedData[parsedCurrentField] = trimmed;
+                }
+              }
+
+              try {
+                const aiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+                  { role: "system", content: SYSTEM_PROMPT },
+                  {
+                    role: "user",
+                    content: `현재 ${config.label} 등록을 위해 정보를 수집 중입니다.\n현재 수집된 데이터: ${JSON.stringify(parsedCollectingData)}\n현재 물어보고 있는 필드: ${parsedCurrentField}\n사용자 응답: ${message}\n\nFILL_FIELD 액션으로 응답하세요. data에는 사용자 응답에서 추출한 모든 필드 값을 넣어주세요.`,
+                  },
+                ];
+                const aiResp = await openai.chat.completions.create({
+                  model: "gpt-5-nano",
+                  messages: aiMessages,
+                  max_tokens: 512,
+                  response_format: { type: "json_object" },
+                });
+                const aiContent = aiResp.choices[0]?.message?.content || "";
+                try {
+                  const aiParsed = JSON.parse(aiContent);
+                  if (aiParsed.data && typeof aiParsed.data === "object") {
+                    for (const [k, v] of Object.entries(aiParsed.data)) {
+                      if (v !== undefined && v !== null && v !== "") {
+                        updatedData[k] = v;
+                      }
+                    }
+                  }
+                } catch {}
+              } catch (err: any) {
+                console.log("[Chatbot] AI field extraction skipped:", err.message);
+              }
+
+              updatedData = applyAutoFills(parsedCollectingAction, updatedData, user, today);
+
+              const nextField = getNextMissingField(parsedCollectingAction, updatedData);
+
+              if (!nextField) {
+                return res.json({
+                  message: buildConfirmationMessage(parsedCollectingAction, updatedData),
+                  action: parsedCollectingAction,
+                  actionResult: null,
+                  needsConfirmation: true,
+                  confirmData: updatedData,
+                  collectingDone: true,
+                  uploadedImages: uploadedImages.length > 0 ? uploadedImages : (parsedCollectingData._uploadedImages || []),
+                });
+              }
+
+              const progress = getFilledFieldsSummary(parsedCollectingAction, updatedData);
+              const questionText = buildFieldQuestion(nextField, user, today);
+              return res.json({
+                message: `${questionText}${progress}`,
+                action: parsedCollectingAction,
+                actionResult: null,
+                needsConfirmation: false,
+                isCollecting: true,
+                collectingData: updatedData,
+                currentField: nextField.key,
+                uploadedImages,
+              });
+            }
+          }
+        }
+
         const userContext = `현재 사용자: ${user.name || user.username}, 부서: ${user.department || "미지정"}, 역할: ${user.role}, 오늘 날짜: ${today}`;
         const photoContext = uploadedImages.length > 0 ? `\n첨부된 사진 ${uploadedImages.length}장이 있습니다.` : "";
         const pendingContext = parsedPendingAction
           ? `\n현재 "${parsedPendingAction}" 등록 확인 대기 중입니다. 사용자가 세부 정보를 수정하려는 경우 MODIFY_PENDING으로 처리하세요. 대기중 데이터: ${JSON.stringify(parsedPendingData)}`
+          : "";
+        const collectingContext = parsedCollectingAction
+          ? `\n현재 "${parsedCollectingAction}" 등록을 위해 정보 수집 중입니다. 현재 필드: ${parsedCurrentField}, 수집된 데이터: ${JSON.stringify(parsedCollectingData)}`
           : "";
 
         let history: { role: string; content: string }[] = [];
@@ -403,7 +733,7 @@ export function registerChatbotRoutes(app: Express): void {
             })),
             {
               role: "user",
-              content: `${userContext}${photoContext}${pendingContext}\n\n사용자 요청: ${message}`,
+              content: `${userContext}${photoContext}${pendingContext}${collectingContext}\n\n사용자 요청: ${message}`,
             },
           ];
 
@@ -441,24 +771,41 @@ export function registerChatbotRoutes(app: Express): void {
           });
         }
 
+        if (parsed?.action === "FILL_FIELD" && parsedCollectingAction && parsedCollectingData) {
+          let updatedData = { ...parsedCollectingData, ...(parsed.data || {}) };
+          updatedData = applyAutoFills(parsedCollectingAction, updatedData, user, today);
+          const nextField = getNextMissingField(parsedCollectingAction, updatedData);
+          if (!nextField) {
+            return res.json({
+              message: buildConfirmationMessage(parsedCollectingAction, updatedData),
+              action: parsedCollectingAction,
+              actionResult: null,
+              needsConfirmation: true,
+              confirmData: updatedData,
+              collectingDone: true,
+              uploadedImages,
+            });
+          }
+          const progress = getFilledFieldsSummary(parsedCollectingAction, updatedData);
+          const questionText = buildFieldQuestion(nextField, user, today);
+          return res.json({
+            message: `${questionText}${progress}`,
+            action: parsedCollectingAction,
+            actionResult: null,
+            needsConfirmation: false,
+            isCollecting: true,
+            collectingData: updatedData,
+            currentField: nextField.key,
+            uploadedImages,
+          });
+        }
+
         if (!parsed || !parsed.action) {
           console.log("[Chatbot] Using keyword-based fallback for:", message);
           const detectedIntent = detectIntentFromKeywords(message);
-          const title = extractTitleFromMessage(message);
 
           if (detectedIntent) {
-            parsed = { action: detectedIntent, data: {} };
-            if (detectedIntent === "CREATE_EDUCATION") {
-              parsed.data = { title, educationDate: today, department: user.department || "미지정", educationType: "정기교육", totalParticipants: 1, instructor: user.name || user.username, description: `${title} 교육 실시` };
-            } else if (detectedIntent === "CREATE_INSPECTION") {
-              parsed.data = { inspectionType: "안전점검", title, inspectionDate: today, inspector: user.name || user.username };
-            } else if (detectedIntent === "CREATE_VEHICLE_LOG") {
-              parsed.data = { driver: user.name || user.username, logDate: today, team: user.department || "" };
-            } else if (detectedIntent === "CREATE_NOTICE") {
-              parsed.data = { category: "notice", title: "", content: "" };
-            } else if (detectedIntent === "CREATE_VEHICLE") {
-              parsed.data = { plateNumber: "", vehicleType: "승용", model: "", team: user.department || "", driver: "" };
-            }
+            parsed = { action: detectedIntent, data: parsed?.data || {} };
           } else {
             return res.json({
               message: "요청을 이해하지 못했습니다. 다음과 같은 요청을 해보세요:\n\n📚 \"교육 등록해줘\" / \"교육 현황 알려줘\"\n🔍 \"안전점검 등록\" / \"점검 현황 조회\"\n🚗 \"운행일지 작성\" / \"운행기록 조회\"\n📢 \"공지사항 등록\" / \"공지 조회\"\n🚙 \"차량 등록\" / \"차량 정보 조회\"\n🛡️ \"안전용품 현황 알려줘\"\n📊 \"팀 안전점수 조회\"",
@@ -468,82 +815,83 @@ export function registerChatbotRoutes(app: Express): void {
         }
 
         const action = parsed.action;
+        const actionConfig = ACTION_FIELDS[action];
 
-        if (action === "CREATE_EDUCATION") {
-          if (!hasPermission(user, "registerEducation")) {
-            return res.json({ message: "교육일지 등록 권한이 없습니다.", action: "PERMISSION_DENIED", actionResult: null, needsConfirmation: false, confirmData: null, uploadedImages });
+        if (actionConfig) {
+          if (!hasPermission(user, actionConfig.permKey)) {
+            return res.json({
+              message: `${actionConfig.label} 등록 권한이 없습니다.`,
+              action: "PERMISSION_DENIED", actionResult: null, needsConfirmation: false, confirmData: null, uploadedImages,
+            });
           }
-          const data = parsed.data || {};
-          data.title = data.title || "교육";
-          data.educationDate = data.educationDate || today;
-          data.department = data.department || user.department || "미지정";
-          data.educationType = data.educationType || "정기교육";
-          data.instructor = data.instructor || user.name || user.username;
-          data.totalParticipants = typeof data.totalParticipants === "number" ? data.totalParticipants : 1;
-          return res.json({ message: buildConfirmationMessage("CREATE_EDUCATION", data), action: "CREATE_EDUCATION", actionResult: null, needsConfirmation: true, confirmData: data, uploadedImages });
-        }
 
-        if (action === "CREATE_INSPECTION") {
-          if (!hasPermission(user, "editInspections")) {
-            return res.json({ message: "안전점검 등록 권한이 없습니다.", action: "PERMISSION_DENIED", actionResult: null, needsConfirmation: false, confirmData: null, uploadedImages });
-          }
-          const data = parsed.data || {};
-          data.inspectionType = data.inspectionType || "안전점검";
-          data.title = data.title || "안전점검";
-          data.inspectionDate = data.inspectionDate || today;
-          data.inspector = data.inspector || user.name || user.username;
-          return res.json({ message: buildConfirmationMessage("CREATE_INSPECTION", data), action: "CREATE_INSPECTION", actionResult: null, needsConfirmation: true, confirmData: data, uploadedImages });
-        }
+          let data = parsed.data || {};
+          data = applyAutoFills(action, data, user, today);
 
-        if (action === "CREATE_VEHICLE_LOG") {
-          if (!hasPermission(user, "editVehicleLogs")) {
-            return res.json({ message: "운행일지 등록 권한이 없습니다.", action: "PERMISSION_DENIED", actionResult: null, needsConfirmation: false, confirmData: null, uploadedImages });
+          if (action === "CREATE_VEHICLE_LOG") {
+            try {
+              const vehicles = await storage.getVehicles();
+              let foundVehicle = null;
+              if (data.plateNumber) foundVehicle = vehicles.find((v: any) => v.plateNumber.includes(data.plateNumber));
+              if (!foundVehicle) {
+                const driverName = data.driver || user.name || user.username;
+                foundVehicle = vehicles.find((v: any) => v.driver === driverName || v.secondDriver === driverName);
+              }
+              if (foundVehicle) {
+                data.plateNumber = foundVehicle.plateNumber;
+                data.vehicleModel = foundVehicle.model;
+                data.team = foundVehicle.team;
+                data.vehicleId = foundVehicle.id;
+              }
+            } catch {}
           }
-          const data = parsed.data || {};
-          data.driver = data.driver || user.name || user.username;
-          data.logDate = data.logDate || today;
-          data.team = data.team || user.department || "";
-          try {
-            const vehicles = await storage.getVehicles();
-            let foundVehicle = null;
-            if (data.plateNumber) foundVehicle = vehicles.find((v) => v.plateNumber.includes(data.plateNumber));
-            if (!foundVehicle) foundVehicle = vehicles.find((v) => v.driver === data.driver || v.secondDriver === data.driver);
-            if (foundVehicle) {
-              data.plateNumber = foundVehicle.plateNumber;
-              data.vehicleModel = foundVehicle.model;
-              data.team = foundVehicle.team;
-              data.vehicleId = foundVehicle.id;
+
+          const missingRequired = getMissingRequiredFields(action, data, user, today);
+
+          if (missingRequired.length > 0) {
+            const nextField = getNextMissingField(action, data);
+            if (nextField) {
+              const config = ACTION_FIELDS[action];
+              const progress = getFilledFieldsSummary(action, data);
+              const questionText = buildFieldQuestion(nextField, user, today);
+              return res.json({
+                message: `📝 ${config.label} 등록을 시작합니다!\n\n${questionText}${progress}`,
+                action: action,
+                actionResult: null,
+                needsConfirmation: false,
+                isCollecting: true,
+                collectingData: data,
+                currentField: nextField.key,
+                uploadedImages,
+              });
             }
-          } catch {}
-          return res.json({ message: buildConfirmationMessage("CREATE_VEHICLE_LOG", data), action: "CREATE_VEHICLE_LOG", actionResult: null, needsConfirmation: true, confirmData: data, uploadedImages });
-        }
+          }
 
-        if (action === "CREATE_NOTICE") {
-          if (!hasPermission(user, "registerNotices")) {
-            return res.json({ message: "공지사항 등록 권한이 없습니다.", action: "PERMISSION_DENIED", actionResult: null, needsConfirmation: false, confirmData: null, uploadedImages });
+          const nextOptional = getNextMissingField(action, data);
+          if (nextOptional) {
+            const config = ACTION_FIELDS[action];
+            const progress = getFilledFieldsSummary(action, data);
+            const questionText = buildFieldQuestion(nextOptional, user, today);
+            return res.json({
+              message: `📝 ${config.label} 등록을 시작합니다!\n추가 정보를 입력해주세요.\n\n${questionText}${progress}`,
+              action: action,
+              actionResult: null,
+              needsConfirmation: false,
+              isCollecting: true,
+              collectingData: data,
+              currentField: nextOptional.key,
+              uploadedImages,
+            });
           }
-          const data = parsed.data || {};
-          data.category = data.category || "notice";
-          data.title = data.title || "";
-          data.content = data.content || "";
-          if (!data.title) {
-            return res.json({ message: "공지사항 제목과 내용을 알려주세요.\n\n예: \"공지사항 등록해줘, 제목: 안전교육 안내, 내용: 3월 15일 안전교육 실시 예정\"", action: "CREATE_NOTICE", actionResult: null, needsConfirmation: false, confirmData: null, uploadedImages });
-          }
-          return res.json({ message: buildConfirmationMessage("CREATE_NOTICE", data), action: "CREATE_NOTICE", actionResult: null, needsConfirmation: true, confirmData: data, uploadedImages });
-        }
 
-        if (action === "CREATE_VEHICLE") {
-          if (!hasPermission(user, "editVehicles")) {
-            return res.json({ message: "차량 등록 권한이 없습니다.", action: "PERMISSION_DENIED", actionResult: null, needsConfirmation: false, confirmData: null, uploadedImages });
-          }
-          const data = parsed.data || {};
-          data.vehicleType = data.vehicleType || "승용";
-          data.team = data.team || user.department || "";
-          data.status = data.status || "운행중";
-          if (!data.plateNumber) {
-            return res.json({ message: "차량번호를 알려주세요.\n\n예: \"차량 등록해줘, 번호 12가3456, 모델 쏘나타, 팀 동대구운용팀\"", action: "CREATE_VEHICLE", actionResult: null, needsConfirmation: false, confirmData: null, uploadedImages });
-          }
-          return res.json({ message: buildConfirmationMessage("CREATE_VEHICLE", data), action: "CREATE_VEHICLE", actionResult: null, needsConfirmation: true, confirmData: data, uploadedImages });
+          return res.json({
+            message: buildConfirmationMessage(action, data),
+            action: action,
+            actionResult: null,
+            needsConfirmation: true,
+            confirmData: data,
+            uploadedImages,
+          });
         }
 
         if (action === "QUERY_EDUCATION") {

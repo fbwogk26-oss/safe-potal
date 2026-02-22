@@ -16,6 +16,8 @@ import {
   XCircle,
   Sparkles,
   Shield,
+  MessageCircle,
+  Edit3,
 } from "lucide-react";
 
 interface ChatMessage {
@@ -29,6 +31,7 @@ interface ChatMessage {
   uploadedImages?: string[];
   confirmed?: boolean;
   cancelled?: boolean;
+  isCollecting?: boolean;
 }
 
 export function ChatBot() {
@@ -46,6 +49,9 @@ export function ChatBot() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [pendingData, setPendingData] = useState<any>(null);
+  const [collectingAction, setCollectingAction] = useState<string | null>(null);
+  const [collectingData, setCollectingData] = useState<any>(null);
+  const [currentField, setCurrentField] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -92,6 +98,14 @@ export function ChatBot() {
         formData.append("pendingData", JSON.stringify(pendingData));
       }
 
+      if (collectingAction) {
+        formData.append("collectingAction", collectingAction);
+        formData.append("collectingData", JSON.stringify(collectingData));
+        if (currentField) {
+          formData.append("currentField", currentField);
+        }
+      }
+
       const response = await fetch("/api/chatbot/message", {
         method: "POST",
         credentials: "include",
@@ -104,7 +118,25 @@ export function ChatBot() {
 
       const data = await response.json();
 
-      if (data.needsConfirmation) {
+      if (data.isCollecting) {
+        setCollectingAction(data.action);
+        setCollectingData(data.collectingData);
+        setCurrentField(data.currentField);
+        setPendingAction(null);
+        setPendingData(null);
+
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: data.message || "정보를 입력해주세요.",
+            isCollecting: true,
+          },
+        ]);
+      } else if (data.needsConfirmation) {
+        setCollectingAction(null);
+        setCollectingData(null);
+        setCurrentField(null);
         setPendingAction(data.action);
         setPendingData(data.confirmData);
 
@@ -118,7 +150,7 @@ export function ChatBot() {
             ...updated,
             {
               role: "assistant" as const,
-              content: data.message || "처리되었습니다.",
+              content: data.message || "등록 내용을 확인해주세요.",
               actionResult: data.actionResult,
               needsConfirmation: true,
               confirmData: data.confirmData,
@@ -128,6 +160,11 @@ export function ChatBot() {
           ];
         });
       } else {
+        if (!data.isCollecting) {
+          setCollectingAction(null);
+          setCollectingData(null);
+          setCurrentField(null);
+        }
         if (pendingAction && !data.needsConfirmation) {
           setPendingAction(null);
           setPendingData(null);
@@ -179,6 +216,9 @@ export function ChatBot() {
 
     setPendingAction(null);
     setPendingData(null);
+    setCollectingAction(null);
+    setCollectingData(null);
+    setCurrentField(null);
 
     try {
       const response = await fetch("/api/chatbot/confirm", {
@@ -247,6 +287,9 @@ export function ChatBot() {
     ]);
     setPendingAction(null);
     setPendingData(null);
+    setCollectingAction(null);
+    setCollectingData(null);
+    setCurrentField(null);
     scrollToBottom();
   };
 
@@ -273,6 +316,15 @@ export function ChatBot() {
     ]);
     setPendingAction(null);
     setPendingData(null);
+    setCollectingAction(null);
+    setCollectingData(null);
+    setCurrentField(null);
+  };
+
+  const getPlaceholder = () => {
+    if (collectingAction) return "답변을 입력하세요...";
+    if (pendingAction) return "수정할 내용을 입력하세요...";
+    return "메시지를 입력하세요...";
   };
 
   if (!user) return null;
@@ -401,9 +453,19 @@ export function ChatBot() {
                     </div>
                   )}
 
+                  {msg.isCollecting && !msg.needsConfirmation && (
+                    <div className="mt-2 flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400">
+                      <MessageCircle className="w-3 h-3" />
+                      <span>아래에 답변을 입력해주세요</span>
+                    </div>
+                  )}
+
                   {msg.needsConfirmation && !msg.confirmed && !msg.cancelled && (
                     <div className="mt-3 space-y-2">
-                      <p className="text-[11px] text-muted-foreground">수정이 필요하면 채팅으로 말씀해주세요</p>
+                      <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                        <Edit3 className="w-3 h-3" />
+                        <span>수정이 필요하면 채팅으로 말씀해주세요</span>
+                      </div>
                       <div className="flex gap-2">
                         <Button
                           size="sm"
@@ -448,11 +510,20 @@ export function ChatBot() {
             <div ref={messagesEndRef} />
           </div>
 
-          {pendingAction && (
+          {collectingAction && (
+            <div className="px-3 py-1.5 border-t bg-blue-50 dark:bg-blue-950/30">
+              <p className="text-[10px] text-blue-700 dark:text-blue-400 flex items-center gap-1">
+                <MessageCircle className="w-3 h-3" />
+                정보 수집 중 - 질문에 답변해주세요
+              </p>
+            </div>
+          )}
+
+          {pendingAction && !collectingAction && (
             <div className="px-3 py-1.5 border-t bg-amber-50 dark:bg-amber-950/30">
               <p className="text-[10px] text-amber-700 dark:text-amber-400 flex items-center gap-1">
-                <Sparkles className="w-3 h-3" />
-                등록 확인 대기 중 - 채팅으로 세부 정보를 수정할 수 있습니다
+                <Edit3 className="w-3 h-3" />
+                등록 확인 대기 중 - 댓글로 수정하거나 [등록하기]를 눌러주세요
               </p>
             </div>
           )}
@@ -509,7 +580,7 @@ export function ChatBot() {
                     handleSend();
                   }
                 }}
-                placeholder={pendingAction ? "수정할 내용을 입력하세요..." : "메시지를 입력하세요..."}
+                placeholder={getPlaceholder()}
                 className="text-sm"
                 disabled={isLoading}
                 data-testid="input-chatbot-message"
