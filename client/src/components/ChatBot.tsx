@@ -513,8 +513,17 @@ export function ChatBot() {
           {collectingAction && (
             <div className="px-3 py-1.5 border-t bg-blue-50 dark:bg-blue-950/30">
               <p className="text-[10px] text-blue-700 dark:text-blue-400 flex items-center gap-1">
-                <MessageCircle className="w-3 h-3" />
-                정보 수집 중 - 질문에 답변해주세요
+                {currentField === "_photoStep" ? (
+                  <>
+                    <ImageIcon className="w-3 h-3" />
+                    사진 첨부 단계 - 📎 버튼으로 사진을 첨부하거나 "없음" 입력
+                  </>
+                ) : (
+                  <>
+                    <MessageCircle className="w-3 h-3" />
+                    정보 수집 중 - 질문에 답변해주세요
+                  </>
+                )}
               </p>
             </div>
           )}
@@ -564,12 +573,12 @@ export function ChatBot() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="flex-shrink-0"
+                className={`flex-shrink-0 ${currentField === "_photoStep" ? "ring-2 ring-blue-500 animate-pulse bg-blue-50 dark:bg-blue-950" : ""}`}
                 onClick={handleFileSelect}
                 disabled={isLoading}
                 data-testid="button-chatbot-attach"
               >
-                <ImageIcon className="w-4 h-4" />
+                <ImageIcon className={`w-4 h-4 ${currentField === "_photoStep" ? "text-blue-600" : ""}`} />
               </Button>
               <Input
                 value={input}

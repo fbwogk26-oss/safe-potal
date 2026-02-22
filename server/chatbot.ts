@@ -430,10 +430,11 @@ function buildConfirmationMessage(action: string, data: any): string {
       `👨‍🏫 교육자: ${data.instructor || "미정"}\n` +
       `👥 인원: ${data.totalParticipants || 1}명\n` +
       `${data.description ? `📄 설명: ${data.description}\n` : ""}` +
+      `${(data._uploadedImages?.length > 0) ? `📸 첨부사진: ${data._uploadedImages.length}장\n` : "📸 첨부사진: 없음\n"}` +
       `━━━━━━━━━━━━━━━━━━━━\n\n` +
       `✏️ 수정이 필요하면 댓글로 말씀해주세요!\n` +
       `예: "부서 포항운용팀으로", "인원 5명으로"\n\n` +
-      `확인되면 아래 [등록하기] 버튼을 눌러주세요.`;
+      `확인되면 "등록" 또는 [등록하기] 버튼을 눌러주세요.`;
   }
   if (action === "CREATE_INSPECTION") {
     const checklistLabel = data.checklistStatus === "양호" ? "✅ 전체 양호" : data.checklistStatus === "미흡" ? "⚠️ 전체 미흡" : data.checklistStatus === "개별" ? "📝 개별 확인 필요" : "기본(미점검)";
@@ -448,10 +449,10 @@ function buildConfirmationMessage(action: string, data: any): string {
       `📍 점검국소: ${data.location || "미정"}\n` +
       `📋 체크리스트: ${checklistLabel} (13개 항목)\n` +
       `${data.notes ? `📝 비고: ${data.notes}\n` : ""}` +
+      `${(data._uploadedImages?.length > 0) ? `📸 첨부사진: ${data._uploadedImages.length}장\n` : "📸 첨부사진: 없음\n"}` +
       `━━━━━━━━━━━━━━━━━━━━\n\n` +
-      `📸 사진은 첨부파일로 올려주세요 (최대 10장)\n\n` +
       `✏️ 수정이 필요하면 댓글로 말씀해주세요!\n` +
-      `확인되면 아래 [등록하기] 버튼을 눌러주세요.`;
+      `확인되면 "등록" 또는 [등록하기] 버튼을 눌러주세요.`;
   }
   if (action === "CREATE_VEHICLE_LOG") {
     return `📋 다음 내용으로 운행일지를 등록할까요?\n\n` +
@@ -469,7 +470,7 @@ function buildConfirmationMessage(action: string, data: any): string {
       `${data.notes ? `📝 비고: ${data.notes}\n` : ""}` +
       `━━━━━━━━━━━━━━━━━━━━\n\n` +
       `✏️ 수정이 필요하면 댓글로 말씀해주세요!\n` +
-      `확인되면 아래 [등록하기] 버튼을 눌러주세요.`;
+      `확인되면 "등록" 또는 [등록하기] 버튼을 눌러주세요.`;
   }
   if (action === "CREATE_NOTICE") {
     const catLabel = data.category === "rule" ? "규정" : "공지사항";
@@ -480,7 +481,7 @@ function buildConfirmationMessage(action: string, data: any): string {
       `📄 내용: ${(data.content || "").substring(0, 150)}${(data.content || "").length > 150 ? "..." : ""}\n` +
       `━━━━━━━━━━━━━━━━━━━━\n\n` +
       `✏️ 수정이 필요하면 댓글로 말씀해주세요!\n` +
-      `확인되면 아래 [등록하기] 버튼을 눌러주세요.`;
+      `확인되면 "등록" 또는 [등록하기] 버튼을 눌러주세요.`;
   }
   if (action === "CREATE_VEHICLE") {
     return `📋 다음 내용으로 차량을 등록할까요?\n\n` +
@@ -495,7 +496,7 @@ function buildConfirmationMessage(action: string, data: any): string {
       `${data.insuranceExpiry ? `📅 보험만료: ${data.insuranceExpiry}\n` : ""}` +
       `━━━━━━━━━━━━━━━━━━━━\n\n` +
       `✏️ 수정이 필요하면 댓글로 말씀해주세요!\n` +
-      `확인되면 아래 [등록하기] 버튼을 눌러주세요.`;
+      `확인되면 "등록" 또는 [등록하기] 버튼을 눌러주세요.`;
   }
   return "";
 }
@@ -669,6 +670,47 @@ export function registerChatbotRoutes(app: Express): void {
         } catch {}
 
         if (parsedPendingAction && parsedPendingData) {
+          const trimmedMsg = message.trim();
+          const confirmPatterns = ["등록", "등록해", "등록해줘", "등록해주세요", "등록하기", "등록 해줘", "등록 진행", "확인", "네", "예", "ㅇㅇ", "ㅇ", "ok", "OK"];
+          const isTextConfirm = confirmPatterns.some(p => trimmedMsg === p || trimmedMsg === p + "요" || trimmedMsg === p + "~" || trimmedMsg === p + "!");
+
+          if (isTextConfirm) {
+            console.log("[Chatbot] Text-based confirmation detected:", trimmedMsg);
+            const existingImages = uploadedImages.length > 0 ? uploadedImages : (parsedPendingData._uploadedImages || []);
+            try {
+              let result: any;
+              if (parsedPendingAction === "CREATE_EDUCATION") {
+                if (!hasPermission(user, "registerEducation")) return res.json({ message: "교육일지 등록 권한이 없습니다.", action: "PERMISSION_DENIED", actionResult: null, needsConfirmation: false, confirmData: null, uploadedImages: existingImages });
+                result = await executeEducationCreate(parsedPendingData, user, today, existingImages);
+              } else if (parsedPendingAction === "CREATE_INSPECTION") {
+                if (!hasPermission(user, "editInspections")) return res.json({ message: "안전점검 등록 권한이 없습니다.", action: "PERMISSION_DENIED", actionResult: null, needsConfirmation: false, confirmData: null, uploadedImages: existingImages });
+                result = await executeInspectionCreate(parsedPendingData, user, today, existingImages);
+              } else if (parsedPendingAction === "CREATE_VEHICLE_LOG") {
+                if (!hasPermission(user, "editVehicleLogs")) return res.json({ message: "운행일지 등록 권한이 없습니다.", action: "PERMISSION_DENIED", actionResult: null, needsConfirmation: false, confirmData: null, uploadedImages: existingImages });
+                result = await executeVehicleLogCreate(parsedPendingData, user, today);
+              } else if (parsedPendingAction === "CREATE_NOTICE") {
+                if (!hasPermission(user, "registerNotices")) return res.json({ message: "공지사항 등록 권한이 없습니다.", action: "PERMISSION_DENIED", actionResult: null, needsConfirmation: false, confirmData: null, uploadedImages: existingImages });
+                result = await executeNoticeCreate(parsedPendingData, user);
+              } else if (parsedPendingAction === "CREATE_VEHICLE") {
+                if (!hasPermission(user, "editVehicles")) return res.json({ message: "차량 등록 권한이 없습니다.", action: "PERMISSION_DENIED", actionResult: null, needsConfirmation: false, confirmData: null, uploadedImages: existingImages });
+                result = await executeVehicleCreate(parsedPendingData, user);
+              }
+              if (result) {
+                return res.json({
+                  message: result.message,
+                  action: parsedPendingAction,
+                  actionResult: result.actionResult,
+                  needsConfirmation: false,
+                  confirmData: null,
+                  uploadedImages: existingImages,
+                });
+              }
+            } catch (err: any) {
+              console.error("[Chatbot] Text confirm execution error:", err);
+              return res.json({ message: "등록 처리 중 오류가 발생했습니다. 다시 시도해주세요.", action: parsedPendingAction, actionResult: null, needsConfirmation: false, confirmData: null, uploadedImages: existingImages });
+            }
+          }
+
           const localMods = detectModifyIntent(message);
           if (localMods && Object.keys(localMods).length > 0) {
             const updatedData = { ...parsedPendingData, ...localMods };
@@ -777,6 +819,67 @@ export function registerChatbotRoutes(app: Express): void {
               const nextField = getNextMissingField(parsedCollectingAction, updatedData);
 
               if (!nextField) {
+                const supportsPhotos = ["CREATE_INSPECTION", "CREATE_EDUCATION"].includes(parsedCollectingAction);
+                const photosDone = updatedData._photoStepDone;
+                const allImages = uploadedImages.length > 0 ? uploadedImages : (parsedCollectingData._uploadedImages || []);
+
+                if (supportsPhotos && !photosDone) {
+                  if (parsedCurrentField === "_photoStep") {
+                    const trimmed = message.trim();
+                    const isSkip = trimmed === "없음" || trimmed === "생략" || trimmed === "패스" || trimmed === "스킵" || trimmed === "아니" || trimmed === "아니요" || trimmed === "넘어가" || trimmed === "다음";
+                    updatedData._photoStepDone = true;
+                    if (uploadedImages.length > 0) {
+                      updatedData._uploadedImages = [...allImages, ...uploadedImages.filter(img => !allImages.includes(img))];
+                    }
+                    const finalImages = updatedData._uploadedImages || allImages;
+                    if (isSkip) {
+                      return res.json({
+                        message: buildConfirmationMessage(parsedCollectingAction, updatedData),
+                        action: parsedCollectingAction,
+                        actionResult: null,
+                        needsConfirmation: true,
+                        confirmData: updatedData,
+                        collectingDone: true,
+                        uploadedImages: finalImages,
+                      });
+                    }
+                    return res.json({
+                      message: buildConfirmationMessage(parsedCollectingAction, updatedData),
+                      action: parsedCollectingAction,
+                      actionResult: null,
+                      needsConfirmation: true,
+                      confirmData: updatedData,
+                      collectingDone: true,
+                      uploadedImages: finalImages,
+                    });
+                  }
+
+                  if (uploadedImages.length > 0) {
+                    updatedData._photoStepDone = true;
+                    updatedData._uploadedImages = uploadedImages;
+                    return res.json({
+                      message: buildConfirmationMessage(parsedCollectingAction, updatedData),
+                      action: parsedCollectingAction,
+                      actionResult: null,
+                      needsConfirmation: true,
+                      confirmData: updatedData,
+                      collectingDone: true,
+                      uploadedImages,
+                    });
+                  }
+
+                  return res.json({
+                    message: `📸 현장 사진을 첨부해주세요!\n\n왼쪽 하단 📎 버튼을 눌러 사진을 선택한 후 전송하세요.\n(최대 10장까지 첨부 가능)\n\n사진이 없으면 "없음" 또는 "생략"이라고 입력해주세요.`,
+                    action: parsedCollectingAction,
+                    actionResult: null,
+                    needsConfirmation: false,
+                    isCollecting: true,
+                    collectingData: updatedData,
+                    currentField: "_photoStep",
+                    uploadedImages: allImages,
+                  });
+                }
+
                 return res.json({
                   message: buildConfirmationMessage(parsedCollectingAction, updatedData),
                   action: parsedCollectingAction,
@@ -784,7 +887,7 @@ export function registerChatbotRoutes(app: Express): void {
                   needsConfirmation: true,
                   confirmData: updatedData,
                   collectingDone: true,
-                  uploadedImages: uploadedImages.length > 0 ? uploadedImages : (parsedCollectingData._uploadedImages || []),
+                  uploadedImages: allImages,
                 });
               }
 
@@ -871,7 +974,56 @@ export function registerChatbotRoutes(app: Express): void {
           let updatedData = { ...parsedCollectingData, ...(parsed.data || {}) };
           updatedData = applyAutoFills(parsedCollectingAction, updatedData, user, today);
           const nextField = getNextMissingField(parsedCollectingAction, updatedData);
+          const existingImgsFill = parsedCollectingData._uploadedImages || [];
+          const mergedImages = [...existingImgsFill, ...uploadedImages.filter((img: string) => !existingImgsFill.includes(img))];
           if (!nextField) {
+            const supportsPhotos = ["CREATE_INSPECTION", "CREATE_EDUCATION"].includes(parsedCollectingAction);
+
+            if (supportsPhotos && !updatedData._photoStepDone) {
+              if (parsedCurrentField === "_photoStep") {
+                const trimmed = message.trim();
+                const isSkip = ["없음", "생략", "패스", "스킵", "아니", "아니요", "넘어가", "다음"].includes(trimmed);
+                updatedData._photoStepDone = true;
+                if (mergedImages.length > 0) updatedData._uploadedImages = mergedImages;
+                return res.json({
+                  message: buildConfirmationMessage(parsedCollectingAction, updatedData),
+                  action: parsedCollectingAction,
+                  actionResult: null,
+                  needsConfirmation: true,
+                  confirmData: updatedData,
+                  collectingDone: true,
+                  uploadedImages: updatedData._uploadedImages || [],
+                });
+              }
+
+              if (uploadedImages.length > 0) {
+                updatedData._photoStepDone = true;
+                updatedData._uploadedImages = mergedImages;
+                return res.json({
+                  message: buildConfirmationMessage(parsedCollectingAction, updatedData),
+                  action: parsedCollectingAction,
+                  actionResult: null,
+                  needsConfirmation: true,
+                  confirmData: updatedData,
+                  collectingDone: true,
+                  uploadedImages: mergedImages,
+                });
+              }
+
+              return res.json({
+                message: `📸 현장 사진을 첨부해주세요!\n\n왼쪽 하단 📎 버튼을 눌러 사진을 선택한 후 전송하세요.\n(최대 10장까지 첨부 가능)\n\n사진이 없으면 "없음" 또는 "생략"이라고 입력해주세요.`,
+                action: parsedCollectingAction,
+                actionResult: null,
+                needsConfirmation: false,
+                isCollecting: true,
+                collectingData: updatedData,
+                currentField: "_photoStep",
+                uploadedImages: mergedImages,
+              });
+            }
+
+            updatedData._photoStepDone = true;
+            if (mergedImages.length > 0) updatedData._uploadedImages = mergedImages;
             return res.json({
               message: buildConfirmationMessage(parsedCollectingAction, updatedData),
               action: parsedCollectingAction,
@@ -879,7 +1031,7 @@ export function registerChatbotRoutes(app: Express): void {
               needsConfirmation: true,
               confirmData: updatedData,
               collectingDone: true,
-              uploadedImages,
+              uploadedImages: mergedImages,
             });
           }
           const progress = getFilledFieldsSummary(parsedCollectingAction, updatedData);
@@ -892,7 +1044,7 @@ export function registerChatbotRoutes(app: Express): void {
             isCollecting: true,
             collectingData: updatedData,
             currentField: nextField.key,
-            uploadedImages,
+            uploadedImages: mergedImages,
           });
         }
 
