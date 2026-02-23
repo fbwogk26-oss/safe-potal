@@ -35,6 +35,10 @@ Preferred communication style: Simple, everyday language.
   - `settings`: Key-value store for global configuration (lock status, admin PIN)
   - `education_sessions`: Education log entries with title, date, department, participants, instructor
   - `education_signatures`: Digital signatures for education sessions (signer name, department, base64 signature data)
+  - `chemicals`: MSDS chemical substance data (name, CAS number, hazard class, GHS pictograms, first aid, storage)
+  - `risk_assessments`: KRAS risk assessments (period type, department, hazard, frequency × severity = riskScore, riskLevel)
+  - `accident_reports`: Accident reports with type, cause, severity, department, date, description, corrective actions
+  - `new_equipment_requests`: New safety equipment product requests with name, reason, specs, priority, status
 
 ### Key Design Patterns
 - **Shared Types**: Schema and route definitions in /shared directory enable type safety across client and server
@@ -43,8 +47,8 @@ Preferred communication style: Simple, everyday language.
 
 ### AI Chatbot (server/chatbot.ts)
 - **Model**: OpenAI gpt-5-nano via Replit AI Integrations (no additional cost)
-- **Capabilities**: Natural language intent parsing for CREATE_EDUCATION, CREATE_INSPECTION, QUERY_EDUCATION, QUERY_INSPECTION, GENERAL_QUERY
-- **Security**: Permission checks (registerEducation, editInspections) enforced per action, Zod schema validation on parsed AI data
+- **Capabilities**: Natural language intent parsing for CREATE_EDUCATION, CREATE_INSPECTION, CREATE_ACCESS, QUERY_EDUCATION, QUERY_INSPECTION, QUERY_ACCESS, GENERAL_QUERY
+- **Security**: Permission checks (registerEducation, editInspections, manageAccessRequests) enforced per action, Zod schema validation on parsed AI data
 - **Photo Upload**: Up to 10 images via Multer, stored in /uploads
 - **UI**: Floating chat widget (ChatBot.tsx) in bottom-right corner with conversation history (max 6 messages)
 
