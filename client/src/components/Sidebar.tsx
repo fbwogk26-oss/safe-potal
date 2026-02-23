@@ -22,17 +22,20 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
+import { useAuth } from "@/hooks/use-auth";
 
 type NavItem = {
   label: string;
   href: string;
   icon: any;
+  adminOnly?: boolean;
 };
 
 type NavGroup = {
   label: string;
   icon: any;
   children: NavItem[];
+  adminOnly?: boolean;
 };
 
 type NavEntry = NavItem | NavGroup;
@@ -78,6 +81,7 @@ const NAV_ITEMS: NavEntry[] = [
   {
     label: "시스템 관리",
     icon: Shield,
+    adminOnly: true,
     children: [
       { label: "사용자 관리", href: "/admin/users", icon: Users },
       { label: "보안 감사 로그", href: "/admin/security", icon: ScrollText },
@@ -88,6 +92,8 @@ const NAV_ITEMS: NavEntry[] = [
 export function Sidebar() {
   const [location] = useLocation();
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
 
   const toggleGroup = (label: string) => {
     setOpenGroups((prev) => ({ ...prev, [label]: !prev[label] }));
@@ -117,7 +123,7 @@ export function Sidebar() {
       </Link>
       <div className="flex-1 overflow-y-auto px-3 py-2">
         <div className="flex flex-col gap-0.5">
-          {NAV_ITEMS.map((entry) => {
+          {NAV_ITEMS.filter((entry) => !entry.adminOnly || isAdmin).map((entry) => {
             if (isGroup(entry)) {
               const open = isGroupOpen(entry);
               const childActive = isChildActive(entry);

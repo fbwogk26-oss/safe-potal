@@ -37,7 +37,7 @@ export default function SecurityLogs() {
   const [filterType, setFilterType] = useState("all");
 
   const { data: logs = [], isLoading, refetch } = useQuery<SecurityLog[]>({
-    queryKey: ["/api/security-logs", { limit: 500 }],
+    queryKey: ["/api/security-logs?limit=500"],
   });
 
   const filteredLogs = logs.filter((log) => {

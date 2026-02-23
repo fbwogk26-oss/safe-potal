@@ -1,4 +1,4 @@
-import { Bell, LogOut, Users, Menu, LayoutDashboard, ShieldCheck, Shield, HeartPulse, GraduationCap, DoorOpen, ShoppingCart, MonitorPlay, ClipboardCheck, BookOpen, FileText, KeyRound, Eye, EyeOff, Car, AlertTriangle, ShieldAlert, FlaskConical, ChevronDown } from "lucide-react";
+import { Bell, LogOut, Users, Menu, LayoutDashboard, ShieldCheck, Shield, HeartPulse, GraduationCap, DoorOpen, ShoppingCart, MonitorPlay, ClipboardCheck, BookOpen, FileText, KeyRound, Eye, EyeOff, Car, AlertTriangle, ShieldAlert, FlaskConical, ChevronDown, ScrollText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,8 +31,8 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 
-type MobileNavItem = { label: string; href: string; icon: any };
-type MobileNavGroup = { label: string; icon: any; children: MobileNavItem[] };
+type MobileNavItem = { label: string; href: string; icon: any; adminOnly?: boolean };
+type MobileNavGroup = { label: string; icon: any; children: MobileNavItem[]; adminOnly?: boolean };
 type MobileNavEntry = MobileNavItem | MobileNavGroup;
 
 function isMobileGroup(entry: MobileNavEntry): entry is MobileNavGroup {
@@ -73,6 +73,15 @@ const MOBILE_NAV_ITEMS: MobileNavEntry[] = [
     ],
   },
   { label: "출입신청", href: "/access", icon: DoorOpen },
+  {
+    label: "시스템 관리",
+    icon: Shield,
+    adminOnly: true,
+    children: [
+      { label: "사용자 관리", href: "/admin/users", icon: Users },
+      { label: "보안 감사 로그", href: "/admin/security", icon: ScrollText },
+    ],
+  },
 ];
 
 export function Topbar() {
@@ -273,7 +282,7 @@ export function Topbar() {
           </div>
           <nav className="flex-1 overflow-y-auto px-3 py-2">
             <div className="flex flex-col gap-0.5">
-              {MOBILE_NAV_ITEMS.map((entry) => {
+              {MOBILE_NAV_ITEMS.filter((entry) => !entry.adminOnly || isAdmin).map((entry) => {
                 if (isMobileGroup(entry)) {
                   const isOpen = mobileOpenGroups[entry.label] ?? entry.children.some(c => location === c.href);
                   const childActive = entry.children.some(c => location === c.href);
