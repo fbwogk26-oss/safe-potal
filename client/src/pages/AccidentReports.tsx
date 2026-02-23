@@ -193,15 +193,15 @@ export default function AccidentReports() {
         </div>
       </div>
 
-      <Tabs defaultValue="management" className="space-y-4">
+      <Tabs defaultValue="statistics" className="space-y-4">
         <TabsList data-testid="tabs-accident">
-          <TabsTrigger value="management" data-testid="tab-management">
-            <AlertTriangle className="w-4 h-4 mr-1.5" />
-            사고 관리
-          </TabsTrigger>
           <TabsTrigger value="statistics" data-testid="tab-statistics">
             <BarChart3 className="w-4 h-4 mr-1.5" />
             통계 분석
+          </TabsTrigger>
+          <TabsTrigger value="management" data-testid="tab-management">
+            <AlertTriangle className="w-4 h-4 mr-1.5" />
+            사고 관리
           </TabsTrigger>
         </TabsList>
 

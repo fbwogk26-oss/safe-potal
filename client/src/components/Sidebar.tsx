@@ -42,6 +42,7 @@ function isGroup(entry: NavEntry): entry is NavGroup {
 const NAV_ITEMS: NavEntry[] = [
   { label: "대시보드", href: "/", icon: LayoutDashboard },
   { label: "공지/알림", href: "/notices", icon: Bell },
+  { label: "전자게시판", href: "/digital-board", icon: MonitorPlay },
   { label: "안전수칙", href: "/rules", icon: ShieldCheck },
   {
     label: "안전관리",
@@ -49,10 +50,10 @@ const NAV_ITEMS: NavEntry[] = [
     children: [
       { label: "사고보고/통계", href: "/accidents", icon: AlertTriangle },
       { label: "안전보호구 현황", href: "/equipment/status", icon: ShieldCheck },
+      { label: "안전용품 신청", href: "/equipment", icon: ShoppingCart },
       { label: "안전교육 자료", href: "/education", icon: GraduationCap },
       { label: "교육일지", href: "/education-logs", icon: FileText },
       { label: "안전점검", href: "/inspections", icon: ClipboardCheck },
-      { label: "안전용품 신청", href: "/equipment", icon: ShoppingCart },
       { label: "위험성평가", href: "/risk-assessment", icon: ShieldAlert },
     ],
   },
@@ -72,7 +73,6 @@ const NAV_ITEMS: NavEntry[] = [
     ],
   },
   { label: "출입신청", href: "/access", icon: DoorOpen },
-  { label: "전자게시판", href: "/digital-board", icon: MonitorPlay },
 ];
 
 export function Sidebar() {
