@@ -1,5 +1,4 @@
 import { useTeams, useResetTeam, useResetAllTeams } from "@/hooks/use-teams";
-import { useVehicles } from "@/hooks/use-vehicles";
 import { useNotices } from "@/hooks/use-notices";
 import { useQuery } from "@tanstack/react-query";
 import { 
@@ -29,36 +28,26 @@ import { Input } from "@/components/ui/input";
 import { useState, useRef, useMemo, useEffect } from "react";
 import * as XLSX from "xlsx";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Download, RefreshCw, AlertTriangle, Trophy, AlertCircle, ShieldCheck, RotateCcw, Upload, Car, CheckCircle, Wrench, Shield, HardHat, ChevronDown, ChevronUp, X, Settings2 } from "lucide-react";
+import { Download, RefreshCw, AlertTriangle, Trophy, AlertCircle, ShieldCheck, RotateCcw, Upload, Settings2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { TeamEditDialog } from "@/components/TeamEditDialog";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
-import VehicleManagement from "./VehicleManagement";
-import EquipmentStatus from "./EquipmentStatus";
 import { usePermissions } from "@/hooks/use-permissions";
 
-type DashboardTab = "safety" | "vehicle" | "equipment";
-
 export default function Dashboard() {
-  const [activeTab, setActiveTab] = useState<DashboardTab>("safety");
   const [showDetailTable, setShowDetailTable] = useState(false);
-  const [showVehicleDetail, setShowVehicleDetail] = useState(false);
-  const [showEquipmentDetail, setShowEquipmentDetail] = useState(false);
   const [year, setYear] = useState(2026);
   const [baseVehicleCount, setBaseVehicleCount] = useState(15);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { canEditDashboard, canEditSafetyScores, canEditVehicles, canEditEquipmentStatus } = usePermissions();
+  const { canEditDashboard, canEditSafetyScores } = usePermissions();
   
-  // Notice popup states
   const [noticePopupOpen, setNoticePopupOpen] = useState(false);
   const [currentNotice, setCurrentNotice] = useState<any>(null);
   const [dontShowAgain, setDontShowAgain] = useState(false);
   
   const { data: teams, isLoading, refetch, isRefetching } = useTeams(year);
-  const { data: vehicles } = useVehicles();
-  const { data: equipmentRecords } = useNotices("equip_status");
   const { data: notices } = useNotices("notice");
   const resetTeam = useResetTeam();
   const resetAllTeams = useResetAllTeams();
@@ -106,42 +95,6 @@ export default function Dashboard() {
     setNoticePopupOpen(false);
     setDontShowAgain(false);
   };
-
-  // Vehicle stats (all teams - for summary dashboard)
-  const vehicleStatsAll = useMemo(() => {
-    if (!vehicles) return { total: 0, operating: 0, maintenance: 0, idle: 0 };
-    return {
-      total: vehicles.length,
-      operating: vehicles.filter(v => v.status === "운행중").length,
-      maintenance: vehicles.filter(v => v.status === "정비중").length,
-      idle: vehicles.filter(v => v.status === "대기").length,
-    };
-  }, [vehicles]);
-
-  // Equipment stats
-  const equipmentStats = useMemo(() => {
-    if (!equipmentRecords) return { totalQuantity: 0, registeredQty: 0, goodQty: 0, badQty: 0 };
-    
-    let totalQuantity = 0;
-    let goodQty = 0;
-    let badQty = 0;
-    
-    equipmentRecords.forEach(record => {
-      try {
-        const parsed = JSON.parse(record.content);
-        if (parsed.items) {
-          parsed.items.forEach((item: { quantity?: number; status?: string }) => {
-            const qty = item.quantity || 0;
-            totalQuantity += qty;
-            if (item.status === "양호") goodQty += qty;
-            if (item.status === "불량") badQty += qty;
-          });
-        }
-      } catch {}
-    });
-    
-    return { totalQuantity, registeredQty: goodQty + badQty, goodQty, badQty };
-  }, [equipmentRecords]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -231,47 +184,14 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-4 md:space-y-6">
-      {/* Tab Navigation */}
-      <div className="flex flex-col gap-3 glass-card p-3 sm:p-4 rounded-xl">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg sm:text-xl md:text-2xl font-display font-bold text-foreground">종합 현황</h2>
-          <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => refetch()} disabled={isRefetching}>
-            <RefreshCw className={cn("w-4 h-4", isRefetching && "animate-spin")} />
-          </Button>
-        </div>
-        
-        <div className="flex gap-1 sm:gap-2 overflow-x-auto pb-1">
-          <Button
-            variant={activeTab === "safety" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setActiveTab("safety")}
-            className={cn("gap-1.5 h-8 text-xs sm:text-sm whitespace-nowrap", activeTab === "safety" && "bg-blue-600 hover:bg-blue-700")}
-            data-testid="tab-safety"
-          >
-            <Trophy className="w-3.5 h-3.5" />
-            <span>안전점수 현황</span>
-          </Button>
-          <Button
-            variant={activeTab === "vehicle" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setActiveTab("vehicle")}
-            className={cn("gap-1.5 h-8 text-xs sm:text-sm whitespace-nowrap", activeTab === "vehicle" && "bg-cyan-600 hover:bg-cyan-700")}
-            data-testid="tab-vehicle"
-          >
-            <Car className="w-3.5 h-3.5" />
-            <span>차량관리 현황</span>
-          </Button>
-          <Button
-            variant={activeTab === "equipment" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setActiveTab("equipment")}
-            className={cn("gap-1.5 h-8 text-xs sm:text-sm whitespace-nowrap", activeTab === "equipment" && "bg-amber-600 hover:bg-amber-700")}
-            data-testid="tab-equipment"
-          >
-            <HardHat className="w-3.5 h-3.5" />
-            <span>안전보호구 현황</span>
-          </Button>
-        </div>
+      <div className="flex items-center justify-between glass-card p-3 sm:p-4 rounded-xl">
+        <h2 className="text-lg sm:text-xl md:text-2xl font-display font-bold text-foreground flex items-center gap-2">
+          <Trophy className="w-5 h-5 md:w-6 md:h-6 text-yellow-500" />
+          안전점수 현황
+        </h2>
+        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => refetch()} disabled={isRefetching}>
+          <RefreshCw className={cn("w-4 h-4", isRefetching && "animate-spin")} />
+        </Button>
       </div>
 
       {isLoading ? (
@@ -280,8 +200,6 @@ export default function Dashboard() {
         </div>
       ) : (
         <AnimatePresence mode="wait">
-          {/* Safety Score Tab */}
-          {activeTab === "safety" && (
             <motion.div
               key="safety"
               initial={{ opacity: 0, y: 10 }}
@@ -534,166 +452,6 @@ export default function Dashboard() {
                 </Card>
               )}
             </motion.div>
-          )}
-
-          {/* Vehicle Management Tab */}
-          {activeTab === "vehicle" && (
-            <motion.div
-              key="vehicle"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="space-y-4"
-            >
-              {/* 전체 현황 - 종합 대시보드 */}
-              <Card className="shadow-lg border-border/50">
-                <CardHeader className="p-3 sm:p-4 pb-2 flex flex-row items-center justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                      <Car className="w-5 h-5 text-cyan-500" />
-                      차량 관리 현황
-                    </CardTitle>
-                    <CardDescription className="text-xs sm:text-sm">전체 팀</CardDescription>
-                  </div>
-                  <Button
-                    variant={showVehicleDetail ? "default" : "outline"}
-                    size="sm"
-                    className="gap-1.5 border-primary/30 text-primary"
-                    onClick={() => setShowVehicleDetail(!showVehicleDetail)}
-                    data-testid="button-toggle-vehicle-detail"
-                  >
-                    <Settings2 className="w-3.5 h-3.5" />
-                    현황관리
-                  </Button>
-                </CardHeader>
-                <CardContent className="p-3 sm:p-4 pt-2">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4">
-                    <div className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2.5 sm:p-4 flex items-center gap-2 sm:gap-4">
-                      <div className="p-2 sm:p-3 bg-slate-200 dark:bg-slate-700 rounded-lg">
-                        <Car className="w-4 h-4 sm:w-5 sm:h-5 text-slate-600 dark:text-slate-300" />
-                      </div>
-                      <div>
-                        <p className="text-lg sm:text-2xl font-bold">{vehicleStatsAll.total}</p>
-                        <p className="text-xs text-muted-foreground">전체</p>
-                      </div>
-                    </div>
-                    <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/30 dark:to-green-800/20 border border-green-200 dark:border-green-800 rounded-lg p-2.5 sm:p-4 flex items-center gap-2 sm:gap-4">
-                      <div className="p-2 sm:p-3 bg-green-200 dark:bg-green-800 rounded-lg">
-                        <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 dark:text-green-300" />
-                      </div>
-                      <div>
-                        <p className="text-lg sm:text-2xl font-bold text-green-700 dark:text-green-400">{vehicleStatsAll.operating}</p>
-                        <p className="text-xs text-muted-foreground">운행중</p>
-                      </div>
-                    </div>
-                    <div className="bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-900/30 dark:to-amber-800/20 border border-amber-200 dark:border-amber-800 rounded-lg p-2.5 sm:p-4 flex items-center gap-2 sm:gap-4">
-                      <div className="p-2 sm:p-3 bg-amber-200 dark:bg-amber-800 rounded-lg">
-                        <Wrench className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600 dark:text-amber-300" />
-                      </div>
-                      <div>
-                        <p className="text-lg sm:text-2xl font-bold text-amber-700 dark:text-amber-400">{vehicleStatsAll.maintenance}</p>
-                        <p className="text-xs text-muted-foreground">정비중</p>
-                      </div>
-                    </div>
-                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/20 border border-blue-200 dark:border-blue-800 rounded-lg p-2.5 sm:p-4 flex items-center gap-2 sm:gap-4">
-                      <div className="p-2 sm:p-3 bg-blue-200 dark:bg-blue-800 rounded-lg">
-                        <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 dark:text-blue-300" />
-                      </div>
-                      <div>
-                        <p className="text-lg sm:text-2xl font-bold text-blue-700 dark:text-blue-400">{vehicleStatsAll.idle}</p>
-                        <p className="text-xs text-muted-foreground">대기</p>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {showVehicleDetail && (
-                <div className="mt-4">
-                  <VehicleManagement embedded />
-                </div>
-              )}
-            </motion.div>
-          )}
-
-          {/* Equipment Management Tab */}
-          {activeTab === "equipment" && (
-            <motion.div
-              key="equipment"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="space-y-4"
-            >
-              <Card className="shadow-lg border-border/50">
-                <CardHeader className="p-3 sm:p-4 pb-2 flex flex-row items-center justify-between">
-                  <div>
-                    <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                      <HardHat className="w-5 h-5 text-amber-500" />
-                      안전보호구 현황
-                    </CardTitle>
-                    <CardDescription className="text-xs sm:text-sm">보호구 관리 현황</CardDescription>
-                  </div>
-                  <Button
-                    variant={showEquipmentDetail ? "default" : "outline"}
-                    size="sm"
-                    className="gap-1.5 border-primary/30 text-primary"
-                    onClick={() => setShowEquipmentDetail(!showEquipmentDetail)}
-                    data-testid="button-toggle-equipment-detail"
-                  >
-                    <Settings2 className="w-3.5 h-3.5" />
-                    현황관리
-                  </Button>
-                </CardHeader>
-                <CardContent className="p-3 sm:p-4 pt-2">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4">
-                    <div className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2.5 sm:p-4 flex items-center gap-2 sm:gap-4">
-                      <div className="p-2 sm:p-3 bg-slate-200 dark:bg-slate-700 rounded-lg">
-                        <HardHat className="w-4 h-4 sm:w-5 sm:h-5 text-slate-600 dark:text-slate-300" />
-                      </div>
-                      <div>
-                        <p className="text-lg sm:text-2xl font-bold">{equipmentStats.totalQuantity}</p>
-                        <p className="text-xs text-muted-foreground">전체 현황</p>
-                      </div>
-                    </div>
-                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/20 border border-blue-200 dark:border-blue-800 rounded-lg p-2.5 sm:p-4 flex items-center gap-2 sm:gap-4">
-                      <div className="p-2 sm:p-3 bg-blue-200 dark:bg-blue-800 rounded-lg">
-                        <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 dark:text-blue-300" />
-                      </div>
-                      <div>
-                        <p className="text-lg sm:text-2xl font-bold text-blue-700 dark:text-blue-400">{equipmentStats.registeredQty}</p>
-                        <p className="text-xs text-muted-foreground">등록</p>
-                      </div>
-                    </div>
-                    <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/30 dark:to-green-800/20 border border-green-200 dark:border-green-800 rounded-lg p-2.5 sm:p-4 flex items-center gap-2 sm:gap-4">
-                      <div className="p-2 sm:p-3 bg-green-200 dark:bg-green-800 rounded-lg">
-                        <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 dark:text-green-300" />
-                      </div>
-                      <div>
-                        <p className="text-lg sm:text-2xl font-bold text-green-700 dark:text-green-400">{equipmentStats.goodQty}</p>
-                        <p className="text-xs text-muted-foreground">양호</p>
-                      </div>
-                    </div>
-                    <div className="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/30 dark:to-red-800/20 border border-red-200 dark:border-red-800 rounded-lg p-2.5 sm:p-4 flex items-center gap-2 sm:gap-4">
-                      <div className="p-2 sm:p-3 bg-red-200 dark:bg-red-800 rounded-lg">
-                        <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 text-red-600 dark:text-red-300" />
-                      </div>
-                      <div>
-                        <p className="text-lg sm:text-2xl font-bold text-red-700 dark:text-red-400">{equipmentStats.badQty}</p>
-                        <p className="text-xs text-muted-foreground">불량</p>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {showEquipmentDetail && (
-                <div className="mt-4">
-                  <EquipmentStatus embedded />
-                </div>
-              )}
-            </motion.div>
-          )}
         </AnimatePresence>
       )}
 
