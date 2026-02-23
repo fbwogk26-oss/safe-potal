@@ -401,13 +401,19 @@ export default function EquipmentRequest() {
     });
   };
 
+  const escapeHtml = (str: string) => {
+    const div = document.createElement('div');
+    div.appendChild(document.createTextNode(str));
+    return div.innerHTML;
+  };
+
   const generatePDF = async (item: any) => {
     const parsed = parseContent(item.content);
     const items = parsed.items || [];
     
-    const issueDate = parsed.signedAt ? format(new Date(parsed.signedAt), 'yy.MM.dd') : '-';
-    const teamName = parsed.team || '-';
-    const requesterName = parsed.requester || '-';
+    const issueDate = parsed.signedAt ? escapeHtml(format(new Date(parsed.signedAt), 'yy.MM.dd')) : '-';
+    const teamName = escapeHtml(parsed.team || '-');
+    const requesterName = escapeHtml(parsed.requester || '-');
     
     const totalRows = Math.max(items.length, 25);
     
@@ -422,11 +428,11 @@ export default function EquipmentRequest() {
           <tr>
             <td style="border: 1px solid #000; padding: 8px 6px; text-align: center; font-size: 14px;">${i + 1}</td>
             <td style="border: 1px solid #000; padding: 8px 6px; text-align: center; font-size: 14px;">${issueDate}</td>
-            <td style="border: 1px solid #000; padding: 8px 6px; font-size: 14px;">${currentItem.name}</td>
-            <td style="border: 1px solid #000; padding: 8px 6px; text-align: center; font-size: 14px;">${currentItem.quantity}</td>
+            <td style="border: 1px solid #000; padding: 8px 6px; font-size: 14px;">${escapeHtml(currentItem.name || '')}</td>
+            <td style="border: 1px solid #000; padding: 8px 6px; text-align: center; font-size: 14px;">${escapeHtml(String(currentItem.quantity || ''))}</td>
             <td style="border: 1px solid #000; padding: 8px 6px; text-align: center; font-size: 14px;">${teamName}</td>
             <td style="border: 1px solid #000; padding: 8px 6px; text-align: center; font-size: 14px;">${requesterName}</td>
-            <td style="border: 1px solid #000; padding: 4px; text-align: center;">${parsed.signature ? `<img src="${parsed.signature}" style="max-height: 24px; max-width: 70px;" />` : ''}</td>
+            <td style="border: 1px solid #000; padding: 4px; text-align: center;">${parsed.signature && parsed.signature.startsWith('data:image/') ? `<img src="${escapeHtml(parsed.signature)}" style="max-height: 24px; max-width: 70px;" />` : ''}</td>
           </tr>
         `;
       } else {

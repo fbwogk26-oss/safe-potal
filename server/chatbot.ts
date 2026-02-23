@@ -729,6 +729,14 @@ export function registerChatbotRoutes(app: Express): void {
     async (req: any, res) => {
       try {
         const { message, conversationHistory, pendingAction, pendingData, collectingAction, collectingData, currentField } = req.body;
+        
+        if (!message || typeof message !== "string") {
+          return res.status(400).json({ error: "메시지를 입력해주세요" });
+        }
+        if (message.length > 2000) {
+          return res.status(400).json({ error: "메시지가 너무 깁니다 (최대 2000자)" });
+        }
+
         const session = req.session as any;
         const user = await authStorage.getUser(session.userId);
 
