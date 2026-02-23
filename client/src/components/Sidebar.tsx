@@ -1,39 +1,62 @@
 import { Link, useLocation } from "wouter";
 import { 
   LayoutDashboard, 
-  ShieldCheck, 
   Bell, 
+  ShieldCheck, 
+  Shield,
   GraduationCap, 
-  DoorOpen,
-  ShoppingCart,
-  MonitorPlay,
-  ClipboardCheck,
-  BookOpen,
   FileText,
-  FlaskConical,
-  ShieldAlert,
-  AlertTriangle
+  ClipboardCheck,
+  ShoppingCart,
+  ChevronDown
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useState } from "react";
 
-const NAV_ITEMS = [
+type NavItem = {
+  label: string;
+  href: string;
+  icon: any;
+};
+
+type NavGroup = {
+  label: string;
+  icon: any;
+  children: NavItem[];
+};
+
+type NavEntry = NavItem | NavGroup;
+
+function isGroup(entry: NavEntry): entry is NavGroup {
+  return "children" in entry;
+}
+
+const NAV_ITEMS: NavEntry[] = [
   { label: "대시보드", href: "/", icon: LayoutDashboard },
-  { label: "안전수칙", href: "/rules", icon: ShieldCheck },
   { label: "공지/알림", href: "/notices", icon: Bell },
-  { label: "안전교육 자료", href: "/education", icon: GraduationCap },
-  { label: "교육일지", href: "/education-logs", icon: FileText },
-  { label: "안전점검", href: "/inspections", icon: ClipboardCheck },
-  { label: "차량운행일지", href: "/vehicle-logs", icon: BookOpen },
-  { label: "MSDS 검색", href: "/msds", icon: FlaskConical },
-  { label: "위험성평가", href: "/risk-assessment", icon: ShieldAlert },
-  { label: "사고보고/통계", href: "/accidents", icon: AlertTriangle },
-  { label: "안전용품 신청", href: "/equipment", icon: ShoppingCart },
-  { label: "출입신청", href: "/access", icon: DoorOpen },
-  { label: "전자게시판", href: "/digital-board", icon: MonitorPlay },
+  { label: "안전수칙", href: "/rules", icon: ShieldCheck },
+  {
+    label: "안전관리",
+    icon: Shield,
+    children: [
+      { label: "안전교육 자료", href: "/education", icon: GraduationCap },
+      { label: "교육일지", href: "/education-logs", icon: FileText },
+      { label: "안전점검", href: "/inspections", icon: ClipboardCheck },
+      { label: "안전용품 신청", href: "/equipment", icon: ShoppingCart },
+    ],
+  },
 ];
 
 export function Sidebar() {
   const [location] = useLocation();
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({ "안전관리": true });
+
+  const toggleGroup = (label: string) => {
+    setOpenGroups((prev) => ({ ...prev, [label]: !prev[label] }));
+  };
+
+  const isChildActive = (group: NavGroup) =>
+    group.children.some((child) => location === child.href);
 
   return (
     <aside className="hidden md:flex flex-col w-60 border-r bg-card/50 backdrop-blur-xl h-screen sticky top-0 z-30">
@@ -51,21 +74,71 @@ export function Sidebar() {
       </Link>
       <div className="flex-1 px-3 py-2">
         <div className="flex flex-col gap-1">
-          {NAV_ITEMS.map((item) => (
-            <Link 
-              key={item.href} 
-              href={item.href}
-              className={cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 font-medium text-sm",
-                location === item.href 
-                  ? "bg-primary text-primary-foreground shadow-md" 
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              )}
-            >
-              <item.icon className="w-4 h-4" />
-              <span>{item.label}</span>
-            </Link>
-          ))}
+          {NAV_ITEMS.map((entry) => {
+            if (isGroup(entry)) {
+              const open = openGroups[entry.label] ?? false;
+              const childActive = isChildActive(entry);
+              return (
+                <div key={entry.label}>
+                  <button
+                    onClick={() => toggleGroup(entry.label)}
+                    className={cn(
+                      "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 font-medium text-sm w-full",
+                      childActive
+                        ? "text-primary"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    )}
+                    data-testid={`button-nav-group-${entry.label}`}
+                  >
+                    <entry.icon className="w-4 h-4" />
+                    <span className="flex-1 text-left">{entry.label}</span>
+                    <ChevronDown
+                      className={cn(
+                        "w-3.5 h-3.5 transition-transform duration-200",
+                        open && "rotate-180"
+                      )}
+                    />
+                  </button>
+                  {open && (
+                    <div className="ml-4 pl-3 border-l border-border/40 flex flex-col gap-0.5 mt-0.5">
+                      {entry.children.map((child) => (
+                        <Link
+                          key={child.href}
+                          href={child.href}
+                          className={cn(
+                            "flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 font-medium text-sm",
+                            location === child.href
+                              ? "bg-primary text-primary-foreground shadow-md"
+                              : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                          )}
+                          data-testid={`link-nav-${child.href.replace("/", "")}`}
+                        >
+                          <child.icon className="w-4 h-4" />
+                          <span>{child.label}</span>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+            return (
+              <Link
+                key={entry.href}
+                href={entry.href}
+                className={cn(
+                  "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 font-medium text-sm",
+                  location === entry.href
+                    ? "bg-primary text-primary-foreground shadow-md"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                )}
+                data-testid={`link-nav-${entry.href.replace("/", "") || "dashboard"}`}
+              >
+                <entry.icon className="w-4 h-4" />
+                <span>{entry.label}</span>
+              </Link>
+            );
+          })}
         </div>
       </div>
       <div className="p-3 border-t border-border/50 text-xs text-center text-muted-foreground">
