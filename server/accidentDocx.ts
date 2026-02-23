@@ -1,7 +1,9 @@
 import {
   Document, Packer, Paragraph, Table, TableRow, TableCell,
-  WidthType, AlignmentType, TextRun, BorderStyle, HeadingLevel,
-  ImageRun, VerticalAlign,
+  WidthType, AlignmentType, TextRun, BorderStyle, ImageRun,
+  VerticalAlign, HorizontalPositionRelativeFrom, VerticalPositionRelativeFrom,
+  HorizontalPositionAlign, VerticalPositionAlign, TableLayoutType,
+  convertMillimetersToTwip,
 } from "docx";
 import type { AccidentReport } from "@shared/schema";
 import * as fs from "fs";
@@ -13,32 +15,127 @@ interface ProgressItem {
   content: string;
 }
 
-function cell(text: string, options?: { bold?: boolean; width?: number; alignment?: typeof AlignmentType[keyof typeof AlignmentType]; shading?: string }): TableCell {
+const FONT = "바탕";
+const FONT_SIZE = 20;
+const TITLE_SIZE = 32;
+const SECTION_SIZE = 22;
+const BORDER_STYLE = {
+  style: BorderStyle.SINGLE,
+  size: 4,
+  color: "000000",
+};
+const ALL_BORDERS = {
+  top: BORDER_STYLE,
+  bottom: BORDER_STYLE,
+  left: BORDER_STYLE,
+  right: BORDER_STYLE,
+};
+
+function makeCell(
+  text: string,
+  opts?: {
+    bold?: boolean;
+    width?: number;
+    colSpan?: number;
+    rowSpan?: number;
+    alignment?: (typeof AlignmentType)[keyof typeof AlignmentType];
+    shading?: string;
+    fontSize?: number;
+    children?: (TextRun | ImageRun)[];
+  }
+): TableCell {
+  const children = opts?.children
+    ? [
+        new Paragraph({
+          alignment: opts?.alignment || AlignmentType.CENTER,
+          spacing: { before: 30, after: 30, line: 276 },
+          children: opts.children,
+        }),
+      ]
+    : [
+        new Paragraph({
+          alignment: opts?.alignment || AlignmentType.CENTER,
+          spacing: { before: 30, after: 30, line: 276 },
+          children: [
+            new TextRun({
+              text,
+              bold: opts?.bold,
+              size: opts?.fontSize || FONT_SIZE,
+              font: FONT,
+            }),
+          ],
+        }),
+      ];
+
   return new TableCell({
-    width: options?.width ? { size: options.width, type: WidthType.PERCENTAGE } : undefined,
+    width: opts?.width
+      ? { size: opts.width, type: WidthType.PERCENTAGE }
+      : undefined,
     verticalAlign: VerticalAlign.CENTER,
-    shading: options?.shading ? { fill: options.shading } : undefined,
+    columnSpan: opts?.colSpan,
+    rowSpan: opts?.rowSpan,
+    shading: opts?.shading ? { fill: opts.shading } : undefined,
+    borders: ALL_BORDERS,
+    children,
+  });
+}
+
+function hdrCell(text: string, width?: number): TableCell {
+  return makeCell(text, {
+    bold: true,
+    width,
+    alignment: AlignmentType.CENTER,
+    shading: "D9E2F3",
+  });
+}
+
+function valCell(text: string, width?: number, alignment?: (typeof AlignmentType)[keyof typeof AlignmentType]): TableCell {
+  return makeCell(text, {
+    width,
+    alignment: alignment || AlignmentType.LEFT,
+  });
+}
+
+function createTable(rows: TableRow[]): Table {
+  return new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    layout: TableLayoutType.FIXED,
+    rows,
+  });
+}
+
+function sectionTitle(text: string): Paragraph {
+  return new Paragraph({
+    spacing: { before: 240, after: 120, line: 276 },
     children: [
-      new Paragraph({
-        alignment: options?.alignment || AlignmentType.LEFT,
-        spacing: { before: 40, after: 40 },
-        children: [
-          new TextRun({ text, bold: options?.bold, size: 20, font: "맑은 고딕" }),
-        ],
+      new TextRun({
+        text: `□ ${text}`,
+        bold: true,
+        size: SECTION_SIZE,
+        font: FONT,
       }),
     ],
   });
 }
 
-function headerCell(text: string, width?: number): TableCell {
-  return cell(text, { bold: true, width, alignment: AlignmentType.CENTER, shading: "D9E2F3" });
+function bodyParagraph(text: string): Paragraph {
+  return new Paragraph({
+    spacing: { before: 60, after: 60, line: 360 },
+    indent: { left: convertMillimetersToTwip(5) },
+    children: [
+      new TextRun({
+        text: text || "",
+        size: FONT_SIZE,
+        font: FONT,
+      }),
+    ],
+  });
 }
 
-function createBorderedTable(rows: TableRow[]): Table {
-  return new Table({
-    width: { size: 100, type: WidthType.PERCENTAGE },
-    rows,
-  });
+function multiLineParagraphs(text: string): Paragraph[] {
+  if (!text) return [bodyParagraph("")];
+  const lines = text.split("\n");
+  return lines.map((line) => bodyParagraph(line));
 }
 
 export async function generateAccidentDocx(report: AccidentReport): Promise<Buffer> {
@@ -48,40 +145,34 @@ export async function generateAccidentDocx(report: AccidentReport): Promise<Buff
   const day = String(occurredDate.getDate()).padStart(2, "0");
   const hour = String(occurredDate.getHours()).padStart(2, "0");
   const minute = String(occurredDate.getMinutes()).padStart(2, "0");
-  const dateStr = `${year}. ${month}. ${day}일 ${hour}시${minute}분경`;
+  const dateStr = `${year}. ${month}. ${day}일  ${hour}시 ${minute}분경`;
 
   let progressItems: ProgressItem[] = [];
   if (report.progressDetails) {
     try {
       progressItems = JSON.parse(report.progressDetails);
-    } catch { }
+    } catch {}
   }
 
-  const personalInfoTable = createBorderedTable([
+  const personalInfoTable = createTable([
     new TableRow({
       children: [
-        headerCell("성명", 15),
-        cell(report.reporterName || "", { width: 18 }),
-        headerCell("직위", 15),
-        cell(report.reporterPosition || "", { width: 18 }),
-        headerCell("소속부서", 15),
-        cell(report.department || "", { width: 19 }),
+        hdrCell("성  명", 15),
+        valCell(report.reporterName || "", 20, AlignmentType.CENTER),
+        hdrCell("직  위", 13),
+        valCell(report.reporterPosition || "", 17, AlignmentType.CENTER),
+        hdrCell("소속부서", 15),
+        valCell(report.department || "", 20, AlignmentType.CENTER),
       ],
     }),
     new TableRow({
       children: [
-        headerCell("동행자", 15),
-        cell(report.companion || "", { width: 18 }),
-        headerCell("차종/차량번호", 15),
-        new TableCell({
-          columnSpan: 3,
-          verticalAlign: VerticalAlign.CENTER,
-          children: [
-            new Paragraph({
-              spacing: { before: 40, after: 40 },
-              children: [new TextRun({ text: report.vehicleInfo || "", size: 20, font: "맑은 고딕" })],
-            }),
-          ],
+        hdrCell("동행자", 15),
+        valCell(report.companion || "", 20, AlignmentType.CENTER),
+        hdrCell("차종/차량번호", 13),
+        makeCell(report.vehicleInfo || "", {
+          colSpan: 3,
+          alignment: AlignmentType.CENTER,
         }),
       ],
     }),
@@ -90,35 +181,40 @@ export async function generateAccidentDocx(report: AccidentReport): Promise<Buff
   const progressRows = [
     new TableRow({
       children: [
-        headerCell("NO", 10),
-        headerCell("시간", 20),
-        headerCell("내용", 70),
+        hdrCell("NO", 10),
+        hdrCell("시 간", 25),
+        hdrCell("내        용", 65),
       ],
     }),
-    ...progressItems.map((item) =>
-      new TableRow({
-        children: [
-          cell(String(item.no), { alignment: AlignmentType.CENTER, width: 10 }),
-          cell(item.time, { alignment: AlignmentType.CENTER, width: 20 }),
-          cell(item.content, { width: 70 }),
-        ],
-      })
-    ),
   ];
 
-  if (progressItems.length === 0) {
-    progressRows.push(
-      new TableRow({
-        children: [
-          cell("", { alignment: AlignmentType.CENTER, width: 10 }),
-          cell("", { alignment: AlignmentType.CENTER, width: 20 }),
-          cell("", { width: 70 }),
-        ],
-      })
-    );
+  if (progressItems.length > 0) {
+    progressItems.forEach((item) => {
+      progressRows.push(
+        new TableRow({
+          children: [
+            valCell(String(item.no), 10, AlignmentType.CENTER),
+            valCell(item.time, 25, AlignmentType.CENTER),
+            valCell(item.content, 65, AlignmentType.LEFT),
+          ],
+        })
+      );
+    });
+  } else {
+    for (let i = 0; i < 3; i++) {
+      progressRows.push(
+        new TableRow({
+          children: [
+            valCell("", 10, AlignmentType.CENTER),
+            valCell("", 25, AlignmentType.CENTER),
+            valCell("", 65, AlignmentType.LEFT),
+          ],
+        })
+      );
+    }
   }
 
-  const progressTable = createBorderedTable(progressRows);
+  const progressTable = createTable(progressRows);
 
   const photoImages: Paragraph[] = [];
   if (report.images && report.images.length > 0) {
@@ -135,40 +231,19 @@ export async function generateAccidentDocx(report: AccidentReport): Promise<Buff
           photoImages.push(
             new Paragraph({
               alignment: AlignmentType.CENTER,
-              spacing: { before: 100, after: 100 },
+              spacing: { before: 120, after: 120 },
               children: [
                 new ImageRun({
                   data: imgData,
-                  transformation: { width: 250, height: 180 },
+                  transformation: { width: 400, height: 300 },
                   type: imgType,
                 }),
               ],
             })
           );
         }
-      } catch { }
+      } catch {}
     }
-  }
-
-  const signatureImages: Paragraph[] = [];
-  if (report.signature) {
-    try {
-      const base64Data = report.signature.replace(/^data:image\/\w+;base64,/, "");
-      const sigBuffer = Buffer.from(base64Data, "base64");
-      signatureImages.push(
-        new Paragraph({
-          alignment: AlignmentType.RIGHT,
-          spacing: { before: 100 },
-          children: [
-            new ImageRun({
-              data: sigBuffer,
-              transformation: { width: 150, height: 60 },
-              type: "png",
-            }),
-          ],
-        })
-      );
-    } catch { }
   }
 
   const createdDate = report.createdAt ? new Date(report.createdAt) : new Date();
@@ -176,118 +251,199 @@ export async function generateAccidentDocx(report: AccidentReport): Promise<Buff
   const cMonth = String(createdDate.getMonth() + 1).padStart(2, "0");
   const cDay = String(createdDate.getDate()).padStart(2, "0");
 
+  const sealCellChildren: (TextRun | ImageRun)[] = [];
+  if (report.signature) {
+    try {
+      const base64Data = report.signature.replace(/^data:image\/\w+;base64,/, "");
+      const sigBuffer = Buffer.from(base64Data, "base64");
+      sealCellChildren.push(
+        new ImageRun({
+          data: sigBuffer,
+          transformation: { width: 55, height: 55 },
+          type: "png",
+          floating: {
+            horizontalPosition: {
+              relative: HorizontalPositionRelativeFrom.CHARACTER,
+              offset: -250000,
+            },
+            verticalPosition: {
+              relative: VerticalPositionRelativeFrom.LINE,
+              offset: -350000,
+            },
+            allowOverlap: true,
+            behindDocument: false,
+          },
+        })
+      );
+    } catch {}
+  }
+  sealCellChildren.push(
+    new TextRun({
+      text: "(인)",
+      size: FONT_SIZE,
+      font: FONT,
+    })
+  );
+
+  const signatureTable = new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    layout: TableLayoutType.FIXED,
+    rows: [
+      new TableRow({
+        children: [
+          new TableCell({
+            width: { size: 60, type: WidthType.PERCENTAGE },
+            borders: {
+              top: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+              bottom: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+              left: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+              right: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+            },
+            children: [new Paragraph({ children: [] })],
+          }),
+          new TableCell({
+            width: { size: 30, type: WidthType.PERCENTAGE },
+            borders: {
+              top: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+              bottom: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+              left: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+              right: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+            },
+            verticalAlign: VerticalAlign.CENTER,
+            children: [
+              new Paragraph({
+                alignment: AlignmentType.RIGHT,
+                children: [
+                  new TextRun({
+                    text: `작성자:  ${report.department || ""}   ${report.reporterName || ""}`,
+                    size: FONT_SIZE,
+                    font: FONT,
+                  }),
+                ],
+              }),
+            ],
+          }),
+          new TableCell({
+            width: { size: 10, type: WidthType.PERCENTAGE },
+            borders: {
+              top: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+              bottom: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+              left: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+              right: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+            },
+            verticalAlign: VerticalAlign.CENTER,
+            children: [
+              new Paragraph({
+                alignment: AlignmentType.CENTER,
+                children: sealCellChildren,
+              }),
+            ],
+          }),
+        ],
+      }),
+    ],
+  });
+
   const doc = new Document({
+    styles: {
+      default: {
+        document: {
+          run: {
+            font: FONT,
+            size: FONT_SIZE,
+          },
+        },
+      },
+    },
     sections: [
       {
         properties: {
           page: {
-            margin: { top: 720, bottom: 720, left: 720, right: 720 },
+            margin: {
+              top: convertMillimetersToTwip(25),
+              bottom: convertMillimetersToTwip(20),
+              left: convertMillimetersToTwip(25),
+              right: convertMillimetersToTwip(25),
+            },
           },
         },
         children: [
           new Paragraph({
             alignment: AlignmentType.CENTER,
-            spacing: { after: 300 },
-            children: [
-              new TextRun({ text: "사 고 경 위 서", bold: true, size: 36, font: "맑은 고딕" }),
-            ],
-          }),
-
-          new Paragraph({
-            spacing: { before: 200, after: 100 },
-            children: [
-              new TextRun({ text: "□ 발생일시: ", bold: true, size: 22, font: "맑은 고딕" }),
-              new TextRun({ text: dateStr, size: 22, font: "맑은 고딕" }),
-            ],
-          }),
-
-          new Paragraph({
-            spacing: { before: 200, after: 100 },
-            children: [
-              new TextRun({ text: "□ 사고자 인적사항", bold: true, size: 22, font: "맑은 고딕" }),
-            ],
-          }),
-          personalInfoTable,
-
-          new Paragraph({
-            spacing: { before: 300, after: 100 },
-            children: [
-              new TextRun({ text: "□ 경과 및 조치 사항", bold: true, size: 22, font: "맑은 고딕" }),
-            ],
-          }),
-          progressTable,
-
-          new Paragraph({
-            spacing: { before: 300, after: 100 },
-            children: [
-              new TextRun({ text: "□ 사고 개요", bold: true, size: 22, font: "맑은 고딕" }),
-            ],
-          }),
-          new Paragraph({
-            spacing: { before: 50, after: 50 },
-            children: [
-              new TextRun({ text: report.accidentOverview || report.description || "", size: 20, font: "맑은 고딕" }),
-            ],
-          }),
-
-          new Paragraph({
-            spacing: { before: 300, after: 100 },
-            children: [
-              new TextRun({ text: "□ 사고원인", bold: true, size: 22, font: "맑은 고딕" }),
-            ],
-          }),
-          new Paragraph({
-            spacing: { before: 50, after: 50 },
-            children: [
-              new TextRun({ text: report.causeDetail || report.cause || "", size: 20, font: "맑은 고딕" }),
-            ],
-          }),
-
-          new Paragraph({
-            spacing: { before: 300, after: 100 },
-            children: [
-              new TextRun({ text: "□ 사고방지대책", bold: true, size: 22, font: "맑은 고딕" }),
-            ],
-          }),
-          new Paragraph({
-            spacing: { before: 50, after: 50 },
-            children: [
-              new TextRun({ text: report.preventionPlan || "", size: 20, font: "맑은 고딕" }),
-            ],
-          }),
-
-          new Paragraph({ spacing: { before: 400 }, children: [] }),
-
-          new Paragraph({
-            alignment: AlignmentType.RIGHT,
-            spacing: { before: 200 },
-            children: [
-              new TextRun({ text: `${cYear} 년 ${cMonth}월 ${cDay}일`, size: 20, font: "맑은 고딕" }),
-            ],
-          }),
-
-          new Paragraph({
-            alignment: AlignmentType.RIGHT,
-            spacing: { before: 100, after: 50 },
+            spacing: { before: 200, after: 400, line: 276 },
             children: [
               new TextRun({
-                text: `작성자:  ${report.department || ""} ${report.reporterName || ""} (인)`,
-                size: 20,
-                font: "맑은 고딕",
+                text: "사  고  경  위  서",
+                bold: true,
+                size: TITLE_SIZE,
+                font: FONT,
               }),
             ],
           }),
 
-          ...signatureImages,
-
+          sectionTitle("발생일시"),
           new Paragraph({
-            spacing: { before: 400, after: 100 },
+            spacing: { before: 60, after: 120, line: 276 },
+            indent: { left: convertMillimetersToTwip(5) },
             children: [
-              new TextRun({ text: "별첨: 사진", bold: true, size: 22, font: "맑은 고딕" }),
+              new TextRun({
+                text: `- ${dateStr}`,
+                size: FONT_SIZE,
+                font: FONT,
+              }),
             ],
           }),
 
-          ...photoImages,
+          sectionTitle("사고자 인적사항"),
+          personalInfoTable,
+
+          sectionTitle("경과 및 조치 사항"),
+          progressTable,
+
+          sectionTitle("사고 개요"),
+          ...multiLineParagraphs(report.accidentOverview || report.description || ""),
+
+          sectionTitle("사고원인"),
+          ...multiLineParagraphs(report.causeDetail || report.cause || ""),
+
+          sectionTitle("사고방지대책"),
+          ...multiLineParagraphs(report.preventionPlan || ""),
+
+          new Paragraph({ spacing: { before: 600 }, children: [] }),
+
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            spacing: { before: 200, line: 276 },
+            children: [
+              new TextRun({
+                text: `${cYear} 년   ${cMonth} 월   ${cDay} 일`,
+                size: FONT_SIZE,
+                font: FONT,
+              }),
+            ],
+          }),
+
+          new Paragraph({ spacing: { before: 200 }, children: [] }),
+
+          signatureTable,
+
+          ...(photoImages.length > 0
+            ? [
+                new Paragraph({ children: [], pageBreakBefore: true }),
+                new Paragraph({
+                  spacing: { before: 200, after: 200, line: 276 },
+                  children: [
+                    new TextRun({
+                      text: "[ 별첨: 현장 사진 ]",
+                      bold: true,
+                      size: SECTION_SIZE,
+                      font: FONT,
+                    }),
+                  ],
+                }),
+                ...photoImages,
+              ]
+            : []),
         ],
       },
     ],
