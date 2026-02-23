@@ -26,7 +26,7 @@ export function getSession() {
     cookie: {
       httpOnly: true,
       secure: isProduction,
-      sameSite: isProduction ? "none" as const : "lax" as const,
+      sameSite: "lax" as const,
       maxAge: sessionTtl,
     },
   });

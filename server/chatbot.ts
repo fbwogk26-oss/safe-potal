@@ -1356,7 +1356,7 @@ export function registerChatbotRoutes(app: Express): void {
         });
       } catch (error: any) {
         console.error("[Chatbot] Unhandled error:", error);
-        res.status(500).json({ message: "죄송합니다, 요청 처리 중 오류가 발생했습니다. 다시 시도해주세요.", error: error.message });
+        res.status(500).json({ message: "죄송합니다, 요청 처리 중 오류가 발생했습니다. 다시 시도해주세요." });
       }
     }
   );
@@ -1411,7 +1411,7 @@ export function registerChatbotRoutes(app: Express): void {
       res.status(400).json({ error: "지원하지 않는 액션입니다" });
     } catch (error: any) {
       console.error("[Chatbot] Confirm error:", error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: "요청 처리 중 오류가 발생했습니다" });
     }
   });
 }

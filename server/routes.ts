@@ -355,7 +355,7 @@ export async function registerRoutes(
   });
 
   // === TEAMS ===
-  app.get(api.teams.list.path, async (req, res) => {
+  app.get(api.teams.list.path, isAuthenticated, async (req: any, res) => {
     const year = req.query.year ? Number(req.query.year) : 2025;
     const teams = await storage.getTeams(year);
     res.json(teams);
@@ -518,7 +518,7 @@ export async function registerRoutes(
   });
 
   // Team Excel Export
-  app.get('/api/teams/export', async (req, res) => {
+  app.get('/api/teams/export', isAuthenticated, async (req: any, res) => {
     const year = req.query.year ? Number(req.query.year) : 2026;
     const teams = await storage.getTeams(year);
     
@@ -571,7 +571,7 @@ export async function registerRoutes(
   });
 
   // === IMAGE UPLOAD ===
-  app.use('/uploads', (await import('express')).default.static(uploadDir));
+  app.use('/uploads', isAuthenticated, (await import('express')).default.static(uploadDir));
   
   // Register Object Storage routes for persistent file uploads
   registerObjectStorageRoutes(app);
@@ -618,7 +618,7 @@ export async function registerRoutes(
   });
 
   // === NOTICES ===
-  app.get(api.notices.list.path, async (req, res) => {
+  app.get(api.notices.list.path, isAuthenticated, async (req: any, res) => {
     const category = req.query.category as string;
     const notices = await storage.getNotices(category);
     res.json(notices);
@@ -653,7 +653,7 @@ export async function registerRoutes(
   });
 
   // === ACCESS REQUEST EXCEL DOWNLOAD (Single Item) ===
-  app.get('/api/access/excel/:id', async (req, res) => {
+  app.get('/api/access/excel/:id', isAuthenticated, async (req: any, res) => {
     try {
       const notice = await storage.getNotice(Number(req.params.id));
       if (!notice) {
@@ -778,7 +778,7 @@ export async function registerRoutes(
   });
 
   // === PINNED NOTICE ===
-  app.get("/api/settings/pinned-notice", async (req, res) => {
+  app.get("/api/settings/pinned-notice", isAuthenticated, async (req: any, res) => {
     const setting = await storage.getSetting('pinned_notice_id');
     res.json({ pinnedNoticeId: setting?.value ? Number(setting.value) : null });
   });
@@ -794,7 +794,7 @@ export async function registerRoutes(
   });
 
   // === INSPECTION TARGETS ===
-  app.get("/api/settings/inspection-targets", async (req, res) => {
+  app.get("/api/settings/inspection-targets", isAuthenticated, async (req: any, res) => {
     const safetyBujang = await storage.getSetting('inspection_target_safety_bujang');
     const safetyTeamjang = await storage.getSetting('inspection_target_safety_teamjang');
     const accompanyBujang = await storage.getSetting('inspection_target_accompany_bujang');
@@ -851,7 +851,7 @@ export async function registerRoutes(
   });
 
   // === VEHICLES ===
-  app.get(api.vehicles.list.path, async (req, res) => {
+  app.get(api.vehicles.list.path, isAuthenticated, async (req: any, res) => {
     const vehicles = await storage.getVehicles();
     res.json(vehicles);
   });
@@ -892,7 +892,7 @@ export async function registerRoutes(
   });
 
   // Vehicle Excel Export
-  app.get("/api/vehicles/export", async (req, res) => {
+  app.get("/api/vehicles/export", isAuthenticated, async (req: any, res) => {
     const vehicles = await storage.getVehicles();
     
     const workbook = new ExcelJS.Workbook();
@@ -1031,7 +1031,7 @@ export async function registerRoutes(
     { name: "후방카메라", category: "기타품목" },
   ];
 
-  app.get("/api/safety-equipment", async (req, res) => {
+  app.get("/api/safety-equipment", isAuthenticated, async (req: any, res) => {
     const equipment = await storage.getSafetyEquipment();
     res.json(equipment);
   });
@@ -1183,7 +1183,7 @@ export async function registerRoutes(
   });
 
   // === SAFETY INSPECTIONS ===
-  app.get("/api/safety-inspections", async (req, res) => {
+  app.get("/api/safety-inspections", isAuthenticated, async (req: any, res) => {
     const inspections = await storage.getSafetyInspections();
     res.json(inspections);
   });
@@ -1807,7 +1807,7 @@ export async function registerRoutes(
   });
 
   // === CHEMICALS (MSDS) ===
-  app.get('/api/chemicals', async (req, res) => {
+  app.get('/api/chemicals', isAuthenticated, async (req: any, res) => {
     try {
       const search = req.query.search as string;
       if (search) {
@@ -1821,7 +1821,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get('/api/chemicals/:id', async (req, res) => {
+  app.get('/api/chemicals/:id', isAuthenticated, async (req: any, res) => {
     try {
       const chemical = await storage.getChemical(Number(req.params.id));
       if (!chemical) return res.status(404).json({ message: "화학물질을 찾을 수 없습니다" });
@@ -1859,7 +1859,7 @@ export async function registerRoutes(
   });
 
   // === RISK ASSESSMENTS ===
-  app.get('/api/risk-assessments', async (req, res) => {
+  app.get('/api/risk-assessments', isAuthenticated, async (req: any, res) => {
     try {
       const type = req.query.type as string;
       const results = await storage.getRiskAssessments(type || undefined);
@@ -1869,7 +1869,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get('/api/risk-assessments/:id', async (req, res) => {
+  app.get('/api/risk-assessments/:id', isAuthenticated, async (req: any, res) => {
     try {
       const assessment = await storage.getRiskAssessment(Number(req.params.id));
       if (!assessment) return res.status(404).json({ message: "위험성평가를 찾을 수 없습니다" });
@@ -1929,7 +1929,7 @@ export async function registerRoutes(
   });
 
   // === ACCIDENT REPORTS ===
-  app.get('/api/accidents', async (req, res) => {
+  app.get('/api/accidents', isAuthenticated, async (req: any, res) => {
     try {
       const reports = await storage.getAccidentReports();
       res.json(reports);
@@ -1938,7 +1938,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get('/api/accidents/stats', async (req, res) => {
+  app.get('/api/accidents/stats', isAuthenticated, async (req: any, res) => {
     try {
       const reports = await storage.getAccidentReports();
       const byType: Record<string, number> = {};
@@ -1962,7 +1962,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get('/api/accidents/:id', async (req, res) => {
+  app.get('/api/accidents/:id', isAuthenticated, async (req: any, res) => {
     try {
       const report = await storage.getAccidentReport(Number(req.params.id));
       if (!report) return res.status(404).json({ message: "사고보고를 찾을 수 없습니다" });
@@ -2025,7 +2025,7 @@ export async function registerRoutes(
   });
 
   // === NEW EQUIPMENT REQUESTS ===
-  app.get('/api/new-equipment-requests', async (req, res) => {
+  app.get('/api/new-equipment-requests', isAuthenticated, async (req: any, res) => {
     try {
       const requests = await storage.getNewEquipmentRequests();
       res.json(requests);

@@ -67,8 +67,13 @@ Preferred communication style: Simple, everyday language.
 - **Helmet**: Security headers (CSP, HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy)
 - **Rate Limiting**: Global API (500/15min), Login (10/15min, skip successful), Upload (30/15min) via express-rate-limit
 - **Brute Force Protection**: 5 failed login attempts locks account for 15 minutes; admin can unlock via /api/auth/unlock-user
-- **Session Security**: Auto-generated session secret (crypto.randomBytes), session regeneration on login, 24h TTL (reduced from 7 days), custom cookie name (__sb_sid)
+- **Session Security**: Auto-generated session secret (crypto.randomBytes), session regeneration on login, 24h TTL, custom cookie name (__sb_sid), sameSite=lax for CSRF protection
 - **Security Audit Logs**: All login/logout/password events logged with IP, user agent, timestamp to `security_logs` table; admin viewer at /admin/security
+- **API Authentication**: ALL API endpoints require authentication (isAuthenticated middleware); no unauthenticated data access
+- **File Access Control**: /uploads/* and /objects/* routes require authentication; no anonymous file access
+- **API Response Caching**: API responses use Cache-Control: no-store to prevent sensitive data caching
+- **Error Sanitization**: Production error responses use generic messages (no internal error details leaked); chatbot errors sanitized
+- **Production Logging**: API response bodies NOT logged in production to prevent sensitive data in logs
 - **Input Sanitization**: Username trimming/length limit, request body size limits (10MB)
 - **Tables**: `security_logs` (eventType, userId, username, ipAddress, userAgent, details, success, createdAt); users table has `failedLoginAttempts`, `lockedUntil`, `lastLoginAt` columns
 
