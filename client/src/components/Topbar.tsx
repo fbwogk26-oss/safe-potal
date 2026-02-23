@@ -1,4 +1,4 @@
-import { Bell, LogOut, Users, Menu, LayoutDashboard, ShieldCheck, GraduationCap, DoorOpen, ShoppingCart, MonitorPlay, ClipboardCheck, BookOpen, FileText, KeyRound, Eye, EyeOff } from "lucide-react";
+import { Bell, LogOut, Users, Menu, LayoutDashboard, ShieldCheck, Shield, HeartPulse, GraduationCap, DoorOpen, ShoppingCart, MonitorPlay, ClipboardCheck, BookOpen, FileText, KeyRound, Eye, EyeOff, Car, AlertTriangle, ShieldAlert, FlaskConical, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,21 +31,53 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 
-const NAV_ITEMS = [
+type MobileNavItem = { label: string; href: string; icon: any };
+type MobileNavGroup = { label: string; icon: any; children: MobileNavItem[] };
+type MobileNavEntry = MobileNavItem | MobileNavGroup;
+
+function isMobileGroup(entry: MobileNavEntry): entry is MobileNavGroup {
+  return "children" in entry;
+}
+
+const MOBILE_NAV_ITEMS: MobileNavEntry[] = [
   { label: "대시보드", href: "/", icon: LayoutDashboard },
-  { label: "안전수칙", href: "/rules", icon: ShieldCheck },
   { label: "공지/알림", href: "/notices", icon: Bell },
-  { label: "안전교육 자료", href: "/education", icon: GraduationCap },
-  { label: "교육일지", href: "/education-logs", icon: FileText },
-  { label: "안전점검", href: "/inspections", icon: ClipboardCheck },
-  { label: "차량운행일지", href: "/vehicle-logs", icon: BookOpen },
-  { label: "안전용품 신청", href: "/equipment", icon: ShoppingCart },
-  { label: "출입신청", href: "/access", icon: DoorOpen },
   { label: "전자게시판", href: "/digital-board", icon: MonitorPlay },
+  { label: "안전수칙", href: "/rules", icon: ShieldCheck },
+  {
+    label: "안전관리",
+    icon: Shield,
+    children: [
+      { label: "사고보고/통계", href: "/accidents", icon: AlertTriangle },
+      { label: "안전보호구 현황", href: "/equipment/status", icon: ShieldCheck },
+      { label: "안전용품 신청", href: "/equipment", icon: ShoppingCart },
+      { label: "안전교육 자료", href: "/education", icon: GraduationCap },
+      { label: "교육일지", href: "/education-logs", icon: FileText },
+      { label: "안전점검", href: "/inspections", icon: ClipboardCheck },
+      { label: "위험성평가", href: "/risk-assessment", icon: ShieldAlert },
+    ],
+  },
+  {
+    label: "보건관리",
+    icon: HeartPulse,
+    children: [
+      { label: "MSDS검색", href: "/msds", icon: FlaskConical },
+    ],
+  },
+  {
+    label: "차량관리",
+    icon: Car,
+    children: [
+      { label: "차량관리 현황", href: "/vehicle", icon: Car },
+      { label: "차량운행일지", href: "/vehicle-logs", icon: BookOpen },
+    ],
+  },
+  { label: "출입신청", href: "/access", icon: DoorOpen },
 ];
 
 export function Topbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mobileOpenGroups, setMobileOpenGroups] = useState<Record<string, boolean>>({});
   const [pwDialogOpen, setPwDialogOpen] = useState(false);
   const [currentPw, setCurrentPw] = useState("");
   const [newPw, setNewPw] = useState("");
@@ -233,25 +265,68 @@ export function Topbar() {
               </div>
             </div>
           </div>
-          <nav className="flex-1 px-3 py-2">
-            <div className="flex flex-col gap-1">
-              {NAV_ITEMS.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={cn(
-                    "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 font-medium text-sm",
-                    location === item.href
-                      ? "bg-primary text-primary-foreground shadow-md"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                  )}
-                  data-testid={`mobile-nav-${item.href.replace("/", "") || "home"}`}
-                >
-                  <item.icon className="w-4 h-4" />
-                  <span>{item.label}</span>
-                </Link>
-              ))}
+          <nav className="flex-1 overflow-y-auto px-3 py-2">
+            <div className="flex flex-col gap-0.5">
+              {MOBILE_NAV_ITEMS.map((entry) => {
+                if (isMobileGroup(entry)) {
+                  const isOpen = mobileOpenGroups[entry.label] ?? entry.children.some(c => location === c.href);
+                  const childActive = entry.children.some(c => location === c.href);
+                  return (
+                    <div key={entry.label}>
+                      <button
+                        onClick={() => setMobileOpenGroups(prev => ({ ...prev, [entry.label]: !isOpen }))}
+                        className={cn(
+                          "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 font-medium text-sm w-full",
+                          childActive ? "text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                        )}
+                        data-testid={`mobile-nav-group-${entry.label}`}
+                      >
+                        <entry.icon className="w-4 h-4" />
+                        <span className="flex-1 text-left">{entry.label}</span>
+                        <ChevronDown className={cn("w-3.5 h-3.5 transition-transform duration-200", isOpen && "rotate-180")} />
+                      </button>
+                      <div className={cn("overflow-hidden transition-all duration-200", isOpen ? "max-h-96 opacity-100" : "max-h-0 opacity-0")}>
+                        <div className="ml-4 pl-3 border-l border-border/40 flex flex-col gap-0.5 mt-0.5 pb-1">
+                          {entry.children.map((child) => (
+                            <Link
+                              key={child.href}
+                              href={child.href}
+                              onClick={() => setMobileMenuOpen(false)}
+                              className={cn(
+                                "flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 font-medium text-[13px]",
+                                location === child.href
+                                  ? "bg-primary text-primary-foreground shadow-md"
+                                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                              )}
+                              data-testid={`mobile-nav-${child.href.replace("/", "")}`}
+                            >
+                              <child.icon className="w-3.5 h-3.5" />
+                              <span>{child.label}</span>
+                            </Link>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+                return (
+                  <Link
+                    key={entry.href}
+                    href={entry.href}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={cn(
+                      "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 font-medium text-sm",
+                      location === entry.href
+                        ? "bg-primary text-primary-foreground shadow-md"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    )}
+                    data-testid={`mobile-nav-${entry.href.replace("/", "") || "home"}`}
+                  >
+                    <entry.icon className="w-4 h-4" />
+                    <span>{entry.label}</span>
+                  </Link>
+                );
+              })}
             </div>
           </nav>
           <div className="p-3 border-t border-border/50 text-xs text-center text-muted-foreground">

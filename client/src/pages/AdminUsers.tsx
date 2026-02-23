@@ -27,15 +27,20 @@ import {
   ChevronUp,
   Check,
   X,
-  Save
+  Save,
+  KeyRound,
+  Copy,
+  AlertTriangle
 } from "lucide-react";
 import { Link } from "wouter";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -297,6 +302,7 @@ export default function AdminUsers() {
                                 {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                               </Button>
                             )}
+                            <ResetPasswordDialog user={user} />
                             <Button
                               variant="ghost"
                               size="icon"
@@ -676,6 +682,7 @@ function CreateUserDialog() {
   const [department, setDepartment] = useState("");
   const [role, setRole] = useState("user");
   const [showPassword, setShowPassword] = useState(false);
+  const [successInfo, setSuccessInfo] = useState<{ username: string; password: string; name: string } | null>(null);
   const { toast } = useToast();
 
   const { data: presets } = useQuery<RolePresets>({
@@ -697,13 +704,8 @@ function CreateUserDialog() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
-      toast({ title: "사용자가 생성되었습니다." });
+      setSuccessInfo({ username, password, name: name || username });
       setOpen(false);
-      setUsername("");
-      setPassword("");
-      setName("");
-      setDepartment("");
-      setRole("user");
     },
     onError: (error: any) => {
       toast({ 
@@ -723,98 +725,293 @@ function CreateUserDialog() {
     createUserMutation.mutate({ username, password, name: name || username, department, role });
   };
 
+  const handleCopyCredentials = () => {
+    if (!successInfo) return;
+    const text = `아이디: ${successInfo.username}\n초기 비밀번호: ${successInfo.password}`;
+    navigator.clipboard.writeText(text);
+    toast({ title: "복사되었습니다" });
+  };
+
+  const handleCloseSuccess = () => {
+    setSuccessInfo(null);
+    setUsername("");
+    setPassword("");
+    setName("");
+    setDepartment("");
+    setRole("user");
+  };
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogTrigger asChild>
+          <Button className="gap-2" data-testid="button-create-user">
+            <Plus className="w-4 h-4" />
+            사용자 추가
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>새 사용자 추가</DialogTitle>
+            <DialogDescription>
+              사용자에게 초기 비밀번호를 전달해주세요. 첫 로그인 시 비밀번호 변경이 필요합니다.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">부서명</label>
+              <Input
+                value={department}
+                onChange={(e) => setDepartment(e.target.value)}
+                placeholder="소속 부서"
+                data-testid="input-new-department"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">이름</label>
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="사용자 이름"
+                data-testid="input-new-name"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">아이디 (ID)</label>
+              <Input
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="로그인 아이디"
+                data-testid="input-new-username"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">초기 비밀번호 (PW)</label>
+              <div className="relative">
+                <Input
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="초기 비밀번호"
+                  className="pr-10"
+                  data-testid="input-new-password"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-0 top-0 h-full px-3"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </Button>
+              </div>
+              <p className="text-xs text-amber-600 flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3" />
+                사용자에게 이 비밀번호를 전달해주세요 (첫 로그인 시 변경 필수)
+              </p>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">역할</label>
+              <Select value={role} onValueChange={setRole}>
+                <SelectTrigger data-testid="select-new-role">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="admin">관리자</SelectItem>
+                  <SelectItem value="manager">담당자</SelectItem>
+                  <SelectItem value="user">일반 사용자</SelectItem>
+                </SelectContent>
+              </Select>
+              {role !== "admin" && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 rounded-md px-3 py-2">
+                  <Shield className="w-3.5 h-3.5" />
+                  <span>
+                    {role === "manager" ? "담당자" : "일반사용자"} 프리셋 권한 적용: {getPresetStatus(role) || ""}
+                  </span>
+                </div>
+              )}
+            </div>
+            <Button 
+              type="submit" 
+              className="w-full" 
+              disabled={createUserMutation.isPending}
+              data-testid="button-submit-user"
+            >
+              {createUserMutation.isPending ? "생성 중..." : "사용자 생성"}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!successInfo} onOpenChange={(open) => { if (!open) handleCloseSuccess(); }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Check className="w-5 h-5 text-green-600" />
+              사용자 생성 완료
+            </DialogTitle>
+            <DialogDescription>
+              아래 정보를 사용자에게 전달해주세요
+            </DialogDescription>
+          </DialogHeader>
+          {successInfo && (
+            <div className="space-y-3">
+              <div className="rounded-lg border bg-muted/50 p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">이름</span>
+                  <span className="text-sm font-medium" data-testid="text-created-name">{successInfo.name}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">아이디</span>
+                  <span className="text-sm font-medium font-mono" data-testid="text-created-username">{successInfo.username}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">초기 비밀번호</span>
+                  <span className="text-sm font-medium font-mono" data-testid="text-created-password">{successInfo.password}</span>
+                </div>
+              </div>
+              <p className="text-xs text-amber-600 flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3 shrink-0" />
+                첫 로그인 시 비밀번호를 반드시 변경해야 합니다
+              </p>
+            </div>
+          )}
+          <DialogFooter className="gap-2">
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={handleCopyCredentials} data-testid="button-copy-credentials">
+              <Copy className="w-3.5 h-3.5" />
+              복사
+            </Button>
+            <Button size="sm" onClick={handleCloseSuccess} data-testid="button-close-success">
+              확인
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+function ResetPasswordDialog({ user }: { user: UserData }) {
+  const [open, setOpen] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [resetSuccess, setResetSuccess] = useState<string | null>(null);
+  const { toast } = useToast();
+
+  const resetMutation = useMutation({
+    mutationFn: async ({ userId, newPassword }: { userId: string; newPassword: string }) => {
+      return apiRequest("POST", "/api/auth/admin-reset-password", { userId, newPassword });
+    },
+    onSuccess: () => {
+      setResetSuccess(newPassword);
+    },
+    onError: (error: any) => {
+      toast({ variant: "destructive", title: "비밀번호 초기화 실패", description: error.message || "오류가 발생했습니다." });
+    },
+  });
+
+  const handleReset = () => {
+    if (!newPassword) {
+      toast({ variant: "destructive", title: "새 비밀번호를 입력해주세요" });
+      return;
+    }
+    if (newPassword.length < 4) {
+      toast({ variant: "destructive", title: "비밀번호는 4자 이상이어야 합니다" });
+      return;
+    }
+    resetMutation.mutate({ userId: user.id, newPassword });
+  };
+
+  const handleCopy = () => {
+    if (!resetSuccess) return;
+    navigator.clipboard.writeText(`아이디: ${user.username}\n초기화된 비밀번호: ${resetSuccess}`);
+    toast({ title: "복사되었습니다" });
+  };
+
+  const handleClose = () => {
+    setOpen(false);
+    setNewPassword("");
+    setShowPassword(false);
+    setResetSuccess(null);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) handleClose(); else setOpen(true); }}>
       <DialogTrigger asChild>
-        <Button className="gap-2" data-testid="button-create-user">
-          <Plus className="w-4 h-4" />
-          사용자 추가
+        <Button variant="outline" size="icon" className="h-8 w-8" title="비밀번호 초기화" data-testid={`button-reset-pw-${user.id}`}>
+          <KeyRound className="w-3.5 h-3.5" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle>새 사용자 추가</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            <KeyRound className="w-5 h-5 text-primary" />
+            비밀번호 초기화
+          </DialogTitle>
+          <DialogDescription>
+            {user.name || user.username}님의 비밀번호를 초기화합니다
+          </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <label className="text-sm font-medium">부서명</label>
-            <Input
-              value={department}
-              onChange={(e) => setDepartment(e.target.value)}
-              placeholder="소속 부서"
-              data-testid="input-new-department"
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">이름</label>
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="사용자 이름"
-              data-testid="input-new-name"
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">아이디 (ID)</label>
-            <Input
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="로그인 아이디"
-              data-testid="input-new-username"
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">비밀번호 (PW)</label>
-            <div className="relative">
-              <Input
-                type={showPassword ? "text" : "password"}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="비밀번호"
-                className="pr-10"
-                data-testid="input-new-password"
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="absolute right-0 top-0 h-full px-3"
-                onClick={() => setShowPassword(!showPassword)}
-              >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </Button>
-            </div>
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">역할</label>
-            <Select value={role} onValueChange={setRole}>
-              <SelectTrigger data-testid="select-new-role">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="admin">관리자</SelectItem>
-                <SelectItem value="manager">담당자</SelectItem>
-                <SelectItem value="user">일반 사용자</SelectItem>
-              </SelectContent>
-            </Select>
-            {role !== "admin" && (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 rounded-md px-3 py-2">
-                <Shield className="w-3.5 h-3.5" />
-                <span>
-                  {role === "manager" ? "담당자" : "일반사용자"} 프리셋 권한 적용: {getPresetStatus(role) || ""}
-                </span>
+        {resetSuccess ? (
+          <div className="space-y-3">
+            <div className="rounded-lg border bg-muted/50 p-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">아이디</span>
+                <span className="text-sm font-medium font-mono">{user.username}</span>
               </div>
-            )}
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">초기화된 비밀번호</span>
+                <span className="text-sm font-medium font-mono" data-testid="text-reset-password">{resetSuccess}</span>
+              </div>
+            </div>
+            <p className="text-xs text-amber-600 flex items-center gap-1">
+              <AlertTriangle className="w-3 h-3 shrink-0" />
+              사용자에게 이 비밀번호를 전달해주세요 (로그인 시 변경 필수)
+            </p>
+            <DialogFooter className="gap-2">
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={handleCopy}>
+                <Copy className="w-3.5 h-3.5" />
+                복사
+              </Button>
+              <Button size="sm" onClick={handleClose}>확인</Button>
+            </DialogFooter>
           </div>
-          <Button 
-            type="submit" 
-            className="w-full" 
-            disabled={createUserMutation.isPending}
-            data-testid="button-submit-user"
-          >
-            {createUserMutation.isPending ? "생성 중..." : "사용자 생성"}
-          </Button>
-        </form>
+        ) : (
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">새 비밀번호</label>
+              <div className="relative">
+                <Input
+                  type={showPassword ? "text" : "password"}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="새 비밀번호 (4자 이상)"
+                  className="pr-10"
+                  data-testid="input-reset-password"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-0 top-0 h-full px-3"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                사용자는 다음 로그인 시 비밀번호를 변경해야 합니다
+              </p>
+            </div>
+            <DialogFooter className="gap-2">
+              <Button variant="outline" onClick={handleClose}>취소</Button>
+              <Button onClick={handleReset} disabled={resetMutation.isPending} data-testid="button-confirm-reset">
+                {resetMutation.isPending ? "처리 중..." : "초기화"}
+              </Button>
+            </DialogFooter>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
