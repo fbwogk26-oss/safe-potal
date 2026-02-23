@@ -50,7 +50,6 @@ export async function setupAuth(app: Express) {
         return res.status(401).json({ message: "아이디 또는 비밀번호가 올바르지 않습니다" });
       }
 
-      // Set session
       (req.session as any).userId = user.id;
       (req.session as any).user = {
         id: user.id,
@@ -64,6 +63,7 @@ export async function setupAuth(app: Express) {
         username: user.username,
         name: user.name,
         role: user.role,
+        mustChangePassword: user.mustChangePassword,
       });
     } catch (error) {
       console.error("Login error:", error);

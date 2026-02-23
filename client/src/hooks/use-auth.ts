@@ -7,6 +7,7 @@ interface AuthUser {
   name: string | null;
   role: string;
   department: string;
+  mustChangePassword?: boolean;
 }
 
 async function fetchUser(): Promise<AuthUser | null> {
@@ -38,7 +39,7 @@ export function useAuth() {
   const loginMutation = useMutation({
     mutationFn: async ({ username, password }: { username: string; password: string }) => {
       const response = await apiRequest("POST", "/api/login", { username, password });
-      return response.json();
+      return response.json() as Promise<AuthUser>;
     },
     onSuccess: (data) => {
       queryClient.setQueryData(["/api/auth/user"], data);
@@ -54,10 +55,19 @@ export function useAuth() {
     },
   });
 
+  const clearMustChangePassword = () => {
+    queryClient.setQueryData(["/api/auth/user"], (old: AuthUser | null) => {
+      if (!old) return null;
+      return { ...old, mustChangePassword: false };
+    });
+  };
+
   return {
     user,
     isLoading,
     isAuthenticated: !!user,
+    mustChangePassword: user?.mustChangePassword ?? false,
+    clearMustChangePassword,
     login: loginMutation.mutateAsync,
     loginError: loginMutation.error,
     isLoggingIn: loginMutation.isPending,

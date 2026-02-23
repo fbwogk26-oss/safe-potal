@@ -8,7 +8,7 @@ export interface IAuthStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(username: string, password: string, name: string, role?: string, department?: string, permissions?: UserPermissions): Promise<User>;
-  updateUser(id: string, data: Partial<{ name: string; role: string; password: string; department: string; permissions: UserPermissions }>): Promise<User | undefined>;
+  updateUser(id: string, data: Partial<{ name: string; role: string; password: string; department: string; permissions: UserPermissions; mustChangePassword: boolean }>): Promise<User | undefined>;
   deleteUser(id: string): Promise<void>;
   getAllUsers(): Promise<User[]>;
   verifyPassword(password: string, hashedPassword: string): Promise<boolean>;
@@ -43,7 +43,7 @@ class AuthStorage implements IAuthStorage {
     return user;
   }
 
-  async updateUser(id: string, data: Partial<{ name: string; role: string; password: string; department: string; permissions: UserPermissions }>): Promise<User | undefined> {
+  async updateUser(id: string, data: Partial<{ name: string; role: string; password: string; department: string; permissions: UserPermissions; mustChangePassword: boolean }>): Promise<User | undefined> {
     const updateData: any = { updatedAt: new Date() };
     if (data.name !== undefined) updateData.name = data.name;
     if (data.role !== undefined) {
@@ -54,6 +54,7 @@ class AuthStorage implements IAuthStorage {
     }
     if (data.department !== undefined) updateData.department = data.department;
     if (data.permissions !== undefined) updateData.permissions = data.permissions;
+    if (data.mustChangePassword !== undefined) updateData.mustChangePassword = data.mustChangePassword;
     if (data.password !== undefined) {
       updateData.password = await bcrypt.hash(data.password, 10);
     }

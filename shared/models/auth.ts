@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { index, jsonb, pgTable, timestamp, varchar } from "drizzle-orm/pg-core";
+import { boolean, index, jsonb, pgTable, timestamp, varchar } from "drizzle-orm/pg-core";
 
 // Session storage table for custom auth
 export const sessions = pgTable(
@@ -72,6 +72,7 @@ export const users = pgTable("users", {
   department: varchar("department"),
   role: varchar("role").notNull().default("user"),
   permissions: jsonb("permissions").$type<UserPermissions>().notNull().default(DEFAULT_PERMISSIONS),
+  mustChangePassword: boolean("must_change_password").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

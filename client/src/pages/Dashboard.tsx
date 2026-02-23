@@ -315,13 +315,27 @@ export default function Dashboard() {
               <CardContent className="p-2 sm:p-4 md:p-6 pt-2">
                 <div className="w-full h-[200px] sm:h-[240px] md:h-[280px]">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartData} margin={{ top: 10, right: 5, left: -25, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" opacity={0.5} />
+                    <BarChart data={chartData} margin={{ top: 20, right: 5, left: -25, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="gradGreen" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#34d399" />
+                          <stop offset="100%" stopColor="#059669" />
+                        </linearGradient>
+                        <linearGradient id="gradYellow" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#fbbf24" />
+                          <stop offset="100%" stopColor="#d97706" />
+                        </linearGradient>
+                        <linearGradient id="gradRed" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#f87171" />
+                          <stop offset="100%" stopColor="#dc2626" />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" opacity={0.4} />
                       <XAxis 
                         dataKey="shortName" 
                         axisLine={false} 
                         tickLine={false} 
-                        tick={{ fill: '#6b21a8', fontSize: 11, fontWeight: 700 }}
+                        tick={{ fill: '#475569', fontSize: 11, fontWeight: 700 }}
                         interval={0}
                         height={35}
                       />
@@ -338,7 +352,7 @@ export default function Dashboard() {
                           if (active && payload && payload.length) {
                             const data = payload[0].payload;
                             return (
-                              <div style={{ backgroundColor: 'white', border: '1px solid #e5e7eb', padding: 12, borderRadius: 8, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: 12 }}>
+                              <div style={{ background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(8px)', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 12, padding: '10px 14px', boxShadow: '0 8px 32px rgba(0,0,0,0.08)', fontSize: 12 }}>
                                 <p style={{ fontWeight: 'bold', fontSize: 14, marginBottom: 4 }}>{data.name}</p>
                                 <div>
                                   <span style={{ color: '#64748b' }}>점수: </span>
@@ -352,13 +366,15 @@ export default function Dashboard() {
                       />
                       <Bar 
                         dataKey="totalScore" 
-                        radius={[4, 4, 0, 0]}
-                        maxBarSize={40}
+                        radius={[6, 6, 0, 0]}
+                        maxBarSize={36}
+                        animationDuration={800}
+                        label={{ position: 'top', fontSize: 11, fontWeight: 700, fill: '#475569' }}
                       >
                         {chartData.map((entry, index) => (
                           <Cell 
                             key={`cell-${index}`} 
-                            fill={entry.totalScore >= 90 ? '#10b981' : entry.totalScore >= 80 ? '#f59e0b' : '#ef4444'} 
+                            fill={entry.totalScore >= 90 ? 'url(#gradGreen)' : entry.totalScore >= 80 ? 'url(#gradYellow)' : 'url(#gradRed)'} 
                           />
                         ))}
                       </Bar>

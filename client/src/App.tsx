@@ -27,6 +27,7 @@ import Login from "@/pages/Login";
 import NotFound from "@/pages/NotFound";
 import { useAuth } from "@/hooks/use-auth";
 import { ChatBot } from "@/components/ChatBot";
+import { ForcePasswordChange } from "@/components/ForcePasswordChange";
 
 function MainLayout() {
   return (
@@ -67,7 +68,7 @@ function MainLayout() {
 }
 
 function AppContent() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, mustChangePassword } = useAuth();
 
   if (isLoading) {
     return (
@@ -79,6 +80,10 @@ function AppContent() {
 
   if (!isAuthenticated) {
     return <Login />;
+  }
+
+  if (mustChangePassword) {
+    return <ForcePasswordChange />;
   }
 
   return <MainLayout />;

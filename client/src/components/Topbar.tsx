@@ -1,5 +1,7 @@
-import { Bell, LogOut, Users, Menu, LayoutDashboard, ShieldCheck, GraduationCap, DoorOpen, ShoppingCart, MonitorPlay, ClipboardCheck, BookOpen, FileText } from "lucide-react";
+import { Bell, LogOut, Users, Menu, LayoutDashboard, ShieldCheck, GraduationCap, DoorOpen, ShoppingCart, MonitorPlay, ClipboardCheck, BookOpen, FileText, KeyRound, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useNotices } from "@/hooks/use-notices";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
@@ -7,6 +9,8 @@ import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,6 +18,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import {
   Sheet,
   SheetContent,
@@ -35,6 +46,14 @@ const NAV_ITEMS = [
 
 export function Topbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [pwDialogOpen, setPwDialogOpen] = useState(false);
+  const [currentPw, setCurrentPw] = useState("");
+  const [newPw, setNewPw] = useState("");
+  const [confirmPw, setConfirmPw] = useState("");
+  const [pwError, setPwError] = useState("");
+  const [pwSubmitting, setPwSubmitting] = useState(false);
+  const [showPw, setShowPw] = useState(false);
+  const { toast } = useToast();
   const [location] = useLocation();
   const { data: notices } = useNotices("notice");
   const { data: pinnedData } = useQuery<{ pinnedNoticeId: number | null }>({
@@ -46,7 +65,35 @@ export function Topbar() {
     enabled: isAuthenticated,
   });
   const isAdmin = roleData?.role === "admin";
-  
+
+  const resetPwDialog = () => {
+    setCurrentPw(""); setNewPw(""); setConfirmPw(""); setPwError(""); setShowPw(false);
+  };
+
+  const handleChangePassword = async () => {
+    setPwError("");
+    if (!currentPw || !newPw || !confirmPw) {
+      setPwError("모든 항목을 입력해주세요"); return;
+    }
+    if (newPw.length < 4) {
+      setPwError("새 비밀번호는 4자 이상이어야 합니다"); return;
+    }
+    if (newPw !== confirmPw) {
+      setPwError("새 비밀번호가 일치하지 않습니다"); return;
+    }
+    try {
+      setPwSubmitting(true);
+      const res = await apiRequest("POST", "/api/auth/change-password", { currentPassword: currentPw, newPassword: newPw });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.message); }
+      toast({ title: "비밀번호가 변경되었습니다" });
+      setPwDialogOpen(false); resetPwDialog();
+    } catch (err: any) {
+      setPwError(err.message || "비밀번호 변경에 실패했습니다");
+    } finally {
+      setPwSubmitting(false);
+    }
+  };
+
   const tickerNotice = useMemo(() => {
     if (!notices || notices.length === 0) return null;
     const pinnedNoticeId = pinnedData?.pinnedNoticeId;
@@ -115,6 +162,13 @@ export function Topbar() {
                         <p className="text-xs text-muted-foreground">@{user.username}</p>
                       </div>
                       <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={() => { setPwDialogOpen(true); resetPwDialog(); }}
+                        className="flex items-center gap-2 cursor-pointer"
+                      >
+                        <KeyRound className="w-4 h-4" />
+                        비밀번호 변경
+                      </DropdownMenuItem>
                       {isAdmin && (
                         <>
                           <DropdownMenuItem asChild>
@@ -123,9 +177,9 @@ export function Topbar() {
                               사용자 관리
                             </Link>
                           </DropdownMenuItem>
-                          <DropdownMenuSeparator />
                         </>
                       )}
+                      <DropdownMenuSeparator />
                       <DropdownMenuItem 
                         onClick={() => logout()}
                         disabled={isLoggingOut}
@@ -205,6 +259,60 @@ export function Topbar() {
           </div>
         </SheetContent>
       </Sheet>
+
+      <Dialog open={pwDialogOpen} onOpenChange={(open) => { if (!open) { setPwDialogOpen(false); resetPwDialog(); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>비밀번호 변경</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>현재 비밀번호</Label>
+              <div className="relative">
+                <Input
+                  type={showPw ? "text" : "password"}
+                  value={currentPw}
+                  onChange={(e) => setCurrentPw(e.target.value)}
+                  placeholder="현재 비밀번호"
+                  data-testid="input-current-password"
+                />
+                <Button type="button" variant="ghost" size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8" onClick={() => setShowPw(!showPw)} tabIndex={-1}>
+                  {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </Button>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>새 비밀번호</Label>
+              <Input
+                type={showPw ? "text" : "password"}
+                value={newPw}
+                onChange={(e) => setNewPw(e.target.value)}
+                placeholder="새 비밀번호 (4자 이상)"
+                data-testid="input-new-pw"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>새 비밀번호 확인</Label>
+              <Input
+                type={showPw ? "text" : "password"}
+                value={confirmPw}
+                onChange={(e) => setConfirmPw(e.target.value)}
+                placeholder="비밀번호 확인"
+                data-testid="input-confirm-pw"
+              />
+            </div>
+            {pwError && (
+              <p className="text-sm text-destructive text-center" data-testid="text-pw-error">{pwError}</p>
+            )}
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => { setPwDialogOpen(false); resetPwDialog(); }}>취소</Button>
+            <Button onClick={handleChangePassword} disabled={pwSubmitting} data-testid="button-submit-pw">
+              {pwSubmitting ? "변경 중..." : "변경"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </header>
   );
 }

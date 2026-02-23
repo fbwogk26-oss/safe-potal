@@ -53,11 +53,14 @@ Preferred communication style: Simple, everyday language.
 - **UI**: Floating chat widget (ChatBot.tsx) in bottom-right corner with conversation history (max 6 messages)
 
 ### Authentication & Authorization
-- Replit Auth login with role-based permissions (admin, manager, user, viewer, custom)
+- Username/password login with bcrypt hashing
+- Role-based permissions (admin, manager, user, viewer, custom)
 - Role preset system for batch permission assignment
 - Permission checks on both regular API routes and chatbot actions
 - Global lock toggle prevents edits when system is locked
 - Lock status refreshes every 10 seconds on client
+- **Password Management**: mustChangePassword flag forces first-login password change; self-service password change via Topbar menu; admin can reset user passwords (sets mustChangePassword=true)
+- Password change APIs: /api/auth/change-password, /api/auth/force-change-password, /api/auth/admin-reset-password
 
 ### File Structure
 ```
