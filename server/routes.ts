@@ -1997,6 +1997,31 @@ export async function registerRoutes(
     }
   });
 
+  app.post('/api/accidents/upload-photos', requireEditor, upload.array('photos', 10), (req: any, res) => {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ message: "No files uploaded" });
+    }
+    const urls = req.files.map((f: any) => `/uploads/${f.filename}`);
+    res.json({ imageUrls: urls });
+  });
+
+  app.get('/api/accidents/:id/download-docx', requireEditor, async (req: any, res) => {
+    try {
+      const report = await storage.getAccidentReport(Number(req.params.id));
+      if (!report) return res.status(404).json({ message: "사고보고를 찾을 수 없습니다" });
+
+      const { generateAccidentDocx } = await import('./accidentDocx');
+      const buffer = await generateAccidentDocx(report);
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+      res.setHeader('Content-Disposition', `attachment; filename="accident_report_${report.id}.docx"`);
+      res.send(buffer);
+    } catch (error) {
+      console.error("DOCX generation error:", error);
+      res.status(500).json({ message: "사고경위서 생성에 실패했습니다" });
+    }
+  });
+
   // === NEW EQUIPMENT REQUESTS ===
   app.get('/api/new-equipment-requests', async (req, res) => {
     try {

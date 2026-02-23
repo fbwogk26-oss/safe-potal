@@ -37,7 +37,7 @@ Preferred communication style: Simple, everyday language.
   - `education_signatures`: Digital signatures for education sessions (signer name, department, base64 signature data)
   - `chemicals`: MSDS chemical substance data (name, CAS number, hazard class, GHS pictograms, first aid, storage)
   - `risk_assessments`: KRAS risk assessments (period type, department, hazard, frequency × severity = riskScore, riskLevel)
-  - `accident_reports`: Accident reports with type, cause, severity, department, date, description, corrective actions
+  - `accident_reports`: Accident reports with type, cause, severity, department, date, description, reporter info (name, position, companion, vehicleInfo), progressDetails (JSON), accidentOverview, causeDetail, preventionPlan, signature (base64), images array. DOCX export generates 사고경위서 document.
   - `new_equipment_requests`: New safety equipment product requests with name, reason, specs, priority, status
 
 ### Key Design Patterns
