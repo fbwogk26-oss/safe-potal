@@ -2,8 +2,7 @@ import {
   Document, Packer, Paragraph, Table, TableRow, TableCell,
   WidthType, AlignmentType, TextRun, BorderStyle, ImageRun,
   VerticalAlign, HorizontalPositionRelativeFrom, VerticalPositionRelativeFrom,
-  HorizontalPositionAlign, VerticalPositionAlign, TableLayoutType,
-  convertMillimetersToTwip,
+  TableLayoutType, convertMillimetersToTwip, TabStopPosition, TabStopType,
 } from "docx";
 import type { AccidentReport } from "@shared/schema";
 import * as fs from "fs";
@@ -17,125 +16,83 @@ interface ProgressItem {
 
 const FONT = "바탕";
 const FONT_SIZE = 20;
-const TITLE_SIZE = 32;
+const TITLE_SIZE = 36;
 const SECTION_SIZE = 22;
-const BORDER_STYLE = {
-  style: BorderStyle.SINGLE,
-  size: 4,
-  color: "000000",
-};
-const ALL_BORDERS = {
-  top: BORDER_STYLE,
-  bottom: BORDER_STYLE,
-  left: BORDER_STYLE,
-  right: BORDER_STYLE,
+
+const THIN_BORDER = { style: BorderStyle.SINGLE, size: 4, color: "000000" };
+const ALL_BORDERS = { top: THIN_BORDER, bottom: THIN_BORDER, left: THIN_BORDER, right: THIN_BORDER };
+const NO_BORDERS = {
+  top: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+  bottom: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+  left: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+  right: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
 };
 
-function makeCell(
+function txt(text: string, bold?: boolean, size?: number): TextRun {
+  return new TextRun({ text, bold, size: size || FONT_SIZE, font: FONT });
+}
+
+function borderedCell(
   text: string,
   opts?: {
     bold?: boolean;
     width?: number;
     colSpan?: number;
-    rowSpan?: number;
     alignment?: (typeof AlignmentType)[keyof typeof AlignmentType];
     shading?: string;
-    fontSize?: number;
-    children?: (TextRun | ImageRun)[];
   }
 ): TableCell {
-  const children = opts?.children
-    ? [
-        new Paragraph({
-          alignment: opts?.alignment || AlignmentType.CENTER,
-          spacing: { before: 30, after: 30, line: 276 },
-          children: opts.children,
-        }),
-      ]
-    : [
-        new Paragraph({
-          alignment: opts?.alignment || AlignmentType.CENTER,
-          spacing: { before: 30, after: 30, line: 276 },
-          children: [
-            new TextRun({
-              text,
-              bold: opts?.bold,
-              size: opts?.fontSize || FONT_SIZE,
-              font: FONT,
-            }),
-          ],
-        }),
-      ];
-
   return new TableCell({
-    width: opts?.width
-      ? { size: opts.width, type: WidthType.PERCENTAGE }
-      : undefined,
+    width: opts?.width ? { size: opts.width, type: WidthType.PERCENTAGE } : undefined,
     verticalAlign: VerticalAlign.CENTER,
     columnSpan: opts?.colSpan,
-    rowSpan: opts?.rowSpan,
     shading: opts?.shading ? { fill: opts.shading } : undefined,
     borders: ALL_BORDERS,
-    children,
-  });
-}
-
-function hdrCell(text: string, width?: number): TableCell {
-  return makeCell(text, {
-    bold: true,
-    width,
-    alignment: AlignmentType.CENTER,
-    shading: "D9E2F3",
-  });
-}
-
-function valCell(text: string, width?: number, alignment?: (typeof AlignmentType)[keyof typeof AlignmentType]): TableCell {
-  return makeCell(text, {
-    width,
-    alignment: alignment || AlignmentType.LEFT,
-  });
-}
-
-function createTable(rows: TableRow[]): Table {
-  return new Table({
-    width: { size: 100, type: WidthType.PERCENTAGE },
-    layout: TableLayoutType.FIXED,
-    rows,
-  });
-}
-
-function sectionTitle(text: string): Paragraph {
-  return new Paragraph({
-    spacing: { before: 240, after: 120, line: 276 },
     children: [
-      new TextRun({
-        text: `□ ${text}`,
-        bold: true,
-        size: SECTION_SIZE,
-        font: FONT,
+      new Paragraph({
+        alignment: opts?.alignment || AlignmentType.CENTER,
+        spacing: { before: 40, after: 40 },
+        children: [txt(text, opts?.bold)],
       }),
     ],
   });
 }
 
-function bodyParagraph(text: string): Paragraph {
+function headerCell(text: string, width?: number): TableCell {
+  return borderedCell(text, { bold: true, width, alignment: AlignmentType.CENTER, shading: "D9E2F3" });
+}
+
+function dataCell(text: string, width?: number, align?: (typeof AlignmentType)[keyof typeof AlignmentType]): TableCell {
+  return borderedCell(text, { width, alignment: align || AlignmentType.CENTER });
+}
+
+function sectionLabel(text: string): Paragraph {
   return new Paragraph({
-    spacing: { before: 60, after: 60, line: 360 },
-    indent: { left: convertMillimetersToTwip(5) },
-    children: [
-      new TextRun({
-        text: text || "",
-        size: FONT_SIZE,
-        font: FONT,
-      }),
-    ],
+    spacing: { before: 280, after: 120 },
+    children: [txt(`□ ${text}`, true, SECTION_SIZE)],
   });
 }
 
-function multiLineParagraphs(text: string): Paragraph[] {
-  if (!text) return [bodyParagraph("")];
-  const lines = text.split("\n");
-  return lines.map((line) => bodyParagraph(line));
+function contentParagraph(text: string): Paragraph {
+  return new Paragraph({
+    spacing: { before: 40, after: 40, line: 340 },
+    indent: { left: convertMillimetersToTwip(3) },
+    children: [txt(text || "")],
+  });
+}
+
+function multiLineContent(text: string): Paragraph[] {
+  if (!text) return [contentParagraph("")];
+  return text.split("\n").map((line) => contentParagraph(line));
+}
+
+function emptyLine(height?: number): Paragraph {
+  return new Paragraph({ spacing: { before: height || 100 }, children: [] });
+}
+
+function getImageType(filePath: string): "jpg" | "png" {
+  const ext = path.extname(filePath).toLowerCase();
+  return ext === ".jpg" || ext === ".jpeg" ? "jpg" : "png";
 }
 
 export async function generateAccidentDocx(report: AccidentReport): Promise<Buffer> {
@@ -145,45 +102,49 @@ export async function generateAccidentDocx(report: AccidentReport): Promise<Buff
   const day = String(occurredDate.getDate()).padStart(2, "0");
   const hour = String(occurredDate.getHours()).padStart(2, "0");
   const minute = String(occurredDate.getMinutes()).padStart(2, "0");
-  const dateStr = `${year}. ${month}. ${day}일  ${hour}시 ${minute}분경`;
+  const dateTimeStr = `${year}. ${month}. ${day}일 ${hour}시${minute}분경`;
 
   let progressItems: ProgressItem[] = [];
   if (report.progressDetails) {
-    try {
-      progressItems = JSON.parse(report.progressDetails);
-    } catch {}
+    try { progressItems = JSON.parse(report.progressDetails); } catch {}
   }
 
-  const personalInfoTable = createTable([
-    new TableRow({
-      children: [
-        hdrCell("성  명", 15),
-        valCell(report.reporterName || "", 20, AlignmentType.CENTER),
-        hdrCell("직  위", 13),
-        valCell(report.reporterPosition || "", 17, AlignmentType.CENTER),
-        hdrCell("소속부서", 15),
-        valCell(report.department || "", 20, AlignmentType.CENTER),
-      ],
-    }),
-    new TableRow({
-      children: [
-        hdrCell("동행자", 15),
-        valCell(report.companion || "", 20, AlignmentType.CENTER),
-        hdrCell("차종/차량번호", 13),
-        makeCell(report.vehicleInfo || "", {
-          colSpan: 3,
-          alignment: AlignmentType.CENTER,
-        }),
-      ],
-    }),
-  ]);
+  let imageCaptions: string[] = [];
+  if ((report as any).imageCaptions) {
+    try { imageCaptions = JSON.parse((report as any).imageCaptions); } catch {}
+  }
+
+  const personalInfoTable = new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    layout: TableLayoutType.FIXED,
+    rows: [
+      new TableRow({
+        children: [
+          headerCell("성명", 14),
+          dataCell(report.reporterName || "", 20),
+          headerCell("직위", 12),
+          dataCell(report.reporterPosition || "", 18),
+          headerCell("소속부서", 14),
+          dataCell(report.department || "", 22),
+        ],
+      }),
+      new TableRow({
+        children: [
+          headerCell("동행자", 14),
+          dataCell(report.companion || "", 20),
+          headerCell("차종/차량번호", 12),
+          borderedCell(report.vehicleInfo || "", { colSpan: 3, alignment: AlignmentType.CENTER }),
+        ],
+      }),
+    ],
+  });
 
   const progressRows = [
     new TableRow({
       children: [
-        hdrCell("NO", 10),
-        hdrCell("시 간", 25),
-        hdrCell("내        용", 65),
+        headerCell("NO", 8),
+        headerCell("시간", 18),
+        headerCell("내용", 74),
       ],
     }),
   ];
@@ -193,82 +154,56 @@ export async function generateAccidentDocx(report: AccidentReport): Promise<Buff
       progressRows.push(
         new TableRow({
           children: [
-            valCell(String(item.no), 10, AlignmentType.CENTER),
-            valCell(item.time, 25, AlignmentType.CENTER),
-            valCell(item.content, 65, AlignmentType.LEFT),
+            dataCell(String(item.no), 8),
+            dataCell(item.time, 18),
+            borderedCell(item.content, { width: 74, alignment: AlignmentType.LEFT }),
           ],
         })
       );
     });
   } else {
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 4; i++) {
       progressRows.push(
         new TableRow({
           children: [
-            valCell("", 10, AlignmentType.CENTER),
-            valCell("", 25, AlignmentType.CENTER),
-            valCell("", 65, AlignmentType.LEFT),
+            dataCell("", 8),
+            dataCell("", 18),
+            borderedCell("", { width: 74, alignment: AlignmentType.LEFT }),
           ],
         })
       );
     }
   }
 
-  const progressTable = createTable(progressRows);
-
-  const photoImages: Paragraph[] = [];
-  if (report.images && report.images.length > 0) {
-    for (const imgPath of report.images) {
-      try {
-        let fullPath = imgPath;
-        if (imgPath.startsWith("/uploads/")) {
-          fullPath = path.join(process.cwd(), imgPath);
-        }
-        if (fs.existsSync(fullPath)) {
-          const imgData = fs.readFileSync(fullPath);
-          const ext = path.extname(fullPath).toLowerCase();
-          const imgType = ext === ".jpg" || ext === ".jpeg" ? "jpg" : "png";
-          photoImages.push(
-            new Paragraph({
-              alignment: AlignmentType.CENTER,
-              spacing: { before: 120, after: 120 },
-              children: [
-                new ImageRun({
-                  data: imgData,
-                  transformation: { width: 400, height: 300 },
-                  type: imgType,
-                }),
-              ],
-            })
-          );
-        }
-      } catch {}
-    }
-  }
+  const progressTable = new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    layout: TableLayoutType.FIXED,
+    rows: progressRows,
+  });
 
   const createdDate = report.createdAt ? new Date(report.createdAt) : new Date();
   const cYear = createdDate.getFullYear();
   const cMonth = String(createdDate.getMonth() + 1).padStart(2, "0");
   const cDay = String(createdDate.getDate()).padStart(2, "0");
 
-  const sealCellChildren: (TextRun | ImageRun)[] = [];
+  const sealChildren: (TextRun | ImageRun)[] = [];
   if (report.signature) {
     try {
       const base64Data = report.signature.replace(/^data:image\/\w+;base64,/, "");
       const sigBuffer = Buffer.from(base64Data, "base64");
-      sealCellChildren.push(
+      sealChildren.push(
         new ImageRun({
           data: sigBuffer,
-          transformation: { width: 55, height: 55 },
+          transformation: { width: 50, height: 50 },
           type: "png",
           floating: {
             horizontalPosition: {
               relative: HorizontalPositionRelativeFrom.CHARACTER,
-              offset: -250000,
+              offset: -200000,
             },
             verticalPosition: {
               relative: VerticalPositionRelativeFrom.LINE,
-              offset: -350000,
+              offset: -280000,
             },
             allowOverlap: true,
             behindDocument: false,
@@ -277,81 +212,147 @@ export async function generateAccidentDocx(report: AccidentReport): Promise<Buff
       );
     } catch {}
   }
-  sealCellChildren.push(
-    new TextRun({
-      text: "(인)",
-      size: FONT_SIZE,
-      font: FONT,
-    })
-  );
+  sealChildren.push(txt("(인)"));
 
-  const signatureTable = new Table({
-    width: { size: 100, type: WidthType.PERCENTAGE },
-    layout: TableLayoutType.FIXED,
-    rows: [
-      new TableRow({
+  interface PhotoInfo {
+    data: Buffer;
+    type: "jpg" | "png";
+    caption: string;
+  }
+
+  const photos: PhotoInfo[] = [];
+  if (report.images && report.images.length > 0) {
+    for (let i = 0; i < report.images.length; i++) {
+      const imgPath = report.images[i];
+      try {
+        let fullPath = imgPath;
+        if (imgPath.startsWith("/uploads/")) {
+          fullPath = path.join(process.cwd(), imgPath);
+        }
+        if (fs.existsSync(fullPath)) {
+          photos.push({
+            data: fs.readFileSync(fullPath),
+            type: getImageType(fullPath),
+            caption: imageCaptions[i] || `사진 ${i + 1}`,
+          });
+        }
+      } catch {}
+    }
+  }
+
+  function buildPhotoTable(photoList: PhotoInfo[]): Table {
+    const rows: TableRow[] = [];
+
+    for (let i = 0; i < photoList.length; i += 2) {
+      const left = photoList[i];
+      const right = photoList[i + 1];
+
+      const imgRow = new TableRow({
+        height: { value: convertMillimetersToTwip(55), rule: "atLeast" as any },
         children: [
           new TableCell({
-            width: { size: 60, type: WidthType.PERCENTAGE },
-            borders: {
-              top: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-              bottom: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-              left: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-              right: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-            },
-            children: [new Paragraph({ children: [] })],
-          }),
-          new TableCell({
-            width: { size: 30, type: WidthType.PERCENTAGE },
-            borders: {
-              top: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-              bottom: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-              left: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-              right: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-            },
+            width: { size: 50, type: WidthType.PERCENTAGE },
             verticalAlign: VerticalAlign.CENTER,
+            borders: ALL_BORDERS,
             children: [
               new Paragraph({
-                alignment: AlignmentType.RIGHT,
+                alignment: AlignmentType.CENTER,
+                spacing: { before: 60, after: 60 },
                 children: [
-                  new TextRun({
-                    text: `작성자:  ${report.department || ""}   ${report.reporterName || ""}`,
-                    size: FONT_SIZE,
-                    font: FONT,
+                  new ImageRun({
+                    data: left.data,
+                    transformation: { width: 230, height: 170 },
+                    type: left.type,
                   }),
                 ],
               }),
             ],
           }),
           new TableCell({
-            width: { size: 10, type: WidthType.PERCENTAGE },
-            borders: {
-              top: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-              bottom: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-              left: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-              right: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-            },
+            width: { size: 50, type: WidthType.PERCENTAGE },
             verticalAlign: VerticalAlign.CENTER,
+            borders: ALL_BORDERS,
+            children: right
+              ? [
+                  new Paragraph({
+                    alignment: AlignmentType.CENTER,
+                    spacing: { before: 60, after: 60 },
+                    children: [
+                      new ImageRun({
+                        data: right.data,
+                        transformation: { width: 230, height: 170 },
+                        type: right.type,
+                      }),
+                    ],
+                  }),
+                ]
+              : [new Paragraph({ children: [] })],
+          }),
+        ],
+      });
+
+      const captionRow = new TableRow({
+        children: [
+          new TableCell({
+            width: { size: 50, type: WidthType.PERCENTAGE },
+            verticalAlign: VerticalAlign.CENTER,
+            borders: ALL_BORDERS,
+            shading: { fill: "F2F2F2" },
             children: [
               new Paragraph({
                 alignment: AlignmentType.CENTER,
-                children: sealCellChildren,
+                spacing: { before: 30, after: 30 },
+                children: [txt(left.caption, true)],
               }),
             ],
           }),
+          new TableCell({
+            width: { size: 50, type: WidthType.PERCENTAGE },
+            verticalAlign: VerticalAlign.CENTER,
+            borders: ALL_BORDERS,
+            shading: right ? { fill: "F2F2F2" } : undefined,
+            children: right
+              ? [
+                  new Paragraph({
+                    alignment: AlignmentType.CENTER,
+                    spacing: { before: 30, after: 30 },
+                    children: [txt(right.caption, true)],
+                  }),
+                ]
+              : [new Paragraph({ children: [] })],
+          }),
         ],
+      });
+
+      rows.push(imgRow, captionRow);
+    }
+
+    return new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      layout: TableLayoutType.FIXED,
+      rows,
+    });
+  }
+
+  const photoSection: (Paragraph | Table)[] = [];
+  if (photos.length > 0) {
+    photoSection.push(
+      new Paragraph({ children: [], pageBreakBefore: true }),
+      new Paragraph({
+        alignment: AlignmentType.LEFT,
+        spacing: { before: 200, after: 200 },
+        children: [txt("별첨: 사진", true, SECTION_SIZE)],
       }),
-    ],
-  });
+      emptyLine(100),
+      buildPhotoTable(photos),
+    );
+  }
 
   const doc = new Document({
     styles: {
       default: {
         document: {
-          run: {
-            font: FONT,
-            size: FONT_SIZE,
-          },
+          run: { font: FONT, size: FONT_SIZE },
         },
       },
     },
@@ -370,80 +371,54 @@ export async function generateAccidentDocx(report: AccidentReport): Promise<Buff
         children: [
           new Paragraph({
             alignment: AlignmentType.CENTER,
-            spacing: { before: 200, after: 400, line: 276 },
-            children: [
-              new TextRun({
-                text: "사  고  경  위  서",
-                bold: true,
-                size: TITLE_SIZE,
-                font: FONT,
-              }),
-            ],
+            spacing: { before: 400, after: 500 },
+            children: [txt("사 고 경 위 서", true, TITLE_SIZE)],
           }),
 
-          sectionTitle("발생일시"),
           new Paragraph({
-            spacing: { before: 60, after: 120, line: 276 },
-            indent: { left: convertMillimetersToTwip(5) },
+            spacing: { before: 200, after: 160 },
             children: [
-              new TextRun({
-                text: `- ${dateStr}`,
-                size: FONT_SIZE,
-                font: FONT,
-              }),
+              txt("□ 발생일시: ", true, SECTION_SIZE),
+              txt(dateTimeStr, false, FONT_SIZE),
             ],
           }),
 
-          sectionTitle("사고자 인적사항"),
+          sectionLabel("사고자 인적사항"),
           personalInfoTable,
 
-          sectionTitle("경과 및 조치 사항"),
+          sectionLabel("경과 및 조치 사항"),
           progressTable,
 
-          sectionTitle("사고 개요"),
-          ...multiLineParagraphs(report.accidentOverview || report.description || ""),
+          sectionLabel("사고 개요"),
+          ...multiLineContent(report.accidentOverview || report.description || ""),
 
-          sectionTitle("사고원인"),
-          ...multiLineParagraphs(report.causeDetail || report.cause || ""),
+          sectionLabel("사고원인"),
+          ...multiLineContent(report.causeDetail || report.cause || ""),
 
-          sectionTitle("사고방지대책"),
-          ...multiLineParagraphs(report.preventionPlan || ""),
+          sectionLabel("사고방지대책"),
+          ...multiLineContent(report.preventionPlan || ""),
 
-          new Paragraph({ spacing: { before: 600 }, children: [] }),
+          emptyLine(600),
+          emptyLine(200),
 
           new Paragraph({
             alignment: AlignmentType.CENTER,
-            spacing: { before: 200, line: 276 },
+            spacing: { before: 100 },
+            children: [txt(`${cYear} 년 ${cMonth}월 ${cDay}일`)],
+          }),
+
+          emptyLine(200),
+
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            spacing: { before: 100 },
             children: [
-              new TextRun({
-                text: `${cYear} 년   ${cMonth} 월   ${cDay} 일`,
-                size: FONT_SIZE,
-                font: FONT,
-              }),
+              txt(`작성자:  ${report.department || ""} ${report.reporterName || ""} `),
+              ...sealChildren,
             ],
           }),
 
-          new Paragraph({ spacing: { before: 200 }, children: [] }),
-
-          signatureTable,
-
-          ...(photoImages.length > 0
-            ? [
-                new Paragraph({ children: [], pageBreakBefore: true }),
-                new Paragraph({
-                  spacing: { before: 200, after: 200, line: 276 },
-                  children: [
-                    new TextRun({
-                      text: "[ 별첨: 현장 사진 ]",
-                      bold: true,
-                      size: SECTION_SIZE,
-                      font: FONT,
-                    }),
-                  ],
-                }),
-                ...photoImages,
-              ]
-            : []),
+          ...photoSection,
         ],
       },
     ],

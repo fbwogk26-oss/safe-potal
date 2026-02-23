@@ -80,6 +80,7 @@ const emptyForm = {
   preventionPlan: "",
   signature: "",
   images: [] as string[],
+  imageCaptions: [] as string[],
   progressDetails: "[]",
 };
 
@@ -290,6 +291,7 @@ export default function AccidentReports() {
       preventionPlan: report.preventionPlan || "",
       signature: report.signature || "",
       images: report.images || [],
+      imageCaptions: (report as any).imageCaptions ? JSON.parse((report as any).imageCaptions) : (report.images || []).map((_: any, i: number) => `사진 ${i + 1}`),
       progressDetails: report.progressDetails || "[]",
     });
     setShowSignaturePad(false);
@@ -304,6 +306,7 @@ export default function AccidentReports() {
     const submitData = {
       ...form,
       progressDetails: JSON.stringify(progressItems.filter(p => p.time || p.content)),
+      imageCaptions: JSON.stringify(form.imageCaptions),
     };
     if (editingId) {
       updateMutation.mutate({ id: editingId, data: submitData });
@@ -334,7 +337,11 @@ export default function AccidentReports() {
       });
       if (!res.ok) throw new Error("Upload failed");
       const data = await res.json();
-      setForm(prev => ({ ...prev, images: [...prev.images, ...data.imageUrls] }));
+      setForm(prev => ({
+        ...prev,
+        images: [...prev.images, ...data.imageUrls],
+        imageCaptions: [...prev.imageCaptions, ...data.imageUrls.map((_: string, i: number) => `사진 ${prev.images.length + i + 1}`)],
+      }));
       toast({ title: `${data.imageUrls.length}개 사진이 업로드되었습니다.` });
     } catch {
       toast({ variant: "destructive", title: "사진 업로드에 실패했습니다." });
@@ -347,6 +354,14 @@ export default function AccidentReports() {
     setForm(prev => ({
       ...prev,
       images: prev.images.filter((_, i) => i !== index),
+      imageCaptions: prev.imageCaptions.filter((_, i) => i !== index),
+    }));
+  };
+
+  const updateCaption = (index: number, caption: string) => {
+    setForm(prev => ({
+      ...prev,
+      imageCaptions: prev.imageCaptions.map((c, i) => i === index ? caption : c),
     }));
   };
 
@@ -864,10 +879,13 @@ export default function AccidentReports() {
                   className="hidden"
                   onChange={handlePhotoUpload}
                 />
-                <div className="flex flex-wrap gap-2 mb-3">
+                <p className="text-xs text-muted-foreground mb-3">사진은 경위서에 2열 표로 배치됩니다. 각 사진에 설명을 입력해주세요.</p>
+                <div className="grid grid-cols-2 gap-3 mb-3">
                   {form.images.map((url, idx) => (
-                    <div key={idx} className="relative w-24 h-24 rounded-lg overflow-hidden border group">
-                      <img src={url} alt={`사진 ${idx + 1}`} className="w-full h-full object-cover" />
+                    <div key={idx} className="relative border rounded-lg overflow-hidden group">
+                      <div className="aspect-[4/3] bg-muted">
+                        <img src={url} alt={form.imageCaptions[idx] || `사진 ${idx + 1}`} className="w-full h-full object-cover" />
+                      </div>
                       <button
                         type="button"
                         className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
@@ -875,6 +893,13 @@ export default function AccidentReports() {
                       >
                         <X className="w-3 h-3" />
                       </button>
+                      <Input
+                        value={form.imageCaptions[idx] || ""}
+                        onChange={(e) => updateCaption(idx, e.target.value)}
+                        placeholder={`사진 ${idx + 1} 설명`}
+                        className="text-xs h-8 rounded-none border-0 border-t"
+                        data-testid={`input-photo-caption-${idx}`}
+                      />
                     </div>
                   ))}
                 </div>
