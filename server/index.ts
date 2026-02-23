@@ -3,6 +3,7 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { authStorage } from "./replit_integrations/auth/storage";
+import { setupSecurity } from "./security";
 
 const app = express();
 const httpServer = createServer(app);
@@ -13,15 +14,19 @@ declare module "http" {
   }
 }
 
+app.set("trust proxy", 1);
+setupSecurity(app);
+
 app.use(
   express.json({
     verify: (req, _res, buf) => {
       req.rawBody = buf;
     },
+    limit: "10mb",
   }),
 );
 
-app.use(express.urlencoded({ extended: false }));
+app.use(express.urlencoded({ extended: false, limit: "10mb" }));
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {

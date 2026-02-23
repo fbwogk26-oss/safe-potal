@@ -209,6 +209,12 @@ export function Topbar() {
                               사용자 관리
                             </Link>
                           </DropdownMenuItem>
+                          <DropdownMenuItem asChild>
+                            <Link href="/admin/security" className="flex items-center gap-2 cursor-pointer">
+                              <Shield className="w-4 h-4" />
+                              보안 감사 로그
+                            </Link>
+                          </DropdownMenuItem>
                         </>
                       )}
                       <DropdownMenuSeparator />

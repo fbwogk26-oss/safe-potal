@@ -2,10 +2,47 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { Lock, Eye, EyeOff, ShieldAlert } from "lucide-react";
+import { Lock, Eye, EyeOff, ShieldAlert, Check, X } from "lucide-react";
 import { motion } from "framer-motion";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
+
+function PasswordStrength({ password }: { password: string }) {
+  const checks = [
+    { label: "8자 이상", pass: password.length >= 8 },
+    { label: "영문 포함", pass: /[A-Za-z]/.test(password) },
+    { label: "숫자 포함", pass: /[0-9]/.test(password) },
+    { label: "특수문자 포함", pass: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password) },
+  ];
+  const passCount = checks.filter(c => c.pass).length;
+  
+  if (!password) return null;
+  
+  return (
+    <div className="space-y-1.5 mt-2">
+      <div className="flex gap-1">
+        {[0,1,2,3].map(i => (
+          <div key={i} className={`h-1 flex-1 rounded-full transition-colors ${
+            i < passCount 
+              ? passCount <= 1 ? "bg-red-500" 
+              : passCount <= 2 ? "bg-orange-500" 
+              : passCount <= 3 ? "bg-yellow-500" 
+              : "bg-green-500"
+              : "bg-muted"
+          }`} />
+        ))}
+      </div>
+      <div className="grid grid-cols-2 gap-1">
+        {checks.map(({ label, pass }) => (
+          <div key={label} className={`flex items-center gap-1 text-xs ${pass ? "text-green-600" : "text-muted-foreground"}`}>
+            {pass ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
+            {label}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export function ForcePasswordChange() {
   const [newPassword, setNewPassword] = useState("");
@@ -23,8 +60,20 @@ export function ForcePasswordChange() {
       setError("새 비밀번호를 입력해주세요");
       return;
     }
-    if (newPassword.length < 4) {
-      setError("비밀번호는 4자 이상이어야 합니다");
+    if (newPassword.length < 8) {
+      setError("비밀번호는 8자 이상이어야 합니다");
+      return;
+    }
+    if (!/[A-Za-z]/.test(newPassword)) {
+      setError("비밀번호에 영문자가 포함되어야 합니다");
+      return;
+    }
+    if (!/[0-9]/.test(newPassword)) {
+      setError("비밀번호에 숫자가 포함되어야 합니다");
+      return;
+    }
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(newPassword)) {
+      setError("비밀번호에 특수문자가 포함되어야 합니다");
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -116,6 +165,7 @@ export function ForcePasswordChange() {
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </Button>
                 </div>
+                <PasswordStrength password={newPassword} />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium flex items-center gap-2">

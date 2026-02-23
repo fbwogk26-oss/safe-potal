@@ -60,7 +60,17 @@ Preferred communication style: Simple, everyday language.
 - Global lock toggle prevents edits when system is locked
 - Lock status refreshes every 10 seconds on client
 - **Password Management**: mustChangePassword flag forces first-login password change; self-service password change via Topbar menu; admin can reset user passwords (sets mustChangePassword=true)
+- **Password Strength**: Minimum 8 chars, must include letters + numbers + special characters; visual strength indicator on password change forms
 - Password change APIs: /api/auth/change-password, /api/auth/force-change-password, /api/auth/admin-reset-password
+
+### Security Features (server/security.ts)
+- **Helmet**: Security headers (CSP, HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy)
+- **Rate Limiting**: Global API (500/15min), Login (10/15min, skip successful), Upload (30/15min) via express-rate-limit
+- **Brute Force Protection**: 5 failed login attempts locks account for 15 minutes; admin can unlock via /api/auth/unlock-user
+- **Session Security**: Auto-generated session secret (crypto.randomBytes), session regeneration on login, 24h TTL (reduced from 7 days), custom cookie name (__sb_sid)
+- **Security Audit Logs**: All login/logout/password events logged with IP, user agent, timestamp to `security_logs` table; admin viewer at /admin/security
+- **Input Sanitization**: Username trimming/length limit, request body size limits (10MB)
+- **Tables**: `security_logs` (eventType, userId, username, ipAddress, userAgent, details, success, createdAt); users table has `failedLoginAttempts`, `lockedUntil`, `lastLoginAt` columns
 
 ### File Structure
 ```

@@ -346,6 +346,8 @@ export async function registerRoutes(
         role: u.role,
         permissions: u.permissions,
         createdAt: u.createdAt,
+        failedLoginAttempts: u.failedLoginAttempts || 0,
+        lockedUntil: u.lockedUntil,
       })));
     } catch (error) {
       res.status(500).json({ message: "사용자 목록을 불러올 수 없습니다" });

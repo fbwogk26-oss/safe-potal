@@ -16,7 +16,9 @@ import {
   BookOpen,
   DoorOpen,
   MonitorPlay,
-  ChevronDown
+  ChevronDown,
+  Users,
+  ScrollText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -73,6 +75,14 @@ const NAV_ITEMS: NavEntry[] = [
     ],
   },
   { label: "출입신청", href: "/access", icon: DoorOpen },
+  {
+    label: "시스템 관리",
+    icon: Shield,
+    children: [
+      { label: "사용자 관리", href: "/admin/users", icon: Users },
+      { label: "보안 감사 로그", href: "/admin/security", icon: ScrollText },
+    ],
+  },
 ];
 
 export function Sidebar() {

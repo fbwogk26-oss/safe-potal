@@ -19,6 +19,7 @@ import DigitalBoard from "@/pages/DigitalBoard";
 import SafetyInspections from "@/pages/SafetyInspections";
 import VehicleLogs from "@/pages/VehicleLogs";
 import AdminUsers from "@/pages/AdminUsers";
+import SecurityLogs from "@/pages/SecurityLogs";
 import MsdsSearch from "@/pages/MsdsSearch";
 import RiskAssessment from "@/pages/RiskAssessment";
 import AccidentReports from "@/pages/AccidentReports";
@@ -58,6 +59,7 @@ function MainLayout() {
             <Route path="/accidents" component={AccidentReports} />
             <Route path="/digital-board" component={DigitalBoard} />
             <Route path="/admin/users" component={AdminUsers} />
+            <Route path="/admin/security" component={SecurityLogs} />
             <Route component={NotFound} />
           </Switch>
         </div>

@@ -84,6 +84,18 @@ class AuthStorage implements IAuthStorage {
     return userCount;
   }
 
+  async updateLoginAttempts(id: string, data: { failedLoginAttempts?: number; lockedUntil?: Date | null; lastLoginAt?: Date }): Promise<void> {
+    const updateData: any = {};
+    if (data.failedLoginAttempts !== undefined) updateData.failedLoginAttempts = data.failedLoginAttempts;
+    if (data.lockedUntil !== undefined) updateData.lockedUntil = data.lockedUntil;
+    if (data.lastLoginAt !== undefined) updateData.lastLoginAt = data.lastLoginAt;
+    await db.update(users).set(updateData).where(eq(users.id, id));
+  }
+
+  async unlockUser(id: string): Promise<void> {
+    await db.update(users).set({ failedLoginAttempts: 0, lockedUntil: null }).where(eq(users.id, id));
+  }
+
   async initializeDefaultAdmin(): Promise<void> {
     try {
       const adminExists = await this.getUserByUsername("admin");

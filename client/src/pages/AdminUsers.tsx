@@ -30,7 +30,9 @@ import {
   Save,
   KeyRound,
   Copy,
-  AlertTriangle
+  AlertTriangle,
+  Unlock,
+  Lock
 } from "lucide-react";
 import { Link } from "wouter";
 import {
@@ -61,6 +63,8 @@ interface UserData {
   role: string;
   permissions: UserPermissions;
   createdAt: string | null;
+  failedLoginAttempts?: number;
+  lockedUntil?: string | null;
 }
 
 interface RolePresets {
@@ -127,6 +131,19 @@ export default function AdminUsers() {
     },
     onError: () => {
       toast({ variant: "destructive", title: "사용자 삭제에 실패했습니다." });
+    },
+  });
+
+  const unlockUserMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      return apiRequest("POST", "/api/auth/unlock-user", { userId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      toast({ title: "계정 잠금이 해제되었습니다." });
+    },
+    onError: () => {
+      toast({ variant: "destructive", title: "계정 잠금 해제에 실패했습니다." });
     },
   });
 
@@ -271,6 +288,12 @@ export default function AdminUsers() {
                         <Badge variant={getRoleVariant(user.role)}>
                           {getRoleLabel(user.role)}
                         </Badge>
+                        {user.lockedUntil && new Date(user.lockedUntil) > new Date() && (
+                          <Badge variant="destructive" className="gap-1 text-xs">
+                            <Lock className="w-3 h-3" />
+                            잠김
+                          </Badge>
+                        )}
                         {!isCurrentUser && (
                           <>
                             <Select
@@ -303,6 +326,19 @@ export default function AdminUsers() {
                               </Button>
                             )}
                             <ResetPasswordDialog user={user} />
+                            {user.lockedUntil && new Date(user.lockedUntil) > new Date() && (
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                className="h-8 w-8 text-orange-600 border-orange-300 hover:bg-orange-50"
+                                onClick={() => unlockUserMutation.mutate(user.id)}
+                                disabled={unlockUserMutation.isPending}
+                                title="계정 잠금 해제"
+                                data-testid={`button-unlock-${user.id}`}
+                              >
+                                <Unlock className="w-3.5 h-3.5" />
+                              </Button>
+                            )}
                             <Button
                               variant="ghost"
                               size="icon"

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, index, jsonb, pgTable, timestamp, varchar } from "drizzle-orm/pg-core";
+import { boolean, index, integer, jsonb, pgTable, timestamp, varchar } from "drizzle-orm/pg-core";
 
 // Session storage table for custom auth
 export const sessions = pgTable(
@@ -73,9 +73,26 @@ export const users = pgTable("users", {
   role: varchar("role").notNull().default("user"),
   permissions: jsonb("permissions").$type<UserPermissions>().notNull().default(DEFAULT_PERMISSIONS),
   mustChangePassword: boolean("must_change_password").notNull().default(true),
+  failedLoginAttempts: integer("failed_login_attempts").notNull().default(0),
+  lockedUntil: timestamp("locked_until"),
+  lastLoginAt: timestamp("last_login_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
+
+export const securityLogs = pgTable("security_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  eventType: varchar("event_type").notNull(),
+  userId: varchar("user_id"),
+  username: varchar("username"),
+  ipAddress: varchar("ip_address"),
+  userAgent: varchar("user_agent"),
+  details: varchar("details"),
+  success: boolean("success").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type SecurityLog = typeof securityLogs.$inferSelect;
