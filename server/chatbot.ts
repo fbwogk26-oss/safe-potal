@@ -146,6 +146,24 @@ const ACTION_FIELDS: Record<string, { label: string; permKey: keyof UserPermissi
       { key: "insuranceExpiry", label: "보험만료일", question: "📅 보험만료일을 알려주세요.\n\n예: 2029-06-30", required: false },
     ],
   },
+  CREATE_ACCESS: {
+    label: "출입신청",
+    permKey: "manageAccessRequests",
+    fields: [
+      { key: "visitPurpose", label: "방문목적", question: "🚪 방문목적을 알려주세요.\n\n예: 시설점검, 주간업무회의 등", required: true, askAlways: true },
+      { key: "entranceLocation", label: "출입장소", question: "📍 출입장소를 알려주세요.\n\n예: 효목사옥, 포항국소 등", required: true, askAlways: true },
+      { key: "visitPeriodStartDate", label: "방문시작일", question: "📅 방문 시작 날짜를 알려주세요.\n\n예: 2025-03-15 또는 '오늘'", required: true, askAlways: true, autoFill: (_u, today) => today },
+      { key: "visitPeriodStartTime", label: "방문시작시간", question: "🕐 방문 시작 시간을 알려주세요.\n\n예: 09:00", required: true, autoFill: () => "09:00" },
+      { key: "visitPeriodEndDate", label: "방문종료일", question: "📅 방문 종료 날짜를 알려주세요.\n\n예: 2025-03-15 또는 '오늘'", required: true, askAlways: true, autoFill: (_u, today) => today },
+      { key: "visitPeriodEndTime", label: "방문종료시간", question: "🕐 방문 종료 시간을 알려주세요.\n\n예: 18:00", required: true, autoFill: () => "18:00" },
+      { key: "supervisorDepartment", label: "입회부서", question: `🏢 입회부서를 알려주세요.\n\n부서 목록:\n${ALL_DEPARTMENTS.join(", ")}`, required: true, askAlways: true, autoFill: (u) => u.department },
+      { key: "supervisorName", label: "입회자", question: "👤 입회자 이름을 알려주세요.", required: true, autoFill: (u) => u.name || u.username },
+      { key: "supervisorPhone", label: "입회자연락처", question: "📞 입회자 연락처를 알려주세요.\n\n예: 010-1234-5678", required: true, askAlways: true },
+      { key: "applicantName", label: "방문자 이름", question: "👤 방문자 이름을 알려주세요.", required: true, askAlways: true },
+      { key: "applicantDepartment", label: "방문자 소속", question: "🏢 방문자 소속을 알려주세요.\n\n예: 협력사, 외부업체 등", required: true, askAlways: true },
+      { key: "applicantPhone", label: "방문자 연락처", question: "📞 방문자 연락처를 알려주세요.\n\n예: 010-9876-5432", required: true, askAlways: true },
+    ],
+  },
 };
 
 const SYSTEM_PROMPT = `당신은 kt MOS남부 종합안전포털시스템의 AI 어시스턴트입니다.
@@ -167,6 +185,8 @@ const SYSTEM_PROMPT = `당신은 kt MOS남부 종합안전포털시스템의 AI 
 13. MODIFY_PENDING - 확인 대기 중인 등록 내용 수정
 14. FILL_FIELD - 정보 수집 중 필드 값 제공
 15. GENERAL_QUERY - 일반 질의응답
+16. CREATE_ACCESS - 출입신청 등록
+17. QUERY_ACCESS - 출입신청 조회
 
 중요 규칙:
 - 반드시 JSON 형식으로만 응답하세요.
@@ -204,6 +224,7 @@ CREATE_INSPECTION: { "inspectionType"("안전점검"|"동행점검"), "departmen
 CREATE_VEHICLE_LOG: { "plateNumber"(차량번호), "logDate", "driver", "departureLocation", "arrivalLocation", "purpose", "departureTime", "arrivalTime", "beforeMileage"(숫자), "afterMileage"(숫자), "notes" }
 CREATE_VEHICLE: { "plateNumber", "vehicleType"("승용차"|"화물차"|"승합차"), "model", "team", "driver", "secondDriver", "purchaseDate", "insuranceExpiry" }
 CREATE_NOTICE: { "category"("notice"|"rule"), "title", "content" }
+CREATE_ACCESS: { "visitPurpose", "entranceLocation", "visitPeriodStartDate", "visitPeriodStartTime", "visitPeriodEndDate", "visitPeriodEndTime", "supervisorDepartment", "supervisorName", "supervisorPhone", "applicantName", "applicantDepartment", "applicantPhone" }
 QUERY 액션: data에 검색 조건 포함 가능 (department, team 등)
 
 - 부서가 명시되지 않으면 사용자의 부서를 기본값으로 사용하세요.
@@ -299,6 +320,26 @@ function detectModifyIntent(message: string): Record<string, any> | null {
     modifications.content = contentMatch[1].trim();
   }
 
+  const visitPurposeMatch = msg.match(/(?:방문목적|목적)\s*(?:을|를)?\s*(.+?)(?:으로|로)/);
+  if (visitPurposeMatch) {
+    modifications.visitPurpose = visitPurposeMatch[1].trim();
+  }
+
+  const entranceLocationMatch = msg.match(/(?:출입장소|방문장소)\s*(?:을|를)?\s*(.+?)(?:으로|로)/);
+  if (entranceLocationMatch) {
+    modifications.entranceLocation = entranceLocationMatch[1].trim();
+  }
+
+  const supervisorNameMatch = msg.match(/(?:입회자)\s*(?:을|를)?\s*(.+?)(?:으로|로)/);
+  if (supervisorNameMatch) {
+    modifications.supervisorName = supervisorNameMatch[1].trim();
+  }
+
+  const applicantNameMatch = msg.match(/(?:방문자|신청자)\s*(?:을|를)?\s*(.+?)(?:으로|로)/);
+  if (applicantNameMatch) {
+    modifications.applicantName = applicantNameMatch[1].trim();
+  }
+
   const categoryMatch = msg.match(/(?:유형|카테고리)\s*(?:을|를)?\s*(공지사항|공지|규정)(?:으로|로)?/);
   if (categoryMatch) {
     const cat = categoryMatch[1].trim();
@@ -329,6 +370,8 @@ function detectIntentFromKeywords(message: string): string | null {
   if ((msg.includes("운행") || msg.includes("주행") || msg.includes("출발")) && (msg.includes("등록") || msg.includes("작성") || msg.includes("올려") || msg.includes("했") || msg.includes("해줘") || msg.includes("기록"))) return "CREATE_VEHICLE_LOG";
   if ((msg.includes("공지") || msg.includes("규정")) && (msg.includes("등록") || msg.includes("작성") || msg.includes("올려") || msg.includes("해줘"))) return "CREATE_NOTICE";
   if (msg.includes("차량") && (msg.includes("등록") || msg.includes("추가"))) return "CREATE_VEHICLE";
+  if (msg.includes("출입") && (msg.includes("현황") || msg.includes("조회") || msg.includes("목록") || msg.includes("확인"))) return "QUERY_ACCESS";
+  if (msg.includes("출입") && (msg.includes("신청") || msg.includes("등록") || msg.includes("해줘") || msg.includes("작성"))) return "CREATE_ACCESS";
   if ((msg.includes("안전용품") || msg.includes("보호구")) && (msg.includes("신청") || msg.includes("요청"))) return "QUERY_EQUIPMENT";
   if (msg.includes("공지") || msg.includes("규정") || msg.includes("안전수칙")) return "QUERY_NOTICE";
   return null;
@@ -498,6 +541,23 @@ function buildConfirmationMessage(action: string, data: any): string {
       `✏️ 수정이 필요하면 댓글로 말씀해주세요!\n` +
       `확인되면 "등록" 또는 [등록하기] 버튼을 눌러주세요.`;
   }
+  if (action === "CREATE_ACCESS") {
+    return `📋 다음 내용으로 출입신청을 등록할까요?\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n` +
+      `🚪 방문목적: ${data.visitPurpose || "미정"}\n` +
+      `📍 출입장소: ${data.entranceLocation || "미정"}\n` +
+      `📅 방문시작: ${data.visitPeriodStartDate || "미정"} ${data.visitPeriodStartTime || "09:00"}\n` +
+      `📅 방문종료: ${data.visitPeriodEndDate || "미정"} ${data.visitPeriodEndTime || "18:00"}\n` +
+      `🏢 입회부서: ${data.supervisorDepartment || "미정"}\n` +
+      `👤 입회자: ${data.supervisorName || "미정"}\n` +
+      `📞 입회자연락처: ${data.supervisorPhone || "미정"}\n` +
+      `👤 방문자: ${data.applicantName || "미정"}\n` +
+      `🏢 방문자소속: ${data.applicantDepartment || "미정"}\n` +
+      `📞 방문자연락처: ${data.applicantPhone || "미정"}\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `✏️ 수정이 필요하면 댓글로 말씀해주세요!\n` +
+      `확인되면 "등록" 또는 [등록하기] 버튼을 눌러주세요.`;
+  }
   return "";
 }
 
@@ -632,6 +692,35 @@ async function executeVehicleCreate(data: any, user: any) {
   };
 }
 
+async function executeAccessCreate(data: any, user: any, today: string) {
+  const accessFormData = {
+    visitPeriodStartDate: data.visitPeriodStartDate || today,
+    visitPeriodStartTime: data.visitPeriodStartTime || "09:00",
+    visitPeriodEndDate: data.visitPeriodEndDate || today,
+    visitPeriodEndTime: data.visitPeriodEndTime || "18:00",
+    visitPurpose: data.visitPurpose || "방문",
+    entranceLocation: data.entranceLocation || "",
+    supervisorDepartment: data.supervisorDepartment || user.department || "",
+    supervisorName: data.supervisorName || user.name || user.username || "",
+    supervisorPhone: data.supervisorPhone || "",
+    people: [{
+      department: data.applicantDepartment || "",
+      applicantName: data.applicantName || "",
+      idNumber: data.applicantIdNumber || "",
+      phone: data.applicantPhone || "",
+      hasVehicle: data.applicantHasVehicle || "없음",
+      vehicleNumber: data.applicantVehicleNumber || "",
+    }],
+  };
+  const title = `${accessFormData.visitPurpose} (${accessFormData.people.length}명)`;
+  const content = JSON.stringify(accessFormData);
+  const created = await storage.createNotice({ title, content, category: "access" });
+  return {
+    actionResult: { success: true, type: "access_created", accessId: created.id, data: accessFormData },
+    message: `✅ 출입신청이 등록되었습니다!\n\n🚪 방문목적: ${accessFormData.visitPurpose}\n📍 출입장소: ${accessFormData.entranceLocation}\n📅 방문기간: ${accessFormData.visitPeriodStartDate} ${accessFormData.visitPeriodStartTime} ~ ${accessFormData.visitPeriodEndDate} ${accessFormData.visitPeriodEndTime}\n🏢 입회부서: ${accessFormData.supervisorDepartment}\n👤 입회자: ${accessFormData.supervisorName}\n👤 방문자: ${accessFormData.people[0].applicantName} (${accessFormData.people[0].department})`,
+  };
+}
+
 export function registerChatbotRoutes(app: Express): void {
   app.post(
     "/api/chatbot/message",
@@ -694,6 +783,9 @@ export function registerChatbotRoutes(app: Express): void {
               } else if (parsedPendingAction === "CREATE_VEHICLE") {
                 if (!hasPermission(user, "editVehicles")) return res.json({ message: "차량 등록 권한이 없습니다.", action: "PERMISSION_DENIED", actionResult: null, needsConfirmation: false, confirmData: null, uploadedImages: existingImages });
                 result = await executeVehicleCreate(parsedPendingData, user);
+              } else if (parsedPendingAction === "CREATE_ACCESS") {
+                if (!hasPermission(user, "manageAccessRequests")) return res.json({ message: "출입신청 등록 권한이 없습니다.", action: "PERMISSION_DENIED", actionResult: null, needsConfirmation: false, confirmData: null, uploadedImages: existingImages });
+                result = await executeAccessCreate(parsedPendingData, user, today);
               }
               if (result) {
                 return res.json({
@@ -1056,7 +1148,7 @@ export function registerChatbotRoutes(app: Express): void {
             parsed = { action: detectedIntent, data: parsed?.data || {} };
           } else {
             return res.json({
-              message: "요청을 이해하지 못했습니다. 다음과 같은 요청을 해보세요:\n\n📚 \"교육 등록해줘\" / \"교육 현황 알려줘\"\n🔍 \"안전점검 등록\" / \"점검 현황 조회\"\n🚗 \"운행일지 작성\" / \"운행기록 조회\"\n📢 \"공지사항 등록\" / \"공지 조회\"\n🚙 \"차량 등록\" / \"차량 정보 조회\"\n🛡️ \"안전용품 현황 알려줘\"\n📊 \"팀 안전점수 조회\"",
+              message: "요청을 이해하지 못했습니다. 다음과 같은 요청을 해보세요:\n\n📚 \"교육 등록해줘\" / \"교육 현황 알려줘\"\n🔍 \"안전점검 등록\" / \"점검 현황 조회\"\n🚗 \"운행일지 작성\" / \"운행기록 조회\"\n📢 \"공지사항 등록\" / \"공지 조회\"\n🚙 \"차량 등록\" / \"차량 정보 조회\"\n🛡️ \"안전용품 현황 알려줘\"\n📊 \"팀 안전점수 조회\"\n🚪 \"출입신청 등록\" / \"출입신청 조회\"",
               action: "GENERAL_QUERY", actionResult: null, needsConfirmation: false, confirmData: null, uploadedImages,
             });
           }
@@ -1237,6 +1329,26 @@ export function registerChatbotRoutes(app: Express): void {
           }
         }
 
+        if (action === "QUERY_ACCESS") {
+          try {
+            const accessList = await storage.getNotices("access");
+            const recent = accessList.slice(0, 10);
+            const summary = recent.map((n: any) => {
+              let detail = "";
+              try {
+                const parsed = JSON.parse(n.content);
+                detail = `${parsed.visitPurpose} | ${parsed.entranceLocation || ""} | ${parsed.visitPeriodStartDate || ""}`;
+              } catch {
+                detail = n.title;
+              }
+              return `• ${detail}`;
+            }).join("\n");
+            return res.json({ message: recent.length > 0 ? `🚪 최근 출입신청 현황 (총 ${accessList.length}건):\n\n${summary}` : "등록된 출입신청이 없습니다.", action, actionResult: { success: true, type: "access_query", count: accessList.length }, needsConfirmation: false, confirmData: null, uploadedImages });
+          } catch {
+            return res.json({ message: "출입신청 조회 중 오류가 발생했습니다.", action, actionResult: null, needsConfirmation: false, confirmData: null, uploadedImages });
+          }
+        }
+
         return res.json({
           message: parsed.message || "요청을 처리했습니다.",
           action: parsed.action || "GENERAL_QUERY",
@@ -1288,6 +1400,12 @@ export function registerChatbotRoutes(app: Express): void {
         if (!hasPermission(user, "editVehicles")) return res.status(403).json({ error: "차량 등록 권한이 없습니다" });
         const result = await executeVehicleCreate(data, user);
         return res.json({ success: true, message: result.message, vehicleId: result.actionResult.vehicleId });
+      }
+
+      if (action === "CREATE_ACCESS") {
+        if (!hasPermission(user, "manageAccessRequests")) return res.status(403).json({ error: "출입신청 등록 권한이 없습니다" });
+        const result = await executeAccessCreate(data, user, today);
+        return res.json({ success: true, message: result.message, accessId: result.actionResult.accessId });
       }
 
       res.status(400).json({ error: "지원하지 않는 액션입니다" });

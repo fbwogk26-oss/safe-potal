@@ -9,7 +9,10 @@ import {
   MonitorPlay,
   ClipboardCheck,
   BookOpen,
-  FileText
+  FileText,
+  FlaskConical,
+  ShieldAlert,
+  AlertTriangle
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -21,6 +24,9 @@ const NAV_ITEMS = [
   { label: "교육일지", href: "/education-logs", icon: FileText },
   { label: "안전점검", href: "/inspections", icon: ClipboardCheck },
   { label: "차량운행일지", href: "/vehicle-logs", icon: BookOpen },
+  { label: "MSDS 검색", href: "/msds", icon: FlaskConical },
+  { label: "위험성평가", href: "/risk-assessment", icon: ShieldAlert },
+  { label: "사고보고/통계", href: "/accidents", icon: AlertTriangle },
   { label: "안전용품 신청", href: "/equipment", icon: ShoppingCart },
   { label: "출입신청", href: "/access", icon: DoorOpen },
   { label: "전자게시판", href: "/digital-board", icon: MonitorPlay },

@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { HardHat, ShoppingCart, ArrowRight, FileText, Plus, Trash2, ImagePlus, X, Upload, Download, FileSpreadsheet } from "lucide-react";
+import { HardHat, ShoppingCart, ArrowRight, FileText, Plus, Trash2, ImagePlus, X, Upload, Download, FileSpreadsheet, PackagePlus } from "lucide-react";
 import { Link } from "wouter";
 import { useNotices, useCreateNotice, useDeleteNotice } from "@/hooks/use-notices";
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,15 @@ const SUBMENU_ITEMS = [
     bgColor: "bg-purple-100 dark:bg-purple-900/30",
     iconColor: "text-purple-600 dark:text-purple-400",
     borderColor: "border-purple-200 dark:border-purple-900/30 hover:border-purple-400"
+  },
+  {
+    title: "신규 상품요청",
+    description: "새로운 안전용품을 요청합니다.",
+    icon: PackagePlus,
+    href: "/equipment/new-request",
+    bgColor: "bg-blue-100 dark:bg-blue-900/30",
+    iconColor: "text-blue-600 dark:text-blue-400",
+    borderColor: "border-blue-200 dark:border-blue-900/30 hover:border-blue-400"
   }
 ];
 
@@ -140,7 +149,7 @@ export default function SafetyEquipment({ embedded = false }: SafetyEquipmentPro
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-3 sm:gap-4 md:gap-6">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:gap-6">
         {SUBMENU_ITEMS.map((item) => (
           <Link key={item.href} href={item.href}>
             <Card className={`group cursor-pointer hover:shadow-lg transition-all duration-300 ${item.borderColor}`} data-testid={`card-submenu-${item.href.split('/').pop()}`}>

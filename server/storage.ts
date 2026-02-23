@@ -3,6 +3,7 @@ import {
   teams, notices, settings, vehicles, safetyEquipment, safetyInspections, vehicleLogs,
   educationSessions, educationSignatures,
   users,
+  chemicals, riskAssessments, accidentReports, newEquipmentRequests,
   type Team, type InsertTeam, type UpdateTeamRequest,
   type Notice, type InsertNotice,
   type Setting,
@@ -12,9 +13,13 @@ import {
   type VehicleLog, type InsertVehicleLog,
   type EducationSession, type InsertEducationSession,
   type EducationSignature, type InsertEducationSignature,
-  type User
+  type User,
+  type Chemical, type InsertChemical,
+  type RiskAssessment, type InsertRiskAssessment,
+  type AccidentReport, type InsertAccidentReport,
+  type NewEquipmentRequest, type InsertNewEquipmentRequest,
 } from "@shared/schema";
-import { eq, desc, asc, and } from "drizzle-orm";
+import { eq, desc, asc, and, ilike, or } from "drizzle-orm";
 
 export interface IStorage {
   // Teams
@@ -75,6 +80,35 @@ export interface IStorage {
   // Users
   getAllUsers(): Promise<User[]>;
   updateUserRole(id: string, role: string): Promise<User>;
+
+  // Chemicals (MSDS)
+  getChemicals(): Promise<Chemical[]>;
+  searchChemicals(query: string): Promise<Chemical[]>;
+  getChemical(id: number): Promise<Chemical | undefined>;
+  createChemical(chemical: InsertChemical): Promise<Chemical>;
+  updateChemical(id: number, updates: Partial<InsertChemical>): Promise<Chemical>;
+  deleteChemical(id: number): Promise<void>;
+
+  // Risk Assessments
+  getRiskAssessments(assessmentType?: string): Promise<RiskAssessment[]>;
+  getRiskAssessment(id: number): Promise<RiskAssessment | undefined>;
+  createRiskAssessment(assessment: InsertRiskAssessment): Promise<RiskAssessment>;
+  updateRiskAssessment(id: number, updates: Partial<InsertRiskAssessment>): Promise<RiskAssessment>;
+  deleteRiskAssessment(id: number): Promise<void>;
+
+  // Accident Reports
+  getAccidentReports(): Promise<AccidentReport[]>;
+  getAccidentReport(id: number): Promise<AccidentReport | undefined>;
+  createAccidentReport(report: InsertAccidentReport): Promise<AccidentReport>;
+  updateAccidentReport(id: number, updates: Partial<InsertAccidentReport>): Promise<AccidentReport>;
+  deleteAccidentReport(id: number): Promise<void>;
+
+  // New Equipment Requests
+  getNewEquipmentRequests(): Promise<NewEquipmentRequest[]>;
+  getNewEquipmentRequest(id: number): Promise<NewEquipmentRequest | undefined>;
+  createNewEquipmentRequest(request: InsertNewEquipmentRequest): Promise<NewEquipmentRequest>;
+  updateNewEquipmentRequest(id: number, updates: Partial<InsertNewEquipmentRequest>): Promise<NewEquipmentRequest>;
+  deleteNewEquipmentRequest(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -286,6 +320,114 @@ export class DatabaseStorage implements IStorage {
   async updateUserRole(id: string, role: string): Promise<User> {
     const [user] = await db.update(users).set({ role, updatedAt: new Date() }).where(eq(users.id, id)).returning();
     return user;
+  }
+
+  // === CHEMICALS (MSDS) ===
+  async getChemicals(): Promise<Chemical[]> {
+    return await db.select().from(chemicals).orderBy(asc(chemicals.name));
+  }
+
+  async searchChemicals(query: string): Promise<Chemical[]> {
+    const pattern = `%${query}%`;
+    return await db.select().from(chemicals).where(
+      or(ilike(chemicals.name, pattern), ilike(chemicals.casNumber, pattern))
+    ).orderBy(asc(chemicals.name));
+  }
+
+  async getChemical(id: number): Promise<Chemical | undefined> {
+    const [c] = await db.select().from(chemicals).where(eq(chemicals.id, id));
+    return c;
+  }
+
+  async createChemical(chemical: InsertChemical): Promise<Chemical> {
+    const [created] = await db.insert(chemicals).values(chemical).returning();
+    return created;
+  }
+
+  async updateChemical(id: number, updates: Partial<InsertChemical>): Promise<Chemical> {
+    const [updated] = await db.update(chemicals).set(updates).where(eq(chemicals.id, id)).returning();
+    return updated;
+  }
+
+  async deleteChemical(id: number): Promise<void> {
+    await db.delete(chemicals).where(eq(chemicals.id, id));
+  }
+
+  // === RISK ASSESSMENTS ===
+  async getRiskAssessments(assessmentType?: string): Promise<RiskAssessment[]> {
+    if (assessmentType) {
+      return await db.select().from(riskAssessments)
+        .where(eq(riskAssessments.assessmentType, assessmentType))
+        .orderBy(desc(riskAssessments.createdAt));
+    }
+    return await db.select().from(riskAssessments).orderBy(desc(riskAssessments.createdAt));
+  }
+
+  async getRiskAssessment(id: number): Promise<RiskAssessment | undefined> {
+    const [r] = await db.select().from(riskAssessments).where(eq(riskAssessments.id, id));
+    return r;
+  }
+
+  async createRiskAssessment(assessment: InsertRiskAssessment): Promise<RiskAssessment> {
+    const [created] = await db.insert(riskAssessments).values(assessment).returning();
+    return created;
+  }
+
+  async updateRiskAssessment(id: number, updates: Partial<InsertRiskAssessment>): Promise<RiskAssessment> {
+    const [updated] = await db.update(riskAssessments).set(updates).where(eq(riskAssessments.id, id)).returning();
+    return updated;
+  }
+
+  async deleteRiskAssessment(id: number): Promise<void> {
+    await db.delete(riskAssessments).where(eq(riskAssessments.id, id));
+  }
+
+  // === ACCIDENT REPORTS ===
+  async getAccidentReports(): Promise<AccidentReport[]> {
+    return await db.select().from(accidentReports).orderBy(desc(accidentReports.createdAt));
+  }
+
+  async getAccidentReport(id: number): Promise<AccidentReport | undefined> {
+    const [r] = await db.select().from(accidentReports).where(eq(accidentReports.id, id));
+    return r;
+  }
+
+  async createAccidentReport(report: InsertAccidentReport): Promise<AccidentReport> {
+    const [created] = await db.insert(accidentReports).values(report).returning();
+    return created;
+  }
+
+  async updateAccidentReport(id: number, updates: Partial<InsertAccidentReport>): Promise<AccidentReport> {
+    const [updated] = await db.update(accidentReports).set(updates).where(eq(accidentReports.id, id)).returning();
+    return updated;
+  }
+
+  async deleteAccidentReport(id: number): Promise<void> {
+    await db.delete(accidentReports).where(eq(accidentReports.id, id));
+  }
+
+  // === NEW EQUIPMENT REQUESTS ===
+  async getNewEquipmentRequests(): Promise<NewEquipmentRequest[]> {
+    return await db.select().from(newEquipmentRequests).orderBy(desc(newEquipmentRequests.createdAt));
+  }
+
+  async getNewEquipmentRequest(id: number): Promise<NewEquipmentRequest | undefined> {
+    const [r] = await db.select().from(newEquipmentRequests).where(eq(newEquipmentRequests.id, id));
+    return r;
+  }
+
+  async createNewEquipmentRequest(request: InsertNewEquipmentRequest): Promise<NewEquipmentRequest> {
+    const [created] = await db.insert(newEquipmentRequests).values(request).returning();
+    return created;
+  }
+
+  async updateNewEquipmentRequest(id: number, updates: Partial<InsertNewEquipmentRequest>): Promise<NewEquipmentRequest> {
+    const [updated] = await db.update(newEquipmentRequests).set(updates).where(eq(newEquipmentRequests.id, id)).returning();
+    return updated;
+  }
+
+  async deleteNewEquipmentRequest(id: number): Promise<void> {
+    await db.delete(newEquipmentRequests).where(eq(newEquipmentRequests.id, id));
   }
 }
 

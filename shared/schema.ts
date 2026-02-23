@@ -206,6 +206,96 @@ export type InsertEducationSession = z.infer<typeof insertEducationSessionSchema
 export type EducationSignature = typeof educationSignatures.$inferSelect;
 export type InsertEducationSignature = z.infer<typeof insertEducationSignatureSchema>;
 
+// === MSDS (물질안전보건자료) ===
+export const chemicals = pgTable("chemicals", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  casNumber: text("cas_number"),
+  category: text("category"),
+  hazards: text("hazards"),
+  emergencyProcedures: text("emergency_procedures"),
+  handlingPrecautions: text("handling_precautions"),
+  storageRequirements: text("storage_requirements"),
+  ppe: text("ppe"),
+  firstAid: text("first_aid"),
+  notes: text("notes"),
+  createdBy: text("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertChemicalSchema = createInsertSchema(chemicals).omit({ id: true, createdAt: true });
+export type Chemical = typeof chemicals.$inferSelect;
+export type InsertChemical = z.infer<typeof insertChemicalSchema>;
+
+// === 위험성평가 (Risk Assessment - KRAS) ===
+export const riskAssessments = pgTable("risk_assessments", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  assessmentType: text("assessment_type").notNull(),
+  department: text("department").notNull(),
+  process: text("process"),
+  hazard: text("hazard").notNull(),
+  hazardType: text("hazard_type"),
+  currentControls: text("current_controls"),
+  frequency: integer("frequency").notNull().default(1),
+  severity: integer("severity").notNull().default(1),
+  riskScore: integer("risk_score").notNull().default(1),
+  riskLevel: text("risk_level").notNull().default("저"),
+  controlMeasures: text("control_measures"),
+  assessor: text("assessor"),
+  assessmentDate: text("assessment_date").notNull(),
+  status: text("status").notNull().default("진행중"),
+  createdBy: text("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertRiskAssessmentSchema = createInsertSchema(riskAssessments).omit({ id: true, createdAt: true });
+export type RiskAssessment = typeof riskAssessments.$inferSelect;
+export type InsertRiskAssessment = z.infer<typeof insertRiskAssessmentSchema>;
+
+// === 사고보고 (Accident Reports) ===
+export const accidentReports = pgTable("accident_reports", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  occurredAt: text("occurred_at").notNull(),
+  accidentType: text("accident_type").notNull(),
+  cause: text("cause").notNull(),
+  severity: text("severity").notNull(),
+  department: text("department").notNull(),
+  location: text("location"),
+  description: text("description").notNull(),
+  injuredPerson: text("injured_person"),
+  correctiveActions: text("corrective_actions"),
+  preventiveMeasures: text("preventive_measures"),
+  status: text("status").notNull().default("접수"),
+  images: text("images").array().notNull().default([]),
+  createdBy: text("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertAccidentReportSchema = createInsertSchema(accidentReports).omit({ id: true, createdAt: true });
+export type AccidentReport = typeof accidentReports.$inferSelect;
+export type InsertAccidentReport = z.infer<typeof insertAccidentReportSchema>;
+
+// === 신규 상품요청 (New Equipment Requests) ===
+export const newEquipmentRequests = pgTable("new_equipment_requests", {
+  id: serial("id").primaryKey(),
+  itemName: text("item_name").notNull(),
+  category: text("category").notNull(),
+  reason: text("reason").notNull(),
+  quantity: integer("quantity").notNull().default(1),
+  urgency: text("urgency").notNull().default("보통"),
+  department: text("department"),
+  requestedBy: text("requested_by"),
+  status: text("status").notNull().default("대기"),
+  adminNote: text("admin_note"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertNewEquipmentRequestSchema = createInsertSchema(newEquipmentRequests).omit({ id: true, createdAt: true });
+export type NewEquipmentRequest = typeof newEquipmentRequests.$inferSelect;
+export type InsertNewEquipmentRequest = z.infer<typeof insertNewEquipmentRequestSchema>;
+
 // Export auth schema
 export * from "./models/auth";
 

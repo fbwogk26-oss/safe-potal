@@ -19,6 +19,10 @@ import DigitalBoard from "@/pages/DigitalBoard";
 import SafetyInspections from "@/pages/SafetyInspections";
 import VehicleLogs from "@/pages/VehicleLogs";
 import AdminUsers from "@/pages/AdminUsers";
+import MsdsSearch from "@/pages/MsdsSearch";
+import RiskAssessment from "@/pages/RiskAssessment";
+import AccidentReports from "@/pages/AccidentReports";
+import NewEquipmentRequest from "@/pages/NewEquipmentRequest";
 import Login from "@/pages/Login";
 import NotFound from "@/pages/NotFound";
 import { useAuth } from "@/hooks/use-auth";
@@ -45,8 +49,12 @@ function MainLayout() {
             <Route path="/equipment">{() => <SafetyEquipment />}</Route>
             <Route path="/equipment/status">{() => <EquipmentStatus />}</Route>
             <Route path="/equipment/request" component={EquipmentRequest} />
+            <Route path="/equipment/new-request" component={NewEquipmentRequest} />
             <Route path="/access" component={AccessRequest} />
             <Route path="/vehicle-logs" component={VehicleLogs} />
+            <Route path="/msds" component={MsdsSearch} />
+            <Route path="/risk-assessment" component={RiskAssessment} />
+            <Route path="/accidents" component={AccidentReports} />
             <Route path="/digital-board" component={DigitalBoard} />
             <Route path="/admin/users" component={AdminUsers} />
             <Route component={NotFound} />

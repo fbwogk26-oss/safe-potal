@@ -1804,6 +1804,236 @@ export async function registerRoutes(
     }
   });
 
+  // === CHEMICALS (MSDS) ===
+  app.get('/api/chemicals', async (req, res) => {
+    try {
+      const search = req.query.search as string;
+      if (search) {
+        const results = await storage.searchChemicals(search);
+        return res.json(results);
+      }
+      const all = await storage.getChemicals();
+      res.json(all);
+    } catch (error) {
+      res.status(500).json({ message: "화학물질 목록 조회에 실패했습니다" });
+    }
+  });
+
+  app.get('/api/chemicals/:id', async (req, res) => {
+    try {
+      const chemical = await storage.getChemical(Number(req.params.id));
+      if (!chemical) return res.status(404).json({ message: "화학물질을 찾을 수 없습니다" });
+      res.json(chemical);
+    } catch (error) {
+      res.status(500).json({ message: "화학물질 조회에 실패했습니다" });
+    }
+  });
+
+  app.post('/api/chemicals', requireEditor, async (req: any, res) => {
+    try {
+      const chemical = await storage.createChemical(req.body);
+      res.status(201).json(chemical);
+    } catch (error) {
+      res.status(500).json({ message: "화학물질 등록에 실패했습니다" });
+    }
+  });
+
+  app.put('/api/chemicals/:id', requireEditor, async (req: any, res) => {
+    try {
+      const chemical = await storage.updateChemical(Number(req.params.id), req.body);
+      res.json(chemical);
+    } catch (error) {
+      res.status(500).json({ message: "화학물질 수정에 실패했습니다" });
+    }
+  });
+
+  app.delete('/api/chemicals/:id', requireEditor, async (req: any, res) => {
+    try {
+      await storage.deleteChemical(Number(req.params.id));
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "화학물질 삭제에 실패했습니다" });
+    }
+  });
+
+  // === RISK ASSESSMENTS ===
+  app.get('/api/risk-assessments', async (req, res) => {
+    try {
+      const type = req.query.type as string;
+      const results = await storage.getRiskAssessments(type || undefined);
+      res.json(results);
+    } catch (error) {
+      res.status(500).json({ message: "위험성평가 목록 조회에 실패했습니다" });
+    }
+  });
+
+  app.get('/api/risk-assessments/:id', async (req, res) => {
+    try {
+      const assessment = await storage.getRiskAssessment(Number(req.params.id));
+      if (!assessment) return res.status(404).json({ message: "위험성평가를 찾을 수 없습니다" });
+      res.json(assessment);
+    } catch (error) {
+      res.status(500).json({ message: "위험성평가 조회에 실패했습니다" });
+    }
+  });
+
+  app.post('/api/risk-assessments', requireEditor, async (req: any, res) => {
+    try {
+      const score = (req.body.frequency || 1) * (req.body.severity || 1);
+      let riskLevel = "저";
+      if (score >= 15) riskLevel = "매우높음";
+      else if (score >= 10) riskLevel = "높음";
+      else if (score >= 6) riskLevel = "중";
+      else if (score >= 3) riskLevel = "낮음";
+      
+      const assessment = await storage.createRiskAssessment({
+        ...req.body,
+        riskScore: score,
+        riskLevel,
+      });
+      res.status(201).json(assessment);
+    } catch (error) {
+      res.status(500).json({ message: "위험성평가 등록에 실패했습니다" });
+    }
+  });
+
+  app.put('/api/risk-assessments/:id', requireEditor, async (req: any, res) => {
+    try {
+      const score = (req.body.frequency || 1) * (req.body.severity || 1);
+      let riskLevel = "저";
+      if (score >= 15) riskLevel = "매우높음";
+      else if (score >= 10) riskLevel = "높음";
+      else if (score >= 6) riskLevel = "중";
+      else if (score >= 3) riskLevel = "낮음";
+      
+      const assessment = await storage.updateRiskAssessment(Number(req.params.id), {
+        ...req.body,
+        riskScore: score,
+        riskLevel,
+      });
+      res.json(assessment);
+    } catch (error) {
+      res.status(500).json({ message: "위험성평가 수정에 실패했습니다" });
+    }
+  });
+
+  app.delete('/api/risk-assessments/:id', requireEditor, async (req: any, res) => {
+    try {
+      await storage.deleteRiskAssessment(Number(req.params.id));
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "위험성평가 삭제에 실패했습니다" });
+    }
+  });
+
+  // === ACCIDENT REPORTS ===
+  app.get('/api/accidents', async (req, res) => {
+    try {
+      const reports = await storage.getAccidentReports();
+      res.json(reports);
+    } catch (error) {
+      res.status(500).json({ message: "사고보고 목록 조회에 실패했습니다" });
+    }
+  });
+
+  app.get('/api/accidents/stats', async (req, res) => {
+    try {
+      const reports = await storage.getAccidentReports();
+      const byType: Record<string, number> = {};
+      const byCause: Record<string, number> = {};
+      const byDepartment: Record<string, number> = {};
+      const bySeverity: Record<string, number> = {};
+      const byMonth: Record<string, number> = {};
+
+      for (const r of reports) {
+        byType[r.accidentType] = (byType[r.accidentType] || 0) + 1;
+        byCause[r.cause] = (byCause[r.cause] || 0) + 1;
+        byDepartment[r.department] = (byDepartment[r.department] || 0) + 1;
+        bySeverity[r.severity] = (bySeverity[r.severity] || 0) + 1;
+        const month = r.occurredAt?.substring(0, 7) || "unknown";
+        byMonth[month] = (byMonth[month] || 0) + 1;
+      }
+
+      res.json({ total: reports.length, byType, byCause, byDepartment, bySeverity, byMonth });
+    } catch (error) {
+      res.status(500).json({ message: "사고 통계 조회에 실패했습니다" });
+    }
+  });
+
+  app.get('/api/accidents/:id', async (req, res) => {
+    try {
+      const report = await storage.getAccidentReport(Number(req.params.id));
+      if (!report) return res.status(404).json({ message: "사고보고를 찾을 수 없습니다" });
+      res.json(report);
+    } catch (error) {
+      res.status(500).json({ message: "사고보고 조회에 실패했습니다" });
+    }
+  });
+
+  app.post('/api/accidents', requireEditor, async (req: any, res) => {
+    try {
+      const report = await storage.createAccidentReport(req.body);
+      res.status(201).json(report);
+    } catch (error) {
+      res.status(500).json({ message: "사고보고 등록에 실패했습니다" });
+    }
+  });
+
+  app.put('/api/accidents/:id', requireEditor, async (req: any, res) => {
+    try {
+      const report = await storage.updateAccidentReport(Number(req.params.id), req.body);
+      res.json(report);
+    } catch (error) {
+      res.status(500).json({ message: "사고보고 수정에 실패했습니다" });
+    }
+  });
+
+  app.delete('/api/accidents/:id', requireEditor, async (req: any, res) => {
+    try {
+      await storage.deleteAccidentReport(Number(req.params.id));
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "사고보고 삭제에 실패했습니다" });
+    }
+  });
+
+  // === NEW EQUIPMENT REQUESTS ===
+  app.get('/api/new-equipment-requests', async (req, res) => {
+    try {
+      const requests = await storage.getNewEquipmentRequests();
+      res.json(requests);
+    } catch (error) {
+      res.status(500).json({ message: "신규 상품요청 목록 조회에 실패했습니다" });
+    }
+  });
+
+  app.post('/api/new-equipment-requests', isAuthenticated, async (req: any, res) => {
+    try {
+      const request = await storage.createNewEquipmentRequest(req.body);
+      res.status(201).json(request);
+    } catch (error) {
+      res.status(500).json({ message: "신규 상품요청 등록에 실패했습니다" });
+    }
+  });
+
+  app.put('/api/new-equipment-requests/:id', requireEditor, async (req: any, res) => {
+    try {
+      const request = await storage.updateNewEquipmentRequest(Number(req.params.id), req.body);
+      res.json(request);
+    } catch (error) {
+      res.status(500).json({ message: "신규 상품요청 수정에 실패했습니다" });
+    }
+  });
+
+  app.delete('/api/new-equipment-requests/:id', requireEditor, async (req: any, res) => {
+    try {
+      await storage.deleteNewEquipmentRequest(Number(req.params.id));
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "신규 상품요청 삭제에 실패했습니다" });
+    }
+  });
+
   return httpServer;
 }
 
