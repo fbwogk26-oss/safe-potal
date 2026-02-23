@@ -271,6 +271,15 @@ export const accidentReports = pgTable("accident_reports", {
   images: text("images").array().notNull().default([]),
   createdBy: text("created_by"),
   createdAt: timestamp("created_at").defaultNow(),
+  reporterName: text("reporter_name"),
+  reporterPosition: text("reporter_position"),
+  companion: text("companion"),
+  vehicleInfo: text("vehicle_info"),
+  progressDetails: text("progress_details"),
+  accidentOverview: text("accident_overview"),
+  causeDetail: text("cause_detail"),
+  preventionPlan: text("prevention_plan"),
+  signature: text("signature"),
 });
 
 export const insertAccidentReportSchema = createInsertSchema(accidentReports).omit({ id: true, createdAt: true });
