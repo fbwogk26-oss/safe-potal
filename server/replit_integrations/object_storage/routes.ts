@@ -70,12 +70,15 @@ export function registerObjectStorageRoutes(app: Express): void {
       const downloadName = fileName || "download";
 
       const [metadata] = await objectFile.getMetadata();
-      res.set({
+      const headers: Record<string, string> = {
         "Content-Type": metadata.contentType || "application/octet-stream",
-        "Content-Length": metadata.size?.toString() || "",
         "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(downloadName)}`,
         "Cache-Control": "private, no-cache",
-      });
+      };
+      if (metadata.size) {
+        headers["Content-Length"] = metadata.size.toString();
+      }
+      res.set(headers);
 
       const stream = objectFile.createReadStream();
       stream.on("error", (err: Error) => {

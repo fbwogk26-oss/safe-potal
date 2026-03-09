@@ -80,7 +80,36 @@ export default function Education() {
     );
   }, [materials, searchQuery]);
 
+  const [isDownloading, setIsDownloading] = useState(false);
   const [uploadedFileType, setUploadedFileType] = useState<string | null>(null);
+
+  const handleDownload = async (fileUrl: string, fileName: string, e?: React.MouseEvent) => {
+    e?.preventDefault();
+    e?.stopPropagation();
+    if (isDownloading) return;
+    setIsDownloading(true);
+    try {
+      const res = await fetch(`/api/download?path=${encodeURIComponent(fileUrl)}&name=${encodeURIComponent(fileName)}`, {
+        credentials: "include",
+      });
+      if (!res.ok) {
+        throw new Error("다운로드 실패");
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      toast({ variant: "destructive", title: "다운로드 실패", description: "파일을 다운로드할 수 없습니다." });
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -249,19 +278,16 @@ export default function Education() {
                         {item.createdAt && format(new Date(item.createdAt), "MM.dd")}
                       </span>
                       {item.imageUrl && (
-                        <a
-                          href={`/api/download?path=${encodeURIComponent(item.imageUrl)}&name=${encodeURIComponent((item as any).fileName || '첨부파일')}`}
-                          onClick={(e) => e.stopPropagation()}
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-green-600"
+                          onClick={(e) => handleDownload(item.imageUrl!, (item as any).fileName || '첨부파일', e)}
+                          disabled={isDownloading}
+                          data-testid={`button-download-edu-${item.id}`}
                         >
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-green-600"
-                            data-testid={`button-download-edu-${item.id}`}
-                          >
-                            <Download className="w-4 h-4" />
-                          </Button>
-                        </a>
+                          <Download className="w-4 h-4" />
+                        </Button>
                       )}
                       <Button 
                         variant="ghost" 
@@ -411,13 +437,16 @@ export default function Education() {
                         </div>
                       </div>
                     )}
-                    <a
-                      href={`/api/download?path=${encodeURIComponent(selectedItem.imageUrl)}&name=${encodeURIComponent(selectedItem.fileName || '첨부파일')}`}
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="gap-1.5 w-full" 
+                      onClick={() => handleDownload(selectedItem.imageUrl!, selectedItem.fileName || '첨부파일')}
+                      disabled={isDownloading}
+                      data-testid="button-download-edu-file"
                     >
-                      <Button variant="outline" size="sm" className="gap-1.5 w-full" data-testid="button-download-edu-file">
-                        <Download className="w-4 h-4" /> {selectedItem.fileName || '첨부파일'} 다운로드
-                      </Button>
-                    </a>
+                      <Download className="w-4 h-4" /> {isDownloading ? '다운로드 중...' : `${selectedItem.fileName || '첨부파일'} 다운로드`}
+                    </Button>
                   </>
                 )}
                 <p className="text-foreground/90 leading-relaxed whitespace-pre-wrap">{selectedItem.content}</p>
