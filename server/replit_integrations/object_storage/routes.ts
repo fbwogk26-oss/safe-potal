@@ -68,14 +68,31 @@ export function registerObjectStorageRoutes(app: Express): void {
       }
       const objectFile = await objectStorageService.getObjectEntityFile(filePath);
       const downloadName = fileName || "download";
-      res.setHeader("Content-Disposition", `attachment; filename*=UTF-8''${encodeURIComponent(downloadName)}`);
-      await objectStorageService.downloadObject(objectFile, res);
+
+      const [metadata] = await objectFile.getMetadata();
+      res.set({
+        "Content-Type": metadata.contentType || "application/octet-stream",
+        "Content-Length": metadata.size?.toString() || "",
+        "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(downloadName)}`,
+        "Cache-Control": "private, no-cache",
+      });
+
+      const stream = objectFile.createReadStream();
+      stream.on("error", (err: Error) => {
+        console.error("Download stream error:", err);
+        if (!res.headersSent) {
+          res.status(500).json({ error: "Failed to download" });
+        }
+      });
+      stream.pipe(res);
     } catch (error) {
       console.error("Error downloading object:", error);
       if (error instanceof ObjectNotFoundError) {
         return res.status(404).json({ error: "Object not found" });
       }
-      return res.status(500).json({ error: "Failed to download object" });
+      if (!res.headersSent) {
+        return res.status(500).json({ error: "Failed to download object" });
+      }
     }
   });
 

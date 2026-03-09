@@ -52,7 +52,10 @@ export function setupSecurity(app: Express) {
     next();
   });
 
-  app.use("/api/", (_req: Request, res: Response, next: NextFunction) => {
+  app.use("/api/", (req: Request, res: Response, next: NextFunction) => {
+    if (req.path === "/download") {
+      return next();
+    }
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
     res.setHeader("Pragma", "no-cache");
     res.setHeader("Expires", "0");
