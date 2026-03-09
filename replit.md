@@ -31,7 +31,7 @@ Preferred communication style: Simple, everyday language.
 - **Schema Location**: shared/schema.ts
 - **Tables**:
   - `teams`: Safety score data with vehicle counts, accidents, fines, and calculated scores
-  - `notices`: Multi-category content (rules, notices, education, equipment, vehicle, access)
+  - `notices`: Multi-category content (rules, notices, education, equipment, vehicle, access) with fileName and fileType for document attachments
   - `settings`: Key-value store for global configuration (lock status, admin PIN)
   - `education_sessions`: Education log entries with title, date, department, participants, instructor
   - `education_signatures`: Digital signatures for education sessions (signer name, department, base64 signature data)

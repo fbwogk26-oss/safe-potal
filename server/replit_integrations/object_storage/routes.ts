@@ -5,25 +5,52 @@ import { isAuthenticated } from "../auth";
 export function registerObjectStorageRoutes(app: Express): void {
   const objectStorageService = new ObjectStorageService();
 
+  const ALLOWED_MIME_TYPES = new Set([
+    'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/bmp', 'image/svg+xml',
+    'application/pdf',
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'text/csv',
+  ]);
+
+  const ALLOWED_EXTENSIONS = new Set([
+    'jpg','jpeg','png','gif','webp','bmp','svg',
+    'pdf','ppt','pptx','doc','docx','xls','xlsx','csv',
+  ]);
+
+  const MAX_UPLOAD_SIZE = 50 * 1024 * 1024;
+
   app.post("/api/uploads/request-url", isAuthenticated, async (req: any, res) => {
     try {
       const { name, size, contentType } = req.body;
 
-      if (!name) {
-        return res.status(400).json({
-          error: "Missing required field: name",
-        });
+      if (!name || typeof name !== 'string') {
+        return res.status(400).json({ error: "Missing required field: name" });
+      }
+
+      const ext = name.split('.').pop()?.toLowerCase() || '';
+      if (!ALLOWED_EXTENSIONS.has(ext)) {
+        return res.status(400).json({ error: "허용되지 않는 파일 형식입니다." });
+      }
+
+      if (contentType && !ALLOWED_MIME_TYPES.has(contentType)) {
+        return res.status(400).json({ error: "허용되지 않는 파일 형식입니다." });
+      }
+
+      if (size && typeof size === 'number' && size > MAX_UPLOAD_SIZE) {
+        return res.status(400).json({ error: "파일 크기가 50MB를 초과합니다." });
       }
 
       const uploadURL = await objectStorageService.getObjectEntityUploadURL();
-
-      // Extract object path from the presigned URL for later reference
       const objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
 
       res.json({
         uploadURL,
         objectPath,
-        // Echo back the metadata for client convenience
         metadata: { name, size, contentType },
       });
     } catch (error) {

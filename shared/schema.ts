@@ -38,6 +38,8 @@ export const notices = pgTable("notices", {
   title: text("title").notNull(),
   content: text("content").notNull(),
   imageUrl: text("image_url"),
+  fileName: text("file_name"),
+  fileType: text("file_type"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
