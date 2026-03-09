@@ -59,6 +59,26 @@ export function registerObjectStorageRoutes(app: Express): void {
     }
   });
 
+  app.get("/api/download", isAuthenticated, async (req: any, res) => {
+    try {
+      const filePath = req.query.path as string;
+      const fileName = req.query.name as string;
+      if (!filePath || !filePath.startsWith("/objects/")) {
+        return res.status(400).json({ error: "Invalid file path" });
+      }
+      const objectFile = await objectStorageService.getObjectEntityFile(filePath);
+      const downloadName = fileName || "download";
+      res.setHeader("Content-Disposition", `attachment; filename*=UTF-8''${encodeURIComponent(downloadName)}`);
+      await objectStorageService.downloadObject(objectFile, res);
+    } catch (error) {
+      console.error("Error downloading object:", error);
+      if (error instanceof ObjectNotFoundError) {
+        return res.status(404).json({ error: "Object not found" });
+      }
+      return res.status(500).json({ error: "Failed to download object" });
+    }
+  });
+
   /**
    * Serve uploaded objects.
    *

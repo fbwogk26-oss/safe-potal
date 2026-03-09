@@ -248,6 +248,21 @@ export default function Education() {
                         <Calendar className="w-3 h-3" />
                         {item.createdAt && format(new Date(item.createdAt), "MM.dd")}
                       </span>
+                      {item.imageUrl && (
+                        <a
+                          href={`/api/download?path=${encodeURIComponent(item.imageUrl)}&name=${encodeURIComponent((item as any).fileName || '첨부파일')}`}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-green-600"
+                            data-testid={`button-download-edu-${item.id}`}
+                          >
+                            <Download className="w-4 h-4" />
+                          </Button>
+                        </a>
+                      )}
                       <Button 
                         variant="ghost" 
                         size="icon" 
@@ -378,34 +393,32 @@ export default function Education() {
               </DialogHeader>
               <div className="space-y-4 pt-4">
                 {selectedItem.imageUrl && (
-                  isImageByType(selectedItem.fileType) ? (
-                    <img 
-                      src={selectedItem.imageUrl} 
-                      alt={selectedItem.title}
-                      className="w-full max-h-80 object-contain rounded-xl border bg-muted/20"
-                    />
-                  ) : (
-                    <div className="flex items-center gap-4 p-4 rounded-xl border bg-muted/20">
-                      <div className="flex-shrink-0 w-12 h-12 rounded-lg bg-background flex items-center justify-center">
-                        {getFileIconByMeta(selectedItem.fileType, selectedItem.fileName)}
+                  <>
+                    {isImageByType(selectedItem.fileType) ? (
+                      <img 
+                        src={selectedItem.imageUrl} 
+                        alt={selectedItem.title}
+                        className="w-full max-h-80 object-contain rounded-xl border bg-muted/20"
+                      />
+                    ) : (
+                      <div className="flex items-center gap-4 p-4 rounded-xl border bg-muted/20">
+                        <div className="flex-shrink-0 w-12 h-12 rounded-lg bg-background flex items-center justify-center">
+                          {getFileIconByMeta(selectedItem.fileType, selectedItem.fileName)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium truncate">{selectedItem.fileName || '첨부파일'}</p>
+                          <p className="text-sm text-muted-foreground">{getFileLabelByMeta(selectedItem.fileType, selectedItem.fileName)} 파일</p>
+                        </div>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{selectedItem.fileName || '첨부파일'}</p>
-                        <p className="text-sm text-muted-foreground">{getFileLabelByMeta(selectedItem.fileType, selectedItem.fileName)} 파일</p>
-                      </div>
-                      <a
-                        href={selectedItem.imageUrl}
-                        download={selectedItem.fileName || true}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex-shrink-0"
-                      >
-                        <Button variant="outline" size="sm" className="gap-1.5" data-testid="button-download-edu-file">
-                          <Download className="w-4 h-4" /> 다운로드
-                        </Button>
-                      </a>
-                    </div>
-                  )
+                    )}
+                    <a
+                      href={`/api/download?path=${encodeURIComponent(selectedItem.imageUrl)}&name=${encodeURIComponent(selectedItem.fileName || '첨부파일')}`}
+                    >
+                      <Button variant="outline" size="sm" className="gap-1.5 w-full" data-testid="button-download-edu-file">
+                        <Download className="w-4 h-4" /> {selectedItem.fileName || '첨부파일'} 다운로드
+                      </Button>
+                    </a>
+                  </>
                 )}
                 <p className="text-foreground/90 leading-relaxed whitespace-pre-wrap">{selectedItem.content}</p>
                 <div className="flex items-center justify-between pt-4 border-t text-sm text-muted-foreground">
