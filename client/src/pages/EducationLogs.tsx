@@ -917,12 +917,6 @@ export default function EducationLogs() {
                 <span className="hidden sm:inline">재개</span>
               </Button>
             )}
-            {canEditLogs && (
-              <Button variant="outline" size="sm" onClick={() => handleStartEdit(selectedSession)} className="gap-1.5" data-testid="button-edit-detail">
-                <Pencil className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">수정</span>
-              </Button>
-            )}
           </div>
         </div>
 

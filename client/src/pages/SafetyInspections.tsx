@@ -906,171 +906,130 @@ export default function SafetyInspections() {
         )}
       </AnimatePresence>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="space-y-1">
         {isLoading ? (
-          <div className="col-span-full text-center py-8 text-muted-foreground">로딩 중...</div>
+          <div className="text-center py-8 text-muted-foreground">로딩 중...</div>
         ) : inspections?.length === 0 ? (
-          <div className="col-span-full text-center py-12 text-muted-foreground">
+          <div className="text-center py-12 text-muted-foreground">
             등록된 점검 내역이 없습니다.
           </div>
         ) : (
-          <AnimatePresence>
-            {inspections?.map((inspection) => {
-              const checklistItems = normalizeChecklist(inspection.checklist);
-              const goodItems = checklistItems.filter(c => c.status === '양호').length;
-              const poorItems = checklistItems.filter(c => c.status === '미흡').length;
-              const thumbnailImage = inspection.images?.[0];
-              
-              return (
-                <motion.div
-                  key={inspection.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="col-span-1"
-                >
-                  <Card
-                    className="overflow-hidden group hover-elevate cursor-pointer"
-                    onClick={() => setExpandedId(expandedId === inspection.id ? null : inspection.id)}
-                    data-testid={`card-inspection-${inspection.id}`}
-                  >
-                    <CardContent className="p-0">
-                      <div className="flex">
-                        {thumbnailImage ? (
-                          <div className="w-24 h-24 sm:w-32 sm:h-32 shrink-0">
-                            <img 
-                              src={thumbnailImage} 
-                              alt="썸네일" 
-                              className="w-full h-full object-cover"
-                            />
-                          </div>
-                        ) : (
-                          <div className="w-24 h-24 sm:w-32 sm:h-32 shrink-0 flex items-center justify-center bg-green-100 dark:bg-green-900/30">
-                            <ClipboardCheck className="w-8 h-8 text-green-600 dark:text-green-400" />
-                          </div>
-                        )}
-                        <div className="flex-1 p-3 sm:p-4 min-w-0">
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2 flex-wrap mb-1">
-                                <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400">
-                                  {inspection.inspectionType}
-                                </span>
-                                {inspection.images && inspection.images.length > 0 && (
-                                  <span className="text-xs text-muted-foreground">
-                                    사진 {inspection.images.length}장
-                                  </span>
-                                )}
-                              </div>
-                              <h3 className="font-bold text-sm sm:text-base truncate">{inspection.title}</h3>
-                              <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground mt-1">
-                                <span>{inspection.inspectionDate}</span>
-                                {inspection.location && <span>{inspection.location}</span>}
-                                {inspection.inspector && <span>{inspection.inspector}</span>}
-                              {inspection.workerName && <span>작업자: {inspection.workerName}</span>}
-                              </div>
-                              <div className="flex gap-2 mt-2 text-xs">
-                                <span className="text-green-600 dark:text-green-400">양호 {goodItems}</span>
-                                <span className="text-red-600 dark:text-red-400">미흡 {poorItems}</span>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setExpandedId(expandedId === inspection.id ? null : inspection.id);
-                                }}
-                                data-testid={`button-expand-${inspection.id}`}
-                              >
-                                {expandedId === inspection.id ? (
-                                  <ChevronUp className="w-4 h-4" />
-                                ) : (
-                                  <ChevronDown className="w-4 h-4" />
-                                )}
-                              </Button>
-                              {canEditInspections && (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 opacity-0 group-hover:opacity-100"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDelete(inspection.id);
-                                  }}
-                                  data-testid={`button-delete-${inspection.id}`}
-                                >
-                                  <Trash2 className="w-4 h-4 text-destructive" />
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                        </div>
+          <Card>
+            <CardContent className="p-0 divide-y">
+              {inspections?.map((inspection) => {
+                const checklistItems = normalizeChecklist(inspection.checklist);
+                const goodItems = checklistItems.filter(c => c.status === '양호').length;
+                const poorItems = checklistItems.filter(c => c.status === '미흡').length;
+                const isExpanded = expandedId === inspection.id;
+
+                return (
+                  <div key={inspection.id} data-testid={`card-inspection-${inspection.id}`}>
+                    <div
+                      className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 cursor-pointer hover:bg-muted/30 transition-colors group"
+                      onClick={() => setExpandedId(isExpanded ? null : inspection.id)}
+                    >
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 shrink-0 font-medium">
+                        {inspection.inspectionType === "안전점검" ? "안전" : "동행"}
+                      </span>
+                      <span className="text-xs text-muted-foreground shrink-0 w-[72px]">{inspection.inspectionDate}</span>
+                      <span className="text-sm font-medium truncate flex-1 min-w-0">{inspection.title}</span>
+                      <span className="text-xs text-muted-foreground truncate hidden sm:inline max-w-[80px]">{inspection.department}</span>
+                      {inspection.location && (
+                        <span className="text-xs text-muted-foreground truncate hidden md:inline max-w-[80px]">{inspection.location}</span>
+                      )}
+                      <div className="flex items-center gap-1.5 shrink-0 text-[10px]">
+                        <span className="text-green-600 dark:text-green-400">{goodItems}</span>
+                        <span className="text-muted-foreground">/</span>
+                        <span className="text-red-600 dark:text-red-400">{poorItems}</span>
                       </div>
-                      
-                      <AnimatePresence>
-                        {expandedId === inspection.id && (
-                          <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: "auto" }}
-                            exit={{ opacity: 0, height: 0 }}
-                            className="border-t"
+                      {inspection.images && inspection.images.length > 0 && (
+                        <span className="text-[10px] text-muted-foreground shrink-0">
+                          {inspection.images.length}장
+                        </span>
+                      )}
+                      <div className="flex items-center gap-0.5 shrink-0">
+                        {isExpanded ? <ChevronUp className="w-3.5 h-3.5 text-muted-foreground" /> : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />}
+                        {canEditInspections && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 opacity-0 group-hover:opacity-100"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDelete(inspection.id);
+                            }}
+                            data-testid={`button-delete-${inspection.id}`}
                           >
-                            <div className="p-4 space-y-3">
-                              {checklistItems.length > 0 && (
-                                <div className="space-y-2">
-                                  <Label className="text-sm">체크리스트</Label>
-                                  <div className="bg-muted/50 rounded-lg p-3 space-y-2">
-                                    {checklistItems.map((item, idx) => (
-                                      <div key={idx} className="flex items-center justify-between gap-2">
-                                        <span className="text-sm">{item.item}</span>
-                                        <span className={`text-xs px-2 py-0.5 rounded-full ${getStatusColor(item.status)}`}>
-                                          {item.status}
-                                        </span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                              {inspection.notes && (
-                                <div className="space-y-1">
-                                  <Label className="text-sm">비고</Label>
-                                  <p className="text-sm text-muted-foreground bg-muted/50 rounded-lg p-3">
-                                    {inspection.notes}
-                                  </p>
-                                </div>
-                              )}
-                              {inspection.images && inspection.images.length > 0 && (
-                                <div className="space-y-1">
-                                  <Label className="text-sm">첨부 사진 ({inspection.images.length}장)</Label>
-                                  <div className="flex flex-wrap gap-2">
-                                    {inspection.images.map((img, idx) => (
-                                      <img
-                                        key={idx}
-                                        src={img}
-                                        alt={`점검 사진 ${idx + 1}`}
-                                        className="h-24 w-24 object-cover rounded-lg border cursor-pointer hover:opacity-80"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          window.open(img, "_blank");
-                                        }}
-                                      />
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          </motion.div>
+                            <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                          </Button>
                         )}
-                      </AnimatePresence>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              );
-            })}
-          </AnimatePresence>
+                      </div>
+                    </div>
+                    <AnimatePresence>
+                      {isExpanded && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="border-t bg-muted/10"
+                        >
+                          <div className="p-4 space-y-3">
+                            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                              {inspection.inspector && <span>점검자: {inspection.inspector}</span>}
+                              {inspection.workerName && <span>작업자: {inspection.workerName}</span>}
+                              {inspection.workContent && <span>작업내용: {inspection.workContent}</span>}
+                            </div>
+                            {checklistItems.length > 0 && (
+                              <div className="space-y-2">
+                                <Label className="text-sm">체크리스트</Label>
+                                <div className="bg-muted/50 rounded-lg p-3 space-y-2">
+                                  {checklistItems.map((item, idx) => (
+                                    <div key={idx} className="flex items-center justify-between gap-2">
+                                      <span className="text-sm">{item.item}</span>
+                                      <span className={`text-xs px-2 py-0.5 rounded-full ${getStatusColor(item.status)}`}>
+                                        {item.status}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            {inspection.notes && (
+                              <div className="space-y-1">
+                                <Label className="text-sm">비고</Label>
+                                <p className="text-sm text-muted-foreground bg-muted/50 rounded-lg p-3">
+                                  {inspection.notes}
+                                </p>
+                              </div>
+                            )}
+                            {inspection.images && inspection.images.length > 0 && (
+                              <div className="space-y-1">
+                                <Label className="text-sm">첨부 사진 ({inspection.images.length}장)</Label>
+                                <div className="flex flex-wrap gap-2">
+                                  {inspection.images.map((img, idx) => (
+                                    <img
+                                      key={idx}
+                                      src={img}
+                                      alt={`점검 사진 ${idx + 1}`}
+                                      className="h-24 w-24 object-cover rounded-lg border cursor-pointer hover:opacity-80"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        window.open(img, "_blank");
+                                      }}
+                                    />
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                );
+              })}
+            </CardContent>
+          </Card>
         )}
       </div>
 
