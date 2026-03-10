@@ -45,7 +45,7 @@ import type { Vehicle, VehicleLog } from "@shared/schema";
 
 export default function VehicleLogs() {
   const { toast } = useToast();
-  const { canEditVehicleLogs } = usePermissions();
+  const { canEditVehicleLogs, canDownloadVehicleLogExcel } = usePermissions();
   const [searchTerm, setSearchTerm] = useState("");
   const [filterTeam, setFilterTeam] = useState("all");
   const [selectedVehicleForHistory, setSelectedVehicleForHistory] = useState<Vehicle | null>(null);
@@ -163,7 +163,7 @@ export default function VehicleLogs() {
             </h2>
             <p className="text-xs text-muted-foreground">{selectedVehicleForHistory.model} / {selectedVehicleForHistory.team}</p>
           </div>
-          {canEditVehicleLogs && (
+          {canDownloadVehicleLogExcel && (
             <Button
               variant="outline"
               className="gap-2"
@@ -344,7 +344,7 @@ export default function VehicleLogs() {
                     <Button variant="ghost" size="icon" className="h-7 w-7" data-testid={`button-view-history-${v.id}`}>
                       <Eye className="w-3.5 h-3.5" />
                     </Button>
-                    {canEditVehicleLogs && (
+                    {canDownloadVehicleLogExcel && (
                       <Button
                         variant="ghost"
                         size="icon"

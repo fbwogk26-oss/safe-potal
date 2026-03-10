@@ -24,12 +24,14 @@ import {
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
+import { usePermissions, type Permissions } from "@/hooks/use-permissions";
 
 type NavItem = {
   label: string;
   href: string;
   icon: any;
   adminOnly?: boolean;
+  permissionKey?: keyof Permissions;
 };
 
 type NavGroup = {
@@ -46,40 +48,40 @@ function isGroup(entry: NavEntry): entry is NavGroup {
 }
 
 const NAV_ITEMS: NavEntry[] = [
-  { label: "대시보드", href: "/", icon: LayoutDashboard },
-  { label: "공지/알림", href: "/notices", icon: Bell },
-  { label: "전자게시판", href: "/digital-board", icon: MonitorPlay },
-  { label: "안전수칙", href: "/rules", icon: ShieldCheck },
+  { label: "대시보드", href: "/", icon: LayoutDashboard, permissionKey: "canViewDashboard" },
+  { label: "공지/알림", href: "/notices", icon: Bell, permissionKey: "canViewNotices" },
+  { label: "전자게시판", href: "/digital-board", icon: MonitorPlay, permissionKey: "canViewDigitalBoard" },
+  { label: "안전수칙", href: "/rules", icon: ShieldCheck, permissionKey: "canViewRules" },
   {
     label: "안전관리",
     icon: Shield,
     children: [
-      { label: "사고보고/통계", href: "/accidents", icon: AlertTriangle },
-      { label: "안전보호구 현황", href: "/equipment/status", icon: ShieldCheck },
-      { label: "안전용품 신청", href: "/equipment", icon: ShoppingCart },
-      { label: "안전교육 자료", href: "/education", icon: GraduationCap },
-      { label: "교육일지", href: "/education-logs", icon: FileText },
-      { label: "안전점검", href: "/inspections", icon: ClipboardCheck },
-      { label: "위험성평가", href: "/risk-assessment", icon: ShieldAlert },
+      { label: "사고보고/통계", href: "/accidents", icon: AlertTriangle, permissionKey: "canViewAccidents" },
+      { label: "안전보호구 현황", href: "/equipment/status", icon: ShieldCheck, permissionKey: "canViewEquipmentStatus" },
+      { label: "안전용품 신청", href: "/equipment", icon: ShoppingCart, permissionKey: "canViewEquipment" },
+      { label: "안전교육 자료", href: "/education", icon: GraduationCap, permissionKey: "canViewEducation" },
+      { label: "교육일지", href: "/education-logs", icon: FileText, permissionKey: "canViewEducationLogs" },
+      { label: "안전점검", href: "/inspections", icon: ClipboardCheck, permissionKey: "canViewInspections" },
+      { label: "위험성평가", href: "/risk-assessment", icon: ShieldAlert, permissionKey: "canViewRiskAssessment" },
     ],
   },
   {
     label: "보건관리",
     icon: HeartPulse,
     children: [
-      { label: "MSDS검색", href: "/msds", icon: FlaskConical },
-      { label: "근골격계질환", href: "/musculoskeletal", icon: Bone },
+      { label: "MSDS검색", href: "/msds", icon: FlaskConical, permissionKey: "canViewMsds" },
+      { label: "근골격계질환", href: "/musculoskeletal", icon: Bone, permissionKey: "canViewMusculoskeletal" },
     ],
   },
   {
     label: "차량관리",
     icon: Car,
     children: [
-      { label: "차량관리 현황", href: "/vehicle", icon: Car },
-      { label: "차량운행일지", href: "/vehicle-logs", icon: BookOpen },
+      { label: "차량관리 현황", href: "/vehicle", icon: Car, permissionKey: "canViewVehicle" },
+      { label: "차량운행일지", href: "/vehicle-logs", icon: BookOpen, permissionKey: "canViewVehicleLogs" },
     ],
   },
-  { label: "출입신청", href: "/access", icon: DoorOpen },
+  { label: "출입신청", href: "/access", icon: DoorOpen, permissionKey: "canViewAccess" },
   {
     label: "시스템 관리",
     icon: Shield,
@@ -95,7 +97,33 @@ export function Sidebar() {
   const [location] = useLocation();
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const { user } = useAuth();
-  const isAdmin = user?.role === "admin";
+  const permissions = usePermissions();
+  const isAdmin = permissions.isAdmin;
+
+  const hasItemPermission = (item: NavItem): boolean => {
+    if (isAdmin) return true;
+    if (!item.permissionKey) return true;
+    return !!permissions[item.permissionKey];
+  };
+
+  const filterEntries = (entries: NavEntry[]): NavEntry[] => {
+    return entries.reduce<NavEntry[]>((acc, entry) => {
+      if (entry.adminOnly && !isAdmin) return acc;
+      if (isGroup(entry)) {
+        const visibleChildren = entry.children.filter(hasItemPermission);
+        if (visibleChildren.length > 0) {
+          acc.push({ ...entry, children: visibleChildren });
+        }
+      } else {
+        if (hasItemPermission(entry)) {
+          acc.push(entry);
+        }
+      }
+      return acc;
+    }, []);
+  };
+
+  const filteredNavItems = filterEntries(NAV_ITEMS);
 
   const toggleGroup = (label: string) => {
     setOpenGroups((prev) => ({ ...prev, [label]: !prev[label] }));
@@ -125,7 +153,7 @@ export function Sidebar() {
       </Link>
       <div className="flex-1 overflow-y-auto px-3 py-2">
         <div className="flex flex-col gap-0.5">
-          {NAV_ITEMS.filter((entry) => !entry.adminOnly || isAdmin).map((entry) => {
+          {filteredNavItems.map((entry) => {
             if (isGroup(entry)) {
               const open = isGroupOpen(entry);
               const childActive = isChildActive(entry);

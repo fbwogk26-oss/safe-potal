@@ -10,6 +10,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
 import { Link } from "wouter";
+import { usePermissions } from "@/hooks/use-permissions";
 
 const TEAMS = ["동대구운용팀", "서대구운용팀", "남대구운용팀", "포항운용팀", "안동운용팀", "구미운용팀", "문경운용팀", "운용지원팀", "운용계획팀", "사업지원팀", "현장경영팀", "공공망관제팀"];
 
@@ -155,6 +156,7 @@ interface EquipmentStatusProps {
 }
 
 export default function EquipmentStatus({ embedded = false }: EquipmentStatusProps) {
+  const { canDownloadEquipmentExcel, canEditEquipmentStatus } = usePermissions();
   const { data: statusRecords, isLoading } = useNotices("equip_status");
   const { mutate: createRecord, isPending: isCreating } = useCreateNotice();
   const { mutate: updateRecord, isPending: isUpdating } = useUpdateNotice();
@@ -516,7 +518,7 @@ export default function EquipmentStatus({ embedded = false }: EquipmentStatusPro
             ))}
           </SelectContent>
         </Select>
-        {selectedTeam && selectedTeam !== "all" && (
+        {canEditEquipmentStatus && selectedTeam && selectedTeam !== "all" && (
           <Button 
             variant={editMode ? "default" : "outline"}
             onClick={() => { setEditMode(!editMode); setBulkAddMode(false); }}
@@ -527,15 +529,17 @@ export default function EquipmentStatus({ embedded = false }: EquipmentStatusPro
             {editMode ? "편집 중" : "편집"}
           </Button>
         )}
-        <Button 
-          variant={bulkAddMode ? "default" : "outline"}
-          onClick={() => { setBulkAddMode(!bulkAddMode); setEditMode(false); }}
-          className="gap-2"
-          data-testid="button-bulk-add"
-        >
-          <Plus className="w-4 h-4" />
-          일괄 추가
-        </Button>
+        {canEditEquipmentStatus && (
+          <Button 
+            variant={bulkAddMode ? "default" : "outline"}
+            onClick={() => { setBulkAddMode(!bulkAddMode); setEditMode(false); }}
+            className="gap-2"
+            data-testid="button-bulk-add"
+          >
+            <Plus className="w-4 h-4" />
+            일괄 추가
+          </Button>
+        )}
         <input
           type="file"
           ref={fileInputRef}
@@ -544,25 +548,29 @@ export default function EquipmentStatus({ embedded = false }: EquipmentStatusPro
           className="hidden"
           data-testid="input-equipment-upload"
         />
-        <Button 
-          variant="outline"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={isUploading}
-          className="gap-2"
-          data-testid="button-upload-equipment"
-        >
-          <Upload className="w-4 h-4" />
-          엑셀 업로드
-        </Button>
-        <Button 
-          variant="secondary"
-          onClick={handleExcelDownload}
-          className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
-          data-testid="button-download-equipment"
-        >
-          <Download className="w-4 h-4" />
-          엑셀 다운로드
-        </Button>
+        {canEditEquipmentStatus && (
+          <Button 
+            variant="outline"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploading}
+            className="gap-2"
+            data-testid="button-upload-equipment"
+          >
+            <Upload className="w-4 h-4" />
+            엑셀 업로드
+          </Button>
+        )}
+        {canDownloadEquipmentExcel && (
+          <Button 
+            variant="secondary"
+            onClick={handleExcelDownload}
+            className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+            data-testid="button-download-equipment"
+          >
+            <Download className="w-4 h-4" />
+            엑셀 다운로드
+          </Button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { usePermissions } from "@/hooks/use-permissions";
 
 export default function Education() {
-  const { canRegisterEducation } = usePermissions();
+  const { canRegisterEducation, canDownloadEducationFiles } = usePermissions();
   const { data: materials, isLoading } = useNotices("edu");
   const { mutate: createMaterial, isPending: isCreating } = useCreateNotice();
   const { mutate: deleteMaterial } = useDeleteNotice();
@@ -307,7 +307,7 @@ export default function Education() {
                         <Calendar className="w-3 h-3" />
                         {item.createdAt && format(new Date(item.createdAt), "MM.dd")}
                       </span>
-                      {item.imageUrl && (
+                      {item.imageUrl && canDownloadEducationFiles && (
                         <Button 
                           variant="ghost" 
                           size="icon" 
@@ -500,16 +500,18 @@ export default function Education() {
                               </div>
                             </div>
                           )}
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            className="gap-1.5 w-full mt-2" 
-                            onClick={() => handleDownload(att.url, att.name)}
-                            disabled={isDownloading}
-                            data-testid={`button-download-edu-file-${idx}`}
-                          >
-                            <Download className="w-4 h-4" /> {isDownloading ? '다운로드 중...' : `${att.name} 다운로드`}
-                          </Button>
+                          {canDownloadEducationFiles && (
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="gap-1.5 w-full mt-2" 
+                              onClick={() => handleDownload(att.url, att.name)}
+                              disabled={isDownloading}
+                              data-testid={`button-download-edu-file-${idx}`}
+                            >
+                              <Download className="w-4 h-4" /> {isDownloading ? '다운로드 중...' : `${att.name} 다운로드`}
+                            </Button>
+                          )}
                         </div>
                       ))}
                     </div>

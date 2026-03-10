@@ -15,6 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Vehicle, InsertVehicle } from "@shared/schema";
+import { usePermissions } from "@/hooks/use-permissions";
 
 const TEAMS = ["동대구운용팀", "서대구운용팀", "남대구운용팀", "포항운용팀", "안동운용팀", "구미운용팀", "문경운용팀", "운용지원팀", "운용계획팀", "사업지원팀", "현장경영팀", "공공망관제팀"];
 const VEHICLE_TYPES = ["승용차", "SUV", "트럭", "밴", "전기차", "하이브리드", "기타"];
@@ -45,6 +46,7 @@ interface VehicleManagementProps {
 }
 
 export default function VehicleManagement({ embedded = false }: VehicleManagementProps) {
+  const { canDownloadVehicleExcel, canEditVehicles } = usePermissions();
   const { data: vehicles, isLoading } = useVehicles();
   const { mutate: createVehicle, isPending: isCreating } = useCreateVehicle();
   const { mutate: updateVehicle } = useUpdateVehicle();
@@ -270,14 +272,16 @@ export default function VehicleManagement({ embedded = false }: VehicleManagemen
                 <p className="text-xs sm:text-sm text-muted-foreground">업무용 차량 관리</p>
               </div>
             </div>
-            <Button 
-              size="sm"
-              onClick={() => { resetForm(); setShowAddDialog(true); }}
-              className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white gap-1.5 shadow-lg h-8 sm:h-9 text-xs sm:text-sm"
-              data-testid="button-add-vehicle"
-            >
-              <Plus className="w-4 h-4" /> <span className="hidden sm:inline">차량 등록</span><span className="sm:hidden">등록</span>
-            </Button>
+            {canEditVehicles && (
+              <Button 
+                size="sm"
+                onClick={() => { resetForm(); setShowAddDialog(true); }}
+                className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white gap-1.5 shadow-lg h-8 sm:h-9 text-xs sm:text-sm"
+                data-testid="button-add-vehicle"
+              >
+                <Plus className="w-4 h-4" /> <span className="hidden sm:inline">차량 등록</span><span className="sm:hidden">등록</span>
+              </Button>
+            )}
           </div>
           <div className="flex flex-wrap gap-1.5 sm:gap-2">
           <input
@@ -298,15 +302,17 @@ export default function VehicleManagement({ embedded = false }: VehicleManagemen
           >
             <Upload className="w-3.5 h-3.5" /> <span className="hidden sm:inline">{isExcelUploading ? "업로드 중..." : "엑셀 업로드"}</span><span className="sm:hidden">업로드</span>
           </Button>
-          <Button 
-            variant="outline"
-            size="sm"
-            onClick={() => window.location.href = '/api/vehicles/export'}
-            className="gap-1.5 h-8 text-xs"
-            data-testid="button-export-vehicles"
-          >
-            <Download className="w-3.5 h-3.5" /> <span className="hidden sm:inline">엑셀 다운로드</span><span className="sm:hidden">다운로드</span>
-          </Button>
+          {canDownloadVehicleExcel && (
+            <Button 
+              variant="outline"
+              size="sm"
+              onClick={() => window.location.href = '/api/vehicles/export'}
+              className="gap-1.5 h-8 text-xs"
+              data-testid="button-export-vehicles"
+            >
+              <Download className="w-3.5 h-3.5" /> <span className="hidden sm:inline">엑셀 다운로드</span><span className="sm:hidden">다운로드</span>
+            </Button>
+          )}
         </div>
         </div>
       )}
@@ -322,14 +328,16 @@ export default function VehicleManagement({ embedded = false }: VehicleManagemen
             data-testid="input-excel-upload-embedded"
           />
           <div className="flex flex-wrap gap-1.5">
-            <Button 
-              size="sm"
-              onClick={() => { resetForm(); setShowAddDialog(true); }}
-              className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white gap-1.5 h-8 text-xs"
-              data-testid="button-add-vehicle-embedded"
-            >
-              <Plus className="w-3.5 h-3.5" /> 차량 등록
-            </Button>
+            {canEditVehicles && (
+              <Button 
+                size="sm"
+                onClick={() => { resetForm(); setShowAddDialog(true); }}
+                className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white gap-1.5 h-8 text-xs"
+                data-testid="button-add-vehicle-embedded"
+              >
+                <Plus className="w-3.5 h-3.5" /> 차량 등록
+              </Button>
+            )}
             <Button 
               variant="outline"
               size="sm"
@@ -339,14 +347,16 @@ export default function VehicleManagement({ embedded = false }: VehicleManagemen
             >
               <Upload className="w-3.5 h-3.5" /> 업로드
             </Button>
-            <Button 
-              variant="outline"
-              size="sm"
-              onClick={() => window.location.href = '/api/vehicles/export'}
-              className="gap-1.5 h-8 text-xs"
-            >
-              <Download className="w-3.5 h-3.5" /> 다운로드
-            </Button>
+            {canDownloadVehicleExcel && (
+              <Button 
+                variant="outline"
+                size="sm"
+                onClick={() => window.location.href = '/api/vehicles/export'}
+                className="gap-1.5 h-8 text-xs"
+              >
+                <Download className="w-3.5 h-3.5" /> 다운로드
+              </Button>
+            )}
           </div>
         </div>
       )}
@@ -546,7 +556,7 @@ export default function VehicleManagement({ embedded = false }: VehicleManagemen
               ? "검색 결과가 없습니다." 
               : "등록된 차량이 없습니다."}
           </p>
-          {!searchQuery && filterTeam === "all" && filterStatus === "all" && (
+          {!searchQuery && filterTeam === "all" && filterStatus === "all" && canEditVehicles && (
             <Button onClick={() => { resetForm(); setShowAddDialog(true); }} variant="outline" className="mt-4 gap-2">
               <Plus className="w-4 h-4" /> 첫 번째 차량 등록하기
             </Button>

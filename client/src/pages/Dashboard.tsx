@@ -41,7 +41,7 @@ export default function Dashboard() {
   const [baseVehicleCount, setBaseVehicleCount] = useState(15);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { canEditDashboard, canEditSafetyScores } = usePermissions();
+  const { canEditDashboard, canEditSafetyScores, canUploadDashboardData } = usePermissions();
   
   const [noticePopupOpen, setNoticePopupOpen] = useState(false);
   const [currentNotice, setCurrentNotice] = useState<any>(null);
@@ -231,18 +231,20 @@ export default function Dashboard() {
                     <span className="text-muted-foreground">대</span>
                   </div>
                   {canEditSafetyScores && (
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={handleResetAll} 
+                      disabled={resetAllTeams.isPending}
+                      className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 h-7 text-xs px-2"
+                      data-testid="button-reset-all"
+                    >
+                      <RotateCcw className={cn("w-3 h-3 sm:mr-1", resetAllTeams.isPending && "animate-spin")} />
+                      <span className="hidden sm:inline">초기화</span>
+                    </Button>
+                  )}
+                  {canEditDashboard && canUploadDashboardData && (
                     <>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={handleResetAll} 
-                        disabled={resetAllTeams.isPending}
-                        className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 h-7 text-xs px-2"
-                        data-testid="button-reset-all"
-                      >
-                        <RotateCcw className={cn("w-3 h-3 sm:mr-1", resetAllTeams.isPending && "animate-spin")} />
-                        <span className="hidden sm:inline">초기화</span>
-                      </Button>
                       <input
                         type="file"
                         ref={fileInputRef}

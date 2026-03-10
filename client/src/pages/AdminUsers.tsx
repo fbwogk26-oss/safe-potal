@@ -51,7 +51,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { getRoleLabel, getRoleVariant, PERMISSION_LABELS } from "@/hooks/use-permissions";
+import { getRoleLabel, getRoleVariant, PERMISSION_LABELS, PERMISSION_CATEGORIES } from "@/hooks/use-permissions";
 import type { UserPermissions } from "@shared/models/auth";
 import { ALL_PERMISSIONS, DEFAULT_PERMISSIONS } from "@shared/models/auth";
 
@@ -399,21 +399,46 @@ export default function AdminUsers() {
                             </Button>
                           </div>
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          {(Object.keys(PERMISSION_LABELS) as Array<keyof UserPermissions>).map((permKey) => (
-                            <div
-                              key={permKey}
-                              className="flex items-center justify-between py-2 px-3 rounded-md bg-background border"
-                            >
-                              <span className="text-sm">{PERMISSION_LABELS[permKey]}</span>
-                              <Switch
-                                checked={!!userPerms[permKey]}
-                                onCheckedChange={() => togglePermission(user, permKey)}
-                                disabled={updatePermissionsMutation.isPending}
-                                data-testid={`switch-perm-${permKey}-${user.id}`}
-                              />
-                            </div>
-                          ))}
+                        <div className="space-y-3">
+                          {PERMISSION_CATEGORIES.map((cat) => {
+                            const catEnabled = cat.keys.filter(k => !!userPerms[k]).length;
+                            return (
+                              <div key={cat.label} className="border rounded-lg overflow-hidden">
+                                <div className="flex items-center justify-between px-3 py-2 bg-muted/30">
+                                  <span className="text-xs font-semibold text-muted-foreground">{cat.label} ({catEnabled}/{cat.keys.length})</span>
+                                  <div className="flex gap-1">
+                                    <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2"
+                                      onClick={() => {
+                                        const updated = { ...userPerms };
+                                        cat.keys.forEach(k => { updated[k] = true; });
+                                        updatePermissionsMutation.mutate({ userId: user.id, permissions: updated });
+                                      }}
+                                    >전체</Button>
+                                    <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2"
+                                      onClick={() => {
+                                        const updated = { ...userPerms };
+                                        cat.keys.forEach(k => { updated[k] = false; });
+                                        updatePermissionsMutation.mutate({ userId: user.id, permissions: updated });
+                                      }}
+                                    >해제</Button>
+                                  </div>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 p-2">
+                                  {cat.keys.map((permKey) => (
+                                    <div key={permKey} className="flex items-center justify-between py-1.5 px-2.5 rounded bg-background border text-sm">
+                                      <span className="text-xs">{PERMISSION_LABELS[permKey]}</span>
+                                      <Switch
+                                        checked={!!userPerms[permKey]}
+                                        onCheckedChange={() => togglePermission(user, permKey)}
+                                        disabled={updatePermissionsMutation.isPending}
+                                        data-testid={`switch-perm-${permKey}-${user.id}`}
+                                      />
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     )}
@@ -541,20 +566,47 @@ function RolePresetManager({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
-          {(Object.keys(PERMISSION_LABELS) as Array<keyof UserPermissions>).map((permKey) => (
-            <div
-              key={permKey}
-              className="flex items-center justify-between py-2 px-3 rounded-md bg-muted/50 border"
-            >
-              <span className="text-sm">{PERMISSION_LABELS[permKey]}</span>
-              <Switch
-                checked={!!localPerms[permKey]}
-                onCheckedChange={() => toggleLocalPerm(permKey)}
-                data-testid={`switch-preset-${permKey}-${activeTab}`}
-              />
-            </div>
-          ))}
+        <div className="space-y-3 mb-4">
+          {PERMISSION_CATEGORIES.map((cat) => {
+            const catEnabled = cat.keys.filter(k => !!localPerms[k]).length;
+            return (
+              <div key={cat.label} className="border rounded-lg overflow-hidden">
+                <div className="flex items-center justify-between px-3 py-2 bg-muted/30">
+                  <span className="text-xs font-semibold text-muted-foreground">{cat.label} ({catEnabled}/{cat.keys.length})</span>
+                  <div className="flex gap-1">
+                    <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2"
+                      onClick={() => {
+                        const updated = { ...localPerms };
+                        cat.keys.forEach(k => { updated[k] = true; });
+                        setLocalPerms(updated);
+                        setHasChanges(true);
+                      }}
+                    >전체</Button>
+                    <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2"
+                      onClick={() => {
+                        const updated = { ...localPerms };
+                        cat.keys.forEach(k => { updated[k] = false; });
+                        setLocalPerms(updated);
+                        setHasChanges(true);
+                      }}
+                    >해제</Button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 p-2">
+                  {cat.keys.map((permKey) => (
+                    <div key={permKey} className="flex items-center justify-between py-1.5 px-2.5 rounded bg-muted/50 border text-sm">
+                      <span className="text-xs">{PERMISSION_LABELS[permKey]}</span>
+                      <Switch
+                        checked={!!localPerms[permKey]}
+                        onCheckedChange={() => toggleLocalPerm(permKey)}
+                        data-testid={`switch-preset-${permKey}-${activeTab}`}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </div>
 
         <Button

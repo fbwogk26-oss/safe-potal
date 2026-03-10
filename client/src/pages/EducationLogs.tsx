@@ -357,7 +357,7 @@ function ProgressDashboard() {
 }
 
 export default function EducationLogs() {
-  const { isAdmin, canRegisterEducation, canEditEducationLogs } = usePermissions();
+  const { isAdmin, canRegisterEducation, canEditEducationLogs, canDownloadEducationExcel, canUploadEducationPhotos } = usePermissions();
   const canEditLogs = canRegisterEducation || canEditEducationLogs;
   const { user } = useAuth();
   const { toast } = useToast();
@@ -999,7 +999,7 @@ export default function EducationLogs() {
                 <Camera className="w-3.5 h-3.5" />
                 교육 사진 ({(selectedSession.images || []).length}장)
               </p>
-              {canEditLogs && (
+              {canEditLogs && canUploadEducationPhotos && (
                 <>
                   <input
                     ref={photoInputRef}
@@ -1047,7 +1047,7 @@ export default function EducationLogs() {
               <div className="border-2 border-dashed border-muted rounded-lg p-6 text-center text-muted-foreground">
                 <Camera className="w-8 h-8 mx-auto mb-2 opacity-30" />
                 <p className="text-xs">교육 사진을 등록해주세요</p>
-                {canEditLogs && (
+                {canEditLogs && canUploadEducationPhotos && (
                   <Button variant="outline" size="sm" className="mt-2 gap-1.5 text-xs"
                     onClick={() => photoInputRef.current?.click()}
                     disabled={uploadingPhotos}
@@ -1409,12 +1409,14 @@ export default function EducationLogs() {
                               </div>
                             </div>
                             <div className="flex items-center gap-1 shrink-0">
-                              <Button variant="ghost" size="icon"
-                                disabled={excelDownloading}
-                                onClick={(e) => { e.stopPropagation(); handleGroupExcelDownload(group); }}
-                                data-testid={`button-group-excel-${group.key}`}
-                                title="엑셀 다운로드"
-                              ><Download className="w-4 h-4" /></Button>
+                              {canDownloadEducationExcel && (
+                                <Button variant="ghost" size="icon"
+                                  disabled={excelDownloading}
+                                  onClick={(e) => { e.stopPropagation(); handleGroupExcelDownload(group); }}
+                                  data-testid={`button-group-excel-${group.key}`}
+                                  title="엑셀 다운로드"
+                                ><Download className="w-4 h-4" /></Button>
+                              )}
                               {canEditLogs && (
                                 <Button variant="ghost" size="icon"
                                   onClick={(e) => { e.stopPropagation(); handleGroupEdit(group); }}

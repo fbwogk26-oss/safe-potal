@@ -81,7 +81,7 @@ const defaultForm: FormState = {
 };
 
 export default function RiskAssessmentPage() {
-  const { isAdmin } = usePermissions();
+  const { canEditRiskAssessment } = usePermissions();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("상반기정기평가");
   const [showForm, setShowForm] = useState(false);
@@ -203,7 +203,7 @@ export default function RiskAssessmentPage() {
             <p className="text-xs sm:text-sm text-muted-foreground">KRAS 위험성평가 관리</p>
           </div>
         </div>
-        {isAdmin && (
+        {canEditRiskAssessment && (
           <Button
             onClick={() => {
               setForm(defaultForm);
@@ -309,7 +309,7 @@ export default function RiskAssessmentPage() {
                         <TableHead className="min-w-[80px]">위험등급</TableHead>
                         <TableHead className="min-w-[80px]">평가자</TableHead>
                         <TableHead className="min-w-[90px]">평가일</TableHead>
-                        {isAdmin && <TableHead className="min-w-[80px]">관리</TableHead>}
+                        {canEditRiskAssessment && <TableHead className="min-w-[80px]">관리</TableHead>}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -339,7 +339,7 @@ export default function RiskAssessmentPage() {
                             </TableCell>
                             <TableCell className="text-sm">{item.assessor || "-"}</TableCell>
                             <TableCell className="text-sm">{item.assessmentDate}</TableCell>
-                            {isAdmin && (
+                            {canEditRiskAssessment && (
                               <TableCell>
                                 <div className="flex gap-1">
                                   <Button

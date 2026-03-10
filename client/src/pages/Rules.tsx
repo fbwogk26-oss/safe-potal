@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { usePermissions } from "@/hooks/use-permissions";
 
 export default function Rules() {
-  const { canRegisterRules } = usePermissions();
+  const { canRegisterRules, canDownloadRulesFiles } = usePermissions();
   const { data: rules, isLoading } = useNotices("rule");
   const { mutate: createRule, isPending: isCreating } = useCreateNotice();
   const { mutate: deleteRule } = useDeleteNotice();

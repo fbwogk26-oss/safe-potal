@@ -63,8 +63,8 @@ const defaultForm: FormState = {
 };
 
 export default function MusculoskeletalDisease() {
-  const { isAdmin, canEditInspections } = usePermissions();
-  const canEdit = isAdmin || canEditInspections;
+  const { canEditMusculoskeletal } = usePermissions();
+  const canEdit = canEditMusculoskeletal;
   const { toast } = useToast();
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);

@@ -1,7 +1,6 @@
 import { sql } from "drizzle-orm";
 import { boolean, index, integer, jsonb, pgTable, timestamp, varchar } from "drizzle-orm/pg-core";
 
-// Session storage table for custom auth
 export const sessions = pgTable(
   "sessions",
   {
@@ -27,6 +26,40 @@ export interface UserPermissions {
   editDigitalBoard: boolean;
   editVehicleLogs: boolean;
   manageAccessRequests: boolean;
+  editAccidents: boolean;
+  editRiskAssessment: boolean;
+  editMsds: boolean;
+  editMusculoskeletal: boolean;
+  uploadDashboardData: boolean;
+  uploadEducationPhotos: boolean;
+  uploadInspectionPhotos: boolean;
+  uploadAccidentPhotos: boolean;
+  downloadEducationExcel: boolean;
+  downloadInspectionExcel: boolean;
+  downloadAccidentReport: boolean;
+  downloadVehicleExcel: boolean;
+  downloadVehicleLogExcel: boolean;
+  downloadAccessExcel: boolean;
+  downloadEquipmentExcel: boolean;
+  downloadMsdsPdf: boolean;
+  downloadRulesFiles: boolean;
+  downloadEducationFiles: boolean;
+  viewDashboard: boolean;
+  viewNotices: boolean;
+  viewDigitalBoard: boolean;
+  viewRules: boolean;
+  viewAccidents: boolean;
+  viewEquipmentStatus: boolean;
+  viewEquipment: boolean;
+  viewEducation: boolean;
+  viewEducationLogs: boolean;
+  viewInspections: boolean;
+  viewRiskAssessment: boolean;
+  viewMsds: boolean;
+  viewMusculoskeletal: boolean;
+  viewVehicle: boolean;
+  viewVehicleLogs: boolean;
+  viewAccess: boolean;
 }
 
 export const DEFAULT_PERMISSIONS: UserPermissions = {
@@ -44,6 +77,40 @@ export const DEFAULT_PERMISSIONS: UserPermissions = {
   editDigitalBoard: false,
   editVehicleLogs: false,
   manageAccessRequests: false,
+  editAccidents: false,
+  editRiskAssessment: false,
+  editMsds: false,
+  editMusculoskeletal: false,
+  uploadDashboardData: false,
+  uploadEducationPhotos: false,
+  uploadInspectionPhotos: false,
+  uploadAccidentPhotos: false,
+  downloadEducationExcel: false,
+  downloadInspectionExcel: false,
+  downloadAccidentReport: false,
+  downloadVehicleExcel: false,
+  downloadVehicleLogExcel: false,
+  downloadAccessExcel: false,
+  downloadEquipmentExcel: false,
+  downloadMsdsPdf: false,
+  downloadRulesFiles: false,
+  downloadEducationFiles: false,
+  viewDashboard: true,
+  viewNotices: true,
+  viewDigitalBoard: true,
+  viewRules: true,
+  viewAccidents: true,
+  viewEquipmentStatus: true,
+  viewEquipment: true,
+  viewEducation: true,
+  viewEducationLogs: true,
+  viewInspections: true,
+  viewRiskAssessment: true,
+  viewMsds: true,
+  viewMusculoskeletal: true,
+  viewVehicle: true,
+  viewVehicleLogs: true,
+  viewAccess: true,
 };
 
 export const ALL_PERMISSIONS: UserPermissions = {
@@ -61,9 +128,42 @@ export const ALL_PERMISSIONS: UserPermissions = {
   editDigitalBoard: true,
   editVehicleLogs: true,
   manageAccessRequests: true,
+  editAccidents: true,
+  editRiskAssessment: true,
+  editMsds: true,
+  editMusculoskeletal: true,
+  uploadDashboardData: true,
+  uploadEducationPhotos: true,
+  uploadInspectionPhotos: true,
+  uploadAccidentPhotos: true,
+  downloadEducationExcel: true,
+  downloadInspectionExcel: true,
+  downloadAccidentReport: true,
+  downloadVehicleExcel: true,
+  downloadVehicleLogExcel: true,
+  downloadAccessExcel: true,
+  downloadEquipmentExcel: true,
+  downloadMsdsPdf: true,
+  downloadRulesFiles: true,
+  downloadEducationFiles: true,
+  viewDashboard: true,
+  viewNotices: true,
+  viewDigitalBoard: true,
+  viewRules: true,
+  viewAccidents: true,
+  viewEquipmentStatus: true,
+  viewEquipment: true,
+  viewEducation: true,
+  viewEducationLogs: true,
+  viewInspections: true,
+  viewRiskAssessment: true,
+  viewMsds: true,
+  viewMusculoskeletal: true,
+  viewVehicle: true,
+  viewVehicleLogs: true,
+  viewAccess: true,
 };
 
-// User storage table with username/password for custom auth
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   username: varchar("username").unique().notNull(),

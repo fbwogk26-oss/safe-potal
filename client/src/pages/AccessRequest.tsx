@@ -47,7 +47,7 @@ export default function AccessRequest() {
   const { mutate: createMaterial, isPending: isCreating } = useCreateNotice();
   const { mutate: deleteMaterial } = useDeleteNotice();
   const { toast } = useToast();
-  const { canManageAccessRequests } = usePermissions();
+  const { canManageAccessRequests, canDownloadAccessExcel } = usePermissions();
 
   const [filterVisitDate, setFilterVisitDate] = useState("");
   const [filterRegistrationDate, setFilterRegistrationDate] = useState("");
@@ -578,16 +578,18 @@ export default function AccessRequest() {
                       <span className="text-xs text-muted-foreground hidden sm:flex items-center gap-1 whitespace-nowrap">
                         {item.createdAt && format(new Date(item.createdAt), "MM.dd HH:mm")}
                       </span>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
-                        onClick={(e) => { e.stopPropagation(); handleSingleExcelDownload(item.id); }}
-                        data-testid={`button-excel-access-${item.id}`}
-                        title="엑셀 다운로드"
-                      >
-                        <Download className="w-4 h-4" />
-                      </Button>
+                      {canDownloadAccessExcel && (
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
+                          onClick={(e) => { e.stopPropagation(); handleSingleExcelDownload(item.id); }}
+                          data-testid={`button-excel-access-${item.id}`}
+                          title="엑셀 다운로드"
+                        >
+                          <Download className="w-4 h-4" />
+                        </Button>
+                      )}
                       {canManageAccessRequests && (
                         <Button 
                           variant="ghost" 

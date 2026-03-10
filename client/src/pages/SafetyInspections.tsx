@@ -52,7 +52,7 @@ const EXTRA_DEPARTMENTS = [
 ];
 
 export default function SafetyInspections() {
-  const { canEditInspections } = usePermissions();
+  const { canEditInspections, canDownloadInspectionExcel, canUploadInspectionPhotos } = usePermissions();
   const { user } = useAuth();
   const { data: inspections, isLoading } = useQuery<SafetyInspection[]>({
     queryKey: ["/api/safety-inspections"],
@@ -540,16 +540,18 @@ export default function SafetyInspections() {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button
-            variant="outline"
-            onClick={handleExcelDownload}
-            disabled={!inspections || inspections.length === 0}
-            className="gap-2"
-            data-testid="button-excel-download"
-          >
-            <Download className="w-4 h-4" />
-            <span className="hidden sm:inline">엑셀 다운로드</span>
-          </Button>
+          {canDownloadInspectionExcel && (
+            <Button
+              variant="outline"
+              onClick={handleExcelDownload}
+              disabled={!inspections || inspections.length === 0}
+              className="gap-2"
+              data-testid="button-excel-download"
+            >
+              <Download className="w-4 h-4" />
+              <span className="hidden sm:inline">엑셀 다운로드</span>
+            </Button>
+          )}
           {canEditInspections && (
             <Button
               onClick={() => {
@@ -848,15 +850,17 @@ export default function SafetyInspections() {
 
                 <div className="space-y-2">
                   <Label>사진 첨부 ({images.length}/{MAX_IMAGES})</Label>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    ref={fileInputRef}
-                    onChange={handleImageUpload}
-                    className="hidden"
-                    data-testid="input-images"
-                  />
+                  {canUploadInspectionPhotos && (
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      ref={fileInputRef}
+                      onChange={handleImageUpload}
+                      className="hidden"
+                      data-testid="input-images"
+                    />
+                  )}
                   <div className="flex flex-wrap gap-2">
                     {images.map((img, index) => (
                       <div key={index} className="relative">
@@ -872,7 +876,7 @@ export default function SafetyInspections() {
                         </Button>
                       </div>
                     ))}
-                    {images.length < MAX_IMAGES && (
+                    {images.length < MAX_IMAGES && canUploadInspectionPhotos && (
                       <Button
                         variant="outline"
                         onClick={() => fileInputRef.current?.click()}

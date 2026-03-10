@@ -60,6 +60,14 @@ Preferred communication style: Simple, everyday language.
 - Permission checks on both regular API routes and chatbot actions
 - Global lock toggle prevents edits when system is locked
 - Lock status refreshes every 10 seconds on client
+- **Granular Permission System**: 48 individual permission keys in `shared/models/auth.ts` (UserPermissions interface), grouped into 4 categories:
+  - **메뉴 표시** (16 keys): viewDashboard, viewNotices, viewDigitalBoard, viewRules, viewAccidents, viewEquipmentStatus, viewEquipment, viewEducation, viewEducationLogs, viewInspections, viewRiskAssessment, viewMsds, viewMusculoskeletal, viewVehicle, viewVehicleLogs, viewAccess
+  - **등록/수정** (18 keys): editDashboard, editSafetyScores, editVehicles, editEquipmentStatus, registerRules, registerNotices, registerEducation, editEducationLogs, editInspections, manageAccessRequests, manageEquipmentRequests, editAccidents, editRiskAssessment, editMsds, editMusculoskeletal, uploadDashboardData, uploadEducationPhotos, uploadInspectionPhotos, uploadAccidentPhotos
+  - **업로드** (4 keys): uploadDashboardData, uploadEducationPhotos, uploadInspectionPhotos, uploadAccidentPhotos
+  - **다운로드** (10 keys): downloadEducationExcel, downloadInspectionExcel, downloadAccidentReport, downloadVehicleExcel, downloadVehicleLogExcel, downloadAccessExcel, downloadEquipmentExcel, downloadMsdsPdf, downloadRulesFiles, downloadEducationFiles
+  - Admin users always have ALL permissions; DEFAULT_PERMISSIONS gives view* = true, action/upload/download = false
+  - AdminUsers.tsx shows permissions in categorized sections with per-category "전체"/"해제" toggles
+  - Sidebar.tsx filters menu items based on viewX permissions
 - **Password Management**: mustChangePassword flag forces first-login password change; self-service password change via Topbar menu; admin can reset user passwords (sets mustChangePassword=true)
 - **Password Strength**: Minimum 8 chars, must include letters + numbers + special characters; visual strength indicator on password change forms
 - Password change APIs: /api/auth/change-password, /api/auth/force-change-password, /api/auth/admin-reset-password

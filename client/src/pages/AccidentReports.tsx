@@ -194,8 +194,7 @@ function SignaturePad({ onSave, onCancel, initialData }: { onSave: (data: string
 export default function AccidentReports() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { isAdmin, role } = usePermissions();
-  const canEdit = isAdmin || role === "manager";
+  const { canEditAccidents, canDownloadAccidentReport, canUploadAccidentPhotos } = usePermissions();
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -441,7 +440,7 @@ export default function AccidentReports() {
               exit={{ opacity: 0, y: -10 }}
               className="space-y-4"
             >
-              {canEdit && (
+              {canEditAccidents && (
                 <div className="flex justify-end">
                   <Button onClick={openCreate} data-testid="button-add-accident">
                     <Plus className="w-4 h-4 mr-1.5" />
@@ -496,10 +495,12 @@ export default function AccidentReports() {
                               </TableCell>
                               <TableCell>
                                 <div className="flex items-center gap-1">
-                                  <Button variant="ghost" size="icon" onClick={() => handleDownloadDocx(report.id)} title="경위서 다운로드" data-testid={`button-download-${report.id}`}>
-                                    <Download className="w-4 h-4 text-blue-500" />
-                                  </Button>
-                                  {canEdit && (
+                                  {canDownloadAccidentReport && (
+                                    <Button variant="ghost" size="icon" onClick={() => handleDownloadDocx(report.id)} title="경위서 다운로드" data-testid={`button-download-${report.id}`}>
+                                      <Download className="w-4 h-4 text-blue-500" />
+                                    </Button>
+                                  )}
+                                  {canEditAccidents && (
                                     <>
                                       <Button variant="ghost" size="icon" onClick={() => openEdit(report)} data-testid={`button-edit-${report.id}`}>
                                         <Pencil className="w-4 h-4" />
@@ -903,10 +904,12 @@ export default function AccidentReports() {
                     </div>
                   ))}
                 </div>
-                <Button variant="outline" size="sm" onClick={() => photoInputRef.current?.click()} disabled={uploadingPhotos} className="gap-1.5" data-testid="button-upload-photos">
-                  <Camera className="w-4 h-4" />
-                  {uploadingPhotos ? "업로드 중..." : "사진 추가"}
-                </Button>
+                {canUploadAccidentPhotos && (
+                  <Button variant="outline" size="sm" onClick={() => photoInputRef.current?.click()} disabled={uploadingPhotos} className="gap-1.5" data-testid="button-upload-photos">
+                    <Camera className="w-4 h-4" />
+                    {uploadingPhotos ? "업로드 중..." : "사진 추가"}
+                  </Button>
+                )}
               </CardContent>
             </Card>
 

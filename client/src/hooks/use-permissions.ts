@@ -5,6 +5,9 @@ import type { UserPermissions } from "@shared/models/auth";
 export type { UserPermissions };
 
 export interface Permissions {
+  isAdmin: boolean;
+  role: string | null;
+  canManageUsers: boolean;
   canEditDashboard: boolean;
   canEditSafetyScores: boolean;
   canEditVehicles: boolean;
@@ -19,9 +22,40 @@ export interface Permissions {
   canEditDigitalBoard: boolean;
   canEditVehicleLogs: boolean;
   canManageAccessRequests: boolean;
-  canManageUsers: boolean;
-  isAdmin: boolean;
-  role: string | null;
+  canEditAccidents: boolean;
+  canEditRiskAssessment: boolean;
+  canEditMsds: boolean;
+  canEditMusculoskeletal: boolean;
+  canUploadDashboardData: boolean;
+  canUploadEducationPhotos: boolean;
+  canUploadInspectionPhotos: boolean;
+  canUploadAccidentPhotos: boolean;
+  canDownloadEducationExcel: boolean;
+  canDownloadInspectionExcel: boolean;
+  canDownloadAccidentReport: boolean;
+  canDownloadVehicleExcel: boolean;
+  canDownloadVehicleLogExcel: boolean;
+  canDownloadAccessExcel: boolean;
+  canDownloadEquipmentExcel: boolean;
+  canDownloadMsdsPdf: boolean;
+  canDownloadRulesFiles: boolean;
+  canDownloadEducationFiles: boolean;
+  canViewDashboard: boolean;
+  canViewNotices: boolean;
+  canViewDigitalBoard: boolean;
+  canViewRules: boolean;
+  canViewAccidents: boolean;
+  canViewEquipmentStatus: boolean;
+  canViewEquipment: boolean;
+  canViewEducation: boolean;
+  canViewEducationLogs: boolean;
+  canViewInspections: boolean;
+  canViewRiskAssessment: boolean;
+  canViewMsds: boolean;
+  canViewMusculoskeletal: boolean;
+  canViewVehicle: boolean;
+  canViewVehicleLogs: boolean;
+  canViewAccess: boolean;
 }
 
 interface PermissionsResponse {
@@ -59,6 +93,40 @@ export function usePermissions(): Permissions & { isLoading: boolean } {
     canEditDigitalBoard: isAdmin || !!perms?.editDigitalBoard,
     canEditVehicleLogs: isAdmin || !!perms?.editVehicleLogs,
     canManageAccessRequests: isAdmin || !!perms?.manageAccessRequests,
+    canEditAccidents: isAdmin || !!perms?.editAccidents,
+    canEditRiskAssessment: isAdmin || !!perms?.editRiskAssessment,
+    canEditMsds: isAdmin || !!perms?.editMsds,
+    canEditMusculoskeletal: isAdmin || !!perms?.editMusculoskeletal,
+    canUploadDashboardData: isAdmin || !!perms?.uploadDashboardData,
+    canUploadEducationPhotos: isAdmin || !!perms?.uploadEducationPhotos,
+    canUploadInspectionPhotos: isAdmin || !!perms?.uploadInspectionPhotos,
+    canUploadAccidentPhotos: isAdmin || !!perms?.uploadAccidentPhotos,
+    canDownloadEducationExcel: isAdmin || !!perms?.downloadEducationExcel,
+    canDownloadInspectionExcel: isAdmin || !!perms?.downloadInspectionExcel,
+    canDownloadAccidentReport: isAdmin || !!perms?.downloadAccidentReport,
+    canDownloadVehicleExcel: isAdmin || !!perms?.downloadVehicleExcel,
+    canDownloadVehicleLogExcel: isAdmin || !!perms?.downloadVehicleLogExcel,
+    canDownloadAccessExcel: isAdmin || !!perms?.downloadAccessExcel,
+    canDownloadEquipmentExcel: isAdmin || !!perms?.downloadEquipmentExcel,
+    canDownloadMsdsPdf: isAdmin || !!perms?.downloadMsdsPdf,
+    canDownloadRulesFiles: isAdmin || !!perms?.downloadRulesFiles,
+    canDownloadEducationFiles: isAdmin || !!perms?.downloadEducationFiles,
+    canViewDashboard: isAdmin || !!perms?.viewDashboard,
+    canViewNotices: isAdmin || !!perms?.viewNotices,
+    canViewDigitalBoard: isAdmin || !!perms?.viewDigitalBoard,
+    canViewRules: isAdmin || !!perms?.viewRules,
+    canViewAccidents: isAdmin || !!perms?.viewAccidents,
+    canViewEquipmentStatus: isAdmin || !!perms?.viewEquipmentStatus,
+    canViewEquipment: isAdmin || !!perms?.viewEquipment,
+    canViewEducation: isAdmin || !!perms?.viewEducation,
+    canViewEducationLogs: isAdmin || !!perms?.viewEducationLogs,
+    canViewInspections: isAdmin || !!perms?.viewInspections,
+    canViewRiskAssessment: isAdmin || !!perms?.viewRiskAssessment,
+    canViewMsds: isAdmin || !!perms?.viewMsds,
+    canViewMusculoskeletal: isAdmin || !!perms?.viewMusculoskeletal,
+    canViewVehicle: isAdmin || !!perms?.viewVehicle,
+    canViewVehicleLogs: isAdmin || !!perms?.viewVehicleLogs,
+    canViewAccess: isAdmin || !!perms?.viewAccess,
   };
 }
 
@@ -77,7 +145,77 @@ export const PERMISSION_LABELS: Record<keyof UserPermissions, string> = {
   editDigitalBoard: "전자게시판 편집",
   editVehicleLogs: "차량운행일지 편집",
   manageAccessRequests: "출입신청 관리",
+  editAccidents: "사고보고 등록/수정",
+  editRiskAssessment: "위험성평가 편집",
+  editMsds: "MSDS 편집",
+  editMusculoskeletal: "근골격계질환 편집",
+  uploadDashboardData: "대시보드 데이터 업로드",
+  uploadEducationPhotos: "교육 사진 업로드",
+  uploadInspectionPhotos: "점검 사진 업로드",
+  uploadAccidentPhotos: "사고 사진 업로드",
+  downloadEducationExcel: "교육일지 엑셀 다운로드",
+  downloadInspectionExcel: "안전점검 엑셀 다운로드",
+  downloadAccidentReport: "사고경위서 다운로드",
+  downloadVehicleExcel: "차량관리 엑셀 다운로드",
+  downloadVehicleLogExcel: "차량운행일지 엑셀 다운로드",
+  downloadAccessExcel: "출입신청 엑셀 다운로드",
+  downloadEquipmentExcel: "안전보호구 엑셀 다운로드",
+  downloadMsdsPdf: "MSDS PDF 다운로드",
+  downloadRulesFiles: "안전수칙 파일 다운로드",
+  downloadEducationFiles: "교육자료 파일 다운로드",
+  viewDashboard: "대시보드",
+  viewNotices: "공지/알림",
+  viewDigitalBoard: "전자게시판",
+  viewRules: "안전수칙",
+  viewAccidents: "사고보고/통계",
+  viewEquipmentStatus: "안전보호구 현황",
+  viewEquipment: "안전용품 신청",
+  viewEducation: "안전교육 자료",
+  viewEducationLogs: "교육일지",
+  viewInspections: "안전점검",
+  viewRiskAssessment: "위험성평가",
+  viewMsds: "MSDS검색",
+  viewMusculoskeletal: "근골격계질환",
+  viewVehicle: "차량관리",
+  viewVehicleLogs: "차량운행일지",
+  viewAccess: "출입신청",
 };
+
+export const PERMISSION_CATEGORIES: { label: string; keys: (keyof UserPermissions)[] }[] = [
+  {
+    label: "메뉴 표시",
+    keys: [
+      "viewDashboard", "viewNotices", "viewDigitalBoard", "viewRules",
+      "viewAccidents", "viewEquipmentStatus", "viewEquipment", "viewEducation",
+      "viewEducationLogs", "viewInspections", "viewRiskAssessment", "viewMsds",
+      "viewMusculoskeletal", "viewVehicle", "viewVehicleLogs", "viewAccess",
+    ],
+  },
+  {
+    label: "등록/수정 권한",
+    keys: [
+      "editDashboard", "editSafetyScores", "registerNotices", "editDigitalBoard",
+      "registerRules", "editAccidents", "editEquipmentStatus", "manageEquipmentRequests",
+      "addEquipmentMaterials", "registerEducation", "editEducationLogs", "editInspections",
+      "editRiskAssessment", "editMsds", "editMusculoskeletal", "editVehicles",
+      "editVehicleLogs", "manageAccessRequests",
+    ],
+  },
+  {
+    label: "업로드 권한",
+    keys: [
+      "uploadDashboardData", "uploadEducationPhotos", "uploadInspectionPhotos", "uploadAccidentPhotos",
+    ],
+  },
+  {
+    label: "다운로드 권한",
+    keys: [
+      "downloadEducationExcel", "downloadInspectionExcel", "downloadAccidentReport",
+      "downloadVehicleExcel", "downloadVehicleLogExcel", "downloadAccessExcel",
+      "downloadEquipmentExcel", "downloadMsdsPdf", "downloadRulesFiles", "downloadEducationFiles",
+    ],
+  },
+];
 
 export function getRoleLabel(role: string): string {
   switch (role) {

@@ -97,8 +97,8 @@ const EMPTY_FORM: InsertChemical = {
 export default function MsdsSearch() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { canManageEquipmentRequests, isAdmin } = usePermissions();
-  const canEdit = isAdmin || canManageEquipmentRequests;
+  const { canEditMsds, canDownloadMsdsPdf } = usePermissions();
+  const canEdit = canEditMsds;
 
   const [searchQuery, setSearchQuery] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -395,7 +395,7 @@ export default function MsdsSearch() {
                           )}
                         </div>
                         <div className="flex items-center gap-1">
-                          {chemical.pdfUrl && (
+                          {chemical.pdfUrl && canDownloadMsdsPdf && (
                             <Button
                               variant="ghost"
                               size="icon"
@@ -456,7 +456,7 @@ export default function MsdsSearch() {
                           className="overflow-hidden"
                         >
                           <CardContent className="pt-0 space-y-4">
-                            {chemical.pdfUrl && (
+                            {chemical.pdfUrl && canDownloadMsdsPdf && (
                               <Button
                                 variant="outline"
                                 className="w-full gap-2"
