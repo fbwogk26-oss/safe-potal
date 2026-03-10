@@ -1858,6 +1858,43 @@ export async function registerRoutes(
     }
   });
 
+  // === MUSCULOSKELETAL ASSESSMENTS ===
+  app.get('/api/musculoskeletal-assessments', isAuthenticated, async (req: any, res) => {
+    try {
+      const results = await storage.getMusculoskeletalAssessments();
+      res.json(results);
+    } catch (error) {
+      res.status(500).json({ message: "근골격계 유해요인조사 목록 조회에 실패했습니다" });
+    }
+  });
+
+  app.post('/api/musculoskeletal-assessments', requireEditor, async (req: any, res) => {
+    try {
+      const created = await storage.createMusculoskeletalAssessment(req.body);
+      res.status(201).json(created);
+    } catch (error) {
+      res.status(500).json({ message: "근골격계 유해요인조사 등록에 실패했습니다" });
+    }
+  });
+
+  app.put('/api/musculoskeletal-assessments/:id', requireEditor, async (req: any, res) => {
+    try {
+      const updated = await storage.updateMusculoskeletalAssessment(Number(req.params.id), req.body);
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ message: "근골격계 유해요인조사 수정에 실패했습니다" });
+    }
+  });
+
+  app.delete('/api/musculoskeletal-assessments/:id', requireEditor, async (req: any, res) => {
+    try {
+      await storage.deleteMusculoskeletalAssessment(Number(req.params.id));
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "근골격계 유해요인조사 삭제에 실패했습니다" });
+    }
+  });
+
   // === RISK ASSESSMENTS ===
   app.get('/api/risk-assessments', isAuthenticated, async (req: any, res) => {
     try {

@@ -3,7 +3,7 @@ import {
   teams, notices, settings, vehicles, safetyEquipment, safetyInspections, vehicleLogs,
   educationSessions, educationSignatures,
   users,
-  chemicals, riskAssessments, accidentReports, newEquipmentRequests,
+  chemicals, riskAssessments, accidentReports, newEquipmentRequests, musculoskeletalAssessments,
   type Team, type InsertTeam, type UpdateTeamRequest,
   type Notice, type InsertNotice,
   type Setting,
@@ -18,6 +18,7 @@ import {
   type RiskAssessment, type InsertRiskAssessment,
   type AccidentReport, type InsertAccidentReport,
   type NewEquipmentRequest, type InsertNewEquipmentRequest,
+  type MusculoskeletalAssessment, type InsertMusculoskeletalAssessment,
 } from "@shared/schema";
 import { eq, desc, asc, and, ilike, or } from "drizzle-orm";
 
@@ -109,6 +110,13 @@ export interface IStorage {
   createNewEquipmentRequest(request: InsertNewEquipmentRequest): Promise<NewEquipmentRequest>;
   updateNewEquipmentRequest(id: number, updates: Partial<InsertNewEquipmentRequest>): Promise<NewEquipmentRequest>;
   deleteNewEquipmentRequest(id: number): Promise<void>;
+
+  // Musculoskeletal Assessments
+  getMusculoskeletalAssessments(): Promise<MusculoskeletalAssessment[]>;
+  getMusculoskeletalAssessment(id: number): Promise<MusculoskeletalAssessment | undefined>;
+  createMusculoskeletalAssessment(data: InsertMusculoskeletalAssessment): Promise<MusculoskeletalAssessment>;
+  updateMusculoskeletalAssessment(id: number, data: Partial<InsertMusculoskeletalAssessment>): Promise<MusculoskeletalAssessment>;
+  deleteMusculoskeletalAssessment(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -428,6 +436,30 @@ export class DatabaseStorage implements IStorage {
 
   async deleteNewEquipmentRequest(id: number): Promise<void> {
     await db.delete(newEquipmentRequests).where(eq(newEquipmentRequests.id, id));
+  }
+
+  // === MUSCULOSKELETAL ASSESSMENTS ===
+  async getMusculoskeletalAssessments(): Promise<MusculoskeletalAssessment[]> {
+    return await db.select().from(musculoskeletalAssessments).orderBy(desc(musculoskeletalAssessments.createdAt));
+  }
+
+  async getMusculoskeletalAssessment(id: number): Promise<MusculoskeletalAssessment | undefined> {
+    const [r] = await db.select().from(musculoskeletalAssessments).where(eq(musculoskeletalAssessments.id, id));
+    return r;
+  }
+
+  async createMusculoskeletalAssessment(data: InsertMusculoskeletalAssessment): Promise<MusculoskeletalAssessment> {
+    const [created] = await db.insert(musculoskeletalAssessments).values(data).returning();
+    return created;
+  }
+
+  async updateMusculoskeletalAssessment(id: number, data: Partial<InsertMusculoskeletalAssessment>): Promise<MusculoskeletalAssessment> {
+    const [updated] = await db.update(musculoskeletalAssessments).set(data).where(eq(musculoskeletalAssessments.id, id)).returning();
+    return updated;
+  }
+
+  async deleteMusculoskeletalAssessment(id: number): Promise<void> {
+    await db.delete(musculoskeletalAssessments).where(eq(musculoskeletalAssessments.id, id));
   }
 }
 

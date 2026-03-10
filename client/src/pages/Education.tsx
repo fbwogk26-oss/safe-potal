@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { GraduationCap, Plus, Trash2, ImagePlus, X, BookOpen, Calendar, Search, Eye, FileText, Image, Paperclip, Download, FileSpreadsheet, FileIcon } from "lucide-react";
+import { GraduationCap, Plus, Trash2, ImagePlus, X, BookOpen, Calendar, Search, Eye, FileText, Image, Paperclip, Download, FileSpreadsheet, FileIcon, Video, Loader2 } from "lucide-react";
 import { useState, useRef, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -25,20 +25,12 @@ export default function Education() {
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedItem, setSelectedItem] = useState<{
-    id: number;
-    category: string;
-    title: string;
-    content: string;
-    imageUrl: string | null;
-    fileName: string | null;
-    fileType: string | null;
-    createdAt: Date | null;
-  } | null>(null);
+  const [selectedItem, setSelectedItem] = useState<any | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [attachments, setAttachments] = useState<Array<{ url: string; name: string; type: string }>>([]);
 
-  const ACCEPTED_FILE_TYPES = "image/*,.pptx,.ppt,.docx,.doc,.xlsx,.xls,.pdf";
+  const ACCEPTED_FILE_TYPES = "image/*,.pptx,.ppt,.docx,.doc,.xlsx,.xls,.pdf,.mp4,.avi,.mov,.wmv,.webm,video/*";
 
   const getExtFromName = (name: string | null | undefined) => {
     if (!name) return '';
@@ -50,9 +42,16 @@ export default function Education() {
     return fileType.startsWith('image/');
   };
 
+  const isVideoByType = (fileType: string | null | undefined, fileName: string | null | undefined) => {
+    if (fileType?.startsWith('video/')) return true;
+    const ext = getExtFromName(fileName);
+    return ['mp4','avi','mov','wmv','webm'].includes(ext);
+  };
+
   const getFileIconByMeta = (fileType: string | null | undefined, fileName: string | null | undefined) => {
     const ext = getExtFromName(fileName);
     if (fileType?.startsWith('image/')) return <Image className="w-4 h-4 text-blue-500" />;
+    if (fileType?.startsWith('video/') || ['mp4','avi','mov','wmv','webm'].includes(ext)) return <Video className="w-4 h-4 text-purple-500" />;
     if (['pptx','ppt'].includes(ext) || fileType?.includes('presentation') || fileType?.includes('powerpoint')) return <FileText className="w-4 h-4 text-orange-500" />;
     if (['docx','doc'].includes(ext) || fileType?.includes('word')) return <FileText className="w-4 h-4 text-blue-500" />;
     if (['xlsx','xls'].includes(ext) || fileType?.includes('spreadsheet') || fileType?.includes('excel')) return <FileSpreadsheet className="w-4 h-4 text-green-500" />;
@@ -63,6 +62,7 @@ export default function Education() {
   const getFileLabelByMeta = (fileType: string | null | undefined, fileName: string | null | undefined) => {
     const ext = getExtFromName(fileName);
     if (fileType?.startsWith('image/')) return '이미지';
+    if (fileType?.startsWith('video/') || ['mp4','avi','mov','wmv','webm'].includes(ext)) return '동영상';
     if (['pptx','ppt'].includes(ext) || fileType?.includes('presentation') || fileType?.includes('powerpoint')) return 'PPT';
     if (['docx','doc'].includes(ext) || fileType?.includes('word')) return 'Word';
     if (['xlsx','xls'].includes(ext) || fileType?.includes('spreadsheet') || fileType?.includes('excel')) return 'Excel';
@@ -89,21 +89,19 @@ export default function Education() {
     if (isDownloading) return;
     setIsDownloading(true);
     try {
-      const res = await fetch(`/api/download?path=${encodeURIComponent(fileUrl)}&name=${encodeURIComponent(fileName)}`, {
+      const res = await fetch(`/api/download?path=${encodeURIComponent(fileUrl)}`, {
         credentials: "include",
       });
-      if (!res.ok) {
-        throw new Error("다운로드 실패");
-      }
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
+      if (!res.ok) throw new Error("다운로드 실패");
+      const { url } = await res.json();
       const a = document.createElement("a");
       a.href = url;
       a.download = fileName;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
     } catch (err) {
       toast({ variant: "destructive", title: "다운로드 실패", description: "파일을 다운로드할 수 없습니다." });
     } finally {
@@ -112,44 +110,61 @@ export default function Education() {
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
 
-    const maxSize = 50 * 1024 * 1024;
-    if (file.size > maxSize) {
-      toast({ variant: "destructive", title: "파일 크기 초과", description: "50MB 이하의 파일만 업로드 가능합니다." });
+    const maxSize = 100 * 1024 * 1024;
+    const maxFiles = 10;
+
+    if (attachments.length + files.length > maxFiles) {
+      toast({ variant: "destructive", title: "파일 수 초과", description: `최대 ${maxFiles}개까지 첨부 가능합니다.` });
       return;
+    }
+
+    for (const file of Array.from(files)) {
+      if (file.size > maxSize) {
+        toast({ variant: "destructive", title: "파일 크기 초과", description: `${file.name}: 100MB 이하의 파일만 업로드 가능합니다.` });
+        return;
+      }
     }
     
     setIsUploading(true);
     
     try {
-      const urlRes = await fetch('/api/uploads/request-url', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: file.name,
-          size: file.size,
-          contentType: file.type,
-        }),
-      });
-      if (!urlRes.ok) {
-        const err = await urlRes.json().catch(() => ({}));
-        throw new Error(err.error || "업로드 URL 요청 실패");
+      const newAttachments: Array<{ url: string; name: string; type: string }> = [];
+      for (const file of Array.from(files)) {
+        const urlRes = await fetch('/api/uploads/request-url', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: file.name,
+            size: file.size,
+            contentType: file.type,
+          }),
+        });
+        if (!urlRes.ok) {
+          const err = await urlRes.json().catch(() => ({}));
+          throw new Error(err.error || `${file.name} 업로드 URL 요청 실패`);
+        }
+        const { uploadURL, objectPath } = await urlRes.json();
+        
+        const uploadRes = await fetch(uploadURL, {
+          method: 'PUT',
+          body: file,
+          headers: { 'Content-Type': file.type },
+        });
+        if (!uploadRes.ok) throw new Error(`${file.name} 업로드 실패`);
+        
+        newAttachments.push({ url: objectPath, name: file.name, type: file.type });
       }
-      const { uploadURL, objectPath } = await urlRes.json();
       
-      const uploadRes = await fetch(uploadURL, {
-        method: 'PUT',
-        body: file,
-        headers: { 'Content-Type': file.type },
-      });
-      if (!uploadRes.ok) throw new Error("파일 업로드 실패");
-      
-      setImageUrl(objectPath);
-      setUploadedFileName(file.name);
-      setUploadedFileType(file.type);
-      toast({ title: "파일 업로드 완료" });
+      setAttachments(prev => [...prev, ...newAttachments]);
+      if (!imageUrl && newAttachments.length > 0) {
+        setImageUrl(newAttachments[0].url);
+        setUploadedFileName(newAttachments[0].name);
+        setUploadedFileType(newAttachments[0].type);
+      }
+      toast({ title: `${newAttachments.length}개 파일 업로드 완료` });
     } catch (err: any) {
       toast({ variant: "destructive", title: "업로드 실패", description: err?.message || "파일 업로드 중 오류가 발생했습니다." });
     } finally {
@@ -165,13 +180,15 @@ export default function Education() {
       imageUrl: imageUrl || undefined,
       fileName: uploadedFileName || undefined,
       fileType: uploadedFileType || undefined,
-    }, {
+      attachments: attachments.length > 0 ? attachments : undefined,
+    } as any, {
       onSuccess: () => {
         setTitle("");
         setContent("");
         setImageUrl(null);
         setUploadedFileName(null);
         setUploadedFileType(null);
+        setAttachments([]);
         setShowAddForm(false);
         toast({ title: "자료 추가 완료", description: "교육 자료가 게시되었습니다." });
       }
@@ -257,18 +274,31 @@ export default function Education() {
                     data-testid={`row-edu-${item.id}`}
                   >
                     <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                      {item.imageUrl ? getFileIconByMeta((item as any).fileType, (item as any).fileName) : (
-                        <BookOpen className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                      )}
+                      {(() => {
+                        const atts = (item as any).attachments;
+                        if (atts && Array.isArray(atts) && atts.length > 0) {
+                          return getFileIconByMeta(atts[0].type, atts[0].name);
+                        }
+                        return item.imageUrl ? getFileIconByMeta((item as any).fileType, (item as any).fileName) : (
+                          <BookOpen className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                        );
+                      })()}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <h3 className="font-medium text-sm truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                           {item.title}
                         </h3>
-                        {item.imageUrl && (
-                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{getFileLabelByMeta((item as any).fileType, (item as any).fileName)}</Badge>
-                        )}
+                        {(() => {
+                          const atts = (item as any).attachments;
+                          if (atts && Array.isArray(atts) && atts.length > 0) {
+                            return <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{atts.length}개 파일</Badge>;
+                          }
+                          if (item.imageUrl) {
+                            return <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{getFileLabelByMeta((item as any).fileType, (item as any).fileName)}</Badge>;
+                          }
+                          return null;
+                        })()}
                       </div>
                       <p className="text-xs text-muted-foreground truncate mt-0.5">{item.content}</p>
                     </div>
@@ -354,46 +384,59 @@ export default function Education() {
               ref={fileInputRef}
               onChange={handleFileUpload}
               className="hidden"
+              multiple
               data-testid="input-edu-file"
             />
             
-            {imageUrl ? (
-              <div className="relative border rounded-lg p-3">
-                {isImageByType(uploadedFileType) ? (
-                  <img src={imageUrl} alt="미리보기" className="max-h-40 rounded-lg" />
-                ) : (
-                  <div className="flex items-center gap-3 pr-8">
-                    <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
-                      {getFileIconByMeta(uploadedFileType, uploadedFileName)}
+            {attachments.length > 0 && (
+              <div className="space-y-2">
+                {attachments.map((att, idx) => (
+                  <div key={idx} className="relative border rounded-lg p-3">
+                    <div className="flex items-center gap-3 pr-8">
+                      <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
+                        {getFileIconByMeta(att.type, att.name)}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{att.name}</p>
+                        <p className="text-xs text-muted-foreground">{getFileLabelByMeta(att.type, att.name)} 파일</p>
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">{uploadedFileName || '첨부파일'}</p>
-                      <p className="text-xs text-muted-foreground">{getFileLabelByMeta(uploadedFileType, uploadedFileName)} 파일</p>
-                    </div>
+                    <Button
+                      variant="destructive"
+                      size="icon"
+                      className="absolute top-2 right-2 h-6 w-6"
+                      onClick={() => {
+                        const newAtts = attachments.filter((_, i) => i !== idx);
+                        setAttachments(newAtts);
+                        if (newAtts.length > 0) {
+                          setImageUrl(newAtts[0].url);
+                          setUploadedFileName(newAtts[0].name);
+                          setUploadedFileType(newAtts[0].type);
+                        } else {
+                          setImageUrl(null);
+                          setUploadedFileName(null);
+                          setUploadedFileType(null);
+                        }
+                      }}
+                      data-testid={`button-remove-edu-file-${idx}`}
+                    >
+                      <X className="w-3 h-3" />
+                    </Button>
                   </div>
-                )}
-                <Button
-                  variant="destructive"
-                  size="icon"
-                  className="absolute -top-2 -right-2 h-6 w-6"
-                  onClick={() => { setImageUrl(null); setUploadedFileName(null); setUploadedFileType(null); }}
-                  data-testid="button-remove-edu-file"
-                >
-                  <X className="w-3 h-3" />
-                </Button>
+                ))}
               </div>
-            ) : (
-              <Button
-                variant="outline"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isUploading}
-                className="gap-2"
-                data-testid="button-add-edu-file"
-              >
-                <Paperclip className="w-4 h-4" />
-                {isUploading ? "업로드 중..." : "파일 첨부 (이미지, PPT, Word, Excel, PDF)"}
-              </Button>
             )}
+            
+            <Button
+              variant="outline"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading || attachments.length >= 10}
+              className="gap-2"
+              data-testid="button-add-edu-file"
+            >
+              {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
+              {isUploading ? "업로드 중..." : attachments.length > 0 ? "파일 추가 첨부" : "파일 첨부 (이미지, PPT, Word, Excel, PDF, 동영상)"}
+            </Button>
             
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" onClick={() => setShowAddForm(false)}>취소</Button>
@@ -418,37 +461,60 @@ export default function Education() {
                 <DialogTitle className="text-xl pr-8">{selectedItem.title}</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 pt-4">
-                {selectedItem.imageUrl && (
-                  <>
-                    {isImageByType(selectedItem.fileType) ? (
-                      <img 
-                        src={selectedItem.imageUrl} 
-                        alt={selectedItem.title}
-                        className="w-full max-h-80 object-contain rounded-xl border bg-muted/20"
-                      />
-                    ) : (
-                      <div className="flex items-center gap-4 p-4 rounded-xl border bg-muted/20">
-                        <div className="flex-shrink-0 w-12 h-12 rounded-lg bg-background flex items-center justify-center">
-                          {getFileIconByMeta(selectedItem.fileType, selectedItem.fileName)}
+                {(() => {
+                  const allAttachments: Array<{ url: string; name: string; type: string }> = 
+                    selectedItem.attachments && Array.isArray(selectedItem.attachments) && selectedItem.attachments.length > 0
+                      ? selectedItem.attachments
+                      : selectedItem.imageUrl
+                        ? [{ url: selectedItem.imageUrl, name: selectedItem.fileName || '첨부파일', type: selectedItem.fileType || '' }]
+                        : [];
+                  
+                  if (allAttachments.length === 0) return null;
+                  
+                  return (
+                    <div className="space-y-3">
+                      {allAttachments.map((att: { url: string; name: string; type: string }, idx: number) => (
+                        <div key={idx}>
+                          {isImageByType(att.type) && !isVideoByType(att.type, att.name) ? (
+                            <img 
+                              src={att.url} 
+                              alt={att.name}
+                              className="w-full max-h-80 object-contain rounded-xl border bg-muted/20"
+                            />
+                          ) : isVideoByType(att.type, att.name) ? (
+                            <video 
+                              controls 
+                              className="w-full max-h-80 rounded-xl border bg-black"
+                              preload="metadata"
+                            >
+                              <source src={att.url} type={att.type} />
+                            </video>
+                          ) : (
+                            <div className="flex items-center gap-4 p-4 rounded-xl border bg-muted/20">
+                              <div className="flex-shrink-0 w-12 h-12 rounded-lg bg-background flex items-center justify-center">
+                                {getFileIconByMeta(att.type, att.name)}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium truncate">{att.name}</p>
+                                <p className="text-sm text-muted-foreground">{getFileLabelByMeta(att.type, att.name)} 파일</p>
+                              </div>
+                            </div>
+                          )}
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="gap-1.5 w-full mt-2" 
+                            onClick={() => handleDownload(att.url, att.name)}
+                            disabled={isDownloading}
+                            data-testid={`button-download-edu-file-${idx}`}
+                          >
+                            <Download className="w-4 h-4" /> {isDownloading ? '다운로드 중...' : `${att.name} 다운로드`}
+                          </Button>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate">{selectedItem.fileName || '첨부파일'}</p>
-                          <p className="text-sm text-muted-foreground">{getFileLabelByMeta(selectedItem.fileType, selectedItem.fileName)} 파일</p>
-                        </div>
-                      </div>
-                    )}
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="gap-1.5 w-full" 
-                      onClick={() => handleDownload(selectedItem.imageUrl!, selectedItem.fileName || '첨부파일')}
-                      disabled={isDownloading}
-                      data-testid="button-download-edu-file"
-                    >
-                      <Download className="w-4 h-4" /> {isDownloading ? '다운로드 중...' : `${selectedItem.fileName || '첨부파일'} 다운로드`}
-                    </Button>
-                  </>
-                )}
+                      ))}
+                    </div>
+                  );
+                })()}
                 <p className="text-foreground/90 leading-relaxed whitespace-pre-wrap">{selectedItem.content}</p>
                 <div className="flex items-center justify-between pt-4 border-t text-sm text-muted-foreground">
                   <span className="flex items-center gap-2">

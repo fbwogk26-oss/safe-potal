@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -42,6 +42,11 @@ import {
   HandMetal,
   Warehouse,
   StickyNote,
+  FileText,
+  Upload,
+  Download,
+  Loader2,
+  X,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -83,6 +88,9 @@ const EMPTY_FORM: InsertChemical = {
   ppe: "",
   firstAid: "",
   notes: "",
+  pdfUrl: "",
+  pdfFileName: "",
+  pdfFileType: "",
   createdBy: "",
 };
 
@@ -98,6 +106,9 @@ export default function MsdsSearch() {
   const [formData, setFormData] = useState<InsertChemical>({ ...EMPTY_FORM });
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: chemicals, isLoading } = useQuery<Chemical[]>({
     queryKey: ["/api/chemicals", searchQuery ? `?search=${encodeURIComponent(searchQuery)}` : ""],
@@ -170,6 +181,9 @@ export default function MsdsSearch() {
       ppe: chemical.ppe || "",
       firstAid: chemical.firstAid || "",
       notes: chemical.notes || "",
+      pdfUrl: chemical.pdfUrl || "",
+      pdfFileName: chemical.pdfFileName || "",
+      pdfFileType: chemical.pdfFileType || "",
       createdBy: chemical.createdBy || "",
     });
     setDialogOpen(true);
@@ -193,6 +207,82 @@ export default function MsdsSearch() {
 
   const toggleExpand = (id: number) => {
     setExpandedId((prev) => (prev === id ? null : id));
+  };
+
+  const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.type !== 'application/pdf') {
+      toast({ variant: "destructive", title: "PDF 파일만 업로드 가능합니다." });
+      return;
+    }
+
+    const maxSize = 50 * 1024 * 1024;
+    if (file.size > maxSize) {
+      toast({ variant: "destructive", title: "파일 크기 초과", description: "50MB 이하의 파일만 업로드 가능합니다." });
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const urlRes = await fetch('/api/uploads/request-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type }),
+      });
+      if (!urlRes.ok) {
+        const err = await urlRes.json().catch(() => ({}));
+        throw new Error(err.error || "업로드 URL 요청 실패");
+      }
+      const { uploadURL, objectPath } = await urlRes.json();
+
+      const uploadRes = await fetch(uploadURL, {
+        method: 'PUT',
+        body: file,
+        headers: { 'Content-Type': file.type },
+      });
+      if (!uploadRes.ok) throw new Error("파일 업로드 실패");
+
+      setFormData(prev => ({
+        ...prev,
+        pdfUrl: objectPath,
+        pdfFileName: file.name,
+        pdfFileType: file.type,
+      }));
+      toast({ title: "PDF 업로드 완료" });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "업로드 실패", description: err?.message || "파일 업로드 중 오류가 발생했습니다." });
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleDownloadPdf = async (pdfUrl: string, pdfFileName: string, e?: React.MouseEvent) => {
+    e?.preventDefault();
+    e?.stopPropagation();
+    if (isDownloading) return;
+    setIsDownloading(true);
+    try {
+      const res = await fetch(`/api/download?path=${encodeURIComponent(pdfUrl)}`, {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("다운로드 실패");
+      const { url } = await res.json();
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = pdfFileName;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } catch (err) {
+      toast({ variant: "destructive", title: "다운로드 실패", description: "PDF를 다운로드할 수 없습니다." });
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   return (
@@ -298,8 +388,24 @@ export default function MsdsSearch() {
                           >
                             {badge.label}
                           </Badge>
+                          {chemical.pdfUrl && (
+                            <Badge variant="secondary" className="gap-1 text-[10px] px-1.5 py-0 no-default-hover-elevate no-default-active-elevate">
+                              <FileText className="w-3 h-3" /> PDF
+                            </Badge>
+                          )}
                         </div>
                         <div className="flex items-center gap-1">
+                          {chemical.pdfUrl && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={(e) => handleDownloadPdf(chemical.pdfUrl!, chemical.pdfFileName || 'MSDS.pdf', e)}
+                              disabled={isDownloading}
+                              data-testid={`button-download-pdf-${chemical.id}`}
+                            >
+                              <Download className="w-4 h-4 text-red-500" />
+                            </Button>
+                          )}
                           {canEdit && (
                             <>
                               <Button
@@ -350,6 +456,18 @@ export default function MsdsSearch() {
                           className="overflow-hidden"
                         >
                           <CardContent className="pt-0 space-y-4">
+                            {chemical.pdfUrl && (
+                              <Button
+                                variant="outline"
+                                className="w-full gap-2"
+                                onClick={() => handleDownloadPdf(chemical.pdfUrl!, chemical.pdfFileName || 'MSDS.pdf')}
+                                disabled={isDownloading}
+                                data-testid={`button-download-pdf-detail-${chemical.id}`}
+                              >
+                                <FileText className="w-4 h-4 text-red-500" />
+                                {isDownloading ? '다운로드 중...' : `${chemical.pdfFileName || 'MSDS.pdf'} 다운로드`}
+                              </Button>
+                            )}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               {chemical.hazards && (
                                 <DetailSection
@@ -414,24 +532,24 @@ export default function MsdsSearch() {
       )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {editingId !== null ? "화학물질 수정" : "화학물질 등록"}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="chem-name">물질명 *</Label>
-                <Input
-                  id="chem-name"
-                  placeholder="예: 아세톤"
-                  value={formData.name}
-                  onChange={(e) => updateField("name", e.target.value)}
-                  data-testid="input-chemical-name"
-                />
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="chem-name">물질명 *</Label>
+              <Input
+                id="chem-name"
+                placeholder="예: 아세톤"
+                value={formData.name}
+                onChange={(e) => updateField("name", e.target.value)}
+                data-testid="input-chemical-name"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="chem-cas">CAS번호</Label>
                 <Input
@@ -442,94 +560,69 @@ export default function MsdsSearch() {
                   data-testid="input-chemical-cas"
                 />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="chem-category">분류</Label>
+                <Select
+                  value={formData.category || ""}
+                  onValueChange={(v) => updateField("category", v)}
+                >
+                  <SelectTrigger data-testid="select-chemical-category">
+                    <SelectValue placeholder="분류 선택" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CATEGORIES.map((cat) => (
+                      <SelectItem key={cat} value={cat}>
+                        {cat}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
+
             <div className="space-y-2">
-              <Label htmlFor="chem-category">분류</Label>
-              <Select
-                value={formData.category || ""}
-                onValueChange={(v) => updateField("category", v)}
-              >
-                <SelectTrigger data-testid="select-chemical-category">
-                  <SelectValue placeholder="분류 선택" />
-                </SelectTrigger>
-                <SelectContent>
-                  {CATEGORIES.map((cat) => (
-                    <SelectItem key={cat} value={cat}>
-                      {cat}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="chem-hazards">위험성</Label>
-              <Textarea
-                id="chem-hazards"
-                placeholder="위험성 정보를 입력하세요"
-                value={formData.hazards || ""}
-                onChange={(e) => updateField("hazards", e.target.value)}
-                data-testid="input-chemical-hazards"
+              <Label>MSDS PDF 파일</Label>
+              <input
+                type="file"
+                accept=".pdf"
+                ref={fileInputRef}
+                onChange={handlePdfUpload}
+                className="hidden"
+                data-testid="input-chemical-pdf"
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="chem-emergency">응급조치요령</Label>
-              <Textarea
-                id="chem-emergency"
-                placeholder="응급조치 요령을 입력하세요"
-                value={formData.emergencyProcedures || ""}
-                onChange={(e) => updateField("emergencyProcedures", e.target.value)}
-                data-testid="input-chemical-emergency"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="chem-handling">취급주의사항</Label>
-              <Textarea
-                id="chem-handling"
-                placeholder="취급 시 주의사항을 입력하세요"
-                value={formData.handlingPrecautions || ""}
-                onChange={(e) => updateField("handlingPrecautions", e.target.value)}
-                data-testid="input-chemical-handling"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="chem-storage">저장방법</Label>
-              <Textarea
-                id="chem-storage"
-                placeholder="저장 및 보관 방법을 입력하세요"
-                value={formData.storageRequirements || ""}
-                onChange={(e) => updateField("storageRequirements", e.target.value)}
-                data-testid="input-chemical-storage"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="chem-ppe">보호구</Label>
-              <Textarea
-                id="chem-ppe"
-                placeholder="필요한 보호구를 입력하세요"
-                value={formData.ppe || ""}
-                onChange={(e) => updateField("ppe", e.target.value)}
-                data-testid="input-chemical-ppe"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="chem-firstaid">응급처치</Label>
-              <Textarea
-                id="chem-firstaid"
-                placeholder="응급처치 방법을 입력하세요"
-                value={formData.firstAid || ""}
-                onChange={(e) => updateField("firstAid", e.target.value)}
-                data-testid="input-chemical-firstaid"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="chem-notes">비고</Label>
-              <Textarea
-                id="chem-notes"
-                placeholder="추가 참고사항을 입력하세요"
-                value={formData.notes || ""}
-                onChange={(e) => updateField("notes", e.target.value)}
-                data-testid="input-chemical-notes"
-              />
+              {formData.pdfUrl ? (
+                <div className="relative border rounded-lg p-3">
+                  <div className="flex items-center gap-3 pr-8">
+                    <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-red-50 dark:bg-red-900/20 flex items-center justify-center">
+                      <FileText className="w-5 h-5 text-red-500" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{formData.pdfFileName || 'MSDS.pdf'}</p>
+                      <p className="text-xs text-muted-foreground">PDF 파일</p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="destructive"
+                    size="icon"
+                    className="absolute top-2 right-2 h-6 w-6"
+                    onClick={() => setFormData(prev => ({ ...prev, pdfUrl: "", pdfFileName: "", pdfFileType: "" }))}
+                    data-testid="button-remove-pdf"
+                  >
+                    <X className="w-3 h-3" />
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  variant="outline"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploading}
+                  className="gap-2 w-full"
+                  data-testid="button-upload-pdf"
+                >
+                  {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                  {isUploading ? "업로드 중..." : "PDF 파일 첨부"}
+                </Button>
+              )}
             </div>
           </div>
           <DialogFooter className="gap-2">

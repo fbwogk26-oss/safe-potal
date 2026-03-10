@@ -23,6 +23,7 @@ import SecurityLogs from "@/pages/SecurityLogs";
 import MsdsSearch from "@/pages/MsdsSearch";
 import RiskAssessment from "@/pages/RiskAssessment";
 import AccidentReports from "@/pages/AccidentReports";
+import MusculoskeletalDisease from "@/pages/MusculoskeletalDisease";
 import NewEquipmentRequest from "@/pages/NewEquipmentRequest";
 import Login from "@/pages/Login";
 import NotFound from "@/pages/NotFound";
@@ -57,6 +58,7 @@ function MainLayout() {
             <Route path="/msds" component={MsdsSearch} />
             <Route path="/risk-assessment" component={RiskAssessment} />
             <Route path="/accidents" component={AccidentReports} />
+            <Route path="/musculoskeletal" component={MusculoskeletalDisease} />
             <Route path="/digital-board" component={DigitalBoard} />
             <Route path="/admin/users" component={AdminUsers} />
             <Route path="/admin/security" component={SecurityLogs} />

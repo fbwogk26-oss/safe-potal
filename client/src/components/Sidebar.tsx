@@ -19,6 +19,7 @@ import {
   ChevronDown,
   Users,
   ScrollText,
+  Bone,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -67,6 +68,7 @@ const NAV_ITEMS: NavEntry[] = [
     icon: HeartPulse,
     children: [
       { label: "MSDS검색", href: "/msds", icon: FlaskConical },
+      { label: "근골격계질환", href: "/musculoskeletal", icon: Bone },
     ],
   },
   {

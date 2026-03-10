@@ -40,6 +40,7 @@ export const notices = pgTable("notices", {
   imageUrl: text("image_url"),
   fileName: text("file_name"),
   fileType: text("file_type"),
+  attachments: jsonb("attachments").$type<Array<{ url: string; name: string; type: string }>>(),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -221,6 +222,9 @@ export const chemicals = pgTable("chemicals", {
   ppe: text("ppe"),
   firstAid: text("first_aid"),
   notes: text("notes"),
+  pdfUrl: text("pdf_url"),
+  pdfFileName: text("pdf_file_name"),
+  pdfFileType: text("pdf_file_type"),
   createdBy: text("created_by"),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -228,6 +232,26 @@ export const chemicals = pgTable("chemicals", {
 export const insertChemicalSchema = createInsertSchema(chemicals).omit({ id: true, createdAt: true });
 export type Chemical = typeof chemicals.$inferSelect;
 export type InsertChemical = z.infer<typeof insertChemicalSchema>;
+
+// === 근골격계질환 (Musculoskeletal Disease) ===
+export const musculoskeletalAssessments = pgTable("musculoskeletal_assessments", {
+  id: serial("id").primaryKey(),
+  department: text("department").notNull(),
+  task: text("task").notNull(),
+  hazardFactor: text("hazard_factor").notNull(),
+  riskLevel: text("risk_level").notNull(),
+  currentMeasures: text("current_measures"),
+  improvementPlan: text("improvement_plan"),
+  assessmentDate: text("assessment_date"),
+  assessor: text("assessor"),
+  status: text("status").notNull().default("진행중"),
+  createdBy: text("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertMusculoskeletalAssessmentSchema = createInsertSchema(musculoskeletalAssessments).omit({ id: true, createdAt: true });
+export type MusculoskeletalAssessment = typeof musculoskeletalAssessments.$inferSelect;
+export type InsertMusculoskeletalAssessment = z.infer<typeof insertMusculoskeletalAssessmentSchema>;
 
 // === 위험성평가 (Risk Assessment - KRAS) ===
 export const riskAssessments = pgTable("risk_assessments", {

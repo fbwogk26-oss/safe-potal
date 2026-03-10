@@ -31,14 +31,15 @@ Preferred communication style: Simple, everyday language.
 - **Schema Location**: shared/schema.ts
 - **Tables**:
   - `teams`: Safety score data with vehicle counts, accidents, fines, and calculated scores
-  - `notices`: Multi-category content (rules, notices, education, equipment, vehicle, access) with fileName and fileType for document attachments
+  - `notices`: Multi-category content (rules, notices, education, equipment, vehicle, access) with fileName/fileType for single file, attachments (JSONB array) for multi-file support
   - `settings`: Key-value store for global configuration (lock status, admin PIN)
   - `education_sessions`: Education log entries with title, date, department, participants, instructor
   - `education_signatures`: Digital signatures for education sessions (signer name, department, base64 signature data)
-  - `chemicals`: MSDS chemical substance data (name, CAS number, hazard class, GHS pictograms, first aid, storage)
+  - `chemicals`: MSDS chemical substance data (name, CAS number, category, hazards, ppe, firstAid, notes, pdfUrl/pdfFileName/pdfFileType for PDF attachment)
   - `risk_assessments`: KRAS risk assessments (period type, department, hazard, frequency × severity = riskScore, riskLevel)
   - `accident_reports`: Accident reports with type, cause, severity, department, date, description, reporter info (name, position, companion, vehicleInfo), progressDetails (JSON), accidentOverview, causeDetail, preventionPlan, signature (base64), images array. DOCX export generates 사고경위서 document.
   - `new_equipment_requests`: New safety equipment product requests with name, reason, specs, priority, status
+  - `musculoskeletal_assessments`: 근골격계질환 유해요인조사 (department, task, hazardFactor, riskLevel, currentMeasures, improvementPlan, assessmentDate, assessor, status)
 
 ### Key Design Patterns
 - **Shared Types**: Schema and route definitions in /shared directory enable type safety across client and server

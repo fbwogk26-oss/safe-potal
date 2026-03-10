@@ -15,14 +15,16 @@ export function registerObjectStorageRoutes(app: Express): void {
     'application/vnd.ms-excel',
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     'text/csv',
+    'video/mp4', 'video/avi', 'video/x-msvideo', 'video/quicktime', 'video/x-ms-wmv', 'video/webm',
   ]);
 
   const ALLOWED_EXTENSIONS = new Set([
     'jpg','jpeg','png','gif','webp','bmp','svg',
     'pdf','ppt','pptx','doc','docx','xls','xlsx','csv',
+    'mp4','avi','mov','wmv','webm',
   ]);
 
-  const MAX_UPLOAD_SIZE = 50 * 1024 * 1024;
+  const MAX_UPLOAD_SIZE = 100 * 1024 * 1024;
 
   app.post("/api/uploads/request-url", isAuthenticated, async (req: any, res) => {
     try {
@@ -62,39 +64,18 @@ export function registerObjectStorageRoutes(app: Express): void {
   app.get("/api/download", isAuthenticated, async (req: any, res) => {
     try {
       const filePath = req.query.path as string;
-      const fileName = req.query.name as string;
       if (!filePath || !filePath.startsWith("/objects/")) {
         return res.status(400).json({ error: "Invalid file path" });
       }
-      const objectFile = await objectStorageService.getObjectEntityFile(filePath);
-      const downloadName = fileName || "download";
-
-      const [metadata] = await objectFile.getMetadata();
-      const headers: Record<string, string> = {
-        "Content-Type": metadata.contentType || "application/octet-stream",
-        "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(downloadName)}`,
-        "Cache-Control": "private, no-cache",
-      };
-      if (metadata.size) {
-        headers["Content-Length"] = metadata.size.toString();
-      }
-      res.set(headers);
-
-      const stream = objectFile.createReadStream();
-      stream.on("error", (err: Error) => {
-        console.error("Download stream error:", err);
-        if (!res.headersSent) {
-          res.status(500).json({ error: "Failed to download" });
-        }
-      });
-      stream.pipe(res);
+      const signedUrl = await objectStorageService.getSignedDownloadURL(filePath, 600);
+      res.json({ url: signedUrl });
     } catch (error) {
-      console.error("Error downloading object:", error);
+      console.error("Error generating download URL:", error);
       if (error instanceof ObjectNotFoundError) {
         return res.status(404).json({ error: "Object not found" });
       }
       if (!res.headersSent) {
-        return res.status(500).json({ error: "Failed to download object" });
+        return res.status(500).json({ error: "Failed to generate download URL" });
       }
     }
   });
