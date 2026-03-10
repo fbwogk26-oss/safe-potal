@@ -171,7 +171,7 @@ export default function VehicleLogs() {
               data-testid="button-export-excel"
             >
               <Download className="w-4 h-4" />
-              <span className="hidden sm:inline">엑셀 다운로드</span>
+              엑셀 다운로드
             </Button>
           )}
         </div>

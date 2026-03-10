@@ -279,7 +279,7 @@ export default function VehicleManagement({ embedded = false }: VehicleManagemen
                 className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white gap-1.5 shadow-lg h-8 sm:h-9 text-xs sm:text-sm"
                 data-testid="button-add-vehicle"
               >
-                <Plus className="w-4 h-4" /> <span className="hidden sm:inline">차량 등록</span><span className="sm:hidden">등록</span>
+                <Plus className="w-4 h-4" /> 차량 등록
               </Button>
             )}
           </div>
@@ -300,7 +300,7 @@ export default function VehicleManagement({ embedded = false }: VehicleManagemen
             className="gap-1.5 h-8 text-xs"
             data-testid="button-upload-vehicles"
           >
-            <Upload className="w-3.5 h-3.5" /> <span className="hidden sm:inline">{isExcelUploading ? "업로드 중..." : "엑셀 업로드"}</span><span className="sm:hidden">업로드</span>
+            <Upload className="w-3.5 h-3.5" /> {isExcelUploading ? "업로드 중..." : "엑셀 업로드"}
           </Button>
           {canDownloadVehicleExcel && (
             <Button 
@@ -310,7 +310,7 @@ export default function VehicleManagement({ embedded = false }: VehicleManagemen
               className="gap-1.5 h-8 text-xs"
               data-testid="button-export-vehicles"
             >
-              <Download className="w-3.5 h-3.5" /> <span className="hidden sm:inline">엑셀 다운로드</span><span className="sm:hidden">다운로드</span>
+              <Download className="w-3.5 h-3.5" /> 엑셀 다운로드
             </Button>
           )}
         </div>

@@ -558,7 +558,7 @@ export default function SafetyInspections() {
               data-testid="button-excel-download"
             >
               <Download className="w-4 h-4" />
-              <span className="hidden sm:inline">엑셀 다운로드</span>
+              엑셀 다운로드
             </Button>
           )}
           {canEditInspections && (
@@ -963,9 +963,9 @@ export default function SafetyInspections() {
                       </span>
                       <span className="text-xs text-muted-foreground shrink-0 w-[72px]">{inspection.inspectionDate}</span>
                       <span className="text-sm font-medium truncate flex-1 min-w-0">{inspection.title}</span>
-                      <span className="text-xs text-muted-foreground truncate hidden sm:inline max-w-[80px]">{inspection.department}</span>
+                      <span className="text-xs text-muted-foreground truncate max-w-[80px]">{inspection.department}</span>
                       {inspection.location && (
-                        <span className="text-xs text-muted-foreground truncate hidden md:inline max-w-[80px]">{inspection.location}</span>
+                        <span className="text-xs text-muted-foreground truncate max-w-[80px]">{inspection.location}</span>
                       )}
                       <div className="flex items-center gap-1.5 shrink-0 text-[10px]">
                         <span className="text-green-600 dark:text-green-400">{goodItems}</span>

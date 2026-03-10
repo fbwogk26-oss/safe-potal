@@ -236,7 +236,7 @@ export default function Education() {
                   data-testid="button-open-add-edu"
                 >
                   <Plus className="w-4 h-4" /> 
-                  <span className="hidden sm:inline">새 자료</span>
+                  새 자료
                 </Button>
               )}
             </div>
@@ -303,7 +303,7 @@ export default function Education() {
                       <p className="text-xs text-muted-foreground truncate mt-0.5">{item.content}</p>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="text-xs text-muted-foreground hidden sm:flex items-center gap-1">
+                      <span className="text-xs text-muted-foreground flex items-center gap-1">
                         <Calendar className="w-3 h-3" />
                         {item.createdAt && format(new Date(item.createdAt), "MM.dd")}
                       </span>

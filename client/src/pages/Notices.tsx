@@ -167,7 +167,7 @@ export default function Notices() {
                   data-testid="button-open-add-notice"
                 >
                   <Plus className="w-4 h-4" /> 
-                  <span className="hidden sm:inline">공지 등록</span>
+                  공지 등록
                 </Button>
               )}
             </div>
@@ -236,7 +236,7 @@ export default function Notices() {
                       <p className="text-xs text-muted-foreground truncate mt-0.5">{notice.content}</p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground hidden sm:flex items-center gap-1">
+                      <span className="text-xs text-muted-foreground flex items-center gap-1">
                         <Calendar className="w-3 h-3" />
                         {notice.createdAt && format(new Date(notice.createdAt), "MM.dd HH:mm")}
                       </span>

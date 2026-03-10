@@ -187,11 +187,11 @@ export function Topbar() {
                             {(user.name?.[0] || user.username?.[0] || "U").toUpperCase()}
                           </AvatarFallback>
                         </Avatar>
-                        <span className="hidden sm:inline text-sm font-medium max-w-[100px] truncate">
+                        <span className="text-sm font-medium max-w-[100px] truncate">
                           {user.name || user.username || "사용자"}
                         </span>
                         {isAdmin && (
-                          <span className="hidden sm:inline px-1.5 py-0.5 text-[10px] rounded bg-primary text-primary-foreground font-bold">
+                          <span className="px-1.5 py-0.5 text-[10px] rounded bg-primary text-primary-foreground font-bold">
                             관리자
                           </span>
                         )}

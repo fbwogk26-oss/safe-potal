@@ -548,7 +548,7 @@ export default function AccessRequest() {
                               {parsed.people?.length || 0}명
                             </span>
                             {parsed.entranceLocation && (
-                              <span className="text-[10px] text-muted-foreground hidden sm:inline">{parsed.entranceLocation}</span>
+                              <span className="text-[10px] text-muted-foreground">{parsed.entranceLocation}</span>
                             )}
                           </div>
                           <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
@@ -558,11 +558,11 @@ export default function AccessRequest() {
                             </span>
                             {parsed.supervisorName && (
                               <>
-                                <span className="hidden sm:inline">-</span>
-                                <span className="hidden sm:inline">인솔: {parsed.supervisorName}</span>
+                                <span>-</span>
+                                <span>인솔: {parsed.supervisorName}</span>
                               </>
                             )}
-                            <span className="hidden sm:inline truncate">
+                            <span className="truncate">
                               ({parsed.people?.map(p => p.applicantName).join(", ")})
                             </span>
                           </div>
@@ -575,7 +575,7 @@ export default function AccessRequest() {
                       )}
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground hidden sm:flex items-center gap-1 whitespace-nowrap">
+                      <span className="text-xs text-muted-foreground flex items-center gap-1 whitespace-nowrap">
                         {item.createdAt && format(new Date(item.createdAt), "MM.dd HH:mm")}
                       </span>
                       {canDownloadAccessExcel && (

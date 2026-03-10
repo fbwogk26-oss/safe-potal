@@ -902,7 +902,7 @@ export default function EducationLogs() {
                 data-testid="button-complete-session"
               >
                 <CheckCircle2 className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">완료</span>
+                완료
               </Button>
             )}
             {canEditLogs && selectedSession.status === "완료" && (
@@ -914,7 +914,7 @@ export default function EducationLogs() {
                 data-testid="button-reopen-session"
               >
                 <Clock className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">재개</span>
+                재개
               </Button>
             )}
           </div>
@@ -1110,7 +1110,7 @@ export default function EducationLogs() {
                 data-testid="button-open-sign"
               >
                 <PenTool className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">서명하기</span>
+                서명하기
               </Button>
             )}
             {hasAlreadySigned && (
@@ -1234,7 +1234,7 @@ export default function EducationLogs() {
                   data-testid="button-create-session"
                 >
                   <Plus className="w-4 h-4" />
-                  <span className="hidden sm:inline">교육 등록</span>
+                  교육 등록
                 </Button>
               )}
             </div>

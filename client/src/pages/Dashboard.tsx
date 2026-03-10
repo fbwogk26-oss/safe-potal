@@ -240,7 +240,7 @@ export default function Dashboard() {
                       data-testid="button-reset-all"
                     >
                       <RotateCcw className={cn("w-3 h-3 sm:mr-1", resetAllTeams.isPending && "animate-spin")} />
-                      <span className="hidden sm:inline">초기화</span>
+                      초기화
                     </Button>
                   )}
                   {canEditDashboard && canUploadDashboardData && (
@@ -261,7 +261,7 @@ export default function Dashboard() {
                         disabled={isUploading}
                       >
                         <Upload className={cn("w-3 h-3 sm:mr-1", isUploading && "animate-spin")} />
-                        <span className="hidden sm:inline">업로드</span>
+                        업로드
                       </Button>
                     </>
                   )}
@@ -272,7 +272,7 @@ export default function Dashboard() {
                     onClick={() => window.location.href = `/api/teams/export?year=${year}`}
                   >
                     <Download className="w-3 h-3 sm:mr-1" />
-                    <span className="hidden sm:inline">다운로드</span>
+                    다운로드
                   </Button>
                 </div>
               </Card>

@@ -132,7 +132,7 @@ export default function Rules() {
                   data-testid="button-open-add-rule"
                 >
                   <Plus className="w-4 h-4" /> 
-                  <span className="hidden sm:inline">새 수칙</span>
+                  새 수칙
                 </Button>
               )}
             </div>
@@ -188,7 +188,7 @@ export default function Rules() {
                       <p className="text-xs text-muted-foreground truncate mt-0.5">{rule.content}</p>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="text-xs text-muted-foreground hidden sm:flex items-center gap-1">
+                      <span className="text-xs text-muted-foreground flex items-center gap-1">
                         <Calendar className="w-3 h-3" />
                         {rule.createdAt && format(new Date(rule.createdAt), "MM.dd")}
                       </span>

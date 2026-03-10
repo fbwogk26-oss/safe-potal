@@ -321,7 +321,7 @@ export default function AdminUsers() {
                                 data-testid={`button-permissions-${user.id}`}
                               >
                                 <Settings className="w-3.5 h-3.5" />
-                                <span className="hidden sm:inline">권한설정</span>
+                                권한설정
                                 {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                               </Button>
                             )}
