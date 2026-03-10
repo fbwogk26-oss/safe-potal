@@ -357,7 +357,7 @@ function ProgressDashboard() {
 }
 
 export default function EducationLogs() {
-  const { canRegisterEducation, canEditEducationLogs } = usePermissions();
+  const { isAdmin, canRegisterEducation, canEditEducationLogs } = usePermissions();
   const canEditLogs = canRegisterEducation || canEditEducationLogs;
   const { user } = useAuth();
   const { toast } = useToast();
@@ -512,8 +512,10 @@ export default function EducationLogs() {
   });
 
   const signMutation = useMutation({
-    mutationFn: (data: { sessionId: number; signerName: string; signerDepartment: string; signatureData: string }) =>
-      apiRequest("POST", `/api/education-sessions/${data.sessionId}/signatures`, data),
+    mutationFn: async (data: { sessionId: number; signerName: string; signerDepartment: string; signatureData: string }) => {
+      const res = await apiRequest("POST", `/api/education-sessions/${data.sessionId}/signatures`, data);
+      return res;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/education-sessions", selectedSession?.id, "signatures"] });
       queryClient.invalidateQueries({ queryKey: ["/api/education-progress"] });
@@ -522,7 +524,18 @@ export default function EducationLogs() {
       setSignerDept("");
       toast({ title: "서명이 등록되었습니다." });
     },
-    onError: () => toast({ variant: "destructive", title: "서명 등록 실패" }),
+    onError: (error: any) => {
+      let msg = "서명 등록 실패";
+      try {
+        const errText = error?.message || "";
+        const jsonMatch = errText.match(/\{.*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          if (parsed.message) msg = parsed.message;
+        }
+      } catch {}
+      toast({ variant: "destructive", title: msg });
+    },
   });
 
   const inlineEditMutation = useMutation({
@@ -793,8 +806,19 @@ export default function EducationLogs() {
     }
   };
 
+  const hasAlreadySigned = useMemo(() => {
+    if (!signatures || !user) return false;
+    const userName = user.name || user.username || "";
+    const userDept = user.department || "";
+    return signatures.some(s => s.signerName === userName && s.signerDepartment === userDept);
+  }, [signatures, user]);
+
   const handleSign = (signatureData: string) => {
     if (!selectedSession || !signerName) return;
+    if (hasAlreadySigned) {
+      toast({ variant: "destructive", title: "이미 서명을 등록하셨습니다. 한 사람당 한 번만 서명할 수 있습니다." });
+      return;
+    }
     signMutation.mutate({
       sessionId: selectedSession.id,
       signerName,
@@ -1080,7 +1104,7 @@ export default function EducationLogs() {
               <PenTool className="w-4 h-4 text-emerald-600" />
               서명 현황 ({signedCount}/{selectedSession.totalParticipants})
             </CardTitle>
-            {selectedSession.status === "진행중" && (
+            {selectedSession.status === "진행중" && !hasAlreadySigned && (
               <Button
                 size="sm"
                 onClick={() => {
@@ -1094,6 +1118,12 @@ export default function EducationLogs() {
                 <PenTool className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">서명하기</span>
               </Button>
+            )}
+            {hasAlreadySigned && (
+              <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 text-xs">
+                <CheckCircle2 className="w-3 h-3 mr-1" />
+                서명 완료
+              </Badge>
             )}
           </CardHeader>
           <CardContent className="p-0">
@@ -1128,7 +1158,7 @@ export default function EducationLogs() {
               <div className="py-10 text-center text-muted-foreground">
                 <PenTool className="w-10 h-10 mx-auto mb-3 opacity-30" />
                 <p className="text-sm">아직 서명이 없습니다.</p>
-                {selectedSession.status === "진행중" && (
+                {selectedSession.status === "진행중" && !hasAlreadySigned && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -1202,7 +1232,7 @@ export default function EducationLogs() {
               </div>
             </CardTitle>
             <div className="flex items-center gap-2">
-              {canRegisterEducation && (
+              {isAdmin && (
                 <Button
                   onClick={() => setShowCreateDialog(true)}
                   size="sm"
@@ -1240,7 +1270,7 @@ export default function EducationLogs() {
               data-testid="tab-sessions"
             >
               <FileText className="w-4 h-4 inline mr-1.5 -mt-0.5" />
-              교육일지 목록
+              교육 결과 등록
             </button>
           </div>
 
@@ -1285,7 +1315,7 @@ export default function EducationLogs() {
                     <p className="text-sm">
                       {searchQuery || filterDept !== "all" ? "검색 결과가 없습니다." : "등록된 교육일지가 없습니다."}
                     </p>
-                    {!searchQuery && filterDept === "all" && canRegisterEducation && (
+                    {!searchQuery && filterDept === "all" && isAdmin && (
                       <Button
                         onClick={() => setShowCreateDialog(true)}
                         variant="outline"
@@ -1446,12 +1476,6 @@ export default function EducationLogs() {
                                         </div>
                                       </div>
                                       <div className="flex items-center gap-1 shrink-0">
-                                        {canEditLogs && (
-                                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground"
-                                            onClick={(e) => { e.stopPropagation(); handleStartEdit(session); }}
-                                            data-testid={`button-edit-dept-session-${session.id}`}
-                                          ><Pencil className="w-3.5 h-3.5" /></Button>
-                                        )}
                                         <span className="text-xs text-muted-foreground flex items-center gap-1"><Users className="w-3 h-3" />{session.totalParticipants}명</span>
                                       </div>
                                     </div>

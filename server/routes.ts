@@ -1724,14 +1724,27 @@ export async function registerRoutes(
   app.post("/api/education-sessions/:id/signatures", isAuthenticated, async (req: any, res) => {
     try {
       const sigSchema = z.object({
-        signerName: z.string().min(1),
-        signerDepartment: z.string().optional(),
         signatureData: z.string().min(1),
       });
       const parsed = sigSchema.parse(req.body);
+      const sessionId = Number(req.params.id);
+      const signerName = req.user?.name || req.user?.username || "";
+      const signerDepartment = req.user?.department || "";
+      if (!signerName) {
+        return res.status(400).json({ message: "사용자 정보를 확인할 수 없습니다." });
+      }
+      const existingSignatures = await storage.getSignaturesBySession(sessionId);
+      const alreadySigned = existingSignatures.some(
+        (s) => s.signerName === signerName && s.signerDepartment === signerDepartment
+      );
+      if (alreadySigned) {
+        return res.status(400).json({ message: "이미 서명을 등록하셨습니다. 한 사람당 한 번만 서명할 수 있습니다." });
+      }
       const signature = await storage.createSignature({
-        ...parsed,
-        sessionId: Number(req.params.id),
+        signerName,
+        signerDepartment,
+        signatureData: parsed.signatureData,
+        sessionId,
       });
       res.status(201).json(signature);
     } catch (error: any) {
