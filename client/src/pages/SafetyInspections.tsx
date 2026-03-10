@@ -141,6 +141,7 @@ export default function SafetyInspections() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dashboardPeriod, setDashboardPeriod] = useState<"month" | "year">("month");
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
+  const [listMonth, setListMonth] = useState<number>(new Date().getMonth() + 1);
 
   const resetForm = () => {
     setInspectionType("안전점검");
@@ -522,6 +523,14 @@ export default function SafetyInspections() {
       periodLabel: dashboardPeriod === "month" ? `${selectedMonth}월` : `${now.getFullYear()}년`,
     };
   }, [inspections, teams, inspectionTargets, dashboardPeriod, selectedMonth]);
+
+  const filteredInspections = useMemo(() => {
+    if (!inspections) return [];
+    const currentYear = format(new Date(), "yyyy");
+    const monthStr = String(listMonth).padStart(2, "0");
+    const prefix = `${currentYear}-${monthStr}`;
+    return inspections.filter(i => i.inspectionDate.startsWith(prefix));
+  }, [inspections, listMonth]);
 
   const [showInspDashboard, setShowInspDashboard] = useState(true);
 
@@ -911,16 +920,33 @@ export default function SafetyInspections() {
       </AnimatePresence>
 
       <div className="space-y-1">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-muted-foreground" />
+            <span className="text-sm font-medium text-muted-foreground">등록월</span>
+            <Select value={String(listMonth)} onValueChange={(v) => setListMonth(Number(v))}>
+              <SelectTrigger className="w-[80px] h-8" data-testid="select-list-month">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                  <SelectItem key={m} value={String(m)}>{m}월</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <span className="text-xs text-muted-foreground">{filteredInspections.length}건</span>
+          </div>
+        </div>
         {isLoading ? (
           <div className="text-center py-8 text-muted-foreground">로딩 중...</div>
-        ) : inspections?.length === 0 ? (
+        ) : filteredInspections.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
-            등록된 점검 내역이 없습니다.
+            {listMonth}월 등록된 점검 내역이 없습니다.
           </div>
         ) : (
           <Card>
             <CardContent className="p-0 divide-y">
-              {inspections?.map((inspection) => {
+              {filteredInspections.map((inspection) => {
                 const checklistItems = normalizeChecklist(inspection.checklist);
                 const goodItems = checklistItems.filter(c => c.status === '양호').length;
                 const poorItems = checklistItems.filter(c => c.status === '미흡').length;
