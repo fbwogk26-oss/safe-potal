@@ -11,9 +11,12 @@ import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { usePermissions } from "@/hooks/use-permissions";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function Education() {
   const { canRegisterEducation, canDownloadEducationFiles } = usePermissions();
+  const { user } = useAuth();
+  const isOwner = (createdBy?: string | null) => !createdBy || user?.role === "admin" || user?.username === createdBy;
   const { data: materials, isLoading } = useNotices("edu");
   const { mutate: createMaterial, isPending: isCreating } = useCreateNotice();
   const { mutate: deleteMaterial } = useDeleteNotice();
@@ -328,7 +331,7 @@ export default function Education() {
                       >
                         <Eye className="w-4 h-4" />
                       </Button>
-                      {canRegisterEducation && (
+                      {canRegisterEducation && isOwner(item.createdBy) && (
                         <Button 
                           variant="ghost" 
                           size="icon" 
@@ -523,7 +526,7 @@ export default function Education() {
                     <Calendar className="w-4 h-4" />
                     {selectedItem.createdAt && format(new Date(selectedItem.createdAt), "yyyy년 MM월 dd일")}
                   </span>
-                  {canRegisterEducation && (
+                  {canRegisterEducation && isOwner(selectedItem.createdBy) && (
                     <Button 
                       variant="ghost" 
                       size="sm"

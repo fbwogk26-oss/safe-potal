@@ -21,7 +21,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { AlertTriangle, BarChart3, Plus, Pencil, Trash2, Download, Upload, X, Camera, PenTool } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  ResponsiveContainer, LineChart, Line, Cell,
+  ResponsiveContainer, Cell,
 } from "recharts";
 
 const ACCIDENT_TYPES = ["추락", "전도", "충돌", "협착", "감전", "화재/폭발", "교통사고", "기타"];
@@ -406,12 +406,6 @@ export default function AccidentReports() {
   const toChartData = (record: Record<string, number> | undefined) =>
     record ? Object.entries(record).map(([name, value]) => ({ name, value })) : [];
 
-  const monthlyData = stats?.byMonth
-    ? Object.entries(stats.byMonth)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([name, value]) => ({ name, value }))
-    : [];
-
   const COMPARE_YEARS = ["2024", "2025", "2026"];
   const YEAR_COLORS: Record<string, string> = { "2024": "#6366f1", "2025": "#f59e0b", "2026": "#10b981" };
   const MONTH_LABELS: Record<string, string> = {
@@ -422,8 +416,9 @@ export default function AccidentReports() {
     name: yr + "년",
     value: stats?.byYear?.[yr] ?? 0,
   }));
-  const yearMonthlyData = Object.entries(MONTH_LABELS).map(([mon, label]) => {
-    const entry: Record<string, string | number> = { name: label };
+  const MONTHS_ORDER = ["01","02","03","04","05","06","07","08","09","10","11","12"];
+  const yearMonthlyData = MONTHS_ORDER.map(mon => {
+    const entry: Record<string, string | number> = { name: MONTH_LABELS[mon] };
     for (const yr of COMPARE_YEARS) {
       entry[yr + "년"] = stats?.byYearMonth?.[mon]?.[yr] ?? 0;
     }
@@ -770,35 +765,6 @@ export default function AccidentReports() {
                 </Card>
               </div>
 
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base">월별 사고 추이</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-[280px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={monthlyData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" opacity={0.4} />
-                        <XAxis dataKey="name" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-                        <YAxis allowDecimals={false} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-                        <Tooltip content={({ active, payload }) => {
-                          if (active && payload && payload.length) {
-                            return (
-                              <div style={{ background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(8px)', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 12, padding: '10px 14px', boxShadow: '0 8px 32px rgba(0,0,0,0.08)', fontSize: 12 }}>
-                                <p style={{ fontWeight: 600, marginBottom: 2 }}>{payload[0].payload.name}</p>
-                                <p style={{ color: '#64748b' }}>{payload[0].value}건</p>
-                              </div>
-                            );
-                          }
-                          return null;
-                        }} />
-                        <Legend />
-                        <Line type="monotone" dataKey="value" name="사고건수" stroke="#6366f1" strokeWidth={2.5} dot={{ r: 5, fill: '#6366f1', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 7, fill: '#6366f1', strokeWidth: 2, stroke: '#fff' }} />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                </CardContent>
-              </Card>
             </motion.div>
           </AnimatePresence>
         </TabsContent>

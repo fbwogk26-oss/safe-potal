@@ -11,9 +11,12 @@ import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { usePermissions } from "@/hooks/use-permissions";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function Rules() {
   const { canRegisterRules, canDownloadRulesFiles } = usePermissions();
+  const { user } = useAuth();
+  const isOwner = (createdBy?: string | null) => !createdBy || user?.role === "admin" || user?.username === createdBy;
   const { data: rules, isLoading } = useNotices("rule");
   const { mutate: createRule, isPending: isCreating } = useCreateNotice();
   const { mutate: deleteRule } = useDeleteNotice();
@@ -31,6 +34,7 @@ export default function Rules() {
     content: string;
     imageUrl: string | null;
     createdAt: Date | null;
+    createdBy?: string | null;
   } | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -201,7 +205,7 @@ export default function Rules() {
                       >
                         <Eye className="w-4 h-4" />
                       </Button>
-                      {canRegisterRules && (
+                      {canRegisterRules && isOwner(rule.createdBy) && (
                         <Button 
                           variant="ghost" 
                           size="icon" 
@@ -322,7 +326,7 @@ export default function Rules() {
                     <Calendar className="w-4 h-4" />
                     {selectedRule.createdAt && format(new Date(selectedRule.createdAt), "yyyy년 MM월 dd일")}
                   </span>
-                  {canRegisterRules && (
+                  {canRegisterRules && isOwner(selectedRule.createdBy) && (
                     <Button 
                       variant="ghost" 
                       size="sm"

@@ -525,26 +525,28 @@ export default function VehicleManagement({ embedded = false }: VehicleManagemen
                   )}
                 </div>
 
-                <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="bg-black/30 backdrop-blur-sm text-white hover:bg-blue-500 hover:text-white h-8 w-8"
-                    onClick={(e) => { e.stopPropagation(); openEditDialog(vehicle); }}
-                    data-testid={`button-edit-vehicle-${vehicle.id}`}
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="bg-black/30 backdrop-blur-sm text-white hover:bg-red-500 hover:text-white h-8 w-8"
-                    onClick={(e) => handleDelete(vehicle.id, e)}
-                    data-testid={`button-delete-vehicle-${vehicle.id}`}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
+                {canEditVehicles && isOwner(vehicle.createdBy) && (
+                  <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="bg-black/30 backdrop-blur-sm text-white hover:bg-blue-500 hover:text-white h-8 w-8"
+                      onClick={(e) => { e.stopPropagation(); openEditDialog(vehicle); }}
+                      data-testid={`button-edit-vehicle-${vehicle.id}`}
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="bg-black/30 backdrop-blur-sm text-white hover:bg-red-500 hover:text-white h-8 w-8"
+                      onClick={(e) => handleDelete(vehicle.id, e)}
+                      data-testid={`button-delete-vehicle-${vehicle.id}`}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                )}
               </motion.div>
             ))}
           </AnimatePresence>

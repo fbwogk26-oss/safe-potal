@@ -954,7 +954,7 @@ export default function EducationLogs() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between gap-2 mb-2">
               <p className="text-xs text-muted-foreground">교육 내용</p>
-              {canEditLogs && !isEditingDescription && (
+              {canEditLogs && !isEditingDescription && (!selectedSession.createdBy || user?.role === "admin" || user?.username === selectedSession.createdBy) && (
                 <Button variant="ghost" size="sm" className="h-6 text-xs gap-1" onClick={() => {
                   setInlineDescription(selectedSession.description || "");
                   setIsEditingDescription(true);
@@ -1360,7 +1360,7 @@ export default function EducationLogs() {
                                 </div>
                               </div>
                               <div className="flex items-center gap-1 shrink-0">
-                                {canEditLogs && (
+                                {canEditLogs && (!session.createdBy || user?.role === "admin" || user?.username === session.createdBy) && (
                                   <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground"
                                     onClick={(e) => { e.stopPropagation(); handleStartEdit(session); }}
                                     data-testid={`button-edit-session-${session.id}`}
@@ -1419,7 +1419,7 @@ export default function EducationLogs() {
                                   title="엑셀 다운로드"
                                 ><Download className="w-4 h-4" /></Button>
                               )}
-                              {canEditLogs && (
+                              {canEditLogs && (!group.sessions[0]?.createdBy || user?.role === "admin" || user?.username === group.sessions[0]?.createdBy) && (
                                 <Button variant="ghost" size="icon"
                                   onClick={(e) => { e.stopPropagation(); handleGroupEdit(group); }}
                                   data-testid={`button-group-edit-${group.key}`}
@@ -1431,10 +1431,12 @@ export default function EducationLogs() {
                                     onClick={(e) => { e.stopPropagation(); handleGroupCopy(group); }}
                                     data-testid={`button-group-copy-${group.key}`}
                                   ><Copy className="w-4 h-4" /></Button>
-                                  <Button variant="ghost" size="icon"
-                                    onClick={(e) => { e.stopPropagation(); handleGroupDelete(group); }}
-                                    data-testid={`button-group-delete-${group.key}`}
-                                  ><Trash2 className="w-4 h-4" /></Button>
+                                  {(!group.sessions[0]?.createdBy || user?.role === "admin" || user?.username === group.sessions[0]?.createdBy) && (
+                                    <Button variant="ghost" size="icon"
+                                      onClick={(e) => { e.stopPropagation(); handleGroupDelete(group); }}
+                                      data-testid={`button-group-delete-${group.key}`}
+                                    ><Trash2 className="w-4 h-4" /></Button>
+                                  )}
                                 </>
                               )}
                               {isExpanded ? <ChevronDown className="w-5 h-5 text-muted-foreground" /> : <ChevronRight className="w-5 h-5 text-muted-foreground" />}
