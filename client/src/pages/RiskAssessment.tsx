@@ -802,7 +802,7 @@ export default function RiskAssessmentPage() {
                                         개선
                                       </Button>
                                     )}
-                                    {canEditRiskAssessment && (
+                                    {canEditRiskAssessment && (!item.createdBy || user?.role === "admin" || user?.username === item.createdBy) && (
                                       <div className="flex gap-1">
                                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEdit(item)} data-testid={`button-edit-${item.id}`}>
                                           <Pencil className="w-3.5 h-3.5 text-muted-foreground" />

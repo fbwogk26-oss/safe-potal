@@ -14,9 +14,12 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { usePermissions } from "@/hooks/use-permissions";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function Notices() {
   const { canRegisterNotices } = usePermissions();
+  const { user } = useAuth();
+  const isOwner = (createdBy?: string | null) => !createdBy || user?.role === "admin" || user?.username === createdBy;
   const { data: notices, isLoading } = useNotices("notice");
   const { mutate: createNotice, isPending: isCreating } = useCreateNotice();
   const { mutate: deleteNotice } = useDeleteNotice();
@@ -275,7 +278,7 @@ export default function Notices() {
                               )}
                             </DropdownMenuItem>
                           )}
-                          {canRegisterNotices && (
+                          {canRegisterNotices && isOwner(notice.createdBy) && (
                             <DropdownMenuItem 
                               onClick={(e) => handleDelete(notice.id, e)}
                               className="text-red-600"
@@ -413,14 +416,16 @@ export default function Notices() {
                           <><Pin className="w-4 h-4 mr-1" /> 상단 고정</>
                         )}
                       </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
-                        className="text-red-500 hover:text-red-600 hover:bg-red-50"
-                        onClick={() => handleDelete(selectedNotice.id)}
-                      >
-                        <Trash2 className="w-4 h-4 mr-1" /> 삭제
-                      </Button>
+                      {isOwner(selectedNotice.createdBy) && (
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                          onClick={() => handleDelete(selectedNotice.id)}
+                        >
+                          <Trash2 className="w-4 h-4 mr-1" /> 삭제
+                        </Button>
+                      )}
                     </div>
                   )}
                 </div>

@@ -16,6 +16,7 @@ import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Vehicle, InsertVehicle } from "@shared/schema";
 import { usePermissions } from "@/hooks/use-permissions";
+import { useAuth } from "@/hooks/use-auth";
 
 const TEAMS = ["동대구운용팀", "서대구운용팀", "남대구운용팀", "포항운용팀", "안동운용팀", "구미운용팀", "문경운용팀", "운용지원팀", "운용계획팀", "사업지원팀", "현장경영팀", "공공망관제팀"];
 const VEHICLE_TYPES = ["승용차", "SUV", "트럭", "밴", "전기차", "하이브리드", "기타"];
@@ -47,6 +48,8 @@ interface VehicleManagementProps {
 
 export default function VehicleManagement({ embedded = false }: VehicleManagementProps) {
   const { canDownloadVehicleExcel, canEditVehicles } = usePermissions();
+  const { user } = useAuth();
+  const isOwner = (createdBy?: string | null) => !createdBy || user?.role === "admin" || user?.username === createdBy;
   const { data: vehicles, isLoading } = useVehicles();
   const { mutate: createVehicle, isPending: isCreating } = useCreateVehicle();
   const { mutate: updateVehicle } = useUpdateVehicle();
@@ -833,23 +836,25 @@ export default function VehicleManagement({ embedded = false }: VehicleManagemen
                     <Calendar className="w-4 h-4" />
                     등록일: {selectedVehicle.createdAt && format(new Date(selectedVehicle.createdAt), "yyyy-MM-dd")}
                   </span>
-                  <div className="flex gap-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => { openEditDialog(selectedVehicle); setSelectedVehicle(null); }}
-                    >
-                      <Edit2 className="w-4 h-4 mr-1" /> 수정
-                    </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                  {canEditVehicles && isOwner(selectedVehicle.createdBy) && (
+                    <div className="flex gap-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => { openEditDialog(selectedVehicle); setSelectedVehicle(null); }}
+                      >
+                        <Edit2 className="w-4 h-4 mr-1" /> 수정
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        className="text-red-500 hover:text-red-600 hover:bg-red-50"
                         onClick={() => handleDelete(selectedVehicle.id)}
                       >
                         <Trash2 className="w-4 h-4 mr-1" /> 삭제
                       </Button>
-                  </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </>

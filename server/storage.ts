@@ -56,6 +56,7 @@ export interface IStorage {
   
   // Safety Inspections
   getSafetyInspections(): Promise<SafetyInspection[]>;
+  getSafetyInspection(id: number): Promise<SafetyInspection | undefined>;
   createSafetyInspection(inspection: InsertSafetyInspection): Promise<SafetyInspection>;
   deleteSafetyInspection(id: number): Promise<void>;
 
@@ -63,6 +64,7 @@ export interface IStorage {
   getVehicleLogs(): Promise<VehicleLog[]>;
   getVehicleLogsByVehicle(vehicleId: number): Promise<VehicleLog[]>;
   getLastVehicleLog(vehicleId: number): Promise<VehicleLog | undefined>;
+  getVehicleLog(id: number): Promise<VehicleLog | undefined>;
   createVehicleLog(log: InsertVehicleLog): Promise<VehicleLog>;
   deleteVehicleLog(id: number): Promise<void>;
 
@@ -236,6 +238,11 @@ export class DatabaseStorage implements IStorage {
   async getSafetyInspections(): Promise<SafetyInspection[]> {
     return await db.select().from(safetyInspections).orderBy(desc(safetyInspections.createdAt));
   }
+
+  async getSafetyInspection(id: number): Promise<SafetyInspection | undefined> {
+    const [item] = await db.select().from(safetyInspections).where(eq(safetyInspections.id, id));
+    return item;
+  }
   
   async createSafetyInspection(inspection: InsertSafetyInspection): Promise<SafetyInspection> {
     const [created] = await db.insert(safetyInspections).values(inspection).returning();
@@ -255,6 +262,11 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(vehicleLogs)
       .where(eq(vehicleLogs.vehicleId, vehicleId))
       .orderBy(desc(vehicleLogs.logDate), desc(vehicleLogs.createdAt));
+  }
+
+  async getVehicleLog(id: number): Promise<VehicleLog | undefined> {
+    const [log] = await db.select().from(vehicleLogs).where(eq(vehicleLogs.id, id));
+    return log;
   }
 
   async getLastVehicleLog(vehicleId: number): Promise<VehicleLog | undefined> {

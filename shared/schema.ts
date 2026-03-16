@@ -41,6 +41,7 @@ export const notices = pgTable("notices", {
   fileName: text("file_name"),
   fileType: text("file_type"),
   attachments: jsonb("attachments").$type<Array<{ url: string; name: string; type: string }>>(),
+  createdBy: text("created_by"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -69,6 +70,7 @@ export const vehicles = pgTable("vehicles", {
   mileage: integer("mileage").default(0),
   notes: text("notes"),
   imageUrl: text("image_url"),
+  createdBy: text("created_by"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -143,6 +145,7 @@ export const safetyInspections = pgTable("safety_inspections", {
   checklist: jsonb("checklist").$type<Array<{ item: string; status: '양호' | '미흡' | '미점검' }>>().notNull().default([]),
   notes: text("notes"),
   images: text("images").array().notNull().default([]),
+  createdBy: text("created_by"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

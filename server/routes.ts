@@ -164,7 +164,12 @@ export async function registerRoutes(
   await setupAuth(app);
   registerAuthRoutes(app);
   registerChatbotRoutes(app);
-  
+
+  // 소유권 체크: 관리자이거나, createdBy가 없거나, 본인이 작성한 경우
+  const isOwnerOrAdmin = (req: any, createdBy: string | null | undefined): boolean => {
+    return req.user?.role === "admin" || !createdBy || req.user?.username === createdBy;
+  };
+
   // Add routes to get/update user role
   app.get("/api/auth/user-role", isAuthenticated, async (req: any, res) => {
     try {
@@ -637,7 +642,7 @@ export async function registerRoutes(
 
   app.post(api.notices.create.path, requireEditor, async (req: any, res) => {
     const input = api.notices.create.input.parse(req.body);
-    const notice = await storage.createNotice(input);
+    const notice = await storage.createNotice({ ...input, createdBy: req.user?.username || null });
     res.status(201).json(notice);
   });
 
@@ -646,7 +651,7 @@ export async function registerRoutes(
       const id = Number(req.params.id);
       const existing = await storage.getNotice(id);
       if (!existing) return res.status(404).json({ message: "Notice not found" });
-      
+      if (!isOwnerOrAdmin(req, existing.createdBy)) return res.status(403).json({ message: "본인이 작성한 글만 수정할 수 있습니다" });
       const input = api.notices.update.input.parse(req.body);
       const updated = await storage.updateNotice(id, input);
       res.json(updated);
@@ -659,7 +664,11 @@ export async function registerRoutes(
   });
 
   app.delete(api.notices.delete.path, requireEditor, async (req: any, res) => {
-    await storage.deleteNotice(Number(req.params.id));
+    const id = Number(req.params.id);
+    const existing = await storage.getNotice(id);
+    if (!existing) return res.status(404).json({ message: "Notice not found" });
+    if (!isOwnerOrAdmin(req, existing.createdBy)) return res.status(403).json({ message: "본인이 작성한 글만 삭제할 수 있습니다" });
+    await storage.deleteNotice(id);
     res.status(204).send();
   });
 
@@ -872,7 +881,7 @@ export async function registerRoutes(
   app.post(api.vehicles.create.path, requireEditor, async (req: any, res) => {
     try {
       const input = api.vehicles.create.input.parse(req.body);
-      const vehicle = await storage.createVehicle(input);
+      const vehicle = await storage.createVehicle({ ...input, createdBy: req.user?.username || null });
       res.status(201).json(vehicle);
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -887,7 +896,7 @@ export async function registerRoutes(
       const id = Number(req.params.id);
       const existing = await storage.getVehicle(id);
       if (!existing) return res.status(404).json({ message: "Vehicle not found" });
-
+      if (!isOwnerOrAdmin(req, existing.createdBy)) return res.status(403).json({ message: "본인이 등록한 차량만 수정할 수 있습니다" });
       const input = api.vehicles.update.input.parse(req.body);
       const vehicle = await storage.updateVehicle(id, input);
       res.json(vehicle);
@@ -900,7 +909,11 @@ export async function registerRoutes(
   });
 
   app.delete(api.vehicles.delete.path, requireEditor, async (req: any, res) => {
-    await storage.deleteVehicle(Number(req.params.id));
+    const id = Number(req.params.id);
+    const existing = await storage.getVehicle(id);
+    if (!existing) return res.status(404).json({ message: "Vehicle not found" });
+    if (!isOwnerOrAdmin(req, existing.createdBy)) return res.status(403).json({ message: "본인이 등록한 차량만 삭제할 수 있습니다" });
+    await storage.deleteVehicle(id);
     res.status(204).send();
   });
 
@@ -1217,6 +1230,7 @@ export async function registerRoutes(
         checklist: checklist || [],
         notes,
         images: images || [],
+        createdBy: req.user?.username || null,
       });
       res.status(201).json(inspection);
     } catch (err) {
@@ -1226,7 +1240,11 @@ export async function registerRoutes(
   });
 
   app.delete("/api/safety-inspections/:id", requireEditor, async (req: any, res) => {
-    await storage.deleteSafetyInspection(Number(req.params.id));
+    const id = Number(req.params.id);
+    const existing = await storage.getSafetyInspection(id);
+    if (!existing) return res.status(404).json({ message: "Not found" });
+    if (!isOwnerOrAdmin(req, existing.createdBy)) return res.status(403).json({ message: "본인이 작성한 점검만 삭제할 수 있습니다" });
+    await storage.deleteSafetyInspection(id);
     res.status(204).send();
   });
 
@@ -1299,7 +1317,11 @@ export async function registerRoutes(
   });
 
   app.delete("/api/vehicle-logs/:id", requirePermission("editVehicleLogs"), async (req: any, res) => {
-    await storage.deleteVehicleLog(Number(req.params.id));
+    const id = Number(req.params.id);
+    const existing = await storage.getVehicleLog(id);
+    if (!existing) return res.status(404).json({ message: "Not found" });
+    if (!isOwnerOrAdmin(req, existing.createdBy)) return res.status(403).json({ message: "본인이 작성한 운행일지만 삭제할 수 있습니다" });
+    await storage.deleteVehicleLog(id);
     res.status(204).send();
   });
 
@@ -1724,7 +1746,11 @@ export async function registerRoutes(
   });
 
   app.delete("/api/education-sessions/:id", requirePermission("registerEducation"), async (req: any, res) => {
-    await storage.deleteEducationSession(Number(req.params.id));
+    const id = Number(req.params.id);
+    const existing = await storage.getEducationSession(id);
+    if (!existing) return res.status(404).json({ message: "Not found" });
+    if (!isOwnerOrAdmin(req, existing.createdBy)) return res.status(403).json({ message: "본인이 작성한 교육일지만 삭제할 수 있습니다" });
+    await storage.deleteEducationSession(id);
     res.status(204).send();
   });
 
@@ -1859,7 +1885,7 @@ export async function registerRoutes(
 
   app.post('/api/chemicals', requireEditor, async (req: any, res) => {
     try {
-      const chemical = await storage.createChemical(req.body);
+      const chemical = await storage.createChemical({ ...req.body, createdBy: req.user?.username || null });
       res.status(201).json(chemical);
     } catch (error) {
       res.status(500).json({ message: "화학물질 등록에 실패했습니다" });
@@ -1868,7 +1894,11 @@ export async function registerRoutes(
 
   app.put('/api/chemicals/:id', requireEditor, async (req: any, res) => {
     try {
-      const chemical = await storage.updateChemical(Number(req.params.id), req.body);
+      const id = Number(req.params.id);
+      const existing = await storage.getChemical(id);
+      if (!existing) return res.status(404).json({ message: "Not found" });
+      if (!isOwnerOrAdmin(req, existing.createdBy)) return res.status(403).json({ message: "본인이 등록한 화학물질만 수정할 수 있습니다" });
+      const chemical = await storage.updateChemical(id, req.body);
       res.json(chemical);
     } catch (error) {
       res.status(500).json({ message: "화학물질 수정에 실패했습니다" });
@@ -1877,7 +1907,11 @@ export async function registerRoutes(
 
   app.delete('/api/chemicals/:id', requireEditor, async (req: any, res) => {
     try {
-      await storage.deleteChemical(Number(req.params.id));
+      const id = Number(req.params.id);
+      const existing = await storage.getChemical(id);
+      if (!existing) return res.status(404).json({ message: "Not found" });
+      if (!isOwnerOrAdmin(req, existing.createdBy)) return res.status(403).json({ message: "본인이 등록한 화학물질만 삭제할 수 있습니다" });
+      await storage.deleteChemical(id);
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ message: "화학물질 삭제에 실패했습니다" });
@@ -1896,7 +1930,7 @@ export async function registerRoutes(
 
   app.post('/api/musculoskeletal-assessments', requireEditor, async (req: any, res) => {
     try {
-      const created = await storage.createMusculoskeletalAssessment(req.body);
+      const created = await storage.createMusculoskeletalAssessment({ ...req.body, createdBy: req.user?.username || null });
       res.status(201).json(created);
     } catch (error) {
       res.status(500).json({ message: "근골격계 유해요인조사 등록에 실패했습니다" });
@@ -1905,7 +1939,11 @@ export async function registerRoutes(
 
   app.put('/api/musculoskeletal-assessments/:id', requireEditor, async (req: any, res) => {
     try {
-      const updated = await storage.updateMusculoskeletalAssessment(Number(req.params.id), req.body);
+      const id = Number(req.params.id);
+      const existing = await storage.getMusculoskeletalAssessment(id);
+      if (!existing) return res.status(404).json({ message: "Not found" });
+      if (!isOwnerOrAdmin(req, existing.createdBy)) return res.status(403).json({ message: "본인이 등록한 항목만 수정할 수 있습니다" });
+      const updated = await storage.updateMusculoskeletalAssessment(id, req.body);
       res.json(updated);
     } catch (error) {
       res.status(500).json({ message: "근골격계 유해요인조사 수정에 실패했습니다" });
@@ -1914,7 +1952,11 @@ export async function registerRoutes(
 
   app.delete('/api/musculoskeletal-assessments/:id', requireEditor, async (req: any, res) => {
     try {
-      await storage.deleteMusculoskeletalAssessment(Number(req.params.id));
+      const id = Number(req.params.id);
+      const existing = await storage.getMusculoskeletalAssessment(id);
+      if (!existing) return res.status(404).json({ message: "Not found" });
+      if (!isOwnerOrAdmin(req, existing.createdBy)) return res.status(403).json({ message: "본인이 등록한 항목만 삭제할 수 있습니다" });
+      await storage.deleteMusculoskeletalAssessment(id);
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ message: "근골격계 유해요인조사 삭제에 실패했습니다" });
@@ -2155,6 +2197,7 @@ export async function registerRoutes(
         riskScore: score,
         riskLevel,
         approvalStatus,
+        createdBy: req.user?.username || null,
       });
       res.status(201).json(assessment);
     } catch (error) {
@@ -2228,7 +2271,11 @@ export async function registerRoutes(
 
   app.delete('/api/risk-assessments/:id', requireEditor, async (req: any, res) => {
     try {
-      await storage.deleteRiskAssessment(Number(req.params.id));
+      const id = Number(req.params.id);
+      const existing = await storage.getRiskAssessment(id);
+      if (!existing) return res.status(404).json({ message: "Not found" });
+      if (!isOwnerOrAdmin(req, existing.createdBy)) return res.status(403).json({ message: "본인이 등록한 항목만 삭제할 수 있습니다" });
+      await storage.deleteRiskAssessment(id);
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ message: "위험성평가 삭제에 실패했습니다" });
@@ -2320,7 +2367,7 @@ export async function registerRoutes(
 
   app.post('/api/accidents', requireEditor, async (req: any, res) => {
     try {
-      const report = await storage.createAccidentReport(req.body);
+      const report = await storage.createAccidentReport({ ...req.body, createdBy: req.user?.username || null });
       res.status(201).json(report);
     } catch (error) {
       res.status(500).json({ message: "사고보고 등록에 실패했습니다" });
@@ -2329,7 +2376,11 @@ export async function registerRoutes(
 
   app.put('/api/accidents/:id', requireEditor, async (req: any, res) => {
     try {
-      const report = await storage.updateAccidentReport(Number(req.params.id), req.body);
+      const id = Number(req.params.id);
+      const existing = await storage.getAccidentReport(id);
+      if (!existing) return res.status(404).json({ message: "Not found" });
+      if (!isOwnerOrAdmin(req, existing.createdBy)) return res.status(403).json({ message: "본인이 작성한 사고보고만 수정할 수 있습니다" });
+      const report = await storage.updateAccidentReport(id, req.body);
       res.json(report);
     } catch (error) {
       res.status(500).json({ message: "사고보고 수정에 실패했습니다" });
@@ -2338,7 +2389,11 @@ export async function registerRoutes(
 
   app.delete('/api/accidents/:id', requireEditor, async (req: any, res) => {
     try {
-      await storage.deleteAccidentReport(Number(req.params.id));
+      const id = Number(req.params.id);
+      const existing = await storage.getAccidentReport(id);
+      if (!existing) return res.status(404).json({ message: "Not found" });
+      if (!isOwnerOrAdmin(req, existing.createdBy)) return res.status(403).json({ message: "본인이 작성한 사고보고만 삭제할 수 있습니다" });
+      await storage.deleteAccidentReport(id);
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ message: "사고보고 삭제에 실패했습니다" });
@@ -2382,7 +2437,7 @@ export async function registerRoutes(
 
   app.post('/api/new-equipment-requests', isAuthenticated, async (req: any, res) => {
     try {
-      const request = await storage.createNewEquipmentRequest(req.body);
+      const request = await storage.createNewEquipmentRequest({ ...req.body, requestedBy: req.user?.username || req.body.requestedBy || null });
       res.status(201).json(request);
     } catch (error) {
       res.status(500).json({ message: "신규 상품요청 등록에 실패했습니다" });
@@ -2391,7 +2446,11 @@ export async function registerRoutes(
 
   app.put('/api/new-equipment-requests/:id', requireEditor, async (req: any, res) => {
     try {
-      const request = await storage.updateNewEquipmentRequest(Number(req.params.id), req.body);
+      const id = Number(req.params.id);
+      const existing = await storage.getNewEquipmentRequest(id);
+      if (!existing) return res.status(404).json({ message: "Not found" });
+      if (!isOwnerOrAdmin(req, existing.requestedBy)) return res.status(403).json({ message: "본인이 요청한 항목만 수정할 수 있습니다" });
+      const request = await storage.updateNewEquipmentRequest(id, req.body);
       res.json(request);
     } catch (error) {
       res.status(500).json({ message: "신규 상품요청 수정에 실패했습니다" });
@@ -2400,7 +2459,11 @@ export async function registerRoutes(
 
   app.delete('/api/new-equipment-requests/:id', requireEditor, async (req: any, res) => {
     try {
-      await storage.deleteNewEquipmentRequest(Number(req.params.id));
+      const id = Number(req.params.id);
+      const existing = await storage.getNewEquipmentRequest(id);
+      if (!existing) return res.status(404).json({ message: "Not found" });
+      if (!isOwnerOrAdmin(req, existing.requestedBy)) return res.status(403).json({ message: "본인이 요청한 항목만 삭제할 수 있습니다" });
+      await storage.deleteNewEquipmentRequest(id);
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ message: "신규 상품요청 삭제에 실패했습니다" });

@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { usePermissions } from "@/hooks/use-permissions";
+import { useAuth } from "@/hooks/use-auth";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
 import type { AccidentReport } from "@shared/schema";
@@ -197,6 +198,8 @@ export default function AccidentReports() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { canEditAccidents, canDownloadAccidentReport, canUploadAccidentPhotos } = usePermissions();
+  const { user } = useAuth();
+  const isOwner = (createdBy?: string | null) => !createdBy || user?.role === "admin" || user?.username === createdBy;
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -522,7 +525,7 @@ export default function AccidentReports() {
                                       <Download className="w-4 h-4 text-blue-500" />
                                     </Button>
                                   )}
-                                  {canEditAccidents && (
+                                  {canEditAccidents && isOwner(report.createdBy) && (
                                     <>
                                       <Button variant="ghost" size="icon" onClick={() => openEdit(report)} data-testid={`button-edit-${report.id}`}>
                                         <Pencil className="w-4 h-4" />

@@ -55,8 +55,14 @@ Preferred communication style: Simple, everyday language.
 
 ### Authentication & Authorization
 - Username/password login with bcrypt hashing
-- Role-based permissions (admin, manager, user, viewer, custom)
-- Role preset system for batch permission assignment
+- Role-based permissions (admin, manager, user, viewer, custom, **deptHead**)
+- Role preset system for batch permission assignment (일반사용자/부서장/담당자 3 tabs)
+- **Ownership-based edit restriction**: Users can only edit/delete content they created (`createdBy` field on all content tables). Admin bypasses this check. Legacy records without `createdBy` are editable by admin only.
+  - `isOwnerOrAdmin` helper in `server/routes.ts`: `req.user?.role === 'admin' || !createdBy || req.user?.username === createdBy`
+  - Frontend: `isOwner` helper in each page hides edit/delete buttons for non-owners
+  - POST routes set `createdBy: req.user?.username`; PUT/DELETE routes check ownership, return 403 if not owner
+  - Tables with `createdBy`: notices, vehicles, safetyInspections, vehicleLogs, educationSessions, chemicals, musculoskeletalAssessments, riskAssessments, accidentReports, newEquipmentRequests (uses `requestedBy`)
+- **부서장(deptHead) role**: Can submit improvement+approval in risk assessments in a single action
 - Permission checks on both regular API routes and chatbot actions
 - Global lock toggle prevents edits when system is locked
 - Lock status refreshes every 10 seconds on client

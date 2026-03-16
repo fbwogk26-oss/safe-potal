@@ -1372,10 +1372,12 @@ export default function EducationLogs() {
                                       onClick={(e) => { e.stopPropagation(); handleCopy(session); }}
                                       data-testid={`button-copy-session-${session.id}`}
                                     ><Copy className="w-4 h-4" /></Button>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground"
-                                      onClick={(e) => { e.stopPropagation(); if (confirm("이 교육일지를 삭제하시겠습니까?")) deleteMutation.mutate(session.id); }}
-                                      data-testid={`button-delete-session-${session.id}`}
-                                    ><Trash2 className="w-4 h-4" /></Button>
+                                    {(!session.createdBy || user?.role === "admin" || user?.username === session.createdBy) && (
+                                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground"
+                                        onClick={(e) => { e.stopPropagation(); if (confirm("이 교육일지를 삭제하시겠습니까?")) deleteMutation.mutate(session.id); }}
+                                        data-testid={`button-delete-session-${session.id}`}
+                                      ><Trash2 className="w-4 h-4" /></Button>
+                                    )}
                                   </>
                                 )}
                               </div>

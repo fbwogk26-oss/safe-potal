@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { usePermissions } from "@/hooks/use-permissions";
+import { useAuth } from "@/hooks/use-auth";
 import type { Chemical, InsertChemical } from "@shared/schema";
 
 import { Button } from "@/components/ui/button";
@@ -99,6 +100,8 @@ export default function MsdsSearch() {
   const queryClient = useQueryClient();
   const { canEditMsds, canDownloadMsdsPdf } = usePermissions();
   const canEdit = canEditMsds;
+  const { user } = useAuth();
+  const isOwner = (createdBy?: string | null) => !createdBy || user?.role === "admin" || user?.username === createdBy;
 
   const [searchQuery, setSearchQuery] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -406,7 +409,7 @@ export default function MsdsSearch() {
                               <Download className="w-4 h-4 text-red-500" />
                             </Button>
                           )}
-                          {canEdit && (
+                          {canEdit && isOwner(chemical.createdBy) && (
                             <>
                               <Button
                                 variant="ghost"

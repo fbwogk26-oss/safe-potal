@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { usePermissions } from "@/hooks/use-permissions";
+import { useAuth } from "@/hooks/use-auth";
 import {
   BookOpen,
   Plus,
@@ -46,6 +47,8 @@ import type { Vehicle, VehicleLog } from "@shared/schema";
 export default function VehicleLogs() {
   const { toast } = useToast();
   const { canEditVehicleLogs, canDownloadVehicleLogExcel } = usePermissions();
+  const { user } = useAuth();
+  const isOwner = (createdBy?: string | null) => !createdBy || user?.role === "admin" || user?.username === createdBy;
   const [searchTerm, setSearchTerm] = useState("");
   const [filterTeam, setFilterTeam] = useState("all");
   const [selectedVehicleForHistory, setSelectedVehicleForHistory] = useState<Vehicle | null>(null);
@@ -258,7 +261,7 @@ export default function VehicleLogs() {
                           <span className="text-xs text-muted-foreground">-</span>
                         )}
                       </td>
-                      {canEditVehicleLogs && (
+                      {canEditVehicleLogs && isOwner(log.createdBy) && (
                         <td className="px-3 py-2 text-center">
                           <Button
                             variant="ghost"
@@ -496,7 +499,7 @@ export default function VehicleLogs() {
                       )}
                     </div>
 
-                    {canEditVehicleLogs && (
+                    {canEditVehicleLogs && isOwner(log.createdBy) && (
                       <Button
                         variant="ghost"
                         size="icon"

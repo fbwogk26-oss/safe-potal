@@ -979,7 +979,7 @@ export default function SafetyInspections() {
                       )}
                       <div className="flex items-center gap-0.5 shrink-0">
                         {isExpanded ? <ChevronUp className="w-3.5 h-3.5 text-muted-foreground" /> : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />}
-                        {canEditInspections && (
+                        {canEditInspections && (!inspection.createdBy || user?.role === "admin" || user?.username === inspection.createdBy) && (
                           <Button
                             variant="ghost"
                             size="icon"

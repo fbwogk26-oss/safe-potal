@@ -348,14 +348,16 @@ export default function NewEquipmentRequestPage() {
                           >
                             상태변경
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleDelete(req.id)}
-                            data-testid={`button-delete-${req.id}`}
-                          >
-                            <Trash2 className="w-4 h-4 text-destructive" />
-                          </Button>
+                          {(!req.requestedBy || user?.role === "admin" || user?.username === req.requestedBy) && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleDelete(req.id)}
+                              data-testid={`button-delete-${req.id}`}
+                            >
+                              <Trash2 className="w-4 h-4 text-destructive" />
+                            </Button>
+                          )}
                         </div>
                       )}
                     </div>
