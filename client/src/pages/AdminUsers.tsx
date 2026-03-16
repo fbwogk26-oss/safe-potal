@@ -70,6 +70,7 @@ interface UserData {
 interface RolePresets {
   user: UserPermissions | null;
   manager: UserPermissions | null;
+  deptHead: UserPermissions | null;
 }
 
 export default function AdminUsers() {
@@ -81,7 +82,7 @@ export default function AdminUsers() {
   });
   const isAdmin = roleData?.role === "admin";
   const [expandedUser, setExpandedUser] = useState<string | null>(null);
-  const [presetTab, setPresetTab] = useState<"user" | "manager">("user");
+  const [presetTab, setPresetTab] = useState<"user" | "manager" | "deptHead">("user");
   const [showPresetSection, setShowPresetSection] = useState(false);
 
   const { data: users, isLoading } = useQuery<UserData[]>({
@@ -159,7 +160,10 @@ export default function AdminUsers() {
   };
 
   const applyPresetToUser = (user: UserData) => {
-    const preset = user.role === "manager" ? presets?.manager : presets?.user;
+    const preset =
+      user.role === "manager" ? presets?.manager :
+      user.role === "deptHead" ? presets?.deptHead :
+      presets?.user;
     if (preset) {
       updatePermissionsMutation.mutate({ userId: user.id, permissions: preset });
     } else {
@@ -230,7 +234,7 @@ export default function AdminUsers() {
 
       {showPresetSection && (
         <RolePresetManager
-          presets={presets || { user: null, manager: null }}
+          presets={presets || { user: null, manager: null, deptHead: null }}
           activeTab={presetTab}
           onTabChange={setPresetTab}
         />
@@ -308,6 +312,7 @@ export default function AdminUsers() {
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="admin">관리자</SelectItem>
+                                <SelectItem value="deptHead">부서장</SelectItem>
                                 <SelectItem value="manager">담당자</SelectItem>
                                 <SelectItem value="user">일반 사용자</SelectItem>
                               </SelectContent>
@@ -459,21 +464,21 @@ function RolePresetManager({
   onTabChange 
 }: { 
   presets: RolePresets; 
-  activeTab: "user" | "manager"; 
-  onTabChange: (tab: "user" | "manager") => void;
+  activeTab: "user" | "manager" | "deptHead"; 
+  onTabChange: (tab: "user" | "manager" | "deptHead") => void;
 }) {
   const { toast } = useToast();
-  const currentPreset = activeTab === "user" ? presets.user : presets.manager;
+  const currentPreset = activeTab === "manager" ? presets.manager : activeTab === "deptHead" ? presets.deptHead : presets.user;
   const [localPerms, setLocalPerms] = useState<UserPermissions>(currentPreset || DEFAULT_PERMISSIONS);
   const [hasChanges, setHasChanges] = useState(false);
 
   useEffect(() => {
-    const preset = activeTab === "user" ? presets.user : presets.manager;
+    const preset = activeTab === "manager" ? presets.manager : activeTab === "deptHead" ? presets.deptHead : presets.user;
     setLocalPerms(preset || DEFAULT_PERMISSIONS);
     setHasChanges(false);
-  }, [presets.user, presets.manager, activeTab]);
+  }, [presets.user, presets.manager, presets.deptHead, activeTab]);
 
-  const handleTabChange = (tab: "user" | "manager") => {
+  const handleTabChange = (tab: "user" | "manager" | "deptHead") => {
     onTabChange(tab);
   };
 
@@ -494,7 +499,8 @@ function RolePresetManager({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/settings/role-presets"] });
       setHasChanges(false);
-      toast({ title: `${activeTab === "user" ? "일반사용자" : "담당자"} 권한 프리셋이 저장되었습니다.` });
+      const label = activeTab === "manager" ? "담당자" : activeTab === "deptHead" ? "부서장" : "일반사용자";
+      toast({ title: `${label} 권한 프리셋이 저장되었습니다.` });
     },
     onError: () => {
       toast({ variant: "destructive", title: "프리셋 저장에 실패했습니다." });
@@ -519,7 +525,7 @@ function RolePresetManager({
         </div>
       </CardHeader>
       <CardContent>
-        <div className="flex gap-2 mb-4">
+        <div className="flex gap-2 mb-4 flex-wrap">
           <Button
             variant={activeTab === "user" ? "default" : "outline"}
             size="sm"
@@ -528,6 +534,15 @@ function RolePresetManager({
           >
             일반사용자 설정
             {presets.user && <Badge variant="secondary" className="ml-2 text-[10px]">저장됨</Badge>}
+          </Button>
+          <Button
+            variant={activeTab === "deptHead" ? "default" : "outline"}
+            size="sm"
+            onClick={() => handleTabChange("deptHead")}
+            data-testid="button-preset-tab-depthead"
+          >
+            부서장 설정
+            {presets.deptHead && <Badge variant="secondary" className="ml-2 text-[10px]">저장됨</Badge>}
           </Button>
           <Button
             variant={activeTab === "manager" ? "default" : "outline"}
@@ -542,7 +557,7 @@ function RolePresetManager({
 
         <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
           <p className="text-sm text-muted-foreground">
-            {activeTab === "user" ? "일반사용자" : "담당자"}로 등록되는 사용자에게 기본 적용될 권한을 설정합니다
+            {activeTab === "manager" ? "담당자" : activeTab === "deptHead" ? "부서장" : "일반사용자"}로 등록되는 사용자에게 기본 적용될 권한을 설정합니다
           </p>
           <div className="flex gap-2">
             <Button
@@ -779,7 +794,7 @@ function CreateUserDialog() {
 
   const getPresetStatus = (r: string) => {
     if (r === "admin") return null;
-    const preset = r === "manager" ? presets?.manager : presets?.user;
+    const preset = r === "manager" ? presets?.manager : r === "deptHead" ? presets?.deptHead : presets?.user;
     if (!preset) return "미설정";
     const enabledCount = Object.values(preset).filter(Boolean).length;
     const totalCount = Object.keys(PERMISSION_LABELS).length;
@@ -907,6 +922,7 @@ function CreateUserDialog() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="admin">관리자</SelectItem>
+                  <SelectItem value="deptHead">부서장</SelectItem>
                   <SelectItem value="manager">담당자</SelectItem>
                   <SelectItem value="user">일반 사용자</SelectItem>
                 </SelectContent>
@@ -915,7 +931,7 @@ function CreateUserDialog() {
                 <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 rounded-md px-3 py-2">
                   <Shield className="w-3.5 h-3.5" />
                   <span>
-                    {role === "manager" ? "담당자" : "일반사용자"} 프리셋 권한 적용: {getPresetStatus(role) || ""}
+                    {role === "manager" ? "담당자" : role === "deptHead" ? "부서장" : "일반사용자"} 프리셋 권한 적용: {getPresetStatus(role) || ""}
                   </span>
                 </div>
               )}

@@ -843,9 +843,11 @@ export async function registerRoutes(
   app.get("/api/settings/role-presets", isAuthenticated, async (req: any, res) => {
     const userPreset = await storage.getSetting('role_preset_user');
     const managerPreset = await storage.getSetting('role_preset_manager');
+    const deptHeadPreset = await storage.getSetting('role_preset_deptHead');
     res.json({
       user: userPreset?.value ? JSON.parse(userPreset.value) : null,
       manager: managerPreset?.value ? JSON.parse(managerPreset.value) : null,
+      deptHead: deptHeadPreset?.value ? JSON.parse(deptHeadPreset.value) : null,
     });
   });
 
@@ -854,7 +856,7 @@ export async function registerRoutes(
     if (!role || !permissions) {
       return res.status(400).json({ message: "역할과 권한 설정이 필요합니다" });
     }
-    if (role !== "user" && role !== "manager") {
+    if (role !== "user" && role !== "manager" && role !== "deptHead") {
       return res.status(400).json({ message: "일반사용자 또는 담당자만 설정할 수 있습니다" });
     }
     await storage.setSetting(`role_preset_${role}`, JSON.stringify(permissions));

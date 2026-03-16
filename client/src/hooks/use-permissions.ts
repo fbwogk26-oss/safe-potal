@@ -227,6 +227,8 @@ export function getRoleLabel(role: string): string {
       return "관리자";
     case "manager":
       return "담당자";
+    case "deptHead":
+      return "부서장";
     case "user":
     default:
       return "일반 사용자";
@@ -238,6 +240,7 @@ export function getRoleVariant(role: string): "default" | "secondary" | "outline
     case "admin":
       return "default";
     case "manager":
+    case "deptHead":
       return "secondary";
     case "user":
     default:
