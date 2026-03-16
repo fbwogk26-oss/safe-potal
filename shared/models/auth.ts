@@ -44,6 +44,7 @@ export interface UserPermissions {
   downloadMsdsPdf: boolean;
   downloadRulesFiles: boolean;
   downloadEducationFiles: boolean;
+  downloadRiskAssessmentExcel: boolean;
   viewDashboard: boolean;
   viewNotices: boolean;
   viewDigitalBoard: boolean;
@@ -95,6 +96,7 @@ export const DEFAULT_PERMISSIONS: UserPermissions = {
   downloadMsdsPdf: false,
   downloadRulesFiles: false,
   downloadEducationFiles: false,
+  downloadRiskAssessmentExcel: false,
   viewDashboard: true,
   viewNotices: true,
   viewDigitalBoard: true,
@@ -146,6 +148,7 @@ export const ALL_PERMISSIONS: UserPermissions = {
   downloadMsdsPdf: true,
   downloadRulesFiles: true,
   downloadEducationFiles: true,
+  downloadRiskAssessmentExcel: true,
   viewDashboard: true,
   viewNotices: true,
   viewDigitalBoard: true,

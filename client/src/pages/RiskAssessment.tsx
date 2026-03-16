@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { ShieldAlert, Plus, Trash2, Pencil, Camera, X, Info, ClipboardEdit, CheckCircle2, Clock } from "lucide-react";
+import { ShieldAlert, Plus, Trash2, Pencil, Camera, X, Info, ClipboardEdit, CheckCircle2, Clock, FileDown, Download } from "lucide-react";
 import { useState, useMemo, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -83,9 +83,33 @@ interface FormHeader {
 }
 
 export default function RiskAssessmentPage() {
-  const { canEditRiskAssessment } = usePermissions();
+  const { canEditRiskAssessment, canDownloadRiskAssessmentExcel } = usePermissions();
   const { user } = useAuth();
   const { toast } = useToast();
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  const handleDownloadExcel = async (dept: string) => {
+    if (isDownloading) return;
+    setIsDownloading(true);
+    try {
+      const params = new URLSearchParams({ department: dept });
+      const res = await fetch(`/api/risk-assessments/excel?${params}`, { credentials: "include" });
+      if (!res.ok) throw new Error("다운로드 실패");
+      const blob = await res.blob();
+      const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+      const deptLabel = dept === "전체" ? "전체부서" : dept;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `위험성평가_${deptLabel}_${today}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast({ title: "다운로드 실패", description: "엑셀 파일 생성에 실패했습니다.", variant: "destructive" });
+    } finally {
+      setIsDownloading(false);
+    }
+  };
   const [activeTab, setActiveTab] = useState("상반기정기평가");
   const [filterDept, setFilterDept] = useState("전체");
   const [showForm, setShowForm] = useState(false);
@@ -339,21 +363,59 @@ export default function RiskAssessmentPage() {
             <p className="text-xs text-muted-foreground">KRAS 위험성평가 관리</p>
           </div>
         </div>
-        {canEditRiskAssessment && (
-          <Button
-            onClick={() => {
-              setHeader({ department: "", assessor: user?.name || user?.username || "", assessmentDate: format(new Date(), "yyyy-MM-dd") });
-              setItems([defaultItem()]);
-              setEditingId(null);
-              setShowForm(true);
-            }}
-            className="bg-orange-500 hover:bg-orange-600 text-white gap-2"
-            data-testid="button-add-assessment"
-          >
-            <Plus className="w-4 h-4" />
-            새 평가 등록
-          </Button>
-        )}
+        <div className="flex items-center gap-2 flex-wrap">
+          {canDownloadRiskAssessmentExcel && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 text-green-700 border-green-300 hover:bg-green-50 h-9"
+                onClick={() => handleDownloadExcel("전체")}
+                disabled={isDownloading}
+                data-testid="button-download-all"
+              >
+                {isDownloading ? (
+                  <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-green-700" />
+                ) : (
+                  <Download className="w-3.5 h-3.5" />
+                )}
+                전체 엑셀
+              </Button>
+              {filterDept !== "전체" && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 text-blue-700 border-blue-300 hover:bg-blue-50 h-9"
+                  onClick={() => handleDownloadExcel(filterDept)}
+                  disabled={isDownloading}
+                  data-testid="button-download-dept"
+                >
+                  {isDownloading ? (
+                    <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-blue-700" />
+                  ) : (
+                    <FileDown className="w-3.5 h-3.5" />
+                  )}
+                  {filterDept} 엑셀
+                </Button>
+              )}
+            </>
+          )}
+          {canEditRiskAssessment && (
+            <Button
+              onClick={() => {
+                setHeader({ department: "", assessor: user?.name || user?.username || "", assessmentDate: format(new Date(), "yyyy-MM-dd") });
+                setItems([defaultItem()]);
+                setEditingId(null);
+                setShowForm(true);
+              }}
+              className="bg-orange-500 hover:bg-orange-600 text-white gap-2 h-9"
+              data-testid="button-add-assessment"
+            >
+              <Plus className="w-4 h-4" />
+              새 평가 등록
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* 위험성 계산표 */}

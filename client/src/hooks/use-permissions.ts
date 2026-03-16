@@ -40,6 +40,7 @@ export interface Permissions {
   canDownloadMsdsPdf: boolean;
   canDownloadRulesFiles: boolean;
   canDownloadEducationFiles: boolean;
+  canDownloadRiskAssessmentExcel: boolean;
   canViewDashboard: boolean;
   canViewNotices: boolean;
   canViewDigitalBoard: boolean;
@@ -111,6 +112,7 @@ export function usePermissions(): Permissions & { isLoading: boolean } {
     canDownloadMsdsPdf: isAdmin || !!perms?.downloadMsdsPdf,
     canDownloadRulesFiles: isAdmin || !!perms?.downloadRulesFiles,
     canDownloadEducationFiles: isAdmin || !!perms?.downloadEducationFiles,
+    canDownloadRiskAssessmentExcel: isAdmin || !!perms?.downloadRiskAssessmentExcel,
     canViewDashboard: isAdmin || !!perms?.viewDashboard,
     canViewNotices: isAdmin || !!perms?.viewNotices,
     canViewDigitalBoard: isAdmin || !!perms?.viewDigitalBoard,
@@ -163,6 +165,7 @@ export const PERMISSION_LABELS: Record<keyof UserPermissions, string> = {
   downloadMsdsPdf: "MSDS PDF 다운로드",
   downloadRulesFiles: "안전수칙 파일 다운로드",
   downloadEducationFiles: "교육자료 파일 다운로드",
+  downloadRiskAssessmentExcel: "위험성평가 엑셀 다운로드",
   viewDashboard: "대시보드",
   viewNotices: "공지/알림",
   viewDigitalBoard: "전자게시판",
@@ -213,6 +216,7 @@ export const PERMISSION_CATEGORIES: { label: string; keys: (keyof UserPermission
       "downloadEducationExcel", "downloadInspectionExcel", "downloadAccidentReport",
       "downloadVehicleExcel", "downloadVehicleLogExcel", "downloadAccessExcel",
       "downloadEquipmentExcel", "downloadMsdsPdf", "downloadRulesFiles", "downloadEducationFiles",
+      "downloadRiskAssessmentExcel",
     ],
   },
 ];

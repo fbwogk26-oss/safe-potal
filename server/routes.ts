@@ -1909,6 +1909,197 @@ export async function registerRoutes(
   });
 
   // === RISK ASSESSMENTS ===
+
+  // 위험성평가 엑셀 다운로드 (사진 포함)
+  app.get('/api/risk-assessments/excel', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = req.user;
+      const isAdmin = user?.role === 'admin';
+      const perms = user?.permissions || {};
+      if (!isAdmin && !perms.downloadRiskAssessmentExcel) {
+        return res.status(403).json({ message: "엑셀 다운로드 권한이 없습니다" });
+      }
+
+      const department = (req.query.department as string) || '전체';
+      const assessmentType = req.query.type as string | undefined;
+
+      let assessments = await storage.getRiskAssessments(assessmentType || undefined);
+      if (department && department !== '전체') {
+        assessments = assessments.filter((a: any) => a.department === department);
+      }
+
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = 'SafeBoard';
+      workbook.created = new Date();
+
+      const sheet = workbook.addWorksheet('위험성평가');
+
+      // 등급 계산 헬퍼
+      const getGrade = (score: number) => {
+        if (score >= 8) return { label: 'A등급', category: '중점관리' };
+        if (score >= 3) return { label: 'B등급', category: '일상관리' };
+        return { label: 'C등급', category: '허용가능' };
+      };
+
+      const PHOTO_COL_WIDTH = 20;
+      const PHOTO_ROW_HEIGHT = 100;
+
+      // 열 정의
+      sheet.columns = [
+        { header: 'No', key: 'no', width: 6 },
+        { header: '부서', key: 'department', width: 14 },
+        { header: '평가유형', key: 'assessmentType', width: 10 },
+        { header: '공정/작업', key: 'process', width: 16 },
+        { header: '유해위험요인', key: 'hazard', width: 25 },
+        { header: '위험유형', key: 'hazardType', width: 12 },
+        { header: '현재 안전보건조치', key: 'currentControls', width: 22 },
+        { header: '가능성(1-5)', key: 'frequency', width: 11 },
+        { header: '중대성(1-4)', key: 'severity', width: 11 },
+        { header: '위험점수', key: 'riskScore', width: 10 },
+        { header: '등급', key: 'grade', width: 10 },
+        { header: '분류', key: 'gradeCategory', width: 10 },
+        { header: '평가자', key: 'assessor', width: 10 },
+        { header: '평가일', key: 'assessmentDate', width: 12 },
+        { header: '개선전 사진', key: 'beforePhoto', width: PHOTO_COL_WIDTH },
+        { header: '개선대책', key: 'improvementMeasures', width: 24 },
+        { header: '개선 계획일', key: 'plannedDate', width: 13 },
+        { header: '완료일', key: 'completionDate', width: 12 },
+        { header: '개선후 가능성', key: 'afterFrequency', width: 13 },
+        { header: '개선후 중대성', key: 'afterSeverity', width: 13 },
+        { header: '개선후 점수', key: 'afterRiskScore', width: 12 },
+        { header: '개선후 등급', key: 'afterGrade', width: 11 },
+        { header: '개선현황', key: 'improvementStatus', width: 11 },
+        { header: '개선후 사진', key: 'afterPhoto', width: PHOTO_COL_WIDTH },
+      ];
+
+      // 헤더 스타일
+      const headerRow = sheet.getRow(1);
+      headerRow.font = { bold: true, size: 10 };
+      headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2D5090' } };
+      headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 };
+      headerRow.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+      headerRow.height = 28;
+
+      // 사진 열 번호 (1-indexed)
+      const BEFORE_PHOTO_COL = 15; // O열
+      const AFTER_PHOTO_COL = 24;  // X열
+
+      // 사진 이미지 추가 헬퍼
+      const addPhotoToCell = async (photoUrl: string, rowNum: number, colNum: number) => {
+        try {
+          if (!photoUrl) return;
+          const filename = photoUrl.replace(/^\/uploads\//, '');
+          const filePath = path.join(process.cwd(), 'uploads', filename);
+          if (!fs.existsSync(filePath)) return;
+          const ext = path.extname(filename).toLowerCase().replace('.', '');
+          const validExts = ['png', 'jpg', 'jpeg', 'gif', 'webp'];
+          if (!validExts.includes(ext)) return;
+          const imgData = fs.readFileSync(filePath);
+          const imageId = workbook.addImage({
+            buffer: imgData,
+            extension: (ext === 'jpg' ? 'jpeg' : ext) as any,
+          });
+          sheet.addImage(imageId, {
+            tl: { col: colNum - 1, row: rowNum - 1 },
+            br: { col: colNum, row: rowNum },
+            editAs: 'oneCell',
+          });
+        } catch (_) { /* 사진 오류 무시 */ }
+      };
+
+      // 데이터 행 추가
+      for (let i = 0; i < assessments.length; i++) {
+        const a = assessments[i] as any;
+        const grade = getGrade(a.riskScore);
+        const afterGrade = a.afterRiskScore ? getGrade(a.afterRiskScore) : null;
+        const rowNum = i + 2;
+
+        const row = sheet.addRow({
+          no: i + 1,
+          department: a.department,
+          assessmentType: a.assessmentType,
+          process: a.process || '',
+          hazard: a.hazard,
+          hazardType: a.hazardType || '',
+          currentControls: a.currentControls || '',
+          frequency: a.frequency,
+          severity: a.severity,
+          riskScore: a.riskScore,
+          grade: grade.label,
+          gradeCategory: grade.category,
+          assessor: a.assessor || '',
+          assessmentDate: a.assessmentDate,
+          beforePhoto: a.beforePhotoUrl ? '(사진)' : '',
+          improvementMeasures: a.improvementMeasures || '',
+          plannedDate: a.plannedDate || '',
+          completionDate: a.completionDate || '',
+          afterFrequency: a.afterFrequency || '',
+          afterSeverity: a.afterSeverity || '',
+          afterRiskScore: a.afterRiskScore || '',
+          afterGrade: afterGrade ? afterGrade.label : '',
+          improvementStatus: a.improvementStatus || '',
+          afterPhoto: a.afterPhotoUrl ? '(사진)' : '',
+        });
+
+        row.height = a.beforePhotoUrl || a.afterPhotoUrl ? PHOTO_ROW_HEIGHT : 18;
+        row.alignment = { vertical: 'middle', wrapText: true };
+        row.font = { size: 9 };
+
+        // 등급 셀 색상
+        const gradeCell = row.getCell('grade');
+        if (grade.label === 'A등급') {
+          gradeCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFD7CC' } };
+          gradeCell.font = { bold: true, color: { argb: 'FFD95030' }, size: 9 };
+        } else if (grade.label === 'B등급') {
+          gradeCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF4CC' } };
+          gradeCell.font = { bold: true, color: { argb: 'FF8B7000' }, size: 9 };
+        } else {
+          gradeCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD4EDDA' } };
+          gradeCell.font = { bold: true, color: { argb: 'FF1A6B2E' }, size: 9 };
+        }
+        gradeCell.alignment = { horizontal: 'center', vertical: 'middle' };
+
+        // 점수 셀 스타일
+        const scoreCell = row.getCell('riskScore');
+        scoreCell.alignment = { horizontal: 'center', vertical: 'middle' };
+        scoreCell.font = { bold: true, size: 9 };
+
+        // 사진 셀 텍스트 비우기 (이미지로 채움)
+        row.getCell('beforePhoto').value = '';
+        row.getCell('afterPhoto').value = '';
+
+        // 사진 삽입
+        if (a.beforePhotoUrl) await addPhotoToCell(a.beforePhotoUrl, rowNum, BEFORE_PHOTO_COL);
+        if (a.afterPhotoUrl) await addPhotoToCell(a.afterPhotoUrl, rowNum, AFTER_PHOTO_COL);
+      }
+
+      // 테두리 전체 적용
+      for (let r = 1; r <= assessments.length + 1; r++) {
+        const row = sheet.getRow(r);
+        row.eachCell({ includeEmpty: true }, (cell) => {
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FFD0D0D0' } },
+            left: { style: 'thin', color: { argb: 'FFD0D0D0' } },
+            bottom: { style: 'thin', color: { argb: 'FFD0D0D0' } },
+            right: { style: 'thin', color: { argb: 'FFD0D0D0' } },
+          };
+        });
+      }
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+      const deptLabel = department === '전체' ? '전체부서' : department;
+      const filename = encodeURIComponent(`위험성평가_${deptLabel}_${today}.xlsx`);
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${filename}`);
+      res.send(buffer);
+    } catch (error) {
+      console.error('위험성평가 엑셀 다운로드 오류:', error);
+      res.status(500).json({ message: "엑셀 다운로드에 실패했습니다" });
+    }
+  });
+
   app.get('/api/risk-assessments', isAuthenticated, async (req: any, res) => {
     try {
       const type = req.query.type as string;
