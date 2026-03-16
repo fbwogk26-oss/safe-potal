@@ -6,10 +6,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { ShieldAlert, Plus, Trash2, Pencil, Camera, X, Info, ClipboardEdit, CheckCircle2, Clock, FileDown, Download, UserCheck, CircleCheck, AlertCircle } from "lucide-react";
+import { ShieldAlert, Plus, Trash2, Pencil, Camera, X, Info, ClipboardEdit, CheckCircle2, Clock, FileDown, Download, UserCheck, CircleCheck, AlertCircle, Users } from "lucide-react";
 import { useState, useMemo, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -98,6 +99,14 @@ interface FormHeader {
   assessor: string;
   assessmentDate: string;
   responsibleTask: string;
+  departmentHead: string;
+}
+
+interface UserName {
+  id: string;
+  name: string;
+  username: string;
+  department: string;
 }
 
 export default function RiskAssessmentPage() {
@@ -137,8 +146,15 @@ export default function RiskAssessmentPage() {
     assessor: user?.name || user?.username || "",
     assessmentDate: format(new Date(), "yyyy-MM-dd"),
     responsibleTask: "",
+    departmentHead: "",
   });
   const [approvingItem, setApprovingItem] = useState<RiskAssessment | null>(null);
+  const [deptHeadPopoverOpen, setDeptHeadPopoverOpen] = useState(false);
+
+  const { data: userNames } = useQuery<UserName[]>({
+    queryKey: ["/api/users/names"],
+    enabled: showForm,
+  });
   const [items, setItems] = useState<RiskItem[]>([defaultItem()]);
   const [expandedItemIdx, setExpandedItemIdx] = useState<number>(0);
   const [uploadingPhoto, setUploadingPhoto] = useState<string | null>(null);
@@ -214,7 +230,7 @@ export default function RiskAssessmentPage() {
   });
 
   const resetForm = () => {
-    setHeader({ department: "", assessor: user?.name || user?.username || "", assessmentDate: format(new Date(), "yyyy-MM-dd"), responsibleTask: "" });
+    setHeader({ department: "", assessor: user?.name || user?.username || "", assessmentDate: format(new Date(), "yyyy-MM-dd"), responsibleTask: "", departmentHead: "" });
     setItems([defaultItem()]);
     setExpandedItemIdx(0);
     setEditingId(null);
@@ -242,6 +258,7 @@ export default function RiskAssessmentPage() {
         data: {
           title: autoTitle, ...header, assessmentType: activeTab,
           responsibleTask: header.responsibleTask || null,
+          departmentHead: header.departmentHead || null,
           process: item.process, hazard: item.hazard, hazardType: item.hazardType,
           currentControls: item.currentControls, frequency: item.probability,
           severity: item.criticality, riskScore: score, riskLevel: getRiskLevel(score),
@@ -254,6 +271,7 @@ export default function RiskAssessmentPage() {
         return {
           title: autoTitle, ...header, assessmentType: activeTab,
           responsibleTask: header.responsibleTask || null,
+          departmentHead: header.departmentHead || null,
           process: item.process, hazard: item.hazard, hazardType: item.hazardType,
           currentControls: item.currentControls, frequency: item.probability,
           severity: item.criticality, riskScore: score, riskLevel: getRiskLevel(score),
@@ -265,7 +283,7 @@ export default function RiskAssessmentPage() {
   };
 
   const handleEdit = (item: RiskAssessment) => {
-    setHeader({ department: item.department, assessor: item.assessor || user?.name || user?.username || "", assessmentDate: item.assessmentDate, responsibleTask: (item as any).responsibleTask || "" });
+    setHeader({ department: item.department, assessor: item.assessor || user?.name || user?.username || "", assessmentDate: item.assessmentDate, responsibleTask: (item as any).responsibleTask || "", departmentHead: (item as any).departmentHead || "" });
     setItems([{
       process: item.process || "", hazard: item.hazard, hazardType: item.hazardType || "",
       currentControls: item.currentControls || "", probability: item.frequency,
@@ -400,7 +418,7 @@ export default function RiskAssessmentPage() {
           {canEditRiskAssessment && (
             <Button
               onClick={() => {
-                setHeader({ department: "", assessor: user?.name || user?.username || "", assessmentDate: format(new Date(), "yyyy-MM-dd"), responsibleTask: "" });
+                setHeader({ department: "", assessor: user?.name || user?.username || "", assessmentDate: format(new Date(), "yyyy-MM-dd"), responsibleTask: "", departmentHead: "" });
                 setItems([defaultItem()]);
                 setEditingId(null);
                 setShowForm(true);
@@ -417,23 +435,23 @@ export default function RiskAssessmentPage() {
 
       {/* 위험성 계산표 */}
       <Card className="shadow-sm">
-        <CardHeader className="p-3 sm:p-4 pb-0">
+        <CardHeader className="p-2 sm:p-3 pb-0">
           <div className="flex items-center gap-2">
-            <CardTitle className="text-sm sm:text-base font-bold">위험성 계산표 (가능성 × 중대성)</CardTitle>
+            <CardTitle className="text-xs sm:text-sm font-bold">위험성 계산표 (가능성 × 중대성)</CardTitle>
           </div>
         </CardHeader>
-        <CardContent className="p-3 sm:p-4 overflow-x-auto">
-          <table className="w-full border-collapse" style={{ minWidth: 480 }} data-testid="risk-matrix">
+        <CardContent className="p-2 sm:p-3 overflow-x-auto">
+          <table className="w-full border-collapse text-[10px]" style={{ minWidth: 380 }} data-testid="risk-matrix">
             <thead>
               <tr>
-                <th className="border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800 p-2 text-xs text-center align-middle min-w-[80px]">
-                  <div className="text-[10px] text-muted-foreground mb-0.5">중대성</div>
-                  <div className="text-[10px] font-normal text-muted-foreground">가능성</div>
+                <th className="border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800 p-1 text-center align-middle min-w-[60px]">
+                  <div className="text-[9px] text-muted-foreground leading-tight">중대성</div>
+                  <div className="text-[9px] font-normal text-muted-foreground leading-tight">가능성</div>
                 </th>
                 {[1, 2, 3, 4].map(s => (
-                  <th key={s} className="border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/60 p-1.5 text-center">
-                    <div className="text-xs font-bold text-foreground">{CRITICALITY_LABELS[s]}</div>
-                    <div className="text-[11px] text-muted-foreground font-normal">({s})</div>
+                  <th key={s} className="border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/60 p-1 text-center">
+                    <div className="text-[10px] font-bold text-foreground leading-tight">{CRITICALITY_LABELS[s]}</div>
+                    <div className="text-[9px] text-muted-foreground font-normal leading-tight">({s})</div>
                   </th>
                 ))}
               </tr>
@@ -441,27 +459,24 @@ export default function RiskAssessmentPage() {
             <tbody>
               {[5, 4, 3, 2, 1].map(f => (
                 <tr key={f}>
-                  <td className="border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/60 p-1.5 text-center">
-                    <div className="text-xs font-bold text-foreground">{PROBABILITY_LABELS[f]}</div>
-                    <div className="text-[11px] text-muted-foreground">({f})</div>
+                  <td className="border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/60 p-1 text-center">
+                    <div className="text-[10px] font-bold text-foreground leading-tight">{PROBABILITY_LABELS[f]}</div>
+                    <div className="text-[9px] text-muted-foreground leading-tight">({f})</div>
                   </td>
                   {[1, 2, 3, 4].map(s => {
                     const score = f * s;
                     const { grade, category } = getRiskGrade(score);
                     const style = getMatrixStyle(score);
                     return (
-                      <td
-                        key={s}
-                        className={`border ${style.border} ${style.bg} ${style.text} p-1.5 text-center`}
-                      >
-                        <div className="text-[10px] font-semibold leading-tight">{category}</div>
-                        <div className="text-[10px] font-normal opacity-75 leading-tight">위험도</div>
-                        <div className="text-sm font-bold mt-0.5">({score})</div>
-                        <div className={`text-[9px] font-bold mt-0.5 px-1 rounded-full inline-block ${
+                      <td key={s} className={`border ${style.border} ${style.bg} ${style.text} p-1 text-center`}>
+                        <div className="text-[9px] font-semibold leading-tight">{category}</div>
+                        <div className="text-[9px] font-normal opacity-70 leading-tight">위험도</div>
+                        <div className="text-[11px] font-bold">({score})</div>
+                        <span className={`text-[8px] font-bold px-1 py-px rounded-full inline-block ${
                           grade === "A" ? "bg-orange-500 text-white" :
                           grade === "B" ? "bg-slate-500 text-white" :
                           "bg-blue-400 text-white"
-                        }`}>{grade}등급</div>
+                        }`}>{grade}등급</span>
                       </td>
                     );
                   })}
@@ -471,31 +486,31 @@ export default function RiskAssessmentPage() {
           </table>
 
           {/* 위험등급 결정표 */}
-          <div className="mt-4 space-y-2">
-            <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-              <Info className="w-3.5 h-3.5" />
+          <div className="mt-2 space-y-1.5">
+            <p className="text-[10px] font-semibold text-muted-foreground flex items-center gap-1">
+              <Info className="w-3 h-3" />
               위험등급 결정표
             </p>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              <div className="flex items-start gap-2 p-2.5 rounded-lg border border-orange-200 bg-orange-50 dark:bg-orange-950/30 dark:border-orange-800">
-                <span className="shrink-0 mt-0.5 bg-orange-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">A등급</span>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
+              <div className="flex items-start gap-1.5 p-1.5 rounded-md border border-orange-200 bg-orange-50 dark:bg-orange-950/30 dark:border-orange-800">
+                <span className="shrink-0 mt-0.5 bg-orange-500 text-white text-[9px] font-bold px-1 py-0.5 rounded-full">A등급</span>
                 <div>
-                  <p className="text-[11px] font-semibold text-orange-800 dark:text-orange-300">중점관리 위험도 (8~20)</p>
-                  <p className="text-[10px] text-orange-700 dark:text-orange-400 leading-relaxed mt-0.5">중대재해 및 치명적 손실로 연계될 가능성이 상대적으로 높음 (전체 20% 이내)</p>
+                  <p className="text-[10px] font-semibold text-orange-800 dark:text-orange-300">중점관리 위험도 (8~20)</p>
+                  <p className="text-[9px] text-orange-700 dark:text-orange-400 leading-relaxed">중대재해 연계 가능성 높음 (전체 20% 이내)</p>
                 </div>
               </div>
-              <div className="flex items-start gap-2 p-2.5 rounded-lg border border-slate-200 bg-slate-50 dark:bg-slate-800/50 dark:border-slate-600">
-                <span className="shrink-0 mt-0.5 bg-slate-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">B등급</span>
+              <div className="flex items-start gap-1.5 p-1.5 rounded-md border border-slate-200 bg-slate-50 dark:bg-slate-800/50 dark:border-slate-600">
+                <span className="shrink-0 mt-0.5 bg-slate-500 text-white text-[9px] font-bold px-1 py-0.5 rounded-full">B등급</span>
                 <div>
-                  <p className="text-[11px] font-semibold text-slate-700 dark:text-slate-300">일상관리 위험도 (3~7)</p>
-                  <p className="text-[10px] text-slate-600 dark:text-slate-400 leading-relaxed mt-0.5">중대재해 연계 가능성 있으나 현재 안전 대책으로 예방 가능 (전체 50% 이내)</p>
+                  <p className="text-[10px] font-semibold text-slate-700 dark:text-slate-300">일상관리 위험도 (3~7)</p>
+                  <p className="text-[9px] text-slate-600 dark:text-slate-400 leading-relaxed">안전 대책으로 예방 가능 (전체 50% 이내)</p>
                 </div>
               </div>
-              <div className="flex items-start gap-2 p-2.5 rounded-lg border border-blue-100 bg-blue-50/50 dark:bg-blue-950/20 dark:border-blue-900">
-                <span className="shrink-0 mt-0.5 bg-blue-400 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">C등급</span>
+              <div className="flex items-start gap-1.5 p-1.5 rounded-md border border-blue-100 bg-blue-50/50 dark:bg-blue-950/20 dark:border-blue-900">
+                <span className="shrink-0 mt-0.5 bg-blue-400 text-white text-[9px] font-bold px-1 py-0.5 rounded-full">C등급</span>
                 <div>
-                  <p className="text-[11px] font-semibold text-blue-800 dark:text-blue-300">허용가능 위험도 (1~2)</p>
-                  <p className="text-[10px] text-blue-700 dark:text-blue-400 leading-relaxed mt-0.5">발생확률 및 손실의 크기가 상대적으로 낮음, 일상관리로 예방 가능 (전체 30% 이내)</p>
+                  <p className="text-[10px] font-semibold text-blue-800 dark:text-blue-300">허용가능 위험도 (1~2)</p>
+                  <p className="text-[9px] text-blue-700 dark:text-blue-400 leading-relaxed">일상관리로 예방 가능 (전체 30% 이내)</p>
                 </div>
               </div>
             </div>
@@ -514,25 +529,25 @@ export default function RiskAssessmentPage() {
 
         {ASSESSMENT_TABS.map(tab => (
           <TabsContent key={tab.value} value={tab.value} className="space-y-3 mt-3">
-            {/* 조회 필터 + 통계 + 엑셀 다운로드 */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between gap-3 flex-wrap">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground font-medium whitespace-nowrap">부서 조회</span>
-                  <Select value={filterDept} onValueChange={setFilterDept}>
-                    <SelectTrigger className="h-8 text-xs w-[130px]" data-testid="select-filter-dept">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="전체">전체 부서</SelectItem>
-                      {DEPARTMENTS.map(dept => (
-                        <SelectItem key={dept} value={dept}>{dept}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+            {/* 조회 필터 + 통계 + 엑셀 다운로드 (한 줄) */}
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground font-medium whitespace-nowrap">부서 조회</span>
+                <Select value={filterDept} onValueChange={setFilterDept}>
+                  <SelectTrigger className="h-8 text-xs w-[130px]" data-testid="select-filter-dept">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="전체">전체 부서</SelectItem>
+                    {DEPARTMENTS.map(dept => (
+                      <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center gap-1.5 flex-wrap">
                 {riskStats && (
-                  <div className="flex gap-1.5 flex-wrap">
+                  <>
                     {(Object.entries(riskStats) as [string, number][]).map(([level, count]) => (
                       <Badge key={level} className={`${getRiskBadgeVariant(level).className} no-default-hover-elevate no-default-active-elevate text-xs px-2 py-0.5`} data-testid={`stat-${level}`}>
                         {level} {count}건
@@ -541,45 +556,37 @@ export default function RiskAssessmentPage() {
                     <Badge variant="outline" className="text-xs px-2 py-0.5 no-default-hover-elevate no-default-active-elevate">
                       총 {filteredAssessments.length}건
                     </Badge>
-                  </div>
+                  </>
                 )}
-              </div>
-              {canDownloadRiskAssessmentExcel && (
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-1.5 text-green-700 border-green-300 hover:bg-green-50 h-8 text-xs"
-                    onClick={() => handleDownloadExcel("전체")}
-                    disabled={isDownloading}
-                    data-testid="button-download-all"
-                  >
-                    {isDownloading ? (
-                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-green-700" />
-                    ) : (
-                      <Download className="w-3.5 h-3.5" />
-                    )}
-                    전체 엑셀 다운로드
-                  </Button>
-                  {filterDept !== "전체" && (
+                {canDownloadRiskAssessmentExcel && (
+                  <>
                     <Button
                       variant="outline"
                       size="sm"
-                      className="gap-1.5 text-blue-700 border-blue-300 hover:bg-blue-50 h-8 text-xs"
-                      onClick={() => handleDownloadExcel(filterDept)}
+                      className="gap-1 text-green-700 border-green-300 hover:bg-green-50 h-7 text-[11px] px-2"
+                      onClick={() => handleDownloadExcel("전체")}
                       disabled={isDownloading}
-                      data-testid="button-download-dept"
+                      data-testid="button-download-all"
                     >
-                      {isDownloading ? (
-                        <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-700" />
-                      ) : (
-                        <FileDown className="w-3.5 h-3.5" />
-                      )}
-                      {filterDept} 엑셀 다운로드
+                      {isDownloading ? <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-green-700" /> : <Download className="w-3 h-3" />}
+                      전체 엑셀
                     </Button>
-                  )}
-                </div>
-              )}
+                    {filterDept !== "전체" && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1 text-blue-700 border-blue-300 hover:bg-blue-50 h-7 text-[11px] px-2"
+                        onClick={() => handleDownloadExcel(filterDept)}
+                        disabled={isDownloading}
+                        data-testid="button-download-dept"
+                      >
+                        {isDownloading ? <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-700" /> : <FileDown className="w-3 h-3" />}
+                        {filterDept} 엑셀
+                      </Button>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
 
             {isLoading ? (
@@ -922,23 +929,67 @@ export default function RiskAssessmentPage() {
                             </SelectContent>
                           </Select>
                         </div>
-                        {/* 개선 전 사진 */}
+                        {/* 개선 전 사진 + 부서장 조회 */}
                         <div className="space-y-1.5">
                           <Label className="text-xs">개선 전 사진</Label>
                           <input ref={el => { beforePhotoRefs.current[idx] = el; }} type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadPhoto(idx, "before", f); e.target.value = ""; }} />
-                          {item.beforePhotoUrl ? (
-                            <div className="relative inline-block">
-                              <img src={item.beforePhotoUrl} alt="개선 전" className="h-20 w-32 object-cover rounded-md border" />
-                              <button type="button" className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center shadow" onClick={() => updateItem(idx, "beforePhotoUrl", "")}>
-                                <X className="w-3 h-3" />
-                              </button>
-                            </div>
-                          ) : (
-                            <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs" disabled={uploadingPhoto === `${idx}-before`} onClick={() => beforePhotoRefs.current[idx]?.click()} data-testid={`button-before-photo-${idx}`}>
-                              <Camera className="w-3.5 h-3.5" />
-                              {uploadingPhoto === `${idx}-before` ? "업로드 중..." : "사진 추가"}
-                            </Button>
-                          )}
+                          <div className="flex flex-wrap gap-2 items-start">
+                            {item.beforePhotoUrl ? (
+                              <div className="relative inline-block">
+                                <img src={item.beforePhotoUrl} alt="개선 전" className="h-20 w-32 object-cover rounded-md border" />
+                                <button type="button" className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center shadow" onClick={() => updateItem(idx, "beforePhotoUrl", "")}>
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </div>
+                            ) : (
+                              <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs" disabled={uploadingPhoto === `${idx}-before`} onClick={() => beforePhotoRefs.current[idx]?.click()} data-testid={`button-before-photo-${idx}`}>
+                                <Camera className="w-3.5 h-3.5" />
+                                {uploadingPhoto === `${idx}-before` ? "업로드 중..." : "사진 추가"}
+                              </Button>
+                            )}
+                            {/* 부서장 조회 버튼 */}
+                            {idx === 0 && (
+                              <div className="flex flex-col gap-1">
+                                <Popover open={deptHeadPopoverOpen} onOpenChange={setDeptHeadPopoverOpen}>
+                                  <PopoverTrigger asChild>
+                                    <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs border-blue-300 text-blue-700 hover:bg-blue-50" data-testid="button-dept-head-search">
+                                      <Users className="w-3.5 h-3.5" />
+                                      {header.departmentHead ? header.departmentHead : "부서장 선택"}
+                                    </Button>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-56 p-2" align="start">
+                                    <p className="text-xs font-semibold text-muted-foreground mb-2">부서장 선택</p>
+                                    <div className="max-h-48 overflow-y-auto space-y-0.5">
+                                      {header.departmentHead && (
+                                        <button
+                                          type="button"
+                                          className="w-full text-left px-2 py-1 rounded text-xs text-red-500 hover:bg-red-50"
+                                          onClick={() => { setHeader(h => ({ ...h, departmentHead: "" })); setDeptHeadPopoverOpen(false); }}
+                                        >✕ 선택 해제</button>
+                                      )}
+                                      {(userNames || []).map(u => (
+                                        <button
+                                          key={u.id}
+                                          type="button"
+                                          className={`w-full text-left px-2 py-1.5 rounded text-xs hover:bg-muted transition-colors ${header.departmentHead === u.name ? "bg-blue-50 text-blue-700 font-medium" : ""}`}
+                                          onClick={() => { setHeader(h => ({ ...h, departmentHead: u.name })); setDeptHeadPopoverOpen(false); }}
+                                        >
+                                          <span className="font-medium">{u.name}</span>
+                                          {u.department && <span className="text-muted-foreground ml-1">({u.department})</span>}
+                                        </button>
+                                      ))}
+                                      {(!userNames || userNames.length === 0) && (
+                                        <p className="text-xs text-muted-foreground px-2 py-1">사용자 없음</p>
+                                      )}
+                                    </div>
+                                  </PopoverContent>
+                                </Popover>
+                                {header.departmentHead && (
+                                  <span className="text-[10px] text-blue-600 font-medium">담당: {header.departmentHead}</span>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </CardContent>
                     )}

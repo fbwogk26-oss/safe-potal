@@ -283,6 +283,7 @@ export const riskAssessments = pgTable("risk_assessments", {
   afterRiskLevel: text("after_risk_level"),
   improvementStatus: text("improvement_status").default("미완료"),
   responsibleTask: text("responsible_task"),
+  departmentHead: text("department_head"),
   approvalStatus: text("approval_status").default("승인대기"),
   approvedBy: text("approved_by"),
   approvedAt: text("approved_at"),

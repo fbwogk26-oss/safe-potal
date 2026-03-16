@@ -335,6 +335,17 @@ export async function registerRoutes(
   });
 
   // Admin: Get all users
+  // 인증된 모든 사용자가 조회 가능한 사용자 이름 목록 (부서장 선택용)
+  app.get("/api/users/names", isAuthenticated, async (req: any, res) => {
+    try {
+      const users = await authStorage.getAllUsers();
+      const names = users.map((u: any) => ({ id: u.id, name: u.name || u.username, username: u.username, department: u.department || "" }));
+      res.json(names);
+    } catch (error) {
+      res.status(500).json({ message: "사용자 목록 조회 실패" });
+    }
+  });
+
   app.get("/api/users", requireAdmin, async (req: any, res) => {
     try {
       const users = await authStorage.getAllUsers();
@@ -1949,6 +1960,7 @@ export async function registerRoutes(
         { header: 'No', key: 'no', width: 6 },
         { header: '부서', key: 'department', width: 14 },
         { header: '담당업무', key: 'responsibleTask', width: 14 },
+        { header: '부서장', key: 'departmentHead', width: 12 },
         { header: '평가유형', key: 'assessmentType', width: 10 },
         { header: '공정명', key: 'process', width: 16 },
         { header: '유해위험요인', key: 'hazard', width: 25 },
@@ -2022,6 +2034,7 @@ export async function registerRoutes(
           no: i + 1,
           department: a.department,
           responsibleTask: a.responsibleTask || '',
+          departmentHead: (a as any).departmentHead || '',
           assessmentType: a.assessmentType,
           process: a.process || '',
           hazard: a.hazard,
