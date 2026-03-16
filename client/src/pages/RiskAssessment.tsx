@@ -67,13 +67,12 @@ interface RiskItem {
   currentControls: string;
   probability: number;
   criticality: number;
-  controlMeasures: string;
   beforePhotoUrl: string;
 }
 
 const defaultItem = (): RiskItem => ({
   process: "", hazard: "", hazardType: "", currentControls: "",
-  probability: 1, criticality: 1, controlMeasures: "",
+  probability: 1, criticality: 1,
   beforePhotoUrl: "",
 });
 
@@ -88,6 +87,7 @@ export default function RiskAssessmentPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("상반기정기평가");
+  const [filterDept, setFilterDept] = useState("전체");
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [header, setHeader] = useState<FormHeader>({
@@ -189,7 +189,6 @@ export default function RiskAssessmentPage() {
           process: item.process, hazard: item.hazard, hazardType: item.hazardType,
           currentControls: item.currentControls, frequency: item.probability,
           severity: item.criticality, riskScore: score, riskLevel: getRiskLevel(score),
-          controlMeasures: item.controlMeasures,
           beforePhotoUrl: item.beforePhotoUrl,
         },
       });
@@ -201,7 +200,6 @@ export default function RiskAssessmentPage() {
           process: item.process, hazard: item.hazard, hazardType: item.hazardType,
           currentControls: item.currentControls, frequency: item.probability,
           severity: item.criticality, riskScore: score, riskLevel: getRiskLevel(score),
-          controlMeasures: item.controlMeasures,
           beforePhotoUrl: item.beforePhotoUrl,
         };
       });
@@ -214,7 +212,7 @@ export default function RiskAssessmentPage() {
     setItems([{
       process: item.process || "", hazard: item.hazard, hazardType: item.hazardType || "",
       currentControls: item.currentControls || "", probability: item.frequency,
-      criticality: item.severity, controlMeasures: item.controlMeasures || "",
+      criticality: item.severity,
       beforePhotoUrl: (item as any).beforePhotoUrl || "",
     }]);
     setExpandedItemIdx(0);
@@ -310,10 +308,16 @@ export default function RiskAssessmentPage() {
     return <Badge variant="outline" className="text-[10px] text-orange-600 border-orange-300 no-default-hover-elevate no-default-active-elevate">미완료</Badge>;
   };
 
+  const filteredAssessments = useMemo(() => {
+    if (!assessments) return [];
+    if (filterDept === "전체") return assessments;
+    return assessments.filter(a => a.department === filterDept);
+  }, [assessments, filterDept]);
+
   const riskStats = useMemo(() => {
-    if (!assessments || assessments.length === 0) return null;
+    if (!filteredAssessments || filteredAssessments.length === 0) return null;
     const counts = { "A등급": 0, "B등급": 0, "C등급": 0 };
-    for (const a of assessments) {
+    for (const a of filteredAssessments) {
       const lvl = a.riskLevel as keyof typeof counts;
       if (lvl in counts) counts[lvl]++;
       else if (a.riskScore >= 8) counts["A등급"]++;
@@ -321,7 +325,7 @@ export default function RiskAssessmentPage() {
       else counts["C등급"]++;
     }
     return counts;
-  }, [assessments]);
+  }, [filteredAssessments]);
 
   return (
     <div className="max-w-6xl mx-auto space-y-4">
@@ -451,52 +455,79 @@ export default function RiskAssessmentPage() {
 
         {ASSESSMENT_TABS.map(tab => (
           <TabsContent key={tab.value} value={tab.value} className="space-y-3 mt-3">
-            {riskStats && (
-              <div className="flex flex-wrap gap-2">
-                {(Object.entries(riskStats) as [string, number][]).map(([level, count]) => (
-                  <Badge key={level} className={`${getRiskBadgeVariant(level).className} no-default-hover-elevate no-default-active-elevate text-xs`} data-testid={`stat-${level}`}>
-                    {level}: {count}건
-                  </Badge>
-                ))}
+            {/* 조회 필터 + 통계 */}
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm text-muted-foreground font-medium">부서 조회</span>
+                <div className="flex gap-1 flex-wrap">
+                  <button
+                    onClick={() => setFilterDept("전체")}
+                    className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${filterDept === "전체" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}
+                    data-testid="filter-all"
+                  >
+                    전체
+                  </button>
+                  {DEPARTMENTS.map(dept => (
+                    <button
+                      key={dept}
+                      onClick={() => setFilterDept(dept)}
+                      className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${filterDept === dept ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}
+                      data-testid={`filter-dept-${dept}`}
+                    >
+                      {dept.replace("운용팀", "").replace("팀", "")}
+                    </button>
+                  ))}
+                </div>
               </div>
-            )}
+              {riskStats && (
+                <div className="flex gap-1.5 flex-wrap">
+                  {(Object.entries(riskStats) as [string, number][]).map(([level, count]) => (
+                    <Badge key={level} className={`${getRiskBadgeVariant(level).className} no-default-hover-elevate no-default-active-elevate text-xs px-2 py-0.5`} data-testid={`stat-${level}`}>
+                      {level} {count}건
+                    </Badge>
+                  ))}
+                  <Badge variant="outline" className="text-xs px-2 py-0.5 no-default-hover-elevate no-default-active-elevate">
+                    총 {filteredAssessments.length}건
+                  </Badge>
+                </div>
+              )}
+            </div>
 
             {isLoading ? (
               <div className="flex items-center justify-center py-12 text-muted-foreground">
                 <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mr-2" />
                 로딩 중...
               </div>
-            ) : !assessments || assessments.length === 0 ? (
-              <Card>
+            ) : filteredAssessments.length === 0 ? (
+              <Card className="border-dashed">
                 <CardContent className="py-12 text-center text-muted-foreground text-sm">
-                  등록된 평가가 없습니다.
+                  {filterDept === "전체" ? "등록된 평가가 없습니다." : `${filterDept} 평가가 없습니다.`}
                 </CardContent>
               </Card>
             ) : (
-              <Card>
+              <Card className="overflow-hidden shadow-sm">
                 <CardContent className="p-0 overflow-x-auto">
                   <Table data-testid="table-assessments">
                     <TableHeader>
-                      <TableRow>
-                        <TableHead className="min-w-[40px] w-10">No</TableHead>
-                        <TableHead className="min-w-[120px]">평가명</TableHead>
-                        <TableHead className="min-w-[90px]">부서</TableHead>
-                        <TableHead className="min-w-[90px]">공정/작업</TableHead>
-                        <TableHead className="min-w-[120px]">유해위험요인</TableHead>
-                        <TableHead className="min-w-[70px]">위험유형</TableHead>
-                        <TableHead className="min-w-[55px] text-center">가능성</TableHead>
-                        <TableHead className="min-w-[55px] text-center">중대성</TableHead>
-                        <TableHead className="min-w-[55px] text-center">점수</TableHead>
-                        <TableHead className="min-w-[80px]">등급</TableHead>
-                        <TableHead className="min-w-[70px]">평가자</TableHead>
-                        <TableHead className="min-w-[85px]">평가일</TableHead>
-                        <TableHead className="min-w-[90px]">개선현황</TableHead>
-                        {canEditRiskAssessment && <TableHead className="min-w-[100px]">관리</TableHead>}
+                      <TableRow className="bg-muted/50 hover:bg-muted/50">
+                        <TableHead className="w-10 text-center font-semibold">No</TableHead>
+                        <TableHead className="min-w-[80px] font-semibold">부서</TableHead>
+                        <TableHead className="min-w-[90px] font-semibold">공정/작업</TableHead>
+                        <TableHead className="min-w-[130px] font-semibold">유해위험요인</TableHead>
+                        <TableHead className="min-w-[65px] font-semibold">위험유형</TableHead>
+                        <TableHead className="min-w-[55px] text-center font-semibold">가능성</TableHead>
+                        <TableHead className="min-w-[55px] text-center font-semibold">중대성</TableHead>
+                        <TableHead className="min-w-[50px] text-center font-semibold">점수</TableHead>
+                        <TableHead className="min-w-[80px] font-semibold">등급</TableHead>
+                        <TableHead className="min-w-[65px] font-semibold">평가자</TableHead>
+                        <TableHead className="min-w-[80px] font-semibold">평가일</TableHead>
+                        <TableHead className="min-w-[85px] font-semibold">개선현황</TableHead>
+                        {canEditRiskAssessment && <TableHead className="min-w-[90px] font-semibold">관리</TableHead>}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       <AnimatePresence>
-                        {assessments.map((item, idx) => {
+                        {filteredAssessments.map((item, idx) => {
                           const grade = getRiskGrade(item.riskScore);
                           return (
                             <motion.tr
@@ -507,9 +538,10 @@ export default function RiskAssessmentPage() {
                               className="border-b border-border/60 hover:bg-muted/30 transition-colors"
                               data-testid={`row-assessment-${item.id}`}
                             >
-                              <TableCell className="text-sm text-muted-foreground py-3 text-center">{idx + 1}</TableCell>
-                              <TableCell className="text-sm font-medium py-3">{item.title}</TableCell>
-                              <TableCell className="text-sm py-3">{item.department}</TableCell>
+                              <TableCell className="text-xs text-muted-foreground py-3 text-center font-medium">{idx + 1}</TableCell>
+                              <TableCell className="py-3">
+                                <span className="text-sm font-medium">{item.department}</span>
+                              </TableCell>
                               <TableCell className="text-sm text-muted-foreground py-3">{item.process || "-"}</TableCell>
                               <TableCell className="text-sm font-medium py-3">{item.hazard}</TableCell>
                               <TableCell className="text-sm py-3">
@@ -646,19 +678,21 @@ export default function RiskAssessmentPage() {
                 return (
                   <Card key={idx} className={`border transition-all duration-200 ${isExpanded ? "border-primary/30 shadow-sm" : "border-border/60"}`}>
                     {/* 항목 헤더 (항상 표시) - 클릭하면 접고 펼침 */}
-                    <button
-                      type="button"
-                      className="w-full p-3 flex items-center justify-between text-left"
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      className="w-full p-3 flex items-center justify-between cursor-pointer select-none"
                       onClick={() => setExpandedItemIdx(isExpanded ? -1 : idx)}
+                      onKeyDown={e => e.key === "Enter" && setExpandedItemIdx(isExpanded ? -1 : idx)}
                       data-testid={`button-toggle-item-${idx}`}
                     >
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-primary">항목 {idx + 1}</span>
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <span className="text-sm font-semibold text-primary shrink-0">항목 {idx + 1}</span>
                         {item.hazard && !isExpanded && (
                           <span className="text-xs text-muted-foreground truncate max-w-[120px] sm:max-w-[200px]">{item.hazard}</span>
                         )}
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 shrink-0">
                         <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-semibold border ${style.border} ${style.bg} ${style.text}`}>
                           <span>{score}점</span>
                           <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${grade === "A" ? "bg-orange-500 text-white" : grade === "B" ? "bg-slate-500 text-white" : "bg-blue-400 text-white"}`}>
@@ -666,20 +700,22 @@ export default function RiskAssessmentPage() {
                           </span>
                         </div>
                         {items.length > 1 && (
-                          <button
-                            type="button"
-                            className="p-0.5 rounded hover:bg-red-50 text-red-400 hover:text-red-600"
+                          <div
+                            role="button"
+                            tabIndex={0}
+                            className="p-0.5 rounded hover:bg-red-50 text-red-400 hover:text-red-600 cursor-pointer"
                             onClick={e => { e.stopPropagation(); removeItem(idx); }}
+                            onKeyDown={e => { if (e.key === "Enter") { e.stopPropagation(); removeItem(idx); } }}
                             data-testid={`button-remove-item-${idx}`}
                           >
                             <X className="w-3.5 h-3.5" />
-                          </button>
+                          </div>
                         )}
                         <span className={`text-muted-foreground transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}>
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9"/></svg>
                         </span>
                       </div>
-                    </button>
+                    </div>
 
                     {/* 항목 내용 (펼쳐진 경우에만 표시) */}
                     {isExpanded && (
@@ -727,11 +763,7 @@ export default function RiskAssessmentPage() {
                             </SelectContent>
                           </Select>
                         </div>
-                        <div className="sm:col-span-2 space-y-1.5">
-                          <Label className="text-xs">개선대책</Label>
-                          <Textarea value={item.controlMeasures} onChange={e => updateItem(idx, "controlMeasures", e.target.value)} placeholder="개선대책을 입력하세요" rows={2} data-testid={`input-control-measures-${idx}`} />
-                        </div>
-                        {/* 개선 전 사진만 */}
+                        {/* 개선 전 사진 */}
                         <div className="space-y-1.5">
                           <Label className="text-xs">개선 전 사진</Label>
                           <input ref={el => { beforePhotoRefs.current[idx] = el; }} type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadPhoto(idx, "before", f); e.target.value = ""; }} />
