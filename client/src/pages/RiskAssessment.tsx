@@ -906,7 +906,6 @@ export default function RiskAssessmentPage() {
                         }
                         return (
                           <div className="p-1.5 space-y-0.5">
-                            {!deptHeadSearch && <p className="text-[10px] text-muted-foreground px-2 py-0.5 font-semibold uppercase tracking-wide">전체 사용자</p>}
                             {filtered.map(u => (
                               <button
                                 key={u.id}
