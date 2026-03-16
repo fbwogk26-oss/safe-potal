@@ -1948,8 +1948,9 @@ export async function registerRoutes(
       sheet.columns = [
         { header: 'No', key: 'no', width: 6 },
         { header: '부서', key: 'department', width: 14 },
+        { header: '담당업무', key: 'responsibleTask', width: 14 },
         { header: '평가유형', key: 'assessmentType', width: 10 },
-        { header: '공정/작업', key: 'process', width: 16 },
+        { header: '공정명', key: 'process', width: 16 },
         { header: '유해위험요인', key: 'hazard', width: 25 },
         { header: '위험유형', key: 'hazardType', width: 12 },
         { header: '현재 안전보건조치', key: 'currentControls', width: 22 },
@@ -1970,6 +1971,9 @@ export async function registerRoutes(
         { header: '개선후 등급', key: 'afterGrade', width: 11 },
         { header: '개선현황', key: 'improvementStatus', width: 11 },
         { header: '개선후 사진', key: 'afterPhoto', width: PHOTO_COL_WIDTH },
+        { header: '승인상태', key: 'approvalStatus', width: 11 },
+        { header: '승인자', key: 'approvedBy', width: 12 },
+        { header: '승인일', key: 'approvedAt', width: 12 },
       ];
 
       // 헤더 스타일
@@ -2017,6 +2021,7 @@ export async function registerRoutes(
         const row = sheet.addRow({
           no: i + 1,
           department: a.department,
+          responsibleTask: a.responsibleTask || '',
           assessmentType: a.assessmentType,
           process: a.process || '',
           hazard: a.hazard,
@@ -2039,6 +2044,9 @@ export async function registerRoutes(
           afterGrade: afterGrade ? afterGrade.label : '',
           improvementStatus: a.improvementStatus || '',
           afterPhoto: a.afterPhotoUrl ? '(사진)' : '',
+          approvalStatus: a.approvalStatus || '',
+          approvedBy: a.approvedBy || '',
+          approvedAt: a.approvedAt || '',
         });
 
         row.height = a.beforePhotoUrl || a.afterPhotoUrl ? PHOTO_ROW_HEIGHT : 18;
@@ -2126,11 +2134,12 @@ export async function registerRoutes(
       let riskLevel = "C등급";
       if (score >= 8) riskLevel = "A등급";
       else if (score >= 3) riskLevel = "B등급";
-      
+      const approvalStatus = score >= 8 ? "승인대기" : "자동종결";
       const assessment = await storage.createRiskAssessment({
         ...req.body,
         riskScore: score,
         riskLevel,
+        approvalStatus,
       });
       res.status(201).json(assessment);
     } catch (error) {
@@ -2144,15 +2153,36 @@ export async function registerRoutes(
       let riskLevel = "C등급";
       if (score >= 8) riskLevel = "A등급";
       else if (score >= 3) riskLevel = "B등급";
-      
+      // 이미 승인완료된 경우 승인상태 유지
+      const existing = await storage.getRiskAssessment(Number(req.params.id));
+      const approvalStatus = existing?.approvalStatus === "승인완료"
+        ? "승인완료"
+        : (score >= 8 ? "승인대기" : "자동종결");
       const assessment = await storage.updateRiskAssessment(Number(req.params.id), {
         ...req.body,
         riskScore: score,
         riskLevel,
+        approvalStatus,
       });
       res.json(assessment);
     } catch (error) {
       res.status(500).json({ message: "위험성평가 수정에 실패했습니다" });
+    }
+  });
+
+  // 부서장 승인
+  app.put('/api/risk-assessments/:id/approve', requireEditor, async (req: any, res) => {
+    try {
+      const { approvedBy } = req.body;
+      const today = new Date().toISOString().slice(0, 10);
+      const assessment = await storage.updateRiskAssessment(Number(req.params.id), {
+        approvalStatus: "승인완료",
+        approvedBy: approvedBy || req.user?.name || req.user?.username || "부서장",
+        approvedAt: today,
+      } as any);
+      res.json(assessment);
+    } catch (error) {
+      res.status(500).json({ message: "승인에 실패했습니다" });
     }
   });
 
@@ -2202,7 +2232,8 @@ export async function registerRoutes(
         let riskLevel = "C등급";
         if (score >= 8) riskLevel = "A등급";
         else if (score >= 3) riskLevel = "B등급";
-        const assessment = await storage.createRiskAssessment({ ...item, riskScore: score, riskLevel });
+        const approvalStatus = score >= 8 ? "승인대기" : "자동종결";
+        const assessment = await storage.createRiskAssessment({ ...item, riskScore: score, riskLevel, approvalStatus });
         results.push(assessment);
       }
       res.status(201).json(results);

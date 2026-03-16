@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { ShieldAlert, Plus, Trash2, Pencil, Camera, X, Info, ClipboardEdit, CheckCircle2, Clock, FileDown, Download } from "lucide-react";
+import { ShieldAlert, Plus, Trash2, Pencil, Camera, X, Info, ClipboardEdit, CheckCircle2, Clock, FileDown, Download, UserCheck, CircleCheck, AlertCircle } from "lucide-react";
 import { useState, useMemo, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -25,6 +25,23 @@ const DEPARTMENTS = [
   "운용계획팀", "사업지원팀", "현장경영팀", "공공망관제팀",
 ];
 const HAZARD_TYPES = ["추락", "전도", "충돌", "협착", "감전", "화재/폭발", "기타"];
+
+const RESPONSIBLE_TASKS = ["운용팀", "제어망", "고객케어 및 응대", "일반사무", "통합수리"];
+
+const TASK_PROCESS_MAP: Record<string, string[]> = {
+  "운용팀": ["기지국/중계기 유지보수", "IP-Access 유지보수", "전원시설 유지보수", "위험국소"],
+  "제어망": ["교환시스템 관리"],
+  "고객케어 및 응대": ["고객민원처리 및 접수"],
+  "일반사무": ["사무실 업무"],
+  "통합수리": ["모듈수리 업무"],
+};
+
+const getAutoProcess = (task: string): string => {
+  const processes = TASK_PROCESS_MAP[task];
+  if (!processes || processes.length === 0) return "";
+  if (processes.length === 1) return processes[0];
+  return ""; // 운용팀처럼 여러 개인 경우 수동 선택
+};
 const ASSESSMENT_TABS = [
   { value: "상반기정기평가", label: "상반기 정기평가" },
   { value: "하반기정기평가", label: "하반기 정기평가" },
@@ -80,6 +97,7 @@ interface FormHeader {
   department: string;
   assessor: string;
   assessmentDate: string;
+  responsibleTask: string;
 }
 
 export default function RiskAssessmentPage() {
@@ -118,7 +136,9 @@ export default function RiskAssessmentPage() {
     department: "",
     assessor: user?.name || user?.username || "",
     assessmentDate: format(new Date(), "yyyy-MM-dd"),
+    responsibleTask: "",
   });
+  const [approvingItem, setApprovingItem] = useState<RiskAssessment | null>(null);
   const [items, setItems] = useState<RiskItem[]>([defaultItem()]);
   const [expandedItemIdx, setExpandedItemIdx] = useState<number>(0);
   const [uploadingPhoto, setUploadingPhoto] = useState<string | null>(null);
@@ -182,8 +202,19 @@ export default function RiskAssessmentPage() {
     onError: () => toast({ variant: "destructive", title: "개선 등록 실패" }),
   });
 
+  const approveMutation = useMutation({
+    mutationFn: ({ id, approvedBy }: { id: number; approvedBy: string }) =>
+      apiRequest("PUT", `/api/risk-assessments/${id}/approve`, { approvedBy }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/risk-assessments"] });
+      setApprovingItem(null);
+      toast({ title: "부서장 승인이 완료되었습니다." });
+    },
+    onError: () => toast({ variant: "destructive", title: "승인 처리 실패" }),
+  });
+
   const resetForm = () => {
-    setHeader({ department: "", assessor: user?.name || user?.username || "", assessmentDate: format(new Date(), "yyyy-MM-dd") });
+    setHeader({ department: "", assessor: user?.name || user?.username || "", assessmentDate: format(new Date(), "yyyy-MM-dd"), responsibleTask: "" });
     setItems([defaultItem()]);
     setExpandedItemIdx(0);
     setEditingId(null);
@@ -210,6 +241,7 @@ export default function RiskAssessmentPage() {
         id: editingId,
         data: {
           title: autoTitle, ...header, assessmentType: activeTab,
+          responsibleTask: header.responsibleTask || null,
           process: item.process, hazard: item.hazard, hazardType: item.hazardType,
           currentControls: item.currentControls, frequency: item.probability,
           severity: item.criticality, riskScore: score, riskLevel: getRiskLevel(score),
@@ -221,6 +253,7 @@ export default function RiskAssessmentPage() {
         const score = item.probability * item.criticality;
         return {
           title: autoTitle, ...header, assessmentType: activeTab,
+          responsibleTask: header.responsibleTask || null,
           process: item.process, hazard: item.hazard, hazardType: item.hazardType,
           currentControls: item.currentControls, frequency: item.probability,
           severity: item.criticality, riskScore: score, riskLevel: getRiskLevel(score),
@@ -232,7 +265,7 @@ export default function RiskAssessmentPage() {
   };
 
   const handleEdit = (item: RiskAssessment) => {
-    setHeader({ department: item.department, assessor: item.assessor || user?.name || user?.username || "", assessmentDate: item.assessmentDate });
+    setHeader({ department: item.department, assessor: item.assessor || user?.name || user?.username || "", assessmentDate: item.assessmentDate, responsibleTask: (item as any).responsibleTask || "" });
     setItems([{
       process: item.process || "", hazard: item.hazard, hazardType: item.hazardType || "",
       currentControls: item.currentControls || "", probability: item.frequency,
@@ -566,7 +599,7 @@ export default function RiskAssessmentPage() {
                       <TableRow className="bg-muted/50 hover:bg-muted/50">
                         <TableHead className="w-10 text-center font-semibold">No</TableHead>
                         <TableHead className="min-w-[80px] font-semibold">부서</TableHead>
-                        <TableHead className="min-w-[90px] font-semibold">공정/작업</TableHead>
+                        <TableHead className="min-w-[90px] font-semibold">공정명</TableHead>
                         <TableHead className="min-w-[130px] font-semibold">유해위험요인</TableHead>
                         <TableHead className="min-w-[65px] font-semibold">위험유형</TableHead>
                         <TableHead className="min-w-[55px] text-center font-semibold">가능성</TableHead>
@@ -576,7 +609,8 @@ export default function RiskAssessmentPage() {
                         <TableHead className="min-w-[65px] font-semibold">평가자</TableHead>
                         <TableHead className="min-w-[80px] font-semibold">평가일</TableHead>
                         <TableHead className="min-w-[85px] font-semibold">개선현황</TableHead>
-                        {canEditRiskAssessment && <TableHead className="min-w-[90px] font-semibold">관리</TableHead>}
+                        <TableHead className="min-w-[90px] font-semibold">승인상태</TableHead>
+                        {canEditRiskAssessment && <TableHead className="min-w-[100px] font-semibold">관리</TableHead>}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -638,9 +672,44 @@ export default function RiskAssessmentPage() {
                                   )}
                                 </div>
                               </TableCell>
+                              <TableCell className="py-2">
+                                {(() => {
+                                  const status = (item as any).approvalStatus;
+                                  if (status === "승인완료") return (
+                                    <div className="flex flex-col gap-0.5">
+                                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 text-[10px] font-medium">
+                                        <CircleCheck className="w-3 h-3" />승인완료
+                                      </span>
+                                      {(item as any).approvedBy && <span className="text-[9px] text-muted-foreground">{(item as any).approvedBy}</span>}
+                                    </div>
+                                  );
+                                  if (status === "승인대기") return (
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-medium">
+                                      <AlertCircle className="w-3 h-3" />승인대기
+                                    </span>
+                                  );
+                                  return (
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 text-[10px] font-medium">
+                                      자동종결
+                                    </span>
+                                  );
+                                })()}
+                              </TableCell>
                               {canEditRiskAssessment && (
                                 <TableCell className="py-3">
                                   <div className="flex flex-col gap-1">
+                                    {(item as any).approvalStatus === "승인대기" && (
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-7 px-2 text-[11px] gap-1 border-blue-300 text-blue-700 hover:bg-blue-50 w-full"
+                                        onClick={() => setApprovingItem(item)}
+                                        data-testid={`button-approve-${item.id}`}
+                                      >
+                                        <UserCheck className="w-3 h-3" />
+                                        부서장승인
+                                      </Button>
+                                    )}
                                     {grade.grade === "A" && (
                                       <Button
                                         variant="outline"
@@ -687,13 +756,29 @@ export default function RiskAssessmentPage() {
 
           <div className="space-y-4">
             {/* 공통 헤더 정보 */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-3 bg-muted/40 rounded-lg border">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 bg-muted/40 rounded-lg border">
               <div className="space-y-1.5">
                 <Label className="text-xs">부서 *</Label>
                 <Select value={header.department} onValueChange={v => setHeader(h => ({ ...h, department: v }))}>
                   <SelectTrigger data-testid="select-department"><SelectValue placeholder="부서 선택" /></SelectTrigger>
                   <SelectContent>
                     {DEPARTMENTS.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">담당업무</Label>
+                <Select
+                  value={header.responsibleTask}
+                  onValueChange={v => {
+                    const auto = getAutoProcess(v);
+                    setHeader(h => ({ ...h, responsibleTask: v }));
+                    if (auto) setItems(prev => prev.map((it, i) => i === 0 ? { ...it, process: auto } : it));
+                  }}
+                >
+                  <SelectTrigger data-testid="select-responsible-task"><SelectValue placeholder="담당업무 선택" /></SelectTrigger>
+                  <SelectContent>
+                    {RESPONSIBLE_TASKS.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -777,8 +862,24 @@ export default function RiskAssessmentPage() {
                     {isExpanded && (
                       <CardContent className="p-3 pt-0 grid grid-cols-1 sm:grid-cols-2 gap-3 border-t border-border/40">
                         <div className="space-y-1.5">
-                          <Label className="text-xs">공정/작업</Label>
-                          <Input value={item.process} onChange={e => updateItem(idx, "process", e.target.value)} placeholder="공정 또는 작업명" data-testid={`input-process-${idx}`} />
+                          <Label className="text-xs">공정명</Label>
+                          {header.responsibleTask === "운용팀" ? (
+                            <Select value={item.process} onValueChange={v => updateItem(idx, "process", v)}>
+                              <SelectTrigger data-testid={`select-process-${idx}`}><SelectValue placeholder="공정명 선택" /></SelectTrigger>
+                              <SelectContent>
+                                {TASK_PROCESS_MAP["운용팀"].map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <Input
+                              value={item.process}
+                              onChange={e => updateItem(idx, "process", e.target.value)}
+                              placeholder="공정 또는 작업명"
+                              readOnly={!!header.responsibleTask && header.responsibleTask !== "운용팀"}
+                              className={header.responsibleTask && header.responsibleTask !== "운용팀" ? "bg-muted/50 text-muted-foreground" : ""}
+                              data-testid={`input-process-${idx}`}
+                            />
+                          )}
                         </div>
                         <div className="space-y-1.5">
                           <Label className="text-xs">위험유형</Label>
@@ -1016,6 +1117,52 @@ export default function RiskAssessmentPage() {
             >
               <CheckCircle2 className="w-4 h-4" />
               {improvementMutation.isPending ? "저장 중..." : "개선 내용 저장"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 부서장 승인 다이얼로그 */}
+      <Dialog open={!!approvingItem} onOpenChange={(open) => { if (!open) setApprovingItem(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserCheck className="w-5 h-5 text-blue-600" />
+              부서장 승인
+            </DialogTitle>
+          </DialogHeader>
+          {approvingItem && (
+            <div className="space-y-4 py-2">
+              <div className="p-3 rounded-lg bg-blue-50 border border-blue-100 space-y-1">
+                <p className="text-xs text-muted-foreground">부서</p>
+                <p className="text-sm font-medium">{approvingItem.department}</p>
+                <p className="text-xs text-muted-foreground mt-1">유해위험요인</p>
+                <p className="text-sm">{approvingItem.hazard}</p>
+                <p className="text-xs text-muted-foreground mt-1">위험점수</p>
+                <p className="text-sm font-bold text-red-600">{approvingItem.riskScore}점 ({approvingItem.riskLevel})</p>
+              </div>
+              <div className="text-sm text-muted-foreground">
+                A등급 위험성평가 항목에 대해 부서장 승인을 처리합니다. 승인 후 상태가 <strong className="text-green-700">승인완료</strong>로 변경됩니다.
+              </div>
+            </div>
+          )}
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setApprovingItem(null)}>취소</Button>
+            <Button
+              onClick={() => {
+                if (approvingItem) {
+                  approveMutation.mutate({
+                    id: approvingItem.id,
+                    approvedBy: user?.name || user?.username || "부서장",
+                  });
+                }
+              }}
+              disabled={approveMutation.isPending}
+              className="bg-blue-600 hover:bg-blue-700 text-white gap-2"
+              data-testid="button-approve-confirm"
+            >
+              <CircleCheck className="w-4 h-4" />
+              {approveMutation.isPending ? "처리 중..." : "승인 확인"}
             </Button>
           </DialogFooter>
         </DialogContent>
