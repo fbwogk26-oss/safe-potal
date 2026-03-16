@@ -397,46 +397,10 @@ export default function RiskAssessmentPage() {
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {canDownloadRiskAssessmentExcel && (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5 text-green-700 border-green-300 hover:bg-green-50 h-9"
-                onClick={() => handleDownloadExcel("전체")}
-                disabled={isDownloading}
-                data-testid="button-download-all"
-              >
-                {isDownloading ? (
-                  <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-green-700" />
-                ) : (
-                  <Download className="w-3.5 h-3.5" />
-                )}
-                전체 엑셀
-              </Button>
-              {filterDept !== "전체" && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-1.5 text-blue-700 border-blue-300 hover:bg-blue-50 h-9"
-                  onClick={() => handleDownloadExcel(filterDept)}
-                  disabled={isDownloading}
-                  data-testid="button-download-dept"
-                >
-                  {isDownloading ? (
-                    <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-blue-700" />
-                  ) : (
-                    <FileDown className="w-3.5 h-3.5" />
-                  )}
-                  {filterDept} 엑셀
-                </Button>
-              )}
-            </>
-          )}
           {canEditRiskAssessment && (
             <Button
               onClick={() => {
-                setHeader({ department: "", assessor: user?.name || user?.username || "", assessmentDate: format(new Date(), "yyyy-MM-dd") });
+                setHeader({ department: "", assessor: user?.name || user?.username || "", assessmentDate: format(new Date(), "yyyy-MM-dd"), responsibleTask: "" });
                 setItems([defaultItem()]);
                 setEditingId(null);
                 setShowForm(true);
@@ -550,32 +514,70 @@ export default function RiskAssessmentPage() {
 
         {ASSESSMENT_TABS.map(tab => (
           <TabsContent key={tab.value} value={tab.value} className="space-y-3 mt-3">
-            {/* 조회 필터 + 통계 */}
-            <div className="flex items-center justify-between gap-3 flex-wrap">
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground font-medium whitespace-nowrap">부서 조회</span>
-                <Select value={filterDept} onValueChange={setFilterDept}>
-                  <SelectTrigger className="h-8 text-xs w-[130px]" data-testid="select-filter-dept">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="전체">전체 부서</SelectItem>
-                    {DEPARTMENTS.map(dept => (
-                      <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+            {/* 조회 필터 + 통계 + 엑셀 다운로드 */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground font-medium whitespace-nowrap">부서 조회</span>
+                  <Select value={filterDept} onValueChange={setFilterDept}>
+                    <SelectTrigger className="h-8 text-xs w-[130px]" data-testid="select-filter-dept">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="전체">전체 부서</SelectItem>
+                      {DEPARTMENTS.map(dept => (
+                        <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {riskStats && (
+                  <div className="flex gap-1.5 flex-wrap">
+                    {(Object.entries(riskStats) as [string, number][]).map(([level, count]) => (
+                      <Badge key={level} className={`${getRiskBadgeVariant(level).className} no-default-hover-elevate no-default-active-elevate text-xs px-2 py-0.5`} data-testid={`stat-${level}`}>
+                        {level} {count}건
+                      </Badge>
                     ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              {riskStats && (
-                <div className="flex gap-1.5 flex-wrap">
-                  {(Object.entries(riskStats) as [string, number][]).map(([level, count]) => (
-                    <Badge key={level} className={`${getRiskBadgeVariant(level).className} no-default-hover-elevate no-default-active-elevate text-xs px-2 py-0.5`} data-testid={`stat-${level}`}>
-                      {level} {count}건
+                    <Badge variant="outline" className="text-xs px-2 py-0.5 no-default-hover-elevate no-default-active-elevate">
+                      총 {filteredAssessments.length}건
                     </Badge>
-                  ))}
-                  <Badge variant="outline" className="text-xs px-2 py-0.5 no-default-hover-elevate no-default-active-elevate">
-                    총 {filteredAssessments.length}건
-                  </Badge>
+                  </div>
+                )}
+              </div>
+              {canDownloadRiskAssessmentExcel && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 text-green-700 border-green-300 hover:bg-green-50 h-8 text-xs"
+                    onClick={() => handleDownloadExcel("전체")}
+                    disabled={isDownloading}
+                    data-testid="button-download-all"
+                  >
+                    {isDownloading ? (
+                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-green-700" />
+                    ) : (
+                      <Download className="w-3.5 h-3.5" />
+                    )}
+                    전체 엑셀 다운로드
+                  </Button>
+                  {filterDept !== "전체" && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5 text-blue-700 border-blue-300 hover:bg-blue-50 h-8 text-xs"
+                      onClick={() => handleDownloadExcel(filterDept)}
+                      disabled={isDownloading}
+                      data-testid="button-download-dept"
+                    >
+                      {isDownloading ? (
+                        <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-700" />
+                      ) : (
+                        <FileDown className="w-3.5 h-3.5" />
+                      )}
+                      {filterDept} 엑셀 다운로드
+                    </Button>
+                  )}
                 </div>
               )}
             </div>
