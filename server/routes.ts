@@ -1965,6 +1965,31 @@ export async function registerRoutes(
     }
   });
 
+  app.put('/api/risk-assessments/:id/improvement', requireEditor, async (req: any, res) => {
+    try {
+      const { afterFrequency, afterSeverity, improvementMeasures, plannedDate, completionDate, afterPhotoUrl } = req.body;
+      const afterScore = (afterFrequency || 1) * (afterSeverity || 1);
+      let afterRiskLevel = "C등급";
+      if (afterScore >= 8) afterRiskLevel = "A등급";
+      else if (afterScore >= 3) afterRiskLevel = "B등급";
+      const improvementStatus = completionDate ? "완료" : (plannedDate ? "진행중" : "미완료");
+      const assessment = await storage.updateRiskAssessment(Number(req.params.id), {
+        improvementMeasures,
+        plannedDate,
+        completionDate,
+        afterFrequency,
+        afterSeverity,
+        afterRiskScore: afterScore,
+        afterRiskLevel,
+        afterPhotoUrl,
+        improvementStatus,
+      } as any);
+      res.json(assessment);
+    } catch (error) {
+      res.status(500).json({ message: "개선 등록에 실패했습니다" });
+    }
+  });
+
   app.delete('/api/risk-assessments/:id', requireEditor, async (req: any, res) => {
     try {
       await storage.deleteRiskAssessment(Number(req.params.id));

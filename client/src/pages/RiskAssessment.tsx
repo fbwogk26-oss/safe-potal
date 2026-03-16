@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { ShieldAlert, Plus, Trash2, Pencil, Camera, X, Info } from "lucide-react";
+import { ShieldAlert, Plus, Trash2, Pencil, Camera, X, Info, ClipboardEdit, CheckCircle2, Clock } from "lucide-react";
 import { useState, useMemo, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -102,6 +102,18 @@ export default function RiskAssessmentPage() {
   const beforePhotoRefs = useRef<(HTMLInputElement | null)[]>([]);
   const afterPhotoRefs = useRef<(HTMLInputElement | null)[]>([]);
 
+  const [improvingItem, setImprovingItem] = useState<RiskAssessment | null>(null);
+  const [improvementForm, setImprovementForm] = useState({
+    improvementMeasures: "",
+    plannedDate: "",
+    completionDate: "",
+    afterFrequency: 1,
+    afterSeverity: 1,
+    afterPhotoUrl: "",
+  });
+  const [uploadingImprovementPhoto, setUploadingImprovementPhoto] = useState(false);
+  const improvementPhotoRef = useRef<HTMLInputElement | null>(null);
+
   const { data: assessments, isLoading } = useQuery<RiskAssessment[]>({
     queryKey: [`/api/risk-assessments?type=${activeTab}`],
   });
@@ -135,6 +147,17 @@ export default function RiskAssessmentPage() {
       toast({ title: "위험성평가가 삭제되었습니다." });
     },
     onError: () => toast({ variant: "destructive", title: "삭제 실패" }),
+  });
+
+  const improvementMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: typeof improvementForm }) =>
+      apiRequest("PUT", `/api/risk-assessments/${id}/improvement`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/risk-assessments"] });
+      setImprovingItem(null);
+      toast({ title: "개선 내용이 등록되었습니다." });
+    },
+    onError: () => toast({ variant: "destructive", title: "개선 등록 실패" }),
   });
 
   const resetForm = () => {
@@ -222,6 +245,54 @@ export default function RiskAssessmentPage() {
       toast({ variant: "destructive", title: "사진 업로드에 실패했습니다." });
     }
     setUploadingPhoto(null);
+  };
+
+  const openImprovementDialog = (item: RiskAssessment) => {
+    setImprovementForm({
+      improvementMeasures: (item as any).improvementMeasures || "",
+      plannedDate: (item as any).plannedDate || "",
+      completionDate: (item as any).completionDate || "",
+      afterFrequency: (item as any).afterFrequency || 1,
+      afterSeverity: (item as any).afterSeverity || 1,
+      afterPhotoUrl: (item as any).afterPhotoUrl || "",
+    });
+    setImprovingItem(item);
+  };
+
+  const uploadImprovementPhoto = async (file: File) => {
+    setUploadingImprovementPhoto(true);
+    try {
+      const fd = new FormData();
+      fd.append("photo", file);
+      const res = await fetch("/api/risk-assessments/upload-photo", { method: "POST", body: fd, credentials: "include" });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setImprovementForm(f => ({ ...f, afterPhotoUrl: data.photoUrl }));
+      toast({ title: "사진이 업로드되었습니다." });
+    } catch {
+      toast({ variant: "destructive", title: "사진 업로드에 실패했습니다." });
+    }
+    setUploadingImprovementPhoto(false);
+  };
+
+  const handleImprovementSubmit = () => {
+    if (!improvingItem) return;
+    if (!improvementForm.improvementMeasures) {
+      toast({ variant: "destructive", title: "개선대책을 입력해주세요." });
+      return;
+    }
+    if (!improvementForm.plannedDate) {
+      toast({ variant: "destructive", title: "개선예정일을 입력해주세요." });
+      return;
+    }
+    improvementMutation.mutate({ id: improvingItem.id, data: improvementForm });
+  };
+
+  const getImprovementStatusBadge = (item: RiskAssessment) => {
+    const status = (item as any).improvementStatus;
+    if (status === "완료") return <Badge className="bg-green-500 text-white text-[10px] no-default-hover-elevate no-default-active-elevate gap-1"><CheckCircle2 className="w-2.5 h-2.5" />완료</Badge>;
+    if (status === "진행중") return <Badge className="bg-blue-500 text-white text-[10px] no-default-hover-elevate no-default-active-elevate gap-1"><Clock className="w-2.5 h-2.5" />진행중</Badge>;
+    return <Badge variant="outline" className="text-[10px] text-orange-600 border-orange-300 no-default-hover-elevate no-default-active-elevate">미완료</Badge>;
   };
 
   const riskStats = useMemo(() => {
@@ -404,7 +475,8 @@ export default function RiskAssessmentPage() {
                         <TableHead className="min-w-[80px]">등급</TableHead>
                         <TableHead className="min-w-[70px]">평가자</TableHead>
                         <TableHead className="min-w-[85px]">평가일</TableHead>
-                        {canEditRiskAssessment && <TableHead className="min-w-[75px]">관리</TableHead>}
+                        <TableHead className="min-w-[90px]">개선현황</TableHead>
+                        {canEditRiskAssessment && <TableHead className="min-w-[100px]">관리</TableHead>}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -447,14 +519,36 @@ export default function RiskAssessmentPage() {
                               </TableCell>
                               <TableCell className="text-sm">{item.assessor || "-"}</TableCell>
                               <TableCell className="text-sm text-muted-foreground">{item.assessmentDate}</TableCell>
+                              <TableCell>
+                                <div className="space-y-1">
+                                  {grade.grade === "A" ? getImprovementStatusBadge(item) : (
+                                    <span className="text-xs text-muted-foreground">-</span>
+                                  )}
+                                  {grade.grade === "A" && (item as any).afterRiskScore && (
+                                    <div className="text-[10px] text-muted-foreground">개선후 {(item as any).afterRiskScore}점·{(item as any).afterRiskLevel}</div>
+                                  )}
+                                </div>
+                              </TableCell>
                               {canEditRiskAssessment && (
                                 <TableCell>
-                                  <div className="flex gap-1">
-                                    <Button variant="ghost" size="icon" onClick={() => handleEdit(item)} data-testid={`button-edit-${item.id}`}>
-                                      <Pencil className="w-4 h-4" />
+                                  <div className="flex gap-1 flex-wrap">
+                                    {grade.grade === "A" && (
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-7 px-2 text-[11px] gap-1 border-orange-300 text-orange-700 hover:bg-orange-50"
+                                        onClick={() => openImprovementDialog(item)}
+                                        data-testid={`button-improvement-${item.id}`}
+                                      >
+                                        <ClipboardEdit className="w-3 h-3" />
+                                        개선
+                                      </Button>
+                                    )}
+                                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEdit(item)} data-testid={`button-edit-${item.id}`}>
+                                      <Pencil className="w-3.5 h-3.5" />
                                     </Button>
-                                    <Button variant="ghost" size="icon" onClick={() => handleDelete(item.id)} data-testid={`button-delete-${item.id}`}>
-                                      <Trash2 className="w-4 h-4 text-red-500" />
+                                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDelete(item.id)} data-testid={`button-delete-${item.id}`}>
+                                      <Trash2 className="w-3.5 h-3.5 text-red-500" />
                                     </Button>
                                   </div>
                                 </TableCell>
@@ -646,6 +740,168 @@ export default function RiskAssessmentPage() {
               data-testid="button-submit"
             >
               {batchMutation.isPending || updateMutation.isPending ? "처리 중..." : editingId ? "수정" : "등록"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 개선 등록 다이얼로그 (A등급 전용) */}
+      <Dialog open={!!improvingItem} onOpenChange={(open) => { if (!open) setImprovingItem(null); }}>
+        <DialogContent className="max-w-lg w-[95vw] max-h-[92vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ClipboardEdit className="w-5 h-5 text-orange-500" />
+              개선 등록
+            </DialogTitle>
+          </DialogHeader>
+
+          {improvingItem && (
+            <div className="space-y-4">
+              {/* 현재 위험성 정보 (읽기 전용) */}
+              <div className="p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg border border-orange-200 dark:border-orange-800 space-y-1.5">
+                <p className="text-xs font-semibold text-orange-700 dark:text-orange-400 mb-1">현재 위험성 정보 (A등급 중점관리)</p>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                  <div><span className="text-muted-foreground">평가명:</span> <span className="font-medium">{improvingItem.title}</span></div>
+                  <div><span className="text-muted-foreground">부서:</span> <span className="font-medium">{improvingItem.department}</span></div>
+                  <div className="col-span-2"><span className="text-muted-foreground">유해위험요인:</span> <span className="font-medium">{improvingItem.hazard}</span></div>
+                  <div><span className="text-muted-foreground">가능성:</span> <span className="font-bold text-orange-700">{improvingItem.frequency}</span> ({PROBABILITY_LABELS[improvingItem.frequency]})</div>
+                  <div><span className="text-muted-foreground">중대성:</span> <span className="font-bold text-orange-700">{improvingItem.severity}</span> ({CRITICALITY_LABELS[improvingItem.severity]})</div>
+                  <div className="col-span-2"><span className="text-muted-foreground">위험도:</span> <span className="font-bold text-orange-600 text-base">{improvingItem.riskScore}점</span> (A등급·중점관리)</div>
+                </div>
+              </div>
+
+              {/* 개선대책 */}
+              <div className="space-y-1.5">
+                <Label className="text-sm font-semibold">개선대책 *</Label>
+                <Textarea
+                  value={improvementForm.improvementMeasures}
+                  onChange={e => setImprovementForm(f => ({ ...f, improvementMeasures: e.target.value }))}
+                  placeholder="개선대책을 구체적으로 입력하세요"
+                  rows={3}
+                  data-testid="input-improvement-measures"
+                />
+              </div>
+
+              {/* 날짜 */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-semibold">개선예정일 *</Label>
+                  <Input
+                    type="date"
+                    value={improvementForm.plannedDate}
+                    onChange={e => setImprovementForm(f => ({ ...f, plannedDate: e.target.value }))}
+                    data-testid="input-planned-date"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-semibold">개선완료일</Label>
+                  <Input
+                    type="date"
+                    value={improvementForm.completionDate}
+                    onChange={e => setImprovementForm(f => ({ ...f, completionDate: e.target.value }))}
+                    data-testid="input-completion-date"
+                  />
+                  <p className="text-[10px] text-muted-foreground">완료 시 입력 (선택)</p>
+                </div>
+              </div>
+
+              {/* 개선 후 위험성 평가 */}
+              <div className="p-3 bg-muted/40 rounded-lg border space-y-3">
+                <p className="text-sm font-semibold">개선 후 위험성 재평가</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">개선후 가능성 (1~5)</Label>
+                    <Select
+                      value={String(improvementForm.afterFrequency)}
+                      onValueChange={v => setImprovementForm(f => ({ ...f, afterFrequency: Number(v) }))}
+                    >
+                      <SelectTrigger data-testid="select-after-frequency"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {[1, 2, 3, 4, 5].map(n => (
+                          <SelectItem key={n} value={String(n)}>{n} - {PROBABILITY_LABELS[n]}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">개선후 중대성 (1~4)</Label>
+                    <Select
+                      value={String(improvementForm.afterSeverity)}
+                      onValueChange={v => setImprovementForm(f => ({ ...f, afterSeverity: Number(v) }))}
+                    >
+                      <SelectTrigger data-testid="select-after-severity"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {[1, 2, 3, 4].map(n => (
+                          <SelectItem key={n} value={String(n)}>{n} - {CRITICALITY_LABELS[n]}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                {/* 개선후 위험도 계산 미리보기 */}
+                {(() => {
+                  const afterScore = improvementForm.afterFrequency * improvementForm.afterSeverity;
+                  const afterGrade = getRiskGrade(afterScore);
+                  const afterStyle = getMatrixStyle(afterScore);
+                  return (
+                    <div className={`flex items-center gap-2 px-3 py-2 rounded-md border text-sm font-semibold ${afterStyle.border} ${afterStyle.bg} ${afterStyle.text}`}>
+                      <span>개선후 위험도: {afterScore}점</span>
+                      <span className={`px-1.5 py-0.5 rounded-full text-[11px] font-bold ${afterGrade.grade === "A" ? "bg-orange-500 text-white" : afterGrade.grade === "B" ? "bg-slate-500 text-white" : "bg-blue-400 text-white"}`}>
+                        {afterGrade.label} ({afterGrade.category})
+                      </span>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* 개선 후 사진 */}
+              <div className="space-y-1.5">
+                <Label className="text-sm font-semibold">개선 후 사진</Label>
+                <input
+                  ref={improvementPhotoRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={e => { const f = e.target.files?.[0]; if (f) uploadImprovementPhoto(f); e.target.value = ""; }}
+                />
+                {improvementForm.afterPhotoUrl ? (
+                  <div className="relative inline-block">
+                    <img src={improvementForm.afterPhotoUrl} alt="개선 후" className="h-28 w-44 object-cover rounded-md border" />
+                    <button
+                      type="button"
+                      className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center shadow"
+                      onClick={() => setImprovementForm(f => ({ ...f, afterPhotoUrl: "" }))}
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 h-9 text-sm"
+                    disabled={uploadingImprovementPhoto}
+                    onClick={() => improvementPhotoRef.current?.click()}
+                    data-testid="button-improvement-photo"
+                  >
+                    <Camera className="w-4 h-4" />
+                    {uploadingImprovementPhoto ? "업로드 중..." : "개선 후 사진 추가"}
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 pt-2">
+            <Button variant="outline" onClick={() => setImprovingItem(null)} data-testid="button-improvement-cancel">취소</Button>
+            <Button
+              onClick={handleImprovementSubmit}
+              disabled={improvementMutation.isPending}
+              className="bg-orange-500 hover:bg-orange-600 text-white gap-2"
+              data-testid="button-improvement-submit"
+            >
+              <CheckCircle2 className="w-4 h-4" />
+              {improvementMutation.isPending ? "저장 중..." : "개선 내용 저장"}
             </Button>
           </DialogFooter>
         </DialogContent>

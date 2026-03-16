@@ -274,6 +274,14 @@ export const riskAssessments = pgTable("risk_assessments", {
   createdBy: text("created_by"),
   beforePhotoUrl: text("before_photo_url"),
   afterPhotoUrl: text("after_photo_url"),
+  improvementMeasures: text("improvement_measures"),
+  plannedDate: text("planned_date"),
+  completionDate: text("completion_date"),
+  afterFrequency: integer("after_frequency"),
+  afterSeverity: integer("after_severity"),
+  afterRiskScore: integer("after_risk_score"),
+  afterRiskLevel: text("after_risk_level"),
+  improvementStatus: text("improvement_status").default("미완료"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
