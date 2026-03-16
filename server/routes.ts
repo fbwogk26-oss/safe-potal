@@ -2213,6 +2213,8 @@ export async function registerRoutes(
       else if (score >= 3) riskLevel = "B등급";
       // 이미 승인완료된 경우 승인상태 유지
       const existing = await storage.getRiskAssessment(Number(req.params.id));
+      if (!existing) return res.status(404).json({ message: "Not found" });
+      if (!isOwnerOrAdmin(req, existing.createdBy)) return res.status(403).json({ message: "본인이 등록한 항목만 수정할 수 있습니다" });
       const approvalStatus = existing?.approvalStatus === "승인완료"
         ? "승인완료"
         : (score >= 8 ? "승인대기" : "자동종결");

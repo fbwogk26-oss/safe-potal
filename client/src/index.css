@@ -75,12 +75,18 @@
   --ring: 224.3 76.3% 48%;
 }
 
+html {
+  font-size: 17px;
+}
+
 @layer base {
   * {
     @apply border-border;
   }
   body {
     @apply bg-background text-foreground font-body antialiased;
+    line-height: 1.6;
+    letter-spacing: -0.01em;
   }
   h1, h2, h3, h4, h5, h6 {
     @apply font-display tracking-tight font-bold;
