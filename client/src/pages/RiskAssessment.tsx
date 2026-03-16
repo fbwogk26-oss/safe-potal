@@ -32,6 +32,13 @@ const DEPT_SHORT: Record<string, string> = {
   "사업지원팀": "사업지원", "현장경영팀": "현장경영", "공공망관제팀": "공공망",
 };
 const shortDept = (dept: string) => DEPT_SHORT[dept] ?? dept;
+const DeptCell = ({ dept }: { dept: string }) => {
+  const name = shortDept(dept);
+  if (name.length === 4) {
+    return <span className="text-xs font-semibold text-foreground leading-tight text-center">{name.slice(0, 2)}<br />{name.slice(2)}</span>;
+  }
+  return <span className="text-xs font-semibold text-foreground leading-tight">{name}</span>;
+};
 
 const HAZARD_TYPES = ["추락", "전도", "충돌", "협착", "감전", "화재/폭발", "기타"];
 
@@ -701,7 +708,7 @@ export default function RiskAssessmentPage() {
                             >
                               <TableCell className="text-xs text-muted-foreground py-2.5 px-2 text-center font-semibold">{idx + 1}</TableCell>
                               <TableCell className="py-2.5 px-2">
-                                <span className="text-xs font-semibold text-foreground leading-tight">{shortDept(item.department)}</span>
+                                <DeptCell dept={item.department} />
                               </TableCell>
                               <TableCell className="py-2.5 px-2">
                                 <span className="text-xs text-foreground/80 line-clamp-2 leading-snug">{item.process || <span className="text-muted-foreground">-</span>}</span>
