@@ -139,6 +139,7 @@ export default function RiskAssessmentPage() {
   };
   const [activeTab, setActiveTab] = useState("상반기정기평가");
   const [filterDept, setFilterDept] = useState("전체");
+  const [filterGrade, setFilterGrade] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [header, setHeader] = useState<FormHeader>({
@@ -383,16 +384,27 @@ export default function RiskAssessmentPage() {
     return <Badge variant="outline" className="text-[10px] text-orange-600 border-orange-300 no-default-hover-elevate no-default-active-elevate">미완료</Badge>;
   };
 
-  const filteredAssessments = useMemo(() => {
+  const filteredByDept = useMemo(() => {
     if (!assessments) return [];
     if (filterDept === "전체") return assessments;
     return assessments.filter(a => a.department === filterDept);
   }, [assessments, filterDept]);
 
+  const filteredAssessments = useMemo(() => {
+    if (!filterGrade) return filteredByDept;
+    return filteredByDept.filter(a => {
+      const lvl = a.riskLevel || "";
+      if (filterGrade === "A") return lvl === "A등급" || (!lvl && a.riskScore >= 8);
+      if (filterGrade === "B") return lvl === "B등급" || (!lvl && a.riskScore >= 3 && a.riskScore < 8);
+      if (filterGrade === "C") return lvl === "C등급" || (!lvl && a.riskScore < 3);
+      return true;
+    });
+  }, [filteredByDept, filterGrade]);
+
   const riskStats = useMemo(() => {
-    if (!filteredAssessments || filteredAssessments.length === 0) return null;
+    if (!filteredByDept || filteredByDept.length === 0) return null;
     const counts = { "A등급": 0, "B등급": 0, "C등급": 0 };
-    for (const a of filteredAssessments) {
+    for (const a of filteredByDept) {
       const lvl = a.riskLevel as keyof typeof counts;
       if (lvl in counts) counts[lvl]++;
       else if (a.riskScore >= 8) counts["A등급"]++;
@@ -400,7 +412,7 @@ export default function RiskAssessmentPage() {
       else counts["C등급"]++;
     }
     return counts;
-  }, [filteredAssessments]);
+  }, [filteredByDept]);
 
   return (
     <div className="max-w-6xl mx-auto space-y-4">
@@ -529,64 +541,93 @@ export default function RiskAssessmentPage() {
 
         {ASSESSMENT_TABS.map(tab => (
           <TabsContent key={tab.value} value={tab.value} className="space-y-3 mt-3">
-            {/* 조회 필터 + 통계 + 엑셀 다운로드 (한 줄) */}
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground font-medium whitespace-nowrap">부서 조회</span>
-                <Select value={filterDept} onValueChange={setFilterDept}>
-                  <SelectTrigger className="h-8 text-xs w-[130px]" data-testid="select-filter-dept">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="전체">전체 부서</SelectItem>
-                    {DEPARTMENTS.map(dept => (
-                      <SelectItem key={dept} value={dept}>{dept}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-center gap-1.5 flex-wrap">
-                {riskStats && (
-                  <>
-                    {(Object.entries(riskStats) as [string, number][]).map(([level, count]) => (
-                      <Badge key={level} className={`${getRiskBadgeVariant(level).className} no-default-hover-elevate no-default-active-elevate text-xs px-2 py-0.5`} data-testid={`stat-${level}`}>
-                        {level} {count}건
-                      </Badge>
-                    ))}
-                    <Badge variant="outline" className="text-xs px-2 py-0.5 no-default-hover-elevate no-default-active-elevate">
-                      총 {filteredAssessments.length}건
-                    </Badge>
-                  </>
-                )}
-                {canDownloadRiskAssessmentExcel && (
-                  <>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-1 text-green-700 border-green-300 hover:bg-green-50 h-7 text-[11px] px-2"
-                      onClick={() => handleDownloadExcel("전체")}
-                      disabled={isDownloading}
-                      data-testid="button-download-all"
-                    >
-                      {isDownloading ? <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-green-700" /> : <Download className="w-3 h-3" />}
-                      전체 엑셀
-                    </Button>
-                    {filterDept !== "전체" && (
+            {/* 조회 필터 + 통계 + 엑셀 다운로드 */}
+            <div className="flex flex-col gap-2">
+              {/* 첫 줄: 부서 선택 + 등급 배지 + 총계 + 엑셀 */}
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <Select value={filterDept} onValueChange={v => { setFilterDept(v); setFilterGrade(null); }}>
+                    <SelectTrigger className="h-8 text-xs w-[130px]" data-testid="select-filter-dept">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="전체">전체 부서</SelectItem>
+                      {DEPARTMENTS.map(dept => (
+                        <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {/* 등급 클릭 필터 배지 */}
+                  {riskStats && (
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {(Object.entries(riskStats) as [string, number][]).map(([level, count]) => {
+                        const gradeKey = level[0];
+                        const isActive = filterGrade === gradeKey;
+                        const base = getRiskBadgeVariant(level).className;
+                        return (
+                          <button
+                            key={level}
+                            type="button"
+                            onClick={() => setFilterGrade(isActive ? null : gradeKey)}
+                            className={`inline-flex items-center gap-1 rounded-full text-xs font-semibold px-2.5 py-0.5 transition-all cursor-pointer select-none border-2 ${isActive ? `${base} border-white ring-2 ring-offset-1 ring-current scale-105 shadow-md` : `${base} border-transparent opacity-80 hover:opacity-100 hover:scale-105`}`}
+                            data-testid={`stat-${level}`}
+                            title={`${level} 필터 ${isActive ? "해제" : "적용"}`}
+                          >
+                            {level} {count}건
+                          </button>
+                        );
+                      })}
+                      <span className="text-xs text-muted-foreground font-medium px-1.5 py-0.5 bg-muted rounded-full border">
+                        총 {filteredByDept.length}건
+                      </span>
+                      {filterGrade && (
+                        <button
+                          type="button"
+                          onClick={() => setFilterGrade(null)}
+                          className="text-[10px] text-muted-foreground hover:text-foreground underline"
+                        >필터 해제</button>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center gap-1.5">
+                  {canDownloadRiskAssessmentExcel && (
+                    <>
                       <Button
                         variant="outline"
                         size="sm"
-                        className="gap-1 text-blue-700 border-blue-300 hover:bg-blue-50 h-7 text-[11px] px-2"
-                        onClick={() => handleDownloadExcel(filterDept)}
+                        className="gap-1 text-green-700 border-green-300 hover:bg-green-50 h-8 text-xs px-3"
+                        onClick={() => handleDownloadExcel("전체")}
                         disabled={isDownloading}
-                        data-testid="button-download-dept"
+                        data-testid="button-download-all"
                       >
-                        {isDownloading ? <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-700" /> : <FileDown className="w-3 h-3" />}
-                        {filterDept} 엑셀
+                        {isDownloading ? <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-green-700" /> : <Download className="w-3.5 h-3.5" />}
+                        전체 엑셀
                       </Button>
-                    )}
-                  </>
-                )}
+                      {filterDept !== "전체" && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1 text-blue-700 border-blue-300 hover:bg-blue-50 h-8 text-xs px-3"
+                          onClick={() => handleDownloadExcel(filterDept)}
+                          disabled={isDownloading}
+                          data-testid="button-download-dept"
+                        >
+                          {isDownloading ? <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-700" /> : <FileDown className="w-3.5 h-3.5" />}
+                          {filterDept} 엑셀
+                        </Button>
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
+              {/* 필터 활성 표시 */}
+              {filterGrade && (
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <span className="w-1.5 h-1.5 rounded-full bg-orange-400 inline-block" />
+                  <span>{filterGrade}등급 필터 적용 중 — {filteredAssessments.length}건 표시</span>
+                </div>
+              )}
             </div>
 
             {isLoading ? (
@@ -597,29 +638,29 @@ export default function RiskAssessmentPage() {
             ) : filteredAssessments.length === 0 ? (
               <Card className="border-dashed">
                 <CardContent className="py-12 text-center text-muted-foreground text-sm">
-                  {filterDept === "전체" ? "등록된 평가가 없습니다." : `${filterDept} 평가가 없습니다.`}
+                  {filterGrade ? `${filterGrade}등급 항목이 없습니다.` : filterDept === "전체" ? "등록된 평가가 없습니다." : `${filterDept} 평가가 없습니다.`}
                 </CardContent>
               </Card>
             ) : (
-              <Card className="overflow-hidden shadow-sm">
+              <Card className="overflow-hidden shadow-sm border">
                 <CardContent className="p-0 overflow-x-auto">
                   <Table data-testid="table-assessments">
                     <TableHeader>
-                      <TableRow className="bg-muted/50 hover:bg-muted/50">
-                        <TableHead className="w-10 text-center font-semibold">No</TableHead>
-                        <TableHead className="min-w-[80px] font-semibold">부서</TableHead>
-                        <TableHead className="min-w-[90px] font-semibold">공정명</TableHead>
-                        <TableHead className="min-w-[130px] font-semibold">유해위험요인</TableHead>
-                        <TableHead className="min-w-[65px] font-semibold">위험유형</TableHead>
-                        <TableHead className="min-w-[55px] text-center font-semibold">가능성</TableHead>
-                        <TableHead className="min-w-[55px] text-center font-semibold">중대성</TableHead>
-                        <TableHead className="min-w-[50px] text-center font-semibold">점수</TableHead>
-                        <TableHead className="min-w-[80px] font-semibold">등급</TableHead>
-                        <TableHead className="min-w-[65px] font-semibold">평가자</TableHead>
-                        <TableHead className="min-w-[80px] font-semibold">평가일</TableHead>
-                        <TableHead className="min-w-[85px] font-semibold">개선현황</TableHead>
-                        <TableHead className="min-w-[90px] font-semibold">승인상태</TableHead>
-                        {canEditRiskAssessment && <TableHead className="min-w-[100px] font-semibold">관리</TableHead>}
+                      <TableRow className="bg-slate-50 dark:bg-slate-800/80 hover:bg-slate-50 dark:hover:bg-slate-800/80 border-b-2 border-border">
+                        <TableHead className="w-10 text-center text-xs font-bold text-foreground py-3">No</TableHead>
+                        <TableHead className="min-w-[80px] text-xs font-bold text-foreground py-3">부서</TableHead>
+                        <TableHead className="min-w-[90px] text-xs font-bold text-foreground py-3">공정명</TableHead>
+                        <TableHead className="min-w-[140px] text-xs font-bold text-foreground py-3">유해위험요인</TableHead>
+                        <TableHead className="min-w-[65px] text-xs font-bold text-foreground py-3">위험유형</TableHead>
+                        <TableHead className="min-w-[55px] text-center text-xs font-bold text-foreground py-3">가능성</TableHead>
+                        <TableHead className="min-w-[55px] text-center text-xs font-bold text-foreground py-3">중대성</TableHead>
+                        <TableHead className="min-w-[50px] text-center text-xs font-bold text-foreground py-3">점수</TableHead>
+                        <TableHead className="min-w-[80px] text-xs font-bold text-foreground py-3">등급</TableHead>
+                        <TableHead className="min-w-[65px] text-xs font-bold text-foreground py-3">평가자</TableHead>
+                        <TableHead className="min-w-[80px] text-xs font-bold text-foreground py-3">평가일</TableHead>
+                        <TableHead className="min-w-[90px] text-xs font-bold text-foreground py-3">개선현황</TableHead>
+                        <TableHead className="min-w-[90px] text-xs font-bold text-foreground py-3">승인상태</TableHead>
+                        {canEditRiskAssessment && <TableHead className="min-w-[110px] text-xs font-bold text-foreground py-3">관리</TableHead>}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -632,45 +673,49 @@ export default function RiskAssessmentPage() {
                               initial={{ opacity: 0, y: 8 }}
                               animate={{ opacity: 1, y: 0 }}
                               exit={{ opacity: 0 }}
-                              className="border-b border-border/60 hover:bg-muted/30 transition-colors"
+                              className={`border-b border-border/50 hover:bg-muted/40 transition-colors ${idx % 2 === 1 ? "bg-muted/10" : ""}`}
                               data-testid={`row-assessment-${item.id}`}
                             >
-                              <TableCell className="text-xs text-muted-foreground py-3 text-center font-medium">{idx + 1}</TableCell>
-                              <TableCell className="py-2">
-                                <span className="text-xs font-medium">{item.department}</span>
+                              <TableCell className="text-xs text-muted-foreground py-3.5 text-center font-semibold">{idx + 1}</TableCell>
+                              <TableCell className="py-3.5">
+                                <span className="text-xs font-semibold text-foreground">{item.department}</span>
                               </TableCell>
-                              <TableCell className="text-xs text-muted-foreground py-2">{item.process || "-"}</TableCell>
-                              <TableCell className="text-xs font-medium py-2 max-w-[130px]">
-                                <span className="line-clamp-2 leading-snug">{item.hazard}</span>
+                              <TableCell className="py-3.5">
+                                <span className="text-xs text-foreground/80">{item.process || <span className="text-muted-foreground">-</span>}</span>
                               </TableCell>
-                              <TableCell className="py-2">
-                                <span className="inline-block px-1 py-0.5 rounded bg-muted text-muted-foreground text-[11px]">{item.hazardType || "-"}</span>
+                              <TableCell className="text-xs font-medium py-3.5 max-w-[140px]">
+                                <span className="line-clamp-2 leading-snug text-foreground">{item.hazard}</span>
                               </TableCell>
-                              <TableCell className="py-2 text-center">
-                                <div className="flex flex-col items-center leading-tight">
-                                  <span className="text-xs font-bold">{item.frequency}</span>
-                                  <span className="text-[9px] text-muted-foreground">{PROBABILITY_LABELS[item.frequency]}</span>
+                              <TableCell className="py-3.5">
+                                {item.hazardType ? (
+                                  <span className="inline-block px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[11px] font-medium">{item.hazardType}</span>
+                                ) : <span className="text-muted-foreground text-xs">-</span>}
+                              </TableCell>
+                              <TableCell className="py-3.5 text-center">
+                                <div className="flex flex-col items-center gap-0.5">
+                                  <span className="text-sm font-bold text-foreground tabular-nums">{item.frequency}</span>
+                                  <span className="text-[10px] text-muted-foreground">{PROBABILITY_LABELS[item.frequency]}</span>
                                 </div>
                               </TableCell>
-                              <TableCell className="py-2 text-center">
-                                <div className="flex flex-col items-center leading-tight">
-                                  <span className="text-xs font-bold">{item.severity}</span>
-                                  <span className="text-[9px] text-muted-foreground">{CRITICALITY_LABELS[item.severity]}</span>
+                              <TableCell className="py-3.5 text-center">
+                                <div className="flex flex-col items-center gap-0.5">
+                                  <span className="text-sm font-bold text-foreground tabular-nums">{item.severity}</span>
+                                  <span className="text-[10px] text-muted-foreground">{CRITICALITY_LABELS[item.severity]}</span>
                                 </div>
                               </TableCell>
-                              <TableCell className="py-2 text-center">
-                                <span className="text-sm font-bold tabular-nums">{item.riskScore}</span>
+                              <TableCell className="py-3.5 text-center">
+                                <span className="text-base font-extrabold tabular-nums text-foreground">{item.riskScore}</span>
                               </TableCell>
-                              <TableCell className="py-2">
+                              <TableCell className="py-3.5">
                                 <div className="flex flex-col gap-0.5">
-                                  <Badge className={`${getRiskBadgeVariant(grade.label).className} no-default-hover-elevate no-default-active-elevate text-[11px] px-1.5 py-0.5 rounded-full w-fit`} data-testid={`badge-risk-${item.id}`}>
+                                  <Badge className={`${getRiskBadgeVariant(grade.label).className} no-default-hover-elevate no-default-active-elevate text-xs px-2 py-0.5 rounded-full w-fit font-bold`} data-testid={`badge-risk-${item.id}`}>
                                     {grade.label}
                                   </Badge>
-                                  <span className="text-[9px] text-muted-foreground">{grade.category}</span>
+                                  <span className="text-[10px] text-muted-foreground">{grade.category}</span>
                                 </div>
                               </TableCell>
-                              <TableCell className="text-xs py-2">{item.assessor || "-"}</TableCell>
-                              <TableCell className="text-[11px] text-muted-foreground py-2 whitespace-nowrap">{item.assessmentDate}</TableCell>
+                              <TableCell className="text-xs py-3.5 font-medium text-foreground/80">{item.assessor || "-"}</TableCell>
+                              <TableCell className="text-xs text-muted-foreground py-3.5 whitespace-nowrap">{item.assessmentDate}</TableCell>
                               <TableCell className="py-2">
                                 <div className="flex flex-col gap-0.5">
                                   {grade.grade === "A" ? getImprovementStatusBadge(item) : (
@@ -765,39 +810,86 @@ export default function RiskAssessmentPage() {
 
           <div className="space-y-4">
             {/* 공통 헤더 정보 */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 bg-muted/40 rounded-lg border">
-              <div className="space-y-1.5">
-                <Label className="text-xs">부서 *</Label>
-                <Select value={header.department} onValueChange={v => setHeader(h => ({ ...h, department: v }))}>
-                  <SelectTrigger data-testid="select-department"><SelectValue placeholder="부서 선택" /></SelectTrigger>
-                  <SelectContent>
-                    {DEPARTMENTS.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+            <div className="p-3 bg-muted/40 rounded-lg border space-y-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-foreground">부서 *</Label>
+                  <Select value={header.department} onValueChange={v => setHeader(h => ({ ...h, department: v }))}>
+                    <SelectTrigger data-testid="select-department"><SelectValue placeholder="부서 선택" /></SelectTrigger>
+                    <SelectContent>
+                      {DEPARTMENTS.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-foreground">담당업무</Label>
+                  <Select
+                    value={header.responsibleTask}
+                    onValueChange={v => {
+                      const auto = getAutoProcess(v);
+                      setHeader(h => ({ ...h, responsibleTask: v }));
+                      if (auto) setItems(prev => prev.map((it, i) => i === 0 ? { ...it, process: auto } : it));
+                    }}
+                  >
+                    <SelectTrigger data-testid="select-responsible-task"><SelectValue placeholder="담당업무 선택" /></SelectTrigger>
+                    <SelectContent>
+                      {RESPONSIBLE_TASKS.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-foreground">평가자</Label>
+                  <Input value={header.assessor} onChange={e => setHeader(h => ({ ...h, assessor: e.target.value }))} placeholder="평가자 이름" data-testid="input-assessor" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-foreground">평가일</Label>
+                  <Input type="date" value={header.assessmentDate} onChange={e => setHeader(h => ({ ...h, assessmentDate: e.target.value }))} data-testid="input-assessment-date" />
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">담당업무</Label>
-                <Select
-                  value={header.responsibleTask}
-                  onValueChange={v => {
-                    const auto = getAutoProcess(v);
-                    setHeader(h => ({ ...h, responsibleTask: v }));
-                    if (auto) setItems(prev => prev.map((it, i) => i === 0 ? { ...it, process: auto } : it));
-                  }}
-                >
-                  <SelectTrigger data-testid="select-responsible-task"><SelectValue placeholder="담당업무 선택" /></SelectTrigger>
-                  <SelectContent>
-                    {RESPONSIBLE_TASKS.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">평가자</Label>
-                <Input value={header.assessor} onChange={e => setHeader(h => ({ ...h, assessor: e.target.value }))} placeholder="평가자 이름" data-testid="input-assessor" />
-              </div>
-              <div className="space-y-1.5 col-span-2 sm:col-span-1">
-                <Label className="text-xs">평가일</Label>
-                <Input type="date" value={header.assessmentDate} onChange={e => setHeader(h => ({ ...h, assessmentDate: e.target.value }))} data-testid="input-assessment-date" />
+              {/* 부서장 선택 */}
+              <div className="flex items-center gap-3 pt-1 border-t border-border/50">
+                <Label className="text-xs font-semibold text-foreground whitespace-nowrap">부서장</Label>
+                <Popover open={deptHeadPopoverOpen} onOpenChange={setDeptHeadPopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className={`gap-2 h-8 text-xs ${header.departmentHead ? "border-blue-400 text-blue-700 bg-blue-50 hover:bg-blue-100" : "border-dashed"}`} data-testid="button-dept-head-search">
+                      <Users className="w-3.5 h-3.5" />
+                      {header.departmentHead || "부서장 선택"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-60 p-2" align="start">
+                    <p className="text-xs font-semibold text-muted-foreground mb-2 px-1">부서장 선택</p>
+                    <div className="max-h-52 overflow-y-auto space-y-0.5">
+                      {header.departmentHead && (
+                        <button
+                          type="button"
+                          className="w-full text-left px-2 py-1.5 rounded text-xs text-red-500 hover:bg-red-50 flex items-center gap-1.5"
+                          onClick={() => { setHeader(h => ({ ...h, departmentHead: "" })); setDeptHeadPopoverOpen(false); }}
+                        >
+                          <X className="w-3 h-3" />선택 해제
+                        </button>
+                      )}
+                      {(userNames || []).map(u => (
+                        <button
+                          key={u.id}
+                          type="button"
+                          className={`w-full text-left px-2 py-1.5 rounded text-xs hover:bg-muted transition-colors flex items-center justify-between gap-2 ${header.departmentHead === u.name ? "bg-blue-50 text-blue-700 font-semibold" : ""}`}
+                          onClick={() => { setHeader(h => ({ ...h, departmentHead: u.name })); setDeptHeadPopoverOpen(false); }}
+                        >
+                          <span>{u.name}</span>
+                          {u.department && <span className="text-muted-foreground text-[10px] shrink-0">{u.department}</span>}
+                        </button>
+                      ))}
+                      {(!userNames || userNames.length === 0) && (
+                        <p className="text-xs text-muted-foreground px-2 py-2 text-center">사용자 없음</p>
+                      )}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+                {header.departmentHead && (
+                  <span className="text-xs text-blue-600 font-medium flex items-center gap-1">
+                    <UserCheck className="w-3.5 h-3.5" />{header.departmentHead}
+                  </span>
+                )}
               </div>
             </div>
 
@@ -929,67 +1021,23 @@ export default function RiskAssessmentPage() {
                             </SelectContent>
                           </Select>
                         </div>
-                        {/* 개선 전 사진 + 부서장 조회 */}
+                        {/* 개선 전 사진 */}
                         <div className="space-y-1.5">
-                          <Label className="text-xs">개선 전 사진</Label>
+                          <Label className="text-xs font-semibold text-foreground">개선 전 사진</Label>
                           <input ref={el => { beforePhotoRefs.current[idx] = el; }} type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadPhoto(idx, "before", f); e.target.value = ""; }} />
-                          <div className="flex flex-wrap gap-2 items-start">
-                            {item.beforePhotoUrl ? (
-                              <div className="relative inline-block">
-                                <img src={item.beforePhotoUrl} alt="개선 전" className="h-20 w-32 object-cover rounded-md border" />
-                                <button type="button" className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center shadow" onClick={() => updateItem(idx, "beforePhotoUrl", "")}>
-                                  <X className="w-3 h-3" />
-                                </button>
-                              </div>
-                            ) : (
-                              <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs" disabled={uploadingPhoto === `${idx}-before`} onClick={() => beforePhotoRefs.current[idx]?.click()} data-testid={`button-before-photo-${idx}`}>
-                                <Camera className="w-3.5 h-3.5" />
-                                {uploadingPhoto === `${idx}-before` ? "업로드 중..." : "사진 추가"}
-                              </Button>
-                            )}
-                            {/* 부서장 조회 버튼 */}
-                            {idx === 0 && (
-                              <div className="flex flex-col gap-1">
-                                <Popover open={deptHeadPopoverOpen} onOpenChange={setDeptHeadPopoverOpen}>
-                                  <PopoverTrigger asChild>
-                                    <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs border-blue-300 text-blue-700 hover:bg-blue-50" data-testid="button-dept-head-search">
-                                      <Users className="w-3.5 h-3.5" />
-                                      {header.departmentHead ? header.departmentHead : "부서장 선택"}
-                                    </Button>
-                                  </PopoverTrigger>
-                                  <PopoverContent className="w-56 p-2" align="start">
-                                    <p className="text-xs font-semibold text-muted-foreground mb-2">부서장 선택</p>
-                                    <div className="max-h-48 overflow-y-auto space-y-0.5">
-                                      {header.departmentHead && (
-                                        <button
-                                          type="button"
-                                          className="w-full text-left px-2 py-1 rounded text-xs text-red-500 hover:bg-red-50"
-                                          onClick={() => { setHeader(h => ({ ...h, departmentHead: "" })); setDeptHeadPopoverOpen(false); }}
-                                        >✕ 선택 해제</button>
-                                      )}
-                                      {(userNames || []).map(u => (
-                                        <button
-                                          key={u.id}
-                                          type="button"
-                                          className={`w-full text-left px-2 py-1.5 rounded text-xs hover:bg-muted transition-colors ${header.departmentHead === u.name ? "bg-blue-50 text-blue-700 font-medium" : ""}`}
-                                          onClick={() => { setHeader(h => ({ ...h, departmentHead: u.name })); setDeptHeadPopoverOpen(false); }}
-                                        >
-                                          <span className="font-medium">{u.name}</span>
-                                          {u.department && <span className="text-muted-foreground ml-1">({u.department})</span>}
-                                        </button>
-                                      ))}
-                                      {(!userNames || userNames.length === 0) && (
-                                        <p className="text-xs text-muted-foreground px-2 py-1">사용자 없음</p>
-                                      )}
-                                    </div>
-                                  </PopoverContent>
-                                </Popover>
-                                {header.departmentHead && (
-                                  <span className="text-[10px] text-blue-600 font-medium">담당: {header.departmentHead}</span>
-                                )}
-                              </div>
-                            )}
-                          </div>
+                          {item.beforePhotoUrl ? (
+                            <div className="relative inline-block">
+                              <img src={item.beforePhotoUrl} alt="개선 전" className="h-20 w-32 object-cover rounded-md border" />
+                              <button type="button" className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center shadow" onClick={() => updateItem(idx, "beforePhotoUrl", "")}>
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ) : (
+                            <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs" disabled={uploadingPhoto === `${idx}-before`} onClick={() => beforePhotoRefs.current[idx]?.click()} data-testid={`button-before-photo-${idx}`}>
+                              <Camera className="w-3.5 h-3.5" />
+                              {uploadingPhoto === `${idx}-before` ? "업로드 중..." : "사진 추가"}
+                            </Button>
+                          )}
                         </div>
                       </CardContent>
                     )}
