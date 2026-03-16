@@ -20,7 +20,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { AlertTriangle, BarChart3, Plus, Pencil, Trash2, Download, Upload, X, Camera, PenTool } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  ResponsiveContainer, LineChart, Line,
+  ResponsiveContainer, LineChart, Line, Cell,
 } from "recharts";
 
 const ACCIDENT_TYPES = ["추락", "전도", "충돌", "협착", "감전", "화재/폭발", "교통사고", "기타"];
@@ -52,6 +52,8 @@ interface StatsData {
   byDepartment: Record<string, number>;
   bySeverity: Record<string, number>;
   byMonth: Record<string, number>;
+  byYear: Record<string, number>;
+  byYearMonth: Record<string, Record<string, number>>;
 }
 
 interface ProgressItem {
@@ -298,12 +300,14 @@ export default function AccidentReports() {
   };
 
   const handleSubmit = () => {
-    if (!form.title || !form.occurredAt || !form.accidentType || !form.cause || !form.severity || !form.department || !form.description) {
+    if (!form.title || !form.occurredAt || !form.accidentType || !form.cause || !form.severity || !form.department) {
       toast({ variant: "destructive", title: "필수 항목을 모두 입력해주세요." });
       return;
     }
     const submitData = {
       ...form,
+      description: form.accidentOverview || form.description || "",
+      status: form.status || "접수",
       progressDetails: JSON.stringify(progressItems.filter(p => p.time || p.content)),
       imageCaptions: JSON.stringify(form.imageCaptions),
     };
@@ -404,6 +408,24 @@ export default function AccidentReports() {
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([name, value]) => ({ name, value }))
     : [];
+
+  const COMPARE_YEARS = ["2024", "2025", "2026"];
+  const YEAR_COLORS: Record<string, string> = { "2024": "#6366f1", "2025": "#f59e0b", "2026": "#10b981" };
+  const MONTH_LABELS: Record<string, string> = {
+    "01": "1월", "02": "2월", "03": "3월", "04": "4월", "05": "5월", "06": "6월",
+    "07": "7월", "08": "8월", "09": "9월", "10": "10월", "11": "11월", "12": "12월",
+  };
+  const yearCompareData = COMPARE_YEARS.map(yr => ({
+    name: yr + "년",
+    value: stats?.byYear?.[yr] ?? 0,
+  }));
+  const yearMonthlyData = Object.entries(MONTH_LABELS).map(([mon, label]) => {
+    const entry: Record<string, string | number> = { name: label };
+    for (const yr of COMPARE_YEARS) {
+      entry[yr + "년"] = stats?.byYearMonth?.[mon]?.[yr] ?? 0;
+    }
+    return entry;
+  });
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -550,6 +572,83 @@ export default function AccidentReports() {
                 ))}
               </div>
 
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">연도별 사고건수 비교</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-[200px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={yearCompareData} margin={{ top: 20, right: 10, left: -10, bottom: 5 }}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" opacity={0.4} />
+                          <XAxis dataKey="name" tick={{ fontSize: 12, fontWeight: 600 }} axisLine={false} tickLine={false} />
+                          <YAxis allowDecimals={false} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                          <Tooltip content={({ active, payload }) => {
+                            if (active && payload && payload.length) {
+                              return (
+                                <div style={{ background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(8px)', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 12, padding: '10px 14px', boxShadow: '0 8px 32px rgba(0,0,0,0.08)', fontSize: 12 }}>
+                                  <p style={{ fontWeight: 600, marginBottom: 2 }}>{payload[0].payload.name}</p>
+                                  <p style={{ color: '#64748b' }}>{payload[0].value}건</p>
+                                </div>
+                              );
+                            }
+                            return null;
+                          }} />
+                          <Bar dataKey="value" name="건수" radius={[6, 6, 0, 0]} maxBarSize={50} animationDuration={800} label={{ position: 'top', fontSize: 11, fontWeight: 700, fill: '#334155' }}>
+                            {yearCompareData.map((entry) => (
+                              <Cell key={entry.name} fill={YEAR_COLORS[entry.name.replace("년", "")] || CHART_COLORS[0]} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="flex justify-center gap-4 mt-1 text-xs">
+                      {COMPARE_YEARS.map(yr => (
+                        <span key={yr} className="flex items-center gap-1">
+                          <span className="w-3 h-3 rounded-sm inline-block" style={{ background: YEAR_COLORS[yr] }} />
+                          {yr}년: {stats?.byYear?.[yr] ?? 0}건
+                        </span>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="md:col-span-2">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">연도별 월간 사고 비교 (24/25/26)</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-[200px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={yearMonthlyData} margin={{ top: 10, right: 10, left: -10, bottom: 5 }}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" opacity={0.4} />
+                          <XAxis dataKey="name" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                          <YAxis allowDecimals={false} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                          <Tooltip content={({ active, payload, label }) => {
+                            if (active && payload && payload.length) {
+                              return (
+                                <div style={{ background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(8px)', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 12, padding: '10px 14px', boxShadow: '0 8px 32px rgba(0,0,0,0.08)', fontSize: 12 }}>
+                                  <p style={{ fontWeight: 600, marginBottom: 4 }}>{label}</p>
+                                  {payload.map(p => (
+                                    <p key={p.dataKey} style={{ color: p.color }}>{p.name}: {p.value}건</p>
+                                  ))}
+                                </div>
+                              );
+                            }
+                            return null;
+                          }} />
+                          <Legend />
+                          {COMPARE_YEARS.map(yr => (
+                            <Bar key={yr} dataKey={yr + "년"} fill={YEAR_COLORS[yr]} radius={[3, 3, 0, 0]} maxBarSize={14} animationDuration={800} />
+                          ))}
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Card>
                   <CardHeader className="pb-2">
@@ -560,7 +659,7 @@ export default function AccidentReports() {
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={toChartData(stats?.byType)} margin={{ top: 20, right: 10, left: -10, bottom: 5 }}>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" opacity={0.4} />
-                          <XAxis dataKey="name" tick={{ fontSize: 11 }} interval={0} angle={-20} textAnchor="end" height={50} axisLine={false} tickLine={false} />
+                          <XAxis dataKey="name" tick={{ fontSize: 11 }} interval={0} axisLine={false} tickLine={false} />
                           <YAxis allowDecimals={false} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
                           <Tooltip content={({ active, payload }) => {
                             if (active && payload && payload.length) {
@@ -589,7 +688,7 @@ export default function AccidentReports() {
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={toChartData(stats?.byCause)} margin={{ top: 20, right: 10, left: -10, bottom: 5 }}>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" opacity={0.4} />
-                          <XAxis dataKey="name" tick={{ fontSize: 11 }} interval={0} angle={-20} textAnchor="end" height={50} axisLine={false} tickLine={false} />
+                          <XAxis dataKey="name" tick={{ fontSize: 11 }} interval={0} axisLine={false} tickLine={false} />
                           <YAxis allowDecimals={false} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
                           <Tooltip content={({ active, payload }) => {
                             if (active && payload && payload.length) {
@@ -618,7 +717,7 @@ export default function AccidentReports() {
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={toChartData(stats?.byDepartment)} margin={{ top: 20, right: 10, left: -10, bottom: 5 }}>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" opacity={0.4} />
-                          <XAxis dataKey="name" tick={{ fontSize: 11 }} interval={0} angle={-20} textAnchor="end" height={50} axisLine={false} tickLine={false} />
+                          <XAxis dataKey="name" tick={{ fontSize: 11 }} interval={0} axisLine={false} tickLine={false} />
                           <YAxis allowDecimals={false} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
                           <Tooltip content={({ active, payload }) => {
                             if (active && payload && payload.length) {
@@ -787,22 +886,6 @@ export default function AccidentReports() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>피해자</Label>
-                <Input value={form.injuredPerson} onChange={(e) => setField("injuredPerson", e.target.value)} placeholder="피해자 이름" data-testid="input-injured" />
-              </div>
-              <div className="space-y-2">
-                <Label>상태</Label>
-                <Select value={form.status} onValueChange={(v) => setField("status", v)}>
-                  <SelectTrigger data-testid="select-status"><SelectValue placeholder="선택" /></SelectTrigger>
-                  <SelectContent>
-                    {STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
             <Card className="border-primary/20">
               <CardHeader className="pb-2 pt-3 flex flex-row items-center justify-between">
                 <CardTitle className="text-sm font-semibold text-primary">경과 및 조치 사항</CardTitle>
@@ -848,23 +931,13 @@ export default function AccidentReports() {
             </Card>
 
             <div className="space-y-2">
-              <Label>사고내용 (간략) *</Label>
-              <Textarea value={form.description} onChange={(e) => setField("description", e.target.value)} placeholder="사고 상세 내용을 입력하세요" rows={2} data-testid="input-description" />
-            </div>
-
-            <div className="space-y-2">
-              <Label>사고 개요</Label>
+              <Label>사고 개요 *</Label>
               <Textarea value={form.accidentOverview} onChange={(e) => setField("accidentOverview", e.target.value)} placeholder="사고 개요를 상세하게 입력하세요 (인적피해, 물적피해 포함)" rows={4} data-testid="input-overview" />
             </div>
 
             <div className="space-y-2">
               <Label>사고원인 (상세)</Label>
               <Textarea value={form.causeDetail} onChange={(e) => setField("causeDetail", e.target.value)} placeholder="사고 원인을 상세하게 기재하세요" rows={2} data-testid="input-cause-detail" />
-            </div>
-
-            <div className="space-y-2">
-              <Label>사고방지대책</Label>
-              <Textarea value={form.preventionPlan} onChange={(e) => setField("preventionPlan", e.target.value)} placeholder="향후 사고 방지를 위한 대책을 입력하세요" rows={2} data-testid="input-prevention-plan" />
             </div>
 
             <Card className="border-primary/20">

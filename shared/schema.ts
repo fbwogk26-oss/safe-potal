@@ -272,6 +272,8 @@ export const riskAssessments = pgTable("risk_assessments", {
   assessmentDate: text("assessment_date").notNull(),
   status: text("status").notNull().default("진행중"),
   createdBy: text("created_by"),
+  beforePhotoUrl: text("before_photo_url"),
+  afterPhotoUrl: text("after_photo_url"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

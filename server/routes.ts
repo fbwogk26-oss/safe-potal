@@ -1978,6 +1978,39 @@ export async function registerRoutes(
     }
   });
 
+  app.post('/api/risk-assessments/batch', requireEditor, async (req: any, res) => {
+    try {
+      const { items } = req.body;
+      if (!Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ message: "items 배열이 필요합니다" });
+      }
+      const results = [];
+      for (const item of items) {
+        const score = (item.frequency || 1) * (item.severity || 1);
+        let riskLevel = "저";
+        if (score >= 15) riskLevel = "매우높음";
+        else if (score >= 10) riskLevel = "높음";
+        else if (score >= 6) riskLevel = "중";
+        else if (score >= 3) riskLevel = "낮음";
+        const assessment = await storage.createRiskAssessment({ ...item, riskScore: score, riskLevel });
+        results.push(assessment);
+      }
+      res.status(201).json(results);
+    } catch (error) {
+      res.status(500).json({ message: "위험성평가 일괄 등록에 실패했습니다" });
+    }
+  });
+
+  app.post('/api/risk-assessments/upload-photo', requireEditor, upload.single('photo'), (req: any, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: "파일이 없습니다" });
+      const photoUrl = `/uploads/${req.file.filename}`;
+      res.json({ photoUrl });
+    } catch (error) {
+      res.status(500).json({ message: "사진 업로드에 실패했습니다" });
+    }
+  });
+
   // === ACCIDENT REPORTS ===
   app.get('/api/accidents', isAuthenticated, async (req: any, res) => {
     try {
@@ -1996,17 +2029,24 @@ export async function registerRoutes(
       const byDepartment: Record<string, number> = {};
       const bySeverity: Record<string, number> = {};
       const byMonth: Record<string, number> = {};
+      const byYear: Record<string, number> = {};
+      const byYearMonth: Record<string, Record<string, number>> = {};
 
       for (const r of reports) {
         byType[r.accidentType] = (byType[r.accidentType] || 0) + 1;
         byCause[r.cause] = (byCause[r.cause] || 0) + 1;
         byDepartment[r.department] = (byDepartment[r.department] || 0) + 1;
         bySeverity[r.severity] = (bySeverity[r.severity] || 0) + 1;
-        const month = r.occurredAt?.substring(0, 7) || "unknown";
-        byMonth[month] = (byMonth[month] || 0) + 1;
+        const yearMonth = r.occurredAt?.substring(0, 7) || "unknown";
+        byMonth[yearMonth] = (byMonth[yearMonth] || 0) + 1;
+        const year = r.occurredAt?.substring(0, 4) || "unknown";
+        byYear[year] = (byYear[year] || 0) + 1;
+        const mon = r.occurredAt?.substring(5, 7) || "00";
+        if (!byYearMonth[mon]) byYearMonth[mon] = {};
+        byYearMonth[mon][year] = (byYearMonth[mon][year] || 0) + 1;
       }
 
-      res.json({ total: reports.length, byType, byCause, byDepartment, bySeverity, byMonth });
+      res.json({ total: reports.length, byType, byCause, byDepartment, bySeverity, byMonth, byYear, byYearMonth });
     } catch (error) {
       res.status(500).json({ message: "사고 통계 조회에 실패했습니다" });
     }
