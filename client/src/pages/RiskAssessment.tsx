@@ -670,20 +670,20 @@ export default function RiskAssessmentPage() {
                   <Table data-testid="table-assessments">
                     <TableHeader>
                       <TableRow className="bg-slate-50 dark:bg-slate-800/80 hover:bg-slate-50 dark:hover:bg-slate-800/80 border-b-2 border-border">
-                        <TableHead className="w-10 text-center text-xs font-bold text-foreground py-3">No</TableHead>
-                        <TableHead className="min-w-[80px] text-xs font-bold text-foreground py-3">부서</TableHead>
-                        <TableHead className="min-w-[90px] text-xs font-bold text-foreground py-3">공정명</TableHead>
-                        <TableHead className="min-w-[140px] text-xs font-bold text-foreground py-3">유해위험요인</TableHead>
-                        <TableHead className="min-w-[65px] text-xs font-bold text-foreground py-3">위험유형</TableHead>
-                        <TableHead className="min-w-[55px] text-center text-xs font-bold text-foreground py-3">가능성</TableHead>
-                        <TableHead className="min-w-[55px] text-center text-xs font-bold text-foreground py-3">중대성</TableHead>
-                        <TableHead className="min-w-[50px] text-center text-xs font-bold text-foreground py-3">점수</TableHead>
-                        <TableHead className="min-w-[80px] text-xs font-bold text-foreground py-3">등급</TableHead>
-                        <TableHead className="min-w-[65px] text-xs font-bold text-foreground py-3">평가자</TableHead>
-                        <TableHead className="min-w-[80px] text-xs font-bold text-foreground py-3">평가일</TableHead>
-                        <TableHead className="min-w-[90px] text-xs font-bold text-foreground py-3">개선현황</TableHead>
-                        <TableHead className="min-w-[90px] text-xs font-bold text-foreground py-3">승인상태</TableHead>
-                        {canEditRiskAssessment && <TableHead className="min-w-[110px] text-xs font-bold text-foreground py-3">관리</TableHead>}
+                        <TableHead className="w-8 text-center text-xs font-bold text-foreground py-2.5 px-2">No</TableHead>
+                        <TableHead className="w-[58px] text-xs font-bold text-foreground py-2.5 px-2">부서</TableHead>
+                        <TableHead className="min-w-[80px] text-xs font-bold text-foreground py-2.5 px-2">공정명</TableHead>
+                        <TableHead className="min-w-[130px] text-xs font-bold text-foreground py-2.5 px-2">유해위험요인</TableHead>
+                        <TableHead className="w-[58px] text-xs font-bold text-foreground py-2.5 px-2">위험유형</TableHead>
+                        <TableHead className="w-[52px] text-center text-xs font-bold text-foreground py-2.5 px-1">가능성</TableHead>
+                        <TableHead className="w-[52px] text-center text-xs font-bold text-foreground py-2.5 px-1">중대성</TableHead>
+                        <TableHead className="w-[44px] text-center text-xs font-bold text-foreground py-2.5 px-1">점수</TableHead>
+                        <TableHead className="w-[72px] text-xs font-bold text-foreground py-2.5 px-2">등급</TableHead>
+                        <TableHead className="w-[58px] text-xs font-bold text-foreground py-2.5 px-2">평가자</TableHead>
+                        <TableHead className="w-[76px] text-xs font-bold text-foreground py-2.5 px-2">평가일</TableHead>
+                        <TableHead className="w-[82px] text-xs font-bold text-foreground py-2.5 px-2">개선현황</TableHead>
+                        <TableHead className="w-[82px] text-xs font-bold text-foreground py-2.5 px-2">승인상태</TableHead>
+                        {canEditRiskAssessment && <TableHead className="w-[100px] text-xs font-bold text-foreground py-2.5 px-2">관리</TableHead>}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -699,74 +699,74 @@ export default function RiskAssessmentPage() {
                               className={`border-b border-border/50 hover:bg-muted/40 transition-colors ${idx % 2 === 1 ? "bg-muted/10" : ""}`}
                               data-testid={`row-assessment-${item.id}`}
                             >
-                              <TableCell className="text-xs text-muted-foreground py-3.5 text-center font-semibold">{idx + 1}</TableCell>
-                              <TableCell className="py-3.5">
-                                <span className="text-xs font-semibold text-foreground">{shortDept(item.department)}</span>
+                              <TableCell className="text-xs text-muted-foreground py-2.5 px-2 text-center font-semibold">{idx + 1}</TableCell>
+                              <TableCell className="py-2.5 px-2">
+                                <span className="text-xs font-semibold text-foreground leading-tight">{shortDept(item.department)}</span>
                               </TableCell>
-                              <TableCell className="py-3.5">
-                                <span className="text-xs text-foreground/80">{item.process || <span className="text-muted-foreground">-</span>}</span>
+                              <TableCell className="py-2.5 px-2">
+                                <span className="text-xs text-foreground/80 line-clamp-2 leading-snug">{item.process || <span className="text-muted-foreground">-</span>}</span>
                               </TableCell>
-                              <TableCell className="text-xs font-medium py-3.5 max-w-[140px]">
-                                <span className="line-clamp-2 leading-snug text-foreground">{item.hazard}</span>
+                              <TableCell className="py-2.5 px-2 max-w-[130px]">
+                                <span className="text-xs font-medium line-clamp-2 leading-snug text-foreground">{item.hazard}</span>
                               </TableCell>
-                              <TableCell className="py-3.5">
+                              <TableCell className="py-2.5 px-2">
                                 {item.hazardType ? (
-                                  <span className="inline-block px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[11px] font-medium">{item.hazardType}</span>
+                                  <span className="inline-block px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[11px] font-medium">{item.hazardType}</span>
                                 ) : <span className="text-muted-foreground text-xs">-</span>}
                               </TableCell>
-                              <TableCell className="py-3.5 text-center">
-                                <div className="flex flex-col items-center gap-0.5">
+                              <TableCell className="py-2.5 px-1 text-center">
+                                <div className="flex flex-col items-center">
                                   <span className="text-sm font-bold text-foreground tabular-nums">{item.frequency}</span>
-                                  <span className="text-[10px] text-muted-foreground">{PROBABILITY_LABELS[item.frequency]}</span>
+                                  <span className="text-[9px] text-muted-foreground leading-tight">{PROBABILITY_LABELS[item.frequency]}</span>
                                 </div>
                               </TableCell>
-                              <TableCell className="py-3.5 text-center">
-                                <div className="flex flex-col items-center gap-0.5">
+                              <TableCell className="py-2.5 px-1 text-center">
+                                <div className="flex flex-col items-center">
                                   <span className="text-sm font-bold text-foreground tabular-nums">{item.severity}</span>
-                                  <span className="text-[10px] text-muted-foreground">{CRITICALITY_LABELS[item.severity]}</span>
+                                  <span className="text-[9px] text-muted-foreground leading-tight">{CRITICALITY_LABELS[item.severity]}</span>
                                 </div>
                               </TableCell>
-                              <TableCell className="py-3.5 text-center">
-                                <span className="text-base font-extrabold tabular-nums text-foreground">{item.riskScore}</span>
+                              <TableCell className="py-2.5 px-1 text-center">
+                                <span className="text-sm font-extrabold tabular-nums text-foreground">{item.riskScore}</span>
                               </TableCell>
-                              <TableCell className="py-3.5">
+                              <TableCell className="py-2.5 px-2">
                                 <div className="flex flex-col gap-0.5">
-                                  <Badge className={`${getRiskBadgeVariant(grade.label).className} no-default-hover-elevate no-default-active-elevate text-xs px-2 py-0.5 rounded-full w-fit font-bold`} data-testid={`badge-risk-${item.id}`}>
+                                  <Badge className={`${getRiskBadgeVariant(grade.label).className} no-default-hover-elevate no-default-active-elevate text-[11px] px-1.5 py-0 rounded-full w-fit font-bold`} data-testid={`badge-risk-${item.id}`}>
                                     {grade.label}
                                   </Badge>
-                                  <span className="text-[10px] text-muted-foreground">{grade.category}</span>
+                                  <span className="text-[9px] text-muted-foreground leading-tight">{grade.category}</span>
                                 </div>
                               </TableCell>
-                              <TableCell className="text-xs py-3.5 font-medium text-foreground/80">{item.assessor || "-"}</TableCell>
-                              <TableCell className="text-xs text-muted-foreground py-3.5 whitespace-nowrap">{item.assessmentDate}</TableCell>
-                              <TableCell className="py-2">
+                              <TableCell className="text-xs py-2.5 px-2 font-medium text-foreground/80 leading-tight">{item.assessor || "-"}</TableCell>
+                              <TableCell className="text-[11px] text-muted-foreground py-2.5 px-2 whitespace-nowrap">{item.assessmentDate}</TableCell>
+                              <TableCell className="py-2.5 px-2">
                                 <div className="flex flex-col gap-0.5">
                                   {grade.grade === "A" ? getImprovementStatusBadge(item) : (
                                     <span className="text-xs text-muted-foreground">-</span>
                                   )}
                                   {grade.grade === "A" && (item as any).afterRiskScore && (
-                                    <span className="text-[9px] text-muted-foreground">개선후 {(item as any).afterRiskScore}점·{(item as any).afterRiskLevel}</span>
+                                    <span className="text-[9px] text-muted-foreground leading-tight">개선후 {(item as any).afterRiskScore}점·{(item as any).afterRiskLevel}</span>
                                   )}
                                 </div>
                               </TableCell>
-                              <TableCell className="py-2">
+                              <TableCell className="py-2.5 px-2">
                                 {(() => {
                                   const status = (item as any).approvalStatus;
                                   if (status === "승인완료") return (
                                     <div className="flex flex-col gap-0.5">
-                                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 text-[10px] font-medium">
-                                        <CircleCheck className="w-3 h-3" />승인완료
+                                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 text-[10px] font-medium whitespace-nowrap">
+                                        <CircleCheck className="w-2.5 h-2.5 shrink-0" />승인완료
                                       </span>
-                                      {(item as any).approvedBy && <span className="text-[9px] text-muted-foreground">{(item as any).approvedBy}</span>}
+                                      {(item as any).approvedBy && <span className="text-[9px] text-muted-foreground leading-tight">{(item as any).approvedBy}</span>}
                                     </div>
                                   );
                                   if (status === "승인대기") return (
-                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-medium">
-                                      <AlertCircle className="w-3 h-3" />승인대기
+                                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-medium whitespace-nowrap">
+                                      <AlertCircle className="w-2.5 h-2.5 shrink-0" />승인대기
                                     </span>
                                   );
                                   return (
-                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 text-[10px] font-medium">
+                                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 text-[10px] font-medium whitespace-nowrap">
                                       자동종결
                                     </span>
                                   );
