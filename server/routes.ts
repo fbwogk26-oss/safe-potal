@@ -1932,11 +1932,9 @@ export async function registerRoutes(
   app.post('/api/risk-assessments', requireEditor, async (req: any, res) => {
     try {
       const score = (req.body.frequency || 1) * (req.body.severity || 1);
-      let riskLevel = "저";
-      if (score >= 15) riskLevel = "매우높음";
-      else if (score >= 10) riskLevel = "높음";
-      else if (score >= 6) riskLevel = "중";
-      else if (score >= 3) riskLevel = "낮음";
+      let riskLevel = "C등급";
+      if (score >= 8) riskLevel = "A등급";
+      else if (score >= 3) riskLevel = "B등급";
       
       const assessment = await storage.createRiskAssessment({
         ...req.body,
@@ -1952,11 +1950,9 @@ export async function registerRoutes(
   app.put('/api/risk-assessments/:id', requireEditor, async (req: any, res) => {
     try {
       const score = (req.body.frequency || 1) * (req.body.severity || 1);
-      let riskLevel = "저";
-      if (score >= 15) riskLevel = "매우높음";
-      else if (score >= 10) riskLevel = "높음";
-      else if (score >= 6) riskLevel = "중";
-      else if (score >= 3) riskLevel = "낮음";
+      let riskLevel = "C등급";
+      if (score >= 8) riskLevel = "A등급";
+      else if (score >= 3) riskLevel = "B등급";
       
       const assessment = await storage.updateRiskAssessment(Number(req.params.id), {
         ...req.body,
@@ -1987,11 +1983,9 @@ export async function registerRoutes(
       const results = [];
       for (const item of items) {
         const score = (item.frequency || 1) * (item.severity || 1);
-        let riskLevel = "저";
-        if (score >= 15) riskLevel = "매우높음";
-        else if (score >= 10) riskLevel = "높음";
-        else if (score >= 6) riskLevel = "중";
-        else if (score >= 3) riskLevel = "낮음";
+        let riskLevel = "C등급";
+        if (score >= 8) riskLevel = "A등급";
+        else if (score >= 3) riskLevel = "B등급";
         const assessment = await storage.createRiskAssessment({ ...item, riskScore: score, riskLevel });
         results.push(assessment);
       }
