@@ -127,6 +127,7 @@ interface UserName {
 export default function RiskAssessmentPage() {
   const { canEditRiskAssessment, canDownloadRiskAssessmentExcel } = usePermissions();
   const { user } = useAuth();
+  const isDeptHead = user?.role === "deptHead" || user?.role === "admin";
   const { toast } = useToast();
   const [isDownloading, setIsDownloading] = useState(false);
 
@@ -164,7 +165,6 @@ export default function RiskAssessmentPage() {
     responsibleTask: "",
     departmentHead: "",
   });
-  const [approvingItem, setApprovingItem] = useState<RiskAssessment | null>(null);
   const [deptHeadPopoverOpen, setDeptHeadPopoverOpen] = useState(false);
   const [deptHeadSearch, setDeptHeadSearch] = useState("");
   const [recentDeptHeads, setRecentDeptHeads] = useState<string[]>(() => {
@@ -254,7 +254,6 @@ export default function RiskAssessmentPage() {
       apiRequest("PUT", `/api/risk-assessments/${id}/approve`, { approvedBy }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/risk-assessments"] });
-      setApprovingItem(null);
       toast({ title: "부서장 승인이 완료되었습니다." });
     },
     onError: () => toast({ variant: "destructive", title: "승인 처리 실패" }),
@@ -779,22 +778,10 @@ export default function RiskAssessmentPage() {
                                   );
                                 })()}
                               </TableCell>
-                              {canEditRiskAssessment && (
+                              {(canEditRiskAssessment || isDeptHead) && (
                                 <TableCell className="py-3">
                                   <div className="flex flex-col gap-1">
-                                    {(item as any).approvalStatus === "승인대기" && (
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="h-7 px-2 text-[11px] gap-1 border-blue-300 text-blue-700 hover:bg-blue-50 w-full"
-                                        onClick={() => setApprovingItem(item)}
-                                        data-testid={`button-approve-${item.id}`}
-                                      >
-                                        <UserCheck className="w-3 h-3" />
-                                        부서장승인
-                                      </Button>
-                                    )}
-                                    {grade.grade === "A" && (
+                                    {isDeptHead && grade.grade === "A" && (
                                       <Button
                                         variant="outline"
                                         size="sm"
@@ -806,14 +793,16 @@ export default function RiskAssessmentPage() {
                                         개선
                                       </Button>
                                     )}
-                                    <div className="flex gap-1">
-                                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEdit(item)} data-testid={`button-edit-${item.id}`}>
-                                        <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
-                                      </Button>
-                                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDelete(item.id)} data-testid={`button-delete-${item.id}`}>
-                                        <Trash2 className="w-3.5 h-3.5 text-red-400" />
-                                      </Button>
-                                    </div>
+                                    {canEditRiskAssessment && (
+                                      <div className="flex gap-1">
+                                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEdit(item)} data-testid={`button-edit-${item.id}`}>
+                                          <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
+                                        </Button>
+                                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDelete(item.id)} data-testid={`button-delete-${item.id}`}>
+                                          <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                                        </Button>
+                                      </div>
+                                    )}
                                   </div>
                                 </TableCell>
                               )}
@@ -1280,8 +1269,25 @@ export default function RiskAssessmentPage() {
             </div>
           )}
 
-          <DialogFooter className="gap-2 pt-2">
+          <DialogFooter className="gap-2 pt-2 flex-wrap">
             <Button variant="outline" onClick={() => setImprovingItem(null)} data-testid="button-improvement-cancel">취소</Button>
+            {isDeptHead && (improvingItem as any)?.approvalStatus === "승인대기" && (
+              <Button
+                variant="outline"
+                className="gap-2 border-blue-300 text-blue-700 hover:bg-blue-50"
+                onClick={() => {
+                  if (improvingItem) {
+                    approveMutation.mutate({ id: improvingItem.id, approvedBy: user?.name || user?.username || "부서장" });
+                    setImprovingItem(null);
+                  }
+                }}
+                disabled={approveMutation.isPending}
+                data-testid="button-improvement-approve"
+              >
+                <UserCheck className="w-4 h-4" />
+                {approveMutation.isPending ? "처리 중..." : "부서장 승인"}
+              </Button>
+            )}
             <Button
               onClick={handleImprovementSubmit}
               disabled={improvementMutation.isPending}
@@ -1295,51 +1301,6 @@ export default function RiskAssessmentPage() {
         </DialogContent>
       </Dialog>
 
-      {/* 부서장 승인 다이얼로그 */}
-      <Dialog open={!!approvingItem} onOpenChange={(open) => { if (!open) setApprovingItem(null); }}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <UserCheck className="w-5 h-5 text-blue-600" />
-              부서장 승인
-            </DialogTitle>
-          </DialogHeader>
-          {approvingItem && (
-            <div className="space-y-4 py-2">
-              <div className="p-3 rounded-lg bg-blue-50 border border-blue-100 space-y-1">
-                <p className="text-xs text-muted-foreground">부서</p>
-                <p className="text-sm font-medium">{approvingItem.department}</p>
-                <p className="text-xs text-muted-foreground mt-1">유해위험요인</p>
-                <p className="text-sm">{approvingItem.hazard}</p>
-                <p className="text-xs text-muted-foreground mt-1">위험점수</p>
-                <p className="text-sm font-bold text-red-600">{approvingItem.riskScore}점 ({approvingItem.riskLevel})</p>
-              </div>
-              <div className="text-sm text-muted-foreground">
-                A등급 위험성평가 항목에 대해 부서장 승인을 처리합니다. 승인 후 상태가 <strong className="text-green-700">승인완료</strong>로 변경됩니다.
-              </div>
-            </div>
-          )}
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setApprovingItem(null)}>취소</Button>
-            <Button
-              onClick={() => {
-                if (approvingItem) {
-                  approveMutation.mutate({
-                    id: approvingItem.id,
-                    approvedBy: user?.name || user?.username || "부서장",
-                  });
-                }
-              }}
-              disabled={approveMutation.isPending}
-              className="bg-blue-600 hover:bg-blue-700 text-white gap-2"
-              data-testid="button-approve-confirm"
-            >
-              <CircleCheck className="w-4 h-4" />
-              {approveMutation.isPending ? "처리 중..." : "승인 확인"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
