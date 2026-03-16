@@ -457,27 +457,19 @@ export default function RiskAssessmentPage() {
           <TabsContent key={tab.value} value={tab.value} className="space-y-3 mt-3">
             {/* 조회 필터 + 통계 */}
             <div className="flex items-center justify-between gap-3 flex-wrap">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-sm text-muted-foreground font-medium">부서 조회</span>
-                <div className="flex gap-1 flex-wrap">
-                  <button
-                    onClick={() => setFilterDept("전체")}
-                    className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${filterDept === "전체" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}
-                    data-testid="filter-all"
-                  >
-                    전체
-                  </button>
-                  {DEPARTMENTS.map(dept => (
-                    <button
-                      key={dept}
-                      onClick={() => setFilterDept(dept)}
-                      className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${filterDept === dept ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}
-                      data-testid={`filter-dept-${dept}`}
-                    >
-                      {dept.replace("운용팀", "").replace("팀", "")}
-                    </button>
-                  ))}
-                </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground font-medium whitespace-nowrap">부서 조회</span>
+                <Select value={filterDept} onValueChange={setFilterDept}>
+                  <SelectTrigger className="h-8 text-xs w-[130px]" data-testid="select-filter-dept">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="전체">전체 부서</SelectItem>
+                    {DEPARTMENTS.map(dept => (
+                      <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               {riskStats && (
                 <div className="flex gap-1.5 flex-wrap">
@@ -539,46 +531,48 @@ export default function RiskAssessmentPage() {
                               data-testid={`row-assessment-${item.id}`}
                             >
                               <TableCell className="text-xs text-muted-foreground py-3 text-center font-medium">{idx + 1}</TableCell>
-                              <TableCell className="py-3">
-                                <span className="text-sm font-medium">{item.department}</span>
+                              <TableCell className="py-2">
+                                <span className="text-xs font-medium">{item.department}</span>
                               </TableCell>
-                              <TableCell className="text-sm text-muted-foreground py-3">{item.process || "-"}</TableCell>
-                              <TableCell className="text-sm font-medium py-3">{item.hazard}</TableCell>
-                              <TableCell className="text-sm py-3">
-                                <span className="inline-block px-1.5 py-0.5 rounded bg-muted text-muted-foreground text-xs">{item.hazardType || "-"}</span>
+                              <TableCell className="text-xs text-muted-foreground py-2">{item.process || "-"}</TableCell>
+                              <TableCell className="text-xs font-medium py-2 max-w-[130px]">
+                                <span className="line-clamp-2 leading-snug">{item.hazard}</span>
                               </TableCell>
-                              <TableCell className="py-3 text-center">
-                                <div className="flex flex-col items-center">
-                                  <span className="text-sm font-bold">{item.frequency}</span>
-                                  <span className="text-[10px] text-muted-foreground leading-tight">{PROBABILITY_LABELS[item.frequency]}</span>
+                              <TableCell className="py-2">
+                                <span className="inline-block px-1 py-0.5 rounded bg-muted text-muted-foreground text-[11px]">{item.hazardType || "-"}</span>
+                              </TableCell>
+                              <TableCell className="py-2 text-center">
+                                <div className="flex flex-col items-center leading-tight">
+                                  <span className="text-xs font-bold">{item.frequency}</span>
+                                  <span className="text-[9px] text-muted-foreground">{PROBABILITY_LABELS[item.frequency]}</span>
                                 </div>
                               </TableCell>
-                              <TableCell className="py-3 text-center">
-                                <div className="flex flex-col items-center">
-                                  <span className="text-sm font-bold">{item.severity}</span>
-                                  <span className="text-[10px] text-muted-foreground leading-tight">{CRITICALITY_LABELS[item.severity]}</span>
+                              <TableCell className="py-2 text-center">
+                                <div className="flex flex-col items-center leading-tight">
+                                  <span className="text-xs font-bold">{item.severity}</span>
+                                  <span className="text-[9px] text-muted-foreground">{CRITICALITY_LABELS[item.severity]}</span>
                                 </div>
                               </TableCell>
-                              <TableCell className="py-3 text-center">
-                                <span className="text-base font-bold tabular-nums">{item.riskScore}</span>
+                              <TableCell className="py-2 text-center">
+                                <span className="text-sm font-bold tabular-nums">{item.riskScore}</span>
                               </TableCell>
-                              <TableCell className="py-3">
+                              <TableCell className="py-2">
                                 <div className="flex flex-col gap-0.5">
-                                  <Badge className={`${getRiskBadgeVariant(grade.label).className} no-default-hover-elevate no-default-active-elevate text-xs px-2 py-0.5 rounded-full w-fit`} data-testid={`badge-risk-${item.id}`}>
+                                  <Badge className={`${getRiskBadgeVariant(grade.label).className} no-default-hover-elevate no-default-active-elevate text-[11px] px-1.5 py-0.5 rounded-full w-fit`} data-testid={`badge-risk-${item.id}`}>
                                     {grade.label}
                                   </Badge>
-                                  <span className="text-[10px] text-muted-foreground">{grade.category}</span>
+                                  <span className="text-[9px] text-muted-foreground">{grade.category}</span>
                                 </div>
                               </TableCell>
-                              <TableCell className="text-sm py-3">{item.assessor || "-"}</TableCell>
-                              <TableCell className="text-xs text-muted-foreground py-3 whitespace-nowrap">{item.assessmentDate}</TableCell>
-                              <TableCell className="py-3">
+                              <TableCell className="text-xs py-2">{item.assessor || "-"}</TableCell>
+                              <TableCell className="text-[11px] text-muted-foreground py-2 whitespace-nowrap">{item.assessmentDate}</TableCell>
+                              <TableCell className="py-2">
                                 <div className="flex flex-col gap-0.5">
                                   {grade.grade === "A" ? getImprovementStatusBadge(item) : (
-                                    <span className="text-sm text-muted-foreground">-</span>
+                                    <span className="text-xs text-muted-foreground">-</span>
                                   )}
                                   {grade.grade === "A" && (item as any).afterRiskScore && (
-                                    <span className="text-[10px] text-muted-foreground">개선후 {(item as any).afterRiskScore}점·{(item as any).afterRiskLevel}</span>
+                                    <span className="text-[9px] text-muted-foreground">개선후 {(item as any).afterRiskScore}점·{(item as any).afterRiskLevel}</span>
                                   )}
                                 </div>
                               </TableCell>

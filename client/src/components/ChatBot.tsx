@@ -18,6 +18,7 @@ import {
   Shield,
   MessageCircle,
   Edit3,
+  GripHorizontal,
 } from "lucide-react";
 
 interface ChatMessage {
@@ -55,6 +56,47 @@ export function ChatBot() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // 드래그 위치 상태 (null = 기본 우측 하단)
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const dragRef = useRef<{ startX: number; startY: number; posX: number; posY: number } | null>(null);
+  const isDraggingRef = useRef(false);
+
+  const PANEL_W = 380;
+  const PANEL_H = 560;
+  const BTN_SIZE = 64;
+
+  const getDefaultPos = useCallback(() => ({
+    x: window.innerWidth - PANEL_W - 16,
+    y: window.innerHeight - PANEL_H - 16,
+  }), []);
+
+  const getDefaultBtnPos = useCallback(() => ({
+    x: window.innerWidth - BTN_SIZE - 16,
+    y: window.innerHeight - BTN_SIZE - 16,
+  }), []);
+
+  const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const current = pos ?? getDefaultPos();
+    dragRef.current = { startX: e.clientX, startY: e.clientY, posX: current.x, posY: current.y };
+    isDraggingRef.current = false;
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  }, [pos, getDefaultPos]);
+
+  const handlePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragRef.current) return;
+    const dx = e.clientX - dragRef.current.startX;
+    const dy = e.clientY - dragRef.current.startY;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) isDraggingRef.current = true;
+    const newX = Math.max(0, Math.min(window.innerWidth - PANEL_W, dragRef.current.posX + dx));
+    const newY = Math.max(0, Math.min(window.innerHeight - 60, dragRef.current.posY + dy));
+    setPos({ x: newX, y: newY });
+  }, []);
+
+  const handlePointerUp = useCallback(() => {
+    dragRef.current = null;
+  }, []);
 
   const scrollToBottom = useCallback(() => {
     setTimeout(() => {
@@ -334,9 +376,12 @@ export function ChatBot() {
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          className="fixed bottom-4 right-4 z-50 w-16 h-16 rounded-full shadow-lg hover:shadow-2xl transition-all duration-300 flex items-center justify-center hover:scale-110 active:scale-95 group"
+          className="fixed z-50 w-16 h-16 rounded-full shadow-lg hover:shadow-2xl transition-all duration-300 flex items-center justify-center hover:scale-110 active:scale-95 group"
           style={{
             background: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 30%, #a855f7 60%, #d946ef 100%)",
+            ...(pos
+              ? { left: pos.x + PANEL_W - BTN_SIZE, top: pos.y + PANEL_H - BTN_SIZE }
+              : { bottom: 16, right: 16 }),
           }}
           data-testid="button-chatbot-open"
         >
@@ -351,23 +396,35 @@ export function ChatBot() {
       )}
 
       {isOpen && (
-        <div className="fixed bottom-4 right-4 z-50 w-[380px] max-w-[calc(100vw-2rem)] h-[560px] max-h-[calc(100vh-6rem)] bg-background border rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-5 duration-300"
+        <div
+          className="fixed z-50 w-[380px] max-w-[calc(100vw-2rem)] h-[560px] max-h-[calc(100vh-2rem)] bg-background border rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+          style={pos ? { left: pos.x, top: pos.y } : { bottom: 16, right: 16 }}
           data-testid="chatbot-panel"
         >
-          <div className="flex items-center justify-between px-4 py-3 border-b" style={{ background: "linear-gradient(135deg, rgba(99,102,241,0.1) 0%, rgba(168,85,247,0.1) 50%, rgba(217,70,239,0.05) 100%)" }}>
+          {/* 드래그 핸들 헤더 */}
+          <div
+            className="flex items-center justify-between px-4 py-3 border-b cursor-grab active:cursor-grabbing select-none"
+            style={{ background: "linear-gradient(135deg, rgba(99,102,241,0.1) 0%, rgba(168,85,247,0.1) 50%, rgba(217,70,239,0.05) 100%)" }}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+          >
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm" style={{ background: "linear-gradient(135deg, #6366f1, #a855f7)" }}>
                 <Sparkles className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h3 className="text-sm font-bold">AI 안전포털 어시스턴트</h3>
+                <div className="flex items-center gap-1.5">
+                  <h3 className="text-sm font-bold">AI 안전포털 어시스턴트</h3>
+                  <GripHorizontal className="w-3.5 h-3.5 text-muted-foreground/50" />
+                </div>
                 <div className="flex items-center gap-1.5">
                   <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                  <p className="text-[10px] text-muted-foreground">전체 메뉴 검색 · 등록 지원</p>
+                  <p className="text-[10px] text-muted-foreground">드래그로 위치 이동 · 전체 메뉴 지원</p>
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1" onPointerDown={e => e.stopPropagation()}>
               <Button
                 variant="ghost"
                 size="icon"
