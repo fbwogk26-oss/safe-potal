@@ -151,6 +151,21 @@ export default function RiskAssessmentPage() {
   });
   const [approvingItem, setApprovingItem] = useState<RiskAssessment | null>(null);
   const [deptHeadPopoverOpen, setDeptHeadPopoverOpen] = useState(false);
+  const [deptHeadSearch, setDeptHeadSearch] = useState("");
+  const [recentDeptHeads, setRecentDeptHeads] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem("recentDeptHeads") || "[]"); } catch { return []; }
+  });
+
+  const selectDeptHead = (name: string) => {
+    setHeader(h => ({ ...h, departmentHead: name }));
+    setDeptHeadPopoverOpen(false);
+    setDeptHeadSearch("");
+    setRecentDeptHeads(prev => {
+      const updated = [name, ...prev.filter(n => n !== name)].slice(0, 5);
+      try { localStorage.setItem("recentDeptHeads", JSON.stringify(updated)); } catch {}
+      return updated;
+    });
+  };
 
   const { data: userNames } = useQuery<UserName[]>({
     queryKey: ["/api/users/names"],
@@ -849,38 +864,81 @@ export default function RiskAssessmentPage() {
               {/* 부서장 선택 */}
               <div className="flex items-center gap-3 pt-1 border-t border-border/50">
                 <Label className="text-xs font-semibold text-foreground whitespace-nowrap">부서장</Label>
-                <Popover open={deptHeadPopoverOpen} onOpenChange={setDeptHeadPopoverOpen}>
+                <Popover open={deptHeadPopoverOpen} onOpenChange={open => { setDeptHeadPopoverOpen(open); if (!open) setDeptHeadSearch(""); }}>
                   <PopoverTrigger asChild>
                     <Button variant="outline" size="sm" className={`gap-2 h-8 text-xs ${header.departmentHead ? "border-blue-400 text-blue-700 bg-blue-50 hover:bg-blue-100" : "border-dashed"}`} data-testid="button-dept-head-search">
                       <Users className="w-3.5 h-3.5" />
                       {header.departmentHead || "부서장 선택"}
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-60 p-2" align="start">
-                    <p className="text-xs font-semibold text-muted-foreground mb-2 px-1">부서장 선택</p>
-                    <div className="max-h-52 overflow-y-auto space-y-0.5">
-                      {header.departmentHead && (
-                        <button
-                          type="button"
-                          className="w-full text-left px-2 py-1.5 rounded text-xs text-red-500 hover:bg-red-50 flex items-center gap-1.5"
-                          onClick={() => { setHeader(h => ({ ...h, departmentHead: "" })); setDeptHeadPopoverOpen(false); }}
-                        >
-                          <X className="w-3 h-3" />선택 해제
-                        </button>
+                  <PopoverContent className="w-64 p-0" align="start">
+                    {/* 검색 입력 */}
+                    <div className="p-2 border-b">
+                      <Input
+                        placeholder="이름 검색..."
+                        value={deptHeadSearch}
+                        onChange={e => setDeptHeadSearch(e.target.value)}
+                        className="h-8 text-xs"
+                        autoFocus
+                        data-testid="input-dept-head-search"
+                      />
+                    </div>
+                    <div className="max-h-56 overflow-y-auto">
+                      {/* 선택 해제 버튼 */}
+                      {header.departmentHead && !deptHeadSearch && (
+                        <div className="p-1.5 border-b">
+                          <button
+                            type="button"
+                            className="w-full text-left px-2 py-1.5 rounded text-xs text-red-500 hover:bg-red-50 flex items-center gap-1.5"
+                            onClick={() => { setHeader(h => ({ ...h, departmentHead: "" })); setDeptHeadPopoverOpen(false); }}
+                          >
+                            <X className="w-3 h-3" />선택 해제 ({header.departmentHead})
+                          </button>
+                        </div>
                       )}
-                      {(userNames || []).map(u => (
-                        <button
-                          key={u.id}
-                          type="button"
-                          className={`w-full text-left px-2 py-1.5 rounded text-xs hover:bg-muted transition-colors flex items-center justify-between gap-2 ${header.departmentHead === u.name ? "bg-blue-50 text-blue-700 font-semibold" : ""}`}
-                          onClick={() => { setHeader(h => ({ ...h, departmentHead: u.name })); setDeptHeadPopoverOpen(false); }}
-                        >
-                          <span>{u.name}</span>
-                          {u.department && <span className="text-muted-foreground text-[10px] shrink-0">{u.department}</span>}
-                        </button>
-                      ))}
-                      {(!userNames || userNames.length === 0) && (
-                        <p className="text-xs text-muted-foreground px-2 py-2 text-center">사용자 없음</p>
+                      {/* 검색 결과 */}
+                      {(() => {
+                        const filtered = (userNames || []).filter(u =>
+                          !deptHeadSearch || u.name.includes(deptHeadSearch) || u.department?.includes(deptHeadSearch)
+                        );
+                        if (filtered.length === 0) {
+                          return <p className="text-xs text-muted-foreground px-3 py-4 text-center">검색 결과 없음</p>;
+                        }
+                        return (
+                          <div className="p-1.5 space-y-0.5">
+                            {!deptHeadSearch && <p className="text-[10px] text-muted-foreground px-2 py-0.5 font-semibold uppercase tracking-wide">전체 사용자</p>}
+                            {filtered.map(u => (
+                              <button
+                                key={u.id}
+                                type="button"
+                                className={`w-full text-left px-2 py-1.5 rounded text-xs hover:bg-muted transition-colors flex items-center justify-between gap-2 ${header.departmentHead === u.name ? "bg-blue-50 text-blue-700 font-semibold" : ""}`}
+                                onClick={() => selectDeptHead(u.name)}
+                              >
+                                <span className="font-medium">{u.name}</span>
+                                {u.department && <span className="text-muted-foreground text-[10px] shrink-0">{u.department}</span>}
+                              </button>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                      {/* 최근 선택 내역 (검색 중이 아닐 때만) */}
+                      {!deptHeadSearch && recentDeptHeads.length > 0 && (
+                        <div className="border-t p-1.5 space-y-0.5">
+                          <p className="text-[10px] text-muted-foreground px-2 py-0.5 font-semibold uppercase tracking-wide flex items-center gap-1">
+                            <Clock className="w-2.5 h-2.5" />최근 선택
+                          </p>
+                          {recentDeptHeads.map(name => (
+                            <button
+                              key={name}
+                              type="button"
+                              className={`w-full text-left px-2 py-1.5 rounded text-xs hover:bg-muted transition-colors flex items-center gap-1.5 ${header.departmentHead === name ? "bg-blue-50 text-blue-700 font-semibold" : "text-muted-foreground"}`}
+                              onClick={() => selectDeptHead(name)}
+                            >
+                              <Clock className="w-2.5 h-2.5 shrink-0" />
+                              {name}
+                            </button>
+                          ))}
+                        </div>
                       )}
                     </div>
                   </PopoverContent>
