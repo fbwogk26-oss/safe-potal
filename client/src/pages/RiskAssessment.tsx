@@ -243,8 +243,6 @@ export default function RiskAssessmentPage() {
       apiRequest("PUT", `/api/risk-assessments/${id}/improvement`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/risk-assessments"] });
-      setImprovingItem(null);
-      toast({ title: "개선 내용이 등록되었습니다." });
     },
     onError: () => toast({ variant: "destructive", title: "개선 등록 실패" }),
   });
@@ -254,7 +252,6 @@ export default function RiskAssessmentPage() {
       apiRequest("PUT", `/api/risk-assessments/${id}/approve`, { approvedBy }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/risk-assessments"] });
-      toast({ title: "부서장 승인이 완료되었습니다." });
     },
     onError: () => toast({ variant: "destructive", title: "승인 처리 실패" }),
   });
@@ -393,7 +390,7 @@ export default function RiskAssessmentPage() {
     setUploadingImprovementPhoto(false);
   };
 
-  const handleImprovementSubmit = () => {
+  const handleImprovementSubmit = async () => {
     if (!improvingItem) return;
     if (!improvementForm.improvementMeasures) {
       toast({ variant: "destructive", title: "개선대책을 입력해주세요." });
@@ -403,7 +400,19 @@ export default function RiskAssessmentPage() {
       toast({ variant: "destructive", title: "개선예정일을 입력해주세요." });
       return;
     }
-    improvementMutation.mutate({ id: improvingItem.id, data: improvementForm });
+    const itemId = improvingItem.id;
+    try {
+      await improvementMutation.mutateAsync({ id: itemId, data: improvementForm });
+      if (isDeptHead) {
+        await approveMutation.mutateAsync({ id: itemId, approvedBy: user?.name || user?.username || "부서장" });
+        toast({ title: "개선 내용이 저장되고 부서장 승인이 완료되었습니다." });
+      } else {
+        toast({ title: "개선 내용이 등록되었습니다." });
+      }
+      setImprovingItem(null);
+    } catch {
+      // 각 mutation의 onError에서 처리됨
+    }
   };
 
   const getImprovementStatusBadge = (item: RiskAssessment) => {
@@ -1269,33 +1278,16 @@ export default function RiskAssessmentPage() {
             </div>
           )}
 
-          <DialogFooter className="gap-2 pt-2 flex-wrap">
+          <DialogFooter className="gap-2 pt-2">
             <Button variant="outline" onClick={() => setImprovingItem(null)} data-testid="button-improvement-cancel">취소</Button>
-            {isDeptHead && (improvingItem as any)?.approvalStatus === "승인대기" && (
-              <Button
-                variant="outline"
-                className="gap-2 border-blue-300 text-blue-700 hover:bg-blue-50"
-                onClick={() => {
-                  if (improvingItem) {
-                    approveMutation.mutate({ id: improvingItem.id, approvedBy: user?.name || user?.username || "부서장" });
-                    setImprovingItem(null);
-                  }
-                }}
-                disabled={approveMutation.isPending}
-                data-testid="button-improvement-approve"
-              >
-                <UserCheck className="w-4 h-4" />
-                {approveMutation.isPending ? "처리 중..." : "부서장 승인"}
-              </Button>
-            )}
             <Button
               onClick={handleImprovementSubmit}
-              disabled={improvementMutation.isPending}
+              disabled={improvementMutation.isPending || approveMutation.isPending}
               className="bg-orange-500 hover:bg-orange-600 text-white gap-2"
               data-testid="button-improvement-submit"
             >
               <CheckCircle2 className="w-4 h-4" />
-              {improvementMutation.isPending ? "저장 중..." : "개선 내용 저장"}
+              {(improvementMutation.isPending || approveMutation.isPending) ? "저장 중..." : "개선 내용 저장"}
             </Button>
           </DialogFooter>
         </DialogContent>
