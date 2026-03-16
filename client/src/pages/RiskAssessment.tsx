@@ -25,6 +25,14 @@ const DEPARTMENTS = [
   "안동운용팀", "구미운용팀", "문경운용팀", "운용지원팀",
   "운용계획팀", "사업지원팀", "현장경영팀", "공공망관제팀",
 ];
+const DEPT_SHORT: Record<string, string> = {
+  "동대구운용팀": "동대구", "서대구운용팀": "서대구", "남대구운용팀": "남대구",
+  "포항운용팀": "포항", "안동운용팀": "안동", "구미운용팀": "구미",
+  "문경운용팀": "문경", "운용지원팀": "운용지원", "운용계획팀": "운용계획",
+  "사업지원팀": "사업지원", "현장경영팀": "현장경영", "공공망관제팀": "공공망",
+};
+const shortDept = (dept: string) => DEPT_SHORT[dept] ?? dept;
+
 const HAZARD_TYPES = ["추락", "전도", "충돌", "협착", "감전", "화재/폭발", "기타"];
 
 const RESPONSIBLE_TASKS = ["운용팀", "제어망", "고객케어 및 응대", "일반사무", "통합수리"];
@@ -693,7 +701,7 @@ export default function RiskAssessmentPage() {
                             >
                               <TableCell className="text-xs text-muted-foreground py-3.5 text-center font-semibold">{idx + 1}</TableCell>
                               <TableCell className="py-3.5">
-                                <span className="text-xs font-semibold text-foreground">{item.department}</span>
+                                <span className="text-xs font-semibold text-foreground">{shortDept(item.department)}</span>
                               </TableCell>
                               <TableCell className="py-3.5">
                                 <span className="text-xs text-foreground/80">{item.process || <span className="text-muted-foreground">-</span>}</span>
