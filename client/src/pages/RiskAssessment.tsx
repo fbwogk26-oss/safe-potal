@@ -896,10 +896,10 @@ export default function RiskAssessmentPage() {
                           </button>
                         </div>
                       )}
-                      {/* 검색 결과 */}
-                      {(() => {
+                      {/* 검색 결과: 검색어 입력 시에만 표시 */}
+                      {deptHeadSearch && (() => {
                         const filtered = (userNames || []).filter(u =>
-                          !deptHeadSearch || u.name.includes(deptHeadSearch) || u.department?.includes(deptHeadSearch)
+                          u.name.includes(deptHeadSearch) || u.department?.includes(deptHeadSearch)
                         );
                         if (filtered.length === 0) {
                           return <p className="text-xs text-muted-foreground px-3 py-4 text-center">검색 결과 없음</p>;
