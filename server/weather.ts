@@ -307,10 +307,14 @@ export async function fetchWeather(city: string): Promise<WeatherData> {
   const encodedCity = encodeURIComponent(city);
   const url = `https://wttr.in/${encodedCity}?format=j1`;
 
-  const res = await fetch(url, {
-    headers: { "User-Agent": "SafeBoard/1.0" },
-    signal: AbortSignal.timeout(10000),
-  });
+  // 날씨와 PM10을 동시에 병렬 요청 (속도 최적화)
+  const [res, pm10Result] = await Promise.all([
+    fetch(url, {
+      headers: { "User-Agent": "SafeBoard/1.0" },
+      signal: AbortSignal.timeout(10000),
+    }),
+    fetchPm10(city),
+  ]);
 
   if (!res.ok) {
     throw new Error(`날씨 API 오류: ${res.status}`);
@@ -328,9 +332,6 @@ export async function fetchWeather(city: string): Promise<WeatherData> {
   const precipProb = hourly.reduce((max: number, h: any) => Math.max(max, Number(h.chanceofrain ?? 0)), 0);
 
   const windKmph = Number(c.windspeedKmph ?? 0);
-
-  // PM10 fetch (best-effort)
-  const pm10Result = await fetchPm10(city);
 
   const warnings = computeWarnings({
     tempC: Number(c.temp_C ?? 0),

@@ -236,20 +236,18 @@ export function Sidebar() {
         </div>
       </Link>
 
-      <div className="flex-1 overflow-y-auto px-2 py-3 space-y-4">
+      <div className="flex-1 overflow-y-auto px-2 py-2 flex flex-col gap-0.5">
         {NAV_SECTIONS.map((section, si) => {
           const filteredEntries = filterEntries(section.entries);
           if (filteredEntries.length === 0) return null;
           return (
-            <div key={si}>
+            <div key={si} className="flex flex-col gap-0.5">
               {section.sectionLabel && (
                 <p className="px-3 mb-1 text-[10px] font-bold text-muted-foreground/70 uppercase tracking-widest">
                   {section.sectionLabel}
                 </p>
               )}
-              <div className="flex flex-col gap-0.5">
-                {filteredEntries.map(renderEntry)}
-              </div>
+              {filteredEntries.map(renderEntry)}
             </div>
           );
         })}
