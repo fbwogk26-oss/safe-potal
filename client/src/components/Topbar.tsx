@@ -1,4 +1,4 @@
-import { Bell, LogOut, Users, Menu, LayoutDashboard, ShieldCheck, Shield, HeartPulse, GraduationCap, DoorOpen, ShoppingCart, MonitorPlay, ClipboardCheck, FileText, KeyRound, Eye, EyeOff, AlertTriangle, ShieldAlert, FlaskConical, ChevronDown, ScrollText, CloudRain, Bone } from "lucide-react";
+import { Bell, LogOut, Users, Menu, LayoutDashboard, ShieldCheck, Shield, HeartPulse, GraduationCap, DoorOpen, ShoppingCart, MonitorPlay, ClipboardCheck, FileText, KeyRound, Eye, EyeOff, AlertTriangle, ShieldAlert, FlaskConical, ChevronDown, ScrollText, Bone, Home } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,6 +40,7 @@ function isMobileGroup(entry: MobileNavEntry): entry is MobileNavGroup {
 }
 
 const MOBILE_NAV_ITEMS: MobileNavEntry[] = [
+  { label: "홈", href: "/", icon: Home },
   { label: "공지/알림", href: "/notices", icon: Bell },
   { label: "전자게시판", href: "/digital-board", icon: MonitorPlay },
   { label: "안전수칙", href: "/rules", icon: ShieldCheck },
@@ -64,7 +65,6 @@ const MOBILE_NAV_ITEMS: MobileNavEntry[] = [
     children: [
       { label: "MSDS검색", href: "/msds", icon: FlaskConical },
       { label: "근골격계질환", href: "/musculoskeletal", icon: Bone },
-      { label: "날씨 안전메시지", href: "/weather-safety", icon: CloudRain },
     ],
   },
   {

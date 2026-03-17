@@ -320,7 +320,9 @@ export async function fetchWeather(city: string): Promise<WeatherData> {
     throw new Error(`날씨 API 오류: ${res.status}`);
   }
 
-  const json = (await res.json()) as any;
+  const raw = (await res.json()) as any;
+  // wttr.in 응답 구조: { data: { current_condition, weather } } 또는 { current_condition, weather }
+  const json = raw?.data ?? raw;
   const c = json?.current_condition?.[0];
   if (!c) throw new Error("날씨 데이터를 파싱할 수 없습니다.");
 
