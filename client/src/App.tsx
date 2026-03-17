@@ -40,7 +40,7 @@ function MainLayout() {
         
         <Topbar />
         
-        <div className="flex-1 px-3 sm:px-4 md:px-8 pb-6 md:pb-8 max-w-[1600px] mx-auto w-full animate-in fade-in duration-500">
+        <div className="flex-1 px-3 sm:px-5 md:px-8 pt-4 pb-6 md:pb-10 max-w-[1600px] mx-auto w-full animate-in fade-in duration-500">
           <Switch>
             <Route path="/" component={HomePage} />
             <Route path="/safety-scores" component={Dashboard} />

@@ -236,12 +236,12 @@ export function Topbar() {
           </div>
         </div>
 
-        <div className="bg-primary/5 border-y border-primary/10 overflow-hidden h-9 flex items-center relative">
-          <div className="absolute left-0 z-10 px-3 h-full flex items-center bg-background/50 backdrop-blur-sm text-xs font-bold text-primary uppercase tracking-wider">
-            공지
+        <div className="bg-primary/5 border-t border-primary/10 overflow-hidden h-8 flex items-center relative">
+          <div className="absolute left-0 z-10 px-2.5 h-full flex items-center bg-primary/10 border-r border-primary/15">
+            <span className="text-[11px] font-bold text-primary uppercase tracking-wider whitespace-nowrap">📢 공지</span>
           </div>
-          <div className="w-full overflow-hidden pl-14">
-            <div className="animate-ticker pause-hover px-4 text-sm font-medium text-foreground/80 flex items-center gap-10">
+          <div className="w-full overflow-hidden pl-[72px]">
+            <div className="animate-ticker pause-hover px-4 text-[13px] font-medium text-foreground/75 flex items-center gap-10">
               {tickerNotice ? (
                  <>
                    <span>{tickerNotice.content}</span>
