@@ -744,6 +744,9 @@ export default function RiskAssessmentPage() {
                               <Separator />
 
                               <div className="space-y-2 text-xs">
+                                {ra.currentIssue && (
+                                  <div><span className="text-muted-foreground font-semibold">현황 및 문제점</span><p className="mt-0.5 text-foreground/80 leading-relaxed">{ra.currentIssue}</p></div>
+                                )}
                                 <div><span className="text-muted-foreground font-semibold">유해위험요인</span><p className="mt-0.5 text-foreground font-medium">{item.hazard}</p></div>
                                 {ra.relatedLaw && (
                                   <div><span className="text-muted-foreground font-semibold">관련법규</span><p className="mt-0.5 text-foreground/80">{ra.relatedLaw}</p></div>
@@ -760,10 +763,21 @@ export default function RiskAssessmentPage() {
                                 <span className={`font-bold px-2 py-0.5 rounded-full text-xs ${getRiskBadgeClass(grade.label)}`}>{item.riskScore}점 {grade.label}</span>
                               </div>
 
-                              {ra.beforePhotoUrl && (
-                                <div>
-                                  <p className="text-xs text-muted-foreground font-semibold mb-1">개선 전 사진</p>
-                                  <img src={ra.beforePhotoUrl} alt="개선 전" className="h-24 w-36 object-cover rounded-md border" />
+                              {/* 사진 */}
+                              {(ra.beforePhotoUrl || ra.afterPhotoUrl) && (
+                                <div className="flex gap-4 flex-wrap">
+                                  {ra.beforePhotoUrl && (
+                                    <div>
+                                      <p className="text-xs text-muted-foreground font-semibold mb-1">개선 전 사진</p>
+                                      <img src={ra.beforePhotoUrl} alt="개선 전" className="h-24 w-36 object-cover rounded-md border" />
+                                    </div>
+                                  )}
+                                  {ra.afterPhotoUrl && (
+                                    <div>
+                                      <p className="text-xs text-muted-foreground font-semibold mb-1">개선 후 사진</p>
+                                      <img src={ra.afterPhotoUrl} alt="개선 후" className="h-24 w-36 object-cover rounded-md border" />
+                                    </div>
+                                  )}
                                 </div>
                               )}
 
