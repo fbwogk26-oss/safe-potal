@@ -33,28 +33,43 @@ export interface WeatherData {
 const weatherCache = new Map<string, { data: WeatherData; fetchedAt: number }>();
 const CACHE_TTL_MS = 10 * 60 * 1000;
 
-const PM10_STATION_MAP: Record<string, string> = {
-  대구: "수성구",
-  구미: "구미",
-  포항: "포항",
-  안동: "안동",
-  문경: "문경",
-  울릉도: "울릉도",
-  울진: "울진",
+// 도시 → 시도 매핑 (에어코리아 시도별 조회용)
+const CITY_TO_SIDO: Record<string, string> = {
+  대구: "대구",
+  구미: "경북",
+  포항: "경북",
+  안동: "경북",
+  문경: "경북",
+  울릉도: "경북",
+  울진: "경북",
+  부산: "부산",
+  울산: "울산",
+  서울: "서울",
+  인천: "인천",
+  광주: "광주",
+  대전: "대전",
+  세종: "세종",
+  수원: "경기",
+  창원: "경남",
+  전주: "전북",
 };
 
-async function fetchPm10(city: string): Promise<{ value: number | null; grade: string | null; color: string | null }> {
-  const serviceKey = process.env.KOSHA_SERVICE_KEY;
-  if (!serviceKey) return { value: null, grade: null, color: null };
+function pm10Grade(value: number): { grade: string; color: string } {
+  if (value <= 30) return { grade: "좋음", color: "#22c55e" };
+  if (value <= 80) return { grade: "보통", color: "#eab308" };
+  if (value <= 150) return { grade: "나쁨", color: "#f97316" };
+  return { grade: "매우나쁨", color: "#ef4444" };
+}
 
-  const stationName = PM10_STATION_MAP[city] ?? city;
+async function fetchPm10AirKorea(city: string, serviceKey: string): Promise<number | null> {
+  const sidoName = CITY_TO_SIDO[city] ?? city;
   try {
-    const url = new URL("https://apis.data.go.kr/B552584/ArpltnInforInqireSvc/getMsrstnAcctoRltmMesureDnsty");
+    // 시도별 실시간 평균정보 조회 (역명 필요 없음)
+    const url = new URL("https://apis.data.go.kr/B552584/ArpltnInforInqireSvc/getCtprvnRltmMesureDnsty");
     url.searchParams.append("serviceKey", serviceKey);
-    url.searchParams.append("stationName", stationName);
-    url.searchParams.append("dataTerm", "DAILY");
+    url.searchParams.append("sidoName", sidoName);
     url.searchParams.append("pageNo", "1");
-    url.searchParams.append("numOfRows", "1");
+    url.searchParams.append("numOfRows", "10");
     url.searchParams.append("returnType", "json");
     url.searchParams.append("ver", "1.0");
 
@@ -62,27 +77,103 @@ async function fetchPm10(city: string): Promise<{ value: number | null; grade: s
       headers: { "User-Agent": "SafeBoard/1.0" },
       signal: AbortSignal.timeout(8000),
     });
-    if (!res.ok) return { value: null, grade: null, color: null };
+    if (!res.ok) {
+      console.warn(`[PM10/AirKorea] HTTP ${res.status} for sido=${sidoName}`);
+      return null;
+    }
 
     const json = (await res.json()) as any;
-    const item = json?.response?.body?.items?.item?.[0];
-    const raw = item?.pm10Value;
-    if (!raw || raw === "-") return { value: null, grade: null, color: null };
+    const resultCode = json?.response?.header?.resultCode;
+    if (resultCode && resultCode !== "00") {
+      console.warn(`[PM10/AirKorea] resultCode=${resultCode}: ${json?.response?.header?.resultMsg}`);
+      return null;
+    }
 
-    const value = Number(raw);
-    if (isNaN(value)) return { value: null, grade: null, color: null };
+    const itemsRaw = json?.response?.body?.items;
+    const items: any[] = Array.isArray(itemsRaw)
+      ? itemsRaw
+      : Array.isArray(itemsRaw?.item)
+        ? itemsRaw.item
+        : [];
 
-    let grade: string;
-    let color: string;
-    if (value <= 30) { grade = "좋음"; color = "#22c55e"; }
-    else if (value <= 80) { grade = "보통"; color = "#eab308"; }
-    else if (value <= 150) { grade = "나쁨"; color = "#f97316"; }
-    else { grade = "매우나쁨"; color = "#ef4444"; }
-
-    return { value, grade, color };
-  } catch {
-    return { value: null, grade: null, color: null };
+    // 첫 번째 유효한 pm10 값 추출
+    for (const item of items) {
+      const raw = item?.pm10Value ?? item?.pm10;
+      if (raw && raw !== "-") {
+        const v = Number(raw);
+        if (!isNaN(v)) {
+          console.log(`[PM10/AirKorea] sido=${sidoName} station=${item?.stationName} pm10=${v}`);
+          return v;
+        }
+      }
+    }
+    console.warn(`[PM10/AirKorea] No valid pm10 data for sido=${sidoName}`);
+    return null;
+  } catch (e) {
+    console.warn(`[PM10/AirKorea] Error: ${e}`);
+    return null;
   }
+}
+
+// 도시 → WAQI 스테이션 slug 매핑
+const CITY_TO_WAQI: Record<string, string> = {
+  대구: "@11782",      // 대구 수성구
+  구미: "gumi",
+  포항: "pohang",
+  안동: "andong",
+  서울: "seoul",
+  부산: "busan",
+  울산: "ulsan",
+  인천: "incheon",
+  광주: "gwangju",
+  대전: "daejeon",
+};
+
+async function fetchPm10Waqi(city: string): Promise<number | null> {
+  // WAQI(세계대기질지수) 무료 API (demo 토큰 사용)
+  try {
+    const station = CITY_TO_WAQI[city] ?? city;
+    const url = `https://api.waqi.info/feed/${encodeURIComponent(station)}/?token=demo`;
+    const res = await fetch(url, {
+      headers: { "User-Agent": "SafeBoard/1.0" },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return null;
+    const json = (await res.json()) as any;
+    if (json?.status !== "ok") {
+      console.warn(`[PM10/WAQI] status=${json?.status} city=${city}`);
+      return null;
+    }
+    const pm10 = json?.data?.iaqi?.pm10?.v;
+    if (pm10 == null) return null;
+    const v = Number(pm10);
+    if (isNaN(v)) return null;
+    console.log(`[PM10/WAQI] city=${city} station=${station} pm10=${v}`);
+    return v;
+  } catch (e) {
+    console.warn(`[PM10/WAQI] Error: ${e}`);
+    return null;
+  }
+}
+
+async function fetchPm10(city: string): Promise<{ value: number | null; grade: string | null; color: string | null }> {
+  const serviceKey = process.env.KOSHA_SERVICE_KEY;
+
+  // 1차: 에어코리아 API (KOSHA 키 필요)
+  if (serviceKey) {
+    const value = await fetchPm10AirKorea(city, serviceKey);
+    if (value !== null) {
+      return { value, ...pm10Grade(value) };
+    }
+  }
+
+  // 2차 폴백: WAQI(세계대기질지수) 무료 API
+  const value = await fetchPm10Waqi(city);
+  if (value !== null) {
+    return { value, ...pm10Grade(value) };
+  }
+
+  return { value: null, grade: null, color: null };
 }
 
 function computeWarnings(weather: {

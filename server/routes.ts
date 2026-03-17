@@ -2222,6 +2222,15 @@ export async function registerRoutes(
     }
   });
 
+  // 서버 시작 시 PM10 API 연결 테스트 (비동기, 블로킹 없음)
+  setTimeout(() => {
+    fetchWeather("대구").then(w => {
+      console.log(`[Weather/startup] 대구 pm10=${w.pm10} grade=${w.pm10Grade}`);
+    }).catch(e => {
+      console.warn(`[Weather/startup] 날씨 초기화 실패: ${e}`);
+    });
+  }, 3000);
+
   return httpServer;
 }
 
