@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
 import Dashboard from "@/pages/Dashboard";
+import HomePage from "@/pages/HomePage";
 import Rules from "@/pages/Rules";
 import Notices from "@/pages/Notices";
 import Education from "@/pages/Education";
@@ -40,7 +41,8 @@ function MainLayout() {
         
         <div className="flex-1 px-3 sm:px-4 md:px-8 pb-6 md:pb-8 max-w-[1600px] mx-auto w-full animate-in fade-in duration-500">
           <Switch>
-            <Route path="/" component={Dashboard} />
+            <Route path="/" component={HomePage} />
+            <Route path="/safety-scores" component={Dashboard} />
             <Route path="/rules" component={Rules} />
             <Route path="/notices" component={Notices} />
             <Route path="/education" component={Education} />
