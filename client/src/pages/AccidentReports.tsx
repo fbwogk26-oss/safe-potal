@@ -217,6 +217,13 @@ export default function AccidentReports() {
     queryKey: ["/api/accidents/stats"],
   });
 
+  const getServerError = (error: unknown, fallback: string): string => {
+    if (!(error instanceof Error)) return fallback;
+    const match = error.message.match(/^\d+: (.+)$/);
+    if (!match) return fallback;
+    try { return JSON.parse(match[1]).message || fallback; } catch { return match[1] || fallback; }
+  };
+
   const createMutation = useMutation({
     mutationFn: (data: any) => apiRequest("POST", "/api/accidents", data),
     onSuccess: () => {
@@ -225,7 +232,7 @@ export default function AccidentReports() {
       toast({ title: "사고보고가 등록되었습니다." });
       closeDialog();
     },
-    onError: () => toast({ variant: "destructive", title: "등록에 실패했습니다." }),
+    onError: (error) => toast({ variant: "destructive", title: "등록에 실패했습니다.", description: getServerError(error, "") }),
   });
 
   const updateMutation = useMutation({
@@ -236,7 +243,7 @@ export default function AccidentReports() {
       toast({ title: "사고보고가 수정되었습니다." });
       closeDialog();
     },
-    onError: () => toast({ variant: "destructive", title: "수정에 실패했습니다." }),
+    onError: (error) => toast({ variant: "destructive", title: "수정에 실패했습니다.", description: getServerError(error, "") }),
   });
 
   const deleteMutation = useMutation({
@@ -246,7 +253,7 @@ export default function AccidentReports() {
       queryClient.invalidateQueries({ queryKey: ["/api/accidents/stats"] });
       toast({ title: "사고보고가 삭제되었습니다." });
     },
-    onError: () => toast({ variant: "destructive", title: "삭제에 실패했습니다." }),
+    onError: (error) => toast({ variant: "destructive", title: "삭제에 실패했습니다.", description: getServerError(error, "") }),
   });
 
   const closeDialog = () => {

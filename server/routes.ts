@@ -2369,10 +2369,18 @@ export async function registerRoutes(
 
   app.post('/api/accidents', requireEditor, async (req: any, res) => {
     try {
-      const report = await storage.createAccidentReport({ ...req.body, createdBy: req.user?.username || null });
+      const perms = req.user?.permissions || {};
+      if (req.user?.role !== 'admin' && !perms.editAccidents) {
+        return res.status(403).json({ message: "사고보고 등록 권한이 없습니다" });
+      }
+      const body = { ...req.body };
+      if (!body.description) body.description = body.accidentOverview || "";
+      const report = await storage.createAccidentReport({ ...body, createdBy: req.user?.username || null });
       res.status(201).json(report);
-    } catch (error) {
-      res.status(500).json({ message: "사고보고 등록에 실패했습니다" });
+    } catch (error: any) {
+      console.error("[사고보고 등록 오류]", error);
+      const msg = process.env.NODE_ENV !== 'production' && error?.message ? error.message : "사고보고 등록에 실패했습니다";
+      res.status(500).json({ message: msg });
     }
   });
 
@@ -2382,9 +2390,12 @@ export async function registerRoutes(
       const existing = await storage.getAccidentReport(id);
       if (!existing) return res.status(404).json({ message: "Not found" });
       if (!isOwnerOrAdmin(req, existing.createdBy)) return res.status(403).json({ message: "본인이 작성한 사고보고만 수정할 수 있습니다" });
-      const report = await storage.updateAccidentReport(id, req.body);
+      const body = { ...req.body };
+      if (!body.description) body.description = body.accidentOverview || existing.description || "";
+      const report = await storage.updateAccidentReport(id, body);
       res.json(report);
-    } catch (error) {
+    } catch (error: any) {
+      console.error("[사고보고 수정 오류]", error);
       res.status(500).json({ message: "사고보고 수정에 실패했습니다" });
     }
   });
