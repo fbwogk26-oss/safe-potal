@@ -62,7 +62,6 @@ const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
-    sectionLabel: "안전관리",
     entries: [
       {
         label: "안전관리",
@@ -81,7 +80,6 @@ const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
-    sectionLabel: "보건관리",
     entries: [
       {
         label: "보건관리",
@@ -100,7 +98,6 @@ const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
-    sectionLabel: "시스템",
     entries: [
       {
         label: "시스템 관리",
