@@ -7,10 +7,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import {
   ShieldCheck, Bell, GraduationCap, AlertTriangle,
-  ClipboardCheck, FlaskConical, ShoppingCart,
-  DoorOpen, Bone, BookOpen, MonitorPlay,
+  ClipboardCheck, FlaskConical,
   ChevronRight, Users, FileWarning, Target,
-  ShieldAlert, TrendingUp, FileText, Microscope,
+  ShieldAlert, TrendingUp,
   Siren, RefreshCw, AlertCircle,
 } from "lucide-react";
 import { motion } from "framer-motion";
@@ -28,6 +27,30 @@ interface Notice { id: number; title: string; category: string; createdAt: strin
 interface Accident { id: number; accidentType: string; department: string; occurredAt: string; severity: string; }
 interface AccidentStat { total: number; byYear?: Record<string, number>; }
 interface RiskAssessment { id: number; title: string; department: string; approvalStatus: string; riskLevel: string; createdAt: string; }
+interface WeatherData {
+  city: string;
+  tempC: number;
+  feelsLikeC: number;
+  tempMaxC: number;
+  tempMinC: number;
+  humidity: number;
+  windspeedKmph: number;
+  windspeedMs: number;
+  precipMM: number;
+  precipProb: number;
+  snowCM: number;
+  weatherDesc: string;
+  weatherCode: string;
+  pm10: number | null;
+  pm10Grade: string | null;
+  pm10Color: string | null;
+  warningFactor: string;
+  riskFactor: string;
+  safetyAction: string;
+  specialReport: string;
+  fetchedAt: string;
+}
+
 interface KoshaMajorAccident {
   dsptYr: string; dsptMm: string; bizplcNm: string; accdntDt: string;
   indstryNm: string; accdntTpNm: string; accdntCausNm: string;
@@ -197,19 +220,27 @@ const QUICK_IN = [
   { label: "MSDS검색", href: "/msds", icon: FlaskConical, color: "#06b6d4", bg: "#cffafe" },
 ];
 
-const SHORTCUTS = [
-  { label: "공지/알림", desc: "안전 공지 확인", href: "/notices", icon: Bell, color: "#f59e0b", bg: "#fef3c7" },
-  { label: "안전수칙", desc: "수칙 자료실", href: "/rules", icon: BookOpen, color: "#64748b", bg: "#f1f5f9" },
-  { label: "안전용품", desc: "용품 신청", href: "/equipment", icon: ShoppingCart, color: "#6366f1", bg: "#e0e7ff" },
-  { label: "근골격계", desc: "유해요인조사", href: "/musculoskeletal", icon: Bone, color: "#ec4899", bg: "#fce7f3" },
-  { label: "출입신청", desc: "외부인 출입", href: "/access", icon: DoorOpen, color: "#14b8a6", bg: "#ccfbf1" },
-  { label: "전자게시판", desc: "디지털 게시판", href: "/digital-board", icon: MonitorPlay, color: "#7c3aed", bg: "#ede9fe" },
-];
 
 const CATEGORY_LABELS: Record<string, string> = {
   notice: "공지", rule: "수칙", education: "교육", equipment: "용품", access: "출입", edu: "교육",
   safe_message: "세이프메시지", equip_request: "용품신청",
 };
+
+const KOREAN_CITIES = ["서울","부산","대구","인천","광주","대전","울산","세종","수원","창원","고양","용인","청주","전주","천안","안산","안양","김해","포항","구미","안동","문경","울릉도","울진"];
+
+function getWeatherEmojiUI(code: string, tempC: number): string {
+  const c = Number(code);
+  if ([389, 392, 395].includes(c)) return "⛈️";
+  if ([371, 374, 377, 350].includes(c)) return "🌨️";
+  if ([338, 335, 332, 329, 326, 323, 320, 317, 314, 311].includes(c)) return "❄️";
+  if ([308, 305, 302, 299, 296, 293, 266, 263].includes(c)) return "🌧️";
+  if ([176].includes(c)) return "🌦️";
+  if ([260, 248, 143].includes(c)) return "🌫️";
+  if ([122, 119].includes(c)) return "☁️";
+  if ([116].includes(c)) return "⛅";
+  if ([113].includes(c)) return tempC >= 30 ? "☀️🌡️" : "🌤️";
+  return "🌤️";
+}
 
 const TABS = ["공지사항", "최근 사고", "승인대기"] as const;
 type Tab = typeof TABS[number];
@@ -224,6 +255,14 @@ export default function HomePage() {
   const { data: accidentStats } = useQuery<AccidentStat>({ queryKey: ["/api/accidents/stats"] });
   const { data: accidents } = useQuery<Accident[]>({ queryKey: ["/api/accidents"] });
   const { data: riskAssessments } = useQuery<RiskAssessment[]>({ queryKey: ["/api/risk-assessments"] });
+  const [weatherCity, setWeatherCity] = useState("대구");
+  const { data: weather, isLoading: weatherLoading } = useQuery<WeatherData>({
+    queryKey: ["/api/weather/current", weatherCity],
+    queryFn: () => fetch(`/api/weather/current?city=${encodeURIComponent(weatherCity)}`, { credentials: "include" }).then(r => r.json()),
+    staleTime: 10 * 60 * 1000,
+    refetchInterval: 10 * 60 * 1000,
+  });
+
   const { data: koshaData, isLoading: koshaLoading } = useQuery<KoshaResult>({
     queryKey: ["/api/kosha/major-accidents"],
     refetchInterval: 60 * 60 * 1000,
@@ -398,21 +437,21 @@ export default function HomePage() {
                   {activeTab === "공지사항" && (
                     <div className="divide-y divide-border/50">
                       {recentNotices.length === 0
-                        ? <p className="text-sm text-muted-foreground p-4 text-center">등록된 공지가 없습니다.</p>
-                        : recentNotices.map(n => (
+                        ? <p className="text-sm text-muted-foreground py-3 text-center">등록된 공지가 없습니다.</p>
+                        : recentNotices.slice(0, 4).map(n => (
                           <Link key={n.id} href="/notices">
-                            <div className="group flex items-center gap-3 px-4 py-2.5 hover:bg-accent/40 cursor-pointer transition-colors">
+                            <div className="group flex items-center gap-2 px-3 py-1.5 hover:bg-accent/40 cursor-pointer transition-colors">
                               <Badge variant="outline" className="text-[10px] flex-shrink-0 px-1.5 py-0">
                                 {CATEGORY_LABELS[n.category] ?? n.category}
                               </Badge>
-                              <p className="flex-1 text-xs sm:text-sm font-medium truncate group-hover:text-primary transition-colors">{n.title}</p>
-                              <p className="text-[10px] sm:text-xs text-muted-foreground flex-shrink-0">{format(new Date(n.createdAt), "yy.MM.dd")}</p>
+                              <p className="flex-1 text-xs font-medium truncate group-hover:text-primary transition-colors">{n.title}</p>
+                              <p className="text-[10px] text-muted-foreground flex-shrink-0">{format(new Date(n.createdAt), "yy.MM.dd")}</p>
                             </div>
                           </Link>
                         ))
                       }
                       <Link href="/notices">
-                        <div className="flex items-center justify-center gap-1 py-2.5 text-xs text-primary font-medium hover:bg-accent/30 cursor-pointer transition-colors">
+                        <div className="flex items-center justify-center gap-1 py-1.5 text-xs text-primary font-medium hover:bg-accent/30 cursor-pointer transition-colors">
                           전체 보기 <ChevronRight className="w-3.5 h-3.5" />
                         </div>
                       </Link>
@@ -423,18 +462,18 @@ export default function HomePage() {
                   {activeTab === "최근 사고" && (
                     <div className="divide-y divide-border/50">
                       {recentAccidents.length === 0
-                        ? <p className="text-sm text-muted-foreground p-4 text-center">등록된 사고가 없습니다.</p>
-                        : recentAccidents.map(a => (
+                        ? <p className="text-sm text-muted-foreground py-3 text-center">등록된 사고가 없습니다.</p>
+                        : recentAccidents.slice(0, 4).map(a => (
                           <Link key={a.id} href="/accidents">
-                            <div className="group flex items-center gap-3 px-4 py-2.5 hover:bg-accent/40 cursor-pointer transition-colors">
+                            <div className="group flex items-center gap-2 px-3 py-1.5 hover:bg-accent/40 cursor-pointer transition-colors">
                               <Badge
                                 variant="outline"
                                 className={cn("text-[10px] flex-shrink-0 px-1.5 py-0", a.severity === "중대" && "border-red-400 text-red-600")}
                               >
                                 {a.accidentType}
                               </Badge>
-                              <p className="flex-1 text-xs sm:text-sm font-medium truncate group-hover:text-primary transition-colors">{a.department}</p>
-                              <p className="text-[10px] sm:text-xs text-muted-foreground flex-shrink-0">
+                              <p className="flex-1 text-xs font-medium truncate group-hover:text-primary transition-colors">{a.department}</p>
+                              <p className="text-[10px] text-muted-foreground flex-shrink-0">
                                 {a.occurredAt ? format(new Date(a.occurredAt), "yy.MM.dd") : "-"}
                               </p>
                             </div>
@@ -442,7 +481,7 @@ export default function HomePage() {
                         ))
                       }
                       <Link href="/accidents">
-                        <div className="flex items-center justify-center gap-1 py-2.5 text-xs text-primary font-medium hover:bg-accent/30 cursor-pointer transition-colors">
+                        <div className="flex items-center justify-center gap-1 py-1.5 text-xs text-primary font-medium hover:bg-accent/30 cursor-pointer transition-colors">
                           전체 보기 <ChevronRight className="w-3.5 h-3.5" />
                         </div>
                       </Link>
@@ -453,10 +492,10 @@ export default function HomePage() {
                   {activeTab === "승인대기" && (
                     <div className="divide-y divide-border/50">
                       {pendingRisks.length === 0
-                        ? <p className="text-sm text-muted-foreground p-4 text-center">승인대기 항목이 없습니다.</p>
-                        : pendingRisks.slice(0, 6).map(r => (
+                        ? <p className="text-sm text-muted-foreground py-3 text-center">승인대기 항목이 없습니다.</p>
+                        : pendingRisks.slice(0, 4).map(r => (
                           <Link key={r.id} href="/risk-assessment">
-                            <div className="group flex items-center gap-3 px-4 py-2.5 hover:bg-accent/40 cursor-pointer transition-colors">
+                            <div className="group flex items-center gap-2 px-3 py-1.5 hover:bg-accent/40 cursor-pointer transition-colors">
                               <Badge
                                 variant="outline"
                                 className={cn("text-[10px] flex-shrink-0 px-1.5 py-0",
@@ -466,8 +505,8 @@ export default function HomePage() {
                               >
                                 {r.riskLevel}등급
                               </Badge>
-                              <p className="flex-1 text-xs sm:text-sm font-medium truncate group-hover:text-primary transition-colors">{r.department}</p>
-                              <p className="text-[10px] sm:text-xs text-muted-foreground flex-shrink-0">
+                              <p className="flex-1 text-xs font-medium truncate group-hover:text-primary transition-colors">{r.department}</p>
+                              <p className="text-[10px] text-muted-foreground flex-shrink-0">
                                 {r.createdAt ? format(new Date(r.createdAt), "yy.MM.dd") : "-"}
                               </p>
                             </div>
@@ -475,7 +514,7 @@ export default function HomePage() {
                         ))
                       }
                       <Link href="/risk-assessment">
-                        <div className="flex items-center justify-center gap-1 py-2.5 text-xs text-primary font-medium hover:bg-accent/30 cursor-pointer transition-colors">
+                        <div className="flex items-center justify-center gap-1 py-1.5 text-xs text-primary font-medium hover:bg-accent/30 cursor-pointer transition-colors">
                           전체 보기 <ChevronRight className="w-3.5 h-3.5" />
                         </div>
                       </Link>
@@ -532,28 +571,85 @@ export default function HomePage() {
               </Card>
             </div>
 
-            {/* Shortcuts Grid */}
+            {/* 날씨 위젯 */}
             <div>
-              <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5 mb-2">
-                <FileText className="w-3.5 h-3.5" />메뉴 바로가기
-              </h2>
-              <div className="grid grid-cols-2 gap-2">
-                {SHORTCUTS.map((item, i) => (
-                  <motion.div key={item.href} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 + i * 0.04 }}>
-                    <Link href={item.href}>
-                      <div className="group cursor-pointer rounded-xl border border-border/60 bg-white hover:border-transparent hover:shadow-md transition-all duration-200 p-3 flex flex-col items-start gap-1.5">
-                        <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: item.bg }}>
-                          <item.icon className="w-4 h-4" style={{ color: item.color }} />
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <span>🌤️</span> 현재 날씨
+                </h2>
+                <select
+                  value={weatherCity}
+                  onChange={e => setWeatherCity(e.target.value)}
+                  className="text-[10px] border border-border rounded px-1.5 py-0.5 bg-background text-foreground cursor-pointer"
+                >
+                  {KOREAN_CITIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <Card className="border-0 shadow-sm overflow-hidden">
+                {weatherLoading || !weather ? (
+                  <CardContent className="p-4 flex items-center justify-center h-40">
+                    <RefreshCw className="w-5 h-5 text-muted-foreground animate-spin" />
+                  </CardContent>
+                ) : (
+                  <CardContent className="p-3 space-y-2.5">
+                    {/* 기온 */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-3xl leading-none">{getWeatherEmojiUI(weather.weatherCode, weather.tempC)}</span>
+                      <div>
+                        <p className="text-2xl font-bold leading-none">{weather.tempC}°C</p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">최고 {weather.tempMaxC}°C · 최저 {weather.tempMinC}°C</p>
+                      </div>
+                    </div>
+
+                    {/* 경고/위험/안전 */}
+                    <div className="space-y-1 text-[11px]">
+                      <div className="flex gap-1.5">
+                        <span className="font-bold text-yellow-600 flex-shrink-0">경고요인</span>
+                        <span className="text-foreground/80 leading-tight">{weather.warningFactor || "해당없음"}</span>
+                      </div>
+                      <div className="flex gap-1.5">
+                        <span className="font-bold text-red-600 flex-shrink-0">위험요인</span>
+                        <span className="text-foreground/80 leading-tight">{weather.riskFactor || "해당없음"}</span>
+                      </div>
+                      <div className="flex gap-1.5">
+                        <span className="font-bold text-blue-600 flex-shrink-0">안전조치</span>
+                        <span className="text-foreground/80 leading-tight">{weather.safetyAction || "일반 주의"}</span>
+                      </div>
+                    </div>
+
+                    {/* 기상특보 */}
+                    <div className="flex items-start gap-1.5 bg-blue-50 dark:bg-blue-950/30 rounded-lg px-2.5 py-1.5">
+                      <AlertCircle className="w-3 h-3 text-blue-500 flex-shrink-0 mt-0.5" />
+                      <p className="text-[10px] text-blue-700 dark:text-blue-300 leading-snug">{weather.specialReport || "발효중인 특보 없음"}</p>
+                    </div>
+
+                    {/* 상세 수치 */}
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px]">
+                      {[
+                        { label: "강수량", value: `${weather.precipMM}mm` },
+                        { label: "강수확률", value: `${weather.precipProb}%` },
+                        { label: "풍속", value: `${weather.windspeedMs}m/s` },
+                        { label: "습도", value: `${weather.humidity}%` },
+                        { label: "적설량", value: weather.snowCM > 0 ? `${weather.snowCM}cm` : "적설없음" },
+                        { label: "미세먼지", value: weather.pm10 != null ? `${weather.pm10}μg/m³` : "-", color: weather.pm10Color ?? undefined },
+                      ].map(({ label, value, color }) => (
+                        <div key={label} className="flex justify-between">
+                          <span className="text-muted-foreground">{label}</span>
+                          <span className="font-semibold" style={color ? { color } : undefined}>{value}</span>
                         </div>
-                        <div>
-                          <p className="text-[11px] font-semibold text-foreground group-hover:text-primary transition-colors leading-tight">{item.label}</p>
-                          <p className="text-[10px] text-muted-foreground leading-tight">{item.desc}</p>
-                        </div>
+                      ))}
+                    </div>
+
+                    {/* Safety Message 바로가기 */}
+                    <Link href="/weather-safety">
+                      <div className="flex items-center justify-between bg-primary text-primary-foreground rounded-lg px-3 py-1.5 cursor-pointer hover:opacity-90 transition-opacity">
+                        <span className="text-[11px] font-semibold">Safety message</span>
+                        <ChevronRight className="w-3.5 h-3.5" />
                       </div>
                     </Link>
-                  </motion.div>
-                ))}
-              </div>
+                  </CardContent>
+                )}
+              </Card>
             </div>
 
           </div>
