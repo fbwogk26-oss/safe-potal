@@ -526,7 +526,7 @@ export default function HomePage() {
           </div>
 
           {/* ═══ RIGHT PANEL ═══ */}
-          <div className="w-full lg:w-64 xl:w-72 flex-shrink-0 space-y-4">
+          <div className="w-full lg:w-[340px] xl:w-[400px] flex-shrink-0 space-y-4">
 
             {/* Team Safety Scores */}
             <div>
