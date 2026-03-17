@@ -29,6 +29,7 @@ interface KoshaMajorAccident {
   dsptYr: string; dsptMm: string; bizplcNm: string; accdntDt: string;
   indstryNm: string; accdntTpNm: string; accdntCausNm: string;
   dthNum: number; injuNum: number; locNm: string;
+  imageUrl?: string; srnNo?: string;
 }
 interface KoshaResult { accidents: KoshaMajorAccident[]; configured: boolean; fetchedAt: string | null; isSampleData?: boolean; }
 
@@ -107,17 +108,34 @@ function KoshaSirenCard({ item }: { item: KoshaMajorAccident }) {
       </div>
 
       {/* 사고 장면 영역 */}
-      <div className="relative overflow-hidden" style={{ background: visual.sceneBg, height: 100 }}>
-        <div className="absolute inset-0 flex items-center justify-center">
-          <span className="text-6xl opacity-60 select-none">{visual.icon}</span>
-        </div>
+      <div className="relative overflow-hidden" style={{ background: visual.sceneBg, height: 130 }}>
+        {item.imageUrl ? (
+          <img
+            src={item.imageUrl}
+            alt={`${item.accdntTpNm} 사고 현장`}
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              const target = e.currentTarget;
+              target.style.display = "none";
+              const fallback = target.nextElementSibling as HTMLElement;
+              if (fallback) fallback.style.display = "flex";
+            }}
+          />
+        ) : null}
+        {/* 이미지 없을 때 / 이미지 로드 실패 시 폴백 */}
         <div
-          className="absolute inset-0 opacity-20"
-          style={{
-            backgroundImage: "repeating-linear-gradient(45deg, rgba(255,255,255,0.05) 0, rgba(255,255,255,0.05) 1px, transparent 0, transparent 50%)",
-            backgroundSize: "12px 12px",
-          }}
-        />
+          className="absolute inset-0 items-center justify-center"
+          style={{ display: item.imageUrl ? "none" : "flex" }}
+        >
+          <span className="text-6xl opacity-50 select-none">{visual.icon}</span>
+          <div
+            className="absolute inset-0 opacity-20"
+            style={{
+              backgroundImage: "repeating-linear-gradient(45deg, rgba(255,255,255,0.05) 0, rgba(255,255,255,0.05) 1px, transparent 0, transparent 50%)",
+              backgroundSize: "12px 12px",
+            }}
+          />
+        </div>
         {/* 중대재해사이렌 뱃지 */}
         <div className="absolute top-2 left-2 flex items-center gap-1 bg-red-600 text-white px-2 py-0.5 rounded text-[9px] font-bold shadow-sm">
           <Siren className="w-2.5 h-2.5" />
@@ -125,10 +143,10 @@ function KoshaSirenCard({ item }: { item: KoshaMajorAccident }) {
         </div>
         {/* 업종/재해유형 뱃지 */}
         <div className="absolute bottom-2 left-2 right-2 flex gap-1.5 flex-wrap">
-          <span className="text-[9px] px-1.5 py-0.5 rounded bg-black/50 text-white font-medium">
+          <span className="text-[9px] px-1.5 py-0.5 rounded bg-black/60 text-white font-medium backdrop-blur-sm">
             업종: {item.indstryNm}
           </span>
-          <span className="text-[9px] px-1.5 py-0.5 rounded font-bold text-white" style={{ background: visual.borderColor + "cc" }}>
+          <span className="text-[9px] px-1.5 py-0.5 rounded font-bold text-white backdrop-blur-sm" style={{ background: visual.borderColor + "cc" }}>
             {item.accdntTpNm}
           </span>
         </div>
