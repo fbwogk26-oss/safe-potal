@@ -48,7 +48,7 @@ function isGroup(entry: NavEntry): entry is NavGroup {
 }
 
 const NAV_ITEMS: NavEntry[] = [
-  { label: "대시보드", href: "/", icon: LayoutDashboard, permissionKey: "canViewDashboard" },
+  { label: "안전점수", href: "/", icon: LayoutDashboard, permissionKey: "canViewDashboard" },
   { label: "공지/알림", href: "/notices", icon: Bell, permissionKey: "canViewNotices" },
   { label: "전자게시판", href: "/digital-board", icon: MonitorPlay, permissionKey: "canViewDigitalBoard" },
   { label: "안전수칙", href: "/rules", icon: ShieldCheck, permissionKey: "canViewRules" },

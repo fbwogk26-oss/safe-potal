@@ -40,7 +40,7 @@ function isMobileGroup(entry: MobileNavEntry): entry is MobileNavGroup {
 }
 
 const MOBILE_NAV_ITEMS: MobileNavEntry[] = [
-  { label: "대시보드", href: "/", icon: LayoutDashboard },
+  { label: "안전점수", href: "/", icon: LayoutDashboard },
   { label: "공지/알림", href: "/notices", icon: Bell },
   { label: "전자게시판", href: "/digital-board", icon: MonitorPlay },
   { label: "안전수칙", href: "/rules", icon: ShieldCheck },
