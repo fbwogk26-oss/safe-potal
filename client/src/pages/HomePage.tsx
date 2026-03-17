@@ -30,7 +30,7 @@ interface KoshaMajorAccident {
   indstryNm: string; accdntTpNm: string; accdntCausNm: string;
   dthNum: number; injuNum: number; locNm: string;
 }
-interface KoshaResult { accidents: KoshaMajorAccident[]; configured: boolean; fetchedAt: string | null; }
+interface KoshaResult { accidents: KoshaMajorAccident[]; configured: boolean; fetchedAt: string | null; isSampleData?: boolean; }
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -370,6 +370,14 @@ export default function HomePage() {
                       {format(new Date(koshaData.fetchedAt), "HH:mm 업데이트")}
                     </span>
                   )}
+                  <a
+                    href="https://www.kosha.or.kr/kosha/accident/siren.do"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[9px] px-1.5 py-0.5 rounded bg-red-50 text-red-600 hover:bg-red-100 transition-colors font-medium border border-red-200 hidden xl:block"
+                  >
+                    KOSHA 바로가기
+                  </a>
                   <button
                     onClick={() => koshaRefreshMutation.mutate()}
                     disabled={koshaRefreshMutation.isPending || koshaLoading}
@@ -395,23 +403,51 @@ export default function HomePage() {
                     </div>
                   ) : !koshaData?.accidents?.length ? (
                     <div className="p-4 text-center">
-                      <p className="text-xs text-muted-foreground">금년 중대재해 데이터가 없습니다.</p>
+                      <p className="text-xs text-muted-foreground">중대재해 데이터가 없습니다.</p>
                     </div>
                   ) : (
                     <div className="divide-y divide-border/50">
+                      {koshaData.isSampleData && (
+                        <div className="px-3 py-1.5 bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-800 flex items-center gap-1.5">
+                          <span className="text-[9px] text-amber-700 dark:text-amber-400 font-medium leading-tight">
+                            📋 KOSHA 통계 기반 참고 데이터 · 실시간 연동은{" "}
+                            <a
+                              href="https://www.kosha.or.kr/kosha/accident/siren.do"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="underline hover:text-amber-900 dark:hover:text-amber-200"
+                            >
+                              KOSHA 홈페이지
+                            </a>
+                            에서 확인
+                          </span>
+                        </div>
+                      )}
                       {koshaData.accidents.slice(0, 6).map((item, idx) => (
                         <div key={idx} className="px-3 py-2.5">
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0 flex-1">
-                              <p className="text-[11px] font-semibold text-foreground truncate">{item.bizplcNm || "-"}</p>
-                              <p className="text-[10px] text-muted-foreground truncate">{item.accdntTpNm || item.indstryNm}</p>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <p className="text-[11px] font-semibold text-foreground truncate">{item.accdntTpNm || "-"}</p>
+                                <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 border-muted-foreground/30 text-muted-foreground font-normal">
+                                  {item.indstryNm || "-"}
+                                </Badge>
+                              </div>
+                              <p className="text-[10px] text-muted-foreground truncate mt-0.5">{item.accdntCausNm || item.bizplcNm}</p>
                             </div>
                             <div className="flex-shrink-0 text-right">
-                              {Number(item.dthNum) > 0 && (
-                                <Badge className="text-[9px] px-1.5 py-0 bg-red-100 text-red-700 border-red-200 font-bold">
-                                  사망 {item.dthNum}
-                                </Badge>
-                              )}
+                              <div className="flex gap-1 justify-end flex-wrap">
+                                {Number(item.dthNum) > 0 && (
+                                  <Badge className="text-[9px] px-1.5 py-0 bg-red-100 text-red-700 border-red-200 font-bold">
+                                    사망 {item.dthNum}
+                                  </Badge>
+                                )}
+                                {Number(item.injuNum) > 0 && (
+                                  <Badge className="text-[9px] px-1.5 py-0 bg-orange-100 text-orange-700 border-orange-200 font-bold">
+                                    부상 {item.injuNum}
+                                  </Badge>
+                                )}
+                              </div>
                               <p className="text-[9px] text-muted-foreground mt-0.5">
                                 {item.dsptYr}.{String(item.dsptMm).padStart(2, "0")}
                               </p>
@@ -422,8 +458,16 @@ export default function HomePage() {
                           )}
                         </div>
                       ))}
-                      <div className="px-3 py-2 text-[10px] text-center text-muted-foreground">
-                        출처: 산업안전보건공단 중대재해사이렌
+                      <div className="px-3 py-1.5 flex items-center justify-between">
+                        <span className="text-[9px] text-muted-foreground">출처: 산업안전보건공단 중대재해사이렌</span>
+                        <a
+                          href="https://www.kosha.or.kr/kosha/accident/siren.do"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[9px] text-red-600 hover:text-red-800 underline"
+                        >
+                          전체보기
+                        </a>
                       </div>
                     </div>
                   )}
