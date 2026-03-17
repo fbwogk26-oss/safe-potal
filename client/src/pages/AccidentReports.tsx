@@ -660,9 +660,9 @@ export default function AccidentReports() {
                   <CardContent className="px-4 pb-4">
                     <div className="h-[300px]">
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={toChartData(stats?.byType)} margin={{ top: 28, right: 12, left: -12, bottom: 44 }}>
+                        <BarChart data={toChartData(stats?.byType)} margin={{ top: 28, right: 12, left: -12, bottom: 4 }}>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" opacity={0.4} />
-                          <XAxis dataKey="name" tick={{ fontSize: 12, fontWeight: 700, fill: '#1e293b' }} interval={0} axisLine={false} tickLine={false} angle={-30} textAnchor="end" height={60} />
+                          <XAxis dataKey="name" tick={{ fontSize: 11, fontWeight: 700, fill: '#1e293b' }} interval={0} axisLine={false} tickLine={false} />
                           <YAxis allowDecimals={false} tick={{ fontSize: 12, fontWeight: 600, fill: '#475569' }} axisLine={false} tickLine={false} width={30} />
                           <Tooltip content={({ active, payload }) => active && payload?.length ? (
                             <div style={{ background: 'rgba(255,255,255,0.97)', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 10, padding: '8px 12px', boxShadow: '0 4px 16px rgba(0,0,0,0.1)', fontSize: 12 }}>
@@ -684,9 +684,9 @@ export default function AccidentReports() {
                   <CardContent className="px-4 pb-4">
                     <div className="h-[300px]">
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={toChartData(stats?.byCause)} margin={{ top: 28, right: 12, left: -12, bottom: 44 }}>
+                        <BarChart data={toChartData(stats?.byCause)} margin={{ top: 28, right: 12, left: -12, bottom: 4 }}>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" opacity={0.4} />
-                          <XAxis dataKey="name" tick={{ fontSize: 12, fontWeight: 700, fill: '#1e293b' }} interval={0} axisLine={false} tickLine={false} angle={-30} textAnchor="end" height={60} />
+                          <XAxis dataKey="name" tick={{ fontSize: 11, fontWeight: 700, fill: '#1e293b' }} interval={0} axisLine={false} tickLine={false} />
                           <YAxis allowDecimals={false} tick={{ fontSize: 12, fontWeight: 600, fill: '#475569' }} axisLine={false} tickLine={false} width={30} />
                           <Tooltip content={({ active, payload }) => active && payload?.length ? (
                             <div style={{ background: 'rgba(255,255,255,0.97)', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 10, padding: '8px 12px', boxShadow: '0 4px 16px rgba(0,0,0,0.1)', fontSize: 12 }}>
@@ -710,10 +710,10 @@ export default function AccidentReports() {
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart
                           data={toChartData(stats?.byDepartment).map(d => ({ ...d, shortName: d.name.replace(/운용팀$/, '').replace(/팀$/, '') }))}
-                          margin={{ top: 28, right: 12, left: -12, bottom: 44 }}
+                          margin={{ top: 28, right: 12, left: -12, bottom: 4 }}
                         >
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" opacity={0.4} />
-                          <XAxis dataKey="shortName" tick={{ fontSize: 12, fontWeight: 700, fill: '#1e293b' }} interval={0} axisLine={false} tickLine={false} angle={-30} textAnchor="end" height={60} />
+                          <XAxis dataKey="shortName" tick={{ fontSize: 11, fontWeight: 700, fill: '#1e293b' }} interval={0} axisLine={false} tickLine={false} />
                           <YAxis allowDecimals={false} tick={{ fontSize: 12, fontWeight: 600, fill: '#475569' }} axisLine={false} tickLine={false} width={30} />
                           <Tooltip content={({ active, payload }) => active && payload?.length ? (
                             <div style={{ background: 'rgba(255,255,255,0.97)', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 10, padding: '8px 12px', boxShadow: '0 4px 16px rgba(0,0,0,0.1)', fontSize: 12 }}>
