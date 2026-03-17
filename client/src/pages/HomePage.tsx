@@ -82,7 +82,7 @@ export default function HomePage() {
         <div className="absolute inset-0 opacity-[0.07] pointer-events-none"
           style={{ backgroundImage: "repeating-linear-gradient(45deg,#fff 0,#fff 1px,transparent 0,transparent 50%)", backgroundSize: "18px 18px" }}
         />
-        <div className="relative max-w-6xl mx-auto flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="relative w-full flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center shadow flex-shrink-0">
               <ShieldAlert className="w-5 h-5 text-white" />
@@ -100,7 +100,7 @@ export default function HomePage() {
       </div>
 
       {/* ── Main Grid ── */}
-      <div className="max-w-6xl mx-auto px-3 sm:px-4 md:px-8 py-4 sm:py-5 md:py-6">
+      <div className="w-full px-3 sm:px-4 md:px-6 py-4 sm:py-5 md:py-6">
         <div className="flex flex-col lg:flex-row gap-4 sm:gap-5">
 
           {/* ═══ LEFT PANEL ═══ */}

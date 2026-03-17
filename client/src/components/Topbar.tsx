@@ -40,7 +40,6 @@ function isMobileGroup(entry: MobileNavEntry): entry is MobileNavGroup {
 }
 
 const MOBILE_NAV_ITEMS: MobileNavEntry[] = [
-  { label: "안전점수", href: "/safety-scores", icon: LayoutDashboard },
   { label: "공지/알림", href: "/notices", icon: Bell },
   { label: "전자게시판", href: "/digital-board", icon: MonitorPlay },
   { label: "안전수칙", href: "/rules", icon: ShieldCheck },
@@ -48,6 +47,7 @@ const MOBILE_NAV_ITEMS: MobileNavEntry[] = [
     label: "안전관리",
     icon: Shield,
     children: [
+      { label: "안전점수", href: "/safety-scores", icon: LayoutDashboard },
       { label: "사고보고/통계", href: "/accidents", icon: AlertTriangle },
       { label: "안전보호구 현황", href: "/equipment/status", icon: ShieldCheck },
       { label: "안전용품 신청", href: "/equipment", icon: ShoppingCart },
