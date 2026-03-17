@@ -19,7 +19,6 @@ import {
   ScrollText,
   Bone,
   Home,
-  CloudRain,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -88,7 +87,6 @@ const NAV_SECTIONS: NavSection[] = [
         children: [
           { label: "MSDS검색", href: "/msds", icon: FlaskConical, permissionKey: "canViewMsds" },
           { label: "근골격계질환", href: "/musculoskeletal", icon: Bone, permissionKey: "canViewMusculoskeletal" },
-          { label: "날씨 안전메시지", href: "/weather-safety", icon: CloudRain, permissionKey: "canRegisterNotices" },
         ],
       },
     ],

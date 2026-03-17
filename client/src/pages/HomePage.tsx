@@ -3,9 +3,7 @@ import { Link } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import WeatherSafetyDialog from "@/components/WeatherSafetyDialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,7 +11,7 @@ import {
   ClipboardCheck, FlaskConical,
   ChevronRight, Users, FileWarning, Target,
   ShieldAlert, TrendingUp,
-  Siren, RefreshCw, AlertCircle, Sparkles,
+  Siren, RefreshCw, AlertCircle,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { format } from "date-fns";
@@ -285,29 +283,6 @@ export default function HomePage() {
   const [dontShowAgain, setDontShowAgain] = useState(false);
 
   const [safetyMsgOpen, setSafetyMsgOpen] = useState(false);
-  const [safetyMsgTitle, setSafetyMsgTitle] = useState("");
-  const [safetyMsgContent, setSafetyMsgContent] = useState("");
-
-  const generateMsgMutation = useMutation({
-    mutationFn: () => apiRequest("POST", "/api/weather/generate-message", { city: weatherCity }),
-    onSuccess: (data: any) => {
-      const d = new Date();
-      const mm = String(d.getMonth() + 1).padStart(2, "0");
-      const dd = String(d.getDate()).padStart(2, "0");
-      setSafetyMsgTitle(`${mm}.${dd} Safety Message`);
-      setSafetyMsgContent(data.message || "");
-    },
-  });
-
-  const postNoticeMutation = useMutation({
-    mutationFn: () => apiRequest("POST", "/api/weather/post-notice", { city: weatherCity, title: safetyMsgTitle, content: safetyMsgContent }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/notices"] });
-      setSafetyMsgOpen(false);
-      setSafetyMsgTitle("");
-      setSafetyMsgContent("");
-    },
-  });
 
   useEffect(() => {
     const noticeList = Array.isArray(notices) ? notices.filter((n: any) => n.category === "notice") : [];
@@ -670,7 +645,7 @@ export default function HomePage() {
 
                     {/* Safety Message 팝업 */}
                     <button
-                      onClick={() => { setSafetyMsgOpen(true); setSafetyMsgTitle(""); setSafetyMsgContent(""); }}
+                      onClick={() => setSafetyMsgOpen(true)}
                       className="w-full flex items-center justify-between bg-primary text-primary-foreground rounded-lg px-3 py-1.5 hover:opacity-90 transition-opacity"
                     >
                       <span className="text-[11px] font-semibold">Safety message</span>
@@ -813,75 +788,11 @@ export default function HomePage() {
       </Dialog>
 
       {/* Safety Message Dialog */}
-      <Dialog open={safetyMsgOpen} onOpenChange={setSafetyMsgOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <span>🛡️</span> Safety Message 작성
-            </DialogTitle>
-            <DialogDescription className="text-xs">
-              {weatherCity} 날씨 기반 안전메시지를 AI로 생성하거나 직접 작성해 공지로 게시합니다.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-3 py-1">
-            <div className="flex justify-end">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={generateMsgMutation.isPending}
-                onClick={() => generateMsgMutation.mutate()}
-                className="text-xs gap-1.5"
-                data-testid="button-generate-safety-msg"
-              >
-                {generateMsgMutation.isPending ? (
-                  <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> AI 생성 중...</>
-                ) : (
-                  <><Sparkles className="w-3.5 h-3.5" /> AI 안전메시지 자동생성</>
-                )}
-              </Button>
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="safety-msg-title" className="text-xs font-semibold">제목</Label>
-              <Input
-                id="safety-msg-title"
-                value={safetyMsgTitle}
-                onChange={e => setSafetyMsgTitle(e.target.value)}
-                placeholder="예) 03.17 Safety Message"
-                className="text-sm"
-                data-testid="input-safety-msg-title"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="safety-msg-content" className="text-xs font-semibold">내용</Label>
-              <Textarea
-                id="safety-msg-content"
-                value={safetyMsgContent}
-                onChange={e => setSafetyMsgContent(e.target.value)}
-                placeholder="안전메시지 내용을 입력하거나 AI 자동생성을 눌러주세요."
-                className="text-sm min-h-[160px] resize-none"
-                data-testid="textarea-safety-msg-content"
-              />
-            </div>
-          </div>
-
-          <DialogFooter className="gap-2">
-            <Button variant="outline" size="sm" onClick={() => setSafetyMsgOpen(false)}>
-              취소
-            </Button>
-            <Button
-              size="sm"
-              disabled={postNoticeMutation.isPending || !safetyMsgTitle.trim() || !safetyMsgContent.trim()}
-              onClick={() => postNoticeMutation.mutate()}
-              data-testid="button-post-safety-msg"
-            >
-              {postNoticeMutation.isPending ? "게시 중..." : "공지로 게시"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <WeatherSafetyDialog
+        open={safetyMsgOpen}
+        onOpenChange={setSafetyMsgOpen}
+        initialCity={weatherCity}
+      />
     </div>
   );
 }
