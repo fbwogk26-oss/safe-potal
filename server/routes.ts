@@ -2296,8 +2296,8 @@ export async function registerRoutes(
         let riskLevel = "C등급";
         if (score >= 8) riskLevel = "A등급";
         else if (score >= 3) riskLevel = "B등급";
-        const approvalStatus = score >= 8 ? "승인대기" : "자동종결";
-        const assessment = await storage.createRiskAssessment({ ...item, riskScore: score, riskLevel, approvalStatus });
+        const approvalStatus = item.approvalStatus === "임시저장" ? "임시저장" : (score >= 8 ? "승인대기" : "자동종결");
+        const assessment = await storage.createRiskAssessment({ ...item, riskScore: score, riskLevel, approvalStatus, createdBy: req.user?.username || null });
         results.push(assessment);
       }
       res.status(201).json(results);

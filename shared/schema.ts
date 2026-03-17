@@ -290,6 +290,10 @@ export const riskAssessments = pgTable("risk_assessments", {
   approvalStatus: text("approval_status").default("승인대기"),
   approvedBy: text("approved_by"),
   approvedAt: text("approved_at"),
+  currentIssue: text("current_issue"),
+  relatedLaw: text("related_law"),
+  equipmentId: text("equipment_id"),
+  equipmentName: text("equipment_name"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
