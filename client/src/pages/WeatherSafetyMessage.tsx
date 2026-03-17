@@ -246,7 +246,7 @@ export default function WeatherSafetyMessage() {
                     value={editContent}
                     onChange={(e) => setEditContent(e.target.value)}
                     placeholder="메시지 내용"
-                    className="min-h-[120px] resize-none"
+                    className="min-h-[200px] resize-y"
                   />
                 </div>
 

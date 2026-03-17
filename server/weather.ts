@@ -141,69 +141,59 @@ export async function generateSafetyMessage(weather: WeatherData): Promise<{
     ? `⚠️ 오늘의 주요 위험: ${risks.join(" | ")}`
     : `✅ 오늘의 기상 조건: 비교적 양호 (${weather.weatherDesc}, ${weather.tempC}°C)`;
 
-  // 제목용 핵심 위험
-  const titleRisk = risks.length > 0 ? risks[0] : `${weather.city} 현장 안전수칙`;
-
   const prompt = `당신은 KT MOS남부 통신 현장 안전관리 전문가입니다.
 아래의 실시간 날씨 데이터와 위험 분석 결과를 바탕으로, 현장 근무자에게 전달할 구체적이고 실용적인 안전메시지를 작성하세요.
 
-═══════════════════════════════════
-📍 ${weather.city} 실시간 날씨 현황
-═══════════════════════════════════
-• 기온: ${weather.tempC}°C (체감 ${weather.feelsLikeC}°C)
-• 날씨 상태: ${weather.weatherDesc}
-• 풍속: ${weather.windspeedKmph}km/h
-• 습도: ${weather.humidity}%
-• 강수량: ${weather.precipMM}mm
-• 자외선지수: ${weather.uvIndex}
+[${weather.city} 실시간 날씨]
+- 기온: ${weather.tempC}°C (체감 ${weather.feelsLikeC}°C)
+- 날씨: ${weather.weatherDesc}
+- 풍속: ${weather.windspeedKmph}km/h
+- 습도: ${weather.humidity}%
+- 강수량: ${weather.precipMM}mm
+- 자외선지수: ${weather.uvIndex}
 
-🔍 위험 분석 결과:
+[위험 분석]
 ${riskSummary}
 
-📋 날씨별 세부 안전 포인트:
+[날씨별 안전 포인트]
 ${safetyPoints.map((p, i) => `${i + 1}. ${p}`).join("\n")}
 
-═══════════════════════════════════
-작성 지침:
-- 제목: 오늘 날씨의 핵심 위험을 담은 강렬하고 명확한 제목 (20자 이내, 이모지 포함)
-- 본문 구성:
-  ① 첫째 줄: 오늘 날씨 상황을 실제 수치와 함께 요약 (기온, 날씨 상태 언급 필수)
-  ② 날씨 분석 결과의 각 안전 포인트를 구체적으로 풀어서 작성 (항목당 1~2문장)
-  ③ 마무리: 작업자들에 대한 진심 어린 당부 문장
-- 대상: 통신탑, 기지국, 전신주, 광케이블 등 야외 전기통신 설비 유지보수 작업자
-- 실제 수치(기온, 풍속, 강수량 등)를 본문에 직접 인용하여 현실감 있게 작성
-- 이모지를 적극 활용하여 가독성 향상
-- 각 문단 사이 줄바꿈(\\n\\n) 사용
-- 분량: 본문 6~10문장 (충분히 상세하게)
+[작성 규칙]
+- 대상: 통신탑, 기지국, 전신주, 광케이블 야외 전기통신 설비 유지보수 작업자
+- 실제 수치(기온, 풍속 등)를 본문에 직접 인용
+- 이모지를 활용하여 가독성 향상
+- 본문 6~8문장, 날씨 데이터를 충분히 반영하여 상세하게 작성
+- 작업자 안전에 대한 진심 어린 당부로 마무리
 
-반드시 아래 JSON 형식으로만 반환:
-{"title": "제목", "content": "본문내용"}`;
+반드시 아래 형식으로만 출력하세요. 다른 내용 절대 금지:
+TITLE: 여기에 제목 (이모지 포함, 20자 이내)
+CONTENT: 여기에 본문 내용 전체`;
 
   const response = await openai.chat.completions.create({
     model: "gpt-5-nano",
     messages: [{ role: "user", content: prompt }],
-    max_completion_tokens: 900,
+    max_completion_tokens: 1000,
   });
 
-  const raw = response.choices[0]?.message?.content ?? "{}";
+  const raw = (response.choices[0]?.message?.content ?? "").trim();
 
-  // JSON 블록 추출 (```json ... ``` 또는 순수 JSON)
-  const jsonMatch = raw.match(/\{[\s\S]*\}/);
-  const jsonStr = jsonMatch ? jsonMatch[0] : "{}";
+  // TITLE: / CONTENT: 형식 파싱 (JSON 없이 안정적으로)
+  const titleMatch = raw.match(/TITLE:\s*(.+)/);
+  const contentMatch = raw.match(/CONTENT:\s*([\s\S]+)/);
 
-  let parsed: { title?: string; content?: string } = {};
-  try {
-    parsed = JSON.parse(jsonStr);
-  } catch {
-    // JSON 파싱 실패 시 전체 텍스트를 내용으로 사용
-    return {
-      title: `${weather.city} 날씨 안전메시지`,
-      content: raw.trim() || "오늘도 안전한 하루 되세요.",
-    };
+  const title = titleMatch?.[1]?.trim() || `☀️ ${weather.city} 날씨 안전메시지`;
+  const content = contentMatch?.[1]?.trim() || raw.replace(/TITLE:.*\n?/, "").trim();
+
+  // 그래도 내용이 없으면 날씨 데이터로 직접 생성
+  if (!content || content.length < 20) {
+    const fallbackContent = [
+      `📍 오늘 ${weather.city}의 현재 기온은 ${weather.tempC}°C(체감 ${weather.feelsLikeC}°C)이며, 날씨 상태는 ${weather.weatherDesc}입니다.`,
+      riskSummary,
+      ...safetyPoints.map(p => `✅ ${p}`),
+      `🙏 오늘도 현장 근무자 여러분 모두 안전한 하루 보내시길 바랍니다. 작업 전 안전장비 착용을 반드시 확인해 주세요.`,
+    ].join("\n\n");
+    return { title, content: fallbackContent };
   }
 
-  return {
-    title: parsed.title ?? `${weather.city} 날씨 안전메시지`,
-    content: parsed.content ?? "오늘도 안전한 하루 되세요.",
-  };
+  return { title, content };
 }
