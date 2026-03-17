@@ -585,19 +585,19 @@ export default function AccidentReports() {
                     <CardTitle className="text-sm font-semibold">연도별 사고건수 비교</CardTitle>
                   </CardHeader>
                   <CardContent className="px-4 pb-4">
-                    <div className="h-[220px]">
+                    <div className="h-[240px]">
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={yearCompareData} margin={{ top: 24, right: 8, left: -16, bottom: 4 }}>
+                        <BarChart data={yearCompareData} margin={{ top: 28, right: 8, left: -16, bottom: 4 }}>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" opacity={0.4} />
-                          <XAxis dataKey="name" tick={{ fontSize: 12, fontWeight: 600 }} axisLine={false} tickLine={false} />
-                          <YAxis allowDecimals={false} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={28} />
+                          <XAxis dataKey="name" tick={{ fontSize: 13, fontWeight: 700, fill: '#1e293b' }} axisLine={false} tickLine={false} />
+                          <YAxis allowDecimals={false} tick={{ fontSize: 11, fontWeight: 600, fill: '#475569' }} axisLine={false} tickLine={false} width={28} />
                           <Tooltip content={({ active, payload }) => active && payload?.length ? (
                             <div style={{ background: 'rgba(255,255,255,0.97)', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 10, padding: '8px 12px', boxShadow: '0 4px 16px rgba(0,0,0,0.1)', fontSize: 12 }}>
-                              <p style={{ fontWeight: 600, marginBottom: 2 }}>{payload[0].payload.name}</p>
-                              <p style={{ color: '#64748b' }}>{payload[0].value}건</p>
+                              <p style={{ fontWeight: 700, marginBottom: 2 }}>{payload[0].payload.name}</p>
+                              <p style={{ color: '#64748b', fontWeight: 600 }}>{payload[0].value}건</p>
                             </div>
                           ) : null} />
-                          <Bar dataKey="value" name="건수" radius={[6, 6, 0, 0]} maxBarSize={52} animationDuration={800} label={{ position: 'top', fontSize: 12, fontWeight: 700, fill: '#334155' }}>
+                          <Bar dataKey="value" name="건수" radius={[6, 6, 0, 0]} maxBarSize={52} animationDuration={800} label={{ position: 'top', fontSize: 13, fontWeight: 700, fill: '#1e293b' }}>
                             {yearCompareData.map((entry) => (
                               <Cell key={entry.name} fill={YEAR_COLORS[entry.name.replace("년", "")] || CHART_COLORS[0]} />
                             ))}
@@ -621,16 +621,16 @@ export default function AccidentReports() {
                     <CardTitle className="text-sm font-semibold">연도별 월간 사고 비교 (24/25/26)</CardTitle>
                   </CardHeader>
                   <CardContent className="px-4 pb-4">
-                    <div className="h-[220px]">
+                    <div className="h-[240px]">
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={yearMonthlyData} margin={{ top: 10, right: 8, left: -16, bottom: 4 }}>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" opacity={0.4} />
-                          <XAxis dataKey="name" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                          <YAxis allowDecimals={false} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={28} />
+                          <XAxis dataKey="name" tick={{ fontSize: 11, fontWeight: 600, fill: '#334155' }} axisLine={false} tickLine={false} />
+                          <YAxis allowDecimals={false} tick={{ fontSize: 11, fontWeight: 600, fill: '#475569' }} axisLine={false} tickLine={false} width={28} />
                           <Tooltip content={({ active, payload, label }) => active && payload?.length ? (
                             <div style={{ background: 'rgba(255,255,255,0.97)', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 10, padding: '8px 12px', boxShadow: '0 4px 16px rgba(0,0,0,0.1)', fontSize: 12 }}>
-                              <p style={{ fontWeight: 600, marginBottom: 4 }}>{label}</p>
-                              {payload.map(p => <p key={String(p.dataKey)} style={{ color: p.color }}>{p.name}: {p.value}건</p>)}
+                              <p style={{ fontWeight: 700, marginBottom: 4 }}>{label}</p>
+                              {payload.map(p => <p key={String(p.dataKey)} style={{ color: p.color, fontWeight: 600 }}>{p.name}: {p.value}건</p>)}
                             </div>
                           ) : null} />
                           {COMPARE_YEARS.map(yr => (
@@ -651,110 +651,105 @@ export default function AccidentReports() {
                 </Card>
               </div>
 
-              {/* 유형/원인별 (2열, 세로 막대) */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Card>
-                  <CardHeader className="pb-1 pt-4 px-4">
-                    <CardTitle className="text-sm font-semibold">사고유형별 발생건수</CardTitle>
-                  </CardHeader>
-                  <CardContent className="px-4 pb-4">
-                    <div className="h-[260px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={toChartData(stats?.byType)} margin={{ top: 22, right: 8, left: -16, bottom: 40 }}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" opacity={0.4} />
-                          <XAxis dataKey="name" tick={{ fontSize: 10 }} interval={0} axisLine={false} tickLine={false} angle={-30} textAnchor="end" height={56} />
-                          <YAxis allowDecimals={false} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={28} />
-                          <Tooltip content={({ active, payload }) => active && payload?.length ? (
-                            <div style={{ background: 'rgba(255,255,255,0.97)', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 10, padding: '8px 12px', boxShadow: '0 4px 16px rgba(0,0,0,0.1)', fontSize: 12 }}>
-                              <p style={{ fontWeight: 600, marginBottom: 2 }}>{payload[0].payload.name}</p>
-                              <p style={{ color: '#64748b' }}>{payload[0].value}건</p>
-                            </div>
-                          ) : null} />
-                          <Bar dataKey="value" name="건수" fill={CHART_COLORS[0]} radius={[5, 5, 0, 0]} maxBarSize={40} animationDuration={800} label={{ position: 'top', fontSize: 10, fontWeight: 600, fill: '#64748b' }} />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </CardContent>
-                </Card>
+              {/* 발생건수 차트 4개 — 전체 너비 1열 */}
+              <Card>
+                <CardHeader className="pb-1 pt-4 px-4">
+                  <CardTitle className="text-sm font-semibold">사고유형별 발생건수</CardTitle>
+                </CardHeader>
+                <CardContent className="px-4 pb-4">
+                  <div className="h-[300px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={toChartData(stats?.byType)} margin={{ top: 28, right: 12, left: -12, bottom: 44 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" opacity={0.4} />
+                        <XAxis dataKey="name" tick={{ fontSize: 12, fontWeight: 700, fill: '#1e293b' }} interval={0} axisLine={false} tickLine={false} angle={-30} textAnchor="end" height={60} />
+                        <YAxis allowDecimals={false} tick={{ fontSize: 12, fontWeight: 600, fill: '#475569' }} axisLine={false} tickLine={false} width={30} />
+                        <Tooltip content={({ active, payload }) => active && payload?.length ? (
+                          <div style={{ background: 'rgba(255,255,255,0.97)', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 10, padding: '8px 12px', boxShadow: '0 4px 16px rgba(0,0,0,0.1)', fontSize: 12 }}>
+                            <p style={{ fontWeight: 700, marginBottom: 2 }}>{payload[0].payload.name}</p>
+                            <p style={{ color: '#64748b', fontWeight: 600 }}>{payload[0].value}건</p>
+                          </div>
+                        ) : null} />
+                        <Bar dataKey="value" name="건수" fill={CHART_COLORS[0]} radius={[6, 6, 0, 0]} maxBarSize={56} animationDuration={800} label={{ position: 'top', fontSize: 13, fontWeight: 700, fill: '#1e293b' }} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
 
-                <Card>
-                  <CardHeader className="pb-1 pt-4 px-4">
-                    <CardTitle className="text-sm font-semibold">원인별 발생건수</CardTitle>
-                  </CardHeader>
-                  <CardContent className="px-4 pb-4">
-                    <div className="h-[260px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={toChartData(stats?.byCause)} margin={{ top: 22, right: 8, left: -16, bottom: 40 }}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" opacity={0.4} />
-                          <XAxis dataKey="name" tick={{ fontSize: 10 }} interval={0} axisLine={false} tickLine={false} angle={-30} textAnchor="end" height={56} />
-                          <YAxis allowDecimals={false} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={28} />
-                          <Tooltip content={({ active, payload }) => active && payload?.length ? (
-                            <div style={{ background: 'rgba(255,255,255,0.97)', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 10, padding: '8px 12px', boxShadow: '0 4px 16px rgba(0,0,0,0.1)', fontSize: 12 }}>
-                              <p style={{ fontWeight: 600, marginBottom: 2 }}>{payload[0].payload.name}</p>
-                              <p style={{ color: '#64748b' }}>{payload[0].value}건</p>
-                            </div>
-                          ) : null} />
-                          <Bar dataKey="value" name="건수" fill={CHART_COLORS[1]} radius={[5, 5, 0, 0]} maxBarSize={40} animationDuration={800} label={{ position: 'top', fontSize: 10, fontWeight: 600, fill: '#64748b' }} />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
+              <Card>
+                <CardHeader className="pb-1 pt-4 px-4">
+                  <CardTitle className="text-sm font-semibold">원인별 발생건수</CardTitle>
+                </CardHeader>
+                <CardContent className="px-4 pb-4">
+                  <div className="h-[300px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={toChartData(stats?.byCause)} margin={{ top: 28, right: 12, left: -12, bottom: 44 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" opacity={0.4} />
+                        <XAxis dataKey="name" tick={{ fontSize: 12, fontWeight: 700, fill: '#1e293b' }} interval={0} axisLine={false} tickLine={false} angle={-30} textAnchor="end" height={60} />
+                        <YAxis allowDecimals={false} tick={{ fontSize: 12, fontWeight: 600, fill: '#475569' }} axisLine={false} tickLine={false} width={30} />
+                        <Tooltip content={({ active, payload }) => active && payload?.length ? (
+                          <div style={{ background: 'rgba(255,255,255,0.97)', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 10, padding: '8px 12px', boxShadow: '0 4px 16px rgba(0,0,0,0.1)', fontSize: 12 }}>
+                            <p style={{ fontWeight: 700, marginBottom: 2 }}>{payload[0].payload.name}</p>
+                            <p style={{ color: '#64748b', fontWeight: 600 }}>{payload[0].value}건</p>
+                          </div>
+                        ) : null} />
+                        <Bar dataKey="value" name="건수" fill={CHART_COLORS[1]} radius={[6, 6, 0, 0]} maxBarSize={56} animationDuration={800} label={{ position: 'top', fontSize: 13, fontWeight: 700, fill: '#1e293b' }} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
 
-              {/* 부서별/심각도별 (2열, 세로 막대) */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Card>
-                  <CardHeader className="pb-1 pt-4 px-4">
-                    <CardTitle className="text-sm font-semibold">부서별 발생건수</CardTitle>
-                  </CardHeader>
-                  <CardContent className="px-4 pb-4">
-                    <div className="h-[260px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart
-                          data={toChartData(stats?.byDepartment).map(d => ({ ...d, shortName: d.name.replace(/운용팀$/, '').replace(/팀$/, '') }))}
-                          margin={{ top: 22, right: 8, left: -16, bottom: 40 }}
-                        >
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" opacity={0.4} />
-                          <XAxis dataKey="shortName" tick={{ fontSize: 10 }} interval={0} axisLine={false} tickLine={false} angle={-30} textAnchor="end" height={56} />
-                          <YAxis allowDecimals={false} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={28} />
-                          <Tooltip content={({ active, payload }) => active && payload?.length ? (
-                            <div style={{ background: 'rgba(255,255,255,0.97)', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 10, padding: '8px 12px', boxShadow: '0 4px 16px rgba(0,0,0,0.1)', fontSize: 12 }}>
-                              <p style={{ fontWeight: 600, marginBottom: 2 }}>{payload[0].payload.name}</p>
-                              <p style={{ color: '#64748b' }}>{payload[0].value}건</p>
-                            </div>
-                          ) : null} />
-                          <Bar dataKey="value" name="건수" fill={CHART_COLORS[4]} radius={[5, 5, 0, 0]} maxBarSize={40} animationDuration={800} label={{ position: 'top', fontSize: 10, fontWeight: 600, fill: '#64748b' }} />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </CardContent>
-                </Card>
+              <Card>
+                <CardHeader className="pb-1 pt-4 px-4">
+                  <CardTitle className="text-sm font-semibold">부서별 발생건수</CardTitle>
+                </CardHeader>
+                <CardContent className="px-4 pb-4">
+                  <div className="h-[300px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={toChartData(stats?.byDepartment).map(d => ({ ...d, shortName: d.name.replace(/운용팀$/, '').replace(/팀$/, '') }))}
+                        margin={{ top: 28, right: 12, left: -12, bottom: 44 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" opacity={0.4} />
+                        <XAxis dataKey="shortName" tick={{ fontSize: 12, fontWeight: 700, fill: '#1e293b' }} interval={0} axisLine={false} tickLine={false} angle={-30} textAnchor="end" height={60} />
+                        <YAxis allowDecimals={false} tick={{ fontSize: 12, fontWeight: 600, fill: '#475569' }} axisLine={false} tickLine={false} width={30} />
+                        <Tooltip content={({ active, payload }) => active && payload?.length ? (
+                          <div style={{ background: 'rgba(255,255,255,0.97)', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 10, padding: '8px 12px', boxShadow: '0 4px 16px rgba(0,0,0,0.1)', fontSize: 12 }}>
+                            <p style={{ fontWeight: 700, marginBottom: 2 }}>{payload[0].payload.name}</p>
+                            <p style={{ color: '#64748b', fontWeight: 600 }}>{payload[0].value}건</p>
+                          </div>
+                        ) : null} />
+                        <Bar dataKey="value" name="건수" fill={CHART_COLORS[4]} radius={[6, 6, 0, 0]} maxBarSize={56} animationDuration={800} label={{ position: 'top', fontSize: 13, fontWeight: 700, fill: '#1e293b' }} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
 
-                <Card>
-                  <CardHeader className="pb-1 pt-4 px-4">
-                    <CardTitle className="text-sm font-semibold">심각도별 발생건수</CardTitle>
-                  </CardHeader>
-                  <CardContent className="px-4 pb-4">
-                    <div className="h-[260px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={toChartData(stats?.bySeverity)} margin={{ top: 22, right: 8, left: -16, bottom: 4 }}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" opacity={0.4} />
-                          <XAxis dataKey="name" tick={{ fontSize: 11 }} interval={0} axisLine={false} tickLine={false} />
-                          <YAxis allowDecimals={false} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={28} />
-                          <Tooltip content={({ active, payload }) => active && payload?.length ? (
-                            <div style={{ background: 'rgba(255,255,255,0.97)', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 10, padding: '8px 12px', boxShadow: '0 4px 16px rgba(0,0,0,0.1)', fontSize: 12 }}>
-                              <p style={{ fontWeight: 600, marginBottom: 2 }}>{payload[0].payload.name}</p>
-                              <p style={{ color: '#64748b' }}>{payload[0].value}건</p>
-                            </div>
-                          ) : null} />
-                          <Bar dataKey="value" name="건수" fill={CHART_COLORS[2]} radius={[6, 6, 0, 0]} maxBarSize={56} animationDuration={800} label={{ position: 'top', fontSize: 12, fontWeight: 700, fill: '#334155' }} />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
+              <Card>
+                <CardHeader className="pb-1 pt-4 px-4">
+                  <CardTitle className="text-sm font-semibold">심각도별 발생건수</CardTitle>
+                </CardHeader>
+                <CardContent className="px-4 pb-4">
+                  <div className="h-[300px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={toChartData(stats?.bySeverity)} margin={{ top: 28, right: 12, left: -12, bottom: 4 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" opacity={0.4} />
+                        <XAxis dataKey="name" tick={{ fontSize: 13, fontWeight: 700, fill: '#1e293b' }} interval={0} axisLine={false} tickLine={false} />
+                        <YAxis allowDecimals={false} tick={{ fontSize: 12, fontWeight: 600, fill: '#475569' }} axisLine={false} tickLine={false} width={30} />
+                        <Tooltip content={({ active, payload }) => active && payload?.length ? (
+                          <div style={{ background: 'rgba(255,255,255,0.97)', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 10, padding: '8px 12px', boxShadow: '0 4px 16px rgba(0,0,0,0.1)', fontSize: 12 }}>
+                            <p style={{ fontWeight: 700, marginBottom: 2 }}>{payload[0].payload.name}</p>
+                            <p style={{ color: '#64748b', fontWeight: 600 }}>{payload[0].value}건</p>
+                          </div>
+                        ) : null} />
+                        <Bar dataKey="value" name="건수" fill={CHART_COLORS[2]} radius={[8, 8, 0, 0]} maxBarSize={80} animationDuration={800} label={{ position: 'top', fontSize: 14, fontWeight: 700, fill: '#1e293b' }} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
 
             </motion.div>
           </AnimatePresence>
