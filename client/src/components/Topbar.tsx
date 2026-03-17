@@ -41,7 +41,6 @@ function isMobileGroup(entry: MobileNavEntry): entry is MobileNavGroup {
 
 const MOBILE_NAV_ITEMS: MobileNavEntry[] = [
   { label: "공지/알림", href: "/notices", icon: Bell },
-  { label: "날씨 안전메시지", href: "/weather-safety", icon: CloudRain },
   { label: "전자게시판", href: "/digital-board", icon: MonitorPlay },
   { label: "안전수칙", href: "/rules", icon: ShieldCheck },
   {
@@ -63,6 +62,7 @@ const MOBILE_NAV_ITEMS: MobileNavEntry[] = [
     icon: HeartPulse,
     children: [
       { label: "MSDS검색", href: "/msds", icon: FlaskConical },
+      { label: "날씨 안전메시지", href: "/weather-safety", icon: CloudRain },
     ],
   },
   { label: "출입신청", href: "/access", icon: DoorOpen },
