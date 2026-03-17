@@ -11,8 +11,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import {
   ShieldAlert, Plus, Trash2, Pencil, Camera, X, Info, ClipboardEdit,
-  CheckCircle2, Clock, FileDown, Download, UserCheck, CircleCheck, AlertCircle, Users,
-  ChevronRight, ChevronDown, Building2, MapPin, User, Wrench, Save
+  CheckCircle2, Clock, FileDown, Download, CircleCheck, AlertCircle, Users,
+  ChevronRight, ChevronDown, MapPin, User, Save
 } from "lucide-react";
 import { useState, useMemo, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -108,8 +108,6 @@ interface FormHeader {
   assessmentDate: string;
   responsibleTask: string;
   departmentHead: string;
-  equipmentId: string;
-  equipmentName: string;
 }
 
 interface UserName {
@@ -136,8 +134,6 @@ export default function RiskAssessmentPage() {
     assessmentDate: format(new Date(), "yyyy-MM-dd"),
     responsibleTask: "",
     departmentHead: "",
-    equipmentId: "",
-    equipmentName: "",
   });
 
   const [deptHeadPopoverOpen, setDeptHeadPopoverOpen] = useState(false);
@@ -233,7 +229,7 @@ export default function RiskAssessmentPage() {
     setHeader({
       department: "", assessor: user?.name || user?.username || "",
       assessmentDate: format(new Date(), "yyyy-MM-dd"), responsibleTask: "",
-      departmentHead: "", equipmentId: "", equipmentName: "",
+      departmentHead: "",
     });
     setItems([defaultItem()]);
     setExpandedItemIdx(0);
@@ -252,8 +248,6 @@ export default function RiskAssessmentPage() {
       assessmentType: activeType,
       responsibleTask: header.responsibleTask || null,
       departmentHead: header.departmentHead || null,
-      equipmentId: header.equipmentId || null,
-      equipmentName: header.equipmentName || null,
       process: item.process,
       hazard: item.hazard,
       hazardType: item.hazardType,
@@ -300,8 +294,6 @@ export default function RiskAssessmentPage() {
       assessmentDate: item.assessmentDate,
       responsibleTask: ra.responsibleTask || "",
       departmentHead: ra.departmentHead || "",
-      equipmentId: ra.equipmentId || "",
-      equipmentName: ra.equipmentName || "",
     });
     setItems([{
       process: item.process || "",
@@ -411,18 +403,26 @@ export default function RiskAssessmentPage() {
     if (isDownloading) return;
     setIsDownloading(true);
     try {
-      const params = new URLSearchParams({ department: dept });
+      const params = new URLSearchParams({ department: dept, type: activeType });
       const res = await fetch(`/api/risk-assessments/excel?${params}`, { credentials: "include" });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const errText = await res.text().catch(() => "");
+        throw new Error(errText || "서버 오류");
+      }
       const blob = await res.blob();
       const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
       const deptLabel = dept === "전체" ? "전체부서" : dept;
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = url; a.download = `위험성평가_${deptLabel}_${today}.xlsx`; a.click();
-      URL.revokeObjectURL(url);
-    } catch {
-      toast({ title: "다운로드 실패", description: "엑셀 파일 생성에 실패했습니다.", variant: "destructive" });
+      a.href = url;
+      a.download = `위험성평가_${deptLabel}_${today}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast({ title: "다운로드 완료", description: `${deptLabel} 위험성평가 엑셀이 다운로드되었습니다.` });
+    } catch (e: any) {
+      toast({ title: "다운로드 실패", description: e?.message || "엑셀 파일 생성에 실패했습니다.", variant: "destructive" });
     } finally {
       setIsDownloading(false);
     }
@@ -484,7 +484,7 @@ export default function RiskAssessmentPage() {
         {canEditRiskAssessment && (
           <Button
             onClick={() => {
-              setHeader({ department: "", assessor: user?.name || user?.username || "", assessmentDate: format(new Date(), "yyyy-MM-dd"), responsibleTask: "", departmentHead: "", equipmentId: "", equipmentName: "" });
+              setHeader({ department: "", assessor: user?.name || user?.username || "", assessmentDate: format(new Date(), "yyyy-MM-dd"), responsibleTask: "", departmentHead: "" });
               setItems([defaultItem()]); setEditingId(null); setShowForm(true);
             }}
             className="bg-orange-500 hover:bg-orange-600 text-white gap-2 h-9"
@@ -672,19 +672,19 @@ export default function RiskAssessmentPage() {
                       className={`cursor-pointer transition-all duration-150 hover:shadow-md ${isSelected ? "border-orange-400 shadow-md ring-1 ring-orange-300 dark:ring-orange-700" : "border-border hover:border-orange-200 dark:hover:border-orange-800"}`}
                       onClick={() => setSelectedId(isSelected ? null : item.id)}
                     >
-                      <CardContent className="p-3 sm:p-4">
-                        <div className="flex items-start justify-between gap-3">
+                      <CardContent className="p-2 sm:p-2.5">
+                        <div className="flex items-start justify-between gap-2">
                           {/* 왼쪽: 번호 + 유형 배지 + 내용 */}
-                          <div className="flex items-start gap-3 min-w-0 flex-1">
-                            <div className="shrink-0 flex flex-col items-center gap-1 pt-0.5">
-                              <span className="text-xs font-bold text-muted-foreground tabular-nums w-5 text-center">{idx + 1}</span>
-                              <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold ${isTypeSuji ? "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300" : "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"}`}>
+                          <div className="flex items-start gap-2 min-w-0 flex-1">
+                            <div className="shrink-0 flex flex-col items-center gap-0.5 pt-0.5">
+                              <span className="text-[10px] font-bold text-muted-foreground tabular-nums w-5 text-center">{idx + 1}</span>
+                              <span className={`inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold ${isTypeSuji ? "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300" : "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"}`}>
                                 {isTypeSuji ? "수시" : "정기"}
                               </span>
                             </div>
-                            <div className="min-w-0 flex-1 space-y-1">
+                            <div className="min-w-0 flex-1 space-y-0.5">
                               {/* 조직 계층 경로 */}
-                              <div className="flex items-center gap-1 text-[10px] text-muted-foreground flex-wrap">
+                              <div className="flex items-center gap-0.5 text-[10px] text-muted-foreground flex-wrap">
                                 <MapPin className="w-2.5 h-2.5 shrink-0 text-orange-400" />
                                 <span>KT MOS남부</span>
                                 <ChevronRight className="w-2.5 h-2.5 opacity-50" />
@@ -693,16 +693,16 @@ export default function RiskAssessmentPage() {
                                 <span className="font-medium text-foreground/80">{shortName}</span>
                               </div>
                               {/* 유해위험요인 */}
-                              <p className="text-sm font-semibold text-foreground leading-snug line-clamp-1">{item.hazard}</p>
-                              {/* 공정명 + 유형 */}
-                              <div className="flex items-center gap-2 flex-wrap">
-                                {item.process && <span className="text-xs text-muted-foreground">{item.process}</span>}
+                              <p className="text-[13px] font-semibold text-foreground leading-snug line-clamp-1">{item.hazard}</p>
+                              {/* 공정명 + 유형 + 평가자 + 부서장 + 날짜 (한 줄) */}
+                              <div className="flex items-center gap-2 flex-wrap text-[10px] text-muted-foreground">
+                                {item.process && <span>{item.process}</span>}
                                 {item.hazardType && (
-                                  <span className="inline-block px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] font-medium">{item.hazardType}</span>
+                                  <span className="inline-block px-1 py-px rounded bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-medium">{item.hazardType}</span>
                                 )}
                               </div>
                               {/* 평가자 + 부서장 + 날짜 */}
-                              <div className="flex items-center gap-3 flex-wrap text-[11px] text-muted-foreground">
+                              <div className="flex items-center gap-2 flex-wrap text-[10px] text-muted-foreground">
                                 {item.assessor && (
                                   <span className="flex items-center gap-1">
                                     <User className="w-3 h-3" />{item.assessor}
@@ -710,7 +710,7 @@ export default function RiskAssessmentPage() {
                                 )}
                                 {ra.departmentHead && (
                                   <span className="flex items-center gap-1">
-                                    <Building2 className="w-3 h-3" />부서장: {ra.departmentHead}
+                                    <Users className="w-3 h-3" />부서장: {ra.departmentHead}
                                   </span>
                                 )}
                                 <span>{item.assessmentDate}</span>
@@ -760,8 +760,7 @@ export default function RiskAssessmentPage() {
                                 <div><span className="text-muted-foreground block mb-0.5">평가 구분</span><span className="font-medium">{ASSESSMENT_OPTIONS.find(o => o.value === item.assessmentType)?.label || item.assessmentType}</span></div>
                                 <div><span className="text-muted-foreground block mb-0.5">담당업무</span><span className="font-medium">{ra.responsibleTask || "-"}</span></div>
                                 <div><span className="text-muted-foreground block mb-0.5">공정명</span><span className="font-medium">{item.process || "-"}</span></div>
-                                {ra.equipmentId && <div><span className="text-muted-foreground block mb-0.5">장비 ID</span><span className="font-medium">{ra.equipmentId}</span></div>}
-                                {ra.equipmentName && <div><span className="text-muted-foreground block mb-0.5">장비명</span><span className="font-medium">{ra.equipmentName}</span></div>}
+
                               </div>
 
                               <Separator />
@@ -860,8 +859,8 @@ export default function RiskAssessmentPage() {
                 </p>
               </div>
               <div className="p-3 space-y-3">
-                {/* 구분 + 지역 + 본부 + 등록자 */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {/* 구분 + 등록자 */}
+                <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold">구분 *</Label>
                     <Select value={activeType} onValueChange={setActiveType}>
@@ -870,14 +869,6 @@ export default function RiskAssessmentPage() {
                         {ASSESSMENT_OPTIONS.map(o => <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>)}
                       </SelectContent>
                     </Select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold">지역</Label>
-                    <Input value="KT MOS남부" readOnly className="h-8 text-xs bg-muted/50 text-muted-foreground" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold">본부</Label>
-                    <Input value={DEPT_DIVISION[header.department] || "대구본부"} readOnly className="h-8 text-xs bg-muted/50 text-muted-foreground" />
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold">등록자</Label>
@@ -967,19 +958,7 @@ export default function RiskAssessmentPage() {
                   </div>
                 </div>
 
-                {/* 장비 ID + 장비명 */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold flex items-center gap-1">
-                      <Wrench className="w-3 h-3" />장비 ID
-                    </Label>
-                    <Input value={header.equipmentId} onChange={e => setHeader(h => ({ ...h, equipmentId: e.target.value }))} placeholder="장비 ID (선택)" className="h-8 text-xs" data-testid="input-equipment-id" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold">장비명</Label>
-                    <Input value={header.equipmentName} onChange={e => setHeader(h => ({ ...h, equipmentName: e.target.value }))} placeholder="장비명 (선택)" className="h-8 text-xs" data-testid="input-equipment-name" />
-                  </div>
-                </div>
+
               </div>
             </div>
 
