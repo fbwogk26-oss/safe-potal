@@ -16,7 +16,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { usePermissions } from "@/hooks/use-permissions";
 
 const PRESET_CITIES = [
-  "대구", "서울", "부산", "대전", "광주", "인천", "울산", "수원", "창원", "전주",
+  "대구", "구미", "문경", "포항", "안동", "울릉도", "울진",
 ];
 
 interface WeatherData {
@@ -179,39 +179,31 @@ export default function WeatherSafetyMessage() {
           </CardTitle>
         </CardHeader>
         <CardContent className="px-4 pb-4 space-y-3">
-          <div className="flex gap-2">
-            <Input
-              value={city}
-              onChange={(e) => setCity(e.target.value)}
-              placeholder="도시명 입력 (예: 대구)"
-              className="flex-1"
-            />
-            <Button
-              onClick={() => generateMutation.mutate()}
-              disabled={!city.trim() || generateMutation.isPending}
-              className="gap-2 shrink-0"
-            >
-              {generateMutation.isPending
-                ? <RefreshCw className="w-4 h-4 animate-spin" />
-                : <Sparkles className="w-4 h-4" />}
-              {generateMutation.isPending ? "생성중..." : "메시지 생성"}
-            </Button>
-          </div>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-2">
             {PRESET_CITIES.map((c) => (
               <button
                 key={c}
                 onClick={() => setCity(c)}
-                className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                className={`text-sm px-4 py-2 rounded-lg border transition-colors font-medium ${
                   city === c
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "border-border text-muted-foreground hover:bg-muted"
+                    ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                    : "border-border text-muted-foreground hover:bg-muted hover:text-foreground"
                 }`}
               >
                 {c}
               </button>
             ))}
           </div>
+          <Button
+            onClick={() => generateMutation.mutate()}
+            disabled={!city.trim() || generateMutation.isPending}
+            className="w-full gap-2"
+          >
+            {generateMutation.isPending
+              ? <RefreshCw className="w-4 h-4 animate-spin" />
+              : <Sparkles className="w-4 h-4" />}
+            {generateMutation.isPending ? `${city} 날씨 분석중...` : `${city} 날씨 안전메시지 생성`}
+          </Button>
         </CardContent>
       </Card>
 

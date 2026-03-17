@@ -111,7 +111,7 @@ JSON 형식으로 반환:
   const response = await openai.chat.completions.create({
     model: "gpt-5-nano",
     messages: [{ role: "user", content: prompt }],
-    max_tokens: 500,
+    max_completion_tokens: 500,
   });
 
   const raw = response.choices[0]?.message?.content ?? "{}";
