@@ -491,83 +491,89 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* 중대재해사이렌 */}
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-sm font-bold text-foreground flex items-center gap-1.5">
-                  <Siren className="w-4 h-4 text-red-500" />
-                  중대재해사이렌
-                  <span className="text-[10px] font-normal text-muted-foreground ml-1">최근 발생 알림</span>
-                </h2>
-                <div className="flex items-center gap-2">
-                  {koshaData?.fetchedAt && (
-                    <span className="text-[9px] text-muted-foreground">
-                      {format(new Date(koshaData.fetchedAt), "HH:mm 업데이트")}
-                    </span>
-                  )}
-                  <a
-                    href="https://www.kosha.or.kr/kosha/accident/siren.do"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[10px] px-2 py-0.5 rounded-full bg-red-50 text-red-600 hover:bg-red-100 transition-colors font-medium border border-red-200"
-                  >
-                    전체보기
-                  </a>
-                  <button
-                    onClick={() => koshaRefreshMutation.mutate()}
-                    disabled={koshaRefreshMutation.isPending || koshaLoading}
-                    className="p-1 rounded hover:bg-accent transition-colors"
-                    title="새로고침"
-                  >
-                    <RefreshCw className={cn("w-3.5 h-3.5 text-muted-foreground", (koshaRefreshMutation.isPending || koshaLoading) && "animate-spin")} />
-                  </button>
-                </div>
-              </div>
-
-              {!koshaData?.configured ? (
-                <div className="p-6 text-center bg-white dark:bg-card rounded-xl border border-border shadow-sm">
-                  <Siren className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                  <p className="text-sm text-muted-foreground font-medium">API 키 미설정</p>
-                  <p className="text-xs text-muted-foreground mt-1">KOSHA_SERVICE_KEY를 설정하면 실시간 중대재해 정보를 표시합니다.</p>
-                </div>
-              ) : koshaLoading ? (
-                <div className="p-6 text-center bg-white dark:bg-card rounded-xl border border-border shadow-sm">
-                  <RefreshCw className="w-6 h-6 text-muted-foreground mx-auto animate-spin" />
-                  <p className="text-xs text-muted-foreground mt-2">불러오는 중...</p>
-                </div>
-              ) : !koshaData?.accidents?.length ? (
-                <div className="p-6 text-center bg-white dark:bg-card rounded-xl border border-border shadow-sm">
-                  <p className="text-xs text-muted-foreground">중대재해 데이터가 없습니다.</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {koshaData.isSampleData && (
-                    <div className="px-3 py-2 bg-amber-50 dark:bg-amber-950/30 rounded-lg border border-amber-200 dark:border-amber-800 flex items-center gap-2">
-                      <span className="text-[10px] text-amber-700 dark:text-amber-400 font-medium leading-tight">
-                        📋 KOSHA 통계 기반 참고 데이터입니다 ·{" "}
-                        <a
-                          href="https://www.kosha.or.kr/kosha/accident/siren.do"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="underline hover:text-amber-900 dark:hover:text-amber-200"
-                        >
-                          KOSHA 홈페이지에서 실시간 확인
-                        </a>
-                      </span>
-                    </div>
-                  )}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    {koshaData.accidents.slice(0, 3).map((item, idx) => (
-                      <KoshaSirenCard key={idx} item={item} />
-                    ))}
-                  </div>
-                  <p className="text-[9px] text-muted-foreground text-center">출처: 산업안전보건공단 중대재해사이렌</p>
-                </div>
-              )}
-            </div>
-
           </div>
         </div>
+
+        {/* ══ 중대재해사이렌 (전체 너비) ══ */}
+        <div className="mt-4 sm:mt-5">
+          {/* 헤더 */}
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-red-100 flex items-center justify-center">
+                <Siren className="w-4 h-4 text-red-600" />
+              </div>
+              <div>
+                <h2 className="text-sm font-bold text-foreground leading-tight">중대재해사이렌</h2>
+                <p className="text-[10px] text-muted-foreground leading-tight">산업안전보건공단 최근 발생 알림</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {koshaData?.fetchedAt && (
+                <span className="text-[9px] text-muted-foreground hidden sm:block">
+                  {format(new Date(koshaData.fetchedAt), "HH:mm 기준")}
+                </span>
+              )}
+              <a
+                href="https://www.kosha.or.kr/kosha/accident/siren.do"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[10px] px-2 py-1 rounded-full bg-red-50 text-red-600 hover:bg-red-100 transition-colors font-medium border border-red-200"
+              >
+                KOSHA 바로가기
+              </a>
+              <button
+                onClick={() => koshaRefreshMutation.mutate()}
+                disabled={koshaRefreshMutation.isPending || koshaLoading}
+                className="p-1.5 rounded-lg hover:bg-accent transition-colors"
+                title="새로고침"
+              >
+                <RefreshCw className={cn("w-3.5 h-3.5 text-muted-foreground", (koshaRefreshMutation.isPending || koshaLoading) && "animate-spin")} />
+              </button>
+            </div>
+          </div>
+
+          {!koshaData?.configured ? (
+            <div className="p-8 text-center bg-white dark:bg-card rounded-xl border border-border shadow-sm">
+              <Siren className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+              <p className="text-sm text-muted-foreground font-medium">API 키 미설정</p>
+              <p className="text-xs text-muted-foreground mt-1">KOSHA_SERVICE_KEY를 설정하면 실시간 중대재해 정보를 표시합니다.</p>
+            </div>
+          ) : koshaLoading ? (
+            <div className="p-8 text-center bg-white dark:bg-card rounded-xl border border-border shadow-sm">
+              <RefreshCw className="w-6 h-6 text-muted-foreground mx-auto animate-spin" />
+              <p className="text-xs text-muted-foreground mt-2">불러오는 중...</p>
+            </div>
+          ) : !koshaData?.accidents?.length ? (
+            <div className="p-8 text-center bg-white dark:bg-card rounded-xl border border-border shadow-sm">
+              <p className="text-xs text-muted-foreground">중대재해 데이터가 없습니다.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {koshaData.isSampleData && (
+                <div className="px-3 py-2 bg-amber-50 dark:bg-amber-950/30 rounded-lg border border-amber-200 dark:border-amber-800">
+                  <span className="text-[10px] text-amber-700 dark:text-amber-400 font-medium">
+                    📋 KOSHA 통계 기반 참고 데이터입니다 ·{" "}
+                    <a
+                      href="https://www.kosha.or.kr/kosha/accident/siren.do"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline hover:text-amber-900 dark:hover:text-amber-200"
+                    >
+                      KOSHA 홈페이지에서 실시간 확인
+                    </a>
+                  </span>
+                </div>
+              )}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {koshaData.accidents.slice(0, 3).map((item, idx) => (
+                  <KoshaSirenCard key={idx} item={item} />
+                ))}
+              </div>
+              <p className="text-[9px] text-muted-foreground text-center">출처: 고용노동부 · 산업안전보건공단 중대재해사이렌</p>
+            </div>
+          )}
+        </div>
+
       </div>
     </div>
   );
