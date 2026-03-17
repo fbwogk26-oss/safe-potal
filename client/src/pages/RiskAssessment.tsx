@@ -12,9 +12,9 @@ import { Separator } from "@/components/ui/separator";
 import {
   ShieldAlert, Plus, Trash2, Pencil, Camera, X, Info, ClipboardEdit,
   CheckCircle2, Clock, FileDown, Download, CircleCheck, AlertCircle, Users,
-  ChevronRight, ChevronDown, MapPin, User, Save
+  ChevronRight, ChevronDown, MapPin, Save
 } from "lucide-react";
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
@@ -161,7 +161,6 @@ export default function RiskAssessmentPage() {
   const [items, setItems] = useState<RiskItem[]>([defaultItem()]);
   const [expandedItemIdx, setExpandedItemIdx] = useState<number>(0);
   const [uploadingPhoto, setUploadingPhoto] = useState<string | null>(null);
-  const beforePhotoRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   const [improvingItem, setImprovingItem] = useState<RiskAssessment | null>(null);
   const [improvementForm, setImprovementForm] = useState({
@@ -173,10 +172,12 @@ export default function RiskAssessmentPage() {
     afterPhotoUrl: "",
   });
   const [uploadingImprovementPhoto, setUploadingImprovementPhoto] = useState(false);
-  const improvementPhotoRef = useRef<HTMLInputElement | null>(null);
 
   const { data: assessments, isLoading } = useQuery<RiskAssessment[]>({
-    queryKey: [`/api/risk-assessments?type=${activeType}`],
+    queryKey: ["/api/risk-assessments", activeType],
+    queryFn: () =>
+      fetch(`/api/risk-assessments?type=${encodeURIComponent(activeType)}`, { credentials: "include" })
+        .then(r => { if (!r.ok) throw new Error(r.statusText); return r.json(); }),
   });
 
   const batchMutation = useMutation({
@@ -462,10 +463,11 @@ export default function RiskAssessmentPage() {
   const isOwner = (item: RiskAssessment) => !item.createdBy || user?.role === "admin" || user?.username === item.createdBy;
 
   const getApprovalBadge = (status: string | null | undefined) => {
-    if (status === "임시저장") return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300 text-[11px] font-medium"><Save className="w-3 h-3" />임시저장</span>;
-    if (status === "승인완료") return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300 text-[11px] font-medium"><CircleCheck className="w-3 h-3" />승인완료</span>;
-    if (status === "승인대기") return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 text-[11px] font-medium"><AlertCircle className="w-3 h-3" />승인대기</span>;
-    return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-[11px] font-medium">자동종결</span>;
+    const base = "inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium shrink-0";
+    if (status === "임시저장") return <span className={`${base} bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300`}><Save className="w-2.5 h-2.5" />임시저장</span>;
+    if (status === "승인완료") return <span className={`${base} bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300`}><CircleCheck className="w-2.5 h-2.5" />승인완료</span>;
+    if (status === "승인대기") return <span className={`${base} bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300`}><AlertCircle className="w-2.5 h-2.5" />승인대기</span>;
+    return <span className={`${base} bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400`}>자동종결</span>;
   };
 
   return (
@@ -683,7 +685,7 @@ export default function RiskAssessmentPage() {
                               <span>{division}</span>
                               <ChevronRight className="w-2.5 h-2.5 opacity-40" />
                               <span className="font-medium text-foreground/80">{shortName}</span>
-                              {item.process && <><ChevronRight className="w-2.5 h-2.5 opacity-40" /><span>{item.process}</span></>}
+                              {item.assessor && <><ChevronRight className="w-2.5 h-2.5 opacity-40" /><span className="text-foreground/70">{item.assessor}</span></>}
                             </div>
                             {/* 유해위험요인 */}
                             <p className="text-[13px] font-semibold text-foreground leading-snug line-clamp-1">{item.hazard}</p>
@@ -708,9 +710,8 @@ export default function RiskAssessmentPage() {
                               개선{ra.improvementStatus}
                             </span>
                           )}
-                          {/* 평가자 + 날짜 */}
-                          <span className="text-[10px] text-muted-foreground flex items-center gap-1 ml-auto shrink-0">
-                            {item.assessor && <><User className="w-2.5 h-2.5" />{item.assessor} · </>}
+                          {/* 날짜 */}
+                          <span className="text-[10px] text-muted-foreground ml-auto shrink-0">
                             {item.assessmentDate}
                           </span>
                           {/* 상세보기 */}
@@ -743,9 +744,6 @@ export default function RiskAssessmentPage() {
                               <Separator />
 
                               <div className="space-y-2 text-xs">
-                                {ra.currentIssue && (
-                                  <div><span className="text-muted-foreground font-semibold">현황 및 문제점</span><p className="mt-0.5 text-foreground/80 leading-relaxed">{ra.currentIssue}</p></div>
-                                )}
                                 <div><span className="text-muted-foreground font-semibold">유해위험요인</span><p className="mt-0.5 text-foreground font-medium">{item.hazard}</p></div>
                                 {ra.relatedLaw && (
                                   <div><span className="text-muted-foreground font-semibold">관련법규</span><p className="mt-0.5 text-foreground/80">{ra.relatedLaw}</p></div>
@@ -1077,9 +1075,6 @@ export default function RiskAssessmentPage() {
                         {/* 개선 전 사진 */}
                         <div className="space-y-1.5">
                           <Label className="text-xs font-semibold">개선 전 사진</Label>
-                          <input ref={el => { beforePhotoRefs.current[idx] = el; }} type="file" accept="image/*" className="hidden"
-                            onChange={e => { const f = e.target.files?.[0]; if (f) uploadPhoto(idx, f); e.target.value = ""; }}
-                          />
                           {item.beforePhotoUrl ? (
                             <div className="relative inline-block">
                               <img src={item.beforePhotoUrl} alt="개선 전" className="h-20 w-32 object-cover rounded-md border" />
@@ -1088,10 +1083,14 @@ export default function RiskAssessmentPage() {
                               </button>
                             </div>
                           ) : (
-                            <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs" disabled={uploadingPhoto === `${idx}`} onClick={() => beforePhotoRefs.current[idx]?.click()} data-testid={`button-before-photo-${idx}`}>
+                            <label className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-input bg-background text-xs font-medium cursor-pointer hover:bg-accent hover:text-accent-foreground transition-colors ${uploadingPhoto === `${idx}` ? "opacity-50 cursor-not-allowed pointer-events-none" : ""}`} data-testid={`button-before-photo-${idx}`}>
+                              <input type="file" accept="image/*,image/heic,image/heif" className="sr-only"
+                                onChange={e => { const f = e.target.files?.[0]; if (f) uploadPhoto(idx, f); e.currentTarget.value = ""; }}
+                                disabled={uploadingPhoto === `${idx}`}
+                              />
                               <Camera className="w-3.5 h-3.5" />
                               {uploadingPhoto === `${idx}` ? "업로드 중..." : "사진 추가"}
-                            </Button>
+                            </label>
                           )}
                         </div>
                       </CardContent>
@@ -1203,9 +1202,6 @@ export default function RiskAssessmentPage() {
 
               <div className="space-y-1.5">
                 <Label className="text-sm font-semibold">개선 후 사진</Label>
-                <input ref={improvementPhotoRef} type="file" accept="image/*" className="hidden"
-                  onChange={e => { const f = e.target.files?.[0]; if (f) uploadImprovementPhoto(f); e.target.value = ""; }}
-                />
                 {improvementForm.afterPhotoUrl ? (
                   <div className="relative inline-block">
                     <img src={improvementForm.afterPhotoUrl} alt="개선 후" className="h-28 w-44 object-cover rounded-md border" />
@@ -1214,10 +1210,14 @@ export default function RiskAssessmentPage() {
                     </button>
                   </div>
                 ) : (
-                  <Button variant="outline" size="sm" className="gap-1.5 h-9 text-sm" disabled={uploadingImprovementPhoto} onClick={() => improvementPhotoRef.current?.click()} data-testid="button-improvement-photo">
+                  <label className={`inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-input bg-background text-sm font-medium cursor-pointer hover:bg-accent hover:text-accent-foreground transition-colors ${uploadingImprovementPhoto ? "opacity-50 cursor-not-allowed pointer-events-none" : ""}`} data-testid="button-improvement-photo">
+                    <input type="file" accept="image/*,image/heic,image/heif" className="sr-only"
+                      onChange={e => { const f = e.target.files?.[0]; if (f) uploadImprovementPhoto(f); e.currentTarget.value = ""; }}
+                      disabled={uploadingImprovementPhoto}
+                    />
                     <Camera className="w-4 h-4" />
                     {uploadingImprovementPhoto ? "업로드 중..." : "개선 후 사진 추가"}
-                  </Button>
+                  </label>
                 )}
               </div>
             </div>
