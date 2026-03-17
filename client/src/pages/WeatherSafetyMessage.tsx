@@ -1,137 +1,105 @@
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import {
-  CloudRain, Thermometer, Wind, Droplets, RefreshCw,
-  Sparkles, Send, MapPin, Sun, CloudSnow, Zap,
-  CheckCircle2,
-} from "lucide-react";
+import { RefreshCw, Send, Sparkles, CheckCircle2, ChevronRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePermissions } from "@/hooks/use-permissions";
 
-const PRESET_CITIES = [
-  "대구", "구미", "문경", "포항", "안동", "울릉도", "울진",
-];
+const PRESET_CITIES = ["대구", "구미", "문경", "포항", "안동", "울릉도", "울진"];
 
 interface WeatherData {
   city: string;
   tempC: number;
   feelsLikeC: number;
+  tempMaxC: number;
+  tempMinC: number;
   humidity: number;
   windspeedKmph: number;
+  windspeedMs: number;
   precipMM: number;
+  precipProb: number;
   uvIndex: number;
+  snowCM: number;
   weatherDesc: string;
+  weatherCode: string;
+  pm10: number | null;
+  pm10Grade: string | null;
+  pm10Color: string | null;
+  warningFactor: string;
+  riskFactor: string;
+  safetyAction: string;
+  specialReport: string;
   fetchedAt: string;
 }
 
-interface GenerateResult {
-  weather: WeatherData;
-  message: { title: string; content: string };
+function getWeatherEmoji(code: string, tempC: number): string {
+  const c = Number(code);
+  if ([389, 392, 395].includes(c)) return "⛈️";
+  if ([371, 374, 377, 350].includes(c)) return "🌨️";
+  if ([338, 335, 332, 329, 326, 323, 320, 317, 314, 311].includes(c)) return "❄️";
+  if ([308, 305, 302, 299, 296, 293, 266, 263].includes(c)) return "🌧️";
+  if ([176].includes(c)) return "🌦️";
+  if ([260, 248, 143].includes(c)) return "🌫️";
+  if ([122, 119].includes(c)) return "☁️";
+  if ([116].includes(c)) return "⛅";
+  if ([113].includes(c)) return tempC >= 30 ? "☀️" : "🌤️";
+  return "🌤️";
 }
 
-function getWeatherIcon(desc: string, temp: number) {
-  const d = desc.toLowerCase();
-  if (d.includes("snow") || d.includes("눈")) return CloudSnow;
-  if (d.includes("rain") || d.includes("비") || d.includes("drizzle")) return CloudRain;
-  if (d.includes("thunder") || d.includes("번개") || d.includes("storm")) return Zap;
-  if (temp >= 30) return Sun;
-  return Sun;
+function getPm10Color(grade: string | null): string {
+  if (grade === "좋음") return "#22c55e";
+  if (grade === "보통") return "#eab308";
+  if (grade === "나쁨") return "#f97316";
+  if (grade === "매우나쁨") return "#ef4444";
+  return "#94a3b8";
 }
 
-function WeatherCard({ weather }: { weather: WeatherData }) {
-  const Icon = getWeatherIcon(weather.weatherDesc, weather.tempC);
-  const tempColor =
-    weather.tempC >= 35 ? "#ef4444" :
-    weather.tempC >= 30 ? "#f97316" :
-    weather.tempC <= 0 ? "#3b82f6" :
-    weather.tempC <= -10 ? "#1d4ed8" : "#10b981";
-
-  return (
-    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-      <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-sky-50">
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
-              <span className="text-sm font-semibold">{weather.city}</span>
-              <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                {new Date(weather.fetchedAt).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })} 기준
-              </Badge>
-            </div>
-            <Icon className="w-8 h-8 text-sky-400" />
-          </div>
-          <div className="flex items-end gap-2 mb-3">
-            <span className="text-4xl font-bold leading-none" style={{ color: tempColor }}>
-              {weather.tempC}°
-            </span>
-            <span className="text-sm text-muted-foreground mb-1">체감 {weather.feelsLikeC}°C</span>
-          </div>
-          <p className="text-sm text-muted-foreground mb-3">{weather.weatherDesc}</p>
-          <div className="grid grid-cols-3 gap-2 text-center">
-            {[
-              { icon: Droplets, label: "습도", value: `${weather.humidity}%`, color: "#3b82f6" },
-              { icon: Wind, label: "바람", value: `${weather.windspeedKmph}km/h`, color: "#6366f1" },
-              { icon: CloudRain, label: "강수", value: `${weather.precipMM}mm`, color: "#06b6d4" },
-            ].map(({ icon: Icon2, label, value, color }) => (
-              <div key={label} className="bg-white rounded-lg p-2 shadow-sm">
-                <Icon2 className="w-4 h-4 mx-auto mb-0.5" style={{ color }} />
-                <p className="text-[10px] text-muted-foreground">{label}</p>
-                <p className="text-xs font-bold">{value}</p>
-              </div>
-            ))}
-          </div>
-          {weather.windspeedKmph >= 30 && (
-            <div className="mt-2 px-3 py-1.5 bg-orange-50 border border-orange-200 rounded-lg">
-              <p className="text-[11px] text-orange-700 font-medium">⚠️ 강풍 주의 - 고소작업 위험</p>
-            </div>
-          )}
-          {weather.precipMM > 5 && (
-            <div className="mt-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-[11px] text-blue-700 font-medium">🌧️ 강수 주의 - 미끄럼 사고 주의</p>
-            </div>
-          )}
-          {weather.tempC >= 33 && (
-            <div className="mt-2 px-3 py-1.5 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-[11px] text-red-700 font-medium">🌡️ 폭염 주의 - 온열질환 예방 필요</p>
-            </div>
-          )}
-          {weather.tempC <= 0 && (
-            <div className="mt-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-[11px] text-blue-700 font-medium">🧊 결빙 위험 - 넘어짐 사고 주의</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </motion.div>
-  );
+function formatFetchedAt(iso: string): string {
+  const d = new Date(iso);
+  const month = d.getMonth() + 1;
+  const day = d.getDate();
+  const h = d.getHours().toString().padStart(2, "0");
+  const m = d.getMinutes().toString().padStart(2, "0");
+  return `${d.getFullYear()}-${String(month).padStart(2,"0")}-${String(day).padStart(2,"0")} ${h}:${m}`;
 }
 
 export default function WeatherSafetyMessage() {
   const { canRegisterNotices } = usePermissions();
   const { toast } = useToast();
   const [city, setCity] = useState("대구");
-  const [result, setResult] = useState<GenerateResult | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editContent, setEditContent] = useState("");
   const [posted, setPosted] = useState(false);
+  const [aiGenerated, setAiGenerated] = useState(false);
+
+  const weatherQuery = useQuery<WeatherData>({
+    queryKey: ["/api/weather/current", city],
+    queryFn: async () => {
+      const res = await fetch(`/api/weather/current?city=${encodeURIComponent(city)}`, {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("날씨 정보를 불러오는데 실패했습니다.");
+      return res.json();
+    },
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
+  });
 
   const generateMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest("POST", "/api/weather/generate-message", { city });
-      return res.json() as Promise<GenerateResult>;
+      return res.json() as Promise<{ weather: WeatherData; message: { title: string; content: string } }>;
     },
     onSuccess: (data) => {
-      setResult(data);
       setEditTitle(data.message.title);
       setEditContent(data.message.content);
       setPosted(false);
+      setAiGenerated(true);
     },
     onError: (err: any) => {
       toast({ title: "생성 실패", description: err?.message ?? "날씨 메시지 생성에 실패했습니다.", variant: "destructive" });
@@ -157,151 +125,231 @@ export default function WeatherSafetyMessage() {
     },
   });
 
-  return (
-    <div className="p-4 sm:p-6 max-w-2xl mx-auto space-y-5">
+  const weather = weatherQuery.data;
+  const isLoading = weatherQuery.isLoading;
 
-      {/* Header */}
-      <div>
-        <h1 className="text-xl font-bold flex items-center gap-2">
-          <CloudRain className="w-5 h-5 text-sky-500" />
-          날씨 기반 안전메시지
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          현재 날씨를 분석해 AI가 맞춤 안전메시지를 작성하고 공지로 게시합니다.
-        </p>
+  const stats = weather ? [
+    { label: "강수량", value: `${weather.precipMM}` + (weather.precipMM > 0 ? " mm" : ""), unit: "" },
+    { label: "강수확률", value: `${weather.precipProb}%`, unit: "" },
+    { label: "풍속", value: `${weather.windspeedMs}m/s`, unit: "" },
+    { label: "습도", value: `${weather.humidity}%`, unit: "" },
+    { label: "적설량", value: weather.snowCM > 0 ? `${weather.snowCM}cm` : "적설없음", unit: "" },
+    {
+      label: "미세먼지/황사",
+      value: weather.pm10 !== null ? `${weather.pm10}μg/m³` : "정보없음",
+      unit: "",
+      color: weather.pm10Color ?? undefined,
+    },
+  ] : [];
+
+  return (
+    <div className="p-4 sm:p-6 max-w-3xl mx-auto space-y-4">
+
+      {/* 출처 헤더 */}
+      <div className="flex items-center justify-between text-xs text-muted-foreground bg-muted/40 px-3 py-1.5 rounded-lg border">
+        <div className="flex items-center gap-2">
+          <span className="inline-flex gap-0.5">
+            <span className="bg-green-600 text-white text-[9px] font-bold px-1 py-0.5 rounded-sm">OPEN</span>
+            <span className="bg-gray-600 text-white text-[9px] font-bold px-1 py-0.5 rounded-sm">공공</span>
+          </span>
+          <span>출처: 기상청, 한국환경공단</span>
+        </div>
+        {weather && (
+          <span>최종 갱신: {formatFetchedAt(weather.fetchedAt)}</span>
+        )}
       </div>
 
-      {/* City Selector */}
-      <Card className="border-0 shadow-sm">
-        <CardHeader className="pb-2 pt-4 px-4">
-          <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            <MapPin className="w-4 h-4 text-primary" /> 도시 선택
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="px-4 pb-4 space-y-3">
-          <div className="flex flex-wrap gap-2">
-            {PRESET_CITIES.map((c) => (
-              <button
-                key={c}
-                onClick={() => setCity(c)}
-                className={`text-sm px-4 py-2 rounded-lg border transition-colors font-medium ${
-                  city === c
-                    ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                    : "border-border text-muted-foreground hover:bg-muted hover:text-foreground"
-                }`}
-              >
-                {c}
-              </button>
-            ))}
-          </div>
-          <Button
-            onClick={() => generateMutation.mutate()}
-            disabled={!city.trim() || generateMutation.isPending}
-            className="w-full gap-2"
-          >
-            {generateMutation.isPending
-              ? <RefreshCw className="w-4 h-4 animate-spin" />
-              : <Sparkles className="w-4 h-4" />}
-            {generateMutation.isPending ? `${city} 날씨 분석중...` : `${city} 날씨 안전메시지 생성`}
-          </Button>
-        </CardContent>
-      </Card>
+      {/* 날씨 카드 */}
+      <div className="bg-white dark:bg-card border rounded-xl shadow-sm overflow-hidden">
+        {/* 도시 선택 */}
+        <div className="border-b px-4 py-3">
+          <Select value={city} onValueChange={(v) => { setCity(v); setAiGenerated(false); setPosted(false); }}>
+            <SelectTrigger className="w-full border-0 shadow-none text-base font-semibold focus:ring-0 px-0 h-auto">
+              <div className="flex items-center gap-2">
+                <span className="text-primary text-lg">📍</span>
+                <SelectValue />
+              </div>
+            </SelectTrigger>
+            <SelectContent>
+              {PRESET_CITIES.map((c) => (
+                <SelectItem key={c} value={c}>{c}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
-      {/* Results */}
+        {/* 날씨 본문 */}
+        {isLoading ? (
+          <div className="flex items-center justify-center py-16 text-muted-foreground">
+            <RefreshCw className="w-6 h-6 animate-spin mr-2" />
+            <span className="text-sm">날씨 정보를 불러오는 중...</span>
+          </div>
+        ) : weatherQuery.isError ? (
+          <div className="text-center py-12 text-muted-foreground text-sm">
+            날씨 정보를 불러오지 못했습니다.
+            <Button variant="ghost" size="sm" className="ml-2" onClick={() => weatherQuery.refetch()}>
+              다시 시도
+            </Button>
+          </div>
+        ) : weather ? (
+          <div className="flex flex-col sm:flex-row">
+            {/* 좌측: 날씨 정보 */}
+            <div className="flex-1 p-4 space-y-4">
+              {/* 온도 & 아이콘 */}
+              <div className="flex items-center gap-3">
+                <span className="text-5xl" role="img">
+                  {getWeatherEmoji(weather.weatherCode, weather.tempC)}
+                </span>
+                <div>
+                  <div className="text-5xl font-bold text-foreground leading-none">
+                    {weather.tempC}°C
+                  </div>
+                  <div className="text-sm text-muted-foreground mt-1">
+                    최고 {weather.tempMaxC}.0°C ~ 최저 {weather.tempMinC}.0°C
+                  </div>
+                </div>
+              </div>
+
+              {/* 경고요인 / 위험요인 / 안전조치 */}
+              <div className="space-y-1.5 text-sm">
+                <div className="flex gap-2">
+                  <span className="font-semibold text-orange-600 w-16 shrink-0">경고요인</span>
+                  <span className="text-foreground">{weather.warningFactor}</span>
+                </div>
+                <div className="flex gap-2">
+                  <span className="font-semibold text-red-600 w-16 shrink-0">위험요인</span>
+                  <span className="text-foreground">{weather.riskFactor}</span>
+                </div>
+                <div className="flex gap-2">
+                  <span className="font-semibold text-blue-600 w-16 shrink-0">안전조치</span>
+                  <span className="text-foreground">{weather.safetyAction}</span>
+                </div>
+              </div>
+
+              {/* 기상특보 */}
+              <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-100 dark:border-blue-900 text-sm">
+                <span className="text-blue-500 text-base">ℹ️</span>
+                <span className="font-medium text-blue-700 dark:text-blue-400">기상특보</span>
+                <span className="text-blue-600 dark:text-blue-300">{weather.specialReport}</span>
+              </div>
+            </div>
+
+            {/* 우측: Safety message 버튼 + 통계 */}
+            <div className="sm:w-44 border-t sm:border-t-0 sm:border-l p-4 space-y-3">
+              {/* Safety message 버튼 */}
+              <Button
+                onClick={() => generateMutation.mutate()}
+                disabled={generateMutation.isPending}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white gap-1 text-sm font-semibold"
+              >
+                {generateMutation.isPending ? (
+                  <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> 생성중...</>
+                ) : (
+                  <>Safety message <ChevronRight className="w-3.5 h-3.5" /></>
+                )}
+              </Button>
+
+              {/* 날씨 수치 목록 */}
+              <div className="space-y-1.5">
+                {stats.map(({ label, value, color }) => (
+                  <div key={label} className="flex items-center justify-between text-xs gap-1">
+                    <div className="flex items-center gap-1 text-muted-foreground">
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0" />
+                      <span>{label}</span>
+                    </div>
+                    <span
+                      className="font-semibold tabular-nums"
+                      style={color ? { color } : undefined}
+                    >
+                      {value}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </div>
+
+      {/* AI 메시지 편집 패널 */}
       <AnimatePresence>
-        {result && (
+        {aiGenerated && (
           <motion.div
-            key="result"
+            key="ai-panel"
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
-            className="space-y-4"
+            className="bg-white dark:bg-card border rounded-xl shadow-sm overflow-hidden"
           >
-            {/* Weather Card */}
-            <WeatherCard weather={result.weather} />
+            <div className="px-4 py-3 border-b flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-violet-500" />
+              <span className="font-semibold text-sm">AI 생성 안전메시지</span>
+              <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-violet-50 text-violet-600 border border-violet-200 font-medium">
+                수정 가능
+              </span>
+            </div>
+            <div className="p-4 space-y-3">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">제목</label>
+                <Input
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  placeholder="메시지 제목"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">내용</label>
+                <Textarea
+                  value={editContent}
+                  onChange={(e) => setEditContent(e.target.value)}
+                  placeholder="메시지 내용"
+                  className="min-h-[200px] resize-y"
+                />
+              </div>
 
-            {/* AI Message Editor */}
-            <Card className="border-0 shadow-sm">
-              <CardHeader className="pb-2 pt-4 px-4">
-                <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-violet-500" />
-                  AI 생성 안전메시지
-                  <Badge variant="outline" className="text-[10px] ml-1 text-violet-600 border-violet-200 bg-violet-50">
-                    수정 가능
-                  </Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="px-4 pb-4 space-y-3">
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">제목</label>
-                  <Input
-                    value={editTitle}
-                    onChange={(e) => setEditTitle(e.target.value)}
-                    placeholder="메시지 제목"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">내용</label>
-                  <Textarea
-                    value={editContent}
-                    onChange={(e) => setEditContent(e.target.value)}
-                    placeholder="메시지 내용"
-                    className="min-h-[200px] resize-y"
-                  />
-                </div>
-
-                {posted ? (
-                  <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
-                    <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" />
-                    <div>
-                      <p className="text-sm font-medium text-green-700">공지 게시 완료!</p>
-                      <p className="text-xs text-green-600">공지/알림 메뉴에서 확인할 수 있습니다.</p>
-                    </div>
+              {posted ? (
+                <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <CheckCircle2 className="w-5 h-5 text-green-600 shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-green-700">공지 게시 완료!</p>
+                    <p className="text-xs text-green-600">공지/알림 메뉴에서 확인할 수 있습니다.</p>
                   </div>
-                ) : (
-                  <div className="flex gap-2">
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => generateMutation.mutate()}
+                    disabled={generateMutation.isPending}
+                    className="gap-2 flex-1"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${generateMutation.isPending ? "animate-spin" : ""}`} />
+                    재생성
+                  </Button>
+                  {canRegisterNotices && (
                     <Button
-                      variant="outline"
-                      onClick={() => generateMutation.mutate()}
-                      disabled={generateMutation.isPending}
+                      onClick={() => postMutation.mutate()}
+                      disabled={postMutation.isPending || !editTitle.trim() || !editContent.trim()}
                       className="gap-2 flex-1"
                     >
-                      <RefreshCw className={`w-3.5 h-3.5 ${generateMutation.isPending ? "animate-spin" : ""}`} />
-                      재생성
+                      {postMutation.isPending
+                        ? <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        : <Send className="w-3.5 h-3.5" />}
+                      {postMutation.isPending ? "게시중..." : "공지로 게시"}
                     </Button>
-                    {canRegisterNotices && (
-                      <Button
-                        onClick={() => postMutation.mutate()}
-                        disabled={postMutation.isPending || !editTitle.trim() || !editContent.trim()}
-                        className="gap-2 flex-1"
-                      >
-                        {postMutation.isPending
-                          ? <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                          : <Send className="w-3.5 h-3.5" />}
-                        {postMutation.isPending ? "게시중..." : "공지로 게시"}
-                      </Button>
-                    )}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                  )}
+                </div>
+              )}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Empty state */}
-      {!result && !generateMutation.isPending && (
-        <div className="text-center py-12 text-muted-foreground">
-          <CloudRain className="w-12 h-12 mx-auto mb-3 opacity-30" />
-          <p className="text-sm">도시를 선택하고 <strong>메시지 생성</strong> 버튼을 눌러주세요.</p>
-          <p className="text-xs mt-1">현재 날씨를 분석해 AI가 안전메시지를 자동 작성합니다.</p>
-        </div>
-      )}
-
-      {generateMutation.isPending && (
-        <div className="text-center py-12 text-muted-foreground">
-          <RefreshCw className="w-10 h-10 mx-auto mb-3 animate-spin opacity-40" />
-          <p className="text-sm">날씨 데이터를 가져오고 AI 메시지를 생성하고 있습니다...</p>
+      {/* 로딩 중 AI 생성 표시 */}
+      {generateMutation.isPending && !aiGenerated && (
+        <div className="text-center py-8 text-muted-foreground">
+          <RefreshCw className="w-8 h-8 mx-auto mb-2 animate-spin opacity-40" />
+          <p className="text-sm">AI가 안전메시지를 생성하고 있습니다...</p>
         </div>
       )}
     </div>
