@@ -2,20 +2,23 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
 import {
   ShieldCheck, Bell, GraduationCap, AlertTriangle,
   ClipboardCheck, FlaskConical, ShoppingCart,
   DoorOpen, Bone, BookOpen, MonitorPlay,
   ChevronRight, Users, FileWarning, Target,
   ShieldAlert, TrendingUp, FileText, Microscope,
-  Siren, RefreshCw,
+  Siren, RefreshCw, AlertCircle,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { useAuth } from "@/hooks/use-auth";
 import { useTeams } from "@/hooks/use-teams";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useMutation } from "@tanstack/react-query";
@@ -230,6 +233,50 @@ export default function HomePage() {
     mutationFn: () => apiRequest("POST", "/api/kosha/refresh"),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/kosha/major-accidents"] }),
   });
+
+  const { data: pinnedData } = useQuery<{ pinnedNoticeId: number | null }>({
+    queryKey: ["/api/settings/pinned-notice"],
+  });
+
+  const [noticePopupOpen, setNoticePopupOpen] = useState(false);
+  const [currentNotice, setCurrentNotice] = useState<any>(null);
+  const [dontShowAgain, setDontShowAgain] = useState(false);
+
+  useEffect(() => {
+    const noticeList = Array.isArray(notices) ? notices.filter((n: any) => n.category === "notice") : [];
+    if (noticeList.length === 0) return;
+
+    const dismissedNotices = JSON.parse(localStorage.getItem('dismissedNotices') || '[]');
+    const pinnedNoticeId = pinnedData?.pinnedNoticeId;
+
+    if (pinnedNoticeId) {
+      const pinnedNotice = noticeList.find((n: any) => n.id === pinnedNoticeId);
+      if (pinnedNotice && !dismissedNotices.includes(pinnedNotice.id)) {
+        setCurrentNotice(pinnedNotice);
+        setNoticePopupOpen(true);
+        return;
+      }
+    }
+
+    const latestNotice = noticeList
+      .filter((n: any) => !dismissedNotices.includes(n.id))
+      .sort((a: any, b: any) => b.id - a.id)[0];
+
+    if (latestNotice) {
+      setCurrentNotice(latestNotice);
+      setNoticePopupOpen(true);
+    }
+  }, [notices, pinnedData]);
+
+  const handleCloseNoticePopup = () => {
+    if (dontShowAgain && currentNotice) {
+      const dismissedNotices = JSON.parse(localStorage.getItem('dismissedNotices') || '[]');
+      dismissedNotices.push(currentNotice.id);
+      localStorage.setItem('dismissedNotices', JSON.stringify(dismissedNotices));
+    }
+    setNoticePopupOpen(false);
+    setDontShowAgain(false);
+  };
 
   const teamList = Array.isArray(teams) ? teams : [];
   const avgScore = teamList.length > 0
@@ -593,6 +640,52 @@ export default function HomePage() {
         </div>
 
       </div>
+
+      {/* 공지사항 팝업 */}
+      <Dialog open={noticePopupOpen} onOpenChange={setNoticePopupOpen}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-lg">
+              <AlertCircle className="w-5 h-5 text-primary" />
+              공지사항
+            </DialogTitle>
+            <DialogDescription className="sr-only">공지 내용</DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4 space-y-4">
+            {currentNotice?.imageUrl && (
+              <div className="rounded-lg overflow-hidden border">
+                <img
+                  src={currentNotice.imageUrl}
+                  alt="공지 이미지"
+                  className="w-full h-auto object-cover max-h-64"
+                />
+              </div>
+            )}
+            <h3 className="font-semibold text-foreground">{currentNotice?.title}</h3>
+            <div className="text-sm whitespace-pre-wrap leading-relaxed text-foreground/80">
+              {currentNotice?.content}
+            </div>
+          </div>
+
+          <DialogFooter className="flex-col sm:flex-row gap-3">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="dontShowAgain"
+                checked={dontShowAgain}
+                onCheckedChange={(checked) => setDontShowAgain(checked as boolean)}
+                data-testid="checkbox-dont-show-again"
+              />
+              <label htmlFor="dontShowAgain" className="text-sm text-muted-foreground cursor-pointer">
+                다시 보지 않기
+              </label>
+            </div>
+            <Button onClick={handleCloseNoticePopup} data-testid="button-close-notice">
+              닫기
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

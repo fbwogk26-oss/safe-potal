@@ -1,5 +1,4 @@
 import { useTeams, useResetTeam, useResetAllTeams } from "@/hooks/use-teams";
-import { useNotices } from "@/hooks/use-notices";
 import { useQuery } from "@tanstack/react-query";
 import { 
   BarChart, 
@@ -20,15 +19,13 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useState, useRef, useMemo, useEffect } from "react";
+import { useState, useRef, useMemo } from "react";
 import * as XLSX from "xlsx";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Download, RefreshCw, AlertTriangle, Trophy, AlertCircle, ShieldCheck, RotateCcw, Upload, Settings2 } from "lucide-react";
+import { Download, RefreshCw, AlertTriangle, Trophy, ShieldCheck, RotateCcw, Upload, Settings2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { TeamEditDialog } from "@/components/TeamEditDialog";
 import { cn } from "@/lib/utils";
@@ -43,58 +40,10 @@ export default function Dashboard() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { canEditDashboard, canEditSafetyScores, canUploadDashboardData } = usePermissions();
   
-  const [noticePopupOpen, setNoticePopupOpen] = useState(false);
-  const [currentNotice, setCurrentNotice] = useState<any>(null);
-  const [dontShowAgain, setDontShowAgain] = useState(false);
-  
   const { data: teams, isLoading, refetch, isRefetching } = useTeams(year);
-  const { data: notices } = useNotices("notice");
   const resetTeam = useResetTeam();
   const resetAllTeams = useResetAllTeams();
   const { toast } = useToast();
-  
-  const { data: pinnedData } = useQuery<{ pinnedNoticeId: number | null }>({
-    queryKey: ["/api/settings/pinned-notice"],
-  });
-  
-  // Check for new notices and show popup
-  useEffect(() => {
-    if (!notices || notices.length === 0) return;
-    
-    // Get dismissed notice IDs from localStorage
-    const dismissedNotices = JSON.parse(localStorage.getItem('dismissedNotices') || '[]');
-    const pinnedNoticeId = pinnedData?.pinnedNoticeId;
-    
-    // First check for pinned notice
-    if (pinnedNoticeId) {
-      const pinnedNotice = notices.find(n => n.id === pinnedNoticeId);
-      if (pinnedNotice && !dismissedNotices.includes(pinnedNotice.id)) {
-        setCurrentNotice(pinnedNotice);
-        setNoticePopupOpen(true);
-        return;
-      }
-    }
-    
-    // Fall back to most recent notice that hasn't been dismissed
-    const latestNotice = notices
-      .filter(n => !dismissedNotices.includes(n.id))
-      .sort((a, b) => b.id - a.id)[0];
-    
-    if (latestNotice) {
-      setCurrentNotice(latestNotice);
-      setNoticePopupOpen(true);
-    }
-  }, [notices, pinnedData]);
-  
-  const handleCloseNoticePopup = () => {
-    if (dontShowAgain && currentNotice) {
-      const dismissedNotices = JSON.parse(localStorage.getItem('dismissedNotices') || '[]');
-      dismissedNotices.push(currentNotice.id);
-      localStorage.setItem('dismissedNotices', JSON.stringify(dismissedNotices));
-    }
-    setNoticePopupOpen(false);
-    setDontShowAgain(false);
-  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -473,50 +422,6 @@ export default function Dashboard() {
         </AnimatePresence>
       )}
 
-      {/* Notice Popup */}
-      <Dialog open={noticePopupOpen} onOpenChange={setNoticePopupOpen}>
-        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-lg">
-              <AlertCircle className="w-5 h-5 text-primary" />
-              공지사항
-            </DialogTitle>
-            <DialogDescription className="sr-only">공지 내용</DialogDescription>
-          </DialogHeader>
-          
-          <div className="py-4 space-y-4">
-            {currentNotice?.imageUrl && (
-              <div className="rounded-lg overflow-hidden border">
-                <img 
-                  src={currentNotice.imageUrl} 
-                  alt="공지 이미지" 
-                  className="w-full h-auto object-cover max-h-64"
-                />
-              </div>
-            )}
-            <div className="text-sm whitespace-pre-wrap leading-relaxed">
-              {currentNotice?.content}
-            </div>
-          </div>
-          
-          <DialogFooter className="flex-col sm:flex-row gap-3">
-            <div className="flex items-center gap-2">
-              <Checkbox 
-                id="dontShowAgain" 
-                checked={dontShowAgain} 
-                onCheckedChange={(checked) => setDontShowAgain(checked as boolean)}
-                data-testid="checkbox-dont-show-again"
-              />
-              <label htmlFor="dontShowAgain" className="text-sm text-muted-foreground cursor-pointer">
-                다시 보지 않기
-              </label>
-            </div>
-            <Button onClick={handleCloseNoticePopup} data-testid="button-close-notice">
-              닫기
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
