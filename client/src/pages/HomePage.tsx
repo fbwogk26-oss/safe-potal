@@ -8,6 +8,7 @@ import {
   DoorOpen, Bone, BookOpen, MonitorPlay,
   ChevronRight, Users, FileWarning, Target,
   ShieldAlert, TrendingUp, FileText, Microscope,
+  Siren, RefreshCw,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { format } from "date-fns";
@@ -16,12 +17,20 @@ import { useAuth } from "@/hooks/use-auth";
 import { useTeams } from "@/hooks/use-teams";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useMutation } from "@tanstack/react-query";
 
 interface Team { id: number; name: string; totalScore: number; year: number; }
 interface Notice { id: number; title: string; category: string; createdAt: string; }
 interface Accident { id: number; accidentType: string; department: string; occurredAt: string; severity: string; }
 interface AccidentStat { total: number; byYear?: Record<string, number>; }
 interface RiskAssessment { id: number; title: string; department: string; approvalStatus: string; riskLevel: string; createdAt: string; }
+interface KoshaMajorAccident {
+  dsptYr: string; dsptMm: string; bizplcNm: string; accdntDt: string;
+  indstryNm: string; accdntTpNm: string; accdntCausNm: string;
+  dthNum: number; injuNum: number; locNm: string;
+}
+interface KoshaResult { accidents: KoshaMajorAccident[]; configured: boolean; fetchedAt: string | null; }
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -60,6 +69,15 @@ export default function HomePage() {
   const { data: accidentStats } = useQuery<AccidentStat>({ queryKey: ["/api/accidents/stats"] });
   const { data: accidents } = useQuery<Accident[]>({ queryKey: ["/api/accidents"] });
   const { data: riskAssessments } = useQuery<RiskAssessment[]>({ queryKey: ["/api/risk-assessments"] });
+  const { data: koshaData, isLoading: koshaLoading } = useQuery<KoshaResult>({
+    queryKey: ["/api/kosha/major-accidents"],
+    refetchInterval: 60 * 60 * 1000,
+    staleTime: 55 * 60 * 1000,
+  });
+  const koshaRefreshMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/kosha/refresh"),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/kosha/major-accidents"] }),
+  });
 
   const teamList = Array.isArray(teams) ? teams : [];
   const avgScore = teamList.length > 0
@@ -337,6 +355,79 @@ export default function HomePage() {
                   </motion.div>
                 ))}
               </div>
+            </div>
+
+            {/* 중대재해사이렌 */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <Siren className="w-3.5 h-3.5 text-red-500" />중대재해사이렌
+                </h2>
+                <div className="flex items-center gap-1.5">
+                  {koshaData?.fetchedAt && (
+                    <span className="text-[9px] text-muted-foreground hidden xl:block">
+                      {format(new Date(koshaData.fetchedAt), "HH:mm 업데이트")}
+                    </span>
+                  )}
+                  <button
+                    onClick={() => koshaRefreshMutation.mutate()}
+                    disabled={koshaRefreshMutation.isPending || koshaLoading}
+                    className="p-1 rounded hover:bg-accent transition-colors"
+                    title="새로고침"
+                  >
+                    <RefreshCw className={cn("w-3 h-3 text-muted-foreground", (koshaRefreshMutation.isPending || koshaLoading) && "animate-spin")} />
+                  </button>
+                </div>
+              </div>
+              <Card className="border-0 shadow-sm">
+                <CardContent className="p-0">
+                  {!koshaData?.configured ? (
+                    <div className="p-4 text-center">
+                      <Siren className="w-6 h-6 text-muted-foreground mx-auto mb-2" />
+                      <p className="text-xs text-muted-foreground font-medium">API 키 미설정</p>
+                      <p className="text-[10px] text-muted-foreground mt-1">환경 변수에 KOSHA_SERVICE_KEY를 설정하면 실시간 중대재해 정보를 표시합니다.</p>
+                    </div>
+                  ) : koshaLoading ? (
+                    <div className="p-4 text-center">
+                      <RefreshCw className="w-5 h-5 text-muted-foreground mx-auto animate-spin" />
+                      <p className="text-xs text-muted-foreground mt-2">불러오는 중...</p>
+                    </div>
+                  ) : !koshaData?.accidents?.length ? (
+                    <div className="p-4 text-center">
+                      <p className="text-xs text-muted-foreground">금년 중대재해 데이터가 없습니다.</p>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-border/50">
+                      {koshaData.accidents.slice(0, 6).map((item, idx) => (
+                        <div key={idx} className="px-3 py-2.5">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[11px] font-semibold text-foreground truncate">{item.bizplcNm || "-"}</p>
+                              <p className="text-[10px] text-muted-foreground truncate">{item.accdntTpNm || item.indstryNm}</p>
+                            </div>
+                            <div className="flex-shrink-0 text-right">
+                              {Number(item.dthNum) > 0 && (
+                                <Badge className="text-[9px] px-1.5 py-0 bg-red-100 text-red-700 border-red-200 font-bold">
+                                  사망 {item.dthNum}
+                                </Badge>
+                              )}
+                              <p className="text-[9px] text-muted-foreground mt-0.5">
+                                {item.dsptYr}.{String(item.dsptMm).padStart(2, "0")}
+                              </p>
+                            </div>
+                          </div>
+                          {item.locNm && (
+                            <p className="text-[10px] text-muted-foreground mt-0.5 truncate">📍 {item.locNm}</p>
+                          )}
+                        </div>
+                      ))}
+                      <div className="px-3 py-2 text-[10px] text-center text-muted-foreground">
+                        출처: 산업안전보건공단 중대재해사이렌
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </div>
 
           </div>

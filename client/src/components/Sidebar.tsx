@@ -182,14 +182,14 @@ export function Sidebar() {
                           key={child.href}
                           href={child.href}
                           className={cn(
-                            "flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 font-medium text-[13px]",
+                            "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 font-medium text-sm",
                             location === child.href
                               ? "bg-primary text-primary-foreground shadow-md"
                               : "text-muted-foreground hover:bg-muted hover:text-foreground"
                           )}
                           data-testid={`link-nav-${child.href.replace("/", "")}`}
                         >
-                          <child.icon className="w-3.5 h-3.5" />
+                          <child.icon className="w-4 h-4" />
                           <span>{child.label}</span>
                         </Link>
                       ))}

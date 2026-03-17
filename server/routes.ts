@@ -8,6 +8,7 @@ import path from "path";
 import fs from "fs";
 import ExcelJS from "exceljs";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
+import { getKoshaMajorAccidents, clearKoshaCache } from "./kosha";
 import { setupAuth, registerAuthRoutes, isAuthenticated, authStorage } from "./replit_integrations/auth";
 import { ALL_PERMISSIONS, type UserPermissions } from "@shared/models/auth";
 import { registerChatbotRoutes } from "./chatbot";
@@ -2148,6 +2149,25 @@ export async function registerRoutes(
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ message: "신규 상품요청 삭제에 실패했습니다" });
+    }
+  });
+
+  app.get("/api/kosha/major-accidents", isAuthenticated, async (req, res) => {
+    try {
+      const result = await getKoshaMajorAccidents();
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ message: error?.message || "KOSHA API 조회에 실패했습니다" });
+    }
+  });
+
+  app.post("/api/kosha/refresh", isAuthenticated, async (req, res) => {
+    try {
+      clearKoshaCache();
+      const result = await getKoshaMajorAccidents();
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ message: error?.message || "KOSHA API 새로고침에 실패했습니다" });
     }
   });
 
