@@ -1,16 +1,14 @@
 import { db } from "./db";
 import {
-  teams, notices, settings, vehicles, safetyEquipment, safetyInspections, vehicleLogs,
+  teams, notices, settings, safetyEquipment, safetyInspections,
   educationSessions, educationSignatures,
   users,
   chemicals, riskAssessments, accidentReports, newEquipmentRequests, musculoskeletalAssessments,
   type Team, type InsertTeam, type UpdateTeamRequest,
   type Notice, type InsertNotice,
   type Setting,
-  type Vehicle, type InsertVehicle, type UpdateVehicleRequest,
   type SafetyEquipment, type InsertSafetyEquipment,
   type SafetyInspection, type InsertSafetyInspection,
-  type VehicleLog, type InsertVehicleLog,
   type EducationSession, type InsertEducationSession,
   type EducationSignature, type InsertEducationSignature,
   type User,
@@ -41,13 +39,6 @@ export interface IStorage {
   getSetting(key: string): Promise<Setting | undefined>;
   setSetting(key: string, value: string): Promise<Setting>;
 
-  // Vehicles
-  getVehicles(): Promise<Vehicle[]>;
-  getVehicle(id: number): Promise<Vehicle | undefined>;
-  createVehicle(vehicle: InsertVehicle): Promise<Vehicle>;
-  updateVehicle(id: number, updates: UpdateVehicleRequest): Promise<Vehicle>;
-  deleteVehicle(id: number): Promise<void>;
-
   // Safety Equipment
   getSafetyEquipment(): Promise<SafetyEquipment[]>;
   createSafetyEquipment(equipment: InsertSafetyEquipment): Promise<SafetyEquipment>;
@@ -59,14 +50,6 @@ export interface IStorage {
   getSafetyInspection(id: number): Promise<SafetyInspection | undefined>;
   createSafetyInspection(inspection: InsertSafetyInspection): Promise<SafetyInspection>;
   deleteSafetyInspection(id: number): Promise<void>;
-
-  // Vehicle Logs
-  getVehicleLogs(): Promise<VehicleLog[]>;
-  getVehicleLogsByVehicle(vehicleId: number): Promise<VehicleLog[]>;
-  getLastVehicleLog(vehicleId: number): Promise<VehicleLog | undefined>;
-  getVehicleLog(id: number): Promise<VehicleLog | undefined>;
-  createVehicleLog(log: InsertVehicleLog): Promise<VehicleLog>;
-  deleteVehicleLog(id: number): Promise<void>;
 
   // Education Sessions
   getEducationSessions(department?: string): Promise<EducationSession[]>;
@@ -191,30 +174,6 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  // === VEHICLES ===
-  async getVehicles(): Promise<Vehicle[]> {
-    return await db.select().from(vehicles).orderBy(desc(vehicles.createdAt));
-  }
-
-  async getVehicle(id: number): Promise<Vehicle | undefined> {
-    const [vehicle] = await db.select().from(vehicles).where(eq(vehicles.id, id));
-    return vehicle;
-  }
-
-  async createVehicle(insertVehicle: InsertVehicle): Promise<Vehicle> {
-    const [vehicle] = await db.insert(vehicles).values(insertVehicle).returning();
-    return vehicle;
-  }
-
-  async updateVehicle(id: number, updates: UpdateVehicleRequest): Promise<Vehicle> {
-    const [vehicle] = await db.update(vehicles).set(updates).where(eq(vehicles.id, id)).returning();
-    return vehicle;
-  }
-
-  async deleteVehicle(id: number): Promise<void> {
-    await db.delete(vehicles).where(eq(vehicles.id, id));
-  }
-
   // === SAFETY EQUIPMENT ===
   async getSafetyEquipment(): Promise<SafetyEquipment[]> {
     return await db.select().from(safetyEquipment).where(eq(safetyEquipment.isActive, true)).orderBy(asc(safetyEquipment.category), asc(safetyEquipment.name));
@@ -251,39 +210,6 @@ export class DatabaseStorage implements IStorage {
   
   async deleteSafetyInspection(id: number): Promise<void> {
     await db.delete(safetyInspections).where(eq(safetyInspections.id, id));
-  }
-
-  // === VEHICLE LOGS ===
-  async getVehicleLogs(): Promise<VehicleLog[]> {
-    return await db.select().from(vehicleLogs).orderBy(desc(vehicleLogs.createdAt));
-  }
-
-  async getVehicleLogsByVehicle(vehicleId: number): Promise<VehicleLog[]> {
-    return await db.select().from(vehicleLogs)
-      .where(eq(vehicleLogs.vehicleId, vehicleId))
-      .orderBy(desc(vehicleLogs.logDate), desc(vehicleLogs.createdAt));
-  }
-
-  async getVehicleLog(id: number): Promise<VehicleLog | undefined> {
-    const [log] = await db.select().from(vehicleLogs).where(eq(vehicleLogs.id, id));
-    return log;
-  }
-
-  async getLastVehicleLog(vehicleId: number): Promise<VehicleLog | undefined> {
-    const [log] = await db.select().from(vehicleLogs)
-      .where(eq(vehicleLogs.vehicleId, vehicleId))
-      .orderBy(desc(vehicleLogs.logDate), desc(vehicleLogs.createdAt))
-      .limit(1);
-    return log;
-  }
-
-  async createVehicleLog(log: InsertVehicleLog): Promise<VehicleLog> {
-    const [created] = await db.insert(vehicleLogs).values(log).returning();
-    return created;
-  }
-
-  async deleteVehicleLog(id: number): Promise<void> {
-    await db.delete(vehicleLogs).where(eq(vehicleLogs.id, id));
   }
 
   // === EDUCATION SESSIONS ===

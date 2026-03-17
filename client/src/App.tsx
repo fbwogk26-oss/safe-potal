@@ -10,14 +10,12 @@ import Rules from "@/pages/Rules";
 import Notices from "@/pages/Notices";
 import Education from "@/pages/Education";
 import EducationLogs from "@/pages/EducationLogs";
-import VehicleManagement from "@/pages/VehicleManagement";
 import SafetyEquipment from "@/pages/SafetyEquipment";
 import EquipmentStatus from "@/pages/EquipmentStatus";
 import EquipmentRequest from "@/pages/EquipmentRequest";
 import AccessRequest from "@/pages/AccessRequest";
 import DigitalBoard from "@/pages/DigitalBoard";
 import SafetyInspections from "@/pages/SafetyInspections";
-import VehicleLogs from "@/pages/VehicleLogs";
 import AdminUsers from "@/pages/AdminUsers";
 import SecurityLogs from "@/pages/SecurityLogs";
 import MsdsSearch from "@/pages/MsdsSearch";
@@ -48,13 +46,11 @@ function MainLayout() {
             <Route path="/education" component={Education} />
             <Route path="/education-logs" component={EducationLogs} />
             <Route path="/inspections" component={SafetyInspections} />
-            <Route path="/vehicle">{() => <VehicleManagement />}</Route>
             <Route path="/equipment">{() => <SafetyEquipment />}</Route>
             <Route path="/equipment/status">{() => <EquipmentStatus />}</Route>
             <Route path="/equipment/request" component={EquipmentRequest} />
             <Route path="/equipment/new-request" component={NewEquipmentRequest} />
             <Route path="/access" component={AccessRequest} />
-            <Route path="/vehicle-logs" component={VehicleLogs} />
             <Route path="/msds" component={MsdsSearch} />
             <Route path="/risk-assessment" component={RiskAssessment} />
             <Route path="/accidents" component={AccidentReports} />

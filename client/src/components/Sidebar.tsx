@@ -5,7 +5,6 @@ import {
   ShieldCheck, 
   Shield,
   HeartPulse,
-  Car,
   GraduationCap, 
   FileText,
   ClipboardCheck,
@@ -13,7 +12,6 @@ import {
   AlertTriangle,
   ShieldAlert,
   FlaskConical,
-  BookOpen,
   DoorOpen,
   MonitorPlay,
   ChevronDown,
@@ -71,14 +69,6 @@ const NAV_ITEMS: NavEntry[] = [
     children: [
       { label: "MSDS검색", href: "/msds", icon: FlaskConical, permissionKey: "canViewMsds" },
       { label: "근골격계질환", href: "/musculoskeletal", icon: Bone, permissionKey: "canViewMusculoskeletal" },
-    ],
-  },
-  {
-    label: "차량관리",
-    icon: Car,
-    children: [
-      { label: "차량관리 현황", href: "/vehicle", icon: Car, permissionKey: "canViewVehicle" },
-      { label: "차량운행일지", href: "/vehicle-logs", icon: BookOpen, permissionKey: "canViewVehicleLogs" },
     ],
   },
   { label: "출입신청", href: "/access", icon: DoorOpen, permissionKey: "canViewAccess" },

@@ -1,4 +1,4 @@
-import { Bell, LogOut, Users, Menu, LayoutDashboard, ShieldCheck, Shield, HeartPulse, GraduationCap, DoorOpen, ShoppingCart, MonitorPlay, ClipboardCheck, BookOpen, FileText, KeyRound, Eye, EyeOff, Car, AlertTriangle, ShieldAlert, FlaskConical, ChevronDown, ScrollText } from "lucide-react";
+import { Bell, LogOut, Users, Menu, LayoutDashboard, ShieldCheck, Shield, HeartPulse, GraduationCap, DoorOpen, ShoppingCart, MonitorPlay, ClipboardCheck, FileText, KeyRound, Eye, EyeOff, AlertTriangle, ShieldAlert, FlaskConical, ChevronDown, ScrollText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -62,14 +62,6 @@ const MOBILE_NAV_ITEMS: MobileNavEntry[] = [
     icon: HeartPulse,
     children: [
       { label: "MSDS검색", href: "/msds", icon: FlaskConical },
-    ],
-  },
-  {
-    label: "차량관리",
-    icon: Car,
-    children: [
-      { label: "차량관리 현황", href: "/vehicle", icon: Car },
-      { label: "차량운행일지", href: "/vehicle-logs", icon: BookOpen },
     ],
   },
   { label: "출입신청", href: "/access", icon: DoorOpen },
