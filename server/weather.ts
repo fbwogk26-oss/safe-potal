@@ -29,7 +29,7 @@ export async function fetchWeather(city: string): Promise<WeatherData> {
   }
 
   const encodedCity = encodeURIComponent(city);
-  const url = `https://wttr.in/${encodedCity}?format=j1&lang=ko`;
+  const url = `https://wttr.in/${encodedCity}?format=j1`;
 
   const res = await fetch(url, {
     headers: { "User-Agent": "SafeBoard/1.0" },
@@ -109,14 +109,27 @@ JSON 형식으로 반환:
 {"title": "제목", "content": "본문"}`;
 
   const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
+    model: "gpt-5-nano",
     messages: [{ role: "user", content: prompt }],
-    response_format: { type: "json_object" },
-    max_tokens: 400,
+    max_tokens: 500,
   });
 
   const raw = response.choices[0]?.message?.content ?? "{}";
-  const parsed = JSON.parse(raw);
+
+  // JSON 블록 추출 (```json ... ``` 또는 순수 JSON)
+  const jsonMatch = raw.match(/\{[\s\S]*\}/);
+  const jsonStr = jsonMatch ? jsonMatch[0] : "{}";
+
+  let parsed: { title?: string; content?: string } = {};
+  try {
+    parsed = JSON.parse(jsonStr);
+  } catch {
+    // JSON 파싱 실패 시 전체 텍스트를 내용으로 사용
+    return {
+      title: `${weather.city} 날씨 안전메시지`,
+      content: raw.trim() || "오늘도 안전한 하루 되세요.",
+    };
+  }
 
   return {
     title: parsed.title ?? `${weather.city} 날씨 안전메시지`,
