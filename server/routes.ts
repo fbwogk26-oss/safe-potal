@@ -2006,6 +2006,7 @@ export async function registerRoutes(
       const byMonth: Record<string, number> = {};
       const byYear: Record<string, number> = {};
       const byYearMonth: Record<string, Record<string, number>> = {};
+      const bySeverityByYear: Record<string, Record<string, number>> = {};
 
       for (const r of reports) {
         byType[r.accidentType] = (byType[r.accidentType] || 0) + 1;
@@ -2019,9 +2020,11 @@ export async function registerRoutes(
         const mon = r.occurredAt?.substring(5, 7) || "00";
         if (!byYearMonth[mon]) byYearMonth[mon] = {};
         byYearMonth[mon][year] = (byYearMonth[mon][year] || 0) + 1;
+        if (!bySeverityByYear[year]) bySeverityByYear[year] = {};
+        bySeverityByYear[year][r.severity] = (bySeverityByYear[year][r.severity] || 0) + 1;
       }
 
-      res.json({ total: reports.length, byType, byCause, byDepartment, bySeverity, byMonth, byYear, byYearMonth });
+      res.json({ total: reports.length, byType, byCause, byDepartment, bySeverity, byMonth, byYear, byYearMonth, bySeverityByYear });
     } catch (error) {
       res.status(500).json({ message: "사고 통계 조회에 실패했습니다" });
     }

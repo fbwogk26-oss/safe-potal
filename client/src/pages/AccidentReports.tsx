@@ -55,6 +55,7 @@ interface StatsData {
   byMonth: Record<string, number>;
   byYear: Record<string, number>;
   byYearMonth: Record<string, Record<string, number>>;
+  bySeverityByYear: Record<string, Record<string, number>>;
 }
 
 interface ProgressItem {
@@ -415,6 +416,9 @@ export default function AccidentReports() {
 
   const COMPARE_YEARS = ["2024", "2025", "2026"];
   const YEAR_COLORS: Record<string, string> = { "2024": "#6366f1", "2025": "#f59e0b", "2026": "#10b981" };
+  const CURRENT_YEAR = String(new Date().getFullYear());
+  const currentYearTotal = stats?.byYear?.[CURRENT_YEAR] ?? 0;
+  const currentYearSeverity = stats?.bySeverityByYear?.[CURRENT_YEAR] ?? {};
   const MONTH_LABELS: Record<string, string> = {
     "01": "1월", "02": "2월", "03": "3월", "04": "4월", "05": "5월", "06": "6월",
     "07": "7월", "08": "8월", "09": "9월", "10": "10월", "11": "11월", "12": "12월",
@@ -560,19 +564,22 @@ export default function AccidentReports() {
               exit={{ opacity: 0, y: -10 }}
               className="space-y-4"
             >
-              {/* 요약 수치 */}
+              {/* 요약 수치 - 최신 연도(현재 연도)만 표시 */}
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xs font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{CURRENT_YEAR}년 기준</span>
+              </div>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                 <Card data-testid="card-stat-total">
                   <CardContent className="p-4 text-center">
                     <p className="text-sm text-muted-foreground">전체 사고</p>
-                    <p className="text-2xl font-bold">{stats?.total ?? 0}</p>
+                    <p className="text-2xl font-bold">{currentYearTotal}</p>
                   </CardContent>
                 </Card>
                 {SEVERITIES.map((sev) => (
                   <Card key={sev} data-testid={`card-stat-${sev}`}>
                     <CardContent className="p-4 text-center">
                       <p className="text-sm text-muted-foreground">{sev}</p>
-                      <p className="text-2xl font-bold">{stats?.bySeverity?.[sev] ?? 0}</p>
+                      <p className="text-2xl font-bold">{currentYearSeverity[sev] ?? 0}</p>
                     </CardContent>
                   </Card>
                 ))}
