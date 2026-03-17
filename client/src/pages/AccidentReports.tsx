@@ -20,7 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { AlertTriangle, BarChart3, Plus, Pencil, Trash2, Download, Upload, X, Camera, PenTool } from "lucide-react";
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell,
 } from "recharts";
 
@@ -629,19 +629,26 @@ export default function AccidentReports() {
                                 <div style={{ background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(8px)', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 12, padding: '10px 14px', boxShadow: '0 8px 32px rgba(0,0,0,0.08)', fontSize: 12 }}>
                                   <p style={{ fontWeight: 600, marginBottom: 4 }}>{label}</p>
                                   {payload.map(p => (
-                                    <p key={p.dataKey} style={{ color: p.color }}>{p.name}: {p.value}건</p>
+                                    <p key={String(p.dataKey)} style={{ color: p.color }}>{p.name}: {p.value}건</p>
                                   ))}
                                 </div>
                               );
                             }
                             return null;
                           }} />
-                          <Legend />
                           {COMPARE_YEARS.map(yr => (
                             <Bar key={yr} dataKey={yr + "년"} fill={YEAR_COLORS[yr]} radius={[3, 3, 0, 0]} maxBarSize={14} animationDuration={800} />
                           ))}
                         </BarChart>
                       </ResponsiveContainer>
+                    </div>
+                    <div className="flex justify-center gap-4 mt-1 text-xs">
+                      {COMPARE_YEARS.map(yr => (
+                        <span key={yr} className="flex items-center gap-1">
+                          <span className="w-3 h-3 rounded-sm inline-block" style={{ background: YEAR_COLORS[yr] }} />
+                          {yr}년
+                        </span>
+                      ))}
                     </div>
                   </CardContent>
                 </Card>
