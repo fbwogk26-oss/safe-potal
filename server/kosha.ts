@@ -24,6 +24,27 @@ const CACHE_TTL_MS = 60 * 60 * 1000;
 
 const SAMPLE_ACCIDENTS: KoshaMajorAccident[] = [
   {
+    dsptYr: "2026", dsptMm: "03",
+    bizplcNm: "(주)통신설비공사", accdntDt: "2026-03-12",
+    indstryNm: "건설업", accdntTpNm: "떨어짐",
+    accdntCausNm: "고소작업 안전대 미착용",
+    dthNum: 1, injuNum: 0, locNm: "대구광역시",
+  },
+  {
+    dsptYr: "2026", dsptMm: "02",
+    bizplcNm: "(주)물류센터", accdntDt: "2026-02-20",
+    indstryNm: "운수·창고업", accdntTpNm: "끼임",
+    accdntCausNm: "컨베이어 정비 중 잠금장치 미적용",
+    dthNum: 1, injuNum: 0, locNm: "경기도",
+  },
+  {
+    dsptYr: "2026", dsptMm: "01",
+    bizplcNm: "(주)철강제조사업장", accdntDt: "2026-01-08",
+    indstryNm: "제조업", accdntTpNm: "화재",
+    accdntCausNm: "용접 불꽃 비산 방지 미조치",
+    dthNum: 1, injuNum: 2, locNm: "경상북도",
+  },
+  {
     dsptYr: "2025", dsptMm: "12",
     bizplcNm: "(주)건설현장", accdntDt: "2025-12-15",
     indstryNm: "건설업", accdntTpNm: "떨어짐",

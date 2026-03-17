@@ -234,7 +234,7 @@ async function uploadImage(blob: Blob, filename: string): Promise<string> {
     throw new Error(`업로드 실패 (${res.status}): ${text}`);
   }
   const data = await res.json();
-  return data.fileUrl as string;
+  return (data.imageUrl ?? data.fileUrl) as string;
 }
 
 export default function WeatherSafetyMessage() {
@@ -266,7 +266,10 @@ export default function WeatherSafetyMessage() {
       return res.json() as Promise<{ weather: WeatherData; message: { title: string; content: string } }>;
     },
     onSuccess: (data) => {
-      setEditTitle(data.message.title);
+      const now = new Date();
+      const mm = String(now.getMonth() + 1).padStart(2, "0");
+      const dd = String(now.getDate()).padStart(2, "0");
+      setEditTitle(`${mm}.${dd} Safety Message`);
       setEditContent(data.message.content);
       setPosted(false);
       setAiGenerated(true);

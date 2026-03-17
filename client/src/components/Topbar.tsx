@@ -1,4 +1,4 @@
-import { Bell, LogOut, Users, Menu, LayoutDashboard, ShieldCheck, Shield, HeartPulse, GraduationCap, DoorOpen, ShoppingCart, MonitorPlay, ClipboardCheck, FileText, KeyRound, Eye, EyeOff, AlertTriangle, ShieldAlert, FlaskConical, ChevronDown, ScrollText, CloudRain } from "lucide-react";
+import { Bell, LogOut, Users, Menu, LayoutDashboard, ShieldCheck, Shield, HeartPulse, GraduationCap, DoorOpen, ShoppingCart, MonitorPlay, ClipboardCheck, FileText, KeyRound, Eye, EyeOff, AlertTriangle, ShieldAlert, FlaskConical, ChevronDown, ScrollText, CloudRain, Bone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -49,12 +49,13 @@ const MOBILE_NAV_ITEMS: MobileNavEntry[] = [
     children: [
       { label: "안전점수", href: "/safety-scores", icon: LayoutDashboard },
       { label: "사고보고/통계", href: "/accidents", icon: AlertTriangle },
-      { label: "안전보호구 현황", href: "/equipment/status", icon: ShieldCheck },
-      { label: "안전용품 신청", href: "/equipment", icon: ShoppingCart },
+      { label: "위험성평가", href: "/risk-assessment", icon: ShieldAlert },
+      { label: "안전점검", href: "/inspections", icon: ClipboardCheck },
       { label: "안전교육 자료", href: "/education", icon: GraduationCap },
       { label: "교육일지", href: "/education-logs", icon: FileText },
-      { label: "안전점검", href: "/inspections", icon: ClipboardCheck },
-      { label: "위험성평가", href: "/risk-assessment", icon: ShieldAlert },
+      { label: "보호구 현황", href: "/equipment/status", icon: ShieldCheck },
+      { label: "안전용품 신청", href: "/equipment", icon: ShoppingCart },
+      { label: "출입신청", href: "/access", icon: DoorOpen },
     ],
   },
   {
@@ -62,10 +63,10 @@ const MOBILE_NAV_ITEMS: MobileNavEntry[] = [
     icon: HeartPulse,
     children: [
       { label: "MSDS검색", href: "/msds", icon: FlaskConical },
+      { label: "근골격계질환", href: "/musculoskeletal", icon: Bone },
       { label: "날씨 안전메시지", href: "/weather-safety", icon: CloudRain },
     ],
   },
-  { label: "출입신청", href: "/access", icon: DoorOpen },
   {
     label: "시스템 관리",
     icon: Shield,
