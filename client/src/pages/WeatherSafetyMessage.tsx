@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { RefreshCw, Send, Sparkles, CheckCircle2, ChevronRight } from "lucide-react";
+import { RefreshCw, Send, Sparkles, CheckCircle2, ChevronRight, Camera } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePermissions } from "@/hooks/use-permissions";
 
@@ -68,6 +68,40 @@ function formatFetchedAt(iso: string): string {
   return `${d.getFullYear()}-${String(month).padStart(2,"0")}-${String(day).padStart(2,"0")} ${h}:${m}`;
 }
 
+async function captureElementAsBlob(el: HTMLElement): Promise<Blob> {
+  const html2canvas = (await import("html2canvas")).default;
+  const canvas = await html2canvas(el, {
+    scale: 2,
+    useCORS: true,
+    allowTaint: true,
+    backgroundColor: "#ffffff",
+    logging: false,
+    width: el.offsetWidth,
+    height: el.offsetHeight,
+    windowWidth: el.scrollWidth,
+    windowHeight: el.scrollHeight,
+  });
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) resolve(blob);
+      else reject(new Error("캡처 실패"));
+    }, "image/png");
+  });
+}
+
+async function uploadImage(blob: Blob, filename: string): Promise<string> {
+  const formData = new FormData();
+  formData.append("image", blob, filename);
+  const res = await fetch("/api/upload", {
+    method: "POST",
+    credentials: "include",
+    body: formData,
+  });
+  if (!res.ok) throw new Error("이미지 업로드 실패");
+  const data = await res.json();
+  return data.fileUrl as string;
+}
+
 export default function WeatherSafetyMessage() {
   const { canRegisterNotices } = usePermissions();
   const { toast } = useToast();
@@ -76,6 +110,8 @@ export default function WeatherSafetyMessage() {
   const [editContent, setEditContent] = useState("");
   const [posted, setPosted] = useState(false);
   const [aiGenerated, setAiGenerated] = useState(false);
+  const [captureEnabled, setCaptureEnabled] = useState(true);
+  const weatherCardRef = useRef<HTMLDivElement>(null);
 
   const weatherQuery = useQuery<WeatherData>({
     queryKey: ["/api/weather/current", city],
@@ -108,17 +144,31 @@ export default function WeatherSafetyMessage() {
 
   const postMutation = useMutation({
     mutationFn: async () => {
+      let imageUrl: string | undefined = undefined;
+
+      if (captureEnabled && weatherCardRef.current) {
+        try {
+          toast({ title: "화면 캡처 중...", description: "날씨 카드를 이미지로 저장하고 있습니다." });
+          const blob = await captureElementAsBlob(weatherCardRef.current);
+          const filename = `weather_${city}_${Date.now()}.png`;
+          imageUrl = await uploadImage(blob, filename);
+        } catch (captureErr) {
+          console.warn("날씨 카드 캡처 실패 (이미지 없이 게시):", captureErr);
+        }
+      }
+
       const res = await apiRequest("POST", "/api/weather/post-notice", {
         city,
         title: editTitle,
         content: editContent,
+        imageUrl,
       });
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/notices"] });
       setPosted(true);
-      toast({ title: "게시 완료", description: "날씨 안전메시지가 공지로 등록되었습니다." });
+      toast({ title: "게시 완료", description: captureEnabled ? "날씨 카드 이미지와 함께 공지로 등록되었습니다." : "날씨 안전메시지가 공지로 등록되었습니다." });
     },
     onError: (err: any) => {
       toast({ title: "게시 실패", description: err?.message ?? "게시에 실패했습니다.", variant: "destructive" });
@@ -159,8 +209,8 @@ export default function WeatherSafetyMessage() {
         )}
       </div>
 
-      {/* 날씨 카드 */}
-      <div className="bg-white dark:bg-card border rounded-xl shadow-sm overflow-hidden">
+      {/* 날씨 카드 (캡처 대상) */}
+      <div ref={weatherCardRef} className="bg-white dark:bg-card border rounded-xl shadow-sm overflow-hidden">
         {/* 도시 선택 */}
         <div className="border-b px-4 py-3">
           <Select value={city} onValueChange={(v) => { setCity(v); setAiGenerated(false); setPosted(false); }}>
@@ -307,12 +357,43 @@ export default function WeatherSafetyMessage() {
                 />
               </div>
 
+              {/* 화면 캡처 첨부 옵션 */}
+              {weather && (
+                <div
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors select-none ${
+                    captureEnabled
+                      ? "bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800"
+                      : "bg-muted/40 border-border"
+                  }`}
+                  onClick={() => setCaptureEnabled((v) => !v)}
+                >
+                  <div className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 ${
+                    captureEnabled ? "bg-blue-600 border-blue-600" : "border-muted-foreground"
+                  }`}>
+                    {captureEnabled && (
+                      <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 12 12">
+                        <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    )}
+                  </div>
+                  <Camera className={`w-3.5 h-3.5 ${captureEnabled ? "text-blue-600" : "text-muted-foreground"}`} />
+                  <span className={`text-xs font-medium ${captureEnabled ? "text-blue-700 dark:text-blue-300" : "text-muted-foreground"}`}>
+                    날씨 카드 이미지 첨부
+                  </span>
+                  <span className="text-[10px] text-muted-foreground ml-auto">
+                    {captureEnabled ? "첨부됨" : "첨부 안 함"}
+                  </span>
+                </div>
+              )}
+
               {posted ? (
                 <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
                   <CheckCircle2 className="w-5 h-5 text-green-600 shrink-0" />
                   <div>
                     <p className="text-sm font-medium text-green-700">공지 게시 완료!</p>
-                    <p className="text-xs text-green-600">공지/알림 메뉴에서 확인할 수 있습니다.</p>
+                    <p className="text-xs text-green-600">
+                      {captureEnabled ? "날씨 카드 이미지와 함께 " : ""}공지/알림 메뉴에서 확인할 수 있습니다.
+                    </p>
                   </div>
                 </div>
               ) : (
@@ -332,10 +413,11 @@ export default function WeatherSafetyMessage() {
                       disabled={postMutation.isPending || !editTitle.trim() || !editContent.trim()}
                       className="gap-2 flex-1"
                     >
-                      {postMutation.isPending
-                        ? <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                        : <Send className="w-3.5 h-3.5" />}
-                      {postMutation.isPending ? "게시중..." : "공지로 게시"}
+                      {postMutation.isPending ? (
+                        <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> {captureEnabled ? "캡처 중..." : "게시중..."}</>
+                      ) : (
+                        <>{captureEnabled ? <Camera className="w-3.5 h-3.5" /> : <Send className="w-3.5 h-3.5" />} 공지로 게시</>
+                      )}
                     </Button>
                   )}
                 </div>

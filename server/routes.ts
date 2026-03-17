@@ -2177,7 +2177,7 @@ export async function registerRoutes(
 
   app.post("/api/weather/post-notice", isAuthenticated, async (req: any, res) => {
     try {
-      const { city, title, content } = req.body;
+      const { city, title, content, imageUrl } = req.body;
       if (!title || !content) {
         return res.status(400).json({ message: "제목과 내용을 입력해주세요" });
       }
@@ -2185,7 +2185,7 @@ export async function registerRoutes(
         category: "notice",
         title: title.trim(),
         content: content.trim(),
-        imageUrl: undefined,
+        imageUrl: imageUrl && typeof imageUrl === "string" ? imageUrl : undefined,
         fileName: undefined,
         fileType: undefined,
         attachments: undefined,
