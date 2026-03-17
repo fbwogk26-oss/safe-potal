@@ -2182,7 +2182,7 @@ export async function registerRoutes(
         return res.status(400).json({ message: "제목과 내용을 입력해주세요" });
       }
       const notice = await storage.createNotice({
-        category: "safe_message",
+        category: "notice",
         title: title.trim(),
         content: content.trim(),
         imageUrl: undefined,
