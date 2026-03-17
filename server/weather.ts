@@ -271,130 +271,65 @@ export async function generateSafetyMessage(weather: WeatherData): Promise<{
   title: string;
   content: string;
 }> {
-  const risks: string[] = [];
-  const safetyPoints: string[] = [];
+  // 캔버스 이미지와 동일한 구조화된 헤더 (이미지와 100% 일치)
+  const now = new Date();
+  const dateStr = `${now.getFullYear()}년 ${now.getMonth()+1}월 ${now.getDate()}일`;
 
-  if (weather.tempC >= 35) {
-    risks.push("폭염(35°C 이상) 온열질환 위험 매우 높음");
-    safetyPoints.push(`현재 기온 ${weather.tempC}°C(체감 ${weather.feelsLikeC}°C) 폭염 상황 — 30분 작업 후 10분 이상 그늘 휴식 필수, 시간당 500ml 이상 수분 섭취`);
-  } else if (weather.tempC >= 33) {
-    risks.push("고온(33°C 이상) 열탈진 주의");
-    safetyPoints.push(`기온 ${weather.tempC}°C 고온 — 1시간마다 충분한 휴식과 수분(300ml 이상) 보충 필수`);
-  } else if (weather.tempC <= -10) {
-    risks.push("혹한(영하 10°C 이하) 저체온·동상 위험");
-    safetyPoints.push(`${weather.tempC}°C 혹한 — 방한복·방한장갑·방한화 완전 착용 필수, 노출 피부 동상 위험`);
-  } else if (weather.tempC <= 0 || weather.tempMinC <= 0) {
-    risks.push("영하권 기온 결빙·근육경직 주의");
-    safetyPoints.push(`기온 ${weather.tempC}°C (최저 ${weather.tempMinC}°C) 결빙 예상 — 노면·발판 결빙 확인, 미끄럼 방지 장화 착용`);
-  } else if (weather.tempC <= 5 || weather.tempMinC <= 5) {
-    risks.push("저온으로 신체 기능 저하 주의");
-    safetyPoints.push(`기온 ${weather.tempC}°C 저온 (최저 ${weather.tempMinC}°C) — 방한복 착용, 30분마다 실내 이동으로 보온 유지`);
-  }
+  const structuredHeader = [
+    `📍 오늘 ${weather.city}의 현재 기온은 ${weather.tempC}°C(체감 ${weather.feelsLikeC}°C)이며, 날씨 상태는 ${weather.weatherDesc}입니다. 오늘의 최고 기온은 ${weather.tempMaxC}°C, 최저 기온은 ${weather.tempMinC}°C로 예상됩니다.`,
+    ``,
+    `🌡 기상 현황 (${dateStr} 기준)`,
+    `강수량 ${weather.precipMM > 0 ? weather.precipMM + "mm" : "없음"} | 강수확률 ${weather.precipProb}% | 풍속 ${weather.windspeedMs}m/s | 습도 ${weather.humidity}%`,
+    `적설량 ${weather.snowCM > 0 ? weather.snowCM + "cm" : "없음"} | 미세먼지(PM10) ${weather.pm10 !== null ? weather.pm10 + "μg/m³ (" + (weather.pm10Grade ?? "-") + ")" : "정보없음"}`,
+    ``,
+    `⚠️ 경고요인: ${weather.warningFactor}`,
+    ``,
+    `🔴 위험요인: ${weather.riskFactor}`,
+    ``,
+    `✅ 안전조치: ${weather.safetyAction}`,
+    ``,
+    `📢 기상특보: ${weather.specialReport}`,
+  ].join("\n");
 
-  if (weather.precipMM >= 20) {
-    risks.push("집중 강수로 재해 위험 매우 높음");
-    safetyPoints.push(`강수량 ${weather.precipMM}mm 집중호우 — 옥외 철탑·전주 작업 즉시 중단, 낙뢰 위험 구간 접근 금지`);
-  } else if (weather.precipMM >= 5) {
-    risks.push("강우로 낙뢰·미끄럼 위험");
-    safetyPoints.push(`강수량 ${weather.precipMM}mm 강우 — 젖은 노면·사다리·발판 미끄럼 위험, 절연장갑 착용 철저`);
-  } else if (weather.precipMM > 0) {
-    risks.push("소량 강수로 미끄럼 주의");
-    safetyPoints.push(`강수량 ${weather.precipMM}mm — 노면 및 작업 발판 습기 주의, 절연장갑 착용`);
-  }
-
-  if (weather.windspeedKmph >= 55) {
-    risks.push("강풍(55km/h 이상) 고소작업 불가");
-    safetyPoints.push(`풍속 ${weather.windspeedKmph}km/h 강풍 — 10m 이상 고소작업 전면 금지, 지상 작업 시에도 낙하물 주의`);
-  } else if (weather.windspeedKmph >= 35) {
-    risks.push("강풍(35km/h 이상) 고소작업 위험");
-    safetyPoints.push(`풍속 ${weather.windspeedKmph}km/h 강풍 — 철탑·안테나 작업 자제 권고, 안전대 2중 체결`);
-  } else if (weather.windspeedKmph >= 20) {
-    risks.push("바람 강함으로 고소작업 주의");
-    safetyPoints.push(`풍속 ${weather.windspeedKmph}km/h — 고소작업 시 안전대 필수 착용, 가벼운 장비 고정`);
-  }
-
-  if (weather.uvIndex >= 8) {
-    risks.push("자외선 매우 강함(UV 8 이상)");
-    safetyPoints.push(`UV지수 ${weather.uvIndex} 자외선 매우 강함 — SPF50+ 자외선차단제 2시간마다 도포, 선글라스 착용`);
-  } else if (weather.uvIndex >= 6) {
-    safetyPoints.push(`UV지수 ${weather.uvIndex} 자외선 강함 — 자외선차단제 도포, 피부 노출 최소화`);
-  }
-
-  if (weather.pm10 !== null && weather.pm10 > 150) {
-    risks.push("미세먼지 매우 나쁨");
-    safetyPoints.push(`PM10 ${weather.pm10}μg/m³ 미세먼지 매우 나쁨 — N95 마스크 착용 필수, 야외작업 최소화`);
-  } else if (weather.pm10 !== null && weather.pm10 > 80) {
-    risks.push("미세먼지 나쁨, 호흡기 주의");
-    safetyPoints.push(`PM10 ${weather.pm10}μg/m³ 미세먼지 나쁨 — 마스크 착용 권고, 장시간 야외 노출 자제`);
-  }
-
-  if (weather.humidity >= 85 && weather.tempC >= 28) {
-    risks.push("고온다습으로 온열질환 위험");
-    safetyPoints.push(`습도 ${weather.humidity}% 고온다습 — 전해질 음료 섭취, 통풍 작업복 착용`);
-  }
-
-  const riskSummary = risks.length > 0
-    ? `⚠️ 오늘의 주요 위험: ${risks.join(" | ")}`
-    : `✅ 오늘의 기상 조건: 비교적 양호 (${weather.weatherDesc}, ${weather.tempC}°C, 최저 ${weather.tempMinC}°C)`;
-
-  if (safetyPoints.length === 0) {
-    safetyPoints.push(`오늘 ${weather.city} 날씨는 ${weather.weatherDesc} ${weather.tempC}°C (최고 ${weather.tempMaxC}°C/최저 ${weather.tempMinC}°C) — 현장 작업에 큰 지장은 없으나 기본 안전수칙 준수 필요`);
-  }
-
+  // AI로 현장 맞춤 안전 당부 문구 추가 생성
   const prompt = `당신은 KT MOS남부 통신 현장 안전관리 전문가입니다.
-아래의 실시간 날씨 데이터와 위험 분석 결과를 바탕으로, 현장 근무자에게 전달할 구체적이고 실용적인 안전메시지를 작성하세요.
+아래 날씨 데이터와 위험 분석을 바탕으로, 현장 근무자를 위한 구체적인 안전 당부 2~3문장을 작성하세요.
 
-[${weather.city} 실시간 날씨]
-- 현재 기온: ${weather.tempC}°C (체감 ${weather.feelsLikeC}°C)
-- 최고/최저: ${weather.tempMaxC}°C / ${weather.tempMinC}°C
-- 날씨: ${weather.weatherDesc}
-- 풍속: ${weather.windspeedKmph}km/h (${weather.windspeedMs}m/s)
-- 습도: ${weather.humidity}%
-- 강수량: ${weather.precipMM}mm (강수확률 ${weather.precipProb}%)
-- 적설량: ${weather.snowCM > 0 ? weather.snowCM + "cm" : "없음"}
-- 자외선지수: ${weather.uvIndex}
-- 미세먼지(PM10): ${weather.pm10 !== null ? weather.pm10 + "μg/m³ (" + weather.pm10Grade + ")" : "정보없음"}
-
-[위험 분석]
-${riskSummary}
-
-[날씨별 안전 포인트]
-${safetyPoints.map((p, i) => `${i + 1}. ${p}`).join("\n")}
+[${weather.city} 오늘 날씨]
+- 기온: ${weather.tempC}°C (체감 ${weather.feelsLikeC}°C, 최고 ${weather.tempMaxC}°C / 최저 ${weather.tempMinC}°C)
+- 경고요인: ${weather.warningFactor}
+- 위험요인: ${weather.riskFactor}
+- 안전조치: ${weather.safetyAction}
 
 [작성 규칙]
-- 대상: 통신탑, 기지국, 전신주, 광케이블 야외 전기통신 설비 유지보수 작업자
-- 실제 수치(기온, 최고/최저, 풍속 등)를 본문에 직접 인용
-- 이모지를 활용하여 가독성 향상
-- 본문 6~8문장, 날씨 데이터를 충분히 반영하여 상세하게 작성
-- 작업자 안전에 대한 진심 어린 당부로 마무리
+- 통신탑, 기지국, 전신주, 광케이블 야외 작업자 대상
+- 위의 경고/위험/안전조치 내용을 반드시 반영
+- 이모지 활용, 간결하게 2~3문장
+- 마지막에 안전 당부 마무리 문장 포함
 
-반드시 아래 형식으로만 출력하세요. 다른 내용 절대 금지:
-TITLE: 여기에 제목 (이모지 포함, 20자 이내)
-CONTENT: 여기에 본문 내용 전체`;
+반드시 아래 형식으로만 출력하세요:
+ADVICE: 여기에 안전 당부 내용만`;
 
-  const response = await openai.chat.completions.create({
-    model: "gpt-5-nano",
-    messages: [{ role: "user", content: prompt }],
-    max_completion_tokens: 1000,
-  });
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-5-nano",
+      messages: [{ role: "user", content: prompt }],
+      max_completion_tokens: 400,
+    });
 
-  const raw = (response.choices[0]?.message?.content ?? "").trim();
+    const raw = (response.choices[0]?.message?.content ?? "").trim();
+    const adviceMatch = raw.match(/ADVICE:\s*([\s\S]+)/);
+    const advice = adviceMatch?.[1]?.trim() || "";
 
-  const titleMatch = raw.match(/TITLE:\s*(.+)/);
-  const contentMatch = raw.match(/CONTENT:\s*([\s\S]+)/);
-
-  const title = titleMatch?.[1]?.trim() || `☀️ ${weather.city} 날씨 안전메시지`;
-  const content = contentMatch?.[1]?.trim() || raw.replace(/TITLE:.*\n?/, "").trim();
-
-  if (!content || content.length < 20) {
-    const fallbackContent = [
-      `📍 오늘 ${weather.city}의 현재 기온은 ${weather.tempC}°C(체감 ${weather.feelsLikeC}°C)이며, 날씨 상태는 ${weather.weatherDesc}입니다. 오늘의 최고 기온은 ${weather.tempMaxC}°C, 최저 기온은 ${weather.tempMinC}°C로 예상됩니다.`,
-      riskSummary,
-      ...safetyPoints.map(p => `✅ ${p}`),
-      `🙏 오늘도 현장 근무자 여러분 모두 안전한 하루 보내시길 바랍니다. 작업 전 안전장비 착용을 반드시 확인해 주세요.`,
-    ].join("\n\n");
-    return { title, content: fallbackContent };
+    if (advice && advice.length >= 20) {
+      const content = `${structuredHeader}\n\n${advice}`;
+      return { title: `☀️ ${weather.city} 날씨 안전메시지`, content };
+    }
+  } catch (_) {
+    // AI 실패 시 구조화 내용만 사용
   }
 
-  return { title, content };
+  // 폴백: 구조화된 내용 + 기본 마무리
+  const content = `${structuredHeader}\n\n🙏 오늘도 현장 근무자 여러분 모두 안전한 하루 보내시길 바랍니다. 작업 전 안전장비 착용을 반드시 확인해 주세요.`;
+  return { title: `☀️ ${weather.city} 날씨 안전메시지`, content };
 }
