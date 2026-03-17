@@ -115,43 +115,59 @@ async function fetchPm10AirKorea(city: string, serviceKey: string): Promise<numb
   }
 }
 
-// 도시 → WAQI 스테이션 slug 매핑
-const CITY_TO_WAQI: Record<string, string> = {
-  대구: "@11782",      // 대구 수성구
-  구미: "gumi",
-  포항: "pohang",
-  안동: "andong",
-  서울: "seoul",
-  부산: "busan",
-  울산: "ulsan",
-  인천: "incheon",
-  광주: "gwangju",
-  대전: "daejeon",
+// 도시 → 좌표 매핑 (Open-Meteo 대기질 API용, 인증 불필요)
+const CITY_COORDS: Record<string, { lat: number; lon: number }> = {
+  대구:   { lat: 35.8714, lon: 128.6014 },
+  구미:   { lat: 36.1197, lon: 128.3445 },
+  포항:   { lat: 36.0190, lon: 129.3435 },
+  안동:   { lat: 36.5684, lon: 128.7294 },
+  문경:   { lat: 36.5866, lon: 128.1859 },
+  울릉도: { lat: 37.4855, lon: 130.9058 },
+  울진:   { lat: 36.9929, lon: 129.4003 },
+  부산:   { lat: 35.1796, lon: 129.0756 },
+  울산:   { lat: 35.5384, lon: 129.3114 },
+  서울:   { lat: 37.5665, lon: 126.9780 },
+  인천:   { lat: 37.4563, lon: 126.7052 },
+  광주:   { lat: 35.1595, lon: 126.8526 },
+  대전:   { lat: 36.3504, lon: 127.3845 },
+  세종:   { lat: 36.5040, lon: 127.2495 },
+  수원:   { lat: 37.2636, lon: 127.0286 },
+  창원:   { lat: 35.2280, lon: 128.6811 },
+  전주:   { lat: 35.8242, lon: 127.1480 },
 };
 
-async function fetchPm10Waqi(city: string): Promise<number | null> {
-  // WAQI(세계대기질지수) 무료 API (demo 토큰 사용)
+async function fetchPm10OpenMeteo(city: string): Promise<number | null> {
+  // Open-Meteo 대기질 API (무료, 인증 불필요, 좌표 기반)
+  const coords = CITY_COORDS[city];
+  if (!coords) {
+    console.warn(`[PM10/OpenMeteo] No coordinates for city=${city}`);
+    return null;
+  }
   try {
-    const station = CITY_TO_WAQI[city] ?? city;
-    const url = `https://api.waqi.info/feed/${encodeURIComponent(station)}/?token=demo`;
+    const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${coords.lat}&longitude=${coords.lon}&hourly=pm10&timezone=Asia%2FSeoul&forecast_days=1`;
     const res = await fetch(url, {
       headers: { "User-Agent": "SafeBoard/1.0" },
       signal: AbortSignal.timeout(8000),
     });
-    if (!res.ok) return null;
-    const json = (await res.json()) as any;
-    if (json?.status !== "ok") {
-      console.warn(`[PM10/WAQI] status=${json?.status} city=${city}`);
+    if (!res.ok) {
+      console.warn(`[PM10/OpenMeteo] HTTP ${res.status} for city=${city}`);
       return null;
     }
-    const pm10 = json?.data?.iaqi?.pm10?.v;
-    if (pm10 == null) return null;
-    const v = Number(pm10);
-    if (isNaN(v)) return null;
-    console.log(`[PM10/WAQI] city=${city} station=${station} pm10=${v}`);
-    return v;
+    const json = (await res.json()) as any;
+    const times: string[] = json?.hourly?.time ?? [];
+    const pm10s: (number | null)[] = json?.hourly?.pm10 ?? [];
+    // 현재 시간(KST)에 가장 가까운 인덱스 찾기 (KST = UTC+9)
+    const nowUtc = new Date();
+    const kstMs = nowUtc.getTime() + 9 * 60 * 60 * 1000;
+    const nowHour = new Date(kstMs).toISOString().slice(0, 13); // "YYYY-MM-DDTHH"
+    let idx = times.findIndex((t) => t.startsWith(nowHour));
+    if (idx < 0) idx = 0;
+    const v = pm10s[idx];
+    if (v == null || isNaN(Number(v))) return null;
+    console.log(`[PM10/OpenMeteo] city=${city} hour=${times[idx]} pm10=${v}`);
+    return Number(v);
   } catch (e) {
-    console.warn(`[PM10/WAQI] Error: ${e}`);
+    console.warn(`[PM10/OpenMeteo] Error: ${e}`);
     return null;
   }
 }
@@ -167,8 +183,8 @@ async function fetchPm10(city: string): Promise<{ value: number | null; grade: s
     }
   }
 
-  // 2차 폴백: WAQI(세계대기질지수) 무료 API
-  const value = await fetchPm10Waqi(city);
+  // 2차 폴백: Open-Meteo 대기질 API (무료, 인증 불필요, 좌표 기반)
+  const value = await fetchPm10OpenMeteo(city);
   if (value !== null) {
     return { value, ...pm10Grade(value) };
   }
