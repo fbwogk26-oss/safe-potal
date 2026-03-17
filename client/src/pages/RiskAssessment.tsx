@@ -672,73 +672,50 @@ export default function RiskAssessmentPage() {
                       className={`cursor-pointer transition-all duration-150 hover:shadow-md ${isSelected ? "border-orange-400 shadow-md ring-1 ring-orange-300 dark:ring-orange-700" : "border-border hover:border-orange-200 dark:hover:border-orange-800"}`}
                       onClick={() => setSelectedId(isSelected ? null : item.id)}
                     >
-                      <CardContent className="p-2 sm:p-2.5">
-                        <div className="flex items-start justify-between gap-2">
-                          {/* 왼쪽: 번호 + 유형 배지 + 내용 */}
-                          <div className="flex items-start gap-2 min-w-0 flex-1">
-                            <div className="shrink-0 flex flex-col items-center gap-0.5 pt-0.5">
-                              <span className="text-[10px] font-bold text-muted-foreground tabular-nums w-5 text-center">{idx + 1}</span>
-                              <span className={`inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold ${isTypeSuji ? "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300" : "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"}`}>
-                                {isTypeSuji ? "수시" : "정기"}
-                              </span>
+                      <CardContent className="px-2.5 py-2">
+                        {/* 상단: 번호 + 경로 + 유해위험요인 */}
+                        <div className="flex items-start gap-2 min-w-0">
+                          <span className="shrink-0 text-[10px] font-bold text-muted-foreground tabular-nums w-4 text-center pt-0.5">{idx + 1}</span>
+                          <div className="min-w-0 flex-1">
+                            {/* 조직 경로 */}
+                            <div className="flex items-center gap-0.5 text-[10px] text-muted-foreground mb-0.5">
+                              <MapPin className="w-2.5 h-2.5 shrink-0 text-orange-400" />
+                              <span>{division}</span>
+                              <ChevronRight className="w-2.5 h-2.5 opacity-40" />
+                              <span className="font-medium text-foreground/80">{shortName}</span>
+                              {item.process && <><ChevronRight className="w-2.5 h-2.5 opacity-40" /><span>{item.process}</span></>}
                             </div>
-                            <div className="min-w-0 flex-1 space-y-0.5">
-                              {/* 조직 계층 경로 */}
-                              <div className="flex items-center gap-0.5 text-[10px] text-muted-foreground flex-wrap">
-                                <MapPin className="w-2.5 h-2.5 shrink-0 text-orange-400" />
-                                <span>KT MOS남부</span>
-                                <ChevronRight className="w-2.5 h-2.5 opacity-50" />
-                                <span>{division}</span>
-                                <ChevronRight className="w-2.5 h-2.5 opacity-50" />
-                                <span className="font-medium text-foreground/80">{shortName}</span>
-                              </div>
-                              {/* 유해위험요인 */}
-                              <p className="text-[13px] font-semibold text-foreground leading-snug line-clamp-1">{item.hazard}</p>
-                              {/* 공정명 + 유형 + 평가자 + 부서장 + 날짜 (한 줄) */}
-                              <div className="flex items-center gap-2 flex-wrap text-[10px] text-muted-foreground">
-                                {item.process && <span>{item.process}</span>}
-                                {item.hazardType && (
-                                  <span className="inline-block px-1 py-px rounded bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-medium">{item.hazardType}</span>
-                                )}
-                              </div>
-                              {/* 평가자 + 부서장 + 날짜 */}
-                              <div className="flex items-center gap-2 flex-wrap text-[10px] text-muted-foreground">
-                                {item.assessor && (
-                                  <span className="flex items-center gap-1">
-                                    <User className="w-3 h-3" />{item.assessor}
-                                  </span>
-                                )}
-                                {ra.departmentHead && (
-                                  <span className="flex items-center gap-1">
-                                    <Users className="w-3 h-3" />부서장: {ra.departmentHead}
-                                  </span>
-                                )}
-                                <span>{item.assessmentDate}</span>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* 오른쪽: 등급 + 승인 상태 */}
-                          <div className="shrink-0 flex flex-col items-end gap-1.5">
-                            <div className="flex flex-col items-end gap-1">
-                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold no-default-hover-elevate no-default-active-elevate ${getRiskBadgeClass(grade.label)}`}>
-                                {grade.label}
-                              </span>
-                              <span className="text-[10px] text-muted-foreground">{item.riskScore}점</span>
-                            </div>
-                            {getApprovalBadge(ra.approvalStatus)}
-                            {grade.grade === "A" && ra.improvementStatus && ra.improvementStatus !== "미완료" && (
-                              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${ra.improvementStatus === "완료" ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"}`}>
-                                개선{ra.improvementStatus}
-                              </span>
-                            )}
+                            {/* 유해위험요인 */}
+                            <p className="text-[13px] font-semibold text-foreground leading-snug line-clamp-1">{item.hazard}</p>
                           </div>
                         </div>
 
-                        {/* 클릭 힌트 */}
-                        <div className="flex items-center justify-end mt-1">
-                          <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
-                            {isSelected ? <><ChevronDown className="w-3 h-3" />접기</> : <><ChevronRight className="w-3 h-3" />상세보기</>}
+                        {/* 하단: 모든 메타 정보 + 등급 + 승인 + 개선 + 상세보기 한 줄 */}
+                        <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                          {/* 평가 구분 */}
+                          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold shrink-0 ${isTypeSuji ? "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300" : "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"}`}>
+                            {isTypeSuji ? "수시" : "정기"}
+                          </span>
+                          {/* 등급 + 점수 */}
+                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${getRiskBadgeClass(grade.label)}`}>
+                            {grade.label} {item.riskScore}점
+                          </span>
+                          {/* 승인 상태 */}
+                          {getApprovalBadge(ra.approvalStatus)}
+                          {/* 개선 상태 */}
+                          {grade.grade === "A" && ra.improvementStatus && ra.improvementStatus !== "미완료" && (
+                            <span className={`inline-flex items-center text-[9px] font-medium px-1.5 py-0.5 rounded-full shrink-0 ${ra.improvementStatus === "완료" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"}`}>
+                              개선{ra.improvementStatus}
+                            </span>
+                          )}
+                          {/* 평가자 + 날짜 */}
+                          <span className="text-[10px] text-muted-foreground flex items-center gap-1 ml-auto shrink-0">
+                            {item.assessor && <><User className="w-2.5 h-2.5" />{item.assessor} · </>}
+                            {item.assessmentDate}
+                          </span>
+                          {/* 상세보기 */}
+                          <span className="text-[10px] text-muted-foreground flex items-center gap-0.5 shrink-0 font-medium">
+                            {isSelected ? <><ChevronDown className="w-3 h-3" />접기</> : <><ChevronRight className="w-3 h-3" />상세</>}
                           </span>
                         </div>
                       </CardContent>
