@@ -9,6 +9,7 @@ import fs from "fs";
 import ExcelJS from "exceljs";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 import { getKoshaMajorAccidents, clearKoshaCache } from "./kosha";
+import { fetchWeather, generateSafetyMessage, clearWeatherCache } from "./weather";
 import { setupAuth, registerAuthRoutes, isAuthenticated, authStorage } from "./replit_integrations/auth";
 import { ALL_PERMISSIONS, type UserPermissions } from "@shared/models/auth";
 import { registerChatbotRoutes } from "./chatbot";
@@ -2150,6 +2151,56 @@ export async function registerRoutes(
     } catch (error) {
       res.status(500).json({ message: "신규 상품요청 삭제에 실패했습니다" });
     }
+  });
+
+  // ── WEATHER SAFETY MESSAGE ──
+  app.get("/api/weather/current", isAuthenticated, async (req: any, res) => {
+    try {
+      const city = String(req.query.city || "대구");
+      const weather = await fetchWeather(city);
+      res.json(weather);
+    } catch (error: any) {
+      res.status(500).json({ message: error?.message || "날씨 조회에 실패했습니다" });
+    }
+  });
+
+  app.post("/api/weather/generate-message", isAuthenticated, async (req: any, res) => {
+    try {
+      const city = String(req.body.city || "대구");
+      const weather = await fetchWeather(city);
+      const message = await generateSafetyMessage(weather);
+      res.json({ weather, message });
+    } catch (error: any) {
+      res.status(500).json({ message: error?.message || "안전메시지 생성에 실패했습니다" });
+    }
+  });
+
+  app.post("/api/weather/post-notice", isAuthenticated, async (req: any, res) => {
+    try {
+      const { city, title, content } = req.body;
+      if (!title || !content) {
+        return res.status(400).json({ message: "제목과 내용을 입력해주세요" });
+      }
+      const notice = await storage.createNotice({
+        category: "safe_message",
+        title: title.trim(),
+        content: content.trim(),
+        imageUrl: undefined,
+        fileName: undefined,
+        fileType: undefined,
+        attachments: undefined,
+        createdBy: req.user?.username ?? null,
+      });
+      res.json(notice);
+    } catch (error: any) {
+      res.status(500).json({ message: error?.message || "공지 게시에 실패했습니다" });
+    }
+  });
+
+  app.post("/api/weather/clear-cache", isAuthenticated, async (req: any, res) => {
+    const city = req.body.city ? String(req.body.city) : undefined;
+    clearWeatherCache(city);
+    res.json({ ok: true });
   });
 
   app.get("/api/kosha/major-accidents", isAuthenticated, async (req, res) => {

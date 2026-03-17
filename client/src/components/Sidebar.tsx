@@ -19,6 +19,7 @@ import {
   ScrollText,
   Bone,
   Home,
+  CloudRain,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -49,6 +50,7 @@ function isGroup(entry: NavEntry): entry is NavGroup {
 const NAV_ITEMS: NavEntry[] = [
   { label: "홈", href: "/", icon: Home },
   { label: "공지/알림", href: "/notices", icon: Bell, permissionKey: "canViewNotices" },
+  { label: "날씨 안전메시지", href: "/weather-safety", icon: CloudRain, permissionKey: "canRegisterNotices" },
   { label: "전자게시판", href: "/digital-board", icon: MonitorPlay, permissionKey: "canViewDigitalBoard" },
   { label: "안전수칙", href: "/rules", icon: ShieldCheck, permissionKey: "canViewRules" },
   {

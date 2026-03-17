@@ -24,6 +24,7 @@ import RiskAssessment from "@/pages/RiskAssessment";
 import AccidentReports from "@/pages/AccidentReports";
 import MusculoskeletalDisease from "@/pages/MusculoskeletalDisease";
 import NewEquipmentRequest from "@/pages/NewEquipmentRequest";
+import WeatherSafetyMessage from "@/pages/WeatherSafetyMessage";
 import Login from "@/pages/Login";
 import NotFound from "@/pages/NotFound";
 import { useAuth } from "@/hooks/use-auth";
@@ -60,6 +61,7 @@ function MainLayout() {
             <Route path="/digital-board" component={DigitalBoard} />
             <Route path="/admin/users" component={AdminUsers} />
             <Route path="/admin/security" component={SecurityLogs} />
+            <Route path="/weather-safety" component={WeatherSafetyMessage} />
             <Route component={NotFound} />
           </Switch>
         </div>

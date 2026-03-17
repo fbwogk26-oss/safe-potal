@@ -54,6 +54,7 @@ const SHORTCUTS = [
 
 const CATEGORY_LABELS: Record<string, string> = {
   notice: "공지", rule: "수칙", education: "교육", equipment: "용품", access: "출입", edu: "교육",
+  safe_message: "세이프메시지", equip_request: "용품신청",
 };
 
 const TABS = ["공지사항", "최근 사고", "승인대기"] as const;
