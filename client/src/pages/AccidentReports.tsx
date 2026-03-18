@@ -21,7 +21,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { AlertTriangle, BarChart3, Plus, Pencil, Trash2, Download, Upload, X, Camera, PenTool } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Cell,
+  ResponsiveContainer,
 } from "recharts";
 
 const ACCIDENT_TYPES = ["추락", "전도", "충돌", "협착", "감전", "화재/폭발", "교통사고", "기타"];
@@ -46,17 +46,6 @@ const STATUS_COLORS: Record<string, string> = {
 
 const CHART_COLORS = ["#6366f1", "#ec4899", "#f59e0b", "#10b981", "#8b5cf6", "#06b6d4", "#f97316", "#14b8a6"];
 
-interface StatsData {
-  total: number;
-  byType: Record<string, number>;
-  byCause: Record<string, number>;
-  byDepartment: Record<string, number>;
-  bySeverity: Record<string, number>;
-  byMonth: Record<string, number>;
-  byYear: Record<string, number>;
-  byYearMonth: Record<string, Record<string, number>>;
-  bySeverityByYear: Record<string, Record<string, number>>;
-}
 
 interface ProgressItem {
   no: number;
@@ -213,10 +202,6 @@ export default function AccidentReports() {
 
   const { data: reports = [], isLoading } = useQuery<AccidentReport[]>({
     queryKey: ["/api/accidents"],
-  });
-
-  const { data: stats } = useQuery<StatsData>({
-    queryKey: ["/api/accidents/stats"],
   });
 
   const getServerError = (error: unknown, fallback: string): string => {
@@ -419,26 +404,18 @@ export default function AccidentReports() {
   const toChartData = (record: Record<string, number> | undefined) =>
     record ? Object.entries(record).map(([name, value]) => ({ name, value })) : [];
 
-  const COMPARE_YEARS = ["2024", "2025", "2026"];
-  const YEAR_COLORS: Record<string, string> = { "2024": "#6366f1", "2025": "#f59e0b", "2026": "#10b981" };
-  const CURRENT_YEAR = String(new Date().getFullYear());
-  const currentYearTotal = stats?.byYear?.[CURRENT_YEAR] ?? 0;
-  const currentYearSeverity = stats?.bySeverityByYear?.[CURRENT_YEAR] ?? {};
-  const MONTH_LABELS: Record<string, string> = {
-    "01": "1월", "02": "2월", "03": "3월", "04": "4월", "05": "5월", "06": "6월",
-    "07": "7월", "08": "8월", "09": "9월", "10": "10월", "11": "11월", "12": "12월",
-  };
-  const yearCompareData = COMPARE_YEARS.map(yr => ({
-    name: yr + "년",
-    value: stats?.byYear?.[yr] ?? 0,
-  }));
-  const MONTHS_ORDER = ["01","02","03","04","05","06","07","08","09","10","11","12"];
-  const yearMonthlyData = MONTHS_ORDER.map(mon => {
-    const entry: Record<string, string | number> = { name: MONTH_LABELS[mon] };
-    for (const yr of COMPARE_YEARS) {
-      entry[yr + "년"] = stats?.byYearMonth?.[mon]?.[yr] ?? 0;
-    }
-    return entry;
+  const CURRENT_YEAR = "2026";
+  const reports2026 = reports.filter(r => r.occurredAt?.startsWith(CURRENT_YEAR));
+  const byType2026 = reports2026.reduce((acc, r) => { acc[r.accidentType] = (acc[r.accidentType] || 0) + 1; return acc; }, {} as Record<string, number>);
+  const byCause2026 = reports2026.reduce((acc, r) => { acc[r.cause] = (acc[r.cause] || 0) + 1; return acc; }, {} as Record<string, number>);
+  const byDept2026 = reports2026.reduce((acc, r) => { acc[r.department] = (acc[r.department] || 0) + 1; return acc; }, {} as Record<string, number>);
+  const bySeverity2026 = reports2026.reduce((acc, r) => { acc[r.severity] = (acc[r.severity] || 0) + 1; return acc; }, {} as Record<string, number>);
+  const currentYearTotal = reports2026.length;
+  const currentYearSeverity = bySeverity2026;
+  const sortedReports = [...reports].sort((a, b) => {
+    const da = a.occurredAt ? new Date(a.occurredAt).getTime() : 0;
+    const db2 = b.occurredAt ? new Date(b.occurredAt).getTime() : 0;
+    return db2 - da;
   });
 
   return (
@@ -511,7 +488,7 @@ export default function AccidentReports() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {reports.map((report) => (
+                          {sortedReports.map((report) => (
                             <TableRow key={report.id} data-testid={`row-accident-${report.id}`}>
                               <TableCell className="font-medium" data-testid={`text-title-${report.id}`}>{report.title}</TableCell>
                               <TableCell data-testid={`text-date-${report.id}`}>
@@ -590,80 +567,7 @@ export default function AccidentReports() {
                 ))}
               </div>
 
-              {/* 연도별 비교 (1:2 비율) */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card>
-                  <CardHeader className="pb-1 pt-4 px-4">
-                    <CardTitle className="text-sm font-semibold">연도별 사고건수 비교</CardTitle>
-                  </CardHeader>
-                  <CardContent className="px-4 pb-4">
-                    <div className="h-[240px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={yearCompareData} margin={{ top: 28, right: 8, left: 4, bottom: 4 }}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" opacity={0.4} />
-                          <XAxis dataKey="name" tick={{ fontSize: 13, fontWeight: 700, fill: '#1e293b' }} axisLine={false} tickLine={false} />
-                          <YAxis allowDecimals={false} tick={{ fontSize: 11, fontWeight: 600, fill: '#475569' }} axisLine={false} tickLine={false} width={36} />
-                          <Tooltip content={({ active, payload }) => active && payload?.length ? (
-                            <div style={{ background: 'rgba(255,255,255,0.97)', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 10, padding: '8px 12px', boxShadow: '0 4px 16px rgba(0,0,0,0.1)', fontSize: 12 }}>
-                              <p style={{ fontWeight: 700, marginBottom: 2 }}>{payload[0].payload.name}</p>
-                              <p style={{ color: '#64748b', fontWeight: 600 }}>{payload[0].value}건</p>
-                            </div>
-                          ) : null} />
-                          <Bar dataKey="value" name="건수" radius={[6, 6, 0, 0]} maxBarSize={52} animationDuration={800} label={{ position: 'top', fontSize: 13, fontWeight: 700, fill: '#1e293b' }}>
-                            {yearCompareData.map((entry) => (
-                              <Cell key={entry.name} fill={YEAR_COLORS[entry.name.replace("년", "")] || CHART_COLORS[0]} />
-                            ))}
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                    <div className="flex justify-center gap-3 mt-2 text-xs text-muted-foreground">
-                      {COMPARE_YEARS.map(yr => (
-                        <span key={yr} className="flex items-center gap-1">
-                          <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: YEAR_COLORS[yr] }} />
-                          {yr}년: <span className="font-semibold text-foreground">{stats?.byYear?.[yr] ?? 0}건</span>
-                        </span>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="md:col-span-2">
-                  <CardHeader className="pb-1 pt-4 px-4">
-                    <CardTitle className="text-sm font-semibold">연도별 월간 사고 비교 (24/25/26)</CardTitle>
-                  </CardHeader>
-                  <CardContent className="px-4 pb-4">
-                    <div className="h-[240px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={yearMonthlyData} margin={{ top: 10, right: 8, left: 4, bottom: 4 }}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" opacity={0.4} />
-                          <XAxis dataKey="name" tick={{ fontSize: 11, fontWeight: 600, fill: '#334155' }} axisLine={false} tickLine={false} />
-                          <YAxis allowDecimals={false} tick={{ fontSize: 11, fontWeight: 600, fill: '#475569' }} axisLine={false} tickLine={false} width={36} />
-                          <Tooltip content={({ active, payload, label }) => active && payload?.length ? (
-                            <div style={{ background: 'rgba(255,255,255,0.97)', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 10, padding: '8px 12px', boxShadow: '0 4px 16px rgba(0,0,0,0.1)', fontSize: 12 }}>
-                              <p style={{ fontWeight: 700, marginBottom: 4 }}>{label}</p>
-                              {payload.map(p => <p key={String(p.dataKey)} style={{ color: p.color, fontWeight: 600 }}>{p.name}: {p.value}건</p>)}
-                            </div>
-                          ) : null} />
-                          {COMPARE_YEARS.map(yr => (
-                            <Bar key={yr} dataKey={yr + "년"} fill={YEAR_COLORS[yr]} radius={[3, 3, 0, 0]} maxBarSize={13} animationDuration={800} />
-                          ))}
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                    <div className="flex justify-center gap-4 mt-2 text-xs text-muted-foreground">
-                      {COMPARE_YEARS.map(yr => (
-                        <span key={yr} className="flex items-center gap-1">
-                          <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: YEAR_COLORS[yr] }} />
-                          {yr}년
-                        </span>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* 발생건수 차트 4개 — 2열 나란히 */}
+              {/* 발생건수 차트 4개 — 2026년 기준 2열 나란히 */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Card>
                   <CardHeader className="pb-1 pt-4 px-4">
@@ -672,7 +576,7 @@ export default function AccidentReports() {
                   <CardContent className="px-4 pb-4">
                     <div className="h-[300px]">
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={toChartData(stats?.byType)} margin={{ top: 28, right: 12, left: -12, bottom: 4 }}>
+                        <BarChart data={toChartData(byType2026)} margin={{ top: 28, right: 12, left: -12, bottom: 4 }}>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" opacity={0.4} />
                           <XAxis dataKey="name" tick={{ fontSize: 11, fontWeight: 700, fill: '#1e293b' }} interval={0} axisLine={false} tickLine={false} />
                           <YAxis allowDecimals={false} tick={{ fontSize: 12, fontWeight: 600, fill: '#475569' }} axisLine={false} tickLine={false} width={30} />
@@ -696,7 +600,7 @@ export default function AccidentReports() {
                   <CardContent className="px-4 pb-4">
                     <div className="h-[300px]">
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={toChartData(stats?.byCause)} margin={{ top: 28, right: 12, left: -12, bottom: 4 }}>
+                        <BarChart data={toChartData(byCause2026)} margin={{ top: 28, right: 12, left: -12, bottom: 4 }}>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" opacity={0.4} />
                           <XAxis dataKey="name" tick={{ fontSize: 11, fontWeight: 700, fill: '#1e293b' }} interval={0} axisLine={false} tickLine={false} />
                           <YAxis allowDecimals={false} tick={{ fontSize: 12, fontWeight: 600, fill: '#475569' }} axisLine={false} tickLine={false} width={30} />
@@ -721,7 +625,7 @@ export default function AccidentReports() {
                     <div className="h-[300px]">
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart
-                          data={toChartData(stats?.byDepartment).map(d => ({ ...d, shortName: d.name.replace(/운용팀$/, '').replace(/팀$/, '') }))}
+                          data={toChartData(byDept2026).map(d => ({ ...d, shortName: d.name.replace(/운용팀$/, '').replace(/팀$/, '') }))}
                           margin={{ top: 28, right: 12, left: -12, bottom: 4 }}
                         >
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" opacity={0.4} />
@@ -747,7 +651,7 @@ export default function AccidentReports() {
                   <CardContent className="px-4 pb-4">
                     <div className="h-[300px]">
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={toChartData(stats?.bySeverity)} margin={{ top: 28, right: 12, left: -12, bottom: 4 }}>
+                        <BarChart data={toChartData(bySeverity2026)} margin={{ top: 28, right: 12, left: -12, bottom: 4 }}>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" opacity={0.4} />
                           <XAxis dataKey="name" tick={{ fontSize: 13, fontWeight: 700, fill: '#1e293b' }} interval={0} axisLine={false} tickLine={false} />
                           <YAxis allowDecimals={false} tick={{ fontSize: 12, fontWeight: 600, fill: '#475569' }} axisLine={false} tickLine={false} width={30} />

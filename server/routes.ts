@@ -2348,26 +2348,19 @@ export async function registerRoutes(
     if (!req.file) return res.status(400).json({ message: "PDF 파일이 필요합니다" });
 
     const pdfPath = req.file.path;
-    const pngPrefix = `${pdfPath}_page`;
-    const pngPath = `${pngPrefix}-1.png`;
 
     try {
-      // PDF → PNG 변환
-      execSync(`pdftoppm -r 150 -png "${pdfPath}" "${pngPrefix}"`, { timeout: 30000 });
+      // pdf-parse로 텍스트 추출 (시스템 도구 불필요)
+      const pdfParse = (await import("pdf-parse")).default;
+      const pdfBuffer = fs.readFileSync(pdfPath);
+      const pdfData = await pdfParse(pdfBuffer);
+      const pdfText = pdfData.text?.trim() || "";
 
-      if (!fs.existsSync(pngPath)) {
-        return res.status(500).json({ message: "PDF 변환에 실패했습니다" });
+      if (!pdfText || pdfText.length < 20) {
+        return res.status(422).json({ message: "PDF에서 텍스트를 추출할 수 없습니다. 스캔된 이미지 PDF는 지원하지 않습니다." });
       }
-      const imgBuffer = fs.readFileSync(pngPath);
-      const base64Img = imgBuffer.toString("base64");
 
-      // 썸네일 저장 (PNG → uploads 디렉토리에 보관)
-      const thumbnailFilename = `thumb_${req.file.filename}.png`;
-      const thumbnailPath = path.join(uploadDir, thumbnailFilename);
-      fs.renameSync(pngPath, thumbnailPath);
-      const thumbnailUrl = `/uploads/${thumbnailFilename}`;
-
-      // OpenAI Vision으로 정보 추출
+      // OpenAI GPT-4o 텍스트 모드로 정보 추출
       const OpenAI = (await import("openai")).default;
       const aiClient = new OpenAI({
         apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -2379,28 +2372,21 @@ export async function registerRoutes(
         messages: [
           {
             role: "user",
-            content: [
-              {
-                type: "text",
-                text: `이 교통 과태료 고지서(납부통보서) 이미지에서 다음 정보를 정확히 추출하세요. 없는 필드는 null로 반환하세요.
+            content: `다음은 교통 과태료 고지서(납부통보서) PDF에서 추출한 텍스트입니다. 아래 JSON 형식으로 정보를 추출하세요. 없는 필드는 null로 반환하세요. JSON만 반환하세요.
 
 {
   "violationDate": "위반일시 - YYYY-MM-DD HH:MM 형식 (날짜와 시간 모두 포함)",
   "licensePlate": "차량번호 - 숫자와 한글로 된 번호판만 (예: 231허3948)",
   "driver": "운전자 또는 명의자 이름 (없으면 null)",
-  "violationType": "위반내역 - 신호위반/과속/불법주정차 등 위반 종류",
+  "violationType": "위반내역 - 속도위반/신호위반/법규위반/주정차위반/통행료미납 등 정확한 위반 종류",
   "violationLocation": "적발장소 - 도로명 또는 장소명",
   "amount": 과태료금액_숫자만_원단위,
-  "paymentDestination": "고지서 발행처 이름 - 과태료를 부과한 기관명 (예: 달서구청장, 수성구청장, 한국도로공사, 서울시장, 대전서부경찰서장 등)"
+  "paymentDestination": "고지서 발행처 이름 - 과태료를 부과한 기관명 (예: 달서구청장, 수성구청장, 한국도로공사, 서울시장 등)"
 }
 
-중요: vehicleType(차종)과 department(소속)는 추출하지 마세요. JSON만 반환하세요.`,
-              },
-              {
-                type: "image_url",
-                image_url: { url: `data:image/png;base64,${base64Img}` },
-              },
-            ],
+--- PDF 텍스트 ---
+${pdfText.substring(0, 3000)}
+--- 끝 ---`,
           },
         ],
       });
@@ -2433,10 +2419,9 @@ export async function registerRoutes(
         vehicleType,
         department,
         pdfUrl,
-        thumbnailUrl,
+        thumbnailUrl: null,
       });
     } catch (error: any) {
-      try { if (fs.existsSync(pngPath)) fs.unlinkSync(pngPath); } catch (_) {}
       console.error("과태료 PDF 파싱 오류:", error?.message || error);
       res.status(500).json({ message: "PDF 파싱에 실패했습니다" });
     }
