@@ -2350,47 +2350,68 @@ export async function registerRoutes(
     const pdfPath = req.file.path;
 
     try {
-      // pdf-parse v2로 텍스트 추출 (시스템 도구 불필요)
       const { PDFParse } = await import("pdf-parse");
       const pdfBuffer = fs.readFileSync(pdfPath);
-      const parser = new PDFParse({ data: pdfBuffer });
-      const pdfData = await parser.getText();
-      await parser.destroy();
-      const pdfText = pdfData.text?.trim() || "";
 
-      if (!pdfText || pdfText.length < 20) {
-        return res.status(422).json({ message: "PDF에서 텍스트를 추출할 수 없습니다. 스캔된 이미지 PDF는 지원하지 않습니다." });
-      }
+      const AI_PROMPT = `이 교통 과태료 고지서(납부통보서)에서 다음 JSON 형식으로 정보를 추출하세요. 없는 필드는 null로 반환하세요. JSON만 반환하세요.
 
-      // OpenAI GPT-4o 텍스트 모드로 정보 추출
+{
+  "violationDate": "위반일시 - YYYY-MM-DD HH:MM 형식 (날짜와 시간 모두 포함)",
+  "licensePlate": "차량번호 - 숫자와 한글 번호판만 (예: 231허3948)",
+  "driver": "운전자 또는 명의자 이름 (없으면 null)",
+  "violationType": "위반내역 - 속도위반/신호위반/법규위반/주정차위반/통행료미납 등 정확한 위반 종류",
+  "violationLocation": "적발장소 - 도로명 또는 장소명",
+  "amount": 과태료금액_숫자만_원단위,
+  "paymentDestination": "고지서 발행처 이름 (예: 달서구청장, 한국도로공사, 서울시장 등)"
+}`;
+
       const OpenAI = (await import("openai")).default;
       const aiClient = new OpenAI({
         apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
         baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
       });
+
+      let aiMessages: any[];
+
+      // 1단계: 텍스트 추출 시도
+      let pdfText = "";
+      try {
+        const textParser = new PDFParse({ data: pdfBuffer });
+        const textData = await textParser.getText();
+        await textParser.destroy();
+        pdfText = textData.text?.trim() || "";
+      } catch (_) {}
+
+      if (pdfText.length >= 20) {
+        // 텍스트가 충분한 경우: 텍스트 모드
+        aiMessages = [{
+          role: "user",
+          content: `다음은 교통 과태료 고지서 PDF 텍스트입니다.\n\n${AI_PROMPT}\n\n--- PDF 텍스트 ---\n${pdfText.substring(0, 4000)}\n--- 끝 ---`,
+        }];
+      } else {
+        // 텍스트 없음(스캔본): 이미지로 렌더링 후 Vision 모드
+        const screenshotParser = new PDFParse({ data: pdfBuffer });
+        const screenshotData = await screenshotParser.getScreenshot({ scale: 1.5, first: 1, imageBuffer: false, imageDataUrl: true });
+        await screenshotParser.destroy();
+
+        const firstPage = screenshotData?.pages?.[0];
+        if (!firstPage?.imageDataUrl) {
+          return res.status(422).json({ message: "PDF 이미지 변환에 실패했습니다. 파일을 다시 확인해주세요." });
+        }
+
+        aiMessages = [{
+          role: "user",
+          content: [
+            { type: "text", text: AI_PROMPT },
+            { type: "image_url", image_url: { url: firstPage.imageDataUrl, detail: "high" } },
+          ],
+        }];
+      }
+
       const aiRes = await aiClient.chat.completions.create({
         model: "gpt-4o",
         max_completion_tokens: 1000,
-        messages: [
-          {
-            role: "user",
-            content: `다음은 교통 과태료 고지서(납부통보서) PDF에서 추출한 텍스트입니다. 아래 JSON 형식으로 정보를 추출하세요. 없는 필드는 null로 반환하세요. JSON만 반환하세요.
-
-{
-  "violationDate": "위반일시 - YYYY-MM-DD HH:MM 형식 (날짜와 시간 모두 포함)",
-  "licensePlate": "차량번호 - 숫자와 한글로 된 번호판만 (예: 231허3948)",
-  "driver": "운전자 또는 명의자 이름 (없으면 null)",
-  "violationType": "위반내역 - 속도위반/신호위반/법규위반/주정차위반/통행료미납 등 정확한 위반 종류",
-  "violationLocation": "적발장소 - 도로명 또는 장소명",
-  "amount": 과태료금액_숫자만_원단위,
-  "paymentDestination": "고지서 발행처 이름 - 과태료를 부과한 기관명 (예: 달서구청장, 수성구청장, 한국도로공사, 서울시장 등)"
-}
-
---- PDF 텍스트 ---
-${pdfText.substring(0, 3000)}
---- 끝 ---`,
-          },
-        ],
+        messages: aiMessages,
       });
 
       const raw = aiRes.choices[0]?.message?.content?.trim() || "{}";
