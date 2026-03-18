@@ -130,7 +130,7 @@ export function TeamEditDialog({ team, disabled }: Props) {
                   <Input type="number" {...form.register("fineSignal", { valueAsNumber: true })} />
                 </div>
                 <div>
-                  <Label className="text-xs">차선</Label>
+                  <Label className="text-xs">법규</Label>
                   <Input type="number" {...form.register("fineLane", { valueAsNumber: true })} />
                 </div>
               </div>

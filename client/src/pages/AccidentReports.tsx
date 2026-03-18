@@ -86,6 +86,7 @@ const emptyForm = {
   images: [] as string[],
   imageCaptions: [] as string[],
   progressDetails: "[]",
+  faultRate: undefined as number | undefined,
 };
 
 function SignaturePad({ onSave, onCancel, initialData }: { onSave: (data: string) => void; onCancel: () => void; initialData?: string }) {
@@ -230,6 +231,7 @@ export default function AccidentReports() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/accidents"] });
       queryClient.invalidateQueries({ queryKey: ["/api/accidents/stats"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/teams"] });
       toast({ title: "사고보고가 등록되었습니다." });
       closeDialog();
     },
@@ -241,6 +243,7 @@ export default function AccidentReports() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/accidents"] });
       queryClient.invalidateQueries({ queryKey: ["/api/accidents/stats"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/teams"] });
       toast({ title: "사고보고가 수정되었습니다." });
       closeDialog();
     },
@@ -252,6 +255,7 @@ export default function AccidentReports() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/accidents"] });
       queryClient.invalidateQueries({ queryKey: ["/api/accidents/stats"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/teams"] });
       toast({ title: "사고보고가 삭제되었습니다." });
     },
     onError: (error) => toast({ variant: "destructive", title: "삭제에 실패했습니다.", description: getServerError(error, "") }),
@@ -305,6 +309,7 @@ export default function AccidentReports() {
       images: report.images || [],
       imageCaptions: (report as any).imageCaptions ? JSON.parse((report as any).imageCaptions) : (report.images || []).map((_: any, i: number) => `사진 ${i + 1}`),
       progressDetails: report.progressDetails || "[]",
+      faultRate: (report as any).faultRate ?? undefined,
     });
     setShowSignaturePad(false);
     setDialogOpen(true);
@@ -849,6 +854,22 @@ export default function AccidentReports() {
                 </Select>
               </div>
             </div>
+            {form.accidentType === "교통사고" && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>과실율 (%) <span className="text-xs text-muted-foreground">교통사고 시 입력 (50~100)</span></Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={form.faultRate ?? ""}
+                    onChange={(e) => setField("faultRate", e.target.value === "" ? undefined : Number(e.target.value))}
+                    placeholder="예: 100"
+                    data-testid="input-fault-rate"
+                  />
+                </div>
+              </div>
+            )}
 
             <Card className="border-primary/20">
               <CardHeader className="pb-2 pt-3 flex flex-row items-center justify-between">

@@ -246,6 +246,7 @@ export default function TrafficFines() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/traffic-fines"] });
       queryClient.invalidateQueries({ queryKey: ["/api/traffic-fines/stats"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/teams"] });
       toast({ title: "등록 완료" });
       setDialogOpen(false);
     },
@@ -258,6 +259,7 @@ export default function TrafficFines() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/traffic-fines"] });
       queryClient.invalidateQueries({ queryKey: ["/api/traffic-fines/stats"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/teams"] });
       toast({ title: "수정 완료" });
       setDialogOpen(false);
     },
@@ -269,6 +271,7 @@ export default function TrafficFines() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/traffic-fines"] });
       queryClient.invalidateQueries({ queryKey: ["/api/traffic-fines/stats"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/teams"] });
       toast({ title: "삭제 완료" });
     },
     onError: (e: any) => toast({ title: e?.message || "삭제 실패", variant: "destructive" }),

@@ -62,7 +62,7 @@ export default function Dashboard() {
         workAccident: Number(row['산업재해'] || row['workAccident']) || 0,
         fineSpeed: Number(row['과속'] || row['fineSpeed']) || 0,
         fineSignal: Number(row['신호위반'] || row['fineSignal']) || 0,
-        fineLane: Number(row['차선위반'] || row['fineLane']) || 0,
+        fineLane: Number(row['법규위반'] || row['차선위반'] || row['fineLane']) || 0,
         inspectionMiss: Number(row['점검미실시'] || row['inspectionMiss']) || 0,
         suggestion: Number(row['제안'] || row['suggestion']) || 0,
         activity: Number(row['활동'] || row['activity']) || 0,
@@ -355,7 +355,7 @@ export default function Dashboard() {
                           <TableHead className="text-center font-bold text-orange-600 text-xs sm:text-sm py-2 w-12">사고</TableHead>
                           <TableHead className="text-center font-bold text-orange-600 text-xs sm:text-sm py-2 w-12">과속</TableHead>
                           <TableHead className="text-center font-bold text-orange-600 text-xs sm:text-sm py-2 w-12">신호</TableHead>
-                          <TableHead className="text-center font-bold text-orange-600 text-xs sm:text-sm py-2 w-12">차선</TableHead>
+                          <TableHead className="text-center font-bold text-orange-600 text-xs sm:text-sm py-2 w-12">법규</TableHead>
                           <TableHead className="text-center font-bold text-red-600 text-xs sm:text-sm py-2 w-12">점검</TableHead>
                           <TableHead className="text-center font-bold text-green-600 text-xs sm:text-sm py-2 w-12">제안</TableHead>
                           <TableHead className="text-center font-bold text-green-600 text-xs sm:text-sm py-2 w-12">활동</TableHead>

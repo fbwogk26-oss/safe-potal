@@ -3,6 +3,9 @@ import type { Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
+import { db } from "./db";
+import { teams, trafficFines, accidentReports } from "@shared/schema";
+import { eq, and } from "drizzle-orm";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -83,6 +86,56 @@ function calculateScore(team: any) {
   score += (accidents.p100 || 0) * -10;
   
   return score;
+}
+
+async function syncTrafficFineToTeamScore(department: string | null | undefined, violationDate: string | null | undefined) {
+  try {
+    if (!department) return;
+    const year = violationDate ? parseInt(violationDate.substring(0, 4)) : new Date().getFullYear();
+    if (isNaN(year)) return;
+    const [team] = await db.select().from(teams).where(and(eq(teams.name, department), eq(teams.year, year)));
+    if (!team) return;
+    const allFines = await db.select().from(trafficFines).where(eq(trafficFines.department, department));
+    const yearFines = allFines.filter(f => f.violationDate?.startsWith(String(year)));
+    const fineSpeed = yearFines.filter(f => f.violationType === "속도위반").length;
+    const fineSignal = yearFines.filter(f => f.violationType === "신호위반").length;
+    const fineLane = yearFines.filter(f => f.violationType === "법규위반").length;
+    const merged = { ...team, fineSpeed, fineSignal, fineLane };
+    const totalScore = calculateScore(merged);
+    await db.update(teams).set({ fineSpeed, fineSignal, fineLane, totalScore }).where(eq(teams.id, team.id));
+  } catch (e) {
+    console.error("[과태료 점수 동기화 오류]", e);
+  }
+}
+
+async function syncAccidentToTeamScore(department: string | null | undefined, occurredAt: string | null | undefined) {
+  try {
+    if (!department) return;
+    const year = occurredAt ? parseInt(occurredAt.substring(0, 4)) : new Date().getFullYear();
+    if (isNaN(year)) return;
+    const [team] = await db.select().from(teams).where(and(eq(teams.name, department), eq(teams.year, year)));
+    if (!team) return;
+    const allAccidents = await db.select().from(accidentReports).where(
+      and(eq(accidentReports.department, department), eq(accidentReports.accidentType, "교통사고"))
+    );
+    const yearAccidents = allAccidents.filter(a => a.occurredAt?.startsWith(String(year)));
+    const vehicleAccidents: Record<string, number> = { p50_59: 0, p60_69: 0, p70_79: 0, p80_89: 0, p90_99: 0, p100: 0 };
+    for (const acc of yearAccidents) {
+      const rate = (acc as any).faultRate;
+      if (!rate) continue;
+      if (rate >= 50 && rate <= 59) vehicleAccidents.p50_59++;
+      else if (rate >= 60 && rate <= 69) vehicleAccidents.p60_69++;
+      else if (rate >= 70 && rate <= 79) vehicleAccidents.p70_79++;
+      else if (rate >= 80 && rate <= 89) vehicleAccidents.p80_89++;
+      else if (rate >= 90 && rate <= 99) vehicleAccidents.p90_99++;
+      else if (rate >= 100) vehicleAccidents.p100++;
+    }
+    const merged = { ...team, vehicleAccidents };
+    const totalScore = calculateScore(merged);
+    await db.update(teams).set({ vehicleAccidents, totalScore }).where(eq(teams.id, team.id));
+  } catch (e) {
+    console.error("[사고 점수 동기화 오류]", e);
+  }
 }
 
 // Admin-only middleware (session-based)
@@ -2050,6 +2103,9 @@ export async function registerRoutes(
       const body = { ...req.body };
       if (!body.description) body.description = body.accidentOverview || "";
       const report = await storage.createAccidentReport({ ...body, createdBy: req.user?.username || null });
+      if (report.accidentType === "교통사고") {
+        await syncAccidentToTeamScore(report.department, report.occurredAt);
+      }
       res.status(201).json(report);
     } catch (error: any) {
       console.error("[사고보고 등록 오류]", error);
@@ -2067,6 +2123,12 @@ export async function registerRoutes(
       const body = { ...req.body };
       if (!body.description) body.description = body.accidentOverview || existing.description || "";
       const report = await storage.updateAccidentReport(id, body);
+      if (existing.accidentType === "교통사고" || report?.accidentType === "교통사고") {
+        await syncAccidentToTeamScore(report?.department || existing.department, report?.occurredAt || existing.occurredAt);
+        if (existing.department !== report?.department) {
+          await syncAccidentToTeamScore(existing.department, existing.occurredAt);
+        }
+      }
       res.json(report);
     } catch (error: any) {
       console.error("[사고보고 수정 오류]", error);
@@ -2080,7 +2142,11 @@ export async function registerRoutes(
       const existing = await storage.getAccidentReport(id);
       if (!existing) return res.status(404).json({ message: "Not found" });
       if (!isOwnerOrAdmin(req, existing.createdBy)) return res.status(403).json({ message: "본인이 작성한 사고보고만 삭제할 수 있습니다" });
+      const { department: delDept, occurredAt: delDate, accidentType: delType } = existing;
       await storage.deleteAccidentReport(id);
+      if (delType === "교통사고") {
+        await syncAccidentToTeamScore(delDept, delDate);
+      }
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ message: "사고보고 삭제에 실패했습니다" });
@@ -2496,6 +2562,7 @@ export async function registerRoutes(
         createdBy: req.user?.username || null,
       };
       const created = await storage.createTrafficFine(data);
+      await syncTrafficFineToTeamScore(created.department, created.violationDate);
       res.status(201).json(created);
     } catch (error: any) {
       console.error('[TrafficFine POST error]', error?.message || error);
@@ -2529,6 +2596,10 @@ export async function registerRoutes(
         thumbnailUrl: sanitize(rest.thumbnailUrl),
       };
       const updated = await storage.updateTrafficFine(id, data);
+      await syncTrafficFineToTeamScore(existing.department, existing.violationDate);
+      if (data.department !== existing.department || data.violationDate !== existing.violationDate) {
+        await syncTrafficFineToTeamScore(updated.department, updated.violationDate);
+      }
       res.json(updated);
     } catch (error: any) {
       console.error('[TrafficFine PUT error]', error?.message || error);
@@ -2542,7 +2613,9 @@ export async function registerRoutes(
       const existing = await storage.getTrafficFine(id);
       if (!existing) return res.status(404).json({ message: "Not found" });
       if (!isOwnerOrAdmin(req, existing.createdBy)) return res.status(403).json({ message: "본인이 등록한 항목만 삭제할 수 있습니다" });
+      const { department: delDept, violationDate: delDate } = existing;
       await storage.deleteTrafficFine(id);
+      await syncTrafficFineToTeamScore(delDept, delDate);
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ message: "과태료 삭제에 실패했습니다" });

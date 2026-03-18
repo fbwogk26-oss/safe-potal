@@ -329,6 +329,7 @@ export const accidentReports = pgTable("accident_reports", {
   preventionPlan: text("prevention_plan"),
   signature: text("signature"),
   imageCaptions: text("image_captions"),
+  faultRate: integer("fault_rate"),
 });
 
 export const insertAccidentReportSchema = createInsertSchema(accidentReports).omit({ id: true, createdAt: true });
