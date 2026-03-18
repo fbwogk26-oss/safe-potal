@@ -2394,6 +2394,7 @@ export async function registerRoutes(
 
       ws.columns = [
         { header: 'No', key: 'no', width: 5 },
+        { header: '납부요청일', key: 'requestDate', width: 13 },
         { header: '위반일시', key: 'violationDate', width: 18 },
         { header: '차량번호', key: 'licensePlate', width: 13 },
         { header: '차종', key: 'vehicleType', width: 10 },
@@ -2401,12 +2402,10 @@ export async function registerRoutes(
         { header: '운전자', key: 'driver', width: 10 },
         { header: '위반내역', key: 'violationType', width: 16 },
         { header: '적발장소', key: 'violationLocation', width: 30 },
-        { header: '과태료(원)', key: 'amount', width: 12 },
-        { header: '납부처', key: 'paymentDestination', width: 14 },
-        { header: '납부요청일', key: 'requestDate', width: 13 },
+        { header: '과태료금액(원)', key: 'amount', width: 14 },
+        { header: '수납처', key: 'paymentDestination', width: 14 },
         { header: '납부상태', key: 'paymentStatus', width: 10 },
-        { header: '납부일', key: 'paidAt', width: 13 },
-        { header: '등록자', key: 'createdBy', width: 10 },
+        { header: '납부일자', key: 'paidAt', width: 13 },
       ];
 
       ws.getRow(1).font = { bold: true };
@@ -2416,6 +2415,7 @@ export async function registerRoutes(
       fines.forEach((f, i) => {
         ws.addRow({
           no: i + 1,
+          requestDate: f.requestDate || '',
           violationDate: f.violationDate || '',
           licensePlate: f.licensePlate || '',
           vehicleType: f.vehicleType || '',
@@ -2425,10 +2425,8 @@ export async function registerRoutes(
           violationLocation: f.violationLocation || '',
           amount: f.amount || 0,
           paymentDestination: f.paymentDestination || '',
-          requestDate: f.requestDate || '',
           paymentStatus: f.paymentStatus || '미납',
           paidAt: f.paidAt || '',
-          createdBy: f.createdBy || '',
         });
       });
 

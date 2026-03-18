@@ -670,7 +670,21 @@ export default function TrafficFines() {
 
           <div className="grid grid-cols-2 gap-4">
 
-            {/* 1. 위반일시 */}
+            {/* 1. 납부요청일 */}
+            <div className="space-y-1">
+              <Label>
+                납부요청일
+                <span className="ml-1 text-xs text-muted-foreground font-normal">오늘 자동입력</span>
+              </Label>
+              <Input
+                value={form.requestDate || ""}
+                onChange={(e) => setField("requestDate", e.target.value)}
+                placeholder="YYYY-MM-DD"
+                data-testid="input-request-date"
+              />
+            </div>
+
+            {/* 2. 위반일시 */}
             <div className="space-y-1">
               <Label>위반일시</Label>
               <Input
@@ -681,7 +695,7 @@ export default function TrafficFines() {
               />
             </div>
 
-            {/* 2. 차량번호 — 자동완성 (직접입력 시) */}
+            {/* 3. 차량번호 */}
             <div className="space-y-1">
               <Label>
                 차량번호
@@ -695,7 +709,7 @@ export default function TrafficFines() {
               />
             </div>
 
-            {/* 3. 차종 — 자동입력 */}
+            {/* 4. 차종 */}
             <div className="space-y-1">
               <Label>
                 차종
@@ -709,7 +723,7 @@ export default function TrafficFines() {
               />
             </div>
 
-            {/* 4. 소속 — 자동입력 */}
+            {/* 5. 소속 */}
             <div className="space-y-1">
               <Label>
                 소속
@@ -723,7 +737,7 @@ export default function TrafficFines() {
               />
             </div>
 
-            {/* 5. 운전자 */}
+            {/* 6. 운전자 */}
             <div className="space-y-1">
               <Label>운전자</Label>
               <Input
@@ -734,8 +748,8 @@ export default function TrafficFines() {
               />
             </div>
 
-            {/* 6. 위반내역 */}
-            <div className="space-y-1">
+            {/* 7. 위반내역 */}
+            <div className="col-span-2 space-y-1">
               <Label>위반내역</Label>
               <Input
                 value={form.violationType || ""}
@@ -745,7 +759,7 @@ export default function TrafficFines() {
               />
             </div>
 
-            {/* 7. 적발장소 */}
+            {/* 8. 적발장소 */}
             <div className="col-span-2 space-y-1">
               <Label>적발장소</Label>
               <Input
@@ -756,7 +770,7 @@ export default function TrafficFines() {
               />
             </div>
 
-            {/* 8. 과태료 금액 */}
+            {/* 9. 과태료 금액 */}
             <div className="space-y-1">
               <Label>과태료 금액 (원)</Label>
               <Input
@@ -768,7 +782,7 @@ export default function TrafficFines() {
               />
             </div>
 
-            {/* 9. 수납처 */}
+            {/* 10. 수납처 */}
             <div className="space-y-1">
               <Label>
                 수납처
@@ -779,20 +793,6 @@ export default function TrafficFines() {
                 onChange={(e) => setField("paymentDestination", e.target.value)}
                 placeholder="예: 대구지방경찰청"
                 data-testid="input-payment-destination"
-              />
-            </div>
-
-            {/* 10. 납부요청일 */}
-            <div className="space-y-1">
-              <Label>
-                납부요청일
-                <span className="ml-1 text-xs text-muted-foreground font-normal">오늘 자동입력</span>
-              </Label>
-              <Input
-                value={form.requestDate || ""}
-                onChange={(e) => setField("requestDate", e.target.value)}
-                placeholder="YYYY-MM-DD"
-                data-testid="input-request-date"
               />
             </div>
 
@@ -810,17 +810,19 @@ export default function TrafficFines() {
               </Select>
             </div>
 
-            {/* 납부일자 */}
-            {form.paymentStatus === "납부완료" && (
+            {/* 12. 납부일자 (납부완료 선택 시 표시) */}
+            {form.paymentStatus === "납부완료" ? (
               <div className="space-y-1">
                 <Label>납부일자</Label>
                 <Input
+                  type="date"
                   value={form.paidAt || ""}
                   onChange={(e) => setField("paidAt", e.target.value)}
-                  placeholder="YYYY-MM-DD"
                   data-testid="input-paid-at"
                 />
               </div>
+            ) : (
+              <div />
             )}
 
           </div>
