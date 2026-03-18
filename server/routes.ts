@@ -2350,10 +2350,12 @@ export async function registerRoutes(
     const pdfPath = req.file.path;
 
     try {
-      // pdf-parse로 텍스트 추출 (시스템 도구 불필요)
-      const pdfParse = (await import("pdf-parse")).default;
+      // pdf-parse v2로 텍스트 추출 (시스템 도구 불필요)
+      const { PDFParse } = await import("pdf-parse");
       const pdfBuffer = fs.readFileSync(pdfPath);
-      const pdfData = await pdfParse(pdfBuffer);
+      const parser = new PDFParse({ data: pdfBuffer });
+      const pdfData = await parser.getText();
+      await parser.destroy();
       const pdfText = pdfData.text?.trim() || "";
 
       if (!pdfText || pdfText.length < 20) {
