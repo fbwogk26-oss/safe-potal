@@ -694,6 +694,27 @@ export async function registerRoutes(
     res.json({ imageUrl });
   });
 
+  // === GENERAL FILE UPLOAD (PDF, PPT, Word, Excel, Video, Images up to 100MB) ===
+  const generalUpload = multer({
+    storage: multer.diskStorage({
+      destination: uploadDir,
+      filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const ext = path.extname(file.originalname);
+        cb(null, `file-${uniqueSuffix}${ext}`);
+      }
+    }),
+    limits: { fileSize: 100 * 1024 * 1024 },
+  });
+
+  app.post('/api/upload/general', isAuthenticated, generalUpload.single('file'), (req: any, res) => {
+    if (!req.file) {
+      return res.status(400).json({ message: "No file uploaded" });
+    }
+    const url = `/uploads/${req.file.filename}`;
+    res.json({ url, name: req.file.originalname });
+  });
+
   // === FILE UPLOAD (Excel, etc.) ===
   const fileUpload = multer({
     storage: multer.diskStorage({

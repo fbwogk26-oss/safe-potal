@@ -652,14 +652,18 @@ export default function EducationLogs() {
         }
         const formData = new FormData();
         formData.append("file", file);
-        const res = await fetch("/api/upload", { method: "POST", body: formData, credentials: "include" });
+        const res = await fetch("/api/upload/general", { method: "POST", body: formData, credentials: "include" });
         if (res.ok) {
           const data = await res.json();
-          uploaded.push({ url: data.url || data.path || data.fileUrl, name: file.name, type: file.type });
+          uploaded.push({ url: data.url, name: file.name, type: file.type });
+        } else {
+          toast({ variant: "destructive", title: `업로드 실패: ${file.name}` });
         }
       }
-      setNewMaterialAttachments(prev => [...prev, ...uploaded]);
-      toast({ title: `${uploaded.length}개 파일이 첨부되었습니다.` });
+      if (uploaded.length > 0) {
+        setNewMaterialAttachments(prev => [...prev, ...uploaded]);
+        toast({ title: `${uploaded.length}개 파일이 첨부되었습니다.` });
+      }
     } catch {
       toast({ variant: "destructive", title: "파일 업로드 실패" });
     } finally {
@@ -678,10 +682,10 @@ export default function EducationLogs() {
         }
         const formData = new FormData();
         formData.append("file", file);
-        const res = await fetch("/api/upload", { method: "POST", body: formData, credentials: "include" });
+        const res = await fetch("/api/upload/general", { method: "POST", body: formData, credentials: "include" });
         if (res.ok) {
           const data = await res.json();
-          uploaded.push({ url: data.url || data.path || data.fileUrl, name: file.name, type: file.type });
+          uploaded.push({ url: data.url, name: file.name, type: file.type });
         }
       }
       setMatAttachments(prev => [...prev, ...uploaded]);
