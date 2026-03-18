@@ -1430,10 +1430,25 @@ export async function registerRoutes(
         materialAttachments: z.array(z.object({ url: z.string(), name: z.string(), type: z.string() })).optional(),
       });
       const parsed = bodySchema.parse(req.body);
+      const createdBy = req.user?.username || req.user?.name || "unknown";
       const session = await storage.createEducationSession({
         ...parsed,
-        createdBy: req.user?.username || req.user?.name || "unknown",
+        createdBy,
       });
+      if (parsed.materialAttachments && parsed.materialAttachments.length > 0) {
+        const contentParts = [];
+        if (parsed.educationDate) contentParts.push(`교육일: ${parsed.educationDate}`);
+        if (parsed.department) contentParts.push(`부서: ${parsed.department}`);
+        if (parsed.instructor) contentParts.push(`강사: ${parsed.instructor}`);
+        if (parsed.description) contentParts.push(parsed.description);
+        await storage.createNotice({
+          category: "edu",
+          title: parsed.title,
+          content: contentParts.join(" | "),
+          attachments: parsed.materialAttachments,
+          createdBy,
+        });
+      }
       res.status(201).json(session);
     } catch (error: any) {
       if (error?.name === "ZodError") return res.status(400).json({ message: "입력값이 올바르지 않습니다" });
@@ -1472,6 +1487,19 @@ export async function registerRoutes(
           createdBy,
         });
         results.push(session);
+      }
+      if (parsed.materialAttachments && parsed.materialAttachments.length > 0) {
+        const contentParts = [];
+        if (parsed.educationDate) contentParts.push(`교육일: ${parsed.educationDate}`);
+        if (parsed.instructor) contentParts.push(`강사: ${parsed.instructor}`);
+        if (parsed.description) contentParts.push(parsed.description);
+        await storage.createNotice({
+          category: "edu",
+          title: parsed.title,
+          content: contentParts.join(" | "),
+          attachments: parsed.materialAttachments,
+          createdBy,
+        });
       }
       res.status(201).json(results);
     } catch (error: any) {

@@ -1422,17 +1422,6 @@ export default function EducationLogs() {
                   교육 등록
                 </Button>
               )}
-              {mainTab === "materials" && canEditLogs && (
-                <Button
-                  onClick={() => setMatShowAddForm(true)}
-                  size="sm"
-                  className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white gap-1.5"
-                  data-testid="button-add-material"
-                >
-                  <Plus className="w-4 h-4" />
-                  자료 등록
-                </Button>
-              )}
             </div>
           </div>
           <div className="flex gap-0 mt-3 border-b -mb-4 -mx-4 px-4">
@@ -1471,10 +1460,8 @@ export default function EducationLogs() {
                 <div className="py-12 text-center text-muted-foreground">
                   <BookOpen className="w-12 h-12 mx-auto mb-3 opacity-30" />
                   <p className="text-sm">{matSearchQuery ? "검색 결과가 없습니다." : "등록된 교육 자료가 없습니다."}</p>
-                  {!matSearchQuery && canEditLogs && (
-                    <Button variant="outline" size="sm" className="mt-3 gap-1.5" onClick={() => setMatShowAddForm(true)}>
-                      <Plus className="w-4 h-4" /> 자료 등록
-                    </Button>
+                  {!matSearchQuery && (
+                    <p className="text-xs mt-1 text-muted-foreground/70">교육일지 등록 시 자료를 첨부하면 자동으로 여기에 나타납니다.</p>
                   )}
                 </div>
               ) : (
