@@ -2389,21 +2389,29 @@ export async function registerRoutes(
           content: `다음은 교통 과태료 고지서 PDF 텍스트입니다.\n\n${AI_PROMPT}\n\n--- PDF 텍스트 ---\n${pdfText.substring(0, 4000)}\n--- 끝 ---`,
         }];
       } else {
-        // 텍스트 없음(스캔본): 이미지로 렌더링 후 Vision 모드
-        const screenshotParser = new PDFParse({ data: pdfBuffer });
-        const screenshotData = await screenshotParser.getScreenshot({ scale: 1.5, first: 1, imageBuffer: false, imageDataUrl: true });
-        await screenshotParser.destroy();
-
-        const firstPage = screenshotData?.pages?.[0];
-        if (!firstPage?.imageDataUrl) {
-          return res.status(422).json({ message: "PDF 이미지 변환에 실패했습니다. 파일을 다시 확인해주세요." });
+        // 텍스트 없음(스캔본): pdftoppm으로 PNG 변환 → GPT-4o Vision
+        const tmpDir = require("os").tmpdir();
+        const outPrefix = path.join(tmpDir, `pdf_page_${Date.now()}`);
+        const outPng = `${outPrefix}.png`;
+        try {
+          execSync(
+            `pdftoppm -r 150 -png -f 1 -l 1 -singlefile "${pdfPath}" "${outPrefix}"`,
+            { timeout: 15000 }
+          );
+        } catch (e: any) {
+          return res.status(422).json({ message: "PDF를 이미지로 변환할 수 없습니다. 파일이 손상됐거나 지원하지 않는 형식입니다." });
         }
+        if (!fs.existsSync(outPng)) {
+          return res.status(422).json({ message: "PDF 이미지 변환 결과를 찾을 수 없습니다." });
+        }
+        const pngBase64 = fs.readFileSync(outPng).toString("base64");
+        try { fs.unlinkSync(outPng); } catch (_) {}
 
         aiMessages = [{
           role: "user",
           content: [
             { type: "text", text: AI_PROMPT },
-            { type: "image_url", image_url: { url: firstPage.imageDataUrl, detail: "high" } },
+            { type: "image_url", image_url: { url: `data:image/png;base64,${pngBase64}`, detail: "high" } },
           ],
         }];
       }
