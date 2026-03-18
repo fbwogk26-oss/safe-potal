@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Loader2, Upload, FileText, Pencil, Trash2, Plus, ReceiptText, Banknote, AlertCircle, CheckCircle2, Car, ExternalLink } from "lucide-react";
+import { Loader2, Upload, FileText, Pencil, Trash2, Plus, ReceiptText, Banknote, AlertCircle, CheckCircle2, Car, X, ZoomIn } from "lucide-react";
 import type { TrafficFine, Vehicle } from "@shared/schema";
 
 const todayStr = () => {
@@ -32,6 +32,7 @@ const emptyForm = (): Partial<TrafficFine> => ({
   paymentStatus: "미납",
   paidAt: "",
   pdfUrl: "",
+  thumbnailUrl: "",
 });
 
 // 차량번호 자동완성 컴포넌트
@@ -68,7 +69,7 @@ function PlateAutocomplete({
       <Input
         value={value}
         onChange={(e) => { onChange(e.target.value); setOpen(true); }}
-        onFocus={() => setOpen(true)}
+        onFocus={() => { if (value.trim()) setOpen(true); }}
         placeholder="예: 231허3948"
         autoComplete="off"
         data-testid="input-license-plate"
@@ -98,7 +99,7 @@ function PlateAutocomplete({
   );
 }
 
-// 납부상태 인라인 편집 셀
+// 납부상태 인라인 편집
 function PaymentStatusCell({
   fine,
   onUpdate,
@@ -131,7 +132,7 @@ function PaymentStatusCell({
 
   if (editing) {
     return (
-      <div ref={ref} className="flex flex-col gap-1.5 p-2 bg-popover border rounded-md shadow-lg absolute z-50 min-w-[160px]">
+      <div ref={ref} className="flex flex-col gap-1.5 p-2 bg-popover border rounded-md shadow-lg absolute z-50 min-w-[160px] right-0">
         <Select value={pendingStatus} onValueChange={setPendingStatus}>
           <SelectTrigger className="h-7 text-xs">
             <SelectValue />
@@ -177,6 +178,37 @@ function PaymentStatusCell({
   );
 }
 
+// 이미지 전체화면 뷰어
+function ImageViewer({ src, pdfUrl, onClose }: { src: string; pdfUrl?: string | null; onClose: () => void }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div className="relative max-w-4xl max-h-full" onClick={(e) => e.stopPropagation()}>
+        <button
+          className="absolute -top-10 right-0 text-white hover:text-gray-300 flex items-center gap-2"
+          onClick={onClose}
+        >
+          <X className="h-6 w-6" />
+        </button>
+        <img src={src} alt="과태료 고지서" className="max-h-[85vh] max-w-full object-contain rounded-lg shadow-2xl" />
+        {pdfUrl && (
+          <a
+            href={pdfUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="absolute bottom-3 right-3 bg-white/90 text-black px-3 py-1.5 rounded-md text-xs flex items-center gap-1.5 hover:bg-white transition-colors"
+          >
+            <FileText className="h-3.5 w-3.5" />
+            PDF 원본 열기
+          </a>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function TrafficFines() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -189,6 +221,7 @@ export default function TrafficFines() {
   const [form, setForm] = useState<Partial<TrafficFine>>(emptyForm());
   const [filterStatus, setFilterStatus] = useState<"전체" | "미납" | "납부완료">("전체");
   const [filterText, setFilterText] = useState("");
+  const [viewerSrc, setViewerSrc] = useState<{ src: string; pdfUrl?: string | null } | null>(null);
 
   const { data: fines = [], isLoading } = useQuery<TrafficFine[]>({
     queryKey: ["/api/traffic-fines"],
@@ -271,18 +304,23 @@ export default function TrafficFines() {
       if (!res.ok) throw new Error("파싱 실패");
       const data = await res.json();
 
-      // PDF에서 추출한 차량번호로 DB 차량 자동 매핑
-      const extracted: Partial<TrafficFine> = { ...emptyForm(), ...data, requestDate: todayStr() };
-      if (data.licensePlate) {
-        const matched = vehicles.find(
-          (v) => v.plateNumber.replace(/\s/g, "") === (data.licensePlate || "").replace(/\s/g, "")
-        );
-        if (matched) {
-          extracted.vehicleType = matched.vehicleType;
-          extracted.department = matched.team;
-        }
-      }
-      setForm(extracted);
+      // 서버에서 이미 차량 DB 조회해서 vehicleType, department 채워서 반환됨
+      setForm({
+        ...emptyForm(),
+        violationDate: data.violationDate || "",
+        licensePlate: data.licensePlate || "",
+        vehicleType: data.vehicleType || "",
+        department: data.department || "",
+        driver: data.driver || "",
+        violationType: data.violationType || "",
+        violationLocation: data.violationLocation || "",
+        amount: data.amount || undefined,
+        paymentDestination: data.paymentDestination || "",
+        requestDate: todayStr(),
+        paymentStatus: "미납",
+        pdfUrl: data.pdfUrl || "",
+        thumbnailUrl: data.thumbnailUrl || "",
+      });
       setEditingId(null);
       setDialogOpen(true);
       toast({ title: "AI 분석 완료", description: "추출된 정보를 확인 후 저장하세요" });
@@ -342,6 +380,15 @@ export default function TrafficFines() {
 
   return (
     <div className="p-4 md:p-6 space-y-6">
+      {/* 이미지 전체화면 뷰어 */}
+      {viewerSrc && (
+        <ImageViewer
+          src={viewerSrc.src}
+          pdfUrl={viewerSrc.pdfUrl}
+          onClose={() => setViewerSrc(null)}
+        />
+      )}
+
       {/* 헤더 */}
       <div className="flex items-center justify-between">
         <div>
@@ -417,13 +464,13 @@ export default function TrafficFines() {
               <div className="flex flex-col items-center gap-2">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 <p className="text-sm font-medium">AI 분석 중...</p>
-                <p className="text-xs text-muted-foreground">과태료 정보를 추출하고 있습니다</p>
+                <p className="text-xs text-muted-foreground">차량 DB 조회 및 과태료 정보 추출 중입니다</p>
               </div>
             ) : (
               <div className="flex flex-col items-center gap-2">
                 <Upload className="h-8 w-8 text-muted-foreground" />
                 <p className="text-sm font-medium">과태료 고지서 PDF를 드래그하거나 클릭하여 업로드</p>
-                <p className="text-xs text-muted-foreground">업로드 즉시 AI가 자동으로 정보를 추출합니다</p>
+                <p className="text-xs text-muted-foreground">AI가 자동 분석 → 차량번호로 차종·소속 자동입력</p>
               </div>
             )}
             <input
@@ -476,6 +523,7 @@ export default function TrafficFines() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-muted-foreground">
+                    <th className="text-left py-2 px-2 font-medium">고지서</th>
                     <th className="text-left py-2 px-2 font-medium">위반일시</th>
                     <th className="text-left py-2 px-2 font-medium">차량번호</th>
                     <th className="text-left py-2 px-2 font-medium hidden md:table-cell">차종</th>
@@ -487,13 +535,36 @@ export default function TrafficFines() {
                     <th className="text-left py-2 px-2 font-medium hidden lg:table-cell">수납처</th>
                     <th className="text-left py-2 px-2 font-medium hidden md:table-cell">납부요청일</th>
                     <th className="text-center py-2 px-2 font-medium">납부상태</th>
-                    <th className="text-center py-2 px-2 font-medium hidden md:table-cell">PDF</th>
                     <th className="py-2 px-2"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.map((fine) => (
                     <tr key={fine.id} className="border-b hover:bg-muted/30 transition-colors" data-testid={`row-fine-${fine.id}`}>
+                      {/* PDF 썸네일 */}
+                      <td className="py-1.5 px-2">
+                        {(fine as any).thumbnailUrl ? (
+                          <button
+                            className="group relative"
+                            onClick={() => setViewerSrc({ src: (fine as any).thumbnailUrl, pdfUrl: fine.pdfUrl })}
+                            title="클릭하여 고지서 크게 보기"
+                            data-testid={`thumb-fine-${fine.id}`}
+                          >
+                            <img
+                              src={(fine as any).thumbnailUrl}
+                              alt="고지서"
+                              className="h-10 w-8 object-cover rounded border shadow-sm group-hover:scale-105 transition-transform"
+                            />
+                            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/30 rounded transition-opacity">
+                              <ZoomIn className="h-3 w-3 text-white" />
+                            </div>
+                          </button>
+                        ) : (
+                          <div className="h-10 w-8 bg-muted rounded border flex items-center justify-center">
+                            <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                          </div>
+                        )}
+                      </td>
                       <td className="py-2 px-2 whitespace-nowrap text-xs">{fine.violationDate || "-"}</td>
                       <td className="py-2 px-2 font-mono font-semibold whitespace-nowrap text-xs">{fine.licensePlate || "-"}</td>
                       <td className="py-2 px-2 hidden md:table-cell text-muted-foreground text-xs">{fine.vehicleType || "-"}</td>
@@ -510,22 +581,6 @@ export default function TrafficFines() {
                           canEdit={isOwner(fine)}
                           onUpdate={handleInlineStatusUpdate}
                         />
-                      </td>
-                      <td className="py-2 px-2 text-center hidden md:table-cell">
-                        {fine.pdfUrl ? (
-                          <a
-                            href={fine.pdfUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-blue-500 hover:text-blue-700 text-xs"
-                            data-testid={`link-pdf-${fine.id}`}
-                          >
-                            <FileText className="h-3.5 w-3.5" />
-                            <ExternalLink className="h-3 w-3" />
-                          </a>
-                        ) : (
-                          <span className="text-muted-foreground text-xs">-</span>
-                        )}
                       </td>
                       <td className="py-2 px-2">
                         {isOwner(fine) && (
@@ -560,6 +615,28 @@ export default function TrafficFines() {
             <DialogDescription className="sr-only">과태료 정보를 입력하세요</DialogDescription>
           </DialogHeader>
 
+          {/* PDF 썸네일 미리보기 */}
+          {form.thumbnailUrl && (
+            <div className="flex justify-center mb-2">
+              <button
+                type="button"
+                className="group relative"
+                onClick={() => setViewerSrc({ src: form.thumbnailUrl!, pdfUrl: form.pdfUrl })}
+                title="클릭하여 크게 보기"
+              >
+                <img
+                  src={form.thumbnailUrl}
+                  alt="과태료 고지서"
+                  className="max-h-48 max-w-full object-contain rounded-lg border shadow-md group-hover:opacity-90 transition-opacity"
+                />
+                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/20 rounded-lg transition-opacity">
+                  <ZoomIn className="h-8 w-8 text-white" />
+                </div>
+                <p className="text-xs text-muted-foreground text-center mt-1">클릭하여 크게 보기</p>
+              </button>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-4">
 
             {/* 1. 위반일시 */}
@@ -573,11 +650,11 @@ export default function TrafficFines() {
               />
             </div>
 
-            {/* 2. 차량번호 — 자동완성 */}
+            {/* 2. 차량번호 — 자동완성 (직접입력 시) */}
             <div className="space-y-1">
               <Label>
                 차량번호
-                <span className="ml-1 text-xs text-blue-500 font-normal">차량현황 연동</span>
+                <span className="ml-1 text-xs text-blue-500 font-normal">차량현황 DB 연동</span>
               </Label>
               <PlateAutocomplete
                 value={form.licensePlate || ""}
@@ -587,7 +664,7 @@ export default function TrafficFines() {
               />
             </div>
 
-            {/* 3. 차종 — DB 자동입력 */}
+            {/* 3. 차종 — 자동입력 */}
             <div className="space-y-1">
               <Label>
                 차종
@@ -596,12 +673,12 @@ export default function TrafficFines() {
               <Input
                 value={form.vehicleType || ""}
                 onChange={(e) => setField("vehicleType", e.target.value)}
-                placeholder="차량 선택 시 자동입력"
+                placeholder="차량번호 선택 시 자동입력"
                 data-testid="input-vehicle-type"
               />
             </div>
 
-            {/* 4. 소속 — DB 자동입력 */}
+            {/* 4. 소속 — 자동입력 */}
             <div className="space-y-1">
               <Label>
                 소속
@@ -610,7 +687,7 @@ export default function TrafficFines() {
               <Input
                 value={form.department || ""}
                 onChange={(e) => setField("department", e.target.value)}
-                placeholder="차량 선택 시 자동입력"
+                placeholder="차량번호 선택 시 자동입력"
                 data-testid="input-department"
               />
             </div>
@@ -637,7 +714,7 @@ export default function TrafficFines() {
               />
             </div>
 
-            {/* 7. 적발장소 — 전체 너비 */}
+            {/* 7. 적발장소 */}
             <div className="col-span-2 space-y-1">
               <Label>적발장소</Label>
               <Input
@@ -660,7 +737,7 @@ export default function TrafficFines() {
               />
             </div>
 
-            {/* 9. 수납처 — PDF 자동입력 또는 직접입력 */}
+            {/* 9. 수납처 */}
             <div className="space-y-1">
               <Label>
                 수납처
@@ -712,23 +789,6 @@ export default function TrafficFines() {
                   placeholder="YYYY-MM-DD"
                   data-testid="input-paid-at"
                 />
-              </div>
-            )}
-
-            {/* PDF 파일 — 편집 시 표시 */}
-            {form.pdfUrl && (
-              <div className="col-span-2 space-y-1">
-                <Label>첨부 PDF</Label>
-                <a
-                  href={form.pdfUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 text-sm text-blue-500 hover:underline"
-                >
-                  <FileText className="h-4 w-4" />
-                  과태료 고지서 PDF 열기
-                  <ExternalLink className="h-3.5 w-3.5" />
-                </a>
               </div>
             )}
 

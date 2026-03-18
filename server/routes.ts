@@ -2249,18 +2249,23 @@ export async function registerRoutes(
 
     const pdfPath = req.file.path;
     const pngPrefix = `${pdfPath}_page`;
+    const pngPath = `${pngPrefix}-1.png`;
 
     try {
       // PDF → PNG 변환
       execSync(`pdftoppm -r 150 -png "${pdfPath}" "${pngPrefix}"`, { timeout: 30000 });
 
-      // 첫 페이지 PNG 읽기
-      const pngPath = `${pngPrefix}-1.png`;
       if (!fs.existsSync(pngPath)) {
         return res.status(500).json({ message: "PDF 변환에 실패했습니다" });
       }
       const imgBuffer = fs.readFileSync(pngPath);
       const base64Img = imgBuffer.toString("base64");
+
+      // 썸네일 저장 (PNG → uploads 디렉토리에 보관)
+      const thumbnailFilename = `thumb_${req.file.filename}.png`;
+      const thumbnailPath = path.join(uploadDir, thumbnailFilename);
+      fs.renameSync(pngPath, thumbnailPath);
+      const thumbnailUrl = `/uploads/${thumbnailFilename}`;
 
       // OpenAI Vision으로 정보 추출
       const OpenAI = (await import("openai")).default;
@@ -2277,21 +2282,19 @@ export async function registerRoutes(
             content: [
               {
                 type: "text",
-                text: `이 과태료 고지서(납부통보서) 이미지에서 다음 정보를 JSON으로 추출하세요. 없는 필드는 null로 반환하세요.
+                text: `이 교통 과태료 고지서(납부통보서) 이미지에서 다음 정보를 정확히 추출하세요. 없는 필드는 null로 반환하세요.
 
 {
-  "violationDate": "위반일시 (YYYY-MM-DD HH:MM 또는 YYYY.MM.DD 형식, 시간 포함 가능)",
-  "licensePlate": "차량번호",
-  "vehicleType": "차종 (예: 스타렉스, 포터, 봉고 등, 없으면 null)",
-  "department": "소속 또는 발급기관",
-  "driver": "운전자 이름 (없으면 null)",
-  "violationType": "위반내역 (예: 신호위반, 과속, 불법주정차 등)",
-  "violationLocation": "적발장소",
-  "amount": 과태료금액_숫자만,
-  "paymentDestination": "수납처 또는 납부처 기관명 (없으면 null)"
+  "violationDate": "위반일시 - YYYY-MM-DD HH:MM 형식 (날짜와 시간 모두 포함)",
+  "licensePlate": "차량번호 - 숫자와 한글로 된 번호판만 (예: 231허3948)",
+  "driver": "운전자 또는 명의자 이름 (없으면 null)",
+  "violationType": "위반내역 - 신호위반/과속/불법주정차 등 위반 종류",
+  "violationLocation": "적발장소 - 도로명 또는 장소명",
+  "amount": 과태료금액_숫자만_원단위,
+  "paymentDestination": "납부처 - 납부할 기관명 또는 계좌정보 (예: 경찰청, 도로교통공단, 지자체명 등)"
 }
 
-JSON만 반환하고 다른 텍스트는 포함하지 마세요.`,
+중요: vehicleType(차종)과 department(소속)는 추출하지 마세요. JSON만 반환하세요.`,
               },
               {
                 type: "image_url",
@@ -2302,9 +2305,6 @@ JSON만 반환하고 다른 텍스트는 포함하지 마세요.`,
         ],
       });
 
-      // PNG 파일 정리
-      try { fs.unlinkSync(pngPath); } catch (_) {}
-
       const raw = aiRes.choices[0]?.message?.content?.trim() || "{}";
       let parsed: any = {};
       try {
@@ -2312,14 +2312,31 @@ JSON만 반환하고 다른 텍스트는 포함하지 마세요.`,
         parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
       } catch (_) {}
 
+      // 차량번호로 차량 DB에서 차종·소속 자동 조회
+      let vehicleType: string | null = null;
+      let department: string | null = null;
+      if (parsed.licensePlate) {
+        const normalizedPlate = parsed.licensePlate.replace(/\s/g, "");
+        const vehicles = await storage.getVehicles();
+        const matched = vehicles.find(
+          (v: any) => v.plateNumber.replace(/\s/g, "") === normalizedPlate
+        );
+        if (matched) {
+          vehicleType = matched.vehicleType;
+          department = matched.team;
+        }
+      }
+
       const pdfUrl = `/uploads/${req.file.filename}`;
-      res.json({ ...parsed, pdfUrl });
+      res.json({
+        ...parsed,
+        vehicleType,
+        department,
+        pdfUrl,
+        thumbnailUrl,
+      });
     } catch (error: any) {
-      // PNG 파일 정리
-      try {
-        const pngPath = `${pngPrefix}-1.png`;
-        if (fs.existsSync(pngPath)) fs.unlinkSync(pngPath);
-      } catch (_) {}
+      try { if (fs.existsSync(pngPath)) fs.unlinkSync(pngPath); } catch (_) {}
       console.error("과태료 PDF 파싱 오류:", error?.message || error);
       res.status(500).json({ message: "PDF 파싱에 실패했습니다" });
     }

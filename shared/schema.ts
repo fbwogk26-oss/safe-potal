@@ -371,6 +371,7 @@ export const trafficFines = pgTable("traffic_fines", {
   paymentStatus: text("payment_status").notNull().default("미납"), // 미납/납부완료
   paidAt: text("paid_at"),                         // 납부일자
   pdfUrl: text("pdf_url"),                         // 업로드된 PDF 경로
+  thumbnailUrl: text("thumbnail_url"),             // PDF 썸네일 이미지 경로
   createdBy: text("created_by"),
   createdAt: timestamp("created_at").defaultNow(),
 });

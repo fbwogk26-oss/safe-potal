@@ -2,7 +2,7 @@ import { db } from "./db";
 import {
   teams, notices, settings, safetyEquipment, safetyInspections,
   educationSessions, educationSignatures,
-  users,
+  users, vehicles,
   chemicals, riskAssessments, accidentReports, newEquipmentRequests, musculoskeletalAssessments, trafficFines,
   type Team, type InsertTeam, type UpdateTeamRequest,
   type Notice, type InsertNotice,
@@ -103,6 +103,9 @@ export interface IStorage {
   createMusculoskeletalAssessment(data: InsertMusculoskeletalAssessment): Promise<MusculoskeletalAssessment>;
   updateMusculoskeletalAssessment(id: number, data: Partial<InsertMusculoskeletalAssessment>): Promise<MusculoskeletalAssessment>;
   deleteMusculoskeletalAssessment(id: number): Promise<void>;
+
+  // Vehicles
+  getVehicles(): Promise<any[]>;
 
   // Traffic Fines
   getTrafficFines(): Promise<TrafficFine[]>;
@@ -409,6 +412,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   // === TRAFFIC FINES ===
+  async getVehicles(): Promise<any[]> {
+    return await db.select().from(vehicles).orderBy(vehicles.plateNumber);
+  }
+
   async getTrafficFines(): Promise<TrafficFine[]> {
     return await db.select().from(trafficFines).orderBy(desc(trafficFines.createdAt));
   }
