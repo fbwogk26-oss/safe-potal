@@ -2393,8 +2393,12 @@ export async function registerRoutes(
         const ip = new PDFParse({ data: pdfBuffer });
         const ir = await ip.getImage({ imageThreshold: 0, imageDataUrl: true, imageBuffer: true });
         await ip.destroy();
-        const allImgs: any[] = (ir.pages || []).flatMap((pg: any) => pg.images || []);
-        const largest = allImgs.sort((a, b) => (b.width * b.height) - (a.width * a.height))[0];
+        const pages: any[] = ir.pages || [];
+        // 1페이지 이미지를 우선 사용, 없으면 전체에서 가장 큰 이미지 사용
+        const page1Imgs: any[] = (pages[0]?.images || []).slice();
+        const allImgs: any[] = pages.flatMap((pg: any) => pg.images || []);
+        const candidateImgs = page1Imgs.length > 0 ? page1Imgs : allImgs;
+        const largest = candidateImgs.sort((a: any, b: any) => (b.width * b.height) - (a.width * a.height))[0];
         if (largest) {
           imgDataUrl = largest.dataUrl || (largest.data ? `data:image/png;base64,${Buffer.from(largest.data).toString("base64")}` : null);
         }
