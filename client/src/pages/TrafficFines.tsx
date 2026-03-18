@@ -435,12 +435,10 @@ export default function TrafficFines() {
 
       {/* 통계 카드 */}
       {(() => {
-        const EXCLUDED = ["주정차 위반", "통행료 미납"];
         const speedCnt = stats?.byViolationType?.["속도위반"] ?? 0;
         const signalCnt = stats?.byViolationType?.["신호위반"] ?? 0;
         const laneCnt = stats?.byViolationType?.["법규위반"] ?? 0;
-        const excludedCnt = EXCLUDED.reduce((s, t) => s + (stats?.byViolationType?.[t] ?? 0), 0);
-        const filteredTotal = (stats?.total ?? 0) - excludedCnt;
+        const filteredTotal = speedCnt + signalCnt + laneCnt;
         const cards = [
           {
             label: "총 건수",
@@ -481,7 +479,7 @@ export default function TrafficFines() {
         ];
         return (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {cards.map((c) => (
+            {cards.map((c, i) => (
               <Card key={c.label} className={`border ${c.border} ${c.bg} shadow-sm`}>
                 <CardContent className="p-0">
                   <div className={`flex items-center justify-center gap-2 py-3 px-4 ${c.color}`}>
@@ -489,10 +487,13 @@ export default function TrafficFines() {
                     <span className="text-sm font-semibold tracking-wide">{c.label}</span>
                   </div>
                   <div className={`border-t ${c.border}`} />
-                  <div className="flex items-center justify-center py-5">
+                  <div className="flex flex-col items-center justify-center py-4 gap-1">
                     <p className={`text-4xl font-extrabold ${c.color}`} data-testid={c.testId}>
                       {c.value}
                     </p>
+                    {i === 0 && (
+                      <p className="text-xs text-muted-foreground">속도 {speedCnt} + 신호 {signalCnt} + 법규 {laneCnt}</p>
+                    )}
                   </div>
                 </CardContent>
               </Card>
