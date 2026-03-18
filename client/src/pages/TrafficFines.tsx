@@ -432,50 +432,66 @@ export default function TrafficFines() {
 
       {/* 통계 카드 */}
       {(() => {
+        const EXCLUDED = ["주정차 위반", "통행료 미납"];
         const speedCnt = stats?.byViolationType?.["속도위반"] ?? 0;
         const signalCnt = stats?.byViolationType?.["신호위반"] ?? 0;
-        const otherCnt = (stats?.total ?? 0) - speedCnt - signalCnt;
+        const excludedCnt = EXCLUDED.reduce((s, t) => s + (stats?.byViolationType?.[t] ?? 0), 0);
+        const filteredTotal = (stats?.total ?? 0) - excludedCnt;
+        const otherCnt = filteredTotal - speedCnt - signalCnt;
+        const cards = [
+          {
+            label: "총 건수",
+            value: filteredTotal,
+            icon: <ReceiptText className="h-6 w-6" />,
+            color: "text-blue-600",
+            bg: "bg-blue-50 dark:bg-blue-950/40",
+            border: "border-blue-200 dark:border-blue-800",
+            testId: "stat-total",
+          },
+          {
+            label: "속도위반",
+            value: speedCnt,
+            icon: <Zap className="h-6 w-6" />,
+            color: "text-red-600",
+            bg: "bg-red-50 dark:bg-red-950/40",
+            border: "border-red-200 dark:border-red-800",
+            testId: "stat-speed",
+          },
+          {
+            label: "신호위반",
+            value: signalCnt,
+            icon: <AlertTriangle className="h-6 w-6" />,
+            color: "text-amber-600",
+            bg: "bg-amber-50 dark:bg-amber-950/40",
+            border: "border-amber-200 dark:border-amber-800",
+            testId: "stat-signal",
+          },
+          {
+            label: "법규위반",
+            value: otherCnt,
+            icon: <AlertCircle className="h-6 w-6" />,
+            color: "text-orange-600",
+            bg: "bg-orange-50 dark:bg-orange-950/40",
+            border: "border-orange-200 dark:border-orange-800",
+            testId: "stat-other",
+          },
+        ];
         return (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Card>
-              <CardContent className="pt-4">
-                <div className="flex items-center gap-2">
-                  <ReceiptText className="h-5 w-5 text-blue-500" />
-                  <span className="text-sm text-muted-foreground">총 건수</span>
-                </div>
-                <p className="text-2xl font-bold mt-1" data-testid="stat-total">{stats?.total ?? "-"}</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-4">
-                <div className="flex items-center gap-2">
-                  <Zap className="h-5 w-5 text-red-500" />
-                  <span className="text-sm text-muted-foreground">속도위반</span>
-                </div>
-                <p className="text-2xl font-bold mt-1" data-testid="stat-speed">{speedCnt}</p>
-                <p className="text-xs text-muted-foreground">{speedCnt}건</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-4">
-                <div className="flex items-center gap-2">
-                  <AlertTriangle className="h-5 w-5 text-yellow-500" />
-                  <span className="text-sm text-muted-foreground">신호위반</span>
-                </div>
-                <p className="text-2xl font-bold mt-1" data-testid="stat-signal">{signalCnt}</p>
-                <p className="text-xs text-muted-foreground">{signalCnt}건</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-4">
-                <div className="flex items-center gap-2">
-                  <AlertCircle className="h-5 w-5 text-orange-500" />
-                  <span className="text-sm text-muted-foreground">법규위반</span>
-                </div>
-                <p className="text-2xl font-bold mt-1" data-testid="stat-other">{otherCnt}</p>
-                <p className="text-xs text-muted-foreground">{otherCnt}건</p>
-              </CardContent>
-            </Card>
+            {cards.map((c) => (
+              <Card key={c.label} className={`border ${c.border} ${c.bg} shadow-sm`}>
+                <CardContent className="pt-5 pb-5">
+                  <div className={`flex items-center gap-2 mb-3 ${c.color}`}>
+                    {c.icon}
+                    <span className="text-sm font-semibold tracking-wide">{c.label}</span>
+                  </div>
+                  <p className={`text-4xl font-extrabold ${c.color}`} data-testid={c.testId}>
+                    {c.value}
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1 font-medium">{c.value}건</p>
+                </CardContent>
+              </Card>
+            ))}
           </div>
         );
       })()}
