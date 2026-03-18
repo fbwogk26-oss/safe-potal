@@ -480,14 +480,17 @@ export default function TrafficFines() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {cards.map((c) => (
               <Card key={c.label} className={`border ${c.border} ${c.bg} shadow-sm`}>
-                <CardContent className="flex flex-col items-center justify-center py-6 gap-2">
-                  <div className={`flex items-center gap-2 ${c.color}`}>
+                <CardContent className="p-0">
+                  <div className={`flex items-center justify-center gap-2 py-3 px-4 ${c.color}`}>
                     {c.icon}
                     <span className="text-sm font-semibold tracking-wide">{c.label}</span>
                   </div>
-                  <p className={`text-4xl font-extrabold ${c.color}`} data-testid={c.testId}>
-                    {c.value}
-                  </p>
+                  <div className={`border-t ${c.border}`} />
+                  <div className="flex items-center justify-center py-5">
+                    <p className={`text-4xl font-extrabold ${c.color}`} data-testid={c.testId}>
+                      {c.value}
+                    </p>
+                  </div>
                 </CardContent>
               </Card>
             ))}
