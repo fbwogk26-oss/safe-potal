@@ -12,6 +12,7 @@ import fs from "fs";
 import { execSync } from "child_process";
 import ExcelJS from "exceljs";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
+import { objectStorageClient } from "./replit_integrations/object_storage/objectStorage";
 import { getKoshaMajorAccidents, clearKoshaCache } from "./kosha";
 import { fetchWeather, generateSafetyMessage, clearWeatherCache } from "./weather";
 import { setupAuth, registerAuthRoutes, isAuthenticated, authStorage } from "./replit_integrations/auth";
@@ -21,6 +22,24 @@ import { registerChatbotRoutes } from "./chatbot";
 const uploadDir = path.join(process.cwd(), "uploads");
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+// 오브젝트 스토리지에 Buffer를 업로드하고 /objects/ 경로 반환
+// PRIVATE_OBJECT_DIR이 없으면 null 반환 (로컬 fallback)
+async function uploadToObjectStorage(buffer: Buffer, filename: string, contentType: string): Promise<string | null> {
+  const privateDir = process.env.PRIVATE_OBJECT_DIR;
+  if (!privateDir) return null;
+  try {
+    const fullPath = `${privateDir.replace(/\/$/, "")}/uploads/${filename}`;
+    const parts = fullPath.replace(/^\//, "").split("/");
+    const bucketName = parts[0];
+    const objectName = parts.slice(1).join("/");
+    await objectStorageClient.bucket(bucketName).file(objectName).save(buffer, { contentType, resumable: false });
+    return `/objects/uploads/${filename}`;
+  } catch (e: any) {
+    console.error("Object storage 업로드 실패:", e?.message);
+    return null;
+  }
 }
 
 const upload = multer({
@@ -2479,17 +2498,30 @@ JSON 코드블록 없이 JSON 객체만 반환하세요.
         }
       }
 
-      const pdfUrl = `/uploads/${req.file.filename}`;
+      // PDF: 오브젝트 스토리지 업로드 시도 (배포 환경), 실패 시 로컬 /uploads/ fallback
+      let pdfUrl = `/uploads/${req.file.filename}`;
+      try {
+        const objPdfUrl = await uploadToObjectStorage(pdfBuffer, req.file.filename, "application/pdf");
+        if (objPdfUrl) pdfUrl = objPdfUrl;
+      } catch (_) {}
 
-      // 썸네일: 추출한 이미지를 PNG 파일로 저장
+      // 썸네일: 추출한 이미지를 오브젝트 스토리지 또는 로컬에 저장
       let thumbnailUrl: string | null = null;
       if (imgDataUrl) {
         try {
           const base64Data = imgDataUrl.replace(/^data:image\/\w+;base64,/, "");
+          const thumbBuffer = Buffer.from(base64Data, "base64");
           const thumbFilename = `thumb_${path.basename(req.file.filename, path.extname(req.file.filename))}.png`;
-          const thumbPath = path.join(uploadDir, thumbFilename);
-          fs.writeFileSync(thumbPath, Buffer.from(base64Data, "base64"));
-          thumbnailUrl = `/uploads/${thumbFilename}`;
+          // 오브젝트 스토리지 우선
+          const objThumbUrl = await uploadToObjectStorage(thumbBuffer, thumbFilename, "image/png");
+          if (objThumbUrl) {
+            thumbnailUrl = objThumbUrl;
+          } else {
+            // 로컬 fallback
+            const thumbPath = path.join(uploadDir, thumbFilename);
+            fs.writeFileSync(thumbPath, thumbBuffer);
+            thumbnailUrl = `/uploads/${thumbFilename}`;
+          }
         } catch (_) {}
       }
 
