@@ -2480,12 +2480,25 @@ JSON 코드블록 없이 JSON 객체만 반환하세요.
       }
 
       const pdfUrl = `/uploads/${req.file.filename}`;
+
+      // 썸네일: 추출한 이미지를 PNG 파일로 저장
+      let thumbnailUrl: string | null = null;
+      if (imgDataUrl) {
+        try {
+          const base64Data = imgDataUrl.replace(/^data:image\/\w+;base64,/, "");
+          const thumbFilename = `thumb_${path.basename(req.file.filename, path.extname(req.file.filename))}.png`;
+          const thumbPath = path.join(uploadDir, thumbFilename);
+          fs.writeFileSync(thumbPath, Buffer.from(base64Data, "base64"));
+          thumbnailUrl = `/uploads/${thumbFilename}`;
+        } catch (_) {}
+      }
+
       res.json({
         ...parsed,
         vehicleType,
         department,
         pdfUrl,
-        thumbnailUrl: null,
+        thumbnailUrl,
       });
     } catch (error: any) {
       console.error("과태료 PDF 파싱 오류:", error?.message || error);
