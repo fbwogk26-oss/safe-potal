@@ -605,11 +605,13 @@ export default function TrafficFines() {
                       <td className="py-2 px-2 hidden lg:table-cell text-muted-foreground text-xs">{fine.paymentDestination || "-"}</td>
                       <td className="py-2 px-2 hidden md:table-cell whitespace-nowrap text-muted-foreground text-xs">{fine.requestDate || "-"}</td>
                       <td className="py-2 px-2 text-center relative">
-                        <PaymentStatusCell
-                          fine={fine}
-                          canEdit={isOwner(fine)}
-                          onUpdate={handleInlineStatusUpdate}
-                        />
+                        <Badge
+                          variant={fine.paymentStatus === "납부완료" ? "default" : "destructive"}
+                          className="text-xs"
+                          data-testid={`badge-status-${fine.id}`}
+                        >
+                          {fine.paymentStatus || "미납"}
+                        </Badge>
                       </td>
                       <td className="py-2 px-2">
                         {isOwner(fine) && (
