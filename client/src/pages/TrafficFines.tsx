@@ -249,7 +249,7 @@ export default function TrafficFines() {
       toast({ title: "등록 완료" });
       setDialogOpen(false);
     },
-    onError: () => toast({ title: "등록 실패", variant: "destructive" }),
+    onError: (e: any) => toast({ title: "등록 실패", description: e?.message || "저장에 실패했습니다", variant: "destructive" }),
   });
 
   const updateMutation = useMutation({

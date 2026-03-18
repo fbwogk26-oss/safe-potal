@@ -2475,12 +2475,31 @@ export async function registerRoutes(
 
   app.post('/api/traffic-fines', isAuthenticated, async (req: any, res) => {
     try {
-      const { id: _id, createdAt: _ca, ...rest } = req.body;
-      const data = { ...rest, amount: rest.amount !== undefined && rest.amount !== "" ? Number(rest.amount) : null, createdBy: req.user?.username || null };
+      const { id: _id, createdAt: _ca, createdBy: _cb, ...rest } = req.body;
+      const sanitize = (v: any) => (v === "" || v === undefined) ? null : v;
+      const data = {
+        violationDate: sanitize(rest.violationDate),
+        licensePlate: sanitize(rest.licensePlate),
+        vehicleType: sanitize(rest.vehicleType),
+        department: sanitize(rest.department),
+        driver: sanitize(rest.driver),
+        violationType: sanitize(rest.violationType),
+        violationLocation: sanitize(rest.violationLocation),
+        amount: rest.amount !== undefined && rest.amount !== "" && rest.amount !== null ? Number(rest.amount) : null,
+        paymentDestination: sanitize(rest.paymentDestination),
+        note: sanitize(rest.note),
+        requestDate: sanitize(rest.requestDate),
+        paymentStatus: rest.paymentStatus || "미납",
+        paidAt: sanitize(rest.paidAt),
+        pdfUrl: sanitize(rest.pdfUrl),
+        thumbnailUrl: sanitize(rest.thumbnailUrl),
+        createdBy: req.user?.username || null,
+      };
       const created = await storage.createTrafficFine(data);
       res.status(201).json(created);
-    } catch (error) {
-      res.status(500).json({ message: "과태료 등록에 실패했습니다" });
+    } catch (error: any) {
+      console.error('[TrafficFine POST error]', error?.message || error);
+      res.status(500).json({ message: error?.message || "과태료 등록에 실패했습니다" });
     }
   });
 
@@ -2490,13 +2509,30 @@ export async function registerRoutes(
       const existing = await storage.getTrafficFine(id);
       if (!existing) return res.status(404).json({ message: "Not found" });
       if (!isOwnerOrAdmin(req, existing.createdBy)) return res.status(403).json({ message: "본인이 등록한 항목만 수정할 수 있습니다" });
-      // 보호 필드(id, createdAt, createdBy) 제거 후 amount를 숫자로 변환
       const { id: _id, createdAt: _ca, createdBy: _cb, ...rest } = req.body;
-      const data = { ...rest, amount: rest.amount !== undefined && rest.amount !== "" ? Number(rest.amount) : null };
+      const sanitize = (v: any) => (v === "" || v === undefined) ? null : v;
+      const data = {
+        violationDate: sanitize(rest.violationDate),
+        licensePlate: sanitize(rest.licensePlate),
+        vehicleType: sanitize(rest.vehicleType),
+        department: sanitize(rest.department),
+        driver: sanitize(rest.driver),
+        violationType: sanitize(rest.violationType),
+        violationLocation: sanitize(rest.violationLocation),
+        amount: rest.amount !== undefined && rest.amount !== "" && rest.amount !== null ? Number(rest.amount) : null,
+        paymentDestination: sanitize(rest.paymentDestination),
+        note: sanitize(rest.note),
+        requestDate: sanitize(rest.requestDate),
+        paymentStatus: rest.paymentStatus || "미납",
+        paidAt: sanitize(rest.paidAt),
+        pdfUrl: sanitize(rest.pdfUrl),
+        thumbnailUrl: sanitize(rest.thumbnailUrl),
+      };
       const updated = await storage.updateTrafficFine(id, data);
       res.json(updated);
-    } catch (error) {
-      res.status(500).json({ message: "과태료 수정에 실패했습니다" });
+    } catch (error: any) {
+      console.error('[TrafficFine PUT error]', error?.message || error);
+      res.status(500).json({ message: error?.message || "과태료 수정에 실패했습니다" });
     }
   });
 
