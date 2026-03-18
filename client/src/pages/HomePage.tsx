@@ -391,7 +391,7 @@ export default function HomePage() {
               {[
                 { label: "평균 안전점수", value: avgScore != null ? `${avgScore}점` : "-", icon: ShieldCheck, color: "#3b82f6", bg: "#dbeafe" },
                 { label: "금년 사고건수", value: `${thisYearAccidents}건`, icon: AlertTriangle, color: thisYearAccidents > 0 ? "#ef4444" : "#10b981", bg: thisYearAccidents > 0 ? "#fee2e2" : "#d1fae5" },
-                { label: "공지/알림", value: `${Array.isArray(notices) ? notices.length : 0}건`, icon: Bell, color: "#f59e0b", bg: "#fef3c7" },
+                { label: "공지/알림", value: `${Array.isArray(notices) ? notices.filter((n: any) => n.category === "notice").length : 0}건`, icon: Bell, color: "#f59e0b", bg: "#fef3c7" },
                 { label: "승인대기 위험성평가", value: `${pendingRisks.length}건`, icon: FileWarning, color: pendingRisks.length > 0 ? "#f97316" : "#64748b", bg: pendingRisks.length > 0 ? "#ffedd5" : "#f1f5f9" },
               ].map((item, i) => (
                 <motion.div key={item.label} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
