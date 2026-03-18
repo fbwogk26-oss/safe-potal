@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
@@ -11,8 +11,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Upload, FileText, Pencil, Trash2, Plus, ReceiptText, Banknote, AlertCircle, CheckCircle2, ExternalLink } from "lucide-react";
-import type { TrafficFine } from "@shared/schema";
+import { Loader2, Upload, FileText, Pencil, Trash2, Plus, ReceiptText, Banknote, AlertCircle, CheckCircle2, Car } from "lucide-react";
+import type { TrafficFine, Vehicle } from "@shared/schema";
 
 const todayStr = () => {
   const d = new Date();
@@ -35,6 +35,70 @@ const emptyForm = (): Partial<TrafficFine> => ({
   paidAt: "",
   pdfUrl: "",
 });
+
+// 차량번호 자동완성 컴포넌트
+function PlateAutocomplete({
+  value,
+  onChange,
+  onVehicleSelect,
+  vehicles,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onVehicleSelect: (v: Vehicle) => void;
+  vehicles: Vehicle[];
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  const matches = value.trim().length > 0
+    ? vehicles.filter((v) =>
+        v.plateNumber.replace(/\s/g, "").includes(value.replace(/\s/g, ""))
+      ).slice(0, 8)
+    : [];
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative">
+      <Input
+        value={value}
+        onChange={(e) => { onChange(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        placeholder="예: 231허3948"
+        autoComplete="off"
+        data-testid="input-license-plate"
+      />
+      {open && matches.length > 0 && (
+        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border rounded-md shadow-lg max-h-52 overflow-auto">
+          {matches.map((v) => (
+            <button
+              key={v.id}
+              type="button"
+              className="w-full text-left px-3 py-2 hover:bg-accent transition-colors text-sm flex items-center gap-2"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                onVehicleSelect(v);
+                setOpen(false);
+              }}
+            >
+              <Car className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <span className="font-mono font-semibold">{v.plateNumber}</span>
+              <span className="text-muted-foreground">{v.vehicleType} ({v.model})</span>
+              <span className="ml-auto text-muted-foreground text-xs">{v.team}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function TrafficFines() {
   const { user } = useAuth();
@@ -59,6 +123,10 @@ export default function TrafficFines() {
     byViolationType: Record<string, number>;
   }>({
     queryKey: ["/api/traffic-fines/stats"],
+  });
+
+  const { data: vehicles = [] } = useQuery<Vehicle[]>({
+    queryKey: ["/api/vehicles"],
   });
 
   const createMutation = useMutation({
@@ -97,6 +165,19 @@ export default function TrafficFines() {
   const isOwner = (fine: TrafficFine) =>
     !fine.createdBy || user?.role === "admin" || user?.username === fine.createdBy;
 
+  const setField = (key: keyof TrafficFine, val: any) =>
+    setForm((f) => ({ ...f, [key]: val }));
+
+  // 차량 선택 시 차종·소속 자동 입력
+  const handleVehicleSelect = (vehicle: Vehicle) => {
+    setForm((f) => ({
+      ...f,
+      licensePlate: vehicle.plateNumber,
+      vehicleType: `${vehicle.vehicleType} (${vehicle.model})`,
+      department: vehicle.team,
+    }));
+  };
+
   const handleParsePdf = async (file: File) => {
     if (!file || file.type !== "application/pdf") {
       toast({ title: "PDF 파일만 업로드 가능합니다", variant: "destructive" });
@@ -113,11 +194,23 @@ export default function TrafficFines() {
       });
       if (!res.ok) throw new Error("파싱 실패");
       const data = await res.json();
-      setForm({ ...emptyForm(), ...data, requestDate: todayStr() });
+
+      // PDF에서 추출한 차량번호로 DB 차량 자동 매핑 시도
+      const extracted = { ...emptyForm(), ...data, requestDate: todayStr() };
+      if (data.licensePlate) {
+        const matched = vehicles.find(
+          (v) => v.plateNumber.replace(/\s/g, "") === data.licensePlate.replace(/\s/g, "")
+        );
+        if (matched) {
+          extracted.vehicleType = `${matched.vehicleType} (${matched.model})`;
+          extracted.department = matched.team;
+        }
+      }
+      setForm(extracted);
       setEditingId(null);
       setDialogOpen(true);
       toast({ title: "AI 분석 완료", description: "추출된 정보를 확인 후 저장하세요" });
-    } catch (e) {
+    } catch {
       toast({ title: "PDF 분석에 실패했습니다", variant: "destructive" });
     } finally {
       setParsing(false);
@@ -130,14 +223,13 @@ export default function TrafficFines() {
     setDragging(false);
     const file = e.dataTransfer.files[0];
     if (file) handleParsePdf(file);
-  }, []);
+  }, [vehicles]);
 
   const handleSave = () => {
-    const data = { ...form };
     if (editingId !== null) {
-      updateMutation.mutate({ id: editingId, data });
+      updateMutation.mutate({ id: editingId, data: form });
     } else {
-      createMutation.mutate(data);
+      createMutation.mutate(form);
     }
   };
 
@@ -152,9 +244,6 @@ export default function TrafficFines() {
     setForm(emptyForm());
     setDialogOpen(true);
   };
-
-  const setField = (key: keyof TrafficFine, val: any) =>
-    setForm((f) => ({ ...f, [key]: val }));
 
   const filtered = fines.filter((f) => {
     const matchStatus = filterStatus === "전체" || f.paymentStatus === filterStatus;
@@ -173,6 +262,7 @@ export default function TrafficFines() {
 
   return (
     <div className="p-4 md:p-6 space-y-6">
+      {/* 헤더 */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">과태료 현황</h1>
@@ -234,7 +324,9 @@ export default function TrafficFines() {
         </CardHeader>
         <CardContent>
           <div
-            className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer ${dragging ? "border-primary bg-primary/5" : "border-muted-foreground/30 hover:border-primary/50"}`}
+            className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer ${
+              dragging ? "border-primary bg-primary/5" : "border-muted-foreground/30 hover:border-primary/50"
+            }`}
             onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
             onDragLeave={() => setDragging(false)}
             onDrop={handleDrop}
@@ -346,9 +438,11 @@ export default function TrafficFines() {
                             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(fine)} data-testid={`button-edit-fine-${fine.id}`}>
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => {
-                              if (confirm("삭제하시겠습니까?")) deleteMutation.mutate(fine.id);
-                            }} data-testid={`button-delete-fine-${fine.id}`}>
+                            <Button
+                              variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive"
+                              onClick={() => { if (confirm("삭제하시겠습니까?")) deleteMutation.mutate(fine.id); }}
+                              data-testid={`button-delete-fine-${fine.id}`}
+                            >
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
                           </div>
@@ -372,7 +466,8 @@ export default function TrafficFines() {
           </DialogHeader>
 
           <div className="grid grid-cols-2 gap-4">
-            {/* 위반일시 */}
+
+            {/* 1. 위반일시 */}
             <div className="space-y-1">
               <Label>위반일시</Label>
               <Input
@@ -383,40 +478,49 @@ export default function TrafficFines() {
               />
             </div>
 
-            {/* 차량번호 */}
+            {/* 2. 차량번호 — 자동완성 */}
             <div className="space-y-1">
-              <Label>차량번호</Label>
-              <Input
+              <Label>
+                차량번호
+                <span className="ml-1 text-xs text-blue-500 font-normal">차량현황 연동</span>
+              </Label>
+              <PlateAutocomplete
                 value={form.licensePlate || ""}
-                onChange={(e) => setField("licensePlate", e.target.value)}
-                placeholder="예: 231허3948"
-                data-testid="input-license-plate"
+                onChange={(v) => setField("licensePlate", v)}
+                onVehicleSelect={handleVehicleSelect}
+                vehicles={vehicles}
               />
             </div>
 
-            {/* 차종 */}
+            {/* 3. 차종 — DB 자동입력 (수정 가능) */}
             <div className="space-y-1">
-              <Label>차종</Label>
+              <Label>
+                차종
+                <span className="ml-1 text-xs text-muted-foreground font-normal">차량번호 선택 시 자동입력</span>
+              </Label>
               <Input
                 value={form.vehicleType || ""}
                 onChange={(e) => setField("vehicleType", e.target.value)}
-                placeholder="예: 스타렉스, 포터 등"
+                placeholder="예: 승용차 (티볼리)"
                 data-testid="input-vehicle-type"
               />
             </div>
 
-            {/* 소속 */}
+            {/* 4. 소속 — DB 자동입력 (수정 가능) */}
             <div className="space-y-1">
-              <Label>소속</Label>
+              <Label>
+                소속
+                <span className="ml-1 text-xs text-muted-foreground font-normal">차량번호 선택 시 자동입력</span>
+              </Label>
               <Input
                 value={form.department || ""}
                 onChange={(e) => setField("department", e.target.value)}
-                placeholder="예: 대구본부, 구미운용팀"
+                placeholder="예: 동대구운용팀"
                 data-testid="input-department"
               />
             </div>
 
-            {/* 운전자 */}
+            {/* 5. 운전자 — 직접 입력 */}
             <div className="space-y-1">
               <Label>운전자</Label>
               <Input
@@ -427,7 +531,7 @@ export default function TrafficFines() {
               />
             </div>
 
-            {/* 위반내역 */}
+            {/* 6. 위반내역 — 텍스트 직접 입력 */}
             <div className="space-y-1">
               <Label>위반내역</Label>
               <Input
@@ -438,7 +542,7 @@ export default function TrafficFines() {
               />
             </div>
 
-            {/* 적발장소 */}
+            {/* 7. 적발장소 — 전체 너비 */}
             <div className="col-span-2 space-y-1">
               <Label>적발장소</Label>
               <Input
@@ -449,7 +553,7 @@ export default function TrafficFines() {
               />
             </div>
 
-            {/* 과태료 금액 */}
+            {/* 8. 과태료 금액 */}
             <div className="space-y-1">
               <Label>과태료 금액 (원)</Label>
               <Input
@@ -461,31 +565,23 @@ export default function TrafficFines() {
               />
             </div>
 
-            {/* 수납처 */}
+            {/* 9. 수납처 */}
             <div className="space-y-1">
               <Label>수납처</Label>
               <Input
                 value={form.paymentDestination || ""}
                 onChange={(e) => setField("paymentDestination", e.target.value)}
-                placeholder="예: 대구지방경찰청, 한국교통안전공단"
+                placeholder="예: 대구지방경찰청"
                 data-testid="input-payment-destination"
               />
             </div>
 
-            {/* 비고 */}
-            <div className="col-span-2 space-y-1">
-              <Label>비고</Label>
-              <Textarea
-                value={form.note || ""}
-                onChange={(e) => setField("note", e.target.value)}
-                rows={2}
-                data-testid="textarea-note"
-              />
-            </div>
-
-            {/* 납부요청일 (자동입력, 수정 가능) */}
+            {/* 10. 납부요청일 — 오늘 자동입력 */}
             <div className="space-y-1">
-              <Label>납부요청일 <span className="text-xs text-muted-foreground">(등록일 자동입력)</span></Label>
+              <Label>
+                납부요청일
+                <span className="ml-1 text-xs text-muted-foreground font-normal">오늘 날짜 자동입력</span>
+              </Label>
               <Input
                 value={form.requestDate || ""}
                 onChange={(e) => setField("requestDate", e.target.value)}
@@ -494,7 +590,7 @@ export default function TrafficFines() {
               />
             </div>
 
-            {/* 납부상태 */}
+            {/* 11. 납부상태 */}
             <div className="space-y-1">
               <Label>납부상태</Label>
               <Select value={form.paymentStatus || "미납"} onValueChange={(v) => setField("paymentStatus", v)}>
@@ -510,7 +606,7 @@ export default function TrafficFines() {
 
             {/* 납부일자 (납부완료 시만 표시) */}
             {form.paymentStatus === "납부완료" && (
-              <div className="col-span-2 space-y-1">
+              <div className="space-y-1">
                 <Label>납부일자</Label>
                 <Input
                   value={form.paidAt || ""}
@@ -520,6 +616,18 @@ export default function TrafficFines() {
                 />
               </div>
             )}
+
+            {/* 비고 */}
+            <div className="col-span-2 space-y-1">
+              <Label>비고</Label>
+              <Textarea
+                value={form.note || ""}
+                onChange={(e) => setField("note", e.target.value)}
+                rows={2}
+                data-testid="textarea-note"
+              />
+            </div>
+
           </div>
 
           <DialogFooter className="mt-4">
