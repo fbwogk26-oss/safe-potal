@@ -2353,80 +2353,85 @@ export async function registerRoutes(
       const { PDFParse } = await import("pdf-parse");
       const pdfBuffer = fs.readFileSync(pdfPath);
 
-      const AI_PROMPT = `이 교통 과태료 고지서(납부통보서)에서 다음 JSON 형식으로 정보를 추출하세요. 없는 필드는 null로 반환하세요. JSON만 반환하세요.
-
-{
-  "violationDate": "위반일시 - YYYY-MM-DD HH:MM 형식 (날짜와 시간 모두 포함)",
-  "licensePlate": "차량번호 - 숫자와 한글 번호판만 (예: 231허3948)",
-  "driver": "운전자 또는 명의자 이름 (없으면 null)",
-  "violationType": "위반내역 - 속도위반/신호위반/법규위반/주정차위반/통행료미납 등 정확한 위반 종류",
-  "violationLocation": "적발장소 - 도로명 또는 장소명",
-  "amount": 과태료금액_숫자만_원단위,
-  "paymentDestination": "고지서 발행처 이름 (예: 달서구청장, 한국도로공사, 서울시장 등)"
-}`;
-
       const OpenAI = (await import("openai")).default;
       const aiClient = new OpenAI({
         apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
         baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
       });
 
-      let aiMessages: any[];
-
-      // 1단계: 텍스트 추출 시도
+      // ── 1. 텍스트 추출 ──────────────────────────────────────────
       let pdfText = "";
       try {
-        const textParser = new PDFParse({ data: pdfBuffer });
-        const textData = await textParser.getText();
-        await textParser.destroy();
-        pdfText = textData.text?.trim() || "";
+        const tp = new PDFParse({ data: pdfBuffer });
+        const td = await tp.getText();
+        await tp.destroy();
+        pdfText = (td.text || "").trim();
       } catch (_) {}
 
-      if (pdfText.length >= 20) {
-        // 텍스트가 충분한 경우: 텍스트 모드
-        aiMessages = [{
-          role: "user",
-          content: `다음은 교통 과태료 고지서 PDF 텍스트입니다.\n\n${AI_PROMPT}\n\n--- PDF 텍스트 ---\n${pdfText.substring(0, 4000)}\n--- 끝 ---`,
-        }];
+      // ── 2. 이미지 추출 (스캔본 대응, 텍스트 PDF도 시도) ───────────
+      let imgDataUrl: string | null = null;
+      try {
+        const ip = new PDFParse({ data: pdfBuffer });
+        const ir = await ip.getImage({ imageThreshold: 0, imageDataUrl: true, imageBuffer: true });
+        await ip.destroy();
+        const allImgs: any[] = (ir.pages || []).flatMap((pg: any) => pg.images || []);
+        const largest = allImgs.sort((a, b) => (b.width * b.height) - (a.width * a.height))[0];
+        if (largest) {
+          imgDataUrl = largest.dataUrl || (largest.data ? `data:image/png;base64,${Buffer.from(largest.data).toString("base64")}` : null);
+        }
+      } catch (_) {}
+
+      // 텍스트도 이미지도 없으면 실패
+      if (pdfText.length < 10 && !imgDataUrl) {
+        return res.status(422).json({ message: "PDF에서 내용을 읽을 수 없습니다. 파일이 손상됐거나 지원하지 않는 형식입니다." });
+      }
+
+      // ── 3. GPT-4o 분석 ───────────────────────────────────────────
+      const SYSTEM_MSG = `당신은 한국 교통 과태료 고지서(납부통보서, 범칙금통고서) 전문 파싱 AI입니다.
+문서에서 정보를 정확히 추출해 JSON으로만 응답하세요. 추측하지 말고, 없는 정보는 반드시 null로 반환하세요.`;
+
+      const USER_MSG = `다음 교통 과태료 고지서에서 아래 JSON 형식으로 정보를 추출하세요.
+JSON 코드블록 없이 JSON 객체만 반환하세요.
+
+{
+  "violationDate": "위반일시 (반드시 YYYY-MM-DD HH:MM 형식. 예: 2026-02-13 11:14. 날짜만 있으면 시간은 00:00)",
+  "licensePlate": "차량번호판 (숫자+한글 조합만. 예: 177허8226, 12가3456. 공백 없이)",
+  "driver": "운전자 또는 차량 명의자 이름 (성명란, 차량소유자란 등. 회사명이면 null)",
+  "violationType": "위반 종류 (속도위반/신호위반/법규위반/주정차위반/통행료미납/기타 중 하나)",
+  "violationLocation": "위반 장소 (도로명, 구체적인 장소명)",
+  "amount": 과태료금액을_숫자만_정수로 (예: 70000. 콤마·원·천원 표기 제거),
+  "paymentDestination": "고지서 발행 기관명 (예: 달서구청장, 수성구청장, 한국도로공사, 경찰청장 등. 수신인·부과기관·고지기관 항목)"
+}
+
+날짜 형식 예시:
+- "2026년 02월 13일 11시 14분" → "2026-02-13 11:14"
+- "26.02.13 11:14" → "2026-02-13 11:14"
+- "2026-02-13" → "2026-02-13 00:00"
+
+금액 형식 예시:
+- "70,000원" → 70000
+- "32,000" → 32000
+- "3만2천원" → 32000`;
+
+      // 이미지가 있으면 비전 모드, 없으면 텍스트 모드
+      let userContent: any;
+      if (imgDataUrl) {
+        const textPart = pdfText.length >= 10 ? `\n\n참고 텍스트:\n${pdfText.substring(0, 2000)}` : "";
+        userContent = [
+          { type: "text", text: USER_MSG + textPart },
+          { type: "image_url", image_url: { url: imgDataUrl, detail: "auto" } },
+        ];
       } else {
-        // 텍스트 없음(스캔본): pdf-parse getImage()로 내장 이미지 추출 → GPT-4o Vision
-        const imgParser = new PDFParse({ data: pdfBuffer });
-        let imgDataUrl: string | null = null;
-        try {
-          const imgResult = await imgParser.getImage({ imageThreshold: 0, imageDataUrl: true, imageBuffer: true });
-          await imgParser.destroy();
-          const allImgs = imgResult.pages?.flatMap((pg: any) => pg.images || []) || [];
-          // 가장 큰 이미지(스캔 전체 페이지) 선택
-          const largest = allImgs.sort((a: any, b: any) => (b.width * b.height) - (a.width * a.height))[0];
-          if (largest) {
-            if (largest.dataUrl) {
-              imgDataUrl = largest.dataUrl;
-            } else if (largest.data) {
-              const b64 = Buffer.from(largest.data).toString("base64");
-              imgDataUrl = `data:image/png;base64,${b64}`;
-            }
-          }
-        } catch (_) {
-          try { await imgParser.destroy(); } catch (__) {}
-        }
-
-        if (!imgDataUrl) {
-          return res.status(422).json({ message: "스캔된 PDF에서 이미지를 추출할 수 없습니다. 파일이 손상됐거나 지원하지 않는 형식입니다." });
-        }
-
-        aiMessages = [{
-          role: "user",
-          content: [
-            { type: "text", text: AI_PROMPT },
-            { type: "image_url", image_url: { url: imgDataUrl, detail: "high" } },
-          ],
-        }];
+        userContent = `${USER_MSG}\n\n--- PDF 텍스트 ---\n${pdfText.substring(0, 4000)}`;
       }
 
       const aiRes = await aiClient.chat.completions.create({
         model: "gpt-4o",
-        max_completion_tokens: 1000,
-        messages: aiMessages,
+        max_completion_tokens: 800,
+        messages: [
+          { role: "system", content: SYSTEM_MSG },
+          { role: "user", content: userContent },
+        ],
       });
 
       const raw = aiRes.choices[0]?.message?.content?.trim() || "{}";
@@ -2435,6 +2440,29 @@ export async function registerRoutes(
         const jsonMatch = raw.match(/\{[\s\S]*\}/);
         parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
       } catch (_) {}
+
+      // ── 4. 후처리: 날짜·금액·번호판 정규화 ─────────────────────
+      // 날짜 정규화
+      if (parsed.violationDate && typeof parsed.violationDate === "string") {
+        let d = parsed.violationDate;
+        // "2026년 02월 13일 11시 14분" → "2026-02-13 11:14"
+        d = d.replace(/(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일\s*(\d{1,2})시\s*(\d{1,2})분/, "$1-$2-$3 $4:$5");
+        // "26.02.13 11:14" → "2026-02-13 11:14"
+        d = d.replace(/^(\d{2})\.(\d{2})\.(\d{2})\s+(\d{2}:\d{2})$/, (_, y, m, day, t) => `20${y}-${m}-${day} ${t}`);
+        // 날짜만 있는 경우 시간 추가
+        if (/^\d{4}-\d{2}-\d{2}$/.test(d)) d += " 00:00";
+        parsed.violationDate = d;
+      }
+      // 금액 정규화
+      if (parsed.amount !== null && parsed.amount !== undefined) {
+        const amtStr = String(parsed.amount).replace(/[,원\s]/g, "");
+        const amtNum = parseInt(amtStr, 10);
+        parsed.amount = isNaN(amtNum) ? null : amtNum;
+      }
+      // 번호판 공백 제거
+      if (parsed.licensePlate && typeof parsed.licensePlate === "string") {
+        parsed.licensePlate = parsed.licensePlate.replace(/\s/g, "");
+      }
 
       // 차량번호로 차량 DB에서 차종·소속 자동 조회
       let vehicleType: string | null = null;
