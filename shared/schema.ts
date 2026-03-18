@@ -357,17 +357,19 @@ export type InsertNewEquipmentRequest = z.infer<typeof insertNewEquipmentRequest
 // === TRAFFIC FINES (과태료 현황) ===
 export const trafficFines = pgTable("traffic_fines", {
   id: serial("id").primaryKey(),
-  violationDate: text("violation_date"),           // 위반일자
-  department: text("department"),                  // 소속/본부
+  violationDate: text("violation_date"),           // 위반일시
   licensePlate: text("license_plate"),             // 차량번호
-  violationType: text("violation_type"),           // 위반유형
+  vehicleType: text("vehicle_type"),               // 차종
+  department: text("department"),                  // 소속
+  driver: text("driver"),                          // 운전자
+  violationType: text("violation_type"),           // 위반내역
+  violationLocation: text("violation_location"),   // 적발장소
   amount: integer("amount"),                       // 과태료금액(원)
-  violationLocation: text("violation_location"),   // 위반장소
-  issuedAt: text("issued_at"),                     // 고지일자
-  dueDate: text("due_date"),                       // 납부기한
+  paymentDestination: text("payment_destination"), // 수납처
+  note: text("note"),                              // 비고
+  requestDate: text("request_date"),               // 납부요청일 (등록일 자동입력)
   paymentStatus: text("payment_status").notNull().default("미납"), // 미납/납부완료
   paidAt: text("paid_at"),                         // 납부일자
-  note: text("note"),                              // 비고
   pdfUrl: text("pdf_url"),                         // 업로드된 PDF 경로
   createdBy: text("created_by"),
   createdAt: timestamp("created_at").defaultNow(),

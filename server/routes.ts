@@ -2280,14 +2280,15 @@ export async function registerRoutes(
                 text: `이 과태료 고지서(납부통보서) 이미지에서 다음 정보를 JSON으로 추출하세요. 없는 필드는 null로 반환하세요.
 
 {
-  "violationDate": "위반일자 (YYYY-MM-DD 또는 YYYY.MM.DD 형식)",
-  "department": "소속 또는 발급기관",
+  "violationDate": "위반일시 (YYYY-MM-DD HH:MM 또는 YYYY.MM.DD 형식, 시간 포함 가능)",
   "licensePlate": "차량번호",
-  "violationType": "위반유형 (예: 신호위반, 과속, 불법주정차 등)",
+  "vehicleType": "차종 (예: 스타렉스, 포터, 봉고 등, 없으면 null)",
+  "department": "소속 또는 발급기관",
+  "driver": "운전자 이름 (없으면 null)",
+  "violationType": "위반내역 (예: 신호위반, 과속, 불법주정차 등)",
+  "violationLocation": "적발장소",
   "amount": 과태료금액_숫자만,
-  "violationLocation": "위반장소",
-  "issuedAt": "고지일자",
-  "dueDate": "납부기한"
+  "paymentDestination": "수납처 또는 납부처 기관명 (없으면 null)"
 }
 
 JSON만 반환하고 다른 텍스트는 포함하지 마세요.`,

@@ -7,28 +7,32 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Upload, FileText, Pencil, Trash2, Plus, ReceiptText, Banknote, AlertCircle, CheckCircle2, ExternalLink } from "lucide-react";
 import type { TrafficFine } from "@shared/schema";
-import { format } from "date-fns";
 
-const VIOLATION_TYPES = ["신호위반", "과속", "불법주정차", "중앙선침범", "안전거리미확보", "기타"];
+const todayStr = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
 
 const emptyForm = (): Partial<TrafficFine> => ({
   violationDate: "",
-  department: "",
   licensePlate: "",
+  vehicleType: "",
+  department: "",
+  driver: "",
   violationType: "",
-  amount: undefined,
   violationLocation: "",
-  issuedAt: "",
-  dueDate: "",
+  amount: undefined,
+  paymentDestination: "",
+  note: "",
+  requestDate: todayStr(),
   paymentStatus: "미납",
   paidAt: "",
-  note: "",
   pdfUrl: "",
 });
 
@@ -109,7 +113,7 @@ export default function TrafficFines() {
       });
       if (!res.ok) throw new Error("파싱 실패");
       const data = await res.json();
-      setForm({ ...emptyForm(), ...data });
+      setForm({ ...emptyForm(), ...data, requestDate: todayStr() });
       setEditingId(null);
       setDialogOpen(true);
       toast({ title: "AI 분석 완료", description: "추출된 정보를 확인 후 저장하세요" });
@@ -149,11 +153,15 @@ export default function TrafficFines() {
     setDialogOpen(true);
   };
 
+  const setField = (key: keyof TrafficFine, val: any) =>
+    setForm((f) => ({ ...f, [key]: val }));
+
   const filtered = fines.filter((f) => {
     const matchStatus = filterStatus === "전체" || f.paymentStatus === filterStatus;
     const search = filterText.toLowerCase();
     const matchText = !filterText ||
       (f.licensePlate || "").toLowerCase().includes(search) ||
+      (f.driver || "").toLowerCase().includes(search) ||
       (f.department || "").toLowerCase().includes(search) ||
       (f.violationType || "").toLowerCase().includes(search) ||
       (f.violationLocation || "").toLowerCase().includes(search);
@@ -265,10 +273,10 @@ export default function TrafficFines() {
             <CardTitle className="text-base">과태료 목록</CardTitle>
             <div className="flex gap-2 ml-auto">
               <Input
-                placeholder="차량번호, 위반유형 검색..."
+                placeholder="차량번호, 운전자, 위반내역 검색..."
                 value={filterText}
                 onChange={(e) => setFilterText(e.target.value)}
-                className="w-48"
+                className="w-52"
                 data-testid="input-search-fine"
               />
               <Select value={filterStatus} onValueChange={(v: any) => setFilterStatus(v)}>
@@ -296,15 +304,17 @@ export default function TrafficFines() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-muted-foreground">
-                    <th className="text-left py-2 px-3 font-medium">위반일자</th>
+                    <th className="text-left py-2 px-3 font-medium">위반일시</th>
                     <th className="text-left py-2 px-3 font-medium">차량번호</th>
-                    <th className="text-left py-2 px-3 font-medium">위반유형</th>
+                    <th className="text-left py-2 px-3 font-medium hidden md:table-cell">차종</th>
                     <th className="text-left py-2 px-3 font-medium hidden md:table-cell">소속</th>
-                    <th className="text-left py-2 px-3 font-medium hidden lg:table-cell">위반장소</th>
+                    <th className="text-left py-2 px-3 font-medium">운전자</th>
+                    <th className="text-left py-2 px-3 font-medium hidden lg:table-cell">위반내역</th>
+                    <th className="text-left py-2 px-3 font-medium hidden lg:table-cell">적발장소</th>
                     <th className="text-right py-2 px-3 font-medium">과태료</th>
-                    <th className="text-left py-2 px-3 font-medium hidden md:table-cell">납부기한</th>
+                    <th className="text-left py-2 px-3 font-medium hidden lg:table-cell">수납처</th>
+                    <th className="text-left py-2 px-3 font-medium hidden md:table-cell">납부요청일</th>
                     <th className="text-center py-2 px-3 font-medium">상태</th>
-                    <th className="text-left py-2 px-3 font-medium hidden lg:table-cell">PDF</th>
                     <th className="py-2 px-3"></th>
                   </tr>
                 </thead>
@@ -313,11 +323,14 @@ export default function TrafficFines() {
                     <tr key={fine.id} className="border-b hover:bg-muted/30 transition-colors" data-testid={`row-fine-${fine.id}`}>
                       <td className="py-2 px-3 whitespace-nowrap">{fine.violationDate || "-"}</td>
                       <td className="py-2 px-3 font-mono font-semibold whitespace-nowrap">{fine.licensePlate || "-"}</td>
-                      <td className="py-2 px-3 whitespace-nowrap">{fine.violationType || "-"}</td>
+                      <td className="py-2 px-3 hidden md:table-cell text-muted-foreground">{fine.vehicleType || "-"}</td>
                       <td className="py-2 px-3 hidden md:table-cell text-muted-foreground">{fine.department || "-"}</td>
-                      <td className="py-2 px-3 hidden lg:table-cell text-muted-foreground max-w-[160px] truncate">{fine.violationLocation || "-"}</td>
+                      <td className="py-2 px-3 whitespace-nowrap">{fine.driver || "-"}</td>
+                      <td className="py-2 px-3 hidden lg:table-cell">{fine.violationType || "-"}</td>
+                      <td className="py-2 px-3 hidden lg:table-cell text-muted-foreground max-w-[140px] truncate">{fine.violationLocation || "-"}</td>
                       <td className="py-2 px-3 text-right font-medium whitespace-nowrap">{fmt(fine.amount)}</td>
-                      <td className="py-2 px-3 hidden md:table-cell whitespace-nowrap text-muted-foreground">{fine.dueDate || "-"}</td>
+                      <td className="py-2 px-3 hidden lg:table-cell text-muted-foreground">{fine.paymentDestination || "-"}</td>
+                      <td className="py-2 px-3 hidden md:table-cell whitespace-nowrap text-muted-foreground">{fine.requestDate || "-"}</td>
                       <td className="py-2 px-3 text-center">
                         <Badge
                           variant={fine.paymentStatus === "납부완료" ? "default" : "destructive"}
@@ -326,13 +339,6 @@ export default function TrafficFines() {
                         >
                           {fine.paymentStatus}
                         </Badge>
-                      </td>
-                      <td className="py-2 px-3 hidden lg:table-cell">
-                        {fine.pdfUrl ? (
-                          <a href={fine.pdfUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline flex items-center gap-1 text-xs">
-                            <ExternalLink className="h-3 w-3" /> PDF
-                          </a>
-                        ) : "-"}
                       </td>
                       <td className="py-2 px-3">
                         {isOwner(fine) && (
@@ -362,52 +368,136 @@ export default function TrafficFines() {
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingId ? "과태료 수정" : "과태료 등록"}</DialogTitle>
+            <DialogDescription className="sr-only">과태료 정보를 입력하세요</DialogDescription>
           </DialogHeader>
+
           <div className="grid grid-cols-2 gap-4">
+            {/* 위반일시 */}
             <div className="space-y-1">
-              <Label>위반일자</Label>
-              <Input value={form.violationDate || ""} onChange={(e) => setForm({ ...form, violationDate: e.target.value })} placeholder="예: 2026-03-04" data-testid="input-violation-date" />
+              <Label>위반일시</Label>
+              <Input
+                value={form.violationDate || ""}
+                onChange={(e) => setField("violationDate", e.target.value)}
+                placeholder="예: 2026-03-04 14:30"
+                data-testid="input-violation-date"
+              />
             </div>
+
+            {/* 차량번호 */}
             <div className="space-y-1">
               <Label>차량번호</Label>
-              <Input value={form.licensePlate || ""} onChange={(e) => setForm({ ...form, licensePlate: e.target.value })} placeholder="예: 231허3948" data-testid="input-license-plate" />
+              <Input
+                value={form.licensePlate || ""}
+                onChange={(e) => setField("licensePlate", e.target.value)}
+                placeholder="예: 231허3948"
+                data-testid="input-license-plate"
+              />
             </div>
+
+            {/* 차종 */}
             <div className="space-y-1">
-              <Label>위반유형</Label>
-              <Select value={form.violationType || ""} onValueChange={(v) => setForm({ ...form, violationType: v })}>
-                <SelectTrigger data-testid="select-violation-type">
-                  <SelectValue placeholder="선택" />
-                </SelectTrigger>
-                <SelectContent>
-                  {VIOLATION_TYPES.map((t) => (
-                    <SelectItem key={t} value={t}>{t}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>차종</Label>
+              <Input
+                value={form.vehicleType || ""}
+                onChange={(e) => setField("vehicleType", e.target.value)}
+                placeholder="예: 스타렉스, 포터 등"
+                data-testid="input-vehicle-type"
+              />
             </div>
+
+            {/* 소속 */}
+            <div className="space-y-1">
+              <Label>소속</Label>
+              <Input
+                value={form.department || ""}
+                onChange={(e) => setField("department", e.target.value)}
+                placeholder="예: 대구본부, 구미운용팀"
+                data-testid="input-department"
+              />
+            </div>
+
+            {/* 운전자 */}
+            <div className="space-y-1">
+              <Label>운전자</Label>
+              <Input
+                value={form.driver || ""}
+                onChange={(e) => setField("driver", e.target.value)}
+                placeholder="운전자 이름"
+                data-testid="input-driver"
+              />
+            </div>
+
+            {/* 위반내역 */}
+            <div className="space-y-1">
+              <Label>위반내역</Label>
+              <Input
+                value={form.violationType || ""}
+                onChange={(e) => setField("violationType", e.target.value)}
+                placeholder="예: 신호위반, 과속, 불법주정차"
+                data-testid="input-violation-type"
+              />
+            </div>
+
+            {/* 적발장소 */}
+            <div className="col-span-2 space-y-1">
+              <Label>적발장소</Label>
+              <Input
+                value={form.violationLocation || ""}
+                onChange={(e) => setField("violationLocation", e.target.value)}
+                placeholder="적발 장소를 입력하세요"
+                data-testid="input-violation-location"
+              />
+            </div>
+
+            {/* 과태료 금액 */}
             <div className="space-y-1">
               <Label>과태료 금액 (원)</Label>
-              <Input type="number" value={form.amount ?? ""} onChange={(e) => setForm({ ...form, amount: e.target.value ? Number(e.target.value) : undefined })} placeholder="예: 70000" data-testid="input-amount" />
+              <Input
+                type="number"
+                value={form.amount ?? ""}
+                onChange={(e) => setField("amount", e.target.value ? Number(e.target.value) : undefined)}
+                placeholder="예: 70000"
+                data-testid="input-amount"
+              />
             </div>
+
+            {/* 수납처 */}
             <div className="space-y-1">
-              <Label>소속/본부</Label>
-              <Input value={form.department || ""} onChange={(e) => setForm({ ...form, department: e.target.value })} placeholder="예: 대구본부" data-testid="input-department" />
+              <Label>수납처</Label>
+              <Input
+                value={form.paymentDestination || ""}
+                onChange={(e) => setField("paymentDestination", e.target.value)}
+                placeholder="예: 대구지방경찰청, 한국교통안전공단"
+                data-testid="input-payment-destination"
+              />
             </div>
+
+            {/* 비고 */}
+            <div className="col-span-2 space-y-1">
+              <Label>비고</Label>
+              <Textarea
+                value={form.note || ""}
+                onChange={(e) => setField("note", e.target.value)}
+                rows={2}
+                data-testid="textarea-note"
+              />
+            </div>
+
+            {/* 납부요청일 (자동입력, 수정 가능) */}
             <div className="space-y-1">
-              <Label>위반장소</Label>
-              <Input value={form.violationLocation || ""} onChange={(e) => setForm({ ...form, violationLocation: e.target.value })} data-testid="input-violation-location" />
+              <Label>납부요청일 <span className="text-xs text-muted-foreground">(등록일 자동입력)</span></Label>
+              <Input
+                value={form.requestDate || ""}
+                onChange={(e) => setField("requestDate", e.target.value)}
+                placeholder="YYYY-MM-DD"
+                data-testid="input-request-date"
+              />
             </div>
-            <div className="space-y-1">
-              <Label>고지일자</Label>
-              <Input value={form.issuedAt || ""} onChange={(e) => setForm({ ...form, issuedAt: e.target.value })} data-testid="input-issued-at" />
-            </div>
-            <div className="space-y-1">
-              <Label>납부기한</Label>
-              <Input value={form.dueDate || ""} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} data-testid="input-due-date" />
-            </div>
+
+            {/* 납부상태 */}
             <div className="space-y-1">
               <Label>납부상태</Label>
-              <Select value={form.paymentStatus || "미납"} onValueChange={(v) => setForm({ ...form, paymentStatus: v })}>
+              <Select value={form.paymentStatus || "미납"} onValueChange={(v) => setField("paymentStatus", v)}>
                 <SelectTrigger data-testid="select-payment-status">
                   <SelectValue />
                 </SelectTrigger>
@@ -417,17 +507,21 @@ export default function TrafficFines() {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* 납부일자 (납부완료 시만 표시) */}
             {form.paymentStatus === "납부완료" && (
-              <div className="space-y-1">
+              <div className="col-span-2 space-y-1">
                 <Label>납부일자</Label>
-                <Input value={form.paidAt || ""} onChange={(e) => setForm({ ...form, paidAt: e.target.value })} data-testid="input-paid-at" />
+                <Input
+                  value={form.paidAt || ""}
+                  onChange={(e) => setField("paidAt", e.target.value)}
+                  placeholder="YYYY-MM-DD"
+                  data-testid="input-paid-at"
+                />
               </div>
             )}
-            <div className="col-span-2 space-y-1">
-              <Label>비고</Label>
-              <Textarea value={form.note || ""} onChange={(e) => setForm({ ...form, note: e.target.value })} rows={2} data-testid="textarea-note" />
-            </div>
           </div>
+
           <DialogFooter className="mt-4">
             <Button variant="outline" onClick={() => setDialogOpen(false)}>취소</Button>
             <Button
@@ -435,7 +529,9 @@ export default function TrafficFines() {
               disabled={createMutation.isPending || updateMutation.isPending}
               data-testid="button-save-fine"
             >
-              {(createMutation.isPending || updateMutation.isPending) && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+              {(createMutation.isPending || updateMutation.isPending) && (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              )}
               저장
             </Button>
           </DialogFooter>
