@@ -33,7 +33,7 @@ Preferred communication style: Simple, everyday language.
   - `teams`: Safety score data with vehicle counts, accidents, fines, and calculated scores
   - `notices`: Multi-category content (rules, notices, education, equipment, vehicle, access) with fileName/fileType for single file, attachments (JSONB array) for multi-file support
   - `settings`: Key-value store for global configuration (lock status, admin PIN)
-  - `education_sessions`: Education log entries with title, date, department, participants, instructor
+  - `education_sessions`: Education log entries with title, date, department, participants, instructor, materialAttachments (JSONB array for attached files [{url, name, type}])
   - `education_signatures`: Digital signatures for education sessions (signer name, department, base64 signature data)
   - `chemicals`: MSDS chemical substance data (name, CAS number, category, hazards, ppe, firstAid, notes, pdfUrl/pdfFileName/pdfFileType for PDF attachment)
   - `risk_assessments`: KRAS risk assessments (period type, department, hazard, frequency(가능성 1-5) × severity(중대성 1-4) = riskScore(max 20), riskLevel A/B/C, beforePhotoUrl for pre-improvement photo; A등급(≥8) items have improvement workflow: improvementMeasures, plannedDate, completionDate, afterFrequency, afterSeverity, afterRiskScore, afterRiskLevel, improvementStatus(미완료/진행중/완료), afterPhotoUrl stored separately via PUT /api/risk-assessments/:id/improvement); also: currentIssue(현황및문제점), relatedLaw(관련법규), equipmentId, equipmentName fields; approvalStatus: 임시저장/승인대기/승인완료/자동종결

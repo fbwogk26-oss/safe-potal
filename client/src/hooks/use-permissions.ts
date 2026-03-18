@@ -50,6 +50,7 @@ export interface Permissions {
   canViewEquipment: boolean;
   canViewEducation: boolean;
   canViewEducationLogs: boolean;
+  canViewEducationOrLogs: boolean;
   canViewInspections: boolean;
   canViewRiskAssessment: boolean;
   canViewMsds: boolean;
@@ -122,6 +123,7 @@ export function usePermissions(): Permissions & { isLoading: boolean } {
     canViewEquipment: isAdmin || !!perms?.viewEquipment,
     canViewEducation: isAdmin || !!perms?.viewEducation,
     canViewEducationLogs: isAdmin || !!perms?.viewEducationLogs,
+    canViewEducationOrLogs: isAdmin || !!perms?.viewEducation || !!perms?.viewEducationLogs,
     canViewInspections: isAdmin || !!perms?.viewInspections,
     canViewRiskAssessment: isAdmin || !!perms?.viewRiskAssessment,
     canViewMsds: isAdmin || !!perms?.viewMsds,

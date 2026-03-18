@@ -61,6 +61,7 @@ function RouterContent() {
     canViewNotices,
     canViewEducation,
     canViewEducationLogs,
+    canViewEducationOrLogs,
     canViewInspections,
     canViewEquipment,
     canViewEquipmentStatus,
@@ -83,8 +84,8 @@ function RouterContent() {
       <Route path="/safety-scores">{() => <G canAccess={canViewDashboard} component={Dashboard} />}</Route>
       <Route path="/rules">{() => <G canAccess={canViewRules} component={Rules} />}</Route>
       <Route path="/notices">{() => <G canAccess={canViewNotices} component={Notices} />}</Route>
-      <Route path="/education">{() => <G canAccess={canViewEducation} component={Education} />}</Route>
-      <Route path="/education-logs">{() => <G canAccess={canViewEducationLogs} component={EducationLogs} />}</Route>
+      <Route path="/education">{() => <G canAccess={canViewEducationOrLogs} component={EducationLogs} />}</Route>
+      <Route path="/education-logs">{() => <G canAccess={canViewEducationOrLogs} component={EducationLogs} />}</Route>
       <Route path="/inspections">{() => <G canAccess={canViewInspections} component={SafetyInspections} />}</Route>
       <Route path="/equipment">{() => <G canAccess={canViewEquipment} component={SafetyEquipment} />}</Route>
       <Route path="/equipment/status">{() => <G canAccess={canViewEquipmentStatus} component={EquipmentStatus} />}</Route>

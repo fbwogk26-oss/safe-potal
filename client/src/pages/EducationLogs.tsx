@@ -12,11 +12,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useAuth } from "@/hooks/use-auth";
+import { useNotices, useCreateNotice, useDeleteNotice } from "@/hooks/use-notices";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   GraduationCap, Plus, Trash2, ArrowLeft, Users, Calendar, FileText,
   PenTool, CheckCircle2, Clock, BarChart3, TrendingUp, Award, X, Search, Eye, Download,
-  ChevronDown, ChevronRight, Copy, Pencil, Camera, ImagePlus, Save
+  ChevronDown, ChevronRight, Copy, Pencil, Camera, ImagePlus, Save,
+  BookOpen, Paperclip, FileSpreadsheet, FileIcon, Image, Video, Loader2
 } from "lucide-react";
 import type { EducationSession, EducationSignature } from "@shared/schema";
 
@@ -356,14 +358,60 @@ function ProgressDashboard() {
   );
 }
 
+function getExtFromName(name: string | null | undefined) {
+  if (!name) return '';
+  return name.split('.').pop()?.toLowerCase() || '';
+}
+
+function getFileIconByMeta(fileType: string | null | undefined, fileName: string | null | undefined) {
+  const ext = getExtFromName(fileName);
+  if (fileType?.startsWith('image/')) return <Image className="w-4 h-4 text-blue-500" />;
+  if (fileType?.startsWith('video/') || ['mp4','avi','mov','wmv','webm'].includes(ext)) return <Video className="w-4 h-4 text-purple-500" />;
+  if (['pptx','ppt'].includes(ext) || fileType?.includes('presentation') || fileType?.includes('powerpoint')) return <FileText className="w-4 h-4 text-orange-500" />;
+  if (['docx','doc'].includes(ext) || fileType?.includes('word')) return <FileText className="w-4 h-4 text-blue-500" />;
+  if (['xlsx','xls'].includes(ext) || fileType?.includes('spreadsheet') || fileType?.includes('excel')) return <FileSpreadsheet className="w-4 h-4 text-green-500" />;
+  if (ext === 'pdf' || fileType === 'application/pdf') return <FileIcon className="w-4 h-4 text-red-500" />;
+  return <Paperclip className="w-4 h-4" />;
+}
+
+function getFileLabelByMeta(fileType: string | null | undefined, fileName: string | null | undefined) {
+  const ext = getExtFromName(fileName);
+  if (fileType?.startsWith('image/')) return '이미지';
+  if (fileType?.startsWith('video/') || ['mp4','avi','mov','wmv','webm'].includes(ext)) return '동영상';
+  if (['pptx','ppt'].includes(ext) || fileType?.includes('presentation') || fileType?.includes('powerpoint')) return 'PPT';
+  if (['docx','doc'].includes(ext) || fileType?.includes('word')) return 'Word';
+  if (['xlsx','xls'].includes(ext) || fileType?.includes('spreadsheet') || fileType?.includes('excel')) return 'Excel';
+  if (ext === 'pdf' || fileType === 'application/pdf') return 'PDF';
+  return '파일';
+}
+
+function isVideoByType(fileType: string | null | undefined, fileName: string | null | undefined) {
+  if (fileType?.startsWith('video/')) return true;
+  return ['mp4','avi','mov','wmv','webm'].includes(getExtFromName(fileName));
+}
+
 export default function EducationLogs() {
-  const { isAdmin, canRegisterEducation, canEditEducationLogs, canDownloadEducationExcel, canUploadEducationPhotos } = usePermissions();
+  const { isAdmin, canRegisterEducation, canEditEducationLogs, canDownloadEducationExcel, canUploadEducationPhotos, canDownloadEducationFiles } = usePermissions();
   const canEditLogs = canRegisterEducation || canEditEducationLogs;
   const { user } = useAuth();
   const { toast } = useToast();
 
+  const [mainTab, setMainTab] = useState<"logs" | "materials">("logs");
   const [activeTab, setActiveTab] = useState<"dashboard" | "sessions">("dashboard");
   const [selectedSession, setSelectedSession] = useState<EducationSession | null>(null);
+
+  const [matSearchQuery, setMatSearchQuery] = useState("");
+  const [matShowAddForm, setMatShowAddForm] = useState(false);
+  const [matTitle, setMatTitle] = useState("");
+  const [matContent, setMatContent] = useState("");
+  const [matAttachments, setMatAttachments] = useState<Array<{url: string; name: string; type: string}>>([]);
+  const [matUploading, setMatUploading] = useState(false);
+  const matFileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedMaterial, setSelectedMaterial] = useState<any | null>(null);
+
+  const [newMaterialAttachments, setNewMaterialAttachments] = useState<Array<{url: string; name: string; type: string}>>([]);
+  const [newMaterialUploading, setNewMaterialUploading] = useState(false);
+  const newMaterialFileInputRef = useRef<HTMLInputElement>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingSession, setEditingSession] = useState<EducationSession | null>(null);
@@ -589,6 +637,95 @@ export default function EducationLogs() {
     toast({ title: "사진이 삭제되었습니다." });
   };
 
+  const { data: eduNotices } = useNotices("edu");
+  const createNoticeMutation = useCreateNotice();
+  const deleteNoticeMutation = useDeleteNotice();
+
+  const handleNewMaterialUpload = async (files: FileList) => {
+    setNewMaterialUploading(true);
+    try {
+      const uploaded: Array<{url: string; name: string; type: string}> = [];
+      for (const file of Array.from(files)) {
+        if (file.size > 100 * 1024 * 1024) {
+          toast({ variant: "destructive", title: `파일이 너무 큽니다 (최대 100MB): ${file.name}` });
+          continue;
+        }
+        const formData = new FormData();
+        formData.append("file", file);
+        const res = await fetch("/api/upload", { method: "POST", body: formData, credentials: "include" });
+        if (res.ok) {
+          const data = await res.json();
+          uploaded.push({ url: data.url || data.path || data.fileUrl, name: file.name, type: file.type });
+        }
+      }
+      setNewMaterialAttachments(prev => [...prev, ...uploaded]);
+      toast({ title: `${uploaded.length}개 파일이 첨부되었습니다.` });
+    } catch {
+      toast({ variant: "destructive", title: "파일 업로드 실패" });
+    } finally {
+      setNewMaterialUploading(false);
+    }
+  };
+
+  const handleMatLibUpload = async (files: FileList) => {
+    setMatUploading(true);
+    try {
+      const uploaded: Array<{url: string; name: string; type: string}> = [];
+      for (const file of Array.from(files)) {
+        if (file.size > 100 * 1024 * 1024) {
+          toast({ variant: "destructive", title: `파일이 너무 큽니다 (최대 100MB): ${file.name}` });
+          continue;
+        }
+        const formData = new FormData();
+        formData.append("file", file);
+        const res = await fetch("/api/upload", { method: "POST", body: formData, credentials: "include" });
+        if (res.ok) {
+          const data = await res.json();
+          uploaded.push({ url: data.url || data.path || data.fileUrl, name: file.name, type: file.type });
+        }
+      }
+      setMatAttachments(prev => [...prev, ...uploaded]);
+      toast({ title: `${uploaded.length}개 파일이 첨부되었습니다.` });
+    } catch {
+      toast({ variant: "destructive", title: "파일 업로드 실패" });
+    } finally {
+      setMatUploading(false);
+    }
+  };
+
+  const handleCreateMaterial = async () => {
+    if (!matTitle.trim()) {
+      toast({ variant: "destructive", title: "자료 제목을 입력해주세요." });
+      return;
+    }
+    try {
+      await createNoticeMutation.mutateAsync({
+        title: matTitle,
+        content: matContent || undefined,
+        category: "edu",
+        attachments: matAttachments,
+      });
+      setMatTitle("");
+      setMatContent("");
+      setMatAttachments([]);
+      setMatShowAddForm(false);
+      toast({ title: "교육 자료가 등록되었습니다." });
+    } catch {
+      toast({ variant: "destructive", title: "자료 등록 실패" });
+    }
+  };
+
+  const handleDeleteMaterial = async (id: number) => {
+    if (!confirm("이 교육 자료를 삭제하시겠습니까?")) return;
+    try {
+      await deleteNoticeMutation.mutateAsync(id);
+      if (selectedMaterial?.id === id) setSelectedMaterial(null);
+      toast({ title: "교육 자료가 삭제되었습니다." });
+    } catch {
+      toast({ variant: "destructive", title: "삭제 실패" });
+    }
+  };
+
   const resetForm = () => {
     setNewTitle("");
     setNewDate(new Date().toISOString().split("T")[0]);
@@ -598,6 +735,7 @@ export default function EducationLogs() {
     setNewInstructor("");
     setNewParticipants("");
     setNewDescription("");
+    setNewMaterialAttachments([]);
   };
 
   const toggleDept = (dept: string) => {
@@ -634,6 +772,8 @@ export default function EducationLogs() {
       return;
     }
 
+    const mats = newMaterialAttachments.length > 0 ? newMaterialAttachments : undefined;
+
     if (selectedDepts.length === 1) {
       const participants = Number(deptParticipants[selectedDepts[0]] || newParticipants);
       if (!participants || participants < 1) {
@@ -648,6 +788,7 @@ export default function EducationLogs() {
         instructor: newInstructor || undefined,
         totalParticipants: participants,
         description: newDescription || undefined,
+        materialAttachments: mats,
       });
     } else {
       const departments = selectedDepts.map(dept => ({
@@ -666,6 +807,7 @@ export default function EducationLogs() {
         educationType: newType,
         instructor: newInstructor || undefined,
         description: newDescription || undefined,
+        materialAttachments: mats,
       });
     }
   };
@@ -992,6 +1134,42 @@ export default function EducationLogs() {
           </CardContent>
         </Card>
 
+        {selectedSession.materialAttachments && (selectedSession.materialAttachments as any[]).length > 0 && (
+          <Card>
+            <CardContent className="p-4">
+              <p className="text-xs text-muted-foreground flex items-center gap-1.5 mb-3">
+                <Paperclip className="w-3.5 h-3.5" />
+                첨부 자료 ({(selectedSession.materialAttachments as any[]).length}개)
+              </p>
+              <div className="space-y-2">
+                {(selectedSession.materialAttachments as any[]).map((att: any, idx: number) => (
+                  <div key={idx} className="flex items-center gap-2 p-2 border rounded-lg bg-muted/10">
+                    {getFileIconByMeta(att.type, att.name)}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{att.name}</p>
+                      <p className="text-xs text-muted-foreground">{getFileLabelByMeta(att.type, att.name)}</p>
+                    </div>
+                    {(canDownloadEducationFiles || isAdmin) && (
+                      <a
+                        href={att.url}
+                        download={att.name}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="shrink-0"
+                      >
+                        <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
+                          <Download className="w-3 h-3" />
+                          다운로드
+                        </Button>
+                      </a>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between gap-2 mb-3">
@@ -1211,6 +1389,13 @@ export default function EducationLogs() {
     );
   }
 
+  const filteredMaterials = useMemo(() => {
+    if (!eduNotices) return [];
+    if (!matSearchQuery.trim()) return eduNotices;
+    const q = matSearchQuery.toLowerCase();
+    return eduNotices.filter((m: any) => m.title?.toLowerCase().includes(q) || m.content?.toLowerCase().includes(q));
+  }, [eduNotices, matSearchQuery]);
+
   return (
     <div className="max-w-5xl mx-auto space-y-4">
       <Card className="border-indigo-200/50 dark:border-indigo-900/30 overflow-hidden">
@@ -1221,12 +1406,12 @@ export default function EducationLogs() {
                 <GraduationCap className="w-5 h-5" />
               </div>
               <div>
-                <span className="text-lg font-bold">안전교육일지</span>
-                <p className="text-xs font-normal text-muted-foreground">교육 관리 및 서명</p>
+                <span className="text-lg font-bold">교육 관리</span>
+                <p className="text-xs font-normal text-muted-foreground">교육일지 및 교육 자료 관리</p>
               </div>
             </CardTitle>
             <div className="flex items-center gap-2">
-              {isAdmin && (
+              {mainTab === "logs" && isAdmin && (
                 <Button
                   onClick={() => setShowCreateDialog(true)}
                   size="sm"
@@ -1237,10 +1422,111 @@ export default function EducationLogs() {
                   교육 등록
                 </Button>
               )}
+              {mainTab === "materials" && canEditLogs && (
+                <Button
+                  onClick={() => setMatShowAddForm(true)}
+                  size="sm"
+                  className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white gap-1.5"
+                  data-testid="button-add-material"
+                >
+                  <Plus className="w-4 h-4" />
+                  자료 등록
+                </Button>
+              )}
             </div>
+          </div>
+          <div className="flex gap-0 mt-3 border-b -mb-4 -mx-4 px-4">
+            <button
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${mainTab === "logs" ? "border-indigo-500 text-indigo-600" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+              onClick={() => setMainTab("logs")}
+              data-testid="main-tab-logs"
+            >
+              <FileText className="w-4 h-4 inline mr-1.5 -mt-0.5" />
+              교육일지
+            </button>
+            <button
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${mainTab === "materials" ? "border-indigo-500 text-indigo-600" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+              onClick={() => setMainTab("materials")}
+              data-testid="main-tab-materials"
+            >
+              <BookOpen className="w-4 h-4 inline mr-1.5 -mt-0.5" />
+              교육 자료
+            </button>
           </div>
         </CardHeader>
         <CardContent className="p-0">
+          {mainTab === "materials" ? (
+            <div className="p-4 space-y-4">
+              <div className="relative">
+                <Input
+                  placeholder="자료 검색..."
+                  value={matSearchQuery}
+                  onChange={e => setMatSearchQuery(e.target.value)}
+                  className="pr-8"
+                  data-testid="input-search-materials"
+                />
+                <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              </div>
+              {filteredMaterials.length === 0 ? (
+                <div className="py-12 text-center text-muted-foreground">
+                  <BookOpen className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                  <p className="text-sm">{matSearchQuery ? "검색 결과가 없습니다." : "등록된 교육 자료가 없습니다."}</p>
+                  {!matSearchQuery && canEditLogs && (
+                    <Button variant="outline" size="sm" className="mt-3 gap-1.5" onClick={() => setMatShowAddForm(true)}>
+                      <Plus className="w-4 h-4" /> 자료 등록
+                    </Button>
+                  )}
+                </div>
+              ) : (
+                <div className="grid gap-3">
+                  {filteredMaterials.map((mat: any) => {
+                    const atts: any[] = mat.attachments || [];
+                    return (
+                      <motion.div
+                        key={mat.id}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="border rounded-lg p-4 hover:bg-indigo-50/30 dark:hover:bg-indigo-900/10 transition-colors cursor-pointer"
+                        onClick={() => setSelectedMaterial(mat)}
+                        data-testid={`material-card-${mat.id}`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="bg-indigo-100 dark:bg-indigo-900/30 p-2 rounded-lg text-indigo-600 dark:text-indigo-400 shrink-0">
+                            <BookOpen className="w-5 h-5" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-medium text-sm text-foreground">{mat.title}</h3>
+                            {mat.content && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{mat.content}</p>}
+                            <div className="flex flex-wrap gap-1 mt-2">
+                              {atts.map((att: any, i: number) => (
+                                <Badge key={i} variant="secondary" className="text-[10px] gap-1 h-5">
+                                  {getFileIconByMeta(att.type, att.name)}
+                                  {att.name?.split('/').pop() || att.name}
+                                </Badge>
+                              ))}
+                            </div>
+                            <p className="text-[10px] text-muted-foreground mt-1">{mat.createdAt ? new Date(mat.createdAt).toLocaleDateString("ko-KR") : ""}</p>
+                          </div>
+                          <div className="shrink-0 flex gap-1">
+                            {(isAdmin || user?.username === mat.createdBy) && (
+                              <Button
+                                variant="ghost" size="icon" className="h-7 w-7 text-red-400 hover:text-red-600"
+                                onClick={e => { e.stopPropagation(); handleDeleteMaterial(mat.id); }}
+                                data-testid={`button-delete-material-${mat.id}`}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          ) : (
+          <>
           <div className="flex border-b bg-muted/20">
             <button
               className={`flex-1 px-4 py-2.5 text-sm font-medium transition-colors ${
@@ -1492,6 +1778,8 @@ export default function EducationLogs() {
               </div>
             )}
           </div>
+          </>
+          )}
         </CardContent>
       </Card>
 
@@ -1662,6 +1950,52 @@ export default function EducationLogs() {
                 data-testid="input-session-description"
               />
             </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block flex items-center gap-1">
+                <Paperclip className="w-3.5 h-3.5" />
+                교육 자료 첨부 (선택)
+              </label>
+              <input
+                ref={newMaterialFileInputRef}
+                type="file"
+                multiple
+                accept="image/*,video/*,.pdf,.ppt,.pptx,.doc,.docx,.xls,.xlsx"
+                className="hidden"
+                onChange={e => e.target.files && e.target.files.length > 0 && handleNewMaterialUpload(e.target.files)}
+                data-testid="input-new-material-files"
+              />
+              <div className="border rounded-lg p-3 bg-muted/10 space-y-2">
+                {newMaterialAttachments.length > 0 && (
+                  <div className="space-y-1">
+                    {newMaterialAttachments.map((att, idx) => (
+                      <div key={idx} className="flex items-center gap-2 text-xs p-1.5 bg-background rounded border">
+                        {getFileIconByMeta(att.type, att.name)}
+                        <span className="flex-1 truncate">{att.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => setNewMaterialAttachments(prev => prev.filter((_, i) => i !== idx))}
+                          className="text-muted-foreground hover:text-red-500"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-full gap-1.5 text-xs h-8"
+                  disabled={newMaterialUploading}
+                  onClick={() => newMaterialFileInputRef.current?.click()}
+                  data-testid="button-add-new-material-files"
+                >
+                  {newMaterialUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Paperclip className="w-3.5 h-3.5" />}
+                  {newMaterialUploading ? "업로드 중..." : "파일 선택"}
+                </Button>
+              </div>
+            </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" onClick={() => { setShowCreateDialog(false); resetForm(); }}>
                 취소
@@ -1804,6 +2138,150 @@ export default function EducationLogs() {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={matShowAddForm} onOpenChange={setMatShowAddForm}>
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <BookOpen className="w-5 h-5 text-indigo-500" />
+              교육 자료 등록
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">자료 제목 *</label>
+              <Input
+                placeholder="교육 자료 제목"
+                value={matTitle}
+                onChange={e => setMatTitle(e.target.value)}
+                data-testid="input-material-title"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">자료 설명</label>
+              <Textarea
+                placeholder="자료에 대한 설명..."
+                value={matContent}
+                onChange={e => setMatContent(e.target.value)}
+                className="min-h-[80px]"
+                data-testid="input-material-content"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">파일 첨부</label>
+              <input
+                ref={matFileInputRef}
+                type="file"
+                multiple
+                accept="image/*,video/*,.pdf,.ppt,.pptx,.doc,.docx,.xls,.xlsx"
+                className="hidden"
+                onChange={e => e.target.files && e.target.files.length > 0 && handleMatLibUpload(e.target.files)}
+                data-testid="input-material-files"
+              />
+              <div className="border rounded-lg p-3 bg-muted/10 space-y-2">
+                {matAttachments.length > 0 && (
+                  <div className="space-y-1">
+                    {matAttachments.map((att, idx) => (
+                      <div key={idx} className="flex items-center gap-2 text-xs p-1.5 bg-background rounded border">
+                        {getFileIconByMeta(att.type, att.name)}
+                        <span className="flex-1 truncate">{att.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => setMatAttachments(prev => prev.filter((_, i) => i !== idx))}
+                          className="text-muted-foreground hover:text-red-500"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-full gap-1.5 text-xs h-8"
+                  disabled={matUploading}
+                  onClick={() => matFileInputRef.current?.click()}
+                  data-testid="button-upload-material-files"
+                >
+                  {matUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Paperclip className="w-3.5 h-3.5" />}
+                  {matUploading ? "업로드 중..." : "파일 선택 (이미지/동영상/PDF/PPT/Word/Excel)"}
+                </Button>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => { setMatShowAddForm(false); setMatTitle(""); setMatContent(""); setMatAttachments([]); }}>
+                취소
+              </Button>
+              <Button
+                onClick={handleCreateMaterial}
+                disabled={createNoticeMutation.isPending || !matTitle.trim()}
+                className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white gap-2"
+                data-testid="button-submit-material"
+              >
+                <Plus className="w-4 h-4" />
+                자료 등록
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!selectedMaterial} onOpenChange={open => !open && setSelectedMaterial(null)}>
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <BookOpen className="w-5 h-5 text-indigo-500" />
+              {selectedMaterial?.title}
+            </DialogTitle>
+          </DialogHeader>
+          {selectedMaterial && (
+            <div className="space-y-4 pt-2">
+              {selectedMaterial.content && (
+                <p className="text-sm text-muted-foreground whitespace-pre-wrap">{selectedMaterial.content}</p>
+              )}
+              {selectedMaterial.attachments && selectedMaterial.attachments.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground">첨부 파일 ({selectedMaterial.attachments.length}개)</p>
+                  {selectedMaterial.attachments.map((att: any, idx: number) => (
+                    <div key={idx} className="flex items-center gap-2 p-2 border rounded-lg bg-muted/10">
+                      {getFileIconByMeta(att.type, att.name)}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{att.name}</p>
+                        <p className="text-xs text-muted-foreground">{getFileLabelByMeta(att.type, att.name)}</p>
+                      </div>
+                      {isVideoByType(att.type, att.name) ? (
+                        <a href={att.url} target="_blank" rel="noopener noreferrer">
+                          <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
+                            <Eye className="w-3 h-3" />재생
+                          </Button>
+                        </a>
+                      ) : att.type?.startsWith('image/') ? (
+                        <a href={att.url} target="_blank" rel="noopener noreferrer">
+                          <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
+                            <Eye className="w-3 h-3" />보기
+                          </Button>
+                        </a>
+                      ) : (canDownloadEducationFiles || isAdmin) ? (
+                        <a href={att.url} download={att.name} target="_blank" rel="noopener noreferrer">
+                          <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
+                            <Download className="w-3 h-3" />다운로드
+                          </Button>
+                        </a>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="text-[10px] text-muted-foreground">
+                등록일: {selectedMaterial.createdAt ? new Date(selectedMaterial.createdAt).toLocaleDateString("ko-KR") : ""}
+                {selectedMaterial.createdBy && ` · ${selectedMaterial.createdBy}`}
+              </p>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

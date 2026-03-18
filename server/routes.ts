@@ -1427,6 +1427,7 @@ export async function registerRoutes(
         instructor: z.string().optional(),
         totalParticipants: z.number().int().min(1),
         description: z.string().optional(),
+        materialAttachments: z.array(z.object({ url: z.string(), name: z.string(), type: z.string() })).optional(),
       });
       const parsed = bodySchema.parse(req.body);
       const session = await storage.createEducationSession({
@@ -1453,6 +1454,7 @@ export async function registerRoutes(
         educationType: z.string().optional(),
         instructor: z.string().optional(),
         description: z.string().optional(),
+        materialAttachments: z.array(z.object({ url: z.string(), name: z.string(), type: z.string() })).optional(),
       });
       const parsed = batchSchema.parse(req.body);
       const createdBy = req.user?.username || req.user?.name || "unknown";
@@ -1466,6 +1468,7 @@ export async function registerRoutes(
           instructor: parsed.instructor,
           totalParticipants: dept.participants,
           description: parsed.description,
+          materialAttachments: parsed.materialAttachments,
           createdBy,
         });
         results.push(session);
