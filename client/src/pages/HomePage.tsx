@@ -453,11 +453,6 @@ export default function HomePage() {
                           </Link>
                         ))
                       }
-                      <Link href="/notices">
-                        <div className="flex items-center justify-center gap-1 py-1.5 text-xs text-primary font-medium hover:bg-accent/30 cursor-pointer transition-colors">
-                          전체 보기 <ChevronRight className="w-3.5 h-3.5" />
-                        </div>
-                      </Link>
                     </div>
                   )}
 
@@ -483,11 +478,6 @@ export default function HomePage() {
                           </Link>
                         ))
                       }
-                      <Link href="/accidents">
-                        <div className="flex items-center justify-center gap-1 py-1.5 text-xs text-primary font-medium hover:bg-accent/30 cursor-pointer transition-colors">
-                          전체 보기 <ChevronRight className="w-3.5 h-3.5" />
-                        </div>
-                      </Link>
                     </div>
                   )}
 
@@ -516,14 +506,17 @@ export default function HomePage() {
                           </Link>
                         ))
                       }
-                      <Link href="/risk-assessment">
-                        <div className="flex items-center justify-center gap-1 py-1.5 text-xs text-primary font-medium hover:bg-accent/30 cursor-pointer transition-colors">
-                          전체 보기 <ChevronRight className="w-3.5 h-3.5" />
-                        </div>
-                      </Link>
                     </div>
                   )}
                 </CardContent>
+                {/* 전체보기 - 하단 고정 */}
+                <div className="border-t border-border/50 mt-auto">
+                  <Link href={activeTab === "공지사항" ? "/notices" : activeTab === "최근 사고" ? "/accidents" : "/risk-assessment"}>
+                    <div className="flex items-center justify-center gap-1 py-2 text-xs text-primary font-medium hover:bg-accent/30 cursor-pointer transition-colors">
+                      전체 보기 <ChevronRight className="w-3.5 h-3.5" />
+                    </div>
+                  </Link>
+                </div>
               </Card>
             </div>
           </div>
