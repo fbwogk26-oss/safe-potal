@@ -10,8 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Upload, FileText, Pencil, Trash2, Plus, ReceiptText, Banknote, AlertCircle, CheckCircle2, Car } from "lucide-react";
+import { Loader2, Upload, FileText, Pencil, Trash2, Plus, ReceiptText, Banknote, AlertCircle, CheckCircle2, Car, ExternalLink } from "lucide-react";
 import type { TrafficFine, Vehicle } from "@shared/schema";
 
 const todayStr = () => {
@@ -29,7 +28,6 @@ const emptyForm = (): Partial<TrafficFine> => ({
   violationLocation: "",
   amount: undefined,
   paymentDestination: "",
-  note: "",
   requestDate: todayStr(),
   paymentStatus: "미납",
   paidAt: "",
@@ -90,13 +88,92 @@ function PlateAutocomplete({
             >
               <Car className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
               <span className="font-mono font-semibold">{v.plateNumber}</span>
-              <span className="text-muted-foreground">{v.vehicleType} ({v.model})</span>
+              <span className="text-muted-foreground">{v.vehicleType}</span>
               <span className="ml-auto text-muted-foreground text-xs">{v.team}</span>
             </button>
           ))}
         </div>
       )}
     </div>
+  );
+}
+
+// 납부상태 인라인 편집 셀
+function PaymentStatusCell({
+  fine,
+  onUpdate,
+  canEdit,
+}: {
+  fine: TrafficFine;
+  onUpdate: (id: number, status: string, paidAt?: string) => void;
+  canEdit: boolean;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [pendingStatus, setPendingStatus] = useState(fine.paymentStatus || "미납");
+  const [paidAt, setPaidAt] = useState(fine.paidAt || todayStr());
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setEditing(false);
+    };
+    if (editing) document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [editing]);
+
+  if (!canEdit) {
+    return (
+      <Badge variant={fine.paymentStatus === "납부완료" ? "default" : "destructive"} className="text-xs">
+        {fine.paymentStatus || "미납"}
+      </Badge>
+    );
+  }
+
+  if (editing) {
+    return (
+      <div ref={ref} className="flex flex-col gap-1.5 p-2 bg-popover border rounded-md shadow-lg absolute z-50 min-w-[160px]">
+        <Select value={pendingStatus} onValueChange={setPendingStatus}>
+          <SelectTrigger className="h-7 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="미납">미납</SelectItem>
+            <SelectItem value="납부완료">납부완료</SelectItem>
+          </SelectContent>
+        </Select>
+        {pendingStatus === "납부완료" && (
+          <Input
+            type="date"
+            value={paidAt}
+            onChange={(e) => setPaidAt(e.target.value)}
+            className="h-7 text-xs"
+          />
+        )}
+        <div className="flex gap-1">
+          <Button
+            size="sm"
+            className="h-6 text-xs flex-1"
+            onClick={() => { onUpdate(fine.id, pendingStatus, pendingStatus === "납부완료" ? paidAt : undefined); setEditing(false); }}
+          >
+            저장
+          </Button>
+          <Button size="sm" variant="outline" className="h-6 text-xs" onClick={() => setEditing(false)}>취소</Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      className="cursor-pointer hover:opacity-80 transition-opacity"
+      onClick={() => { setPendingStatus(fine.paymentStatus || "미납"); setEditing(true); }}
+      title="클릭하여 납부상태 변경"
+      data-testid={`badge-status-${fine.id}`}
+    >
+      <Badge variant={fine.paymentStatus === "납부완료" ? "default" : "destructive"} className="text-xs">
+        {fine.paymentStatus || "미납"} ✎
+      </Badge>
+    </button>
   );
 }
 
@@ -120,7 +197,6 @@ export default function TrafficFines() {
   const { data: stats } = useQuery<{
     total: number; totalAmount: number; unpaidAmount: number;
     paidAmount: number; unpaidCount: number; paidCount: number;
-    byViolationType: Record<string, number>;
   }>({
     queryKey: ["/api/traffic-fines/stats"],
   });
@@ -168,12 +244,12 @@ export default function TrafficFines() {
   const setField = (key: keyof TrafficFine, val: any) =>
     setForm((f) => ({ ...f, [key]: val }));
 
-  // 차량 선택 시 차종·소속 자동 입력
+  // 차량 선택 시 차량번호·차종·소속 자동 입력
   const handleVehicleSelect = (vehicle: Vehicle) => {
     setForm((f) => ({
       ...f,
       licensePlate: vehicle.plateNumber,
-      vehicleType: `${vehicle.vehicleType} (${vehicle.model})`,
+      vehicleType: vehicle.vehicleType,
       department: vehicle.team,
     }));
   };
@@ -195,14 +271,14 @@ export default function TrafficFines() {
       if (!res.ok) throw new Error("파싱 실패");
       const data = await res.json();
 
-      // PDF에서 추출한 차량번호로 DB 차량 자동 매핑 시도
-      const extracted = { ...emptyForm(), ...data, requestDate: todayStr() };
+      // PDF에서 추출한 차량번호로 DB 차량 자동 매핑
+      const extracted: Partial<TrafficFine> = { ...emptyForm(), ...data, requestDate: todayStr() };
       if (data.licensePlate) {
         const matched = vehicles.find(
-          (v) => v.plateNumber.replace(/\s/g, "") === data.licensePlate.replace(/\s/g, "")
+          (v) => v.plateNumber.replace(/\s/g, "") === (data.licensePlate || "").replace(/\s/g, "")
         );
         if (matched) {
-          extracted.vehicleType = `${matched.vehicleType} (${matched.model})`;
+          extracted.vehicleType = matched.vehicleType;
           extracted.department = matched.team;
         }
       }
@@ -231,6 +307,10 @@ export default function TrafficFines() {
     } else {
       createMutation.mutate(form);
     }
+  };
+
+  const handleInlineStatusUpdate = (id: number, status: string, paidAt?: string) => {
+    updateMutation.mutate({ id, data: { paymentStatus: status, ...(paidAt ? { paidAt } : {}) } });
   };
 
   const openEdit = (fine: TrafficFine) => {
@@ -396,43 +476,58 @@ export default function TrafficFines() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-muted-foreground">
-                    <th className="text-left py-2 px-3 font-medium">위반일시</th>
-                    <th className="text-left py-2 px-3 font-medium">차량번호</th>
-                    <th className="text-left py-2 px-3 font-medium hidden md:table-cell">차종</th>
-                    <th className="text-left py-2 px-3 font-medium hidden md:table-cell">소속</th>
-                    <th className="text-left py-2 px-3 font-medium">운전자</th>
-                    <th className="text-left py-2 px-3 font-medium hidden lg:table-cell">위반내역</th>
-                    <th className="text-left py-2 px-3 font-medium hidden lg:table-cell">적발장소</th>
-                    <th className="text-right py-2 px-3 font-medium">과태료</th>
-                    <th className="text-left py-2 px-3 font-medium hidden lg:table-cell">수납처</th>
-                    <th className="text-left py-2 px-3 font-medium hidden md:table-cell">납부요청일</th>
-                    <th className="text-center py-2 px-3 font-medium">상태</th>
-                    <th className="py-2 px-3"></th>
+                    <th className="text-left py-2 px-2 font-medium">위반일시</th>
+                    <th className="text-left py-2 px-2 font-medium">차량번호</th>
+                    <th className="text-left py-2 px-2 font-medium hidden md:table-cell">차종</th>
+                    <th className="text-left py-2 px-2 font-medium hidden md:table-cell">소속</th>
+                    <th className="text-left py-2 px-2 font-medium">운전자</th>
+                    <th className="text-left py-2 px-2 font-medium hidden lg:table-cell">위반내역</th>
+                    <th className="text-left py-2 px-2 font-medium hidden lg:table-cell">적발장소</th>
+                    <th className="text-right py-2 px-2 font-medium">과태료</th>
+                    <th className="text-left py-2 px-2 font-medium hidden lg:table-cell">수납처</th>
+                    <th className="text-left py-2 px-2 font-medium hidden md:table-cell">납부요청일</th>
+                    <th className="text-center py-2 px-2 font-medium">납부상태</th>
+                    <th className="text-center py-2 px-2 font-medium hidden md:table-cell">PDF</th>
+                    <th className="py-2 px-2"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.map((fine) => (
                     <tr key={fine.id} className="border-b hover:bg-muted/30 transition-colors" data-testid={`row-fine-${fine.id}`}>
-                      <td className="py-2 px-3 whitespace-nowrap">{fine.violationDate || "-"}</td>
-                      <td className="py-2 px-3 font-mono font-semibold whitespace-nowrap">{fine.licensePlate || "-"}</td>
-                      <td className="py-2 px-3 hidden md:table-cell text-muted-foreground">{fine.vehicleType || "-"}</td>
-                      <td className="py-2 px-3 hidden md:table-cell text-muted-foreground">{fine.department || "-"}</td>
-                      <td className="py-2 px-3 whitespace-nowrap">{fine.driver || "-"}</td>
-                      <td className="py-2 px-3 hidden lg:table-cell">{fine.violationType || "-"}</td>
-                      <td className="py-2 px-3 hidden lg:table-cell text-muted-foreground max-w-[140px] truncate">{fine.violationLocation || "-"}</td>
-                      <td className="py-2 px-3 text-right font-medium whitespace-nowrap">{fmt(fine.amount)}</td>
-                      <td className="py-2 px-3 hidden lg:table-cell text-muted-foreground">{fine.paymentDestination || "-"}</td>
-                      <td className="py-2 px-3 hidden md:table-cell whitespace-nowrap text-muted-foreground">{fine.requestDate || "-"}</td>
-                      <td className="py-2 px-3 text-center">
-                        <Badge
-                          variant={fine.paymentStatus === "납부완료" ? "default" : "destructive"}
-                          className="text-xs"
-                          data-testid={`badge-status-${fine.id}`}
-                        >
-                          {fine.paymentStatus}
-                        </Badge>
+                      <td className="py-2 px-2 whitespace-nowrap text-xs">{fine.violationDate || "-"}</td>
+                      <td className="py-2 px-2 font-mono font-semibold whitespace-nowrap text-xs">{fine.licensePlate || "-"}</td>
+                      <td className="py-2 px-2 hidden md:table-cell text-muted-foreground text-xs">{fine.vehicleType || "-"}</td>
+                      <td className="py-2 px-2 hidden md:table-cell text-muted-foreground text-xs">{fine.department || "-"}</td>
+                      <td className="py-2 px-2 whitespace-nowrap text-xs">{fine.driver || "-"}</td>
+                      <td className="py-2 px-2 hidden lg:table-cell text-xs">{fine.violationType || "-"}</td>
+                      <td className="py-2 px-2 hidden lg:table-cell text-muted-foreground text-xs max-w-[120px] truncate">{fine.violationLocation || "-"}</td>
+                      <td className="py-2 px-2 text-right font-medium whitespace-nowrap text-xs">{fmt(fine.amount)}</td>
+                      <td className="py-2 px-2 hidden lg:table-cell text-muted-foreground text-xs">{fine.paymentDestination || "-"}</td>
+                      <td className="py-2 px-2 hidden md:table-cell whitespace-nowrap text-muted-foreground text-xs">{fine.requestDate || "-"}</td>
+                      <td className="py-2 px-2 text-center relative">
+                        <PaymentStatusCell
+                          fine={fine}
+                          canEdit={isOwner(fine)}
+                          onUpdate={handleInlineStatusUpdate}
+                        />
                       </td>
-                      <td className="py-2 px-3">
+                      <td className="py-2 px-2 text-center hidden md:table-cell">
+                        {fine.pdfUrl ? (
+                          <a
+                            href={fine.pdfUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-blue-500 hover:text-blue-700 text-xs"
+                            data-testid={`link-pdf-${fine.id}`}
+                          >
+                            <FileText className="h-3.5 w-3.5" />
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">-</span>
+                        )}
+                      </td>
+                      <td className="py-2 px-2">
                         {isOwner(fine) && (
                           <div className="flex gap-1 justify-end">
                             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(fine)} data-testid={`button-edit-fine-${fine.id}`}>
@@ -492,35 +587,35 @@ export default function TrafficFines() {
               />
             </div>
 
-            {/* 3. 차종 — DB 자동입력 (수정 가능) */}
+            {/* 3. 차종 — DB 자동입력 */}
             <div className="space-y-1">
               <Label>
                 차종
-                <span className="ml-1 text-xs text-muted-foreground font-normal">차량번호 선택 시 자동입력</span>
+                <span className="ml-1 text-xs text-muted-foreground font-normal">자동입력</span>
               </Label>
               <Input
                 value={form.vehicleType || ""}
                 onChange={(e) => setField("vehicleType", e.target.value)}
-                placeholder="예: 승용차 (티볼리)"
+                placeholder="차량 선택 시 자동입력"
                 data-testid="input-vehicle-type"
               />
             </div>
 
-            {/* 4. 소속 — DB 자동입력 (수정 가능) */}
+            {/* 4. 소속 — DB 자동입력 */}
             <div className="space-y-1">
               <Label>
                 소속
-                <span className="ml-1 text-xs text-muted-foreground font-normal">차량번호 선택 시 자동입력</span>
+                <span className="ml-1 text-xs text-muted-foreground font-normal">자동입력</span>
               </Label>
               <Input
                 value={form.department || ""}
                 onChange={(e) => setField("department", e.target.value)}
-                placeholder="예: 동대구운용팀"
+                placeholder="차량 선택 시 자동입력"
                 data-testid="input-department"
               />
             </div>
 
-            {/* 5. 운전자 — 직접 입력 */}
+            {/* 5. 운전자 */}
             <div className="space-y-1">
               <Label>운전자</Label>
               <Input
@@ -531,7 +626,7 @@ export default function TrafficFines() {
               />
             </div>
 
-            {/* 6. 위반내역 — 텍스트 직접 입력 */}
+            {/* 6. 위반내역 */}
             <div className="space-y-1">
               <Label>위반내역</Label>
               <Input
@@ -565,9 +660,12 @@ export default function TrafficFines() {
               />
             </div>
 
-            {/* 9. 수납처 */}
+            {/* 9. 수납처 — PDF 자동입력 또는 직접입력 */}
             <div className="space-y-1">
-              <Label>수납처</Label>
+              <Label>
+                수납처
+                <span className="ml-1 text-xs text-muted-foreground font-normal">PDF 자동입력</span>
+              </Label>
               <Input
                 value={form.paymentDestination || ""}
                 onChange={(e) => setField("paymentDestination", e.target.value)}
@@ -576,11 +674,11 @@ export default function TrafficFines() {
               />
             </div>
 
-            {/* 10. 납부요청일 — 오늘 자동입력 */}
+            {/* 10. 납부요청일 */}
             <div className="space-y-1">
               <Label>
                 납부요청일
-                <span className="ml-1 text-xs text-muted-foreground font-normal">오늘 날짜 자동입력</span>
+                <span className="ml-1 text-xs text-muted-foreground font-normal">오늘 자동입력</span>
               </Label>
               <Input
                 value={form.requestDate || ""}
@@ -604,7 +702,7 @@ export default function TrafficFines() {
               </Select>
             </div>
 
-            {/* 납부일자 (납부완료 시만 표시) */}
+            {/* 납부일자 */}
             {form.paymentStatus === "납부완료" && (
               <div className="space-y-1">
                 <Label>납부일자</Label>
@@ -617,16 +715,22 @@ export default function TrafficFines() {
               </div>
             )}
 
-            {/* 비고 */}
-            <div className="col-span-2 space-y-1">
-              <Label>비고</Label>
-              <Textarea
-                value={form.note || ""}
-                onChange={(e) => setField("note", e.target.value)}
-                rows={2}
-                data-testid="textarea-note"
-              />
-            </div>
+            {/* PDF 파일 — 편집 시 표시 */}
+            {form.pdfUrl && (
+              <div className="col-span-2 space-y-1">
+                <Label>첨부 PDF</Label>
+                <a
+                  href={form.pdfUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 text-sm text-blue-500 hover:underline"
+                >
+                  <FileText className="h-4 w-4" />
+                  과태료 고지서 PDF 열기
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </a>
+              </div>
+            )}
 
           </div>
 
