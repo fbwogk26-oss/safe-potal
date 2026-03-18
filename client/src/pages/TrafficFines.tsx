@@ -479,7 +479,7 @@ export default function TrafficFines() {
         ];
         return (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {cards.map((c, i) => (
+            {cards.map((c) => (
               <Card key={c.label} className={`border ${c.border} ${c.bg} shadow-sm`}>
                 <CardContent className="p-0">
                   <div className={`flex items-center justify-center gap-2 py-3 px-4 ${c.color}`}>
@@ -487,13 +487,10 @@ export default function TrafficFines() {
                     <span className="text-sm font-semibold tracking-wide">{c.label}</span>
                   </div>
                   <div className={`border-t ${c.border}`} />
-                  <div className="flex flex-col items-center justify-center py-4 gap-1">
+                  <div className="flex items-center justify-center py-5">
                     <p className={`text-4xl font-extrabold ${c.color}`} data-testid={c.testId}>
                       {c.value}
                     </p>
-                    {i === 0 && (
-                      <p className="text-xs text-muted-foreground">속도 {speedCnt} + 신호 {signalCnt} + 법규 {laneCnt}</p>
-                    )}
                   </div>
                 </CardContent>
               </Card>
