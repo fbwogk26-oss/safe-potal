@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Loader2, Upload, FileText, Pencil, Trash2, Plus, ReceiptText, Banknote, AlertCircle, CheckCircle2, Car, X, ZoomIn, FileDown } from "lucide-react";
+import { Loader2, Upload, FileText, Pencil, Trash2, Plus, ReceiptText, AlertCircle, Car, X, ZoomIn, FileDown, Zap, AlertTriangle } from "lucide-react";
 import type { TrafficFine, Vehicle } from "@shared/schema";
 
 const todayStr = () => {
@@ -232,6 +232,7 @@ export default function TrafficFines() {
   const { data: stats } = useQuery<{
     total: number; totalAmount: number; unpaidAmount: number;
     paidAmount: number; unpaidCount: number; paidCount: number;
+    byViolationType: Record<string, number>;
   }>({
     queryKey: ["/api/traffic-fines/stats"],
   });
@@ -430,46 +431,54 @@ export default function TrafficFines() {
       </div>
 
       {/* 통계 카드 */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-2">
-              <ReceiptText className="h-5 w-5 text-blue-500" />
-              <span className="text-sm text-muted-foreground">총 건수</span>
-            </div>
-            <p className="text-2xl font-bold mt-1" data-testid="stat-total">{stats?.total ?? "-"}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-2">
-              <Banknote className="h-5 w-5 text-red-500" />
-              <span className="text-sm text-muted-foreground">미납액</span>
-            </div>
-            <p className="text-2xl font-bold mt-1 text-red-600" data-testid="stat-unpaid">{fmt(stats?.unpaidAmount)}</p>
-            <p className="text-xs text-muted-foreground">{stats?.unpaidCount ?? 0}건 미납</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-5 w-5 text-green-500" />
-              <span className="text-sm text-muted-foreground">납부 완료액</span>
-            </div>
-            <p className="text-2xl font-bold mt-1 text-green-600" data-testid="stat-paid">{fmt(stats?.paidAmount)}</p>
-            <p className="text-xs text-muted-foreground">{stats?.paidCount ?? 0}건 완료</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-2">
-              <AlertCircle className="h-5 w-5 text-orange-500" />
-              <span className="text-sm text-muted-foreground">총 과태료</span>
-            </div>
-            <p className="text-2xl font-bold mt-1" data-testid="stat-total-amount">{fmt(stats?.totalAmount)}</p>
-          </CardContent>
-        </Card>
-      </div>
+      {(() => {
+        const speedCnt = stats?.byViolationType?.["속도위반"] ?? 0;
+        const signalCnt = stats?.byViolationType?.["신호위반"] ?? 0;
+        const otherCnt = (stats?.total ?? 0) - speedCnt - signalCnt;
+        return (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Card>
+              <CardContent className="pt-4">
+                <div className="flex items-center gap-2">
+                  <ReceiptText className="h-5 w-5 text-blue-500" />
+                  <span className="text-sm text-muted-foreground">총 건수</span>
+                </div>
+                <p className="text-2xl font-bold mt-1" data-testid="stat-total">{stats?.total ?? "-"}</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <div className="flex items-center gap-2">
+                  <Zap className="h-5 w-5 text-red-500" />
+                  <span className="text-sm text-muted-foreground">속도위반</span>
+                </div>
+                <p className="text-2xl font-bold mt-1" data-testid="stat-speed">{speedCnt}</p>
+                <p className="text-xs text-muted-foreground">{speedCnt}건</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-yellow-500" />
+                  <span className="text-sm text-muted-foreground">신호위반</span>
+                </div>
+                <p className="text-2xl font-bold mt-1" data-testid="stat-signal">{signalCnt}</p>
+                <p className="text-xs text-muted-foreground">{signalCnt}건</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="h-5 w-5 text-orange-500" />
+                  <span className="text-sm text-muted-foreground">법규위반</span>
+                </div>
+                <p className="text-2xl font-bold mt-1" data-testid="stat-other">{otherCnt}</p>
+                <p className="text-xs text-muted-foreground">{otherCnt}건</p>
+              </CardContent>
+            </Card>
+          </div>
+        );
+      })()}
 
       {/* PDF 업로드 */}
       <Card>
