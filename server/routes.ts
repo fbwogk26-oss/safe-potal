@@ -108,6 +108,25 @@ async function syncTrafficFineToTeamScore(department: string | null | undefined,
   }
 }
 
+async function syncWorkAccidentToTeamScore(department: string | null | undefined, occurredAt: string | null | undefined) {
+  try {
+    if (!department) return;
+    const year = occurredAt ? parseInt(occurredAt.substring(0, 4)) : new Date().getFullYear();
+    if (isNaN(year)) return;
+    const [team] = await db.select().from(teams).where(and(eq(teams.name, department), eq(teams.year, year)));
+    if (!team) return;
+    const allAccidents = await db.select().from(accidentReports).where(eq(accidentReports.department, department));
+    const workAccident = allAccidents.filter(a =>
+      a.occurredAt?.startsWith(String(year)) && a.accidentType !== "교통사고"
+    ).length;
+    const merged = { ...team, workAccident };
+    const totalScore = calculateScore(merged);
+    await db.update(teams).set({ workAccident, totalScore }).where(eq(teams.id, team.id));
+  } catch (e) {
+    console.error("[산재 점수 동기화 오류]", e);
+  }
+}
+
 async function syncAccidentToTeamScore(department: string | null | undefined, occurredAt: string | null | undefined) {
   try {
     if (!department) return;
@@ -2105,6 +2124,8 @@ export async function registerRoutes(
       const report = await storage.createAccidentReport({ ...body, createdBy: req.user?.username || null });
       if (report.accidentType === "교통사고") {
         await syncAccidentToTeamScore(report.department, report.occurredAt);
+      } else {
+        await syncWorkAccidentToTeamScore(report.department, report.occurredAt);
       }
       res.status(201).json(report);
     } catch (error: any) {
@@ -2123,10 +2144,21 @@ export async function registerRoutes(
       const body = { ...req.body };
       if (!body.description) body.description = body.accidentOverview || existing.description || "";
       const report = await storage.updateAccidentReport(id, body);
-      if (existing.accidentType === "교통사고" || report?.accidentType === "교통사고") {
-        await syncAccidentToTeamScore(report?.department || existing.department, report?.occurredAt || existing.occurredAt);
-        if (existing.department !== report?.department) {
+      const newDept = report?.department || existing.department;
+      const newDate = report?.occurredAt || existing.occurredAt;
+      const newType = report?.accidentType || existing.accidentType;
+      // sync vehicleAccidents for 교통사고
+      if (existing.accidentType === "교통사고" || newType === "교통사고") {
+        await syncAccidentToTeamScore(newDept, newDate);
+        if (existing.department !== newDept) {
           await syncAccidentToTeamScore(existing.department, existing.occurredAt);
+        }
+      }
+      // sync workAccident for non-교통사고
+      if (existing.accidentType !== "교통사고" || newType !== "교통사고") {
+        await syncWorkAccidentToTeamScore(newDept, newDate);
+        if (existing.department !== newDept) {
+          await syncWorkAccidentToTeamScore(existing.department, existing.occurredAt);
         }
       }
       res.json(report);
@@ -2146,6 +2178,8 @@ export async function registerRoutes(
       await storage.deleteAccidentReport(id);
       if (delType === "교통사고") {
         await syncAccidentToTeamScore(delDept, delDate);
+      } else {
+        await syncWorkAccidentToTeamScore(delDept, delDate);
       }
       res.status(204).send();
     } catch (error) {

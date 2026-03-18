@@ -438,9 +438,9 @@ export default function TrafficFines() {
         const EXCLUDED = ["주정차 위반", "통행료 미납"];
         const speedCnt = stats?.byViolationType?.["속도위반"] ?? 0;
         const signalCnt = stats?.byViolationType?.["신호위반"] ?? 0;
+        const laneCnt = stats?.byViolationType?.["법규위반"] ?? 0;
         const excludedCnt = EXCLUDED.reduce((s, t) => s + (stats?.byViolationType?.[t] ?? 0), 0);
         const filteredTotal = (stats?.total ?? 0) - excludedCnt;
-        const otherCnt = filteredTotal - speedCnt - signalCnt;
         const cards = [
           {
             label: "총 건수",
@@ -471,7 +471,7 @@ export default function TrafficFines() {
           },
           {
             label: "법규위반",
-            value: otherCnt,
+            value: laneCnt,
             icon: <AlertCircle className="h-6 w-6" />,
             color: "text-orange-600",
             bg: "bg-orange-50 dark:bg-orange-950/40",
