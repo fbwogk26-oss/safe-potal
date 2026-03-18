@@ -40,6 +40,7 @@ Preferred communication style: Simple, everyday language.
   - `accident_reports`: Accident reports with type, cause, severity, department, date, description, reporter info (name, position, companion, vehicleInfo), progressDetails (JSON), accidentOverview, causeDetail, preventionPlan, signature (base64), images array. DOCX export generates 사고경위서 document.
   - `new_equipment_requests`: New safety equipment product requests with name, reason, specs, priority, status
   - `musculoskeletal_assessments`: 근골격계질환 유해요인조사 (department, task, hazardFactor, riskLevel, currentMeasures, improvementPlan, assessmentDate, assessor, status)
+  - `traffic_fines`: 교통 과태료 현황 (violationDate, department, licensePlate, violationType, amount, violationLocation, issuedAt, dueDate, paymentStatus 미납/납부완료, paidAt, note, pdfUrl, createdBy)
 
 ### Key Design Patterns
 - **Shared Types**: Schema and route definitions in /shared directory enable type safety across client and server

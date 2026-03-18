@@ -19,6 +19,7 @@ import {
   ScrollText,
   Bone,
   Home,
+  ReceiptText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -68,6 +69,7 @@ const NAV_SECTIONS: NavSection[] = [
         children: [
           { label: "안전점수", href: "/safety-scores", icon: LayoutDashboard, permissionKey: "canViewDashboard" },
           { label: "사고보고/통계", href: "/accidents", icon: AlertTriangle, permissionKey: "canViewAccidents" },
+          { label: "과태료 현황", href: "/traffic-fines", icon: ReceiptText },
           { label: "위험성평가", href: "/risk-assessment", icon: ShieldAlert, permissionKey: "canViewRiskAssessment" },
           { label: "안전점검", href: "/inspections", icon: ClipboardCheck, permissionKey: "canViewInspections" },
           { label: "안전교육 자료", href: "/education", icon: GraduationCap, permissionKey: "canViewEducation" },

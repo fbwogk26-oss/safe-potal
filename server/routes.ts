@@ -6,6 +6,7 @@ import { z } from "zod";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import { execSync } from "child_process";
 import ExcelJS from "exceljs";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 import { getKoshaMajorAccidents, clearKoshaCache } from "./kosha";
@@ -2222,6 +2223,166 @@ export async function registerRoutes(
       res.json(result);
     } catch (error: any) {
       res.status(500).json({ message: error?.message || "KOSHA API 새로고침에 실패했습니다" });
+    }
+  });
+
+  // === TRAFFIC FINES (과태료 현황) ===
+
+  const pdfUpload = multer({
+    storage: multer.diskStorage({
+      destination: (req, file, cb) => cb(null, uploadDir),
+      filename: (req, file, cb) => {
+        const ext = path.extname(file.originalname);
+        cb(null, `fine_${Date.now()}${ext}`);
+      },
+    }),
+    fileFilter: (req, file, cb) => {
+      if (file.mimetype === "application/pdf") cb(null, true);
+      else cb(new Error("PDF 파일만 업로드 가능합니다"));
+    },
+    limits: { fileSize: 20 * 1024 * 1024 },
+  });
+
+  // PDF 업로드 + AI OCR 파싱
+  app.post('/api/traffic-fines/parse-pdf', isAuthenticated, pdfUpload.single('pdf'), async (req: any, res) => {
+    if (!req.file) return res.status(400).json({ message: "PDF 파일이 필요합니다" });
+
+    const pdfPath = req.file.path;
+    const pngPrefix = `${pdfPath}_page`;
+
+    try {
+      // PDF → PNG 변환
+      execSync(`pdftoppm -r 150 -png "${pdfPath}" "${pngPrefix}"`, { timeout: 30000 });
+
+      // 첫 페이지 PNG 읽기
+      const pngPath = `${pngPrefix}-1.png`;
+      if (!fs.existsSync(pngPath)) {
+        return res.status(500).json({ message: "PDF 변환에 실패했습니다" });
+      }
+      const imgBuffer = fs.readFileSync(pngPath);
+      const base64Img = imgBuffer.toString("base64");
+
+      // OpenAI Vision으로 정보 추출
+      const OpenAI = (await import("openai")).default;
+      const aiClient = new OpenAI({
+        apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+        baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+      });
+      const aiRes = await aiClient.chat.completions.create({
+        model: "gpt-4o",
+        max_completion_tokens: 1000,
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: `이 과태료 고지서(납부통보서) 이미지에서 다음 정보를 JSON으로 추출하세요. 없는 필드는 null로 반환하세요.
+
+{
+  "violationDate": "위반일자 (YYYY-MM-DD 또는 YYYY.MM.DD 형식)",
+  "department": "소속 또는 발급기관",
+  "licensePlate": "차량번호",
+  "violationType": "위반유형 (예: 신호위반, 과속, 불법주정차 등)",
+  "amount": 과태료금액_숫자만,
+  "violationLocation": "위반장소",
+  "issuedAt": "고지일자",
+  "dueDate": "납부기한"
+}
+
+JSON만 반환하고 다른 텍스트는 포함하지 마세요.`,
+              },
+              {
+                type: "image_url",
+                image_url: { url: `data:image/png;base64,${base64Img}` },
+              },
+            ],
+          },
+        ],
+      });
+
+      // PNG 파일 정리
+      try { fs.unlinkSync(pngPath); } catch (_) {}
+
+      const raw = aiRes.choices[0]?.message?.content?.trim() || "{}";
+      let parsed: any = {};
+      try {
+        const jsonMatch = raw.match(/\{[\s\S]*\}/);
+        parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
+      } catch (_) {}
+
+      const pdfUrl = `/uploads/${req.file.filename}`;
+      res.json({ ...parsed, pdfUrl });
+    } catch (error: any) {
+      // PNG 파일 정리
+      try {
+        const pngPath = `${pngPrefix}-1.png`;
+        if (fs.existsSync(pngPath)) fs.unlinkSync(pngPath);
+      } catch (_) {}
+      console.error("과태료 PDF 파싱 오류:", error?.message || error);
+      res.status(500).json({ message: "PDF 파싱에 실패했습니다" });
+    }
+  });
+
+  app.get('/api/traffic-fines', isAuthenticated, async (req: any, res) => {
+    try {
+      const fines = await storage.getTrafficFines();
+      res.json(fines);
+    } catch (error) {
+      res.status(500).json({ message: "과태료 목록 조회에 실패했습니다" });
+    }
+  });
+
+  app.post('/api/traffic-fines', isAuthenticated, async (req: any, res) => {
+    try {
+      const created = await storage.createTrafficFine({ ...req.body, createdBy: req.user?.username || null });
+      res.status(201).json(created);
+    } catch (error) {
+      res.status(500).json({ message: "과태료 등록에 실패했습니다" });
+    }
+  });
+
+  app.put('/api/traffic-fines/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const id = Number(req.params.id);
+      const existing = await storage.getTrafficFine(id);
+      if (!existing) return res.status(404).json({ message: "Not found" });
+      if (!isOwnerOrAdmin(req, existing.createdBy)) return res.status(403).json({ message: "본인이 등록한 항목만 수정할 수 있습니다" });
+      const updated = await storage.updateTrafficFine(id, req.body);
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ message: "과태료 수정에 실패했습니다" });
+    }
+  });
+
+  app.delete('/api/traffic-fines/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const id = Number(req.params.id);
+      const existing = await storage.getTrafficFine(id);
+      if (!existing) return res.status(404).json({ message: "Not found" });
+      if (!isOwnerOrAdmin(req, existing.createdBy)) return res.status(403).json({ message: "본인이 등록한 항목만 삭제할 수 있습니다" });
+      await storage.deleteTrafficFine(id);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "과태료 삭제에 실패했습니다" });
+    }
+  });
+
+  // 과태료 통계
+  app.get('/api/traffic-fines/stats', isAuthenticated, async (req: any, res) => {
+    try {
+      const fines = await storage.getTrafficFines();
+      const totalAmount = fines.reduce((s, f) => s + (f.amount || 0), 0);
+      const unpaidAmount = fines.filter(f => f.paymentStatus === "미납").reduce((s, f) => s + (f.amount || 0), 0);
+      const paidAmount = fines.filter(f => f.paymentStatus === "납부완료").reduce((s, f) => s + (f.amount || 0), 0);
+      const byViolationType = fines.reduce((acc: Record<string, number>, f) => {
+        const t = f.violationType || "기타";
+        acc[t] = (acc[t] || 0) + 1;
+        return acc;
+      }, {});
+      res.json({ total: fines.length, totalAmount, unpaidAmount, paidAmount, unpaidCount: fines.filter(f => f.paymentStatus === "미납").length, paidCount: fines.filter(f => f.paymentStatus === "납부완료").length, byViolationType });
+    } catch (error) {
+      res.status(500).json({ message: "통계 조회에 실패했습니다" });
     }
   });
 

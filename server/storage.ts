@@ -3,7 +3,7 @@ import {
   teams, notices, settings, safetyEquipment, safetyInspections,
   educationSessions, educationSignatures,
   users,
-  chemicals, riskAssessments, accidentReports, newEquipmentRequests, musculoskeletalAssessments,
+  chemicals, riskAssessments, accidentReports, newEquipmentRequests, musculoskeletalAssessments, trafficFines,
   type Team, type InsertTeam, type UpdateTeamRequest,
   type Notice, type InsertNotice,
   type Setting,
@@ -17,6 +17,7 @@ import {
   type AccidentReport, type InsertAccidentReport,
   type NewEquipmentRequest, type InsertNewEquipmentRequest,
   type MusculoskeletalAssessment, type InsertMusculoskeletalAssessment,
+  type TrafficFine, type InsertTrafficFine,
 } from "@shared/schema";
 import { eq, desc, asc, and, ilike, or } from "drizzle-orm";
 
@@ -102,6 +103,13 @@ export interface IStorage {
   createMusculoskeletalAssessment(data: InsertMusculoskeletalAssessment): Promise<MusculoskeletalAssessment>;
   updateMusculoskeletalAssessment(id: number, data: Partial<InsertMusculoskeletalAssessment>): Promise<MusculoskeletalAssessment>;
   deleteMusculoskeletalAssessment(id: number): Promise<void>;
+
+  // Traffic Fines
+  getTrafficFines(): Promise<TrafficFine[]>;
+  getTrafficFine(id: number): Promise<TrafficFine | undefined>;
+  createTrafficFine(data: InsertTrafficFine): Promise<TrafficFine>;
+  updateTrafficFine(id: number, data: Partial<InsertTrafficFine>): Promise<TrafficFine>;
+  deleteTrafficFine(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -398,6 +406,30 @@ export class DatabaseStorage implements IStorage {
 
   async deleteMusculoskeletalAssessment(id: number): Promise<void> {
     await db.delete(musculoskeletalAssessments).where(eq(musculoskeletalAssessments.id, id));
+  }
+
+  // === TRAFFIC FINES ===
+  async getTrafficFines(): Promise<TrafficFine[]> {
+    return await db.select().from(trafficFines).orderBy(desc(trafficFines.createdAt));
+  }
+
+  async getTrafficFine(id: number): Promise<TrafficFine | undefined> {
+    const [row] = await db.select().from(trafficFines).where(eq(trafficFines.id, id));
+    return row;
+  }
+
+  async createTrafficFine(data: InsertTrafficFine): Promise<TrafficFine> {
+    const [created] = await db.insert(trafficFines).values(data).returning();
+    return created;
+  }
+
+  async updateTrafficFine(id: number, data: Partial<InsertTrafficFine>): Promise<TrafficFine> {
+    const [updated] = await db.update(trafficFines).set(data).where(eq(trafficFines.id, id)).returning();
+    return updated;
+  }
+
+  async deleteTrafficFine(id: number): Promise<void> {
+    await db.delete(trafficFines).where(eq(trafficFines.id, id));
   }
 }
 

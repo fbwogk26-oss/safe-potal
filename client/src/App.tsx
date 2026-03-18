@@ -24,6 +24,7 @@ import RiskAssessment from "@/pages/RiskAssessment";
 import AccidentReports from "@/pages/AccidentReports";
 import MusculoskeletalDisease from "@/pages/MusculoskeletalDisease";
 import NewEquipmentRequest from "@/pages/NewEquipmentRequest";
+import TrafficFines from "@/pages/TrafficFines";
 import WeatherSafetyMessage from "@/pages/WeatherSafetyMessage";
 import Login from "@/pages/Login";
 import NotFound from "@/pages/NotFound";
@@ -58,6 +59,7 @@ function MainLayout() {
             <Route path="/risk-assessment" component={RiskAssessment} />
             <Route path="/accidents" component={AccidentReports} />
             <Route path="/musculoskeletal" component={MusculoskeletalDisease} />
+            <Route path="/traffic-fines" component={TrafficFines} />
             <Route path="/digital-board" component={DigitalBoard} />
             <Route path="/admin/users" component={AdminUsers} />
             <Route path="/admin/security" component={SecurityLogs} />
