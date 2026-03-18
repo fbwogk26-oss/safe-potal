@@ -1006,6 +1006,13 @@ export default function EducationLogs() {
     return groups;
   }, [filteredSessions]);
 
+  const filteredMaterials = useMemo(() => {
+    if (!eduNotices) return [];
+    if (!matSearchQuery.trim()) return eduNotices;
+    const q = matSearchQuery.toLowerCase();
+    return eduNotices.filter((m: any) => m.title?.toLowerCase().includes(q) || m.content?.toLowerCase().includes(q));
+  }, [eduNotices, matSearchQuery]);
+
   const toggleGroup = (key: string) => {
     setExpandedGroups(prev => {
       const next = new Set(prev);
@@ -1392,13 +1399,6 @@ export default function EducationLogs() {
       </div>
     );
   }
-
-  const filteredMaterials = useMemo(() => {
-    if (!eduNotices) return [];
-    if (!matSearchQuery.trim()) return eduNotices;
-    const q = matSearchQuery.toLowerCase();
-    return eduNotices.filter((m: any) => m.title?.toLowerCase().includes(q) || m.content?.toLowerCase().includes(q));
-  }, [eduNotices, matSearchQuery]);
 
   return (
     <div className="max-w-5xl mx-auto space-y-4">
