@@ -2389,29 +2389,36 @@ export async function registerRoutes(
           content: `다음은 교통 과태료 고지서 PDF 텍스트입니다.\n\n${AI_PROMPT}\n\n--- PDF 텍스트 ---\n${pdfText.substring(0, 4000)}\n--- 끝 ---`,
         }];
       } else {
-        // 텍스트 없음(스캔본): pdftoppm으로 PNG 변환 → GPT-4o Vision
-        const tmpDir = require("os").tmpdir();
-        const outPrefix = path.join(tmpDir, `pdf_page_${Date.now()}`);
-        const outPng = `${outPrefix}.png`;
+        // 텍스트 없음(스캔본): pdf-parse getImage()로 내장 이미지 추출 → GPT-4o Vision
+        const imgParser = new PDFParse({ data: pdfBuffer });
+        let imgDataUrl: string | null = null;
         try {
-          execSync(
-            `pdftoppm -r 150 -png -f 1 -l 1 -singlefile "${pdfPath}" "${outPrefix}"`,
-            { timeout: 15000 }
-          );
-        } catch (e: any) {
-          return res.status(422).json({ message: "PDF를 이미지로 변환할 수 없습니다. 파일이 손상됐거나 지원하지 않는 형식입니다." });
+          const imgResult = await imgParser.getImage({ imageThreshold: 0, imageDataUrl: true, imageBuffer: true });
+          await imgParser.destroy();
+          const allImgs = imgResult.pages?.flatMap((pg: any) => pg.images || []) || [];
+          // 가장 큰 이미지(스캔 전체 페이지) 선택
+          const largest = allImgs.sort((a: any, b: any) => (b.width * b.height) - (a.width * a.height))[0];
+          if (largest) {
+            if (largest.dataUrl) {
+              imgDataUrl = largest.dataUrl;
+            } else if (largest.data) {
+              const b64 = Buffer.from(largest.data).toString("base64");
+              imgDataUrl = `data:image/png;base64,${b64}`;
+            }
+          }
+        } catch (_) {
+          try { await imgParser.destroy(); } catch (__) {}
         }
-        if (!fs.existsSync(outPng)) {
-          return res.status(422).json({ message: "PDF 이미지 변환 결과를 찾을 수 없습니다." });
+
+        if (!imgDataUrl) {
+          return res.status(422).json({ message: "스캔된 PDF에서 이미지를 추출할 수 없습니다. 파일이 손상됐거나 지원하지 않는 형식입니다." });
         }
-        const pngBase64 = fs.readFileSync(outPng).toString("base64");
-        try { fs.unlinkSync(outPng); } catch (_) {}
 
         aiMessages = [{
           role: "user",
           content: [
             { type: "text", text: AI_PROMPT },
-            { type: "image_url", image_url: { url: `data:image/png;base64,${pngBase64}`, detail: "high" } },
+            { type: "image_url", image_url: { url: imgDataUrl, detail: "high" } },
           ],
         }];
       }
