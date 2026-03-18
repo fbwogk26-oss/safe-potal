@@ -2364,6 +2364,7 @@ export async function registerRoutes(
 
   // PDF 업로드 + AI OCR 파싱
   app.post('/api/traffic-fines/parse-pdf', isAuthenticated, pdfUpload.single('pdf'), async (req: any, res) => {
+    if (req.user?.role !== 'admin') return res.status(403).json({ message: "관리자만 사용할 수 있습니다" });
     if (!req.file) return res.status(400).json({ message: "PDF 파일이 필요합니다" });
 
     const pdfPath = req.file.path;
@@ -2692,8 +2693,9 @@ export async function registerRoutes(
     }
   });
 
-  // 납부상태 전용 PATCH (소유권 무관, 인증만 필요)
+  // 납부상태 전용 PATCH (관리자만)
   app.patch('/api/traffic-fines/:id/payment-status', isAuthenticated, async (req: any, res) => {
+    if (req.user?.role !== 'admin') return res.status(403).json({ message: "관리자만 사용할 수 있습니다" });
     try {
       const id = Number(req.params.id);
       const { paymentStatus, paidAt } = req.body;
@@ -2716,6 +2718,7 @@ export async function registerRoutes(
   });
 
   app.post('/api/traffic-fines', isAuthenticated, async (req: any, res) => {
+    if (req.user?.role !== 'admin') return res.status(403).json({ message: "관리자만 사용할 수 있습니다" });
     try {
       const { id: _id, createdAt: _ca, createdBy: _cb, ...rest } = req.body;
       const sanitize = (v: any) => (v === "" || v === undefined) ? null : v;
@@ -2747,11 +2750,11 @@ export async function registerRoutes(
   });
 
   app.put('/api/traffic-fines/:id', isAuthenticated, async (req: any, res) => {
+    if (req.user?.role !== 'admin') return res.status(403).json({ message: "관리자만 사용할 수 있습니다" });
     try {
       const id = Number(req.params.id);
       const existing = await storage.getTrafficFine(id);
       if (!existing) return res.status(404).json({ message: "Not found" });
-      if (!isOwnerOrAdmin(req, existing.createdBy)) return res.status(403).json({ message: "본인이 등록한 항목만 수정할 수 있습니다" });
       const { id: _id, createdAt: _ca, createdBy: _cb, ...rest } = req.body;
       const sanitize = (v: any) => (v === "" || v === undefined) ? null : v;
       const data = {
@@ -2784,11 +2787,11 @@ export async function registerRoutes(
   });
 
   app.delete('/api/traffic-fines/:id', isAuthenticated, async (req: any, res) => {
+    if (req.user?.role !== 'admin') return res.status(403).json({ message: "관리자만 사용할 수 있습니다" });
     try {
       const id = Number(req.params.id);
       const existing = await storage.getTrafficFine(id);
       if (!existing) return res.status(404).json({ message: "Not found" });
-      if (!isOwnerOrAdmin(req, existing.createdBy)) return res.status(403).json({ message: "본인이 등록한 항목만 삭제할 수 있습니다" });
       const { department: delDept, violationDate: delDate } = existing;
       await storage.deleteTrafficFine(id);
       await syncTrafficFineToTeamScore(delDept, delDate);

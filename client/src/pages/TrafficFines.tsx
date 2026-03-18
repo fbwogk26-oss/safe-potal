@@ -287,8 +287,7 @@ export default function TrafficFines() {
     onError: () => toast({ title: "납부상태 변경 실패", variant: "destructive" }),
   });
 
-  const isOwner = (fine: TrafficFine) =>
-    !fine.createdBy || user?.role === "admin" || user?.username === fine.createdBy;
+  const isAdmin = user?.role === "admin";
 
   const setField = (key: keyof TrafficFine, val: any) =>
     setForm((f) => ({ ...f, [key]: val }));
@@ -427,9 +426,11 @@ export default function TrafficFines() {
           >
             <FileDown className="h-3.5 w-3.5 mr-1" /> 엑셀
           </Button>
-          <Button onClick={openNew} data-testid="button-new-fine">
-            <Plus className="h-4 w-4 mr-1" /> 직접 등록
-          </Button>
+          {isAdmin && (
+            <Button onClick={openNew} data-testid="button-new-fine">
+              <Plus className="h-4 w-4 mr-1" /> 직접 등록
+            </Button>
+          )}
         </div>
       </div>
 
@@ -499,48 +500,50 @@ export default function TrafficFines() {
         );
       })()}
 
-      {/* PDF 업로드 */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <FileText className="h-4 w-4" /> PDF 자동 분석
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div
-            className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer ${
-              dragging ? "border-primary bg-primary/5" : "border-muted-foreground/30 hover:border-primary/50"
-            }`}
-            onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={handleDrop}
-            onClick={() => fileRef.current?.click()}
-            data-testid="upload-pdf-area"
-          >
-            {parsing ? (
-              <div className="flex flex-col items-center gap-2">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <p className="text-sm font-medium">AI 분석 중...</p>
-                <p className="text-xs text-muted-foreground">차량 DB 조회 및 과태료 정보 추출 중입니다</p>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center gap-2">
-                <Upload className="h-8 w-8 text-muted-foreground" />
-                <p className="text-sm font-medium">과태료 고지서 PDF를 드래그하거나 클릭하여 업로드</p>
-                <p className="text-xs text-muted-foreground">AI가 자동 분석 → 차량번호로 차종·소속 자동입력</p>
-              </div>
-            )}
-            <input
-              ref={fileRef}
-              type="file"
-              accept="application/pdf"
-              className="hidden"
-              onChange={(e) => { const f = e.target.files?.[0]; if (f) handleParsePdf(f); }}
-              data-testid="input-pdf-file"
-            />
-          </div>
-        </CardContent>
-      </Card>
+      {/* PDF 업로드 - 관리자만 */}
+      {isAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <FileText className="h-4 w-4" /> PDF 자동 분석
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div
+              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer ${
+                dragging ? "border-primary bg-primary/5" : "border-muted-foreground/30 hover:border-primary/50"
+              }`}
+              onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={handleDrop}
+              onClick={() => fileRef.current?.click()}
+              data-testid="upload-pdf-area"
+            >
+              {parsing ? (
+                <div className="flex flex-col items-center gap-2">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  <p className="text-sm font-medium">AI 분석 중...</p>
+                  <p className="text-xs text-muted-foreground">차량 DB 조회 및 과태료 정보 추출 중입니다</p>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center gap-2">
+                  <Upload className="h-8 w-8 text-muted-foreground" />
+                  <p className="text-sm font-medium">과태료 고지서 PDF를 드래그하거나 클릭하여 업로드</p>
+                  <p className="text-xs text-muted-foreground">AI가 자동 분석 → 차량번호로 차종·소속 자동입력</p>
+                </div>
+              )}
+              <input
+                ref={fileRef}
+                type="file"
+                accept="application/pdf"
+                className="hidden"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleParsePdf(f); }}
+                data-testid="input-pdf-file"
+              />
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* 목록 */}
       <Card>
@@ -633,16 +636,16 @@ export default function TrafficFines() {
                       <td className="py-2 px-2 hidden lg:table-cell text-muted-foreground text-xs">{fine.paymentDestination || "-"}</td>
                       <td className="py-2 px-2 hidden md:table-cell whitespace-nowrap text-muted-foreground text-xs">{fine.requestDate || "-"}</td>
                       <td className="py-2 px-2 text-center relative">
-                        <Badge
-                          variant={fine.paymentStatus === "납부완료" ? "default" : "destructive"}
-                          className="text-xs"
-                          data-testid={`badge-status-${fine.id}`}
-                        >
-                          {fine.paymentStatus || "미납"}
-                        </Badge>
+                        <PaymentStatusCell
+                          fine={fine}
+                          onUpdate={(id, status, paidAt) =>
+                            paymentStatusMutation.mutate({ id, paymentStatus: status, paidAt })
+                          }
+                          canEdit={isAdmin}
+                        />
                       </td>
                       <td className="py-2 px-2">
-                        {isOwner(fine) && (
+                        {isAdmin && (
                           <div className="flex gap-1 justify-end">
                             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(fine)} data-testid={`button-edit-fine-${fine.id}`}>
                               <Pencil className="h-3.5 w-3.5" />
