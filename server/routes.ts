@@ -2291,7 +2291,7 @@ export async function registerRoutes(
   "violationType": "위반내역 - 신호위반/과속/불법주정차 등 위반 종류",
   "violationLocation": "적발장소 - 도로명 또는 장소명",
   "amount": 과태료금액_숫자만_원단위,
-  "paymentDestination": "납부처 - 납부할 기관명 또는 계좌정보 (예: 경찰청, 도로교통공단, 지자체명 등)"
+  "paymentDestination": "고지서 발행처 이름 - 과태료를 부과한 기관명 (예: 달서구청장, 수성구청장, 한국도로공사, 서울시장, 대전서부경찰서장 등)"
 }
 
 중요: vehicleType(차종)과 department(소속)는 추출하지 마세요. JSON만 반환하세요.`,

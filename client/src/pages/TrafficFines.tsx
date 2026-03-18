@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
@@ -180,9 +181,9 @@ function PaymentStatusCell({
 
 // 이미지 전체화면 뷰어
 function ImageViewer({ src, pdfUrl, onClose }: { src: string; pdfUrl?: string | null; onClose: () => void }) {
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+      className="fixed inset-0 z-[9999] bg-black/80 flex items-center justify-center p-4"
       onClick={onClose}
     >
       <div className="relative max-w-4xl max-h-full" onClick={(e) => e.stopPropagation()}>
@@ -205,7 +206,8 @@ function ImageViewer({ src, pdfUrl, onClose }: { src: string; pdfUrl?: string | 
           </a>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -304,13 +306,19 @@ export default function TrafficFines() {
       if (!res.ok) throw new Error("파싱 실패");
       const data = await res.json();
 
-      // 서버에서 이미 차량 DB 조회해서 vehicleType, department 채워서 반환됨
+      // 서버 반환값에 vehicleType/department가 없으면 프론트 차량 DB에서 직접 조회
+      const plate = data.licensePlate || "";
+      const normalizedPlate = plate.replace(/\s/g, "");
+      const matchedVehicle = normalizedPlate
+        ? vehicles.find((v: Vehicle) => v.plateNumber.replace(/\s/g, "") === normalizedPlate)
+        : null;
+
       setForm({
         ...emptyForm(),
         violationDate: data.violationDate || "",
-        licensePlate: data.licensePlate || "",
-        vehicleType: data.vehicleType || "",
-        department: data.department || "",
+        licensePlate: plate,
+        vehicleType: data.vehicleType || matchedVehicle?.vehicleType || "",
+        department: data.department || matchedVehicle?.team || "",
         driver: data.driver || "",
         violationType: data.violationType || "",
         violationLocation: data.violationLocation || "",
