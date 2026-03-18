@@ -17,6 +17,7 @@ import { motion } from "framer-motion";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { useAuth } from "@/hooks/use-auth";
+import { usePermissions } from "@/hooks/use-permissions";
 import { useTeams } from "@/hooks/use-teams";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
@@ -212,16 +213,6 @@ function KoshaSirenCard({ item }: { item: KoshaMajorAccident }) {
   );
 }
 
-const QUICK_IN = [
-  { label: "안전점수", href: "/safety-scores", icon: ShieldCheck, color: "#3b82f6", bg: "#dbeafe" },
-  { label: "위험성평가", href: "/risk-assessment", icon: Target, color: "#f97316", bg: "#ffedd5" },
-  { label: "안전점검", href: "/inspections", icon: ClipboardCheck, color: "#10b981", bg: "#d1fae5" },
-  { label: "사고보고", href: "/accidents", icon: AlertTriangle, color: "#ef4444", bg: "#fee2e2" },
-  { label: "교육관리", href: "/education-logs", icon: GraduationCap, color: "#8b5cf6", bg: "#ede9fe" },
-  { label: "MSDS검색", href: "/msds", icon: FlaskConical, color: "#06b6d4", bg: "#cffafe" },
-];
-
-
 const CATEGORY_LABELS: Record<string, string> = {
   notice: "공지", rule: "수칙", education: "교육", equipment: "용품", access: "출입", edu: "교육",
   safe_message: "세이프메시지", equip_request: "용품신청",
@@ -243,13 +234,43 @@ function getWeatherEmojiUI(code: string, tempC: number): string {
   return "🌤️";
 }
 
-const TABS = ["공지사항", "최근 사고", "승인대기"] as const;
-type Tab = typeof TABS[number];
+type Tab = "공지사항" | "최근 사고" | "승인대기";
 
 export default function HomePage() {
   const { user } = useAuth();
+  const {
+    canViewNotices,
+    canViewAccidents,
+    canViewRiskAssessment,
+    canViewDashboard,
+    canViewInspections,
+    canViewEducationLogs,
+    canViewMsds,
+  } = usePermissions();
+
+  const QUICK_IN = [
+    { label: "안전점수", href: "/safety-scores", icon: ShieldCheck, color: "#3b82f6", bg: "#dbeafe", show: canViewDashboard },
+    { label: "위험성평가", href: "/risk-assessment", icon: Target, color: "#f97316", bg: "#ffedd5", show: canViewRiskAssessment },
+    { label: "안전점검", href: "/inspections", icon: ClipboardCheck, color: "#10b981", bg: "#d1fae5", show: canViewInspections },
+    { label: "사고보고", href: "/accidents", icon: AlertTriangle, color: "#ef4444", bg: "#fee2e2", show: canViewAccidents },
+    { label: "교육관리", href: "/education-logs", icon: GraduationCap, color: "#8b5cf6", bg: "#ede9fe", show: canViewEducationLogs },
+    { label: "MSDS검색", href: "/msds", icon: FlaskConical, color: "#06b6d4", bg: "#cffafe", show: canViewMsds },
+  ].filter(item => item.show);
+
+  const TABS = [
+    canViewNotices && "공지사항",
+    canViewAccidents && "최근 사고",
+    canViewRiskAssessment && "승인대기",
+  ].filter(Boolean) as Tab[];
+
   const now = new Date();
   const [activeTab, setActiveTab] = useState<Tab>("공지사항");
+
+  useEffect(() => {
+    if (TABS.length > 0 && !TABS.includes(activeTab)) {
+      setActiveTab(TABS[0]);
+    }
+  }, [TABS.length]);
 
   const { data: teams } = useTeams(CURRENT_YEAR);
   const { data: notices } = useQuery<Notice[]>({ queryKey: ["/api/notices"] });
@@ -390,30 +411,32 @@ export default function HomePage() {
             </div>
 
             {/* Quick-in */}
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <TrendingUp className="w-3.5 h-3.5 text-primary" />
-                <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Quick-in</h2>
-              </div>
-              <Card className="border-0 shadow-sm">
-                <CardContent className="p-3 sm:p-4">
-                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 sm:gap-3">
-                    {QUICK_IN.map((item, i) => (
-                      <motion.div key={item.href} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.1 + i * 0.05 }}>
-                        <Link href={item.href}>
-                          <div className="group flex flex-col items-center gap-1.5 cursor-pointer">
-                            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center shadow-sm group-hover:shadow-md transition-all group-hover:scale-105" style={{ background: item.bg }}>
-                              <item.icon className="w-6 h-6 sm:w-7 sm:h-7" style={{ color: item.color }} />
+            {QUICK_IN.length > 0 && (
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <TrendingUp className="w-3.5 h-3.5 text-primary" />
+                  <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Quick-in</h2>
+                </div>
+                <Card className="border-0 shadow-sm">
+                  <CardContent className="p-3 sm:p-4">
+                    <div className={`grid gap-2 sm:gap-3 ${QUICK_IN.length <= 3 ? "grid-cols-3" : "grid-cols-3 sm:grid-cols-6"}`}>
+                      {QUICK_IN.map((item, i) => (
+                        <motion.div key={item.href} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.1 + i * 0.05 }}>
+                          <Link href={item.href}>
+                            <div className="group flex flex-col items-center gap-1.5 cursor-pointer">
+                              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center shadow-sm group-hover:shadow-md transition-all group-hover:scale-105" style={{ background: item.bg }}>
+                                <item.icon className="w-6 h-6 sm:w-7 sm:h-7" style={{ color: item.color }} />
+                              </div>
+                              <p className="text-[11px] sm:text-xs font-semibold text-foreground group-hover:text-primary transition-colors text-center leading-tight">{item.label}</p>
                             </div>
-                            <p className="text-[11px] sm:text-xs font-semibold text-foreground group-hover:text-primary transition-colors text-center leading-tight">{item.label}</p>
-                          </div>
-                        </Link>
-                      </motion.div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+                          </Link>
+                        </motion.div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
 
             {/* Tabbed Content */}
             <div className="flex-1 flex flex-col min-h-0">
@@ -530,11 +553,13 @@ export default function HomePage() {
                 <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                   <Users className="w-3.5 h-3.5" />팀별 안전점수
                 </h2>
-                <Link href="/safety-scores">
-                  <span className="text-[11px] text-primary font-medium flex items-center gap-0.5 hover:underline cursor-pointer">
-                    전체 <ChevronRight className="w-3 h-3" />
-                  </span>
-                </Link>
+                {canViewDashboard && (
+                  <Link href="/safety-scores">
+                    <span className="text-[11px] text-primary font-medium flex items-center gap-0.5 hover:underline cursor-pointer">
+                      전체 <ChevronRight className="w-3 h-3" />
+                    </span>
+                  </Link>
+                )}
               </div>
               <Card className="border-0 shadow-sm">
                 <CardContent className="p-3 space-y-2">
