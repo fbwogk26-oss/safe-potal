@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Loader2, Upload, FileText, Pencil, Trash2, Plus, ReceiptText, Banknote, AlertCircle, CheckCircle2, Car, X, ZoomIn } from "lucide-react";
+import { Loader2, Upload, FileText, Pencil, Trash2, Plus, ReceiptText, Banknote, AlertCircle, CheckCircle2, Car, X, ZoomIn, FileDown } from "lucide-react";
 import type { TrafficFine, Vehicle } from "@shared/schema";
 
 const todayStr = () => {
@@ -273,6 +273,16 @@ export default function TrafficFines() {
     onError: (e: any) => toast({ title: e?.message || "삭제 실패", variant: "destructive" }),
   });
 
+  const paymentStatusMutation = useMutation({
+    mutationFn: ({ id, paymentStatus, paidAt }: { id: number; paymentStatus: string; paidAt?: string }) =>
+      apiRequest("PATCH", `/api/traffic-fines/${id}/payment-status`, { paymentStatus, paidAt }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/traffic-fines"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/traffic-fines/stats"] });
+    },
+    onError: () => toast({ title: "납부상태 변경 실패", variant: "destructive" }),
+  });
+
   const isOwner = (fine: TrafficFine) =>
     !fine.createdBy || user?.role === "admin" || user?.username === fine.createdBy;
 
@@ -356,7 +366,7 @@ export default function TrafficFines() {
   };
 
   const handleInlineStatusUpdate = (id: number, status: string, paidAt?: string) => {
-    updateMutation.mutate({ id, data: { paymentStatus: status, ...(paidAt ? { paidAt } : {}) } });
+    paymentStatusMutation.mutate({ id, paymentStatus: status, paidAt });
   };
 
   const openEdit = (fine: TrafficFine) => {
@@ -403,9 +413,20 @@ export default function TrafficFines() {
           <h1 className="text-2xl font-bold">과태료 현황</h1>
           <p className="text-sm text-muted-foreground mt-1">교통 과태료 PDF 업로드 시 자동 분석 · 등록</p>
         </div>
-        <Button onClick={openNew} data-testid="button-new-fine">
-          <Plus className="h-4 w-4 mr-1" /> 직접 등록
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-xs h-8"
+            onClick={() => window.open("/api/traffic-fines/excel", "_blank")}
+            data-testid="button-excel-download"
+          >
+            <FileDown className="h-3.5 w-3.5 mr-1" /> 엑셀
+          </Button>
+          <Button onClick={openNew} data-testid="button-new-fine">
+            <Plus className="h-4 w-4 mr-1" /> 직접 등록
+          </Button>
+        </div>
       </div>
 
       {/* 통계 카드 */}

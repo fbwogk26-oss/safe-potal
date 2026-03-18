@@ -2342,6 +2342,130 @@ export async function registerRoutes(
     }
   });
 
+  // === VEHICLES API ===
+  app.get('/api/vehicles', isAuthenticated, async (req: any, res) => {
+    try {
+      const list = await storage.getVehicles();
+      res.json(list);
+    } catch (error) {
+      res.status(500).json({ message: "차량 목록 조회에 실패했습니다" });
+    }
+  });
+
+  app.post('/api/vehicles', requireEditor, async (req: any, res) => {
+    try {
+      const input = api.vehicles.create.input.parse(req.body);
+      const [created] = await (await import('./db')).db.insert((await import('@shared/schema')).vehicles).values({ ...input, createdBy: req.user?.username }).returning();
+      res.status(201).json(created);
+    } catch (error) {
+      res.status(500).json({ message: "차량 등록에 실패했습니다" });
+    }
+  });
+
+  app.put('/api/vehicles/:id', requireEditor, async (req: any, res) => {
+    try {
+      const { db } = await import('./db');
+      const { vehicles, eq } = await import('@shared/schema').then(async m => ({ vehicles: m.vehicles, eq: (await import('drizzle-orm')).eq }));
+      const [updated] = await db.update(vehicles).set(req.body).where(eq(vehicles.id, Number(req.params.id))).returning();
+      if (!updated) return res.status(404).json({ message: "Not found" });
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ message: "차량 수정에 실패했습니다" });
+    }
+  });
+
+  app.delete('/api/vehicles/:id', requireEditor, async (req: any, res) => {
+    try {
+      const { db } = await import('./db');
+      const { vehicles, eq } = await import('@shared/schema').then(async m => ({ vehicles: m.vehicles, eq: (await import('drizzle-orm')).eq }));
+      await db.delete(vehicles).where(eq(vehicles.id, Number(req.params.id)));
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "차량 삭제에 실패했습니다" });
+    }
+  });
+
+  // 과태료 엑셀 다운로드
+  app.get('/api/traffic-fines/excel', isAuthenticated, async (req: any, res) => {
+    try {
+      const fines = await storage.getTrafficFines();
+      const workbook = new ExcelJS.Workbook();
+      const ws = workbook.addWorksheet('교통 과태료 현황');
+
+      ws.columns = [
+        { header: 'No', key: 'no', width: 5 },
+        { header: '위반일시', key: 'violationDate', width: 18 },
+        { header: '차량번호', key: 'licensePlate', width: 13 },
+        { header: '차종', key: 'vehicleType', width: 10 },
+        { header: '소속', key: 'department', width: 14 },
+        { header: '운전자', key: 'driver', width: 10 },
+        { header: '위반내역', key: 'violationType', width: 16 },
+        { header: '적발장소', key: 'violationLocation', width: 30 },
+        { header: '과태료(원)', key: 'amount', width: 12 },
+        { header: '납부처', key: 'paymentDestination', width: 14 },
+        { header: '납부요청일', key: 'requestDate', width: 13 },
+        { header: '납부상태', key: 'paymentStatus', width: 10 },
+        { header: '납부일', key: 'paidAt', width: 13 },
+        { header: '등록자', key: 'createdBy', width: 10 },
+      ];
+
+      ws.getRow(1).font = { bold: true };
+      ws.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9E1F2' } };
+      ws.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
+
+      fines.forEach((f, i) => {
+        ws.addRow({
+          no: i + 1,
+          violationDate: f.violationDate || '',
+          licensePlate: f.licensePlate || '',
+          vehicleType: f.vehicleType || '',
+          department: f.department || '',
+          driver: f.driver || '',
+          violationType: f.violationType || '',
+          violationLocation: f.violationLocation || '',
+          amount: f.amount || 0,
+          paymentDestination: f.paymentDestination || '',
+          requestDate: f.requestDate || '',
+          paymentStatus: f.paymentStatus || '미납',
+          paidAt: f.paidAt || '',
+          createdBy: f.createdBy || '',
+        });
+      });
+
+      ws.eachRow((row, rowNum) => {
+        if (rowNum > 1) row.alignment = { vertical: 'middle' };
+        row.eachCell(cell => {
+          cell.border = {
+            top: { style: 'thin' }, left: { style: 'thin' },
+            bottom: { style: 'thin' }, right: { style: 'thin' }
+          };
+        });
+      });
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent('교통과태료현황')}_${new Date().toISOString().slice(0,10)}.xlsx`);
+      await workbook.xlsx.write(res);
+      res.end();
+    } catch (error) {
+      console.error("과태료 엑셀 오류:", error);
+      res.status(500).json({ message: "엑셀 다운로드에 실패했습니다" });
+    }
+  });
+
+  // 납부상태 전용 PATCH (소유권 무관, 인증만 필요)
+  app.patch('/api/traffic-fines/:id/payment-status', isAuthenticated, async (req: any, res) => {
+    try {
+      const id = Number(req.params.id);
+      const { paymentStatus, paidAt } = req.body;
+      const existing = await storage.getTrafficFine(id);
+      if (!existing) return res.status(404).json({ message: "Not found" });
+      const updated = await storage.updateTrafficFine(id, { paymentStatus, paidAt: paidAt || null });
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ message: "납부상태 변경에 실패했습니다" });
+    }
+  });
+
   app.get('/api/traffic-fines', isAuthenticated, async (req: any, res) => {
     try {
       const fines = await storage.getTrafficFines();
