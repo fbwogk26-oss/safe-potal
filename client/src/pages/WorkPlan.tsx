@@ -73,9 +73,9 @@ function buildEmailDraft(rows: Record<string, string>[], title: string): string 
     "공사작업번호",
     "부/팀",
     "작업자",
+    "공사내용",
     "공사/작업시작일",
     "공사/작업종료일",
-    "국사명",
     "주소",
     "순회점검대상자",
   ];
@@ -83,7 +83,11 @@ function buildEmailDraft(rows: Record<string, string>[], title: string): string 
   // 탭 구분 텍스트 표 (선 없음, 붙여넣기 친화적)
   const hdrLine = emailCols.join("\t");
   const dataLines = rows.map(row =>
-    emailCols.map(col => row[col] || "").join("\t")
+    emailCols.map(col => {
+      // 공사내용이 없으면 공사명으로 폴백
+      if (col === "공사내용" && !row[col]) return row["공사명"] || "";
+      return row[col] || "";
+    }).join("\t")
   );
 
   const tableText = [hdrLine, ...dataLines].join("\n");
@@ -368,7 +372,7 @@ export default function WorkPlan() {
                         <table className="text-[11px] w-full">
                           <thead>
                             <tr className="border-b">
-                              {["공사작업번호", "부/팀", "작업자", "시작일", "종료일", "국사명", "주소", "순회점검대상자"].map(h => (
+                              {["공사작업번호", "부/팀", "작업자", "공사내용", "시작일", "종료일", "주소", "순회점검대상자"].map(h => (
                                 <th key={h} className="text-left py-1 pr-3 font-semibold text-muted-foreground whitespace-nowrap">{h}</th>
                               ))}
                             </tr>
@@ -379,9 +383,9 @@ export default function WorkPlan() {
                                 <td className="py-1 pr-3 font-mono text-[10px] whitespace-nowrap text-blue-700">{row["공사작업번호"] || "-"}</td>
                                 <td className="py-1 pr-3 whitespace-nowrap">{row["부/팀"] || "-"}</td>
                                 <td className="py-1 pr-3 whitespace-nowrap">{row["작업자"] || "-"}</td>
+                                <td className="py-1 pr-3 max-w-[180px] truncate">{row["공사내용"] || row["공사명"] || "-"}</td>
                                 <td className="py-1 pr-3 whitespace-nowrap text-[10px]">{row["공사/작업시작일"] || "-"}</td>
                                 <td className="py-1 pr-3 whitespace-nowrap text-[10px]">{row["공사/작업종료일"] || "-"}</td>
-                                <td className="py-1 pr-3 max-w-[120px] truncate">{row["국사명"] || "-"}</td>
                                 <td className="py-1 pr-3 max-w-[150px] truncate">{row["주소"] || "-"}</td>
                                 <td className="py-1 whitespace-nowrap">{row["순회점검대상자"] || "-"}</td>
                               </tr>
