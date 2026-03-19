@@ -373,7 +373,31 @@ export default function HomePage() {
   const recentAccidents = Array.isArray(accidents) ? accidents.slice(0, 7) : [];
   const recentFines = Array.isArray(trafficFines) ? trafficFines.slice(0, 7) : [];
   const recentEduSessions = Array.isArray(eduSessions) ? eduSessions.slice(0, 7) : [];
-  const recentRequests = Array.isArray(equipmentRequests) ? equipmentRequests.slice(0, 7) : [];
+  const recentEquipNotices = Array.isArray(notices)
+    ? notices.filter((n: any) => n.category === "equipment")
+    : [];
+  const recentRequests = [
+    ...recentEquipNotices.map((n: any) => ({
+      _type: "notice" as const,
+      key: `notice-${n.id}`,
+      href: "/equipment",
+      title: n.title,
+      createdAt: n.createdAt,
+      urgency: null as string | null,
+      status: null as string | null,
+    })),
+    ...(Array.isArray(equipmentRequests) ? equipmentRequests : []).map((r: any) => ({
+      _type: "request" as const,
+      key: `req-${r.id}`,
+      href: "/equipment",
+      title: r.itemName,
+      createdAt: r.createdAt,
+      urgency: r.urgency as string | null,
+      status: r.status as string | null,
+    })),
+  ]
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 7);
   const sortedTeams = [...teamList].sort((a, b) => b.totalScore - a.totalScore);
 
   return (
@@ -538,10 +562,14 @@ export default function HomePage() {
                     } else if (activeTab === "용품 신청") {
                       emptyMsg = "등록된 용품 신청이 없습니다.";
                       items = recentRequests.map(r => ({
-                        key: r.id, href: "/equipment",
-                        badge: <Badge variant="outline" className={cn("text-[10px] shrink-0 px-1.5 py-0 whitespace-nowrap", r.urgency === "긴급" ? "border-red-400 text-red-600" : r.urgency === "높음" ? "border-orange-400 text-orange-600" : "border-slate-400 text-slate-600")}>{r.urgency || "보통"}</Badge>,
-                        main: <span className="flex-1 text-xs font-medium min-w-0 truncate group-hover:text-primary transition-colors">{r.itemName}</span>,
-                        sub: <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0 whitespace-nowrap">{r.status}</Badge>,
+                        key: r.key, href: r.href,
+                        badge: r._type === "notice"
+                          ? <Badge variant="outline" className="text-[10px] shrink-0 px-1.5 py-0 whitespace-nowrap border-green-400 text-green-600">용품신청</Badge>
+                          : <Badge variant="outline" className={cn("text-[10px] shrink-0 px-1.5 py-0 whitespace-nowrap", r.urgency === "긴급" ? "border-red-400 text-red-600" : r.urgency === "높음" ? "border-orange-400 text-orange-600" : "border-slate-400 text-slate-600")}>{r.urgency || "신규요청"}</Badge>,
+                        main: <span className="flex-1 text-xs font-medium min-w-0 truncate group-hover:text-primary transition-colors">{r.title}</span>,
+                        sub: r._type === "request" && r.status
+                          ? <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0 whitespace-nowrap">{r.status}</Badge>
+                          : <span className="text-[10px] text-muted-foreground shrink-0 whitespace-nowrap">{format(new Date(r.createdAt), "yy.MM.dd")}</span>,
                       }));
                     } else if (activeTab === "출입신청") {
                       emptyMsg = "등록된 출입신청이 없습니다.";
