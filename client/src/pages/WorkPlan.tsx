@@ -35,39 +35,26 @@ interface UploadResult {
 }
 
 // MOSS 붙여넣기 데이터 파싱
-// 형식: 첫 줄 = 탭 구분 헤더, 이후 각 레코드는 헤더 수만큼 줄이 세로로 나열
+// 형식: 첫 줄 = 탭 구분 헤더, 이후 각 줄 = 한 레코드 (탭 구분 TSV)
 function parseMossData(text: string): { headers: string[]; rows: Record<string, string>[] } {
-  const lines = text.split(/\r?\n/);
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
   if (lines.length < 2) return { headers: [], rows: [] };
 
-  // 첫 줄이 탭 구분 헤더인지 확인
-  const firstLine = lines[0];
-  const headers = firstLine.split("\t").map(h => h.trim()).filter(h => h);
+  // 첫 줄 = 헤더 (탭 구분)
+  const headers = lines[0].split("\t").map(h => h.trim());
   if (headers.length < 2) return { headers: [], rows: [] };
 
-  const numCols = headers.length;
-  const dataLines = lines.slice(1).map(l => l.trimEnd()); // 헤더 이후
-
   const rows: Record<string, string>[] = [];
-  let i = 0;
-  while (i < dataLines.length) {
-    // 완전히 빈 줄 블록 건너뜀
-    if (!dataLines[i] && (i === 0 || !dataLines[i - 1])) { i++; continue; }
-
-    // numCols 줄씩 한 레코드
-    const chunk = dataLines.slice(i, i + numCols);
-    if (chunk.length < numCols) break;
-
+  for (let i = 1; i < lines.length; i++) {
+    const cells = lines[i].split("\t").map(c => c.trim());
     const record: Record<string, string> = {};
     headers.forEach((h, ci) => {
-      record[h] = (chunk[ci] || "").trim();
+      record[h] = cells[ci] || "";
     });
-
-    // 공사작업번호가 있는 레코드만 포함
+    // 공사작업번호가 있는 행만 포함
     if (record["공사작업번호"]) {
       rows.push(record);
     }
-    i += numCols;
   }
 
   return { headers, rows };
@@ -84,9 +71,9 @@ function buildEmailDraft(rows: Record<string, string>[], title: string): string 
     "공사작업번호",
     "부/팀",
     "작업자",
-    "공사내용",
     "공사/작업시작일",
     "공사/작업종료일",
+    "국사명",
     "주소",
     "순회점검대상자",
   ];
@@ -397,7 +384,7 @@ export default function WorkPlan() {
                         <table className="text-[11px] w-full">
                           <thead>
                             <tr className="border-b">
-                              {["공사작업번호", "부/팀", "작업자", "공사내용", "시작일", "종료일", "순회점검대상자"].map(h => (
+                              {["공사작업번호", "부/팀", "작업자", "시작일", "종료일", "국사명", "주소", "순회점검대상자"].map(h => (
                                 <th key={h} className="text-left py-1 pr-3 font-semibold text-muted-foreground whitespace-nowrap">{h}</th>
                               ))}
                             </tr>
@@ -408,9 +395,10 @@ export default function WorkPlan() {
                                 <td className="py-1 pr-3 font-mono text-[10px] whitespace-nowrap text-blue-700">{row["공사작업번호"] || "-"}</td>
                                 <td className="py-1 pr-3 whitespace-nowrap">{row["부/팀"] || "-"}</td>
                                 <td className="py-1 pr-3 whitespace-nowrap">{row["작업자"] || "-"}</td>
-                                <td className="py-1 pr-3 max-w-[200px] truncate">{row["공사내용"] || "-"}</td>
                                 <td className="py-1 pr-3 whitespace-nowrap text-[10px]">{row["공사/작업시작일"] || "-"}</td>
                                 <td className="py-1 pr-3 whitespace-nowrap text-[10px]">{row["공사/작업종료일"] || "-"}</td>
+                                <td className="py-1 pr-3 max-w-[120px] truncate">{row["국사명"] || "-"}</td>
+                                <td className="py-1 pr-3 max-w-[150px] truncate">{row["주소"] || "-"}</td>
                                 <td className="py-1 whitespace-nowrap">{row["순회점검대상자"] || "-"}</td>
                               </tr>
                             ))}
