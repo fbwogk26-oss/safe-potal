@@ -42,32 +42,53 @@ function normalizeKey(s: string): string {
 }
 
 // MOSS 붙여넣기 데이터 파싱
+// MOSS 복사 형식: 헤더는 탭 구분, 데이터는 "셀값 한 줄 + 빈 줄 구분자" 형식
+// 예) col0_value \n (빈줄) \n col1_value \n (빈줄) \n ... → 컬럼N개 × 2줄 = 레코드 1개
 function parseMossData(text: string): { headers: string[]; rows: Record<string, string>[] } {
-  const lines = text.split(/\r?\n/).filter(l => l.trim());
-  if (lines.length < 2) return { headers: [], rows: [] };
+  // 빈 줄 포함 전체 분리 (filter 금지 — 빈 줄이 컬럼 구분자)
+  const allLines = text.split(/\r?\n/);
+  if (allLines.length < 2) return { headers: [], rows: [] };
 
-  const rawHeaders = lines[0].split("\t");
-  const headers = rawHeaders.map(h => normalizeKey(h));
+  // 첫 줄: 탭 구분 헤더
+  const headers = allLines[0].split("\t").map(h => normalizeKey(h)).filter(h => h !== "");
   if (headers.length < 2) return { headers: [], rows: [] };
 
-  // 순회점검대상자 컬럼 인덱스를 유연하게 찾기 (포함 여부로 탐색)
-  const inspectorColIdx = headers.findIndex(h => h.includes("순회점검대상자") || h.includes("순회") && h.includes("대상자"));
+  const dataLines = allLines.slice(1);
+
+  // 형식 감지: 첫 번째 비어있지 않은 데이터 줄에 탭이 있으면 탭 구분 형식
+  const firstNonEmpty = dataLines.find(l => l.trim() !== "") || "";
+  const isTabFormat = firstNonEmpty.includes("\t");
 
   const rows: Record<string, string>[] = [];
-  for (let i = 1; i < lines.length; i++) {
-    const cells = lines[i].split("\t").map(c => normalizeKey(c));
-    const record: Record<string, string> = {};
-    headers.forEach((h, ci) => {
-      record[h] = cells[ci] || "";
-    });
-    // 인덱스 기반으로 직접 매핑 (키 불일치 방지)
-    if (inspectorColIdx >= 0 && cells[inspectorColIdx]) {
-      record["순회점검대상자"] = cells[inspectorColIdx];
+
+  if (isTabFormat) {
+    // 탭 구분 형식 (구형): 각 줄 = 레코드 1개
+    for (const line of dataLines) {
+      if (!line.trim()) continue;
+      const cells = line.split("\t").map(c => normalizeKey(c));
+      const record: Record<string, string> = {};
+      headers.forEach((h, ci) => { record[h] = cells[ci] || ""; });
+      if (headers.some(h => h.includes("공사작업번호") && record[h])) rows.push(record);
     }
-    // 공사작업번호가 있는 행만 포함 (키 변형 대비 includes 탐색)
-    const hasJobNum = Object.entries(record).some(([k, v]) => k.includes("공사작업번호") && v);
-    if (hasJobNum) {
-      rows.push(record);
+  } else {
+    // 세로 형식 (MOSS 신형): col k 값 = dataLines[recordStart + k*2]
+    // 레코드당 줄 수 = headers.length * 2
+    const numCols = headers.length;
+    const linesPerRecord = numCols * 2;
+    let pos = 0;
+
+    while (pos < dataLines.length) {
+      // 레코드 시작 전 불필요한 빈 줄 건너뜀
+      if (!dataLines[pos]?.trim()) { pos++; continue; }
+      // 남은 줄이 부족하면 종료
+      if (pos + linesPerRecord > dataLines.length) break;
+
+      const record: Record<string, string> = {};
+      for (let col = 0; col < numCols; col++) {
+        record[headers[col]] = normalizeKey(dataLines[pos + col * 2] || "");
+      }
+      if (headers.some(h => h.includes("공사작업번호") && record[h])) rows.push(record);
+      pos += linesPerRecord;
     }
   }
 
@@ -680,7 +701,7 @@ export default function WorkPlan() {
 
       {/* 순회점검대상자 입력 다이얼로그 */}
       <Dialog open={inspectorDialogOpen} onOpenChange={setInspectorDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col">
+        <DialogContent className="max-w-6xl max-h-[85vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <ClipboardPaste className="w-4 h-4 text-blue-600" />순회점검대상자 입력
@@ -695,12 +716,11 @@ export default function WorkPlan() {
                 <thead>
                   <tr className="bg-muted/50">
                     <th className="text-left py-2 px-3 font-semibold text-muted-foreground whitespace-nowrap border border-border">#</th>
-                    {["공사작업번호", "부/팀", "작업자", "공사내용", "시작일", "종료일"].map(h => (
+                    {["공사작업번호", "부/팀", "작업자", "공사내용", "공사/작업시작일", "공사/작업종료일", "주소"].map(h => (
                       <th key={h} className="text-left py-2 px-3 font-semibold text-muted-foreground whitespace-nowrap border border-border">{h}</th>
                     ))}
                     <th className="text-left py-2 px-3 font-semibold whitespace-nowrap border border-border">
                       <span className="text-blue-600">순회점검대상자</span>
-                      <span className="ml-1 text-[10px] font-normal text-blue-400">※ 작업자 자동 입력</span>
                     </th>
                   </tr>
                 </thead>
@@ -711,9 +731,10 @@ export default function WorkPlan() {
                       <td className="py-1.5 px-3 font-mono text-[11px] whitespace-nowrap text-blue-700 border border-border">{row["공사작업번호"] || "-"}</td>
                       <td className="py-1.5 px-3 whitespace-nowrap border border-border">{row["부/팀"] || "-"}</td>
                       <td className="py-1.5 px-3 whitespace-nowrap border border-border">{row["작업자"] || "-"}</td>
-                      <td className="py-1.5 px-3 max-w-[200px] truncate border border-border">{row["공사내용"] || row["공사명"] || "-"}</td>
+                      <td className="py-1.5 px-3 max-w-[180px] truncate border border-border">{row["공사내용"] || row["공사명"] || "-"}</td>
                       <td className="py-1.5 px-3 whitespace-nowrap text-[11px] border border-border">{row["공사/작업시작일"] || "-"}</td>
                       <td className="py-1.5 px-3 whitespace-nowrap text-[11px] border border-border">{row["공사/작업종료일"] || "-"}</td>
+                      <td className="py-1.5 px-3 max-w-[160px] truncate text-[11px] border border-border">{row["주소"] || "-"}</td>
                       <td className="py-1.5 px-3 border border-border">
                         <input
                           type="text"
