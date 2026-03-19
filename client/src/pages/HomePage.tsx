@@ -362,7 +362,10 @@ export default function HomePage() {
   const pendingRisks = Array.isArray(riskAssessments)
     ? riskAssessments.filter(r => r.approvalStatus === "승인대기")
     : [];
-  const recentNotices = Array.isArray(notices) ? notices.slice(0, 7) : [];
+  const NOTICE_TAB_CATEGORIES = ["notice", "safe_message", "rule", "education", "equipment", "access"];
+  const recentNotices = Array.isArray(notices)
+    ? notices.filter((n: any) => NOTICE_TAB_CATEGORIES.includes(n.category)).slice(0, 7)
+    : [];
   const recentAccidents = Array.isArray(accidents) ? accidents.slice(0, 7) : [];
   const recentFines = Array.isArray(trafficFines) ? trafficFines.slice(0, 7) : [];
   const recentEduSessions = Array.isArray(eduSessions) ? eduSessions.slice(0, 7) : [];
