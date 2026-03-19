@@ -41,6 +41,7 @@ Preferred communication style: Simple, everyday language.
   - `new_equipment_requests`: New safety equipment product requests with name, reason, specs, priority, status
   - `musculoskeletal_assessments`: 근골격계질환 유해요인조사 (department, task, hazardFactor, riskLevel, currentMeasures, improvementPlan, assessmentDate, assessor, status)
   - `traffic_fines`: 교통 과태료 현황 (violationDate, department, licensePlate, violationType, amount, violationLocation, issuedAt, dueDate, paymentStatus 미납/납부완료, paidAt, note, pdfUrl, createdBy)
+  - `work_plans`: 하도급관리 작업계획 (title, originalFileName, originalFileUrl, processedFileUrl, emailDraft, sheetSummary, createdBy, createdAt) — 엑셀 업로드 시 ExcelJS로 자동 포맷팅(테두리/색채우기/헤더스타일) + 이메일 초안 자동 생성
 
 ### Key Design Patterns
 - **Shared Types**: Schema and route definitions in /shared directory enable type safety across client and server

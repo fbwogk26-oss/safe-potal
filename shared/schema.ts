@@ -382,6 +382,22 @@ export const insertTrafficFineSchema = createInsertSchema(trafficFines).omit({ i
 export type TrafficFine = typeof trafficFines.$inferSelect;
 export type InsertTrafficFine = z.infer<typeof insertTrafficFineSchema>;
 
+export const workPlans = pgTable("work_plans", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  originalFileName: text("original_file_name"),
+  originalFileUrl: text("original_file_url"),
+  processedFileUrl: text("processed_file_url"),
+  emailDraft: text("email_draft"),
+  sheetSummary: text("sheet_summary"),
+  createdBy: text("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertWorkPlanSchema = createInsertSchema(workPlans).omit({ id: true, createdAt: true });
+export type WorkPlan = typeof workPlans.$inferSelect;
+export type InsertWorkPlan = z.infer<typeof insertWorkPlanSchema>;
+
 // Export auth schema
 export * from "./models/auth";
 

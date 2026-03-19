@@ -2871,6 +2871,143 @@ export async function registerRoutes(
     }
   });
 
+  // ===== 하도급관리 - 작업계획 =====
+  const workPlanUpload = multer({
+    storage: multer.diskStorage({
+      destination: (req, file, cb) => cb(null, path.join(process.cwd(), "uploads")),
+      filename: (req, file, cb) => {
+        const ext = path.extname(file.originalname);
+        cb(null, `workplan_${Date.now()}${ext}`);
+      },
+    }),
+    limits: { fileSize: 50 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+      if (file.mimetype.includes("spreadsheet") || file.originalname.match(/\.(xlsx|xls)$/i)) cb(null, true);
+      else cb(new Error("엑셀 파일만 업로드 가능합니다") as any, false);
+    },
+  });
+
+  app.get('/api/work-plans', isAuthenticated, async (req: any, res) => {
+    try {
+      const plans = await storage.getWorkPlans();
+      res.json(plans);
+    } catch (error) {
+      res.status(500).json({ message: "조회에 실패했습니다" });
+    }
+  });
+
+  app.post('/api/work-plans/upload', isAuthenticated, workPlanUpload.single("file"), async (req: any, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: "파일이 없습니다" });
+
+      const originalUrl = `/uploads/${req.file.filename}`;
+      const processedFilename = `workplan_processed_${Date.now()}.xlsx`;
+      const processedPath = path.join(process.cwd(), "uploads", processedFilename);
+
+      // 원본 엑셀 읽기
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.readFile(req.file.path);
+
+      const sheet = workbook.worksheets[0];
+      if (!sheet) return res.status(400).json({ message: "시트를 찾을 수 없습니다" });
+
+      // 데이터 추출 (이메일 초안용)
+      const tableRows: string[][] = [];
+      sheet.eachRow((row, rowNumber) => {
+        const cells: string[] = [];
+        row.eachCell({ includeEmpty: true }, (cell) => {
+          cells.push(cell.value != null ? String(cell.value) : "");
+        });
+        tableRows.push(cells);
+      });
+
+      const headerRow = tableRows[0] || [];
+      const dataRows = tableRows.slice(1);
+
+      // ===== 포맷팅 적용 =====
+      const headerFill: ExcelJS.Fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E3A5F" } };
+      const evenFill: ExcelJS.Fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE8F0FB" } };
+      const oddFill: ExcelJS.Fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFFFFF" } };
+      const thinBorder: ExcelJS.Border = { style: "thin", color: { argb: "FFB0BEC5" } };
+      const borderAll = { top: thinBorder, left: thinBorder, bottom: thinBorder, right: thinBorder };
+
+      let maxCols = 0;
+      sheet.eachRow((row) => { if (row.cellCount > maxCols) maxCols = row.cellCount; });
+
+      sheet.eachRow((row, rowIdx) => {
+        const isHeader = rowIdx === 1;
+        row.eachCell({ includeEmpty: true }, (cell) => {
+          cell.fill = isHeader ? headerFill : (rowIdx % 2 === 0 ? evenFill : oddFill);
+          (cell as any).border = borderAll;
+          if (isHeader) {
+            cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 11 };
+          } else {
+            cell.font = { size: 10 };
+          }
+          cell.alignment = { vertical: "middle", wrapText: true };
+        });
+        row.height = isHeader ? 22 : 18;
+      });
+
+      // 열 너비 자동 조정
+      for (let c = 1; c <= maxCols; c++) {
+        const col = sheet.getColumn(c);
+        let maxLen = 10;
+        col.eachCell({ includeEmpty: false }, (cell) => {
+          const val = cell.value != null ? String(cell.value) : "";
+          if (val.length > maxLen) maxLen = Math.min(val.length, 40);
+        });
+        col.width = maxLen + 2;
+      }
+
+      await workbook.xlsx.writeFile(processedPath);
+
+      // ===== 이메일 초안 생성 =====
+      const today = new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" });
+      const sheetTitle = sheet.name || "작업계획";
+      const totalRows = dataRows.length;
+
+      let tableText = "";
+      if (headerRow.length > 0) {
+        tableText += `  [${headerRow.join(" | ")}]\n`;
+        dataRows.slice(0, 10).forEach((row, i) => {
+          tableText += `  ${i + 1}. ${row.join(" | ")}\n`;
+        });
+        if (dataRows.length > 10) tableText += `  ... 외 ${dataRows.length - 10}건\n`;
+      }
+
+      const emailDraft = `수신: 관계자 귀중\n발신: 안전관리팀\n일자: ${today}\n제목: [작업계획] ${sheetTitle}\n\n안녕하세요.\n\n아래와 같이 작업계획을 공유드립니다.\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n■ 작업계획 내용 (총 ${totalRows}건)\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n${tableText}\n작업 전 안전 수칙 준수 및 보호구 착용을 반드시 확인하시기 바랍니다.\n\n감사합니다.\n안전관리팀 드림`;
+
+      const sheetSummary = `시트: ${sheetTitle} | 총 ${totalRows}건 | 항목: ${headerRow.join(", ")}`;
+
+      const title = req.body.title || `작업계획_${new Date().toISOString().slice(0, 10)}`;
+      const plan = await storage.createWorkPlan({
+        title,
+        originalFileName: req.file.originalname,
+        originalFileUrl: originalUrl,
+        processedFileUrl: `/uploads/${processedFilename}`,
+        emailDraft,
+        sheetSummary,
+        createdBy: req.user?.username,
+      });
+
+      res.json({ plan, emailDraft, processedFileUrl: `/uploads/${processedFilename}` });
+    } catch (error: any) {
+      console.error("[WorkPlan upload error]", error);
+      res.status(500).json({ message: error?.message || "업로드에 실패했습니다" });
+    }
+  });
+
+  app.delete('/api/work-plans/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteWorkPlan(id);
+      res.json({ message: "삭제되었습니다" });
+    } catch (error) {
+      res.status(500).json({ message: "삭제에 실패했습니다" });
+    }
+  });
+
   // 서버 시작 시 PM10 API 연결 테스트 (비동기, 블로킹 없음)
   setTimeout(() => {
     fetchWeather("대구").then(w => {

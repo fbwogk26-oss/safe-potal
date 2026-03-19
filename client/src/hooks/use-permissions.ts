@@ -58,6 +58,8 @@ export interface Permissions {
   canViewVehicle: boolean;
   canViewVehicleLogs: boolean;
   canViewAccess: boolean;
+  canViewSubcontract: boolean;
+  canEditSubcontract: boolean;
 }
 
 interface PermissionsResponse {
@@ -131,6 +133,8 @@ export function usePermissions(): Permissions & { isLoading: boolean } {
     canViewVehicle: isAdmin || !!perms?.viewVehicle,
     canViewVehicleLogs: isAdmin || !!perms?.viewVehicleLogs,
     canViewAccess: isAdmin || !!perms?.viewAccess,
+    canViewSubcontract: isAdmin || !!perms?.viewSubcontract,
+    canEditSubcontract: isAdmin || !!perms?.editSubcontract,
   };
 }
 
@@ -184,6 +188,8 @@ export const PERMISSION_LABELS: Record<keyof UserPermissions, string> = {
   viewVehicle: "차량관리",
   viewVehicleLogs: "차량운행일지",
   viewAccess: "출입신청",
+  viewSubcontract: "하도급관리",
+  editSubcontract: "하도급 작업계획 편집",
 };
 
 export const PERMISSION_CATEGORIES: { label: string; keys: (keyof UserPermissions)[] }[] = [
@@ -194,6 +200,7 @@ export const PERMISSION_CATEGORIES: { label: string; keys: (keyof UserPermission
       "viewAccidents", "viewEquipmentStatus", "viewEquipment", "viewEducation",
       "viewEducationLogs", "viewInspections", "viewRiskAssessment", "viewMsds",
       "viewMusculoskeletal", "viewVehicle", "viewVehicleLogs", "viewAccess",
+      "viewSubcontract",
     ],
   },
   {
@@ -203,7 +210,7 @@ export const PERMISSION_CATEGORIES: { label: string; keys: (keyof UserPermission
       "registerRules", "editAccidents", "editEquipmentStatus", "manageEquipmentRequests",
       "addEquipmentMaterials", "registerEducation", "editEducationLogs", "editInspections",
       "editRiskAssessment", "editMsds", "editMusculoskeletal", "editVehicles",
-      "editVehicleLogs", "manageAccessRequests",
+      "editVehicleLogs", "manageAccessRequests", "editSubcontract",
     ],
   },
   {

@@ -25,6 +25,7 @@ import AccidentReports from "@/pages/AccidentReports";
 import MusculoskeletalDisease from "@/pages/MusculoskeletalDisease";
 import NewEquipmentRequest from "@/pages/NewEquipmentRequest";
 import TrafficFines from "@/pages/TrafficFines";
+import WorkPlan from "@/pages/WorkPlan";
 import WeatherSafetyMessage from "@/pages/WeatherSafetyMessage";
 import Login from "@/pages/Login";
 import NotFound from "@/pages/NotFound";
@@ -97,6 +98,7 @@ function RouterContent() {
       <Route path="/accidents">{() => <G canAccess={canViewAccidents} component={AccidentReports} />}</Route>
       <Route path="/musculoskeletal">{() => <G canAccess={canViewMusculoskeletal} component={MusculoskeletalDisease} />}</Route>
       <Route path="/traffic-fines">{() => <TrafficFines />}</Route>
+      <Route path="/work-plan">{() => <WorkPlan />}</Route>
       <Route path="/digital-board">{() => <G canAccess={canViewDigitalBoard} component={DigitalBoard} />}</Route>
       <Route path="/admin/users">{() => <G canAccess={canManageUsers} component={AdminUsers} />}</Route>
       <Route path="/admin/security">{() => <G canAccess={canManageUsers} component={SecurityLogs} />}</Route>

@@ -20,6 +20,8 @@ import {
   Bone,
   Home,
   ReceiptText,
+  Briefcase,
+  CalendarCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -88,6 +90,17 @@ const NAV_SECTIONS: NavSection[] = [
         children: [
           { label: "MSDS검색", href: "/msds", icon: FlaskConical, permissionKey: "canViewMsds" },
           { label: "근골격계질환", href: "/musculoskeletal", icon: Bone, permissionKey: "canViewMusculoskeletal" },
+        ],
+      },
+    ],
+  },
+  {
+    entries: [
+      {
+        label: "하도급관리",
+        icon: Briefcase,
+        children: [
+          { label: "작업계획", href: "/work-plan", icon: CalendarCheck, permissionKey: "canViewSubcontract" },
         ],
       },
     ],

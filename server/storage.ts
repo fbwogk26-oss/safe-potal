@@ -18,6 +18,8 @@ import {
   type NewEquipmentRequest, type InsertNewEquipmentRequest,
   type MusculoskeletalAssessment, type InsertMusculoskeletalAssessment,
   type TrafficFine, type InsertTrafficFine,
+  workPlans,
+  type WorkPlan, type InsertWorkPlan,
 } from "@shared/schema";
 import { eq, desc, asc, and, ilike, or } from "drizzle-orm";
 
@@ -113,6 +115,10 @@ export interface IStorage {
   createTrafficFine(data: InsertTrafficFine): Promise<TrafficFine>;
   updateTrafficFine(id: number, data: Partial<InsertTrafficFine>): Promise<TrafficFine>;
   deleteTrafficFine(id: number): Promise<void>;
+  getWorkPlans(): Promise<WorkPlan[]>;
+  getWorkPlan(id: number): Promise<WorkPlan | undefined>;
+  createWorkPlan(data: InsertWorkPlan): Promise<WorkPlan>;
+  deleteWorkPlan(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -437,6 +443,24 @@ export class DatabaseStorage implements IStorage {
 
   async deleteTrafficFine(id: number): Promise<void> {
     await db.delete(trafficFines).where(eq(trafficFines.id, id));
+  }
+
+  async getWorkPlans(): Promise<WorkPlan[]> {
+    return await db.select().from(workPlans).orderBy(desc(workPlans.createdAt));
+  }
+
+  async getWorkPlan(id: number): Promise<WorkPlan | undefined> {
+    const [row] = await db.select().from(workPlans).where(eq(workPlans.id, id));
+    return row;
+  }
+
+  async createWorkPlan(data: InsertWorkPlan): Promise<WorkPlan> {
+    const [created] = await db.insert(workPlans).values(data).returning();
+    return created;
+  }
+
+  async deleteWorkPlan(id: number): Promise<void> {
+    await db.delete(workPlans).where(eq(workPlans.id, id));
   }
 }
 

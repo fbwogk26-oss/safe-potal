@@ -61,6 +61,8 @@ export interface UserPermissions {
   viewVehicle: boolean;
   viewVehicleLogs: boolean;
   viewAccess: boolean;
+  viewSubcontract: boolean;
+  editSubcontract: boolean;
 }
 
 export const DEFAULT_PERMISSIONS: UserPermissions = {
@@ -113,6 +115,8 @@ export const DEFAULT_PERMISSIONS: UserPermissions = {
   viewVehicle: true,
   viewVehicleLogs: true,
   viewAccess: true,
+  viewSubcontract: true,
+  editSubcontract: false,
 };
 
 export const ALL_PERMISSIONS: UserPermissions = {
@@ -165,6 +169,8 @@ export const ALL_PERMISSIONS: UserPermissions = {
   viewVehicle: true,
   viewVehicleLogs: true,
   viewAccess: true,
+  viewSubcontract: true,
+  editSubcontract: true,
 };
 
 export const users = pgTable("users", {
