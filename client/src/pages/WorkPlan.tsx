@@ -133,6 +133,7 @@ export default function WorkPlan() {
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
   const [editedDraft, setEditedDraft] = useState("");
   const [copied, setCopied] = useState(false);
+  const [tableCopied, setTableCopied] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<WorkPlan | null>(null);
   const draftTextareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -268,6 +269,22 @@ export default function WorkPlan() {
     }
   };
 
+  const TABLE_COLS = ["공사작업번호", "부/팀", "작업자", "공사내용", "공사/작업시작일", "공사/작업종료일", "주소", "순회점검대상자"];
+
+  const handleTableCopy = () => {
+    const hdr = TABLE_COLS.join("\t");
+    const rows = parsedRows.map(row =>
+      TABLE_COLS.map(col => {
+        if (col === "공사내용" && !row[col]) return row["공사명"] || "";
+        return row[col] || "";
+      }).join("\t")
+    );
+    navigator.clipboard.writeText([hdr, ...rows].join("\n"));
+    setTableCopied(true);
+    setTimeout(() => setTableCopied(false), 2000);
+    toast({ title: "표 복사 완료", description: "엑셀에 바로 붙여넣기 할 수 있습니다." });
+  };
+
   const handleReset = () => {
     setSelectedFile(null);
     setPastedText("");
@@ -364,10 +381,23 @@ export default function WorkPlan() {
                   {/* 파싱 결과 미리보기 */}
                   {parsedRows.length > 0 && (
                     <div className="rounded-lg border bg-muted/30 p-3">
-                      <p className="text-xs font-semibold text-green-700 mb-2 flex items-center gap-1">
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        {parsedRows.length}건 인식됨
-                      </p>
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs font-semibold text-green-700 flex items-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          {parsedRows.length}건 인식됨
+                        </p>
+                        <Button
+                          size="sm"
+                          variant={tableCopied ? "default" : "outline"}
+                          onClick={handleTableCopy}
+                          data-testid="button-copy-table"
+                          className={`h-6 text-[11px] px-2 ${tableCopied ? "bg-green-600 hover:bg-green-700 text-white" : ""}`}
+                        >
+                          {tableCopied
+                            ? <><Check className="w-3 h-3 mr-1" />복사됨</>
+                            : <><Copy className="w-3 h-3 mr-1" />표 복사</>}
+                        </Button>
+                      </div>
                       <div className="overflow-x-auto">
                         <table className="text-[11px] w-full">
                           <thead>
