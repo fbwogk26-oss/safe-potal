@@ -20,7 +20,7 @@ import { ko } from "date-fns/locale";
 import { useAuth } from "@/hooks/use-auth";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useTeams } from "@/hooks/use-teams";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useMutation } from "@tanstack/react-query";
@@ -372,7 +372,25 @@ export default function HomePage() {
     : [];
   const recentAccidents = Array.isArray(accidents) ? accidents.slice(0, 7) : [];
   const recentFines = Array.isArray(trafficFines) ? trafficFines.slice(0, 7) : [];
-  const recentEduSessions = Array.isArray(eduSessions) ? eduSessions.slice(0, 7) : [];
+  const groupedEduSessions = useMemo(() => {
+    if (!Array.isArray(eduSessions)) return [];
+    const groups: { key: string; title: string; date: string; type: string; deptCount: number; totalParticipants: number; totalSigned: number }[] = [];
+    const map = new Map<string, typeof groups[0]>();
+    for (const s of eduSessions) {
+      const gKey = `${s.title}__${s.educationDate}`;
+      if (!map.has(gKey)) {
+        const g = { key: gKey, title: s.title, date: s.educationDate, type: s.educationType || "정기교육", deptCount: 0, totalParticipants: 0, totalSigned: 0 };
+        map.set(gKey, g);
+        groups.push(g);
+      }
+      const g = map.get(gKey)!;
+      g.deptCount += 1;
+      g.totalParticipants += s.totalParticipants ?? 0;
+      g.totalSigned += s.signatureCount ?? 0;
+    }
+    return groups.slice(0, 7);
+  }, [eduSessions]);
+  const recentEduSessions = groupedEduSessions;
   const recentEquipNotices = Array.isArray(notices)
     ? notices.filter((n: any) => n.category === "equipment")
     : [];
@@ -553,25 +571,24 @@ export default function HomePage() {
                       }));
                     } else if (activeTab === "교육내역") {
                       emptyMsg = "등록된 교육내역이 없습니다.";
-                      items = recentEduSessions.map(s => {
-                        const pct = s.totalParticipants > 0
-                          ? Math.min(100, Math.round((s.signatureCount / s.totalParticipants) * 100))
+                      items = recentEduSessions.map(g => {
+                        const pct = g.totalParticipants > 0
+                          ? Math.min(100, Math.round((g.totalSigned / g.totalParticipants) * 100))
                           : 0;
                         return {
-                          key: s.id, href: "/education-logs",
-                          badge: <Badge variant="outline" className={cn("text-[10px] shrink-0 px-1.5 py-0 whitespace-nowrap", s.status === "완료" ? "border-emerald-400 text-emerald-600" : "border-blue-400 text-blue-600")}>{s.status}</Badge>,
+                          key: g.key, href: "/education-logs",
+                          badge: <Badge variant="outline" className="text-[10px] shrink-0 px-1.5 py-0 whitespace-nowrap border-blue-400 text-blue-600">{g.type}</Badge>,
                           main: (
                             <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-                              <span className="text-xs font-medium truncate group-hover:text-primary transition-colors">{s.title}</span>
-                              <div className="flex items-center gap-1.5">
-                                <div className="flex-1 h-1 rounded-full bg-slate-200 overflow-hidden">
-                                  <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${pct}%` }} />
-                                </div>
-                                <span className="text-[10px] text-muted-foreground shrink-0 whitespace-nowrap">{s.signatureCount}/{s.totalParticipants}명 ({pct}%)</span>
+                              <span className="text-xs font-medium truncate group-hover:text-primary transition-colors">{g.title}</span>
+                              <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                                <span className="shrink-0">{g.date}</span>
+                                <span className="shrink-0">{g.deptCount}개 부서</span>
+                                <span className="shrink-0">{g.totalSigned}/{g.totalParticipants}명</span>
                               </div>
                             </div>
                           ),
-                          sub: null as React.ReactNode,
+                          sub: <span className={cn("text-xs font-semibold shrink-0 whitespace-nowrap", pct === 100 ? "text-emerald-600" : pct > 0 ? "text-blue-600" : "text-red-500")}>{pct}%</span>,
                         };
                       });
                     } else if (activeTab === "용품 신청") {
