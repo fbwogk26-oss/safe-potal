@@ -392,7 +392,7 @@ export default function HomePage() {
   }, [eduSessions]);
   const recentEduSessions = groupedEduSessions;
   const recentEquipNotices = Array.isArray(notices)
-    ? notices.filter((n: any) => n.category === "equipment" || n.category === "equip_request" || n.category === "equipment_update")
+    ? notices.filter((n: any) => n.category === "equipment" || n.category === "equip_request")
     : [];
   const recentRequests = [
     ...recentEquipNotices.map((n: any) => ({

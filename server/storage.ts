@@ -148,11 +148,12 @@ export class DatabaseStorage implements IStorage {
 
   // === NOTICES ===
   async getNotices(category?: string): Promise<Notice[]> {
-    let query = db.select().from(notices);
     if (category) {
-      query.where(eq(notices.category, category));
+      return await db.select().from(notices)
+        .where(eq(notices.category, category))
+        .orderBy(desc(notices.createdAt));
     }
-    return await query.orderBy(desc(notices.createdAt));
+    return await db.select().from(notices).orderBy(desc(notices.createdAt));
   }
 
   async getNotice(id: number): Promise<Notice | undefined> {
