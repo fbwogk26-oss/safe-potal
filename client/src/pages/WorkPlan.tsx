@@ -62,9 +62,11 @@ function parseMossData(text: string): { headers: string[]; rows: Record<string, 
 
 // 이메일 초안 생성 (클라이언트 사이드)
 function buildEmailDraft(rows: Record<string, string>[], title: string): string {
-  const now = new Date();
+  // 내일 날짜 사용
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
   const DAYS = ["일", "월", "화", "수", "목", "금", "토"];
-  const dateStr = `${String(now.getFullYear()).slice(2)}.${String(now.getMonth() + 1).padStart(2, "0")}.${String(now.getDate()).padStart(2, "0")}(${DAYS[now.getDay()]})`;
+  const dateStr = `${String(tomorrow.getFullYear()).slice(2)}.${String(tomorrow.getMonth() + 1).padStart(2, "0")}.${String(tomorrow.getDate()).padStart(2, "0")}(${DAYS[tomorrow.getDay()]})`;
 
   // 필요한 열만 추출 (이메일 표에 표시할 항목)
   const emailCols = [
@@ -78,25 +80,13 @@ function buildEmailDraft(rows: Record<string, string>[], title: string): string 
     "순회점검대상자",
   ];
 
-  // 텍스트 표 생성
-  const colWidths = emailCols.map(col => {
-    let max = col.length;
-    rows.forEach(r => {
-      const v = r[col] || "";
-      if (v.length > max) max = v.length;
-    });
-    return Math.min(max, 30) + 2;
-  });
-
-  const sep = `┼${colWidths.map(w => "─".repeat(w)).join("┼")}┼`;
-  const topLine = `┌${colWidths.map(w => "─".repeat(w)).join("┬")}┐`;
-  const botLine = `└${colWidths.map(w => "─".repeat(w)).join("┴")}┘`;
-  const hdrLine = `│${emailCols.map((h, i) => h.padEnd(colWidths[i])).join("│")}│`;
+  // 탭 구분 텍스트 표 (선 없음, 붙여넣기 친화적)
+  const hdrLine = emailCols.join("\t");
   const dataLines = rows.map(row =>
-    `│${emailCols.map((col, i) => (row[col] || "").padEnd(colWidths[i])).join("│")}│`
+    emailCols.map(col => row[col] || "").join("\t")
   );
 
-  const tableText = [topLine, hdrLine, sep, ...dataLines, botLine].join("\n");
+  const tableText = [hdrLine, ...dataLines].join("\n");
 
   return [
     `안녕하십니까 현장경영팀입니다.`,

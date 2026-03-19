@@ -2995,31 +2995,19 @@ export async function registerRoutes(
       await wb.xlsx.writeFile(processedPath);
 
       // ===== 이메일 초안 생성 (입회작업 요청 포맷) =====
+      // 내일 날짜 사용
       const now = new Date();
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
       const DAYS = ["일", "월", "화", "수", "목", "금", "토"];
-      const dateStr = `${String(now.getFullYear()).slice(2)}.${String(now.getMonth() + 1).padStart(2, "0")}.${String(now.getDate()).padStart(2, "0")}(${DAYS[now.getDay()]})`;
-      const title = req.body.title || `작업계획_${now.toISOString().slice(0, 10)}`;
+      const dateStr = `${String(tomorrow.getFullYear()).slice(2)}.${String(tomorrow.getMonth() + 1).padStart(2, "0")}.${String(tomorrow.getDate()).padStart(2, "0")}(${DAYS[tomorrow.getDay()]})`;
+      const title = req.body.title || `작업계획_${tomorrow.toISOString().slice(0, 10)}`;
       const totalRows = dataRows.length;
 
-      // 텍스트 테이블 생성
-      const colWidths = headerRow.map((h, ci) => {
-        let max = h.length;
-        dataRows.forEach(r => { if ((r[ci] || "").length > max) max = (r[ci] || "").length; });
-        return Math.min(max, 25) + 2;
-      });
-
-      const hLine = colWidths.map(w => "─".repeat(w)).join("┼");
-      const headerLine = headerRow.map((h, ci) => h.padEnd(colWidths[ci])).join("│");
-      const dataLines = dataRows.map((row, ri) =>
-        row.map((cell, ci) => (cell || "").padEnd(colWidths[ci])).join("│")
-      );
-
+      // 탭 구분 텍스트 표 (선 없음, 붙여넣기 친화적)
       const tableText = [
-        `┌${colWidths.map(w => "─".repeat(w)).join("┬")}┐`,
-        `│${headerLine}│`,
-        `├${hLine}┤`,
-        ...dataLines.map(l => `│${l}│`),
-        `└${colWidths.map(w => "─".repeat(w)).join("┴")}┘`,
+        headerRow.join("\t"),
+        ...dataRows.map(row => row.join("\t")),
       ].join("\n");
 
       const emailDraft = [
