@@ -5,7 +5,6 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,7 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   Upload, FileSpreadsheet, Download, Trash2, CalendarCheck,
-  Clock, CheckCircle2, X, Loader2, ClipboardPaste, Send
+  Clock, CheckCircle2, X, Loader2, ClipboardPaste, Copy, Check
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -38,12 +37,10 @@ interface UploadResult {
 }
 
 // MOSS 붙여넣기 데이터 파싱
-// 형식: 첫 줄 = 탭 구분 헤더, 이후 각 줄 = 한 레코드 (탭 구분 TSV)
 function parseMossData(text: string): { headers: string[]; rows: Record<string, string>[] } {
   const lines = text.split(/\r?\n/).filter(l => l.trim());
   if (lines.length < 2) return { headers: [], rows: [] };
 
-  // 첫 줄 = 헤더 (탭 구분)
   const headers = lines[0].split("\t").map(h => h.trim());
   if (headers.length < 2) return { headers: [], rows: [] };
 
@@ -54,7 +51,6 @@ function parseMossData(text: string): { headers: string[]; rows: Record<string, 
     headers.forEach((h, ci) => {
       record[h] = cells[ci] || "";
     });
-    // 공사작업번호가 있는 행만 포함
     if (record["공사작업번호"]) {
       rows.push(record);
     }
@@ -63,15 +59,13 @@ function parseMossData(text: string): { headers: string[]; rows: Record<string, 
   return { headers, rows };
 }
 
-// 이메일 초안 생성 (클라이언트 사이드)
+// 이메일 초안 생성
 function buildEmailDraft(rows: Record<string, string>[], title: string): string {
-  // 내일 날짜 사용
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
   const DAYS = ["일", "월", "화", "수", "목", "금", "토"];
   const dateStr = `${String(tomorrow.getFullYear()).slice(2)}.${String(tomorrow.getMonth() + 1).padStart(2, "0")}.${String(tomorrow.getDate()).padStart(2, "0")}(${DAYS[tomorrow.getDay()]})`;
 
-  // 필요한 열만 추출 (이메일 표에 표시할 항목)
   const emailCols = [
     "공사작업번호",
     "부/팀",
@@ -83,11 +77,9 @@ function buildEmailDraft(rows: Record<string, string>[], title: string): string 
     "순회점검대상자",
   ];
 
-  // 탭 구분 텍스트 표 (선 없음, 붙여넣기 친화적)
   const hdrLine = emailCols.join("\t");
   const dataLines = rows.map(row =>
     emailCols.map(col => {
-      // 공사내용이 없으면 공사명으로 폴백
       if (col === "공사내용" && !row[col]) return row["공사명"] || "";
       return row[col] || "";
     }).join("\t")
@@ -119,32 +111,29 @@ export default function WorkPlan() {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 탭
   const [mode, setMode] = useState<"paste" | "file">("paste");
-
-  // 파일 모드
   const [isDragOver, setIsDragOver] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
-  // 붙여넣기 모드
   const [pastedText, setPastedText] = useState("");
   const [parsedRows, setParsedRows] = useState<Record<string, string>[]>([]);
   const [parseError, setParseError] = useState("");
-  const [inspectorEdits, setInspectorEdits] = useState<Record<number, string>>({}); // 순회점검대상자 편집값
+  const [inspectorEdits, setInspectorEdits] = useState<Record<number, string>>({});
 
-  // 공통
   const [planTitle, setPlanTitle] = useState("");
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<WorkPlan | null>(null);
 
-  // 순회점검대상자 입력 다이얼로그 (데이터 분석 클릭 후 열림)
   const [inspectorDialogOpen, setInspectorDialogOpen] = useState(false);
+
+  // 생성된 초안 및 복사 상태
+  const [generatedDraft, setGeneratedDraft] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const { data: workPlans = [], isLoading } = useQuery<WorkPlan[]>({
     queryKey: ["/api/work-plans"],
   });
 
-  // 파일 업로드 mutation
   const uploadMutation = useMutation({
     mutationFn: async ({ file, title }: { file: File; title: string }) => {
       const formData = new FormData();
@@ -171,7 +160,6 @@ export default function WorkPlan() {
     },
   });
 
-  // 붙여넣기 저장 mutation
   const pasteMutation = useMutation({
     mutationFn: async ({ rows, title, emailDraft }: { rows: Record<string, string>[]; title: string; emailDraft: string }) => {
       const res = await fetch("/api/work-plans/from-paste", {
@@ -186,8 +174,7 @@ export default function WorkPlan() {
       }
       return res.json() as Promise<UploadResult>;
     },
-    onSuccess: (data) => {
-      setUploadResult(data);
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/work-plans"] });
     },
     onError: (err: any) => {
@@ -209,7 +196,6 @@ export default function WorkPlan() {
     },
   });
 
-  // 붙여넣기 파싱 → 순회점검대상자 입력 다이얼로그 열기
   const handleParse = () => {
     setParseError("");
     if (!pastedText.trim()) {
@@ -218,11 +204,11 @@ export default function WorkPlan() {
     }
     const { headers, rows } = parseMossData(pastedText);
     if (rows.length === 0) {
-      setParseError("데이터를 인식할 수 없습니다. MOSS에서 헤더 포함하여 복사하셨는지 확인해주세요.");
+      setParseError("데이터를 인식할 수 없습니다. MOSS에서 헤더 포함하여 전체 복사 후 붙여넣기 확인해주세요.");
       return;
     }
     setParsedRows(rows);
-    setInspectorEdits({}); // 새 데이터 파싱 시 편집값 초기화
+    setInspectorEdits({});
     if (!planTitle) {
       const now = new Date();
       const DAYS = ["일", "월", "화", "수", "목", "금", "토"];
@@ -231,7 +217,6 @@ export default function WorkPlan() {
     setInspectorDialogOpen(true);
   };
 
-  // 순회점검대상자 편집값이 반영된 rows 반환
   const getMergedRows = () =>
     parsedRows.map((row, i) => ({
       ...row,
@@ -255,7 +240,6 @@ export default function WorkPlan() {
     if (file) handleFileSelect(file);
   }, []);
 
-
   const handleReset = () => {
     setSelectedFile(null);
     setPastedText("");
@@ -263,80 +247,37 @@ export default function WorkPlan() {
     setParseError("");
     setInspectorEdits({});
     setUploadResult(null);
+    setGeneratedDraft(null);
+    setCopied(false);
     setPlanTitle("");
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  // editedDraft를 HTML로 변환 (이메일 발송용)
-  const buildHtmlFromDraft = (draft: string) => {
-    const lines = draft.split("\n");
-    const tableStartIdx = lines.findIndex(l => l.startsWith("※"));
-    if (tableStartIdx === -1) {
-      return `<div style="font-family:맑은고딕,sans-serif;font-size:13px">${lines.map(l => l.trim() === "" ? "<br>" : `<p style="margin:2px 0">${l}</p>`).join("")}</div>`;
-    }
-    const bodyHtml = lines.slice(0, tableStartIdx).map(l =>
-      l.trim() === "" ? "<br>" : `<p style="margin:2px 0">${l}</p>`
-    ).join("");
-    const titleLine = lines[tableStartIdx];
-    const tableLines = lines.slice(tableStartIdx + 1).filter(l => l.trim() !== "");
-    let tableHtml = "";
-    if (tableLines.length >= 2) {
-      const thHtml = tableLines[0].split("\t").map(h =>
-        `<th style="border:1px solid #999;padding:4px 8px;background:#f0f0f0;white-space:nowrap;font-size:12px">${h}</th>`
-      ).join("");
-      const tdRows = tableLines.slice(1).map(row =>
-        `<tr>${row.split("\t").map(c => `<td style="border:1px solid #999;padding:4px 8px;font-size:12px;white-space:nowrap">${c}</td>`).join("")}</tr>`
-      ).join("");
-      tableHtml = `<p style="margin:8px 0 4px 0"><strong>${titleLine}</strong></p><table style="border-collapse:collapse"><thead><tr>${thHtml}</tr></thead><tbody>${tdRows}</tbody></table>`;
-    }
-    return `<div style="font-family:맑은고딕,sans-serif;font-size:13px">${bodyHtml}${tableHtml}</div>`;
-  };
-
-  // 이메일 발송 mutation (자동 수신자: fbwogk26@gmail.com)
-  const sendEmailMutation = useMutation({
-    mutationFn: async ({ to, subject, htmlContent, textContent }: { to: string[]; subject: string; htmlContent: string; textContent: string }) => {
-      const res = await fetch("/api/work-plans/send-email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ to, subject, htmlContent, textContent }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ message: "발송 실패" }));
-        throw new Error(err.message);
-      }
-      return res.json();
-    },
-    onSuccess: () => {
-      toast({ title: "발송 완료", description: "fbwogk26@gmail.com으로 이메일이 발송되었습니다." });
-      setInspectorDialogOpen(false);
-    },
-    onError: (err: any) => {
-      toast({ title: "발송 실패", description: err.message, variant: "destructive" });
-    },
-  });
-
-  // 다이얼로그에서 이메일 초안 생성 + fbwogk26@gmail.com으로 자동 발송
-  const handleDialogSend = () => {
+  // 다이얼로그 확인: 초안 생성 후 DB 저장
+  const handleDialogConfirm = () => {
     const title = planTitle || "작업계획";
     const mergedRows = getMergedRows();
     const draft = buildEmailDraft(mergedRows, title);
-
-    // 제목 자동 생성
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const DAYS = ["일", "월", "화", "수", "목", "금", "토"];
-    const dateStr = `${String(tomorrow.getFullYear()).slice(2)}.${String(tomorrow.getMonth() + 1).padStart(2, "0")}.${String(tomorrow.getDate()).padStart(2, "0")}(${DAYS[tomorrow.getDay()]})`;
-    const subject = `[순회점검 등록 요청] ${dateStr} 입회 작업`;
-
-    // DB 저장
     pasteMutation.mutate({ rows: mergedRows, title, emailDraft: draft });
+    setGeneratedDraft(draft);
+    setCopied(false);
+    setInspectorDialogOpen(false);
+  };
 
-    // 이메일 발송
-    sendEmailMutation.mutate({
-      to: ["fbwogk26@gmail.com"],
-      subject,
-      htmlContent: buildHtmlFromDraft(draft),
-      textContent: draft,
+  // 전체 복사
+  const handleCopyAll = () => {
+    const text = generatedDraft || "";
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      toast({ title: "복사 완료", description: "이메일 내용이 클립보드에 복사되었습니다." });
+      setTimeout(() => setCopied(false), 2500);
+    });
+  };
+
+  // 이력에서 초안 복사
+  const handleCopyPlanDraft = (draft: string) => {
+    navigator.clipboard.writeText(draft).then(() => {
+      toast({ title: "복사 완료", description: "클립보드에 복사되었습니다." });
     });
   };
 
@@ -351,17 +292,15 @@ export default function WorkPlan() {
         </div>
         <div>
           <h1 className="text-xl font-bold text-foreground">작업계획</h1>
-          <p className="text-sm text-muted-foreground">MOSS 작업 데이터를 붙여넣거나 파일로 업로드하면 입회작업 TBM / 순회점검 등록요청 이메일 초안이 자동 생성됩니다</p>
+          <p className="text-sm text-muted-foreground">MOSS 작업 데이터를 붙여넣으면 순회점검 등록요청 이메일 내용이 자동 생성됩니다</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         {/* 왼쪽: 입력 + 결과 */}
         <div className="lg:col-span-3 flex flex-col gap-4">
-          {/* 입력 방식 탭 */}
           <Card>
             <CardHeader className="pb-2">
-              {/* 탭 전환 */}
               <div className="flex gap-1 p-1 bg-muted rounded-lg w-fit">
                 <button
                   onClick={() => setMode("paste")}
@@ -389,7 +328,6 @@ export default function WorkPlan() {
             </CardHeader>
 
             <CardContent className="flex flex-col gap-4">
-              {/* 제목 입력 */}
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="plan-title" className="text-sm font-medium">작업계획 제목</Label>
                 <Input
@@ -401,7 +339,7 @@ export default function WorkPlan() {
                 />
               </div>
 
-              {/* === 붙여넣기 모드 === */}
+              {/* 붙여넣기 모드 */}
               {mode === "paste" && (
                 <div className="flex flex-col gap-3">
                   <div className="flex flex-col gap-1.5">
@@ -411,9 +349,9 @@ export default function WorkPlan() {
                     </Label>
                     <Textarea
                       data-testid="textarea-paste-input"
-                      placeholder={"공사작업번호\t합동점검단계\t순회점검단계\t공사상태\t...\n도급-무선기지국-20260318-0057\n\n점검전\n승인완료\n..."}
+                      placeholder={"공사작업번호\t합동점검단계\t...\n도급-무선기지국-20260318-0057\t..."}
                       value={pastedText}
-                      onChange={(e) => { setPastedText(e.target.value); setParsedRows([]); setParseError(""); }}
+                      onChange={(e) => { setPastedText(e.target.value); setParsedRows([]); setParseError(""); setGeneratedDraft(null); }}
                       rows={6}
                       className="font-mono text-xs resize-y"
                     />
@@ -422,12 +360,11 @@ export default function WorkPlan() {
                     )}
                   </div>
 
-                  {/* 파싱 완료 상태 표시 */}
-                  {parsedRows.length > 0 && (
+                  {parsedRows.length > 0 && !generatedDraft && (
                     <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 flex items-center justify-between">
                       <p className="text-xs font-semibold text-green-700 flex items-center gap-1.5">
                         <CheckCircle2 className="w-4 h-4" />
-                        {parsedRows.length}건 인식 완료 — 순회점검대상자를 입력하고 이메일을 발송하세요
+                        {parsedRows.length}건 인식 완료
                       </p>
                       <Button size="sm" variant="outline" className="h-6 text-[11px] px-2 border-green-400 text-green-700 hover:bg-green-100"
                         onClick={() => setInspectorDialogOpen(true)} data-testid="button-reopen-inspector-dialog">
@@ -453,10 +390,10 @@ export default function WorkPlan() {
                         onClick={() => setInspectorDialogOpen(true)}
                         className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
                       >
-                        <Send className="w-4 h-4 mr-2" />순회점검대상자 입력 및 이메일 발송
+                        <ClipboardPaste className="w-4 h-4 mr-2" />순회점검대상자 입력
                       </Button>
                     )}
-                    {(pastedText || parsedRows.length > 0 || uploadResult) && (
+                    {(pastedText || parsedRows.length > 0 || uploadResult || generatedDraft) && (
                       <Button variant="outline" size="icon" onClick={handleReset} data-testid="button-reset">
                         <X className="w-4 h-4" />
                       </Button>
@@ -465,7 +402,7 @@ export default function WorkPlan() {
                 </div>
               )}
 
-              {/* === 파일 업로드 모드 === */}
+              {/* 파일 업로드 모드 */}
               {mode === "file" && (
                 <div className="flex flex-col gap-3">
                   <div
@@ -509,7 +446,7 @@ export default function WorkPlan() {
                       onClick={() => selectedFile && uploadMutation.mutate({ file: selectedFile, title: planTitle })}
                       className="flex-1"
                     >
-                      {isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />처리 중...</> : <><Upload className="w-4 h-4 mr-2" />포맷팅 + 이메일 초안 생성</>}
+                      {isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />처리 중...</> : <><Upload className="w-4 h-4 mr-2" />포맷팅 + 초안 생성</>}
                     </Button>
                     {(selectedFile || uploadResult) && (
                       <Button variant="outline" size="icon" onClick={handleReset} data-testid="button-reset-file">
@@ -522,7 +459,7 @@ export default function WorkPlan() {
             </CardContent>
           </Card>
 
-          {/* 포맷 엑셀 다운로드 버튼 (업로드 결과) */}
+          {/* 포맷 엑셀 다운로드 */}
           {uploadResult?.processedFileUrl && (
             <div className="flex items-center gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3">
               <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
@@ -535,6 +472,41 @@ export default function WorkPlan() {
               </a>
             </div>
           )}
+
+          {/* 생성된 이메일 초안 + 전체 복사 */}
+          {generatedDraft && (
+            <Card className="border-blue-200">
+              <CardHeader className="pb-2 flex flex-row items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-blue-600" />
+                  <span className="text-sm font-semibold text-blue-700">이메일 초안 생성 완료</span>
+                </div>
+                <Button
+                  onClick={handleCopyAll}
+                  data-testid="button-copy-all"
+                  className={cn(
+                    "gap-2 transition-all",
+                    copied
+                      ? "bg-green-600 hover:bg-green-600 text-white"
+                      : "bg-blue-600 hover:bg-blue-700 text-white"
+                  )}
+                >
+                  {copied ? <><Check className="w-4 h-4" />복사됨</> : <><Copy className="w-4 h-4" />전체 복사</>}
+                </Button>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <Textarea
+                  value={generatedDraft}
+                  readOnly
+                  rows={14}
+                  className="font-mono text-xs resize-y bg-muted/30 text-foreground"
+                  data-testid="textarea-generated-draft"
+                  onClick={(e) => (e.target as HTMLTextAreaElement).select()}
+                />
+                <p className="text-[11px] text-muted-foreground mt-1.5">클릭하여 전체 선택 · 위 버튼으로 한 번에 복사</p>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* 오른쪽: 이력 목록 */}
@@ -544,7 +516,6 @@ export default function WorkPlan() {
               <CardTitle className="text-base flex items-center gap-2">
                 <Clock className="w-4 h-4 text-muted-foreground" />
                 작업계획 이력
-                <Badge variant="secondary" className="ml-auto text-xs">{workPlans.length}건</Badge>
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
@@ -584,6 +555,18 @@ export default function WorkPlan() {
                         </div>
                       </div>
                       <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {plan.emailDraft && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            title="초안 복사"
+                            onClick={(e) => { e.stopPropagation(); handleCopyPlanDraft(plan.emailDraft!); }}
+                            data-testid={`button-copy-plan-${plan.id}`}
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                          </Button>
+                        )}
                         {plan.processedFileUrl && (
                           <a href={plan.processedFileUrl} download target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
                             <Button variant="ghost" size="icon" className="h-7 w-7">
@@ -609,20 +592,18 @@ export default function WorkPlan() {
               )}
             </CardContent>
           </Card>
-
         </div>
       </div>
 
-      {/* 순회점검대상자 입력 + 이메일 발송 다이얼로그 */}
+      {/* 순회점검대상자 입력 다이얼로그 */}
       <Dialog open={inspectorDialogOpen} onOpenChange={setInspectorDialogOpen}>
         <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Send className="w-4 h-4 text-blue-600" />순회점검대상자 입력
+              <ClipboardPaste className="w-4 h-4 text-blue-600" />순회점검대상자 입력
             </DialogTitle>
             <p className="text-xs text-muted-foreground mt-1">
-              각 작업 행에 순회점검대상자 이름을 입력한 후 <strong>이메일 발송</strong>을 클릭하세요. 
-              <span className="text-blue-600 font-medium"> fbwogk26@gmail.com</span>으로 자동 발송됩니다.
+              각 작업 행에 순회점검대상자 이름을 입력한 후 <strong>초안 생성</strong>을 클릭하면 복사 가능한 이메일 내용이 만들어집니다.
             </p>
           </DialogHeader>
           <div className="flex-1 overflow-y-auto">
@@ -667,23 +648,18 @@ export default function WorkPlan() {
             </div>
           </div>
           <DialogFooter className="pt-4 border-t">
-            <div className="flex items-center gap-2 w-full justify-between">
-              <p className="text-xs text-muted-foreground">
-                수신: <span className="font-medium text-blue-600">fbwogk26@gmail.com</span>
-              </p>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => setInspectorDialogOpen(false)}>취소</Button>
-                <Button
-                  onClick={handleDialogSend}
-                  disabled={sendEmailMutation.isPending || pasteMutation.isPending}
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
-                  data-testid="button-confirm-send"
-                >
-                  {sendEmailMutation.isPending || pasteMutation.isPending
-                    ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" />발송 중...</>
-                    : <><Send className="w-4 h-4 mr-1.5" />이메일 발송</>}
-                </Button>
-              </div>
+            <div className="flex gap-2 justify-end w-full">
+              <Button variant="outline" onClick={() => setInspectorDialogOpen(false)}>취소</Button>
+              <Button
+                onClick={handleDialogConfirm}
+                disabled={pasteMutation.isPending}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+                data-testid="button-confirm-generate"
+              >
+                {pasteMutation.isPending
+                  ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" />저장 중...</>
+                  : <><Copy className="w-4 h-4 mr-1.5" />초안 생성</>}
+              </Button>
             </div>
           </DialogFooter>
         </DialogContent>
