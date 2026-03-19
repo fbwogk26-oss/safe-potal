@@ -127,6 +127,7 @@ export default function WorkPlan() {
   const [pastedText, setPastedText] = useState("");
   const [parsedRows, setParsedRows] = useState<Record<string, string>[]>([]);
   const [parseError, setParseError] = useState("");
+  const [inspectorEdits, setInspectorEdits] = useState<Record<number, string>>({}); // 순회점검대상자 편집값
 
   // 공통
   const [planTitle, setPlanTitle] = useState("");
@@ -221,20 +222,29 @@ export default function WorkPlan() {
       return;
     }
     setParsedRows(rows);
+    setInspectorEdits({}); // 새 데이터 파싱 시 편집값 초기화
     if (!planTitle) {
       const now = new Date();
       const DAYS = ["일", "월", "화", "수", "목", "금", "토"];
       setPlanTitle(`${now.getFullYear().toString().slice(2)}.${String(now.getMonth() + 1).padStart(2, "0")}.${String(now.getDate()).padStart(2, "0")}(${DAYS[now.getDay()]}) 작업계획`);
     }
-    toast({ title: `${rows.length}건 인식 완료`, description: "아래에서 내용을 확인 후 이메일 초안을 생성하세요." });
+    toast({ title: `${rows.length}건 인식 완료`, description: "순회점검대상자를 입력한 후 이메일 초안을 생성하세요." });
   };
+
+  // 순회점검대상자 편집값이 반영된 rows 반환
+  const getMergedRows = () =>
+    parsedRows.map((row, i) => ({
+      ...row,
+      "순회점검대상자": inspectorEdits[i] ?? row["순회점검대상자"] ?? "",
+    }));
 
   // 붙여넣기 → 이메일 생성 + 저장
   const handleGenerateFromPaste = () => {
     const title = planTitle || "작업계획";
-    const draft = buildEmailDraft(parsedRows, title);
+    const mergedRows = getMergedRows();
+    const draft = buildEmailDraft(mergedRows, title);
     setEditedDraft(draft);
-    pasteMutation.mutate({ rows: parsedRows, title, emailDraft: draft });
+    pasteMutation.mutate({ rows: mergedRows, title, emailDraft: draft });
   };
 
   const handleFileSelect = (file: File) => {
@@ -323,17 +333,19 @@ export default function WorkPlan() {
       return row[col] || "";
     };
 
+    const mergedRows = getMergedRows();
+
     // TSV (plain text 폴백)
     const tsvText = [
       TABLE_COLS.join("\t"),
-      ...parsedRows.map(row => TABLE_COLS.map(col => getVal(row, col)).join("\t"))
+      ...mergedRows.map(row => TABLE_COLS.map(col => getVal(row, col)).join("\t"))
     ].join("\n");
 
     // HTML 표 (아웃룩/워드 붙여넣기 시 표 그대로)
     const thHtml = TABLE_COLS.map(h =>
       `<th style="border:1px solid #999;padding:4px 8px;background:#f0f0f0;white-space:nowrap;font-size:12px">${h}</th>`
     ).join("");
-    const tdRows = parsedRows.map(row =>
+    const tdRows = mergedRows.map(row =>
       `<tr>${TABLE_COLS.map(col =>
         `<td style="border:1px solid #999;padding:4px 8px;font-size:12px;white-space:nowrap">${getVal(row, col)}</td>`
       ).join("")}</tr>`
@@ -358,6 +370,7 @@ export default function WorkPlan() {
     setPastedText("");
     setParsedRows([]);
     setParseError("");
+    setInspectorEdits({});
     setUploadResult(null);
     setEditedDraft("");
     setPlanTitle("");
@@ -470,9 +483,13 @@ export default function WorkPlan() {
                         <table className="text-[11px] w-full">
                           <thead>
                             <tr className="border-b">
-                              {["공사작업번호", "부/팀", "작업자", "공사내용", "시작일", "종료일", "주소", "순회점검대상자"].map(h => (
+                              {["공사작업번호", "부/팀", "작업자", "공사내용", "시작일", "종료일", "주소"].map(h => (
                                 <th key={h} className="text-left py-1 pr-3 font-semibold text-muted-foreground whitespace-nowrap">{h}</th>
                               ))}
+                              <th className="text-left py-1 pr-3 font-semibold whitespace-nowrap">
+                                <span className="text-orange-600">순회점검대상자</span>
+                                <span className="ml-1 text-[10px] font-normal text-orange-500">(직접 입력)</span>
+                              </th>
                             </tr>
                           </thead>
                           <tbody>
@@ -485,7 +502,16 @@ export default function WorkPlan() {
                                 <td className="py-1 pr-3 whitespace-nowrap text-[10px]">{row["공사/작업시작일"] || "-"}</td>
                                 <td className="py-1 pr-3 whitespace-nowrap text-[10px]">{row["공사/작업종료일"] || "-"}</td>
                                 <td className="py-1 pr-3 max-w-[150px] truncate">{row["주소"] || "-"}</td>
-                                <td className="py-1 whitespace-nowrap">{row["순회점검대상자"] || "-"}</td>
+                                <td className="py-1">
+                                  <input
+                                    type="text"
+                                    value={inspectorEdits[i] ?? row["순회점검대상자"] ?? ""}
+                                    onChange={e => setInspectorEdits(prev => ({ ...prev, [i]: e.target.value }))}
+                                    placeholder="이름 입력"
+                                    className="border border-orange-300 rounded px-1.5 py-0.5 text-[11px] w-28 focus:outline-none focus:border-orange-500 bg-orange-50"
+                                    data-testid={`input-inspector-${i}`}
+                                  />
+                                </td>
                               </tr>
                             ))}
                           </tbody>
