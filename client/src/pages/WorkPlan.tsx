@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Upload, FileSpreadsheet, Mail, Download, Trash2, CalendarCheck,
-  Clock, CheckCircle2, X, Loader2, Copy, Check, ClipboardPaste
+  Clock, CheckCircle2, X, Loader2, Copy, Check, ClipboardPaste, MousePointerClick
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -104,20 +104,6 @@ function buildEmailDraft(rows: Record<string, string>[], title: string): string 
     ``,
     `※ ${dateStr} 작업 계획`,
     tableText,
-    ``,
-    `□ All-in Safety TBM활동 사진 등록: 최소 3컷 이상 등록`,
-    `예시)`,
-    ``,
-    `□ 순회점검 결과 사진 등록: 최소 3컷 이상 등록(직영작업은 순회점검 등록X)`,
-    `┌────────────────┬──────────────────────────┬──────────────────────────┬──────────────────────────────────────────────┐`,
-    `│ 구분           │ 작업차량 고임목 설치 사진  │ 작업표지판 사진           │ 작업 중 안전작업절차 시행 사진                │`,
-    `├────────────────┼──────────────────────────┼──────────────────────────┼──────────────────────────────────────────────┤`,
-    `│ 확인사항       │ 작업차량 고임목 설치사진   │ 위험성평가 및             │ 신호수 배치, 사다리 2인1조, 고소작업 시       │`,
-    `│                │                          │ 위험작업허가서 비치 여부  │ 보조죔줄 체결, 누전여부 확인,                │`,
-    `│                │                          │ 확인                     │ 기타 위험요인 조치 사진 등                   │`,
-    `├────────────────┼──────────────────────────┼──────────────────────────┼──────────────────────────────────────────────┤`,
-    `│ 사진           │                          │                          │                                              │`,
-    `└────────────────┴──────────────────────────┴──────────────────────────┴──────────────────────────────────────────────┘`,
   ].join("\n");
 }
 
@@ -144,6 +130,7 @@ export default function WorkPlan() {
   const [editedDraft, setEditedDraft] = useState("");
   const [copied, setCopied] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<WorkPlan | null>(null);
+  const draftTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   const { data: workPlans = [], isLoading } = useQuery<WorkPlan[]>({
     queryKey: ["/api/work-plans"],
@@ -268,6 +255,13 @@ export default function WorkPlan() {
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
     toast({ title: "복사 완료", description: "이메일 초안이 클립보드에 복사되었습니다." });
+  };
+
+  const handleSelectAll = () => {
+    if (draftTextareaRef.current) {
+      draftTextareaRef.current.focus();
+      draftTextareaRef.current.select();
+    }
   };
 
   const handleReset = () => {
@@ -498,8 +492,12 @@ export default function WorkPlan() {
                     </Badge>
                   </CardTitle>
                   <div className="flex gap-2">
-                    <Button size="sm" variant="outline" onClick={handleCopy} data-testid="button-copy-draft">
-                      {copied ? <><Check className="w-3.5 h-3.5 mr-1 text-green-600" />복사됨</> : <><Copy className="w-3.5 h-3.5 mr-1" />복사</>}
+                    <Button size="sm" variant="outline" onClick={handleSelectAll} data-testid="button-select-all">
+                      <MousePointerClick className="w-3.5 h-3.5 mr-1" />전체 선택
+                    </Button>
+                    <Button size="sm" variant={copied ? "default" : "outline"} onClick={handleCopy} data-testid="button-copy-draft"
+                      className={copied ? "bg-green-600 hover:bg-green-700 text-white" : ""}>
+                      {copied ? <><Check className="w-3.5 h-3.5 mr-1" />복사됨</> : <><Copy className="w-3.5 h-3.5 mr-1" />복사</>}
                     </Button>
                     {uploadResult?.processedFileUrl && (
                       <a href={uploadResult.processedFileUrl} download target="_blank" rel="noreferrer">
@@ -516,14 +514,17 @@ export default function WorkPlan() {
               </CardHeader>
               <CardContent>
                 <Textarea
+                  ref={draftTextareaRef}
                   data-testid="textarea-email-draft"
                   value={editedDraft}
                   onChange={(e) => setEditedDraft(e.target.value)}
-                  rows={20}
-                  className="font-mono text-xs resize-y"
+                  rows={22}
+                  className="font-mono text-xs resize-y bg-muted/20"
                   placeholder="이메일 초안이 여기에 표시됩니다"
                 />
-                <p className="text-xs text-muted-foreground mt-2">내용을 직접 수정한 후 복사하여 사용하세요.</p>
+                <p className="text-xs text-muted-foreground mt-2">
+                  <span className="font-medium">전체 선택</span> 후 <span className="font-medium">복사</span>하여 이메일에 붙여넣으면 표가 자동 정렬됩니다.
+                </p>
               </CardContent>
             </Card>
           )}
