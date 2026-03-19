@@ -290,7 +290,7 @@ export default function HomePage() {
   const { data: riskAssessments } = useQuery<RiskAssessment[]>({ queryKey: ["/api/risk-assessments"] });
   const { data: trafficFines } = useQuery<TrafficFine[]>({ queryKey: ["/api/traffic-fines"], enabled: canViewVehicleLogs });
   const { data: eduSessions } = useQuery<EduSession[]>({ queryKey: ["/api/education-sessions"], enabled: canViewEducationLogs });
-  const { data: equipmentRequests } = useQuery<EquipmentRequest[]>({ queryKey: ["/api/new-equipment-requests"], enabled: canViewEquipment });
+  const { data: equipmentRequests } = useQuery<EquipmentRequest[]>({ queryKey: ["/api/new-equipment-requests"] });
   const [weatherCity, setWeatherCity] = useState("대구");
   const { data: weather, isLoading: weatherLoading } = useQuery<WeatherData>({
     queryKey: ["/api/weather/current", weatherCity],
@@ -392,7 +392,7 @@ export default function HomePage() {
   }, [eduSessions]);
   const recentEduSessions = groupedEduSessions;
   const recentEquipNotices = Array.isArray(notices)
-    ? notices.filter((n: any) => n.category === "equipment")
+    ? notices.filter((n: any) => n.category === "equipment" || n.category === "equip_request" || n.category === "equipment_update")
     : [];
   const recentRequests = [
     ...recentEquipNotices.map((n: any) => ({
@@ -527,7 +527,7 @@ export default function HomePage() {
                   {/* ── 탭 본문: 콤팩트 한 줄 행을 최대한 많이 ── */}
                   {(() => {
                     type TabItem = {
-                      key: number;
+                      key: string | number;
                       href: string;
                       badge: ReactNode;
                       main: ReactNode;
