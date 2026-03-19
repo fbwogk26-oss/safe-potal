@@ -1,3 +1,4 @@
+import { type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
@@ -472,159 +473,94 @@ export default function HomePage() {
               </div>
 
               <Card className="border-0 shadow-sm rounded-tl-none flex-1 flex flex-col min-h-0">
-                <CardContent className="p-0 flex-1 overflow-y-auto">
-                  {/* 공지사항 */}
-                  {activeTab === "공지사항" && (
-                    <div className="divide-y divide-border/50">
-                      {recentNotices.length === 0
-                        ? <p className="text-sm text-muted-foreground py-3 text-center">등록된 공지가 없습니다.</p>
-                        : recentNotices.slice(0, 4).map(n => (
-                          <Link key={n.id} href="/notices">
-                            <div className="group flex items-center gap-2 px-3 py-1.5 hover:bg-accent/40 cursor-pointer transition-colors">
-                              <Badge variant="outline" className="text-[10px] flex-shrink-0 px-1.5 py-0">
-                                {CATEGORY_LABELS[n.category] ?? n.category}
-                              </Badge>
-                              <p className="flex-1 text-xs font-medium truncate group-hover:text-primary transition-colors">{n.title}</p>
-                              <p className="text-[10px] text-muted-foreground flex-shrink-0">{format(new Date(n.createdAt), "yy.MM.dd")}</p>
-                            </div>
-                          </Link>
-                        ))
-                      }
-                    </div>
-                  )}
+                <CardContent className="p-0 flex-1 flex flex-col min-h-0">
 
-                  {/* 최근 사고 */}
-                  {activeTab === "최근 사고" && (
-                    <div className="divide-y divide-border/50">
-                      {recentAccidents.length === 0
-                        ? <p className="text-sm text-muted-foreground py-3 text-center">등록된 사고가 없습니다.</p>
-                        : recentAccidents.slice(0, 4).map(a => (
-                          <Link key={a.id} href="/accidents">
-                            <div className="group flex items-center gap-2 px-3 py-1.5 hover:bg-accent/40 cursor-pointer transition-colors">
-                              <Badge
-                                variant="outline"
-                                className={cn("text-[10px] flex-shrink-0 px-1.5 py-0", a.severity === "중대" && "border-red-400 text-red-600")}
-                              >
-                                {a.accidentType}
-                              </Badge>
-                              <p className="flex-1 text-xs font-medium truncate group-hover:text-primary transition-colors">{a.department}</p>
-                              <p className="text-[10px] text-muted-foreground flex-shrink-0">
-                                {a.occurredAt ? format(new Date(a.occurredAt), "yy.MM.dd") : "-"}
-                              </p>
-                            </div>
-                          </Link>
-                        ))
-                      }
-                    </div>
-                  )}
+                  {/* ── 탭 본문: 항목이 카드 높이를 균등하게 채우도록 flex 배치 ── */}
+                  {(() => {
+                    type TabItem = {
+                      key: number;
+                      href: string;
+                      badge: ReactNode;
+                      main: ReactNode;
+                      sub: ReactNode;
+                    };
 
-                  {/* 승인대기 */}
-                  {activeTab === "승인대기" && (
-                    <div className="divide-y divide-border/50">
-                      {pendingRisks.length === 0
-                        ? <p className="text-sm text-muted-foreground py-3 text-center">승인대기 항목이 없습니다.</p>
-                        : pendingRisks.slice(0, 4).map(r => (
-                          <Link key={r.id} href="/risk-assessment">
-                            <div className="group flex items-center gap-2 px-3 py-1.5 hover:bg-accent/40 cursor-pointer transition-colors">
-                              <Badge
-                                variant="outline"
-                                className={cn("text-[10px] flex-shrink-0 px-1.5 py-0",
-                                  r.riskLevel === "A" && "border-red-400 text-red-600",
-                                  r.riskLevel === "B" && "border-orange-400 text-orange-600",
-                                )}
-                              >
-                                {r.riskLevel}등급
-                              </Badge>
-                              <p className="flex-1 text-xs font-medium truncate group-hover:text-primary transition-colors">{r.department}</p>
-                              <p className="text-[10px] text-muted-foreground flex-shrink-0">
-                                {r.createdAt ? format(new Date(r.createdAt), "yy.MM.dd") : "-"}
-                              </p>
-                            </div>
-                          </Link>
-                        ))
-                      }
-                    </div>
-                  )}
+                    let items: TabItem[] = [];
+                    let emptyMsg = "";
 
-                  {/* 과태료 */}
-                  {activeTab === "과태료" && (
-                    <div className="divide-y divide-border/50">
-                      {recentFines.length === 0
-                        ? <p className="text-sm text-muted-foreground py-3 text-center">등록된 과태료 내역이 없습니다.</p>
-                        : recentFines.map(f => (
-                          <Link key={f.id} href="/traffic-fines">
-                            <div className="group flex items-center gap-2 px-3 py-1.5 hover:bg-accent/40 cursor-pointer transition-colors">
-                              <Badge
-                                variant="outline"
-                                className={cn("text-[10px] flex-shrink-0 px-1.5 py-0",
-                                  f.paymentStatus === "미납" ? "border-red-400 text-red-600" : "border-emerald-400 text-emerald-600"
-                                )}
-                              >
-                                {f.paymentStatus}
-                              </Badge>
-                              <p className="flex-1 text-xs font-medium truncate group-hover:text-primary transition-colors">
-                                {f.department} · {f.violationType}
-                              </p>
-                              <p className="text-[10px] text-muted-foreground flex-shrink-0">
-                                {f.violationDate ? format(new Date(f.violationDate), "yy.MM.dd") : "-"}
-                              </p>
-                            </div>
-                          </Link>
-                        ))
-                      }
-                    </div>
-                  )}
+                    if (activeTab === "공지사항") {
+                      emptyMsg = "등록된 공지가 없습니다.";
+                      items = recentNotices.slice(0, 5).map(n => ({
+                        key: n.id, href: "/notices",
+                        badge: <Badge variant="outline" className="text-[10px] shrink-0 px-1.5 py-0 whitespace-nowrap">{CATEGORY_LABELS[n.category] ?? n.category}</Badge>,
+                        main: <span className="flex-1 text-xs font-medium min-w-0 break-keep line-clamp-2 group-hover:text-primary transition-colors leading-snug">{n.title}</span>,
+                        sub: <span className="text-[10px] text-muted-foreground shrink-0 whitespace-nowrap">{format(new Date(n.createdAt), "yy.MM.dd")}</span>,
+                      }));
+                    } else if (activeTab === "최근 사고") {
+                      emptyMsg = "등록된 사고가 없습니다.";
+                      items = recentAccidents.slice(0, 5).map(a => ({
+                        key: a.id, href: "/accidents",
+                        badge: <Badge variant="outline" className={cn("text-[10px] shrink-0 px-1.5 py-0 whitespace-nowrap", a.severity === "중대" && "border-red-400 text-red-600")}>{a.accidentType}</Badge>,
+                        main: <span className="flex-1 text-xs font-medium min-w-0 break-keep line-clamp-2 group-hover:text-primary transition-colors leading-snug">{a.department}</span>,
+                        sub: <span className="text-[10px] text-muted-foreground shrink-0 whitespace-nowrap">{a.occurredAt ? format(new Date(a.occurredAt), "yy.MM.dd") : "-"}</span>,
+                      }));
+                    } else if (activeTab === "승인대기") {
+                      emptyMsg = "승인대기 항목이 없습니다.";
+                      items = pendingRisks.slice(0, 5).map(r => ({
+                        key: r.id, href: "/risk-assessment",
+                        badge: <Badge variant="outline" className={cn("text-[10px] shrink-0 px-1.5 py-0 whitespace-nowrap", r.riskLevel === "A" && "border-red-400 text-red-600", r.riskLevel === "B" && "border-orange-400 text-orange-600")}>{r.riskLevel}등급</Badge>,
+                        main: <span className="flex-1 text-xs font-medium min-w-0 break-keep line-clamp-2 group-hover:text-primary transition-colors leading-snug">{r.department}</span>,
+                        sub: <span className="text-[10px] text-muted-foreground shrink-0 whitespace-nowrap">{r.createdAt ? format(new Date(r.createdAt), "yy.MM.dd") : "-"}</span>,
+                      }));
+                    } else if (activeTab === "과태료") {
+                      emptyMsg = "등록된 과태료 내역이 없습니다.";
+                      items = recentFines.slice(0, 5).map(f => ({
+                        key: f.id, href: "/traffic-fines",
+                        badge: <Badge variant="outline" className={cn("text-[10px] shrink-0 px-1.5 py-0 whitespace-nowrap", f.paymentStatus === "미납" ? "border-red-400 text-red-600" : "border-emerald-400 text-emerald-600")}>{f.paymentStatus}</Badge>,
+                        main: <span className="flex-1 text-xs font-medium min-w-0 break-keep line-clamp-2 group-hover:text-primary transition-colors leading-snug">{f.department} · {f.violationType}</span>,
+                        sub: <span className="text-[10px] text-muted-foreground shrink-0 whitespace-nowrap">{f.violationDate ? format(new Date(f.violationDate), "yy.MM.dd") : "-"}</span>,
+                      }));
+                    } else if (activeTab === "교육내역") {
+                      emptyMsg = "등록된 교육내역이 없습니다.";
+                      items = recentEduSessions.slice(0, 5).map(s => ({
+                        key: s.id, href: "/education-logs",
+                        badge: <Badge variant="outline" className={cn("text-[10px] shrink-0 px-1.5 py-0 whitespace-nowrap", s.status === "완료" ? "border-emerald-400 text-emerald-600" : "border-blue-400 text-blue-600")}>{s.status}</Badge>,
+                        main: <span className="flex-1 text-xs font-medium min-w-0 break-keep line-clamp-2 group-hover:text-primary transition-colors leading-snug">{s.title}</span>,
+                        sub: <span className="text-[10px] text-muted-foreground shrink-0 whitespace-nowrap">{s.department}</span>,
+                      }));
+                    } else if (activeTab === "용품 신청") {
+                      emptyMsg = "등록된 용품 신청이 없습니다.";
+                      items = recentRequests.slice(0, 5).map(r => ({
+                        key: r.id, href: "/equipment",
+                        badge: <Badge variant="outline" className={cn("text-[10px] shrink-0 px-1.5 py-0 whitespace-nowrap", r.urgency === "긴급" ? "border-red-400 text-red-600" : r.urgency === "높음" ? "border-orange-400 text-orange-600" : "border-slate-400 text-slate-600")}>{r.urgency || "보통"}</Badge>,
+                        main: <span className="flex-1 text-xs font-medium min-w-0 break-keep line-clamp-2 group-hover:text-primary transition-colors leading-snug">{r.itemName}</span>,
+                        sub: <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0 whitespace-nowrap">{r.status}</Badge>,
+                      }));
+                    }
 
-                  {/* 교육내역 */}
-                  {activeTab === "교육내역" && (
-                    <div className="divide-y divide-border/50">
-                      {recentEduSessions.length === 0
-                        ? <p className="text-sm text-muted-foreground py-3 text-center">등록된 교육내역이 없습니다.</p>
-                        : recentEduSessions.map(s => (
-                          <Link key={s.id} href="/education-logs">
-                            <div className="group flex items-center gap-2 px-3 py-1.5 hover:bg-accent/40 cursor-pointer transition-colors">
-                              <Badge
-                                variant="outline"
-                                className={cn("text-[10px] flex-shrink-0 px-1.5 py-0",
-                                  s.status === "완료" ? "border-emerald-400 text-emerald-600" : "border-blue-400 text-blue-600"
-                                )}
-                              >
-                                {s.status}
-                              </Badge>
-                              <p className="flex-1 text-xs font-medium truncate group-hover:text-primary transition-colors">{s.title}</p>
-                              <p className="text-[10px] text-muted-foreground flex-shrink-0">{s.department}</p>
-                            </div>
-                          </Link>
-                        ))
-                      }
-                    </div>
-                  )}
+                    if (items.length === 0) {
+                      return (
+                        <div className="flex-1 flex items-center justify-center">
+                          <p className="text-sm text-muted-foreground">{emptyMsg}</p>
+                        </div>
+                      );
+                    }
 
-                  {/* 용품 신청 */}
-                  {activeTab === "용품 신청" && (
-                    <div className="divide-y divide-border/50">
-                      {recentRequests.length === 0
-                        ? <p className="text-sm text-muted-foreground py-3 text-center">등록된 용품 신청이 없습니다.</p>
-                        : recentRequests.map(r => (
-                          <Link key={r.id} href="/equipment">
-                            <div className="group flex items-center gap-2 px-3 py-1.5 hover:bg-accent/40 cursor-pointer transition-colors">
-                              <Badge
-                                variant="outline"
-                                className={cn("text-[10px] flex-shrink-0 px-1.5 py-0",
-                                  r.urgency === "긴급" ? "border-red-400 text-red-600" :
-                                  r.urgency === "높음" ? "border-orange-400 text-orange-600" : "border-slate-400 text-slate-600"
-                                )}
-                              >
-                                {r.urgency || "보통"}
-                              </Badge>
-                              <p className="flex-1 text-xs font-medium truncate group-hover:text-primary transition-colors">{r.itemName}</p>
-                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 flex-shrink-0">{r.status}</Badge>
+                    return (
+                      <div className="flex-1 flex flex-col divide-y divide-border/50">
+                        {items.map(item => (
+                          <Link key={item.key} href={item.href} className="flex-1 flex min-h-0">
+                            <div className="group w-full flex items-center gap-2 px-3 py-2 hover:bg-accent/40 cursor-pointer transition-colors min-h-0">
+                              {item.badge}
+                              {item.main}
+                              {item.sub}
                             </div>
                           </Link>
-                        ))
-                      }
-                    </div>
-                  )}
+                        ))}
+                      </div>
+                    );
+                  })()}
+
                 </CardContent>
                 {/* 전체보기 - 하단 고정 */}
                 <div className="border-t border-border/50 mt-auto">
