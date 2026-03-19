@@ -680,6 +680,9 @@ export async function registerRoutes(
     res.send(buffer);
   });
 
+  // 공개 정적 에셋 (이메일 삽입 이미지 등 - 인증 불필요)
+  app.use('/public-assets', (await import('express')).default.static(path.join(process.cwd(), 'server', 'assets')));
+
   // === IMAGE UPLOAD ===
   app.use('/uploads', isAuthenticated, (await import('express')).default.static(uploadDir));
   
@@ -3085,19 +3088,11 @@ export async function registerRoutes(
         return res.status(400).json({ message: "수신자 이메일을 입력해주세요" });
       }
 
-      // 가이드 이미지 base64 인코딩 후 이메일에 추가
-      let guideImgHtml = "";
-      try {
-        const { readFileSync } = await import("fs");
-        const { join } = await import("path");
-        const imgPath = join(process.cwd(), "server", "assets", "work-plan-guide.png");
-        const imgBase64 = readFileSync(imgPath).toString("base64");
-        guideImgHtml = `<div style="margin-top:24px"><img src="data:image/png;base64,${imgBase64}" style="max-width:100%;border:1px solid #ddd;border-radius:4px" alt="안전활동 사진 등록 가이드" /></div>`;
-      } catch (imgErr) {
-        console.warn("[SendEmail] 가이드 이미지 로드 실패:", imgErr);
-      }
-
-      const finalHtml = htmlContent.replace(/<\/div>\s*$/, `${guideImgHtml}</div>`);
+      // 가이드 이미지를 공개 URL로 이메일 맨 아래에 추가
+      const proto = (req.headers['x-forwarded-proto'] as string) || req.protocol;
+      const baseUrl = `${proto}://${req.get('host')}`;
+      const guideImgHtml = `<div style="margin-top:24px"><img src="${baseUrl}/public-assets/work-plan-guide.png" style="max-width:100%;border:1px solid #ddd;border-radius:4px" alt="안전활동 사진 등록 가이드" /></div>`;
+      const finalHtml = htmlContent + guideImgHtml;
 
       const { Resend } = await import("resend");
       const resend = new Resend(process.env.RESEND_API_KEY);
