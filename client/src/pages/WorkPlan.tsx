@@ -263,7 +263,7 @@ export default function WorkPlan() {
   const getMergedRows = () =>
     parsedRows.map((row, i) => ({
       ...row,
-      "순회점검대상자": inspectorEdits[i] ?? (row["순회점검대상자"] || row["작업자"] || ""),
+      "순회점검대상자": inspectorEdits[i] ?? row["순회점검대상자"] ?? "",
     }));
 
   const handleFileSelect = (file: File) => {
@@ -702,7 +702,7 @@ export default function WorkPlan() {
                       <td className="py-1.5 px-3 border border-border">
                         <input
                           type="text"
-                          value={inspectorEdits[i] ?? (row["순회점검대상자"] || row["작업자"] || "")}
+                          value={inspectorEdits[i] ?? row["순회점검대상자"] ?? ""}
                           onChange={e => setInspectorEdits(prev => ({ ...prev, [i]: e.target.value }))}
                           placeholder="이름 입력"
                           className="border border-orange-300 rounded px-2 py-1 text-[12px] w-48 focus:outline-none focus:border-orange-500 bg-orange-50 focus:bg-white"
