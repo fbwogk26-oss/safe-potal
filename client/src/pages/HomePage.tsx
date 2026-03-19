@@ -238,7 +238,7 @@ function getWeatherEmojiUI(code: string, tempC: number): string {
   return "🌤️";
 }
 
-type Tab = "공지사항" | "최근 사고" | "승인대기" | "과태료" | "교육내역" | "용품 신청";
+type Tab = "공지사항" | "최근 사고" | "승인대기" | "과태료" | "교육내역" | "용품 신청" | "출입신청";
 
 export default function HomePage() {
   const { user } = useAuth();
@@ -252,6 +252,7 @@ export default function HomePage() {
     canViewMsds,
     canViewVehicleLogs,
     canViewEquipment,
+    canViewAccess,
   } = usePermissions();
 
   const QUICK_IN = [
@@ -270,6 +271,7 @@ export default function HomePage() {
     canViewEducationLogs && "교육내역",
     canViewRiskAssessment && "승인대기",
     canViewEquipment && "용품 신청",
+    canViewAccess && "출입신청",
   ].filter(Boolean) as Tab[];
 
   const now = new Date();
@@ -362,9 +364,11 @@ export default function HomePage() {
   const pendingRisks = Array.isArray(riskAssessments)
     ? riskAssessments.filter(r => r.approvalStatus === "승인대기")
     : [];
-  const NOTICE_TAB_CATEGORIES = ["notice", "safe_message", "rule", "education", "equipment", "access"];
   const recentNotices = Array.isArray(notices)
-    ? notices.filter((n: any) => NOTICE_TAB_CATEGORIES.includes(n.category)).slice(0, 7)
+    ? notices.filter((n: any) => n.category === "notice").slice(0, 7)
+    : [];
+  const recentAccess = Array.isArray(notices)
+    ? notices.filter((n: any) => n.category === "access").slice(0, 7)
     : [];
   const recentAccidents = Array.isArray(accidents) ? accidents.slice(0, 7) : [];
   const recentFines = Array.isArray(trafficFines) ? trafficFines.slice(0, 7) : [];
@@ -539,6 +543,14 @@ export default function HomePage() {
                         main: <span className="flex-1 text-xs font-medium min-w-0 truncate group-hover:text-primary transition-colors">{r.itemName}</span>,
                         sub: <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0 whitespace-nowrap">{r.status}</Badge>,
                       }));
+                    } else if (activeTab === "출입신청") {
+                      emptyMsg = "등록된 출입신청이 없습니다.";
+                      items = recentAccess.map((n: any) => ({
+                        key: n.id, href: "/access",
+                        badge: <Badge variant="outline" className="text-[10px] shrink-0 px-1.5 py-0 whitespace-nowrap border-purple-400 text-purple-600">출입</Badge>,
+                        main: <span className="flex-1 text-xs font-medium min-w-0 truncate group-hover:text-primary transition-colors">{n.title}</span>,
+                        sub: <span className="text-[10px] text-muted-foreground shrink-0 whitespace-nowrap">{format(new Date(n.createdAt), "yy.MM.dd")}</span>,
+                      }));
                     }
 
                     if (items.length === 0) {
@@ -573,6 +585,7 @@ export default function HomePage() {
                     activeTab === "과태료" ? "/traffic-fines" :
                     activeTab === "교육내역" ? "/education-logs" :
                     activeTab === "용품 신청" ? "/equipment" :
+                    activeTab === "출입신청" ? "/access" :
                     "/risk-assessment"
                   }>
                     <div className="flex items-center justify-center gap-1 py-2 text-xs text-primary font-medium hover:bg-accent/30 cursor-pointer transition-colors">
