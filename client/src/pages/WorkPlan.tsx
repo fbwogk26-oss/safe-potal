@@ -263,7 +263,7 @@ export default function WorkPlan() {
   const getMergedRows = () =>
     parsedRows.map((row, i) => ({
       ...row,
-      "순회점검대상자": inspectorEdits[i] ?? row["순회점검대상자"] ?? "",
+      "순회점검대상자": inspectorEdits[i] ?? (row["순회점검대상자"] || row["작업자"] || ""),
     }));
 
   const handleFileSelect = (file: File) => {
@@ -671,7 +671,7 @@ export default function WorkPlan() {
               <ClipboardPaste className="w-4 h-4 text-blue-600" />순회점검대상자 입력
             </DialogTitle>
             <p className="text-xs text-muted-foreground mt-1">
-              각 작업 행에 순회점검대상자 이름을 입력한 후 <strong>초안 생성</strong>을 클릭하면 복사 가능한 이메일 내용이 만들어집니다.
+              순회점검대상자가 자동으로 채워집니다. 수정이 필요한 경우 직접 변경 후 <strong>초안 생성</strong>을 클릭하세요.
             </p>
           </DialogHeader>
           <div className="flex-1 overflow-y-auto">
@@ -684,8 +684,8 @@ export default function WorkPlan() {
                       <th key={h} className="text-left py-2 px-3 font-semibold text-muted-foreground whitespace-nowrap border border-border">{h}</th>
                     ))}
                     <th className="text-left py-2 px-3 font-semibold whitespace-nowrap border border-border">
-                      <span className="text-orange-600">순회점검대상자</span>
-                      <span className="ml-1 text-[10px] font-normal text-orange-500">※ 입력 필요</span>
+                      <span className="text-blue-600">순회점검대상자</span>
+                      <span className="ml-1 text-[10px] font-normal text-blue-400">※ 작업자 자동 입력</span>
                     </th>
                   </tr>
                 </thead>
@@ -702,10 +702,10 @@ export default function WorkPlan() {
                       <td className="py-1.5 px-3 border border-border">
                         <input
                           type="text"
-                          value={inspectorEdits[i] ?? row["순회점검대상자"] ?? ""}
+                          value={inspectorEdits[i] ?? (row["순회점검대상자"] || row["작업자"] || "")}
                           onChange={e => setInspectorEdits(prev => ({ ...prev, [i]: e.target.value }))}
                           placeholder="이름 입력"
-                          className="border border-orange-300 rounded px-2 py-1 text-[12px] w-32 focus:outline-none focus:border-orange-500 bg-orange-50 focus:bg-white"
+                          className="border border-orange-300 rounded px-2 py-1 text-[12px] w-48 focus:outline-none focus:border-orange-500 bg-orange-50 focus:bg-white"
                           data-testid={`input-inspector-dialog-${i}`}
                         />
                       </td>
