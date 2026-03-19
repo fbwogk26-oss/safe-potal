@@ -4,8 +4,8 @@ import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import { db } from "./db";
-import { teams, trafficFines, accidentReports } from "@shared/schema";
-import { eq, and } from "drizzle-orm";
+import { teams, trafficFines, accidentReports, educationSignatures } from "@shared/schema";
+import { eq, and, count } from "drizzle-orm";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -1233,7 +1233,17 @@ export async function registerRoutes(
   app.get("/api/education-sessions", isAuthenticated, async (req: any, res) => {
     const department = req.query.department as string | undefined;
     const sessions = await storage.getEducationSessions(department);
-    res.json(sessions);
+    const sigCounts = await db
+      .select({ sessionId: educationSignatures.sessionId, cnt: count() })
+      .from(educationSignatures)
+      .groupBy(educationSignatures.sessionId);
+    const sigMap: Record<number, number> = {};
+    for (const row of sigCounts) sigMap[row.sessionId] = Number(row.cnt);
+    const result = sessions.map(s => ({
+      ...s,
+      signatureCount: sigMap[s.id] ?? 0,
+    }));
+    res.json(result);
   });
 
   // === EDUCATION GROUP EXCEL DOWNLOAD (must be before /:id route) ===

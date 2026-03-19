@@ -31,7 +31,7 @@ interface Accident { id: number; accidentType: string; department: string; occur
 interface AccidentStat { total: number; byYear?: Record<string, number>; }
 interface RiskAssessment { id: number; title: string; department: string; approvalStatus: string; riskLevel: string; createdAt: string; }
 interface TrafficFine { id: number; violationDate: string; department: string; licensePlate: string; violationType: string; amount: number; paymentStatus: string; }
-interface EduSession { id: number; title: string; educationDate: string; department: string; status: string; educationType: string; }
+interface EduSession { id: number; title: string; educationDate: string; department: string; status: string; educationType: string; totalParticipants: number; signatureCount: number; }
 interface EquipmentRequest { id: number; itemName: string; reason: string; status: string; urgency: string; department: string; createdAt: string; }
 interface WeatherData {
   city: string;
@@ -553,12 +553,27 @@ export default function HomePage() {
                       }));
                     } else if (activeTab === "교육내역") {
                       emptyMsg = "등록된 교육내역이 없습니다.";
-                      items = recentEduSessions.map(s => ({
-                        key: s.id, href: "/education-logs",
-                        badge: <Badge variant="outline" className={cn("text-[10px] shrink-0 px-1.5 py-0 whitespace-nowrap", s.status === "완료" ? "border-emerald-400 text-emerald-600" : "border-blue-400 text-blue-600")}>{s.status}</Badge>,
-                        main: <span className="flex-1 text-xs font-medium min-w-0 truncate group-hover:text-primary transition-colors">{s.title}</span>,
-                        sub: <span className="text-[10px] text-muted-foreground shrink-0 whitespace-nowrap">{s.department}</span>,
-                      }));
+                      items = recentEduSessions.map(s => {
+                        const pct = s.totalParticipants > 0
+                          ? Math.min(100, Math.round((s.signatureCount / s.totalParticipants) * 100))
+                          : 0;
+                        return {
+                          key: s.id, href: "/education-logs",
+                          badge: <Badge variant="outline" className={cn("text-[10px] shrink-0 px-1.5 py-0 whitespace-nowrap", s.status === "완료" ? "border-emerald-400 text-emerald-600" : "border-blue-400 text-blue-600")}>{s.status}</Badge>,
+                          main: (
+                            <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+                              <span className="text-xs font-medium truncate group-hover:text-primary transition-colors">{s.title}</span>
+                              <div className="flex items-center gap-1.5">
+                                <div className="flex-1 h-1 rounded-full bg-slate-200 overflow-hidden">
+                                  <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${pct}%` }} />
+                                </div>
+                                <span className="text-[10px] text-muted-foreground shrink-0 whitespace-nowrap">{s.signatureCount}/{s.totalParticipants}명 ({pct}%)</span>
+                              </div>
+                            </div>
+                          ),
+                          sub: null as React.ReactNode,
+                        };
+                      });
                     } else if (activeTab === "용품 신청") {
                       emptyMsg = "등록된 용품 신청이 없습니다.";
                       items = recentRequests.map(r => ({
