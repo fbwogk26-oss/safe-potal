@@ -1,6 +1,6 @@
 import { build as esbuild } from "esbuild";
 import { build as viteBuild } from "vite";
-import { rm, readFile } from "fs/promises";
+import { rm, readFile, cp, mkdir } from "fs/promises";
 
 // server deps to bundle to reduce openat(2) syscalls
 // which helps cold start times
@@ -59,6 +59,11 @@ async function buildAll() {
     external: externals,
     logLevel: "info",
   });
+
+  // 서버 정적 에셋 복사 (가이드 이미지 등)
+  console.log("copying server assets...");
+  await mkdir("dist/server/assets", { recursive: true });
+  await cp("server/assets", "dist/server/assets", { recursive: true });
 }
 
 buildAll().catch((err) => {

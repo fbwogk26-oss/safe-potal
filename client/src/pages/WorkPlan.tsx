@@ -64,7 +64,7 @@ function buildHtmlFromDraft(draft: string, guideImageDataUrl?: string): string {
   const lines = draft.split("\n");
   const tableStartIdx = lines.findIndex(l => l.startsWith("※"));
   const guideImgHtml = guideImageDataUrl
-    ? `<div style="margin-top:24px"><img src="${guideImageDataUrl}" style="max-width:100%;border:1px solid #ddd;border-radius:4px" alt="안전활동 사진 등록 가이드" /></div>`
+    ? `<br><br><div style="margin-top:8px"><img src="${guideImageDataUrl}" style="max-width:100%;border:1px solid #ddd;border-radius:4px" alt="안전활동 사진 등록 가이드" /></div>`
     : "";
 
   if (tableStartIdx === -1) {
