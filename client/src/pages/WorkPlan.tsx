@@ -10,8 +10,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter
+} from "@/components/ui/dialog";
+import {
   Upload, FileSpreadsheet, Mail, Download, Trash2, CalendarCheck,
-  Clock, CheckCircle2, X, Loader2, Copy, Check, ClipboardPaste, MousePointerClick
+  Clock, CheckCircle2, X, Loader2, Copy, Check, ClipboardPaste, MousePointerClick, Send, Plus
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -137,6 +140,12 @@ export default function WorkPlan() {
   const [tableCopied, setTableCopied] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<WorkPlan | null>(null);
   const draftTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // 이메일 발송 다이얼로그
+  const [sendDialogOpen, setSendDialogOpen] = useState(false);
+  const [emailSubject, setEmailSubject] = useState("");
+  const [recipientInput, setRecipientInput] = useState("");
+  const [recipients, setRecipients] = useState<string[]>([]);
 
   const { data: workPlans = [], isLoading } = useQuery<WorkPlan[]>({
     queryKey: ["/api/work-plans"],
@@ -375,6 +384,87 @@ export default function WorkPlan() {
     setEditedDraft("");
     setPlanTitle("");
     if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  // editedDraft를 HTML로 변환 (이메일 발송용)
+  const buildHtmlFromDraft = (draft: string) => {
+    const lines = draft.split("\n");
+    const tableStartIdx = lines.findIndex(l => l.startsWith("※"));
+    if (tableStartIdx === -1) {
+      return `<div style="font-family:맑은고딕,sans-serif;font-size:13px">${lines.map(l => l.trim() === "" ? "<br>" : `<p style="margin:2px 0">${l}</p>`).join("")}</div>`;
+    }
+    const bodyHtml = lines.slice(0, tableStartIdx).map(l =>
+      l.trim() === "" ? "<br>" : `<p style="margin:2px 0">${l}</p>`
+    ).join("");
+    const titleLine = lines[tableStartIdx];
+    const tableLines = lines.slice(tableStartIdx + 1).filter(l => l.trim() !== "");
+    let tableHtml = "";
+    if (tableLines.length >= 2) {
+      const thHtml = tableLines[0].split("\t").map(h =>
+        `<th style="border:1px solid #999;padding:4px 8px;background:#f0f0f0;white-space:nowrap;font-size:12px">${h}</th>`
+      ).join("");
+      const tdRows = tableLines.slice(1).map(row =>
+        `<tr>${row.split("\t").map(c => `<td style="border:1px solid #999;padding:4px 8px;font-size:12px;white-space:nowrap">${c}</td>`).join("")}</tr>`
+      ).join("");
+      tableHtml = `<p style="margin:8px 0 4px 0"><strong>${titleLine}</strong></p><table style="border-collapse:collapse"><thead><tr>${thHtml}</tr></thead><tbody>${tdRows}</tbody></table>`;
+    }
+    return `<div style="font-family:맑은고딕,sans-serif;font-size:13px">${bodyHtml}${tableHtml}</div>`;
+  };
+
+  // 이메일 발송 mutation
+  const sendEmailMutation = useMutation({
+    mutationFn: async ({ to, subject, htmlContent, textContent }: { to: string[]; subject: string; htmlContent: string; textContent: string }) => {
+      const res = await fetch("/api/work-plans/send-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to, subject, htmlContent, textContent }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: "발송 실패" }));
+        throw new Error(err.message);
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "발송 완료", description: `${recipients.length}명에게 이메일이 발송되었습니다.` });
+      setSendDialogOpen(false);
+      setRecipients([]);
+      setRecipientInput("");
+    },
+    onError: (err: any) => {
+      toast({ title: "발송 실패", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const handleAddRecipient = () => {
+    const email = recipientInput.trim();
+    if (!email) return;
+    const emails = email.split(/[,;\s]+/).map(e => e.trim()).filter(e => e.includes("@"));
+    setRecipients(prev => [...new Set([...prev, ...emails])]);
+    setRecipientInput("");
+  };
+
+  const handleOpenSendDialog = () => {
+    // 제목 자동 생성 (초안의 날짜로)
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const DAYS = ["일", "월", "화", "수", "목", "금", "토"];
+    const dateStr = `${String(tomorrow.getFullYear()).slice(2)}.${String(tomorrow.getMonth() + 1).padStart(2, "0")}.${String(tomorrow.getDate()).padStart(2, "0")}(${DAYS[tomorrow.getDay()]})`;
+    setEmailSubject(`[순회점검 등록 요청] ${dateStr} 입회 작업`);
+    setSendDialogOpen(true);
+  };
+
+  const handleSendEmail = () => {
+    if (recipients.length === 0) {
+      toast({ title: "수신자 없음", description: "이메일 주소를 추가해주세요", variant: "destructive" });
+      return;
+    }
+    sendEmailMutation.mutate({
+      to: recipients,
+      subject: emailSubject,
+      htmlContent: buildHtmlFromDraft(editedDraft),
+      textContent: editedDraft,
+    });
   };
 
   const isPending = uploadMutation.isPending || pasteMutation.isPending;
@@ -619,13 +709,17 @@ export default function WorkPlan() {
                       <CheckCircle2 className="w-3 h-3 mr-1" />자동 생성
                     </Badge>
                   </CardTitle>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-wrap">
                     <Button size="sm" variant="outline" onClick={handleSelectAll} data-testid="button-select-all">
                       <MousePointerClick className="w-3.5 h-3.5 mr-1" />전체 선택
                     </Button>
                     <Button size="sm" variant={copied ? "default" : "outline"} onClick={handleCopy} data-testid="button-copy-draft"
                       className={copied ? "bg-green-600 hover:bg-green-700 text-white" : ""}>
                       {copied ? <><Check className="w-3.5 h-3.5 mr-1" />복사됨</> : <><Copy className="w-3.5 h-3.5 mr-1" />복사</>}
+                    </Button>
+                    <Button size="sm" variant="default" onClick={handleOpenSendDialog} data-testid="button-send-email"
+                      className="bg-blue-600 hover:bg-blue-700 text-white">
+                      <Send className="w-3.5 h-3.5 mr-1" />이메일 보내기
                     </Button>
                     {uploadResult?.processedFileUrl && (
                       <a href={uploadResult.processedFileUrl} download target="_blank" rel="noreferrer">
@@ -760,6 +854,84 @@ export default function WorkPlan() {
           )}
         </div>
       </div>
+
+      {/* 이메일 발송 다이얼로그 */}
+      <Dialog open={sendDialogOpen} onOpenChange={setSendDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Send className="w-4 h-4 text-blue-600" />이메일 발송
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {/* 제목 */}
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">제목</Label>
+              <Input
+                value={emailSubject}
+                onChange={e => setEmailSubject(e.target.value)}
+                placeholder="이메일 제목"
+                data-testid="input-email-subject"
+              />
+            </div>
+
+            {/* 수신자 입력 */}
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">수신자</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={recipientInput}
+                  onChange={e => setRecipientInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleAddRecipient(); } }}
+                  placeholder="이메일 주소 입력 후 Enter"
+                  data-testid="input-recipient"
+                  className="flex-1"
+                />
+                <Button size="sm" variant="outline" onClick={handleAddRecipient} data-testid="button-add-recipient">
+                  <Plus className="w-4 h-4" />
+                </Button>
+              </div>
+              {/* 추가된 수신자 목록 */}
+              {recipients.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {recipients.map(email => (
+                    <span key={email} className="flex items-center gap-1 bg-blue-50 border border-blue-200 rounded-full px-2.5 py-0.5 text-xs text-blue-800">
+                      {email}
+                      <button onClick={() => setRecipients(prev => prev.filter(e => e !== email))} className="ml-0.5 text-blue-500 hover:text-red-500">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              {recipients.length === 0 && (
+                <p className="text-xs text-muted-foreground">쉼표(,)나 세미콜론(;)으로 여러 주소를 한번에 입력할 수 있습니다</p>
+              )}
+            </div>
+
+            {/* 내용 미리보기 */}
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium text-muted-foreground">발송 내용 미리보기</Label>
+              <pre className="text-[10px] whitespace-pre-wrap font-mono bg-muted/40 rounded p-2 max-h-32 overflow-y-auto leading-relaxed border">
+                {editedDraft.slice(0, 300)}{editedDraft.length > 300 ? "\n..." : ""}
+              </pre>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSendDialogOpen(false)}>취소</Button>
+            <Button
+              onClick={handleSendEmail}
+              disabled={sendEmailMutation.isPending || recipients.length === 0}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+              data-testid="button-confirm-send"
+            >
+              {sendEmailMutation.isPending
+                ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" />발송 중...</>
+                : <><Send className="w-4 h-4 mr-1" />{recipients.length}명에게 발송</>}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

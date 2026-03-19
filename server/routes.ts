@@ -3074,6 +3074,41 @@ export async function registerRoutes(
     }
   });
 
+  app.post('/api/work-plans/send-email', isAuthenticated, async (req: any, res) => {
+    try {
+      const { to, subject, htmlContent, textContent } = req.body;
+      if (!to || !subject || !htmlContent) {
+        return res.status(400).json({ message: "수신자, 제목, 내용이 필요합니다" });
+      }
+      const recipients: string[] = Array.isArray(to) ? to : [to];
+      if (recipients.length === 0) {
+        return res.status(400).json({ message: "수신자 이메일을 입력해주세요" });
+      }
+
+      const { Resend } = await import("resend");
+      const resend = new Resend(process.env.RESEND_API_KEY);
+
+      const { data, error } = await resend.emails.send({
+        from: "SafeBoard <onboarding@resend.dev>",
+        to: recipients,
+        subject,
+        html: htmlContent,
+        text: textContent || "",
+      });
+
+      if (error) {
+        console.error("[SendEmail] Resend error:", error);
+        return res.status(500).json({ message: error.message || "이메일 발송에 실패했습니다" });
+      }
+
+      console.log("[SendEmail] Sent to", recipients, "id:", data?.id);
+      res.json({ message: "이메일이 발송되었습니다", id: data?.id });
+    } catch (error: any) {
+      console.error("[SendEmail error]", error);
+      res.status(500).json({ message: error?.message || "이메일 발송에 실패했습니다" });
+    }
+  });
+
   app.delete('/api/work-plans/:id', isAuthenticated, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
