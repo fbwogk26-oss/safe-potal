@@ -143,7 +143,7 @@ export default function WorkPlan() {
           </div>
           <div>
             <h1 className="text-xl font-bold text-foreground">작업계획</h1>
-            <p className="text-sm text-muted-foreground">엑셀(xlsx/xls) 또는 CSV 파일을 업로드하면 자동으로 포맷팅하고 입회작업 요청 이메일 초안을 생성합니다</p>
+            <p className="text-sm text-muted-foreground">엑셀(xlsx/xls) 또는 CSV 파일을 업로드하면 자동으로 포맷팅하고 입회작업 TBM / 순회점검 등록요청 이메일 초안을 생성합니다</p>
           </div>
         </div>
       </div>
