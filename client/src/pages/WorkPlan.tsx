@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   Upload, FileSpreadsheet, Mail, Download, Trash2, CalendarCheck,
-  Clock, CheckCircle2, X, Loader2, Copy, Check, ClipboardPaste, MousePointerClick, Send, Plus
+  Clock, CheckCircle2, X, Loader2, Copy, Check, ClipboardPaste, MousePointerClick, Send
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -141,11 +141,8 @@ export default function WorkPlan() {
   const [selectedPlan, setSelectedPlan] = useState<WorkPlan | null>(null);
   const draftTextareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // 이메일 발송 다이얼로그
-  const [sendDialogOpen, setSendDialogOpen] = useState(false);
-  const [emailSubject, setEmailSubject] = useState("");
-  const [recipientInput, setRecipientInput] = useState("");
-  const [recipients, setRecipients] = useState<string[]>([]);
+  // 순회점검대상자 입력 다이얼로그 (데이터 분석 클릭 후 열림)
+  const [inspectorDialogOpen, setInspectorDialogOpen] = useState(false);
 
   const { data: workPlans = [], isLoading } = useQuery<WorkPlan[]>({
     queryKey: ["/api/work-plans"],
@@ -218,7 +215,7 @@ export default function WorkPlan() {
     },
   });
 
-  // 붙여넣기 파싱
+  // 붙여넣기 파싱 → 순회점검대상자 입력 다이얼로그 열기
   const handleParse = () => {
     setParseError("");
     if (!pastedText.trim()) {
@@ -237,7 +234,7 @@ export default function WorkPlan() {
       const DAYS = ["일", "월", "화", "수", "목", "금", "토"];
       setPlanTitle(`${now.getFullYear().toString().slice(2)}.${String(now.getMonth() + 1).padStart(2, "0")}.${String(now.getDate()).padStart(2, "0")}(${DAYS[now.getDay()]}) 작업계획`);
     }
-    toast({ title: `${rows.length}건 인식 완료`, description: "순회점검대상자를 입력한 후 이메일 초안을 생성하세요." });
+    setInspectorDialogOpen(true);
   };
 
   // 순회점검대상자 편집값이 반영된 rows 반환
@@ -246,15 +243,6 @@ export default function WorkPlan() {
       ...row,
       "순회점검대상자": inspectorEdits[i] ?? row["순회점검대상자"] ?? "",
     }));
-
-  // 붙여넣기 → 이메일 생성 + 저장
-  const handleGenerateFromPaste = () => {
-    const title = planTitle || "작업계획";
-    const mergedRows = getMergedRows();
-    const draft = buildEmailDraft(mergedRows, title);
-    setEditedDraft(draft);
-    pasteMutation.mutate({ rows: mergedRows, title, emailDraft: draft });
-  };
 
   const handleFileSelect = (file: File) => {
     if (!file.name.match(/\.(xlsx|xls|csv)$/i)) {
@@ -411,7 +399,7 @@ export default function WorkPlan() {
     return `<div style="font-family:맑은고딕,sans-serif;font-size:13px">${bodyHtml}${tableHtml}</div>`;
   };
 
-  // 이메일 발송 mutation
+  // 이메일 발송 mutation (자동 수신자: fbwogk26@gmail.com)
   const sendEmailMutation = useMutation({
     mutationFn: async ({ to, subject, htmlContent, textContent }: { to: string[]; subject: string; htmlContent: string; textContent: string }) => {
       const res = await fetch("/api/work-plans/send-email", {
@@ -426,44 +414,37 @@ export default function WorkPlan() {
       return res.json();
     },
     onSuccess: () => {
-      toast({ title: "발송 완료", description: `${recipients.length}명에게 이메일이 발송되었습니다.` });
-      setSendDialogOpen(false);
-      setRecipients([]);
-      setRecipientInput("");
+      toast({ title: "발송 완료", description: "fbwogk26@gmail.com으로 이메일이 발송되었습니다." });
+      setInspectorDialogOpen(false);
     },
     onError: (err: any) => {
       toast({ title: "발송 실패", description: err.message, variant: "destructive" });
     },
   });
 
-  const handleAddRecipient = () => {
-    const email = recipientInput.trim();
-    if (!email) return;
-    const emails = email.split(/[,;\s]+/).map(e => e.trim()).filter(e => e.includes("@"));
-    setRecipients(prev => [...new Set([...prev, ...emails])]);
-    setRecipientInput("");
-  };
+  // 다이얼로그에서 이메일 초안 생성 + fbwogk26@gmail.com으로 자동 발송
+  const handleDialogSend = () => {
+    const title = planTitle || "작업계획";
+    const mergedRows = getMergedRows();
+    const draft = buildEmailDraft(mergedRows, title);
+    setEditedDraft(draft);
 
-  const handleOpenSendDialog = () => {
-    // 제목 자동 생성 (초안의 날짜로)
+    // 제목 자동 생성
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     const DAYS = ["일", "월", "화", "수", "목", "금", "토"];
     const dateStr = `${String(tomorrow.getFullYear()).slice(2)}.${String(tomorrow.getMonth() + 1).padStart(2, "0")}.${String(tomorrow.getDate()).padStart(2, "0")}(${DAYS[tomorrow.getDay()]})`;
-    setEmailSubject(`[순회점검 등록 요청] ${dateStr} 입회 작업`);
-    setSendDialogOpen(true);
-  };
+    const subject = `[순회점검 등록 요청] ${dateStr} 입회 작업`;
 
-  const handleSendEmail = () => {
-    if (recipients.length === 0) {
-      toast({ title: "수신자 없음", description: "이메일 주소를 추가해주세요", variant: "destructive" });
-      return;
-    }
+    // DB 저장
+    pasteMutation.mutate({ rows: mergedRows, title, emailDraft: draft });
+
+    // 이메일 발송
     sendEmailMutation.mutate({
-      to: recipients,
-      subject: emailSubject,
-      htmlContent: buildHtmlFromDraft(editedDraft),
-      textContent: editedDraft,
+      to: ["fbwogk26@gmail.com"],
+      subject,
+      htmlContent: buildHtmlFromDraft(draft),
+      textContent: draft,
     });
   };
 
@@ -549,64 +530,17 @@ export default function WorkPlan() {
                     )}
                   </div>
 
-                  {/* 파싱 결과 미리보기 */}
+                  {/* 파싱 완료 상태 표시 */}
                   {parsedRows.length > 0 && (
-                    <div className="rounded-lg border bg-muted/30 p-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <p className="text-xs font-semibold text-green-700 flex items-center gap-1">
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          {parsedRows.length}건 인식됨
-                        </p>
-                        <Button
-                          size="sm"
-                          variant={tableCopied ? "default" : "outline"}
-                          onClick={handleTableCopy}
-                          data-testid="button-copy-table"
-                          className={`h-6 text-[11px] px-2 ${tableCopied ? "bg-green-600 hover:bg-green-700 text-white" : ""}`}
-                        >
-                          {tableCopied
-                            ? <><Check className="w-3 h-3 mr-1" />복사됨</>
-                            : <><Copy className="w-3 h-3 mr-1" />표 복사</>}
-                        </Button>
-                      </div>
-                      <div className="overflow-x-auto">
-                        <table className="text-[11px] w-full">
-                          <thead>
-                            <tr className="border-b">
-                              {["공사작업번호", "부/팀", "작업자", "공사내용", "시작일", "종료일", "주소"].map(h => (
-                                <th key={h} className="text-left py-1 pr-3 font-semibold text-muted-foreground whitespace-nowrap">{h}</th>
-                              ))}
-                              <th className="text-left py-1 pr-3 font-semibold whitespace-nowrap">
-                                <span className="text-orange-600">순회점검대상자</span>
-                                <span className="ml-1 text-[10px] font-normal text-orange-500">(직접 입력)</span>
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {parsedRows.map((row, i) => (
-                              <tr key={i} className="border-b border-dashed last:border-0">
-                                <td className="py-1 pr-3 font-mono text-[10px] whitespace-nowrap text-blue-700">{row["공사작업번호"] || "-"}</td>
-                                <td className="py-1 pr-3 whitespace-nowrap">{row["부/팀"] || "-"}</td>
-                                <td className="py-1 pr-3 whitespace-nowrap">{row["작업자"] || "-"}</td>
-                                <td className="py-1 pr-3 max-w-[180px] truncate">{row["공사내용"] || row["공사명"] || "-"}</td>
-                                <td className="py-1 pr-3 whitespace-nowrap text-[10px]">{row["공사/작업시작일"] || "-"}</td>
-                                <td className="py-1 pr-3 whitespace-nowrap text-[10px]">{row["공사/작업종료일"] || "-"}</td>
-                                <td className="py-1 pr-3 max-w-[150px] truncate">{row["주소"] || "-"}</td>
-                                <td className="py-1">
-                                  <input
-                                    type="text"
-                                    value={inspectorEdits[i] ?? row["순회점검대상자"] ?? ""}
-                                    onChange={e => setInspectorEdits(prev => ({ ...prev, [i]: e.target.value }))}
-                                    placeholder="이름 입력"
-                                    className="border border-orange-300 rounded px-1.5 py-0.5 text-[11px] w-28 focus:outline-none focus:border-orange-500 bg-orange-50"
-                                    data-testid={`input-inspector-${i}`}
-                                  />
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
+                    <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 flex items-center justify-between">
+                      <p className="text-xs font-semibold text-green-700 flex items-center gap-1.5">
+                        <CheckCircle2 className="w-4 h-4" />
+                        {parsedRows.length}건 인식 완료 — 순회점검대상자를 입력하고 이메일을 발송하세요
+                      </p>
+                      <Button size="sm" variant="outline" className="h-6 text-[11px] px-2 border-green-400 text-green-700 hover:bg-green-100"
+                        onClick={() => setInspectorDialogOpen(true)} data-testid="button-reopen-inspector-dialog">
+                        다시 편집
+                      </Button>
                     </div>
                   )}
 
@@ -623,12 +557,11 @@ export default function WorkPlan() {
                       </Button>
                     ) : (
                       <Button
-                        data-testid="button-generate-email"
-                        onClick={handleGenerateFromPaste}
-                        className="flex-1"
-                        disabled={isPending}
+                        data-testid="button-open-inspector"
+                        onClick={() => setInspectorDialogOpen(true)}
+                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
                       >
-                        {isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />생성 중...</> : <><Mail className="w-4 h-4 mr-2" />이메일 초안 생성</>}
+                        <Send className="w-4 h-4 mr-2" />순회점검대상자 입력 및 이메일 발송
                       </Button>
                     )}
                     {(pastedText || parsedRows.length > 0 || uploadResult) && (
@@ -716,10 +649,6 @@ export default function WorkPlan() {
                     <Button size="sm" variant={copied ? "default" : "outline"} onClick={handleCopy} data-testid="button-copy-draft"
                       className={copied ? "bg-green-600 hover:bg-green-700 text-white" : ""}>
                       {copied ? <><Check className="w-3.5 h-3.5 mr-1" />복사됨</> : <><Copy className="w-3.5 h-3.5 mr-1" />복사</>}
-                    </Button>
-                    <Button size="sm" variant="default" onClick={handleOpenSendDialog} data-testid="button-send-email"
-                      className="bg-blue-600 hover:bg-blue-700 text-white">
-                      <Send className="w-3.5 h-3.5 mr-1" />이메일 보내기
                     </Button>
                     {uploadResult?.processedFileUrl && (
                       <a href={uploadResult.processedFileUrl} download target="_blank" rel="noreferrer">
@@ -855,80 +784,78 @@ export default function WorkPlan() {
         </div>
       </div>
 
-      {/* 이메일 발송 다이얼로그 */}
-      <Dialog open={sendDialogOpen} onOpenChange={setSendDialogOpen}>
-        <DialogContent className="max-w-md">
+      {/* 순회점검대상자 입력 + 이메일 발송 다이얼로그 */}
+      <Dialog open={inspectorDialogOpen} onOpenChange={setInspectorDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Send className="w-4 h-4 text-blue-600" />이메일 발송
+              <Send className="w-4 h-4 text-blue-600" />순회점검대상자 입력
             </DialogTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              각 작업 행에 순회점검대상자 이름을 입력한 후 <strong>이메일 발송</strong>을 클릭하세요. 
+              <span className="text-blue-600 font-medium"> fbwogk26@gmail.com</span>으로 자동 발송됩니다.
+            </p>
           </DialogHeader>
-          <div className="space-y-4 py-2">
-            {/* 제목 */}
-            <div className="space-y-1.5">
-              <Label className="text-sm font-medium">제목</Label>
-              <Input
-                value={emailSubject}
-                onChange={e => setEmailSubject(e.target.value)}
-                placeholder="이메일 제목"
-                data-testid="input-email-subject"
-              />
-            </div>
-
-            {/* 수신자 입력 */}
-            <div className="space-y-1.5">
-              <Label className="text-sm font-medium">수신자</Label>
-              <div className="flex gap-2">
-                <Input
-                  value={recipientInput}
-                  onChange={e => setRecipientInput(e.target.value)}
-                  onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleAddRecipient(); } }}
-                  placeholder="이메일 주소 입력 후 Enter"
-                  data-testid="input-recipient"
-                  className="flex-1"
-                />
-                <Button size="sm" variant="outline" onClick={handleAddRecipient} data-testid="button-add-recipient">
-                  <Plus className="w-4 h-4" />
-                </Button>
-              </div>
-              {/* 추가된 수신자 목록 */}
-              {recipients.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mt-2">
-                  {recipients.map(email => (
-                    <span key={email} className="flex items-center gap-1 bg-blue-50 border border-blue-200 rounded-full px-2.5 py-0.5 text-xs text-blue-800">
-                      {email}
-                      <button onClick={() => setRecipients(prev => prev.filter(e => e !== email))} className="ml-0.5 text-blue-500 hover:text-red-500">
-                        <X className="w-3 h-3" />
-                      </button>
-                    </span>
+          <div className="flex-1 overflow-y-auto">
+            <div className="overflow-x-auto">
+              <table className="text-[12px] w-full border-collapse">
+                <thead>
+                  <tr className="bg-muted/50">
+                    <th className="text-left py-2 px-3 font-semibold text-muted-foreground whitespace-nowrap border border-border">#</th>
+                    {["공사작업번호", "부/팀", "작업자", "공사내용", "시작일", "종료일"].map(h => (
+                      <th key={h} className="text-left py-2 px-3 font-semibold text-muted-foreground whitespace-nowrap border border-border">{h}</th>
+                    ))}
+                    <th className="text-left py-2 px-3 font-semibold whitespace-nowrap border border-border">
+                      <span className="text-orange-600">순회점검대상자</span>
+                      <span className="ml-1 text-[10px] font-normal text-orange-500">※ 입력 필요</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {parsedRows.map((row, i) => (
+                    <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-muted/20"}>
+                      <td className="py-1.5 px-3 text-muted-foreground border border-border text-center">{i + 1}</td>
+                      <td className="py-1.5 px-3 font-mono text-[11px] whitespace-nowrap text-blue-700 border border-border">{row["공사작업번호"] || "-"}</td>
+                      <td className="py-1.5 px-3 whitespace-nowrap border border-border">{row["부/팀"] || "-"}</td>
+                      <td className="py-1.5 px-3 whitespace-nowrap border border-border">{row["작업자"] || "-"}</td>
+                      <td className="py-1.5 px-3 max-w-[200px] truncate border border-border">{row["공사내용"] || row["공사명"] || "-"}</td>
+                      <td className="py-1.5 px-3 whitespace-nowrap text-[11px] border border-border">{row["공사/작업시작일"] || "-"}</td>
+                      <td className="py-1.5 px-3 whitespace-nowrap text-[11px] border border-border">{row["공사/작업종료일"] || "-"}</td>
+                      <td className="py-1.5 px-3 border border-border">
+                        <input
+                          type="text"
+                          value={inspectorEdits[i] ?? row["순회점검대상자"] ?? ""}
+                          onChange={e => setInspectorEdits(prev => ({ ...prev, [i]: e.target.value }))}
+                          placeholder="이름 입력"
+                          className="border border-orange-300 rounded px-2 py-1 text-[12px] w-32 focus:outline-none focus:border-orange-500 bg-orange-50 focus:bg-white"
+                          data-testid={`input-inspector-dialog-${i}`}
+                        />
+                      </td>
+                    </tr>
                   ))}
-                </div>
-              )}
-              {recipients.length === 0 && (
-                <p className="text-xs text-muted-foreground">쉼표(,)나 세미콜론(;)으로 여러 주소를 한번에 입력할 수 있습니다</p>
-              )}
-            </div>
-
-            {/* 내용 미리보기 */}
-            <div className="space-y-1.5">
-              <Label className="text-sm font-medium text-muted-foreground">발송 내용 미리보기</Label>
-              <pre className="text-[10px] whitespace-pre-wrap font-mono bg-muted/40 rounded p-2 max-h-32 overflow-y-auto leading-relaxed border">
-                {editedDraft.slice(0, 300)}{editedDraft.length > 300 ? "\n..." : ""}
-              </pre>
+                </tbody>
+              </table>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setSendDialogOpen(false)}>취소</Button>
-            <Button
-              onClick={handleSendEmail}
-              disabled={sendEmailMutation.isPending || recipients.length === 0}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-              data-testid="button-confirm-send"
-            >
-              {sendEmailMutation.isPending
-                ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" />발송 중...</>
-                : <><Send className="w-4 h-4 mr-1" />{recipients.length}명에게 발송</>}
-            </Button>
+          <DialogFooter className="pt-4 border-t">
+            <div className="flex items-center gap-2 w-full justify-between">
+              <p className="text-xs text-muted-foreground">
+                수신: <span className="font-medium text-blue-600">fbwogk26@gmail.com</span>
+              </p>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setInspectorDialogOpen(false)}>취소</Button>
+                <Button
+                  onClick={handleDialogSend}
+                  disabled={sendEmailMutation.isPending || pasteMutation.isPending}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                  data-testid="button-confirm-send"
+                >
+                  {sendEmailMutation.isPending || pasteMutation.isPending
+                    ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" />발송 중...</>
+                    : <><Send className="w-4 h-4 mr-1.5" />이메일 발송</>}
+                </Button>
+              </div>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
