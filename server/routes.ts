@@ -9,7 +9,6 @@ import { eq, and } from "drizzle-orm";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
-import { execSync } from "child_process";
 import ExcelJS from "exceljs";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 import { objectStorageClient } from "./replit_integrations/object_storage/objectStorage";
@@ -698,24 +697,44 @@ export async function registerRoutes(
   });
 
   // === GENERAL FILE UPLOAD (PDF, PPT, Word, Excel, Video, Images up to 100MB) ===
+  // 허용 확장자 명시적 화이트리스트 (HTML/SVG/스크립트 등 XSS 위험 형식 차단)
+  const ALLOWED_GENERAL_EXTENSIONS = new Set([
+    ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".csv", ".txt",
+    ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp",
+    ".mp4", ".mov", ".avi", ".mkv", ".webm",
+    ".zip", ".hwp", ".hwpx",
+  ]);
   const generalUpload = multer({
     storage: multer.diskStorage({
       destination: uploadDir,
       filename: (req, file, cb) => {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        const ext = path.extname(file.originalname);
+        const ext = path.extname(file.originalname).toLowerCase();
         cb(null, `file-${uniqueSuffix}${ext}`);
       }
     }),
     limits: { fileSize: 100 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+      const ext = path.extname(file.originalname).toLowerCase();
+      if (ALLOWED_GENERAL_EXTENSIONS.has(ext)) {
+        cb(null, true);
+      } else {
+        cb(new Error(`허용되지 않는 파일 형식입니다: ${ext}`));
+      }
+    },
   });
 
-  app.post('/api/upload/general', isAuthenticated, generalUpload.single('file'), (req: any, res) => {
-    if (!req.file) {
-      return res.status(400).json({ message: "No file uploaded" });
-    }
-    const url = `/uploads/${req.file.filename}`;
-    res.json({ url, name: req.file.originalname });
+  app.post('/api/upload/general', isAuthenticated, (req: any, res: any, next: any) => {
+    generalUpload.single('file')(req, res, (err: any) => {
+      if (err) {
+        return res.status(400).json({ message: err.message || "파일 업로드에 실패했습니다" });
+      }
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+      const url = `/uploads/${req.file.filename}`;
+      res.json({ url, name: req.file.originalname });
+    });
   });
 
   // === FILE UPLOAD (Excel, etc.) ===
