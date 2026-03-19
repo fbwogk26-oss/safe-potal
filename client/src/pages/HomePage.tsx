@@ -362,11 +362,11 @@ export default function HomePage() {
   const pendingRisks = Array.isArray(riskAssessments)
     ? riskAssessments.filter(r => r.approvalStatus === "승인대기")
     : [];
-  const recentNotices = Array.isArray(notices) ? notices.slice(0, 8) : [];
-  const recentAccidents = Array.isArray(accidents) ? accidents.slice(0, 8) : [];
-  const recentFines = Array.isArray(trafficFines) ? trafficFines.slice(0, 8) : [];
-  const recentEduSessions = Array.isArray(eduSessions) ? eduSessions.slice(0, 8) : [];
-  const recentRequests = Array.isArray(equipmentRequests) ? equipmentRequests.slice(0, 8) : [];
+  const recentNotices = Array.isArray(notices) ? notices.slice(0, 7) : [];
+  const recentAccidents = Array.isArray(accidents) ? accidents.slice(0, 7) : [];
+  const recentFines = Array.isArray(trafficFines) ? trafficFines.slice(0, 7) : [];
+  const recentEduSessions = Array.isArray(eduSessions) ? eduSessions.slice(0, 7) : [];
+  const recentRequests = Array.isArray(equipmentRequests) ? equipmentRequests.slice(0, 7) : [];
   const sortedTeams = [...teamList].sort((a, b) => b.totalScore - a.totalScore);
 
   return (
@@ -506,7 +506,7 @@ export default function HomePage() {
                       }));
                     } else if (activeTab === "승인대기") {
                       emptyMsg = "승인대기 항목이 없습니다.";
-                      items = pendingRisks.slice(0, 8).map(r => ({
+                      items = pendingRisks.slice(0, 7).map(r => ({
                         key: r.id, href: "/risk-assessment",
                         badge: <Badge variant="outline" className={cn("text-[10px] shrink-0 px-1.5 py-0 whitespace-nowrap", r.riskLevel === "A" && "border-red-400 text-red-600", r.riskLevel === "B" && "border-orange-400 text-orange-600")}>{r.riskLevel}등급</Badge>,
                         main: <span className="flex-1 text-xs font-medium min-w-0 truncate group-hover:text-primary transition-colors">{r.department}</span>,
