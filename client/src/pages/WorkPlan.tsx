@@ -13,8 +13,8 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter
 } from "@/components/ui/dialog";
 import {
-  Upload, FileSpreadsheet, Mail, Download, Trash2, CalendarCheck,
-  Clock, CheckCircle2, X, Loader2, Copy, Check, ClipboardPaste, MousePointerClick, Send
+  Upload, FileSpreadsheet, Download, Trash2, CalendarCheck,
+  Clock, CheckCircle2, X, Loader2, ClipboardPaste, Send
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -135,11 +135,7 @@ export default function WorkPlan() {
   // 공통
   const [planTitle, setPlanTitle] = useState("");
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
-  const [editedDraft, setEditedDraft] = useState("");
-  const [copied, setCopied] = useState(false);
-  const [tableCopied, setTableCopied] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<WorkPlan | null>(null);
-  const draftTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   // 순회점검대상자 입력 다이얼로그 (데이터 분석 클릭 후 열림)
   const [inspectorDialogOpen, setInspectorDialogOpen] = useState(false);
@@ -167,9 +163,8 @@ export default function WorkPlan() {
     },
     onSuccess: (data) => {
       setUploadResult(data);
-      setEditedDraft(data.emailDraft);
       queryClient.invalidateQueries({ queryKey: ["/api/work-plans"] });
-      toast({ title: "처리 완료", description: "파일이 포맷되고 이메일 초안이 생성되었습니다." });
+      toast({ title: "처리 완료", description: "파일 포맷팅이 완료되었습니다." });
     },
     onError: (err: any) => {
       toast({ title: "오류", description: err.message, variant: "destructive" });
@@ -194,7 +189,6 @@ export default function WorkPlan() {
     onSuccess: (data) => {
       setUploadResult(data);
       queryClient.invalidateQueries({ queryKey: ["/api/work-plans"] });
-      toast({ title: "이메일 초안 생성 완료" });
     },
     onError: (err: any) => {
       toast({ title: "오류", description: err.message, variant: "destructive" });
@@ -251,7 +245,6 @@ export default function WorkPlan() {
     }
     setSelectedFile(file);
     setUploadResult(null);
-    setEditedDraft("");
     if (!planTitle) setPlanTitle(file.name.replace(/\.[^.]+$/, ""));
   };
 
@@ -262,105 +255,6 @@ export default function WorkPlan() {
     if (file) handleFileSelect(file);
   }, []);
 
-  const handleCopy = () => {
-    // 표 구분선 찾기 (※로 시작하는 줄 이후가 표)
-    const lines = editedDraft.split("\n");
-    const tableStartIdx = lines.findIndex(l => l.startsWith("※"));
-
-    let htmlContent: string;
-
-    if (tableStartIdx !== -1) {
-      const bodyLines = lines.slice(0, tableStartIdx);
-      const tableLines = lines.slice(tableStartIdx + 1).filter(l => l.trim() !== "");
-      const titleLine = lines[tableStartIdx];
-
-      // 텍스트 본문 → HTML
-      const bodyHtml = bodyLines.map(l =>
-        l.trim() === "" ? "<br>" : `<p style="margin:2px 0">${l}</p>`
-      ).join("");
-
-      // 표 → HTML table
-      let tableHtml = "";
-      if (tableLines.length >= 2) {
-        const headers = tableLines[0].split("\t");
-        const thHtml = headers.map(h =>
-          `<th style="border:1px solid #999;padding:4px 8px;background:#f0f0f0;white-space:nowrap;font-size:12px">${h}</th>`
-        ).join("");
-        const dataRows = tableLines.slice(1).map(row => {
-          const cells = row.split("\t");
-          const tdHtml = cells.map(c =>
-            `<td style="border:1px solid #999;padding:4px 8px;font-size:12px;white-space:nowrap">${c}</td>`
-          ).join("");
-          return `<tr>${tdHtml}</tr>`;
-        }).join("");
-        tableHtml = `<p style="margin:8px 0 4px 0"><strong>${titleLine}</strong></p><table style="border-collapse:collapse"><thead><tr>${thHtml}</tr></thead><tbody>${dataRows}</tbody></table>`;
-      }
-
-      htmlContent = `<div style="font-family:맑은고딕,sans-serif;font-size:13px">${bodyHtml}${tableHtml}</div>`;
-    } else {
-      // 표가 없으면 텍스트만
-      htmlContent = `<div style="font-family:맑은고딕,sans-serif;font-size:13px">${editedDraft.split("\n").map(l => l.trim() === "" ? "<br>" : `<p style="margin:2px 0">${l}</p>`).join("")}</div>`;
-    }
-
-    try {
-      const htmlBlob = new Blob([htmlContent], { type: "text/html" });
-      const textBlob = new Blob([editedDraft], { type: "text/plain" });
-      navigator.clipboard.write([new ClipboardItem({ "text/html": htmlBlob, "text/plain": textBlob })]);
-    } catch {
-      navigator.clipboard.writeText(editedDraft);
-    }
-
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-    toast({ title: "복사 완료", description: "아웃룩에 붙여넣으면 표가 그대로 나타납니다." });
-  };
-
-  const handleSelectAll = () => {
-    if (draftTextareaRef.current) {
-      draftTextareaRef.current.focus();
-      draftTextareaRef.current.select();
-    }
-  };
-
-  const TABLE_COLS = ["공사작업번호", "부/팀", "작업자", "공사내용", "공사/작업시작일", "공사/작업종료일", "주소", "순회점검대상자"];
-
-  const handleTableCopy = () => {
-    const getVal = (row: Record<string, string>, col: string) => {
-      if (col === "공사내용" && !row[col]) return row["공사명"] || "";
-      return row[col] || "";
-    };
-
-    const mergedRows = getMergedRows();
-
-    // TSV (plain text 폴백)
-    const tsvText = [
-      TABLE_COLS.join("\t"),
-      ...mergedRows.map(row => TABLE_COLS.map(col => getVal(row, col)).join("\t"))
-    ].join("\n");
-
-    // HTML 표 (아웃룩/워드 붙여넣기 시 표 그대로)
-    const thHtml = TABLE_COLS.map(h =>
-      `<th style="border:1px solid #999;padding:4px 8px;background:#f0f0f0;white-space:nowrap;font-size:12px">${h}</th>`
-    ).join("");
-    const tdRows = mergedRows.map(row =>
-      `<tr>${TABLE_COLS.map(col =>
-        `<td style="border:1px solid #999;padding:4px 8px;font-size:12px;white-space:nowrap">${getVal(row, col)}</td>`
-      ).join("")}</tr>`
-    ).join("");
-    const htmlText = `<table style="border-collapse:collapse"><thead><tr>${thHtml}</tr></thead><tbody>${tdRows}</tbody></table>`;
-
-    try {
-      const htmlBlob = new Blob([htmlText], { type: "text/html" });
-      const textBlob = new Blob([tsvText], { type: "text/plain" });
-      navigator.clipboard.write([new ClipboardItem({ "text/html": htmlBlob, "text/plain": textBlob })]);
-    } catch {
-      navigator.clipboard.writeText(tsvText);
-    }
-
-    setTableCopied(true);
-    setTimeout(() => setTableCopied(false), 2000);
-    toast({ title: "표 복사 완료", description: "아웃룩/엑셀에 붙여넣으면 표 형태로 나타납니다." });
-  };
 
   const handleReset = () => {
     setSelectedFile(null);
@@ -369,7 +263,6 @@ export default function WorkPlan() {
     setParseError("");
     setInspectorEdits({});
     setUploadResult(null);
-    setEditedDraft("");
     setPlanTitle("");
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
@@ -427,7 +320,6 @@ export default function WorkPlan() {
     const title = planTitle || "작업계획";
     const mergedRows = getMergedRows();
     const draft = buildEmailDraft(mergedRows, title);
-    setEditedDraft(draft);
 
     // 제목 자동 생성
     const tomorrow = new Date();
@@ -630,54 +522,18 @@ export default function WorkPlan() {
             </CardContent>
           </Card>
 
-          {/* 이메일 초안 결과 */}
-          {(uploadResult || editedDraft) && (
-            <Card className="border-blue-200">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Mail className="w-4 h-4 text-blue-600" />
-                    이메일 초안
-                    <Badge variant="outline" className="text-[10px] border-green-400 text-green-600 ml-1">
-                      <CheckCircle2 className="w-3 h-3 mr-1" />자동 생성
-                    </Badge>
-                  </CardTitle>
-                  <div className="flex gap-2 flex-wrap">
-                    <Button size="sm" variant="outline" onClick={handleSelectAll} data-testid="button-select-all">
-                      <MousePointerClick className="w-3.5 h-3.5 mr-1" />전체 선택
-                    </Button>
-                    <Button size="sm" variant={copied ? "default" : "outline"} onClick={handleCopy} data-testid="button-copy-draft"
-                      className={copied ? "bg-green-600 hover:bg-green-700 text-white" : ""}>
-                      {copied ? <><Check className="w-3.5 h-3.5 mr-1" />복사됨</> : <><Copy className="w-3.5 h-3.5 mr-1" />복사</>}
-                    </Button>
-                    {uploadResult?.processedFileUrl && (
-                      <a href={uploadResult.processedFileUrl} download target="_blank" rel="noreferrer">
-                        <Button size="sm" variant="outline" data-testid="button-download-excel">
-                          <Download className="w-3.5 h-3.5 mr-1" />포맷 엑셀
-                        </Button>
-                      </a>
-                    )}
-                  </div>
-                </div>
-                {uploadResult?.plan?.sheetSummary && (
-                  <p className="text-xs text-muted-foreground mt-1">{uploadResult.plan.sheetSummary}</p>
-                )}
-              </CardHeader>
-              <CardContent>
-                <Textarea
-                  ref={draftTextareaRef}
-                  data-testid="textarea-email-draft"
-                  value={editedDraft}
-                  onChange={(e) => setEditedDraft(e.target.value)}
-                  rows={22}
-                  className="font-mono text-xs resize-y bg-muted/20"
-                  placeholder="이메일 초안이 여기에 표시됩니다"
-                />
-                <p className="text-xs text-muted-foreground mt-2">
-                  <span className="font-medium">전체 선택</span> 후 <span className="font-medium">복사</span>하여 이메일에 붙여넣으면 표가 자동 정렬됩니다.
-                </p>
-              </CardContent>
-            </Card>
+          {/* 포맷 엑셀 다운로드 버튼 (업로드 결과) */}
+          {uploadResult?.processedFileUrl && (
+            <div className="flex items-center gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3">
+              <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
+              <p className="text-sm text-green-700 flex-1">포맷팅 완료</p>
+              <a href={uploadResult.processedFileUrl} download target="_blank" rel="noreferrer">
+                <Button size="sm" variant="outline" data-testid="button-download-excel"
+                  className="border-green-400 text-green-700 hover:bg-green-100">
+                  <Download className="w-3.5 h-3.5 mr-1" />포맷 엑셀 다운로드
+                </Button>
+              </a>
+            </div>
           )}
         </div>
 
@@ -754,33 +610,6 @@ export default function WorkPlan() {
             </CardContent>
           </Card>
 
-          {/* 선택된 이력 이메일 초안 보기 */}
-          {selectedPlan && selectedPlan.emailDraft && (
-            <Card className="mt-4 border-blue-100">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <Mail className="w-4 h-4 text-blue-500" />
-                  {selectedPlan.title}
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="ml-auto h-6 w-6 p-0"
-                    onClick={() => {
-                      navigator.clipboard.writeText(selectedPlan.emailDraft || "");
-                      toast({ title: "복사 완료" });
-                    }}
-                  >
-                    <Copy className="w-3.5 h-3.5" />
-                  </Button>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <pre className="text-[11px] whitespace-pre-wrap font-mono bg-muted/30 rounded p-3 max-h-64 overflow-y-auto leading-relaxed">
-                  {selectedPlan.emailDraft}
-                </pre>
-              </CardContent>
-            </Card>
-          )}
         </div>
       </div>
 
