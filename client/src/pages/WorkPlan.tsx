@@ -272,17 +272,39 @@ export default function WorkPlan() {
   const TABLE_COLS = ["공사작업번호", "부/팀", "작업자", "공사내용", "공사/작업시작일", "공사/작업종료일", "주소", "순회점검대상자"];
 
   const handleTableCopy = () => {
-    const hdr = TABLE_COLS.join("\t");
-    const rows = parsedRows.map(row =>
-      TABLE_COLS.map(col => {
-        if (col === "공사내용" && !row[col]) return row["공사명"] || "";
-        return row[col] || "";
-      }).join("\t")
-    );
-    navigator.clipboard.writeText([hdr, ...rows].join("\n"));
+    const getVal = (row: Record<string, string>, col: string) => {
+      if (col === "공사내용" && !row[col]) return row["공사명"] || "";
+      return row[col] || "";
+    };
+
+    // TSV (plain text 폴백)
+    const tsvText = [
+      TABLE_COLS.join("\t"),
+      ...parsedRows.map(row => TABLE_COLS.map(col => getVal(row, col)).join("\t"))
+    ].join("\n");
+
+    // HTML 표 (아웃룩/워드 붙여넣기 시 표 그대로)
+    const thHtml = TABLE_COLS.map(h =>
+      `<th style="border:1px solid #999;padding:4px 8px;background:#f0f0f0;white-space:nowrap;font-size:12px">${h}</th>`
+    ).join("");
+    const tdRows = parsedRows.map(row =>
+      `<tr>${TABLE_COLS.map(col =>
+        `<td style="border:1px solid #999;padding:4px 8px;font-size:12px;white-space:nowrap">${getVal(row, col)}</td>`
+      ).join("")}</tr>`
+    ).join("");
+    const htmlText = `<table style="border-collapse:collapse"><thead><tr>${thHtml}</tr></thead><tbody>${tdRows}</tbody></table>`;
+
+    try {
+      const htmlBlob = new Blob([htmlText], { type: "text/html" });
+      const textBlob = new Blob([tsvText], { type: "text/plain" });
+      navigator.clipboard.write([new ClipboardItem({ "text/html": htmlBlob, "text/plain": textBlob })]);
+    } catch {
+      navigator.clipboard.writeText(tsvText);
+    }
+
     setTableCopied(true);
     setTimeout(() => setTableCopied(false), 2000);
-    toast({ title: "표 복사 완료", description: "엑셀에 바로 붙여넣기 할 수 있습니다." });
+    toast({ title: "표 복사 완료", description: "아웃룩/엑셀에 붙여넣으면 표 형태로 나타납니다." });
   };
 
   const handleReset = () => {
