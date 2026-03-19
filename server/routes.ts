@@ -2882,8 +2882,14 @@ export async function registerRoutes(
     }),
     limits: { fileSize: 50 * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
-      if (file.mimetype.includes("spreadsheet") || file.originalname.match(/\.(xlsx|xls)$/i)) cb(null, true);
-      else cb(new Error("엑셀 파일만 업로드 가능합니다") as any, false);
+      if (
+        file.mimetype.includes("spreadsheet") ||
+        file.mimetype.includes("csv") ||
+        file.mimetype === "text/csv" ||
+        file.mimetype === "text/plain" ||
+        file.originalname.match(/\.(xlsx|xls|csv)$/i)
+      ) cb(null, true);
+      else cb(new Error("엑셀(.xlsx/.xls) 또는 CSV 파일만 업로드 가능합니다") as any, false);
     },
   });
 
@@ -2903,84 +2909,148 @@ export async function registerRoutes(
       const originalUrl = `/uploads/${req.file.filename}`;
       const processedFilename = `workplan_processed_${Date.now()}.xlsx`;
       const processedPath = path.join(process.cwd(), "uploads", processedFilename);
+      const isCsv = req.file.originalname.toLowerCase().endsWith(".csv");
 
-      // 원본 엑셀 읽기
-      const workbook = new ExcelJS.Workbook();
-      await workbook.xlsx.readFile(req.file.path);
+      // ===== 데이터 파싱 =====
+      let tableRows: string[][] = [];
 
-      const sheet = workbook.worksheets[0];
-      if (!sheet) return res.status(400).json({ message: "시트를 찾을 수 없습니다" });
-
-      // 데이터 추출 (이메일 초안용)
-      const tableRows: string[][] = [];
-      sheet.eachRow((row, rowNumber) => {
-        const cells: string[] = [];
-        row.eachCell({ includeEmpty: true }, (cell) => {
-          cells.push(cell.value != null ? String(cell.value) : "");
+      if (isCsv) {
+        // CSV 파싱
+        const rawText = fs.readFileSync(req.file.path, "utf-8");
+        const lines = rawText.split(/\r?\n/).filter(l => l.trim());
+        tableRows = lines.map(line => {
+          // CSV 셀 파싱 (따옴표 처리)
+          const cells: string[] = [];
+          let cur = "", inQ = false;
+          for (let i = 0; i < line.length; i++) {
+            const ch = line[i];
+            if (ch === '"') { inQ = !inQ; continue; }
+            if (ch === ',' && !inQ) { cells.push(cur.trim()); cur = ""; continue; }
+            cur += ch;
+          }
+          cells.push(cur.trim());
+          return cells;
         });
-        tableRows.push(cells);
-      });
+      } else {
+        // Excel 파싱
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.readFile(req.file.path);
+        const sheet = workbook.worksheets[0];
+        if (!sheet) return res.status(400).json({ message: "시트를 찾을 수 없습니다" });
+        sheet.eachRow((row) => {
+          const cells: string[] = [];
+          row.eachCell({ includeEmpty: true }, (cell) => {
+            cells.push(cell.value != null ? String(cell.value) : "");
+          });
+          tableRows.push(cells);
+        });
+      }
 
       const headerRow = tableRows[0] || [];
-      const dataRows = tableRows.slice(1);
+      const dataRows = tableRows.slice(1).filter(r => r.some(c => c.trim()));
 
-      // ===== 포맷팅 적용 =====
+      // ===== 포맷된 Excel 생성 =====
+      const wb = new ExcelJS.Workbook();
+      const ws = wb.addWorksheet("작업계획");
+
       const headerFill: ExcelJS.Fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E3A5F" } };
       const evenFill: ExcelJS.Fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE8F0FB" } };
       const oddFill: ExcelJS.Fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFFFFF" } };
       const thinBorder: ExcelJS.Border = { style: "thin", color: { argb: "FFB0BEC5" } };
       const borderAll = { top: thinBorder, left: thinBorder, bottom: thinBorder, right: thinBorder };
 
-      let maxCols = 0;
-      sheet.eachRow((row) => { if (row.cellCount > maxCols) maxCols = row.cellCount; });
+      // 헤더 행
+      const headerExcelRow = ws.addRow(headerRow);
+      headerExcelRow.height = 22;
+      headerExcelRow.eachCell({ includeEmpty: true }, (cell) => {
+        cell.fill = headerFill;
+        (cell as any).border = borderAll;
+        cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 11, name: "맑은 고딕" };
+        cell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+      });
 
-      sheet.eachRow((row, rowIdx) => {
-        const isHeader = rowIdx === 1;
-        row.eachCell({ includeEmpty: true }, (cell) => {
-          cell.fill = isHeader ? headerFill : (rowIdx % 2 === 0 ? evenFill : oddFill);
+      // 데이터 행
+      dataRows.forEach((row, idx) => {
+        const excelRow = ws.addRow(row);
+        excelRow.height = 18;
+        excelRow.eachCell({ includeEmpty: true }, (cell) => {
+          cell.fill = idx % 2 === 0 ? evenFill : oddFill;
           (cell as any).border = borderAll;
-          if (isHeader) {
-            cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 11 };
-          } else {
-            cell.font = { size: 10 };
-          }
+          cell.font = { size: 10, name: "맑은 고딕" };
           cell.alignment = { vertical: "middle", wrapText: true };
         });
-        row.height = isHeader ? 22 : 18;
       });
 
       // 열 너비 자동 조정
-      for (let c = 1; c <= maxCols; c++) {
-        const col = sheet.getColumn(c);
-        let maxLen = 10;
-        col.eachCell({ includeEmpty: false }, (cell) => {
-          const val = cell.value != null ? String(cell.value) : "";
-          if (val.length > maxLen) maxLen = Math.min(val.length, 40);
+      headerRow.forEach((_, ci) => {
+        const col = ws.getColumn(ci + 1);
+        let maxLen = Math.max(10, (headerRow[ci] || "").length);
+        dataRows.forEach(row => {
+          const len = (row[ci] || "").length;
+          if (len > maxLen) maxLen = Math.min(len, 40);
         });
         col.width = maxLen + 2;
-      }
+      });
 
-      await workbook.xlsx.writeFile(processedPath);
+      await wb.xlsx.writeFile(processedPath);
 
-      // ===== 이메일 초안 생성 =====
-      const today = new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" });
-      const sheetTitle = sheet.name || "작업계획";
+      // ===== 이메일 초안 생성 (입회작업 요청 포맷) =====
+      const now = new Date();
+      const DAYS = ["일", "월", "화", "수", "목", "금", "토"];
+      const dateStr = `${String(now.getFullYear()).slice(2)}.${String(now.getMonth() + 1).padStart(2, "0")}.${String(now.getDate()).padStart(2, "0")}(${DAYS[now.getDay()]})`;
+      const title = req.body.title || `작업계획_${now.toISOString().slice(0, 10)}`;
       const totalRows = dataRows.length;
 
-      let tableText = "";
-      if (headerRow.length > 0) {
-        tableText += `  [${headerRow.join(" | ")}]\n`;
-        dataRows.slice(0, 10).forEach((row, i) => {
-          tableText += `  ${i + 1}. ${row.join(" | ")}\n`;
-        });
-        if (dataRows.length > 10) tableText += `  ... 외 ${dataRows.length - 10}건\n`;
-      }
+      // 텍스트 테이블 생성
+      const colWidths = headerRow.map((h, ci) => {
+        let max = h.length;
+        dataRows.forEach(r => { if ((r[ci] || "").length > max) max = (r[ci] || "").length; });
+        return Math.min(max, 25) + 2;
+      });
 
-      const emailDraft = `수신: 관계자 귀중\n발신: 안전관리팀\n일자: ${today}\n제목: [작업계획] ${sheetTitle}\n\n안녕하세요.\n\n아래와 같이 작업계획을 공유드립니다.\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n■ 작업계획 내용 (총 ${totalRows}건)\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n${tableText}\n작업 전 안전 수칙 준수 및 보호구 착용을 반드시 확인하시기 바랍니다.\n\n감사합니다.\n안전관리팀 드림`;
+      const hLine = colWidths.map(w => "─".repeat(w)).join("┼");
+      const headerLine = headerRow.map((h, ci) => h.padEnd(colWidths[ci])).join("│");
+      const dataLines = dataRows.map((row, ri) =>
+        row.map((cell, ci) => (cell || "").padEnd(colWidths[ci])).join("│")
+      );
 
-      const sheetSummary = `시트: ${sheetTitle} | 총 ${totalRows}건 | 항목: ${headerRow.join(", ")}`;
+      const tableText = [
+        `┌${colWidths.map(w => "─".repeat(w)).join("┬")}┐`,
+        `│${headerLine}│`,
+        `├${hLine}┤`,
+        ...dataLines.map(l => `│${l}│`),
+        `└${colWidths.map(w => "─".repeat(w)).join("┴")}┘`,
+      ].join("\n");
 
-      const title = req.body.title || `작업계획_${new Date().toISOString().slice(0, 10)}`;
+      const emailDraft = [
+        `귀하의 건강과 안전을 진심으로 기원합니다.`,
+        ``,
+        `${dateStr} 작업 내용을 아래와 같이 공유드립니다.`,
+        ``,
+        `입회 확인 및 안전 협조를 요청드리며, 작업 전 TBM 실시 및 안전작업절차를 반드시 이행하여 주시기 바랍니다.`,
+        ``,
+        `★ 우천 시 작업 중지, 작업 현황에 따라 인원이 증가할 수 있으므로 참고 바랍니다.`,
+        ``,
+        `────────────────────────────────────────`,
+        `■ [${title}] 작업 목록 (총 ${totalRows}건)`,
+        `────────────────────────────────────────`,
+        ``,
+        tableText,
+        ``,
+        `────────────────────────────────────────`,
+        ``,
+        `★ All-in Safety TBM 실시 이행`,
+        `  - 작업 전 TBM 실시 및 서명, 2인1조 안전장비 착용 철저`,
+        `  - 고소작업 시 안전벨트 착용, 인접 충전부 접촉 금지`,
+        `  - 이동 중 안전벨트 착용 및 과속 금지`,
+        `  - 작업 종료 후 잔재물 철저 정리정돈`,
+        ``,
+        `감사합니다.`,
+        `KT MOS남부 안전관리팀 드림`,
+      ].join("\n");
+
+      const sheetSummary = `총 ${totalRows}건 | 항목: ${headerRow.slice(0, 5).join(", ")}${headerRow.length > 5 ? " 외" : ""}`;
+
       const plan = await storage.createWorkPlan({
         title,
         originalFileName: req.file.originalname,

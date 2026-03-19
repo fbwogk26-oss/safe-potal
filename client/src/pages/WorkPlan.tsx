@@ -93,8 +93,8 @@ export default function WorkPlan() {
   });
 
   const handleFileSelect = (file: File) => {
-    if (!file.name.match(/\.(xlsx|xls)$/i)) {
-      toast({ title: "형식 오류", description: "엑셀 파일(.xlsx, .xls)만 업로드 가능합니다", variant: "destructive" });
+    if (!file.name.match(/\.(xlsx|xls|csv)$/i)) {
+      toast({ title: "형식 오류", description: "엑셀(.xlsx, .xls) 또는 CSV 파일만 업로드 가능합니다", variant: "destructive" });
       return;
     }
     setSelectedFile(file);
@@ -143,7 +143,7 @@ export default function WorkPlan() {
           </div>
           <div>
             <h1 className="text-xl font-bold text-foreground">작업계획</h1>
-            <p className="text-sm text-muted-foreground">엑셀 파일을 업로드하면 자동으로 포맷팅하고 이메일 초안을 생성합니다</p>
+            <p className="text-sm text-muted-foreground">엑셀(xlsx/xls) 또는 CSV 파일을 업로드하면 자동으로 포맷팅하고 입회작업 요청 이메일 초안을 생성합니다</p>
           </div>
         </div>
       </div>
@@ -188,7 +188,7 @@ export default function WorkPlan() {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".xlsx,.xls"
+                  accept=".xlsx,.xls,.csv"
                   className="hidden"
                   onChange={(e) => e.target.files?.[0] && handleFileSelect(e.target.files[0])}
                 />
@@ -201,8 +201,8 @@ export default function WorkPlan() {
                 ) : (
                   <div className="flex flex-col items-center gap-2 text-muted-foreground">
                     <Upload className="w-10 h-10 opacity-40" />
-                    <p className="font-medium">엑셀 파일을 드래그하거나 클릭하여 선택</p>
-                    <p className="text-xs">.xlsx, .xls 파일 지원 (최대 50MB)</p>
+                    <p className="font-medium">파일을 드래그하거나 클릭하여 선택</p>
+                    <p className="text-xs">.xlsx, .xls, .csv 파일 지원 (최대 50MB)</p>
                   </div>
                 )}
               </div>
