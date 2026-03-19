@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -59,12 +59,13 @@ function parseMossData(text: string): { headers: string[]; rows: Record<string, 
   return { headers, rows };
 }
 
-// 텍스트 초안 → 서식 있는 HTML 변환 (표 + 가이드 이미지 포함)
-function buildHtmlFromDraft(draft: string): string {
+// 텍스트 초안 → 서식 있는 HTML 변환 (표 + 가이드 이미지 base64 내장)
+function buildHtmlFromDraft(draft: string, guideImageDataUrl?: string): string {
   const lines = draft.split("\n");
   const tableStartIdx = lines.findIndex(l => l.startsWith("※"));
-  const guideImgUrl = `${window.location.origin}/public-assets/work-plan-guide.png`;
-  const guideImgHtml = `<div style="margin-top:24px"><img src="${guideImgUrl}" style="max-width:100%;border:1px solid #ddd;border-radius:4px" alt="안전활동 사진 등록 가이드" /></div>`;
+  const guideImgHtml = guideImageDataUrl
+    ? `<div style="margin-top:24px"><img src="${guideImageDataUrl}" style="max-width:100%;border:1px solid #ddd;border-radius:4px" alt="안전활동 사진 등록 가이드" /></div>`
+    : "";
 
   if (tableStartIdx === -1) {
     return `<div style="font-family:맑은고딕,sans-serif;font-size:13px">${lines.map(l => l.trim() === "" ? "<br>" : `<p style="margin:2px 0">${l}</p>`).join("")}${guideImgHtml}</div>`;
@@ -157,6 +158,20 @@ export default function WorkPlan() {
   // 생성된 초안 및 복사 상태
   const [generatedDraft, setGeneratedDraft] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+
+  // 가이드 이미지 base64 (컴포넌트 마운트 시 미리 로드)
+  const [guideImageDataUrl, setGuideImageDataUrl] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    fetch("/public-assets/work-plan-guide.png")
+      .then(res => res.blob())
+      .then(blob => new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.readAsDataURL(blob);
+      }))
+      .then(dataUrl => setGuideImageDataUrl(dataUrl))
+      .catch(() => {});
+  }, []);
 
   const { data: workPlans = [], isLoading } = useQuery<WorkPlan[]>({
     queryKey: ["/api/work-plans"],
@@ -292,10 +307,10 @@ export default function WorkPlan() {
     setInspectorDialogOpen(false);
   };
 
-  // 전체 복사 (표 서식 + 가이드 이미지 포함 HTML)
+  // 전체 복사 (표 서식 + 가이드 이미지 base64 내장 HTML)
   const handleCopyAll = async () => {
     if (!generatedDraft) return;
-    const html = buildHtmlFromDraft(generatedDraft);
+    const html = buildHtmlFromDraft(generatedDraft, guideImageDataUrl);
     try {
       await navigator.clipboard.write([
         new ClipboardItem({
@@ -316,9 +331,9 @@ export default function WorkPlan() {
     }
   };
 
-  // 이력에서 초안 복사 (표 서식 + 이미지 포함)
+  // 이력에서 초안 복사 (표 서식 + 이미지 base64 내장)
   const handleCopyPlanDraft = async (draft: string) => {
-    const html = buildHtmlFromDraft(draft);
+    const html = buildHtmlFromDraft(draft, guideImageDataUrl);
     try {
       await navigator.clipboard.write([
         new ClipboardItem({
