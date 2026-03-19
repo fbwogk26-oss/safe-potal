@@ -3085,6 +3085,20 @@ export async function registerRoutes(
         return res.status(400).json({ message: "수신자 이메일을 입력해주세요" });
       }
 
+      // 가이드 이미지 base64 인코딩 후 이메일에 추가
+      let guideImgHtml = "";
+      try {
+        const { readFileSync } = await import("fs");
+        const { join } = await import("path");
+        const imgPath = join(process.cwd(), "server", "assets", "work-plan-guide.png");
+        const imgBase64 = readFileSync(imgPath).toString("base64");
+        guideImgHtml = `<div style="margin-top:24px"><img src="data:image/png;base64,${imgBase64}" style="max-width:100%;border:1px solid #ddd;border-radius:4px" alt="안전활동 사진 등록 가이드" /></div>`;
+      } catch (imgErr) {
+        console.warn("[SendEmail] 가이드 이미지 로드 실패:", imgErr);
+      }
+
+      const finalHtml = htmlContent.replace(/<\/div>\s*$/, `${guideImgHtml}</div>`);
+
       const { Resend } = await import("resend");
       const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -3092,7 +3106,7 @@ export async function registerRoutes(
         from: "SafeBoard <onboarding@resend.dev>",
         to: recipients,
         subject,
-        html: htmlContent,
+        html: finalHtml,
         text: textContent || "",
       });
 
