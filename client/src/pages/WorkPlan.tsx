@@ -59,6 +59,34 @@ function parseMossData(text: string): { headers: string[]; rows: Record<string, 
   return { headers, rows };
 }
 
+// 텍스트 초안 → 서식 있는 HTML 변환 (표 + 가이드 이미지 포함)
+function buildHtmlFromDraft(draft: string): string {
+  const lines = draft.split("\n");
+  const tableStartIdx = lines.findIndex(l => l.startsWith("※"));
+  const guideImgUrl = `${window.location.origin}/public-assets/work-plan-guide.png`;
+  const guideImgHtml = `<div style="margin-top:24px"><img src="${guideImgUrl}" style="max-width:100%;border:1px solid #ddd;border-radius:4px" alt="안전활동 사진 등록 가이드" /></div>`;
+
+  if (tableStartIdx === -1) {
+    return `<div style="font-family:맑은고딕,sans-serif;font-size:13px">${lines.map(l => l.trim() === "" ? "<br>" : `<p style="margin:2px 0">${l}</p>`).join("")}${guideImgHtml}</div>`;
+  }
+  const bodyHtml = lines.slice(0, tableStartIdx).map(l =>
+    l.trim() === "" ? "<br>" : `<p style="margin:2px 0">${l}</p>`
+  ).join("");
+  const titleLine = lines[tableStartIdx];
+  const tableLines = lines.slice(tableStartIdx + 1).filter(l => l.trim() !== "");
+  let tableHtml = "";
+  if (tableLines.length >= 2) {
+    const thHtml = tableLines[0].split("\t").map(h =>
+      `<th style="border:1px solid #999;padding:4px 8px;background:#f0f0f0;white-space:nowrap;font-size:12px">${h}</th>`
+    ).join("");
+    const tdRows = tableLines.slice(1).map(row =>
+      `<tr>${row.split("\t").map(c => `<td style="border:1px solid #999;padding:4px 8px;font-size:12px;white-space:nowrap">${c}</td>`).join("")}</tr>`
+    ).join("");
+    tableHtml = `<p style="margin:8px 0 4px 0"><strong>${titleLine}</strong></p><table style="border-collapse:collapse"><thead><tr>${thHtml}</tr></thead><tbody>${tdRows}</tbody></table>`;
+  }
+  return `<div style="font-family:맑은고딕,sans-serif;font-size:13px">${bodyHtml}${tableHtml}${guideImgHtml}</div>`;
+}
+
 // 이메일 초안 생성
 function buildEmailDraft(rows: Record<string, string>[], title: string): string {
   const tomorrow = new Date();
@@ -264,21 +292,46 @@ export default function WorkPlan() {
     setInspectorDialogOpen(false);
   };
 
-  // 전체 복사
-  const handleCopyAll = () => {
-    const text = generatedDraft || "";
-    navigator.clipboard.writeText(text).then(() => {
+  // 전체 복사 (표 서식 + 가이드 이미지 포함 HTML)
+  const handleCopyAll = async () => {
+    if (!generatedDraft) return;
+    const html = buildHtmlFromDraft(generatedDraft);
+    try {
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          "text/html": new Blob([html], { type: "text/html" }),
+          "text/plain": new Blob([generatedDraft], { type: "text/plain" }),
+        }),
+      ]);
       setCopied(true);
-      toast({ title: "복사 완료", description: "이메일 내용이 클립보드에 복사되었습니다." });
+      toast({ title: "복사 완료", description: "표 서식과 이미지가 포함된 내용이 복사되었습니다. 이메일에 바로 붙여넣기 하세요." });
       setTimeout(() => setCopied(false), 2500);
-    });
+    } catch {
+      // 폴백: 일반 텍스트 복사
+      navigator.clipboard.writeText(generatedDraft).then(() => {
+        setCopied(true);
+        toast({ title: "복사 완료", description: "이메일 내용이 복사되었습니다." });
+        setTimeout(() => setCopied(false), 2500);
+      });
+    }
   };
 
-  // 이력에서 초안 복사
-  const handleCopyPlanDraft = (draft: string) => {
-    navigator.clipboard.writeText(draft).then(() => {
-      toast({ title: "복사 완료", description: "클립보드에 복사되었습니다." });
-    });
+  // 이력에서 초안 복사 (표 서식 + 이미지 포함)
+  const handleCopyPlanDraft = async (draft: string) => {
+    const html = buildHtmlFromDraft(draft);
+    try {
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          "text/html": new Blob([html], { type: "text/html" }),
+          "text/plain": new Blob([draft], { type: "text/plain" }),
+        }),
+      ]);
+      toast({ title: "복사 완료", description: "표 서식과 이미지가 포함된 내용이 복사되었습니다." });
+    } catch {
+      navigator.clipboard.writeText(draft).then(() => {
+        toast({ title: "복사 완료", description: "클립보드에 복사되었습니다." });
+      });
+    }
   };
 
   const isPending = uploadMutation.isPending || pasteMutation.isPending;
