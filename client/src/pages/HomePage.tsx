@@ -29,6 +29,9 @@ interface Notice { id: number; title: string; category: string; createdAt: strin
 interface Accident { id: number; accidentType: string; department: string; occurredAt: string; severity: string; }
 interface AccidentStat { total: number; byYear?: Record<string, number>; }
 interface RiskAssessment { id: number; title: string; department: string; approvalStatus: string; riskLevel: string; createdAt: string; }
+interface TrafficFine { id: number; violationDate: string; department: string; licensePlate: string; violationType: string; amount: number; paymentStatus: string; }
+interface EduSession { id: number; title: string; educationDate: string; department: string; status: string; educationType: string; }
+interface EquipmentRequest { id: number; itemName: string; reason: string; status: string; urgency: string; department: string; createdAt: string; }
 interface WeatherData {
   city: string;
   tempC: number;
@@ -234,7 +237,7 @@ function getWeatherEmojiUI(code: string, tempC: number): string {
   return "🌤️";
 }
 
-type Tab = "공지사항" | "최근 사고" | "승인대기";
+type Tab = "공지사항" | "최근 사고" | "승인대기" | "과태료" | "교육내역" | "용품 신청";
 
 export default function HomePage() {
   const { user } = useAuth();
@@ -246,6 +249,8 @@ export default function HomePage() {
     canViewInspections,
     canViewEducationLogs,
     canViewMsds,
+    canViewVehicleLogs,
+    canViewEquipment,
   } = usePermissions();
 
   const QUICK_IN = [
@@ -260,7 +265,10 @@ export default function HomePage() {
   const TABS = [
     canViewNotices && "공지사항",
     canViewAccidents && "최근 사고",
+    canViewVehicleLogs && "과태료",
+    canViewEducationLogs && "교육내역",
     canViewRiskAssessment && "승인대기",
+    canViewEquipment && "용품 신청",
   ].filter(Boolean) as Tab[];
 
   const now = new Date();
@@ -277,6 +285,9 @@ export default function HomePage() {
   const { data: accidentStats } = useQuery<AccidentStat>({ queryKey: ["/api/accidents/stats"] });
   const { data: accidents } = useQuery<Accident[]>({ queryKey: ["/api/accidents"] });
   const { data: riskAssessments } = useQuery<RiskAssessment[]>({ queryKey: ["/api/risk-assessments"] });
+  const { data: trafficFines } = useQuery<TrafficFine[]>({ queryKey: ["/api/traffic-fines"], enabled: canViewVehicleLogs });
+  const { data: eduSessions } = useQuery<EduSession[]>({ queryKey: ["/api/education-sessions"], enabled: canViewEducationLogs });
+  const { data: equipmentRequests } = useQuery<EquipmentRequest[]>({ queryKey: ["/api/new-equipment-requests"], enabled: canViewEquipment });
   const [weatherCity, setWeatherCity] = useState("대구");
   const { data: weather, isLoading: weatherLoading } = useQuery<WeatherData>({
     queryKey: ["/api/weather/current", weatherCity],
@@ -352,6 +363,9 @@ export default function HomePage() {
     : [];
   const recentNotices = Array.isArray(notices) ? notices.slice(0, 6) : [];
   const recentAccidents = Array.isArray(accidents) ? accidents.slice(0, 6) : [];
+  const recentFines = Array.isArray(trafficFines) ? trafficFines.slice(0, 4) : [];
+  const recentEduSessions = Array.isArray(eduSessions) ? eduSessions.slice(0, 4) : [];
+  const recentRequests = Array.isArray(equipmentRequests) ? equipmentRequests.slice(0, 4) : [];
   const sortedTeams = [...teamList].sort((a, b) => b.totalScore - a.totalScore);
 
   return (
@@ -531,10 +545,97 @@ export default function HomePage() {
                       }
                     </div>
                   )}
+
+                  {/* 과태료 */}
+                  {activeTab === "과태료" && (
+                    <div className="divide-y divide-border/50">
+                      {recentFines.length === 0
+                        ? <p className="text-sm text-muted-foreground py-3 text-center">등록된 과태료 내역이 없습니다.</p>
+                        : recentFines.map(f => (
+                          <Link key={f.id} href="/traffic-fines">
+                            <div className="group flex items-center gap-2 px-3 py-1.5 hover:bg-accent/40 cursor-pointer transition-colors">
+                              <Badge
+                                variant="outline"
+                                className={cn("text-[10px] flex-shrink-0 px-1.5 py-0",
+                                  f.paymentStatus === "미납" ? "border-red-400 text-red-600" : "border-emerald-400 text-emerald-600"
+                                )}
+                              >
+                                {f.paymentStatus}
+                              </Badge>
+                              <p className="flex-1 text-xs font-medium truncate group-hover:text-primary transition-colors">
+                                {f.department} · {f.violationType}
+                              </p>
+                              <p className="text-[10px] text-muted-foreground flex-shrink-0">
+                                {f.violationDate ? format(new Date(f.violationDate), "yy.MM.dd") : "-"}
+                              </p>
+                            </div>
+                          </Link>
+                        ))
+                      }
+                    </div>
+                  )}
+
+                  {/* 교육내역 */}
+                  {activeTab === "교육내역" && (
+                    <div className="divide-y divide-border/50">
+                      {recentEduSessions.length === 0
+                        ? <p className="text-sm text-muted-foreground py-3 text-center">등록된 교육내역이 없습니다.</p>
+                        : recentEduSessions.map(s => (
+                          <Link key={s.id} href="/education-logs">
+                            <div className="group flex items-center gap-2 px-3 py-1.5 hover:bg-accent/40 cursor-pointer transition-colors">
+                              <Badge
+                                variant="outline"
+                                className={cn("text-[10px] flex-shrink-0 px-1.5 py-0",
+                                  s.status === "완료" ? "border-emerald-400 text-emerald-600" : "border-blue-400 text-blue-600"
+                                )}
+                              >
+                                {s.status}
+                              </Badge>
+                              <p className="flex-1 text-xs font-medium truncate group-hover:text-primary transition-colors">{s.title}</p>
+                              <p className="text-[10px] text-muted-foreground flex-shrink-0">{s.department}</p>
+                            </div>
+                          </Link>
+                        ))
+                      }
+                    </div>
+                  )}
+
+                  {/* 용품 신청 */}
+                  {activeTab === "용품 신청" && (
+                    <div className="divide-y divide-border/50">
+                      {recentRequests.length === 0
+                        ? <p className="text-sm text-muted-foreground py-3 text-center">등록된 용품 신청이 없습니다.</p>
+                        : recentRequests.map(r => (
+                          <Link key={r.id} href="/equipment">
+                            <div className="group flex items-center gap-2 px-3 py-1.5 hover:bg-accent/40 cursor-pointer transition-colors">
+                              <Badge
+                                variant="outline"
+                                className={cn("text-[10px] flex-shrink-0 px-1.5 py-0",
+                                  r.urgency === "긴급" ? "border-red-400 text-red-600" :
+                                  r.urgency === "높음" ? "border-orange-400 text-orange-600" : "border-slate-400 text-slate-600"
+                                )}
+                              >
+                                {r.urgency || "보통"}
+                              </Badge>
+                              <p className="flex-1 text-xs font-medium truncate group-hover:text-primary transition-colors">{r.itemName}</p>
+                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 flex-shrink-0">{r.status}</Badge>
+                            </div>
+                          </Link>
+                        ))
+                      }
+                    </div>
+                  )}
                 </CardContent>
                 {/* 전체보기 - 하단 고정 */}
                 <div className="border-t border-border/50 mt-auto">
-                  <Link href={activeTab === "공지사항" ? "/notices" : activeTab === "최근 사고" ? "/accidents" : "/risk-assessment"}>
+                  <Link href={
+                    activeTab === "공지사항" ? "/notices" :
+                    activeTab === "최근 사고" ? "/accidents" :
+                    activeTab === "과태료" ? "/traffic-fines" :
+                    activeTab === "교육내역" ? "/education-logs" :
+                    activeTab === "용품 신청" ? "/equipment" :
+                    "/risk-assessment"
+                  }>
                     <div className="flex items-center justify-center gap-1 py-2 text-xs text-primary font-medium hover:bg-accent/30 cursor-pointer transition-colors">
                       전체 보기 <ChevronRight className="w-3.5 h-3.5" />
                     </div>
