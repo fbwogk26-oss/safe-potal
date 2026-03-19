@@ -333,7 +333,7 @@ export default function WorkPlan() {
 
     // 이메일 발송
     sendEmailMutation.mutate({
-      to: ["fbwogk26@gmail.com"],
+      to: ["fbwogk36@naver.com"],
       subject,
       htmlContent: buildHtmlFromDraft(draft),
       textContent: draft,
