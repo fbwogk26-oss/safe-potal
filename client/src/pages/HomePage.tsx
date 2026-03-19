@@ -32,7 +32,6 @@ interface AccidentStat { total: number; byYear?: Record<string, number>; }
 interface RiskAssessment { id: number; title: string; department: string; approvalStatus: string; riskLevel: string; createdAt: string; }
 interface TrafficFine { id: number; violationDate: string; department: string; licensePlate: string; violationType: string; amount: number; paymentStatus: string; }
 interface EduSession { id: number; title: string; educationDate: string; department: string; status: string; educationType: string; totalParticipants: number; signatureCount: number; }
-interface EquipmentRequest { id: number; itemName: string; reason: string; status: string; urgency: string; department: string; createdAt: string; }
 interface WeatherData {
   city: string;
   tempC: number;
@@ -290,7 +289,6 @@ export default function HomePage() {
   const { data: riskAssessments } = useQuery<RiskAssessment[]>({ queryKey: ["/api/risk-assessments"] });
   const { data: trafficFines } = useQuery<TrafficFine[]>({ queryKey: ["/api/traffic-fines"], enabled: canViewVehicleLogs });
   const { data: eduSessions } = useQuery<EduSession[]>({ queryKey: ["/api/education-sessions"], enabled: canViewEducationLogs });
-  const { data: equipmentRequests } = useQuery<EquipmentRequest[]>({ queryKey: ["/api/new-equipment-requests"] });
   const [weatherCity, setWeatherCity] = useState("대구");
   const { data: weather, isLoading: weatherLoading } = useQuery<WeatherData>({
     queryKey: ["/api/weather/current", weatherCity],
@@ -394,26 +392,16 @@ export default function HomePage() {
   const recentEquipNotices = Array.isArray(notices)
     ? notices.filter((n: any) => n.category === "equipment" || n.category === "equip_request")
     : [];
-  const recentRequests = [
-    ...recentEquipNotices.map((n: any) => ({
+  const recentRequests = recentEquipNotices
+    .map((n: any) => ({
       _type: "notice" as const,
       key: `notice-${n.id}`,
-      href: "/equipment",
+      href: "/equipment/request",
       title: n.title,
       createdAt: n.createdAt,
       urgency: null as string | null,
       status: null as string | null,
-    })),
-    ...(Array.isArray(equipmentRequests) ? equipmentRequests : []).map((r: any) => ({
-      _type: "request" as const,
-      key: `req-${r.id}`,
-      href: "/equipment",
-      title: r.itemName,
-      createdAt: r.createdAt,
-      urgency: r.urgency as string | null,
-      status: r.status as string | null,
-    })),
-  ]
+    }))
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, 7);
   const sortedTeams = [...teamList].sort((a, b) => b.totalScore - a.totalScore);
