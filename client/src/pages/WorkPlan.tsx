@@ -36,22 +36,37 @@ interface UploadResult {
   processedFileUrl?: string;
 }
 
+// 헤더 정규화: 보이지 않는 특수문자·BOM·공백 제거
+function normalizeKey(s: string): string {
+  return s.replace(/[\u200B-\u200D\uFEFF\u00A0\r]/g, "").trim();
+}
+
 // MOSS 붙여넣기 데이터 파싱
 function parseMossData(text: string): { headers: string[]; rows: Record<string, string>[] } {
   const lines = text.split(/\r?\n/).filter(l => l.trim());
   if (lines.length < 2) return { headers: [], rows: [] };
 
-  const headers = lines[0].split("\t").map(h => h.trim());
+  const rawHeaders = lines[0].split("\t");
+  const headers = rawHeaders.map(h => normalizeKey(h));
   if (headers.length < 2) return { headers: [], rows: [] };
+
+  // 순회점검대상자 컬럼 인덱스를 유연하게 찾기 (포함 여부로 탐색)
+  const inspectorColIdx = headers.findIndex(h => h.includes("순회점검대상자") || h.includes("순회") && h.includes("대상자"));
 
   const rows: Record<string, string>[] = [];
   for (let i = 1; i < lines.length; i++) {
-    const cells = lines[i].split("\t").map(c => c.trim());
+    const cells = lines[i].split("\t").map(c => normalizeKey(c));
     const record: Record<string, string> = {};
     headers.forEach((h, ci) => {
       record[h] = cells[ci] || "";
     });
-    if (record["공사작업번호"]) {
+    // 인덱스 기반으로 직접 매핑 (키 불일치 방지)
+    if (inspectorColIdx >= 0 && cells[inspectorColIdx]) {
+      record["순회점검대상자"] = cells[inspectorColIdx];
+    }
+    // 공사작업번호가 있는 행만 포함 (키 변형 대비 includes 탐색)
+    const hasJobNum = Object.entries(record).some(([k, v]) => k.includes("공사작업번호") && v);
+    if (hasJobNum) {
       rows.push(record);
     }
   }
