@@ -256,10 +256,56 @@ export default function WorkPlan() {
   }, []);
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(editedDraft);
+    // 표 구분선 찾기 (※로 시작하는 줄 이후가 표)
+    const lines = editedDraft.split("\n");
+    const tableStartIdx = lines.findIndex(l => l.startsWith("※"));
+
+    let htmlContent: string;
+
+    if (tableStartIdx !== -1) {
+      const bodyLines = lines.slice(0, tableStartIdx);
+      const tableLines = lines.slice(tableStartIdx + 1).filter(l => l.trim() !== "");
+      const titleLine = lines[tableStartIdx];
+
+      // 텍스트 본문 → HTML
+      const bodyHtml = bodyLines.map(l =>
+        l.trim() === "" ? "<br>" : `<p style="margin:2px 0">${l}</p>`
+      ).join("");
+
+      // 표 → HTML table
+      let tableHtml = "";
+      if (tableLines.length >= 2) {
+        const headers = tableLines[0].split("\t");
+        const thHtml = headers.map(h =>
+          `<th style="border:1px solid #999;padding:4px 8px;background:#f0f0f0;white-space:nowrap;font-size:12px">${h}</th>`
+        ).join("");
+        const dataRows = tableLines.slice(1).map(row => {
+          const cells = row.split("\t");
+          const tdHtml = cells.map(c =>
+            `<td style="border:1px solid #999;padding:4px 8px;font-size:12px;white-space:nowrap">${c}</td>`
+          ).join("");
+          return `<tr>${tdHtml}</tr>`;
+        }).join("");
+        tableHtml = `<p style="margin:8px 0 4px 0"><strong>${titleLine}</strong></p><table style="border-collapse:collapse"><thead><tr>${thHtml}</tr></thead><tbody>${dataRows}</tbody></table>`;
+      }
+
+      htmlContent = `<div style="font-family:맑은고딕,sans-serif;font-size:13px">${bodyHtml}${tableHtml}</div>`;
+    } else {
+      // 표가 없으면 텍스트만
+      htmlContent = `<div style="font-family:맑은고딕,sans-serif;font-size:13px">${editedDraft.split("\n").map(l => l.trim() === "" ? "<br>" : `<p style="margin:2px 0">${l}</p>`).join("")}</div>`;
+    }
+
+    try {
+      const htmlBlob = new Blob([htmlContent], { type: "text/html" });
+      const textBlob = new Blob([editedDraft], { type: "text/plain" });
+      navigator.clipboard.write([new ClipboardItem({ "text/html": htmlBlob, "text/plain": textBlob })]);
+    } catch {
+      navigator.clipboard.writeText(editedDraft);
+    }
+
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-    toast({ title: "복사 완료", description: "이메일 초안이 클립보드에 복사되었습니다." });
+    toast({ title: "복사 완료", description: "아웃룩에 붙여넣으면 표가 그대로 나타납니다." });
   };
 
   const handleSelectAll = () => {
