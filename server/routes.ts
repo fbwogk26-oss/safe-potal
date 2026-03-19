@@ -3073,6 +3073,33 @@ export async function registerRoutes(
     }
   });
 
+  // 붙여넣기 데이터로 작업계획 저장
+  app.post('/api/work-plans/from-paste', isAuthenticated, async (req: any, res) => {
+    try {
+      const { rows, title, emailDraft } = req.body;
+      if (!Array.isArray(rows) || rows.length === 0) {
+        return res.status(400).json({ message: "작업 데이터가 없습니다" });
+      }
+      const totalRows = rows.length;
+      const firstRow = rows[0] as Record<string, string>;
+      const sampleCols = Object.keys(firstRow).slice(0, 5).join(", ");
+      const sheetSummary = `총 ${totalRows}건 | 항목: ${sampleCols}`;
+      const plan = await storage.createWorkPlan({
+        title: title || `작업계획_${new Date().toISOString().slice(0, 10)}`,
+        originalFileName: null,
+        originalFileUrl: null,
+        processedFileUrl: null,
+        emailDraft,
+        sheetSummary,
+        createdBy: req.user?.username,
+      });
+      res.json({ plan, emailDraft });
+    } catch (error: any) {
+      console.error("[WorkPlan from-paste error]", error);
+      res.status(500).json({ message: error?.message || "저장에 실패했습니다" });
+    }
+  });
+
   app.delete('/api/work-plans/:id', isAuthenticated, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);

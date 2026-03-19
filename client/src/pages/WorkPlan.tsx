@@ -9,10 +9,9 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 import {
   Upload, FileSpreadsheet, Mail, Download, Trash2, CalendarCheck,
-  Clock, CheckCircle2, ChevronRight, X, Loader2, Copy, Check
+  Clock, CheckCircle2, X, Loader2, Copy, Check, ClipboardPaste
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -32,15 +31,137 @@ interface WorkPlan {
 interface UploadResult {
   plan: WorkPlan;
   emailDraft: string;
-  processedFileUrl: string;
+  processedFileUrl?: string;
+}
+
+// MOSS 붙여넣기 데이터 파싱
+// 형식: 첫 줄 = 탭 구분 헤더, 이후 각 레코드는 헤더 수만큼 줄이 세로로 나열
+function parseMossData(text: string): { headers: string[]; rows: Record<string, string>[] } {
+  const lines = text.split(/\r?\n/);
+  if (lines.length < 2) return { headers: [], rows: [] };
+
+  // 첫 줄이 탭 구분 헤더인지 확인
+  const firstLine = lines[0];
+  const headers = firstLine.split("\t").map(h => h.trim()).filter(h => h);
+  if (headers.length < 2) return { headers: [], rows: [] };
+
+  const numCols = headers.length;
+  const dataLines = lines.slice(1).map(l => l.trimEnd()); // 헤더 이후
+
+  const rows: Record<string, string>[] = [];
+  let i = 0;
+  while (i < dataLines.length) {
+    // 완전히 빈 줄 블록 건너뜀
+    if (!dataLines[i] && (i === 0 || !dataLines[i - 1])) { i++; continue; }
+
+    // numCols 줄씩 한 레코드
+    const chunk = dataLines.slice(i, i + numCols);
+    if (chunk.length < numCols) break;
+
+    const record: Record<string, string> = {};
+    headers.forEach((h, ci) => {
+      record[h] = (chunk[ci] || "").trim();
+    });
+
+    // 공사작업번호가 있는 레코드만 포함
+    if (record["공사작업번호"]) {
+      rows.push(record);
+    }
+    i += numCols;
+  }
+
+  return { headers, rows };
+}
+
+// 이메일 초안 생성 (클라이언트 사이드)
+function buildEmailDraft(rows: Record<string, string>[], title: string): string {
+  const now = new Date();
+  const DAYS = ["일", "월", "화", "수", "목", "금", "토"];
+  const dateStr = `${String(now.getFullYear()).slice(2)}.${String(now.getMonth() + 1).padStart(2, "0")}.${String(now.getDate()).padStart(2, "0")}(${DAYS[now.getDay()]})`;
+
+  // 필요한 열만 추출 (이메일 표에 표시할 항목)
+  const emailCols = [
+    "공사작업번호",
+    "부/팀",
+    "작업자",
+    "공사내용",
+    "공사/작업시작일",
+    "공사/작업종료일",
+    "주소",
+    "순회점검대상자",
+  ];
+
+  // 텍스트 표 생성
+  const colWidths = emailCols.map(col => {
+    let max = col.length;
+    rows.forEach(r => {
+      const v = r[col] || "";
+      if (v.length > max) max = v.length;
+    });
+    return Math.min(max, 30) + 2;
+  });
+
+  const sep = `┼${colWidths.map(w => "─".repeat(w)).join("┼")}┼`;
+  const topLine = `┌${colWidths.map(w => "─".repeat(w)).join("┬")}┐`;
+  const botLine = `└${colWidths.map(w => "─".repeat(w)).join("┴")}┘`;
+  const hdrLine = `│${emailCols.map((h, i) => h.padEnd(colWidths[i])).join("│")}│`;
+  const dataLines = rows.map(row =>
+    `│${emailCols.map((col, i) => (row[col] || "").padEnd(colWidths[i])).join("│")}│`
+  );
+
+  const tableText = [topLine, hdrLine, sep, ...dataLines, botLine].join("\n");
+
+  return [
+    `안녕하십니까 현장경영팀입니다.`,
+    ``,
+    `${dateStr} 입회 작업에 대한 MOSS 내 순회점검 등록 요청드립니다.`,
+    ``,
+    `순회점검 등록방법 확인 필요 시 첨부파일 참조 부탁드리며, TBM 및 순회점검 등록사진 예시 참조하시어 등록 부탁드립니다.`,
+    ``,
+    `★입회자 변경, 작업 취소 등 변경사항 있으시면 연락 부탁드립니다.★`,
+    ``,
+    `문의사항 있으시면 연락 부탁드립니다.`,
+    ``,
+    `감사합니다`,
+    ``,
+    ``,
+    `※ ${dateStr} 작업 계획`,
+    tableText,
+    ``,
+    `□ All-in Safety TBM활동 사진 등록: 최소 3컷 이상 등록`,
+    `예시)`,
+    ``,
+    `□ 순회점검 결과 사진 등록: 최소 3컷 이상 등록(직영작업은 순회점검 등록X)`,
+    `┌────────────────┬──────────────────────────┬──────────────────────────┬──────────────────────────────────────────────┐`,
+    `│ 구분           │ 작업차량 고임목 설치 사진  │ 작업표지판 사진           │ 작업 중 안전작업절차 시행 사진                │`,
+    `├────────────────┼──────────────────────────┼──────────────────────────┼──────────────────────────────────────────────┤`,
+    `│ 확인사항       │ 작업차량 고임목 설치사진   │ 위험성평가 및             │ 신호수 배치, 사다리 2인1조, 고소작업 시       │`,
+    `│                │                          │ 위험작업허가서 비치 여부  │ 보조죔줄 체결, 누전여부 확인,                │`,
+    `│                │                          │ 확인                     │ 기타 위험요인 조치 사진 등                   │`,
+    `├────────────────┼──────────────────────────┼──────────────────────────┼──────────────────────────────────────────────┤`,
+    `│ 사진           │                          │                          │                                              │`,
+    `└────────────────┴──────────────────────────┴──────────────────────────┴──────────────────────────────────────────────┘`,
+  ].join("\n");
 }
 
 export default function WorkPlan() {
   const { canEditSubcontract } = usePermissions();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 탭
+  const [mode, setMode] = useState<"paste" | "file">("paste");
+
+  // 파일 모드
   const [isDragOver, setIsDragOver] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
+  // 붙여넣기 모드
+  const [pastedText, setPastedText] = useState("");
+  const [parsedRows, setParsedRows] = useState<Record<string, string>[]>([]);
+  const [parseError, setParseError] = useState("");
+
+  // 공통
   const [planTitle, setPlanTitle] = useState("");
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
   const [editedDraft, setEditedDraft] = useState("");
@@ -51,6 +172,7 @@ export default function WorkPlan() {
     queryKey: ["/api/work-plans"],
   });
 
+  // 파일 업로드 mutation
   const uploadMutation = useMutation({
     mutationFn: async ({ file, title }: { file: File; title: string }) => {
       const formData = new FormData();
@@ -71,7 +193,32 @@ export default function WorkPlan() {
       setUploadResult(data);
       setEditedDraft(data.emailDraft);
       queryClient.invalidateQueries({ queryKey: ["/api/work-plans"] });
-      toast({ title: "처리 완료", description: "엑셀 파일이 포맷되고 이메일 초안이 생성되었습니다." });
+      toast({ title: "처리 완료", description: "파일이 포맷되고 이메일 초안이 생성되었습니다." });
+    },
+    onError: (err: any) => {
+      toast({ title: "오류", description: err.message, variant: "destructive" });
+    },
+  });
+
+  // 붙여넣기 저장 mutation
+  const pasteMutation = useMutation({
+    mutationFn: async ({ rows, title, emailDraft }: { rows: Record<string, string>[]; title: string; emailDraft: string }) => {
+      const res = await fetch("/api/work-plans/from-paste", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ rows, title, emailDraft }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: "저장 실패" }));
+        throw new Error(err.message || "저장에 실패했습니다");
+      }
+      return res.json() as Promise<UploadResult>;
+    },
+    onSuccess: (data) => {
+      setUploadResult(data);
+      queryClient.invalidateQueries({ queryKey: ["/api/work-plans"] });
+      toast({ title: "이메일 초안 생성 완료" });
     },
     onError: (err: any) => {
       toast({ title: "오류", description: err.message, variant: "destructive" });
@@ -92,6 +239,35 @@ export default function WorkPlan() {
     },
   });
 
+  // 붙여넣기 파싱
+  const handleParse = () => {
+    setParseError("");
+    if (!pastedText.trim()) {
+      setParseError("데이터를 붙여넣어 주세요.");
+      return;
+    }
+    const { headers, rows } = parseMossData(pastedText);
+    if (rows.length === 0) {
+      setParseError("데이터를 인식할 수 없습니다. MOSS에서 헤더 포함하여 복사하셨는지 확인해주세요.");
+      return;
+    }
+    setParsedRows(rows);
+    if (!planTitle) {
+      const now = new Date();
+      const DAYS = ["일", "월", "화", "수", "목", "금", "토"];
+      setPlanTitle(`${now.getFullYear().toString().slice(2)}.${String(now.getMonth() + 1).padStart(2, "0")}.${String(now.getDate()).padStart(2, "0")}(${DAYS[now.getDay()]}) 작업계획`);
+    }
+    toast({ title: `${rows.length}건 인식 완료`, description: "아래에서 내용을 확인 후 이메일 초안을 생성하세요." });
+  };
+
+  // 붙여넣기 → 이메일 생성 + 저장
+  const handleGenerateFromPaste = () => {
+    const title = planTitle || "작업계획";
+    const draft = buildEmailDraft(parsedRows, title);
+    setEditedDraft(draft);
+    pasteMutation.mutate({ rows: parsedRows, title, emailDraft: draft });
+  };
+
   const handleFileSelect = (file: File) => {
     if (!file.name.match(/\.(xlsx|xls|csv)$/i)) {
       toast({ title: "형식 오류", description: "엑셀(.xlsx, .xls) 또는 CSV 파일만 업로드 가능합니다", variant: "destructive" });
@@ -100,10 +276,7 @@ export default function WorkPlan() {
     setSelectedFile(file);
     setUploadResult(null);
     setEditedDraft("");
-    if (!planTitle) {
-      const baseName = file.name.replace(/\.[^.]+$/, "");
-      setPlanTitle(baseName);
-    }
+    if (!planTitle) setPlanTitle(file.name.replace(/\.[^.]+$/, ""));
   };
 
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -112,11 +285,6 @@ export default function WorkPlan() {
     const file = e.dataTransfer.files[0];
     if (file) handleFileSelect(file);
   }, []);
-
-  const handleUpload = () => {
-    if (!selectedFile) return;
-    uploadMutation.mutate({ file: selectedFile, title: planTitle });
-  };
 
   const handleCopy = () => {
     navigator.clipboard.writeText(editedDraft);
@@ -127,38 +295,63 @@ export default function WorkPlan() {
 
   const handleReset = () => {
     setSelectedFile(null);
+    setPastedText("");
+    setParsedRows([]);
+    setParseError("");
     setUploadResult(null);
     setEditedDraft("");
     setPlanTitle("");
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
+  const isPending = uploadMutation.isPending || pasteMutation.isPending;
+
   return (
     <div className="flex flex-col gap-6 p-6 max-w-7xl mx-auto">
       {/* 헤더 */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-blue-50">
-            <CalendarCheck className="w-6 h-6 text-blue-600" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-foreground">작업계획</h1>
-            <p className="text-sm text-muted-foreground">엑셀(xlsx/xls) 또는 CSV 파일을 업로드하면 자동으로 포맷팅하고 입회작업 TBM / 순회점검 등록요청 이메일 초안을 생성합니다</p>
-          </div>
+      <div className="flex items-center gap-3">
+        <div className="p-2 rounded-lg bg-blue-50">
+          <CalendarCheck className="w-6 h-6 text-blue-600" />
+        </div>
+        <div>
+          <h1 className="text-xl font-bold text-foreground">작업계획</h1>
+          <p className="text-sm text-muted-foreground">MOSS 작업 데이터를 붙여넣거나 파일로 업로드하면 입회작업 TBM / 순회점검 등록요청 이메일 초안이 자동 생성됩니다</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        {/* 왼쪽: 업로드 + 결과 */}
+        {/* 왼쪽: 입력 + 결과 */}
         <div className="lg:col-span-3 flex flex-col gap-4">
-          {/* 업로드 영역 */}
+          {/* 입력 방식 탭 */}
           <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <FileSpreadsheet className="w-4 h-4 text-green-600" />
-                엑셀 파일 업로드
-              </CardTitle>
+            <CardHeader className="pb-2">
+              {/* 탭 전환 */}
+              <div className="flex gap-1 p-1 bg-muted rounded-lg w-fit">
+                <button
+                  onClick={() => setMode("paste")}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all",
+                    mode === "paste" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+                  )}
+                  data-testid="tab-paste-mode"
+                >
+                  <ClipboardPaste className="w-3.5 h-3.5" />
+                  붙여넣기
+                </button>
+                <button
+                  onClick={() => setMode("file")}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all",
+                    mode === "file" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+                  )}
+                  data-testid="tab-file-mode"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5" />
+                  파일 업로드
+                </button>
+              </div>
             </CardHeader>
+
             <CardContent className="flex flex-col gap-4">
               {/* 제목 입력 */}
               <div className="flex flex-col gap-1.5">
@@ -166,72 +359,156 @@ export default function WorkPlan() {
                 <Input
                   id="plan-title"
                   data-testid="input-plan-title"
-                  placeholder="예: 2026년 1분기 작업계획"
+                  placeholder="예: 26.03.19(목) 작업계획"
                   value={planTitle}
                   onChange={(e) => setPlanTitle(e.target.value)}
                 />
               </div>
 
-              {/* 드래그 앤 드롭 영역 */}
-              <div
-                className={cn(
-                  "border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all",
-                  isDragOver ? "border-blue-500 bg-blue-50" : "border-muted-foreground/25 hover:border-blue-400 hover:bg-muted/30",
-                  selectedFile && !uploadResult && "border-green-400 bg-green-50"
-                )}
-                onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
-                onDragLeave={() => setIsDragOver(false)}
-                onDrop={handleDrop}
-                onClick={() => fileInputRef.current?.click()}
-                data-testid="dropzone-excel"
-              >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".xlsx,.xls,.csv"
-                  className="hidden"
-                  onChange={(e) => e.target.files?.[0] && handleFileSelect(e.target.files[0])}
-                />
-                {selectedFile ? (
-                  <div className="flex flex-col items-center gap-2">
-                    <FileSpreadsheet className="w-10 h-10 text-green-600" />
-                    <p className="font-semibold text-green-700">{selectedFile.name}</p>
-                    <p className="text-xs text-muted-foreground">{(selectedFile.size / 1024).toFixed(1)} KB</p>
+              {/* === 붙여넣기 모드 === */}
+              {mode === "paste" && (
+                <div className="flex flex-col gap-3">
+                  <div className="flex flex-col gap-1.5">
+                    <Label className="text-sm font-medium">
+                      MOSS 작업 데이터 붙여넣기
+                      <span className="ml-2 text-xs font-normal text-muted-foreground">(헤더 포함하여 전체 복사 후 붙여넣기)</span>
+                    </Label>
+                    <Textarea
+                      data-testid="textarea-paste-input"
+                      placeholder={"공사작업번호\t합동점검단계\t순회점검단계\t공사상태\t...\n도급-무선기지국-20260318-0057\n\n점검전\n승인완료\n..."}
+                      value={pastedText}
+                      onChange={(e) => { setPastedText(e.target.value); setParsedRows([]); setParseError(""); }}
+                      rows={6}
+                      className="font-mono text-xs resize-y"
+                    />
+                    {parseError && (
+                      <p className="text-xs text-destructive">{parseError}</p>
+                    )}
                   </div>
-                ) : (
-                  <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                    <Upload className="w-10 h-10 opacity-40" />
-                    <p className="font-medium">파일을 드래그하거나 클릭하여 선택</p>
-                    <p className="text-xs">.xlsx, .xls, .csv 파일 지원 (최대 50MB)</p>
-                  </div>
-                )}
-              </div>
 
-              {/* 액션 버튼 */}
-              <div className="flex gap-2">
-                <Button
-                  data-testid="button-upload-excel"
-                  disabled={!selectedFile || uploadMutation.isPending}
-                  onClick={handleUpload}
-                  className="flex-1"
-                >
-                  {uploadMutation.isPending ? (
-                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" />처리 중...</>
-                  ) : (
-                    <><Upload className="w-4 h-4 mr-2" />포맷팅 + 이메일 초안 생성</>
+                  {/* 파싱 결과 미리보기 */}
+                  {parsedRows.length > 0 && (
+                    <div className="rounded-lg border bg-muted/30 p-3">
+                      <p className="text-xs font-semibold text-green-700 mb-2 flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        {parsedRows.length}건 인식됨
+                      </p>
+                      <div className="overflow-x-auto">
+                        <table className="text-[11px] w-full">
+                          <thead>
+                            <tr className="border-b">
+                              {["공사작업번호", "부/팀", "작업자", "공사내용", "시작일", "종료일", "순회점검대상자"].map(h => (
+                                <th key={h} className="text-left py-1 pr-3 font-semibold text-muted-foreground whitespace-nowrap">{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {parsedRows.map((row, i) => (
+                              <tr key={i} className="border-b border-dashed last:border-0">
+                                <td className="py-1 pr-3 font-mono text-[10px] whitespace-nowrap text-blue-700">{row["공사작업번호"] || "-"}</td>
+                                <td className="py-1 pr-3 whitespace-nowrap">{row["부/팀"] || "-"}</td>
+                                <td className="py-1 pr-3 whitespace-nowrap">{row["작업자"] || "-"}</td>
+                                <td className="py-1 pr-3 max-w-[200px] truncate">{row["공사내용"] || "-"}</td>
+                                <td className="py-1 pr-3 whitespace-nowrap text-[10px]">{row["공사/작업시작일"] || "-"}</td>
+                                <td className="py-1 pr-3 whitespace-nowrap text-[10px]">{row["공사/작업종료일"] || "-"}</td>
+                                <td className="py-1 whitespace-nowrap">{row["순회점검대상자"] || "-"}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
                   )}
-                </Button>
-                {(selectedFile || uploadResult) && (
-                  <Button variant="outline" size="icon" onClick={handleReset} data-testid="button-reset">
-                    <X className="w-4 h-4" />
-                  </Button>
-                )}
-              </div>
+
+                  <div className="flex gap-2">
+                    {parsedRows.length === 0 ? (
+                      <Button
+                        data-testid="button-parse"
+                        onClick={handleParse}
+                        className="flex-1"
+                        disabled={!pastedText.trim()}
+                      >
+                        <ClipboardPaste className="w-4 h-4 mr-2" />
+                        데이터 분석
+                      </Button>
+                    ) : (
+                      <Button
+                        data-testid="button-generate-email"
+                        onClick={handleGenerateFromPaste}
+                        className="flex-1"
+                        disabled={isPending}
+                      >
+                        {isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />생성 중...</> : <><Mail className="w-4 h-4 mr-2" />이메일 초안 생성</>}
+                      </Button>
+                    )}
+                    {(pastedText || parsedRows.length > 0 || uploadResult) && (
+                      <Button variant="outline" size="icon" onClick={handleReset} data-testid="button-reset">
+                        <X className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* === 파일 업로드 모드 === */}
+              {mode === "file" && (
+                <div className="flex flex-col gap-3">
+                  <div
+                    className={cn(
+                      "border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all",
+                      isDragOver ? "border-blue-500 bg-blue-50" : "border-muted-foreground/25 hover:border-blue-400 hover:bg-muted/30",
+                      selectedFile && !uploadResult && "border-green-400 bg-green-50"
+                    )}
+                    onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+                    onDragLeave={() => setIsDragOver(false)}
+                    onDrop={handleDrop}
+                    onClick={() => fileInputRef.current?.click()}
+                    data-testid="dropzone-excel"
+                  >
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".xlsx,.xls,.csv"
+                      className="hidden"
+                      onChange={(e) => e.target.files?.[0] && handleFileSelect(e.target.files[0])}
+                    />
+                    {selectedFile ? (
+                      <div className="flex flex-col items-center gap-2">
+                        <FileSpreadsheet className="w-10 h-10 text-green-600" />
+                        <p className="font-semibold text-green-700">{selectedFile.name}</p>
+                        <p className="text-xs text-muted-foreground">{(selectedFile.size / 1024).toFixed(1)} KB</p>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                        <Upload className="w-10 h-10 opacity-40" />
+                        <p className="font-medium">파일을 드래그하거나 클릭하여 선택</p>
+                        <p className="text-xs">.xlsx, .xls, .csv 파일 지원 (최대 50MB)</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button
+                      data-testid="button-upload-excel"
+                      disabled={!selectedFile || isPending}
+                      onClick={() => selectedFile && uploadMutation.mutate({ file: selectedFile, title: planTitle })}
+                      className="flex-1"
+                    >
+                      {isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />처리 중...</> : <><Upload className="w-4 h-4 mr-2" />포맷팅 + 이메일 초안 생성</>}
+                    </Button>
+                    {(selectedFile || uploadResult) && (
+                      <Button variant="outline" size="icon" onClick={handleReset} data-testid="button-reset-file">
+                        <X className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
           {/* 이메일 초안 결과 */}
-          {uploadResult && (
+          {(uploadResult || editedDraft) && (
             <Card className="border-blue-200">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
@@ -246,14 +523,16 @@ export default function WorkPlan() {
                     <Button size="sm" variant="outline" onClick={handleCopy} data-testid="button-copy-draft">
                       {copied ? <><Check className="w-3.5 h-3.5 mr-1 text-green-600" />복사됨</> : <><Copy className="w-3.5 h-3.5 mr-1" />복사</>}
                     </Button>
-                    <a href={uploadResult.processedFileUrl} download target="_blank" rel="noreferrer">
-                      <Button size="sm" variant="outline" data-testid="button-download-excel">
-                        <Download className="w-3.5 h-3.5 mr-1" />포맷 엑셀
-                      </Button>
-                    </a>
+                    {uploadResult?.processedFileUrl && (
+                      <a href={uploadResult.processedFileUrl} download target="_blank" rel="noreferrer">
+                        <Button size="sm" variant="outline" data-testid="button-download-excel">
+                          <Download className="w-3.5 h-3.5 mr-1" />포맷 엑셀
+                        </Button>
+                      </a>
+                    )}
                   </div>
                 </div>
-                {uploadResult.plan.sheetSummary && (
+                {uploadResult?.plan?.sheetSummary && (
                   <p className="text-xs text-muted-foreground mt-1">{uploadResult.plan.sheetSummary}</p>
                 )}
               </CardHeader>
@@ -262,7 +541,7 @@ export default function WorkPlan() {
                   data-testid="textarea-email-draft"
                   value={editedDraft}
                   onChange={(e) => setEditedDraft(e.target.value)}
-                  rows={16}
+                  rows={20}
                   className="font-mono text-xs resize-y"
                   placeholder="이메일 초안이 여기에 표시됩니다"
                 />
@@ -320,13 +599,7 @@ export default function WorkPlan() {
                       </div>
                       <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         {plan.processedFileUrl && (
-                          <a
-                            href={plan.processedFileUrl}
-                            download
-                            target="_blank"
-                            rel="noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                          >
+                          <a href={plan.processedFileUrl} download target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
                             <Button variant="ghost" size="icon" className="h-7 w-7">
                               <Download className="w-3.5 h-3.5" />
                             </Button>
