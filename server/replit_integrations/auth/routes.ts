@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { authStorage } from "./storage";
 import { isAuthenticated } from "./replitAuth";
-import { ALL_PERMISSIONS, type UserPermissions } from "@shared/models/auth";
+import { ALL_PERMISSIONS, DEFAULT_PERMISSIONS, type UserPermissions } from "@shared/models/auth";
 import bcrypt from "bcryptjs";
 import { getSecurityLogs, logSecurityEvent } from "../../security";
 
@@ -58,7 +58,9 @@ export function registerAuthRoutes(app: Express): void {
       if (!user) {
         return res.status(401).json({ message: "User not found" });
       }
-      const permissions = user.role === "admin" ? ALL_PERMISSIONS : (user.permissions || {});
+      const permissions = user.role === "admin"
+        ? ALL_PERMISSIONS
+        : { ...DEFAULT_PERMISSIONS, ...(user.permissions || {}) };
       res.json({ role: user.role, permissions });
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch permissions" });
