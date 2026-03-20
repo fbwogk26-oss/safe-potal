@@ -100,7 +100,7 @@ const NAV_SECTIONS: NavSection[] = [
         label: "하도급관리",
         icon: Briefcase,
         children: [
-          { label: "작업계획", href: "/work-plan", icon: CalendarCheck, permissionKey: "canViewSubcontract" },
+          { label: "작업계획", href: "/work-plan", icon: CalendarCheck },
         ],
       },
     ],
