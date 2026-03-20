@@ -1,4 +1,4 @@
-import { Bell, LogOut, Users, Menu, LayoutDashboard, ShieldCheck, Shield, HeartPulse, GraduationCap, DoorOpen, ShoppingCart, MonitorPlay, ClipboardCheck, FileText, KeyRound, Eye, EyeOff, AlertTriangle, ShieldAlert, FlaskConical, ChevronDown, ScrollText, Bone, Home, ReceiptText } from "lucide-react";
+import { Bell, LogOut, Users, Menu, LayoutDashboard, ShieldCheck, Shield, HeartPulse, GraduationCap, DoorOpen, ShoppingCart, MonitorPlay, ClipboardCheck, FileText, KeyRound, Eye, EyeOff, AlertTriangle, ShieldAlert, FlaskConical, ChevronDown, ScrollText, Bone, Home, ReceiptText, Briefcase, CalendarCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -65,6 +65,13 @@ const MOBILE_NAV_ITEMS: MobileNavEntry[] = [
     children: [
       { label: "MSDS검색", href: "/msds", icon: FlaskConical },
       { label: "근골격계질환", href: "/musculoskeletal", icon: Bone },
+    ],
+  },
+  {
+    label: "하도급관리",
+    icon: Briefcase,
+    children: [
+      { label: "작업계획", href: "/work-plan", icon: CalendarCheck },
     ],
   },
   {
