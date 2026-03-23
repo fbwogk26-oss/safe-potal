@@ -126,10 +126,12 @@ function buildHtmlFromDraft(draft: string, guideImageDataUrl?: string): string {
 
 // 이메일 초안 생성
 function buildEmailDraft(rows: Record<string, string>[], title: string): string {
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
   const DAYS = ["일", "월", "화", "수", "목", "금", "토"];
-  const dateStr = `${String(tomorrow.getFullYear()).slice(2)}.${String(tomorrow.getMonth() + 1).padStart(2, "0")}.${String(tomorrow.getDate()).padStart(2, "0")}(${DAYS[tomorrow.getDay()]})`;
+  const nextBizDay = new Date();
+  const todayDay = nextBizDay.getDay();
+  const daysToAdd = todayDay === 5 ? 3 : todayDay === 6 ? 2 : 1; // 금→월(+3), 토→월(+2), 그 외→다음날(+1)
+  nextBizDay.setDate(nextBizDay.getDate() + daysToAdd);
+  const dateStr = `${String(nextBizDay.getFullYear()).slice(2)}.${String(nextBizDay.getMonth() + 1).padStart(2, "0")}.${String(nextBizDay.getDate()).padStart(2, "0")}(${DAYS[nextBizDay.getDay()]})`;
 
   const emailCols = [
     "공사작업번호",

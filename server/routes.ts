@@ -3027,13 +3027,15 @@ export async function registerRoutes(
       await wb.xlsx.writeFile(processedPath);
 
       // ===== 이메일 초안 생성 (입회작업 요청 포맷) =====
-      // 내일 날짜 사용
+      // 다음 영업일 날짜 사용 (금요일이면 다음주 월요일)
       const now = new Date();
-      const tomorrow = new Date(now);
-      tomorrow.setDate(tomorrow.getDate() + 1);
       const DAYS = ["일", "월", "화", "수", "목", "금", "토"];
-      const dateStr = `${String(tomorrow.getFullYear()).slice(2)}.${String(tomorrow.getMonth() + 1).padStart(2, "0")}.${String(tomorrow.getDate()).padStart(2, "0")}(${DAYS[tomorrow.getDay()]})`;
-      const title = req.body.title || `작업계획_${tomorrow.toISOString().slice(0, 10)}`;
+      const nextBizDay = new Date(now);
+      const todayDay = now.getDay();
+      const daysToAdd = todayDay === 5 ? 3 : todayDay === 6 ? 2 : 1;
+      nextBizDay.setDate(nextBizDay.getDate() + daysToAdd);
+      const dateStr = `${String(nextBizDay.getFullYear()).slice(2)}.${String(nextBizDay.getMonth() + 1).padStart(2, "0")}.${String(nextBizDay.getDate()).padStart(2, "0")}(${DAYS[nextBizDay.getDay()]})`;
+      const title = req.body.title || `작업계획_${nextBizDay.toISOString().slice(0, 10)}`;
       const totalRows = dataRows.length;
 
       // 탭 구분 텍스트 표 (선 없음, 붙여넣기 친화적)
