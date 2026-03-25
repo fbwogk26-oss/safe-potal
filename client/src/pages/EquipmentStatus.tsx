@@ -176,26 +176,24 @@ export default function EquipmentStatus({ embedded = false }: EquipmentStatusPro
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleExcelDownload = () => {
-    const workbook = XLSX.utils.book_new();
-    const allData: { 팀명: string; 용품명: string; 카테고리: string; 수량: number; 상태: string }[] = [];
-    
+  const handleExcelDownload = async () => {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('안전용품현황');
+    worksheet.addRow(['팀명', '용품명', '카테고리', '수량', '상태']);
     allTeamsData.forEach(team => {
       team.items?.forEach(item => {
-        allData.push({
-          팀명: team.team,
-          용품명: item.name,
-          카테고리: item.category || '기타품목',
-          수량: item.quantity,
-          상태: item.status || '등록'
-        });
+        worksheet.addRow([team.team, item.name, item.category || '기타품목', item.quantity, item.status || '등록']);
       });
     });
-    
-    const worksheet = XLSX.utils.json_to_sheet(allData);
-    XLSX.utils.book_append_sheet(workbook, worksheet, '안전용품현황');
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
     const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-    XLSX.writeFile(workbook, `equipment_status_${today}.xlsx`);
+    a.href = url;
+    a.download = `equipment_status_${today}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
     toast({ title: "다운로드 완료", description: "안전용품 현황이 엑셀 파일로 저장되었습니다." });
   };
 
@@ -206,9 +204,23 @@ export default function EquipmentStatus({ embedded = false }: EquipmentStatusPro
     setIsUploading(true);
     try {
       const arrayBuffer = await file.arrayBuffer();
-      const workbook = XLSX.read(arrayBuffer);
-      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet) as Record<string, unknown>[];
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(arrayBuffer);
+      const worksheet = workbook.worksheets[0];
+      const headers: string[] = [];
+      worksheet.getRow(1).eachCell((cell, colNumber) => {
+        headers[colNumber - 1] = String(cell.value ?? '');
+      });
+      const jsonData: Record<string, unknown>[] = [];
+      worksheet.eachRow((row, rowNumber) => {
+        if (rowNumber === 1) return;
+        const rowData: Record<string, unknown> = {};
+        row.eachCell((cell, colNumber) => {
+          const header = headers[colNumber - 1];
+          if (header) rowData[header] = cell.value;
+        });
+        jsonData.push(rowData);
+      });
       
       const teamItemsMap = new Map<string, EquipmentItem[]>();
       jsonData.forEach(row => {
