@@ -2463,17 +2463,13 @@ export async function registerRoutes(
     limits: { fileSize: 20 * 1024 * 1024 },
   });
 
-  // PDF 업로드 + AI OCR 파싱 (pdftoppm 기반 고화질 렌더링)
+  // PDF 업로드 + AI 파싱 (pdf-parse 텍스트 추출 + GPT-4o 직접 분석)
   app.post('/api/traffic-fines/parse-pdf', isAuthenticated, pdfUpload.single('pdf'), async (req: any, res) => {
     if (req.user?.role !== 'admin') return res.status(403).json({ message: "관리자만 사용할 수 있습니다" });
     if (!req.file) return res.status(400).json({ message: "PDF 파일이 필요합니다" });
 
     const pdfPath = req.file.path;
     const pdfBuffer = fs.readFileSync(pdfPath);
-    const os = await import("os");
-    const { spawn } = await import("child_process");
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "pdfparse-"));
-    const tmpPrefix = path.join(tmpDir, "page");
 
     try {
       const OpenAI = (await import("openai")).default;
@@ -2482,47 +2478,22 @@ export async function registerRoutes(
         baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
       });
 
-      // ── 1. pdftoppm으로 PDF 페이지를 고화질 PNG로 렌더링 (250 DPI) ──
-      await new Promise<void>((resolve, reject) => {
-        const proc = spawn("pdftoppm", ["-r", "250", "-png", pdfPath, tmpPrefix]);
-        let errOut = "";
-        proc.stderr.on("data", (d: Buffer) => { errOut += d.toString(); });
-        proc.on("close", (code: number) => {
-          if (code === 0) resolve();
-          else reject(new Error(`pdftoppm 오류 (code ${code}): ${errOut}`));
-        });
-        proc.on("error", reject);
-      });
-
-      // ── 2. 생성된 PNG 파일 목록 (페이지 순서대로) ───────────────────
-      const pngFiles = fs.readdirSync(tmpDir)
-        .filter((f: string) => f.endsWith(".png"))
-        .sort()
-        .map((f: string) => path.join(tmpDir, f));
-
-      if (pngFiles.length === 0) {
-        return res.status(422).json({ message: "PDF 페이지를 이미지로 변환할 수 없습니다. 파일이 손상됐거나 지원하지 않는 형식입니다." });
-      }
-
-      // ── 3. 텍스트 추출 (OCR 보조용, 실패해도 무시) ──────────────────
+      // ── 1. pdf-parse로 텍스트 추출 ──────────────────────────────────
       let pdfText = "";
       try {
-        const { PDFParse } = await import("pdf-parse");
-        const tp = new PDFParse({ data: pdfBuffer });
-        const td = await tp.getText();
-        await tp.destroy();
-        pdfText = (td.text || "").trim();
+        const pdfParse = (await import("pdf-parse")).default;
+        const parsed = await pdfParse(pdfBuffer);
+        pdfText = (parsed.text || "").trim();
       } catch (_) {}
 
-      // ── 4. GPT-4o Vision 분석 (최대 2페이지, detail:high) ─────────
+      // ── 2. GPT-4o 분석 (PDF base64 직접 전송 또는 텍스트 기반) ──────
       const SYSTEM_MSG = `당신은 한국 교통 과태료·범칙금 고지서(납부통보서, 범칙금통고서, 과태료부과통보서, 통행료납부통보서) 전문 파싱 AI입니다.
-이미지에서 정보를 정확히 추출해 JSON 객체 **하나만** 응답하세요.
+문서에서 정보를 정확히 추출해 JSON 객체 **하나만** 응답하세요.
 - 없는 정보는 null로 반환. 절대 추측 금지.
 - 마크다운·코드블록 없이 JSON만.
-- 차량번호는 차량 사진의 번호판 또는 문서의 차량번호 항목에서 읽되, 두 곳에 있으면 문서 기재 값 우선.
-- 여러 장의 이미지가 있으면 1번 이미지(앞면)에서 주요 정보를 읽고 2번(뒷면)은 보조 참고.`;
+- 차량번호는 차량 사진의 번호판 또는 문서의 차량번호 항목에서 읽되, 두 곳에 있으면 문서 기재 값 우선.`;
 
-      const USER_MSG = `아래 교통 과태료 고지서 이미지에서 정보를 추출해 JSON으로 반환하세요.
+      const USER_MSG = `아래 교통 과태료 고지서에서 정보를 추출해 JSON으로 반환하세요.
 
 반환 형식 (필드명 변경 금지):
 {
@@ -2556,27 +2527,47 @@ export async function registerRoutes(
 [차량번호 변환 예시]
 "177허 8226" → "177허8226" / "231 허 3946" → "231허3946"`;
 
-      // 페이지 이미지 (최대 2장) base64 변환
-      const pageImgs = pngFiles.slice(0, 2).map((pngPath: string) => ({
-        type: "image_url" as const,
-        image_url: {
-          url: `data:image/png;base64,${fs.readFileSync(pngPath).toString("base64")}`,
-          detail: "high" as const,
-        },
-      }));
+      // PDF를 base64로 인코딩하여 GPT-4o에 직접 전송 (시스템 도구 불필요)
+      const pdfBase64 = pdfBuffer.toString("base64");
 
-      const textHint = pdfText.length >= 20
-        ? `\n\n[텍스트 레이어 참고 (OCR 보조)]\n${pdfText.substring(0, 3000)}`
-        : "";
-
-      const aiRes = await aiClient.chat.completions.create({
-        model: "gpt-4o",
-        max_completion_tokens: 1200,
-        messages: [
-          { role: "system", content: SYSTEM_MSG },
-          { role: "user", content: [{ type: "text", text: USER_MSG + textHint }, ...pageImgs] },
-        ],
-      });
+      let aiRes: any;
+      try {
+        // 방법 1: PDF 파일을 직접 file 타입으로 전송
+        aiRes = await aiClient.chat.completions.create({
+          model: "gpt-4o",
+          max_completion_tokens: 1200,
+          messages: [
+            { role: "system", content: SYSTEM_MSG },
+            {
+              role: "user",
+              content: [
+                { type: "text", text: USER_MSG },
+                {
+                  type: "file" as any,
+                  file: {
+                    filename: req.file.originalname || "fine.pdf",
+                    file_data: `data:application/pdf;base64,${pdfBase64}`,
+                  },
+                },
+              ],
+            },
+          ],
+        });
+      } catch (_fileErr: any) {
+        // 방법 2: 텍스트 추출 내용만으로 분석 (fallback)
+        if (!pdfText || pdfText.length < 10) {
+          throw new Error("PDF에서 텍스트를 추출할 수 없습니다. 스캔 이미지 PDF는 지원되지 않을 수 있습니다.");
+        }
+        const textContent = `${USER_MSG}\n\n[추출된 PDF 텍스트]\n${pdfText.substring(0, 4000)}`;
+        aiRes = await aiClient.chat.completions.create({
+          model: "gpt-4o",
+          max_completion_tokens: 1200,
+          messages: [
+            { role: "system", content: SYSTEM_MSG },
+            { role: "user", content: textContent },
+          ],
+        });
+      }
 
       const raw = aiRes.choices[0]?.message?.content?.trim() || "{}";
       let parsed: any = {};
@@ -2639,27 +2630,12 @@ export async function registerRoutes(
         if (objPdfUrl) pdfUrl = objPdfUrl;
       } catch (_) {}
 
-      let thumbnailUrl: string | null = null;
-      try {
-        const thumbBuffer = fs.readFileSync(pngFiles[0]);
-        const thumbFilename = `thumb_${path.basename(req.file.filename, path.extname(req.file.filename))}.png`;
-        const objThumbUrl = await uploadToObjectStorage(thumbBuffer, thumbFilename, "image/png");
-        if (objThumbUrl) {
-          thumbnailUrl = objThumbUrl;
-        } else {
-          const thumbPath = path.join(uploadDir, thumbFilename);
-          fs.writeFileSync(thumbPath, thumbBuffer);
-          thumbnailUrl = `/uploads/${thumbFilename}`;
-        }
-      } catch (_) {}
+      const thumbnailUrl: string | null = null;
 
       res.json({ ...parsed, vehicleType, department, pdfUrl, thumbnailUrl });
     } catch (error: any) {
       console.error("과태료 PDF 파싱 오류:", error?.message || error);
       res.status(500).json({ message: `PDF 파싱에 실패했습니다: ${error?.message || "알 수 없는 오류"}` });
-    } finally {
-      // 임시 파일 정리
-      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch (_) {}
     }
   });
 
