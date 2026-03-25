@@ -316,8 +316,8 @@ export default function TrafficFines() {
         body: fd,
         credentials: "include",
       });
-      if (!res.ok) throw new Error("파싱 실패");
       const data = await res.json();
+      if (!res.ok) throw new Error(data?.message || "파싱 실패");
 
       // 서버 반환값에 vehicleType/department가 없으면 프론트 차량 DB에서 직접 조회
       const plate = data.licensePlate || "";
@@ -345,8 +345,8 @@ export default function TrafficFines() {
       setEditingId(null);
       setDialogOpen(true);
       toast({ title: "AI 분석 완료", description: "추출된 정보를 확인 후 저장하세요" });
-    } catch {
-      toast({ title: "PDF 분석에 실패했습니다", variant: "destructive" });
+    } catch (err: any) {
+      toast({ title: "PDF 분석에 실패했습니다", description: err?.message || "다시 시도해주세요", variant: "destructive" });
     } finally {
       setParsing(false);
       if (fileRef.current) fileRef.current.value = "";
@@ -522,8 +522,8 @@ export default function TrafficFines() {
               {parsing ? (
                 <div className="flex flex-col items-center gap-2">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                  <p className="text-sm font-medium">AI 분석 중...</p>
-                  <p className="text-xs text-muted-foreground">차량 DB 조회 및 과태료 정보 추출 중입니다</p>
+                  <p className="text-sm font-medium">AI 분석 중... (10~30초 소요)</p>
+                  <p className="text-xs text-muted-foreground">PDF 렌더링 후 AI가 고지서를 정밀 분석합니다</p>
                 </div>
               ) : (
                 <div className="flex flex-col items-center gap-2">

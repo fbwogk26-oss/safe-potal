@@ -2463,117 +2463,118 @@ export async function registerRoutes(
     limits: { fileSize: 20 * 1024 * 1024 },
   });
 
-  // PDF 업로드 + AI OCR 파싱
+  // PDF 업로드 + AI OCR 파싱 (pdftoppm 기반 고화질 렌더링)
   app.post('/api/traffic-fines/parse-pdf', isAuthenticated, pdfUpload.single('pdf'), async (req: any, res) => {
     if (req.user?.role !== 'admin') return res.status(403).json({ message: "관리자만 사용할 수 있습니다" });
     if (!req.file) return res.status(400).json({ message: "PDF 파일이 필요합니다" });
 
     const pdfPath = req.file.path;
+    const pdfBuffer = fs.readFileSync(pdfPath);
+    const os = await import("os");
+    const { spawn } = await import("child_process");
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "pdfparse-"));
+    const tmpPrefix = path.join(tmpDir, "page");
 
     try {
-      const { PDFParse } = await import("pdf-parse");
-      const pdfBuffer = fs.readFileSync(pdfPath);
-
       const OpenAI = (await import("openai")).default;
       const aiClient = new OpenAI({
         apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
         baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
       });
 
-      // ── 1. 텍스트 추출 ──────────────────────────────────────────
+      // ── 1. pdftoppm으로 PDF 페이지를 고화질 PNG로 렌더링 (250 DPI) ──
+      await new Promise<void>((resolve, reject) => {
+        const proc = spawn("pdftoppm", ["-r", "250", "-png", pdfPath, tmpPrefix]);
+        let errOut = "";
+        proc.stderr.on("data", (d: Buffer) => { errOut += d.toString(); });
+        proc.on("close", (code: number) => {
+          if (code === 0) resolve();
+          else reject(new Error(`pdftoppm 오류 (code ${code}): ${errOut}`));
+        });
+        proc.on("error", reject);
+      });
+
+      // ── 2. 생성된 PNG 파일 목록 (페이지 순서대로) ───────────────────
+      const pngFiles = fs.readdirSync(tmpDir)
+        .filter((f: string) => f.endsWith(".png"))
+        .sort()
+        .map((f: string) => path.join(tmpDir, f));
+
+      if (pngFiles.length === 0) {
+        return res.status(422).json({ message: "PDF 페이지를 이미지로 변환할 수 없습니다. 파일이 손상됐거나 지원하지 않는 형식입니다." });
+      }
+
+      // ── 3. 텍스트 추출 (OCR 보조용, 실패해도 무시) ──────────────────
       let pdfText = "";
       try {
+        const { PDFParse } = await import("pdf-parse");
         const tp = new PDFParse({ data: pdfBuffer });
         const td = await tp.getText();
         await tp.destroy();
         pdfText = (td.text || "").trim();
       } catch (_) {}
 
-      // ── 2. 이미지 추출 (스캔본 대응, 텍스트 PDF도 시도) ───────────
-      let imgDataUrl: string | null = null;
-      try {
-        const ip = new PDFParse({ data: pdfBuffer });
-        const ir = await ip.getImage({ imageThreshold: 0, imageDataUrl: true, imageBuffer: true });
-        await ip.destroy();
-        const pages: any[] = ir.pages || [];
-        // 1페이지 이미지를 우선 사용, 없으면 전체에서 가장 큰 이미지 사용
-        const page1Imgs: any[] = (pages[0]?.images || []).slice();
-        const allImgs: any[] = pages.flatMap((pg: any) => pg.images || []);
-        const candidateImgs = page1Imgs.length > 0 ? page1Imgs : allImgs;
-        const largest = candidateImgs.sort((a: any, b: any) => (b.width * b.height) - (a.width * a.height))[0];
-        if (largest) {
-          imgDataUrl = largest.dataUrl || (largest.data ? `data:image/png;base64,${Buffer.from(largest.data).toString("base64")}` : null);
-        }
-      } catch (_) {}
+      // ── 4. GPT-4o Vision 분석 (최대 2페이지, detail:high) ─────────
+      const SYSTEM_MSG = `당신은 한국 교통 과태료·범칙금 고지서(납부통보서, 범칙금통고서, 과태료부과통보서, 통행료납부통보서) 전문 파싱 AI입니다.
+이미지에서 정보를 정확히 추출해 JSON 객체 **하나만** 응답하세요.
+- 없는 정보는 null로 반환. 절대 추측 금지.
+- 마크다운·코드블록 없이 JSON만.
+- 차량번호는 차량 사진의 번호판 또는 문서의 차량번호 항목에서 읽되, 두 곳에 있으면 문서 기재 값 우선.
+- 여러 장의 이미지가 있으면 1번 이미지(앞면)에서 주요 정보를 읽고 2번(뒷면)은 보조 참고.`;
 
-      // 텍스트도 이미지도 없으면 실패
-      if (pdfText.length < 10 && !imgDataUrl) {
-        return res.status(422).json({ message: "PDF에서 내용을 읽을 수 없습니다. 파일이 손상됐거나 지원하지 않는 형식입니다." });
-      }
+      const USER_MSG = `아래 교통 과태료 고지서 이미지에서 정보를 추출해 JSON으로 반환하세요.
 
-      // ── 3. GPT-4o 분석 ───────────────────────────────────────────
-      const SYSTEM_MSG = `당신은 한국 교통 과태료 고지서(납부통보서, 범칙금통고서, 통행료 납부통보서, 과태료 부과통보서) 전문 파싱 AI입니다.
-문서에서 정보를 정확히 추출해 JSON으로만 응답하세요.
-- 없는 정보는 반드시 null로 반환하세요. 절대 추측하지 마세요.
-- JSON 코드블록(\`\`\`)을 사용하지 말고 JSON 객체만 반환하세요.
-- 한글 OCR 특성상 글자가 뭉개지거나 인식이 어려울 수 있으니 문맥으로 판단하세요.`;
-
-      const USER_MSG = `다음 교통 과태료 고지서에서 아래 필드를 추출해 JSON으로 반환하세요.
-
-반환 형식:
+반환 형식 (필드명 변경 금지):
 {
-  "violationDate": "위반일시. 반드시 YYYY-MM-DD HH:MM 형식. 시간 없으면 00:00",
-  "licensePlate": "차량번호. 숫자+한글 조합만. 공백 완전 제거. 예: 177허8226, 12가3456",
-  "driver": "운전자/소유자 실명. 회사명이면 null",
-  "violationType": "아래 6가지 중 정확히 하나: 속도위반/신호위반/법규위반/주정차위반/통행료미납/기타",
-  "violationLocation": "위반 장소. 도로명/고속도로명/구체적 장소",
-  "amount": 납부할_과태료_금액을_정수로 (콤마 원 제거. 예: 70000),
-  "paymentDestination": "부과기관명. 예: 달서구청장 / 한국도로공사 / 경찰청장"
+  "violationDate": "위반일시. YYYY-MM-DD HH:MM 형식 필수. 시간 없으면 00:00 사용",
+  "licensePlate": "차량번호. 숫자+한글 조합. 공백·특수문자 모두 제거. 예) 177허8226",
+  "driver": "운전자 또는 소유자 실명(한글). 법인명이면 null",
+  "violationType": "다음 6개 중 정확히 하나만: 속도위반 / 신호위반 / 법규위반 / 주정차위반 / 통행료미납 / 기타",
+  "violationLocation": "위반 장소(도로명·지점명). 없으면 null",
+  "amount": 실제납부금액_정수 (원 단위 숫자만. 예: 70000),
+  "paymentDestination": "부과기관명. 예) 달서구청장 / 한국도로공사 / 대구경찰청장"
 }
 
-[위반 유형 판단 기준]
-- 속도위반: 제한속도 초과, 과속
-- 신호위반: 신호 무시, 신호 위반
-- 법규위반: 차로위반, 끼어들기, 안전거리, 기타 도로교통법 위반
-- 주정차위반: 불법주정차, 주차위반
-- 통행료미납: 고속도로 통행료 미납, 하이패스, 한국도로공사 관련
-- 기타: 위 분류 외
+[위반 유형 판단]
+- 속도위반: 과속, 제한속도 초과
+- 신호위반: 신호 무시·위반
+- 주정차위반: 불법주정차·주차금지
+- 통행료미납: 하이패스·고속도로통행료 미납, 한국도로공사 관련
+- 법규위반: 차로위반·안전거리·끼어들기 등 기타 도로교통법 위반
+- 기타: 위에 해당 없음
 
-[날짜 형식 변환]
-- "2026년 02월 13일 11시 14분" → "2026-02-13 11:14"
-- "26.02.13 11:14" → "2026-02-13 11:14"
-- "2026.02.13" → "2026-02-13 00:00"
-- "26/02/13" → "2026-02-13 00:00"
-- "2026-02-13" → "2026-02-13 00:00"
+[날짜 변환 예시]
+"2026년 02월 13일 11시 14분" → "2026-02-13 11:14"
+"26.02.13 11:14" → "2026-02-13 11:14"
+"2026.02.20 14:33" → "2026-02-20 14:33"
+"2026-01-20" → "2026-01-20 00:00"
 
-[금액 변환]
-- "70,000원" → 70000
-- "32,000" → 32000
-- "32천원" / "3만2천원" → 32000
-- 여러 금액이 있으면 실제 납부금액(과태료액, 납부금액 등) 기준
+[금액 변환 예시]
+"70,000원" → 70000 / "32,000" → 32000 / "3만원" → 30000
+여러 금액이 있으면 "납부할 금액" 또는 "과태료액"으로 표시된 값 사용
 
-[차량번호 예시]
-- "177허 8226" → "177허8226" (공백 제거)
-- "12 가 3456" → "12가3456"`;
+[차량번호 변환 예시]
+"177허 8226" → "177허8226" / "231 허 3946" → "231허3946"`;
 
-      // 이미지가 있으면 비전 모드, 없으면 텍스트 모드
-      let userContent: any;
-      if (imgDataUrl) {
-        const textPart = pdfText.length >= 10 ? `\n\n참고 텍스트:\n${pdfText.substring(0, 2000)}` : "";
-        userContent = [
-          { type: "text", text: USER_MSG + textPart },
-          { type: "image_url", image_url: { url: imgDataUrl, detail: "auto" } },
-        ];
-      } else {
-        userContent = `${USER_MSG}\n\n--- PDF 텍스트 ---\n${pdfText.substring(0, 4000)}`;
-      }
+      // 페이지 이미지 (최대 2장) base64 변환
+      const pageImgs = pngFiles.slice(0, 2).map((pngPath: string) => ({
+        type: "image_url" as const,
+        image_url: {
+          url: `data:image/png;base64,${fs.readFileSync(pngPath).toString("base64")}`,
+          detail: "high" as const,
+        },
+      }));
+
+      const textHint = pdfText.length >= 20
+        ? `\n\n[텍스트 레이어 참고 (OCR 보조)]\n${pdfText.substring(0, 3000)}`
+        : "";
 
       const aiRes = await aiClient.chat.completions.create({
         model: "gpt-4o",
-        max_completion_tokens: 800,
+        max_completion_tokens: 1200,
         messages: [
           { role: "system", content: SYSTEM_MSG },
-          { role: "user", content: userContent },
+          { role: "user", content: [{ type: "text", text: USER_MSG + textHint }, ...pageImgs] },
         ],
       });
 
@@ -2584,40 +2585,30 @@ export async function registerRoutes(
         parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
       } catch (_) {}
 
-      // ── 4. 후처리: 날짜·금액·번호판 정규화 ─────────────────────
-      // 날짜 정규화
+      // ── 5. 후처리: 날짜·금액·번호판·위반유형 정규화 ────────────────
       if (parsed.violationDate && typeof parsed.violationDate === "string") {
         let d = parsed.violationDate.trim();
-        // "2026년 02월 13일 11시 14분" → "2026-02-13 11:14"
-        d = d.replace(/(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일\s*(\d{1,2})시\s*(\d{1,2})분/, (_, y, mo, day, h, mi) =>
+        d = d.replace(/(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일\s*(\d{1,2})시\s*(\d{1,2})분/, (_: string, y: string, mo: string, day: string, h: string, mi: string) =>
           `${y}-${mo.padStart(2,"0")}-${day.padStart(2,"0")} ${h.padStart(2,"0")}:${mi.padStart(2,"0")}`);
-        // "2026년 02월 13일" → "2026-02-13"
-        d = d.replace(/(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일/, (_, y, mo, day) =>
+        d = d.replace(/(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일/, (_: string, y: string, mo: string, day: string) =>
           `${y}-${mo.padStart(2,"0")}-${day.padStart(2,"0")}`);
-        // "26.02.13 11:14" 또는 "2026.02.13 11:14" → "YYYY-MM-DD HH:MM"
-        d = d.replace(/^(\d{2,4})\.(\d{1,2})\.(\d{1,2})\s+(\d{1,2}:\d{2})$/, (_, y, mo, day, t) =>
+        d = d.replace(/^(\d{2,4})\.(\d{1,2})\.(\d{1,2})\s+(\d{1,2}:\d{2})$/, (_: string, y: string, mo: string, day: string, t: string) =>
           `${y.length === 2 ? "20" + y : y}-${mo.padStart(2,"0")}-${day.padStart(2,"0")} ${t}`);
-        // "2026.02.13" → "2026-02-13"
-        d = d.replace(/^(\d{4})\.(\d{1,2})\.(\d{1,2})$/, (_, y, mo, day) =>
+        d = d.replace(/^(\d{4})\.(\d{1,2})\.(\d{1,2})$/, (_: string, y: string, mo: string, day: string) =>
           `${y}-${mo.padStart(2,"0")}-${day.padStart(2,"0")}`);
-        // "26/02/13" or "2026/02/13" → "YYYY-MM-DD"
-        d = d.replace(/^(\d{2,4})\/(\d{1,2})\/(\d{1,2})$/, (_, y, mo, day) =>
+        d = d.replace(/^(\d{2,4})\/(\d{1,2})\/(\d{1,2})$/, (_: string, y: string, mo: string, day: string) =>
           `${y.length === 2 ? "20" + y : y}-${mo.padStart(2,"0")}-${day.padStart(2,"0")}`);
-        // 날짜만 있는 경우 시간 추가
         if (/^\d{4}-\d{2}-\d{2}$/.test(d)) d += " 00:00";
         parsed.violationDate = d;
       }
-      // 금액 정규화
       if (parsed.amount !== null && parsed.amount !== undefined) {
         const amtStr = String(parsed.amount).replace(/[,원\s]/g, "");
         const amtNum = parseInt(amtStr, 10);
         parsed.amount = isNaN(amtNum) ? null : amtNum;
       }
-      // 번호판 공백 제거
       if (parsed.licensePlate && typeof parsed.licensePlate === "string") {
         parsed.licensePlate = parsed.licensePlate.replace(/\s/g, "");
       }
-      // 위반 유형 정규화 (DB 일관성 보장)
       if (parsed.violationType && typeof parsed.violationType === "string") {
         const rawType = parsed.violationType.replace(/\s/g, "").toLowerCase();
         const typeMap: Record<string, string> = {
@@ -2627,62 +2618,48 @@ export async function registerRoutes(
           "통행료미납": "통행료미납", "통행료": "통행료미납", "하이패스미납": "통행료미납",
           "법규위반": "법규위반", "기타": "기타",
         };
-        const matched = Object.entries(typeMap).find(([k]) => rawType.includes(k.toLowerCase()));
-        parsed.violationType = matched ? matched[1] : "기타";
+        const mt = Object.entries(typeMap).find(([k]) => rawType.includes(k.toLowerCase()));
+        parsed.violationType = mt ? mt[1] : "기타";
       }
 
-      // 차량번호로 차량 DB에서 차종·소속 자동 조회
+      // ── 6. 차량 DB 자동 매칭 ─────────────────────────────────────
       let vehicleType: string | null = null;
       let department: string | null = null;
       if (parsed.licensePlate) {
         const normalizedPlate = parsed.licensePlate.replace(/\s/g, "");
         const vehicles = await storage.getVehicles();
-        const matched = vehicles.find(
-          (v: any) => v.plateNumber.replace(/\s/g, "") === normalizedPlate
-        );
-        if (matched) {
-          vehicleType = matched.vehicleType;
-          department = matched.team;
-        }
+        const mv = vehicles.find((v: any) => v.plateNumber.replace(/\s/g, "") === normalizedPlate);
+        if (mv) { vehicleType = mv.vehicleType; department = mv.team; }
       }
 
-      // PDF: 오브젝트 스토리지 업로드 시도 (배포 환경), 실패 시 로컬 /uploads/ fallback
+      // ── 7. PDF 저장 + 썸네일 저장 ────────────────────────────────
       let pdfUrl = `/uploads/${req.file.filename}`;
       try {
         const objPdfUrl = await uploadToObjectStorage(pdfBuffer, req.file.filename, "application/pdf");
         if (objPdfUrl) pdfUrl = objPdfUrl;
       } catch (_) {}
 
-      // 썸네일: 추출한 이미지를 오브젝트 스토리지 또는 로컬에 저장
       let thumbnailUrl: string | null = null;
-      if (imgDataUrl) {
-        try {
-          const base64Data = imgDataUrl.replace(/^data:image\/\w+;base64,/, "");
-          const thumbBuffer = Buffer.from(base64Data, "base64");
-          const thumbFilename = `thumb_${path.basename(req.file.filename, path.extname(req.file.filename))}.png`;
-          // 오브젝트 스토리지 우선
-          const objThumbUrl = await uploadToObjectStorage(thumbBuffer, thumbFilename, "image/png");
-          if (objThumbUrl) {
-            thumbnailUrl = objThumbUrl;
-          } else {
-            // 로컬 fallback
-            const thumbPath = path.join(uploadDir, thumbFilename);
-            fs.writeFileSync(thumbPath, thumbBuffer);
-            thumbnailUrl = `/uploads/${thumbFilename}`;
-          }
-        } catch (_) {}
-      }
+      try {
+        const thumbBuffer = fs.readFileSync(pngFiles[0]);
+        const thumbFilename = `thumb_${path.basename(req.file.filename, path.extname(req.file.filename))}.png`;
+        const objThumbUrl = await uploadToObjectStorage(thumbBuffer, thumbFilename, "image/png");
+        if (objThumbUrl) {
+          thumbnailUrl = objThumbUrl;
+        } else {
+          const thumbPath = path.join(uploadDir, thumbFilename);
+          fs.writeFileSync(thumbPath, thumbBuffer);
+          thumbnailUrl = `/uploads/${thumbFilename}`;
+        }
+      } catch (_) {}
 
-      res.json({
-        ...parsed,
-        vehicleType,
-        department,
-        pdfUrl,
-        thumbnailUrl,
-      });
+      res.json({ ...parsed, vehicleType, department, pdfUrl, thumbnailUrl });
     } catch (error: any) {
       console.error("과태료 PDF 파싱 오류:", error?.message || error);
-      res.status(500).json({ message: "PDF 파싱에 실패했습니다" });
+      res.status(500).json({ message: `PDF 파싱에 실패했습니다: ${error?.message || "알 수 없는 오류"}` });
+    } finally {
+      // 임시 파일 정리
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch (_) {}
     }
   });
 
