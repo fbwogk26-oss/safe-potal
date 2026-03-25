@@ -11,8 +11,16 @@ const LOCK_DURATION_MINUTES = 15;
 
 export function getClientIp(req: Request): string {
   const forwarded = req.headers["x-forwarded-for"];
-  if (typeof forwarded === "string") return forwarded.split(",")[0].trim();
-  return req.ip || req.socket.remoteAddress || "unknown";
+  let ip = typeof forwarded === "string"
+    ? forwarded.split(",")[0].trim()
+    : (req.ip || req.socket.remoteAddress || "unknown");
+  // IPv4-mapped IPv6 주소 정규화 (::ffff:1.2.3.4 → 1.2.3.4)
+  if (ip.startsWith("::ffff:")) ip = ip.slice(7);
+  return ip;
+}
+
+function makeKeyGenerator() {
+  return (req: Request) => getClientIp(req);
 }
 
 export function setupSecurity(app: Express) {
@@ -47,7 +55,10 @@ export function setupSecurity(app: Express) {
   );
 
   app.use((_req: Request, res: Response, next: NextFunction) => {
-    res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()");
+    res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=(), bluetooth=()");
+    res.setHeader("Cross-Origin-Resource-Policy", "same-origin");
+    res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+    res.setHeader("X-Content-Type-Options", "nosniff");
     res.removeHeader("X-Powered-By");
     next();
   });
@@ -67,6 +78,7 @@ export function setupSecurity(app: Express) {
     max: 500,
     standardHeaders: true,
     legacyHeaders: false,
+    keyGenerator: makeKeyGenerator(),
     message: { message: "요청이 너무 많습니다. 잠시 후 다시 시도해주세요." },
   });
   app.use("/api/", globalLimiter);
@@ -76,6 +88,7 @@ export function setupSecurity(app: Express) {
     max: 10,
     standardHeaders: true,
     legacyHeaders: false,
+    keyGenerator: makeKeyGenerator(),
     message: { message: "로그인 시도가 너무 많습니다. 15분 후 다시 시도해주세요." },
     skipSuccessfulRequests: true,
   });
@@ -84,9 +97,14 @@ export function setupSecurity(app: Express) {
   const uploadLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 30,
+    keyGenerator: makeKeyGenerator(),
     message: { message: "파일 업로드가 너무 많습니다. 잠시 후 다시 시도해주세요." },
   });
   app.use("/api/upload", uploadLimiter);
+  // 파일 업로드 엔드포인트 공통 rate limit 추가
+  app.use("/api/users/bulk-upload", uploadLimiter);
+  app.use("/api/work-plans/upload", uploadLimiter);
+  app.use("/api/chemicals", uploadLimiter);
 }
 
 export async function logSecurityEvent(

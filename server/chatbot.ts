@@ -18,12 +18,21 @@ if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
+const CHAT_ALLOWED_IMG_EXTS = ["jpeg", "jpg", "png", "gif", "webp"];
+
+function chatSafeExt(originalname: string): string {
+  const cleaned = originalname.replace(/\0/g, "");
+  const ext = path.extname(cleaned).toLowerCase().replace(/[^a-z0-9]/g, "");
+  return CHAT_ALLOWED_IMG_EXTS.includes(ext) ? `.${ext}` : "";
+}
+
 const chatUpload = multer({
   storage: multer.diskStorage({
     destination: uploadDir,
     filename: (_req, file, cb) => {
       const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-      cb(null, "chat_" + uniqueSuffix + path.extname(file.originalname));
+      const ext = chatSafeExt(file.originalname);
+      cb(null, "chat_" + uniqueSuffix + ext);
     },
   }),
   limits: { fileSize: 10 * 1024 * 1024 },
@@ -31,7 +40,7 @@ const chatUpload = multer({
     const allowed = /jpeg|jpg|png|gif|webp/;
     const ext = allowed.test(path.extname(file.originalname).toLowerCase());
     const mime = allowed.test(file.mimetype);
-    cb(null, ext || mime);
+    cb(null, ext && mime);
   },
 });
 

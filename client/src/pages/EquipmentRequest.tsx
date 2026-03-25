@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { ShoppingCart, Plus, Trash2, ChevronLeft, Clock, CheckCircle2, FileText, Send, Minus, Download, Image, Settings, PenLine, AlertCircle } from "lucide-react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
+import DOMPurify from "dompurify";
 import { useState, useRef, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -450,7 +451,7 @@ export default function EquipmentRequest() {
       }
     }
     
-    container.innerHTML = `
+    container.innerHTML = DOMPurify.sanitize(`
       <h1 style="text-align: center; font-size: 24px; margin-bottom: 8px; text-decoration: underline;">보호구지급대장</h1>
       <table style="width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 25px;">
         <thead>
@@ -469,7 +470,7 @@ export default function EquipmentRequest() {
         </tbody>
       </table>
       <p style="text-align: center; font-size: 12px; margin-top: 20px;">「한번 실수 평생 후회 한번 안전 일생 행복」</p>
-    `;
+    `, { ADD_ATTR: ['style'], FORCE_BODY: true });
     
     document.body.appendChild(container);
     

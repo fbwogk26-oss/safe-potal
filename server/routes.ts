@@ -23,6 +23,15 @@ if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
+// 파일 확장자 안전 추출 (경로 주입·이중 확장자 방지)
+function safeExt(originalname: string, allowed: string[]): string {
+  // null byte 제거
+  const cleaned = originalname.replace(/\0/g, "");
+  // 마지막 .이후 소문자 추출
+  const ext = path.extname(cleaned).toLowerCase().replace(/[^a-z0-9]/g, "");
+  return allowed.includes(ext) ? `.${ext}` : "";
+}
+
 // 오브젝트 스토리지에 Buffer를 업로드하고 /objects/ 경로 반환
 // PRIVATE_OBJECT_DIR이 없으면 null 반환 (로컬 fallback)
 async function uploadToObjectStorage(buffer: Buffer, filename: string, contentType: string): Promise<string | null> {
@@ -41,18 +50,23 @@ async function uploadToObjectStorage(buffer: Buffer, filename: string, contentTy
   }
 }
 
+const ALLOWED_IMG_EXTS = ["jpeg", "jpg", "png", "gif", "webp"];
+const ALLOWED_EXCEL_EXTS = ["xlsx", "xls", "csv"];
+
 const upload = multer({
   storage: multer.diskStorage({
     destination: uploadDir,
     filename: (req, file, cb) => {
       const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-      cb(null, uniqueSuffix + path.extname(file.originalname));
+      const ext = safeExt(file.originalname, ALLOWED_IMG_EXTS);
+      cb(null, uniqueSuffix + ext);
     }
   }),
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowed = /jpeg|jpg|png|gif|webp/;
-    const ext = allowed.test(path.extname(file.originalname).toLowerCase());
+    const cleanName = file.originalname.replace(/\0/g, "");
+    const ext = allowed.test(path.extname(cleanName).toLowerCase());
     const mime = allowed.test(file.mimetype);
     cb(null, ext && mime);
   }
@@ -63,14 +77,16 @@ const excelUpload = multer({
     destination: uploadDir,
     filename: (req, file, cb) => {
       const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-      cb(null, uniqueSuffix + path.extname(file.originalname));
+      const ext = safeExt(file.originalname, ALLOWED_EXCEL_EXTS);
+      cb(null, uniqueSuffix + (ext || ".xlsx"));
     }
   }),
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowedExt = /xlsx|xls|csv/;
     const allowedMime = /spreadsheet|excel|csv|text\/csv/;
-    const ext = allowedExt.test(path.extname(file.originalname).toLowerCase());
+    const cleanName = file.originalname.replace(/\0/g, "");
+    const ext = allowedExt.test(path.extname(cleanName).toLowerCase());
     const mime = allowedMime.test(file.mimetype);
     cb(null, ext || mime);
   }
@@ -704,18 +720,19 @@ export async function registerRoutes(
     ".mp4", ".mov", ".avi", ".mkv", ".webm",
     ".zip", ".hwp", ".hwpx",
   ]);
+  const ALLOWED_GENERAL_EXTS_ARR = Array.from(ALLOWED_GENERAL_EXTENSIONS).map(e => e.replace(".", ""));
   const generalUpload = multer({
     storage: multer.diskStorage({
       destination: uploadDir,
       filename: (req, file, cb) => {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        const ext = path.extname(file.originalname).toLowerCase();
+        const ext = safeExt(file.originalname, ALLOWED_GENERAL_EXTS_ARR);
         cb(null, `file-${uniqueSuffix}${ext}`);
       }
     }),
     limits: { fileSize: 100 * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
-      const ext = path.extname(file.originalname).toLowerCase();
+      const ext = path.extname(file.originalname.replace(/\0/g, "")).toLowerCase();
       if (ALLOWED_GENERAL_EXTENSIONS.has(ext)) {
         cb(null, true);
       } else {
@@ -743,8 +760,8 @@ export async function registerRoutes(
       destination: (req, file, cb) => cb(null, uploadDir),
       filename: (req, file, cb) => {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        const ext = path.extname(file.originalname);
-        cb(null, `file-${uniqueSuffix}${ext}`);
+        const ext = safeExt(file.originalname, ALLOWED_EXCEL_EXTS);
+        cb(null, `file-${uniqueSuffix}${ext || ".xlsx"}`);
       }
     }),
     limits: { fileSize: 10 * 1024 * 1024 },
@@ -2435,8 +2452,8 @@ export async function registerRoutes(
     storage: multer.diskStorage({
       destination: (req, file, cb) => cb(null, uploadDir),
       filename: (req, file, cb) => {
-        const ext = path.extname(file.originalname);
-        cb(null, `fine_${Date.now()}${ext}`);
+        const ext = safeExt(file.originalname, ["pdf"]);
+        cb(null, `fine_${Date.now()}${ext || ".pdf"}`);
       },
     }),
     fileFilter: (req, file, cb) => {
@@ -2908,8 +2925,8 @@ export async function registerRoutes(
     storage: multer.diskStorage({
       destination: (req, file, cb) => cb(null, path.join(process.cwd(), "uploads")),
       filename: (req, file, cb) => {
-        const ext = path.extname(file.originalname);
-        cb(null, `workplan_${Date.now()}${ext}`);
+        const ext = safeExt(file.originalname, ALLOWED_EXCEL_EXTS);
+        cb(null, `workplan_${Date.now()}${ext || ".xlsx"}`);
       },
     }),
     limits: { fileSize: 50 * 1024 * 1024 },
