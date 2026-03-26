@@ -72,22 +72,26 @@ function parseMossData(text: string): { headers: string[]; rows: Record<string, 
     }
   } else {
     // 세로 형식 (MOSS 신형): col k 값 = dataLines[recordStart + k*2]
-    // 레코드당 줄 수 = headers.length * 2
+    // MOSS는 마지막 컬럼이 비어있을 때 trailing 구분자(빈줄)를 생략하는 경우가 있어
+    // 고정 linesPerRecord 이동 대신, 공사작업번호 패턴으로 각 레코드 시작 위치를 탐색한다.
     const numCols = headers.length;
-    const linesPerRecord = numCols * 2;
-    let pos = 0;
 
-    while (pos < dataLines.length) {
-      // 레코드 시작 전 불필요한 빈 줄 건너뜀
-      if (!dataLines[pos]?.trim()) { pos++; continue; }
+    // 공사작업번호 패턴: "도급-xxx-YYYYMMDD-XXXX" 형식 (-8자리숫자-4자리숫자 포함)
+    const workOrderPattern = /-\d{8}-\d{4}/;
+    const recordStarts: number[] = [];
+    for (let i = 0; i < dataLines.length; i++) {
+      const line = dataLines[i]?.trim() || "";
+      if (line && workOrderPattern.test(line)) {
+        recordStarts.push(i);
+      }
+    }
 
+    for (const startPos of recordStarts) {
       const record: Record<string, string> = {};
       for (let col = 0; col < numCols; col++) {
-        // 남은 줄이 부족해도 빈 문자열로 채움 (마지막 레코드 잘림 방지)
-        record[headers[col]] = normalizeKey(dataLines[pos + col * 2] || "");
+        record[headers[col]] = normalizeKey(dataLines[startPos + col * 2] || "");
       }
       if (headers.some(h => h.includes("공사작업번호") && record[h])) rows.push(record);
-      pos += linesPerRecord;
     }
   }
 
