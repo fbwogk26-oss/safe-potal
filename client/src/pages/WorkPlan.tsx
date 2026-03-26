@@ -80,11 +80,10 @@ function parseMossData(text: string): { headers: string[]; rows: Record<string, 
     while (pos < dataLines.length) {
       // 레코드 시작 전 불필요한 빈 줄 건너뜀
       if (!dataLines[pos]?.trim()) { pos++; continue; }
-      // 남은 줄이 부족하면 종료
-      if (pos + linesPerRecord > dataLines.length) break;
 
       const record: Record<string, string> = {};
       for (let col = 0; col < numCols; col++) {
+        // 남은 줄이 부족해도 빈 문자열로 채움 (마지막 레코드 잘림 방지)
         record[headers[col]] = normalizeKey(dataLines[pos + col * 2] || "");
       }
       if (headers.some(h => h.includes("공사작업번호") && record[h])) rows.push(record);
