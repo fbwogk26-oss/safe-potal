@@ -2478,16 +2478,7 @@ export async function registerRoutes(
         baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
       });
 
-      // ── 1. pdf-parse로 텍스트 추출 ──────────────────────────────────
-      let pdfText = "";
-      try {
-        const pdfParse = (await import("pdf-parse")).default;
-        const parsed = await pdfParse(pdfBuffer);
-        pdfText = (parsed.text || "").trim();
-      } catch (_) {}
-
-      // ── 2. GPT-4o 분석 (PDF base64 직접 전송 또는 텍스트 기반) ──────
-      const SYSTEM_MSG = `당신은 한국 교통 과태료·범칙금 고지서(납부통보서, 범칙금통고서, 과태료부과통보서, 통행료납부통보서) 전문 파싱 AI입니다.
+      const INSTRUCTION = `당신은 한국 교통 과태료·범칙금 고지서(납부통보서, 범칙금통고서, 과태료부과통보서, 통행료납부통보서) 전문 파싱 AI입니다.
 문서에서 정보를 정확히 추출해 JSON 객체 **하나만** 응답하세요.
 - 없는 정보는 null로 반환. 절대 추측 금지.
 - 마크다운·코드블록 없이 JSON만.
@@ -2527,49 +2518,109 @@ export async function registerRoutes(
 [차량번호 변환 예시]
 "177허 8226" → "177허8226" / "231 허 3946" → "231허3946"`;
 
-      // PDF를 base64로 인코딩하여 GPT-4o에 직접 전송 (시스템 도구 불필요)
+      // PDF를 base64로 인코딩
       const pdfBase64 = pdfBuffer.toString("base64");
+      const pdfDataUrl = `data:application/pdf;base64,${pdfBase64}`;
 
-      let aiRes: any;
+      let raw = "{}";
+
+      // ── 방법 1: OpenAI Responses API (PDF 네이티브 지원, 스캔 이미지 포함) ──
       try {
-        // 방법 1: PDF 파일을 직접 file 타입으로 전송
-        aiRes = await aiClient.chat.completions.create({
+        const response = await (aiClient as any).responses.create({
           model: "gpt-4o",
-          max_completion_tokens: 1200,
-          messages: [
-            { role: "system", content: SYSTEM_MSG },
+          instructions: INSTRUCTION,
+          input: [
             {
               role: "user",
               content: [
-                { type: "text", text: USER_MSG },
+                { type: "input_text", text: USER_MSG },
                 {
-                  type: "file" as any,
-                  file: {
-                    filename: req.file.originalname || "fine.pdf",
-                    file_data: `data:application/pdf;base64,${pdfBase64}`,
-                  },
+                  type: "input_file",
+                  filename: req.file.originalname || "fine.pdf",
+                  file_data: pdfDataUrl,
                 },
               ],
             },
           ],
         });
-      } catch (_fileErr: any) {
-        // 방법 2: 텍스트 추출 내용만으로 분석 (fallback)
-        if (!pdfText || pdfText.length < 10) {
-          throw new Error("PDF에서 텍스트를 추출할 수 없습니다. 스캔 이미지 PDF는 지원되지 않을 수 있습니다.");
+        raw = response.output_text?.trim() || "{}";
+      } catch (_responsesErr: any) {
+        console.warn("Responses API 실패, pdftoppm Vision fallback 시도:", _responsesErr?.message);
+
+        // ── 방법 2: pdftoppm으로 이미지 변환 후 GPT-4o Vision ──
+        try {
+          const os = await import("os");
+          const { spawn } = await import("child_process");
+          const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "pdfparse-"));
+          const tmpPrefix = path.join(tmpDir, "page");
+
+          try {
+            await new Promise<void>((resolve, reject) => {
+              const proc = spawn("pdftoppm", ["-r", "200", "-png", pdfPath, tmpPrefix]);
+              let errOut = "";
+              proc.stderr.on("data", (d: Buffer) => { errOut += d.toString(); });
+              proc.on("close", (code: number) => {
+                if (code === 0) resolve();
+                else reject(new Error(`pdftoppm 오류 (code ${code}): ${errOut}`));
+              });
+              proc.on("error", reject);
+            });
+
+            const pngFiles = fs.readdirSync(tmpDir)
+              .filter((f: string) => f.endsWith(".png"))
+              .sort()
+              .map((f: string) => path.join(tmpDir, f));
+
+            if (pngFiles.length === 0) throw new Error("PDF 페이지 변환 결과 없음");
+
+            const pageImgs = pngFiles.slice(0, 2).map((pngPath: string) => ({
+              type: "image_url" as const,
+              image_url: {
+                url: `data:image/png;base64,${fs.readFileSync(pngPath).toString("base64")}`,
+                detail: "high" as const,
+              },
+            }));
+
+            const chatRes2 = await aiClient.chat.completions.create({
+              model: "gpt-4o",
+              max_completion_tokens: 1200,
+              messages: [
+                { role: "system", content: INSTRUCTION },
+                { role: "user", content: [{ type: "text", text: USER_MSG }, ...pageImgs] },
+              ],
+            });
+            raw = chatRes2.choices[0]?.message?.content?.trim() || "{}";
+          } finally {
+            try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch (_) {}
+          }
+        } catch (_pdfErr: any) {
+          console.warn("pdftoppm fallback 실패, 텍스트 추출 시도:", _pdfErr?.message);
+
+          // ── 방법 3: 텍스트 추출만으로 분석 (최후 수단) ──
+          let pdfText = "";
+          try {
+            const pdfParse = (await import("pdf-parse")).default;
+            const pdResult = await pdfParse(pdfBuffer);
+            pdfText = (pdResult.text || "").trim();
+          } catch (_) {}
+
+          if (!pdfText || pdfText.length < 10) {
+            throw new Error("PDF 분석에 실패했습니다. 파일이 손상되었거나 지원하지 않는 형식일 수 있습니다.");
+          }
+
+          const textContent = `${USER_MSG}\n\n[추출된 PDF 텍스트]\n${pdfText.substring(0, 4000)}`;
+          const chatRes3 = await aiClient.chat.completions.create({
+            model: "gpt-4o",
+            max_completion_tokens: 1200,
+            messages: [
+              { role: "system", content: INSTRUCTION },
+              { role: "user", content: textContent },
+            ],
+          });
+          raw = chatRes3.choices[0]?.message?.content?.trim() || "{}";
         }
-        const textContent = `${USER_MSG}\n\n[추출된 PDF 텍스트]\n${pdfText.substring(0, 4000)}`;
-        aiRes = await aiClient.chat.completions.create({
-          model: "gpt-4o",
-          max_completion_tokens: 1200,
-          messages: [
-            { role: "system", content: SYSTEM_MSG },
-            { role: "user", content: textContent },
-          ],
-        });
       }
 
-      const raw = aiRes.choices[0]?.message?.content?.trim() || "{}";
       let parsed: any = {};
       try {
         const jsonMatch = raw.match(/\{[\s\S]*\}/);
