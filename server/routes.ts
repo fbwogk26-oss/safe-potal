@@ -2674,14 +2674,47 @@ export async function registerRoutes(
         if (mv) { vehicleType = mv.vehicleType; department = mv.team; }
       }
 
-      // ── 7. PDF 저장 + 썸네일 저장 ────────────────────────────────
+      // ── 7. PDF 저장 ────────────────────────────────────────────────
       let pdfUrl = `/uploads/${req.file.filename}`;
       try {
         const objPdfUrl = await uploadToObjectStorage(pdfBuffer, req.file.filename, "application/pdf");
         if (objPdfUrl) pdfUrl = objPdfUrl;
       } catch (_) {}
 
-      const thumbnailUrl: string | null = null;
+      // ── 8. 썸네일 생성 (pdftoppm 첫 페이지 → PNG) ─────────────────
+      let thumbnailUrl: string | null = null;
+      try {
+        const os = await import("os");
+        const { spawn } = await import("child_process");
+        const thumbTmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "pdfthumb-"));
+        const thumbPrefix = path.join(thumbTmpDir, "thumb");
+        try {
+          await new Promise<void>((resolve, reject) => {
+            const proc = spawn("pdftoppm", ["-r", "150", "-png", "-l", "1", pdfPath, thumbPrefix]);
+            proc.on("close", (code: number) => code === 0 ? resolve() : reject(new Error(`code ${code}`)));
+            proc.on("error", reject);
+          });
+          const thumbFiles = fs.readdirSync(thumbTmpDir)
+            .filter((f: string) => f.endsWith(".png"))
+            .sort();
+          if (thumbFiles.length > 0) {
+            const thumbBuffer = fs.readFileSync(path.join(thumbTmpDir, thumbFiles[0]));
+            const thumbFilename = `thumb_${path.basename(req.file.filename, ".pdf")}.png`;
+            const objThumbUrl = await uploadToObjectStorage(thumbBuffer, thumbFilename, "image/png");
+            if (objThumbUrl) {
+              thumbnailUrl = objThumbUrl;
+            } else {
+              const thumbPath = path.join(uploadDir, thumbFilename);
+              fs.writeFileSync(thumbPath, thumbBuffer);
+              thumbnailUrl = `/uploads/${thumbFilename}`;
+            }
+          }
+        } finally {
+          try { fs.rmSync(thumbTmpDir, { recursive: true, force: true }); } catch (_) {}
+        }
+      } catch (_thumbErr: any) {
+        console.warn("썸네일 생성 실패 (무시):", _thumbErr?.message);
+      }
 
       res.json({ ...parsed, vehicleType, department, pdfUrl, thumbnailUrl });
     } catch (error: any) {
