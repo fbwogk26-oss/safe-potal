@@ -71,11 +71,12 @@ export function MusicPlayer() {
   const isPlayingRef = useRef(false);
   const volumeRef = useRef(0.7);
   const isMutedRef = useRef(false);
-  // Prevents the isPlaying effect from double-calling play()
-  // when the user already called el.play() directly in a gesture handler
-  const skipNextPlayEffectRef = useRef(false);
-  // Once the user approves playback, don't re-show the banner between songs
+  // True after user explicitly clicks a play button — prevents re-showing banner
   const userApprovedRef = useRef(false);
+  // Ref copy of signedUrl so we don't need it as an effect dependency
+  const signedUrlRef = useRef<string | null>(null);
+  // Skip the isPlaying effect's attemptAutoplay when user already triggered play directly
+  const skipNextPlayEffectRef = useRef(false);
 
   useEffect(() => { activeTypeRef.current = activeType; }, [activeType]);
   useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
@@ -98,35 +99,32 @@ export function MusicPlayer() {
   const currentFile = activeFiles[currentIndex % Math.max(activeFiles.length, 1)];
   const signedUrl = useSignedMusicUrl(currentFile?.url);
 
-  // ── Core autoplay helper ──────────────────────────────────────────────────
-  // Tries unmuted → muted fallback.
-  // If userApproved=true (user already clicked), silently stays muted instead
-  // of resurfacing the banner.
+  // Keep ref in sync — used by effects that must not have signedUrl as a dep
+  useEffect(() => { signedUrlRef.current = signedUrl; }, [signedUrl]);
+
+  // ── Autoplay helper ──────────────────────────────────────────────────────
+  // Tries normal play → muted fallback.
+  // If user already approved playback, never shows the interaction banner again.
   const attemptAutoplay = useCallback(async (el: HTMLVideoElement) => {
     el.volume = isMutedRef.current ? 0 : volumeRef.current;
     try {
       await el.play();
       setNeedsInteraction(false);
     } catch {
-      // Try muted — browsers always allow muted autoplay
       el.muted = true;
       try {
         await el.play();
-        // Unmute immediately after muted-play succeeded
         el.muted = false;
         el.volume = isMutedRef.current ? 0 : volumeRef.current;
         setNeedsInteraction(false);
       } catch {
-        // Both normal and muted play blocked
-        if (userApprovedRef.current) {
-          // User already approved — don't show banner; just pause quietly
-          // and let the next song try again naturally
-          setIsPlaying(false);
-        } else {
-          // First time: show the "tap to start" banner
-          setIsPlaying(false);
+        // Both normal and muted blocked
+        setIsPlaying(false);
+        if (!userApprovedRef.current) {
+          // First-time autoplay blocked → show tap-to-start banner
           setNeedsInteraction(true);
         }
+        // If user already approved, silently stop — no banner
       }
     }
   }, []);
@@ -157,7 +155,9 @@ export function MusicPlayer() {
     return () => clearInterval(timer);
   }, [schedule]);
 
-  // ── Load new signed URL → autoplay if needed ──────────────────────────────
+  // ── Load new signed URL → play if needed ─────────────────────────────────
+  // FIX: Only run when signedUrl changes. Does NOT trigger another run when
+  // isPlaying changes (signedUrl is NOT in the isPlaying effect's dep array).
   useEffect(() => {
     if (!videoRef.current || !signedUrl) return;
     const el = videoRef.current;
@@ -169,29 +169,30 @@ export function MusicPlayer() {
   }, [signedUrl, attemptAutoplay]);
 
   // ── isPlaying toggle ──────────────────────────────────────────────────────
-  // Only handles pause. Play is driven by the signedUrl effect or direct
-  // user-gesture calls (handleStartPlaying / handleSelectSong).
-  // When skipNextPlayEffectRef is true, the user already called el.play()
-  // directly — skip the effect to prevent a double-play race.
+  // FIX: signedUrl is NOT in the dep array — we read it via signedUrlRef.
+  // This prevents extra attemptAutoplay calls whenever the URL changes.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!videoRef.current) return;
     const el = videoRef.current;
 
     if (isPlaying) {
+      // Skip if the user already called el.play() directly (gesture handler)
       if (skipNextPlayEffectRef.current) {
         skipNextPlayEffectRef.current = false;
-        return; // User already played directly; don't call attemptAutoplay again
+        return;
       }
-      if (!signedUrl) return; // Wait for signed URL (signedUrl effect will trigger play)
+      const url = signedUrlRef.current;
+      if (!url) return; // signedUrl effect will handle play when URL arrives
       if (!el.src || el.src === window.location.href) {
-        el.src = signedUrl;
+        el.src = url;
         el.load();
       }
       attemptAutoplay(el);
     } else {
       el.pause();
     }
-  }, [isPlaying, signedUrl, attemptAutoplay]);
+  }, [isPlaying, attemptAutoplay]);
 
   // ── Volume sync ───────────────────────────────────────────────────────────
   useEffect(() => {
@@ -217,6 +218,10 @@ export function MusicPlayer() {
 
   // ── Next / Prev ───────────────────────────────────────────────────────────
   const playNext = useCallback(() => {
+    // FIX: Only auto-advance if we're supposed to be playing.
+    // Prevents the onError → playNext → onError infinite loop
+    // when the player is stopped or showing the banner.
+    if (!isPlayingRef.current) return;
     setCurrentIndex((i) => (i + 1) % Math.max(activeFiles.length, 1));
   }, [activeFiles.length]);
 
@@ -224,42 +229,42 @@ export function MusicPlayer() {
     setCurrentIndex((i) => (i - 1 + activeFiles.length) % Math.max(activeFiles.length, 1));
   }, [activeFiles.length]);
 
-  // ── User actions ─────────────────────────────────────────────────────────
+  // ── User actions ──────────────────────────────────────────────────────────
 
-  // Called from the "재생 시작" banner button (user gesture context)
+  // Called from the banner "재생 시작" button (user-gesture context)
   const handleStartPlaying = () => {
     userApprovedRef.current = true;
-    skipNextPlayEffectRef.current = true; // Tell the isPlaying effect to skip
+    skipNextPlayEffectRef.current = true; // Prevent effect from double-calling play
     setNeedsInteraction(false);
-    setCurrentIndex(0);
     setIsPlaying(true);
 
-    if (videoRef.current) {
-      const el = videoRef.current;
-      if (signedUrl && (!el.src || el.src === window.location.href)) {
-        el.src = signedUrl;
-        el.load();
-      }
-      el.muted = false;
-      el.volume = isMuted ? 0 : volume;
-      // Direct play in user-gesture context — always succeeds
-      el.play().catch(() => {
-        skipNextPlayEffectRef.current = false;
-        setIsPlaying(false);
-        setNeedsInteraction(true);
-      });
-    }
+    const el = videoRef.current;
+    if (!el) return;
+    const url = signedUrlRef.current;
+    if (!url) return; // signedUrl effect will trigger play when URL arrives
+
+    // Always reset to a clean state before user-initiated play
+    el.src = url;
+    el.muted = false;
+    el.volume = isMuted ? 0 : volume;
+    el.load();
+
+    // Direct play in user-gesture context — always succeeds unless media error
+    el.play().catch(() => {
+      skipNextPlayEffectRef.current = false;
+      setIsPlaying(false);
+      // Don't re-show banner after user approved — just silently stop
+    });
   };
 
-  // Called from the playlist panel (user gesture context)
+  // Called from the playlist panel (user-gesture context)
   const handleSelectSong = (idx: number) => {
     userApprovedRef.current = true;
     skipNextPlayEffectRef.current = true;
     setCurrentIndex(idx);
     setIsPlaying(true);
     setShowPlaylist(false);
-    // el.play() will be triggered by the signedUrl effect after the new URL loads
-    // skipNextPlayEffectRef prevents the isPlaying effect from double-calling
+    // signedUrl will change → signedUrl effect loads & plays the new track
   };
 
   const handleClose = () => {
@@ -292,13 +297,19 @@ export function MusicPlayer() {
       <video
         ref={videoRef}
         onEnded={playNext}
-        onError={() => setTimeout(playNext, 1000)}
+        onError={() => {
+          // FIX: Only advance on error if we're actively supposed to be playing.
+          // This breaks the onError→playNext→fetch→error infinite loop.
+          if (isPlayingRef.current) {
+            setTimeout(playNext, 1500);
+          }
+        }}
         style={{ display: "none" }}
         playsInline
         preload="auto"
       />
 
-      {/* ── Banner: tap to start (shown only when browser blocked autoplay) ── */}
+      {/* ── Banner (shown only when browser blocks initial autoplay) ──────── */}
       {needsInteraction && !isPlaying && (
         <div className={cn("fixed bottom-0 left-0 right-0 z-[60] animate-in slide-in-from-bottom duration-500 bg-gradient-to-r", bgColor)}>
           <div className="max-w-2xl mx-auto flex items-center justify-between px-4 py-3 gap-4">
@@ -332,7 +343,7 @@ export function MusicPlayer() {
       {isPlaying && (
         <div className="fixed bottom-0 left-0 right-0 z-[60] animate-in slide-in-from-bottom duration-300 shadow-2xl">
 
-          {/* Playlist panel (slides up above bar) */}
+          {/* Playlist panel */}
           {showPlaylist && (
             <div className={cn("animate-in slide-in-from-bottom duration-200 border-t border-white/20", solidBg)}>
               <div className="max-w-3xl mx-auto">
@@ -342,7 +353,7 @@ export function MusicPlayer() {
                     <span className="text-sm font-semibold">{scheduleLabel} 재생목록</span>
                     <span className="text-xs text-white/60">{activeFiles.length}곡</span>
                   </div>
-                  <Button variant="ghost" size="icon" className="h-6 w-6 text-white/70 hover:bg-white/20 hover:text-white" onClick={() => setShowPlaylist(false)} data-testid="button-playlist-close">
+                  <Button variant="ghost" size="icon" className="h-6 w-6 text-white/70 hover:bg-white/20" onClick={() => setShowPlaylist(false)} data-testid="button-playlist-close">
                     <ChevronDown className="w-4 h-4" />
                   </Button>
                 </div>
