@@ -248,19 +248,35 @@ export default function DigitalBoard() {
     setCurrentSlide(prev => (prev + 1) % slideList.length);
   };
 
-  const toggleFullscreen = () => {
-    setIsFullscreen(prev => !prev);
+  const toggleFullscreen = async () => {
+    if (!document.fullscreenElement) {
+      // 브라우저 네이티브 전체화면 요청
+      try {
+        const el = slideshowRef.current;
+        if (el?.requestFullscreen) await el.requestFullscreen();
+        else setIsFullscreen(true); // fallback
+      } catch {
+        setIsFullscreen(true);
+      }
+    } else {
+      await document.exitFullscreen().catch(() => setIsFullscreen(false));
+    }
   };
 
+  // 네이티브 fullscreenchange 이벤트로 상태 동기화
   useEffect(() => {
-    if (isFullscreen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
-    return () => { document.body.style.overflow = ''; };
-  }, [isFullscreen]);
+    const handleFSChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener("fullscreenchange", handleFSChange);
+    document.addEventListener("webkitfullscreenchange", handleFSChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFSChange);
+      document.removeEventListener("webkitfullscreenchange", handleFSChange);
+    };
+  }, []);
 
+  // ESC 키 처리 (portal fallback용)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isFullscreen) setIsFullscreen(false);
@@ -281,10 +297,29 @@ export default function DigitalBoard() {
         </div>
       </div>
 
-      {/* 슬라이드 뷰어 (항상 normal view 유지) */}
+      {/* 전체화면 포털 — 네이티브 fullscreen이 안 되는 환경(iframe 등) 폴백 */}
+      {isFullscreen && slideList.length > 0 && createPortal(
+        <div className="fixed inset-0 bg-black z-[99999] flex items-center justify-center">
+          <SlideViewer slideList={slideList} currentSlide={currentSlide} parseContent={parseContent} />
+          <SlideControls
+            slideList={slideList}
+            currentSlide={currentSlide}
+            isPlaying={isPlaying}
+            isFullscreen={true}
+            onPrev={goToPrev}
+            onNext={goToNext}
+            onTogglePlay={() => setIsPlaying(p => !p)}
+            onSelectSlide={setCurrentSlide}
+            onToggleFullscreen={toggleFullscreen}
+          />
+        </div>,
+        document.body
+      )}
+
+      {/* 슬라이드 뷰어 — requestFullscreen() 대상 엘리먼트 */}
       <div 
         ref={slideshowRef}
-        className="relative bg-black overflow-hidden aspect-video rounded-2xl"
+        className={`relative bg-black overflow-hidden ${isFullscreen ? "w-full h-full" : "aspect-video rounded-2xl"}`}
       >
         {slideList.length > 0 ? (
           <>
@@ -293,7 +328,7 @@ export default function DigitalBoard() {
               slideList={slideList}
               currentSlide={currentSlide}
               isPlaying={isPlaying}
-              isFullscreen={false}
+              isFullscreen={isFullscreen}
               onPrev={goToPrev}
               onNext={goToNext}
               onTogglePlay={() => setIsPlaying(p => !p)}
@@ -310,25 +345,6 @@ export default function DigitalBoard() {
           </div>
         )}
       </div>
-
-      {/* 전체화면 Portal - overflow 제한 우회 */}
-      {isFullscreen && slideList.length > 0 && createPortal(
-        <div className="fixed inset-0 bg-black z-[99999] relative">
-          <SlideViewer slideList={slideList} currentSlide={currentSlide} parseContent={parseContent} />
-          <SlideControls
-            slideList={slideList}
-            currentSlide={currentSlide}
-            isPlaying={isPlaying}
-            isFullscreen={true}
-            onPrev={goToPrev}
-            onNext={goToNext}
-            onTogglePlay={() => setIsPlaying(p => !p)}
-            onSelectSlide={setCurrentSlide}
-            onToggleFullscreen={toggleFullscreen}
-          />
-        </div>,
-        document.body
-      )}
 
       {canEditDigitalBoard && (
         <Card className="border-indigo-200 dark:border-indigo-900/30">
