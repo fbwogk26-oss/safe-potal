@@ -2,7 +2,7 @@
  * MusicPlayer — simple, reliable schedule-driven player.
  *
  * Design:
- *  • One <audio> element, always mounted (display:none).
+ *  • One <video> element, always mounted (display:none).
  *  • React state is only for UI. All media calls are imperative.
  *  • tryAutoplay() — called when schedule activates / new URL loads (auto)
  *  • handlePlayClick() — called by user gesture (always succeeds)
@@ -68,13 +68,14 @@ export function MusicPlayer() {
   const [progress, setProgress] = useState(0);
 
   // ── Refs — always up-to-date, safe in async callbacks ─────────────────────
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const activeTypeRef = useRef<string | null>(null);
   const wantPlayRef = useRef(false);
   const wasTriggeredRef = useRef(false);
   const volumeRef = useRef(0.7);
   const isMutedRef = useRef(false);
   const progressTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const errorCountRef = useRef(0); // consecutive errors guard
 
   // Keep refs in sync
   useEffect(() => { volumeRef.current = volume; }, [volume]);
@@ -101,7 +102,7 @@ export function MusicPlayer() {
   useEffect(() => {
     if (isPlaying) {
       progressTimer.current = setInterval(() => {
-        const a = audioRef.current;
+        const a = videoRef.current;
         if (a?.duration) setProgress((a.currentTime / a.duration) * 100);
       }, 500);
     } else {
@@ -112,7 +113,7 @@ export function MusicPlayer() {
 
   // ── Volume / mute sync (direct, no reload) ────────────────────────────────
   useEffect(() => {
-    const el = audioRef.current;
+    const el = videoRef.current;
     if (!el) return;
     el.volume = isMuted ? 0 : volume;
     el.muted = false;
@@ -120,11 +121,12 @@ export function MusicPlayer() {
 
   // ── Autoplay (stable ref — doesn't cause effect re-runs) ─────────────────
   // Uses volumeRef/isMutedRef so it's always up-to-date without being a dep.
-  const tryAutoplay = useCallback(async (el: HTMLAudioElement) => {
+  const tryAutoplay = useCallback(async (el: HTMLVideoElement) => {
     el.muted = false;
     el.volume = isMutedRef.current ? 0 : volumeRef.current;
     try {
       await el.play();
+      errorCountRef.current = 0;
       setIsPlaying(true);
       try { sessionStorage.setItem(SESSION_KEY, "1"); } catch { /* ok */ }
     } catch {
@@ -134,6 +136,7 @@ export function MusicPlayer() {
         await el.play();
         el.muted = false;
         el.volume = isMutedRef.current ? 0 : volumeRef.current;
+        errorCountRef.current = 0;
         setIsPlaying(true);
         try { sessionStorage.setItem(SESSION_KEY, "1"); } catch { /* ok */ }
       } catch {
@@ -146,7 +149,7 @@ export function MusicPlayer() {
   // ── When signed URL changes, load it. Play if we intend to. ──────────────
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    const el = audioRef.current;
+    const el = videoRef.current;
     if (!el || !signedUrl) return;
     el.src = signedUrl;
     el.load();
@@ -170,13 +173,13 @@ export function MusicPlayer() {
         wasTriggeredRef.current = false;
         setIsPlaying(false);
         setShowPlaylist(false);
-        audioRef.current?.pause();
+        videoRef.current?.pause();
         try { sessionStorage.removeItem(SESSION_KEY); } catch { /* ok */ }
       } else if (!wasTriggeredRef.current) {
         wasTriggeredRef.current = true;
         wantPlayRef.current = true;
         // If URL is already available, play now. Otherwise signedUrl effect handles it.
-        const el = audioRef.current;
+        const el = videoRef.current;
         if (el && signedUrl) {
           if (!el.src || el.src !== signedUrl) {
             el.src = signedUrl;
@@ -205,9 +208,10 @@ export function MusicPlayer() {
 
   // ── User gesture play (always works in browser) ───────────────────────────
   const handlePlayClick = useCallback(() => {
-    const el = audioRef.current;
+    const el = videoRef.current;
     if (!el) return;
     wantPlayRef.current = true;
+    errorCountRef.current = 0;
     try { sessionStorage.setItem(SESSION_KEY, "1"); } catch { /* ok */ }
 
     if (!el.src && signedUrl) {
@@ -225,7 +229,7 @@ export function MusicPlayer() {
 
   const handlePauseClick = useCallback(() => {
     wantPlayRef.current = false;
-    audioRef.current?.pause();
+    videoRef.current?.pause();
     setIsPlaying(false);
   }, []);
 
@@ -236,21 +240,31 @@ export function MusicPlayer() {
     setActiveType(null);
     setIsPlaying(false);
     setShowPlaylist(false);
-    if (audioRef.current) { audioRef.current.pause(); audioRef.current.src = ""; }
+    if (videoRef.current) { videoRef.current.pause(); videoRef.current.src = ""; }
     try { sessionStorage.removeItem(SESSION_KEY); } catch { /* ok */ }
   }, []);
 
   const handleSeek = (pct: number) => {
-    const el = audioRef.current;
+    const el = videoRef.current;
     if (el?.duration) { el.currentTime = (pct / 100) * el.duration; setProgress(pct); }
   };
 
   // Audio element is always mounted to keep the ref valid
   const audioEl = (
-    <audio
-      ref={audioRef}
-      onEnded={playNext}
-      onError={() => { if (wantPlayRef.current) setTimeout(playNext, 1500); }}
+    <video
+      ref={videoRef}
+      onEnded={() => { errorCountRef.current = 0; playNext(); }}
+      onError={() => {
+        if (!wantPlayRef.current) return;
+        errorCountRef.current += 1;
+        // Stop cycling if all songs have errored (max = total files or 10)
+        if (errorCountRef.current > Math.max((activeFiles.length || 1) * 2, 10)) {
+          wantPlayRef.current = false;
+          setIsPlaying(false);
+          return;
+        }
+        setTimeout(playNext, 2000);
+      }}
       style={{ display: "none" }}
       playsInline
       preload="auto"
