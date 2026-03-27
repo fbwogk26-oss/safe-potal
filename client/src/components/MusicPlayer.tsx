@@ -76,7 +76,7 @@ export function MusicPlayer() {
     setCurrentIndex((i) => (i - 1 + activeFiles.length) % Math.max(activeFiles.length, 1));
   }, [activeFiles.length]);
 
-  // Check schedule every 30s
+  // Check schedule every 30s — try autoplay immediately; show banner only if blocked
   useEffect(() => {
     const check = () => {
       const newType = getActiveScheduleType(schedule);
@@ -90,7 +90,10 @@ export function MusicPlayer() {
           } else if (!wasAutoTriggeredRef.current) {
             wasAutoTriggeredRef.current = true;
             setWasAutoTriggered(true);
-            setNeedsInteraction(true);
+            setNeedsInteraction(false);
+            // Try autoplay — if the browser blocks it, useEffect([isPlaying]) will
+            // catch the rejection and set needsInteraction=true to show the banner
+            setIsPlaying(true);
           }
         }
         return newType;

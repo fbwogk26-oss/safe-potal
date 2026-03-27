@@ -3244,38 +3244,74 @@ export async function registerRoutes(
     }
   });
 
-  // POST /api/music/upload - 음악 파일 업로드 (관리자만)
-  app.post("/api/music/upload", requireAdmin, musicUpload.single("audio"), async (req: any, res) => {
-    if (!req.file) return res.status(400).json({ message: "파일이 없습니다" });
+  // POST /api/music/upload-url - GCS 직접 업로드용 서명 URL 발급 (관리자만)
+  app.post("/api/music/upload-url", requireAdmin, async (req: any, res) => {
     try {
-      const scheduleType = req.body.scheduleType || "all";
-      const name = req.body.name?.trim() || req.file.originalname;
-      const ext = path.extname(req.file.originalname).toLowerCase();
-      const contentType = ext === ".mp3" ? "audio/mpeg"
-        : ext === ".mp4" ? "video/mp4"
-        : ext === ".wav" ? "audio/wav"
-        : ext === ".ogg" ? "audio/ogg"
-        : ext === ".m4a" ? "audio/mp4"
-        : ext === ".aac" ? "audio/aac"
-        : "audio/mpeg";
+      const { originalName, size } = req.body;
+      if (!originalName) return res.status(400).json({ message: "파일명이 없습니다" });
+
+      // Max 5 songs limit
+      const existing = await storage.getMusicFiles();
+      if (existing.length >= 5) {
+        return res.status(400).json({ message: "음악은 최대 5개까지만 등록할 수 있습니다. 기존 파일을 삭제 후 업로드해주세요." });
+      }
+
+      const ext = path.extname(originalName).toLowerCase();
+      const allowed = [".mp3", ".mp4", ".wav", ".ogg", ".m4a", ".aac"];
+      if (!allowed.includes(ext)) {
+        return res.status(400).json({ message: "MP3, MP4, WAV, OGG, M4A, AAC 파일만 업로드 가능합니다" });
+      }
+      if (size && size > 50 * 1024 * 1024) {
+        return res.status(400).json({ message: "파일 크기는 50MB 이하여야 합니다" });
+      }
+
+      const privateDir = process.env.PRIVATE_OBJECT_DIR;
+      if (!privateDir) return res.status(500).json({ message: "스토리지 설정이 없습니다" });
 
       const filename = `music_${Date.now()}${ext}`;
-      const buffer = req.file.buffer;
-      const url = await uploadToObjectStorage(buffer, filename, contentType);
+      const fullPath = `${privateDir.replace(/\/$/, "")}/uploads/${filename}`;
+      const parts = fullPath.replace(/^\//, "").split("/");
+      const bucketName = parts[0];
+      const objectName = parts.slice(1).join("/");
 
-      if (!url) return res.status(500).json({ message: "오브젝트 스토리지 업로드 실패. 네트워크 오류 또는 스토리지 설정을 확인하세요." });
+      const sigRes = await fetch("http://127.0.0.1:1106/object-storage/signed-object-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bucket_name: bucketName,
+          object_name: objectName,
+          method: "PUT",
+          expires_at: new Date(Date.now() + 900_000).toISOString(),
+        }),
+      });
+      if (!sigRes.ok) throw new Error("서명 URL 생성 실패");
+      const { signed_url: uploadURL } = await sigRes.json();
+      const objectPath = `/objects/uploads/${filename}`;
+      res.json({ uploadURL, objectPath });
+    } catch (e: any) {
+      console.error("[Music upload-url error]", e);
+      res.status(500).json({ message: e.message || "업로드 URL 생성 실패" });
+    }
+  });
 
+  // POST /api/music/register - 업로드 완료 후 DB 등록 (관리자만)
+  app.post("/api/music/register", requireAdmin, async (req: any, res) => {
+    try {
+      const { name, originalName, url, scheduleType, fileSize } = req.body;
+      if (!url || !url.startsWith("/objects/")) {
+        return res.status(400).json({ message: "잘못된 파일 경로입니다" });
+      }
       const musicFile = await storage.createMusicFile({
-        name,
-        originalName: req.file.originalname,
+        name: name?.trim() || originalName || "음악",
+        originalName: originalName || "music",
         url,
-        scheduleType,
-        fileSize: req.file.size,
+        scheduleType: scheduleType || "all",
+        fileSize: fileSize || 0,
         uploadedBy: req.session?.userId || null,
       });
       res.json(musicFile);
     } catch (e: any) {
-      console.error("[Music upload error]", e);
+      console.error("[Music register error]", e);
       res.status(500).json({ message: e.message });
     }
   });
