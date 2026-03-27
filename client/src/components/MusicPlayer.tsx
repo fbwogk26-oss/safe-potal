@@ -32,12 +32,8 @@ function getCurrentTime(): string {
 function getActiveScheduleType(schedule: MusicSchedule | undefined): string | null {
   if (!schedule) return null;
   const cur = getCurrentTime();
-  if (schedule.checkin?.enabled && cur >= schedule.checkin.start && cur <= schedule.checkin.end) {
-    return "출근";
-  }
-  if (schedule.checkout?.enabled && cur >= schedule.checkout.start && cur <= schedule.checkout.end) {
-    return "퇴근";
-  }
+  if (schedule.checkin?.enabled && cur >= schedule.checkin.start && cur <= schedule.checkin.end) return "출근";
+  if (schedule.checkout?.enabled && cur >= schedule.checkout.start && cur <= schedule.checkout.end) return "퇴근";
   return null;
 }
 
@@ -75,6 +71,11 @@ export function MusicPlayer() {
   const isPlayingRef = useRef(false);
   const volumeRef = useRef(0.7);
   const isMutedRef = useRef(false);
+  // Prevents the isPlaying effect from double-calling play()
+  // when the user already called el.play() directly in a gesture handler
+  const skipNextPlayEffectRef = useRef(false);
+  // Once the user approves playback, don't re-show the banner between songs
+  const userApprovedRef = useRef(false);
 
   useEffect(() => { activeTypeRef.current = activeType; }, [activeType]);
   useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
@@ -97,33 +98,40 @@ export function MusicPlayer() {
   const currentFile = activeFiles[currentIndex % Math.max(activeFiles.length, 1)];
   const signedUrl = useSignedMusicUrl(currentFile?.url);
 
-  const playNext = useCallback(() => {
-    setCurrentIndex((i) => (i + 1) % Math.max(activeFiles.length, 1));
-  }, [activeFiles.length]);
-
-  const playPrev = useCallback(() => {
-    setCurrentIndex((i) => (i - 1 + activeFiles.length) % Math.max(activeFiles.length, 1));
-  }, [activeFiles.length]);
-
+  // ── Core autoplay helper ──────────────────────────────────────────────────
+  // Tries unmuted → muted fallback.
+  // If userApproved=true (user already clicked), silently stays muted instead
+  // of resurfacing the banner.
   const attemptAutoplay = useCallback(async (el: HTMLVideoElement) => {
     el.volume = isMutedRef.current ? 0 : volumeRef.current;
     try {
       await el.play();
       setNeedsInteraction(false);
     } catch {
+      // Try muted — browsers always allow muted autoplay
       el.muted = true;
       try {
         await el.play();
+        // Unmute immediately after muted-play succeeded
         el.muted = false;
         el.volume = isMutedRef.current ? 0 : volumeRef.current;
         setNeedsInteraction(false);
       } catch {
-        setIsPlaying(false);
-        setNeedsInteraction(true);
+        // Both normal and muted play blocked
+        if (userApprovedRef.current) {
+          // User already approved — don't show banner; just pause quietly
+          // and let the next song try again naturally
+          setIsPlaying(false);
+        } else {
+          // First time: show the "tap to start" banner
+          setIsPlaying(false);
+          setNeedsInteraction(true);
+        }
       }
     }
   }, []);
 
+  // ── Schedule watcher ─────────────────────────────────────────────────────
   useEffect(() => {
     const check = () => {
       const newType = getActiveScheduleType(schedule);
@@ -136,6 +144,7 @@ export function MusicPlayer() {
           setNeedsInteraction(false);
           setShowPlaylist(false);
           wasAutoTriggeredRef.current = false;
+          userApprovedRef.current = false;
         } else if (!wasAutoTriggeredRef.current) {
           wasAutoTriggeredRef.current = true;
           setNeedsInteraction(false);
@@ -148,6 +157,7 @@ export function MusicPlayer() {
     return () => clearInterval(timer);
   }, [schedule]);
 
+  // ── Load new signed URL → autoplay if needed ──────────────────────────────
   useEffect(() => {
     if (!videoRef.current || !signedUrl) return;
     const el = videoRef.current;
@@ -158,11 +168,21 @@ export function MusicPlayer() {
     }
   }, [signedUrl, attemptAutoplay]);
 
+  // ── isPlaying toggle ──────────────────────────────────────────────────────
+  // Only handles pause. Play is driven by the signedUrl effect or direct
+  // user-gesture calls (handleStartPlaying / handleSelectSong).
+  // When skipNextPlayEffectRef is true, the user already called el.play()
+  // directly — skip the effect to prevent a double-play race.
   useEffect(() => {
     if (!videoRef.current) return;
     const el = videoRef.current;
+
     if (isPlaying) {
-      if (!signedUrl) return;
+      if (skipNextPlayEffectRef.current) {
+        skipNextPlayEffectRef.current = false;
+        return; // User already played directly; don't call attemptAutoplay again
+      }
+      if (!signedUrl) return; // Wait for signed URL (signedUrl effect will trigger play)
       if (!el.src || el.src === window.location.href) {
         el.src = signedUrl;
         el.load();
@@ -171,8 +191,9 @@ export function MusicPlayer() {
     } else {
       el.pause();
     }
-  }, [isPlaying, attemptAutoplay]);
+  }, [isPlaying, signedUrl, attemptAutoplay]);
 
+  // ── Volume sync ───────────────────────────────────────────────────────────
   useEffect(() => {
     if (videoRef.current) {
       videoRef.current.volume = isMuted ? 0 : volume;
@@ -180,10 +201,11 @@ export function MusicPlayer() {
     }
   }, [volume, isMuted]);
 
+  // ── Progress bar ──────────────────────────────────────────────────────────
   useEffect(() => {
     if (isPlaying) {
       progressRef.current = setInterval(() => {
-        if (videoRef.current && videoRef.current.duration) {
+        if (videoRef.current?.duration) {
           setProgress((videoRef.current.currentTime / videoRef.current.duration) * 100);
         }
       }, 500);
@@ -193,16 +215,25 @@ export function MusicPlayer() {
     return () => { if (progressRef.current) clearInterval(progressRef.current); };
   }, [isPlaying]);
 
-  const handleSelectSong = (idx: number) => {
-    setCurrentIndex(idx);
-    setIsPlaying(true);
-    setShowPlaylist(false);
-  };
+  // ── Next / Prev ───────────────────────────────────────────────────────────
+  const playNext = useCallback(() => {
+    setCurrentIndex((i) => (i + 1) % Math.max(activeFiles.length, 1));
+  }, [activeFiles.length]);
 
+  const playPrev = useCallback(() => {
+    setCurrentIndex((i) => (i - 1 + activeFiles.length) % Math.max(activeFiles.length, 1));
+  }, [activeFiles.length]);
+
+  // ── User actions ─────────────────────────────────────────────────────────
+
+  // Called from the "재생 시작" banner button (user gesture context)
   const handleStartPlaying = () => {
+    userApprovedRef.current = true;
+    skipNextPlayEffectRef.current = true; // Tell the isPlaying effect to skip
     setNeedsInteraction(false);
     setCurrentIndex(0);
     setIsPlaying(true);
+
     if (videoRef.current) {
       const el = videoRef.current;
       if (signedUrl && (!el.src || el.src === window.location.href)) {
@@ -211,8 +242,24 @@ export function MusicPlayer() {
       }
       el.muted = false;
       el.volume = isMuted ? 0 : volume;
-      el.play().catch(() => { setIsPlaying(false); setNeedsInteraction(true); });
+      // Direct play in user-gesture context — always succeeds
+      el.play().catch(() => {
+        skipNextPlayEffectRef.current = false;
+        setIsPlaying(false);
+        setNeedsInteraction(true);
+      });
     }
+  };
+
+  // Called from the playlist panel (user gesture context)
+  const handleSelectSong = (idx: number) => {
+    userApprovedRef.current = true;
+    skipNextPlayEffectRef.current = true;
+    setCurrentIndex(idx);
+    setIsPlaying(true);
+    setShowPlaylist(false);
+    // el.play() will be triggered by the signedUrl effect after the new URL loads
+    // skipNextPlayEffectRef prevents the isPlaying effect from double-calling
   };
 
   const handleClose = () => {
@@ -220,15 +267,16 @@ export function MusicPlayer() {
     setActiveType(null);
     activeTypeRef.current = null;
     wasAutoTriggeredRef.current = false;
+    userApprovedRef.current = false;
     setNeedsInteraction(false);
     setShowPlaylist(false);
     if (videoRef.current) { videoRef.current.pause(); videoRef.current.src = ""; }
   };
 
-  const handleSeek = (val: number[]) => {
-    if (videoRef.current && videoRef.current.duration) {
-      videoRef.current.currentTime = (val[0] / 100) * videoRef.current.duration;
-      setProgress(val[0]);
+  const handleSeek = (pct: number) => {
+    if (videoRef.current?.duration) {
+      videoRef.current.currentTime = (pct / 100) * videoRef.current.duration;
+      setProgress(pct);
     }
   };
 
@@ -236,9 +284,7 @@ export function MusicPlayer() {
 
   const scheduleLabel = activeType === "출근" ? "🌅 출근음악" : "🌆 퇴근음악";
   const bannerMessage = activeType === "출근" ? "오늘도 안전한 하루되세요 😊" : "오늘 하루도 수고 하셨습니다 🙏";
-  const bgColor = activeType === "출근"
-    ? "from-orange-500 to-yellow-500"
-    : "from-indigo-600 to-purple-600";
+  const bgColor = activeType === "출근" ? "from-orange-500 to-yellow-500" : "from-indigo-600 to-purple-600";
   const solidBg = activeType === "출근" ? "bg-orange-500" : "bg-indigo-600";
 
   return (
@@ -252,7 +298,7 @@ export function MusicPlayer() {
         preload="auto"
       />
 
-      {/* Notification prompt */}
+      {/* ── Banner: tap to start (shown only when browser blocked autoplay) ── */}
       {needsInteraction && !isPlaying && (
         <div className={cn("fixed bottom-0 left-0 right-0 z-[60] animate-in slide-in-from-bottom duration-500 bg-gradient-to-r", bgColor)}>
           <div className="max-w-2xl mx-auto flex items-center justify-between px-4 py-3 gap-4">
@@ -266,7 +312,12 @@ export function MusicPlayer() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Button size="sm" className="bg-white text-gray-900 hover:bg-white/90 font-semibold text-xs h-8 px-4" onClick={handleStartPlaying} data-testid="button-start-music">
+              <Button
+                size="sm"
+                className="bg-white text-gray-900 hover:bg-white/90 font-semibold text-xs h-8 px-4"
+                onClick={handleStartPlaying}
+                data-testid="button-start-music"
+              >
                 <Play className="w-3.5 h-3.5 mr-1" />재생 시작
               </Button>
               <Button variant="ghost" size="icon" className="h-8 w-8 text-white hover:bg-white/20" onClick={handleClose} data-testid="button-dismiss-music">
@@ -277,15 +328,14 @@ export function MusicPlayer() {
         </div>
       )}
 
-      {/* Player bar + playlist */}
+      {/* ── Player bar ─────────────────────────────────────────────────────── */}
       {isPlaying && (
         <div className="fixed bottom-0 left-0 right-0 z-[60] animate-in slide-in-from-bottom duration-300 shadow-2xl">
 
-          {/* ── Playlist panel (slides up above player bar) ── */}
+          {/* Playlist panel (slides up above bar) */}
           {showPlaylist && (
-            <div className={cn("animate-in slide-in-from-bottom duration-200", solidBg, "border-t border-white/20")}>
+            <div className={cn("animate-in slide-in-from-bottom duration-200 border-t border-white/20", solidBg)}>
               <div className="max-w-3xl mx-auto">
-                {/* Playlist header */}
                 <div className="flex items-center justify-between px-4 py-2 border-b border-white/20">
                   <div className="flex items-center gap-2 text-white">
                     <ListMusic className="w-4 h-4" />
@@ -296,7 +346,6 @@ export function MusicPlayer() {
                     <ChevronDown className="w-4 h-4" />
                   </Button>
                 </div>
-                {/* Song list */}
                 <div className="max-h-52 overflow-y-auto">
                   {activeFiles.map((file, idx) => {
                     const isActive = idx === currentIndex % activeFiles.length;
@@ -306,13 +355,10 @@ export function MusicPlayer() {
                         onClick={() => handleSelectSong(idx)}
                         className={cn(
                           "w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors",
-                          isActive
-                            ? "bg-white/25 text-white"
-                            : "text-white/80 hover:bg-white/15 hover:text-white"
+                          isActive ? "bg-white/25 text-white" : "text-white/80 hover:bg-white/15 hover:text-white"
                         )}
                         data-testid={`button-playlist-song-${file.id}`}
                       >
-                        {/* Track number / playing indicator */}
                         <div className="w-6 h-6 flex items-center justify-center shrink-0">
                           {isActive ? (
                             <div className="flex gap-[2px] items-end h-4">
@@ -324,19 +370,13 @@ export function MusicPlayer() {
                             <span className="text-xs text-white/40 font-mono">{idx + 1}</span>
                           )}
                         </div>
-                        {/* Song name */}
                         <div className="flex-1 min-w-0">
-                          <p className={cn("text-sm truncate font-medium", isActive && "font-semibold")}>
-                            {file.name}
-                          </p>
+                          <p className={cn("text-sm truncate font-medium", isActive && "font-semibold")}>{file.name}</p>
                           {file.scheduleType === "all" && (
                             <p className="text-[10px] text-white/50 mt-0.5">출퇴근 공통</p>
                           )}
                         </div>
-                        {/* Currently playing checkmark */}
-                        {isActive && (
-                          <Check className="w-3.5 h-3.5 text-white shrink-0" />
-                        )}
+                        {isActive && <Check className="w-3.5 h-3.5 text-white shrink-0" />}
                       </button>
                     );
                   })}
@@ -346,29 +386,31 @@ export function MusicPlayer() {
           )}
 
           {/* Progress bar */}
-          <div className="h-1 bg-black/20 relative cursor-pointer" onClick={(e) => {
-            const rect = e.currentTarget.getBoundingClientRect();
-            handleSeek([(e.clientX - rect.left) / rect.width * 100]);
-          }}>
+          <div
+            className="h-1 bg-black/20 relative cursor-pointer"
+            onClick={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              handleSeek(((e.clientX - rect.left) / rect.width) * 100);
+            }}
+          >
             <div className="h-full bg-white/80 transition-none" style={{ width: `${progress}%` }} />
           </div>
 
-          {/* Main player controls */}
+          {/* Controls */}
           <div className={cn("bg-gradient-to-r px-4 py-2", bgColor)}>
             {!isMinimized ? (
               <div className="max-w-3xl mx-auto flex items-center gap-3">
-                {/* Spinning disc icon */}
                 <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center shrink-0 animate-[spin_8s_linear_infinite]">
                   <Music2 className="w-4 h-4 text-white" />
                 </div>
-                {/* Song info */}
                 <div className="flex-1 min-w-0">
                   <p className="text-white font-semibold text-sm truncate" data-testid="text-current-song">
                     {currentFile?.name || "음악 재생 중"}
                   </p>
-                  <p className="text-white/70 text-xs">{scheduleLabel} · {(currentIndex % activeFiles.length) + 1}/{activeFiles.length}</p>
+                  <p className="text-white/70 text-xs">
+                    {scheduleLabel} · {(currentIndex % activeFiles.length) + 1}/{activeFiles.length}
+                  </p>
                 </div>
-                {/* Playback controls */}
                 <div className="flex items-center gap-1">
                   <Button variant="ghost" size="icon" className="h-8 w-8 text-white hover:bg-white/20" onClick={playPrev} data-testid="button-music-prev">
                     <SkipBack className="w-4 h-4" />
@@ -380,7 +422,6 @@ export function MusicPlayer() {
                     <SkipForward className="w-4 h-4" />
                   </Button>
                 </div>
-                {/* Volume */}
                 <div className="hidden sm:flex items-center gap-2 w-28">
                   <Button variant="ghost" size="icon" className="h-7 w-7 text-white hover:bg-white/20 shrink-0" onClick={() => setIsMuted((m) => !m)} data-testid="button-music-mute">
                     {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
@@ -393,7 +434,6 @@ export function MusicPlayer() {
                     data-testid="slider-music-volume"
                   />
                 </div>
-                {/* Playlist toggle */}
                 <Button
                   variant="ghost"
                   size="icon"
