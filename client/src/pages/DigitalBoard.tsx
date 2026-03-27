@@ -9,53 +9,90 @@ import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePermissions } from "@/hooks/use-permissions";
 
-function useSignedUrl(objectPath: string | null | undefined) {
-  const [url, setUrl] = useState<string | null>(null);
+// Preloads ALL slide signed-URLs + images in parallel when slideList changes.
+// Returns a stable map { objectPath → signedUrl } so transitions are instant.
+function usePreloadedSlideUrls(slideList: any[], parseContent: (c: string) => ParsedContent) {
+  const [urlMap, setUrlMap] = useState<Record<string, string>>({});
+
   useEffect(() => {
-    if (!objectPath) return;
-    if (!objectPath.startsWith("/objects/")) {
-      setUrl(objectPath);
-      return;
-    }
-    let cancelled = false;
-    fetch(`/api/download?path=${encodeURIComponent(objectPath)}`, { credentials: "include" })
-      .then(r => r.json())
-      .then(data => { if (!cancelled && data.url) setUrl(data.url); })
-      .catch(() => { if (!cancelled) setUrl(objectPath); });
-    return () => { cancelled = true; };
-  }, [objectPath]);
-  return url;
+    if (!slideList.length) return;
+
+    const paths = Array.from(
+      new Set(
+        slideList
+          .map(s => parseContent(s?.content || "{}").imageUrl)
+          .filter(Boolean) as string[]
+      )
+    );
+    if (!paths.length) return;
+
+    paths.forEach(path => {
+      if (!path.startsWith("/objects/")) {
+        setUrlMap(prev => (prev[path] ? prev : { ...prev, [path]: path }));
+        // Preload into browser cache
+        const img = new Image();
+        img.src = path;
+        return;
+      }
+
+      fetch(`/api/download?path=${encodeURIComponent(path)}`, { credentials: "include" })
+        .then(r => r.json())
+        .then(data => {
+          if (!data.url) return;
+          setUrlMap(prev => (prev[path] ? prev : { ...prev, [path]: data.url }));
+          // Preload GCS image into browser cache immediately
+          const img = new Image();
+          img.src = data.url;
+        })
+        .catch(() => {
+          setUrlMap(prev => (prev[path] ? prev : { ...prev, [path]: path }));
+        });
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slideList.length]);
+
+  return urlMap;
 }
 
-const SignedImage = memo(function SignedImage({ path, alt, className }: { path: string; alt: string; className: string }) {
-  const signedUrl = useSignedUrl(path);
-  if (!signedUrl) return <div className="w-full h-full bg-gray-900 flex items-center justify-center"><span className="text-white/30 text-xs">로딩중...</span></div>;
-  return <img src={signedUrl} alt={alt} className={className} onError={e => { (e.target as HTMLImageElement).style.opacity = "0.3"; }} />;
+const PreloadedImage = memo(function PreloadedImage({ src, alt, className }: { src: string | undefined; alt: string; className: string }) {
+  if (!src) return <div className="w-full h-full bg-gray-900" />;
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className={className}
+      onError={e => { (e.target as HTMLImageElement).style.opacity = "0.3"; }}
+    />
+  );
 });
 
 type ParsedContent = { imageUrl?: string; text?: string };
 
-function SlideViewer({ slideList, currentSlide, parseContent }: {
+function SlideViewer({ slideList, currentSlide, parseContent, urlMap }: {
   slideList: any[];
   currentSlide: number;
   parseContent: (c: string) => ParsedContent;
+  urlMap: Record<string, string>;
 }) {
   const slide = slideList[currentSlide];
   const parsed = parseContent(slide?.content || "{}");
+  const resolvedSrc = parsed.imageUrl ? (urlMap[parsed.imageUrl] ?? undefined) : undefined;
+
   return (
     <div className="absolute inset-0 flex items-center justify-center">
-      <AnimatePresence mode="wait">
+      <AnimatePresence mode="crossfade">
         <motion.div
           key={currentSlide}
-          initial={{ opacity: 0, x: 50 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -50 }}
-          transition={{ duration: 0.4 }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.6, ease: "easeInOut" }}
           className="absolute inset-0 flex items-center justify-center"
+          style={{ willChange: "opacity" }}
         >
           <div className="relative w-full h-full flex items-center justify-center">
             {parsed.imageUrl ? (
-              <SignedImage path={parsed.imageUrl} alt={slide?.title || ""} className="max-w-full max-h-full object-contain" />
+              <PreloadedImage src={resolvedSrc} alt={slide?.title || ""} className="max-w-full max-h-full object-contain" />
             ) : (
               <div className="flex flex-col items-center justify-center text-white p-8 text-center">
                 <h3 className="text-4xl font-bold mb-4">{slide?.title}</h3>
@@ -145,6 +182,13 @@ export default function DigitalBoard() {
 
   const slideList = slides || [];
 
+  const parseContent = (content: string): ParsedContent => {
+    try { return JSON.parse(content); } catch { return { text: content }; }
+  };
+
+  // Pre-fetch ALL signed URLs + preload images into browser cache
+  const urlMap = usePreloadedSlideUrls(slideList, parseContent);
+
   useEffect(() => {
     if (!isPlaying || slideList.length === 0) return;
     const interval = setInterval(() => {
@@ -232,14 +276,6 @@ export default function DigitalBoard() {
     }
   };
 
-  const parseContent = (content: string) => {
-    try {
-      return JSON.parse(content);
-    } catch {
-      return { text: content };
-    }
-  };
-
   const goToPrev = () => {
     setCurrentSlide(prev => (prev - 1 + slideList.length) % slideList.length);
   };
@@ -300,7 +336,7 @@ export default function DigitalBoard() {
       {/* 전체화면 포털 — 네이티브 fullscreen이 안 되는 환경(iframe 등) 폴백 */}
       {isFullscreen && slideList.length > 0 && createPortal(
         <div className="fixed inset-0 bg-black z-[99999] flex items-center justify-center">
-          <SlideViewer slideList={slideList} currentSlide={currentSlide} parseContent={parseContent} />
+          <SlideViewer slideList={slideList} currentSlide={currentSlide} parseContent={parseContent} urlMap={urlMap} />
           <SlideControls
             slideList={slideList}
             currentSlide={currentSlide}
@@ -323,7 +359,7 @@ export default function DigitalBoard() {
       >
         {slideList.length > 0 ? (
           <>
-            <SlideViewer slideList={slideList} currentSlide={currentSlide} parseContent={parseContent} />
+            <SlideViewer slideList={slideList} currentSlide={currentSlide} parseContent={parseContent} urlMap={urlMap} />
             <SlideControls
               slideList={slideList}
               currentSlide={currentSlide}
@@ -451,7 +487,7 @@ export default function DigitalBoard() {
                   >
                     <div className="aspect-video bg-muted relative">
                       {parsed.imageUrl ? (
-                        <SignedImage path={parsed.imageUrl} alt={slide.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                        <PreloadedImage src={urlMap[parsed.imageUrl]} alt={slide.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-indigo-500 to-purple-600 text-white p-2">
                           <p className="text-xs font-medium text-center line-clamp-2">{slide.title}</p>
