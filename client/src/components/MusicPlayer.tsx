@@ -39,15 +39,6 @@ function getActiveScheduleType(schedule: MusicSchedule | undefined): string | nu
   return null;
 }
 
-async function getStreamUrl(objectPath: string): Promise<string> {
-  const res = await fetch(`/api/download?path=${encodeURIComponent(objectPath)}`, {
-    credentials: "include",
-  });
-  if (!res.ok) throw new Error("URL 취득 실패");
-  const data = await res.json();
-  return data.url as string;
-}
-
 export function MusicPlayer() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -58,10 +49,9 @@ export function MusicPlayer() {
   const [needsInteraction, setNeedsInteraction] = useState(false);
   const [wasAutoTriggered, setWasAutoTriggered] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [audioSrc, setAudioSrc] = useState<string | null>(null);
-  const [srcLoading, setSrcLoading] = useState(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const progressRef = useRef<NodeJS.Timeout | null>(null);
+  const wasAutoTriggeredRef = useRef(false);
 
   const { data: allFiles = [] } = useQuery<MusicFile[]>({
     queryKey: ["/api/music"],
@@ -94,12 +84,13 @@ export function MusicPlayer() {
         if (prev !== newType) {
           if (!newType) {
             setIsPlaying(false);
+            wasAutoTriggeredRef.current = false;
             setWasAutoTriggered(false);
             setNeedsInteraction(false);
-            setAudioSrc(null);
-          } else if (!wasAutoTriggered) {
-            setNeedsInteraction(true);
+          } else if (!wasAutoTriggeredRef.current) {
+            wasAutoTriggeredRef.current = true;
             setWasAutoTriggered(true);
+            setNeedsInteraction(true);
           }
         }
         return newType;
@@ -108,57 +99,44 @@ export function MusicPlayer() {
     check();
     const timer = setInterval(check, 30000);
     return () => clearInterval(timer);
-  }, [schedule, wasAutoTriggered]);
+  }, [schedule]);
 
-  // Fetch signed stream URL whenever currentFile changes
+  // Set audio src when current file changes
   useEffect(() => {
-    if (!currentFile?.url) {
-      setAudioSrc(null);
-      return;
-    }
-    setSrcLoading(true);
-    getStreamUrl(currentFile.url)
-      .then((url) => {
-        setAudioSrc(url);
-      })
-      .catch(() => {
-        setAudioSrc(null);
-        setSrcLoading(false);
-      });
-  }, [currentFile?.id]);
-
-  // Set audio src and play when signed URL is ready
-  useEffect(() => {
-    if (!audioRef.current || !audioSrc) return;
-    audioRef.current.src = audioSrc;
-    audioRef.current.volume = isMuted ? 0 : volume;
-    audioRef.current.load();
-    setSrcLoading(false);
+    if (!videoRef.current || !currentFile?.url) return;
+    const el = videoRef.current;
+    el.src = currentFile.url;
+    el.load();
     if (isPlaying) {
-      audioRef.current.play().catch(() => {
+      el.play().catch(() => {
         setIsPlaying(false);
         setNeedsInteraction(true);
       });
     }
-  }, [audioSrc]);
+  }, [currentFile?.id]);
 
-  // Play/pause when isPlaying changes (src already set)
+  // Play/pause when isPlaying changes
   useEffect(() => {
-    if (!audioRef.current || !audioSrc) return;
+    if (!videoRef.current || !currentFile?.url) return;
+    const el = videoRef.current;
     if (isPlaying) {
-      audioRef.current.play().catch(() => {
+      if (!el.src || el.src === window.location.href) {
+        el.src = currentFile.url;
+        el.load();
+      }
+      el.play().catch(() => {
         setIsPlaying(false);
         setNeedsInteraction(true);
       });
     } else {
-      audioRef.current.pause();
+      el.pause();
     }
   }, [isPlaying]);
 
   // Volume
   useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = isMuted ? 0 : volume;
+    if (videoRef.current) {
+      videoRef.current.volume = isMuted ? 0 : volume;
     }
   }, [volume, isMuted]);
 
@@ -166,8 +144,8 @@ export function MusicPlayer() {
   useEffect(() => {
     if (isPlaying) {
       progressRef.current = setInterval(() => {
-        if (audioRef.current && audioRef.current.duration) {
-          setProgress((audioRef.current.currentTime / audioRef.current.duration) * 100);
+        if (videoRef.current && videoRef.current.duration) {
+          setProgress((videoRef.current.currentTime / videoRef.current.duration) * 100);
         }
       }, 500);
     } else {
@@ -182,19 +160,35 @@ export function MusicPlayer() {
     setNeedsInteraction(false);
     setCurrentIndex(0);
     setIsPlaying(true);
+    // Call play() directly in the user gesture context (required for browser autoplay policy)
+    if (videoRef.current && currentFile?.url) {
+      if (!videoRef.current.src || videoRef.current.src === window.location.href) {
+        videoRef.current.src = currentFile.url;
+        videoRef.current.load();
+      }
+      videoRef.current.volume = isMuted ? 0 : volume;
+      videoRef.current.play().catch(() => {
+        setIsPlaying(false);
+        setNeedsInteraction(true);
+      });
+    }
   };
 
   const handleClose = () => {
     setIsPlaying(false);
     setActiveType(null);
+    wasAutoTriggeredRef.current = false;
     setWasAutoTriggered(false);
     setNeedsInteraction(false);
-    setAudioSrc(null);
+    if (videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.src = "";
+    }
   };
 
   const handleSeek = (val: number[]) => {
-    if (audioRef.current && audioRef.current.duration) {
-      audioRef.current.currentTime = (val[0] / 100) * audioRef.current.duration;
+    if (videoRef.current && videoRef.current.duration) {
+      videoRef.current.currentTime = (val[0] / 100) * videoRef.current.duration;
       setProgress(val[0]);
     }
   };
@@ -209,13 +203,13 @@ export function MusicPlayer() {
 
   return (
     <>
-      <audio
-        ref={audioRef}
+      {/* Hidden video element — supports MP4 video/audio files */}
+      <video
+        ref={videoRef}
         onEnded={playNext}
-        onError={() => {
-          setSrcLoading(false);
-          playNext();
-        }}
+        onError={() => playNext()}
+        style={{ display: "none" }}
+        playsInline
       />
 
       {/* Notification prompt */}
@@ -239,11 +233,10 @@ export function MusicPlayer() {
                 size="sm"
                 className="bg-white text-gray-900 hover:bg-white/90 font-semibold text-xs h-8 px-4"
                 onClick={handleStartPlaying}
-                disabled={srcLoading}
                 data-testid="button-start-music"
               >
                 <Play className="w-3.5 h-3.5 mr-1" />
-                {srcLoading ? "준비 중..." : "재생 시작"}
+                재생 시작
               </Button>
               <Button
                 variant="ghost"
@@ -266,19 +259,20 @@ export function MusicPlayer() {
           "shadow-2xl"
         )}>
           {/* Progress bar */}
-          <div className="h-1 bg-black/20 relative">
+          <div className="h-1 bg-black/20 relative cursor-pointer" onClick={(e) => {
+            const rect = e.currentTarget.getBoundingClientRect();
+            const pct = ((e.clientX - rect.left) / rect.width) * 100;
+            handleSeek([pct]);
+          }}>
             <div
               className="h-full bg-white/80 transition-none"
               style={{ width: `${progress}%` }}
             />
           </div>
 
-          <div className={cn(
-            "bg-gradient-to-r px-4 py-2", bgColor
-          )}>
+          <div className={cn("bg-gradient-to-r px-4 py-2", bgColor)}>
             {!isMinimized && (
               <div className="max-w-3xl mx-auto flex items-center gap-3">
-                {/* Song info */}
                 <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center shrink-0 animate-[spin_8s_linear_infinite]">
                   <Music2 className="w-4 h-4 text-white" />
                 </div>
@@ -288,110 +282,48 @@ export function MusicPlayer() {
                   </p>
                   <p className="text-white/70 text-xs">{scheduleLabel} · {currentIndex + 1}/{activeFiles.length}</p>
                 </div>
-
-                {/* Controls */}
                 <div className="flex items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-white hover:bg-white/20"
-                    onClick={playPrev}
-                    data-testid="button-music-prev"
-                  >
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-white hover:bg-white/20" onClick={playPrev} data-testid="button-music-prev">
                     <SkipBack className="w-4 h-4" />
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-9 w-9 text-white hover:bg-white/20 bg-white/10"
-                    onClick={() => setIsPlaying((p) => !p)}
-                    data-testid="button-music-play-pause"
-                  >
+                  <Button variant="ghost" size="icon" className="h-9 w-9 text-white hover:bg-white/20 bg-white/10" onClick={() => setIsPlaying((p) => !p)} data-testid="button-music-play-pause">
                     {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-white hover:bg-white/20"
-                    onClick={playNext}
-                    data-testid="button-music-next"
-                  >
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-white hover:bg-white/20" onClick={playNext} data-testid="button-music-next">
                     <SkipForward className="w-4 h-4" />
                   </Button>
                 </div>
-
-                {/* Volume */}
                 <div className="hidden sm:flex items-center gap-2 w-28">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-white hover:bg-white/20 shrink-0"
-                    onClick={() => setIsMuted((m) => !m)}
-                    data-testid="button-music-mute"
-                  >
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-white hover:bg-white/20 shrink-0" onClick={() => setIsMuted((m) => !m)} data-testid="button-music-mute">
                     {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
                   </Button>
                   <Slider
                     value={[isMuted ? 0 : volume * 100]}
-                    onValueChange={(v) => {
-                      setVolume(v[0] / 100);
-                      setIsMuted(v[0] === 0);
-                    }}
-                    min={0}
-                    max={100}
-                    step={1}
+                    onValueChange={(v) => { setVolume(v[0] / 100); setIsMuted(v[0] === 0); }}
+                    min={0} max={100} step={1}
                     className="flex-1"
                     data-testid="slider-music-volume"
                   />
                 </div>
-
-                {/* Minimize / Close */}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-white hover:bg-white/20"
-                  onClick={() => setIsMinimized(true)}
-                  data-testid="button-music-minimize"
-                >
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-white hover:bg-white/20" onClick={() => setIsMinimized(true)} data-testid="button-music-minimize">
                   <ChevronDown className="w-4 h-4" />
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-white hover:bg-white/20"
-                  onClick={handleClose}
-                  data-testid="button-music-close"
-                >
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-white hover:bg-white/20" onClick={handleClose} data-testid="button-music-close">
                   <X className="w-4 h-4" />
                 </Button>
               </div>
             )}
-
             {isMinimized && (
               <div className="max-w-3xl mx-auto flex items-center justify-between">
                 <div className="flex items-center gap-2 text-white">
                   <Music2 className="w-4 h-4" />
-                  <span className="text-sm font-medium truncate max-w-[200px]">
-                    {currentFile?.name || "재생 중"}
-                  </span>
+                  <span className="text-sm font-medium truncate max-w-[200px]">{currentFile?.name || "재생 중"}</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-white hover:bg-white/20"
-                    onClick={() => setIsPlaying((p) => !p)}
-                    data-testid="button-music-play-pause-mini"
-                  >
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-white hover:bg-white/20" onClick={() => setIsPlaying((p) => !p)} data-testid="button-music-play-pause-mini">
                     {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-white hover:bg-white/20"
-                    onClick={() => setIsMinimized(false)}
-                    data-testid="button-music-expand"
-                  >
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-white hover:bg-white/20" onClick={() => setIsMinimized(false)} data-testid="button-music-expand">
                     <ChevronUp className="w-4 h-4" />
                   </Button>
                 </div>
