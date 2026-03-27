@@ -2,7 +2,11 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNotices } from "@/hooks/use-notices";
 
-export function NoticeTicker() {
+interface NoticeTickerProps {
+  inline?: boolean;
+}
+
+export function NoticeTicker({ inline = false }: NoticeTickerProps) {
   const { data: notices } = useNotices("notice");
   const { data: pinnedData } = useQuery<{ pinnedNoticeId: number | null }>({
     queryKey: ["/api/settings/pinned-notice"],
@@ -19,7 +23,7 @@ export function NoticeTicker() {
   }, [notices, pinnedData]);
 
   return (
-    <div className="sticky top-[57px] z-40 bg-[#0066CC] overflow-hidden h-9 flex items-center relative shadow-sm">
+    <div className={`${inline ? "" : "sticky top-[57px] z-40"} bg-[#0066CC] overflow-hidden h-9 flex items-center relative shadow-sm`}>
       <div className="absolute left-0 z-10 px-3 h-full flex items-center gap-1.5 bg-[#004EA8] border-r border-white/20">
         <span className="w-1.5 h-1.5 rounded-full bg-yellow-300 animate-pulse shrink-0" />
         <span className="text-[11px] font-extrabold text-white uppercase tracking-wider whitespace-nowrap">공지</span>

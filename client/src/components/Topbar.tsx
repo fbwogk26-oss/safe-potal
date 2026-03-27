@@ -146,42 +146,43 @@ export function Topbar() {
           <Menu className="w-5 h-5" />
         </Button>
 
-        {/* Logo + User button side by side */}
-        <div className="flex items-center gap-2">
-          <Link href="/">
-            <div className="flex items-center gap-2.5 cursor-pointer hover:opacity-80 transition-opacity">
-              <div className="w-9 h-9 rounded-lg bg-[#0066CC] flex flex-col items-center justify-center shadow-sm text-white shrink-0">
-                <span className="text-[9px] font-bold leading-none tracking-tight">kt</span>
-                <span className="text-[7px] font-semibold leading-none tracking-tight">MOS</span>
-              </div>
-              <div className="md:hidden">
-                <h1 className="text-sm font-bold leading-tight text-foreground">종합안전포털시스템</h1>
-                <p className="text-[10px] text-muted-foreground -mt-0.5">Safety Portal System</p>
-              </div>
+        {/* Logo */}
+        <Link href="/">
+          <div className="flex items-center gap-2.5 cursor-pointer hover:opacity-80 transition-opacity">
+            <div className="w-9 h-9 rounded-full bg-[#0066CC] flex items-center justify-center shadow-sm text-white shrink-0">
+              <ShieldCheck className="w-5 h-5 text-white" />
             </div>
-          </Link>
+            <div className="md:hidden">
+              <h1 className="text-sm font-bold leading-tight text-foreground">종합안전포털시스템</h1>
+              <p className="text-[10px] text-muted-foreground -mt-0.5">Safety Portal System</p>
+            </div>
+          </div>
+        </Link>
 
-          {/* User button right next to logo */}
-          {!authLoading && isAuthenticated && user && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="gap-2 px-2 h-9" data-testid="button-user-menu">
-                  <Avatar className="h-7 w-7">
-                    <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                      {(user.name?.[0] || user.username?.[0] || "U").toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <span className="text-sm font-medium max-w-[80px] truncate hidden sm:inline">
-                    {user.name || user.username || "사용자"}
+        {/* Spacer */}
+        <div className="flex-1" />
+
+        {/* User button on right */}
+        {!authLoading && isAuthenticated && user && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="gap-2 px-2 h-9" data-testid="button-user-menu">
+                <Avatar className="h-7 w-7">
+                  <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                    {(user.name?.[0] || user.username?.[0] || "U").toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="text-sm font-medium max-w-[80px] truncate hidden sm:inline">
+                  {user.name || user.username || "사용자"}
+                </span>
+                {isAdmin && (
+                  <span className="px-1.5 py-0.5 text-[10px] rounded bg-primary text-primary-foreground font-bold hidden sm:inline">
+                    관리자
                   </span>
-                  {isAdmin && (
-                    <span className="px-1.5 py-0.5 text-[10px] rounded bg-primary text-primary-foreground font-bold hidden sm:inline">
-                      관리자
-                    </span>
-                  )}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-48">
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
                 <div className="px-2 py-1.5 text-sm">
                   <p className="font-medium">{user.name || user.username}</p>
                   <p className="text-xs text-muted-foreground">@{user.username}</p>
@@ -222,7 +223,6 @@ export function Topbar() {
               </DropdownMenuContent>
             </DropdownMenu>
           )}
-        </div>
       </div>
 
       <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
@@ -230,9 +230,8 @@ export function Topbar() {
           <SheetTitle className="sr-only">메뉴</SheetTitle>
           <div className="px-4 py-3.5 border-b border-border/50">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-[#0066CC] flex flex-col items-center justify-center text-white shadow-lg shrink-0">
-                <span className="text-[9px] font-bold leading-none tracking-tight">kt</span>
-                <span className="text-[7px] font-semibold leading-none tracking-tight">MOS</span>
+              <div className="w-8 h-8 rounded-full bg-[#0066CC] flex items-center justify-center text-white shadow-lg shrink-0">
+                <ShieldCheck className="w-4 h-4 text-white" />
               </div>
               <div className="min-w-0">
                 <h2 className="font-bold text-[13px] leading-tight truncate">종합안전포털시스템</h2>

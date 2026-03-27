@@ -131,22 +131,25 @@ export default function DigitalBoard() {
   };
 
   const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      slideshowRef.current?.requestFullscreen();
-      setIsFullscreen(true);
-    } else {
-      document.exitFullscreen();
-      setIsFullscreen(false);
-    }
+    setIsFullscreen(prev => !prev);
   };
 
   useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
+    if (isFullscreen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [isFullscreen]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isFullscreen) setIsFullscreen(false);
     };
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
-  }, []);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isFullscreen]);
 
   return (
     <div className="max-w-6xl mx-auto space-y-4 sm:space-y-6 md:space-y-8">
@@ -162,7 +165,7 @@ export default function DigitalBoard() {
 
       <div 
         ref={slideshowRef}
-        className={`relative bg-black rounded-2xl overflow-hidden ${isFullscreen ? 'fixed inset-0 z-50 rounded-none' : 'aspect-video'}`}
+        className={`relative bg-black overflow-hidden ${isFullscreen ? 'fixed inset-0 z-[9999] rounded-none' : 'aspect-video rounded-2xl'}`}
       >
         {slideList.length > 0 ? (
           <>

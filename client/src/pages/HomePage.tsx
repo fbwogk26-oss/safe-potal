@@ -1,4 +1,5 @@
 import { type ReactNode } from "react";
+import { NoticeTicker } from "@/components/NoticeTicker";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
@@ -260,6 +261,9 @@ export default function HomePage() {
           </div>
         </div>
       </div>
+
+      {/* ── Notice Ticker ── */}
+      <NoticeTicker inline />
 
       {/* ── Main Grid ── */}
       <div className="w-full px-3 sm:px-4 md:px-6 py-4 sm:py-5 md:py-6">
