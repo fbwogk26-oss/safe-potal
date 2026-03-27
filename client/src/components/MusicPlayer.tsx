@@ -13,6 +13,8 @@ import {
   X,
   ChevronDown,
   ChevronUp,
+  ListMusic,
+  Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { MusicFile } from "@shared/schema";
@@ -39,7 +41,6 @@ function getActiveScheduleType(schedule: MusicSchedule | undefined): string | nu
   return null;
 }
 
-// Fetches a 2-hour GCS signed URL for the given object path
 function useSignedMusicUrl(objectPath: string | null | undefined): string | null {
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {
@@ -65,6 +66,7 @@ export function MusicPlayer() {
   const [isMinimized, setIsMinimized] = useState(false);
   const [needsInteraction, setNeedsInteraction] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [showPlaylist, setShowPlaylist] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const progressRef = useRef<NodeJS.Timeout | null>(null);
@@ -74,7 +76,6 @@ export function MusicPlayer() {
   const volumeRef = useRef(0.7);
   const isMutedRef = useRef(false);
 
-  // Keep refs in sync with state
   useEffect(() => { activeTypeRef.current = activeType; }, [activeType]);
   useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
   useEffect(() => { volumeRef.current = volume; }, [volume]);
@@ -94,8 +95,6 @@ export function MusicPlayer() {
     (f) => f.scheduleType === activeType || f.scheduleType === "all"
   );
   const currentFile = activeFiles[currentIndex % Math.max(activeFiles.length, 1)];
-
-  // Get 2-hour signed URL for current file
   const signedUrl = useSignedMusicUrl(currentFile?.url);
 
   const playNext = useCallback(() => {
@@ -106,31 +105,25 @@ export function MusicPlayer() {
     setCurrentIndex((i) => (i - 1 + activeFiles.length) % Math.max(activeFiles.length, 1));
   }, [activeFiles.length]);
 
-  // Attempt to play with muted-autoplay fallback (bypasses browser autoplay policy)
   const attemptAutoplay = useCallback(async (el: HTMLVideoElement) => {
     el.volume = isMutedRef.current ? 0 : volumeRef.current;
     try {
       await el.play();
-      // Normal autoplay succeeded
       setNeedsInteraction(false);
     } catch {
-      // Normal autoplay blocked — try muted (browsers always allow muted autoplay)
       el.muted = true;
       try {
         await el.play();
-        // Muted autoplay worked — unmute immediately
         el.muted = false;
         el.volume = isMutedRef.current ? 0 : volumeRef.current;
         setNeedsInteraction(false);
       } catch {
-        // Even muted autoplay failed — show banner
         setIsPlaying(false);
         setNeedsInteraction(true);
       }
     }
   }, []);
 
-  // Check schedule every 30s — NO setState-inside-setState (uses ref for comparison)
   useEffect(() => {
     const check = () => {
       const newType = getActiveScheduleType(schedule);
@@ -141,6 +134,7 @@ export function MusicPlayer() {
         if (!newType) {
           setIsPlaying(false);
           setNeedsInteraction(false);
+          setShowPlaylist(false);
           wasAutoTriggeredRef.current = false;
         } else if (!wasAutoTriggeredRef.current) {
           wasAutoTriggeredRef.current = true;
@@ -154,7 +148,6 @@ export function MusicPlayer() {
     return () => clearInterval(timer);
   }, [schedule]);
 
-  // Load new src when signed URL is ready, then play if needed
   useEffect(() => {
     if (!videoRef.current || !signedUrl) return;
     const el = videoRef.current;
@@ -165,12 +158,11 @@ export function MusicPlayer() {
     }
   }, [signedUrl, attemptAutoplay]);
 
-  // Play/pause when isPlaying changes
   useEffect(() => {
     if (!videoRef.current) return;
     const el = videoRef.current;
     if (isPlaying) {
-      if (!signedUrl) return; // wait for signed URL
+      if (!signedUrl) return;
       if (!el.src || el.src === window.location.href) {
         el.src = signedUrl;
         el.load();
@@ -181,7 +173,6 @@ export function MusicPlayer() {
     }
   }, [isPlaying, attemptAutoplay]);
 
-  // Volume
   useEffect(() => {
     if (videoRef.current) {
       videoRef.current.volume = isMuted ? 0 : volume;
@@ -189,7 +180,6 @@ export function MusicPlayer() {
     }
   }, [volume, isMuted]);
 
-  // Progress bar
   useEffect(() => {
     if (isPlaying) {
       progressRef.current = setInterval(() => {
@@ -200,16 +190,19 @@ export function MusicPlayer() {
     } else {
       if (progressRef.current) clearInterval(progressRef.current);
     }
-    return () => {
-      if (progressRef.current) clearInterval(progressRef.current);
-    };
+    return () => { if (progressRef.current) clearInterval(progressRef.current); };
   }, [isPlaying]);
+
+  const handleSelectSong = (idx: number) => {
+    setCurrentIndex(idx);
+    setIsPlaying(true);
+    setShowPlaylist(false);
+  };
 
   const handleStartPlaying = () => {
     setNeedsInteraction(false);
     setCurrentIndex(0);
     setIsPlaying(true);
-    // Call play() directly in user gesture context — always allowed
     if (videoRef.current) {
       const el = videoRef.current;
       if (signedUrl && (!el.src || el.src === window.location.href)) {
@@ -218,10 +211,7 @@ export function MusicPlayer() {
       }
       el.muted = false;
       el.volume = isMuted ? 0 : volume;
-      el.play().catch(() => {
-        setIsPlaying(false);
-        setNeedsInteraction(true);
-      });
+      el.play().catch(() => { setIsPlaying(false); setNeedsInteraction(true); });
     }
   };
 
@@ -231,10 +221,8 @@ export function MusicPlayer() {
     activeTypeRef.current = null;
     wasAutoTriggeredRef.current = false;
     setNeedsInteraction(false);
-    if (videoRef.current) {
-      videoRef.current.pause();
-      videoRef.current.src = "";
-    }
+    setShowPlaylist(false);
+    if (videoRef.current) { videoRef.current.pause(); videoRef.current.src = ""; }
   };
 
   const handleSeek = (val: number[]) => {
@@ -251,28 +239,22 @@ export function MusicPlayer() {
   const bgColor = activeType === "출근"
     ? "from-orange-500 to-yellow-500"
     : "from-indigo-600 to-purple-600";
+  const solidBg = activeType === "출근" ? "bg-orange-500" : "bg-indigo-600";
 
   return (
     <>
-      {/* Hidden video element — supports MP4 video/audio files */}
       <video
         ref={videoRef}
         onEnded={playNext}
-        onError={() => {
-          // Retry with next song on error
-          setTimeout(playNext, 1000);
-        }}
+        onError={() => setTimeout(playNext, 1000)}
         style={{ display: "none" }}
         playsInline
         preload="auto"
       />
 
-      {/* Notification prompt (shown only if browser blocked autoplay) */}
+      {/* Notification prompt */}
       {needsInteraction && !isPlaying && (
-        <div className={cn(
-          "fixed bottom-0 left-0 right-0 z-[60] animate-in slide-in-from-bottom duration-500",
-          "bg-gradient-to-r", bgColor
-        )}>
+        <div className={cn("fixed bottom-0 left-0 right-0 z-[60] animate-in slide-in-from-bottom duration-500 bg-gradient-to-r", bgColor)}>
           <div className="max-w-2xl mx-auto flex items-center justify-between px-4 py-3 gap-4">
             <div className="flex items-center gap-3 text-white">
               <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center shrink-0">
@@ -284,22 +266,10 @@ export function MusicPlayer() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                className="bg-white text-gray-900 hover:bg-white/90 font-semibold text-xs h-8 px-4"
-                onClick={handleStartPlaying}
-                data-testid="button-start-music"
-              >
-                <Play className="w-3.5 h-3.5 mr-1" />
-                재생 시작
+              <Button size="sm" className="bg-white text-gray-900 hover:bg-white/90 font-semibold text-xs h-8 px-4" onClick={handleStartPlaying} data-testid="button-start-music">
+                <Play className="w-3.5 h-3.5 mr-1" />재생 시작
               </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-white hover:bg-white/20"
-                onClick={handleClose}
-                data-testid="button-dismiss-music"
-              >
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-white hover:bg-white/20" onClick={handleClose} data-testid="button-dismiss-music">
                 <X className="w-4 h-4" />
               </Button>
             </div>
@@ -307,36 +277,98 @@ export function MusicPlayer() {
         </div>
       )}
 
-      {/* Player bar */}
+      {/* Player bar + playlist */}
       {isPlaying && (
-        <div className={cn(
-          "fixed bottom-0 left-0 right-0 z-[60] animate-in slide-in-from-bottom duration-300",
-          "shadow-2xl"
-        )}>
+        <div className="fixed bottom-0 left-0 right-0 z-[60] animate-in slide-in-from-bottom duration-300 shadow-2xl">
+
+          {/* ── Playlist panel (slides up above player bar) ── */}
+          {showPlaylist && (
+            <div className={cn("animate-in slide-in-from-bottom duration-200", solidBg, "border-t border-white/20")}>
+              <div className="max-w-3xl mx-auto">
+                {/* Playlist header */}
+                <div className="flex items-center justify-between px-4 py-2 border-b border-white/20">
+                  <div className="flex items-center gap-2 text-white">
+                    <ListMusic className="w-4 h-4" />
+                    <span className="text-sm font-semibold">{scheduleLabel} 재생목록</span>
+                    <span className="text-xs text-white/60">{activeFiles.length}곡</span>
+                  </div>
+                  <Button variant="ghost" size="icon" className="h-6 w-6 text-white/70 hover:bg-white/20 hover:text-white" onClick={() => setShowPlaylist(false)} data-testid="button-playlist-close">
+                    <ChevronDown className="w-4 h-4" />
+                  </Button>
+                </div>
+                {/* Song list */}
+                <div className="max-h-52 overflow-y-auto">
+                  {activeFiles.map((file, idx) => {
+                    const isActive = idx === currentIndex % activeFiles.length;
+                    return (
+                      <button
+                        key={file.id}
+                        onClick={() => handleSelectSong(idx)}
+                        className={cn(
+                          "w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors",
+                          isActive
+                            ? "bg-white/25 text-white"
+                            : "text-white/80 hover:bg-white/15 hover:text-white"
+                        )}
+                        data-testid={`button-playlist-song-${file.id}`}
+                      >
+                        {/* Track number / playing indicator */}
+                        <div className="w-6 h-6 flex items-center justify-center shrink-0">
+                          {isActive ? (
+                            <div className="flex gap-[2px] items-end h-4">
+                              <span className="w-[3px] bg-white rounded-full animate-[bounce_0.8s_ease-in-out_infinite]" style={{ height: "60%", animationDelay: "0ms" }} />
+                              <span className="w-[3px] bg-white rounded-full animate-[bounce_0.8s_ease-in-out_infinite]" style={{ height: "100%", animationDelay: "160ms" }} />
+                              <span className="w-[3px] bg-white rounded-full animate-[bounce_0.8s_ease-in-out_infinite]" style={{ height: "40%", animationDelay: "320ms" }} />
+                            </div>
+                          ) : (
+                            <span className="text-xs text-white/40 font-mono">{idx + 1}</span>
+                          )}
+                        </div>
+                        {/* Song name */}
+                        <div className="flex-1 min-w-0">
+                          <p className={cn("text-sm truncate font-medium", isActive && "font-semibold")}>
+                            {file.name}
+                          </p>
+                          {file.scheduleType === "all" && (
+                            <p className="text-[10px] text-white/50 mt-0.5">출퇴근 공통</p>
+                          )}
+                        </div>
+                        {/* Currently playing checkmark */}
+                        {isActive && (
+                          <Check className="w-3.5 h-3.5 text-white shrink-0" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Progress bar */}
           <div className="h-1 bg-black/20 relative cursor-pointer" onClick={(e) => {
             const rect = e.currentTarget.getBoundingClientRect();
-            const pct = ((e.clientX - rect.left) / rect.width) * 100;
-            handleSeek([pct]);
+            handleSeek([(e.clientX - rect.left) / rect.width * 100]);
           }}>
-            <div
-              className="h-full bg-white/80 transition-none"
-              style={{ width: `${progress}%` }}
-            />
+            <div className="h-full bg-white/80 transition-none" style={{ width: `${progress}%` }} />
           </div>
 
+          {/* Main player controls */}
           <div className={cn("bg-gradient-to-r px-4 py-2", bgColor)}>
-            {!isMinimized && (
+            {!isMinimized ? (
               <div className="max-w-3xl mx-auto flex items-center gap-3">
+                {/* Spinning disc icon */}
                 <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center shrink-0 animate-[spin_8s_linear_infinite]">
                   <Music2 className="w-4 h-4 text-white" />
                 </div>
+                {/* Song info */}
                 <div className="flex-1 min-w-0">
                   <p className="text-white font-semibold text-sm truncate" data-testid="text-current-song">
                     {currentFile?.name || "음악 재생 중"}
                   </p>
-                  <p className="text-white/70 text-xs">{scheduleLabel} · {currentIndex + 1}/{activeFiles.length}</p>
+                  <p className="text-white/70 text-xs">{scheduleLabel} · {(currentIndex % activeFiles.length) + 1}/{activeFiles.length}</p>
                 </div>
+                {/* Playback controls */}
                 <div className="flex items-center gap-1">
                   <Button variant="ghost" size="icon" className="h-8 w-8 text-white hover:bg-white/20" onClick={playPrev} data-testid="button-music-prev">
                     <SkipBack className="w-4 h-4" />
@@ -348,6 +380,7 @@ export function MusicPlayer() {
                     <SkipForward className="w-4 h-4" />
                   </Button>
                 </div>
+                {/* Volume */}
                 <div className="hidden sm:flex items-center gap-2 w-28">
                   <Button variant="ghost" size="icon" className="h-7 w-7 text-white hover:bg-white/20 shrink-0" onClick={() => setIsMuted((m) => !m)} data-testid="button-music-mute">
                     {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
@@ -360,15 +393,25 @@ export function MusicPlayer() {
                     data-testid="slider-music-volume"
                   />
                 </div>
-                <Button variant="ghost" size="icon" className="h-7 w-7 text-white hover:bg-white/20" onClick={() => setIsMinimized(true)} data-testid="button-music-minimize">
+                {/* Playlist toggle */}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={cn("h-7 w-7 text-white hover:bg-white/20", showPlaylist && "bg-white/20")}
+                  onClick={() => setShowPlaylist((p) => !p)}
+                  title="재생목록"
+                  data-testid="button-music-playlist"
+                >
+                  <ListMusic className="w-4 h-4" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-white hover:bg-white/20" onClick={() => { setIsMinimized(true); setShowPlaylist(false); }} data-testid="button-music-minimize">
                   <ChevronDown className="w-4 h-4" />
                 </Button>
                 <Button variant="ghost" size="icon" className="h-7 w-7 text-white hover:bg-white/20" onClick={handleClose} data-testid="button-music-close">
                   <X className="w-4 h-4" />
                 </Button>
               </div>
-            )}
-            {isMinimized && (
+            ) : (
               <div className="max-w-3xl mx-auto flex items-center justify-between">
                 <div className="flex items-center gap-2 text-white">
                   <Music2 className="w-4 h-4" />
