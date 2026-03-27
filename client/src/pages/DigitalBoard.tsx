@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MonitorPlay, Trash2, Upload, X, ChevronLeft, ChevronRight, Play, Pause, Maximize2, Images, Minimize2 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { useState, useRef, useEffect, memo } from "react";
+import { createPortal } from "react-dom";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -31,6 +32,100 @@ const SignedImage = memo(function SignedImage({ path, alt, className }: { path: 
   if (!signedUrl) return <div className="w-full h-full bg-gray-900 flex items-center justify-center"><span className="text-white/30 text-xs">로딩중...</span></div>;
   return <img src={signedUrl} alt={alt} className={className} onError={e => { (e.target as HTMLImageElement).style.opacity = "0.3"; }} />;
 });
+
+type ParsedContent = { imageUrl?: string; text?: string };
+
+function SlideViewer({ slideList, currentSlide, parseContent }: {
+  slideList: any[];
+  currentSlide: number;
+  parseContent: (c: string) => ParsedContent;
+}) {
+  const slide = slideList[currentSlide];
+  const parsed = parseContent(slide?.content || "{}");
+  return (
+    <div className="absolute inset-0 flex items-center justify-center">
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={currentSlide}
+          initial={{ opacity: 0, x: 50 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -50 }}
+          transition={{ duration: 0.4 }}
+          className="absolute inset-0 flex items-center justify-center"
+        >
+          <div className="relative w-full h-full flex items-center justify-center">
+            {parsed.imageUrl ? (
+              <SignedImage path={parsed.imageUrl} alt={slide?.title || ""} className="max-w-full max-h-full object-contain" />
+            ) : (
+              <div className="flex flex-col items-center justify-center text-white p-8 text-center">
+                <h3 className="text-4xl font-bold mb-4">{slide?.title}</h3>
+                <p className="text-xl text-white/80 max-w-2xl">{parsed.text}</p>
+              </div>
+            )}
+            {parsed.imageUrl && (slide?.title || parsed.text) && (
+              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-6">
+                <h3 className="text-2xl font-bold text-white">{slide?.title}</h3>
+                {parsed.text && <p className="text-white/80 mt-1">{parsed.text}</p>}
+              </div>
+            )}
+          </div>
+        </motion.div>
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function SlideControls({ slideList, currentSlide, isPlaying, isFullscreen, onPrev, onNext, onTogglePlay, onSelectSlide, onToggleFullscreen }: {
+  slideList: any[];
+  currentSlide: number;
+  isPlaying: boolean;
+  isFullscreen: boolean;
+  onPrev: () => void;
+  onNext: () => void;
+  onTogglePlay: () => void;
+  onSelectSlide: (i: number) => void;
+  onToggleFullscreen: () => void;
+}) {
+  return (
+    <>
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-black/50 backdrop-blur-sm rounded-full px-4 py-2 z-10">
+        <Button variant="ghost" size="icon" onClick={onPrev} className="text-white hover:bg-white/20 h-8 w-8">
+          <ChevronLeft className="w-5 h-5" />
+        </Button>
+        <Button variant="ghost" size="icon" onClick={onTogglePlay} className="text-white hover:bg-white/20 h-8 w-8">
+          {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+        </Button>
+        <div className="flex gap-1 px-2">
+          {slideList.map((_, idx) => (
+            <button
+              key={idx}
+              onClick={() => onSelectSlide(idx)}
+              className={`w-2 h-2 rounded-full transition-all ${idx === currentSlide ? 'bg-white w-4' : 'bg-white/50'}`}
+              data-testid={`button-slide-dot-${idx}`}
+              aria-label={`슬라이드 ${idx + 1}`}
+            />
+          ))}
+        </div>
+        <Button variant="ghost" size="icon" onClick={onNext} className="text-white hover:bg-white/20 h-8 w-8">
+          <ChevronRight className="w-5 h-5" />
+        </Button>
+        <Button variant="ghost" size="icon" onClick={onToggleFullscreen} className="text-white hover:bg-white/20 h-8 w-8" title={isFullscreen ? "전체화면 종료 (ESC)" : "전체화면"}>
+          {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+        </Button>
+      </div>
+      <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
+        {isFullscreen && (
+          <Button variant="ghost" size="sm" onClick={onToggleFullscreen} className="text-white bg-black/50 hover:bg-black/70 h-7 text-xs gap-1 backdrop-blur-sm">
+            <Minimize2 className="w-3 h-3" /> ESC
+          </Button>
+        )}
+        <div className="bg-black/50 backdrop-blur-sm text-white px-3 py-1 rounded-full text-sm">
+          {currentSlide + 1} / {slideList.length}
+        </div>
+      </div>
+    </>
+  );
+}
 
 export default function DigitalBoard() {
   const { canEditDigitalBoard } = usePermissions();
@@ -186,91 +281,25 @@ export default function DigitalBoard() {
         </div>
       </div>
 
+      {/* 슬라이드 뷰어 (항상 normal view 유지) */}
       <div 
         ref={slideshowRef}
-        className={`relative bg-black overflow-hidden ${isFullscreen ? 'fixed inset-0 z-[9999] rounded-none' : 'aspect-video rounded-2xl'}`}
+        className="relative bg-black overflow-hidden aspect-video rounded-2xl"
       >
         {slideList.length > 0 ? (
           <>
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={currentSlide}
-                initial={{ opacity: 0, x: 50 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -50 }}
-                transition={{ duration: 0.5 }}
-                className="absolute inset-0 flex items-center justify-center"
-              >
-                {(() => {
-                  const slide = slideList[currentSlide];
-                  const parsed = parseContent(slide?.content || "{}");
-                  return (
-                    <div className="relative w-full h-full flex items-center justify-center">
-                      {parsed.imageUrl ? (
-                        <SignedImage
-                          path={parsed.imageUrl}
-                          alt={slide?.title || ""}
-                          className="max-w-full max-h-full object-contain"
-                        />
-                      ) : (
-                        <div className="flex flex-col items-center justify-center text-white p-8 text-center">
-                          <h3 className="text-4xl font-bold mb-4">{slide?.title}</h3>
-                          <p className="text-xl text-white/80 max-w-2xl">{parsed.text}</p>
-                        </div>
-                      )}
-                      {parsed.imageUrl && (slide?.title || parsed.text) && (
-                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-6">
-                          <h3 className="text-2xl font-bold text-white">{slide?.title}</h3>
-                          {parsed.text && <p className="text-white/80 mt-1">{parsed.text}</p>}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
-              </motion.div>
-            </AnimatePresence>
-
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-black/50 backdrop-blur-sm rounded-full px-4 py-2">
-              <Button variant="ghost" size="icon" onClick={goToPrev} className="text-white hover:bg-white/20 h-8 w-8">
-                <ChevronLeft className="w-5 h-5" />
-              </Button>
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                onClick={() => setIsPlaying(!isPlaying)} 
-                className="text-white hover:bg-white/20 h-8 w-8"
-              >
-                {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-              </Button>
-              <div className="flex gap-1 px-2">
-                {slideList.map((_, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => setCurrentSlide(idx)}
-                    className={`w-2 h-2 rounded-full transition-all ${idx === currentSlide ? 'bg-white w-4' : 'bg-white/50'}`}
-                    data-testid={`button-slide-dot-${idx}`}
-                    aria-label={`슬라이드 ${idx + 1}`}
-                  />
-                ))}
-              </div>
-              <Button variant="ghost" size="icon" onClick={goToNext} className="text-white hover:bg-white/20 h-8 w-8">
-                <ChevronRight className="w-5 h-5" />
-              </Button>
-              <Button variant="ghost" size="icon" onClick={toggleFullscreen} className="text-white hover:bg-white/20 h-8 w-8" title={isFullscreen ? "전체화면 종료 (ESC)" : "전체화면"}>
-                {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-              </Button>
-            </div>
-
-            <div className="absolute top-4 right-4 flex items-center gap-2">
-              {isFullscreen && (
-                <Button variant="ghost" size="sm" onClick={toggleFullscreen} className="text-white bg-black/50 hover:bg-black/70 h-7 text-xs gap-1 backdrop-blur-sm">
-                  <Minimize2 className="w-3 h-3" /> ESC
-                </Button>
-              )}
-              <div className="bg-black/50 backdrop-blur-sm text-white px-3 py-1 rounded-full text-sm">
-                {currentSlide + 1} / {slideList.length}
-              </div>
-            </div>
+            <SlideViewer slideList={slideList} currentSlide={currentSlide} parseContent={parseContent} />
+            <SlideControls
+              slideList={slideList}
+              currentSlide={currentSlide}
+              isPlaying={isPlaying}
+              isFullscreen={false}
+              onPrev={goToPrev}
+              onNext={goToNext}
+              onTogglePlay={() => setIsPlaying(p => !p)}
+              onSelectSlide={setCurrentSlide}
+              onToggleFullscreen={toggleFullscreen}
+            />
           </>
         ) : (
           <div className="absolute inset-0 flex items-center justify-center text-white/50">
@@ -281,6 +310,25 @@ export default function DigitalBoard() {
           </div>
         )}
       </div>
+
+      {/* 전체화면 Portal - overflow 제한 우회 */}
+      {isFullscreen && slideList.length > 0 && createPortal(
+        <div className="fixed inset-0 bg-black z-[99999] relative">
+          <SlideViewer slideList={slideList} currentSlide={currentSlide} parseContent={parseContent} />
+          <SlideControls
+            slideList={slideList}
+            currentSlide={currentSlide}
+            isPlaying={isPlaying}
+            isFullscreen={true}
+            onPrev={goToPrev}
+            onNext={goToNext}
+            onTogglePlay={() => setIsPlaying(p => !p)}
+            onSelectSlide={setCurrentSlide}
+            onToggleFullscreen={toggleFullscreen}
+          />
+        </div>,
+        document.body
+      )}
 
       {canEditDigitalBoard && (
         <Card className="border-indigo-200 dark:border-indigo-900/30">
