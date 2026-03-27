@@ -170,6 +170,7 @@ export function MusicPlayer() {
   if (!activeType || activeFiles.length === 0) return null;
 
   const scheduleLabel = activeType === "출근" ? "🌅 출근음악" : "🌆 퇴근음악";
+  const bannerMessage = activeType === "출근" ? "오늘도 안전한 하루되세요 😊" : "오늘 하루도 수고 하셨습니다 🙏";
   const bgColor = activeType === "출근"
     ? "from-orange-500 to-yellow-500"
     : "from-indigo-600 to-purple-600";
@@ -194,7 +195,7 @@ export function MusicPlayer() {
                 <Music2 className="w-5 h-5" />
               </div>
               <div>
-                <p className="font-bold text-sm">{scheduleLabel} 시간입니다!</p>
+                <p className="font-bold text-sm">{bannerMessage}</p>
                 <p className="text-xs text-white/80">{activeFiles.length}곡이 준비되어 있습니다</p>
               </div>
             </div>
