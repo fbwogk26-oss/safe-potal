@@ -109,22 +109,26 @@ export function MusicPlayer() {
     el.volume = isMutedRef.current ? 0 : volumeRef.current;
     try {
       await el.play();
+      // Normal autoplay succeeded — mark as approved so future transitions never show banner
+      userApprovedRef.current = true;
       setNeedsInteraction(false);
     } catch {
       el.muted = true;
       try {
         await el.play();
+        // Muted autoplay succeeded — unmute immediately, mark as approved
         el.muted = false;
         el.volume = isMutedRef.current ? 0 : volumeRef.current;
+        userApprovedRef.current = true;
         setNeedsInteraction(false);
       } catch {
         // Both normal and muted blocked
         setIsPlaying(false);
         if (!userApprovedRef.current) {
-          // First-time autoplay blocked → show tap-to-start banner
+          // Music has never played yet → show tap-to-start banner
           setNeedsInteraction(true);
         }
-        // If user already approved, silently stop — no banner
+        // Music already played before → silently stop, no banner
       }
     }
   }, []);
