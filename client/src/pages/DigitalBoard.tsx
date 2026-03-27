@@ -1,13 +1,36 @@
 import { useNotices, useCreateNotice, useDeleteNotice } from "@/hooks/use-notices";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { MonitorPlay, Trash2, Upload, X, ChevronLeft, ChevronRight, Play, Pause, Maximize2, Images } from "lucide-react";
+import { MonitorPlay, Trash2, Upload, X, ChevronLeft, ChevronRight, Play, Pause, Maximize2, Images, Minimize2 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, memo } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePermissions } from "@/hooks/use-permissions";
+
+function useSignedUrl(objectPath: string | null | undefined) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!objectPath) return;
+    if (!objectPath.startsWith("/objects/")) {
+      setUrl(objectPath);
+      return;
+    }
+    let cancelled = false;
+    fetch(`/api/download?path=${encodeURIComponent(objectPath)}`, { credentials: "include" })
+      .then(r => r.json())
+      .then(data => { if (!cancelled && data.url) setUrl(data.url); })
+      .catch(() => { if (!cancelled) setUrl(objectPath); });
+    return () => { cancelled = true; };
+  }, [objectPath]);
+  return url;
+}
+
+const SignedImage = memo(function SignedImage({ path, alt, className }: { path: string; alt: string; className: string }) {
+  const signedUrl = useSignedUrl(path);
+  if (!signedUrl) return <div className="w-full h-full bg-gray-900 flex items-center justify-center"><span className="text-white/30 text-xs">로딩중...</span></div>;
+  return <img src={signedUrl} alt={alt} className={className} onError={e => { (e.target as HTMLImageElement).style.opacity = "0.3"; }} />;
+});
 
 export default function DigitalBoard() {
   const { canEditDigitalBoard } = usePermissions();
@@ -184,9 +207,9 @@ export default function DigitalBoard() {
                   return (
                     <div className="relative w-full h-full flex items-center justify-center">
                       {parsed.imageUrl ? (
-                        <img 
-                          src={parsed.imageUrl} 
-                          alt={slide?.title} 
+                        <SignedImage
+                          path={parsed.imageUrl}
+                          alt={slide?.title || ""}
                           className="max-w-full max-h-full object-contain"
                         />
                       ) : (
@@ -233,13 +256,20 @@ export default function DigitalBoard() {
               <Button variant="ghost" size="icon" onClick={goToNext} className="text-white hover:bg-white/20 h-8 w-8">
                 <ChevronRight className="w-5 h-5" />
               </Button>
-              <Button variant="ghost" size="icon" onClick={toggleFullscreen} className="text-white hover:bg-white/20 h-8 w-8">
-                <Maximize2 className="w-4 h-4" />
+              <Button variant="ghost" size="icon" onClick={toggleFullscreen} className="text-white hover:bg-white/20 h-8 w-8" title={isFullscreen ? "전체화면 종료 (ESC)" : "전체화면"}>
+                {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
               </Button>
             </div>
 
-            <div className="absolute top-4 right-4 bg-black/50 backdrop-blur-sm text-white px-3 py-1 rounded-full text-sm">
-              {currentSlide + 1} / {slideList.length}
+            <div className="absolute top-4 right-4 flex items-center gap-2">
+              {isFullscreen && (
+                <Button variant="ghost" size="sm" onClick={toggleFullscreen} className="text-white bg-black/50 hover:bg-black/70 h-7 text-xs gap-1 backdrop-blur-sm">
+                  <Minimize2 className="w-3 h-3" /> ESC
+                </Button>
+              )}
+              <div className="bg-black/50 backdrop-blur-sm text-white px-3 py-1 rounded-full text-sm">
+                {currentSlide + 1} / {slideList.length}
+              </div>
             </div>
           </>
         ) : (
@@ -357,7 +387,7 @@ export default function DigitalBoard() {
                   >
                     <div className="aspect-video bg-muted relative">
                       {parsed.imageUrl ? (
-                        <img src={parsed.imageUrl} alt={slide.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                        <SignedImage path={parsed.imageUrl} alt={slide.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-indigo-500 to-purple-600 text-white p-2">
                           <p className="text-xs font-medium text-center line-clamp-2">{slide.title}</p>

@@ -148,11 +148,12 @@ export function Topbar() {
 
         {/* Logo */}
         <Link href="/">
-          <div className="flex items-center gap-2.5 cursor-pointer hover:opacity-80 transition-opacity">
-            <div className="w-9 h-9 rounded-full bg-[#0066CC] flex items-center justify-center shadow-sm text-white shrink-0">
-              <ShieldCheck className="w-5 h-5 text-white" />
+          <div className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity">
+            <div className="w-8 h-8 rounded-lg bg-[#0066CC] flex flex-col items-center justify-center shadow-sm text-white shrink-0">
+              <span className="text-[9px] font-bold leading-none tracking-tight">kt</span>
+              <span className="text-[7px] font-semibold leading-none tracking-tight">MOS</span>
             </div>
-            <div className="md:hidden">
+            <div>
               <h1 className="text-sm font-bold leading-tight text-foreground">종합안전포털시스템</h1>
               <p className="text-[10px] text-muted-foreground -mt-0.5">Safety Portal System</p>
             </div>
@@ -230,8 +231,9 @@ export function Topbar() {
           <SheetTitle className="sr-only">메뉴</SheetTitle>
           <div className="px-4 py-3.5 border-b border-border/50">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-full bg-[#0066CC] flex items-center justify-center text-white shadow-lg shrink-0">
-                <ShieldCheck className="w-4 h-4 text-white" />
+              <div className="w-8 h-8 rounded-lg bg-[#0066CC] flex flex-col items-center justify-center text-white shadow-lg shrink-0">
+                <span className="text-[9px] font-bold leading-none tracking-tight">kt</span>
+                <span className="text-[7px] font-semibold leading-none tracking-tight">MOS</span>
               </div>
               <div className="min-w-0">
                 <h2 className="font-bold text-[13px] leading-tight truncate">종합안전포털시스템</h2>
