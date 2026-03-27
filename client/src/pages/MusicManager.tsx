@@ -174,7 +174,7 @@ export default function MusicManager() {
     }
   };
 
-  const handlePreview = (file: MusicFile) => {
+  const handlePreview = async (file: MusicFile) => {
     if (previewId === file.id) {
       videoPreviewRef.current?.pause();
       setPreviewId(null);
@@ -183,15 +183,31 @@ export default function MusicManager() {
     if (videoPreviewRef.current) {
       videoPreviewRef.current.pause();
     }
-    const vid = document.createElement("video");
-    vid.src = file.url;
-    vid.volume = 0.5;
-    vid.play().catch(() => {
-      toast({ title: "재생 실패", description: "파일을 재생할 수 없습니다.", variant: "destructive" });
-    });
-    vid.onended = () => setPreviewId(null);
-    videoPreviewRef.current = vid;
-    setPreviewId(file.id);
+
+    try {
+      // Get signed URL for reliable playback (bypasses server streaming issues)
+      let playUrl = file.url;
+      if (file.url.startsWith("/objects/")) {
+        const res = await fetch(`/api/download?path=${encodeURIComponent(file.url)}&ttl=600`, {
+          credentials: "include",
+        });
+        const data = await res.json();
+        if (data.url) playUrl = data.url;
+      }
+
+      const vid = document.createElement("video");
+      vid.src = playUrl;
+      vid.volume = 0.5;
+      vid.play().catch(() => {
+        toast({ title: "재생 실패", description: "파일을 재생할 수 없습니다.", variant: "destructive" });
+        setPreviewId(null);
+      });
+      vid.onended = () => setPreviewId(null);
+      videoPreviewRef.current = vid;
+      setPreviewId(file.id);
+    } catch {
+      toast({ title: "재생 실패", description: "파일 URL을 가져올 수 없습니다.", variant: "destructive" });
+    }
   };
 
   if (!isAdmin) {

@@ -67,7 +67,9 @@ export function registerObjectStorageRoutes(app: Express): void {
       if (!filePath || !filePath.startsWith("/objects/")) {
         return res.status(400).json({ error: "Invalid file path" });
       }
-      const signedUrl = await objectStorageService.getSignedDownloadURL(filePath, 600);
+      const requestedTtl = parseInt(req.query.ttl as string) || 600;
+      const safeTtl = Math.min(Math.max(requestedTtl, 60), 7200); // 1min ~ 2hr
+      const signedUrl = await objectStorageService.getSignedDownloadURL(filePath, safeTtl);
       res.json({ url: signedUrl });
     } catch (error) {
       console.error("Error generating download URL:", error);

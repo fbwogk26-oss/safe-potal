@@ -39,6 +39,23 @@ function getActiveScheduleType(schedule: MusicSchedule | undefined): string | nu
   return null;
 }
 
+// Fetches a 2-hour GCS signed URL for the given object path
+function useSignedMusicUrl(objectPath: string | null | undefined): string | null {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!objectPath) { setUrl(null); return; }
+    if (!objectPath.startsWith("/objects/")) { setUrl(objectPath); return; }
+    let cancelled = false;
+    setUrl(null);
+    fetch(`/api/download?path=${encodeURIComponent(objectPath)}&ttl=7200`, { credentials: "include" })
+      .then(r => r.json())
+      .then(data => { if (!cancelled && data.url) setUrl(data.url); })
+      .catch(() => { if (!cancelled) setUrl(objectPath); });
+    return () => { cancelled = true; };
+  }, [objectPath]);
+  return url;
+}
+
 export function MusicPlayer() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -47,11 +64,21 @@ export function MusicPlayer() {
   const [activeType, setActiveType] = useState<string | null>(null);
   const [isMinimized, setIsMinimized] = useState(false);
   const [needsInteraction, setNeedsInteraction] = useState(false);
-  const [wasAutoTriggered, setWasAutoTriggered] = useState(false);
   const [progress, setProgress] = useState(0);
+
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const progressRef = useRef<NodeJS.Timeout | null>(null);
   const wasAutoTriggeredRef = useRef(false);
+  const activeTypeRef = useRef<string | null>(null);
+  const isPlayingRef = useRef(false);
+  const volumeRef = useRef(0.7);
+  const isMutedRef = useRef(false);
+
+  // Keep refs in sync with state
+  useEffect(() => { activeTypeRef.current = activeType; }, [activeType]);
+  useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
+  useEffect(() => { volumeRef.current = volume; }, [volume]);
+  useEffect(() => { isMutedRef.current = isMuted; }, [isMuted]);
 
   const { data: allFiles = [] } = useQuery<MusicFile[]>({
     queryKey: ["/api/music"],
@@ -68,6 +95,9 @@ export function MusicPlayer() {
   );
   const currentFile = activeFiles[currentIndex % Math.max(activeFiles.length, 1)];
 
+  // Get 2-hour signed URL for current file
+  const signedUrl = useSignedMusicUrl(currentFile?.url);
+
   const playNext = useCallback(() => {
     setCurrentIndex((i) => (i + 1) % Math.max(activeFiles.length, 1));
   }, [activeFiles.length]);
@@ -76,70 +106,86 @@ export function MusicPlayer() {
     setCurrentIndex((i) => (i - 1 + activeFiles.length) % Math.max(activeFiles.length, 1));
   }, [activeFiles.length]);
 
-  // Check schedule every 30s — try autoplay immediately; show banner only if blocked
+  // Attempt to play with muted-autoplay fallback (bypasses browser autoplay policy)
+  const attemptAutoplay = useCallback(async (el: HTMLVideoElement) => {
+    el.volume = isMutedRef.current ? 0 : volumeRef.current;
+    try {
+      await el.play();
+      // Normal autoplay succeeded
+      setNeedsInteraction(false);
+    } catch {
+      // Normal autoplay blocked — try muted (browsers always allow muted autoplay)
+      el.muted = true;
+      try {
+        await el.play();
+        // Muted autoplay worked — unmute immediately
+        el.muted = false;
+        el.volume = isMutedRef.current ? 0 : volumeRef.current;
+        setNeedsInteraction(false);
+      } catch {
+        // Even muted autoplay failed — show banner
+        setIsPlaying(false);
+        setNeedsInteraction(true);
+      }
+    }
+  }, []);
+
+  // Check schedule every 30s — NO setState-inside-setState (uses ref for comparison)
   useEffect(() => {
     const check = () => {
       const newType = getActiveScheduleType(schedule);
-      setActiveType((prev) => {
-        if (prev !== newType) {
-          if (!newType) {
-            setIsPlaying(false);
-            wasAutoTriggeredRef.current = false;
-            setWasAutoTriggered(false);
-            setNeedsInteraction(false);
-          } else if (!wasAutoTriggeredRef.current) {
-            wasAutoTriggeredRef.current = true;
-            setWasAutoTriggered(true);
-            setNeedsInteraction(false);
-            // Try autoplay — if the browser blocks it, useEffect([isPlaying]) will
-            // catch the rejection and set needsInteraction=true to show the banner
-            setIsPlaying(true);
-          }
+      const prevType = activeTypeRef.current;
+      if (newType !== prevType) {
+        activeTypeRef.current = newType;
+        setActiveType(newType);
+        if (!newType) {
+          setIsPlaying(false);
+          setNeedsInteraction(false);
+          wasAutoTriggeredRef.current = false;
+        } else if (!wasAutoTriggeredRef.current) {
+          wasAutoTriggeredRef.current = true;
+          setNeedsInteraction(false);
+          setIsPlaying(true);
         }
-        return newType;
-      });
+      }
     };
     check();
     const timer = setInterval(check, 30000);
     return () => clearInterval(timer);
   }, [schedule]);
 
-  // Set audio src when current file changes
+  // Load new src when signed URL is ready, then play if needed
   useEffect(() => {
-    if (!videoRef.current || !currentFile?.url) return;
+    if (!videoRef.current || !signedUrl) return;
     const el = videoRef.current;
-    el.src = currentFile.url;
+    el.src = signedUrl;
     el.load();
-    if (isPlaying) {
-      el.play().catch(() => {
-        setIsPlaying(false);
-        setNeedsInteraction(true);
-      });
+    if (isPlayingRef.current) {
+      attemptAutoplay(el);
     }
-  }, [currentFile?.id]);
+  }, [signedUrl, attemptAutoplay]);
 
   // Play/pause when isPlaying changes
   useEffect(() => {
-    if (!videoRef.current || !currentFile?.url) return;
+    if (!videoRef.current) return;
     const el = videoRef.current;
     if (isPlaying) {
+      if (!signedUrl) return; // wait for signed URL
       if (!el.src || el.src === window.location.href) {
-        el.src = currentFile.url;
+        el.src = signedUrl;
         el.load();
       }
-      el.play().catch(() => {
-        setIsPlaying(false);
-        setNeedsInteraction(true);
-      });
+      attemptAutoplay(el);
     } else {
       el.pause();
     }
-  }, [isPlaying]);
+  }, [isPlaying, attemptAutoplay]);
 
   // Volume
   useEffect(() => {
     if (videoRef.current) {
       videoRef.current.volume = isMuted ? 0 : volume;
+      videoRef.current.muted = false;
     }
   }, [volume, isMuted]);
 
@@ -163,14 +209,16 @@ export function MusicPlayer() {
     setNeedsInteraction(false);
     setCurrentIndex(0);
     setIsPlaying(true);
-    // Call play() directly in the user gesture context (required for browser autoplay policy)
-    if (videoRef.current && currentFile?.url) {
-      if (!videoRef.current.src || videoRef.current.src === window.location.href) {
-        videoRef.current.src = currentFile.url;
-        videoRef.current.load();
+    // Call play() directly in user gesture context — always allowed
+    if (videoRef.current) {
+      const el = videoRef.current;
+      if (signedUrl && (!el.src || el.src === window.location.href)) {
+        el.src = signedUrl;
+        el.load();
       }
-      videoRef.current.volume = isMuted ? 0 : volume;
-      videoRef.current.play().catch(() => {
+      el.muted = false;
+      el.volume = isMuted ? 0 : volume;
+      el.play().catch(() => {
         setIsPlaying(false);
         setNeedsInteraction(true);
       });
@@ -180,8 +228,8 @@ export function MusicPlayer() {
   const handleClose = () => {
     setIsPlaying(false);
     setActiveType(null);
+    activeTypeRef.current = null;
     wasAutoTriggeredRef.current = false;
-    setWasAutoTriggered(false);
     setNeedsInteraction(false);
     if (videoRef.current) {
       videoRef.current.pause();
@@ -210,12 +258,16 @@ export function MusicPlayer() {
       <video
         ref={videoRef}
         onEnded={playNext}
-        onError={() => playNext()}
+        onError={() => {
+          // Retry with next song on error
+          setTimeout(playNext, 1000);
+        }}
         style={{ display: "none" }}
         playsInline
+        preload="auto"
       />
 
-      {/* Notification prompt */}
+      {/* Notification prompt (shown only if browser blocked autoplay) */}
       {needsInteraction && !isPlaying && (
         <div className={cn(
           "fixed bottom-0 left-0 right-0 z-[60] animate-in slide-in-from-bottom duration-500",
