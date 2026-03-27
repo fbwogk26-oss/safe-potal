@@ -1,4 +1,4 @@
-import { Bell, LogOut, Users, Menu, LayoutDashboard, ShieldCheck, Shield, HeartPulse, GraduationCap, DoorOpen, ShoppingCart, MonitorPlay, ClipboardCheck, FileText, KeyRound, Eye, EyeOff, AlertTriangle, ShieldAlert, FlaskConical, ChevronDown, ScrollText, Bone, Home, ReceiptText, Briefcase, CalendarCheck } from "lucide-react";
+import { Bell, LogOut, Users, Menu, LayoutDashboard, ShieldCheck, Shield, HeartPulse, GraduationCap, DoorOpen, ShoppingCart, MonitorPlay, ClipboardCheck, FileText, KeyRound, Eye, EyeOff, AlertTriangle, ShieldAlert, FlaskConical, ChevronDown, ScrollText, Bone, Home, ReceiptText, Briefcase, CalendarCheck, Music2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -81,6 +81,7 @@ const MOBILE_NAV_ITEMS: MobileNavEntry[] = [
     children: [
       { label: "사용자 관리", href: "/admin/users", icon: Users },
       { label: "보안 감사 로그", href: "/admin/security", icon: ScrollText },
+      { label: "음악 관리", href: "/admin/music", icon: Music2 },
     ],
   },
 ];
@@ -267,85 +268,89 @@ export function Topbar() {
       </div>
 
       <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-        <SheetContent side="left" className="w-72 p-0">
+        <SheetContent side="left" className="w-[224px] p-0 flex flex-col bg-card/90">
           <SheetTitle className="sr-only">메뉴</SheetTitle>
-          <div className="p-4 border-b border-border/50">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-[#0066CC] flex flex-col items-center justify-center text-white shadow-lg">
-                <span className="text-[10px] font-bold leading-none tracking-tight">kt</span>
+          <div className="px-4 py-3.5 border-b border-border/50">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-[#0066CC] flex flex-col items-center justify-center text-white shadow-lg shrink-0">
+                <span className="text-[9px] font-bold leading-none tracking-tight">kt</span>
                 <span className="text-[7px] font-semibold leading-none tracking-tight">MOS</span>
               </div>
-              <div>
-                <h2 className="font-bold text-base leading-tight">종합안전포털시스템</h2>
-                <p className="text-xs text-muted-foreground">Safety Portal System</p>
+              <div className="min-w-0">
+                <h2 className="font-bold text-[13px] leading-tight truncate">종합안전포털시스템</h2>
+                <p className="text-[10px] text-muted-foreground">Safety Portal System</p>
               </div>
             </div>
           </div>
-          <nav className="flex-1 overflow-y-auto px-3 py-2">
-            <div className="flex flex-col gap-0.5">
-              {MOBILE_NAV_ITEMS.filter((entry) => !entry.adminOnly || isAdmin).map((entry) => {
-                if (isMobileGroup(entry)) {
-                  const isOpen = mobileOpenGroups[entry.label] ?? entry.children.some(c => location === c.href);
-                  const childActive = entry.children.some(c => location === c.href);
-                  return (
-                    <div key={entry.label}>
-                      <button
-                        onClick={() => setMobileOpenGroups(prev => ({ ...prev, [entry.label]: !isOpen }))}
-                        className={cn(
-                          "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 font-medium text-sm w-full",
-                          childActive ? "text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                        )}
-                        data-testid={`mobile-nav-group-${entry.label}`}
-                      >
-                        <entry.icon className="w-4 h-4" />
-                        <span className="flex-1 text-left">{entry.label}</span>
-                        <ChevronDown className={cn("w-3.5 h-3.5 transition-transform duration-200", isOpen && "rotate-180")} />
-                      </button>
-                      <div className={cn("overflow-hidden transition-all duration-200", isOpen ? "max-h-96 opacity-100" : "max-h-0 opacity-0")}>
-                        <div className="ml-4 pl-3 border-l border-border/40 flex flex-col gap-0.5 mt-0.5 pb-1">
-                          {entry.children.map((child) => (
+          <nav className="flex-1 overflow-y-auto px-2 py-3 flex flex-col gap-1">
+            {MOBILE_NAV_ITEMS.filter((entry) => !entry.adminOnly || isAdmin).map((entry, idx) => {
+              if (isMobileGroup(entry)) {
+                const isOpen = mobileOpenGroups[entry.label] ?? entry.children.some(c => location === c.href);
+                const childActive = entry.children.some(c => location === c.href);
+                return (
+                  <div key={entry.label} className={cn("flex flex-col gap-0.5", idx > 0 && "pt-1 mt-1 border-t border-border/30")}>
+                    <button
+                      onClick={() => setMobileOpenGroups(prev => ({ ...prev, [entry.label]: !isOpen }))}
+                      className={cn(
+                        "flex items-center gap-2.5 px-3 py-2 rounded-lg transition-all duration-150 font-medium text-sm w-full",
+                        childActive ? "text-primary bg-primary/8" : "text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+                      )}
+                      data-testid={`mobile-nav-group-${entry.label}`}
+                    >
+                      <entry.icon className={cn("w-4 h-4 shrink-0 transition-colors", childActive ? "text-primary" : "opacity-70")} />
+                      <span className="flex-1 text-left">{entry.label}</span>
+                      <ChevronDown className={cn("w-3.5 h-3.5 transition-transform duration-200 opacity-50", isOpen && "rotate-180")} />
+                    </button>
+                    <div className={cn("overflow-hidden transition-all duration-200", isOpen ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0")}>
+                      <div className="ml-4 pl-3 border-l-2 border-border/40 flex flex-col gap-0.5 mt-0.5 pb-1">
+                        {entry.children.map((child) => {
+                          const isActive = location === child.href;
+                          return (
                             <Link
                               key={child.href}
                               href={child.href}
                               onClick={() => setMobileMenuOpen(false)}
                               className={cn(
-                                "flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 font-medium text-[13px]",
-                                location === child.href
-                                  ? "bg-primary text-primary-foreground shadow-md"
-                                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                                "flex items-center gap-2 px-2.5 py-1.5 rounded-md transition-all duration-150 text-[13px] font-medium",
+                                isActive
+                                  ? "bg-primary/10 text-primary font-semibold"
+                                  : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
                               )}
                               data-testid={`mobile-nav-${child.href.replace("/", "")}`}
                             >
-                              <child.icon className="w-3.5 h-3.5" />
+                              <child.icon className={cn("w-3.5 h-3.5 shrink-0", isActive ? "text-primary" : "opacity-60")} />
                               <span>{child.label}</span>
+                              {isActive && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />}
                             </Link>
-                          ))}
-                        </div>
+                          );
+                        })}
                       </div>
                     </div>
-                  );
-                }
-                return (
-                  <Link
-                    key={entry.href}
-                    href={entry.href}
-                    onClick={() => setMobileMenuOpen(false)}
-                    className={cn(
-                      "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 font-medium text-sm",
-                      location === entry.href
-                        ? "bg-primary text-primary-foreground shadow-md"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                    )}
-                    data-testid={`mobile-nav-${entry.href.replace("/", "") || "home"}`}
-                  >
-                    <entry.icon className="w-4 h-4" />
-                    <span>{entry.label}</span>
-                  </Link>
+                  </div>
                 );
-              })}
-            </div>
+              }
+              const isActive = location === entry.href;
+              return (
+                <Link
+                  key={entry.href}
+                  href={entry.href}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={cn(
+                    "flex items-center gap-2.5 px-3 py-2 rounded-lg transition-all duration-150 text-sm font-medium",
+                    isActive
+                      ? "bg-primary/10 text-primary font-semibold"
+                      : "text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+                  )}
+                  data-testid={`mobile-nav-${entry.href.replace("/", "") || "home"}`}
+                >
+                  <entry.icon className={cn("w-4 h-4 shrink-0", isActive ? "text-primary" : "opacity-70")} />
+                  <span>{entry.label}</span>
+                  {isActive && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />}
+                </Link>
+              );
+            })}
           </nav>
-          <div className="p-3 border-t border-border/50 text-xs text-center text-muted-foreground">
+          <div className="px-4 py-2.5 border-t border-border/50 text-[10px] text-muted-foreground/50 font-medium">
             v3.0.0
           </div>
         </SheetContent>
