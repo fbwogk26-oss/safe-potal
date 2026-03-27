@@ -39,6 +39,15 @@ function getActiveScheduleType(schedule: MusicSchedule | undefined): string | nu
   return null;
 }
 
+async function getStreamUrl(objectPath: string): Promise<string> {
+  const res = await fetch(`/api/download?path=${encodeURIComponent(objectPath)}`, {
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("URL 취득 실패");
+  const data = await res.json();
+  return data.url as string;
+}
+
 export function MusicPlayer() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -49,6 +58,8 @@ export function MusicPlayer() {
   const [needsInteraction, setNeedsInteraction] = useState(false);
   const [wasAutoTriggered, setWasAutoTriggered] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [audioSrc, setAudioSrc] = useState<string | null>(null);
+  const [srcLoading, setSrcLoading] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const progressRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -85,6 +96,7 @@ export function MusicPlayer() {
             setIsPlaying(false);
             setWasAutoTriggered(false);
             setNeedsInteraction(false);
+            setAudioSrc(null);
           } else if (!wasAutoTriggered) {
             setNeedsInteraction(true);
             setWasAutoTriggered(true);
@@ -98,22 +110,41 @@ export function MusicPlayer() {
     return () => clearInterval(timer);
   }, [schedule, wasAutoTriggered]);
 
-  // Load audio when file changes
+  // Fetch signed stream URL whenever currentFile changes
   useEffect(() => {
-    if (!audioRef.current || !currentFile) return;
-    audioRef.current.src = currentFile.url;
+    if (!currentFile?.url) {
+      setAudioSrc(null);
+      return;
+    }
+    setSrcLoading(true);
+    getStreamUrl(currentFile.url)
+      .then((url) => {
+        setAudioSrc(url);
+      })
+      .catch(() => {
+        setAudioSrc(null);
+        setSrcLoading(false);
+      });
+  }, [currentFile?.id]);
+
+  // Set audio src and play when signed URL is ready
+  useEffect(() => {
+    if (!audioRef.current || !audioSrc) return;
+    audioRef.current.src = audioSrc;
     audioRef.current.volume = isMuted ? 0 : volume;
+    audioRef.current.load();
+    setSrcLoading(false);
     if (isPlaying) {
       audioRef.current.play().catch(() => {
         setIsPlaying(false);
         setNeedsInteraction(true);
       });
     }
-  }, [currentFile?.id]);
+  }, [audioSrc]);
 
-  // Play/pause
+  // Play/pause when isPlaying changes (src already set)
   useEffect(() => {
-    if (!audioRef.current) return;
+    if (!audioRef.current || !audioSrc) return;
     if (isPlaying) {
       audioRef.current.play().catch(() => {
         setIsPlaying(false);
@@ -149,8 +180,8 @@ export function MusicPlayer() {
 
   const handleStartPlaying = () => {
     setNeedsInteraction(false);
-    setIsPlaying(true);
     setCurrentIndex(0);
+    setIsPlaying(true);
   };
 
   const handleClose = () => {
@@ -158,6 +189,7 @@ export function MusicPlayer() {
     setActiveType(null);
     setWasAutoTriggered(false);
     setNeedsInteraction(false);
+    setAudioSrc(null);
   };
 
   const handleSeek = (val: number[]) => {
@@ -180,7 +212,10 @@ export function MusicPlayer() {
       <audio
         ref={audioRef}
         onEnded={playNext}
-        onError={playNext}
+        onError={() => {
+          setSrcLoading(false);
+          playNext();
+        }}
       />
 
       {/* Notification prompt */}
@@ -204,10 +239,11 @@ export function MusicPlayer() {
                 size="sm"
                 className="bg-white text-gray-900 hover:bg-white/90 font-semibold text-xs h-8 px-4"
                 onClick={handleStartPlaying}
+                disabled={srcLoading}
                 data-testid="button-start-music"
               >
                 <Play className="w-3.5 h-3.5 mr-1" />
-                재생 시작
+                {srcLoading ? "준비 중..." : "재생 시작"}
               </Button>
               <Button
                 variant="ghost"
