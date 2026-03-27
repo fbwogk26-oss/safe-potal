@@ -3327,20 +3327,27 @@ export async function registerRoutes(
     }
   });
 
-  // GET /api/music/schedule - 음악 스케줄 설정 조회
+  // GET /api/music/schedule - 음악 스케줄 설정 조회 (요일별)
   app.get("/api/music/schedule", isAuthenticated, async (_req, res) => {
     try {
+      const weekdayOn  = { checkin: { enabled: true,  start: "08:30", end: "08:50" }, checkout: { enabled: true,  start: "18:00", end: "18:20" } };
+      const weekendOff = { checkin: { enabled: false, start: "08:30", end: "08:50" }, checkout: { enabled: false, start: "18:00", end: "18:20" } };
+      const defaultWeekly = { mon: weekdayOn, tue: weekdayOn, wed: weekdayOn, thu: weekdayOn, fri: weekdayOn, sat: weekendOff, sun: weekendOff };
+
       const setting = await storage.getSetting("music_schedule");
-      const defaultSchedule = {
-        checkin: { enabled: true, start: "08:30", end: "08:50" },
-        checkout: { enabled: true, start: "18:00", end: "18:20" },
-      };
-      if (!setting) return res.json(defaultSchedule);
-      try {
-        res.json(JSON.parse(setting.value));
-      } catch {
-        res.json(defaultSchedule);
+      if (!setting) return res.json(defaultWeekly);
+
+      let parsed: any;
+      try { parsed = JSON.parse(setting.value); } catch { return res.json(defaultWeekly); }
+
+      // Migrate old format {checkin:{...}, checkout:{...}} → weekly
+      if (parsed && parsed.checkin && !parsed.mon) {
+        const migrated = { mon: parsed, tue: parsed, wed: parsed, thu: parsed, fri: parsed, sat: weekendOff, sun: weekendOff };
+        await storage.setSetting("music_schedule", JSON.stringify(migrated));
+        return res.json(migrated);
       }
+
+      res.json(parsed);
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }

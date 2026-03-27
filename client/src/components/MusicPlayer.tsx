@@ -20,21 +20,33 @@ import {
 import { cn } from "@/lib/utils";
 import type { MusicFile } from "@shared/schema";
 
-interface MusicSchedule {
-  checkin: { enabled: boolean; start: string; end: string };
-  checkout: { enabled: boolean; start: string; end: string };
+interface DayConfig {
+  enabled: boolean;
+  start: string;
+  end: string;
 }
+interface DaySchedule {
+  checkin: DayConfig;
+  checkout: DayConfig;
+}
+type WeeklySchedule = Record<string, DaySchedule>;
+
+const DAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 
 function getCurrentTime() {
   const n = new Date();
   return `${String(n.getHours()).padStart(2, "0")}:${String(n.getMinutes()).padStart(2, "0")}`;
 }
 
-function getActiveType(s: MusicSchedule | undefined): string | null {
+function getActiveType(s: WeeklySchedule | undefined): string | null {
   if (!s) return null;
+  const now = new Date();
+  const dayKey = DAY_KEYS[now.getDay()];
+  const day = s[dayKey];
+  if (!day) return null;
   const t = getCurrentTime();
-  if (s.checkin?.enabled && t >= s.checkin.start && t <= s.checkin.end) return "출근";
-  if (s.checkout?.enabled && t >= s.checkout.start && t <= s.checkout.end) return "퇴근";
+  if (day.checkin?.enabled && t >= day.checkin.start && t <= day.checkin.end) return "출근";
+  if (day.checkout?.enabled && t >= day.checkout.start && t <= day.checkout.end) return "퇴근";
   return null;
 }
 
@@ -81,7 +93,7 @@ export function MusicPlayer() {
     queryKey: ["/api/music"],
     staleTime: 60_000,
   });
-  const { data: schedule } = useQuery<MusicSchedule>({
+  const { data: schedule } = useQuery<WeeklySchedule>({
     queryKey: ["/api/music/schedule"],
     staleTime: 60_000,
   });
