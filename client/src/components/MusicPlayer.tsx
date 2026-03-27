@@ -241,29 +241,45 @@ export function MusicPlayer() {
 
   // ── Gesture-triggered play (user clicked ▶) ───────────────────────────────
   const handlePlay = (idx?: number) => {
-    const nextIdx = idx ?? currentIndex;
     markApproved();
-    skipNextPlayEffectRef.current = true;
-    if (idx !== undefined) setCurrentIndex(idx);
-    setIsPlaying(true);
     setShowPlaylist(false);
+
+    const changingSong = idx !== undefined && idx !== currentIndex;
+
+    if (changingSong) {
+      // Different song → let signedUrl effect handle it when new URL arrives
+      skipNextPlayEffectRef.current = false;
+      setCurrentIndex(idx);
+      setIsPlaying(true);
+      return;
+    }
+
+    // Same song (resume / initial play) in user-gesture context
+    skipNextPlayEffectRef.current = true;
+    setIsPlaying(true);
 
     const el = videoRef.current;
     if (!el) return;
-    const url = signedUrlRef.current;
-    if (!url) return; // signedUrl effect will trigger play when URL arrives
 
-    el.src = url;
     el.muted = false;
     el.volume = isMuted ? 0 : volume;
-    el.load();
-    el.play().catch(() => {
-      // User gesture should always succeed, but if not, just mark as paused
-      skipNextPlayEffectRef.current = false;
-      setIsPlaying(false);
-    });
 
-    void nextIdx; // suppress unused warning
+    // If src already loaded by signedUrl effect → just play (no load reset)
+    if (el.src && el.src !== window.location.href) {
+      el.play().catch(() => {
+        skipNextPlayEffectRef.current = false;
+        setIsPlaying(false);
+      });
+    } else {
+      const url = signedUrlRef.current;
+      if (!url) { skipNextPlayEffectRef.current = false; return; }
+      el.src = url;
+      el.load();
+      el.play().catch(() => {
+        skipNextPlayEffectRef.current = false;
+        setIsPlaying(false);
+      });
+    }
   };
 
   const handleClose = () => {
