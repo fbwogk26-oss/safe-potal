@@ -3316,6 +3316,20 @@ export async function registerRoutes(
     }
   });
 
+  // PATCH /api/music/:id - 음악 파일 정보 수정 (이름, 분류)
+  app.patch("/api/music/:id", requireAdmin, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const { name, scheduleType } = req.body;
+      const allowed = ["출근", "퇴근", "all"];
+      if (scheduleType && !allowed.includes(scheduleType)) return res.status(400).json({ message: "Invalid scheduleType" });
+      const updated = await storage.updateMusicFile(id, { ...(name ? { name } : {}), ...(scheduleType ? { scheduleType } : {}) });
+      res.json(updated);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   // DELETE /api/music/:id - 음악 파일 삭제 (관리자만)
   app.delete("/api/music/:id", requireAdmin, async (req, res) => {
     try {

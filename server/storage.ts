@@ -126,6 +126,7 @@ export interface IStorage {
   getMusicFiles(): Promise<MusicFile[]>;
   getMusicFile(id: number): Promise<MusicFile | undefined>;
   createMusicFile(data: InsertMusicFile): Promise<MusicFile>;
+  updateMusicFile(id: number, data: Partial<Pick<MusicFile, "name" | "scheduleType">>): Promise<MusicFile>;
   deleteMusicFile(id: number): Promise<void>;
 }
 
@@ -485,6 +486,11 @@ export class DatabaseStorage implements IStorage {
   async createMusicFile(data: InsertMusicFile): Promise<MusicFile> {
     const [created] = await db.insert(musicFiles).values(data).returning();
     return created;
+  }
+
+  async updateMusicFile(id: number, data: Partial<Pick<MusicFile, "name" | "scheduleType">>): Promise<MusicFile> {
+    const [updated] = await db.update(musicFiles).set(data).where(eq(musicFiles.id, id)).returning();
+    return updated;
   }
 
   async deleteMusicFile(id: number): Promise<void> {
