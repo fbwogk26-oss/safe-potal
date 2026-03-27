@@ -22,6 +22,7 @@ import {
   ReceiptText,
   Briefcase,
   CalendarCheck,
+  Music2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -114,6 +115,7 @@ const NAV_SECTIONS: NavSection[] = [
         children: [
           { label: "사용자 관리", href: "/admin/users", icon: Users },
           { label: "보안 감사 로그", href: "/admin/security", icon: ScrollText },
+          { label: "음악 관리", href: "/admin/music", icon: Music2 },
         ],
       },
     ],

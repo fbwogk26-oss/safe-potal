@@ -3222,6 +3222,113 @@ export async function registerRoutes(
     });
   }, 3000);
 
+  // === MUSIC FILES API ===
+  const musicUpload = multer({
+    storage: multer.diskStorage({
+      destination: uploadDir,
+      filename: (_req: any, file: any, cb: any) => {
+        const ext = safeExt(file.originalname, ["mp3", "mp4", "wav", "ogg", "m4a", "aac"]);
+        if (!ext) return cb(new Error("허용되지 않는 파일 형식입니다"));
+        cb(null, `music_${Date.now()}${ext}`);
+      },
+    }),
+    limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
+    fileFilter: (_req: any, file: any, cb: any) => {
+      const ext = path.extname(file.originalname).toLowerCase();
+      const allowed = [".mp3", ".mp4", ".wav", ".ogg", ".m4a", ".aac"];
+      if (allowed.includes(ext)) cb(null, true);
+      else cb(new Error("MP3, MP4, WAV, OGG, M4A, AAC 파일만 업로드 가능합니다"));
+    },
+  });
+
+  // GET /api/music - 음악 파일 목록
+  app.get("/api/music", isAuthenticated, async (_req, res) => {
+    try {
+      const files = await storage.getMusicFiles();
+      res.json(files);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // POST /api/music/upload - 음악 파일 업로드 (관리자만)
+  app.post("/api/music/upload", requireAdmin, musicUpload.single("audio"), async (req: any, res) => {
+    if (!req.file) return res.status(400).json({ message: "파일이 없습니다" });
+    try {
+      const scheduleType = req.body.scheduleType || "all";
+      const name = req.body.name?.trim() || req.file.originalname;
+      const ext = path.extname(req.file.originalname).toLowerCase();
+      const contentType = ext === ".mp3" ? "audio/mpeg"
+        : ext === ".mp4" ? "video/mp4"
+        : ext === ".wav" ? "audio/wav"
+        : ext === ".ogg" ? "audio/ogg"
+        : ext === ".m4a" ? "audio/mp4"
+        : ext === ".aac" ? "audio/aac"
+        : "audio/mpeg";
+
+      const buffer = fs.readFileSync(req.file.path);
+      const filename = req.file.filename;
+      const url = await uploadToObjectStorage(buffer, filename, contentType);
+      fs.unlinkSync(req.file.path);
+
+      if (!url) return res.status(500).json({ message: "오브젝트 스토리지 업로드 실패" });
+
+      const musicFile = await storage.createMusicFile({
+        name,
+        originalName: req.file.originalname,
+        url,
+        scheduleType,
+        fileSize: req.file.size,
+        uploadedBy: req.session?.userId || null,
+      });
+      res.json(musicFile);
+    } catch (e: any) {
+      if (req.file?.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // DELETE /api/music/:id - 음악 파일 삭제 (관리자만)
+  app.delete("/api/music/:id", requireAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteMusicFile(id);
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // GET /api/music/schedule - 음악 스케줄 설정 조회
+  app.get("/api/music/schedule", isAuthenticated, async (_req, res) => {
+    try {
+      const setting = await storage.getSetting("music_schedule");
+      const defaultSchedule = {
+        checkin: { enabled: true, start: "08:30", end: "08:50" },
+        checkout: { enabled: true, start: "18:00", end: "18:20" },
+      };
+      if (!setting) return res.json(defaultSchedule);
+      try {
+        res.json(JSON.parse(setting.value));
+      } catch {
+        res.json(defaultSchedule);
+      }
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // PUT /api/music/schedule - 음악 스케줄 설정 저장 (관리자만)
+  app.put("/api/music/schedule", requireAdmin, async (req, res) => {
+    try {
+      const schedule = req.body;
+      await storage.setSetting("music_schedule", JSON.stringify(schedule));
+      res.json(schedule);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   return httpServer;
 }
 

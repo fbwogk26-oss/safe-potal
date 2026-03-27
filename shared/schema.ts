@@ -398,6 +398,22 @@ export const insertWorkPlanSchema = createInsertSchema(workPlans).omit({ id: tru
 export type WorkPlan = typeof workPlans.$inferSelect;
 export type InsertWorkPlan = z.infer<typeof insertWorkPlanSchema>;
 
+// === MUSIC FILES (자동 재생 음악) ===
+export const musicFiles = pgTable("music_files", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  originalName: text("original_name").notNull(),
+  url: text("url").notNull(),
+  scheduleType: text("schedule_type").notNull().default("all"), // '출근' | '퇴근' | 'all'
+  fileSize: integer("file_size"),
+  uploadedBy: text("uploaded_by"),
+  uploadedAt: timestamp("uploaded_at").defaultNow(),
+});
+
+export const insertMusicFileSchema = createInsertSchema(musicFiles).omit({ id: true, uploadedAt: true });
+export type MusicFile = typeof musicFiles.$inferSelect;
+export type InsertMusicFile = z.infer<typeof insertMusicFileSchema>;
+
 // Export auth schema
 export * from "./models/auth";
 

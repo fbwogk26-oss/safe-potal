@@ -20,6 +20,8 @@ import {
   type TrafficFine, type InsertTrafficFine,
   workPlans,
   type WorkPlan, type InsertWorkPlan,
+  musicFiles,
+  type MusicFile, type InsertMusicFile,
 } from "@shared/schema";
 import { eq, desc, asc, and, ilike, or } from "drizzle-orm";
 
@@ -119,6 +121,12 @@ export interface IStorage {
   getWorkPlan(id: number): Promise<WorkPlan | undefined>;
   createWorkPlan(data: InsertWorkPlan): Promise<WorkPlan>;
   deleteWorkPlan(id: number): Promise<void>;
+
+  // Music Files
+  getMusicFiles(): Promise<MusicFile[]>;
+  getMusicFile(id: number): Promise<MusicFile | undefined>;
+  createMusicFile(data: InsertMusicFile): Promise<MusicFile>;
+  deleteMusicFile(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -462,6 +470,25 @@ export class DatabaseStorage implements IStorage {
 
   async deleteWorkPlan(id: number): Promise<void> {
     await db.delete(workPlans).where(eq(workPlans.id, id));
+  }
+
+  // === MUSIC FILES ===
+  async getMusicFiles(): Promise<MusicFile[]> {
+    return await db.select().from(musicFiles).orderBy(asc(musicFiles.uploadedAt));
+  }
+
+  async getMusicFile(id: number): Promise<MusicFile | undefined> {
+    const [row] = await db.select().from(musicFiles).where(eq(musicFiles.id, id));
+    return row;
+  }
+
+  async createMusicFile(data: InsertMusicFile): Promise<MusicFile> {
+    const [created] = await db.insert(musicFiles).values(data).returning();
+    return created;
+  }
+
+  async deleteMusicFile(id: number): Promise<void> {
+    await db.delete(musicFiles).where(eq(musicFiles.id, id));
   }
 }
 

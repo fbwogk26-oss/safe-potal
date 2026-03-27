@@ -27,12 +27,14 @@ import NewEquipmentRequest from "@/pages/NewEquipmentRequest";
 import TrafficFines from "@/pages/TrafficFines";
 import WorkPlan from "@/pages/WorkPlan";
 import WeatherSafetyMessage from "@/pages/WeatherSafetyMessage";
+import MusicManager from "@/pages/MusicManager";
 import Login from "@/pages/Login";
 import NotFound from "@/pages/NotFound";
 import { useAuth } from "@/hooks/use-auth";
 import { usePermissions } from "@/hooks/use-permissions";
 import { ChatBot } from "@/components/ChatBot";
 import { ForcePasswordChange } from "@/components/ForcePasswordChange";
+import { MusicPlayer } from "@/components/MusicPlayer";
 import { ShieldOff } from "lucide-react";
 
 function AccessDenied() {
@@ -102,6 +104,7 @@ function RouterContent() {
       <Route path="/digital-board">{() => <G canAccess={canViewDigitalBoard} component={DigitalBoard} />}</Route>
       <Route path="/admin/users">{() => <G canAccess={canManageUsers} component={AdminUsers} />}</Route>
       <Route path="/admin/security">{() => <G canAccess={canManageUsers} component={SecurityLogs} />}</Route>
+      <Route path="/admin/music">{() => <G canAccess={isAdmin} component={MusicManager} />}</Route>
       <Route path="/weather-safety" component={WeatherSafetyMessage} />
       <Route component={NotFound} />
     </Switch>
@@ -115,11 +118,12 @@ function MainLayout() {
       <main className="flex-1 flex flex-col min-w-0 bg-background/50 relative overflow-x-hidden">
         <div className="fixed top-0 left-0 w-full h-96 bg-primary/5 blur-3xl pointer-events-none -z-10" />
         <Topbar />
-        <div className="flex-1 px-3 sm:px-5 md:px-8 pt-4 pb-6 md:pb-10 max-w-[1600px] mx-auto w-full animate-in fade-in duration-500">
+        <div className="flex-1 px-3 sm:px-5 md:px-8 pt-4 pb-6 md:pb-20 max-w-[1600px] mx-auto w-full animate-in fade-in duration-500">
           <RouterContent />
         </div>
       </main>
       <ChatBot />
+      <MusicPlayer />
     </div>
   );
 }
