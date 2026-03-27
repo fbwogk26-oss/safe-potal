@@ -1,15 +1,12 @@
 /**
- * MusicPlayer — schedule-driven audio player
+ * MusicPlayer — simple, reliable schedule-driven player.
  *
- * Key design decisions:
- *  • NO separate "tap to start" banner. The player bar is always visible when
- *    the schedule is active.  If the browser blocks autoplay the bar shows in
- *    paused state; the user clicks ▶ once and it plays forever.
- *  • User-approval is persisted in sessionStorage so page navigations within
- *    the same browser session never reset the block.
- *  • No double-play race: signedUrl effect drives playback when the URL
- *    changes; isPlaying effect only drives pause.  skipNextPlayEffect flag
- *    prevents the isPlaying effect from duplicating a gesture-triggered play.
+ * Design:
+ *  • One <audio> element, always mounted (display:none).
+ *  • React state is only for UI. All media calls are imperative.
+ *  • tryAutoplay() — called when schedule activates / new URL loads (auto)
+ *  • handlePlayClick() — called by user gesture (always succeeds)
+ *  • No effect dependency on volume/mute so adjusting them never reloads audio.
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
@@ -17,18 +14,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import {
-  Music2,
-  Play,
-  Pause,
-  SkipForward,
-  SkipBack,
-  Volume2,
-  VolumeX,
-  X,
-  ChevronDown,
-  ChevronUp,
-  ListMusic,
-  Check,
+  Music2, Play, Pause, SkipForward, SkipBack,
+  Volume2, VolumeX, X, ChevronDown, ChevronUp, ListMusic, Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { MusicFile } from "@shared/schema";
@@ -38,270 +25,239 @@ interface MusicSchedule {
   checkout: { enabled: boolean; start: string; end: string };
 }
 
-const SESSION_APPROVED_KEY = "music_session_approved";
-
-function getCurrentTime(): string {
-  const now = new Date();
-  return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+function getCurrentTime() {
+  const n = new Date();
+  return `${String(n.getHours()).padStart(2, "0")}:${String(n.getMinutes()).padStart(2, "0")}`;
 }
 
-function getActiveScheduleType(schedule: MusicSchedule | undefined): string | null {
-  if (!schedule) return null;
-  const cur = getCurrentTime();
-  if (schedule.checkin?.enabled && cur >= schedule.checkin.start && cur <= schedule.checkin.end) return "출근";
-  if (schedule.checkout?.enabled && cur >= schedule.checkout.start && cur <= schedule.checkout.end) return "퇴근";
+function getActiveType(s: MusicSchedule | undefined): string | null {
+  if (!s) return null;
+  const t = getCurrentTime();
+  if (s.checkin?.enabled && t >= s.checkin.start && t <= s.checkin.end) return "출근";
+  if (s.checkout?.enabled && t >= s.checkout.start && t <= s.checkout.end) return "퇴근";
   return null;
 }
 
-function useSignedMusicUrl(objectPath: string | null | undefined): string | null {
+function useSignedUrl(path: string | null | undefined) {
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {
-    if (!objectPath) { setUrl(null); return; }
-    if (!objectPath.startsWith("/objects/")) { setUrl(objectPath); return; }
+    if (!path) { setUrl(null); return; }
+    if (!path.startsWith("/objects/")) { setUrl(path); return; }
     let cancelled = false;
     setUrl(null);
-    fetch(`/api/download?path=${encodeURIComponent(objectPath)}&ttl=7200`, { credentials: "include" })
+    fetch(`/api/download?path=${encodeURIComponent(path)}&ttl=7200`, { credentials: "include" })
       .then(r => r.json())
-      .then(data => { if (!cancelled && data.url) setUrl(data.url); })
-      .catch(() => { if (!cancelled) setUrl(objectPath); });
+      .then(d => { if (!cancelled && d.url) setUrl(d.url); })
+      .catch(() => { if (!cancelled) setUrl(path); });
     return () => { cancelled = true; };
-  }, [objectPath]);
+  }, [path]);
   return url;
 }
 
+const SESSION_KEY = "music_approved";
+
 export function MusicPlayer() {
-  const [isPlaying, setIsPlaying] = useState(false);
+  // ── UI state ──────────────────────────────────────────────────────────────
+  const [activeType, setActiveType] = useState<string | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(0.7);
   const [isMuted, setIsMuted] = useState(false);
-  const [activeType, setActiveType] = useState<string | null>(null);
   const [isMinimized, setIsMinimized] = useState(false);
-  const [progress, setProgress] = useState(0);
   const [showPlaylist, setShowPlaylist] = useState(false);
+  const [progress, setProgress] = useState(0);
 
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const progressRef = useRef<NodeJS.Timeout | null>(null);
-  const wasAutoTriggeredRef = useRef(false);
+  // ── Refs — always up-to-date, safe in async callbacks ─────────────────────
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const activeTypeRef = useRef<string | null>(null);
-  const isPlayingRef = useRef(false);
+  const wantPlayRef = useRef(false);
+  const wasTriggeredRef = useRef(false);
   const volumeRef = useRef(0.7);
   const isMutedRef = useRef(false);
-  const signedUrlRef = useRef<string | null>(null);
-  // Once any play (user or auto) succeeds, never block again this session
-  const userApprovedRef = useRef(
-    typeof sessionStorage !== "undefined" && sessionStorage.getItem(SESSION_APPROVED_KEY) === "true"
-  );
-  // Skip the isPlaying effect when a gesture handler already called el.play()
-  const skipNextPlayEffectRef = useRef(false);
+  const progressTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  useEffect(() => { activeTypeRef.current = activeType; }, [activeType]);
-  useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
+  // Keep refs in sync
   useEffect(() => { volumeRef.current = volume; }, [volume]);
   useEffect(() => { isMutedRef.current = isMuted; }, [isMuted]);
 
+  // ── Data ──────────────────────────────────────────────────────────────────
   const { data: allFiles = [] } = useQuery<MusicFile[]>({
     queryKey: ["/api/music"],
-    staleTime: 60000,
+    staleTime: 60_000,
   });
-
   const { data: schedule } = useQuery<MusicSchedule>({
     queryKey: ["/api/music/schedule"],
-    staleTime: 60000,
+    staleTime: 60_000,
   });
 
   const activeFiles = allFiles.filter(
-    (f) => f.scheduleType === activeType || f.scheduleType === "all"
+    f => f.scheduleType === activeType || f.scheduleType === "all"
   );
   const safeLen = Math.max(activeFiles.length, 1);
   const currentFile = activeFiles[currentIndex % safeLen];
-  const signedUrl = useSignedMusicUrl(currentFile?.url);
+  const signedUrl = useSignedUrl(currentFile?.url);
 
-  useEffect(() => { signedUrlRef.current = signedUrl; }, [signedUrl]);
+  // ── Progress ticker ───────────────────────────────────────────────────────
+  useEffect(() => {
+    if (isPlaying) {
+      progressTimer.current = setInterval(() => {
+        const a = audioRef.current;
+        if (a?.duration) setProgress((a.currentTime / a.duration) * 100);
+      }, 500);
+    } else {
+      if (progressTimer.current) clearInterval(progressTimer.current);
+    }
+    return () => { if (progressTimer.current) clearInterval(progressTimer.current); };
+  }, [isPlaying]);
 
-  // ── Approve helper ────────────────────────────────────────────────────────
-  const markApproved = () => {
-    userApprovedRef.current = true;
-    try { sessionStorage.setItem(SESSION_APPROVED_KEY, "true"); } catch { /* ignore */ }
-  };
+  // ── Volume / mute sync (direct, no reload) ────────────────────────────────
+  useEffect(() => {
+    const el = audioRef.current;
+    if (!el) return;
+    el.volume = isMuted ? 0 : volume;
+    el.muted = false;
+  }, [volume, isMuted]);
 
-  // ── Autoplay helper ───────────────────────────────────────────────────────
-  // Normal play → muted fallback. If both fail and user hasn't approved yet,
-  // simply leave the player bar in paused state — no banner is shown.
-  const attemptAutoplay = useCallback(async (el: HTMLVideoElement) => {
+  // ── Autoplay (stable ref — doesn't cause effect re-runs) ─────────────────
+  // Uses volumeRef/isMutedRef so it's always up-to-date without being a dep.
+  const tryAutoplay = useCallback(async (el: HTMLAudioElement) => {
+    el.muted = false;
     el.volume = isMutedRef.current ? 0 : volumeRef.current;
     try {
       await el.play();
-      markApproved();
       setIsPlaying(true);
+      try { sessionStorage.setItem(SESSION_KEY, "1"); } catch { /* ok */ }
     } catch {
+      // Try muted fallback (often allowed even when normal autoplay is blocked)
       el.muted = true;
       try {
         await el.play();
         el.muted = false;
         el.volume = isMutedRef.current ? 0 : volumeRef.current;
-        markApproved();
         setIsPlaying(true);
+        try { sessionStorage.setItem(SESSION_KEY, "1"); } catch { /* ok */ }
       } catch {
-        // Both blocked — leave player bar visible in paused state
+        el.muted = false;
         setIsPlaying(false);
       }
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); // stable — uses refs internally
+
+  // ── When signed URL changes, load it. Play if we intend to. ──────────────
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const el = audioRef.current;
+    if (!el || !signedUrl) return;
+    el.src = signedUrl;
+    el.load();
+    if (wantPlayRef.current) {
+      tryAutoplay(el);
+    }
+  }, [signedUrl]); // intentionally omit tryAutoplay (stable ref, safe)
 
   // ── Schedule watcher ──────────────────────────────────────────────────────
   useEffect(() => {
     const check = () => {
-      const newType = getActiveScheduleType(schedule);
+      const newType = getActiveType(schedule);
       const prev = activeTypeRef.current;
       if (newType === prev) return;
+
       activeTypeRef.current = newType;
       setActiveType(newType);
+
       if (!newType) {
+        wantPlayRef.current = false;
+        wasTriggeredRef.current = false;
         setIsPlaying(false);
         setShowPlaylist(false);
-        wasAutoTriggeredRef.current = false;
-        // Clear session approval so next schedule activation starts fresh
-        try { sessionStorage.removeItem(SESSION_APPROVED_KEY); } catch { /* ignore */ }
-        userApprovedRef.current = false;
-      } else if (!wasAutoTriggeredRef.current) {
-        wasAutoTriggeredRef.current = true;
-        // Attempt autoplay — player bar is already visible regardless
-        setIsPlaying(true); // optimistic; attemptAutoplay may revert to false
+        audioRef.current?.pause();
+        try { sessionStorage.removeItem(SESSION_KEY); } catch { /* ok */ }
+      } else if (!wasTriggeredRef.current) {
+        wasTriggeredRef.current = true;
+        wantPlayRef.current = true;
+        // If URL is already available, play now. Otherwise signedUrl effect handles it.
+        const el = audioRef.current;
+        if (el && signedUrl) {
+          if (!el.src || el.src !== signedUrl) {
+            el.src = signedUrl;
+            el.load();
+          }
+          tryAutoplay(el);
+        }
       }
     };
+
     check();
-    const timer = setInterval(check, 30000);
+    const timer = setInterval(check, 30_000);
     return () => clearInterval(timer);
-  }, [schedule]);
-
-  // ── Load new signed URL → attempt play if we should be playing ────────────
-  useEffect(() => {
-    if (!videoRef.current || !signedUrl) return;
-    const el = videoRef.current;
-    el.src = signedUrl;
-    el.load();
-    if (isPlayingRef.current) {
-      attemptAutoplay(el);
-    }
-  }, [signedUrl, attemptAutoplay]);
-
-  // ── isPlaying toggle (pause only — play is driven above or by gesture) ────
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    if (!videoRef.current) return;
-    const el = videoRef.current;
-    if (!isPlaying) {
-      el.pause();
-      return;
-    }
-    if (skipNextPlayEffectRef.current) {
-      skipNextPlayEffectRef.current = false;
-      return; // gesture handler already called el.play()
-    }
-    const url = signedUrlRef.current;
-    if (!url) return; // signedUrl effect will handle it
-    if (!el.src || el.src === window.location.href) {
-      el.src = url;
-      el.load();
-    }
-    attemptAutoplay(el);
-  }, [isPlaying, attemptAutoplay]);
-
-  // ── Volume sync ───────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (videoRef.current) {
-      videoRef.current.volume = isMuted ? 0 : volume;
-      videoRef.current.muted = false;
-    }
-  }, [volume, isMuted]);
-
-  // ── Progress bar ──────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (isPlaying) {
-      progressRef.current = setInterval(() => {
-        if (videoRef.current?.duration) {
-          setProgress((videoRef.current.currentTime / videoRef.current.duration) * 100);
-        }
-      }, 500);
-    } else {
-      if (progressRef.current) clearInterval(progressRef.current);
-    }
-    return () => { if (progressRef.current) clearInterval(progressRef.current); };
-  }, [isPlaying]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [schedule]); // signedUrl & tryAutoplay intentionally omitted (stable refs)
 
   // ── Next / Prev ───────────────────────────────────────────────────────────
   const playNext = useCallback(() => {
-    if (!isPlayingRef.current) return; // no cycling when not playing
+    if (!wantPlayRef.current) return;
     setCurrentIndex(i => (i + 1) % Math.max(activeFiles.length, 1));
   }, [activeFiles.length]);
 
   const playPrev = useCallback(() => {
-    setCurrentIndex(i => (i - 1 + activeFiles.length) % Math.max(activeFiles.length, 1));
+    setCurrentIndex(i => (i - 1 + Math.max(activeFiles.length, 1)) % Math.max(activeFiles.length, 1));
   }, [activeFiles.length]);
 
-  // ── Gesture-triggered play (user clicked ▶) ───────────────────────────────
-  const handlePlay = (idx?: number) => {
-    markApproved();
-    setShowPlaylist(false);
-
-    const changingSong = idx !== undefined && idx !== currentIndex;
-
-    if (changingSong) {
-      // Different song → let signedUrl effect handle it when new URL arrives
-      skipNextPlayEffectRef.current = false;
-      setCurrentIndex(idx);
-      setIsPlaying(true);
-      return;
-    }
-
-    // Same song (resume / initial play) in user-gesture context
-    skipNextPlayEffectRef.current = true;
-    setIsPlaying(true);
-
-    const el = videoRef.current;
+  // ── User gesture play (always works in browser) ───────────────────────────
+  const handlePlayClick = useCallback(() => {
+    const el = audioRef.current;
     if (!el) return;
+    wantPlayRef.current = true;
+    try { sessionStorage.setItem(SESSION_KEY, "1"); } catch { /* ok */ }
+
+    if (!el.src && signedUrl) {
+      el.src = signedUrl;
+      el.load();
+    }
 
     el.muted = false;
-    el.volume = isMuted ? 0 : volume;
+    el.volume = isMutedRef.current ? 0 : volumeRef.current;
 
-    // If src already loaded by signedUrl effect → just play (no load reset)
-    if (el.src && el.src !== window.location.href) {
-      el.play().catch(() => {
-        skipNextPlayEffectRef.current = false;
-        setIsPlaying(false);
-      });
-    } else {
-      const url = signedUrlRef.current;
-      if (!url) { skipNextPlayEffectRef.current = false; return; }
-      el.src = url;
-      el.load();
-      el.play().catch(() => {
-        skipNextPlayEffectRef.current = false;
-        setIsPlaying(false);
-      });
-    }
-  };
+    el.play()
+      .then(() => setIsPlaying(true))
+      .catch(() => setIsPlaying(false));
+  }, [signedUrl]);
 
-  const handleClose = () => {
+  const handlePauseClick = useCallback(() => {
+    wantPlayRef.current = false;
+    audioRef.current?.pause();
     setIsPlaying(false);
-    setActiveType(null);
+  }, []);
+
+  const handleClose = useCallback(() => {
+    wantPlayRef.current = false;
+    wasTriggeredRef.current = false;
     activeTypeRef.current = null;
-    wasAutoTriggeredRef.current = false;
-    userApprovedRef.current = false;
+    setActiveType(null);
+    setIsPlaying(false);
     setShowPlaylist(false);
-    try { sessionStorage.removeItem(SESSION_APPROVED_KEY); } catch { /* ignore */ }
-    if (videoRef.current) { videoRef.current.pause(); videoRef.current.src = ""; }
-  };
+    if (audioRef.current) { audioRef.current.pause(); audioRef.current.src = ""; }
+    try { sessionStorage.removeItem(SESSION_KEY); } catch { /* ok */ }
+  }, []);
 
   const handleSeek = (pct: number) => {
-    if (videoRef.current?.duration) {
-      videoRef.current.currentTime = (pct / 100) * videoRef.current.duration;
-      setProgress(pct);
-    }
+    const el = audioRef.current;
+    if (el?.duration) { el.currentTime = (pct / 100) * el.duration; setProgress(pct); }
   };
 
-  // Only render when schedule is active and there are songs
-  if (!activeType || activeFiles.length === 0) return null;
+  // Audio element is always mounted to keep the ref valid
+  const audioEl = (
+    <audio
+      ref={audioRef}
+      onEnded={playNext}
+      onError={() => { if (wantPlayRef.current) setTimeout(playNext, 1500); }}
+      style={{ display: "none" }}
+      playsInline
+      preload="auto"
+    />
+  );
+
+  if (!activeType || activeFiles.length === 0) return audioEl;
 
   const scheduleLabel = activeType === "출근" ? "🌅 출근음악" : "🌆 퇴근음악";
   const bgColor = activeType === "출근" ? "from-orange-500 to-yellow-500" : "from-indigo-600 to-purple-600";
@@ -310,19 +266,11 @@ export function MusicPlayer() {
 
   return (
     <>
-      <video
-        ref={videoRef}
-        onEnded={playNext}
-        onError={() => { if (isPlayingRef.current) setTimeout(playNext, 1500); }}
-        style={{ display: "none" }}
-        playsInline
-        preload="auto"
-      />
+      {audioEl}
 
-      {/* ── Persistent player bar (always visible when schedule is active) ── */}
       <div className="fixed bottom-0 left-0 right-0 z-[60] animate-in slide-in-from-bottom duration-300 shadow-2xl">
 
-        {/* Playlist panel */}
+        {/* Playlist */}
         {showPlaylist && (
           <div className={cn("animate-in slide-in-from-bottom duration-200 border-t border-white/20", solidBg)}>
             <div className="max-w-3xl mx-auto">
@@ -332,7 +280,8 @@ export function MusicPlayer() {
                   <span className="text-sm font-semibold">{scheduleLabel} 재생목록</span>
                   <span className="text-xs text-white/60">{activeFiles.length}곡</span>
                 </div>
-                <Button variant="ghost" size="icon" className="h-6 w-6 text-white/70 hover:bg-white/20" onClick={() => setShowPlaylist(false)} data-testid="button-playlist-close">
+                <Button variant="ghost" size="icon" className="h-6 w-6 text-white/70 hover:bg-white/20"
+                  onClick={() => setShowPlaylist(false)} data-testid="button-playlist-close">
                   <ChevronDown className="w-4 h-4" />
                 </Button>
               </div>
@@ -342,7 +291,16 @@ export function MusicPlayer() {
                   return (
                     <button
                       key={file.id}
-                      onClick={() => handlePlay(idx)}
+                      onClick={() => {
+                        setShowPlaylist(false);
+                        wantPlayRef.current = true;
+                        if (idx === activeSongIdx) {
+                          handlePlayClick();
+                        } else {
+                          setCurrentIndex(idx);
+                          // signedUrl effect will fire when new URL arrives
+                        }
+                      }}
                       className={cn(
                         "w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors",
                         isActive ? "bg-white/25 text-white" : "text-white/80 hover:bg-white/15 hover:text-white"
@@ -352,9 +310,10 @@ export function MusicPlayer() {
                       <div className="w-6 h-6 flex items-center justify-center shrink-0">
                         {isActive && isPlaying ? (
                           <div className="flex gap-[2px] items-end h-4">
-                            <span className="w-[3px] bg-white rounded-full animate-[bounce_0.8s_ease-in-out_infinite]" style={{ height: "60%", animationDelay: "0ms" }} />
-                            <span className="w-[3px] bg-white rounded-full animate-[bounce_0.8s_ease-in-out_infinite]" style={{ height: "100%", animationDelay: "160ms" }} />
-                            <span className="w-[3px] bg-white rounded-full animate-[bounce_0.8s_ease-in-out_infinite]" style={{ height: "40%", animationDelay: "320ms" }} />
+                            {[0, 160, 320].map((delay, i) => (
+                              <span key={i} className="w-[3px] bg-white rounded-full animate-[bounce_0.8s_ease-in-out_infinite]"
+                                style={{ height: i === 1 ? "100%" : i === 0 ? "60%" : "40%", animationDelay: `${delay}ms` }} />
+                            ))}
                           </div>
                         ) : (
                           <span className="text-xs text-white/40 font-mono">{idx + 1}</span>
@@ -376,21 +335,18 @@ export function MusicPlayer() {
         )}
 
         {/* Progress bar */}
-        <div
-          className="h-1 bg-black/20 cursor-pointer"
-          onClick={(e) => {
+        <div className="h-1 bg-black/20 cursor-pointer"
+          onClick={e => {
             const r = e.currentTarget.getBoundingClientRect();
             handleSeek(((e.clientX - r.left) / r.width) * 100);
-          }}
-        >
+          }}>
           <div className="h-full bg-white/80 transition-none" style={{ width: `${progress}%` }} />
         </div>
 
-        {/* Controls */}
+        {/* Player bar */}
         <div className={cn("bg-gradient-to-r px-4 py-2", bgColor)}>
           {!isMinimized ? (
             <div className="max-w-3xl mx-auto flex items-center gap-3">
-              {/* Disc icon — spins only when playing */}
               <div className={cn(
                 "w-9 h-9 rounded-full bg-white/20 flex items-center justify-center shrink-0",
                 isPlaying && "animate-[spin_8s_linear_infinite]"
@@ -398,72 +354,59 @@ export function MusicPlayer() {
                 <Music2 className="w-4 h-4 text-white" />
               </div>
 
-              {/* Song info */}
               <div className="flex-1 min-w-0">
                 <p className="text-white font-semibold text-sm truncate" data-testid="text-current-song">
                   {currentFile?.name || "음악 준비 중"}
                 </p>
                 <p className="text-white/70 text-xs">
                   {scheduleLabel} · {activeSongIdx + 1}/{activeFiles.length}
-                  {!isPlaying && <span className="ml-2 text-white/50">▶ 눌러서 재생</span>}
+                  {!isPlaying && <span className="ml-2 text-white/50 animate-pulse">▶ 눌러서 재생</span>}
                 </p>
               </div>
 
-              {/* Playback controls */}
               <div className="flex items-center gap-1">
-                <Button variant="ghost" size="icon" className="h-8 w-8 text-white hover:bg-white/20" onClick={playPrev} data-testid="button-music-prev">
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-white hover:bg-white/20"
+                  onClick={playPrev} data-testid="button-music-prev">
                   <SkipBack className="w-4 h-4" />
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
+                <Button variant="ghost" size="icon"
                   className="h-9 w-9 text-white hover:bg-white/20 bg-white/10"
-                  onClick={() => {
-                    if (isPlaying) {
-                      setIsPlaying(false);
-                    } else {
-                      handlePlay();
-                    }
-                  }}
-                  data-testid="button-music-play-pause"
-                >
+                  onClick={isPlaying ? handlePauseClick : handlePlayClick}
+                  data-testid="button-music-play-pause">
                   {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
                 </Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8 text-white hover:bg-white/20" onClick={playNext} data-testid="button-music-next">
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-white hover:bg-white/20"
+                  onClick={playNext} data-testid="button-music-next">
                   <SkipForward className="w-4 h-4" />
                 </Button>
               </div>
 
-              {/* Volume */}
               <div className="hidden sm:flex items-center gap-2 w-28">
-                <Button variant="ghost" size="icon" className="h-7 w-7 text-white hover:bg-white/20 shrink-0" onClick={() => setIsMuted(m => !m)} data-testid="button-music-mute">
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-white hover:bg-white/20 shrink-0"
+                  onClick={() => setIsMuted(m => !m)} data-testid="button-music-mute">
                   {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
                 </Button>
                 <Slider
                   value={[isMuted ? 0 : volume * 100]}
                   onValueChange={v => { setVolume(v[0] / 100); setIsMuted(v[0] === 0); }}
-                  min={0} max={100} step={1}
-                  className="flex-1"
+                  min={0} max={100} step={1} className="flex-1"
                   data-testid="slider-music-volume"
                 />
               </div>
 
-              {/* Playlist toggle */}
-              <Button
-                variant="ghost"
-                size="icon"
+              <Button variant="ghost" size="icon"
                 className={cn("h-7 w-7 text-white hover:bg-white/20", showPlaylist && "bg-white/20")}
-                onClick={() => setShowPlaylist(p => !p)}
-                title="재생목록"
-                data-testid="button-music-playlist"
-              >
+                onClick={() => setShowPlaylist(p => !p)} title="재생목록"
+                data-testid="button-music-playlist">
                 <ListMusic className="w-4 h-4" />
               </Button>
-
-              <Button variant="ghost" size="icon" className="h-7 w-7 text-white hover:bg-white/20" onClick={() => { setIsMinimized(true); setShowPlaylist(false); }} data-testid="button-music-minimize">
+              <Button variant="ghost" size="icon" className="h-7 w-7 text-white hover:bg-white/20"
+                onClick={() => { setIsMinimized(true); setShowPlaylist(false); }}
+                data-testid="button-music-minimize">
                 <ChevronDown className="w-4 h-4" />
               </Button>
-              <Button variant="ghost" size="icon" className="h-7 w-7 text-white hover:bg-white/20" onClick={handleClose} data-testid="button-music-close">
+              <Button variant="ghost" size="icon" className="h-7 w-7 text-white hover:bg-white/20"
+                onClick={handleClose} data-testid="button-music-close">
                 <X className="w-4 h-4" />
               </Button>
             </div>
@@ -474,16 +417,13 @@ export function MusicPlayer() {
                 <span className="text-sm font-medium truncate max-w-[200px]">{currentFile?.name || scheduleLabel}</span>
               </div>
               <div className="flex items-center gap-1">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-white hover:bg-white/20"
-                  onClick={() => { if (isPlaying) setIsPlaying(false); else handlePlay(); }}
-                  data-testid="button-music-play-pause-mini"
-                >
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-white hover:bg-white/20"
+                  onClick={isPlaying ? handlePauseClick : handlePlayClick}
+                  data-testid="button-music-play-pause-mini">
                   {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
                 </Button>
-                <Button variant="ghost" size="icon" className="h-7 w-7 text-white hover:bg-white/20" onClick={() => setIsMinimized(false)} data-testid="button-music-expand">
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-white hover:bg-white/20"
+                  onClick={() => setIsMinimized(false)} data-testid="button-music-expand">
                   <ChevronUp className="w-4 h-4" />
                 </Button>
               </div>
