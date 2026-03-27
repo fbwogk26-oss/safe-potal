@@ -3224,14 +3224,7 @@ export async function registerRoutes(
 
   // === MUSIC FILES API ===
   const musicUpload = multer({
-    storage: multer.diskStorage({
-      destination: uploadDir,
-      filename: (_req: any, file: any, cb: any) => {
-        const ext = safeExt(file.originalname, ["mp3", "mp4", "wav", "ogg", "m4a", "aac"]);
-        if (!ext) return cb(new Error("허용되지 않는 파일 형식입니다"));
-        cb(null, `music_${Date.now()}${ext}`);
-      },
-    }),
+    storage: multer.memoryStorage(),
     limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
     fileFilter: (_req: any, file: any, cb: any) => {
       const ext = path.extname(file.originalname).toLowerCase();
@@ -3266,12 +3259,11 @@ export async function registerRoutes(
         : ext === ".aac" ? "audio/aac"
         : "audio/mpeg";
 
-      const buffer = fs.readFileSync(req.file.path);
-      const filename = req.file.filename;
+      const filename = `music_${Date.now()}${ext}`;
+      const buffer = req.file.buffer;
       const url = await uploadToObjectStorage(buffer, filename, contentType);
-      fs.unlinkSync(req.file.path);
 
-      if (!url) return res.status(500).json({ message: "오브젝트 스토리지 업로드 실패" });
+      if (!url) return res.status(500).json({ message: "오브젝트 스토리지 업로드 실패. 네트워크 오류 또는 스토리지 설정을 확인하세요." });
 
       const musicFile = await storage.createMusicFile({
         name,
@@ -3283,7 +3275,7 @@ export async function registerRoutes(
       });
       res.json(musicFile);
     } catch (e: any) {
-      if (req.file?.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+      console.error("[Music upload error]", e);
       res.status(500).json({ message: e.message });
     }
   });
