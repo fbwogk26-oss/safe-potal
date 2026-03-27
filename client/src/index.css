@@ -93,6 +93,30 @@ html {
 }
 
 /* ────────────────────────────────────────────────
+   버튼 개선: 기본 상호작용 강화
+──────────────────────────────────────────────── */
+@layer components {
+  /* Primary 버튼 (shadcn default variant) 시각적 강화 */
+  .btn-primary-enhanced {
+    @apply bg-primary text-primary-foreground font-semibold shadow-md
+           hover:shadow-lg hover:bg-primary/95 active:scale-[0.98] active:shadow-sm
+           transition-all duration-150 ease-out;
+  }
+
+  /* 아이콘 버튼 둥근 호버 */
+  .btn-icon {
+    @apply inline-flex items-center justify-center rounded-lg p-2
+           text-muted-foreground hover:bg-muted hover:text-foreground
+           transition-colors duration-150;
+  }
+
+  /* 섹션 헤더 라벨 */
+  .section-label {
+    @apply text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70;
+  }
+}
+
+/* ────────────────────────────────────────────────
    글로벌 카드 스타일
 ──────────────────────────────────────────────── */
 .glass-panel {
@@ -115,7 +139,7 @@ html {
 }
 
 .page-header-icon {
-  @apply p-2 rounded-lg text-white shadow-sm;
+  @apply p-2.5 rounded-xl text-white shadow-md;
 }
 
 .page-title {
@@ -184,14 +208,14 @@ table tbody td {
    스크롤바
 ──────────────────────────────────────────────── */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track {
   @apply bg-transparent;
 }
 ::-webkit-scrollbar-thumb {
-  @apply bg-border rounded-full hover:bg-muted-foreground/30 transition-colors;
+  @apply bg-border/80 rounded-full hover:bg-muted-foreground/30 transition-colors;
 }
 
 /* ────────────────────────────────────────────────

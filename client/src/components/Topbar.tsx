@@ -149,9 +149,9 @@ export function Topbar() {
   }, [notices, pinnedData]);
 
   return (
-    <header className="sticky top-0 z-50 bg-background border-b shadow-sm">
+    <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border/70 shadow-sm">
       <div className="flex flex-col">
-        <div className="flex items-center justify-between px-4 py-3 gap-2">
+        <div className="flex items-center justify-between px-4 py-2.5 gap-2">
           <div className="flex items-center gap-3 min-w-0">
             <Button
               variant="ghost"
