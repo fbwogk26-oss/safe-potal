@@ -38,20 +38,15 @@ function getActiveType(s: MusicSchedule | undefined): string | null {
   return null;
 }
 
-function useSignedUrl(path: string | null | undefined) {
-  const [url, setUrl] = useState<string | null>(null);
-  useEffect(() => {
-    if (!path) { setUrl(null); return; }
-    if (!path.startsWith("/objects/")) { setUrl(path); return; }
-    let cancelled = false;
-    setUrl(null);
-    fetch(`/api/download?path=${encodeURIComponent(path)}&ttl=7200`, { credentials: "include" })
-      .then(r => r.json())
-      .then(d => { if (!cancelled && d.url) setUrl(d.url); })
-      .catch(() => { if (!cancelled) setUrl(path); });
-    return () => { cancelled = true; };
-  }, [path]);
-  return url;
+/**
+ * For music files we stream directly through Express (/objects/... route)
+ * which already handles Range requests + auth cookies (same-origin).
+ * This avoids signed-URL sidecar availability issues on deployed servers.
+ */
+function useMusicUrl(path: string | null | undefined): string | null {
+  if (!path) return null;
+  // Already a direct path → use as-is
+  return path;
 }
 
 const SESSION_KEY = "music_approved";
@@ -96,7 +91,7 @@ export function MusicPlayer() {
   );
   const safeLen = Math.max(activeFiles.length, 1);
   const currentFile = activeFiles[currentIndex % safeLen];
-  const signedUrl = useSignedUrl(currentFile?.url);
+  const musicUrl = useMusicUrl(currentFile?.url);
 
   // ── Progress ticker ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -150,13 +145,13 @@ export function MusicPlayer() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const el = videoRef.current;
-    if (!el || !signedUrl) return;
-    el.src = signedUrl;
+    if (!el || !musicUrl) return;
+    el.src = musicUrl;
     el.load();
     if (wantPlayRef.current) {
       tryAutoplay(el);
     }
-  }, [signedUrl]); // intentionally omit tryAutoplay (stable ref, safe)
+  }, [musicUrl]); // intentionally omit tryAutoplay (stable ref, safe)
 
   // ── Schedule watcher ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -178,11 +173,11 @@ export function MusicPlayer() {
       } else if (!wasTriggeredRef.current) {
         wasTriggeredRef.current = true;
         wantPlayRef.current = true;
-        // If URL is already available, play now. Otherwise signedUrl effect handles it.
+        // If URL is already available, play now. Otherwise musicUrl effect handles it.
         const el = videoRef.current;
-        if (el && signedUrl) {
-          if (!el.src || el.src !== signedUrl) {
-            el.src = signedUrl;
+        if (el && musicUrl) {
+          if (!el.src || el.src !== musicUrl) {
+            el.src = musicUrl;
             el.load();
           }
           tryAutoplay(el);
@@ -194,7 +189,7 @@ export function MusicPlayer() {
     const timer = setInterval(check, 30_000);
     return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schedule]); // signedUrl & tryAutoplay intentionally omitted (stable refs)
+  }, [schedule]); // musicUrl & tryAutoplay intentionally omitted (stable refs)
 
   // ── Next / Prev ───────────────────────────────────────────────────────────
   const playNext = useCallback(() => {
@@ -214,18 +209,27 @@ export function MusicPlayer() {
     errorCountRef.current = 0;
     try { sessionStorage.setItem(SESSION_KEY, "1"); } catch { /* ok */ }
 
-    if (!el.src && signedUrl) {
-      el.src = signedUrl;
-      el.load();
-    }
-
     el.muted = false;
     el.volume = isMutedRef.current ? 0 : volumeRef.current;
+
+    // Ensure src is set
+    if (musicUrl) {
+      const fullUrl = musicUrl.startsWith("http") ? musicUrl : (location.origin + musicUrl);
+      if (el.src !== fullUrl && el.src !== musicUrl) {
+        el.src = musicUrl;
+      }
+    }
+
+    // If element is in an error state or has no data, reload before playing.
+    // load() + play() in the same click handler preserves the user gesture.
+    if (el.error || el.readyState < 1) {
+      el.load();
+    }
 
     el.play()
       .then(() => setIsPlaying(true))
       .catch(() => setIsPlaying(false));
-  }, [signedUrl]);
+  }, [musicUrl]);
 
   const handlePauseClick = useCallback(() => {
     wantPlayRef.current = false;
@@ -312,7 +316,7 @@ export function MusicPlayer() {
                           handlePlayClick();
                         } else {
                           setCurrentIndex(idx);
-                          // signedUrl effect will fire when new URL arrives
+                          // musicUrl effect will fire when new URL arrives
                         }
                       }}
                       className={cn(
