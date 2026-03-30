@@ -1,4 +1,4 @@
-import { Bell, LogOut, Users, Menu, LayoutDashboard, ShieldCheck, Shield, HeartPulse, GraduationCap, DoorOpen, ShoppingCart, MonitorPlay, ClipboardCheck, FileText, KeyRound, Eye, EyeOff, AlertTriangle, ShieldAlert, FlaskConical, ChevronDown, ScrollText, Bone, Home, ReceiptText, Briefcase, CalendarCheck, Music2 } from "lucide-react";
+import { Bell, LogOut, Users, Menu, LayoutDashboard, ShieldCheck, Shield, HeartPulse, GraduationCap, DoorOpen, ShoppingCart, MonitorPlay, ClipboardCheck, FileText, KeyRound, Eye, EyeOff, AlertTriangle, ShieldAlert, FlaskConical, ChevronDown, ScrollText, Bone, Home, ReceiptText, Briefcase, CalendarCheck, Music2, Fuel } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -81,6 +81,7 @@ const MOBILE_NAV_ITEMS: MobileNavEntry[] = [
       { label: "사용자 관리", href: "/admin/users", icon: Users },
       { label: "보안 감사 로그", href: "/admin/security", icon: ScrollText },
       { label: "음악 관리", href: "/admin/music", icon: Music2 },
+      { label: "유류비 현황", href: "/admin/fuel-costs", icon: Fuel },
     ],
   },
 ];
@@ -153,9 +154,9 @@ export function Topbar() {
               <span className="text-[9px] font-bold leading-none tracking-tight">kt</span>
               <span className="text-[7px] font-semibold leading-none tracking-tight">MOS</span>
             </div>
-            <div>
-              <h1 className="text-sm font-bold leading-tight text-foreground">종합안전포털시스템</h1>
-              <p className="text-[10px] text-muted-foreground -mt-0.5">Safety Portal System</p>
+            <div className="min-w-0">
+              <h1 className="text-sm font-bold leading-tight text-foreground truncate max-w-[130px] sm:max-w-none">종합안전포털</h1>
+              <p className="text-[10px] text-muted-foreground -mt-0.5 hidden sm:block">Safety Portal System</p>
             </div>
           </div>
         </Link>

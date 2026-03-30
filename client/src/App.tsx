@@ -120,7 +120,7 @@ function MainLayout() {
       <main className="flex-1 flex flex-col min-w-0 bg-background/50 relative overflow-x-hidden">
         <div className="fixed top-0 left-0 w-full h-96 bg-primary/5 blur-3xl pointer-events-none -z-10" />
         <Topbar />
-        <div className="flex-1 px-3 sm:px-5 md:px-8 pt-4 pb-6 md:pb-20 max-w-[1600px] mx-auto w-full animate-in fade-in duration-500">
+        <div className="flex-1 px-3 sm:px-5 md:px-8 pt-4 pb-24 max-w-[1600px] mx-auto w-full animate-in fade-in duration-500">
           <RouterContent />
         </div>
       </main>

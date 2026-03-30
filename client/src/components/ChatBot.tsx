@@ -381,7 +381,7 @@ export function ChatBot() {
             background: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 30%, #a855f7 60%, #d946ef 100%)",
             ...(pos
               ? { left: pos.x + PANEL_W - BTN_SIZE, top: pos.y + PANEL_H - BTN_SIZE }
-              : { bottom: 16, right: 16 }),
+              : { bottom: 76, right: 16 }),
           }}
           data-testid="button-chatbot-open"
         >
@@ -398,7 +398,7 @@ export function ChatBot() {
       {isOpen && (
         <div
           className="fixed z-50 w-[380px] max-w-[calc(100vw-2rem)] h-[560px] max-h-[calc(100vh-2rem)] bg-background border rounded-2xl shadow-2xl flex flex-col overflow-hidden"
-          style={pos ? { left: pos.x, top: pos.y } : { bottom: 16, right: 16 }}
+          style={pos ? { left: pos.x, top: pos.y } : { bottom: 76, right: 16 }}
           data-testid="chatbot-panel"
         >
           {/* 드래그 핸들 헤더 */}

@@ -401,10 +401,10 @@ export default function FuelCosts() {
 
       {(hasData || summaryLoading) && (
         <Tabs value={tab} onValueChange={setTab}>
-          <TabsList className="h-10">
-            <TabsTrigger value="dashboard" className="px-5" data-testid="tab-dashboard">대시보드</TabsTrigger>
-            <TabsTrigger value="detail" className="px-5" data-testid="tab-detail">상세 데이터</TabsTrigger>
-            <TabsTrigger value="upload" className="px-5" data-testid="tab-upload">업로드 관리</TabsTrigger>
+          <TabsList className="h-10 w-full sm:w-auto">
+            <TabsTrigger value="dashboard" className="flex-1 sm:flex-none sm:px-5 text-xs sm:text-sm" data-testid="tab-dashboard">대시보드</TabsTrigger>
+            <TabsTrigger value="detail" className="flex-1 sm:flex-none sm:px-5 text-xs sm:text-sm" data-testid="tab-detail">상세 데이터</TabsTrigger>
+            <TabsTrigger value="upload" className="flex-1 sm:flex-none sm:px-5 text-xs sm:text-sm" data-testid="tab-upload">업로드 관리</TabsTrigger>
           </TabsList>
 
           {/* ══════════ 대시보드 ══════════ */}
