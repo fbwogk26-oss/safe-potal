@@ -22,8 +22,10 @@ import {
   type WorkPlan, type InsertWorkPlan,
   musicFiles,
   type MusicFile, type InsertMusicFile,
+  fuelRecords,
+  type FuelRecord, type InsertFuelRecord,
 } from "@shared/schema";
-import { eq, desc, asc, and, ilike, or } from "drizzle-orm";
+import { eq, desc, asc, and, ilike, or, sql, inArray } from "drizzle-orm";
 
 export interface IStorage {
   // Teams
@@ -128,6 +130,13 @@ export interface IStorage {
   createMusicFile(data: InsertMusicFile): Promise<MusicFile>;
   updateMusicFile(id: number, data: Partial<Pick<MusicFile, "name" | "scheduleType">>): Promise<MusicFile>;
   deleteMusicFile(id: number): Promise<void>;
+
+  // Fuel Records
+  getFuelRecords(filters?: { year?: number; month?: number; team?: string; fuelType?: string }): Promise<FuelRecord[]>;
+  insertFuelRecords(records: InsertFuelRecord[]): Promise<number>;
+  deleteFuelRecordsByBatch(batchId: string): Promise<void>;
+  deleteFuelRecordsByYearMonth(year: number, month: number): Promise<void>;
+  getFuelBatches(): Promise<{ batchId: string; uploadedAt: Date; recordCount: number; yearMonths: string[] }[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -495,6 +504,58 @@ export class DatabaseStorage implements IStorage {
 
   async deleteMusicFile(id: number): Promise<void> {
     await db.delete(musicFiles).where(eq(musicFiles.id, id));
+  }
+
+  // === FUEL RECORDS ===
+  async getFuelRecords(filters?: { year?: number; month?: number; team?: string; fuelType?: string }): Promise<FuelRecord[]> {
+    const conditions = [];
+    if (filters?.year) conditions.push(eq(fuelRecords.year, filters.year));
+    if (filters?.month) conditions.push(eq(fuelRecords.month, filters.month));
+    if (filters?.team) conditions.push(eq(fuelRecords.team, filters.team));
+    if (filters?.fuelType) conditions.push(eq(fuelRecords.fuelType, filters.fuelType));
+    const query = conditions.length > 0
+      ? db.select().from(fuelRecords).where(and(...conditions))
+      : db.select().from(fuelRecords);
+    return await query.orderBy(fuelRecords.year, fuelRecords.month, fuelRecords.team);
+  }
+
+  async insertFuelRecords(records: InsertFuelRecord[]): Promise<number> {
+    if (records.length === 0) return 0;
+    const chunkSize = 500;
+    let inserted = 0;
+    for (let i = 0; i < records.length; i += chunkSize) {
+      const chunk = records.slice(i, i + chunkSize);
+      await db.insert(fuelRecords).values(chunk);
+      inserted += chunk.length;
+    }
+    return inserted;
+  }
+
+  async deleteFuelRecordsByBatch(batchId: string): Promise<void> {
+    await db.delete(fuelRecords).where(eq(fuelRecords.uploadBatch, batchId));
+  }
+
+  async deleteFuelRecordsByYearMonth(year: number, month: number): Promise<void> {
+    await db.delete(fuelRecords).where(and(eq(fuelRecords.year, year), eq(fuelRecords.month, month)));
+  }
+
+  async getFuelBatches(): Promise<{ batchId: string; uploadedAt: Date; recordCount: number; yearMonths: string[] }[]> {
+    const rows = await db
+      .select({
+        batchId: fuelRecords.uploadBatch,
+        uploadedAt: sql<Date>`min(${fuelRecords.createdAt})`,
+        recordCount: sql<number>`count(*)::int`,
+        yearMonths: sql<string[]>`array_agg(distinct concat(${fuelRecords.year}, '-', lpad(${fuelRecords.month}::text, 2, '0')) order by concat(${fuelRecords.year}, '-', lpad(${fuelRecords.month}::text, 2, '0')))`,
+      })
+      .from(fuelRecords)
+      .groupBy(fuelRecords.uploadBatch)
+      .orderBy(sql`min(${fuelRecords.createdAt}) desc`);
+    return rows.map(r => ({
+      batchId: r.batchId ?? "",
+      uploadedAt: r.uploadedAt,
+      recordCount: r.recordCount,
+      yearMonths: r.yearMonths ?? [],
+    }));
   }
 }
 

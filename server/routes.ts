@@ -3398,6 +3398,175 @@ export async function registerRoutes(
     }
   });
 
+  // ===================== 유류비 현황 API =====================
+
+  // GET /api/fuel-records - 유류비 기록 조회 (필터: year, month, team, fuelType)
+  app.get("/api/fuel-records", isAuthenticated, async (req, res) => {
+    try {
+      const year = req.query.year ? parseInt(req.query.year as string) : undefined;
+      const month = req.query.month ? parseInt(req.query.month as string) : undefined;
+      const team = req.query.team as string | undefined;
+      const fuelType = req.query.fuelType as string | undefined;
+      const records = await storage.getFuelRecords({ year, month, team, fuelType });
+      res.json(records);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // GET /api/fuel-records/summary - 연도별/월별/팀별 집계
+  app.get("/api/fuel-records/summary", isAuthenticated, async (req, res) => {
+    try {
+      const records = await storage.getFuelRecords();
+      // 연도-월별 합계
+      const byYearMonth: Record<string, { year: number; month: number; totalCost: number; totalDistance: number; fuelCost: number }> = {};
+      const byTeam: Record<string, { team: string; totalCost: number; fuelCost: number; distance: number }> = {};
+      const byFuelType: Record<string, { fuelType: string; totalCost: number; fuelCost: number; count: number }> = {};
+      let grand24 = 0, grand25 = 0, fuel24 = 0, fuel25 = 0;
+
+      for (const r of records) {
+        const ym = `${r.year}-${String(r.month).padStart(2, "0")}`;
+        if (!byYearMonth[ym]) byYearMonth[ym] = { year: r.year, month: r.month, totalCost: 0, totalDistance: 0, fuelCost: 0 };
+        byYearMonth[ym].totalCost += r.totalCost ?? 0;
+        byYearMonth[ym].totalDistance += r.totalDistance ?? 0;
+        byYearMonth[ym].fuelCost += (r.cardFuelCost ?? 0) + (r.cashFuelCost ?? 0);
+
+        const team = r.team ?? "기타";
+        if (!byTeam[team]) byTeam[team] = { team, totalCost: 0, fuelCost: 0, distance: 0 };
+        byTeam[team].totalCost += r.totalCost ?? 0;
+        byTeam[team].fuelCost += (r.cardFuelCost ?? 0) + (r.cashFuelCost ?? 0);
+        byTeam[team].distance += r.totalDistance ?? 0;
+
+        const ft = r.fuelType ?? "기타";
+        if (!byFuelType[ft]) byFuelType[ft] = { fuelType: ft, totalCost: 0, fuelCost: 0, count: 0 };
+        byFuelType[ft].totalCost += r.totalCost ?? 0;
+        byFuelType[ft].fuelCost += (r.cardFuelCost ?? 0) + (r.cashFuelCost ?? 0);
+        byFuelType[ft].count += 1;
+
+        if (r.year === 2024) { grand24 += r.totalCost ?? 0; fuel24 += (r.cardFuelCost ?? 0) + (r.cashFuelCost ?? 0); }
+        if (r.year === 2025) { grand25 += r.totalCost ?? 0; fuel25 += (r.cardFuelCost ?? 0) + (r.cashFuelCost ?? 0); }
+      }
+
+      res.json({
+        byYearMonth: Object.values(byYearMonth).sort((a, b) => a.year - b.year || a.month - b.month),
+        byTeam: Object.values(byTeam).sort((a, b) => b.totalCost - a.totalCost),
+        byFuelType: Object.values(byFuelType),
+        totals: { grand24, grand25, fuel24, fuel25, totalRecords: records.length },
+      });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // GET /api/fuel-records/batches - 업로드 배치 목록
+  app.get("/api/fuel-records/batches", requireAdmin, async (_req, res) => {
+    try {
+      const batches = await storage.getFuelBatches();
+      res.json(batches);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // DELETE /api/fuel-records/batches/:batchId - 배치 삭제
+  app.delete("/api/fuel-records/batches/:batchId", requireAdmin, async (req, res) => {
+    try {
+      const batchId = decodeURIComponent(req.params.batchId);
+      await storage.deleteFuelRecordsByBatch(batchId);
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // POST /api/fuel-records/upload - Excel 파일 업로드 및 파싱
+  const fuelUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 30 * 1024 * 1024 } });
+  app.post("/api/fuel-records/upload", requireAdmin, fuelUpload.single("file"), async (req: any, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: "파일이 없습니다." });
+      const XLSX = await import("xlsx");
+      const wb = XLSX.read(req.file.buffer, { type: "buffer" });
+      const batchId = `batch_${Date.now()}`;
+      const records: any[] = [];
+      let skippedSheets: string[] = [];
+
+      for (const sheetName of wb.SheetNames) {
+        // 시트 이름 파싱: "24년 1월", "25년 12월"
+        const m = sheetName.match(/^(\d{2})년\s+(\d{1,2})월$/);
+        if (!m) { skippedSheets.push(sheetName); continue; }
+        const year = 2000 + parseInt(m[1]);
+        const month = parseInt(m[2]);
+
+        // 같은 연월 기존 데이터 삭제 (재업로드)
+        await storage.deleteFuelRecordsByYearMonth(year, month);
+
+        const ws = wb.Sheets[sheetName];
+        const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: 0 });
+
+        for (let i = 2; i < rows.length; i++) {
+          const row = rows[i];
+          // 순번이 양수이고 본부가 '대구본부'인 실제 데이터 행만 처리
+          const seq = row[0];
+          if (typeof seq !== "number" || seq <= 0) continue;
+          if (row[1] !== "대구본부") continue;
+          const teamVal = typeof row[2] === "string" ? row[2].trim() : "";
+          if (!teamVal || teamVal === "0") continue;
+
+          const num = (v: any) => (typeof v === "number" ? Math.round(v) : 0);
+          const strVal = (v: any) => (typeof v === "string" ? v.trim() : "") || null;
+          records.push({
+            year, month,
+            team: teamVal || null,
+            driver: strVal(row[3]),
+            acquisitionType: strVal(row[4]),
+            vehicleType: strVal(row[5]),
+            modelName: strVal(row[6]),
+            licensePlate: strVal(row[7]),
+            fuelType: strVal(row[8]),
+            avgOperatingDays: num(row[9]),
+            totalDistance: num(row[10]),
+            businessDistance: num(row[11]),
+            cardFuelCost: num(row[12]),
+            cardHighpass: num(row[13]),
+            cardParking: num(row[14]),
+            cardToll: num(row[15]),
+            cardCarWash: num(row[16]),
+            cardFerry: num(row[17]),
+            cardRepair: num(row[18]),
+            cardMaintenance: num(row[19]),
+            cardEmergencyFuel: num(row[20]),
+            cardGeneratorFuel: num(row[21]),
+            cashFuelCost: num(row[23]),
+            cashHighpass: num(row[24]),
+            cashParking: num(row[25]),
+            cashToll: num(row[26]),
+            cashCarWash: num(row[27]),
+            cashFerry: num(row[28]),
+            cashRepair: num(row[29]),
+            cashMaintenance: num(row[30]),
+            cashEmergencyFuel: num(row[31]),
+            cashGeneratorFuel: num(row[32]),
+            totalCost: num(row[34]),
+            avgCostPerKm: num(row[35]),
+            uploadBatch: batchId,
+          });
+        }
+      }
+
+      const inserted = await storage.insertFuelRecords(records);
+      res.json({
+        success: true,
+        batchId,
+        inserted,
+        skippedSheets,
+        message: `${inserted}건 처리 완료 (${records.length > 0 ? Math.ceil(records.length / 12) : 0}개월 데이터)`,
+      });
+    } catch (e: any) {
+      console.error("유류비 업로드 오류:", e);
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   return httpServer;
 }
 

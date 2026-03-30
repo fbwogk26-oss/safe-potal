@@ -414,6 +414,55 @@ export const insertMusicFileSchema = createInsertSchema(musicFiles).omit({ id: t
 export type MusicFile = typeof musicFiles.$inferSelect;
 export type InsertMusicFile = z.infer<typeof insertMusicFileSchema>;
 
+// === FUEL RECORDS (유류비 현황) ===
+export const fuelRecords = pgTable("fuel_records", {
+  id: serial("id").primaryKey(),
+  year: integer("year").notNull(),
+  month: integer("month").notNull(),
+  team: text("team"),
+  driver: text("driver"),
+  acquisitionType: text("acquisition_type"),   // 렌트/자차/리스
+  vehicleType: text("vehicle_type"),            // 경차/RV/SUV/기타/EV 등
+  modelName: text("model_name"),
+  licensePlate: text("license_plate"),
+  fuelType: text("fuel_type"),                 // 경유/휘발유/EV
+  avgOperatingDays: integer("avg_operating_days").default(0),
+  totalDistance: integer("total_distance").default(0),
+  businessDistance: integer("business_distance").default(0),
+  // 법인카드
+  cardFuelCost: integer("card_fuel_cost").default(0),
+  cardHighpass: integer("card_highpass").default(0),
+  cardParking: integer("card_parking").default(0),
+  cardToll: integer("card_toll").default(0),
+  cardCarWash: integer("card_car_wash").default(0),
+  cardFerry: integer("card_ferry").default(0),
+  cardRepair: integer("card_repair").default(0),
+  cardMaintenance: integer("card_maintenance").default(0),
+  cardEmergencyFuel: integer("card_emergency_fuel").default(0),
+  cardGeneratorFuel: integer("card_generator_fuel").default(0),
+  // 현금
+  cashFuelCost: integer("cash_fuel_cost").default(0),
+  cashHighpass: integer("cash_highpass").default(0),
+  cashParking: integer("cash_parking").default(0),
+  cashToll: integer("cash_toll").default(0),
+  cashCarWash: integer("cash_car_wash").default(0),
+  cashFerry: integer("cash_ferry").default(0),
+  cashRepair: integer("cash_repair").default(0),
+  cashMaintenance: integer("cash_maintenance").default(0),
+  cashEmergencyFuel: integer("cash_emergency_fuel").default(0),
+  cashGeneratorFuel: integer("cash_generator_fuel").default(0),
+  // 합계
+  totalCost: integer("total_cost").default(0),
+  avgCostPerKm: integer("avg_cost_per_km").default(0),
+  // 업로드 배치
+  uploadBatch: text("upload_batch"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertFuelRecordSchema = createInsertSchema(fuelRecords).omit({ id: true, createdAt: true });
+export type FuelRecord = typeof fuelRecords.$inferSelect;
+export type InsertFuelRecord = z.infer<typeof insertFuelRecordSchema>;
+
 // Export auth schema
 export * from "./models/auth";
 
