@@ -54,14 +54,7 @@ const ALLOWED_IMG_EXTS = ["jpeg", "jpg", "png", "gif", "webp"];
 const ALLOWED_EXCEL_EXTS = ["xlsx", "xls", "csv"];
 
 const upload = multer({
-  storage: multer.diskStorage({
-    destination: uploadDir,
-    filename: (req, file, cb) => {
-      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-      const ext = safeExt(file.originalname, ALLOWED_IMG_EXTS);
-      cb(null, uniqueSuffix + ext);
-    }
-  }),
+  storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowed = /jpeg|jpg|png|gif|webp/;
@@ -704,12 +697,21 @@ export async function registerRoutes(
   // Register Object Storage routes for persistent file uploads
   registerObjectStorageRoutes(app);
   
-  app.post('/api/upload', requireEditor, upload.single('image'), (req: any, res) => {
+  app.post('/api/upload', requireEditor, upload.single('image'), async (req: any, res) => {
     if (!req.file) {
       return res.status(400).json({ message: "No file uploaded" });
     }
-    const imageUrl = `/uploads/${req.file.filename}`;
-    res.json({ imageUrl });
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const ext = safeExt(req.file.originalname, ALLOWED_IMG_EXTS);
+    const filename = uniqueSuffix + ext;
+    const objUrl = await uploadToObjectStorage(req.file.buffer, filename, req.file.mimetype);
+    if (objUrl) {
+      return res.json({ imageUrl: objUrl });
+    }
+    // 로컬 개발 환경 fallback: 디스크 저장
+    const localPath = path.join(uploadDir, filename);
+    fs.writeFileSync(localPath, req.file.buffer);
+    res.json({ imageUrl: `/uploads/${filename}` });
   });
 
   // === GENERAL FILE UPLOAD (PDF, PPT, Word, Excel, Video, Images up to 100MB) ===
@@ -722,14 +724,7 @@ export async function registerRoutes(
   ]);
   const ALLOWED_GENERAL_EXTS_ARR = Array.from(ALLOWED_GENERAL_EXTENSIONS).map(e => e.replace(".", ""));
   const generalUpload = multer({
-    storage: multer.diskStorage({
-      destination: uploadDir,
-      filename: (req, file, cb) => {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        const ext = safeExt(file.originalname, ALLOWED_GENERAL_EXTS_ARR);
-        cb(null, `file-${uniqueSuffix}${ext}`);
-      }
-    }),
+    storage: multer.memoryStorage(),
     limits: { fileSize: 100 * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
       const ext = path.extname(file.originalname.replace(/\0/g, "")).toLowerCase();
@@ -742,15 +737,24 @@ export async function registerRoutes(
   });
 
   app.post('/api/upload/general', isAuthenticated, (req: any, res: any, next: any) => {
-    generalUpload.single('file')(req, res, (err: any) => {
+    generalUpload.single('file')(req, res, async (err: any) => {
       if (err) {
         return res.status(400).json({ message: err.message || "파일 업로드에 실패했습니다" });
       }
       if (!req.file) {
         return res.status(400).json({ message: "No file uploaded" });
       }
-      const url = `/uploads/${req.file.filename}`;
-      res.json({ url, name: req.file.originalname });
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      const ext = path.extname(req.file.originalname.replace(/\0/g, "")).toLowerCase();
+      const filename = `file-${uniqueSuffix}${ext}`;
+      const objUrl = await uploadToObjectStorage(req.file.buffer, filename, req.file.mimetype);
+      if (objUrl) {
+        return res.json({ url: objUrl, name: req.file.originalname });
+      }
+      // 로컬 개발 환경 fallback: 디스크 저장
+      const localPath = path.join(uploadDir, filename);
+      fs.writeFileSync(localPath, req.file.buffer);
+      res.json({ url: `/uploads/${filename}`, name: req.file.originalname });
     });
   });
 
@@ -1115,7 +1119,16 @@ export async function registerRoutes(
       
       let imageUrl: string | undefined;
       if (req.file) {
-        imageUrl = `/uploads/${req.file.filename}`;
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const ext = safeExt(req.file.originalname, ALLOWED_IMG_EXTS);
+        const filename = uniqueSuffix + ext;
+        const objUrl = await uploadToObjectStorage(req.file.buffer, filename, req.file.mimetype);
+        if (objUrl) {
+          imageUrl = objUrl;
+        } else {
+          fs.writeFileSync(path.join(uploadDir, filename), req.file.buffer);
+          imageUrl = `/uploads/${filename}`;
+        }
       }
       const equipment = await storage.createSafetyEquipment({ name, category, imageUrl, isActive: true });
       res.status(201).json(equipment);
@@ -2189,11 +2202,16 @@ export async function registerRoutes(
     }
   });
 
-  app.post('/api/risk-assessments/upload-photo', requireEditor, upload.single('photo'), (req: any, res) => {
+  app.post('/api/risk-assessments/upload-photo', requireEditor, upload.single('photo'), async (req: any, res) => {
     try {
       if (!req.file) return res.status(400).json({ message: "파일이 없습니다" });
-      const photoUrl = `/uploads/${req.file.filename}`;
-      res.json({ photoUrl });
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      const ext = safeExt(req.file.originalname, ALLOWED_IMG_EXTS);
+      const filename = uniqueSuffix + ext;
+      const objUrl = await uploadToObjectStorage(req.file.buffer, filename, req.file.mimetype);
+      if (objUrl) return res.json({ photoUrl: objUrl });
+      fs.writeFileSync(path.join(uploadDir, filename), req.file.buffer);
+      res.json({ photoUrl: `/uploads/${filename}` });
     } catch (error) {
       res.status(500).json({ message: "사진 업로드에 실패했습니다" });
     }
@@ -2327,11 +2345,23 @@ export async function registerRoutes(
     }
   });
 
-  app.post('/api/accidents/upload-photos', requireEditor, upload.array('photos', 10), (req: any, res) => {
+  app.post('/api/accidents/upload-photos', requireEditor, upload.array('photos', 10), async (req: any, res) => {
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ message: "No files uploaded" });
     }
-    const urls = req.files.map((f: any) => `/uploads/${f.filename}`);
+    const urls: string[] = [];
+    for (const f of req.files as Express.Multer.File[]) {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      const ext = safeExt(f.originalname, ALLOWED_IMG_EXTS);
+      const filename = uniqueSuffix + ext;
+      const objUrl = await uploadToObjectStorage(f.buffer, filename, f.mimetype);
+      if (objUrl) {
+        urls.push(objUrl);
+      } else {
+        fs.writeFileSync(path.join(uploadDir, filename), f.buffer);
+        urls.push(`/uploads/${filename}`);
+      }
+    }
     res.json({ imageUrls: urls });
   });
 
@@ -3138,17 +3168,31 @@ export async function registerRoutes(
 
       const sheetSummary = `총 ${totalRows}건 | 항목: ${headerRow.slice(0, 5).join(", ")}${headerRow.length > 5 ? " 외" : ""}`;
 
+      // 오브젝트 스토리지 업로드 (production) 또는 로컬 디스크 유지 (dev)
+      let finalOriginalUrl = originalUrl;
+      let finalProcessedUrl = `/uploads/${processedFilename}`;
+      try {
+        const origBuffer = fs.readFileSync(req.file.path);
+        const objOrig = await uploadToObjectStorage(origBuffer, req.file.filename, req.file.mimetype || "application/octet-stream");
+        if (objOrig) finalOriginalUrl = objOrig;
+        const procBuffer = fs.readFileSync(processedPath);
+        const objProc = await uploadToObjectStorage(procBuffer, processedFilename, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        if (objProc) finalProcessedUrl = objProc;
+      } catch (_e: any) {
+        console.warn("작업계획 오브젝트 스토리지 업로드 실패 (로컬 fallback):", _e?.message);
+      }
+
       const plan = await storage.createWorkPlan({
         title,
         originalFileName: req.file.originalname,
-        originalFileUrl: originalUrl,
-        processedFileUrl: `/uploads/${processedFilename}`,
+        originalFileUrl: finalOriginalUrl,
+        processedFileUrl: finalProcessedUrl,
         emailDraft,
         sheetSummary,
         createdBy: req.user?.username,
       });
 
-      res.json({ plan, emailDraft, processedFileUrl: `/uploads/${processedFilename}` });
+      res.json({ plan, emailDraft, processedFileUrl: finalProcessedUrl });
     } catch (error: any) {
       console.error("[WorkPlan upload error]", error);
       res.status(500).json({ message: error?.message || "업로드에 실패했습니다" });

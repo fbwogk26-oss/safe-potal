@@ -7,6 +7,7 @@ import type { UserPermissions } from "@shared/models/auth";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import { objectStorageClient } from "./replit_integrations/object_storage/objectStorage";
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -27,14 +28,7 @@ function chatSafeExt(originalname: string): string {
 }
 
 const chatUpload = multer({
-  storage: multer.diskStorage({
-    destination: uploadDir,
-    filename: (_req, file, cb) => {
-      const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-      const ext = chatSafeExt(file.originalname);
-      cb(null, "chat_" + uniqueSuffix + ext);
-    },
-  }),
+  storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     const allowed = /jpeg|jpg|png|gif|webp/;
@@ -43,6 +37,22 @@ const chatUpload = multer({
     cb(null, ext && mime);
   },
 });
+
+async function chatUploadToObjectStorage(buffer: Buffer, filename: string, contentType: string): Promise<string | null> {
+  const privateDir = process.env.PRIVATE_OBJECT_DIR;
+  if (!privateDir) return null;
+  try {
+    const fullPath = `${privateDir.replace(/\/$/, "")}/uploads/${filename}`;
+    const parts = fullPath.replace(/^\//, "").split("/");
+    const bucketName = parts[0];
+    const objectName = parts.slice(1).join("/");
+    await objectStorageClient.bucket(bucketName).file(objectName).save(buffer, { contentType, resumable: false });
+    return `/objects/uploads/${filename}`;
+  } catch (e: any) {
+    console.error("챗봇 이미지 오브젝트 스토리지 업로드 실패:", e?.message);
+    return null;
+  }
+}
 
 function hasPermission(user: any, permKey: keyof UserPermissions): boolean {
   if (user.role === "admin") return true;
@@ -756,7 +766,17 @@ export function registerChatbotRoutes(app: Express): void {
         const uploadedImages: string[] = [];
         if (req.files && Array.isArray(req.files)) {
           for (const file of req.files as Express.Multer.File[]) {
-            uploadedImages.push(`/uploads/${file.filename}`);
+            const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+            const ext = chatSafeExt(file.originalname);
+            const filename = "chat_" + uniqueSuffix + ext;
+            const objUrl = await chatUploadToObjectStorage(file.buffer, filename, file.mimetype);
+            if (objUrl) {
+              uploadedImages.push(objUrl);
+            } else {
+              // 로컬 개발 환경 fallback
+              fs.writeFileSync(path.join(uploadDir, filename), file.buffer);
+              uploadedImages.push(`/uploads/${filename}`);
+            }
           }
         }
 
