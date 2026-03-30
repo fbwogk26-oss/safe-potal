@@ -132,33 +132,34 @@ function YearCard({ stat, prevStat }: { stat: YearStat; prevStat?: YearStat }) {
         <p className="text-[2rem] font-black text-foreground tracking-tight leading-none mb-3">
           {fmtM(stat.fuelCost)}<span className="text-base font-semibold text-muted-foreground ml-1">원</span>
         </p>
-        {/* 보조 지표 한 줄 */}
-        <div className="flex items-center gap-2 text-xs text-muted-foreground pb-2.5 border-b" style={{ borderColor: p.stroke + "20" }}>
-          <Route className="w-3 h-3 shrink-0" />
-          <span className="font-semibold text-foreground">{fmtK(stat.totalDistance)}</span>
-          <span className="opacity-30">·</span>
-          <Car className="w-3 h-3 shrink-0" />
-          <span className="font-semibold text-foreground">{stat.vehicleCount}대</span>
+        {/* 보조 지표: 거리 + 차량 (전년 증감 인라인) */}
+        <div className="space-y-1.5 pb-2.5 border-b" style={{ borderColor: p.stroke + "20" }}>
+          <div className="flex items-center gap-2 text-xs">
+            <Route className="w-3 h-3 shrink-0 text-muted-foreground" />
+            <span className="font-semibold text-foreground">{fmtK(stat.totalDistance)}</span>
+            {distD !== null && (
+              <span className={`text-[10px] font-semibold tabular-nums ${distD > 0 ? "text-red-500" : distD < 0 ? "text-blue-500" : "text-muted-foreground"}`}>
+                ({distD >= 0 ? "+" : ""}{fmtK(distD)})
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2 text-xs">
+            <Car className="w-3 h-3 shrink-0 text-muted-foreground" />
+            <span className="font-semibold text-foreground">{stat.vehicleCount}대</span>
+            {vehicleD !== null && vehicleD !== 0 && (
+              <span className={`text-[10px] font-semibold tabular-nums ${vehicleD > 0 ? "text-orange-500" : "text-blue-500"}`}>
+                ({vehicleD > 0 ? "+" : ""}{vehicleD}대)
+              </span>
+            )}
+          </div>
         </div>
-        {/* 전년 대비 (있을 때만) */}
+        {/* 유류비 전년 대비 */}
         {fuelD !== null ? (
           <div className="mt-2.5 flex items-center justify-between gap-2">
-            <span className="text-[10px] text-muted-foreground font-medium">전년 대비</span>
-            <div className="flex items-center gap-2.5">
-              <span className={`text-xs font-black tabular-nums ${fuelD > 0 ? "text-red-500" : "text-blue-500"}`}>
-                {fuelD > 0 ? "▲" : "▼"} {fmtM2(Math.abs(fuelD))}
-              </span>
-              {distD !== null && (
-                <span className="text-[10px] text-muted-foreground tabular-nums">
-                  거리 {distD >= 0 ? "+" : ""}{fmtK(distD)}
-                </span>
-              )}
-              {vehicleD !== null && vehicleD !== 0 && (
-                <span className={`text-[10px] font-semibold tabular-nums ${vehicleD > 0 ? "text-orange-500" : "text-blue-500"}`}>
-                  차량 {vehicleD > 0 ? "+" : ""}{vehicleD}대
-                </span>
-              )}
-            </div>
+            <span className="text-[10px] text-muted-foreground font-medium">유류비 전년 대비</span>
+            <span className={`text-xs font-black tabular-nums ${fuelD > 0 ? "text-red-500" : "text-blue-500"}`}>
+              {fuelD > 0 ? "▲" : "▼"} {fmtM2(Math.abs(fuelD))}
+            </span>
           </div>
         ) : (
           <div className="mt-2.5 text-[10px] text-muted-foreground/50">전년 데이터 없음</div>
