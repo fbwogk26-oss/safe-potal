@@ -134,18 +134,6 @@ function YearCard({ stat, prevStat }: { stat: YearStat; prevStat?: YearStat }) {
             {prevStat && <TrendBadge value={distTrend} />}
           </div>
           <div>
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">법인카드유류비</p>
-            <p className="text-sm font-semibold text-foreground">{fmtM2(stat.cardFuelCost)}</p>
-          </div>
-          <div>
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">현금유류비</p>
-            <p className="text-sm font-semibold text-foreground">{fmtM2(stat.cashFuelCost)}</p>
-          </div>
-          <div>
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">km당 유류비</p>
-            <p className="text-sm font-semibold text-foreground">{stat.avgFuelPerKm > 0 ? `${fmt(stat.avgFuelPerKm)}원` : "-"}</p>
-          </div>
-          <div>
             <p className="text-[10px] text-muted-foreground uppercase tracking-wide">차량 수</p>
             <p className="text-sm font-semibold text-foreground">{stat.vehicleCount}대</p>
           </div>
@@ -313,9 +301,8 @@ export default function FuelCosts() {
   const costStructure = years.length > 0 ? (() => {
     const latest = years[years.length - 1];
     return [
-      { name: "법인카드 유류비", value: latest.cardFuelCost },
-      { name: "현금 유류비", value: latest.cashFuelCost },
-      { name: "법인카드 기타", value: latest.cardOther },
+      { name: "유류비", value: latest.fuelCost },
+      { name: "기타 비용", value: latest.cardOther },
     ].filter(x => x.value > 0);
   })() : [];
 
@@ -451,12 +438,12 @@ export default function FuelCosts() {
                               <TrendBadge value={distP} />
                             </div>
                             <div>
-                              <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{sortedYears[i-1]}년 km당</p>
-                              <p className="text-sm font-bold">{prev.avgFuelPerKm > 0 ? `${fmt(prev.avgFuelPerKm)}원` : "-"}</p>
+                              <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{sortedYears[i-1]}년 차량 수</p>
+                              <p className="text-sm font-bold">{prev.vehicleCount}대</p>
                             </div>
                             <div>
-                              <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{sortedYears[i]}년 km당</p>
-                              <p className="text-sm font-bold">{cur.avgFuelPerKm > 0 ? `${fmt(cur.avgFuelPerKm)}원` : "-"}</p>
+                              <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{sortedYears[i]}년 차량 수</p>
+                              <p className="text-sm font-bold">{cur.vehicleCount}대</p>
                             </div>
                           </div>
                         </CardContent>
@@ -922,10 +909,7 @@ export default function FuelCosts() {
                             주행(km) <SortIcon field="totalDistance" />
                           </th>
                           <th className="text-right py-3 px-3 font-bold text-foreground whitespace-nowrap cursor-pointer hover:text-primary" onClick={() => handleSort("cardFuelCost")}>
-                            법인카드유류비 <SortIcon field="cardFuelCost" />
-                          </th>
-                          <th className="text-right py-3 px-3 font-bold text-foreground whitespace-nowrap cursor-pointer hover:text-primary" onClick={() => handleSort("cashFuelCost")}>
-                            현금유류비 <SortIcon field="cashFuelCost" />
+                            유류비 <SortIcon field="cardFuelCost" />
                           </th>
                           <th className="text-right py-3 px-4 font-bold text-foreground whitespace-nowrap cursor-pointer hover:text-primary" onClick={() => handleSort("totalCost")}>
                             합계 <SortIcon field="totalCost" />
@@ -951,8 +935,7 @@ export default function FuelCosts() {
                               </td>
                               <td className="py-2.5 px-3 text-sm text-muted-foreground">{r.acquisitionType}</td>
                               <td className="py-2.5 px-3 text-right tabular-nums text-sm">{r.totalDistance ? fmt(r.totalDistance) : "-"}</td>
-                              <td className="py-2.5 px-3 text-right tabular-nums text-sm">{r.cardFuelCost ? fmt(r.cardFuelCost) : "-"}</td>
-                              <td className="py-2.5 px-3 text-right tabular-nums text-sm">{r.cashFuelCost ? fmt(r.cashFuelCost) : "-"}</td>
+                              <td className="py-2.5 px-3 text-right tabular-nums text-sm">{(r.cardFuelCost || r.cashFuelCost) ? fmt((r.cardFuelCost ?? 0) + (r.cashFuelCost ?? 0)) : "-"}</td>
                               <td className="py-2.5 px-4 text-right tabular-nums font-bold text-sm">{r.totalCost ? fmt(r.totalCost) : "-"}</td>
                             </tr>
                           );
