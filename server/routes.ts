@@ -3594,6 +3594,7 @@ export async function registerRoutes(
 
           const num = (v: any) => (typeof v === "number" ? Math.round(v) : 0);
           const strVal = (v: any) => (typeof v === "string" ? v.trim() : "") || null;
+          if (num(row[10]) === 0) continue; // 총주행거리 0인 차량 제외
           records.push({
             year, month,
             team: teamVal || null,
