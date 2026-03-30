@@ -131,7 +131,6 @@ function YearCard({ stat, prevStat }: { stat: YearStat; prevStat?: YearStat }) {
           <div>
             <p className="text-[10px] text-muted-foreground uppercase tracking-wide">총주행거리</p>
             <p className="text-sm font-bold text-foreground">{fmtK(stat.totalDistance)}</p>
-            {prevStat && <TrendBadge value={distTrend} />}
           </div>
           <div>
             <p className="text-[10px] text-muted-foreground uppercase tracking-wide">차량 수</p>
