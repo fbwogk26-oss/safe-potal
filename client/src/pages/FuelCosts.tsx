@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import {
-  AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
+  ComposedChart, AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   ReferenceLine, LabelList,
 } from "recharts";
@@ -271,6 +271,15 @@ export default function FuelCosts() {
     return row;
   });
 
+  // 추이 + 증감 통합 데이터 (ComposedChart용)
+  const mergedTrendData = trendData.map((row, i) => {
+    const merged: Record<string, any> = { ...row };
+    for (const { key } of deltaPairs) {
+      merged[key] = combinedDeltaData[i]?.[key] ?? null;
+    }
+    return merged;
+  });
+
   // ── 팀별 차트 ── (유의미한 팀만: 어느 연도든 유류비 500만원 이상)
   const significantTeams = new Set(
     (summary?.byTeamByYear ?? [])
@@ -452,13 +461,15 @@ export default function FuelCosts() {
               </div>
             )}
 
-            {/* ── 월별 추이 에어리어 차트 ── */}
+            {/* ── 월별 추이 + 증감 통합 차트 ── */}
             <Card className="shadow-sm">
               <CardHeader className="pb-3">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <div>
-                    <CardTitle className="text-base font-bold">월별 {metricLabel} 추이</CardTitle>
-                    <p className="text-xs text-muted-foreground mt-0.5">연도별 월간 비교 — 선택 지표 기준</p>
+                    <CardTitle className="text-base font-bold">월별 {metricLabel} 추이 · 전년 대비 증감</CardTitle>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      연도별 월간 추이(선) + 전년 대비 증감(막대) — 우측 Y축 기준
+                    </p>
                   </div>
                   <div className="flex gap-1.5 bg-muted p-1 rounded-lg">
                     {(["fuel", "distance"] as const).map(m => (
@@ -475,42 +486,138 @@ export default function FuelCosts() {
                 </div>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <AreaChart data={trendData} margin={{ top: 10, right: 24, left: 0, bottom: 0 }}>
+                <ResponsiveContainer width="100%" height={340}>
+                  <ComposedChart data={mergedTrendData} barCategoryGap="30%" barGap={2} margin={{ top: 10, right: 60, left: 0, bottom: 0 }}>
                     <defs>
                       {sortedYears.map(yr => {
                         const c = YEAR_PALETTE[yr] ?? YEAR_PALETTE[2025];
                         return (
                           <linearGradient key={yr} id={`grad-${yr}`} x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor={c.gradient[0]} stopOpacity={0.2} />
+                            <stop offset="5%" stopColor={c.gradient[0]} stopOpacity={0.18} />
                             <stop offset="95%" stopColor={c.gradient[1]} stopOpacity={0} />
                           </linearGradient>
                         );
                       })}
                     </defs>
-                    <CartesianGrid strokeDasharray="4 4" className="opacity-10" />
-                    <XAxis dataKey="month" tick={{ fontSize: 12, fill: "currentColor" }} tickLine={false} axisLine={false} className="text-muted-foreground" />
-                    <YAxis tick={{ fontSize: 11, fill: "currentColor" }} tickFormatter={yFmt} tickLine={false} axisLine={false} width={52} className="text-muted-foreground" />
-                    <Tooltip content={<ChartTooltip unit={chartMetric === "distance" ? "만km" : "만원"} />} />
-                    <Legend wrapperStyle={{ fontSize: 12, paddingTop: 12 }} formatter={(v) => <span className="text-foreground font-medium">{v}년</span>} />
+                    <CartesianGrid strokeDasharray="4 4" stroke="currentColor" strokeOpacity={0.07} />
+                    <XAxis dataKey="month" tick={{ fontSize: 12, fill: "currentColor" }} tickLine={false} axisLine={false} />
+                    {/* 좌측 Y축 — 절댓값 */}
+                    <YAxis
+                      yAxisId="left"
+                      orientation="left"
+                      tick={{ fontSize: 11, fill: "currentColor", opacity: 0.6 }}
+                      tickFormatter={yFmt}
+                      tickLine={false}
+                      axisLine={false}
+                      width={56}
+                    />
+                    {/* 우측 Y축 — 증감값 (유류비 지표일 때만 의미 있음) */}
+                    {chartMetric === "fuel" && deltaPairs.length > 0 && (
+                      <YAxis
+                        yAxisId="right"
+                        orientation="right"
+                        tick={{ fontSize: 11, fill: "currentColor", opacity: 0.5 }}
+                        tickFormatter={v => `${v > 0 ? "+" : ""}${v}만`}
+                        tickLine={false}
+                        axisLine={false}
+                        width={54}
+                      />
+                    )}
+                    <ReferenceLine yAxisId={chartMetric === "fuel" && deltaPairs.length > 0 ? "right" : "left"} y={0} stroke="#94a3b8" strokeWidth={1.2} strokeDasharray="4 2" />
+                    <Tooltip
+                      content={({ active, payload, label: lbl }) => {
+                        if (!active || !payload?.length) return null;
+                        const absItems = payload.filter((p: any) => sortedYears.includes(Number(p.dataKey)));
+                        const deltaItems = payload.filter((p: any) => !sortedYears.includes(Number(p.dataKey)));
+                        return (
+                          <div className="bg-popover border border-border rounded-lg shadow-lg p-3 text-xs min-w-[180px]">
+                            <p className="font-bold text-sm mb-2">{lbl}</p>
+                            {absItems.length > 0 && (
+                              <>
+                                <p className="text-muted-foreground text-[10px] font-semibold mb-1 uppercase tracking-wide">추이</p>
+                                {absItems.map((p: any, i: number) => {
+                                  const c = YEAR_PALETTE[Number(p.dataKey)] ?? YEAR_PALETTE[2025];
+                                  return (
+                                    <div key={i} className="flex items-center justify-between gap-3 py-0.5">
+                                      <span className="flex items-center gap-1.5">
+                                        <span className="w-2 h-2 rounded-full" style={{ background: c.stroke }} />
+                                        <span className="text-muted-foreground">{p.name}년</span>
+                                      </span>
+                                      <span className="font-semibold tabular-nums" style={{ color: c.stroke }}>
+                                        {p.value != null ? `${Number(p.value).toLocaleString()}${chartMetric === "distance" ? "만km" : "만원"}` : "-"}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                              </>
+                            )}
+                            {deltaItems.length > 0 && (
+                              <>
+                                <p className="text-muted-foreground text-[10px] font-semibold mt-2 mb-1 uppercase tracking-wide">증감</p>
+                                {deltaItems.map((p: any, i: number) => {
+                                  const v = p.value as number;
+                                  return (
+                                    <div key={i} className="flex items-center justify-between gap-3 py-0.5">
+                                      <span className="flex items-center gap-1.5">
+                                        <span className="w-2 h-2 rounded-sm" style={{ background: p.fill }} />
+                                        <span className="text-muted-foreground">{p.name}</span>
+                                      </span>
+                                      <span className={`font-bold tabular-nums ${v > 0 ? "text-red-500" : v < 0 ? "text-blue-500" : "text-muted-foreground"}`}>
+                                        {v > 0 ? "+" : ""}{v != null ? `${v.toLocaleString()}만원` : "-"}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                              </>
+                            )}
+                          </div>
+                        );
+                      }}
+                    />
+                    <Legend
+                      wrapperStyle={{ fontSize: 12, paddingTop: 12 }}
+                      formatter={(v) => {
+                        const yr = Number(v);
+                        if (!isNaN(yr) && sortedYears.includes(yr)) return <span className="font-semibold">{v}년 추이</span>;
+                        return <span className="font-semibold">{v} 증감</span>;
+                      }}
+                    />
+                    {/* Area 추이선 */}
                     {sortedYears.map(yr => {
                       const c = YEAR_PALETTE[yr] ?? YEAR_PALETTE[2025];
                       return (
                         <Area
                           key={yr}
+                          yAxisId="left"
                           type="monotone"
                           dataKey={`${yr}`}
                           name={`${yr}`}
                           stroke={c.stroke}
                           strokeWidth={yr === Math.max(...sortedYears) ? 2.5 : 2}
                           fill={`url(#grad-${yr})`}
-                          dot={{ r: 3.5, fill: c.stroke, strokeWidth: 0 }}
-                          activeDot={{ r: 6, fill: c.stroke, stroke: "white", strokeWidth: 2 }}
+                          dot={{ r: 3, fill: c.stroke, strokeWidth: 0 }}
+                          activeDot={{ r: 5, fill: c.stroke, stroke: "white", strokeWidth: 2 }}
                           connectNulls={false}
                         />
                       );
                     })}
-                  </AreaChart>
+                    {/* Bar 증감 (유류비 지표일 때만) */}
+                    {chartMetric === "fuel" && deltaPairs.map(({ key, label, curYear }) => {
+                      const c = YEAR_PALETTE[curYear] ?? YEAR_PALETTE[2025];
+                      return (
+                        <Bar
+                          key={key}
+                          yAxisId="right"
+                          dataKey={key}
+                          name={label}
+                          fill={c.fill}
+                          radius={[3, 3, 0, 0]}
+                          maxBarSize={22}
+                          fillOpacity={0.55}
+                        />
+                      );
+                    })}
+                  </ComposedChart>
                 </ResponsiveContainer>
 
                 {/* 월별 소계표 */}
@@ -585,80 +692,6 @@ export default function FuelCosts() {
                 </div>
               </CardContent>
             </Card>
-
-            {/* ── 전년 대비 증감 바 차트 (통합) ── */}
-            {deltaPairs.length > 0 && (
-              <Card className="shadow-sm">
-                <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <div>
-                      <CardTitle className="text-base font-bold">연도별 유류비 증감 비교</CardTitle>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        월별 전년 대비 증감액 ({deltaPairs.map(p => p.label).join(" / ")})
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-2 text-xs">
-                      {deltaPairs.map(({ key, label, curYear }) => {
-                        const c = YEAR_PALETTE[curYear] ?? YEAR_PALETTE[2025];
-                        return (
-                          <span key={key} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full font-semibold border"
-                            style={{ color: c.fill, borderColor: c.fill + "40", background: c.fill + "10" }}>
-                            <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: c.fill }} />
-                            {label}
-                          </span>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <ResponsiveContainer width="100%" height={260}>
-                    <BarChart data={combinedDeltaData} barCategoryGap="25%" barGap={3} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="4 4" stroke="currentColor" strokeOpacity={0.07} />
-                      <XAxis dataKey="month" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
-                      <YAxis
-                        tick={{ fontSize: 11 }}
-                        tickFormatter={v => `${v > 0 ? "+" : ""}${v}만`}
-                        tickLine={false}
-                        axisLine={false}
-                        width={54}
-                      />
-                      <ReferenceLine y={0} stroke="#94a3b8" strokeWidth={1.5} strokeDasharray="4 2" />
-                      <Tooltip
-                        content={({ active, payload, label: lbl }) => {
-                          if (!active || !payload?.length) return null;
-                          return (
-                            <div className="bg-popover border border-border rounded-lg shadow-lg p-3 text-xs min-w-[160px]">
-                              <p className="font-bold text-sm mb-2">{lbl}</p>
-                              {payload.map((p: any, i: number) => {
-                                const v = p.value as number;
-                                return (
-                                  <div key={i} className="flex items-center justify-between gap-4 py-0.5">
-                                    <span className="flex items-center gap-1.5">
-                                      <span className="w-2 h-2 rounded-sm" style={{ background: p.fill }} />
-                                      <span className="text-muted-foreground">{p.name}</span>
-                                    </span>
-                                    <span className={`font-bold tabular-nums ${v > 0 ? "text-red-500" : v < 0 ? "text-blue-500" : "text-muted-foreground"}`}>
-                                      {v > 0 ? "+" : ""}{v != null ? v.toLocaleString() : "-"}만원
-                                    </span>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          );
-                        }}
-                      />
-                      {deltaPairs.map(({ key, label, curYear }) => {
-                        const c = YEAR_PALETTE[curYear] ?? YEAR_PALETTE[2025];
-                        return (
-                          <Bar key={key} dataKey={key} name={label} fill={c.fill} radius={[3, 3, 0, 0]} maxBarSize={28} fillOpacity={0.85} />
-                        );
-                      })}
-                    </BarChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
-            )}
 
             {/* ── 팀별 유류비 (전체 너비) ── */}
             <Card className="shadow-sm">
