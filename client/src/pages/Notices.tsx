@@ -4,9 +4,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Bell, Plus, Trash2, Megaphone, ImagePlus, X, Pin, PinOff, Eye, Calendar, Image, MoreVertical, CheckSquare, Square, XSquare } from "lucide-react";
+import { Bell, Plus, Trash2, Megaphone, ImagePlus, X, Pin, PinOff, Eye, Calendar, Image, MoreVertical } from "lucide-react";
 import { useState, useRef, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -41,48 +40,6 @@ export default function Notices() {
   } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // ── 선택 모드 ──────────────────────────────────────────
-  const [selectMode, setSelectMode] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-
-  const toggleSelect = (id: number) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  };
-
-  const selectAll = () => {
-    setSelectedIds(new Set(filteredNotices.map(n => n.id)));
-  };
-
-  const clearAll = () => {
-    setSelectedIds(new Set());
-  };
-
-  const exitSelectMode = () => {
-    setSelectMode(false);
-    setSelectedIds(new Set());
-  };
-
-  const bulkDeleteMutation = useMutation({
-    mutationFn: (ids: number[]) => apiRequest("DELETE", "/api/notices/bulk", { ids }),
-    onSuccess: async (res: Response) => {
-      const data = await res.json().catch(() => ({ deleted: selectedIds.size }));
-      queryClient.invalidateQueries({ queryKey: ["/api/notices"] });
-      toast({ title: `${data.deleted}개 삭제 완료` });
-      exitSelectMode();
-    },
-    onError: () => toast({ title: "삭제 실패", variant: "destructive" }),
-  });
-
-  const handleBulkDelete = () => {
-    if (selectedIds.size === 0) return;
-    if (!confirm(`선택한 ${selectedIds.size}개 공지를 삭제하시겠습니까?`)) return;
-    bulkDeleteMutation.mutate(Array.from(selectedIds));
-  };
 
   // ── 상단 고정 ──────────────────────────────────────────
   const { data: pinnedData } = useQuery<{ pinnedNoticeId: number | null }>({
@@ -128,8 +85,6 @@ export default function Notices() {
         return b.id - a.id;
       });
   }, [notices, searchQuery, pinnedNoticeId]);
-
-  const allSelected = filteredNotices.length > 0 && filteredNotices.every(n => selectedIds.has(n.id));
 
   // ── 이미지 업로드 ──────────────────────────────────────
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -198,7 +153,7 @@ export default function Notices() {
                   />
                   <Bell className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 </div>
-                {canRegisterNotices && !selectMode && (
+                {canRegisterNotices && (
                   <Button
                     onClick={() => setShowAddForm(true)}
                     size="sm"
@@ -212,62 +167,6 @@ export default function Notices() {
               </div>
             </div>
 
-            {/* 일괄 선택 툴바 */}
-            {canRegisterNotices && filteredNotices.length > 0 && (
-              <div className="flex items-center gap-2 flex-wrap">
-                {!selectMode ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 gap-1.5 text-xs"
-                    onClick={() => setSelectMode(true)}
-                    data-testid="button-select-mode"
-                  >
-                    <CheckSquare className="w-3.5 h-3.5" />
-                    선택 모드
-                  </Button>
-                ) : (
-                  <>
-                    <Button
-                      variant={allSelected ? "secondary" : "outline"}
-                      size="sm"
-                      className="h-8 gap-1.5 text-xs"
-                      onClick={allSelected ? clearAll : selectAll}
-                      data-testid="button-select-all"
-                    >
-                      {allSelected ? <XSquare className="w-3.5 h-3.5" /> : <Square className="w-3.5 h-3.5" />}
-                      {allSelected ? "전체 해제" : "전체 선택"}
-                    </Button>
-                    {selectedIds.size > 0 && (
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        className="h-8 gap-1.5 text-xs"
-                        onClick={handleBulkDelete}
-                        disabled={bulkDeleteMutation.isPending}
-                        data-testid="button-bulk-delete"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        {bulkDeleteMutation.isPending ? "삭제 중..." : `${selectedIds.size}개 삭제`}
-                      </Button>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 gap-1.5 text-xs text-muted-foreground"
-                      onClick={exitSelectMode}
-                      data-testid="button-exit-select"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                      취소
-                    </Button>
-                    <span className="text-xs text-muted-foreground ml-1">
-                      {selectedIds.size > 0 ? `${selectedIds.size}개 선택됨` : "항목을 선택하세요"}
-                    </span>
-                  </>
-                )}
-              </div>
-            )}
           </div>
         </CardHeader>
 
@@ -292,7 +191,6 @@ export default function Notices() {
             ) : (
               <AnimatePresence mode="popLayout">
                 {filteredNotices.map((notice, idx) => {
-                  const isChecked = selectedIds.has(notice.id);
                   return (
                     <motion.div
                       key={notice.id}
@@ -300,46 +198,28 @@ export default function Notices() {
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, x: -20 }}
                       transition={{ delay: idx * 0.03 }}
-                      onClick={() => {
-                        if (selectMode) { toggleSelect(notice.id); return; }
-                        setSelectedNotice(notice);
-                      }}
+                      onClick={() => setSelectedNotice(notice)}
                       className={`group flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors ${
-                        isChecked
-                          ? 'bg-orange-50 dark:bg-orange-900/25'
-                          : pinnedNoticeId === notice.id
-                            ? 'bg-orange-50/70 dark:bg-orange-900/20 hover:bg-orange-100/70 dark:hover:bg-orange-900/30'
-                            : 'hover:bg-orange-50/50 dark:hover:bg-orange-900/10'
+                        pinnedNoticeId === notice.id
+                          ? 'bg-orange-50/70 dark:bg-orange-900/20 hover:bg-orange-100/70 dark:hover:bg-orange-900/30'
+                          : 'hover:bg-orange-50/50 dark:hover:bg-orange-900/10'
                       }`}
                       data-testid={`row-notice-${notice.id}`}
                     >
-                      {/* 체크박스 (선택 모드) */}
-                      {selectMode && (
-                        <div onClick={e => { e.stopPropagation(); toggleSelect(notice.id); }}>
-                          <Checkbox
-                            checked={isChecked}
-                            className="w-5 h-5 border-2"
-                            data-testid={`chk-notice-${notice.id}`}
-                          />
-                        </div>
-                      )}
-
                       {/* 아이콘 */}
-                      {!selectMode && (
-                        <div className={`flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${
-                          pinnedNoticeId === notice.id
-                            ? 'bg-orange-200 dark:bg-orange-800/50 text-orange-600 dark:text-orange-400'
-                            : 'bg-orange-100 dark:bg-orange-900/30 text-orange-500 dark:text-orange-400'
-                        }`}>
-                          {pinnedNoticeId === notice.id ? (
-                            <Pin className="w-4 h-4" />
-                          ) : notice.imageUrl ? (
-                            <Image className="w-4 h-4" />
-                          ) : (
-                            <Bell className="w-4 h-4" />
-                          )}
-                        </div>
-                      )}
+                      <div className={`flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${
+                        pinnedNoticeId === notice.id
+                          ? 'bg-orange-200 dark:bg-orange-800/50 text-orange-600 dark:text-orange-400'
+                          : 'bg-orange-100 dark:bg-orange-900/30 text-orange-500 dark:text-orange-400'
+                      }`}>
+                        {pinnedNoticeId === notice.id ? (
+                          <Pin className="w-4 h-4" />
+                        ) : notice.imageUrl ? (
+                          <Image className="w-4 h-4" />
+                        ) : (
+                          <Bell className="w-4 h-4" />
+                        )}
+                      </div>
 
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
@@ -361,48 +241,46 @@ export default function Notices() {
                           <Calendar className="w-3 h-3" />
                           {notice.createdAt && format(new Date(notice.createdAt), "MM.dd HH:mm")}
                         </span>
-                        {!selectMode && (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                                onClick={e => e.stopPropagation()}
-                                data-testid={`button-menu-notice-${notice.id}`}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                              onClick={e => e.stopPropagation()}
+                              data-testid={`button-menu-notice-${notice.id}`}
+                            >
+                              <MoreVertical className="w-4 h-4 text-muted-foreground" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={e => { e.stopPropagation(); setSelectedNotice(notice); }}>
+                              <Eye className="w-4 h-4 mr-2" />
+                              상세보기
+                            </DropdownMenuItem>
+                            {canRegisterNotices && (
+                              <DropdownMenuItem
+                                onClick={e => { e.stopPropagation(); handleSetPinned(notice.id); }}
+                                data-testid={`menu-pin-notice-${notice.id}`}
                               >
-                                <MoreVertical className="w-4 h-4 text-muted-foreground" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={e => { e.stopPropagation(); setSelectedNotice(notice); }}>
-                                <Eye className="w-4 h-4 mr-2" />
-                                상세보기
+                                {pinnedNoticeId === notice.id ? (
+                                  <><PinOff className="w-4 h-4 mr-2" />상단공지 해제</>
+                                ) : (
+                                  <><Pin className="w-4 h-4 mr-2" />상단공지 설정</>
+                                )}
                               </DropdownMenuItem>
-                              {canRegisterNotices && (
-                                <DropdownMenuItem
-                                  onClick={e => { e.stopPropagation(); handleSetPinned(notice.id); }}
-                                  data-testid={`menu-pin-notice-${notice.id}`}
-                                >
-                                  {pinnedNoticeId === notice.id ? (
-                                    <><PinOff className="w-4 h-4 mr-2" />상단공지 해제</>
-                                  ) : (
-                                    <><Pin className="w-4 h-4 mr-2" />상단공지 설정</>
-                                  )}
-                                </DropdownMenuItem>
-                              )}
-                              {canRegisterNotices && isOwner(notice.createdBy) && (
-                                <DropdownMenuItem
-                                  onClick={e => handleDelete(notice.id, e)}
-                                  className="text-red-600"
-                                >
-                                  <Trash2 className="w-4 h-4 mr-2" />
-                                  삭제
-                                </DropdownMenuItem>
-                              )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        )}
+                            )}
+                            {canRegisterNotices && isOwner(notice.createdBy) && (
+                              <DropdownMenuItem
+                                onClick={e => handleDelete(notice.id, e)}
+                                className="text-red-600"
+                              >
+                                <Trash2 className="w-4 h-4 mr-2" />
+                                삭제
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </motion.div>
                   );
@@ -413,7 +291,7 @@ export default function Notices() {
           {filteredNotices.length > 0 && (
             <div className="px-4 py-2 bg-muted/20 border-t text-xs text-muted-foreground flex items-center justify-between">
               <span>총 {filteredNotices.length}개</span>
-              <span>{selectMode ? `${selectedIds.size}개 선택됨` : "클릭하여 상세보기"}</span>
+              <span>클릭하여 상세보기</span>
             </div>
           )}
         </CardContent>

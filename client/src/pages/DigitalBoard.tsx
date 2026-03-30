@@ -1,11 +1,14 @@
 import { useNotices, useCreateNotice, useDeleteNotice } from "@/hooks/use-notices";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { MonitorPlay, Trash2, Upload, X, ChevronLeft, ChevronRight, Play, Pause, Maximize2, Images, Minimize2 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { MonitorPlay, Trash2, Upload, X, ChevronLeft, ChevronRight, Play, Pause, Maximize2, Images, Minimize2, CheckSquare, Square } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { useState, useRef, useEffect, memo } from "react";
 import { createPortal } from "react-dom";
 import { useToast } from "@/hooks/use-toast";
+import { useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePermissions } from "@/hooks/use-permissions";
 
@@ -179,6 +182,40 @@ export default function DigitalBoard() {
   const [isBulkUploading, setIsBulkUploading] = useState(false);
   const bulkInputRef = useRef<HTMLInputElement>(null);
   const slideshowRef = useRef<HTMLDivElement>(null);
+
+  // ── 슬라이드 선택 모드 ──────────────────────────────────
+  const [slideSelectMode, setSlideSelectMode] = useState(false);
+  const [selectedSlideIds, setSelectedSlideIds] = useState<Set<number>>(new Set());
+
+  const toggleSlideSelect = (id: number) => {
+    setSelectedSlideIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const selectAllSlides = () => setSelectedSlideIds(new Set(slideList.map(s => s.id)));
+  const clearSlideSelection = () => setSelectedSlideIds(new Set());
+  const exitSlideSelectMode = () => { setSlideSelectMode(false); setSelectedSlideIds(new Set()); };
+
+  const bulkSlideDeleteMutation = useMutation({
+    mutationFn: (ids: number[]) => apiRequest("DELETE", "/api/notices/bulk", { ids }),
+    onSuccess: async (res: Response) => {
+      const data = await res.json().catch(() => ({ deleted: selectedSlideIds.size }));
+      queryClient.invalidateQueries({ queryKey: ["/api/notices"] });
+      toast({ title: `${data.deleted}개 슬라이드 삭제 완료` });
+      exitSlideSelectMode();
+      setCurrentSlide(0);
+    },
+    onError: () => toast({ title: "삭제 실패", variant: "destructive" }),
+  });
+
+  const handleBulkSlideDelete = () => {
+    if (selectedSlideIds.size === 0) return;
+    if (!confirm(`선택한 ${selectedSlideIds.size}개 슬라이드를 삭제하시겠습니까?`)) return;
+    bulkSlideDeleteMutation.mutate(Array.from(selectedSlideIds));
+  };
 
   const slideList = slides || [];
 
@@ -451,15 +488,74 @@ export default function DigitalBoard() {
 
       <Card className="border-indigo-200 dark:border-indigo-900/30 overflow-hidden">
         <CardHeader className="bg-indigo-50/50 dark:bg-indigo-900/10 border-b p-3 sm:p-4">
-          <CardTitle className="text-sm sm:text-base flex items-center justify-between">
-            <span className="flex items-center gap-2">
-              <MonitorPlay className="w-4 h-4 text-indigo-600" />
-              등록된 슬라이드
-            </span>
-            <span className="text-xs font-normal text-muted-foreground bg-indigo-100 dark:bg-indigo-900/30 px-2 py-0.5 rounded-full">
-              {slideList.length}개
-            </span>
-          </CardTitle>
+          <div className="flex flex-col gap-2">
+            <CardTitle className="text-sm sm:text-base flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <MonitorPlay className="w-4 h-4 text-indigo-600" />
+                등록된 슬라이드
+              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-normal text-muted-foreground bg-indigo-100 dark:bg-indigo-900/30 px-2 py-0.5 rounded-full">
+                  {slideList.length}개
+                </span>
+              </div>
+            </CardTitle>
+            {canEditDigitalBoard && slideList.length > 0 && (
+              <div className="flex items-center gap-2 flex-wrap">
+                {!slideSelectMode ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 gap-1.5 text-xs"
+                    onClick={() => setSlideSelectMode(true)}
+                    data-testid="button-slide-select-mode"
+                  >
+                    <CheckSquare className="w-3.5 h-3.5" />
+                    선택 삭제
+                  </Button>
+                ) : (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 gap-1.5 text-xs"
+                      onClick={selectedSlideIds.size === slideList.length ? clearSlideSelection : selectAllSlides}
+                      data-testid="button-slide-select-all"
+                    >
+                      <Square className="w-3.5 h-3.5" />
+                      {selectedSlideIds.size === slideList.length ? "전체 해제" : "전체 선택"}
+                    </Button>
+                    {selectedSlideIds.size > 0 && (
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        className="h-7 gap-1.5 text-xs"
+                        onClick={handleBulkSlideDelete}
+                        disabled={bulkSlideDeleteMutation.isPending}
+                        data-testid="button-slide-bulk-delete"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        {bulkSlideDeleteMutation.isPending ? "삭제 중..." : `${selectedSlideIds.size}개 삭제`}
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 gap-1.5 text-xs text-muted-foreground"
+                      onClick={exitSlideSelectMode}
+                      data-testid="button-slide-exit-select"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                      취소
+                    </Button>
+                    <span className="text-xs text-muted-foreground">
+                      {selectedSlideIds.size > 0 ? `${selectedSlideIds.size}개 선택됨` : "슬라이드를 선택하세요"}
+                    </span>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="p-3 sm:p-4">
           {slideList.length === 0 ? (
@@ -471,6 +567,7 @@ export default function DigitalBoard() {
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 sm:gap-3">
               {slideList.map((slide, idx) => {
                 const parsed = parseContent(slide.content);
+                const isChecked = selectedSlideIds.has(slide.id);
                 return (
                   <motion.div
                     key={slide.id}
@@ -478,11 +575,18 @@ export default function DigitalBoard() {
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ delay: idx * 0.02 }}
                     className={`relative group rounded-lg overflow-hidden border-2 transition-all cursor-pointer shadow-sm hover:shadow-md ${
-                      idx === currentSlide 
-                        ? 'border-indigo-500 ring-2 ring-indigo-500/30 shadow-indigo-200 dark:shadow-indigo-900/30' 
-                        : 'border-border/50 hover:border-indigo-400'
+                      slideSelectMode
+                        ? isChecked
+                          ? 'border-indigo-500 ring-2 ring-indigo-500/30'
+                          : 'border-border/50 hover:border-indigo-400'
+                        : idx === currentSlide
+                          ? 'border-indigo-500 ring-2 ring-indigo-500/30 shadow-indigo-200 dark:shadow-indigo-900/30'
+                          : 'border-border/50 hover:border-indigo-400'
                     }`}
-                    onClick={() => setCurrentSlide(idx)}
+                    onClick={() => {
+                      if (slideSelectMode) { toggleSlideSelect(slide.id); return; }
+                      setCurrentSlide(idx);
+                    }}
                     data-testid={`slide-thumbnail-${slide.id}`}
                   >
                     <div className="aspect-video bg-muted relative">
@@ -493,7 +597,7 @@ export default function DigitalBoard() {
                           <p className="text-xs font-medium text-center line-clamp-2">{slide.title}</p>
                         </div>
                       )}
-                      {idx === currentSlide && (
+                      {!slideSelectMode && idx === currentSlide && (
                         <div className="absolute inset-0 bg-indigo-500/10 flex items-center justify-center">
                           <div className="bg-indigo-500 text-white text-xs px-2 py-0.5 rounded-full font-medium shadow-sm">
                             재생중
@@ -507,7 +611,15 @@ export default function DigitalBoard() {
                     <div className="absolute top-0.5 left-0.5 bg-black/50 text-white text-[10px] px-1 py-0.5 rounded font-mono">
                       {idx + 1}
                     </div>
-                    {canEditDigitalBoard && (
+                    {slideSelectMode ? (
+                      <div className="absolute top-0.5 right-0.5 p-0.5 bg-white/80 dark:bg-black/60 rounded">
+                        <Checkbox
+                          checked={isChecked}
+                          className="w-4 h-4"
+                          data-testid={`chk-slide-${slide.id}`}
+                        />
+                      </div>
+                    ) : canEditDigitalBoard && (
                       <Button
                         variant="destructive"
                         size="icon"
