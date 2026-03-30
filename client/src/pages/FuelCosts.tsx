@@ -382,25 +382,7 @@ export default function FuelCosts() {
       </div>
       <input ref={fileInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFileChange} data-testid="input-fuel-file" />
 
-      {!hasData && !summaryLoading && (
-        <Card className="border-dashed border-2">
-          <CardContent className="flex flex-col items-center justify-center py-20 gap-5">
-            <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
-              <Fuel className="w-8 h-8 text-primary" />
-            </div>
-            <div className="text-center">
-              <p className="font-bold text-lg text-foreground">유류비 데이터가 없습니다</p>
-              <p className="text-sm text-muted-foreground mt-1">Excel 파일을 업로드하면 자동으로 분석 대시보드가 생성됩니다</p>
-            </div>
-            <Button size="lg" onClick={() => { setTab("upload"); }}>
-              <Upload className="w-4 h-4 mr-2" />업로드 관리로 이동
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-
-      {(hasData || summaryLoading) && (
-        <Tabs value={tab} onValueChange={setTab}>
+      <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="h-10 w-full sm:w-auto">
             <TabsTrigger value="dashboard" className="flex-1 sm:flex-none sm:px-5 text-xs sm:text-sm" data-testid="tab-dashboard">대시보드</TabsTrigger>
             <TabsTrigger value="detail" className="flex-1 sm:flex-none sm:px-5 text-xs sm:text-sm" data-testid="tab-detail">상세 데이터</TabsTrigger>
@@ -409,6 +391,23 @@ export default function FuelCosts() {
 
           {/* ══════════ 대시보드 ══════════ */}
           <TabsContent value="dashboard" className="space-y-6 mt-5">
+
+            {!hasData && !summaryLoading && (
+              <Card className="border-dashed border-2">
+                <CardContent className="flex flex-col items-center justify-center py-16 gap-5">
+                  <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
+                    <Fuel className="w-8 h-8 text-primary" />
+                  </div>
+                  <div className="text-center">
+                    <p className="font-bold text-lg text-foreground">유류비 데이터가 없습니다</p>
+                    <p className="text-sm text-muted-foreground mt-1">Excel 파일을 업로드하면 자동으로 분석 대시보드가 생성됩니다</p>
+                  </div>
+                  <Button size="lg" onClick={() => setTab("upload")}>
+                    <Upload className="w-4 h-4 mr-2" />업로드 관리로 이동
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
 
             {/* ── 연도별 KPI 카드 ── */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -1182,7 +1181,6 @@ export default function FuelCosts() {
             </div>
           </TabsContent>
         </Tabs>
-      )}
 
       <AlertDialog open={!!deleteBatchId} onOpenChange={o => !o && setDeleteBatchId(null)}>
         <AlertDialogContent>
