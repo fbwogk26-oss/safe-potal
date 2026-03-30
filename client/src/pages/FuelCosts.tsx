@@ -125,10 +125,6 @@ function YearCard({ stat, prevStat }: { stat: YearStat; prevStat?: YearStat }) {
 
         <div className="mt-4 pt-3 border-t border-border/60 grid grid-cols-2 gap-x-4 gap-y-2.5">
           <div>
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">전체비용</p>
-            <p className="text-sm font-bold text-foreground">{fmtM2(stat.totalCost)}</p>
-          </div>
-          <div>
             <p className="text-[10px] text-muted-foreground uppercase tracking-wide">총주행거리</p>
             <p className="text-sm font-bold text-foreground">{fmtK(stat.totalDistance)}</p>
             {prevStat && <TrendBadge value={distTrend} />}
@@ -193,7 +189,7 @@ export default function FuelCosts() {
   const [tab, setTab] = useState("dashboard");
   const [uploadYear, setUploadYear] = useState<string>("");
   const [uploadMonth, setUploadMonth] = useState<string>("");
-  const [chartMetric, setChartMetric] = useState<"fuel" | "total" | "distance">("fuel");
+  const [chartMetric, setChartMetric] = useState<"fuel" | "distance">("fuel");
   const [teamYearFilter, setTeamYearFilter] = useState<string>("all");
   const [filterYear, setFilterYear] = useState<string>("all");
   const [filterMonth, setFilterMonth] = useState<string>("all");
@@ -276,7 +272,6 @@ export default function FuelCosts() {
     for (const yr of sortedYears) {
       const d = summary?.byYearMonth.find(x => x.year === yr && x.month === m);
       if (chartMetric === "fuel") row[`${yr}`] = d ? Math.round(d.fuelCost / 10000) : null;
-      else if (chartMetric === "total") row[`${yr}`] = d ? Math.round(d.totalCost / 10000) : null;
       else row[`${yr}`] = d ? Math.round(d.totalDistance / 1000) : null;
     }
     return row;
@@ -350,7 +345,7 @@ export default function FuelCosts() {
   const SortIcon = ({ field }: { field: string }) =>
     sortField === field ? (sortDir === "asc" ? <ChevronUp className="w-3 h-3 inline ml-0.5" /> : <ChevronDown className="w-3 h-3 inline ml-0.5" />) : null;
 
-  const metricLabel = chartMetric === "fuel" ? "유류비" : chartMetric === "total" ? "전체비용" : "주행거리";
+  const metricLabel = chartMetric === "fuel" ? "유류비" : "주행거리";
   const yFmt = (v: any) => chartMetric === "distance" ? `${v}천km` : `${v}만`;
 
   return (
@@ -478,14 +473,14 @@ export default function FuelCosts() {
                     <p className="text-xs text-muted-foreground mt-0.5">연도별 월간 비교 — 선택 지표 기준</p>
                   </div>
                   <div className="flex gap-1.5 bg-muted p-1 rounded-lg">
-                    {(["fuel", "total", "distance"] as const).map(m => (
+                    {(["fuel", "distance"] as const).map(m => (
                       <button
                         key={m}
                         className={`text-xs px-3 py-1.5 rounded-md font-semibold transition-all ${chartMetric === m ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
                         onClick={() => setChartMetric(m)}
                         data-testid={`button-metric-${m}`}
                       >
-                        {m === "fuel" ? "유류비" : m === "total" ? "전체비용" : "주행거리"}
+                        {m === "fuel" ? "유류비" : "주행거리"}
                       </button>
                     ))}
                   </div>
@@ -547,7 +542,7 @@ export default function FuelCosts() {
                           const m = mi + 1;
                           const d = summary?.byYearMonth.find(x => x.year === yr && x.month === m);
                           if (!d) return null;
-                          return chartMetric === "fuel" ? d.fuelCost : chartMetric === "total" ? d.totalCost : d.totalDistance;
+                          return chartMetric === "fuel" ? d.fuelCost : d.totalDistance;
                         });
                         const total = vals.reduce((s, v) => s + (v ?? 0), 0);
                         return (
@@ -576,8 +571,8 @@ export default function FuelCosts() {
                             const cur = summary?.byYearMonth.find(x => x.year === curYr && x.month === m);
                             const prev = summary?.byYearMonth.find(x => x.year === prevYr && x.month === m);
                             if (!cur || !prev) return null;
-                            const cV = chartMetric === "fuel" ? cur.fuelCost : chartMetric === "total" ? cur.totalCost : cur.totalDistance;
-                            const pV = chartMetric === "fuel" ? prev.fuelCost : chartMetric === "total" ? prev.totalCost : prev.totalDistance;
+                            const cV = chartMetric === "fuel" ? cur.fuelCost : cur.totalDistance;
+                            const pV = chartMetric === "fuel" ? prev.fuelCost : prev.totalDistance;
                             return cV - pV;
                           });
                           const totalD = deltas.reduce((s, v) => s + (v ?? 0), 0);
