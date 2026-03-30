@@ -826,6 +826,26 @@ export async function registerRoutes(
     res.status(204).send();
   });
 
+  // DELETE /api/notices/bulk - 일괄 삭제 (관리자 또는 본인 글만)
+  app.delete("/api/notices/bulk", requireEditor, async (req: any, res) => {
+    try {
+      const { ids } = req.body;
+      if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ message: "ids 필드가 필요합니다" });
+      const isAdmin = req.session?.user?.role === "admin";
+      let deleted = 0;
+      for (const id of ids) {
+        const existing = await storage.getNotice(Number(id));
+        if (!existing) continue;
+        if (!isAdmin && existing.createdBy && existing.createdBy !== req.session?.user?.username) continue;
+        await storage.deleteNotice(Number(id));
+        deleted++;
+      }
+      res.json({ deleted });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   // === ACCESS REQUEST EXCEL DOWNLOAD (Single Item) ===
   app.get('/api/access/excel/:id', isAuthenticated, async (req: any, res) => {
     try {
