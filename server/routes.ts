@@ -801,8 +801,11 @@ export async function registerRoutes(
 
       // ── 1) 텍스트 추출 (pdfjs-dist, 서버 전용) ──
       const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
+      const pathMod = await import('path');
+      const workerSrc = 'file://' + pathMod.default.resolve('./node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs');
+      (pdfjsLib as any).GlobalWorkerOptions.workerSrc = workerSrc;
       const uint8 = new Uint8Array(pdfBuffer);
-      const loadingTask = pdfjsLib.getDocument({ data: uint8, disableWorker: true });
+      const loadingTask = pdfjsLib.getDocument({ data: uint8 });
       const pdfDoc = await loadingTask.promise;
       let text = '';
       for (let p = 1; p <= pdfDoc.numPages; p++) {
@@ -2757,8 +2760,11 @@ export async function registerRoutes(
           let pdfText = "";
           try {
             const pdfjsLib2 = await import('pdfjs-dist/legacy/build/pdf.mjs');
+            const pathMod2 = await import('path');
+            const workerSrc2 = 'file://' + pathMod2.default.resolve('./node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs');
+            (pdfjsLib2 as any).GlobalWorkerOptions.workerSrc = workerSrc2;
             const uint8b = new Uint8Array(pdfBuffer);
-            const loadingTask2 = pdfjsLib2.getDocument({ data: uint8b, disableWorker: true });
+            const loadingTask2 = pdfjsLib2.getDocument({ data: uint8b });
             const pdfDoc2 = await loadingTask2.promise;
             let rawText = '';
             for (let p2 = 1; p2 <= pdfDoc2.numPages; p2++) {
