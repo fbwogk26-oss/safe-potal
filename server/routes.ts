@@ -3547,12 +3547,35 @@ export async function registerRoutes(
       const records: any[] = [];
       let skippedSheets: string[] = [];
 
+      // 폼에서 넘어온 연도/월 오버라이드 (단일 시트 파일용)
+      const overrideYear = req.body?.year ? parseInt(req.body.year) : null;
+      const overrideMonth = req.body?.month ? parseInt(req.body.month) : null;
+
+      // 파일명에서 YYYYMMDD 추출 fallback
+      const filenameDate = req.file.originalname.match(/(\d{4})(\d{2})\d{2}/);
+      const filenameYear = filenameDate ? parseInt(filenameDate[1]) : null;
+      const filenameMonth = filenameDate ? parseInt(filenameDate[2]) : null;
+
       for (const sheetName of wb.SheetNames) {
-        // 시트 이름 파싱: "24년 1월", "25년 12월"
+        let year: number, month: number;
+
+        // 시트 이름 파싱: "24년 1월", "25년 12월", "26년 3월" 등
         const m = sheetName.match(/^(\d{2})년\s+(\d{1,2})월$/);
-        if (!m) { skippedSheets.push(sheetName); continue; }
-        const year = 2000 + parseInt(m[1]);
-        const month = parseInt(m[2]);
+        if (m) {
+          year = 2000 + parseInt(m[1]);
+          month = parseInt(m[2]);
+        } else if (overrideYear && overrideMonth) {
+          // 사용자가 직접 지정한 연도/월 사용
+          year = overrideYear;
+          month = overrideMonth;
+        } else if (filenameYear && filenameMonth) {
+          // 파일명에서 자동 추출
+          year = filenameYear;
+          month = filenameMonth;
+        } else {
+          skippedSheets.push(sheetName);
+          continue;
+        }
 
         // 같은 연월 기존 데이터 삭제 (재업로드)
         await storage.deleteFuelRecordsByYearMonth(year, month);
@@ -3611,12 +3634,14 @@ export async function registerRoutes(
       }
 
       const inserted = await storage.insertFuelRecords(records);
+      const yearMonths = [...new Set(records.map(r => `${r.year}년 ${r.month}월`))].sort();
       res.json({
         success: true,
         batchId,
         inserted,
         skippedSheets,
-        message: `${inserted}건 처리 완료 (${records.length > 0 ? Math.ceil(records.length / 12) : 0}개월 데이터)`,
+        yearMonths,
+        message: `${inserted}건 처리 완료 — ${yearMonths.join(", ")} 데이터 반영`,
       });
     } catch (e: any) {
       console.error("유류비 업로드 오류:", e);

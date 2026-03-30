@@ -205,6 +205,8 @@ export default function FuelCosts() {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [tab, setTab] = useState("dashboard");
+  const [uploadYear, setUploadYear] = useState<string>("");
+  const [uploadMonth, setUploadMonth] = useState<string>("");
   const [chartMetric, setChartMetric] = useState<"fuel" | "total" | "distance">("fuel");
   const [teamYearFilter, setTeamYearFilter] = useState<string>("all");
   const [filterYear, setFilterYear] = useState<string>("all");
@@ -238,9 +240,11 @@ export default function FuelCosts() {
   });
 
   const uploadMutation = useMutation({
-    mutationFn: async (file: File) => {
+    mutationFn: async ({ file, year, month }: { file: File; year?: string; month?: string }) => {
       const form = new FormData();
       form.append("file", file);
+      if (year) form.append("year", year);
+      if (month) form.append("month", month);
       const res = await fetch("/api/fuel-records/upload", { method: "POST", body: form, credentials: "include" });
       if (!res.ok) throw new Error((await res.json()).message);
       return res.json();
@@ -268,9 +272,16 @@ export default function FuelCosts() {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) uploadMutation.mutate(file);
+    const yr = uploadYear === "auto" || !uploadYear ? undefined : uploadYear;
+    const mo = uploadMonth === "auto" || !uploadMonth ? undefined : uploadMonth;
+    if (file) uploadMutation.mutate({ file, year: yr, month: mo });
     e.target.value = "";
   };
+
+  // 업로드 연도 목록
+  const uploadYearOptions = ["2024", "2025", "2026"];
+  const currentYear = new Date().getFullYear();
+  const currentMonth = new Date().getMonth() + 1;
 
   const years = summary?.years ?? [];
   const hasData = (summary?.totals?.totalRecords ?? 0) > 0;
@@ -377,23 +388,57 @@ export default function FuelCosts() {
   return (
     <div className="p-4 sm:p-6 space-y-5 max-w-[1400px] mx-auto">
       {/* 헤더 */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <Fuel className="w-6 h-6 text-primary" />
-            유류비 현황
-          </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">업무용 차량 유류비 사용 현황 및 연도별 비교 분석</p>
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+              <Fuel className="w-6 h-6 text-primary" />
+              유류비 현황
+            </h1>
+            <p className="text-sm text-muted-foreground mt-0.5">업무용 차량 유류비 사용 현황 및 연도별 비교 분석</p>
+          </div>
         </div>
-        <Button
-          data-testid="button-upload-fuel"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploadMutation.isPending}
-          className="w-full sm:w-auto"
-        >
-          {uploadMutation.isPending ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
-          Excel 업로드
-        </Button>
+        {/* 업로드 바 */}
+        <div className="flex flex-wrap items-center gap-2 p-3 bg-muted/40 rounded-lg border border-border">
+          <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">단월 파일 업로드 시 해당 연월 지정:</span>
+          <Select value={uploadYear} onValueChange={setUploadYear}>
+            <SelectTrigger className="w-24 h-8" data-testid="select-upload-year">
+              <SelectValue placeholder="연도" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="auto">자동감지</SelectItem>
+              {uploadYearOptions.map(y => <SelectItem key={y} value={y}>{y}년</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={uploadMonth} onValueChange={setUploadMonth}>
+            <SelectTrigger className="w-20 h-8" data-testid="select-upload-month">
+              <SelectValue placeholder="월" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="auto">자동감지</SelectItem>
+              {MONTHS.map((m, i) => <SelectItem key={i} value={String(i + 1)}>{m}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          {uploadYear && uploadYear !== "auto" && uploadMonth && uploadMonth !== "auto" && (
+            <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">
+              → {uploadYear}년 {uploadMonth}월 데이터로 업로드
+            </span>
+          )}
+          {(!uploadYear || uploadYear === "auto" || !uploadMonth || uploadMonth === "auto") && (
+            <span className="text-xs text-muted-foreground">
+              (파일명 날짜 자동 감지 · 연월별 시트 파일은 선택 불필요)
+            </span>
+          )}
+          <Button
+            data-testid="button-upload-fuel"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploadMutation.isPending}
+            className="ml-auto h-8"
+          >
+            {uploadMutation.isPending ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
+            Excel 업로드
+          </Button>
+        </div>
         <input ref={fileInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFileChange} data-testid="input-fuel-file" />
       </div>
 
@@ -979,22 +1024,68 @@ export default function FuelCosts() {
 
           {/* ═══════════════ 업로드 관리 탭 ═══════════════ */}
           <TabsContent value="upload" className="space-y-4 mt-4">
-            <Card className="border-dashed border-2">
-              <CardContent className="flex flex-col items-center justify-center py-10 gap-3">
-                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Upload className="w-6 h-6 text-primary" />
+            <Card>
+              <CardContent className="p-5 space-y-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                    <Upload className="w-5 h-5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-foreground">Excel 파일 업로드</p>
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                      같은 연월의 기존 데이터는 자동으로 교체됩니다.
+                    </p>
+                  </div>
                 </div>
-                <div className="text-center">
-                  <p className="font-semibold">"업무용 차량 유류비 사용추이" Excel 파일 업로드</p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    24년/25년/26년 시트가 포함된 파일을 업로드하세요.<br />
-                    같은 연월의 기존 데이터는 자동으로 교체됩니다.
-                  </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-muted/30 rounded-lg">
+                  <div>
+                    <p className="text-xs font-semibold text-foreground mb-2">📋 다중 시트 파일 (자동 처리)</p>
+                    <p className="text-xs text-muted-foreground">
+                      "24년 1월", "25년 12월" 형식의 시트명이 포함된 파일은 연도/월을 자동으로 인식합니다.
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-foreground mb-2">📄 단일 시트 파일 (연월 지정 필요)</p>
+                    <p className="text-xs text-muted-foreground">
+                      "Sheet1" 또는 단월 데이터 파일은 상단의 연도/월을 먼저 지정하거나 파일명에 날짜(YYYYMMDD)를 포함하면 자동 인식됩니다.
+                    </p>
+                    <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                      예: 차량사용실적현황_<strong>20260330</strong>_xxx.xlsx → 2026년 3월로 자동 인식
+                    </p>
+                  </div>
                 </div>
-                <Button onClick={() => fileInputRef.current?.click()} disabled={uploadMutation.isPending}>
-                  {uploadMutation.isPending ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
-                  파일 선택
-                </Button>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm text-muted-foreground">연월 수동 지정 (선택):</span>
+                  <Select value={uploadYear} onValueChange={setUploadYear}>
+                    <SelectTrigger className="w-24 h-8">
+                      <SelectValue placeholder="연도" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="auto">자동</SelectItem>
+                      {uploadYearOptions.map(y => <SelectItem key={y} value={y}>{y}년</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <Select value={uploadMonth} onValueChange={setUploadMonth}>
+                    <SelectTrigger className="w-20 h-8">
+                      <SelectValue placeholder="월" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="auto">자동</SelectItem>
+                      {MONTHS.map((m, i) => <SelectItem key={i} value={String(i + 1)}>{m}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  {uploadYear && uploadYear !== "auto" && uploadMonth && uploadMonth !== "auto" && (
+                    <Badge className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 border-0">
+                      {uploadYear}년 {uploadMonth}월로 업로드
+                    </Badge>
+                  )}
+                  <Button onClick={() => fileInputRef.current?.click()} disabled={uploadMutation.isPending} className="ml-auto">
+                    {uploadMutation.isPending ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
+                    파일 선택
+                  </Button>
+                </div>
               </CardContent>
             </Card>
 
