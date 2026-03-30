@@ -28,6 +28,8 @@ interface DayConfig {
 interface DaySchedule {
   checkin: DayConfig;
   checkout: DayConfig;
+  checkinSongIds?: number[];
+  checkoutSongIds?: number[];
 }
 type WeeklySchedule = Record<string, DaySchedule>;
 
@@ -98,7 +100,21 @@ export function MusicPlayer() {
     staleTime: 60_000,
   });
 
-  const activeFiles = allFiles.filter(
+  // Resolve day-specific song IDs if configured
+  const daySpecificFiles = (() => {
+    if (!activeType || !schedule) return null;
+    const now = new Date();
+    const dayKey = DAY_KEYS[now.getDay()];
+    const day = schedule[dayKey];
+    if (!day) return null;
+    const ids = activeType === "출근" ? (day.checkinSongIds ?? []) : (day.checkoutSongIds ?? []);
+    if (!ids || ids.length === 0) return null;
+    const idSet = new Set(ids);
+    const picked = allFiles.filter(f => idSet.has(f.id));
+    return picked.length > 0 ? picked : null;
+  })();
+
+  const activeFiles = daySpecificFiles ?? allFiles.filter(
     f => f.scheduleType === activeType || f.scheduleType === "all"
   );
   const safeLen = Math.max(activeFiles.length, 1);
@@ -309,6 +325,9 @@ export function MusicPlayer() {
                   <ListMusic className="w-4 h-4" />
                   <span className="text-sm font-semibold">{scheduleLabel} 재생목록</span>
                   <span className="text-xs text-white/60">{activeFiles.length}곡</span>
+                  {daySpecificFiles && (
+                    <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded-full">요일지정</span>
+                  )}
                 </div>
                 <Button variant="ghost" size="icon" className="h-6 w-6 text-white/70 hover:bg-white/20"
                   onClick={() => setShowPlaylist(false)} data-testid="button-playlist-close">

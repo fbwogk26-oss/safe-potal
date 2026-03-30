@@ -11,14 +11,19 @@ import { usePermissions } from "@/hooks/use-permissions";
 import {
   Music2, Upload, Trash2, Clock, FileAudio,
   Play, Pause, Save, AlertCircle, Copy, ChevronDown, ChevronUp,
-  Pencil, Check, X as XIcon,
+  Pencil, Check, X as XIcon, ListMusic,
 } from "lucide-react";
 import type { MusicFile } from "@shared/schema";
 import { cn } from "@/lib/utils";
 
 /* ─── Types ─────────────────────────────────────────── */
 interface DayConfig  { enabled: boolean; start: string; end: string }
-interface DaySchedule { checkin: DayConfig; checkout: DayConfig }
+interface DaySchedule {
+  checkin: DayConfig;
+  checkout: DayConfig;
+  checkinSongIds?: number[];
+  checkoutSongIds?: number[];
+}
 type WeeklySchedule = Record<string, DaySchedule>;
 
 const DAY_KEYS   = ["mon","tue","wed","thu","fri","sat","sun"];
@@ -51,16 +56,91 @@ function ensureWeekly(data: any): WeeklySchedule {
   return result;
 }
 
+/* ─── SongPicker sub-component ───────────────────────── */
+function SongPicker({ label, color, songs, selectedIds, onChange }: {
+  label: string;
+  color: string;
+  songs: MusicFile[];
+  selectedIds: number[];
+  onChange: (ids: number[]) => void;
+}) {
+  if (songs.length === 0) return null;
+
+  const toggle = (id: number) => {
+    if (selectedIds.includes(id)) onChange(selectedIds.filter(x => x !== id));
+    else onChange([...selectedIds, id]);
+  };
+
+  const allSelected = songs.length > 0 && songs.every(s => selectedIds.includes(s.id));
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between">
+        <span className={cn("text-xs font-semibold flex items-center gap-1.5", color)}>
+          <ListMusic className="w-3 h-3" />
+          {label} 지정 곡
+        </span>
+        <button
+          onClick={() => onChange(allSelected ? [] : songs.map(s => s.id))}
+          className="text-[11px] text-muted-foreground hover:text-foreground transition-colors underline-offset-2 hover:underline"
+          data-testid={`btn-select-all-${label}`}
+        >
+          {allSelected ? "전체 해제" : "전체 선택"}
+        </button>
+      </div>
+      <div className="space-y-1 pl-1">
+        {songs.map(song => {
+          const checked = selectedIds.includes(song.id);
+          return (
+            <label
+              key={song.id}
+              className={cn(
+                "flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg cursor-pointer transition-colors text-sm",
+                checked ? "bg-primary/10 text-foreground" : "hover:bg-muted/60 text-muted-foreground"
+              )}
+              data-testid={`song-pick-${label}-${song.id}`}
+            >
+              <div className={cn(
+                "w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors",
+                checked ? "bg-primary border-primary" : "border-muted-foreground/30"
+              )}>
+                {checked && <Check className="w-2.5 h-2.5 text-white" />}
+              </div>
+              <input type="checkbox" className="sr-only" checked={checked} onChange={() => toggle(song.id)} />
+              <span className="truncate text-xs">{song.name}</span>
+            </label>
+          );
+        })}
+      </div>
+      {selectedIds.length === 0 && (
+        <p className="text-[11px] text-muted-foreground pl-1 italic">
+          ※ 미지정 시 전체 {label === "출근" ? "출근·공통" : "퇴근·공통"} 곡 재생
+        </p>
+      )}
+    </div>
+  );
+}
+
 /* ─── DayCard component ──────────────────────────────── */
-function DayCard({ dayKey, dayForm, isToday, onChange }: {
+function DayCard({ dayKey, dayForm, isToday, allSongs, onChange, onSongIdsChange }: {
   dayKey: string;
   dayForm: DaySchedule;
   isToday: boolean;
+  allSongs: MusicFile[];
   onChange: (type: "checkin"|"checkout", field: keyof DayConfig, value: string|boolean) => void;
+  onSongIdsChange: (type: "checkinSongIds"|"checkoutSongIds", ids: number[]) => void;
 }) {
   const [open, setOpen] = useState(isToday);
+  const [showSongs, setShowSongs] = useState(false);
   const isWeekend = dayKey === "sat" || dayKey === "sun";
   const hasActive = dayForm.checkin.enabled || dayForm.checkout.enabled;
+
+  const checkinSongs = allSongs.filter(s => s.scheduleType === "출근" || s.scheduleType === "all");
+  const checkoutSongs = allSongs.filter(s => s.scheduleType === "퇴근" || s.scheduleType === "all");
+
+  const checkinIds = dayForm.checkinSongIds ?? [];
+  const checkoutIds = dayForm.checkoutSongIds ?? [];
+  const hasDaySongs = checkinIds.length > 0 || checkoutIds.length > 0;
 
   return (
     <div className={cn(
@@ -68,7 +148,7 @@ function DayCard({ dayKey, dayForm, isToday, onChange }: {
       isToday ? "border-primary/50 shadow-sm" : "border-border",
       isWeekend && !hasActive ? "opacity-70" : ""
     )}>
-      {/* Day header — tap to expand */}
+      {/* Day header */}
       <button
         className={cn(
           "w-full flex items-center gap-3 px-4 py-3 text-left transition-colors",
@@ -96,6 +176,9 @@ function DayCard({ dayKey, dayForm, isToday, onChange }: {
         <div className="flex items-center gap-1.5 shrink-0">
           {dayForm.checkin.enabled  && <span className="w-2 h-2 rounded-full bg-orange-400" />}
           {dayForm.checkout.enabled && <span className="w-2 h-2 rounded-full bg-indigo-400" />}
+          {hasDaySongs && (
+            <span className="text-[10px] bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded-full font-medium">곡지정</span>
+          )}
           {open ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
         </div>
       </button>
@@ -167,6 +250,51 @@ function DayCard({ dayKey, dayForm, isToday, onChange }: {
               </div>
             )}
           </div>
+
+          {/* Song assignment section */}
+          {allSongs.length > 0 && hasActive && (
+            <div className="border-t pt-3">
+              <button
+                onClick={() => setShowSongs(s => !s)}
+                className="flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors w-full text-left"
+                data-testid={`btn-toggle-songs-${dayKey}`}
+              >
+                <ListMusic className="w-3.5 h-3.5" />
+                <span>요일별 음악 지정</span>
+                {hasDaySongs && (
+                  <span className="bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded-full text-[10px]">
+                    {checkinIds.length + checkoutIds.length}곡 지정됨
+                  </span>
+                )}
+                {showSongs
+                  ? <ChevronUp className="w-3.5 h-3.5 ml-auto" />
+                  : <ChevronDown className="w-3.5 h-3.5 ml-auto" />}
+              </button>
+
+              {showSongs && (
+                <div className="mt-2.5 space-y-3 bg-muted/30 rounded-lg p-3">
+                  {dayForm.checkin.enabled && (
+                    <SongPicker
+                      label="출근"
+                      color="text-orange-600"
+                      songs={checkinSongs}
+                      selectedIds={checkinIds}
+                      onChange={ids => onSongIdsChange("checkinSongIds", ids)}
+                    />
+                  )}
+                  {dayForm.checkout.enabled && (
+                    <SongPicker
+                      label="퇴근"
+                      color="text-indigo-600"
+                      songs={checkoutSongs}
+                      selectedIds={checkoutIds}
+                      onChange={ids => onSongIdsChange("checkoutSongIds", ids)}
+                    />
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -261,6 +389,9 @@ function MusicFileCard({ file, idx, isPreviewing, onPreview, onTypeChange, onNam
             </button>
           ))}
         </div>
+        <Badge variant="outline" className={cn("text-[10px] px-1.5 shrink-0", meta.light)}>
+          {meta.label}
+        </Badge>
         <Button
           variant="ghost" size="icon"
           className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10 shrink-0"
@@ -316,7 +447,7 @@ export default function MusicManager() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/music/schedule"] });
       setScheduleForm(null);
-      toast({ title: "저장 완료", description: "요일별 재생 시간이 저장됐습니다." });
+      toast({ title: "저장 완료", description: "요일별 설정이 저장됐습니다." });
     },
     onError: (e: any) => toast({ title: "저장 실패", description: e.message, variant: "destructive" }),
   });
@@ -328,10 +459,22 @@ export default function MusicManager() {
     });
   };
 
+  const updateDaySongIds = (day: string, type: "checkinSongIds"|"checkoutSongIds", ids: number[]) => {
+    setScheduleForm(prev => {
+      const base = prev ?? form;
+      return { ...base, [day]: { ...base[day], [type]: ids } };
+    });
+  };
+
   const copyMonToAll = () => {
     const mon = form.mon;
     const next: WeeklySchedule = {};
-    for (const k of DAY_KEYS) next[k] = { checkin:{ ...mon.checkin }, checkout:{ ...mon.checkout } };
+    for (const k of DAY_KEYS) next[k] = {
+      checkin: { ...mon.checkin },
+      checkout: { ...mon.checkout },
+      checkinSongIds: mon.checkinSongIds ? [...mon.checkinSongIds] : [],
+      checkoutSongIds: mon.checkoutSongIds ? [...mon.checkoutSongIds] : [],
+    };
     setScheduleForm(next);
     toast({ title: "복사 완료", description: "월요일 설정이 모든 요일에 적용됐습니다." });
   };
@@ -422,7 +565,7 @@ export default function MusicManager() {
           <div className="flex items-center justify-between">
             <CardTitle className="text-base flex items-center gap-2">
               <Clock className="w-4 h-4 text-muted-foreground" />
-              요일별 재생 시간
+              요일별 재생 시간 &amp; 음악 지정
             </CardTitle>
             <Button variant="outline" size="sm" onClick={copyMonToAll} className="text-xs gap-1.5 h-7 px-2.5" data-testid="button-copy-all">
               <Copy className="w-3.5 h-3.5" />
@@ -437,7 +580,9 @@ export default function MusicManager() {
               dayKey={day}
               dayForm={form[day] ?? DEFAULT_WEEKLY[day]}
               isToday={day === todayKey}
+              allSongs={files}
               onChange={(type, field, value) => updateDay(day, type, field, value)}
+              onSongIdsChange={(type, ids) => updateDaySongIds(day, type, ids)}
             />
           ))}
           <div className="flex justify-end pt-1">
@@ -448,7 +593,7 @@ export default function MusicManager() {
               className="w-full sm:w-auto"
             >
               <Save className="w-4 h-4 mr-1.5" />
-              {scheduleUpdateMutation.isPending ? "저장 중..." : "시간 저장"}
+              {scheduleUpdateMutation.isPending ? "저장 중..." : "저장"}
             </Button>
           </div>
         </CardContent>
@@ -490,7 +635,6 @@ export default function MusicManager() {
                   data-testid="input-music-name"
                 />
               </div>
-              {/* Type selector for upload */}
               <div className="flex rounded-lg border overflow-hidden">
                 {(["출근","퇴근","all"] as const).map(t => (
                   <button
