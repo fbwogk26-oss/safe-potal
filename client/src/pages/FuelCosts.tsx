@@ -324,7 +324,7 @@ export default function FuelCosts() {
   // ────────── 팀별 차트 ──────────
   const teamsForChart = summary?.byTeam.map(t => t.team) ?? [];
   const teamChartData = teamsForChart.map(team => {
-    const row: Record<string, any> = { team: team.replace("운용팀","").replace("운용부","부").replace("사업팀","사업") };
+    const row: Record<string, any> = { team };
     const filteredYears = teamYearFilter === "all" ? sortedYears : [parseInt(teamYearFilter)];
     for (const yr of filteredYears) {
       const d = summary?.byTeamByYear.find(x => x.team === team && x.year === yr);
@@ -388,59 +388,16 @@ export default function FuelCosts() {
   return (
     <div className="p-4 sm:p-6 space-y-5 max-w-[1400px] mx-auto">
       {/* 헤더 */}
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-              <Fuel className="w-6 h-6 text-primary" />
-              유류비 현황
-            </h1>
-            <p className="text-sm text-muted-foreground mt-0.5">업무용 차량 유류비 사용 현황 및 연도별 비교 분석</p>
-          </div>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+            <Fuel className="w-6 h-6 text-primary" />
+            유류비 현황
+          </h1>
+          <p className="text-sm text-muted-foreground mt-0.5">업무용 차량 유류비 사용 현황 및 연도별 비교 분석</p>
         </div>
-        {/* 업로드 바 */}
-        <div className="flex flex-wrap items-center gap-2 p-3 bg-muted/40 rounded-lg border border-border">
-          <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">단월 파일 업로드 시 해당 연월 지정:</span>
-          <Select value={uploadYear} onValueChange={setUploadYear}>
-            <SelectTrigger className="w-24 h-8" data-testid="select-upload-year">
-              <SelectValue placeholder="연도" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="auto">자동감지</SelectItem>
-              {uploadYearOptions.map(y => <SelectItem key={y} value={y}>{y}년</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Select value={uploadMonth} onValueChange={setUploadMonth}>
-            <SelectTrigger className="w-20 h-8" data-testid="select-upload-month">
-              <SelectValue placeholder="월" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="auto">자동감지</SelectItem>
-              {MONTHS.map((m, i) => <SelectItem key={i} value={String(i + 1)}>{m}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          {uploadYear && uploadYear !== "auto" && uploadMonth && uploadMonth !== "auto" && (
-            <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">
-              → {uploadYear}년 {uploadMonth}월 데이터로 업로드
-            </span>
-          )}
-          {(!uploadYear || uploadYear === "auto" || !uploadMonth || uploadMonth === "auto") && (
-            <span className="text-xs text-muted-foreground">
-              (파일명 날짜 자동 감지 · 연월별 시트 파일은 선택 불필요)
-            </span>
-          )}
-          <Button
-            data-testid="button-upload-fuel"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploadMutation.isPending}
-            className="ml-auto h-8"
-          >
-            {uploadMutation.isPending ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
-            Excel 업로드
-          </Button>
-        </div>
-        <input ref={fileInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFileChange} data-testid="input-fuel-file" />
       </div>
+      <input ref={fileInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFileChange} data-testid="input-fuel-file" />
 
       {!hasData && !summaryLoading && (
         <Card className="border-dashed border-2">
@@ -730,11 +687,11 @@ export default function FuelCosts() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <ResponsiveContainer width="100%" height={280}>
-                    <BarChart data={teamChartData} layout="vertical" margin={{ top: 0, right: 20, left: 64, bottom: 0 }}>
+                  <ResponsiveContainer width="100%" height={Math.max(300, teamChartData.length * 28 + 40)}>
+                    <BarChart data={teamChartData} layout="vertical" margin={{ top: 0, right: 20, left: 4, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" horizontal={false} className="opacity-20" />
                       <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={v => `${v}만`} />
-                      <YAxis type="category" dataKey="team" tick={{ fontSize: 10 }} width={60} />
+                      <YAxis type="category" dataKey="team" tick={{ fontSize: 11 }} width={100} />
                       <Tooltip formatter={(v: any) => [`${fmt(v)}만원`]} />
                       <Legend wrapperStyle={{ fontSize: 11 }} />
                       {(teamYearFilter === "all" ? sortedYears : [parseInt(teamYearFilter)]).map((yr, i) => {
