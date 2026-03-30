@@ -7,6 +7,7 @@ SafeBoard is a Korean-language enterprise safety management portal for tracking 
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
+**배포 정책**: 모든 작업 완료 후 반드시 배포(Publish) 제안을 해야 함. 개발 서버와 배포 사이트가 항상 동일하게 유지되어야 함.
 
 ## System Architecture
 
