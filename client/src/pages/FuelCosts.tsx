@@ -12,7 +12,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  ReferenceLine,
+  ReferenceLine, LabelList,
 } from "recharts";
 import {
   Fuel, Upload, Trash2, TrendingUp, TrendingDown, Minus,
@@ -284,16 +284,27 @@ export default function FuelCosts() {
     deltaCharts.push({ label: `${prevYear}→${curYear}년`, prevYear, curYear, data });
   }
 
-  // ── 팀별 차트 ──
-  const teamsForChart = summary?.byTeam.map(t => t.team) ?? [];
+  // ── 팀별 차트 ── (유의미한 팀만: 어느 연도든 유류비 500만원 이상)
+  const significantTeams = new Set(
+    (summary?.byTeamByYear ?? [])
+      .filter(t => t.fuelCost >= 5000000)
+      .map(t => t.team)
+  );
+  const teamsForChart = (summary?.byTeam ?? [])
+    .filter(t => significantTeams.has(t.team))
+    .map(t => t.team);
+
+  const activeYearsForTeam = teamYearFilter === "all" ? sortedYears : [parseInt(teamYearFilter)];
   const teamChartData = teamsForChart.map(team => {
     const row: Record<string, any> = { team };
-    const filteredYears = teamYearFilter === "all" ? sortedYears : [parseInt(teamYearFilter)];
-    for (const yr of filteredYears) {
+    for (const yr of activeYearsForTeam) {
       const d = summary?.byTeamByYear.find(x => x.team === team && x.year === yr);
       row[`${yr}`] = d ? Math.round(d.fuelCost / 10000) : 0;
     }
     return row;
+  }).sort((a, b) => {
+    const latestYr = activeYearsForTeam[activeYearsForTeam.length - 1];
+    return (b[`${latestYr}`] ?? 0) - (a[`${latestYr}`] ?? 0);
   });
 
   // ── 비용 구조 ──
@@ -635,33 +646,134 @@ export default function FuelCosts() {
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                   <div>
                     <CardTitle className="text-base font-bold">팀별 유류비 비교</CardTitle>
-                    <p className="text-xs text-muted-foreground mt-0.5">팀별 연도별 유류비 현황</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      주요 운용팀 기준 · {activeYearsForTeam[activeYearsForTeam.length - 1]}년 유류비 순 정렬
+                    </p>
                   </div>
                   <Select value={teamYearFilter} onValueChange={setTeamYearFilter}>
                     <SelectTrigger className="w-28 h-8" data-testid="select-team-year">
                       <SelectValue placeholder="연도" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">전체</SelectItem>
+                      <SelectItem value="all">전체 비교</SelectItem>
                       {sortedYears.map(yr => <SelectItem key={yr} value={String(yr)}>{yr}년</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
               </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={Math.max(340, teamChartData.length * 32 + 60)}>
-                  <BarChart data={teamChartData} layout="vertical" barCategoryGap="28%" margin={{ top: 4, right: 40, left: 4, bottom: 4 }}>
-                    <CartesianGrid strokeDasharray="4 4" horizontal={false} className="opacity-10" />
-                    <XAxis type="number" tick={{ fontSize: 12 }} tickFormatter={v => `${v}만`} tickLine={false} axisLine={false} />
-                    <YAxis type="category" dataKey="team" tick={{ fontSize: 12 }} width={110} tickLine={false} axisLine={false} />
-                    <Tooltip content={<ChartTooltip unit="만원" />} formatter={(v: any) => [fmt(v), ""]} />
-                    <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} formatter={(v) => <span className="text-foreground font-medium">{v}년</span>} />
-                    {(teamYearFilter === "all" ? sortedYears : [parseInt(teamYearFilter)]).map((yr) => {
+              <CardContent className="space-y-6">
+                {/* 막대 차트 */}
+                <ResponsiveContainer width="100%" height={Math.max(320, teamChartData.length * 44 + 60)}>
+                  <BarChart
+                    data={teamChartData}
+                    layout="vertical"
+                    barCategoryGap="30%"
+                    barGap={3}
+                    margin={{ top: 4, right: 80, left: 8, bottom: 4 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="currentColor" strokeOpacity={0.07} />
+                    <XAxis
+                      type="number"
+                      tick={{ fontSize: 11, fill: "currentColor", opacity: 0.5 }}
+                      tickFormatter={v => v === 0 ? "0" : `${v}만`}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <YAxis
+                      type="category"
+                      dataKey="team"
+                      tick={{ fontSize: 13, fontWeight: 600, fill: "currentColor" }}
+                      width={115}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <Tooltip
+                      cursor={{ fill: "currentColor", fillOpacity: 0.04 }}
+                      content={({ active, payload, label }) => {
+                        if (!active || !payload?.length) return null;
+                        return (
+                          <div className="bg-popover border border-border rounded-lg shadow-lg p-3 text-xs min-w-[140px]">
+                            <p className="font-bold text-sm mb-2">{label}</p>
+                            {payload.map((p: any, i: number) => (
+                              <div key={i} className="flex items-center justify-between gap-4 py-0.5">
+                                <span className="flex items-center gap-1.5">
+                                  <span className="w-2 h-2 rounded-sm" style={{ background: p.fill }} />
+                                  <span className="text-muted-foreground">{p.name}년</span>
+                                </span>
+                                <span className="font-semibold tabular-nums">{Number(p.value).toLocaleString()}만원</span>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      }}
+                    />
+                    <Legend
+                      wrapperStyle={{ fontSize: 12, paddingTop: 12 }}
+                      formatter={(v) => <span className="font-semibold">{v}년</span>}
+                    />
+                    {activeYearsForTeam.map((yr) => {
                       const c = YEAR_PALETTE[yr] ?? YEAR_PALETTE[2025];
-                      return <Bar key={yr} dataKey={`${yr}`} name={`${yr}`} fill={c.fill} radius={[0, 4, 4, 0]} />;
+                      return (
+                        <Bar key={yr} dataKey={`${yr}`} name={`${yr}`} fill={c.fill} radius={[0, 5, 5, 0]} maxBarSize={28}>
+                          <LabelList
+                            dataKey={`${yr}`}
+                            position="right"
+                            style={{ fontSize: 11, fontWeight: 700, fill: c.fill }}
+                            formatter={(v: number) => v > 0 ? `${v.toLocaleString()}만` : ""}
+                          />
+                        </Bar>
+                      );
                     })}
                   </BarChart>
                 </ResponsiveContainer>
+
+                {/* 팀별 연도 비교 테이블 */}
+                <div className="overflow-x-auto rounded-lg border border-border">
+                  <table className="w-full text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-muted/60">
+                        <th className="text-left py-2.5 px-3 font-semibold text-muted-foreground whitespace-nowrap">팀명</th>
+                        {sortedYears.map(yr => {
+                          const p = YEAR_PALETTE[yr] ?? YEAR_PALETTE[2025];
+                          return <th key={yr} className={`text-right py-2.5 px-3 font-semibold whitespace-nowrap ${p.text}`}>{yr}년</th>;
+                        })}
+                        {sortedYears.length >= 2 && (
+                          <th className="text-right py-2.5 px-3 font-semibold text-muted-foreground whitespace-nowrap">
+                            {sortedYears[sortedYears.length - 2]}→{sortedYears[sortedYears.length - 1]} 증감
+                          </th>
+                        )}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {teamChartData.map((row, ri) => {
+                        const prev = sortedYears.length >= 2 ? (row[`${sortedYears[sortedYears.length - 2]}`] ?? 0) : null;
+                        const cur = sortedYears.length >= 2 ? (row[`${sortedYears[sortedYears.length - 1]}`] ?? 0) : null;
+                        const delta = (prev != null && cur != null) ? cur - prev : null;
+                        return (
+                          <tr key={row.team} className={`border-t border-border/40 ${ri % 2 === 1 ? "bg-muted/20" : ""}`}>
+                            <td className="py-2.5 px-3 font-semibold whitespace-nowrap">{row.team}</td>
+                            {sortedYears.map(yr => {
+                              const p = YEAR_PALETTE[yr] ?? YEAR_PALETTE[2025];
+                              const v = row[`${yr}`] ?? 0;
+                              return (
+                                <td key={yr} className={`text-right py-2.5 px-3 tabular-nums whitespace-nowrap ${v > 0 ? "font-medium" : "text-muted-foreground/40"}`}>
+                                  {v > 0 ? `${v.toLocaleString()}만원` : "-"}
+                                </td>
+                              );
+                            })}
+                            {sortedYears.length >= 2 && (
+                              <td className={`text-right py-2.5 px-3 font-bold tabular-nums whitespace-nowrap ${delta == null ? "" : delta > 0 ? "text-red-500" : delta < 0 ? "text-blue-500" : "text-muted-foreground"}`}>
+                                {delta != null && delta !== 0
+                                  ? `${delta > 0 ? "▲" : "▼"} ${Math.abs(delta).toLocaleString()}만원`
+                                  : delta === 0 ? "-" : "-"}
+                              </td>
+                            )}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </CardContent>
             </Card>
 
