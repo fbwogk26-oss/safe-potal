@@ -790,49 +790,48 @@ export default function FuelCosts() {
                           const p = YEAR_PALETTE[yr] ?? YEAR_PALETTE[2025];
                           return <th key={yr} className={`text-right py-2.5 px-4 font-bold whitespace-nowrap ${p.text}`}>{shortYr(yr)}년</th>;
                         })}
-                        {sortedYears.length >= 2 && (
-                          <th className="text-right py-2.5 px-4 font-bold text-foreground whitespace-nowrap">
-                            {shortYr(sortedYears[sortedYears.length - 2])}→{shortYr(sortedYears[sortedYears.length - 1])} 증감
+                        {sortedYears.length >= 2 && sortedYears.slice(0, -1).map((yr, idx) => (
+                          <th key={`delta-${yr}`} className="text-right py-2.5 px-4 font-bold text-foreground whitespace-nowrap">
+                            {shortYr(yr)}→{shortYr(sortedYears[idx + 1])} 증감
                           </th>
-                        )}
+                        ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {yearCompTable.map((row, i) => {
-                        const lastYr = sortedYears[sortedYears.length - 1];
-                        const prevYr = sortedYears[sortedYears.length - 2];
-                        const delta = prevYr != null ? (row[lastYr] ?? 0) - (row[prevYr] ?? 0) : null;
-                        const dPct = prevYr != null && row[prevYr] > 0 ? ((row[lastYr] - row[prevYr]) / row[prevYr]) * 100 : null;
-                        return (
-                          <tr
-                            key={i}
-                            className={`border-b border-border/50 hover:bg-muted/30 transition-colors cursor-pointer ${i % 2 === 0 ? "" : "bg-muted/15"} ${teamTeamFilter === row.team ? "ring-1 ring-inset ring-primary/30 bg-primary/5" : ""}`}
-                            onClick={() => setTeamTeamFilter(teamTeamFilter === row.team ? "all" : row.team)}
-                          >
-                            <td className="py-2.5 px-4 font-semibold text-foreground whitespace-nowrap">{row.team}</td>
-                            {sortedYears.map(yr => {
-                              const p = YEAR_PALETTE[yr] ?? YEAR_PALETTE[2025];
-                              return (
-                                <td key={yr} className="text-right py-2.5 px-4 tabular-nums whitespace-nowrap">
-                                  {row[yr] > 0 ? <span className={`font-semibold ${p.text}`}>{fmtM2(row[yr])}</span> : <span className="text-muted-foreground/50">-</span>}
-                                </td>
-                              );
-                            })}
-                            {sortedYears.length >= 2 && (
-                              <td className="text-right py-2.5 px-4 tabular-nums whitespace-nowrap">
-                                {delta !== null && row[prevYr] > 0 ? (
+                      {yearCompTable.map((row, i) => (
+                        <tr
+                          key={i}
+                          className={`border-b border-border/50 hover:bg-muted/30 transition-colors cursor-pointer ${i % 2 === 0 ? "" : "bg-muted/15"} ${teamTeamFilter === row.team ? "ring-1 ring-inset ring-primary/30 bg-primary/5" : ""}`}
+                          onClick={() => setTeamTeamFilter(teamTeamFilter === row.team ? "all" : row.team)}
+                        >
+                          <td className="py-2.5 px-4 font-semibold text-foreground whitespace-nowrap">{row.team}</td>
+                          {sortedYears.map(yr => {
+                            const p = YEAR_PALETTE[yr] ?? YEAR_PALETTE[2025];
+                            return (
+                              <td key={yr} className="text-right py-2.5 px-4 tabular-nums whitespace-nowrap">
+                                {row[yr] > 0 ? <span className={`font-semibold ${p.text}`}>{fmtM2(row[yr])}</span> : <span className="text-muted-foreground/50">-</span>}
+                              </td>
+                            );
+                          })}
+                          {sortedYears.length >= 2 && sortedYears.slice(0, -1).map((yr, idx) => {
+                            const nextYr = sortedYears[idx + 1];
+                            const delta = (row[nextYr] ?? 0) - (row[yr] ?? 0);
+                            const dPct = row[yr] > 0 ? (delta / row[yr]) * 100 : null;
+                            return (
+                              <td key={`delta-${yr}`} className="text-right py-2.5 px-4 tabular-nums whitespace-nowrap">
+                                {row[yr] > 0 ? (
                                   <span className={`font-bold ${delta > 0 ? "text-red-600" : delta < 0 ? "text-blue-600" : "text-muted-foreground"}`}>
-                                    {delta > 0 ? "▲ " : "▼ "}{fmtM2(Math.abs(delta))}
-                                    <span className={`ml-1 text-[11px] font-medium`}>
+                                    {delta > 0 ? "▲ " : delta < 0 ? "▼ " : ""}{fmtM2(Math.abs(delta))}
+                                    <span className="ml-1 text-[11px] font-medium">
                                       ({dPct !== null ? `${dPct > 0 ? "+" : ""}${dPct.toFixed(1)}%` : "-"})
                                     </span>
                                   </span>
                                 ) : <span className="text-muted-foreground/50">-</span>}
                               </td>
-                            )}
-                          </tr>
-                        );
-                      })}
+                            );
+                          })}
+                        </tr>
+                      ))}
                     </tbody>
                     <tfoot>
                       <tr className="bg-muted/50 border-t-2 border-border">
@@ -846,16 +845,17 @@ export default function FuelCosts() {
                             </td>
                           );
                         })}
-                        {sortedYears.length >= 2 && (() => {
-                          const cur = years.find(y => y.year === sortedYears[sortedYears.length - 1]);
-                          const prev = years.find(y => y.year === sortedYears[sortedYears.length - 2]);
+                        {sortedYears.length >= 2 && sortedYears.slice(0, -1).map((yr, idx) => {
+                          const nextYr = sortedYears[idx + 1];
+                          const prev = years.find(y => y.year === yr);
+                          const cur = years.find(y => y.year === nextYr);
                           const d = cur && prev ? cur.fuelCost - prev.fuelCost : null;
                           const dp = cur && prev && prev.fuelCost > 0 ? ((cur.fuelCost - prev.fuelCost) / prev.fuelCost) * 100 : null;
                           return (
-                            <td className="text-right py-2.5 px-4 tabular-nums whitespace-nowrap">
+                            <td key={`tfoot-delta-${yr}`} className="text-right py-2.5 px-4 tabular-nums whitespace-nowrap">
                               {d !== null ? (
-                                <span className={`font-black ${d > 0 ? "text-red-600" : "text-blue-600"}`}>
-                                  {d > 0 ? "▲ " : "▼ "}{fmtM2(Math.abs(d))}
+                                <span className={`font-black ${d > 0 ? "text-red-600" : d < 0 ? "text-blue-600" : "text-muted-foreground"}`}>
+                                  {d > 0 ? "▲ " : d < 0 ? "▼ " : ""}{fmtM2(Math.abs(d))}
                                   <span className="ml-1 text-xs font-bold">
                                     ({dp !== null ? `${dp > 0 ? "+" : ""}${dp.toFixed(1)}%` : "-"})
                                   </span>
@@ -863,7 +863,7 @@ export default function FuelCosts() {
                               ) : "-"}
                             </td>
                           );
-                        })()}
+                        })}
                       </tr>
                     </tfoot>
                   </table>
