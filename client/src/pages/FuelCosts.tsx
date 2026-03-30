@@ -11,41 +11,80 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import {
-  LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
+  ComposedChart, LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  ReferenceLine, Area, AreaChart,
 } from "recharts";
 import {
   Fuel, Upload, Trash2, TrendingUp, TrendingDown, Minus,
   Car, BarChart3, Database, RefreshCw, Search, ChevronUp, ChevronDown,
+  Layers, Map, CreditCard, Banknote,
 } from "lucide-react";
 import type { FuelRecord } from "@shared/schema";
 
 const fmt = (n: number) => new Intl.NumberFormat("ko-KR").format(Math.round(n));
 const fmtM = (n: number) => {
   if (n >= 100000000) return `${(n / 100000000).toFixed(1)}억`;
-  if (n >= 10000) return `${(n / 10000).toFixed(0)}만`;
+  if (n >= 10000) return `${(n / 10000).toFixed(1)}만`;
   return fmt(n);
 };
-
-const FUEL_COLORS: Record<string, string> = {
-  경유: "#3b82f6",
-  휘발유: "#f59e0b",
-  EV: "#22c55e",
-  기타: "#8b5cf6",
-};
-const TEAM_COLORS = [
-  "#3b82f6", "#f59e0b", "#22c55e", "#ef4444", "#8b5cf6",
-  "#06b6d4", "#f97316", "#ec4899", "#84cc16", "#14b8a6",
-  "#a855f7", "#fb923c", "#64748b",
-];
+const fmtK = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(0)}천km` : `${fmt(n)}km`;
 
 const MONTHS = ["1월","2월","3월","4월","5월","6월","7월","8월","9월","10월","11월","12월"];
 
+// 연도별 색상 팔레트
+const YEAR_COLORS: Record<number, { stroke: string; fill: string; bg: string; text: string }> = {
+  2024: { stroke: "#94a3b8", fill: "#94a3b8", bg: "bg-slate-100 dark:bg-slate-800", text: "text-slate-600 dark:text-slate-300" },
+  2025: { stroke: "#3b82f6", fill: "#3b82f6", bg: "bg-blue-50 dark:bg-blue-950/40", text: "text-blue-600 dark:text-blue-400" },
+  2026: { stroke: "#f97316", fill: "#f97316", bg: "bg-orange-50 dark:bg-orange-950/40", text: "text-orange-600 dark:text-orange-400" },
+};
+
+const FUEL_COLORS: Record<string, string> = {
+  경유: "#3b82f6", 휘발유: "#f59e0b", EV: "#22c55e", LPG: "#a855f7", 기타: "#94a3b8",
+};
+
+const ACQUISITION_COLORS: Record<string, string> = {
+  렌트: "#3b82f6", 리스: "#22c55e", 자차: "#f59e0b", 기타: "#94a3b8",
+};
+
+const TEAM_COLORS = [
+  "#3b82f6","#f59e0b","#22c55e","#ef4444","#8b5cf6",
+  "#06b6d4","#f97316","#ec4899","#84cc16","#14b8a6","#a855f7","#fb923c","#64748b",
+];
+
+interface YearStat {
+  year: number;
+  totalCost: number;
+  fuelCost: number;
+  cardFuelCost: number;
+  cashFuelCost: number;
+  cardOther: number;
+  totalDistance: number;
+  vehicleCount: number;
+  avgFuelPerKm: number;
+}
+
+interface MonthStat {
+  year: number;
+  month: number;
+  totalCost: number;
+  totalDistance: number;
+  fuelCost: number;
+  cardFuelCost: number;
+  cashFuelCost: number;
+  cardOther: number;
+  cashOther: number;
+}
+
 interface SummaryData {
-  byYearMonth: { year: number; month: number; totalCost: number; totalDistance: number; fuelCost: number }[];
+  byYearMonth: MonthStat[];
   byTeam: { team: string; totalCost: number; fuelCost: number; distance: number }[];
+  byTeamByYear: { team: string; year: number; totalCost: number; fuelCost: number; distance: number }[];
   byFuelType: { fuelType: string; totalCost: number; fuelCost: number; count: number }[];
-  totals: { grand24: number; grand25: number; fuel24: number; fuel25: number; totalRecords: number };
+  byAcquisition: { type: string; totalCost: number; fuelCost: number; count: number }[];
+  byVehicleType: { type: string; fuelCost: number; count: number }[];
+  years: YearStat[];
+  totals: { totalRecords: number };
 }
 
 interface Batch {
@@ -55,32 +94,65 @@ interface Batch {
   yearMonths: string[];
 }
 
-function KpiCard({ title, value, sub, trend, icon: Icon, color = "blue" }: {
-  title: string; value: string; sub?: string; trend?: number; icon: any; color?: string;
-}) {
-  const colorMap: Record<string, string> = {
-    blue: "bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400",
-    green: "bg-green-50 dark:bg-green-950/30 text-green-600 dark:text-green-400",
-    amber: "bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400",
-    purple: "bg-purple-50 dark:bg-purple-950/30 text-purple-600 dark:text-purple-400",
-  };
+// 퍼센트 변화율 계산
+function pct(now: number, prev: number): number | null {
+  if (!prev) return null;
+  return ((now - prev) / prev) * 100;
+}
+
+// 변화율 배지
+function TrendBadge({ value, invert = false }: { value: number | null; invert?: boolean }) {
+  if (value === null) return <span className="text-xs text-muted-foreground">-</span>;
+  const positive = invert ? value < 0 : value > 0;
   return (
-    <Card>
-      <CardContent className="p-4 sm:p-5">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex-1 min-w-0">
-            <p className="text-xs text-muted-foreground mb-1">{title}</p>
-            <p className="text-xl sm:text-2xl font-bold text-foreground truncate">{value}</p>
-            {sub && <p className="text-xs text-muted-foreground mt-1">{sub}</p>}
-            {trend !== undefined && (
-              <div className={`flex items-center gap-1 mt-1 text-xs font-medium ${trend > 0 ? "text-red-500" : trend < 0 ? "text-blue-500" : "text-muted-foreground"}`}>
-                {trend > 0 ? <TrendingUp className="w-3 h-3" /> : trend < 0 ? <TrendingDown className="w-3 h-3" /> : <Minus className="w-3 h-3" />}
-                {trend > 0 ? "+" : ""}{trend.toFixed(1)}% (24년 대비)
-              </div>
-            )}
+    <span className={`inline-flex items-center gap-0.5 text-xs font-semibold ${positive ? "text-red-500" : value === 0 ? "text-muted-foreground" : "text-blue-500"}`}>
+      {value > 0 ? <TrendingUp className="w-3 h-3" /> : value < 0 ? <TrendingDown className="w-3 h-3" /> : <Minus className="w-3 h-3" />}
+      {value > 0 ? "+" : ""}{value.toFixed(1)}%
+    </span>
+  );
+}
+
+// 연도 카드
+function YearCard({ stat, prevStat }: { stat: YearStat; prevStat?: YearStat }) {
+  const c = YEAR_COLORS[stat.year] ?? YEAR_COLORS[2025];
+  const fuelTrend = prevStat ? pct(stat.fuelCost, prevStat.fuelCost) : null;
+  const distTrend = prevStat ? pct(stat.totalDistance, prevStat.totalDistance) : null;
+  return (
+    <Card className={`relative overflow-hidden border ${c.bg}`}>
+      <CardContent className="p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <span className={`text-sm font-bold ${c.text}`}>{stat.year}년</span>
+          {prevStat && <TrendBadge value={fuelTrend} />}
+        </div>
+        <div>
+          <p className="text-[11px] text-muted-foreground">유류비 합계</p>
+          <p className="text-xl font-bold text-foreground">{fmtM(stat.fuelCost)}원</p>
+        </div>
+        <div className="grid grid-cols-2 gap-2 pt-1 border-t border-border/50">
+          <div>
+            <p className="text-[10px] text-muted-foreground">전체비용</p>
+            <p className="text-sm font-semibold text-foreground">{fmtM(stat.totalCost)}원</p>
           </div>
-          <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${colorMap[color]}`}>
-            <Icon className="w-5 h-5" />
+          <div>
+            <p className="text-[10px] text-muted-foreground">총주행거리</p>
+            <p className="text-sm font-semibold text-foreground">{fmtK(stat.totalDistance)}</p>
+            {prevStat && <TrendBadge value={distTrend} />}
+          </div>
+          <div>
+            <p className="text-[10px] text-muted-foreground">법인카드 유류비</p>
+            <p className="text-sm font-semibold text-foreground">{fmtM(stat.cardFuelCost)}원</p>
+          </div>
+          <div>
+            <p className="text-[10px] text-muted-foreground">현금 유류비</p>
+            <p className="text-sm font-semibold text-foreground">{fmtM(stat.cashFuelCost)}원</p>
+          </div>
+          <div>
+            <p className="text-[10px] text-muted-foreground">km당 유류비</p>
+            <p className="text-sm font-semibold text-foreground">{stat.avgFuelPerKm > 0 ? `${fmt(stat.avgFuelPerKm)}원` : "-"}</p>
+          </div>
+          <div>
+            <p className="text-[10px] text-muted-foreground">차량 수</p>
+            <p className="text-sm font-semibold text-foreground">{stat.vehicleCount}대</p>
           </div>
         </div>
       </CardContent>
@@ -88,10 +160,53 @@ function KpiCard({ title, value, sub, trend, icon: Icon, color = "blue" }: {
   );
 }
 
+// 커스텀 툴팁
+function MonthTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-background border border-border rounded-lg p-3 shadow-lg text-xs min-w-[160px]">
+      <p className="font-bold text-foreground mb-2">{label}</p>
+      {payload.map((p: any, i: number) => (
+        <div key={i} className="flex items-center justify-between gap-4 py-0.5">
+          <span className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full" style={{ background: p.color }} />
+            {p.name}
+          </span>
+          <span className="font-semibold text-foreground">
+            {typeof p.value === "number" ? `${fmt(p.value)}만원` : "-"}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function DeltaTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-background border border-border rounded-lg p-3 shadow-lg text-xs min-w-[160px]">
+      <p className="font-bold text-foreground mb-2">{label}</p>
+      {payload.map((p: any, i: number) => (
+        <div key={i} className="flex items-center justify-between gap-4 py-0.5">
+          <span className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full" style={{ background: p.color }} />
+            {p.name}
+          </span>
+          <span className={`font-semibold ${p.value > 0 ? "text-red-500" : "text-blue-500"}`}>
+            {p.value > 0 ? "+" : ""}{fmt(p.value)}만원
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function FuelCosts() {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [tab, setTab] = useState("dashboard");
+  const [chartMetric, setChartMetric] = useState<"fuel" | "total" | "distance">("fuel");
+  const [teamYearFilter, setTeamYearFilter] = useState<string>("all");
   const [filterYear, setFilterYear] = useState<string>("all");
   const [filterMonth, setFilterMonth] = useState<string>("all");
   const [filterTeam, setFilterTeam] = useState<string>("all");
@@ -126,11 +241,7 @@ export default function FuelCosts() {
     mutationFn: async (file: File) => {
       const form = new FormData();
       form.append("file", file);
-      const res = await fetch("/api/fuel-records/upload", {
-        method: "POST",
-        body: form,
-        credentials: "include",
-      });
+      const res = await fetch("/api/fuel-records/upload", { method: "POST", body: form, credentials: "include" });
       if (!res.ok) throw new Error((await res.json()).message);
       return res.json();
     },
@@ -161,39 +272,82 @@ export default function FuelCosts() {
     e.target.value = "";
   };
 
-  // 월별 추이 데이터 (24년 vs 25년)
+  const years = summary?.years ?? [];
+  const hasData = (summary?.totals?.totalRecords ?? 0) > 0;
+
+  // ────────── 월별 추이 데이터 구성 ──────────
   const trendData = MONTHS.map((label, i) => {
     const m = i + 1;
-    const y24 = summary?.byYearMonth.find(d => d.year === 2024 && d.month === m);
-    const y25 = summary?.byYearMonth.find(d => d.year === 2025 && d.month === m);
-    return {
-      month: label,
-      "24년 유류비": y24 ? Math.round(y24.fuelCost / 10000) : null,
-      "25년 유류비": y25 ? Math.round(y25.fuelCost / 10000) : null,
-      "24년 합계": y24 ? Math.round(y24.totalCost / 10000) : null,
-      "25년 합계": y25 ? Math.round(y25.totalCost / 10000) : null,
-    };
+    const row: Record<string, any> = { month: label };
+    for (const yr of years) {
+      const d = summary?.byYearMonth.find(x => x.year === yr.year && x.month === m);
+      if (chartMetric === "fuel") {
+        row[`${yr.year}년`] = d ? Math.round(d.fuelCost / 10000) : null;
+      } else if (chartMetric === "total") {
+        row[`${yr.year}년`] = d ? Math.round(d.totalCost / 10000) : null;
+      } else {
+        row[`${yr.year}년`] = d ? Math.round(d.totalDistance / 1000) : null;
+      }
+    }
+    return row;
   });
 
-  // 팀별 바 차트 (필터: 연도)
-  const teamData = (summary?.byTeam ?? []).map(t => ({
-    team: t.team.replace("운용팀", "팀").replace("사업팀","사업"),
-    유류비: Math.round(t.fuelCost / 10000),
-    합계: Math.round(t.totalCost / 10000),
-  }));
+  // ────────── 전년 대비 증감 차트 ──────────
+  const sortedYears = years.map(y => y.year).sort();
+  const deltaCharts: { label: string; data: any[] }[] = [];
+  for (let i = 1; i < sortedYears.length; i++) {
+    const curYear = sortedYears[i];
+    const prevYear = sortedYears[i - 1];
+    const data = MONTHS.map((label, mi) => {
+      const m = mi + 1;
+      const cur = summary?.byYearMonth.find(x => x.year === curYear && x.month === m);
+      const prev = summary?.byYearMonth.find(x => x.year === prevYear && x.month === m);
+      const delta = (cur && prev)
+        ? Math.round((cur.fuelCost - prev.fuelCost) / 10000)
+        : null;
+      return { month: label, delta, cur: cur ? Math.round(cur.fuelCost / 10000) : null, prev: prev ? Math.round(prev.fuelCost / 10000) : null };
+    });
+    deltaCharts.push({ label: `${prevYear}→${curYear}년 유류비 증감`, data });
+  }
 
-  // 파이 차트
-  const pieData = (summary?.byFuelType ?? []).map(f => ({
-    name: f.fuelType ?? "기타",
-    value: f.fuelCost,
-  }));
+  // ────────── 팀별 차트 ──────────
+  const teamsForChart = summary?.byTeam.map(t => t.team) ?? [];
+  const teamChartData = teamsForChart.map(team => {
+    const row: Record<string, any> = { team: team.replace("운용팀","").replace("운용부","부").replace("사업팀","사업") };
+    const filteredYears = teamYearFilter === "all" ? sortedYears : [parseInt(teamYearFilter)];
+    for (const yr of filteredYears) {
+      const d = summary?.byTeamByYear.find(x => x.team === team && x.year === yr);
+      row[`${yr}년`] = d ? Math.round(d.fuelCost / 10000) : 0;
+    }
+    return row;
+  });
 
-  // 전년 대비 계산
-  const t = summary?.totals;
-  const fuelTrend = t && t.fuel24 > 0 ? ((t.fuel25 - t.fuel24) / t.fuel24) * 100 : undefined;
-  const totalTrend = t && t.grand24 > 0 ? ((t.grand25 - t.grand24) / t.grand24) * 100 : undefined;
+  // ────────── 비용 구조 파이 ──────────
+  const costStructure = years.length > 0 ? (() => {
+    const latest = years[years.length - 1];
+    return [
+      { name: "법인카드 유류비", value: latest.cardFuelCost },
+      { name: "현금 유류비", value: latest.cashFuelCost },
+      { name: "법인카드 기타", value: latest.cardOther },
+    ].filter(x => x.value > 0);
+  })() : [];
 
-  // 상세 테이블 필터링 + 정렬
+  const costStructureColors = ["#3b82f6", "#f59e0b", "#94a3b8", "#22c55e"];
+
+  // ────────── 연도별 비교 테이블 ──────────
+  const yearCompTable = teamsForChart.map(team => {
+    const row: Record<string, any> = { team };
+    for (const yr of sortedYears) {
+      const d = summary?.byTeamByYear.find(x => x.team === team && x.year === yr);
+      row[yr] = d?.fuelCost ?? 0;
+    }
+    return row;
+  }).sort((a, b) => {
+    const lastYr = sortedYears[sortedYears.length - 1];
+    return (b[lastYr] ?? 0) - (a[lastYr] ?? 0);
+  });
+
+  // ────────── 상세 테이블 ──────────
   const filtered = records
     .filter(r => {
       if (!search) return true;
@@ -217,17 +371,19 @@ export default function FuelCosts() {
     else { setSortField(field); setSortDir("desc"); }
   };
 
-  const hasData = (summary?.totals?.totalRecords ?? 0) > 0;
+  const metricLabel = chartMetric === "fuel" ? "유류비 (만원)" : chartMetric === "total" ? "전체비용 (만원)" : "주행거리 (천km)";
+  const yAxisFmt = (v: any) => chartMetric === "distance" ? `${v}천km` : `${v}만`;
 
   return (
     <div className="p-4 sm:p-6 space-y-5 max-w-[1400px] mx-auto">
+      {/* 헤더 */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <Fuel className="w-6 h-6 text-primary" />
             유류비 현황
           </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">업무용 차량 유류비 사용 현황 및 분석</p>
+          <p className="text-sm text-muted-foreground mt-0.5">업무용 차량 유류비 사용 현황 및 연도별 비교 분석</p>
         </div>
         <Button
           data-testid="button-upload-fuel"
@@ -252,8 +408,7 @@ export default function FuelCosts() {
               <p className="text-sm text-muted-foreground mt-1">Excel 파일을 업로드하면 자동으로 데이터가 분석됩니다</p>
             </div>
             <Button onClick={() => fileInputRef.current?.click()} disabled={uploadMutation.isPending}>
-              <Upload className="w-4 h-4 mr-2" />
-              Excel 파일 업로드
+              <Upload className="w-4 h-4 mr-2" />Excel 파일 업로드
             </Button>
           </CardContent>
         </Card>
@@ -267,114 +422,363 @@ export default function FuelCosts() {
             <TabsTrigger value="upload" data-testid="tab-upload">업로드 관리</TabsTrigger>
           </TabsList>
 
-          {/* ===== 대시보드 탭 ===== */}
+          {/* ═══════════════ 대시보드 탭 ═══════════════ */}
           <TabsContent value="dashboard" className="space-y-5 mt-4">
-            {/* KPI 카드 */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              <KpiCard
-                title="25년 유류비 합계"
-                value={t ? `${fmtM(t.fuel25)}원` : "-"}
-                sub={t ? `전체 비용 ${fmtM(t.grand25)}원` : ""}
-                trend={fuelTrend}
-                icon={Fuel}
-                color="blue"
-              />
-              <KpiCard
-                title="24년 유류비 합계"
-                value={t ? `${fmtM(t.fuel24)}원` : "-"}
-                sub={t ? `전체 비용 ${fmtM(t.grand24)}원` : ""}
-                icon={BarChart3}
-                color="amber"
-              />
-              <KpiCard
-                title="25년 전체 비용"
-                value={t ? `${fmtM(t.grand25)}원` : "-"}
-                sub="유류비+통행료+주차비+수선비 등"
-                trend={totalTrend}
-                icon={TrendingUp}
-                color="purple"
-              />
-              <KpiCard
-                title="총 데이터 건수"
-                value={t ? `${fmt(t.totalRecords)}건` : "-"}
-                sub="업로드된 차량/월 데이터"
-                icon={Database}
-                color="green"
-              />
+
+            {/* ── 연도별 요약 카드 (24 / 25 / 26) ── */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+              {[2024, 2025, 2026].map(yr => {
+                const stat = years.find(y => y.year === yr);
+                const prevStat = years.find(y => y.year === yr - 1);
+                if (!stat) {
+                  return (
+                    <Card key={yr} className="border-dashed opacity-50">
+                      <CardContent className="p-4 flex items-center justify-center h-[160px]">
+                        <div className="text-center text-muted-foreground">
+                          <p className="text-sm font-semibold">{yr}년</p>
+                          <p className="text-xs mt-1">데이터 없음</p>
+                          <p className="text-xs">Excel 파일 업로드 후 표시됩니다</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                }
+                return <YearCard key={yr} stat={stat} prevStat={prevStat} />;
+              })}
             </div>
 
-            {/* 월별 유류비 추이 차트 */}
+            {/* ── 전년 대비 증감 요약 행 ── */}
+            {sortedYears.length >= 2 && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {(() => {
+                  const items = [];
+                  for (let i = 1; i < sortedYears.length; i++) {
+                    const cur = years.find(y => y.year === sortedYears[i]);
+                    const prev = years.find(y => y.year === sortedYears[i - 1]);
+                    if (!cur || !prev) continue;
+                    const fuelDelta = cur.fuelCost - prev.fuelCost;
+                    const fuelPct = pct(cur.fuelCost, prev.fuelCost);
+                    const distPct = pct(cur.totalDistance, prev.totalDistance);
+                    items.push(
+                      <Card key={i} className="col-span-2">
+                        <CardContent className="p-4">
+                          <p className="text-xs text-muted-foreground mb-2">{sortedYears[i - 1]}→{sortedYears[i]}년 비교</p>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <p className="text-[10px] text-muted-foreground">유류비 증감</p>
+                              <p className={`text-base font-bold ${fuelDelta > 0 ? "text-red-500" : "text-blue-500"}`}>
+                                {fuelDelta > 0 ? "+" : ""}{fmtM(fuelDelta)}원
+                              </p>
+                              <TrendBadge value={fuelPct} />
+                            </div>
+                            <div>
+                              <p className="text-[10px] text-muted-foreground">주행거리 증감</p>
+                              <p className={`text-base font-bold ${(cur.totalDistance - prev.totalDistance) > 0 ? "text-red-500" : "text-blue-500"}`}>
+                                {(cur.totalDistance - prev.totalDistance) > 0 ? "+" : ""}{fmtK(Math.abs(cur.totalDistance - prev.totalDistance))}
+                              </p>
+                              <TrendBadge value={distPct} invert />
+                            </div>
+                            <div>
+                              <p className="text-[10px] text-muted-foreground">km당 유류비 ({sortedYears[i - 1]}년)</p>
+                              <p className="text-sm font-semibold">{prev.avgFuelPerKm > 0 ? `${fmt(prev.avgFuelPerKm)}원` : "-"}</p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] text-muted-foreground">km당 유류비 ({sortedYears[i]}년)</p>
+                              <p className="text-sm font-semibold">{cur.avgFuelPerKm > 0 ? `${fmt(cur.avgFuelPerKm)}원` : "-"}</p>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  }
+                  return items;
+                })()}
+              </div>
+            )}
+
+            {/* ── 월별 추이 메인 차트 ── */}
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-base">월별 유류비 추이 (만원)</CardTitle>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <div>
+                    <CardTitle className="text-base">월별 {metricLabel} 추이</CardTitle>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      연도별 월간 {chartMetric === "fuel" ? "유류비" : chartMetric === "total" ? "전체 비용" : "총 주행거리"} 비교
+                    </p>
+                  </div>
+                  <div className="flex gap-1.5">
+                    {(["fuel", "total", "distance"] as const).map(m => (
+                      <Button
+                        key={m}
+                        size="sm"
+                        variant={chartMetric === m ? "default" : "outline"}
+                        className="text-xs h-7 px-2.5"
+                        onClick={() => setChartMetric(m)}
+                        data-testid={`button-metric-${m}`}
+                      >
+                        {m === "fuel" ? "유류비" : m === "total" ? "전체비용" : "주행거리"}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={280}>
-                  <LineChart data={trendData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                <ResponsiveContainer width="100%" height={300}>
+                  <ComposedChart data={trendData} margin={{ top: 10, right: 20, left: 10, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" className="opacity-20" />
                     <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                    <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}만`} />
-                    <Tooltip formatter={(v: any) => [`${fmt(v)}만원`]} />
-                    <Legend />
-                    <Line type="monotone" dataKey="24년 유류비" stroke="#94a3b8" strokeWidth={2} dot={{ r: 3 }} connectNulls={false} />
-                    <Line type="monotone" dataKey="25년 유류비" stroke="#3b82f6" strokeWidth={2.5} dot={{ r: 3 }} connectNulls={false} />
-                  </LineChart>
+                    <YAxis tick={{ fontSize: 11 }} tickFormatter={yAxisFmt} width={56} />
+                    <Tooltip content={<MonthTooltip />} />
+                    <Legend wrapperStyle={{ fontSize: 12 }} />
+                    {sortedYears.map(yr => {
+                      const c = YEAR_COLORS[yr] ?? YEAR_COLORS[2025];
+                      return (
+                        <Line
+                          key={yr}
+                          type="monotone"
+                          dataKey={`${yr}년`}
+                          stroke={c.stroke}
+                          strokeWidth={yr === Math.max(...sortedYears) ? 2.5 : 1.8}
+                          dot={{ r: 3, fill: c.fill }}
+                          activeDot={{ r: 5 }}
+                          connectNulls={false}
+                        />
+                      );
+                    })}
+                  </ComposedChart>
                 </ResponsiveContainer>
+
+                {/* 연도별 월간 합계 소표 */}
+                <div className="mt-3 overflow-x-auto">
+                  <table className="w-full text-[10px] border-collapse">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="text-left py-1 px-2 text-muted-foreground font-medium">구분</th>
+                        {MONTHS.map(m => (
+                          <th key={m} className="text-right py-1 px-1 text-muted-foreground font-medium">{m}</th>
+                        ))}
+                        <th className="text-right py-1 px-2 text-muted-foreground font-medium">합계</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sortedYears.map(yr => {
+                        const c = YEAR_COLORS[yr] ?? YEAR_COLORS[2025];
+                        const monthVals = MONTHS.map((_, mi) => {
+                          const m = mi + 1;
+                          const d = summary?.byYearMonth.find(x => x.year === yr && x.month === m);
+                          if (!d) return null;
+                          return chartMetric === "fuel" ? d.fuelCost
+                            : chartMetric === "total" ? d.totalCost
+                            : d.totalDistance;
+                        });
+                        const total = monthVals.reduce((s, v) => s + (v ?? 0), 0);
+                        return (
+                          <tr key={yr} className="border-b border-border/40 hover:bg-muted/30">
+                            <td className={`py-1.5 px-2 font-bold ${c.text}`}>{yr}년</td>
+                            {monthVals.map((v, mi) => (
+                              <td key={mi} className="text-right py-1.5 px-1 text-foreground">
+                                {v != null ? (
+                                  chartMetric === "distance"
+                                    ? `${Math.round(v / 1000)}천`
+                                    : `${Math.round(v / 10000)}만`
+                                ) : <span className="text-muted-foreground/40">-</span>}
+                              </td>
+                            ))}
+                            <td className={`text-right py-1.5 px-2 font-bold ${c.text}`}>
+                              {chartMetric === "distance"
+                                ? `${Math.round(total / 1000)}천km`
+                                : `${fmtM(total)}원`}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {/* 전년 대비 증감 행 */}
+                      {sortedYears.length >= 2 && (() => {
+                        const rows = [];
+                        for (let i = 1; i < sortedYears.length; i++) {
+                          const curYr = sortedYears[i];
+                          const prevYr = sortedYears[i - 1];
+                          const deltas = MONTHS.map((_, mi) => {
+                            const m = mi + 1;
+                            const cur = summary?.byYearMonth.find(x => x.year === curYr && x.month === m);
+                            const prev = summary?.byYearMonth.find(x => x.year === prevYr && x.month === m);
+                            if (!cur || !prev) return null;
+                            const curVal = chartMetric === "fuel" ? cur.fuelCost : chartMetric === "total" ? cur.totalCost : cur.totalDistance;
+                            const prevVal = chartMetric === "fuel" ? prev.fuelCost : chartMetric === "total" ? prev.totalCost : prev.totalDistance;
+                            return curVal - prevVal;
+                          });
+                          const totalDelta = deltas.reduce((s, v) => s + (v ?? 0), 0);
+                          rows.push(
+                            <tr key={`delta-${i}`} className="border-b border-border/40 bg-muted/20">
+                              <td className="py-1.5 px-2 text-muted-foreground font-medium text-[10px]">증감({prevYr}→{curYr})</td>
+                              {deltas.map((v, mi) => (
+                                <td key={mi} className={`text-right py-1.5 px-1 text-[10px] font-medium ${v == null ? "" : v > 0 ? "text-red-500" : v < 0 ? "text-blue-500" : "text-muted-foreground"}`}>
+                                  {v != null ? (
+                                    <>
+                                      {v > 0 ? "+" : ""}
+                                      {chartMetric === "distance"
+                                        ? `${Math.round(v / 1000)}천`
+                                        : `${Math.round(v / 10000)}만`}
+                                    </>
+                                  ) : <span className="text-muted-foreground/30">-</span>}
+                                </td>
+                              ))}
+                              <td className={`text-right py-1.5 px-2 font-bold text-[10px] ${totalDelta > 0 ? "text-red-500" : totalDelta < 0 ? "text-blue-500" : "text-muted-foreground"}`}>
+                                {totalDelta > 0 ? "+" : ""}
+                                {chartMetric === "distance" ? `${Math.round(totalDelta / 1000)}천km` : `${fmtM(Math.abs(totalDelta))}원`}
+                              </td>
+                            </tr>
+                          );
+                        }
+                        return rows;
+                      })()}
+                    </tbody>
+                  </table>
+                </div>
               </CardContent>
             </Card>
 
-            {/* 팀별 + 연료 타입 */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-              <Card className="lg:col-span-2">
+            {/* ── 전년 대비 월별 증감 바 차트 ── */}
+            {deltaCharts.map(({ label, data }, idx) => (
+              <Card key={idx}>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-base">팀별 유류비 합계 (만원)</CardTitle>
+                  <CardTitle className="text-base">{label}</CardTitle>
+                  <p className="text-xs text-muted-foreground">양수(빨간색)=증가, 음수(파란색)=감소</p>
                 </CardHeader>
                 <CardContent>
-                  <ResponsiveContainer width="100%" height={260}>
-                    <BarChart data={teamData} layout="vertical" margin={{ top: 0, right: 20, left: 60, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" horizontal={false} className="opacity-30" />
+                  <ResponsiveContainer width="100%" height={200}>
+                    <ComposedChart data={data} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" className="opacity-20" />
+                      <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                      <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `${v > 0 ? "+" : ""}${v}만`} width={56} />
+                      <ReferenceLine y={0} stroke="#94a3b8" strokeWidth={1.5} />
+                      <Tooltip content={<DeltaTooltip />} />
+                      <Bar dataKey="delta" name="증감" radius={[2, 2, 0, 0]}>
+                        {data.map((entry, i) => (
+                          <Cell key={i} fill={entry.delta > 0 ? "#ef4444" : "#3b82f6"} fillOpacity={0.8} />
+                        ))}
+                      </Bar>
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            ))}
+
+            {/* ── 팀별 + 비용구조 ── */}
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
+              {/* 팀별 유류비 */}
+              <Card className="xl:col-span-2">
+                <CardHeader className="pb-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <CardTitle className="text-base">팀별 유류비 비교</CardTitle>
+                    <Select value={teamYearFilter} onValueChange={setTeamYearFilter}>
+                      <SelectTrigger className="w-28 h-8" data-testid="select-team-year">
+                        <SelectValue placeholder="연도" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">전체</SelectItem>
+                        {sortedYears.map(yr => (
+                          <SelectItem key={yr} value={String(yr)}>{yr}년</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={280}>
+                    <BarChart data={teamChartData} layout="vertical" margin={{ top: 0, right: 20, left: 64, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} className="opacity-20" />
                       <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={v => `${v}만`} />
-                      <YAxis type="category" dataKey="team" tick={{ fontSize: 10 }} width={56} />
+                      <YAxis type="category" dataKey="team" tick={{ fontSize: 10 }} width={60} />
                       <Tooltip formatter={(v: any) => [`${fmt(v)}만원`]} />
-                      <Legend />
-                      <Bar dataKey="유류비" fill="#3b82f6" radius={[0, 3, 3, 0]} />
-                      <Bar dataKey="합계" fill="#e2e8f0" radius={[0, 3, 3, 0]} />
+                      <Legend wrapperStyle={{ fontSize: 11 }} />
+                      {(teamYearFilter === "all" ? sortedYears : [parseInt(teamYearFilter)]).map((yr, i) => {
+                        const c = YEAR_COLORS[yr] ?? { fill: TEAM_COLORS[i] };
+                        return <Bar key={yr} dataKey={`${yr}년`} fill={c.fill} radius={[0, 3, 3, 0]} />;
+                      })}
                     </BarChart>
                   </ResponsiveContainer>
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base">연료 종류별 비율</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ResponsiveContainer width="100%" height={180}>
-                    <PieChart>
-                      <Pie data={pieData} cx="50%" cy="50%" outerRadius={70} dataKey="value" nameKey="name" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false}>
-                        {pieData.map((entry, i) => (
-                          <Cell key={i} fill={FUEL_COLORS[entry.name] ?? TEAM_COLORS[i % TEAM_COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip formatter={(v: any) => [`${fmtM(v)}원`]} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <div className="flex flex-wrap gap-2 mt-2 justify-center">
-                    {pieData.map((entry, i) => (
-                      <div key={i} className="flex items-center gap-1.5 text-xs">
-                        <div className="w-2.5 h-2.5 rounded-full" style={{ background: FUEL_COLORS[entry.name] ?? TEAM_COLORS[i] }} />
-                        <span>{entry.name}</span>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
+              {/* 비용 구조 */}
+              <div className="flex flex-col gap-4">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">비용 구조 ({years[years.length - 1]?.year ?? ""}년)</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={150}>
+                      <PieChart>
+                        <Pie data={costStructure} cx="50%" cy="50%" outerRadius={60} innerRadius={28} dataKey="value" nameKey="name">
+                          {costStructure.map((_, i) => (
+                            <Cell key={i} fill={costStructureColors[i % costStructureColors.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(v: any) => [`${fmtM(v)}원`]} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="flex flex-wrap gap-1.5 mt-1 justify-center">
+                      {costStructure.map((entry, i) => (
+                        <div key={i} className="flex items-center gap-1 text-[10px]">
+                          <div className="w-2 h-2 rounded-full" style={{ background: costStructureColors[i] }} />
+                          <span className="text-muted-foreground">{entry.name}</span>
+                          <span className="font-medium">{fmtM(entry.value)}원</span>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* 연료 종류 */}
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">연료 종류별</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    {(summary?.byFuelType ?? []).slice(0, 4).map((f, i) => {
+                      const total = summary?.byFuelType.reduce((s, x) => s + x.fuelCost, 0) ?? 1;
+                      const pctVal = total > 0 ? (f.fuelCost / total) * 100 : 0;
+                      return (
+                        <div key={i}>
+                          <div className="flex items-center justify-between mb-0.5">
+                            <span className="text-xs font-medium" style={{ color: FUEL_COLORS[f.fuelType ?? ""] }}>{f.fuelType}</span>
+                            <span className="text-xs text-muted-foreground">{fmtM(f.fuelCost)}원 ({pctVal.toFixed(1)}%)</span>
+                          </div>
+                          <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                            <div className="h-full rounded-full" style={{ width: `${pctVal}%`, background: FUEL_COLORS[f.fuelType ?? ""] ?? "#94a3b8" }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {/* 구입형태 */}
+                    <div className="pt-2 border-t border-border">
+                      <p className="text-[11px] font-semibold text-muted-foreground mb-2">구입형태별</p>
+                      {(summary?.byAcquisition ?? []).slice(0, 3).map((a, i) => {
+                        const total = summary?.byAcquisition.reduce((s, x) => s + x.fuelCost, 0) ?? 1;
+                        const pctVal = total > 0 ? (a.fuelCost / total) * 100 : 0;
+                        return (
+                          <div key={i} className="mb-1.5">
+                            <div className="flex items-center justify-between mb-0.5">
+                              <span className="text-xs font-medium" style={{ color: ACQUISITION_COLORS[a.type ?? ""] ?? "#64748b" }}>{a.type}</span>
+                              <span className="text-xs text-muted-foreground">{pctVal.toFixed(1)}%</span>
+                            </div>
+                            <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                              <div className="h-full rounded-full" style={{ width: `${pctVal}%`, background: ACQUISITION_COLORS[a.type ?? ""] ?? "#94a3b8" }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
             </div>
 
-            {/* 팀별 상세 요약 테이블 */}
+            {/* ── 팀별 연도별 비교 테이블 ── */}
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-base">팀별 비용 요약</CardTitle>
+                <CardTitle className="text-base">팀별 연도별 유류비 비교표</CardTitle>
               </CardHeader>
               <CardContent className="p-0">
                 <div className="overflow-x-auto">
@@ -382,25 +786,76 @@ export default function FuelCosts() {
                     <TableHeader>
                       <TableRow>
                         <TableHead className="pl-4">팀</TableHead>
-                        <TableHead className="text-right">유류비</TableHead>
-                        <TableHead className="text-right">전체 비용</TableHead>
-                        <TableHead className="text-right">총주행거리</TableHead>
-                        <TableHead className="text-right pr-4">km당 비용</TableHead>
+                        {sortedYears.map(yr => (
+                          <TableHead key={yr} className="text-right">
+                            <span className={YEAR_COLORS[yr]?.text ?? ""}>{yr}년</span>
+                          </TableHead>
+                        ))}
+                        {sortedYears.length >= 2 && (
+                          <TableHead className="text-right pr-4">
+                            {sortedYears[sortedYears.length - 2]}→{sortedYears[sortedYears.length - 1]} 증감
+                          </TableHead>
+                        )}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {(summary?.byTeam ?? []).map((row, i) => {
-                        const costPerKm = row.distance > 0 ? row.fuelCost / row.distance : 0;
+                      {yearCompTable.map((row, i) => {
+                        const lastYr = sortedYears[sortedYears.length - 1];
+                        const prevYr = sortedYears[sortedYears.length - 2];
+                        const delta = prevYr ? (row[lastYr] ?? 0) - (row[prevYr] ?? 0) : null;
+                        const deltaPct = prevYr && row[prevYr] > 0 ? ((row[lastYr] - row[prevYr]) / row[prevYr]) * 100 : null;
                         return (
-                          <TableRow key={i} data-testid={`row-team-${i}`}>
+                          <TableRow key={i} data-testid={`row-team-year-${i}`}>
                             <TableCell className="font-medium pl-4">{row.team}</TableCell>
-                            <TableCell className="text-right">{fmtM(row.fuelCost)}원</TableCell>
-                            <TableCell className="text-right">{fmtM(row.totalCost)}원</TableCell>
-                            <TableCell className="text-right">{fmt(row.distance)}km</TableCell>
-                            <TableCell className="text-right pr-4">{costPerKm > 0 ? `${fmt(costPerKm)}원` : "-"}</TableCell>
+                            {sortedYears.map(yr => (
+                              <TableCell key={yr} className="text-right">
+                                {row[yr] > 0 ? fmtM(row[yr]) + "원" : "-"}
+                              </TableCell>
+                            ))}
+                            {sortedYears.length >= 2 && (
+                              <TableCell className="text-right pr-4">
+                                {delta !== null && row[prevYr] > 0 ? (
+                                  <span className={`font-semibold ${delta > 0 ? "text-red-500" : delta < 0 ? "text-blue-500" : "text-muted-foreground"}`}>
+                                    {delta > 0 ? "+" : ""}{fmtM(delta)}원
+                                    <br />
+                                    <span className="text-[10px] font-normal">
+                                      ({deltaPct !== null ? (deltaPct > 0 ? "+" : "") + deltaPct.toFixed(1) + "%" : "-"})
+                                    </span>
+                                  </span>
+                                ) : "-"}
+                              </TableCell>
+                            )}
                           </TableRow>
                         );
                       })}
+                      {/* 합계 행 */}
+                      <TableRow className="font-bold bg-muted/30">
+                        <TableCell className="pl-4 font-bold">전체 합계</TableCell>
+                        {sortedYears.map(yr => {
+                          const stat = years.find(y => y.year === yr);
+                          return (
+                            <TableCell key={yr} className="text-right font-bold">
+                              {stat ? fmtM(stat.fuelCost) + "원" : "-"}
+                            </TableCell>
+                          );
+                        })}
+                        {sortedYears.length >= 2 && (() => {
+                          const cur = years.find(y => y.year === sortedYears[sortedYears.length - 1]);
+                          const prev = years.find(y => y.year === sortedYears[sortedYears.length - 2]);
+                          const d = cur && prev ? cur.fuelCost - prev.fuelCost : null;
+                          const dp = cur && prev && prev.fuelCost > 0 ? ((cur.fuelCost - prev.fuelCost) / prev.fuelCost) * 100 : null;
+                          return (
+                            <TableCell className="text-right pr-4 font-bold">
+                              {d !== null ? (
+                                <span className={d > 0 ? "text-red-500" : "text-blue-500"}>
+                                  {d > 0 ? "+" : ""}{fmtM(d)}원<br />
+                                  <span className="text-[10px] font-normal">({dp !== null ? (dp > 0 ? "+" : "") + dp.toFixed(1) + "%" : "-"})</span>
+                                </span>
+                              ) : "-"}
+                            </TableCell>
+                          );
+                        })()}
+                      </TableRow>
                     </TableBody>
                   </Table>
                 </div>
@@ -408,7 +863,7 @@ export default function FuelCosts() {
             </Card>
           </TabsContent>
 
-          {/* ===== 상세 데이터 탭 ===== */}
+          {/* ═══════════════ 상세 데이터 탭 ═══════════════ */}
           <TabsContent value="detail" className="space-y-4 mt-4">
             <div className="flex flex-wrap gap-2 items-center">
               <Select value={filterYear} onValueChange={setFilterYear}>
@@ -417,8 +872,7 @@ export default function FuelCosts() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">전체 연도</SelectItem>
-                  <SelectItem value="2024">2024년</SelectItem>
-                  <SelectItem value="2025">2025년</SelectItem>
+                  {sortedYears.map(yr => <SelectItem key={yr} value={String(yr)}>{yr}년</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={filterMonth} onValueChange={setFilterMonth}>
@@ -452,13 +906,7 @@ export default function FuelCosts() {
               </Select>
               <div className="relative flex-1 min-w-[160px]">
                 <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-muted-foreground" />
-                <Input
-                  data-testid="input-search"
-                  placeholder="팀·사용자·차량번호·모델 검색"
-                  className="pl-8"
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                />
+                <Input data-testid="input-search" placeholder="팀·사용자·차량번호·모델 검색" className="pl-8" value={search} onChange={e => setSearch(e.target.value)} />
               </div>
             </div>
 
@@ -470,9 +918,7 @@ export default function FuelCosts() {
                       <RefreshCw className="w-5 h-5 animate-spin mr-2" /> 불러오는 중...
                     </div>
                   ) : filtered.length === 0 ? (
-                    <div className="flex items-center justify-center py-16 text-muted-foreground text-sm">
-                      데이터가 없습니다
-                    </div>
+                    <div className="flex items-center justify-center py-16 text-muted-foreground text-sm">데이터가 없습니다</div>
                   ) : (
                     <Table>
                       <TableHeader>
@@ -499,9 +945,11 @@ export default function FuelCosts() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {filtered.slice(0, 200).map((r) => (
+                        {filtered.slice(0, 300).map(r => (
                           <TableRow key={r.id} data-testid={`row-fuel-${r.id}`}>
-                            <TableCell className="pl-4 whitespace-nowrap text-xs">{r.year}년 {r.month}월</TableCell>
+                            <TableCell className="pl-4 whitespace-nowrap text-xs">
+                              <span className={`font-medium ${YEAR_COLORS[r.year]?.text ?? ""}`}>{r.year}년 {r.month}월</span>
+                            </TableCell>
                             <TableCell className="whitespace-nowrap text-xs">{r.team}</TableCell>
                             <TableCell className="whitespace-nowrap text-xs">{r.driver || "-"}</TableCell>
                             <TableCell className="whitespace-nowrap text-xs font-mono text-[11px]">{r.licensePlate}</TableCell>
@@ -522,14 +970,14 @@ export default function FuelCosts() {
                     </Table>
                   )}
                 </div>
-                {filtered.length > 200 && (
-                  <p className="text-xs text-muted-foreground px-4 py-2">상위 200건만 표시됩니다. 필터를 적용하여 범위를 좁혀주세요.</p>
+                {filtered.length > 300 && (
+                  <p className="text-xs text-muted-foreground px-4 py-2">상위 300건만 표시됩니다. 필터를 적용하여 범위를 좁혀주세요.</p>
                 )}
               </CardContent>
             </Card>
           </TabsContent>
 
-          {/* ===== 업로드 관리 탭 ===== */}
+          {/* ═══════════════ 업로드 관리 탭 ═══════════════ */}
           <TabsContent value="upload" className="space-y-4 mt-4">
             <Card className="border-dashed border-2">
               <CardContent className="flex flex-col items-center justify-center py-10 gap-3">
@@ -537,10 +985,10 @@ export default function FuelCosts() {
                   <Upload className="w-6 h-6 text-primary" />
                 </div>
                 <div className="text-center">
-                  <p className="font-semibold">Excel 파일 업로드</p>
+                  <p className="font-semibold">"업무용 차량 유류비 사용추이" Excel 파일 업로드</p>
                   <p className="text-sm text-muted-foreground mt-1">
-                    "업무용 차량 유류비 사용추이" 형식의 Excel 파일을 업로드하세요.<br />
-                    같은 연월의 데이터는 자동으로 덮어씁니다.
+                    24년/25년/26년 시트가 포함된 파일을 업로드하세요.<br />
+                    같은 연월의 기존 데이터는 자동으로 교체됩니다.
                   </p>
                 </div>
                 <Button onClick={() => fileInputRef.current?.click()} disabled={uploadMutation.isPending}>
@@ -578,8 +1026,7 @@ export default function FuelCosts() {
                           </div>
                         </div>
                         <Button
-                          variant="ghost"
-                          size="sm"
+                          variant="ghost" size="sm"
                           className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 shrink-0"
                           onClick={() => setDeleteBatchId(b.batchId)}
                           data-testid={`button-delete-batch-${i}`}

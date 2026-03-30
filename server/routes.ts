@@ -3419,39 +3419,96 @@ export async function registerRoutes(
     try {
       const records = await storage.getFuelRecords();
       // 연도-월별 합계
-      const byYearMonth: Record<string, { year: number; month: number; totalCost: number; totalDistance: number; fuelCost: number }> = {};
+      const byYearMonth: Record<string, { year: number; month: number; totalCost: number; totalDistance: number; fuelCost: number; cardFuelCost: number; cashFuelCost: number; cardOther: number; cashOther: number }> = {};
+      // 팀별 (전체)
       const byTeam: Record<string, { team: string; totalCost: number; fuelCost: number; distance: number }> = {};
+      // 팀별 연도별
+      const byTeamByYear: Record<string, { team: string; year: number; totalCost: number; fuelCost: number; distance: number }> = {};
+      // 연료 종류별
       const byFuelType: Record<string, { fuelType: string; totalCost: number; fuelCost: number; count: number }> = {};
-      let grand24 = 0, grand25 = 0, fuel24 = 0, fuel25 = 0;
+      // 연도별 합계 (동적)
+      const byYear: Record<number, { year: number; totalCost: number; fuelCost: number; cardFuelCost: number; cashFuelCost: number; cardOther: number; totalDistance: number; vehicleCount: Set<string> }> = {};
+      // 구입형태별
+      const byAcquisition: Record<string, { type: string; totalCost: number; fuelCost: number; count: number }> = {};
+      // 차종별
+      const byVehicleType: Record<string, { type: string; fuelCost: number; count: number }> = {};
 
       for (const r of records) {
+        const fuelCost = (r.cardFuelCost ?? 0) + (r.cashFuelCost ?? 0);
+        const cardOther = (r.cardHighpass ?? 0) + (r.cardParking ?? 0) + (r.cardToll ?? 0) + (r.cardCarWash ?? 0) + (r.cardFerry ?? 0) + (r.cardRepair ?? 0) + (r.cardMaintenance ?? 0) + (r.cardEmergencyFuel ?? 0) + (r.cardGeneratorFuel ?? 0);
+        const cashOther = (r.cashHighpass ?? 0) + (r.cashParking ?? 0) + (r.cashToll ?? 0) + (r.cashCarWash ?? 0) + (r.cashFerry ?? 0) + (r.cashRepair ?? 0) + (r.cashMaintenance ?? 0) + (r.cashEmergencyFuel ?? 0) + (r.cashGeneratorFuel ?? 0);
+
+        // 연도-월별
         const ym = `${r.year}-${String(r.month).padStart(2, "0")}`;
-        if (!byYearMonth[ym]) byYearMonth[ym] = { year: r.year, month: r.month, totalCost: 0, totalDistance: 0, fuelCost: 0 };
+        if (!byYearMonth[ym]) byYearMonth[ym] = { year: r.year, month: r.month, totalCost: 0, totalDistance: 0, fuelCost: 0, cardFuelCost: 0, cashFuelCost: 0, cardOther: 0, cashOther: 0 };
         byYearMonth[ym].totalCost += r.totalCost ?? 0;
         byYearMonth[ym].totalDistance += r.totalDistance ?? 0;
-        byYearMonth[ym].fuelCost += (r.cardFuelCost ?? 0) + (r.cashFuelCost ?? 0);
+        byYearMonth[ym].fuelCost += fuelCost;
+        byYearMonth[ym].cardFuelCost += r.cardFuelCost ?? 0;
+        byYearMonth[ym].cashFuelCost += r.cashFuelCost ?? 0;
+        byYearMonth[ym].cardOther += cardOther;
+        byYearMonth[ym].cashOther += cashOther;
 
+        // 팀별
         const team = r.team ?? "기타";
         if (!byTeam[team]) byTeam[team] = { team, totalCost: 0, fuelCost: 0, distance: 0 };
         byTeam[team].totalCost += r.totalCost ?? 0;
-        byTeam[team].fuelCost += (r.cardFuelCost ?? 0) + (r.cashFuelCost ?? 0);
+        byTeam[team].fuelCost += fuelCost;
         byTeam[team].distance += r.totalDistance ?? 0;
 
+        // 팀별 연도별
+        const tyk = `${team}__${r.year}`;
+        if (!byTeamByYear[tyk]) byTeamByYear[tyk] = { team, year: r.year, totalCost: 0, fuelCost: 0, distance: 0 };
+        byTeamByYear[tyk].totalCost += r.totalCost ?? 0;
+        byTeamByYear[tyk].fuelCost += fuelCost;
+        byTeamByYear[tyk].distance += r.totalDistance ?? 0;
+
+        // 연료 종류별
         const ft = r.fuelType ?? "기타";
         if (!byFuelType[ft]) byFuelType[ft] = { fuelType: ft, totalCost: 0, fuelCost: 0, count: 0 };
         byFuelType[ft].totalCost += r.totalCost ?? 0;
-        byFuelType[ft].fuelCost += (r.cardFuelCost ?? 0) + (r.cashFuelCost ?? 0);
+        byFuelType[ft].fuelCost += fuelCost;
         byFuelType[ft].count += 1;
 
-        if (r.year === 2024) { grand24 += r.totalCost ?? 0; fuel24 += (r.cardFuelCost ?? 0) + (r.cashFuelCost ?? 0); }
-        if (r.year === 2025) { grand25 += r.totalCost ?? 0; fuel25 += (r.cardFuelCost ?? 0) + (r.cashFuelCost ?? 0); }
+        // 연도별
+        if (!byYear[r.year]) byYear[r.year] = { year: r.year, totalCost: 0, fuelCost: 0, cardFuelCost: 0, cashFuelCost: 0, cardOther: 0, totalDistance: 0, vehicleCount: new Set() };
+        byYear[r.year].totalCost += r.totalCost ?? 0;
+        byYear[r.year].fuelCost += fuelCost;
+        byYear[r.year].cardFuelCost += r.cardFuelCost ?? 0;
+        byYear[r.year].cashFuelCost += r.cashFuelCost ?? 0;
+        byYear[r.year].cardOther += cardOther;
+        byYear[r.year].totalDistance += r.totalDistance ?? 0;
+        if (r.licensePlate) byYear[r.year].vehicleCount.add(r.licensePlate);
+
+        // 구입형태별
+        const acq = r.acquisitionType ?? "기타";
+        if (!byAcquisition[acq]) byAcquisition[acq] = { type: acq, totalCost: 0, fuelCost: 0, count: 0 };
+        byAcquisition[acq].totalCost += r.totalCost ?? 0;
+        byAcquisition[acq].fuelCost += fuelCost;
+        byAcquisition[acq].count += 1;
+
+        // 차종별
+        const vt = r.vehicleType ?? "기타";
+        if (!byVehicleType[vt]) byVehicleType[vt] = { type: vt, fuelCost: 0, count: 0 };
+        byVehicleType[vt].fuelCost += fuelCost;
+        byVehicleType[vt].count += 1;
       }
+
+      const years = Object.values(byYear).map(y => ({
+        ...y,
+        vehicleCount: y.vehicleCount.size,
+        avgFuelPerKm: y.totalDistance > 0 ? Math.round(y.fuelCost / y.totalDistance) : 0,
+      })).sort((a, b) => a.year - b.year);
 
       res.json({
         byYearMonth: Object.values(byYearMonth).sort((a, b) => a.year - b.year || a.month - b.month),
         byTeam: Object.values(byTeam).sort((a, b) => b.totalCost - a.totalCost),
-        byFuelType: Object.values(byFuelType),
-        totals: { grand24, grand25, fuel24, fuel25, totalRecords: records.length },
+        byTeamByYear: Object.values(byTeamByYear).sort((a, b) => a.year - b.year || b.totalCost - a.totalCost),
+        byFuelType: Object.values(byFuelType).sort((a, b) => b.fuelCost - a.fuelCost),
+        byAcquisition: Object.values(byAcquisition).sort((a, b) => b.fuelCost - a.fuelCost),
+        byVehicleType: Object.values(byVehicleType).sort((a, b) => b.fuelCost - a.fuelCost),
+        years,
+        totals: { totalRecords: records.length },
       });
     } catch (e: any) {
       res.status(500).json({ message: e.message });
