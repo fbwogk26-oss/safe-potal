@@ -15,7 +15,7 @@ import {
 } from "recharts";
 import {
   Fuel, Upload, Trash2, TrendingUp, TrendingDown, Minus,
-  RefreshCw, Search, ChevronUp, ChevronDown, ArrowRight, Car, Route,
+  RefreshCw, Search, ChevronUp, ChevronDown, Car, Route,
 } from "lucide-react";
 import type { FuelRecord } from "@shared/schema";
 
@@ -112,48 +112,57 @@ function TrendBadge({ value }: { value: number | null }) {
 function YearCard({ stat, prevStat }: { stat: YearStat; prevStat?: YearStat }) {
   const p = YEAR_PALETTE[stat.year] ?? YEAR_PALETTE[2025];
   const fuelTrend = prevStat ? pct(stat.fuelCost, prevStat.fuelCost) : null;
+  const fuelD = prevStat ? stat.fuelCost - prevStat.fuelCost : null;
+  const distD = prevStat ? stat.totalDistance - prevStat.totalDistance : null;
+  const vehicleD = prevStat ? stat.vehicleCount - prevStat.vehicleCount : null;
   return (
-    <div className={`rounded-2xl overflow-hidden border shadow-sm ${p.bg}`} style={{ borderColor: p.stroke + "28" }}>
-      {/* 상단 컬러 바 */}
-      <div className="h-1 w-full" style={{ background: `linear-gradient(90deg, ${p.stroke}, ${p.stroke}50)` }} />
-      <div className="p-5">
-        {/* 헤더 */}
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: p.stroke + "18" }}>
-              <Fuel className="w-4 h-4" style={{ color: p.stroke }} />
-            </div>
-            <div>
-              <p className="text-base font-black leading-tight" style={{ color: p.stroke }}>{shortYr(stat.year)}년</p>
-              <p className="text-[10px] text-muted-foreground font-medium mt-0.5">유류비 합계</p>
-            </div>
+    <div className={`rounded-xl overflow-hidden border ${p.bg}`} style={{ borderColor: p.stroke + "30" }}>
+      <div className="h-[3px] w-full" style={{ background: p.stroke }} />
+      <div className="p-4">
+        {/* 헤더: 연도 + 추이 */}
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-1.5">
+            <Fuel className="w-3.5 h-3.5" style={{ color: p.stroke }} />
+            <span className="text-sm font-black" style={{ color: p.stroke }}>{shortYr(stat.year)}년</span>
+            <span className="text-[10px] text-muted-foreground">유류비 합계</span>
           </div>
           {fuelTrend !== null && <TrendBadge value={fuelTrend} />}
         </div>
         {/* 메인 숫자 */}
-        <p className="text-4xl font-black text-foreground tracking-tight leading-none">
-          {fmtM(stat.fuelCost)}
-          <span className="text-lg font-semibold text-muted-foreground ml-1.5">원</span>
+        <p className="text-[2rem] font-black text-foreground tracking-tight leading-none mb-3">
+          {fmtM(stat.fuelCost)}<span className="text-base font-semibold text-muted-foreground ml-1">원</span>
         </p>
-        {/* 구분선 */}
-        <div className="my-4" style={{ borderTop: `1px solid ${p.stroke}20` }} />
-        {/* 보조 지표 */}
-        <div className="grid grid-cols-2 gap-2">
-          <div className="rounded-xl px-3 py-2.5" style={{ background: p.stroke + "0e" }}>
-            <div className="flex items-center gap-1 mb-1">
-              <Route className="w-3 h-3 text-muted-foreground" />
-              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">총주행거리</p>
-            </div>
-            <p className="text-sm font-bold text-foreground">{fmtK(stat.totalDistance)}</p>
-          </div>
-          <div className="rounded-xl px-3 py-2.5" style={{ background: p.stroke + "0e" }}>
-            <div className="flex items-center gap-1 mb-1">
-              <Car className="w-3 h-3 text-muted-foreground" />
-              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">운용 차량</p>
-            </div>
-            <p className="text-sm font-bold text-foreground">{stat.vehicleCount}<span className="text-xs font-normal text-muted-foreground ml-0.5">대</span></p>
-          </div>
+        {/* 보조 지표 한 줄 */}
+        <div className="flex items-center gap-2 text-xs text-muted-foreground pb-2.5 border-b" style={{ borderColor: p.stroke + "20" }}>
+          <Route className="w-3 h-3 shrink-0" />
+          <span className="font-semibold text-foreground">{fmtK(stat.totalDistance)}</span>
+          <span className="opacity-30">·</span>
+          <Car className="w-3 h-3 shrink-0" />
+          <span className="font-semibold text-foreground">{stat.vehicleCount}대</span>
         </div>
+        {/* 전년 대비 (있을 때만) */}
+        {fuelD !== null ? (
+          <div className="mt-2.5 flex items-center justify-between gap-2">
+            <span className="text-[10px] text-muted-foreground font-medium">전년 대비</span>
+            <div className="flex items-center gap-2.5">
+              <span className={`text-xs font-black tabular-nums ${fuelD > 0 ? "text-red-500" : "text-blue-500"}`}>
+                {fuelD > 0 ? "▲" : "▼"} {fmtM2(Math.abs(fuelD))}
+              </span>
+              {distD !== null && (
+                <span className="text-[10px] text-muted-foreground tabular-nums">
+                  거리 {distD >= 0 ? "+" : ""}{fmtK(distD)}
+                </span>
+              )}
+              {vehicleD !== null && vehicleD !== 0 && (
+                <span className={`text-[10px] font-semibold tabular-nums ${vehicleD > 0 ? "text-orange-500" : "text-blue-500"}`}>
+                  차량 {vehicleD > 0 ? "+" : ""}{vehicleD}대
+                </span>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="mt-2.5 text-[10px] text-muted-foreground/50">전년 데이터 없음</div>
+        )}
       </div>
     </div>
   );
@@ -428,68 +437,6 @@ export default function FuelCosts() {
               })}
             </div>
 
-            {/* ── 전년 대비 요약 밴드 ── */}
-            {sortedYears.length >= 2 && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {(() => {
-                  const items: React.ReactNode[] = [];
-                  for (let i = 1; i < sortedYears.length; i++) {
-                    const cur = years.find(y => y.year === sortedYears[i]);
-                    const prev = years.find(y => y.year === sortedYears[i - 1]);
-                    if (!cur || !prev) continue;
-                    const fuelD = cur.fuelCost - prev.fuelCost;
-                    const distD = cur.totalDistance - prev.totalDistance;
-                    const vehicleD = cur.vehicleCount - prev.vehicleCount;
-                    const fuelP = pct(cur.fuelCost, prev.fuelCost);
-                    const distP = pct(cur.totalDistance, prev.totalDistance);
-                    const p = YEAR_PALETTE[sortedYears[i]] ?? YEAR_PALETTE[2025];
-                    items.push(
-                      <div key={`d-${i}`} className={`rounded-2xl overflow-hidden border shadow-sm ${p.bg}`} style={{ borderColor: p.stroke + "28" }}>
-                        <div className="h-1 w-full" style={{ background: `linear-gradient(90deg, ${p.stroke}, ${p.stroke}50)` }} />
-                        <div className="p-5">
-                          {/* 헤더 */}
-                          <div className="flex items-center gap-2 mb-4">
-                            <span className="text-sm font-black" style={{ color: p.stroke }}>{shortYr(sortedYears[i - 1])}년</span>
-                            <ArrowRight className="w-4 h-4 text-muted-foreground" />
-                            <span className="text-sm font-black" style={{ color: p.stroke }}>{shortYr(sortedYears[i])}년 변화</span>
-                          </div>
-                          {/* 메인 두 지표 */}
-                          <div className="grid grid-cols-2 gap-4 mb-4">
-                            <div>
-                              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">유류비 증감</p>
-                              <p className={`text-2xl font-black leading-none mb-1.5 ${fuelD > 0 ? "text-red-600 dark:text-red-400" : "text-blue-600 dark:text-blue-400"}`}>
-                                {fuelD > 0 ? "+" : "-"}{fmtM(Math.abs(fuelD))}원
-                              </p>
-                              <TrendBadge value={fuelP} />
-                            </div>
-                            <div>
-                              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">주행거리 증감</p>
-                              <p className={`text-2xl font-black leading-none mb-1.5 ${distD > 0 ? "text-red-600 dark:text-red-400" : "text-blue-600 dark:text-blue-400"}`}>
-                                {distD > 0 ? "+" : "-"}{fmtK(Math.abs(distD))}
-                              </p>
-                              <TrendBadge value={distP} />
-                            </div>
-                          </div>
-                          {/* 차량 수 비교 */}
-                          <div className="rounded-xl p-3 flex items-center gap-3" style={{ background: p.stroke + "0e" }}>
-                            <Car className="w-3.5 h-3.5 shrink-0" style={{ color: p.stroke }} />
-                            <div className="flex items-center gap-2 text-sm flex-1">
-                              <span className="font-semibold text-foreground">{prev.vehicleCount}대</span>
-                              <ArrowRight className="w-3 h-3 text-muted-foreground" />
-                              <span className="font-semibold text-foreground">{cur.vehicleCount}대</span>
-                              <span className={`ml-auto text-xs font-bold ${vehicleD > 0 ? "text-red-600" : vehicleD < 0 ? "text-blue-600" : "text-muted-foreground"}`}>
-                                {vehicleD > 0 ? "▲" : vehicleD < 0 ? "▼" : "—"} {Math.abs(vehicleD)}대
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  }
-                  return items;
-                })()}
-              </div>
-            )}
 
             {/* ── 월별 추이 + 증감 통합 차트 ── */}
             <Card className="shadow-sm">
