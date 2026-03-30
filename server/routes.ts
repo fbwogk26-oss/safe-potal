@@ -13,9 +13,6 @@ import ExcelJS from "exceljs";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 import { objectStorageClient } from "./replit_integrations/object_storage/objectStorage";
 import { getKoshaMajorAccidents, clearKoshaCache } from "./kosha";
-import { createRequire } from "module";
-const _require = createRequire(import.meta.url);
-const pdfParseLib: (buf: Buffer, opts?: any) => Promise<{ text: string }> = _require("pdf-parse");
 import { fetchWeather, generateSafetyMessage, clearWeatherCache } from "./weather";
 import { setupAuth, registerAuthRoutes, isAuthenticated, authStorage } from "./replit_integrations/auth";
 import { ALL_PERMISSIONS, type UserPermissions } from "@shared/models/auth";
@@ -802,9 +799,17 @@ export async function registerRoutes(
     try {
       const pdfBuffer: Buffer = req.file.buffer;
 
-      // ── 1) 텍스트 추출 ──
-      const data = await pdfParseLib(pdfBuffer);
-      const text = data.text;
+      // ── 1) 텍스트 추출 (pdfjs-dist, 서버 전용) ──
+      const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
+      const uint8 = new Uint8Array(pdfBuffer);
+      const loadingTask = pdfjsLib.getDocument({ data: uint8, disableWorker: true });
+      const pdfDoc = await loadingTask.promise;
+      let text = '';
+      for (let p = 1; p <= pdfDoc.numPages; p++) {
+        const page = await pdfDoc.getPage(p);
+        const tc = await page.getTextContent();
+        text += tc.items.map((it: any) => it.str).join(' ') + '\n';
+      }
       const lines = text.split('\n').map((l: string) => l.trim()).filter(Boolean);
 
       let inspectionDate = '';
@@ -812,27 +817,26 @@ export async function registerRoutes(
       let location = '';
       let workContent = '';
 
-      for (const line of lines) {
-        if (!inspectionDate) {
-          const m = line.match(/점검일자\s*[:\uff1a]\s*(\d{4}-\d{2}-\d{2})/);
-          if (m) inspectionDate = m[1];
-        }
-        if (!team) {
-          const m = line.match(/점검대상\s*[:\uff1a]\s*(.+)/);
-          if (m) {
-            const parts = m[1].split('>');
-            team = parts[parts.length - 1].trim();
-          }
-        }
-        if (!location) {
-          const m = line.match(/작업일시[\/\/]장소\s*[:\uff1a]\s*[^\/]+[\/]\s*(.+)/);
-          if (m) location = m[1].trim();
-        }
-        if (!workContent) {
-          const m = line.match(/직영[-–]([가-힣A-Za-z0-9]+)[-–]/);
-          if (m) workContent = m[1];
-        }
+      const fullText = lines.join(' ');
+
+      // 점검일자
+      const dateMatch = fullText.match(/점검일자\s*[:\uff1a]\s*(\d{4}-\d{2}-\d{2})/);
+      if (dateMatch) inspectionDate = dateMatch[1];
+
+      // 팀명: 점검대상 마지막 '>' 이후, 다음 ○ 또는 공백 다수 전까지
+      const teamMatch = fullText.match(/점검대상\s*[:\uff1a]\s*(.+?)\s{2,}○/);
+      if (teamMatch) {
+        const parts = teamMatch[1].split('>');
+        team = parts[parts.length - 1].trim();
       }
+
+      // 작업장소: 작업일시/장소 : <비워있거나날짜> / <날짜T시간> <장소>  ○
+      const locMatch = fullText.match(/작업일시[\/\/]장소\s*[:\uff1a]\s*[^\/]*\/\s*[^\s]+\s+(.+?)\s{2,}○/);
+      if (locMatch) location = locMatch[1].trim();
+
+      // 작업내용: 직영-무선기지국- 형태
+      const workMatch = fullText.match(/직영[-–]([가-힣A-Za-z0-9]+)[-–]/);
+      if (workMatch) workContent = workMatch[1];
 
       // ── 2) PDF 바이너리에서 JPEG 이미지 추출 ──
       const imageUrls: string[] = [];
@@ -2752,8 +2756,17 @@ export async function registerRoutes(
           // ── 방법 3: 텍스트 추출만으로 분석 (최후 수단) ──
           let pdfText = "";
           try {
-            const pdResult = await pdfParseLib(pdfBuffer);
-            pdfText = (pdResult.text || "").trim();
+            const pdfjsLib2 = await import('pdfjs-dist/legacy/build/pdf.mjs');
+            const uint8b = new Uint8Array(pdfBuffer);
+            const loadingTask2 = pdfjsLib2.getDocument({ data: uint8b, disableWorker: true });
+            const pdfDoc2 = await loadingTask2.promise;
+            let rawText = '';
+            for (let p2 = 1; p2 <= pdfDoc2.numPages; p2++) {
+              const page2 = await pdfDoc2.getPage(p2);
+              const tc2 = await page2.getTextContent();
+              rawText += tc2.items.map((it: any) => it.str).join(' ') + '\n';
+            }
+            pdfText = rawText.trim();
           } catch (_) {}
 
           if (!pdfText || pdfText.length < 10) {
