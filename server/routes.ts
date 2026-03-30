@@ -257,6 +257,39 @@ const requireEditor: any = async (req: any, res: any, next: any) => {
   }
 };
 
+// PDF 바이너리에서 JPEG 이미지 스트림을 추출하는 함수 (라이브러리 없이)
+function extractJpegsFromBuffer(buf: Buffer): Buffer[] {
+  const results: Buffer[] = [];
+  let i = 0;
+  while (i < buf.length - 3) {
+    // JPEG SOI 마커: FF D8 FF
+    if (buf[i] === 0xFF && buf[i + 1] === 0xD8 && buf[i + 2] === 0xFF) {
+      const start = i;
+      let j = i + 2;
+      let found = false;
+      // EOI 마커 탐색: FF D9
+      while (j < buf.length - 1) {
+        if (buf[j] === 0xFF && buf[j + 1] === 0xD9) {
+          const end = j + 2;
+          const jpeg = buf.slice(start, end);
+          // 최소 크기(5KB) 이상인 이미지만 수집 (썸네일/아이콘 제외)
+          if (jpeg.length > 5000) {
+            results.push(jpeg);
+          }
+          i = end;
+          found = true;
+          break;
+        }
+        j++;
+      }
+      if (!found) break;
+    } else {
+      i++;
+    }
+  }
+  return results;
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -759,13 +792,16 @@ export async function registerRoutes(
   });
 
   // === PDF INSPECTION PARSE ===
-  const pdfUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
+  const inspectionPdfUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
-  app.post('/api/parse-inspection-pdf', isAuthenticated, pdfUpload.single('pdf'), async (req: any, res: any) => {
+  app.post('/api/parse-inspection-pdf', isAuthenticated, inspectionPdfUpload.single('pdf'), async (req: any, res: any) => {
     if (!req.file) return res.status(400).json({ message: "PDF 파일이 필요합니다" });
     try {
+      const pdfBuffer: Buffer = req.file.buffer;
+
+      // ── 1) 텍스트 추출 ──
       const pdfParse = (await import('pdf-parse')).default;
-      const data = await pdfParse(req.file.buffer);
+      const data = await pdfParse(pdfBuffer);
       const text = data.text;
       const lines = text.split('\n').map((l: string) => l.trim()).filter(Boolean);
 
@@ -775,12 +811,10 @@ export async function registerRoutes(
       let workContent = '';
 
       for (const line of lines) {
-        // 점검일자 : 2026-03-26
         if (!inspectionDate) {
           const m = line.match(/점검일자\s*[:\uff1a]\s*(\d{4}-\d{2}-\d{2})/);
           if (m) inspectionDate = m[1];
         }
-        // 점검대상 : kt MOS 남부>대구본부>대구운용부>서대구운용팀
         if (!team) {
           const m = line.match(/점검대상\s*[:\uff1a]\s*(.+)/);
           if (m) {
@@ -788,19 +822,37 @@ export async function registerRoutes(
             team = parts[parts.length - 1].trim();
           }
         }
-        // 작업일시/장소 : 2026-03-26T13:00 / 대구광역시 북구 산격동
         if (!location) {
-          const m = line.match(/작업일시[\/\/]장소\s*[:\uff1a]\s*[^/\/]+[\/\/]\s*(.+)/);
+          const m = line.match(/작업일시[\/\/]장소\s*[:\uff1a]\s*[^\/]+[\/]\s*(.+)/);
           if (m) location = m[1].trim();
         }
-        // 직영-무선기지국-... 또는 유지보수 내용
         if (!workContent) {
           const m = line.match(/직영[-–]([가-힣A-Za-z0-9]+)[-–]/);
           if (m) workContent = m[1];
         }
       }
 
-      res.json({ inspectionDate, team, location, workContent });
+      // ── 2) PDF 바이너리에서 JPEG 이미지 추출 ──
+      const imageUrls: string[] = [];
+      try {
+        const jpegBuffers = extractJpegsFromBuffer(pdfBuffer);
+        for (let i = 0; i < Math.min(jpegBuffers.length, 10); i++) {
+          const jpegBuf = jpegBuffers[i];
+          const filename = `pdf-img-${Date.now()}-${i}.jpg`;
+          const objUrl = await uploadToObjectStorage(jpegBuf, filename, 'image/jpeg');
+          if (objUrl) {
+            imageUrls.push(objUrl);
+          } else {
+            const localPath = path.join(uploadDir, filename);
+            fs.writeFileSync(localPath, jpegBuf);
+            imageUrls.push(`/uploads/${filename}`);
+          }
+        }
+      } catch (imgErr) {
+        console.warn('PDF 이미지 추출 실패 (텍스트만 반환):', imgErr);
+      }
+
+      res.json({ inspectionDate, team, location, workContent, imageUrls });
     } catch (err: any) {
       console.error('PDF 파싱 오류:', err);
       res.status(500).json({ message: 'PDF 파싱에 실패했습니다: ' + (err?.message || '') });

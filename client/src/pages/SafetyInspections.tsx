@@ -18,7 +18,6 @@ import ExcelJS from "exceljs";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useAuth } from "@/hooks/use-auth";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LabelList } from "recharts";
-import pdfWorkerSrc from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
 type ChecklistStatus = '양호' | '미흡' | '미점검';
 
@@ -211,99 +210,47 @@ export default function SafetyInspections() {
 
     setIsPdfParsing(true);
     try {
-      // 1) 텍스트 필드 추출 (서버)
       const formData = new FormData();
       formData.append("pdf", file);
-      const parseRes = await fetch("/api/parse-inspection-pdf", {
+
+      const res = await fetch("/api/parse-inspection-pdf", {
         method: "POST",
         body: formData,
         credentials: "include",
       });
-      if (!parseRes.ok) throw new Error((await parseRes.json()).message || "파싱 오류");
-      const parsed = await parseRes.json() as {
-        inspectionDate: string;
-        team: string;
-        location: string;
-        workContent: string;
-      };
 
-      if (parsed.inspectionDate) setInspectionDate(parsed.inspectionDate);
-      if (parsed.team) setDepartment(parsed.team);
-      if (parsed.location) setLocation(parsed.location);
-      if (parsed.workContent) setWorkContent(parsed.workContent);
-
-      // 2) PDF에서 이미지 추출 (클라이언트 - pdfjs-dist 로컬 워커)
+      let body: any;
       try {
-        const pdfjsLib = await import("pdfjs-dist");
-        pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerSrc;
+        body = await res.json();
+      } catch {
+        throw new Error("서버 응답을 읽을 수 없습니다");
+      }
 
-        const arrayBuffer = await file.arrayBuffer();
-        const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
+      if (!res.ok) {
+        throw new Error(body?.message || `서버 오류 (${res.status})`);
+      }
 
-        const extractedPaths: string[] = [];
-        const remainingSlots = MAX_IMAGES - images.length;
-        let extracted = 0;
+      // 텍스트 필드 자동 입력
+      if (body.inspectionDate) setInspectionDate(body.inspectionDate);
+      if (body.team) setDepartment(body.team);
+      if (body.location) setLocation(body.location);
+      if (body.workContent) setWorkContent(body.workContent);
 
-        for (let pageNum = 1; pageNum <= pdf.numPages && extracted < remainingSlots; pageNum++) {
-          const page = await pdf.getPage(pageNum);
-
-          // 이미지 오퍼레이터가 있는 페이지만 처리
-          const ops = await page.getOperatorList();
-          const IMAGE_OPS = new Set([82, 83, 84, 85, 86]); // paintImageXObject 계열
-          const hasImage = ops.fnArray.some((fn: number) => IMAGE_OPS.has(fn));
-          if (!hasImage) continue;
-
-          // 페이지 → 캔버스 렌더링
-          const viewport = page.getViewport({ scale: 2.0 });
-          const canvas = document.createElement("canvas");
-          canvas.width = viewport.width;
-          canvas.height = viewport.height;
-          const ctx = canvas.getContext("2d");
-          if (!ctx) continue;
-          await page.render({ canvasContext: ctx, viewport }).promise;
-
-          const blob = await new Promise<Blob | null>((resolve) =>
-            canvas.toBlob(resolve, "image/jpeg", 0.88)
-          );
-          if (!blob) continue;
-
-          const urlRes = await fetch("/api/uploads/request-url", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify({
-              name: `pdf-page-${pageNum}.jpg`,
-              size: blob.size,
-              contentType: "image/jpeg",
-            }),
-          });
-          if (!urlRes.ok) continue;
-          const { uploadURL, objectPath } = await urlRes.json();
-
-          const putRes = await fetch(uploadURL, {
-            method: "PUT",
-            body: blob,
-            headers: { "Content-Type": "image/jpeg" },
-          });
-          if (!putRes.ok) continue;
-
-          extractedPaths.push(objectPath);
-          extracted++;
-        }
-
-        if (extractedPaths.length > 0) {
-          setImages(prev => [...prev, ...extractedPaths]);
-          toast({ title: `PDF 불러오기 완료 — 사진 ${extractedPaths.length}장 추출됨` });
-        } else {
-          toast({ title: "PDF 불러오기 완료 — 텍스트 필드 자동 입력됨" });
-        }
-      } catch (imgErr) {
-        console.warn("PDF 이미지 추출 실패 (텍스트만 입력됨):", imgErr);
-        toast({ title: "PDF 불러오기 완료 — 텍스트 필드 자동 입력됨 (이미지 추출 불가)" });
+      // 이미지 자동 입력
+      const newImages: string[] = Array.isArray(body.imageUrls) ? body.imageUrls : [];
+      if (newImages.length > 0) {
+        setImages(prev => [...prev, ...newImages].slice(0, MAX_IMAGES));
+        toast({ title: `PDF 불러오기 완료 — 사진 ${newImages.length}장 추출됨` });
+      } else {
+        toast({ title: "PDF 불러오기 완료 — 텍스트 필드 자동 입력됨" });
       }
     } catch (err: any) {
-      console.error("PDF 파싱 실패:", err);
-      toast({ variant: "destructive", title: "PDF 불러오기 실패", description: err?.message || "서버 오류" });
+      console.error("PDF 불러오기 오류:", err);
+      toast({
+        variant: "destructive",
+        title: "PDF 불러오기 실패",
+        description: err?.message || "알 수 없는 오류가 발생했습니다",
+      });
     } finally {
       setIsPdfParsing(false);
     }
