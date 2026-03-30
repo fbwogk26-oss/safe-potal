@@ -652,43 +652,43 @@ export default function EquipmentStatus({ embedded = false }: EquipmentStatusPro
               {selectedCategory || "전체"} 현황
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-6">
-            <div className="grid grid-cols-3 gap-8 mb-8">
+          <CardContent className="p-3 sm:p-6">
+            <div className="grid grid-cols-3 gap-2 sm:gap-6 mb-4 sm:mb-8">
               <CircularProgress 
                 value={categoryStats.registeredQty} 
                 max={categoryStats.totalQuantity || 1} 
                 color="#3b82f6" 
                 label="등록"
-                size={140}
+                size={90}
               />
               <CircularProgress 
                 value={categoryStats.goodQty} 
                 max={categoryStats.totalQuantity || 1} 
                 color="#22c55e" 
                 label="양호"
-                size={140}
+                size={90}
               />
               <CircularProgress 
                 value={categoryStats.badQty} 
                 max={categoryStats.totalQuantity || 1} 
                 color="#ef4444" 
                 label="불량"
-                size={140}
+                size={90}
               />
             </div>
 
-            <div className="grid grid-cols-3 gap-4 text-center border-t pt-6">
+            <div className="grid grid-cols-3 gap-2 sm:gap-4 text-center border-t pt-4 sm:pt-6">
               <div>
-                <div className="text-3xl font-bold text-blue-600">{categoryStats.registeredQty}</div>
-                <div className="text-sm text-muted-foreground">등록</div>
+                <div className="text-xl sm:text-3xl font-bold text-blue-600">{categoryStats.registeredQty}</div>
+                <div className="text-xs sm:text-sm text-muted-foreground">등록</div>
               </div>
               <div>
-                <div className="text-3xl font-bold text-green-600">{categoryStats.goodQty}</div>
-                <div className="text-sm text-muted-foreground">양호</div>
+                <div className="text-xl sm:text-3xl font-bold text-green-600">{categoryStats.goodQty}</div>
+                <div className="text-xs sm:text-sm text-muted-foreground">양호</div>
               </div>
               <div>
-                <div className="text-3xl font-bold text-red-600">{categoryStats.badQty}</div>
-                <div className="text-sm text-muted-foreground">불량</div>
+                <div className="text-xl sm:text-3xl font-bold text-red-600">{categoryStats.badQty}</div>
+                <div className="text-xs sm:text-sm text-muted-foreground">불량</div>
               </div>
             </div>
           </CardContent>
