@@ -18,6 +18,7 @@ import ExcelJS from "exceljs";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useAuth } from "@/hooks/use-auth";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LabelList } from "recharts";
+import pdfWorkerSrc from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
 type ChecklistStatus = '양호' | '미흡' | '미점검';
 
@@ -231,72 +232,78 @@ export default function SafetyInspections() {
       if (parsed.location) setLocation(parsed.location);
       if (parsed.workContent) setWorkContent(parsed.workContent);
 
-      // 2) PDF에서 이미지 추출 (클라이언트 - pdfjs-dist)
-      const pdfjsLib = await import("pdfjs-dist");
-      pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+      // 2) PDF에서 이미지 추출 (클라이언트 - pdfjs-dist 로컬 워커)
+      try {
+        const pdfjsLib = await import("pdfjs-dist");
+        pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerSrc;
 
-      const arrayBuffer = await file.arrayBuffer();
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
 
-      const extractedPaths: string[] = [];
-      const remainingSlots = MAX_IMAGES - images.length;
-      let extracted = 0;
+        const extractedPaths: string[] = [];
+        const remainingSlots = MAX_IMAGES - images.length;
+        let extracted = 0;
 
-      for (let pageNum = 1; pageNum <= pdf.numPages && extracted < remainingSlots; pageNum++) {
-        const page = await pdf.getPage(pageNum);
+        for (let pageNum = 1; pageNum <= pdf.numPages && extracted < remainingSlots; pageNum++) {
+          const page = await pdf.getPage(pageNum);
 
-        // 페이지에 이미지 오브젝트가 있는지 확인
-        const ops = await page.getOperatorList();
-        const hasImage = ops.fnArray.some(
-          (fn: number) => fn === pdfjsLib.OPS.paintImageXObject || fn === pdfjsLib.OPS.paintJpegXObject
-        );
-        if (!hasImage) continue;
+          // 이미지 오퍼레이터가 있는 페이지만 처리
+          const ops = await page.getOperatorList();
+          const IMAGE_OPS = new Set([82, 83, 84, 85, 86]); // paintImageXObject 계열
+          const hasImage = ops.fnArray.some((fn: number) => IMAGE_OPS.has(fn));
+          if (!hasImage) continue;
 
-        // 페이지를 캔버스로 렌더링
-        const viewport = page.getViewport({ scale: 1.8 });
-        const canvas = document.createElement("canvas");
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
-        const ctx = canvas.getContext("2d")!;
-        await page.render({ canvasContext: ctx, viewport }).promise;
+          // 페이지 → 캔버스 렌더링
+          const viewport = page.getViewport({ scale: 2.0 });
+          const canvas = document.createElement("canvas");
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) continue;
+          await page.render({ canvasContext: ctx, viewport }).promise;
 
-        // 캔버스 → Blob → 업로드
-        const blob = await new Promise<Blob>((resolve) =>
-          canvas.toBlob((b) => resolve(b!), "image/jpeg", 0.85)
-        );
+          const blob = await new Promise<Blob | null>((resolve) =>
+            canvas.toBlob(resolve, "image/jpeg", 0.88)
+          );
+          if (!blob) continue;
 
-        const urlRes = await fetch("/api/uploads/request-url", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({
-            name: `pdf-page-${pageNum}.jpg`,
-            size: blob.size,
-            contentType: "image/jpeg",
-          }),
-        });
-        if (!urlRes.ok) continue;
-        const { uploadURL, objectPath } = await urlRes.json();
+          const urlRes = await fetch("/api/uploads/request-url", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({
+              name: `pdf-page-${pageNum}.jpg`,
+              size: blob.size,
+              contentType: "image/jpeg",
+            }),
+          });
+          if (!urlRes.ok) continue;
+          const { uploadURL, objectPath } = await urlRes.json();
 
-        await fetch(uploadURL, {
-          method: "PUT",
-          body: blob,
-          headers: { "Content-Type": "image/jpeg" },
-        });
+          const putRes = await fetch(uploadURL, {
+            method: "PUT",
+            body: blob,
+            headers: { "Content-Type": "image/jpeg" },
+          });
+          if (!putRes.ok) continue;
 
-        extractedPaths.push(objectPath);
-        extracted++;
-      }
+          extractedPaths.push(objectPath);
+          extracted++;
+        }
 
-      if (extractedPaths.length > 0) {
-        setImages(prev => [...prev, ...extractedPaths]);
-        toast({ title: `PDF 불러오기 완료 — 사진 ${extractedPaths.length}장 추출됨` });
-      } else {
-        toast({ title: "PDF 불러오기 완료 — 텍스트 필드 자동 입력됨 (사진 없음)" });
+        if (extractedPaths.length > 0) {
+          setImages(prev => [...prev, ...extractedPaths]);
+          toast({ title: `PDF 불러오기 완료 — 사진 ${extractedPaths.length}장 추출됨` });
+        } else {
+          toast({ title: "PDF 불러오기 완료 — 텍스트 필드 자동 입력됨" });
+        }
+      } catch (imgErr) {
+        console.warn("PDF 이미지 추출 실패 (텍스트만 입력됨):", imgErr);
+        toast({ title: "PDF 불러오기 완료 — 텍스트 필드 자동 입력됨 (이미지 추출 불가)" });
       }
     } catch (err: any) {
       console.error("PDF 파싱 실패:", err);
-      toast({ variant: "destructive", title: "PDF 불러오기 실패", description: err?.message || "" });
+      toast({ variant: "destructive", title: "PDF 불러오기 실패", description: err?.message || "서버 오류" });
     } finally {
       setIsPdfParsing(false);
     }
