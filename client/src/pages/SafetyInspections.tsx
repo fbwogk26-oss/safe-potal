@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ClipboardCheck, Plus, Trash2, ImagePlus, X, Calendar, MapPin, User, ChevronDown, ChevronUp, Download, Check, AlertCircle, BarChart3, Settings } from "lucide-react";
+import { ClipboardCheck, Plus, Trash2, ImagePlus, X, Calendar, MapPin, User, ChevronDown, ChevronUp, Download, Check, AlertCircle, BarChart3, Settings, FileText, Loader2 } from "lucide-react";
 import { useState, useRef, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -139,6 +139,8 @@ export default function SafetyInspections() {
   const [editAccompanyBujang, setEditAccompanyBujang] = useState("");
   const [editAccompanyTeamjang, setEditAccompanyTeamjang] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const pdfFileInputRef = useRef<HTMLInputElement>(null);
+  const [isPdfParsing, setIsPdfParsing] = useState(false);
   const [dashboardPeriod, setDashboardPeriod] = useState<"month" | "year">("month");
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
   const [listMonth, setListMonth] = useState<number>(new Date().getMonth() + 1);
@@ -198,6 +200,105 @@ export default function SafetyInspections() {
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handlePdfImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (pdfFileInputRef.current) pdfFileInputRef.current.value = "";
+
+    setIsPdfParsing(true);
+    try {
+      // 1) 텍스트 필드 추출 (서버)
+      const formData = new FormData();
+      formData.append("pdf", file);
+      const parseRes = await fetch("/api/parse-inspection-pdf", {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+      if (!parseRes.ok) throw new Error((await parseRes.json()).message || "파싱 오류");
+      const parsed = await parseRes.json() as {
+        inspectionDate: string;
+        team: string;
+        location: string;
+        workContent: string;
+      };
+
+      if (parsed.inspectionDate) setInspectionDate(parsed.inspectionDate);
+      if (parsed.team) setDepartment(parsed.team);
+      if (parsed.location) setLocation(parsed.location);
+      if (parsed.workContent) setWorkContent(parsed.workContent);
+
+      // 2) PDF에서 이미지 추출 (클라이언트 - pdfjs-dist)
+      const pdfjsLib = await import("pdfjs-dist");
+      pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+      const extractedPaths: string[] = [];
+      const remainingSlots = MAX_IMAGES - images.length;
+      let extracted = 0;
+
+      for (let pageNum = 1; pageNum <= pdf.numPages && extracted < remainingSlots; pageNum++) {
+        const page = await pdf.getPage(pageNum);
+
+        // 페이지에 이미지 오브젝트가 있는지 확인
+        const ops = await page.getOperatorList();
+        const hasImage = ops.fnArray.some(
+          (fn: number) => fn === pdfjsLib.OPS.paintImageXObject || fn === pdfjsLib.OPS.paintJpegXObject
+        );
+        if (!hasImage) continue;
+
+        // 페이지를 캔버스로 렌더링
+        const viewport = page.getViewport({ scale: 1.8 });
+        const canvas = document.createElement("canvas");
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        const ctx = canvas.getContext("2d")!;
+        await page.render({ canvasContext: ctx, viewport }).promise;
+
+        // 캔버스 → Blob → 업로드
+        const blob = await new Promise<Blob>((resolve) =>
+          canvas.toBlob((b) => resolve(b!), "image/jpeg", 0.85)
+        );
+
+        const urlRes = await fetch("/api/uploads/request-url", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            name: `pdf-page-${pageNum}.jpg`,
+            size: blob.size,
+            contentType: "image/jpeg",
+          }),
+        });
+        if (!urlRes.ok) continue;
+        const { uploadURL, objectPath } = await urlRes.json();
+
+        await fetch(uploadURL, {
+          method: "PUT",
+          body: blob,
+          headers: { "Content-Type": "image/jpeg" },
+        });
+
+        extractedPaths.push(objectPath);
+        extracted++;
+      }
+
+      if (extractedPaths.length > 0) {
+        setImages(prev => [...prev, ...extractedPaths]);
+        toast({ title: `PDF 불러오기 완료 — 사진 ${extractedPaths.length}장 추출됨` });
+      } else {
+        toast({ title: "PDF 불러오기 완료 — 텍스트 필드 자동 입력됨 (사진 없음)" });
+      }
+    } catch (err: any) {
+      console.error("PDF 파싱 실패:", err);
+      toast({ variant: "destructive", title: "PDF 불러오기 실패", description: err?.message || "" });
+    } finally {
+      setIsPdfParsing(false);
     }
   };
 
@@ -738,7 +839,31 @@ export default function SafetyInspections() {
           >
             <Card className="glass-card overflow-hidden border-green-200 dark:border-green-900/30">
               <CardHeader className="pb-4">
-                <CardTitle className="text-lg">점검 등록</CardTitle>
+                <div className="flex items-center justify-between gap-3">
+                  <CardTitle className="text-lg">점검 등록</CardTitle>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-2 border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-400 dark:hover:bg-blue-950"
+                    onClick={() => pdfFileInputRef.current?.click()}
+                    disabled={isPdfParsing}
+                    data-testid="button-import-pdf"
+                  >
+                    {isPdfParsing ? (
+                      <><Loader2 className="w-4 h-4 animate-spin" />PDF 분석중...</>
+                    ) : (
+                      <><FileText className="w-4 h-4" />PDF 불러오기</>
+                    )}
+                  </Button>
+                  <input
+                    ref={pdfFileInputRef}
+                    type="file"
+                    accept=".pdf"
+                    className="hidden"
+                    onChange={handlePdfImport}
+                  />
+                </div>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

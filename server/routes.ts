@@ -758,6 +758,55 @@ export async function registerRoutes(
     });
   });
 
+  // === PDF INSPECTION PARSE ===
+  const pdfUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
+
+  app.post('/api/parse-inspection-pdf', isAuthenticated, pdfUpload.single('pdf'), async (req: any, res: any) => {
+    if (!req.file) return res.status(400).json({ message: "PDF 파일이 필요합니다" });
+    try {
+      const pdfParse = (await import('pdf-parse')).default;
+      const data = await pdfParse(req.file.buffer);
+      const text = data.text;
+      const lines = text.split('\n').map((l: string) => l.trim()).filter(Boolean);
+
+      let inspectionDate = '';
+      let team = '';
+      let location = '';
+      let workContent = '';
+
+      for (const line of lines) {
+        // 점검일자 : 2026-03-26
+        if (!inspectionDate) {
+          const m = line.match(/점검일자\s*[:\uff1a]\s*(\d{4}-\d{2}-\d{2})/);
+          if (m) inspectionDate = m[1];
+        }
+        // 점검대상 : kt MOS 남부>대구본부>대구운용부>서대구운용팀
+        if (!team) {
+          const m = line.match(/점검대상\s*[:\uff1a]\s*(.+)/);
+          if (m) {
+            const parts = m[1].split('>');
+            team = parts[parts.length - 1].trim();
+          }
+        }
+        // 작업일시/장소 : 2026-03-26T13:00 / 대구광역시 북구 산격동
+        if (!location) {
+          const m = line.match(/작업일시[\/\/]장소\s*[:\uff1a]\s*[^/\/]+[\/\/]\s*(.+)/);
+          if (m) location = m[1].trim();
+        }
+        // 직영-무선기지국-... 또는 유지보수 내용
+        if (!workContent) {
+          const m = line.match(/직영[-–]([가-힣A-Za-z0-9]+)[-–]/);
+          if (m) workContent = m[1];
+        }
+      }
+
+      res.json({ inspectionDate, team, location, workContent });
+    } catch (err: any) {
+      console.error('PDF 파싱 오류:', err);
+      res.status(500).json({ message: 'PDF 파싱에 실패했습니다: ' + (err?.message || '') });
+    }
+  });
+
   // === FILE UPLOAD (Excel, etc.) ===
   const fileUpload = multer({
     storage: multer.diskStorage({
