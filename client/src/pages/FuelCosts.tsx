@@ -160,19 +160,6 @@ const ChartTooltip = ({ active, payload, label, unit = "만원" }: any) => {
   );
 };
 
-const DeltaTooltip = ({ active, payload, label }: any) => {
-  if (!active || !payload?.length) return null;
-  const v = payload[0]?.value ?? 0;
-  return (
-    <div className="bg-background/95 backdrop-blur border border-border rounded-xl p-3 shadow-xl text-xs min-w-[150px]">
-      <p className="font-bold text-foreground mb-1.5 text-sm">{label}</p>
-      <div className={`flex items-center gap-2 font-bold text-sm ${v > 0 ? "text-red-500" : "text-blue-500"}`}>
-        {v > 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-        {v > 0 ? "+" : ""}{fmt(v)}만원
-      </div>
-    </div>
-  );
-};
 
 export default function FuelCosts() {
   const { toast } = useToast();
@@ -268,21 +255,21 @@ export default function FuelCosts() {
     return row;
   });
 
-  // ── 전년 대비 증감 ──
-  const deltaCharts: { label: string; prevYear: number; curYear: number; data: any[] }[] = [];
-  for (let i = 1; i < sortedYears.length; i++) {
-    const curYear = sortedYears[i], prevYear = sortedYears[i - 1];
-    const data = MONTHS_SHORT.map((_, mi) => {
-      const m = mi + 1;
+  // ── 전년 대비 증감 (통합) ──
+  const deltaPairs = sortedYears.slice(1).map((curYear, i) => {
+    const prevYear = sortedYears[i];
+    return { key: `${prevYear}→${curYear}`, label: `${prevYear}→${curYear}년`, prevYear, curYear };
+  });
+  const combinedDeltaData = MONTHS_SHORT.map((_, mi) => {
+    const m = mi + 1;
+    const row: Record<string, any> = { month: `${mi + 1}월` };
+    for (const { key, prevYear, curYear } of deltaPairs) {
       const cur = summary?.byYearMonth.find(x => x.year === curYear && x.month === m);
       const prev = summary?.byYearMonth.find(x => x.year === prevYear && x.month === m);
-      return {
-        month: `${mi + 1}월`,
-        delta: (cur && prev) ? Math.round((cur.fuelCost - prev.fuelCost) / 10000) : null,
-      };
-    });
-    deltaCharts.push({ label: `${prevYear}→${curYear}년`, prevYear, curYear, data });
-  }
+      row[key] = (cur && prev) ? Math.round((cur.fuelCost - prev.fuelCost) / 10000) : null;
+    }
+    return row;
+  });
 
   // ── 팀별 차트 ── (유의미한 팀만: 어느 연도든 유류비 500만원 이상)
   const significantTeams = new Set(
@@ -599,46 +586,79 @@ export default function FuelCosts() {
               </CardContent>
             </Card>
 
-            {/* ── 전년 대비 증감 바 차트 ── */}
-            {deltaCharts.map(({ label, prevYear, curYear, data }) => {
-              const curP = YEAR_PALETTE[curYear] ?? YEAR_PALETTE[2025];
-              return (
-                <Card key={label} className="shadow-sm">
-                  <CardHeader className="pb-2">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <CardTitle className="text-base font-bold">{label} 유류비 증감</CardTitle>
-                        <p className="text-xs text-muted-foreground mt-0.5">월별 전년 대비 증감액 — 빨간색 증가 / 파란색 감소</p>
-                      </div>
-                      <div className="flex gap-2 text-xs">
-                        <span className="flex items-center gap-1 px-2 py-1 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-full font-semibold">
-                          <TrendingUp className="w-3 h-3" />증가
-                        </span>
-                        <span className="flex items-center gap-1 px-2 py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-full font-semibold">
-                          <TrendingDown className="w-3 h-3" />감소
-                        </span>
-                      </div>
+            {/* ── 전년 대비 증감 바 차트 (통합) ── */}
+            {deltaPairs.length > 0 && (
+              <Card className="shadow-sm">
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div>
+                      <CardTitle className="text-base font-bold">연도별 유류비 증감 비교</CardTitle>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        월별 전년 대비 증감액 ({deltaPairs.map(p => p.label).join(" / ")})
+                      </p>
                     </div>
-                  </CardHeader>
-                  <CardContent>
-                    <ResponsiveContainer width="100%" height={220}>
-                      <BarChart data={data} margin={{ top: 10, right: 24, left: 0, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="4 4" className="opacity-10" />
-                        <XAxis dataKey="month" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
-                        <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `${v > 0 ? "+" : ""}${v}만`} tickLine={false} axisLine={false} width={52} />
-                        <ReferenceLine y={0} stroke="#94a3b8" strokeWidth={1.5} strokeDasharray="4 2" />
-                        <Tooltip content={<DeltaTooltip />} />
-                        <Bar dataKey="delta" name="증감" radius={[3, 3, 0, 0]} maxBarSize={36}>
-                          {data.map((entry, i) => (
-                            <Cell key={i} fill={entry.delta > 0 ? "#ef4444" : entry.delta < 0 ? "#3b82f6" : "#94a3b8"} fillOpacity={0.85} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </CardContent>
-                </Card>
-              );
-            })}
+                    <div className="flex flex-wrap gap-2 text-xs">
+                      {deltaPairs.map(({ key, label, curYear }) => {
+                        const c = YEAR_PALETTE[curYear] ?? YEAR_PALETTE[2025];
+                        return (
+                          <span key={key} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full font-semibold border"
+                            style={{ color: c.fill, borderColor: c.fill + "40", background: c.fill + "10" }}>
+                            <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: c.fill }} />
+                            {label}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={260}>
+                    <BarChart data={combinedDeltaData} barCategoryGap="25%" barGap={3} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="4 4" stroke="currentColor" strokeOpacity={0.07} />
+                      <XAxis dataKey="month" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
+                      <YAxis
+                        tick={{ fontSize: 11 }}
+                        tickFormatter={v => `${v > 0 ? "+" : ""}${v}만`}
+                        tickLine={false}
+                        axisLine={false}
+                        width={54}
+                      />
+                      <ReferenceLine y={0} stroke="#94a3b8" strokeWidth={1.5} strokeDasharray="4 2" />
+                      <Tooltip
+                        content={({ active, payload, label: lbl }) => {
+                          if (!active || !payload?.length) return null;
+                          return (
+                            <div className="bg-popover border border-border rounded-lg shadow-lg p-3 text-xs min-w-[160px]">
+                              <p className="font-bold text-sm mb-2">{lbl}</p>
+                              {payload.map((p: any, i: number) => {
+                                const v = p.value as number;
+                                return (
+                                  <div key={i} className="flex items-center justify-between gap-4 py-0.5">
+                                    <span className="flex items-center gap-1.5">
+                                      <span className="w-2 h-2 rounded-sm" style={{ background: p.fill }} />
+                                      <span className="text-muted-foreground">{p.name}</span>
+                                    </span>
+                                    <span className={`font-bold tabular-nums ${v > 0 ? "text-red-500" : v < 0 ? "text-blue-500" : "text-muted-foreground"}`}>
+                                      {v > 0 ? "+" : ""}{v != null ? v.toLocaleString() : "-"}만원
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        }}
+                      />
+                      {deltaPairs.map(({ key, label, curYear }) => {
+                        const c = YEAR_PALETTE[curYear] ?? YEAR_PALETTE[2025];
+                        return (
+                          <Bar key={key} dataKey={key} name={label} fill={c.fill} radius={[3, 3, 0, 0]} maxBarSize={28} fillOpacity={0.85} />
+                        );
+                      })}
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            )}
 
             {/* ── 팀별 유류비 (전체 너비) ── */}
             <Card className="shadow-sm">
