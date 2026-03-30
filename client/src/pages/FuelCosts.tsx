@@ -666,115 +666,118 @@ export default function FuelCosts() {
               </Card>
             ))}
 
-            {/* ── 팀별 + 비용구조 ── */}
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
-              {/* 팀별 유류비 */}
-              <Card className="xl:col-span-2">
+            {/* ── 팀별 유류비 (전체 너비) ── */}
+            <Card>
+              <CardHeader className="pb-2">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <CardTitle className="text-base">팀별 유류비 비교</CardTitle>
+                  <Select value={teamYearFilter} onValueChange={setTeamYearFilter}>
+                    <SelectTrigger className="w-28 h-8" data-testid="select-team-year">
+                      <SelectValue placeholder="연도" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">전체</SelectItem>
+                      {sortedYears.map(yr => (
+                        <SelectItem key={yr} value={String(yr)}>{yr}년</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={Math.max(320, teamChartData.length * 30 + 50)}>
+                  <BarChart data={teamChartData} layout="vertical" barCategoryGap="25%" margin={{ top: 4, right: 30, left: 4, bottom: 4 }}>
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} className="opacity-20" />
+                    <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={v => `${v}만`} />
+                    <YAxis type="category" dataKey="team" tick={{ fontSize: 12 }} width={110} />
+                    <Tooltip formatter={(v: any) => [`${fmt(v)}만원`]} />
+                    <Legend wrapperStyle={{ fontSize: 12 }} />
+                    {(teamYearFilter === "all" ? sortedYears : [parseInt(teamYearFilter)]).map((yr, i) => {
+                      const c = YEAR_COLORS[yr] ?? { fill: TEAM_COLORS[i] };
+                      return <Bar key={yr} dataKey={`${yr}년`} fill={c.fill} radius={[0, 3, 3, 0]} />;
+                    })}
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            {/* ── 비용구조 + 연료 + 구입형태 (3열) ── */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* 비용 구조 도넛 */}
+              <Card>
                 <CardHeader className="pb-2">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                    <CardTitle className="text-base">팀별 유류비 비교</CardTitle>
-                    <Select value={teamYearFilter} onValueChange={setTeamYearFilter}>
-                      <SelectTrigger className="w-28 h-8" data-testid="select-team-year">
-                        <SelectValue placeholder="연도" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">전체</SelectItem>
-                        {sortedYears.map(yr => (
-                          <SelectItem key={yr} value={String(yr)}>{yr}년</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  <CardTitle className="text-sm">비용 구조 ({years[years.length - 1]?.year ?? ""}년)</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ResponsiveContainer width="100%" height={Math.max(300, teamChartData.length * 28 + 40)}>
-                    <BarChart data={teamChartData} layout="vertical" margin={{ top: 0, right: 20, left: 4, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" horizontal={false} className="opacity-20" />
-                      <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={v => `${v}만`} />
-                      <YAxis type="category" dataKey="team" tick={{ fontSize: 11 }} width={100} />
-                      <Tooltip formatter={(v: any) => [`${fmt(v)}만원`]} />
-                      <Legend wrapperStyle={{ fontSize: 11 }} />
-                      {(teamYearFilter === "all" ? sortedYears : [parseInt(teamYearFilter)]).map((yr, i) => {
-                        const c = YEAR_COLORS[yr] ?? { fill: TEAM_COLORS[i] };
-                        return <Bar key={yr} dataKey={`${yr}년`} fill={c.fill} radius={[0, 3, 3, 0]} />;
-                      })}
-                    </BarChart>
+                  <ResponsiveContainer width="100%" height={160}>
+                    <PieChart>
+                      <Pie data={costStructure} cx="50%" cy="50%" outerRadius={65} innerRadius={30} dataKey="value" nameKey="name">
+                        {costStructure.map((_, i) => (
+                          <Cell key={i} fill={costStructureColors[i % costStructureColors.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(v: any) => [`${fmtM(v)}원`]} />
+                    </PieChart>
                   </ResponsiveContainer>
+                  <div className="flex flex-wrap gap-1.5 mt-1 justify-center">
+                    {costStructure.map((entry, i) => (
+                      <div key={i} className="flex items-center gap-1 text-[10px]">
+                        <div className="w-2 h-2 rounded-full" style={{ background: costStructureColors[i] }} />
+                        <span className="text-muted-foreground">{entry.name}</span>
+                        <span className="font-medium">{fmtM(entry.value)}원</span>
+                      </div>
+                    ))}
+                  </div>
                 </CardContent>
               </Card>
 
-              {/* 비용 구조 */}
-              <div className="flex flex-col gap-4">
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm">비용 구조 ({years[years.length - 1]?.year ?? ""}년)</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ResponsiveContainer width="100%" height={150}>
-                      <PieChart>
-                        <Pie data={costStructure} cx="50%" cy="50%" outerRadius={60} innerRadius={28} dataKey="value" nameKey="name">
-                          {costStructure.map((_, i) => (
-                            <Cell key={i} fill={costStructureColors[i % costStructureColors.length]} />
-                          ))}
-                        </Pie>
-                        <Tooltip formatter={(v: any) => [`${fmtM(v)}원`]} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                    <div className="flex flex-wrap gap-1.5 mt-1 justify-center">
-                      {costStructure.map((entry, i) => (
-                        <div key={i} className="flex items-center gap-1 text-[10px]">
-                          <div className="w-2 h-2 rounded-full" style={{ background: costStructureColors[i] }} />
-                          <span className="text-muted-foreground">{entry.name}</span>
-                          <span className="font-medium">{fmtM(entry.value)}원</span>
+              {/* 연료 종류별 */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">연료 종류별</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2.5">
+                  {(summary?.byFuelType ?? []).slice(0, 5).map((f, i) => {
+                    const total = summary?.byFuelType.reduce((s, x) => s + x.fuelCost, 0) ?? 1;
+                    const pctVal = total > 0 ? (f.fuelCost / total) * 100 : 0;
+                    return (
+                      <div key={i}>
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className="text-xs font-medium" style={{ color: FUEL_COLORS[f.fuelType ?? ""] ?? "#64748b" }}>{f.fuelType}</span>
+                          <span className="text-xs text-muted-foreground">{fmtM(f.fuelCost)}원 ({pctVal.toFixed(1)}%)</span>
                         </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
+                        <div className="h-2 bg-muted rounded-full overflow-hidden">
+                          <div className="h-full rounded-full" style={{ width: `${pctVal}%`, background: FUEL_COLORS[f.fuelType ?? ""] ?? "#94a3b8" }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </CardContent>
+              </Card>
 
-                {/* 연료 종류 */}
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm">연료 종류별</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    {(summary?.byFuelType ?? []).slice(0, 4).map((f, i) => {
-                      const total = summary?.byFuelType.reduce((s, x) => s + x.fuelCost, 0) ?? 1;
-                      const pctVal = total > 0 ? (f.fuelCost / total) * 100 : 0;
-                      return (
-                        <div key={i}>
-                          <div className="flex items-center justify-between mb-0.5">
-                            <span className="text-xs font-medium" style={{ color: FUEL_COLORS[f.fuelType ?? ""] }}>{f.fuelType}</span>
-                            <span className="text-xs text-muted-foreground">{fmtM(f.fuelCost)}원 ({pctVal.toFixed(1)}%)</span>
-                          </div>
-                          <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                            <div className="h-full rounded-full" style={{ width: `${pctVal}%`, background: FUEL_COLORS[f.fuelType ?? ""] ?? "#94a3b8" }} />
-                          </div>
+              {/* 구입형태별 */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">구입형태별</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2.5">
+                  {(summary?.byAcquisition ?? []).slice(0, 5).map((a, i) => {
+                    const total = summary?.byAcquisition.reduce((s, x) => s + x.fuelCost, 0) ?? 1;
+                    const pctVal = total > 0 ? (a.fuelCost / total) * 100 : 0;
+                    return (
+                      <div key={i}>
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className="text-xs font-medium" style={{ color: ACQUISITION_COLORS[a.type ?? ""] ?? "#64748b" }}>{a.type}</span>
+                          <span className="text-xs text-muted-foreground">{fmtM(a.fuelCost)}원 ({pctVal.toFixed(1)}%)</span>
                         </div>
-                      );
-                    })}
-                    {/* 구입형태 */}
-                    <div className="pt-2 border-t border-border">
-                      <p className="text-[11px] font-semibold text-muted-foreground mb-2">구입형태별</p>
-                      {(summary?.byAcquisition ?? []).slice(0, 3).map((a, i) => {
-                        const total = summary?.byAcquisition.reduce((s, x) => s + x.fuelCost, 0) ?? 1;
-                        const pctVal = total > 0 ? (a.fuelCost / total) * 100 : 0;
-                        return (
-                          <div key={i} className="mb-1.5">
-                            <div className="flex items-center justify-between mb-0.5">
-                              <span className="text-xs font-medium" style={{ color: ACQUISITION_COLORS[a.type ?? ""] ?? "#64748b" }}>{a.type}</span>
-                              <span className="text-xs text-muted-foreground">{pctVal.toFixed(1)}%</span>
-                            </div>
-                            <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                              <div className="h-full rounded-full" style={{ width: `${pctVal}%`, background: ACQUISITION_COLORS[a.type ?? ""] ?? "#94a3b8" }} />
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
+                        <div className="h-2 bg-muted rounded-full overflow-hidden">
+                          <div className="h-full rounded-full" style={{ width: `${pctVal}%`, background: ACQUISITION_COLORS[a.type ?? ""] ?? "#94a3b8" }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </CardContent>
+              </Card>
             </div>
 
             {/* ── 팀별 연도별 비교 테이블 ── */}
