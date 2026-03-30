@@ -13,6 +13,7 @@ import ExcelJS from "exceljs";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 import { objectStorageClient } from "./replit_integrations/object_storage/objectStorage";
 import { getKoshaMajorAccidents, clearKoshaCache } from "./kosha";
+import pdfParseLib from "pdf-parse";
 import { fetchWeather, generateSafetyMessage, clearWeatherCache } from "./weather";
 import { setupAuth, registerAuthRoutes, isAuthenticated, authStorage } from "./replit_integrations/auth";
 import { ALL_PERMISSIONS, type UserPermissions } from "@shared/models/auth";
@@ -800,8 +801,7 @@ export async function registerRoutes(
       const pdfBuffer: Buffer = req.file.buffer;
 
       // ── 1) 텍스트 추출 ──
-      const pdfParse = (await import('pdf-parse')).default;
-      const data = await pdfParse(pdfBuffer);
+      const data = await pdfParseLib(pdfBuffer);
       const text = data.text;
       const lines = text.split('\n').map((l: string) => l.trim()).filter(Boolean);
 
@@ -2750,8 +2750,7 @@ export async function registerRoutes(
           // ── 방법 3: 텍스트 추출만으로 분석 (최후 수단) ──
           let pdfText = "";
           try {
-            const pdfParse = (await import("pdf-parse")).default;
-            const pdResult = await pdfParse(pdfBuffer);
+            const pdResult = await pdfParseLib(pdfBuffer);
             pdfText = (pdResult.text || "").trim();
           } catch (_) {}
 
