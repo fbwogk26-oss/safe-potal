@@ -712,21 +712,57 @@ export default function SafetyInspections() {
                     <Badge variant="secondary" className="text-xs">{inspectionStats.periodLabel} 현황</Badge>
                   </div>
                   <div className="grid grid-cols-3 gap-3">
-                    <div className="text-center p-2 rounded-lg bg-muted/30">
-                      <p className="text-[11px] text-muted-foreground">총 점검</p>
-                      <p className="text-lg font-bold text-green-600" data-testid="text-total-inspections">{inspectionStats.total}건</p>
-                    </div>
-                    <div className="text-center p-2 rounded-lg bg-muted/30">
-                      <p className="text-[11px] text-muted-foreground">안전점검</p>
-                      <p className="text-lg font-bold text-blue-600" data-testid="text-safety-count">
-                        {inspectionStats.totalSafety}{inspectionStats.safetyTotal > 0 ? `/${inspectionStats.safetyTotal}` : ""}건
+                    {/* 총 점검 */}
+                    <div className="rounded-xl p-3 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/40 dark:to-emerald-950/20 border border-green-100 dark:border-green-900/30">
+                      <p className="text-[11px] font-semibold text-green-600 dark:text-green-400 mb-1">📋 총 점검</p>
+                      <p className="text-2xl font-black text-green-700 dark:text-green-300" data-testid="text-total-inspections">
+                        {inspectionStats.total}<span className="text-xs font-normal ml-0.5">건</span>
                       </p>
+                      <p className="text-[10px] text-muted-foreground mt-1">안전 {inspectionStats.totalSafety} + 동행 {inspectionStats.totalAccompany}</p>
                     </div>
-                    <div className="text-center p-2 rounded-lg bg-muted/30">
-                      <p className="text-[11px] text-muted-foreground">동행점검</p>
-                      <p className="text-lg font-bold text-emerald-600" data-testid="text-accompany-count">
-                        {inspectionStats.totalAccompany}{inspectionStats.accompanyTotal > 0 ? `/${inspectionStats.accompanyTotal}` : ""}건
+                    {/* 안전점검 */}
+                    <div className="rounded-xl p-3 bg-gradient-to-br from-blue-50 to-sky-50 dark:from-blue-950/40 dark:to-sky-950/20 border border-blue-100 dark:border-blue-900/30">
+                      <p className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 mb-1">🛡 안전점검</p>
+                      <p className="text-2xl font-black text-blue-700 dark:text-blue-300" data-testid="text-safety-count">
+                        {inspectionStats.totalSafety}
+                        {inspectionStats.safetyTotal > 0 && <span className="text-sm font-semibold text-muted-foreground">/{inspectionStats.safetyTotal}</span>}
+                        <span className="text-xs font-normal ml-0.5">건</span>
                       </p>
+                      {inspectionStats.safetyTotal > 0 && (
+                        <div className="mt-1.5">
+                          <div className="h-1.5 w-full bg-blue-100 dark:bg-blue-900/40 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-blue-500 rounded-full transition-all"
+                              style={{ width: `${Math.min(100, Math.round(inspectionStats.totalSafety / inspectionStats.safetyTotal * 100))}%` }}
+                            />
+                          </div>
+                          <p className="text-[10px] text-blue-500 dark:text-blue-400 mt-0.5 font-semibold">
+                            {Math.round(inspectionStats.totalSafety / inspectionStats.safetyTotal * 100)}% 달성
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                    {/* 동행점검 */}
+                    <div className="rounded-xl p-3 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/40 dark:to-teal-950/20 border border-emerald-100 dark:border-emerald-900/30">
+                      <p className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 mb-1">🤝 동행점검</p>
+                      <p className="text-2xl font-black text-emerald-700 dark:text-emerald-300" data-testid="text-accompany-count">
+                        {inspectionStats.totalAccompany}
+                        {inspectionStats.accompanyTotal > 0 && <span className="text-sm font-semibold text-muted-foreground">/{inspectionStats.accompanyTotal}</span>}
+                        <span className="text-xs font-normal ml-0.5">건</span>
+                      </p>
+                      {inspectionStats.accompanyTotal > 0 && (
+                        <div className="mt-1.5">
+                          <div className="h-1.5 w-full bg-emerald-100 dark:bg-emerald-900/40 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-emerald-500 rounded-full transition-all"
+                              style={{ width: `${Math.min(100, Math.round(inspectionStats.totalAccompany / inspectionStats.accompanyTotal * 100))}%` }}
+                            />
+                          </div>
+                          <p className="text-[10px] text-emerald-500 dark:text-emerald-400 mt-0.5 font-semibold">
+                            {Math.round(inspectionStats.totalAccompany / inspectionStats.accompanyTotal * 100)}% 달성
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="w-full" style={{ height: 280 }}>

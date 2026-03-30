@@ -240,6 +240,59 @@ export default function Dashboard() {
                 </div>
               </Card>
 
+              {/* ── KPI 요약 카드 ── */}
+              {orderedTeams.length > 0 && (() => {
+                const scores = orderedTeams.map(t => t.totalScore);
+                const topTeam = orderedTeams.reduce((a, b) => a.totalScore >= b.totalScore ? a : b);
+                const botTeam = orderedTeams.reduce((a, b) => a.totalScore <= b.totalScore ? a : b);
+                const avg = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+                const above90 = scores.filter(s => s >= 90).length;
+                const above80 = scores.filter(s => s >= 80 && s < 90).length;
+                return (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <Card className="border-0 shadow-sm bg-gradient-to-br from-emerald-50 to-emerald-100/60 dark:from-emerald-950/40 dark:to-emerald-900/20">
+                      <CardContent className="p-3 sm:p-4">
+                        <p className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 mb-1">🏆 최우수</p>
+                        <p className="text-sm font-black text-emerald-700 dark:text-emerald-300 leading-tight truncate">{topTeam.name.replace('운용팀','').replace('팀','')}</p>
+                        <p className="text-2xl font-black text-emerald-700 dark:text-emerald-300">{topTeam.totalScore}<span className="text-xs font-normal ml-0.5">점</span></p>
+                      </CardContent>
+                    </Card>
+                    <Card className="border-0 shadow-sm bg-gradient-to-br from-rose-50 to-rose-100/60 dark:from-rose-950/40 dark:to-rose-900/20">
+                      <CardContent className="p-3 sm:p-4">
+                        <p className="text-[11px] font-semibold text-rose-600 dark:text-rose-400 mb-1">⚠️ 최하위</p>
+                        <p className="text-sm font-black text-rose-700 dark:text-rose-300 leading-tight truncate">{botTeam.name.replace('운용팀','').replace('팀','')}</p>
+                        <p className="text-2xl font-black text-rose-700 dark:text-rose-300">{botTeam.totalScore}<span className="text-xs font-normal ml-0.5">점</span></p>
+                      </CardContent>
+                    </Card>
+                    <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/60 dark:from-blue-950/40 dark:to-blue-900/20">
+                      <CardContent className="p-3 sm:p-4">
+                        <p className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 mb-1">📊 평균 점수</p>
+                        <p className="text-2xl font-black text-blue-700 dark:text-blue-300 mt-3">{avg}<span className="text-xs font-normal ml-0.5">점</span></p>
+                      </CardContent>
+                    </Card>
+                    <Card className="border-0 shadow-sm bg-gradient-to-br from-violet-50 to-violet-100/60 dark:from-violet-950/40 dark:to-violet-900/20">
+                      <CardContent className="p-3 sm:p-4">
+                        <p className="text-[11px] font-semibold text-violet-600 dark:text-violet-400 mb-1.5">팀 현황</p>
+                        <div className="flex items-end gap-2">
+                          <div className="text-center">
+                            <p className="text-2xl font-black text-emerald-600">{above90}</p>
+                            <p className="text-[10px] text-muted-foreground">90+</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-2xl font-black text-yellow-500">{above80}</p>
+                            <p className="text-[10px] text-muted-foreground">80+</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-2xl font-black text-rose-500">{orderedTeams.length - above90 - above80}</p>
+                            <p className="text-[10px] text-muted-foreground">80↓</p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                );
+              })()}
+
               {/* Chart Section */}
               <Card className="shadow-lg border-border/50">
                 <CardHeader className="p-3 sm:p-4 md:p-6 pb-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
