@@ -22,16 +22,20 @@ import type { FuelRecord } from "@shared/schema";
 
 const fmt = (n: number) => new Intl.NumberFormat("ko-KR").format(Math.round(n));
 const fmtM = (n: number) => {
-  if (n >= 100000000) return `${(n / 100000000).toFixed(2)}억`;
-  if (n >= 10000) return `${(n / 10000).toFixed(1)}만`;
+  if (n >= 100000000) return `${(n / 100000000).toFixed(1)}억`;
+  if (n >= 10000) return `${Math.round(n / 10000)}만`;
   return fmt(n);
 };
 const fmtM2 = (n: number) => {
   if (n >= 100000000) return `${(n / 100000000).toFixed(1)}억원`;
-  if (n >= 10000) return `${Math.round(n / 10000)}만원`;
+  if (n >= 10000) return `${Math.round(n / 10000).toLocaleString()}만원`;
   return `${fmt(n)}원`;
 };
-const fmtK = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(0)}천km` : `${fmt(n)}km`;
+// 거리: 만km 단위로 표시 (10만km → 10만km, 2천km → 2,000km)
+const fmtK = (n: number) => {
+  if (n >= 10000) return `${(n / 10000).toFixed(1)}만km`;
+  return `${fmt(n)}km`;
+};
 
 const MONTHS = ["1월","2월","3월","4월","5월","6월","7월","8월","9월","10월","11월","12월"];
 const MONTHS_SHORT = ["1","2","3","4","5","6","7","8","9","10","11","12"];
@@ -272,7 +276,7 @@ export default function FuelCosts() {
     for (const yr of sortedYears) {
       const d = summary?.byYearMonth.find(x => x.year === yr && x.month === m);
       if (chartMetric === "fuel") row[`${yr}`] = d ? Math.round(d.fuelCost / 10000) : null;
-      else row[`${yr}`] = d ? Math.round(d.totalDistance / 1000) : null;
+      else row[`${yr}`] = d ? Math.round(d.totalDistance / 10000) : null;
     }
     return row;
   });
@@ -346,7 +350,7 @@ export default function FuelCosts() {
     sortField === field ? (sortDir === "asc" ? <ChevronUp className="w-3 h-3 inline ml-0.5" /> : <ChevronDown className="w-3 h-3 inline ml-0.5" />) : null;
 
   const metricLabel = chartMetric === "fuel" ? "유류비" : "주행거리";
-  const yFmt = (v: any) => chartMetric === "distance" ? `${v}천km` : `${v}만`;
+  const yFmt = (v: any) => chartMetric === "distance" ? `${v}만km` : `${v}만원`;
 
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-[1400px] mx-auto">
@@ -503,7 +507,7 @@ export default function FuelCosts() {
                     <CartesianGrid strokeDasharray="4 4" className="opacity-10" />
                     <XAxis dataKey="month" tick={{ fontSize: 12, fill: "currentColor" }} tickLine={false} axisLine={false} className="text-muted-foreground" />
                     <YAxis tick={{ fontSize: 11, fill: "currentColor" }} tickFormatter={yFmt} tickLine={false} axisLine={false} width={52} className="text-muted-foreground" />
-                    <Tooltip content={<ChartTooltip unit={chartMetric === "distance" ? "천km" : "만원"} />} />
+                    <Tooltip content={<ChartTooltip unit={chartMetric === "distance" ? "만km" : "만원"} />} />
                     <Legend wrapperStyle={{ fontSize: 12, paddingTop: 12 }} formatter={(v) => <span className="text-foreground font-medium">{v}년</span>} />
                     {sortedYears.map(yr => {
                       const c = YEAR_PALETTE[yr] ?? YEAR_PALETTE[2025];
@@ -551,7 +555,7 @@ export default function FuelCosts() {
                             {vals.map((v, mi) => (
                               <td key={mi} className="text-right py-2.5 px-2 tabular-nums">
                                 {v != null
-                                  ? <span className="font-medium">{chartMetric === "distance" ? `${Math.round(v / 1000)}천` : `${Math.round(v / 10000)}만`}</span>
+                                  ? <span className="font-medium">{chartMetric === "distance" ? `${(v / 10000).toFixed(1)}만km` : `${Math.round(v / 10000)}만원`}</span>
                                   : <span className="text-muted-foreground/40">-</span>}
                               </td>
                             ))}
@@ -581,7 +585,7 @@ export default function FuelCosts() {
                               <td className="py-2 px-3 text-muted-foreground font-semibold text-[11px]">{prevYr}→{curYr}</td>
                               {deltas.map((v, mi) => (
                                 <td key={mi} className={`text-right py-2 px-2 font-semibold tabular-nums text-[11px] ${v == null ? "" : v > 0 ? "text-red-500" : v < 0 ? "text-blue-500" : "text-muted-foreground"}`}>
-                                  {v != null ? `${v > 0 ? "+" : ""}${chartMetric === "distance" ? `${Math.round(v / 1000)}천` : `${Math.round(v / 10000)}만`}` : "-"}
+                                  {v != null ? `${v > 0 ? "+" : ""}${chartMetric === "distance" ? `${(v / 10000).toFixed(1)}만km` : `${Math.round(v / 10000)}만원`}` : "-"}
                                 </td>
                               ))}
                               <td className={`text-right py-2 px-3 font-black tabular-nums text-[11px] ${totalD > 0 ? "text-red-500" : totalD < 0 ? "text-blue-500" : "text-muted-foreground"}`}>
