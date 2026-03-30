@@ -1,3 +1,60 @@
+// ── pdfjs-dist Node.js 폴리필 (브라우저 전용 API 스텁) ──
+if (typeof (globalThis as any).DOMMatrix === 'undefined') {
+  (globalThis as any).DOMMatrix = class DOMMatrix {
+    a=1; b=0; c=0; d=1; e=0; f=0;
+    is2D=true; isIdentity=true;
+    constructor(init?: number[] | string) {
+      if (Array.isArray(init) && init.length >= 6) {
+        [this.a,this.b,this.c,this.d,this.e,this.f] = init as number[];
+      }
+    }
+    static fromMatrix(o: any) { return Object.assign(new (globalThis as any).DOMMatrix(), o); }
+    static fromFloat32Array(a: Float32Array) { return new (globalThis as any).DOMMatrix(Array.from(a)); }
+    static fromFloat64Array(a: Float64Array) { return new (globalThis as any).DOMMatrix(Array.from(a)); }
+    multiply(o: any) {
+      const m = new (globalThis as any).DOMMatrix();
+      m.a = this.a*o.a + this.c*o.b; m.b = this.b*o.a + this.d*o.b;
+      m.c = this.a*o.c + this.c*o.d; m.d = this.b*o.c + this.d*o.d;
+      m.e = this.a*o.e + this.c*o.f + this.e; m.f = this.b*o.e + this.d*o.f + this.f;
+      return m;
+    }
+    translate(tx=0, ty=0) {
+      return new (globalThis as any).DOMMatrix([this.a,this.b,this.c,this.d,
+        this.e+this.a*tx+this.c*ty, this.f+this.b*tx+this.d*ty]);
+    }
+    scale(sx=1, sy=sx) {
+      return new (globalThis as any).DOMMatrix([this.a*sx,this.b*sx,this.c*sy,this.d*sy,this.e,this.f]);
+    }
+    rotate(_rx=0,_ry=0,rz=0) {
+      const rad=rz*Math.PI/180; const cos=Math.cos(rad); const sin=Math.sin(rad);
+      return new (globalThis as any).DOMMatrix([
+        this.a*cos+this.c*sin, this.b*cos+this.d*sin,
+        -this.a*sin+this.c*cos, -this.b*sin+this.d*cos,
+        this.e, this.f]);
+    }
+    inverse() { return new (globalThis as any).DOMMatrix(); }
+    toFloat32Array() { return new Float32Array([this.a,this.b,this.c,this.d,this.e,this.f]); }
+    toFloat64Array() { return new Float64Array([this.a,this.b,this.c,this.d,this.e,this.f]); }
+  };
+}
+if (typeof (globalThis as any).ImageData === 'undefined') {
+  (globalThis as any).ImageData = class ImageData {
+    data: Uint8ClampedArray; width: number; height: number;
+    constructor(swOrData: number|Uint8ClampedArray, sh: number) {
+      if (swOrData instanceof Uint8ClampedArray) {
+        this.data=swOrData; this.width=sh; this.height=swOrData.length/(sh*4);
+      } else {
+        this.width=swOrData; this.height=sh; this.data=new Uint8ClampedArray(swOrData*sh*4);
+      }
+    }
+  };
+}
+if (typeof (globalThis as any).Path2D === 'undefined') {
+  (globalThis as any).Path2D = class Path2D {
+    addPath(){}; closePath(){}; moveTo(){}; lineTo(){}; rect(){}; arc(){}; ellipse(){};
+  };
+}
+
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
