@@ -517,12 +517,12 @@ export default function FuelCosts() {
 
                 {/* 월별 소계표 */}
                 <div className="mt-4 overflow-x-auto rounded-lg border border-border">
-                  <table className="w-full text-xs border-collapse min-w-[700px]">
+                  <table className="w-full text-[11px] border-collapse min-w-[900px]">
                     <thead>
                       <tr className="bg-muted/60">
-                        <th className="text-left py-2.5 px-3 font-semibold text-muted-foreground">구분</th>
-                        {MONTHS.map(m => <th key={m} className="text-right py-2.5 px-2 font-semibold text-muted-foreground">{m}</th>)}
-                        <th className="text-right py-2.5 px-3 font-semibold text-muted-foreground">합계</th>
+                        <th className="text-left py-2.5 px-3 font-semibold text-muted-foreground whitespace-nowrap w-20">구분</th>
+                        {MONTHS.map(m => <th key={m} className="text-right py-2.5 px-2 font-semibold text-muted-foreground whitespace-nowrap">{m}</th>)}
+                        <th className="text-right py-2.5 px-3 font-semibold text-muted-foreground whitespace-nowrap">합계</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -537,15 +537,15 @@ export default function FuelCosts() {
                         const total = vals.reduce((s, v) => s + (v ?? 0), 0);
                         return (
                           <tr key={yr} className={`border-t border-border/40 ${ri % 2 === 1 ? "bg-muted/20" : ""}`}>
-                            <td className={`py-2.5 px-3 font-bold ${p.text}`}>{yr}년</td>
+                            <td className={`py-2.5 px-3 font-bold whitespace-nowrap ${p.text}`}>{yr}년</td>
                             {vals.map((v, mi) => (
-                              <td key={mi} className="text-right py-2.5 px-2 tabular-nums">
+                              <td key={mi} className="text-right py-2 px-2 tabular-nums whitespace-nowrap">
                                 {v != null
                                   ? <span className="font-medium">{chartMetric === "distance" ? `${(v / 10000).toFixed(1)}만km` : `${Math.round(v / 10000)}만원`}</span>
-                                  : <span className="text-muted-foreground/40">-</span>}
+                                  : <span className="text-muted-foreground/30">-</span>}
                               </td>
                             ))}
-                            <td className={`text-right py-2.5 px-3 font-black tabular-nums ${p.text}`}>
+                            <td className={`text-right py-2 px-3 font-black tabular-nums whitespace-nowrap ${p.text}`}>
                               {chartMetric === "distance" ? fmtK(total) : fmtM2(total)}
                             </td>
                           </tr>
@@ -568,13 +568,13 @@ export default function FuelCosts() {
                           const totalD = deltas.reduce((s, v) => s + (v ?? 0), 0);
                           rows.push(
                             <tr key={`d-${i}`} className="border-t border-border bg-muted/30">
-                              <td className="py-2 px-3 text-muted-foreground font-semibold text-[11px]">{prevYr}→{curYr}</td>
+                              <td className="py-2 px-3 text-muted-foreground font-semibold whitespace-nowrap">{prevYr}→{curYr}</td>
                               {deltas.map((v, mi) => (
-                                <td key={mi} className={`text-right py-2 px-2 font-semibold tabular-nums text-[11px] ${v == null ? "" : v > 0 ? "text-red-500" : v < 0 ? "text-blue-500" : "text-muted-foreground"}`}>
+                                <td key={mi} className={`text-right py-2 px-2 font-semibold tabular-nums whitespace-nowrap ${v == null ? "" : v > 0 ? "text-red-500" : v < 0 ? "text-blue-500" : "text-muted-foreground"}`}>
                                   {v != null ? `${v > 0 ? "+" : ""}${chartMetric === "distance" ? `${(v / 10000).toFixed(1)}만km` : `${Math.round(v / 10000)}만원`}` : "-"}
                                 </td>
                               ))}
-                              <td className={`text-right py-2 px-3 font-black tabular-nums text-[11px] ${totalD > 0 ? "text-red-500" : totalD < 0 ? "text-blue-500" : "text-muted-foreground"}`}>
+                              <td className={`text-right py-2 px-3 font-black tabular-nums whitespace-nowrap ${totalD > 0 ? "text-red-500" : totalD < 0 ? "text-blue-500" : "text-muted-foreground"}`}>
                                 {totalD > 0 ? "+" : ""}{chartMetric === "distance" ? fmtK(Math.abs(totalD)) : fmtM2(Math.abs(totalD))}
                               </td>
                             </tr>
