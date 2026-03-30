@@ -3468,6 +3468,8 @@ export async function registerRoutes(
       const byTeam: Record<string, { team: string; totalCost: number; fuelCost: number; distance: number }> = {};
       // 팀별 연도별
       const byTeamByYear: Record<string, { team: string; year: number; totalCost: number; fuelCost: number; distance: number }> = {};
+      // 팀별 연도-월별
+      const byTeamByYearMonth: Record<string, { team: string; year: number; month: number; fuelCost: number; distance: number }> = {};
       // 연료 종류별
       const byFuelType: Record<string, { fuelType: string; totalCost: number; fuelCost: number; count: number }> = {};
       // 연도별 합계 (동적)
@@ -3506,6 +3508,12 @@ export async function registerRoutes(
         byTeamByYear[tyk].totalCost += r.totalCost ?? 0;
         byTeamByYear[tyk].fuelCost += fuelCost;
         byTeamByYear[tyk].distance += r.totalDistance ?? 0;
+
+        // 팀별 연도-월별
+        const tymk = `${team}__${r.year}__${r.month}`;
+        if (!byTeamByYearMonth[tymk]) byTeamByYearMonth[tymk] = { team, year: r.year, month: r.month, fuelCost: 0, distance: 0 };
+        byTeamByYearMonth[tymk].fuelCost += fuelCost;
+        byTeamByYearMonth[tymk].distance += r.totalDistance ?? 0;
 
         // 연료 종류별
         const ft = r.fuelType ?? "기타";
@@ -3548,6 +3556,7 @@ export async function registerRoutes(
         byYearMonth: Object.values(byYearMonth).sort((a, b) => a.year - b.year || a.month - b.month),
         byTeam: Object.values(byTeam).sort((a, b) => b.totalCost - a.totalCost),
         byTeamByYear: Object.values(byTeamByYear).sort((a, b) => a.year - b.year || b.totalCost - a.totalCost),
+        byTeamByYearMonth: Object.values(byTeamByYearMonth).sort((a, b) => a.year - b.year || a.month - b.month),
         byFuelType: Object.values(byFuelType).sort((a, b) => b.fuelCost - a.fuelCost),
         byAcquisition: Object.values(byAcquisition).sort((a, b) => b.fuelCost - a.fuelCost),
         byVehicleType: Object.values(byVehicleType).sort((a, b) => b.fuelCost - a.fuelCost),
