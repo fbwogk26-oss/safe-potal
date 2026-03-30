@@ -141,9 +141,9 @@ function YearCard({ stat, prevStat }: { stat: YearStat; prevStat?: YearStat }) {
             </div>
             <div className="flex items-center gap-1.5 text-xs">
               <span className="font-semibold text-foreground tabular-nums">{fmtK(stat.totalDistance)}</span>
-              {distD !== null && (
-                <span className={`text-[10px] font-semibold tabular-nums ${distD > 0 ? "text-red-500" : distD < 0 ? "text-blue-500" : "text-muted-foreground"}`}>
-                  ({distD >= 0 ? "+" : ""}{fmtK(distD)})
+              {distD !== null && distD !== 0 && (
+                <span className={`text-[10px] font-semibold tabular-nums ${distD > 0 ? "text-red-500" : "text-blue-500"}`}>
+                  {distD > 0 ? "▲" : "▼"} {fmtK(Math.abs(distD))}
                 </span>
               )}
             </div>
@@ -157,7 +157,7 @@ function YearCard({ stat, prevStat }: { stat: YearStat; prevStat?: YearStat }) {
               <span className="font-semibold text-foreground tabular-nums">{stat.vehicleCount}대</span>
               {vehicleD !== null && vehicleD !== 0 && (
                 <span className={`text-[10px] font-semibold tabular-nums ${vehicleD > 0 ? "text-orange-500" : "text-blue-500"}`}>
-                  ({vehicleD > 0 ? "+" : ""}{vehicleD}대)
+                  {vehicleD > 0 ? "▲" : "▼"} {Math.abs(vehicleD)}대
                 </span>
               )}
             </div>
