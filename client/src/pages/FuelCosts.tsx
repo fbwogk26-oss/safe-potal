@@ -37,6 +37,8 @@ const fmtK = (n: number) => {
   return `${fmt(n)}km`;
 };
 
+const shortYr = (y: number | string) => String(y).slice(2);
+
 const MONTHS = ["1월","2월","3월","4월","5월","6월","7월","8월","9월","10월","11월","12월"];
 const MONTHS_SHORT = ["1","2","3","4","5","6","7","8","9","10","11","12"];
 
@@ -126,7 +128,7 @@ function YearCard({ stat, prevStat }: { stat: YearStat; prevStat?: YearStat }) {
               <Fuel className="w-4 h-4" style={{ color: p.stroke }} />
             </div>
             <div>
-              <p className="text-base font-black leading-tight" style={{ color: p.stroke }}>{stat.year}년</p>
+              <p className="text-base font-black leading-tight" style={{ color: p.stroke }}>{shortYr(stat.year)}년</p>
               <p className="text-[10px] text-muted-foreground font-medium mt-0.5">유류비 합계</p>
             </div>
           </div>
@@ -418,7 +420,7 @@ export default function FuelCosts() {
                   return (
                     <div key={yr} className={`rounded-2xl border border-dashed opacity-40 flex items-center justify-center h-[200px] ${p.bg}`} style={{ borderColor: p.stroke + "50" }}>
                       <div className="text-center text-muted-foreground">
-                        <p className="text-lg font-bold" style={{ color: p.stroke }}>{yr}년</p>
+                        <p className="text-lg font-bold" style={{ color: p.stroke }}>{shortYr(yr)}년</p>
                         <p className="text-xs mt-1">데이터 없음</p>
                       </div>
                     </div>
@@ -449,9 +451,9 @@ export default function FuelCosts() {
                         <div className="p-5">
                           {/* 헤더 */}
                           <div className="flex items-center gap-2 mb-4">
-                            <span className="text-sm font-black" style={{ color: p.stroke }}>{sortedYears[i - 1]}년</span>
+                            <span className="text-sm font-black" style={{ color: p.stroke }}>{shortYr(sortedYears[i - 1])}년</span>
                             <ArrowRight className="w-4 h-4 text-muted-foreground" />
-                            <span className="text-sm font-black" style={{ color: p.stroke }}>{sortedYears[i]}년 변화</span>
+                            <span className="text-sm font-black" style={{ color: p.stroke }}>{shortYr(sortedYears[i])}년 변화</span>
                           </div>
                           {/* 메인 두 지표 */}
                           <div className="grid grid-cols-2 gap-4 mb-4">
@@ -571,7 +573,7 @@ export default function FuelCosts() {
                                     <div key={i} className="flex items-center justify-between gap-3 py-0.5">
                                       <span className="flex items-center gap-1.5">
                                         <span className="w-2 h-2 rounded-full" style={{ background: c.stroke }} />
-                                        <span className="text-muted-foreground">{p.name}년</span>
+                                        <span className="text-muted-foreground">{shortYr(p.name)}년</span>
                                       </span>
                                       <span className="font-semibold tabular-nums" style={{ color: c.stroke }}>
                                         {p.value != null ? `${Number(p.value).toLocaleString()}${chartMetric === "distance" ? "만km" : "만원"}` : "-"}
@@ -672,7 +674,7 @@ export default function FuelCosts() {
                         const total = vals.reduce((s, v) => s + (v ?? 0), 0);
                         return (
                           <tr key={yr} className={`border-t border-border/40 ${ri % 2 === 1 ? "bg-muted/20" : ""}`}>
-                            <td className={`py-2.5 px-3 font-bold whitespace-nowrap ${p.text}`}>{yr}년</td>
+                            <td className={`py-2.5 px-3 font-bold whitespace-nowrap ${p.text}`}>{shortYr(yr)}년</td>
                             {vals.map((v, mi) => (
                               <td key={mi} className="text-right py-2 px-2 tabular-nums whitespace-nowrap">
                                 {v != null
@@ -703,7 +705,7 @@ export default function FuelCosts() {
                           const totalD = deltas.reduce((s, v) => s + (v ?? 0), 0);
                           rows.push(
                             <tr key={`d-${i}`} className="border-t border-border bg-muted/30">
-                              <td className="py-2 px-3 text-muted-foreground font-semibold whitespace-nowrap">{prevYr}→{curYr}</td>
+                              <td className="py-2 px-3 text-muted-foreground font-semibold whitespace-nowrap">{shortYr(prevYr)}→{shortYr(curYr)}</td>
                               {deltas.map((v, mi) => (
                                 <td key={mi} className={`text-right py-2 px-2 font-semibold tabular-nums whitespace-nowrap ${v == null ? "" : v > 0 ? "text-red-500" : v < 0 ? "text-blue-500" : "text-muted-foreground"}`}>
                                   {v != null ? `${v > 0 ? "+" : ""}${chartMetric === "distance" ? `${(v / 10000).toFixed(1)}만km` : `${Math.round(v / 10000)}만원`}` : "-"}
@@ -730,7 +732,7 @@ export default function FuelCosts() {
                   <div>
                     <CardTitle className="text-base font-bold">팀별 유류비 비교</CardTitle>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      주요 운용팀 기준 · {activeYearsForTeam[activeYearsForTeam.length - 1]}년 유류비 순 정렬
+                      주요 운용팀 기준 · {shortYr(activeYearsForTeam[activeYearsForTeam.length - 1])}년 유류비 순 정렬
                     </p>
                   </div>
                   <Select value={teamYearFilter} onValueChange={setTeamYearFilter}>
@@ -739,7 +741,7 @@ export default function FuelCosts() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">전체 비교</SelectItem>
-                      {sortedYears.map(yr => <SelectItem key={yr} value={String(yr)}>{yr}년</SelectItem>)}
+                      {sortedYears.map(yr => <SelectItem key={yr} value={String(yr)}>{shortYr(yr)}년</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
@@ -781,7 +783,7 @@ export default function FuelCosts() {
                               <div key={i} className="flex items-center justify-between gap-4 py-0.5">
                                 <span className="flex items-center gap-1.5">
                                   <span className="w-2 h-2 rounded-sm" style={{ background: p.fill }} />
-                                  <span className="text-muted-foreground">{p.name}년</span>
+                                  <span className="text-muted-foreground">{shortYr(p.name)}년</span>
                                 </span>
                                 <span className="font-semibold tabular-nums">{Number(p.value).toLocaleString()}만원</span>
                               </div>
@@ -792,7 +794,7 @@ export default function FuelCosts() {
                     />
                     <Legend
                       wrapperStyle={{ fontSize: 12, paddingTop: 12 }}
-                      formatter={(v) => <span className="font-semibold">{v}년</span>}
+                      formatter={(v) => <span className="font-semibold">{shortYr(String(v))}년</span>}
                     />
                     {activeYearsForTeam.map((yr) => {
                       const c = YEAR_PALETTE[yr] ?? YEAR_PALETTE[2025];
@@ -818,11 +820,11 @@ export default function FuelCosts() {
                         <th className="text-left py-2.5 px-4 font-bold text-foreground whitespace-nowrap">팀</th>
                         {sortedYears.map(yr => {
                           const p = YEAR_PALETTE[yr] ?? YEAR_PALETTE[2025];
-                          return <th key={yr} className={`text-right py-2.5 px-4 font-bold whitespace-nowrap ${p.text}`}>{yr}년</th>;
+                          return <th key={yr} className={`text-right py-2.5 px-4 font-bold whitespace-nowrap ${p.text}`}>{shortYr(yr)}년</th>;
                         })}
                         {sortedYears.length >= 2 && (
                           <th className="text-right py-2.5 px-4 font-bold text-foreground whitespace-nowrap">
-                            {sortedYears[sortedYears.length - 2]}→{sortedYears[sortedYears.length - 1]} 증감
+                            {shortYr(sortedYears[sortedYears.length - 2])}→{shortYr(sortedYears[sortedYears.length - 1])} 증감
                           </th>
                         )}
                       </tr>
@@ -987,7 +989,7 @@ export default function FuelCosts() {
                 <SelectTrigger className="w-28 h-9" data-testid="select-year"><SelectValue placeholder="연도" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">전체 연도</SelectItem>
-                  {sortedYears.map(yr => <SelectItem key={yr} value={String(yr)}>{yr}년</SelectItem>)}
+                  {sortedYears.map(yr => <SelectItem key={yr} value={String(yr)}>{shortYr(yr)}년</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={filterMonth} onValueChange={setFilterMonth}>
@@ -1056,7 +1058,7 @@ export default function FuelCosts() {
                           return (
                             <tr key={r.id} className={`border-b border-border/40 hover:bg-muted/30 transition-colors ${i % 2 === 1 ? "bg-muted/10" : ""}`} data-testid={`row-fuel-${r.id}`}>
                               <td className="py-2.5 px-4 whitespace-nowrap">
-                                <span className={`text-xs font-bold px-2 py-0.5 rounded-md ${p.badgeBg}`}>{r.year}년 {r.month}월</span>
+                                <span className={`text-xs font-bold px-2 py-0.5 rounded-md ${p.badgeBg}`}>{shortYr(r.year)}년 {r.month}월</span>
                               </td>
                               <td className="py-2.5 px-3 text-sm font-medium">{r.team}</td>
                               <td className="py-2.5 px-3 text-sm text-muted-foreground">{r.driver || "-"}</td>
