@@ -661,7 +661,7 @@ export default function FuelCosts() {
                   </Select>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardContent>
                 {/* 막대 차트 */}
                 <ResponsiveContainer width="100%" height={Math.max(320, teamChartData.length * 44 + 60)}>
                   <BarChart
@@ -726,54 +726,6 @@ export default function FuelCosts() {
                     })}
                   </BarChart>
                 </ResponsiveContainer>
-
-                {/* 팀별 연도 비교 테이블 */}
-                <div className="overflow-x-auto rounded-lg border border-border">
-                  <table className="w-full text-xs border-collapse">
-                    <thead>
-                      <tr className="bg-muted/60">
-                        <th className="text-left py-2.5 px-3 font-semibold text-muted-foreground whitespace-nowrap">팀명</th>
-                        {sortedYears.map(yr => {
-                          const p = YEAR_PALETTE[yr] ?? YEAR_PALETTE[2025];
-                          return <th key={yr} className={`text-right py-2.5 px-3 font-semibold whitespace-nowrap ${p.text}`}>{yr}년</th>;
-                        })}
-                        {sortedYears.length >= 2 && (
-                          <th className="text-right py-2.5 px-3 font-semibold text-muted-foreground whitespace-nowrap">
-                            {sortedYears[sortedYears.length - 2]}→{sortedYears[sortedYears.length - 1]} 증감
-                          </th>
-                        )}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {teamChartData.map((row, ri) => {
-                        const prev = sortedYears.length >= 2 ? (row[`${sortedYears[sortedYears.length - 2]}`] ?? 0) : null;
-                        const cur = sortedYears.length >= 2 ? (row[`${sortedYears[sortedYears.length - 1]}`] ?? 0) : null;
-                        const delta = (prev != null && cur != null) ? cur - prev : null;
-                        return (
-                          <tr key={row.team} className={`border-t border-border/40 ${ri % 2 === 1 ? "bg-muted/20" : ""}`}>
-                            <td className="py-2.5 px-3 font-semibold whitespace-nowrap">{row.team}</td>
-                            {sortedYears.map(yr => {
-                              const p = YEAR_PALETTE[yr] ?? YEAR_PALETTE[2025];
-                              const v = row[`${yr}`] ?? 0;
-                              return (
-                                <td key={yr} className={`text-right py-2.5 px-3 tabular-nums whitespace-nowrap ${v > 0 ? "font-medium" : "text-muted-foreground/40"}`}>
-                                  {v > 0 ? `${v.toLocaleString()}만원` : "-"}
-                                </td>
-                              );
-                            })}
-                            {sortedYears.length >= 2 && (
-                              <td className={`text-right py-2.5 px-3 font-bold tabular-nums whitespace-nowrap ${delta == null ? "" : delta > 0 ? "text-red-500" : delta < 0 ? "text-blue-500" : "text-muted-foreground"}`}>
-                                {delta != null && delta !== 0
-                                  ? `${delta > 0 ? "▲" : "▼"} ${Math.abs(delta).toLocaleString()}만원`
-                                  : delta === 0 ? "-" : "-"}
-                              </td>
-                            )}
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
               </CardContent>
             </Card>
 
