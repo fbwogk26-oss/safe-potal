@@ -726,6 +726,91 @@ export default function FuelCosts() {
                     })}
                   </BarChart>
                 </ResponsiveContainer>
+
+                {/* 팀별 연도별 비교표 */}
+                <div className="mt-5 overflow-x-auto rounded-lg border border-border">
+                  <table className="w-full border-collapse text-sm">
+                    <thead>
+                      <tr className="bg-muted/70 border-b-2 border-border">
+                        <th className="text-left py-2.5 px-4 font-bold text-foreground whitespace-nowrap">팀</th>
+                        {sortedYears.map(yr => {
+                          const p = YEAR_PALETTE[yr] ?? YEAR_PALETTE[2025];
+                          return <th key={yr} className={`text-right py-2.5 px-4 font-bold whitespace-nowrap ${p.text}`}>{yr}년</th>;
+                        })}
+                        {sortedYears.length >= 2 && (
+                          <th className="text-right py-2.5 px-4 font-bold text-foreground whitespace-nowrap">
+                            {sortedYears[sortedYears.length - 2]}→{sortedYears[sortedYears.length - 1]} 증감
+                          </th>
+                        )}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {yearCompTable.map((row, i) => {
+                        const lastYr = sortedYears[sortedYears.length - 1];
+                        const prevYr = sortedYears[sortedYears.length - 2];
+                        const delta = prevYr != null ? (row[lastYr] ?? 0) - (row[prevYr] ?? 0) : null;
+                        const dPct = prevYr != null && row[prevYr] > 0 ? ((row[lastYr] - row[prevYr]) / row[prevYr]) * 100 : null;
+                        return (
+                          <tr key={i} className={`border-b border-border/50 hover:bg-muted/30 transition-colors ${i % 2 === 0 ? "" : "bg-muted/15"}`}>
+                            <td className="py-2.5 px-4 font-semibold text-foreground whitespace-nowrap">{row.team}</td>
+                            {sortedYears.map(yr => {
+                              const p = YEAR_PALETTE[yr] ?? YEAR_PALETTE[2025];
+                              return (
+                                <td key={yr} className="text-right py-2.5 px-4 tabular-nums whitespace-nowrap">
+                                  {row[yr] > 0 ? <span className={`font-semibold ${p.text}`}>{fmtM2(row[yr])}</span> : <span className="text-muted-foreground/50">-</span>}
+                                </td>
+                              );
+                            })}
+                            {sortedYears.length >= 2 && (
+                              <td className="text-right py-2.5 px-4 tabular-nums whitespace-nowrap">
+                                {delta !== null && row[prevYr] > 0 ? (
+                                  <span className={`font-bold ${delta > 0 ? "text-red-600" : delta < 0 ? "text-blue-600" : "text-muted-foreground"}`}>
+                                    {delta > 0 ? "▲ " : "▼ "}{fmtM2(Math.abs(delta))}
+                                    <span className={`ml-1 text-[11px] font-medium`}>
+                                      ({dPct !== null ? `${dPct > 0 ? "+" : ""}${dPct.toFixed(1)}%` : "-"})
+                                    </span>
+                                  </span>
+                                ) : <span className="text-muted-foreground/50">-</span>}
+                              </td>
+                            )}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot>
+                      <tr className="bg-muted/50 border-t-2 border-border">
+                        <td className="py-2.5 px-4 font-black text-foreground whitespace-nowrap">전체 합계</td>
+                        {sortedYears.map(yr => {
+                          const stat = years.find(y => y.year === yr);
+                          const p = YEAR_PALETTE[yr] ?? YEAR_PALETTE[2025];
+                          return (
+                            <td key={yr} className={`text-right py-2.5 px-4 font-black tabular-nums whitespace-nowrap ${p.text}`}>
+                              {stat ? fmtM2(stat.fuelCost) : "-"}
+                            </td>
+                          );
+                        })}
+                        {sortedYears.length >= 2 && (() => {
+                          const cur = years.find(y => y.year === sortedYears[sortedYears.length - 1]);
+                          const prev = years.find(y => y.year === sortedYears[sortedYears.length - 2]);
+                          const d = cur && prev ? cur.fuelCost - prev.fuelCost : null;
+                          const dp = cur && prev && prev.fuelCost > 0 ? ((cur.fuelCost - prev.fuelCost) / prev.fuelCost) * 100 : null;
+                          return (
+                            <td className="text-right py-2.5 px-4 tabular-nums whitespace-nowrap">
+                              {d !== null ? (
+                                <span className={`font-black ${d > 0 ? "text-red-600" : "text-blue-600"}`}>
+                                  {d > 0 ? "▲ " : "▼ "}{fmtM2(Math.abs(d))}
+                                  <span className="ml-1 text-xs font-bold">
+                                    ({dp !== null ? `${dp > 0 ? "+" : ""}${dp.toFixed(1)}%` : "-"})
+                                  </span>
+                                </span>
+                              ) : "-"}
+                            </td>
+                          );
+                        })()}
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
               </CardContent>
             </Card>
 
@@ -810,103 +895,6 @@ export default function FuelCosts() {
               </Card>
             </div>
 
-            {/* ── 팀별 연도별 비교 테이블 ── */}
-            <Card className="shadow-sm">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base font-bold">팀별 연도별 유류비 비교표</CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse text-sm">
-                    <thead>
-                      <tr className="bg-muted/70 border-b-2 border-border">
-                        <th className="text-left py-3 px-4 font-bold text-foreground">팀</th>
-                        {sortedYears.map(yr => {
-                          const p = YEAR_PALETTE[yr] ?? YEAR_PALETTE[2025];
-                          return <th key={yr} className={`text-right py-3 px-4 font-bold ${p.text}`}>{yr}년</th>;
-                        })}
-                        {sortedYears.length >= 2 && (
-                          <th className="text-right py-3 px-4 font-bold text-foreground">
-                            {sortedYears[sortedYears.length - 2]}→{sortedYears[sortedYears.length - 1]} 증감
-                          </th>
-                        )}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {yearCompTable.map((row, i) => {
-                        const lastYr = sortedYears[sortedYears.length - 1];
-                        const prevYr = sortedYears[sortedYears.length - 2];
-                        const delta = prevYr != null ? (row[lastYr] ?? 0) - (row[prevYr] ?? 0) : null;
-                        const dPct = prevYr != null && row[prevYr] > 0 ? ((row[lastYr] - row[prevYr]) / row[prevYr]) * 100 : null;
-                        return (
-                          <tr key={i} className={`border-b border-border/50 transition-colors hover:bg-muted/30 ${i % 2 === 0 ? "" : "bg-muted/15"}`} data-testid={`row-team-year-${i}`}>
-                            <td className="py-3 px-4 font-semibold text-foreground">{row.team}</td>
-                            {sortedYears.map(yr => {
-                              const p = YEAR_PALETTE[yr] ?? YEAR_PALETTE[2025];
-                              return (
-                                <td key={yr} className="text-right py-3 px-4 tabular-nums">
-                                  {row[yr] > 0 ? <span className={`font-semibold ${p.text}`}>{fmtM2(row[yr])}</span> : <span className="text-muted-foreground/50">-</span>}
-                                </td>
-                              );
-                            })}
-                            {sortedYears.length >= 2 && (
-                              <td className="text-right py-3 px-4 tabular-nums">
-                                {delta !== null && row[prevYr] > 0 ? (
-                                  <div>
-                                    <span className={`font-bold ${delta > 0 ? "text-red-600" : delta < 0 ? "text-blue-600" : "text-muted-foreground"}`}>
-                                      {delta > 0 ? "+" : ""}{fmtM2(delta)}
-                                    </span>
-                                    <br />
-                                    <span className={`text-[11px] font-medium ${delta > 0 ? "text-red-500" : delta < 0 ? "text-blue-500" : "text-muted-foreground"}`}>
-                                      ({dPct !== null ? `${dPct > 0 ? "+" : ""}${dPct.toFixed(1)}%` : "-"})
-                                    </span>
-                                  </div>
-                                ) : <span className="text-muted-foreground/50">-</span>}
-                              </td>
-                            )}
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                    <tfoot>
-                      <tr className="bg-muted/50 border-t-2 border-border">
-                        <td className="py-3 px-4 font-black text-foreground">전체 합계</td>
-                        {sortedYears.map(yr => {
-                          const stat = years.find(y => y.year === yr);
-                          const p = YEAR_PALETTE[yr] ?? YEAR_PALETTE[2025];
-                          return (
-                            <td key={yr} className={`text-right py-3 px-4 font-black tabular-nums ${p.text}`}>
-                              {stat ? fmtM2(stat.fuelCost) : "-"}
-                            </td>
-                          );
-                        })}
-                        {sortedYears.length >= 2 && (() => {
-                          const cur = years.find(y => y.year === sortedYears[sortedYears.length - 1]);
-                          const prev = years.find(y => y.year === sortedYears[sortedYears.length - 2]);
-                          const d = cur && prev ? cur.fuelCost - prev.fuelCost : null;
-                          const dp = cur && prev && prev.fuelCost > 0 ? ((cur.fuelCost - prev.fuelCost) / prev.fuelCost) * 100 : null;
-                          return (
-                            <td className="text-right py-3 px-4 tabular-nums">
-                              {d !== null ? (
-                                <div>
-                                  <span className={`font-black text-base ${d > 0 ? "text-red-600" : "text-blue-600"}`}>
-                                    {d > 0 ? "+" : ""}{fmtM2(d)}
-                                  </span>
-                                  <br />
-                                  <span className={`text-xs font-bold ${d > 0 ? "text-red-500" : "text-blue-500"}`}>
-                                    ({dp !== null ? `${dp > 0 ? "+" : ""}${dp.toFixed(1)}%` : "-"})
-                                  </span>
-                                </div>
-                              ) : "-"}
-                            </td>
-                          );
-                        })()}
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
           </TabsContent>
 
           {/* ══════════ 상세 데이터 ══════════ */}
