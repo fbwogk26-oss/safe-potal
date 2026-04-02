@@ -655,7 +655,9 @@ export default function FuelCosts() {
               <CardContent>
                 {teamTeamFilter === "all" ? (
                   /* ── 전체 팀 비교 가로 막대 차트 ── */
-                  <ResponsiveContainer width="100%" height={Math.max(320, teamChartData.length * 44 + 60)}>
+                  <div className="w-full overflow-x-auto">
+                  <div style={{ minWidth: 520, height: Math.max(320, teamChartData.length * 44 + 60) }}>
+                  <ResponsiveContainer width="100%" height="100%">
                     <BarChart
                       data={teamChartData}
                       layout="vertical"
@@ -718,6 +720,8 @@ export default function FuelCosts() {
                       })}
                     </BarChart>
                   </ResponsiveContainer>
+                  </div>
+                  </div>
                 ) : (
                   /* ── 선택 팀 월별 분석 차트 ── */
                   <ResponsiveContainer width="100%" height={320}>

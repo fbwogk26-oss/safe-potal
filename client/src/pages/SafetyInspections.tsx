@@ -805,53 +805,55 @@ export default function SafetyInspections() {
                       )}
                     </div>
                   </div>
-                  <div className="w-full" style={{ height: 280 }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart
-                        data={inspectionStats.chartData}
-                        margin={{ top: 20, right: 10, left: -10, bottom: 5 }}
-                        barCategoryGap="30%"
-                        barGap={2}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.5} />
-                        <XAxis
-                          dataKey="name"
-                          tick={{ fontSize: 11, fontWeight: 500, fill: "hsl(var(--muted-foreground))" }}
-                          axisLine={false}
-                          tickLine={false}
-                          interval={0}
-                        />
-                        <YAxis
-                          tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-                          axisLine={false}
-                          tickLine={false}
-                          allowDecimals={false}
-                          width={28}
-                        />
-                        <Tooltip
-                          contentStyle={{
-                            borderRadius: "8px",
-                            border: "1px solid hsl(var(--border))",
-                            background: "hsl(var(--popover))",
-                            color: "hsl(var(--popover-foreground))",
-                            fontSize: 12,
-                            boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-                          }}
-                          cursor={{ fill: "hsl(var(--muted))", opacity: 0.4 }}
-                        />
-                        <Legend
-                          wrapperStyle={{ fontSize: 12, paddingTop: 8 }}
-                          iconType="circle"
-                          iconSize={8}
-                        />
-                        <Bar dataKey="안전점검" stackId="a" fill="#3b82f6" radius={[0, 0, 0, 0]}>
-                          <LabelList dataKey="안전점검" position="inside" style={{ fontSize: 10, fontWeight: 700, fill: "#fff" }} formatter={(v: number) => v > 0 ? v : ""} />
-                        </Bar>
-                        <Bar dataKey="동행점검" stackId="a" fill="#10b981" radius={[4, 4, 0, 0]}>
-                          <LabelList dataKey="동행점검" position="inside" style={{ fontSize: 10, fontWeight: 700, fill: "#fff" }} formatter={(v: number) => v > 0 ? v : ""} />
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
+                  <div className="w-full overflow-x-auto">
+                    <div style={{ minWidth: Math.max(500, (inspectionStats.chartData.length * 52) + 60), height: 280 }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          data={inspectionStats.chartData}
+                          margin={{ top: 20, right: 10, left: -10, bottom: 5 }}
+                          barCategoryGap="30%"
+                          barGap={2}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.5} />
+                          <XAxis
+                            dataKey="name"
+                            tick={{ fontSize: 11, fontWeight: 500, fill: "hsl(var(--muted-foreground))" }}
+                            axisLine={false}
+                            tickLine={false}
+                            interval={0}
+                          />
+                          <YAxis
+                            tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                            axisLine={false}
+                            tickLine={false}
+                            allowDecimals={false}
+                            width={28}
+                          />
+                          <Tooltip
+                            contentStyle={{
+                              borderRadius: "8px",
+                              border: "1px solid hsl(var(--border))",
+                              background: "hsl(var(--popover))",
+                              color: "hsl(var(--popover-foreground))",
+                              fontSize: 12,
+                              boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                            }}
+                            cursor={{ fill: "hsl(var(--muted))", opacity: 0.4 }}
+                          />
+                          <Legend
+                            wrapperStyle={{ fontSize: 12, paddingTop: 8 }}
+                            iconType="circle"
+                            iconSize={8}
+                          />
+                          <Bar dataKey="안전점검" stackId="a" fill="#3b82f6" radius={[0, 0, 0, 0]}>
+                            <LabelList dataKey="안전점검" position="inside" style={{ fontSize: 10, fontWeight: 700, fill: "#fff" }} formatter={(v: number) => v > 0 ? v : ""} />
+                          </Bar>
+                          <Bar dataKey="동행점검" stackId="a" fill="#10b981" radius={[4, 4, 0, 0]}>
+                            <LabelList dataKey="동행점검" position="inside" style={{ fontSize: 10, fontWeight: 700, fill: "#fff" }} formatter={(v: number) => v > 0 ? v : ""} />
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
                   </div>
                 </CardContent>
               </motion.div>

@@ -331,7 +331,8 @@ export default function Dashboard() {
                   </div>
                 </CardHeader>
               <CardContent className="p-2 sm:p-4 md:p-6 pt-2">
-                <div className="w-full h-[200px] sm:h-[240px] md:h-[280px]">
+                <div className="w-full overflow-x-auto">
+                  <div style={{ minWidth: Math.max(480, (chartData.length * 56) + 60), height: 280 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={chartData} margin={{ top: 20, right: 5, left: -25, bottom: 0 }}>
                       <defs>
@@ -398,6 +399,7 @@ export default function Dashboard() {
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
+                  </div>
                 </div>
               </CardContent>
               </Card>
