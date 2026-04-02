@@ -143,7 +143,6 @@ export default function SafetyInspections() {
   const [isPdfParsing, setIsPdfParsing] = useState(false);
   const [dashboardPeriod, setDashboardPeriod] = useState<"month" | "year">("month");
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
-  const [listMonth, setListMonth] = useState<number>(new Date().getMonth() + 1);
 
   const resetForm = () => {
     setInspectionType("안전점검");
@@ -582,10 +581,13 @@ export default function SafetyInspections() {
   const filteredInspections = useMemo(() => {
     if (!inspections) return [];
     const currentYear = format(new Date(), "yyyy");
-    const monthStr = String(listMonth).padStart(2, "0");
+    if (dashboardPeriod === "year") {
+      return inspections.filter(i => i.inspectionDate.startsWith(currentYear));
+    }
+    const monthStr = String(selectedMonth).padStart(2, "0");
     const prefix = `${currentYear}-${monthStr}`;
     return inspections.filter(i => i.inspectionDate.startsWith(prefix));
-  }, [inspections, listMonth]);
+  }, [inspections, selectedMonth, dashboardPeriod]);
 
   const [showInspDashboard, setShowInspDashboard] = useState(true);
 
@@ -1073,25 +1075,19 @@ export default function SafetyInspections() {
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <Calendar className="w-4 h-4 text-muted-foreground" />
-            <span className="text-sm font-medium text-muted-foreground">등록월</span>
-            <Select value={String(listMonth)} onValueChange={(v) => setListMonth(Number(v))}>
-              <SelectTrigger className="w-[80px] h-8" data-testid="select-list-month">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
-                  <SelectItem key={m} value={String(m)}>{m}월</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <span className="text-sm font-medium text-muted-foreground">점검 목록</span>
+            <Badge variant="secondary" className="text-xs">
+              {dashboardPeriod === "year" ? `${new Date().getFullYear()}년 전체` : `${selectedMonth}월`}
+            </Badge>
             <span className="text-xs text-muted-foreground">{filteredInspections.length}건</span>
           </div>
+          <span className="text-[11px] text-muted-foreground">위 그래프 월 필터와 연동</span>
         </div>
         {isLoading ? (
           <div className="text-center py-8 text-muted-foreground">로딩 중...</div>
         ) : filteredInspections.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
-            {listMonth}월 등록된 점검 내역이 없습니다.
+            {dashboardPeriod === "year" ? "올해" : `${selectedMonth}월`} 등록된 점검 내역이 없습니다.
           </div>
         ) : (
           <Card>
@@ -1108,15 +1104,24 @@ export default function SafetyInspections() {
                       className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 cursor-pointer hover:bg-muted/30 transition-colors group"
                       onClick={() => setExpandedId(isExpanded ? null : inspection.id)}
                     >
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 shrink-0 font-medium">
-                        {inspection.inspectionType === "안전점검" ? "안전" : "동행"}
-                      </span>
+                      {inspection.inspectionType === "안전점검" ? (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 shrink-0 font-bold border border-blue-200 dark:border-blue-800">
+                          안전
+                        </span>
+                      ) : (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 shrink-0 font-bold border border-orange-200 dark:border-orange-800">
+                          동행
+                        </span>
+                      )}
                       <span className="text-xs text-muted-foreground shrink-0 w-[72px]">{inspection.inspectionDate}</span>
                       <span className="text-sm font-medium truncate flex-1 min-w-0">{inspection.title}</span>
-                      <span className="text-xs text-muted-foreground truncate max-w-[80px]">{inspection.department}</span>
-                      {inspection.location && (
-                        <span className="text-xs text-muted-foreground truncate max-w-[80px]">{inspection.location}</span>
+                      {inspection.inspector && (
+                        <span className="text-xs font-medium text-foreground/70 shrink-0 flex items-center gap-0.5">
+                          <User className="w-3 h-3 text-muted-foreground" />
+                          {inspection.inspector}
+                        </span>
                       )}
+                      <span className="text-xs text-muted-foreground truncate max-w-[70px] hidden sm:block">{inspection.department}</span>
                       <div className="flex items-center gap-1.5 shrink-0 text-[10px]">
                         <span className="text-green-600 dark:text-green-400">{goodItems}</span>
                         <span className="text-muted-foreground">/</span>
