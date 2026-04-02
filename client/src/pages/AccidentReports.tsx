@@ -220,7 +220,22 @@ export default function AccidentReports() {
         images: parsed.imageUrls?.length ? [...prev.images, ...parsed.imageUrls] : prev.images,
       }));
       if (parsed.accidentOverview) {
-        setProgressItems([{ no: 1, time: parsed.occurredAt ? parsed.occurredAt.replace("T", " ") : "", content: parsed.accidentOverview }]);
+        const segments = parsed.accidentOverview
+          .split(/\n[•·]?\s*/)
+          .map((s: string) => s.replace(/^[•·]\s*/, "").trim())
+          .filter((s: string) => s.length > 2);
+        const items = segments.length > 0
+          ? segments.map((seg: string, idx: number) => {
+              const timeMatch = seg.match(/(\d{1,2}:\d{2})/);
+              const time = timeMatch
+                ? timeMatch[1]
+                : idx === 0 && parsed.occurredAt
+                  ? parsed.occurredAt.replace("T", " ")
+                  : "";
+              return { no: idx + 1, time, content: seg };
+            })
+          : [{ no: 1, time: parsed.occurredAt ? parsed.occurredAt.replace("T", " ") : "", content: parsed.accidentOverview }];
+        setProgressItems(items);
       }
       toast({ title: "PDF에서 정보를 불러왔습니다. 내용을 확인하고 수정하세요." });
     } catch (err: any) {
