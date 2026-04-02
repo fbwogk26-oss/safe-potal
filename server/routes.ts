@@ -2606,24 +2606,67 @@ export async function registerRoutes(
     try {
       const mammoth = await import('mammoth');
 
-      // ── 이미지 추출 (JSZip으로 word/media/ 직접 추출) ──
+      // ── 이미지 추출 (별첨 섹션 이후 사진만 추출) ──
       const imageBuffers: Buffer[] = [];
       const imageMimeTypes: string[] = [];
       const imageNames: string[] = [];
       try {
         const JSZip = await import('jszip');
         const zip = await (JSZip as any).default.loadAsync(req.file.buffer);
-        const mediaFiles = Object.keys(zip.files)
-          .filter((name: string) => name.startsWith('word/media/') && !zip.files[name].dir)
-          .sort();
-        for (const mediaFile of mediaFiles) {
+
+        // 1) 관계 파일에서 rId → 파일명 매핑
+        const rIdToMedia: Record<string, string> = {};
+        if (zip.files['word/_rels/document.xml.rels']) {
+          const relsXml: string = await zip.files['word/_rels/document.xml.rels'].async('string');
+          const relRe = /Id="([^"]+)"[^>]*Target="media\/([^"]+)"/g;
+          let rm;
+          while ((rm = relRe.exec(relsXml)) !== null) {
+            rIdToMedia[rm[1]] = rm[2]; // e.g. rId6 → image1.jpeg
+          }
+        }
+
+        // 2) document.xml 에서 "별첨" 텍스트 위치 기준으로 이후 이미지만 선택
+        let annexImageFiles: string[] = [];
+        if (zip.files['word/document.xml'] && Object.keys(rIdToMedia).length > 0) {
+          const docXml: string = await zip.files['word/document.xml'].async('string');
+          // "별첨" 또는 "별 첨" 텍스트가 처음 나타나는 위치
+          const annexPos = docXml.search(/별\s*첨/);
+          if (annexPos >= 0) {
+            const afterAnnex = docXml.slice(annexPos);
+            // embed 속성으로 이미지 참조 추출 (순서 유지)
+            const embedRe = /r:embed="([^"]+)"/g;
+            let em;
+            while ((em = embedRe.exec(afterAnnex)) !== null) {
+              const rId = em[1];
+              if (rIdToMedia[rId]) {
+                const filename = rIdToMedia[rId];
+                const mediaPath = 'word/media/' + filename;
+                if (!annexImageFiles.includes(mediaPath)) {
+                  annexImageFiles.push(mediaPath);
+                }
+              }
+            }
+          }
+        }
+
+        // 3) 별첨 이미지가 없으면 전체 미디어 중 사진 파일만 사용 (fallback)
+        if (annexImageFiles.length === 0) {
+          annexImageFiles = Object.keys(zip.files)
+            .filter((name: string) => name.startsWith('word/media/') && !zip.files[name].dir)
+            .filter((name: string) => /\.(jpg|jpeg|png|gif|bmp|webp)$/i.test(name))
+            .sort();
+        }
+
+        // 4) 버퍼 읽기 (최대 10장)
+        for (const mediaPath of annexImageFiles.slice(0, 10)) {
+          if (!zip.files[mediaPath]) continue;
           try {
-            const buf: Buffer = await zip.files[mediaFile].async('nodebuffer');
-            const ext = mediaFile.split('.').pop()?.toLowerCase() || 'jpg';
+            const buf: Buffer = await zip.files[mediaPath].async('nodebuffer');
+            const ext = mediaPath.split('.').pop()?.toLowerCase() || 'jpg';
             const mime = ext === 'png' ? 'image/png' : ext === 'gif' ? 'image/gif' : 'image/jpeg';
             imageBuffers.push(buf);
             imageMimeTypes.push(mime);
-            imageNames.push(mediaFile.split('/').pop() || `image${imageBuffers.length}`);
+            imageNames.push(mediaPath.split('/').pop() || `image${imageBuffers.length}`);
           } catch {}
         }
       } catch (zipErr) {
