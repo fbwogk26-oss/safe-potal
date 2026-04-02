@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -18,7 +18,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { AlertTriangle, BarChart3, Plus, Pencil, Trash2, Download, Upload, X, Camera, PenTool, FileText, Loader2 } from "lucide-react";
+import { AlertTriangle, BarChart3, Plus, Pencil, Trash2, Download, Upload, X, Camera, FileText, Loader2, User } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell, PieChart, Pie, Legend,
@@ -69,112 +69,6 @@ const emptyForm = {
   faultRate: undefined as number | undefined,
 };
 
-function SignaturePad({ onSave, onCancel, initialData }: { onSave: (data: string) => void; onCancel: () => void; initialData?: string }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [isDrawing, setIsDrawing] = useState(false);
-  const [hasContent, setHasContent] = useState(false);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width;
-    canvas.height = rect.height;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    if (initialData) {
-      const img = new Image();
-      img.onload = () => {
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        setHasContent(true);
-      };
-      img.src = initialData;
-    }
-  }, [initialData]);
-
-  const getPos = useCallback((e: React.MouseEvent | React.TouchEvent) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return { x: 0, y: 0 };
-    const rect = canvas.getBoundingClientRect();
-    if ("touches" in e) {
-      return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
-    }
-    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
-  }, []);
-
-  const startDraw = useCallback((e: React.MouseEvent | React.TouchEvent) => {
-    e.preventDefault();
-    setIsDrawing(true);
-    setHasContent(true);
-    const ctx = canvasRef.current?.getContext("2d");
-    if (!ctx) return;
-    const { x, y } = getPos(e);
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-  }, [getPos]);
-
-  const draw = useCallback((e: React.MouseEvent | React.TouchEvent) => {
-    if (!isDrawing) return;
-    e.preventDefault();
-    const ctx = canvasRef.current?.getContext("2d");
-    if (!ctx) return;
-    const { x, y } = getPos(e);
-    ctx.lineWidth = 2;
-    ctx.lineCap = "round";
-    ctx.strokeStyle = "#000";
-    ctx.lineTo(x, y);
-    ctx.stroke();
-  }, [isDrawing, getPos]);
-
-  const endDraw = useCallback(() => setIsDrawing(false), []);
-
-  const clearCanvas = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    setHasContent(false);
-  }, []);
-
-  const handleSave = () => {
-    if (!hasContent || !canvasRef.current) return;
-    const data = canvasRef.current.toDataURL("image/png");
-    onSave(data);
-  };
-
-  return (
-    <div className="space-y-2">
-      <div className="border-2 border-dashed border-primary/30 rounded-lg overflow-hidden bg-white">
-        <canvas
-          ref={canvasRef}
-          className="w-full touch-none cursor-crosshair"
-          style={{ height: "120px" }}
-          onMouseDown={startDraw}
-          onMouseMove={draw}
-          onMouseUp={endDraw}
-          onMouseLeave={endDraw}
-          onTouchStart={startDraw}
-          onTouchMove={draw}
-          onTouchEnd={endDraw}
-          data-testid="canvas-signature"
-        />
-      </div>
-      <div className="flex gap-2 justify-end">
-        <Button variant="outline" size="sm" onClick={clearCanvas}>지우기</Button>
-        <Button variant="outline" size="sm" onClick={onCancel}>취소</Button>
-        <Button size="sm" disabled={!hasContent} onClick={handleSave} className="gap-1">
-          <PenTool className="w-3.5 h-3.5" />
-          서명 완료
-        </Button>
-      </div>
-    </div>
-  );
-}
 
 export default function AccidentReports() {
   const queryClient = useQueryClient();
@@ -187,7 +81,6 @@ export default function AccidentReports() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState({ ...emptyForm });
   const [progressItems, setProgressItems] = useState<ProgressItem[]>([{ no: 1, time: "", content: "" }]);
-  const [showSignaturePad, setShowSignaturePad] = useState(false);
   const [uploadingPhotos, setUploadingPhotos] = useState(false);
   const [isPdfParsing, setIsPdfParsing] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
@@ -220,6 +113,7 @@ export default function AccidentReports() {
         accidentType: parsed.accidentType || prev.accidentType,
         cause: parsed.cause || prev.cause,
         faultRate: parsed.faultRate ?? prev.faultRate,
+        signature: parsed.writer || prev.signature,
         images: parsed.imageUrls?.length ? [...prev.images, ...parsed.imageUrls] : prev.images,
         imageCaptions: parsed.imageUrls?.length
           ? [...prev.imageCaptions, ...(parsed.imageCaptions?.length ? parsed.imageCaptions : parsed.imageUrls.map((_: string, i: number) => `사진 ${prev.images.length + i + 1}`))]
@@ -300,14 +194,12 @@ export default function AccidentReports() {
     setEditingId(null);
     setForm({ ...emptyForm });
     setProgressItems([{ no: 1, time: "", content: "" }]);
-    setShowSignaturePad(false);
   };
 
   const openCreate = () => {
     setEditingId(null);
-    setForm({ ...emptyForm });
+    setForm({ ...emptyForm, signature: user?.name || user?.username || "" });
     setProgressItems([{ no: 1, time: "", content: "" }]);
-    setShowSignaturePad(false);
     setDialogOpen(true);
   };
 
@@ -344,7 +236,6 @@ export default function AccidentReports() {
       progressDetails: report.progressDetails || "[]",
       faultRate: (report as any).faultRate ?? undefined,
     });
-    setShowSignaturePad(false);
     setDialogOpen(true);
   };
 
@@ -1124,31 +1015,18 @@ export default function AccidentReports() {
 
             <Card className="border-primary/20">
               <CardHeader className="pb-2 pt-3">
-                <CardTitle className="text-sm font-semibold text-primary">작성자 서명</CardTitle>
+                <CardTitle className="text-sm font-semibold text-primary flex items-center gap-1.5">
+                  <User className="w-4 h-4" />
+                  작성자
+                </CardTitle>
               </CardHeader>
               <CardContent>
-                {form.signature ? (
-                  <div className="space-y-2">
-                    <div className="border rounded-lg p-2 bg-white inline-block">
-                      <img src={form.signature} alt="서명" className="h-16" />
-                    </div>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm" onClick={() => { setField("signature", ""); setShowSignaturePad(true); }}>
-                        다시 서명
-                      </Button>
-                    </div>
-                  </div>
-                ) : showSignaturePad ? (
-                  <SignaturePad
-                    onSave={(data) => { setField("signature", data); setShowSignaturePad(false); }}
-                    onCancel={() => setShowSignaturePad(false)}
-                  />
-                ) : (
-                  <Button variant="outline" size="sm" onClick={() => setShowSignaturePad(true)} className="gap-1.5" data-testid="button-open-signature">
-                    <PenTool className="w-4 h-4" />
-                    서명하기
-                  </Button>
-                )}
+                <Input
+                  value={form.signature}
+                  onChange={e => setField("signature", e.target.value)}
+                  placeholder="작성자 이름 (Word 불러오기 시 자동 입력)"
+                  data-testid="input-writer"
+                />
               </CardContent>
             </Card>
           </div>

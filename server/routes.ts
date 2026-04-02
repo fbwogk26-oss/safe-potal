@@ -2606,22 +2606,29 @@ export async function registerRoutes(
     try {
       const mammoth = await import('mammoth');
 
-      // ── 이미지 추출 ──
+      // ── 이미지 추출 (JSZip으로 word/media/ 직접 추출) ──
       const imageBuffers: Buffer[] = [];
       const imageMimeTypes: string[] = [];
-      await (mammoth as any).convertToHtml(
-        { buffer: req.file.buffer },
-        {
-          convertImage: (mammoth as any).images.imgElement(async (image: any) => {
-            try {
-              const buf: Buffer = await image.read('buffer');
-              imageBuffers.push(buf);
-              imageMimeTypes.push(image.contentType || 'image/jpeg');
-            } catch {}
-            return { src: '' };
-          }),
+      const imageNames: string[] = [];
+      try {
+        const JSZip = await import('jszip');
+        const zip = await (JSZip as any).default.loadAsync(req.file.buffer);
+        const mediaFiles = Object.keys(zip.files)
+          .filter((name: string) => name.startsWith('word/media/') && !zip.files[name].dir)
+          .sort();
+        for (const mediaFile of mediaFiles) {
+          try {
+            const buf: Buffer = await zip.files[mediaFile].async('nodebuffer');
+            const ext = mediaFile.split('.').pop()?.toLowerCase() || 'jpg';
+            const mime = ext === 'png' ? 'image/png' : ext === 'gif' ? 'image/gif' : 'image/jpeg';
+            imageBuffers.push(buf);
+            imageMimeTypes.push(mime);
+            imageNames.push(mediaFile.split('/').pop() || `image${imageBuffers.length}`);
+          } catch {}
         }
-      );
+      } catch (zipErr) {
+        console.error('JSZip 이미지 추출 오류:', zipErr);
+      }
 
       // ── 텍스트 추출 ──
       const textResult = await (mammoth as any).extractRawText({ buffer: req.file.buffer });
@@ -2767,6 +2774,14 @@ export async function registerRoutes(
       const locM = accidentOverview.match(/([가-힣]+구\s+[가-힣\s\d]+(?:교차로|네거리|앞|부근|도로|거리|길)[^\n,。.]*)/);
       if (locM) location = locM[1].trim();
 
+      // ── 작성자 추출 ──
+      let writer = '';
+      const writerM = fullText.match(/작성자\s*:\s*([가-힣A-Za-z0-9\s]+팀\s+)?([가-힣]{2,5})/);
+      if (writerM) {
+        writer = (writerM[2] || '').trim();
+        if (writerM[1]) writer = writerM[1].trim() + ' ' + writer;
+      }
+
       // ── 이미지 캡션 추출 (별첨 섹션의 텍스트 라벨) ──
       const imageCaptionLabels: string[] = [];
       const annexIdx = fullText.indexOf('별첨');
@@ -2793,7 +2808,7 @@ export async function registerRoutes(
         }
       }
 
-      res.json({ title, department, reporterName, reporterPosition, vehicleInfo, companion, occurredAt, location, accidentOverview, causeDetail, preventionPlan, accidentType, cause, faultRate, progressItems, imageUrls, imageCaptions });
+      res.json({ title, department, reporterName, reporterPosition, vehicleInfo, companion, occurredAt, location, accidentOverview, causeDetail, preventionPlan, accidentType, cause, faultRate, progressItems, imageUrls, imageCaptions, writer });
     } catch (err: any) {
       console.error('사고보고 Word 파싱 오류:', err);
       res.status(500).json({ message: 'Word 파싱에 실패했습니다: ' + (err?.message || '') });
