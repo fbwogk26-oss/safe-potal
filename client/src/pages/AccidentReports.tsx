@@ -25,7 +25,7 @@ import {
 } from "recharts";
 
 const ACCIDENT_TYPES = ["추락", "전도", "충돌", "협착", "감전", "화재/폭발", "교통사고", "기타"];
-const CAUSES = ["불안전한 행동", "불안전한 상태", "관리적 요인", "환경적 요인", "기타"];
+const CAUSES = ["전방주시 태만", "안전거리 미확보", "개인 부주의", "불안전한 행동", "불안전한 상태", "관리적 요인", "환경적 요인", "기타"];
 const SEVERITIES = ["경미", "보통", "중대", "사망"];
 const DEPARTMENTS = ["동대구운용팀", "서대구운용팀", "남대구운용팀", "포항운용팀", "안동운용팀", "구미운용팀", "문경운용팀", "운용지원팀", "운용계획팀", "사업지원팀", "현장경영팀", "공공망관제팀"];
 
@@ -193,15 +193,15 @@ export default function AccidentReports() {
   const photoInputRef = useRef<HTMLInputElement>(null);
   const accidentPdfRef = useRef<HTMLInputElement>(null);
 
-  const handleAccidentPdfImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAccidentDocxImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = "";
     setIsPdfParsing(true);
     try {
       const fd = new FormData();
-      fd.append("pdf", file);
-      const res = await fetch("/api/accidents/parse-pdf", { method: "POST", body: fd, credentials: "include" });
+      fd.append("docx", file);
+      const res = await fetch("/api/accidents/parse-docx", { method: "POST", body: fd, credentials: "include" });
       if (!res.ok) throw new Error(await res.text());
       const parsed = await res.json();
       setForm(prev => ({
@@ -209,6 +209,7 @@ export default function AccidentReports() {
         title: parsed.title || prev.title,
         department: parsed.department || prev.department,
         reporterName: parsed.reporterName || prev.reporterName,
+        reporterPosition: parsed.reporterPosition || prev.reporterPosition,
         vehicleInfo: parsed.vehicleInfo || prev.vehicleInfo,
         companion: parsed.companion || prev.companion,
         occurredAt: parsed.occurredAt || prev.occurredAt,
@@ -217,9 +218,13 @@ export default function AccidentReports() {
         causeDetail: parsed.causeDetail || prev.causeDetail,
         preventionPlan: parsed.preventionPlan || prev.preventionPlan,
         accidentType: parsed.accidentType || prev.accidentType,
+        cause: parsed.cause || prev.cause,
+        faultRate: parsed.faultRate ?? prev.faultRate,
         images: parsed.imageUrls?.length ? [...prev.images, ...parsed.imageUrls] : prev.images,
       }));
-      if (parsed.accidentOverview) {
+      if (parsed.progressItems?.length) {
+        setProgressItems(parsed.progressItems);
+      } else if (parsed.accidentOverview) {
         const segments = parsed.accidentOverview
           .split(/\n[•·]?\s*/)
           .map((s: string) => s.replace(/^[•·]\s*/, "").trim())
@@ -227,19 +232,15 @@ export default function AccidentReports() {
         const items = segments.length > 0
           ? segments.map((seg: string, idx: number) => {
               const timeMatch = seg.match(/(\d{1,2}:\d{2})/);
-              const time = timeMatch
-                ? timeMatch[1]
-                : idx === 0 && parsed.occurredAt
-                  ? parsed.occurredAt.replace("T", " ")
-                  : "";
+              const time = timeMatch ? timeMatch[1] : (idx === 0 && parsed.occurredAt ? parsed.occurredAt.replace("T", " ") : "");
               return { no: idx + 1, time, content: seg };
             })
           : [{ no: 1, time: parsed.occurredAt ? parsed.occurredAt.replace("T", " ") : "", content: parsed.accidentOverview }];
         setProgressItems(items);
       }
-      toast({ title: "PDF에서 정보를 불러왔습니다. 내용을 확인하고 수정하세요." });
+      toast({ title: "Word 파일에서 정보를 불러왔습니다. 내용을 확인하고 수정하세요." });
     } catch (err: any) {
-      toast({ variant: "destructive", title: "PDF 불러오기 실패", description: err?.message || "" });
+      toast({ variant: "destructive", title: "Word 불러오기 실패", description: err?.message || "" });
     } finally {
       setIsPdfParsing(false);
     }
@@ -911,15 +912,15 @@ export default function AccidentReports() {
                 className="gap-2 border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-400 dark:hover:bg-blue-950 shrink-0"
                 onClick={() => accidentPdfRef.current?.click()}
                 disabled={isPdfParsing}
-                data-testid="button-import-accident-pdf"
+                data-testid="button-import-accident-docx"
               >
                 {isPdfParsing ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" />PDF 분석중...</>
+                  <><Loader2 className="w-4 h-4 animate-spin" />분석중...</>
                 ) : (
-                  <><FileText className="w-4 h-4" />PDF 불러오기</>
+                  <><FileText className="w-4 h-4" />Word 불러오기</>
                 )}
               </Button>
-              <input ref={accidentPdfRef} type="file" accept=".pdf" className="hidden" onChange={handleAccidentPdfImport} />
+              <input ref={accidentPdfRef} type="file" accept=".docx,.doc" className="hidden" onChange={handleAccidentDocxImport} />
             </div>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -949,8 +950,8 @@ export default function AccidentReports() {
                   <Input value={form.reporterName} onChange={(e) => setField("reporterName", e.target.value)} placeholder="사고자 성명" data-testid="input-reporter-name" />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">직위</Label>
-                  <Input value={form.reporterPosition} onChange={(e) => setField("reporterPosition", e.target.value)} placeholder="직위" data-testid="input-reporter-position" />
+                  <Label className="text-xs">직급</Label>
+                  <Input value={form.reporterPosition} onChange={(e) => setField("reporterPosition", e.target.value)} placeholder="직급" data-testid="input-reporter-position" />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">소속부서 *</Label>

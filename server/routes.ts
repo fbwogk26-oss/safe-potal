@@ -2599,6 +2599,174 @@ export async function registerRoutes(
     }
   });
 
+  // === 사고보고 Word(docx) 파싱 ===
+  const accidentDocxUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
+  app.post('/api/accidents/parse-docx', isAuthenticated, accidentDocxUpload.single('docx'), async (req: any, res: any) => {
+    if (!req.file) return res.status(400).json({ message: "Word 파일이 필요합니다" });
+    try {
+      const mammoth = await import('mammoth');
+      const result = await mammoth.extractRawText({ buffer: req.file.buffer });
+      const fullText = result.value.replace(/\r\n/g, '\n').replace(/\n{3,}/g, '\n\n');
+
+      // ── 헬퍼: 정규식으로 값 추출 ──
+      const pick = (patterns: RegExp[]): string => {
+        for (const p of patterns) {
+          const m = fullText.match(p);
+          if (m?.[1]) return m[1].trim();
+        }
+        return '';
+      };
+
+      // 제목
+      const title = pick([
+        /제\s*목[\s:：]+(.+?)(?=\n|$)/,
+        /보고서[\s:：]+(.+?)(?=\n|$)/,
+      ]);
+
+      // 소속팀
+      const department = pick([
+        /소속\s*팀[\s:：]+([가-힣A-Za-z]+팀)/,
+        /([가-힣]+운용팀|[가-힣]+지원팀|[가-힣]+계획팀|[가-힣]+관제팀)/,
+      ]);
+
+      // 운전자/성명
+      const reporterName = pick([
+        /운전자[\s:：]+([가-힣]{2,5})\s/,
+        /기\s*안\s*자[\s:：]+([가-힣]{2,5})\s/,
+        /성\s*명[\s:：]+([가-힣]{2,5})\s/,
+        /사\s*고\s*자[\s:：]+([가-힣]{2,5})\s/,
+      ]);
+
+      // 직급
+      const reporterPosition = pick([
+        /직\s*급[\s:：]+([가-힣A-Za-z0-9]+(?:급|원|장|대|리)?)/,
+        /직\s*위[\s:：]+([가-힣A-Za-z0-9]+(?:급|원|장|대|리)?)/,
+      ]);
+
+      // 차량정보
+      const vehicleInfo = pick([
+        /차종[\/\/]?차량번호[\s:：]+([^\n]+?)(?=\n|동승자|소속)/,
+        /차\s*량[\s:：]+([^\n]+?)(?=\n)/,
+      ]);
+
+      // 동승자
+      const companion = pick([
+        /동\s*승\s*자[\s:：]+([가-힣A-Za-z없음]+?)(?=\s*소속|\s*\n)/,
+        /동\s*승\s*자[\s:：]+([^\n]{1,20})/,
+      ]);
+
+      // 발생일시
+      let occurredAt = '';
+      const dtPatterns = [
+        /발생\s*일\s*시[\s:：]+(\d{4})[.\-년]\s*(\d{1,2})[.\-월]\s*(\d{1,2})[.\-일]?\s+(\d{1,2})[:시]\s*(\d{2})분?/,
+        /(\d{4})[.\-](\d{1,2})[.\-](\d{1,2})\s+(\d{1,2}):(\d{2})/,
+      ];
+      for (const p of dtPatterns) {
+        const m = fullText.match(p);
+        if (m) {
+          const [, yr, mo, day, hr, min] = m;
+          occurredAt = `${yr}-${mo.padStart(2,'0')}-${day.padStart(2,'0')}T${hr.padStart(2,'0')}:${min.padStart(2,'0')}`;
+          break;
+        }
+      }
+
+      // 발생장소
+      const location = pick([
+        /발생\s*장\s*소[\s:：]+([^\n]+?)(?=\n|$)/,
+      ]);
+
+      // 사고내용 (다. 사고내용 또는 사고 경위)
+      let accidentOverview = '';
+      const overviewPatterns = [
+        /다\.\s*사고\s*내용\s*\n([\s\S]+?)(?=\n라\.|1\)\s*사고|$)/,
+        /사고\s*경위[\s:：]*\n([\s\S]+?)(?=\n원인|\n재발|$)/,
+        /사고\s*개요[\s:：]*\n([\s\S]+?)(?=\n원인|\n재발|$)/,
+      ];
+      for (const p of overviewPatterns) {
+        const m = fullText.match(p);
+        if (m?.[1]) {
+          accidentOverview = m[1]
+            .split('\n')
+            .map((l: string) => l.trim())
+            .filter((l: string) => l.length > 1)
+            .join('\n• ')
+            .trim();
+          if (accidentOverview) break;
+        }
+      }
+
+      // 사고원인 상세
+      const causeDetail = pick([
+        /사고\s*원인[\s:：]*\n([\s\S]{5,300}?)(?=\n재발|$)/,
+        /원\s*인[\s:：]+([^\n]{5,200})/,
+      ]);
+
+      // 재발방지
+      const preventionPlan = pick([
+        /재발\s*방지[\s\S]*?\n([\s\S]{5,300}?)(?=\n[가-힣●※]|$)/,
+        /사고자\s*다짐[\s:：]*\n([\s\S]{5,300}?)(?=\n|$)/,
+      ]);
+
+      // 사고유형 추정
+      let accidentType = '교통사고';
+      if (/추락/.test(fullText)) accidentType = '추락';
+      else if (/전도/.test(fullText) && !/추락/.test(fullText)) accidentType = '전도';
+      else if (/협착/.test(fullText)) accidentType = '협착';
+      else if (/감전/.test(fullText)) accidentType = '감전';
+      else if (/화재|폭발/.test(fullText)) accidentType = '화재/폭발';
+      else if (/충돌/.test(fullText) && !/교통|차량/.test(fullText)) accidentType = '충돌';
+
+      // 사고원인분류 (차량사고일 때)
+      let cause = '';
+      if (accidentType === '교통사고') {
+        if (/전방\s*주시\s*태만|전방주시/.test(fullText)) cause = '전방주시 태만';
+        else if (/안전\s*거리\s*미확보|안전거리/.test(fullText)) cause = '안전거리 미확보';
+        else if (/개인\s*부주의/.test(fullText)) cause = '개인 부주의';
+        else if (/불안전한\s*행동/.test(fullText)) cause = '불안전한 행동';
+        else cause = '개인 부주의';
+      } else {
+        if (/불안전한\s*행동/.test(fullText)) cause = '불안전한 행동';
+        else if (/불안전한\s*상태/.test(fullText)) cause = '불안전한 상태';
+        else if (/관리적\s*요인/.test(fullText)) cause = '관리적 요인';
+      }
+
+      // 과실율 (교통사고)
+      let faultRate: number | undefined;
+      if (accidentType === '교통사고') {
+        const frMatch = fullText.match(/(?:과실율|과실률|과실\s*비율|본인\s*과실)[\s:：]*(\d{1,3})\s*%?/);
+        if (frMatch) faultRate = Number(frMatch[1]);
+        else faultRate = 100; // 기본값
+      }
+
+      // 경과 및 조치사항 (시간대별 분리)
+      const progressItems: Array<{ no: number; time: string; content: string }> = [];
+      const timeBlockPattern = /(\d{1,2}:\d{2})[^\n]*([^\n]+)/g;
+      let tbMatch;
+      let idx = 0;
+      while ((tbMatch = timeBlockPattern.exec(fullText)) !== null && idx < 10) {
+        const timeStr = tbMatch[1];
+        const content = tbMatch[2]?.trim() || '';
+        if (content.length > 3) {
+          progressItems.push({ no: idx + 1, time: timeStr, content });
+          idx++;
+        }
+      }
+      // 시간 항목이 없으면 overview 분리
+      if (progressItems.length === 0 && accidentOverview) {
+        const segs = accidentOverview.split(/\n[•·]?\s*/).map((s: string) => s.replace(/^[•·]\s*/, '').trim()).filter((s: string) => s.length > 2);
+        segs.forEach((seg: string, i: number) => {
+          const tm = seg.match(/(\d{1,2}:\d{2})/);
+          progressItems.push({ no: i + 1, time: tm ? tm[1] : (i === 0 && occurredAt ? occurredAt.replace('T', ' ') : ''), content: seg });
+        });
+      }
+
+      res.json({ title, department, reporterName, reporterPosition, vehicleInfo, companion, occurredAt, location, accidentOverview, causeDetail, preventionPlan, accidentType, cause, faultRate, progressItems });
+    } catch (err: any) {
+      console.error('사고보고 Word 파싱 오류:', err);
+      res.status(500).json({ message: 'Word 파싱에 실패했습니다: ' + (err?.message || '') });
+    }
+  });
+
   app.get('/api/accidents/:id/download-docx', requireEditor, async (req: any, res) => {
     try {
       const report = await storage.getAccidentReport(Number(req.params.id));
