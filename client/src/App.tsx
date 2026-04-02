@@ -1,10 +1,11 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
+import PublicSign from "@/pages/PublicSign";
 import Dashboard from "@/pages/Dashboard";
 import HomePage from "@/pages/HomePage";
 import Rules from "@/pages/Rules";
@@ -132,6 +133,11 @@ function MainLayout() {
 
 function AppContent() {
   const { isAuthenticated, isLoading, mustChangePassword } = useAuth();
+  const [location] = useLocation();
+
+  if (location.startsWith("/sign/")) {
+    return <Switch><Route path="/sign/:id" component={PublicSign} /></Switch>;
+  }
 
   if (isLoading) {
     return (

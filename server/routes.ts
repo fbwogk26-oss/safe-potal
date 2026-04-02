@@ -1823,6 +1823,66 @@ export async function registerRoutes(
     res.status(204).send();
   });
 
+  // === 공개 서명 링크 (로그인 불필요) ===
+  app.get("/api/public/education/:id", async (req: any, res) => {
+    try {
+      const session = await storage.getEducationSession(Number(req.params.id));
+      if (!session) return res.status(404).json({ message: "교육 세션을 찾을 수 없습니다." });
+      res.json({
+        id: session.id,
+        title: session.title,
+        educationDate: session.educationDate,
+        department: session.department,
+        educationType: session.educationType,
+        instructor: session.instructor,
+        totalParticipants: session.totalParticipants,
+        status: session.status,
+      });
+    } catch (err) {
+      res.status(500).json({ message: "서버 오류가 발생했습니다." });
+    }
+  });
+
+  app.post("/api/public/education/:id/sign", async (req: any, res) => {
+    try {
+      const sigSchema = z.object({
+        signerName: z.string().min(1, "이름을 입력해주세요"),
+        signerDepartment: z.string().optional().default(""),
+        signatureData: z.string().min(1, "서명을 입력해주세요"),
+      });
+      const parsed = sigSchema.parse(req.body);
+      const sessionId = Number(req.params.id);
+      const session = await storage.getEducationSession(sessionId);
+      if (!session) return res.status(404).json({ message: "교육 세션을 찾을 수 없습니다." });
+      const existing = await storage.getSignaturesBySession(sessionId);
+      const alreadySigned = existing.some(
+        s => s.signerName === parsed.signerName && s.signerDepartment === (parsed.signerDepartment || "")
+      );
+      if (alreadySigned) {
+        return res.status(400).json({ message: "이미 서명을 등록하셨습니다. 한 사람당 한 번만 서명할 수 있습니다." });
+      }
+      const signature = await storage.createSignature({
+        sessionId,
+        signerName: parsed.signerName,
+        signerDepartment: parsed.signerDepartment || "",
+        signatureData: parsed.signatureData,
+      });
+      res.status(201).json(signature);
+    } catch (err: any) {
+      if (err?.name === "ZodError") return res.status(400).json({ message: err.errors?.[0]?.message || "입력값 오류" });
+      res.status(500).json({ message: "서명 등록에 실패했습니다." });
+    }
+  });
+
+  app.get("/api/public/education/:id/signatures", async (req: any, res) => {
+    try {
+      const signatures = await storage.getSignaturesBySession(Number(req.params.id));
+      res.json(signatures);
+    } catch {
+      res.status(500).json({ message: "서버 오류" });
+    }
+  });
+
   // === EDUCATION PROGRESS (교육별 진행율) ===
   app.get("/api/education-progress", isAuthenticated, async (req: any, res) => {
     try {

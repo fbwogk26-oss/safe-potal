@@ -18,7 +18,7 @@ import {
   GraduationCap, Plus, Trash2, ArrowLeft, Users, Calendar, FileText,
   PenTool, CheckCircle2, Clock, BarChart3, TrendingUp, Award, X, Search, Eye, Download,
   ChevronDown, ChevronRight, Copy, Pencil, Camera, ImagePlus, Save,
-  BookOpen, Paperclip, FileSpreadsheet, FileIcon, Image, Video, Loader2
+  BookOpen, Paperclip, FileSpreadsheet, FileIcon, Image, Video, Loader2, Link2
 } from "lucide-react";
 import type { EducationSession, EducationSignature } from "@shared/schema";
 
@@ -1046,6 +1046,21 @@ export default function EducationLogs() {
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const url = `${window.location.origin}/sign/${selectedSession.id}`;
+                navigator.clipboard.writeText(url).then(() => {
+                  toast({ title: "서명 링크가 복사되었습니다.", description: "참석자들에게 링크를 공유하세요." });
+                });
+              }}
+              className="gap-1.5"
+              data-testid="button-copy-sign-url"
+            >
+              <Link2 className="w-3.5 h-3.5" />
+              서명 링크
+            </Button>
             {canEditLogs && selectedSession.status === "진행중" && (
               <Button
                 variant="outline"
