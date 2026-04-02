@@ -2605,162 +2605,195 @@ export async function registerRoutes(
     if (!req.file) return res.status(400).json({ message: "Word 파일이 필요합니다" });
     try {
       const mammoth = await import('mammoth');
-      const result = await mammoth.extractRawText({ buffer: req.file.buffer });
-      const fullText = result.value.replace(/\r\n/g, '\n').replace(/\n{3,}/g, '\n\n');
 
-      // ── 헬퍼: 정규식으로 값 추출 ──
-      const pick = (patterns: RegExp[]): string => {
-        for (const p of patterns) {
-          const m = fullText.match(p);
-          if (m?.[1]) return m[1].trim();
+      // ── 이미지 추출 ──
+      const imageBuffers: Buffer[] = [];
+      const imageMimeTypes: string[] = [];
+      await (mammoth as any).convertToHtml(
+        { buffer: req.file.buffer },
+        {
+          convertImage: (mammoth as any).images.imgElement(async (image: any) => {
+            try {
+              const buf: Buffer = await image.read('buffer');
+              imageBuffers.push(buf);
+              imageMimeTypes.push(image.contentType || 'image/jpeg');
+            } catch {}
+            return { src: '' };
+          }),
         }
-        return '';
+      );
+
+      // ── 텍스트 추출 ──
+      const textResult = await (mammoth as any).extractRawText({ buffer: req.file.buffer });
+      const raw = textResult.value.replace(/\r\n/g, '\n').replace(/\t/g, ' ');
+      const lines = raw.split('\n').map((l: string) => l.trim());
+      const fullText = lines.join('\n');
+
+      // ── 섹션 추출 헬퍼 ──
+      const getSection = (keyword: string): string => {
+        const re = new RegExp(`□\\s*${keyword}[^\\n]*\\n([\\s\\S]*?)(?=□|$)`);
+        return (fullText.match(re)?.[1] || '').trim();
       };
+      const sectionLines = (keyword: string): string[] =>
+        getSection(keyword).split('\n').map((l: string) => l.trim()).filter((l: string) => l.length > 0);
 
-      // 제목
-      const title = pick([
-        /제\s*목[\s:：]+(.+?)(?=\n|$)/,
-        /보고서[\s:：]+(.+?)(?=\n|$)/,
-      ]);
-
-      // 소속팀
-      const department = pick([
-        /소속\s*팀[\s:：]+([가-힣A-Za-z]+팀)/,
-        /([가-힣]+운용팀|[가-힣]+지원팀|[가-힣]+계획팀|[가-힣]+관제팀)/,
-      ]);
-
-      // 운전자/성명
-      const reporterName = pick([
-        /운전자[\s:：]+([가-힣]{2,5})\s/,
-        /기\s*안\s*자[\s:：]+([가-힣]{2,5})\s/,
-        /성\s*명[\s:：]+([가-힣]{2,5})\s/,
-        /사\s*고\s*자[\s:：]+([가-힣]{2,5})\s/,
-      ]);
-
-      // 직급
-      const reporterPosition = pick([
-        /직\s*급[\s:：]+([가-힣A-Za-z0-9]+(?:급|원|장|대|리)?)/,
-        /직\s*위[\s:：]+([가-힣A-Za-z0-9]+(?:급|원|장|대|리)?)/,
-      ]);
-
-      // 차량정보
-      const vehicleInfo = pick([
-        /차종[\/\/]?차량번호[\s:：]+([^\n]+?)(?=\n|동승자|소속)/,
-        /차\s*량[\s:：]+([^\n]+?)(?=\n)/,
-      ]);
-
-      // 동승자
-      const companion = pick([
-        /동\s*승\s*자[\s:：]+([가-힣A-Za-z없음]+?)(?=\s*소속|\s*\n)/,
-        /동\s*승\s*자[\s:：]+([^\n]{1,20})/,
-      ]);
-
-      // 발생일시
+      // ── 발생일시 ──
       let occurredAt = '';
-      const dtPatterns = [
-        /발생\s*일\s*시[\s:：]+(\d{4})[.\-년]\s*(\d{1,2})[.\-월]\s*(\d{1,2})[.\-일]?\s+(\d{1,2})[:시]\s*(\d{2})분?/,
-        /(\d{4})[.\-](\d{1,2})[.\-](\d{1,2})\s+(\d{1,2}):(\d{2})/,
-      ];
-      for (const p of dtPatterns) {
-        const m = fullText.match(p);
-        if (m) {
-          const [, yr, mo, day, hr, min] = m;
-          occurredAt = `${yr}-${mo.padStart(2,'0')}-${day.padStart(2,'0')}T${hr.padStart(2,'0')}:${min.padStart(2,'0')}`;
-          break;
+      const dtM = fullText.match(/발생\s*일\s*시[\s:：]*(\d{4})[.\s년]*(\d{1,2})[.\s월]*(\d{1,2}).*?(\d{1,2})\s*시\s*(\d{2})\s*분/);
+      if (dtM) {
+        const [, yr, mo, dy, hr, mi] = dtM;
+        occurredAt = `${yr}-${mo.padStart(2,'0')}-${dy.padStart(2,'0')}T${hr.padStart(2,'0')}:${mi.padStart(2,'0')}`;
+      }
+
+      // ── 사고자 인적사항 테이블 파싱 ──
+      // mammoth는 테이블을 셀별로 줄바꿈으로 추출 → 헤더 5개(성명/직위/소속부서/동행자/차종차량번호) 다음에 데이터 5개
+      let reporterName = '', reporterPosition = '', department = '', companion = '', vehicleInfo = '';
+      const infoSec = sectionLines('사고자 인적사항');
+      // 마지막 헤더 "차종" 이후가 데이터
+      const lastHeaderIdx = infoSec.findIndex((l: string) => l.includes('차종') || l.includes('차량번호'));
+      if (lastHeaderIdx >= 0 && infoSec.length > lastHeaderIdx + 1) {
+        const data = infoSec.slice(lastHeaderIdx + 1);
+        reporterName     = data[0] || '';
+        reporterPosition = data[1] || '';
+        department       = data[2] || '';
+        companion        = (data[3] === '-' || data[3] === '−') ? '' : (data[3] || '');
+        vehicleInfo      = data[4] || '';
+      }
+      // fallback: 직접 패턴
+      if (!reporterName)     { const m = fullText.match(/성\s*명[^\n]*\n([가-힣]{2,5})/); if (m) reporterName = m[1]; }
+      if (!reporterPosition) { const m = fullText.match(/직\s*위[^\n]*\n([가-힣A-Za-z]+)/); if (m) reporterPosition = m[1]; }
+      if (!department)       { const m = fullText.match(/소속\s*부서[^\n]*\n([가-힣A-Za-z]+팀)/); if (m) department = m[1]; }
+      if (!department)       { const m = fullText.match(/([가-힣]+(?:운용|지원|계획|관제)팀)/); if (m) department = m[1]; }
+      if (!vehicleInfo)      { const m = fullText.match(/차종\/차량번호[^\n]*\n([^\n]+)/); if (m) vehicleInfo = m[1].trim(); }
+
+      // ── 경과 및 조치사항 테이블 파싱 ──
+      // 테이블 셀 순서: NO, 시간, 내용 헤더(3개) → 이후 숫자, HH:MM, 내용 반복
+      const progressItems: Array<{ no: number; time: string; content: string }> = [];
+      const progressSec = sectionLines('경과 및 조치');
+      // 헤더 행 제거(NO, 시간, 내용)
+      const progDataLines = progressSec.filter((l: string) =>
+        l !== 'NO' && l !== '시간' && l !== '내용' && l !== 'no'
+      );
+      let pi = 0;
+      while (pi < progDataLines.length) {
+        const numLine = progDataLines[pi];
+        const isNum = /^\d+\.?$/.test(numLine);
+        if (isNum) {
+          const timeCandidate = progDataLines[pi + 1] || '';
+          const timeMatch = timeCandidate.match(/^(\d{1,2}:\d{2})$/);
+          if (timeMatch) {
+            const content = progDataLines[pi + 2] || '';
+            if (content.length > 1) {
+              progressItems.push({ no: progressItems.length + 1, time: timeMatch[1], content });
+              pi += 3;
+              continue;
+            }
+          }
+          // 시간이 숫자와 같은 줄에 붙어있는 경우 (예: "115:19")
+          const combined = numLine;
+          const combinedMatch = combined.match(/^\d+(\.?)\s*(\d{1,2}:\d{2})$/);
+          if (combinedMatch) {
+            const content = progDataLines[pi + 1] || '';
+            if (content.length > 1) {
+              progressItems.push({ no: progressItems.length + 1, time: combinedMatch[2], content });
+              pi += 2;
+              continue;
+            }
+          }
+        }
+        // 시간+내용이 같은 줄 패턴 (HH:MM 내용)
+        const inlineMatch = numLine.match(/^(\d{1,2}:\d{2})\s+(.+)$/);
+        if (inlineMatch) {
+          progressItems.push({ no: progressItems.length + 1, time: inlineMatch[1], content: inlineMatch[2] });
+          pi++;
+          continue;
+        }
+        pi++;
+      }
+      // fallback: 전체 텍스트에서 HH:MM 패턴으로 수집
+      if (progressItems.length === 0) {
+        const allLines = lines;
+        for (let li = 0; li < allLines.length; li++) {
+          const tm = allLines[li].match(/^(\d{1,2}:\d{2})$/);
+          if (tm && li + 1 < allLines.length && allLines[li + 1].length > 3) {
+            progressItems.push({ no: progressItems.length + 1, time: tm[1], content: allLines[li + 1] });
+          }
         }
       }
 
-      // 발생장소
-      const location = pick([
-        /발생\s*장\s*소[\s:：]+([^\n]+?)(?=\n|$)/,
-      ]);
+      // ── 사고 개요 ──
+      const overviewLines = sectionLines('사고 개요');
+      const accidentOverview = overviewLines.join('\n');
 
-      // 사고내용 (다. 사고내용 또는 사고 경위)
-      let accidentOverview = '';
-      const overviewPatterns = [
-        /다\.\s*사고\s*내용\s*\n([\s\S]+?)(?=\n라\.|1\)\s*사고|$)/,
-        /사고\s*경위[\s:：]*\n([\s\S]+?)(?=\n원인|\n재발|$)/,
-        /사고\s*개요[\s:：]*\n([\s\S]+?)(?=\n원인|\n재발|$)/,
-      ];
-      for (const p of overviewPatterns) {
-        const m = fullText.match(p);
-        if (m?.[1]) {
-          accidentOverview = m[1]
-            .split('\n')
-            .map((l: string) => l.trim())
-            .filter((l: string) => l.length > 1)
-            .join('\n• ')
-            .trim();
-          if (accidentOverview) break;
-        }
-      }
+      // ── 사고원인 상세 ──
+      const causeLines = sectionLines('사고원인');
+      const causeDetail = causeLines.join(' ').trim();
 
-      // 사고원인 상세
-      const causeDetail = pick([
-        /사고\s*원인[\s:：]*\n([\s\S]{5,300}?)(?=\n재발|$)/,
-        /원\s*인[\s:：]+([^\n]{5,200})/,
-      ]);
+      // ── 사고방지대책 ──
+      const preventionLines = sectionLines('사고방지대책');
+      const preventionPlan = preventionLines.join('\n');
 
-      // 재발방지
-      const preventionPlan = pick([
-        /재발\s*방지[\s\S]*?\n([\s\S]{5,300}?)(?=\n[가-힣●※]|$)/,
-        /사고자\s*다짐[\s:：]*\n([\s\S]{5,300}?)(?=\n|$)/,
-      ]);
+      // ── 제목 구성 ──
+      const dateStr = occurredAt ? occurredAt.split('T')[0] : '';
+      const title = [department, vehicleInfo ? `차량사고(${vehicleInfo.split('/')[1] || vehicleInfo})` : '사고경위서', dateStr].filter(Boolean).join(' ');
 
-      // 사고유형 추정
+      // ── 사고유형 ──
       let accidentType = '교통사고';
-      if (/추락/.test(fullText)) accidentType = '추락';
-      else if (/전도/.test(fullText) && !/추락/.test(fullText)) accidentType = '전도';
+      if (/추락/.test(fullText) && !/추락 사고/.test('')) accidentType = '추락';
       else if (/협착/.test(fullText)) accidentType = '협착';
       else if (/감전/.test(fullText)) accidentType = '감전';
       else if (/화재|폭발/.test(fullText)) accidentType = '화재/폭발';
-      else if (/충돌/.test(fullText) && !/교통|차량/.test(fullText)) accidentType = '충돌';
+      else if (/추돌|충돌|교통|차량사고|차량 사고/.test(fullText)) accidentType = '교통사고';
 
-      // 사고원인분류 (차량사고일 때)
+      // ── 사고원인분류 ──
       let cause = '';
-      if (accidentType === '교통사고') {
-        if (/전방\s*주시\s*태만|전방주시/.test(fullText)) cause = '전방주시 태만';
-        else if (/안전\s*거리\s*미확보|안전거리/.test(fullText)) cause = '안전거리 미확보';
-        else if (/개인\s*부주의/.test(fullText)) cause = '개인 부주의';
-        else if (/불안전한\s*행동/.test(fullText)) cause = '불안전한 행동';
-        else cause = '개인 부주의';
-      } else {
-        if (/불안전한\s*행동/.test(fullText)) cause = '불안전한 행동';
-        else if (/불안전한\s*상태/.test(fullText)) cause = '불안전한 상태';
-        else if (/관리적\s*요인/.test(fullText)) cause = '관리적 요인';
-      }
+      const causeText = fullText;
+      if (/전방\s*주시\s*태만/.test(causeText) && /안전\s*거리\s*미확보/.test(causeText)) cause = '전방주시 태만';
+      else if (/전방\s*주시\s*태만/.test(causeText)) cause = '전방주시 태만';
+      else if (/안전\s*거리\s*미확보/.test(causeText)) cause = '안전거리 미확보';
+      else if (/개인\s*부주의/.test(causeText)) cause = '개인 부주의';
+      else if (/불안전한\s*행동/.test(causeText)) cause = '불안전한 행동';
+      else if (accidentType === '교통사고') cause = '개인 부주의';
 
-      // 과실율 (교통사고)
+      // ── 과실율 ──
       let faultRate: number | undefined;
       if (accidentType === '교통사고') {
-        const frMatch = fullText.match(/(?:과실율|과실률|과실\s*비율|본인\s*과실)[\s:：]*(\d{1,3})\s*%?/);
-        if (frMatch) faultRate = Number(frMatch[1]);
-        else faultRate = 100; // 기본값
+        const frM = fullText.match(/(?:과실율|과실률|과실\s*비율|본인\s*과실)[\s:：]*(\d{1,3})\s*%?/);
+        faultRate = frM ? Number(frM[1]) : 100;
       }
 
-      // 경과 및 조치사항 (시간대별 분리)
-      const progressItems: Array<{ no: number; time: string; content: string }> = [];
-      const timeBlockPattern = /(\d{1,2}:\d{2})[^\n]*([^\n]+)/g;
-      let tbMatch;
-      let idx = 0;
-      while ((tbMatch = timeBlockPattern.exec(fullText)) !== null && idx < 10) {
-        const timeStr = tbMatch[1];
-        const content = tbMatch[2]?.trim() || '';
-        if (content.length > 3) {
-          progressItems.push({ no: idx + 1, time: timeStr, content });
-          idx++;
+      // ── 발생장소: 사고 개요에서 추출 ──
+      let location = '';
+      const locM = accidentOverview.match(/([가-힣]+구\s+[가-힣\s\d]+(?:교차로|네거리|앞|부근|도로|거리|길)[^\n,。.]*)/);
+      if (locM) location = locM[1].trim();
+
+      // ── 이미지 캡션 추출 (별첨 섹션의 텍스트 라벨) ──
+      const imageCaptionLabels: string[] = [];
+      const annexIdx = fullText.indexOf('별첨');
+      if (annexIdx >= 0) {
+        const afterAnnex = fullText.slice(annexIdx);
+        const captionCandidates = afterAnnex.split('\n')
+          .map((l: string) => l.trim())
+          .filter((l: string) => l.length > 1 && l.length < 40 && !/별첨|작성자|년|월|일/.test(l) && /[가-힣]/.test(l));
+        imageCaptionLabels.push(...captionCandidates.slice(0, 10));
+      }
+      // 캡션이 없으면 기본값
+      const defaultCaptions = ['사고 현장', '피해사진_1', '피해사진_2', '상대차량', '피해사진_3', '피해사진_4', '피해사진_5'];
+
+      // ── 이미지 업로드 ──
+      const imageUrls: string[] = [];
+      const imageCaptions: string[] = [];
+      for (let i = 0; i < Math.min(imageBuffers.length, 10); i++) {
+        const ext = imageMimeTypes[i]?.includes('png') ? '.png' : '.jpg';
+        const filename = `accident-docx-img-${Date.now()}-${i}${ext}`;
+        const objUrl = await uploadToObjectStorage(imageBuffers[i], filename, imageMimeTypes[i] || 'image/jpeg');
+        if (objUrl) {
+          imageUrls.push(objUrl);
+          imageCaptions.push(imageCaptionLabels[i] || defaultCaptions[i] || `사진 ${i + 1}`);
         }
       }
-      // 시간 항목이 없으면 overview 분리
-      if (progressItems.length === 0 && accidentOverview) {
-        const segs = accidentOverview.split(/\n[•·]?\s*/).map((s: string) => s.replace(/^[•·]\s*/, '').trim()).filter((s: string) => s.length > 2);
-        segs.forEach((seg: string, i: number) => {
-          const tm = seg.match(/(\d{1,2}:\d{2})/);
-          progressItems.push({ no: i + 1, time: tm ? tm[1] : (i === 0 && occurredAt ? occurredAt.replace('T', ' ') : ''), content: seg });
-        });
-      }
 
-      res.json({ title, department, reporterName, reporterPosition, vehicleInfo, companion, occurredAt, location, accidentOverview, causeDetail, preventionPlan, accidentType, cause, faultRate, progressItems });
+      res.json({ title, department, reporterName, reporterPosition, vehicleInfo, companion, occurredAt, location, accidentOverview, causeDetail, preventionPlan, accidentType, cause, faultRate, progressItems, imageUrls, imageCaptions });
     } catch (err: any) {
       console.error('사고보고 Word 파싱 오류:', err);
       res.status(500).json({ message: 'Word 파싱에 실패했습니다: ' + (err?.message || '') });

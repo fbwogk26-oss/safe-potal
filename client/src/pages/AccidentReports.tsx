@@ -221,6 +221,9 @@ export default function AccidentReports() {
         cause: parsed.cause || prev.cause,
         faultRate: parsed.faultRate ?? prev.faultRate,
         images: parsed.imageUrls?.length ? [...prev.images, ...parsed.imageUrls] : prev.images,
+        imageCaptions: parsed.imageUrls?.length
+          ? [...prev.imageCaptions, ...(parsed.imageCaptions?.length ? parsed.imageCaptions : parsed.imageUrls.map((_: string, i: number) => `사진 ${prev.images.length + i + 1}`))]
+          : prev.imageCaptions,
       }));
       if (parsed.progressItems?.length) {
         setProgressItems(parsed.progressItems);
