@@ -219,6 +219,9 @@ export default function AccidentReports() {
         accidentType: parsed.accidentType || prev.accidentType,
         images: parsed.imageUrls?.length ? [...prev.images, ...parsed.imageUrls] : prev.images,
       }));
+      if (parsed.accidentOverview) {
+        setProgressItems([{ no: 1, time: parsed.occurredAt ? parsed.occurredAt.replace("T", " ") : "", content: parsed.accidentOverview }]);
+      }
       toast({ title: "PDF에서 정보를 불러왔습니다. 내용을 확인하고 수정하세요." });
     } catch (err: any) {
       toast({ variant: "destructive", title: "PDF 불러오기 실패", description: err?.message || "" });
