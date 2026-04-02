@@ -18,7 +18,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { AlertTriangle, BarChart3, Plus, Pencil, Trash2, Download, Upload, X, Camera, PenTool } from "lucide-react";
+import { AlertTriangle, BarChart3, Plus, Pencil, Trash2, Download, Upload, X, Camera, PenTool, FileText, Loader2 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell, PieChart, Pie, Legend,
@@ -27,7 +27,6 @@ import {
 const ACCIDENT_TYPES = ["추락", "전도", "충돌", "협착", "감전", "화재/폭발", "교통사고", "기타"];
 const CAUSES = ["불안전한 행동", "불안전한 상태", "관리적 요인", "환경적 요인", "기타"];
 const SEVERITIES = ["경미", "보통", "중대", "사망"];
-const STATUSES = ["접수", "조사중", "조치완료", "종결"];
 const DEPARTMENTS = ["동대구운용팀", "서대구운용팀", "남대구운용팀", "포항운용팀", "안동운용팀", "구미운용팀", "문경운용팀", "운용지원팀", "운용계획팀", "사업지원팀", "현장경영팀", "공공망관제팀"];
 
 const SEVERITY_COLORS: Record<string, string> = {
@@ -35,13 +34,6 @@ const SEVERITY_COLORS: Record<string, string> = {
   "보통": "bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400",
   "중대": "bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-900/30 dark:text-orange-400",
   "사망": "bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400",
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  "접수": "bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-900/30 dark:text-gray-400",
-  "조사중": "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400",
-  "조치완료": "bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400",
-  "종결": "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-900/30 dark:text-slate-400",
 };
 
 const CHART_COLORS = ["#6366f1", "#ec4899", "#f59e0b", "#10b981", "#8b5cf6", "#06b6d4", "#f97316", "#14b8a6"];
@@ -63,7 +55,6 @@ const emptyForm = {
   location: "",
   description: "",
   injuredPerson: "",
-  status: "접수",
   reporterName: "",
   reporterPosition: "",
   companion: "",
@@ -198,7 +189,43 @@ export default function AccidentReports() {
   const [progressItems, setProgressItems] = useState<ProgressItem[]>([{ no: 1, time: "", content: "" }]);
   const [showSignaturePad, setShowSignaturePad] = useState(false);
   const [uploadingPhotos, setUploadingPhotos] = useState(false);
+  const [isPdfParsing, setIsPdfParsing] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const accidentPdfRef = useRef<HTMLInputElement>(null);
+
+  const handleAccidentPdfImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    setIsPdfParsing(true);
+    try {
+      const fd = new FormData();
+      fd.append("pdf", file);
+      const res = await fetch("/api/accidents/parse-pdf", { method: "POST", body: fd, credentials: "include" });
+      if (!res.ok) throw new Error(await res.text());
+      const parsed = await res.json();
+      setForm(prev => ({
+        ...prev,
+        title: parsed.title || prev.title,
+        department: parsed.department || prev.department,
+        reporterName: parsed.reporterName || prev.reporterName,
+        vehicleInfo: parsed.vehicleInfo || prev.vehicleInfo,
+        companion: parsed.companion || prev.companion,
+        occurredAt: parsed.occurredAt || prev.occurredAt,
+        location: parsed.location || prev.location,
+        accidentOverview: parsed.accidentOverview || prev.accidentOverview,
+        causeDetail: parsed.causeDetail || prev.causeDetail,
+        preventionPlan: parsed.preventionPlan || prev.preventionPlan,
+        accidentType: parsed.accidentType || prev.accidentType,
+        images: parsed.imageUrls?.length ? [...prev.images, ...parsed.imageUrls] : prev.images,
+      }));
+      toast({ title: "PDF에서 정보를 불러왔습니다. 내용을 확인하고 수정하세요." });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "PDF 불러오기 실패", description: err?.message || "" });
+    } finally {
+      setIsPdfParsing(false);
+    }
+  };
 
   const { data: reports = [], isLoading } = useQuery<AccidentReport[]>({
     queryKey: ["/api/accidents"],
@@ -282,7 +309,6 @@ export default function AccidentReports() {
       location: report.location || "",
       description: report.description,
       injuredPerson: report.injuredPerson || "",
-      status: report.status,
       reporterName: report.reporterName || "",
       reporterPosition: report.reporterPosition || "",
       companion: report.companion || "",
@@ -308,7 +334,7 @@ export default function AccidentReports() {
     const submitData = {
       ...form,
       description: form.accidentOverview || form.description || "",
-      status: form.status || "접수",
+      status: "접수",
       progressDetails: JSON.stringify(progressItems.filter(p => p.time || p.content)),
       imageCaptions: JSON.stringify(form.imageCaptions),
     };
@@ -512,7 +538,6 @@ export default function AccidentReports() {
                             <TableHead>유형</TableHead>
                             <TableHead>심각도</TableHead>
                             <TableHead>부서</TableHead>
-                            <TableHead>상태</TableHead>
                             <TableHead className="w-[140px]" />
                           </TableRow>
                         </TableHeader>
@@ -530,11 +555,6 @@ export default function AccidentReports() {
                                 </Badge>
                               </TableCell>
                               <TableCell data-testid={`text-dept-${report.id}`}>{report.department}</TableCell>
-                              <TableCell>
-                                <Badge variant="outline" className={STATUS_COLORS[report.status] || ""} data-testid={`badge-status-${report.id}`}>
-                                  {report.status}
-                                </Badge>
-                              </TableCell>
                               <TableCell>
                                 <div className="flex items-center gap-1">
                                   {canDownloadAccidentReport && (
@@ -594,10 +614,10 @@ export default function AccidentReports() {
                         <p className="text-white/60 text-xs mt-0.5">건 발생</p>
                       </div>
                       <div className="ml-auto text-right hidden sm:block">
-                        <p className="text-white/60 text-[11px]">조사중</p>
-                        <p className="text-2xl font-black text-white">{reports2026.filter(r => r.status === "조사중").length}</p>
-                        <p className="text-white/60 text-[11px] mt-2">종결</p>
-                        <p className="text-2xl font-black text-white">{reports2026.filter(r => r.status === "종결").length}</p>
+                        <p className="text-white/60 text-[11px]">교통사고</p>
+                        <p className="text-2xl font-black text-white">{reports2026.filter(r => r.accidentType === "교통사고").length}</p>
+                        <p className="text-white/60 text-[11px] mt-2">산업재해</p>
+                        <p className="text-2xl font-black text-white">{reports2026.filter(r => r.accidentType !== "교통사고").length}</p>
                       </div>
                     </CardContent>
                   </Card>
@@ -864,7 +884,25 @@ export default function AccidentReports() {
       <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) closeDialog(); }}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editingId ? "사고보고 수정" : "사고보고 등록 (경위서 양식)"}</DialogTitle>
+            <div className="flex items-center justify-between gap-3">
+              <DialogTitle>{editingId ? "사고보고 수정" : "사고보고 등록 (경위서 양식)"}</DialogTitle>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-2 border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-400 dark:hover:bg-blue-950 shrink-0"
+                onClick={() => accidentPdfRef.current?.click()}
+                disabled={isPdfParsing}
+                data-testid="button-import-accident-pdf"
+              >
+                {isPdfParsing ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" />PDF 분석중...</>
+                ) : (
+                  <><FileText className="w-4 h-4" />PDF 불러오기</>
+                )}
+              </Button>
+              <input ref={accidentPdfRef} type="file" accept=".pdf" className="hidden" onChange={handleAccidentPdfImport} />
+            </div>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="space-y-2">

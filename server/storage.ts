@@ -56,6 +56,7 @@ export interface IStorage {
   getSafetyInspections(): Promise<SafetyInspection[]>;
   getSafetyInspection(id: number): Promise<SafetyInspection | undefined>;
   createSafetyInspection(inspection: InsertSafetyInspection): Promise<SafetyInspection>;
+  updateSafetyInspection(id: number, updates: Partial<InsertSafetyInspection>): Promise<SafetyInspection>;
   deleteSafetyInspection(id: number): Promise<void>;
 
   // Education Sessions
@@ -244,6 +245,11 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
   
+  async updateSafetyInspection(id: number, updates: Partial<InsertSafetyInspection>): Promise<SafetyInspection> {
+    const [updated] = await db.update(safetyInspections).set(updates).where(eq(safetyInspections.id, id)).returning();
+    return updated;
+  }
+
   async deleteSafetyInspection(id: number): Promise<void> {
     await db.delete(safetyInspections).where(eq(safetyInspections.id, id));
   }

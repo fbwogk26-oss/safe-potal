@@ -1377,6 +1377,25 @@ export async function registerRoutes(
     }
   });
 
+  app.put("/api/safety-inspections/:id", requireEditor, async (req: any, res) => {
+    const id = Number(req.params.id);
+    const existing = await storage.getSafetyInspection(id);
+    if (!existing) return res.status(404).json({ message: "Not found" });
+    if (!isOwnerOrAdmin(req, existing.createdBy)) return res.status(403).json({ message: "본인이 작성한 점검만 수정할 수 있습니다" });
+    const { inspectionType, title, location, inspector, workerName, inspectionDate, checklist, notes, images } = req.body;
+    try {
+      const updated = await storage.updateSafetyInspection(id, {
+        inspectionType, title, location, inspector, workerName, inspectionDate,
+        checklist: checklist || existing.checklist,
+        notes, images: images || existing.images,
+      });
+      res.json(updated);
+    } catch (err) {
+      console.error("Update inspection error:", err);
+      res.status(500).json({ message: "Failed to update inspection" });
+    }
+  });
+
   app.delete("/api/safety-inspections/:id", requireEditor, async (req: any, res) => {
     const id = Number(req.params.id);
     const existing = await storage.getSafetyInspection(id);
@@ -2473,6 +2492,111 @@ export async function registerRoutes(
       }
     }
     res.json({ imageUrls: urls });
+  });
+
+  // === 사고보고 PDF 파싱 ===
+  const accidentPdfUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
+  app.post('/api/accidents/parse-pdf', isAuthenticated, accidentPdfUpload.single('pdf'), async (req: any, res: any) => {
+    if (!req.file) return res.status(400).json({ message: "PDF 파일이 필요합니다" });
+    try {
+      const pdfBuffer: Buffer = req.file.buffer;
+      const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
+      const pathMod = await import('path');
+      const workerSrc = 'file://' + pathMod.default.resolve('./node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs');
+      (pdfjsLib as any).GlobalWorkerOptions.workerSrc = workerSrc;
+      const uint8 = new Uint8Array(pdfBuffer);
+      const pdfDoc = await pdfjsLib.getDocument({ data: uint8 }).promise;
+      let text = '';
+      for (let p = 1; p <= pdfDoc.numPages; p++) {
+        const page = await pdfDoc.getPage(p);
+        const tc = await page.getTextContent();
+        text += tc.items.map((it: any) => it.str).join(' ') + '\n';
+      }
+      const fullText = text.replace(/\s+/g, ' ');
+
+      // 제목 (제 목 이후)
+      let title = '';
+      const titleMatch = fullText.match(/제\s*목\s+([^\n]+?)(?=\s+<사고|1\.\s*사고자|$)/);
+      if (titleMatch) title = titleMatch[1].trim();
+
+      // 소속팀
+      let department = '';
+      const deptMatch = fullText.match(/소속팀\s+([가-힣A-Za-z]+팀)/);
+      if (deptMatch) department = deptMatch[1].trim();
+
+      // 운전자 / 기안자
+      let reporterName = '';
+      const driverMatch = fullText.match(/운전자\s+([가-힣]{2,4})\s+소속팀/);
+      if (driverMatch) reporterName = driverMatch[1].trim();
+      else {
+        const drafterMatch = fullText.match(/기\s*안\s*자\s+([가-힣]{2,4})/);
+        if (drafterMatch) reporterName = drafterMatch[1].trim();
+      }
+
+      // 차종/차량번호
+      let vehicleInfo = '';
+      const vehicleMatch = fullText.match(/차종[\/\/]차량번호\s+([^\n]+?)(?=\s+2\.\s*사고|\s+동승자|$)/);
+      if (vehicleMatch) vehicleInfo = vehicleMatch[1].trim();
+
+      // 동승자
+      let companion = '';
+      const companionMatch = fullText.match(/동승자\s+([가-힣A-Za-z없음]+)\s+소속파트/);
+      if (companionMatch) companion = companionMatch[1].trim();
+
+      // 발생일시
+      let occurredAt = '';
+      const dtMatch = fullText.match(/발생일시\s+(\d{4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일\s+(\d{1,2})\s*시\s+(\d{1,2})\s*분/);
+      if (dtMatch) {
+        const [, yr, mo, day, hr, min] = dtMatch;
+        occurredAt = `${yr}-${mo.padStart(2,'0')}-${day.padStart(2,'0')}T${hr.padStart(2,'0')}:${min.padStart(2,'0')}`;
+      }
+
+      // 발생장소
+      let location = '';
+      const locMatch = fullText.match(/발생장소\s+(.+?)(?=\s+다\.|$)/);
+      if (locMatch) location = locMatch[1].trim();
+
+      // 사고내용 (다. 사고내용 → 1) 사고당시업무 전까지)
+      let accidentOverview = '';
+      const overviewMatch = fullText.match(/다\.\s*사고내용\s+(.+?)(?=\s+1\)\s*사고당시업무|라\.|$)/);
+      if (overviewMatch) accidentOverview = overviewMatch[1].replace(/ㅇ\s*/g, '\n• ').trim();
+
+      // 사고전후상황 (원인)
+      let causeDetail = '';
+      const causeMatch = fullText.match(/2\)\s*사고전후상황\s+(.+?)(?=\s+라\s|마\.|$)/);
+      if (causeMatch) causeDetail = causeMatch[1].trim();
+
+      // 재발방지계획 (사고자 다짐)
+      let preventionPlan = '';
+      const preventionMatch = fullText.match(/사고자\s*다짐\s+(.+?)(?=●|첨부|$)/);
+      if (preventionMatch) preventionPlan = preventionMatch[1].trim();
+
+      // 사고유형 추정
+      let accidentType = '교통사고';
+      if (/추락/.test(fullText)) accidentType = '추락';
+      else if (/전도/.test(fullText)) accidentType = '전도';
+      else if (/협착/.test(fullText)) accidentType = '협착';
+      else if (/감전/.test(fullText)) accidentType = '감전';
+      else if (/화재|폭발/.test(fullText)) accidentType = '화재/폭발';
+      else if (/충돌/.test(fullText)) accidentType = '충돌';
+      else if (/차량|교통|추돌/.test(fullText)) accidentType = '교통사고';
+
+      // 이미지 추출
+      const imageUrls: string[] = [];
+      try {
+        const jpegBuffers = extractJpegsFromBuffer(pdfBuffer);
+        for (let i = 0; i < Math.min(jpegBuffers.length, 10); i++) {
+          const filename = `accident-pdf-img-${Date.now()}-${i}.jpg`;
+          const objUrl = await uploadToObjectStorage(jpegBuffers[i], filename, 'image/jpeg');
+          if (objUrl) imageUrls.push(objUrl);
+        }
+      } catch {}
+
+      res.json({ title, department, reporterName, vehicleInfo, companion, occurredAt, location, accidentOverview, causeDetail, preventionPlan, accidentType, imageUrls });
+    } catch (err: any) {
+      console.error('사고보고 PDF 파싱 오류:', err);
+      res.status(500).json({ message: 'PDF 파싱에 실패했습니다: ' + (err?.message || '') });
+    }
   });
 
   app.get('/api/accidents/:id/download-docx', requireEditor, async (req: any, res) => {

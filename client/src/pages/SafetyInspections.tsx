@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ClipboardCheck, Plus, Trash2, ImagePlus, X, Calendar, MapPin, User, ChevronDown, ChevronUp, Download, Check, AlertCircle, BarChart3, Settings, FileText, Loader2 } from "lucide-react";
+import { ClipboardCheck, Plus, Trash2, ImagePlus, X, Calendar, MapPin, User, ChevronDown, ChevronUp, Download, Check, AlertCircle, BarChart3, Settings, FileText, Loader2, Pencil } from "lucide-react";
 import { useState, useRef, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -87,6 +87,8 @@ export default function SafetyInspections() {
     onError: () => toast({ variant: "destructive", title: "저장 실패" }),
   });
   
+  const [editingId, setEditingId] = useState<number | null>(null);
+
   const createMutation = useMutation({
     mutationFn: async (data: {
       inspectionType: string;
@@ -105,6 +107,17 @@ export default function SafetyInspections() {
       queryClient.invalidateQueries({ queryKey: ["/api/safety-inspections"] });
       resetForm();
       toast({ title: "점검 등록 완료" });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: any }) => {
+      return apiRequest("PUT", `/api/safety-inspections/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/safety-inspections"] });
+      resetForm();
+      toast({ title: "점검 수정 완료" });
     },
   });
   
@@ -156,6 +169,7 @@ export default function SafetyInspections() {
     setNotes("");
     setImages([]);
     setShowForm(false);
+    setEditingId(null);
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -273,8 +287,7 @@ export default function SafetyInspections() {
     }
     
     const title = workContent ? `${department} - ${workContent}` : department;
-    
-    createMutation.mutate({
+    const payload = {
       inspectionType,
       title,
       location: location || undefined,
@@ -284,7 +297,32 @@ export default function SafetyInspections() {
       checklist,
       notes: notes || undefined,
       images,
-    });
+    };
+
+    if (editingId !== null) {
+      updateMutation.mutate({ id: editingId, data: payload });
+    } else {
+      createMutation.mutate(payload);
+    }
+  };
+
+  const handleEdit = (inspection: any) => {
+    const titleParts = inspection.title?.split(" - ") || [];
+    const dept = titleParts[0] || "";
+    const work = titleParts.slice(1).join(" - ") || "";
+    setInspectionType(inspection.inspectionType || "안전점검");
+    setDepartment(inspection.department || dept);
+    setWorkContent(inspection.workContent || work);
+    setLocation(inspection.location || "");
+    setInspector(inspection.inspector || "");
+    setWorkerName(inspection.workerName || "");
+    setInspectionDate(inspection.inspectionDate || format(new Date(), "yyyy-MM-dd"));
+    setChecklist(normalizeChecklist(inspection.checklist));
+    setNotes(inspection.notes || "");
+    setImages(inspection.images || []);
+    setEditingId(inspection.id);
+    setShowForm(true);
+    setTimeout(() => window.scrollTo({ top: 0, behavior: "smooth" }), 100);
   };
 
   const handleDelete = (id: number) => {
@@ -832,7 +870,7 @@ export default function SafetyInspections() {
             <Card className="glass-card overflow-hidden border-green-200 dark:border-green-900/30">
               <CardHeader className="pb-4">
                 <div className="flex items-center justify-between gap-3">
-                  <CardTitle className="text-lg">점검 등록</CardTitle>
+                  <CardTitle className="text-lg">{editingId !== null ? "점검 수정" : "점검 등록"}</CardTitle>
                   <Button
                     type="button"
                     variant="outline"
@@ -1058,11 +1096,11 @@ export default function SafetyInspections() {
                   </Button>
                   <Button
                     onClick={handleSubmit}
-                    disabled={createMutation.isPending || !department}
+                    disabled={createMutation.isPending || updateMutation.isPending || !department}
                     className="bg-green-600 hover:bg-green-700 text-white"
                     data-testid="button-submit-inspection"
                   >
-                    {createMutation.isPending ? "등록 중..." : "점검 등록"}
+                    {(createMutation.isPending || updateMutation.isPending) ? "처리 중..." : editingId !== null ? "수정 완료" : "점검 등록"}
                   </Button>
                 </div>
               </CardContent>
@@ -1135,18 +1173,32 @@ export default function SafetyInspections() {
                       <div className="flex items-center gap-0.5 shrink-0">
                         {isExpanded ? <ChevronUp className="w-3.5 h-3.5 text-muted-foreground" /> : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />}
                         {canEditInspections && (!inspection.createdBy || user?.role === "admin" || user?.username === inspection.createdBy) && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 opacity-0 group-hover:opacity-100"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDelete(inspection.id);
-                            }}
-                            data-testid={`button-delete-${inspection.id}`}
-                          >
-                            <Trash2 className="w-3.5 h-3.5 text-destructive" />
-                          </Button>
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 opacity-0 group-hover:opacity-100"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEdit(inspection);
+                              }}
+                              data-testid={`button-edit-${inspection.id}`}
+                            >
+                              <Pencil className="w-3.5 h-3.5 text-blue-500" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 opacity-0 group-hover:opacity-100"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDelete(inspection.id);
+                              }}
+                              data-testid={`button-delete-${inspection.id}`}
+                            >
+                              <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                            </Button>
+                          </>
                         )}
                       </div>
                     </div>
