@@ -1703,6 +1703,23 @@ export default function EducationLogs() {
                               </div>
                             </div>
                             <div className="flex items-center gap-1 shrink-0">
+                              <Button
+                                size="icon"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const firstSession = group.sessions[0];
+                                  if (!firstSession) return;
+                                  const url = `${window.location.origin}/sign/${firstSession.id}`;
+                                  navigator.clipboard.writeText(url).then(() => {
+                                    toast({ title: "서명 링크가 복사되었습니다.", description: "참석자들에게 링크를 공유하세요." });
+                                  });
+                                }}
+                                data-testid={`button-group-sign-url-${group.key}`}
+                                title="서명 링크 복사"
+                                className="h-8 w-8 rounded-full bg-red-500 hover:bg-red-600 text-white border-0 shrink-0"
+                              >
+                                <Link2 className="w-4 h-4" />
+                              </Button>
                               {canDownloadEducationExcel && (
                                 <Button variant="ghost" size="icon"
                                   disabled={excelDownloading}
