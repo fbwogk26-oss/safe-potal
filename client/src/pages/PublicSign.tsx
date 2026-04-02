@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { GraduationCap, PenTool, CheckCircle2, Users, Calendar, BookOpen, Loader2, X } from "lucide-react";
+import { GraduationCap, PenTool, CheckCircle2, Users, Calendar, BookOpen, Loader2, X, Info } from "lucide-react";
 
 const DEPARTMENTS = [
   "동대구운용팀", "서대구운용팀", "남대구운용팀", "포항운용팀",
@@ -169,6 +169,8 @@ export default function PublicSign() {
     refetchInterval: 10000,
   });
 
+  const deptDiffers = !!session && !!signerDept && signerDept !== session.department;
+
   const signMutation = useMutation({
     mutationFn: async () => {
       const res = await fetch(`/api/public/education/${id}/sign`, {
@@ -322,6 +324,17 @@ export default function PublicSign() {
                   </Select>
                 </div>
               </div>
+
+              {deptDiffers && (
+                <div className="flex items-start gap-2 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 p-3 text-xs text-blue-700 dark:text-blue-300">
+                  <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                  <span>
+                    소속팀이 <strong>{signerDept}</strong>으로 선택되어, 해당 팀 교육 세션에 서명이 등록됩니다.
+                    <br />
+                    <span className="text-blue-500 dark:text-blue-400">(같은 교육명·날짜의 {signerDept} 세션이 없으면 이 세션에 등록됩니다.)</span>
+                  </span>
+                </div>
+              )}
 
               <div className="space-y-1.5">
                 <Label className="text-xs font-medium flex items-center gap-1">

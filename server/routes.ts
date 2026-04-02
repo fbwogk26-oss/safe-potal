@@ -1851,23 +1851,37 @@ export async function registerRoutes(
         signatureData: z.string().min(1, "서명을 입력해주세요"),
       });
       const parsed = sigSchema.parse(req.body);
-      const sessionId = Number(req.params.id);
-      const session = await storage.getEducationSession(sessionId);
-      if (!session) return res.status(404).json({ message: "교육 세션을 찾을 수 없습니다." });
-      const existing = await storage.getSignaturesBySession(sessionId);
+      const originalSessionId = Number(req.params.id);
+      const originalSession = await storage.getEducationSession(originalSessionId);
+      if (!originalSession) return res.status(404).json({ message: "교육 세션을 찾을 수 없습니다." });
+
+      // 소속팀이 다르면 같은 교육명+날짜의 해당 팀 세션을 찾아서 거기에 등록
+      let targetSessionId = originalSessionId;
+      const signerDept = parsed.signerDepartment || "";
+      if (signerDept && signerDept !== originalSession.department) {
+        const allSessions = await storage.getEducationSessions();
+        const matched = allSessions.find(s =>
+          s.title === originalSession.title &&
+          s.educationDate === originalSession.educationDate &&
+          s.department === signerDept
+        );
+        if (matched) targetSessionId = matched.id;
+      }
+
+      const existing = await storage.getSignaturesBySession(targetSessionId);
       const alreadySigned = existing.some(
-        s => s.signerName === parsed.signerName && s.signerDepartment === (parsed.signerDepartment || "")
+        s => s.signerName === parsed.signerName && s.signerDepartment === signerDept
       );
       if (alreadySigned) {
         return res.status(400).json({ message: "이미 서명을 등록하셨습니다. 한 사람당 한 번만 서명할 수 있습니다." });
       }
       const signature = await storage.createSignature({
-        sessionId,
+        sessionId: targetSessionId,
         signerName: parsed.signerName,
-        signerDepartment: parsed.signerDepartment || "",
+        signerDepartment: signerDept,
         signatureData: parsed.signatureData,
       });
-      res.status(201).json(signature);
+      res.status(201).json({ ...signature, resolvedSessionId: targetSessionId });
     } catch (err: any) {
       if (err?.name === "ZodError") return res.status(400).json({ message: err.errors?.[0]?.message || "입력값 오류" });
       res.status(500).json({ message: "서명 등록에 실패했습니다." });
