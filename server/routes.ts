@@ -3,6 +3,7 @@ import type { Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
+import rateLimit from "express-rate-limit";
 import { db } from "./db";
 import { teams, trafficFines, accidentReports, educationSignatures } from "@shared/schema";
 import { eq, and, count } from "drizzle-orm";
@@ -1843,12 +1844,21 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/public/education/:id/sign", async (req: any, res) => {
+  const publicSignLimiter = rateLimit({
+    windowMs: 10 * 60 * 1000,
+    max: 20,
+    message: { message: "요청이 너무 많습니다. 잠시 후 다시 시도해주세요." },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  app.post("/api/public/education/:id/sign", publicSignLimiter, async (req: any, res) => {
     try {
+      const MAX_SIGNATURE_SIZE = 500 * 1024;
       const sigSchema = z.object({
-        signerName: z.string().min(1, "이름을 입력해주세요"),
-        signerDepartment: z.string().optional().default(""),
-        signatureData: z.string().min(1, "서명을 입력해주세요"),
+        signerName: z.string().min(1, "이름을 입력해주세요").max(50, "이름은 50자 이내로 입력해주세요"),
+        signerDepartment: z.string().max(100).optional().default(""),
+        signatureData: z.string().min(1, "서명을 입력해주세요").max(MAX_SIGNATURE_SIZE, "서명 데이터가 너무 큽니다."),
       });
       const parsed = sigSchema.parse(req.body);
       const originalSessionId = Number(req.params.id);
