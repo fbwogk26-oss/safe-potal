@@ -4169,7 +4169,7 @@ workers 배열은 실제 작업자 명단이며, supervisor는 KT/KTMOS 측 감�
 
       const company = parsed.company || "하도급 업체";
       const items: any[] = parsed.items || [];
-      const subject = `[요청] ${displayDate} 입회작업 TBM / 순회점검 등록요청(${company}(하도급) 작업 포함)`;
+      const subject = `[요청] ${displayDate} 입회작업 TBM / 순회점검 등록요청`;
 
       // 가이드 이미지 base64
       let guideB64 = "";
