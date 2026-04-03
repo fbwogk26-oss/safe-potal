@@ -3977,7 +3977,120 @@ export async function registerRoutes(
     }
   });
 
-  // 붙여넣기 데이터로 작업계획 저장
+  // 하도급 메일 파싱 → 작업계획 초안 생성
+  app.post('/api/work-plans/parse-subcontract-email', isAuthenticated, async (req: any, res) => {
+    try {
+      const { emailText } = req.body;
+      if (!emailText || typeof emailText !== 'string' || emailText.trim().length < 10) {
+        return res.status(400).json({ message: "메일 내용을 입력해주세요." });
+      }
+
+      const OpenAI = (await import("openai")).default;
+      const aiClient = new OpenAI({
+        apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+        baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+      });
+
+      const systemPrompt = `당신은 하도급 업체가 보낸 작업일정 이메일을 파싱하여 
+표준화된 작업계획 통보 이메일 초안을 작성하는 전문 AI입니다.
+
+이메일에서 아래 정보를 추출하세요:
+- 발신 업체명
+- 작업일자
+- 지역별 작업 목록 (각 항목: 지역, 작업내용, 시간, 국소명, 주소, 작업자정보, MOS감독자)
+
+그리고 아래 형식의 JSON만 반환하세요 (마크다운 없이):
+{
+  "company": "업체명",
+  "workDate": "YY.MM.DD",
+  "items": [
+    {
+      "region": "지역명(예: 포항)",
+      "workType": "작업내용",
+      "time": "HH:MM~HH:MM",
+      "locationName": "국소명",
+      "address": "주소",
+      "workers": ["이름 직책 연락처", ...],
+      "supervisor": "감독자 이름 연락처"
+    }
+  ]
+}`;
+
+      const response = await aiClient.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: `다음 하도급 업체 작업일정 이메일을 파싱해주세요:\n\n${emailText}` }
+        ],
+        temperature: 0,
+        max_tokens: 2000,
+      });
+
+      const rawJson = response.choices[0].message.content?.trim() || "{}";
+      let parsed: any = {};
+      try {
+        const cleaned = rawJson.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+        parsed = JSON.parse(cleaned);
+      } catch {
+        return res.status(500).json({ message: "AI 파싱에 실패했습니다. 메일 형식을 확인해주세요." });
+      }
+
+      // 지역별로 그룹화
+      const byRegion: Record<string, typeof parsed.items> = {};
+      for (const item of (parsed.items || [])) {
+        const r = item.region || "기타";
+        if (!byRegion[r]) byRegion[r] = [];
+        byRegion[r].push(item);
+      }
+
+      // 날짜 포맷 (YY.MM.DD → 20YY.MM.DD)
+      const workDate = parsed.workDate || "";
+      const fullDate = workDate.startsWith("20") ? workDate : workDate ? `20${workDate}` : "작업일";
+
+      // 이메일 초안 생성
+      const lines: string[] = [];
+      lines.push(`안녕하십니까. 현장경영팀입니다.`);
+      lines.push(``);
+      lines.push(`${parsed.company || "하도급 업체"} ${fullDate} 작업일정을 아래와 같이 안내 드립니다.`);
+      lines.push(``);
+      lines.push(`◈ 안전 주의사항`);
+      lines.push(` - TBM 실시 후 작업 시작`);
+      lines.push(` - 고소작업 시 안전장비 착용 필수`);
+      lines.push(` - 작업 전/후 MOS 순회점검 등록 필수`);
+      lines.push(``);
+
+      for (const [region, items] of Object.entries(byRegion)) {
+        lines.push(`════════════════════════════════`);
+        lines.push(`[${region}운용팀]`);
+        lines.push(`════════════════════════════════`);
+        (items as any[]).forEach((item: any, idx: number) => {
+          lines.push(`${idx + 1}. ${item.workType} (${item.time})`);
+          if (item.locationName) lines.push(`   - 국소명: ${item.locationName}`);
+          if (item.address) lines.push(`   - 주소: ${item.address}`);
+          if (item.workers && item.workers.length > 0) {
+            lines.push(`   - 작업자: ${item.workers.join(" / ")}`);
+          }
+          if (item.supervisor) lines.push(`   - MOS감독자: ${item.supervisor}`);
+          lines.push(``);
+        });
+      }
+
+      lines.push(`════════════════════════════════`);
+      lines.push(``);
+      lines.push(`★ 입회자 변경, 작업 취소 등 변경사항 발생 시 즉시 연락 부탁드립니다. ★`);
+      lines.push(``);
+      lines.push(`감사합니다.`);
+
+      const emailDraft = lines.join("\n");
+      const subject = `[입회작업 안내] ${fullDate} ${parsed.company || ""} 하도급 작업일정`;
+
+      res.json({ parsed, emailDraft, subject });
+    } catch (error: any) {
+      console.error("[parse-subcontract-email error]", error);
+      res.status(500).json({ message: error?.message || "처리에 실패했습니다." });
+    }
+  });
+
   app.post('/api/work-plans/from-paste', isAuthenticated, async (req: any, res) => {
     try {
       const { rows, title, emailDraft } = req.body;

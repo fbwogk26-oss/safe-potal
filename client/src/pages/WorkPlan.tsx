@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   Upload, FileSpreadsheet, Download, Trash2, CalendarCheck,
-  Clock, CheckCircle2, X, Loader2, ClipboardPaste, Copy, Check
+  Clock, CheckCircle2, X, Loader2, ClipboardPaste, Copy, Check, Mail, Wand2, MapPin, Users, User
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -181,7 +181,7 @@ export default function WorkPlan() {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [mode, setMode] = useState<"paste" | "file">("paste");
+  const [mode, setMode] = useState<"paste" | "file" | "subcontract">("paste");
   const [isDragOver, setIsDragOver] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
@@ -199,6 +199,12 @@ export default function WorkPlan() {
   // 생성된 초안 및 복사 상태
   const [generatedDraft, setGeneratedDraft] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+
+  // 하도급 메일 파싱
+  const [subEmailText, setSubEmailText] = useState("");
+  const [subResult, setSubResult] = useState<{ parsed: any; emailDraft: string; subject: string } | null>(null);
+  const [subCopied, setSubCopied] = useState(false);
+  const [subCopiedDraft, setSubCopiedDraft] = useState(false);
 
   // 가이드 이미지 base64 (컴포넌트 마운트 시 미리 로드)
   const [guideImageDataUrl, setGuideImageDataUrl] = useState<string | undefined>(undefined);
@@ -390,6 +396,59 @@ export default function WorkPlan() {
     }
   };
 
+  // 하도급 메일 파싱 mutation
+  const subEmailMutation = useMutation({
+    mutationFn: async (emailText: string) => {
+      const res = await fetch("/api/work-plans/parse-subcontract-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ emailText }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: "처리 실패" }));
+        throw new Error(err.message || "처리에 실패했습니다");
+      }
+      return res.json() as Promise<{ parsed: any; emailDraft: string; subject: string }>;
+    },
+    onSuccess: (data) => {
+      setSubResult(data);
+      setSubCopied(false);
+      setSubCopiedDraft(false);
+      toast({ title: "초안 생성 완료", description: "하도급 작업계획 이메일 초안이 생성되었습니다." });
+    },
+    onError: (err: any) => {
+      toast({ title: "처리 실패", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const handleSubEmailParse = () => {
+    if (!subEmailText.trim()) {
+      toast({ title: "메일 내용 없음", description: "하도급 업체 메일 내용을 붙여넣어 주세요.", variant: "destructive" });
+      return;
+    }
+    setSubResult(null);
+    subEmailMutation.mutate(subEmailText);
+  };
+
+  const handleCopySubSubject = () => {
+    if (!subResult) return;
+    navigator.clipboard.writeText(subResult.subject).then(() => {
+      setSubCopied(true);
+      toast({ title: "제목 복사됨" });
+      setTimeout(() => setSubCopied(false), 2000);
+    });
+  };
+
+  const handleCopySubDraft = () => {
+    if (!subResult) return;
+    navigator.clipboard.writeText(subResult.emailDraft).then(() => {
+      setSubCopiedDraft(true);
+      toast({ title: "본문 복사됨", description: "이메일에 붙여넣기 하세요." });
+      setTimeout(() => setSubCopiedDraft(false), 2000);
+    });
+  };
+
   const isPending = uploadMutation.isPending || pasteMutation.isPending;
 
   return (
@@ -433,20 +492,33 @@ export default function WorkPlan() {
                   <FileSpreadsheet className="w-3.5 h-3.5" />
                   파일 업로드
                 </button>
+                <button
+                  onClick={() => setMode("subcontract")}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all",
+                    mode === "subcontract" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+                  )}
+                  data-testid="tab-subcontract-mode"
+                >
+                  <Mail className="w-3.5 h-3.5" />
+                  하도급 메일
+                </button>
               </div>
             </CardHeader>
 
             <CardContent className="flex flex-col gap-4">
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="plan-title" className="text-sm font-medium">작업계획 제목</Label>
-                <Input
-                  id="plan-title"
-                  data-testid="input-plan-title"
-                  placeholder="예: 26.03.19(목) 작업계획"
-                  value={planTitle}
-                  onChange={(e) => setPlanTitle(e.target.value)}
-                />
-              </div>
+              {mode !== "subcontract" && (
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="plan-title" className="text-sm font-medium">작업계획 제목</Label>
+                  <Input
+                    id="plan-title"
+                    data-testid="input-plan-title"
+                    placeholder="예: 26.03.19(목) 작업계획"
+                    value={planTitle}
+                    onChange={(e) => setPlanTitle(e.target.value)}
+                  />
+                </div>
+              )}
 
               {/* 붙여넣기 모드 */}
               {mode === "paste" && (
@@ -563,6 +635,129 @@ export default function WorkPlan() {
                       </Button>
                     )}
                   </div>
+                </div>
+              )}
+
+              {/* 하도급 메일 파싱 모드 */}
+              {mode === "subcontract" && (
+                <div className="flex flex-col gap-4">
+                  <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-xs text-amber-800 leading-relaxed">
+                    <p className="font-semibold mb-1">📧 사용 방법</p>
+                    <ol className="list-decimal list-inside space-y-0.5">
+                      <li>하도급 업체에서 받은 작업일정 메일 내용을 아래에 붙여넣기</li>
+                      <li>"초안 생성" 버튼 클릭 → AI가 자동 분석하여 발송용 이메일 초안 생성</li>
+                      <li>제목/본문 복사 후 메일 발송</li>
+                    </ol>
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <Label className="text-sm font-medium">
+                      하도급 업체 메일 내용 붙여넣기
+                      <span className="ml-2 text-xs font-normal text-muted-foreground">(전달받은 메일 본문 전체)</span>
+                    </Label>
+                    <Textarea
+                      data-testid="textarea-subcontract-email"
+                      placeholder={"안녕하십니까.\n스피드이엔지 김태갑 입니다.\n\n26년 04월 06일 작업일정\n\n[포항] 정제파 불량(10:00~12:00)\n  - 국소명: ...\n  ..."}
+                      value={subEmailText}
+                      onChange={(e) => { setSubEmailText(e.target.value); setSubResult(null); }}
+                      rows={10}
+                      className="text-xs resize-y"
+                    />
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button
+                      data-testid="button-parse-subcontract"
+                      onClick={handleSubEmailParse}
+                      disabled={!subEmailText.trim() || subEmailMutation.isPending}
+                      className="flex-1 bg-amber-600 hover:bg-amber-700 text-white"
+                    >
+                      {subEmailMutation.isPending
+                        ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />AI 분석 중...</>
+                        : <><Wand2 className="w-4 h-4 mr-2" />초안 생성</>}
+                    </Button>
+                    {(subEmailText || subResult) && (
+                      <Button variant="outline" size="icon" onClick={() => { setSubEmailText(""); setSubResult(null); }} data-testid="button-reset-sub">
+                        <X className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
+
+                  {/* 생성 결과 */}
+                  {subResult && (
+                    <div className="flex flex-col gap-3 mt-1">
+                      {/* 파싱된 항목 요약 */}
+                      <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3">
+                        <div className="flex items-center gap-2 mb-2">
+                          <CheckCircle2 className="w-4 h-4 text-green-600" />
+                          <span className="text-sm font-semibold text-green-700">
+                            {subResult.parsed.company} | {subResult.parsed.workDate} | 총 {subResult.parsed.items?.length || 0}건
+                          </span>
+                        </div>
+                        <div className="flex flex-col gap-1.5 max-h-48 overflow-y-auto">
+                          {(subResult.parsed.items || []).map((item: any, idx: number) => (
+                            <div key={idx} className="text-xs bg-white rounded border border-green-100 px-3 py-2">
+                              <div className="flex items-center gap-2 font-semibold text-green-800 mb-1">
+                                <MapPin className="w-3 h-3" />
+                                [{item.region}] {item.workType}
+                                <span className="ml-auto text-muted-foreground font-normal">{item.time}</span>
+                              </div>
+                              <div className="text-muted-foreground space-y-0.5">
+                                {item.locationName && <div>국소명: {item.locationName}</div>}
+                                {item.workers && item.workers.length > 0 && (
+                                  <div className="flex items-start gap-1"><Users className="w-3 h-3 mt-0.5 shrink-0" />{item.workers.join(", ")}</div>
+                                )}
+                                {item.supervisor && (
+                                  <div className="flex items-center gap-1"><User className="w-3 h-3 shrink-0" />MOS감독자: {item.supervisor}</div>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* 이메일 제목 */}
+                      <div className="flex flex-col gap-1.5">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-sm font-medium">메일 제목</Label>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs px-2.5"
+                            onClick={handleCopySubSubject}
+                            data-testid="button-copy-sub-subject"
+                          >
+                            {subCopied ? <><Check className="w-3 h-3 mr-1 text-green-600" />복사됨</> : <><Copy className="w-3 h-3 mr-1" />복사</>}
+                          </Button>
+                        </div>
+                        <div className="rounded border bg-muted/30 px-3 py-2 text-sm font-mono select-all">
+                          {subResult.subject}
+                        </div>
+                      </div>
+
+                      {/* 이메일 본문 */}
+                      <div className="flex flex-col gap-1.5">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-sm font-medium">메일 본문</Label>
+                          <Button
+                            size="sm"
+                            className="h-7 text-xs px-2.5 bg-blue-600 hover:bg-blue-700 text-white"
+                            onClick={handleCopySubDraft}
+                            data-testid="button-copy-sub-draft"
+                          >
+                            {subCopiedDraft ? <><Check className="w-3 h-3 mr-1" />복사됨</> : <><Copy className="w-3 h-3 mr-1" />본문 복사</>}
+                          </Button>
+                        </div>
+                        <Textarea
+                          value={subResult.emailDraft}
+                          onChange={(e) => setSubResult(prev => prev ? { ...prev, emailDraft: e.target.value } : prev)}
+                          rows={16}
+                          className="text-xs font-mono resize-y"
+                          data-testid="textarea-sub-draft"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>
