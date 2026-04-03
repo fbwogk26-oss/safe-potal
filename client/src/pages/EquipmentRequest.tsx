@@ -244,6 +244,7 @@ export default function EquipmentRequest() {
     const updatedContent = JSON.stringify({
       ...parsed,
       status: newStatus,
+      ...(newStatus === "지급완료" ? { completedAt: new Date().toISOString() } : {}),
     });
     updateRequest({ id: item.id, title: item.title, content: updatedContent }, {
       onSuccess: () => {
@@ -512,9 +513,9 @@ export default function EquipmentRequest() {
   const pendingReceiptRequests = filteredRequests.filter((item) => {
     const parsed = parseContent(item.content);
     if (parsed.requesterId !== user?.username) return false;
-    if (parsed.status === "수령완료" || parsed.signature) return false;
-    const createdAt = item.createdAt ? new Date(item.createdAt).getTime() : 0;
-    return Date.now() - createdAt > 24 * 60 * 60 * 1000;
+    if (parsed.status !== "지급완료" || parsed.signature) return false;
+    if (!parsed.completedAt) return false;
+    return Date.now() - new Date(parsed.completedAt).getTime() > 48 * 60 * 60 * 1000;
   });
 
   useEffect(() => {
@@ -767,9 +768,9 @@ export default function EquipmentRequest() {
                     ? items.map((i: SelectedItem) => `${i.name}(${i.quantity})`).join(', ')
                     : parsed.text || '-';
                   
-                  const rawStatus = parsed.status || "지급요청";
-                  const currentStatus = rawStatus === "지급완료" ? "지급요청" : rawStatus;
-                  const isCompleted = rawStatus === "수령완료";
+                  const currentStatus = parsed.status || "지급요청";
+                  const isCompleted = currentStatus === "수령완료";
+                  const isAwaitingReceipt = currentStatus === "지급완료";
                   const isMyRequest = parsed.requesterId === user?.username;
                   const statusDisabled = isUpdating || isCompleted || !canManageEquipmentRequests;
 
@@ -795,6 +796,12 @@ export default function EquipmentRequest() {
                               <div className="flex items-center gap-1">
                                 <Clock className="w-3 h-3 text-yellow-600" />
                                 지급요청
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="지급완료">
+                              <div className="flex items-center gap-1">
+                                <AlertCircle className="w-3 h-3 text-blue-600" />
+                                지급완료
                               </div>
                             </SelectItem>
                             <SelectItem value="수령완료" disabled>
@@ -827,7 +834,7 @@ export default function EquipmentRequest() {
                             <Download className="w-3 h-3" />
                             지급대장
                           </Button>
-                        ) : !isCompleted && isMyRequest && !canManageEquipmentRequests ? (
+                        ) : isAwaitingReceipt && isMyRequest && !canManageEquipmentRequests ? (
                           <Button
                             size="sm"
                             className="gap-1 bg-orange-600 hover:bg-orange-700 text-white"
