@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl } from "@shared/routes";
 import type { InsertNotice } from "@shared/schema";
 
-export function useNotices(category?: string) {
+export function useNotices(category?: string, options?: { refetchInterval?: number }) {
   return useQuery({
     queryKey: [api.notices.list.path, category],
     queryFn: async () => {
@@ -14,6 +14,8 @@ export function useNotices(category?: string) {
       if (!res.ok) throw new Error("Failed to fetch notices");
       return api.notices.list.responses[200].parse(await res.json());
     },
+    refetchInterval: options?.refetchInterval,
+    refetchOnWindowFocus: true,
   });
 }
 

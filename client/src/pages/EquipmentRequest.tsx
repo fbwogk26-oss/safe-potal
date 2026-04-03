@@ -65,7 +65,7 @@ export default function EquipmentRequest() {
   const { user } = useAuth();
   const { canManageEquipmentRequests, canAddEquipmentMaterials } = usePermissions();
   const queryClient = useQueryClient();
-  const { data: requests, isLoading } = useNotices("equip_request");
+  const { data: requests, isLoading } = useNotices("equip_request", { refetchInterval: 15000 });
   const { mutate: createRequest, isPending: isCreating } = useCreateNotice();
   const { mutate: deleteRequest } = useDeleteNotice();
   const { mutate: updateRequest, isPending: isUpdating } = useUpdateNotice();
