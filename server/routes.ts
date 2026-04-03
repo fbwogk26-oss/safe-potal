@@ -4066,52 +4066,32 @@ export async function registerRoutes(
       return `<tr>${cells.map(c => `<td style="${tdStyle}">${c}</td>`).join("")}</tr>`;
     }).join("");
 
-    const imgSection = guideB64
-      ? `
-<div style="margin-top:24px;width:100%">
-  <img src="data:image/png;base64,${guideB64}"
-       style="display:block;width:100%;height:auto;border:1px solid #ccc;border-radius:4px;max-width:100% !important;"
-       alt="TBM 활동 사진 등록 가이드" />
-</div>`
+    const imgHtml = guideB64
+      ? `<br><br><div><img src="data:image/png;base64,${guideB64}" style="max-width:900px;width:100%;border:1px solid #ddd" alt="TBM 활동 사진 등록 가이드" /></div>`
       : "";
-
-    const bodyFont = `font-family:맑은고딕,Arial,sans-serif;font-size:14px;line-height:1.7;color:#111;margin:0;padding:12px`;
-
-    return `<!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<style>
-  body { ${bodyFont} }
-  p { margin:4px 0; font-family:맑은고딕,Arial,sans-serif; font-size:14px; line-height:1.7; }
-  .table-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; margin:8px 0; }
-  table { border-collapse:collapse; font-family:맑은고딕,Arial,sans-serif; font-size:13px; background:#fff; min-width:600px; }
-  img { max-width:100% !important; width:100% !important; height:auto !important; display:block; }
-</style>
-</head>
-<body>
-<p>안녕하십니까 현장경영팀입니다.</p>
-<p>&nbsp;</p>
-<p>${displayDate} ${company} 하도급 작업 내 TBM 실시 및 순회점검 등록 요청드립니다.</p>
-<p>&nbsp;</p>
-<p>순회점검 등록방법 확인 필요 시 첨부파일 참조 부탁드리며, TBM 및 순회점검 등록사진 예시 참조하시어 등록 부탁드립니다.</p>
-<p>&nbsp;</p>
-<p style="color:#cc0000;font-weight:bold">★입회자 변경, 작업취소 등 변경사항 있으시면 연락 부탁드립니다.★</p>
-<p>&nbsp;</p>
-<p>문의사항 있으시면 연락 부탁드립니다.</p>
-<p>&nbsp;</p>
-<p>감사합니다</p>
-<p style="margin-top:16px;font-weight:bold">※ ${displayDate} ${company} 작업계획</p>
-<div class="table-wrap">
-<table>
-<thead>${theadHtml}</thead>
-<tbody>${tbodyHtml}</tbody>
-</table>
-</div>
-${imgSection}
-</body>
-</html>`;
+    const p = (text: string, opts?: string) => `<p style="margin:3px 0;font-family:맑은고딕,sans-serif;font-size:12pt;line-height:1.6;${opts || ""}">${text}</p>`;
+    return [
+      `<div style="font-family:맑은고딕,sans-serif;font-size:12pt;line-height:1.6;color:#111">`,
+      p("안녕하십니까 현장경영팀입니다."),
+      `<p style="margin:8px 0"></p>`,
+      p(`${displayDate} ${company} 하도급 작업 내 TBM 실시 및 순회점검 등록 요청드립니다.`),
+      `<p style="margin:8px 0"></p>`,
+      p("순회점검 등록방법 확인 필요 시 첨부파일 참조 부탁드리며, TBM 및 순회점검 등록사진 예시 참조하시어 등록 부탁드립니다."),
+      `<p style="margin:8px 0"></p>`,
+      p("★입회자 변경, 작업취소 등 변경사항 있으시면 연락 부탁드립니다.★", "color:#cc0000;font-weight:bold"),
+      `<p style="margin:8px 0"></p>`,
+      p("문의사항 있으시면 연락 부탁드립니다."),
+      `<p style="margin:8px 0"></p>`,
+      p("감사합니다"),
+      `<p style="margin:16px 0"></p>`,
+      `<p style="margin:8px 0 6px;font-family:맑은고딕,sans-serif;font-size:12pt;font-weight:bold">※ ${displayDate} ${company} 작업계획</p>`,
+      `<table style="border-collapse:collapse;border-spacing:0;font-family:맑은고딕,sans-serif;font-size:13px;background:#fff;table-layout:auto;overflow-wrap:break-word">`,
+      `<thead>${theadHtml}</thead>`,
+      `<tbody>${tbodyHtml}</tbody>`,
+      `</table>`,
+      imgHtml,
+      `</div>`,
+    ].join("\n");
   }
 
   app.post('/api/work-plans/parse-subcontract-email', isAuthenticated, emlUpload.single("emlFile"), async (req: any, res) => {
