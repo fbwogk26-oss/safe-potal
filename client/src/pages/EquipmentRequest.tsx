@@ -511,7 +511,10 @@ export default function EquipmentRequest() {
 
   const pendingReceiptRequests = filteredRequests.filter((item) => {
     const parsed = parseContent(item.content);
-    return parsed.status === "지급완료" && parsed.requesterId === user?.username;
+    if (parsed.requesterId !== user?.username) return false;
+    if (parsed.status === "수령완료" || parsed.signature) return false;
+    const createdAt = item.createdAt ? new Date(item.createdAt).getTime() : 0;
+    return Date.now() - createdAt > 24 * 60 * 60 * 1000;
   });
 
   useEffect(() => {
@@ -690,13 +693,13 @@ export default function EquipmentRequest() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <AlertCircle className="w-5 h-5 text-blue-600" />
-              수령 서명 안내
+              <AlertCircle className="w-5 h-5 text-orange-500" />
+              서명 미완료 알림
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              신청하신 용품이 지급 완료되었습니다. 수령 확인을 위해 서명해주세요.
+              신청하신 용품에 대해 아직 수령 서명이 완료되지 않았습니다. 아래 서명하기 버튼을 눌러 서명을 완료해주세요.
             </p>
             <div className="space-y-2 max-h-60 overflow-y-auto">
               {pendingReceiptRequests.map((item) => {
@@ -764,9 +767,9 @@ export default function EquipmentRequest() {
                     ? items.map((i: SelectedItem) => `${i.name}(${i.quantity})`).join(', ')
                     : parsed.text || '-';
                   
-                  const currentStatus = parsed.status || "지급요청";
-                  const isCompleted = currentStatus === "수령완료";
-                  const isAwaitingReceipt = currentStatus === "지급완료";
+                  const rawStatus = parsed.status || "지급요청";
+                  const currentStatus = rawStatus === "지급완료" ? "지급요청" : rawStatus;
+                  const isCompleted = rawStatus === "수령완료";
                   const isMyRequest = parsed.requesterId === user?.username;
                   const statusDisabled = isUpdating || isCompleted || !canManageEquipmentRequests;
 
@@ -792,12 +795,6 @@ export default function EquipmentRequest() {
                               <div className="flex items-center gap-1">
                                 <Clock className="w-3 h-3 text-yellow-600" />
                                 지급요청
-                              </div>
-                            </SelectItem>
-                            <SelectItem value="지급완료">
-                              <div className="flex items-center gap-1">
-                                <AlertCircle className="w-3 h-3 text-blue-600" />
-                                {isAwaitingReceipt && isMyRequest ? "수령대기" : "지급완료"}
                               </div>
                             </SelectItem>
                             <SelectItem value="수령완료" disabled>
@@ -830,7 +827,7 @@ export default function EquipmentRequest() {
                             <Download className="w-3 h-3" />
                             지급대장
                           </Button>
-                        ) : isAwaitingReceipt && isMyRequest && !canManageEquipmentRequests ? (
+                        ) : !isCompleted && isMyRequest && !canManageEquipmentRequests ? (
                           <Button
                             size="sm"
                             className="gap-1 bg-orange-600 hover:bg-orange-700 text-white"
