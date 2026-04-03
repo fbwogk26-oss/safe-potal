@@ -1085,25 +1085,10 @@ export default function EducationLogs() {
               {selectedSession.title}
             </h2>
             <p className="text-xs text-muted-foreground">
-              {selectedSession.department} / {selectedSession.educationDate}
+              {selectedSession.department} / {selectedSession.educationDate}{selectedSession.educationEndDate && selectedSession.educationEndDate !== selectedSession.educationDate ? ` ~ ${selectedSession.educationEndDate}` : ""}
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                const url = `${window.location.origin}/sign/${selectedSession.id}`;
-                navigator.clipboard.writeText(url).then(() => {
-                  toast({ title: "서명 링크가 복사되었습니다.", description: "참석자들에게 링크를 공유하세요." });
-                });
-              }}
-              className="gap-1.5"
-              data-testid="button-copy-sign-url"
-            >
-              <Link2 className="w-3.5 h-3.5" />
-              서명 링크
-            </Button>
             {canEditLogs && selectedSession.status === "진행중" && (
               <Button
                 variant="outline"
@@ -2046,7 +2031,7 @@ export default function EducationLogs() {
             )}
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-medium text-muted-foreground">교육 내용 / 결과</label>
+                <label className="text-xs font-medium text-muted-foreground">교육 내용</label>
                 <Button
                   type="button"
                   variant="outline"
@@ -2551,12 +2536,12 @@ export default function EducationLogs() {
                   )}
                 </div>
 
-                {/* 교육 내용 / 결과 */}
+                {/* 교육 내용 */}
                 {previewSession.description && (
                   <div>
                     <h3 className="text-sm font-bold flex items-center gap-2 mb-2 text-amber-700 dark:text-amber-400">
                       <FileText className="w-4 h-4" />
-                      교육 내용 / 결과
+                      교육 내용
                     </h3>
                     <div className="p-4 bg-amber-50/60 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30 rounded-xl text-sm whitespace-pre-wrap leading-relaxed text-foreground">
                       {previewSession.description}
