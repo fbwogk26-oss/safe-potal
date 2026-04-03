@@ -4031,45 +4031,60 @@ export async function registerRoutes(
     return texts.join("\n\n");
   }
 
+  function stripPhoneNumbers(text: string): string {
+    return text
+      .replace(/\d{2,4}-\d{3,4}-\d{4}/g, "")
+      .replace(/\d{10,11}/g, "")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+  }
+
   function buildSubcontractHtml(displayDate: string, company: string, items: any[], guideB64: string): string {
-    const thStyle = `border:1px solid #999;padding:5px 8px;background:#f0f0f0;white-space:nowrap;font-size:11px;text-align:center;font-weight:bold`;
-    const tdStyle = `border:1px solid #999;padding:5px 8px;font-size:11px;white-space:nowrap`;
-    const cols = ["지역/부팀", "작업자(협력사)", "공사내용", "작업시작", "작업종료", "국소명", "주소", "MOS감독자"];
+    const thStyle = `border:1px solid #999;padding:7px 10px;background:#f0f0f0;white-space:nowrap;font-size:13px;text-align:center;font-weight:bold`;
+    const tdStyle = `border:1px solid #999;padding:7px 10px;font-size:13px;white-space:nowrap`;
+    const cols = ["부서", "작업자(협력사)", "공사내용", "작업시작", "작업종료", "국소명", "주소", "MOS감독자"];
     const theadHtml = `<tr>${cols.map(c => `<th style="${thStyle}">${c}</th>`).join("")}</tr>`;
     const tbodyHtml = items.map(item => {
       const [startTime = "", endTime = ""] = (item.time || "~").split("~");
+      const region = (item.region || "").trim();
+      const regionLabel = region ? (region.endsWith("운용팀") ? region : `${region}운용팀`) : "";
+      const workersClean = (item.workers || [])
+        .map((w: string) => stripPhoneNumbers(w))
+        .filter(Boolean)
+        .join("<br>");
+      const supervisorClean = stripPhoneNumbers(item.supervisor || "");
       const cells = [
-        item.region || "",
-        (item.workers || []).join("<br>"),
+        regionLabel,
+        workersClean,
         item.workType || "",
         startTime.trim(),
         endTime.trim(),
         item.locationName || "",
         item.address || "",
-        item.supervisor || "",
+        supervisorClean,
       ];
       return `<tr>${cells.map(c => `<td style="${tdStyle}">${c}</td>`).join("")}</tr>`;
     }).join("");
     const imgHtml = guideB64
-      ? `<br><br><div><img src="data:image/png;base64,${guideB64}" style="max-width:700px;width:100%;border:1px solid #ddd" alt="TBM 활동 사진 등록 가이드" /></div>`
+      ? `<br><br><div><img src="data:image/png;base64,${guideB64}" style="max-width:900px;width:100%;border:1px solid #ddd" alt="TBM 활동 사진 등록 가이드" /></div>`
       : "";
-    const p = (text: string, opts?: string) => `<p style="margin:2px 0;font-family:맑은고딕,sans-serif;font-size:10pt;line-height:1.5;${opts || ""}">${text}</p>`;
+    const p = (text: string, opts?: string) => `<p style="margin:3px 0;font-family:맑은고딕,sans-serif;font-size:12pt;line-height:1.6;${opts || ""}">${text}</p>`;
     return [
-      `<div style="font-family:맑은고딕,sans-serif;font-size:10pt;line-height:1.5;color:#111">`,
+      `<div style="font-family:맑은고딕,sans-serif;font-size:12pt;line-height:1.6;color:#111">`,
       p("안녕하십니까 현장경영팀입니다."),
-      `<p style="margin:6px 0"></p>`,
+      `<p style="margin:8px 0"></p>`,
       p(`${displayDate} ${company} 하도급 작업 내 TBM 실시 및 순회점검 등록 요청드립니다.`),
-      `<p style="margin:6px 0"></p>`,
+      `<p style="margin:8px 0"></p>`,
       p("순회점검 등록방법 확인 필요 시 첨부파일 참조 부탁드리며, TBM 및 순회점검 등록사진 예시 참조하시어 등록 부탁드립니다."),
-      `<p style="margin:6px 0"></p>`,
+      `<p style="margin:8px 0"></p>`,
       p("★입회자 변경, 작업취소 등 변경사항 있으시면 연락 부탁드립니다.★", "color:#cc0000;font-weight:bold"),
-      `<p style="margin:6px 0"></p>`,
+      `<p style="margin:8px 0"></p>`,
       p("문의사항 있으시면 연락 부탁드립니다."),
-      `<p style="margin:6px 0"></p>`,
+      `<p style="margin:8px 0"></p>`,
       p("감사합니다"),
-      `<p style="margin:14px 0"></p>`,
-      `<p style="margin:8px 0 4px;font-family:맑은고딕,sans-serif;font-size:10pt;font-weight:bold">※ ${displayDate} ${company} 작업계획</p>`,
-      `<table style="border-collapse:collapse;border-spacing:0;font-family:맑은고딕,sans-serif;font-size:11px;background:#fff;table-layout:fixed;overflow-wrap:break-word">`,
+      `<p style="margin:16px 0"></p>`,
+      `<p style="margin:8px 0 6px;font-family:맑은고딕,sans-serif;font-size:12pt;font-weight:bold">※ ${displayDate} ${company} 작업계획</p>`,
+      `<table style="border-collapse:collapse;border-spacing:0;font-family:맑은고딕,sans-serif;font-size:13px;background:#fff;table-layout:auto;overflow-wrap:break-word">`,
       `<thead>${theadHtml}</thead>`,
       `<tbody>${tbodyHtml}</tbody>`,
       `</table>`,

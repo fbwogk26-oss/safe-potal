@@ -303,9 +303,9 @@ export default function WorkPlan() {
                     </Button>
                   </div>
                   {/* HTML 미리보기 */}
-                  <div className="rounded border overflow-hidden bg-white dark:bg-white" style={{ height: 480 }}>
+                  <div className="rounded border overflow-hidden bg-white dark:bg-white" style={{ height: 640 }}>
                     <iframe
-                      srcDoc={`<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{margin:12px;padding:0;background:#fff}</style></head><body>${result.htmlDraft}</body></html>`}
+                      srcDoc={`<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{margin:16px 20px;padding:0;background:#fff}</style></head><body>${result.htmlDraft}</body></html>`}
                       className="w-full h-full border-0"
                       sandbox="allow-same-origin"
                       title="이메일 미리보기"
