@@ -195,10 +195,12 @@ function ProgressDashboard() {
   }
 
   const totalEducations = progress?.length || 0;
-  const totalParticipants = progress?.reduce((a, b) => a + b.totalParticipants, 0) || 0;
-  const totalSigned = progress?.reduce((a, b) => a + b.totalSigned, 0) || 0;
-  const overallRate = totalParticipants > 0 ? Math.round((totalSigned / totalParticipants) * 100) : 0;
   const completedAll = progress?.filter(p => p.progressRate === 100).length || 0;
+  const inProgress = progress?.filter(p => p.progressRate > 0 && p.progressRate < 100).length || 0;
+  const completionRate = totalEducations > 0 ? Math.round((completedAll / totalEducations) * 100) : 0;
+
+  // 가장 최근 미완료 교육
+  const latestIncomplete = progress?.find(p => p.progressRate < 100);
 
   const toggleExpand = (key: string) => {
     setExpandedKey(prev => prev === key ? null : key);
@@ -217,25 +219,49 @@ function ProgressDashboard() {
         <Card>
           <CardContent className="p-3 sm:p-4 text-center">
             <CheckCircle2 className="w-5 h-5 mx-auto mb-1 text-emerald-500" />
-            <p className="text-[11px] text-muted-foreground">완료</p>
+            <p className="text-[11px] text-muted-foreground">서명완료</p>
             <p className="text-xl font-bold text-emerald-600" data-testid="text-completed-educations">{completedAll}건</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-3 sm:p-4 text-center">
-            <Users className="w-5 h-5 mx-auto mb-1 text-purple-500" />
-            <p className="text-[11px] text-muted-foreground">서명 현황</p>
-            <p className="text-xl font-bold text-purple-600" data-testid="text-sign-status">{totalSigned}/{totalParticipants}</p>
+            <Clock className="w-5 h-5 mx-auto mb-1 text-amber-500" />
+            <p className="text-[11px] text-muted-foreground">서명진행중</p>
+            <p className="text-xl font-bold text-amber-600" data-testid="text-in-progress">{inProgress}건</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-3 sm:p-4 text-center">
-            <TrendingUp className="w-5 h-5 mx-auto mb-1 text-amber-500" />
-            <p className="text-[11px] text-muted-foreground">전체 진행율</p>
-            <p className="text-xl font-bold text-amber-600" data-testid="text-overall-rate">{overallRate}%</p>
+            <TrendingUp className="w-5 h-5 mx-auto mb-1 text-indigo-500" />
+            <p className="text-[11px] text-muted-foreground">완료율</p>
+            <p className="text-xl font-bold text-indigo-600" data-testid="text-overall-rate">{completionRate}%</p>
           </CardContent>
         </Card>
       </div>
+
+      {latestIncomplete && (
+        <Card className="border-amber-200 dark:border-amber-800/40 bg-amber-50/50 dark:bg-amber-900/10">
+          <CardContent className="p-3 sm:p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] font-semibold text-amber-600 mb-0.5 uppercase tracking-wide">서명 진행중인 교육</p>
+                <p className="text-sm font-bold text-foreground truncate">{latestIncomplete.title}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{latestIncomplete.educationDate} · {latestIncomplete.totalDepartments}개 부서</p>
+              </div>
+              <div className="text-right shrink-0">
+                <p className="text-2xl font-bold text-amber-600">{latestIncomplete.progressRate}%</p>
+                <p className="text-[10px] text-muted-foreground">{latestIncomplete.totalSigned}/{latestIncomplete.totalParticipants}명 서명</p>
+              </div>
+            </div>
+            <div className="w-full bg-amber-200/60 dark:bg-amber-800/30 rounded-full h-2 overflow-hidden mt-3">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-amber-400 to-orange-400"
+                style={{ width: `${latestIncomplete.progressRate}%` }}
+              />
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader className="bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-indigo-900/20 dark:to-blue-900/20 border-b p-3 sm:p-4">
@@ -1985,12 +2011,49 @@ export default function EducationLogs() {
               </div>
             )}
             <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">교육 내용</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-medium text-muted-foreground">교육 내용 / 결과</label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-6 text-[10px] px-2 gap-1 text-indigo-600 border-indigo-200 hover:bg-indigo-50"
+                  onClick={() => {
+                    const depts = selectedDepts.length > 0 ? selectedDepts.join(", ") : "-";
+                    const participants = selectedDepts.length === 1
+                      ? (deptParticipants[selectedDepts[0]] || newParticipants || "-")
+                      : selectedDepts.length > 1
+                        ? `부서별 상이`
+                        : newParticipants || "-";
+                    const template =
+`▶ 교육명: ${newTitle || "(미입력)"}
+▶ 교육일자: ${newDate}
+▶ 교육유형: ${newType}
+▶ 강사: ${newInstructor || "-"}
+▶ 교육대상: ${depts}
+▶ 교육인원: ${participants}명
+
+▶ 교육 내용
+  - ${newType} 안전보건 교육 실시
+  - 관련 법령 및 사내 안전 수칙 교육
+  - 위험 요소 및 예방 대책 안내
+  - 사고 발생 시 대처 방법 교육
+
+▶ 특이사항
+  -`;
+                    setNewDescription(template);
+                  }}
+                  data-testid="button-auto-fill-description"
+                >
+                  <FileText className="w-2.5 h-2.5" />
+                  양식 자동작성
+                </Button>
+              </div>
               <Textarea
-                placeholder="교육 내용 설명..."
+                placeholder="교육 내용을 직접 입력하거나 '양식 자동작성'을 눌러 자동으로 채워보세요."
                 value={newDescription}
                 onChange={e => setNewDescription(e.target.value)}
-                className="min-h-[80px]"
+                className="min-h-[100px] text-sm"
                 data-testid="input-session-description"
               />
             </div>
@@ -2329,138 +2392,163 @@ export default function EducationLogs() {
         </DialogContent>
       </Dialog>
 
-      {/* 교육 결과 미리보기 팝업 */}
+      {/* 교육 결과 미리보기 팝업 - 출석표 형식 */}
       <Dialog open={!!previewSession} onOpenChange={(open) => { if (!open) { setPreviewSession(null); setPreviewPhotoIndex(null); } }}>
-        <DialogContent className="sm:max-w-3xl max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
-          <DialogHeader className="px-6 pt-5 pb-4 border-b bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 shrink-0">
-            <DialogTitle className="flex items-center gap-2 text-base">
-              <GraduationCap className="w-5 h-5 text-indigo-600" />
-              교육 결과 보기
+        <DialogContent className="sm:max-w-2xl max-h-[92vh] flex flex-col p-0 gap-0 overflow-hidden">
+          {/* Header */}
+          <DialogHeader className="px-5 pt-5 pb-3 border-b bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-indigo-900/20 dark:to-blue-900/20 shrink-0">
+            <DialogTitle className="flex items-center gap-2 text-sm font-bold">
+              <GraduationCap className="w-4 h-4 text-indigo-600" />
+              {previewSession?.title || ""} — 교육 결과
             </DialogTitle>
             {previewSession && (
-              <div className="mt-1 space-y-0.5">
-                <p className="text-sm font-semibold text-foreground">{previewSession.title}</p>
-                <p className="text-xs text-muted-foreground">
-                  {previewSession.department} · {previewSession.educationDate} · {previewSession.educationType}
-                </p>
+              <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-[11px] text-muted-foreground mt-0.5">
+                <span>□ 시행일시: <strong className="text-foreground">{previewSession.educationDate}</strong></span>
+                <span>□ 부서명: <strong className="text-foreground">{previewSession.department}</strong></span>
+                <span>□ 교육유형: <strong className="text-foreground">{previewSession.educationType}</strong></span>
+                {previewSession.instructor && <span>□ 강사: <strong className="text-foreground">{previewSession.instructor}</strong></span>}
               </div>
             )}
           </DialogHeader>
 
           {previewSession && (
-            <div className="flex-1 overflow-y-auto p-5 space-y-6">
-              {/* 요약 카드 */}
-              <div className="grid grid-cols-3 gap-3">
-                <div className="rounded-xl bg-blue-50 dark:bg-blue-900/20 p-3 text-center">
-                  <p className="text-[10px] text-muted-foreground mb-0.5">총 인원</p>
-                  <p className="text-xl font-bold text-blue-600">{previewSession.totalParticipants}명</p>
+            <div className="flex-1 overflow-y-auto">
+              {/* 요약 바 */}
+              <div className="flex items-center gap-4 px-5 py-3 border-b bg-muted/20 text-sm">
+                <div className="flex items-center gap-1.5">
+                  <Users className="w-4 h-4 text-blue-500" />
+                  <span className="text-muted-foreground">총 인원</span>
+                  <span className="font-bold text-blue-600">{previewSession.totalParticipants}명</span>
                 </div>
-                <div className="rounded-xl bg-emerald-50 dark:bg-emerald-900/20 p-3 text-center">
-                  <p className="text-[10px] text-muted-foreground mb-0.5">서명 완료</p>
-                  <p className="text-xl font-bold text-emerald-600">{previewSignatures?.length ?? 0}명</p>
+                <div className="flex items-center gap-1.5">
+                  <PenTool className="w-4 h-4 text-emerald-500" />
+                  <span className="text-muted-foreground">서명 완료</span>
+                  <span className="font-bold text-emerald-600">{previewSignatures?.length ?? 0}명</span>
                 </div>
-                <div className="rounded-xl bg-purple-50 dark:bg-purple-900/20 p-3 text-center">
-                  <p className="text-[10px] text-muted-foreground mb-0.5">참석률</p>
-                  <p className="text-xl font-bold text-purple-600">
+                <div className="flex items-center gap-1.5 ml-auto">
+                  <span className={`text-lg font-bold ${
+                    ((previewSignatures?.length ?? 0) / Math.max(previewSession.totalParticipants, 1) * 100) >= 80
+                      ? "text-emerald-600" : ((previewSignatures?.length ?? 0) / Math.max(previewSession.totalParticipants, 1) * 100) >= 50
+                      ? "text-amber-600" : "text-red-500"
+                  }`}>
                     {previewSession.totalParticipants > 0
                       ? Math.round(((previewSignatures?.length ?? 0) / previewSession.totalParticipants) * 100)
                       : 0}%
-                  </p>
+                  </span>
+                  <div className="w-24 bg-muted rounded-full h-2 overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-emerald-400 to-emerald-600 rounded-full"
+                      style={{ width: `${previewSession.totalParticipants > 0 ? Math.round(((previewSignatures?.length ?? 0) / previewSession.totalParticipants) * 100) : 0}%` }}
+                    />
+                  </div>
                 </div>
               </div>
 
-              {/* 참석자 명단 (서명) */}
-              <div>
-                <h3 className="text-sm font-bold flex items-center gap-2 mb-3">
-                  <PenTool className="w-4 h-4 text-emerald-600" />
-                  참석자 서명 명단
-                  <span className="text-xs font-normal text-muted-foreground">({previewSignatures?.length ?? 0}명 서명)</span>
-                </h3>
-                {previewSignatures && previewSignatures.length > 0 ? (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                    {previewSignatures.map((sig, idx) => (
-                      <motion.div
-                        key={sig.id}
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ delay: idx * 0.03 }}
-                        className="border rounded-lg overflow-hidden bg-card shadow-sm"
-                        data-testid={`preview-sig-${sig.id}`}
-                      >
-                        <div className="bg-muted/20 p-1.5">
-                          <img
-                            src={sig.signatureData}
-                            alt={`${sig.signerName} 서명`}
-                            className="w-full h-14 object-contain"
-                          />
-                        </div>
-                        <div className="p-2 text-center border-t">
-                          <p className="text-xs font-semibold truncate">{sig.signerName}</p>
-                          {sig.signerDepartment && (
-                            <p className="text-[10px] text-muted-foreground truncate">{sig.signerDepartment}</p>
-                          )}
-                        </div>
-                      </motion.div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="py-8 text-center text-muted-foreground border-2 border-dashed rounded-xl">
-                    <PenTool className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                    <p className="text-sm">서명 내역이 없습니다.</p>
-                  </div>
-                )}
-              </div>
-
-              {/* 교육 사진 */}
-              <div>
-                <h3 className="text-sm font-bold flex items-center gap-2 mb-3">
-                  <Camera className="w-4 h-4 text-indigo-600" />
-                  교육 사진
-                  <span className="text-xs font-normal text-muted-foreground">({(previewSession.images || []).length}장)</span>
-                </h3>
-                {(previewSession.images || []).length > 0 ? (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    {(previewSession.images || []).map((img, idx) => (
-                      <div
-                        key={idx}
-                        className="relative group overflow-hidden rounded-xl border cursor-pointer"
-                        onClick={() => setPreviewPhotoIndex(idx)}
-                        data-testid={`preview-photo-${idx}`}
-                      >
-                        <img
-                          src={img}
-                          alt={`교육 사진 ${idx + 1}`}
-                          className="w-full h-36 object-cover group-hover:scale-105 transition-transform duration-200"
-                        />
-                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                          <Eye className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                        </div>
-                        <div className="absolute bottom-1.5 right-1.5 bg-black/50 text-white text-[10px] px-1.5 py-0.5 rounded">
-                          {idx + 1}/{(previewSession.images || []).length}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="py-8 text-center text-muted-foreground border-2 border-dashed rounded-xl">
-                    <Camera className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                    <p className="text-sm">등록된 사진이 없습니다.</p>
-                  </div>
-                )}
-              </div>
-
-              {/* 교육 내용 */}
-              {previewSession.description && (
+              <div className="p-5 space-y-5">
+                {/* 참석자 출석표 - 테이블 형식 */}
                 <div>
-                  <h3 className="text-sm font-bold flex items-center gap-2 mb-2">
-                    <FileText className="w-4 h-4 text-amber-600" />
-                    교육 내용
+                  <h3 className="text-sm font-bold flex items-center gap-2 mb-3 text-indigo-700 dark:text-indigo-400">
+                    <PenTool className="w-4 h-4" />
+                    참석자 서명 명단
                   </h3>
-                  <div className="p-4 bg-muted/30 rounded-xl text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
-                    {previewSession.description}
-                  </div>
+                  {previewSignatures && previewSignatures.length > 0 ? (
+                    <div className="border rounded-lg overflow-hidden">
+                      {/* 테이블 헤더 */}
+                      <div className="grid grid-cols-[40px_1fr_140px] bg-indigo-50 dark:bg-indigo-900/30 border-b">
+                        <div className="px-3 py-2 text-center text-xs font-bold text-muted-foreground border-r">순번</div>
+                        <div className="px-3 py-2 text-xs font-bold text-muted-foreground border-r">이름</div>
+                        <div className="px-3 py-2 text-center text-xs font-bold text-muted-foreground">서명</div>
+                      </div>
+                      {/* 참석자 행 */}
+                      {previewSignatures.map((sig, idx) => (
+                        <div
+                          key={sig.id}
+                          className={`grid grid-cols-[40px_1fr_140px] border-b last:border-b-0 ${idx % 2 === 0 ? "bg-white dark:bg-card" : "bg-muted/20"}`}
+                          data-testid={`preview-sig-row-${sig.id}`}
+                        >
+                          <div className="px-3 py-2.5 text-center text-sm text-muted-foreground border-r font-mono">{idx + 1}</div>
+                          <div className="px-3 py-2.5 border-r">
+                            <p className="text-sm font-semibold">{sig.signerName}</p>
+                            {sig.signerDepartment && (
+                              <p className="text-[10px] text-muted-foreground">{sig.signerDepartment}</p>
+                            )}
+                          </div>
+                          <div className="px-2 py-1.5 flex items-center justify-center">
+                            <img
+                              src={sig.signatureData}
+                              alt={`${sig.signerName} 서명`}
+                              className="max-h-10 max-w-[120px] object-contain"
+                            />
+                          </div>
+                        </div>
+                      ))}
+                      {/* 빈 행 (서명 안 한 인원 수만큼) */}
+                      {Array.from({ length: Math.max(0, previewSession.totalParticipants - (previewSignatures?.length ?? 0)) }).map((_, idx) => (
+                        <div
+                          key={`empty-${idx}`}
+                          className={`grid grid-cols-[40px_1fr_140px] border-b last:border-b-0 ${(previewSignatures.length + idx) % 2 === 0 ? "bg-white dark:bg-card" : "bg-muted/20"}`}
+                        >
+                          <div className="px-3 py-2.5 text-center text-sm text-muted-foreground/50 border-r font-mono">{(previewSignatures?.length ?? 0) + idx + 1}</div>
+                          <div className="px-3 py-2.5 border-r">
+                            <div className="h-4 w-24 bg-muted/40 rounded" />
+                          </div>
+                          <div className="px-2 py-1.5" />
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="py-10 text-center text-muted-foreground border-2 border-dashed rounded-xl">
+                      <PenTool className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                      <p className="text-sm">아직 서명한 참석자가 없습니다.</p>
+                    </div>
+                  )}
                 </div>
-              )}
+
+                {/* 교육 내용 / 결과 */}
+                {previewSession.description && (
+                  <div>
+                    <h3 className="text-sm font-bold flex items-center gap-2 mb-2 text-amber-700 dark:text-amber-400">
+                      <FileText className="w-4 h-4" />
+                      교육 내용 / 결과
+                    </h3>
+                    <div className="p-4 bg-amber-50/60 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30 rounded-xl text-sm whitespace-pre-wrap leading-relaxed text-foreground">
+                      {previewSession.description}
+                    </div>
+                  </div>
+                )}
+
+                {/* 교육 사진 */}
+                {(previewSession.images || []).length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-bold flex items-center gap-2 mb-3 text-indigo-700 dark:text-indigo-400">
+                      <Camera className="w-4 h-4" />
+                      교육 사진 <span className="font-normal text-xs text-muted-foreground">({(previewSession.images || []).length}장)</span>
+                    </h3>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      {(previewSession.images || []).map((img, idx) => (
+                        <div
+                          key={idx}
+                          className="relative group overflow-hidden rounded-xl border cursor-pointer"
+                          onClick={() => setPreviewPhotoIndex(idx)}
+                          data-testid={`preview-photo-${idx}`}
+                        >
+                          <img
+                            src={img}
+                            alt={`교육 사진 ${idx + 1}`}
+                            className="w-full h-32 object-cover group-hover:scale-105 transition-transform duration-200"
+                          />
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                            <Eye className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </div>
+                          <div className="absolute bottom-1 right-1 bg-black/50 text-white text-[10px] px-1.5 py-0.5 rounded">
+                            {idx + 1}/{(previewSession.images || []).length}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </DialogContent>
