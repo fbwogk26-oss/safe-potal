@@ -863,9 +863,6 @@ export default function SafetyInspections() {
                           </Bar>
                           <Bar dataKey="동행점검" stackId="a" fill="#10b981" radius={[4, 4, 0, 0]}>
                             <LabelList dataKey="동행점검" position="inside" style={{ fontSize: 10, fontWeight: 700, fill: "#fff" }} formatter={(v: number) => v > 0 ? v : ""} />
-                            {inspectionStats.combinedPerDept > 0 && (
-                              <LabelList dataKey="진행율" position="top" style={{ fontSize: 10, fontWeight: 700, fill: "#374151" }} formatter={(v: number | null) => v != null ? `${v}%` : ""} />
-                            )}
                           </Bar>
                         </BarChart>
                       </ResponsiveContainer>
