@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { ShoppingCart, Plus, Trash2, ChevronLeft, Clock, CheckCircle2, FileText, Send, Minus, Download, Image, Settings, PenLine, AlertCircle } from "lucide-react";
+import { ShoppingCart, Plus, Trash2, ChevronLeft, Clock, CheckCircle2, FileText, Send, Minus, Download, Image, Settings, PenLine, AlertCircle, Link2 } from "lucide-react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import DOMPurify from "dompurify";
@@ -826,6 +826,21 @@ export default function EquipmentRequest() {
                           >
                             <Download className="w-3 h-3" />
                             지급대장
+                          </Button>
+                        ) : canManageEquipmentRequests ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1 text-orange-600 border-orange-300 hover:bg-orange-50 dark:hover:bg-orange-950/30"
+                            onClick={() => {
+                              const url = `${window.location.origin}/sign/equip/${item.id}`;
+                              navigator.clipboard.writeText(url);
+                              toast({ title: "서명 링크가 복사되었습니다.", description: "수령자에게 링크를 공유하세요." });
+                            }}
+                            data-testid={`button-sign-link-${item.id}`}
+                          >
+                            <Link2 className="w-3 h-3" />
+                            서명 링크
                           </Button>
                         ) : "-"}
                       </TableCell>

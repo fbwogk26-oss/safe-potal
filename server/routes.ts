@@ -2004,6 +2004,78 @@ export async function registerRoutes(
     }
   });
 
+  // === 보호구 지급 공개 서명 링크 (로그인 불필요) ===
+  app.get("/api/public/equipment/:id", async (req: any, res) => {
+    try {
+      const notice = await storage.getNotice(Number(req.params.id));
+      if (!notice || notice.category !== "equip_request") {
+        return res.status(404).json({ message: "보호구 지급 신청을 찾을 수 없습니다." });
+      }
+      let parsed: any = {};
+      try { parsed = JSON.parse(notice.content); } catch {}
+      if (parsed.status === "수령완료") {
+        return res.status(400).json({ message: "이미 서명이 완료된 지급 건입니다." });
+      }
+      res.json({
+        id: notice.id,
+        title: notice.title,
+        team: parsed.team ?? "",
+        requester: parsed.requester ?? "",
+        items: parsed.items ?? [],
+        status: parsed.status ?? "",
+        createdAt: notice.createdAt,
+      });
+    } catch (err) {
+      res.status(500).json({ message: "서버 오류가 발생했습니다." });
+    }
+  });
+
+  app.post("/api/public/equipment/:id/sign", publicSignLimiter, async (req: any, res) => {
+    try {
+      const MAX_SIGNATURE_SIZE = 500 * 1024;
+      const sigSchema = z.object({
+        signerName: z.string().min(1, "이름을 입력해주세요").max(50, "이름은 50자 이내로 입력해주세요"),
+        signatureData: z.string().min(1, "서명을 입력해주세요").max(MAX_SIGNATURE_SIZE, "서명 데이터가 너무 큽니다."),
+        consentAgreed: z.boolean().refine(v => v === true, { message: "개인정보 수집 및 전자서명 동의가 필요합니다." }),
+        disposed: z.boolean().optional().default(false),
+      });
+      const parsed = sigSchema.parse(req.body);
+      const notice = await storage.getNotice(Number(req.params.id));
+      if (!notice || notice.category !== "equip_request") {
+        return res.status(404).json({ message: "보호구 지급 신청을 찾을 수 없습니다." });
+      }
+      let content: any = {};
+      try { content = JSON.parse(notice.content); } catch {}
+      if (content.status === "수령완료") {
+        return res.status(400).json({ message: "이미 서명이 완료된 지급 건입니다." });
+      }
+      // 법적 증빙 메타데이터
+      const signedAt = new Date().toISOString();
+      const ipAddress = (req.headers["x-forwarded-for"] as string)?.split(",")[0].trim() || req.socket.remoteAddress || "unknown";
+      const userAgent = (req.headers["user-agent"] as string) || "unknown";
+      const hashSource = `${parsed.signerName}|${notice.id}|${signedAt}|${ipAddress}`;
+      const integrityHash = createHash("sha256").update(hashSource).digest("hex");
+
+      const updatedContent = JSON.stringify({
+        ...content,
+        status: "수령완료",
+        signature: parsed.signatureData,
+        signedAt,
+        signerName: parsed.signerName,
+        disposed: parsed.disposed,
+        ipAddress,
+        userAgent,
+        consentAgreed: true,
+        integrityHash,
+      });
+      await storage.updateNotice(notice.id, { content: updatedContent });
+      res.status(201).json({ success: true, signedAt, integrityHash });
+    } catch (err: any) {
+      if (err?.name === "ZodError") return res.status(400).json({ message: err.errors?.[0]?.message || "입력값 오류" });
+      res.status(500).json({ message: "서명 등록에 실패했습니다." });
+    }
+  });
+
   // === EDUCATION PROGRESS (교육별 진행율) ===
   app.get("/api/education-progress", isAuthenticated, async (req: any, res) => {
     try {

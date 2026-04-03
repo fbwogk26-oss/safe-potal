@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
 import PublicSign from "@/pages/PublicSign";
+import PublicEquipSign from "@/pages/PublicEquipSign";
 import Dashboard from "@/pages/Dashboard";
 import HomePage from "@/pages/HomePage";
 import Rules from "@/pages/Rules";
@@ -135,6 +136,9 @@ function AppContent() {
   const { isAuthenticated, isLoading, mustChangePassword } = useAuth();
   const [location] = useLocation();
 
+  if (location.startsWith("/sign/equip/")) {
+    return <Switch><Route path="/sign/equip/:id" component={PublicEquipSign} /></Switch>;
+  }
   if (location.startsWith("/sign/")) {
     return <Switch><Route path="/sign/:id" component={PublicSign} /></Switch>;
   }
