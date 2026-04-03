@@ -449,6 +449,10 @@ export default function EducationLogs() {
   const photoInputRef = useRef<HTMLInputElement>(null);
   const [showPhotoPreview, setShowPhotoPreview] = useState<string | null>(null);
 
+  // 교육 결과 미리보기 팝업
+  const [previewSession, setPreviewSession] = useState<EducationSession | null>(null);
+  const [previewPhotoIndex, setPreviewPhotoIndex] = useState<number | null>(null);
+
   const { data: sessions, isLoading: sessionsLoading } = useQuery<EducationSession[]>({
     queryKey: ["/api/education-sessions"],
   });
@@ -465,6 +469,11 @@ export default function EducationLogs() {
   const { data: signatures } = useQuery<EducationSignature[]>({
     queryKey: ["/api/education-sessions", selectedSession?.id, "signatures"],
     enabled: !!selectedSession,
+  });
+
+  const { data: previewSignatures } = useQuery<EducationSignature[]>({
+    queryKey: ["/api/education-sessions", previewSession?.id, "signatures"],
+    enabled: !!previewSession,
   });
 
   const createMutation = useMutation({
@@ -1652,6 +1661,12 @@ export default function EducationLogs() {
                                 </div>
                               </div>
                               <div className="flex items-center gap-1 shrink-0">
+                                <Button
+                                  variant="ghost" size="icon" className="h-8 w-8 text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50"
+                                  onClick={(e) => { e.stopPropagation(); setPreviewSession(session); }}
+                                  data-testid={`button-preview-session-${session.id}`}
+                                  title="교육 결과 보기"
+                                ><Eye className="w-4 h-4" /></Button>
                                 {canEditLogs && (!session.createdBy || user?.role === "admin" || user?.username === session.createdBy) && (
                                   <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground"
                                     onClick={(e) => { e.stopPropagation(); handleStartEdit(session); }}
@@ -1785,6 +1800,12 @@ export default function EducationLogs() {
                                         </div>
                                       </div>
                                       <div className="flex items-center gap-1 shrink-0">
+                                        <Button
+                                          variant="ghost" size="icon" className="h-7 w-7 text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50"
+                                          onClick={(e) => { e.stopPropagation(); setPreviewSession(session); }}
+                                          data-testid={`button-preview-session-${session.id}`}
+                                          title="교육 결과 보기"
+                                        ><Eye className="w-3.5 h-3.5" /></Button>
                                         <span className="text-xs text-muted-foreground flex items-center gap-1"><Users className="w-3 h-3" />{session.totalParticipants}명</span>
                                       </div>
                                     </div>
@@ -2307,6 +2328,184 @@ export default function EducationLogs() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* 교육 결과 미리보기 팝업 */}
+      <Dialog open={!!previewSession} onOpenChange={(open) => { if (!open) { setPreviewSession(null); setPreviewPhotoIndex(null); } }}>
+        <DialogContent className="sm:max-w-3xl max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
+          <DialogHeader className="px-6 pt-5 pb-4 border-b bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 shrink-0">
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <GraduationCap className="w-5 h-5 text-indigo-600" />
+              교육 결과 보기
+            </DialogTitle>
+            {previewSession && (
+              <div className="mt-1 space-y-0.5">
+                <p className="text-sm font-semibold text-foreground">{previewSession.title}</p>
+                <p className="text-xs text-muted-foreground">
+                  {previewSession.department} · {previewSession.educationDate} · {previewSession.educationType}
+                </p>
+              </div>
+            )}
+          </DialogHeader>
+
+          {previewSession && (
+            <div className="flex-1 overflow-y-auto p-5 space-y-6">
+              {/* 요약 카드 */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="rounded-xl bg-blue-50 dark:bg-blue-900/20 p-3 text-center">
+                  <p className="text-[10px] text-muted-foreground mb-0.5">총 인원</p>
+                  <p className="text-xl font-bold text-blue-600">{previewSession.totalParticipants}명</p>
+                </div>
+                <div className="rounded-xl bg-emerald-50 dark:bg-emerald-900/20 p-3 text-center">
+                  <p className="text-[10px] text-muted-foreground mb-0.5">서명 완료</p>
+                  <p className="text-xl font-bold text-emerald-600">{previewSignatures?.length ?? 0}명</p>
+                </div>
+                <div className="rounded-xl bg-purple-50 dark:bg-purple-900/20 p-3 text-center">
+                  <p className="text-[10px] text-muted-foreground mb-0.5">참석률</p>
+                  <p className="text-xl font-bold text-purple-600">
+                    {previewSession.totalParticipants > 0
+                      ? Math.round(((previewSignatures?.length ?? 0) / previewSession.totalParticipants) * 100)
+                      : 0}%
+                  </p>
+                </div>
+              </div>
+
+              {/* 참석자 명단 (서명) */}
+              <div>
+                <h3 className="text-sm font-bold flex items-center gap-2 mb-3">
+                  <PenTool className="w-4 h-4 text-emerald-600" />
+                  참석자 서명 명단
+                  <span className="text-xs font-normal text-muted-foreground">({previewSignatures?.length ?? 0}명 서명)</span>
+                </h3>
+                {previewSignatures && previewSignatures.length > 0 ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                    {previewSignatures.map((sig, idx) => (
+                      <motion.div
+                        key={sig.id}
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: idx * 0.03 }}
+                        className="border rounded-lg overflow-hidden bg-card shadow-sm"
+                        data-testid={`preview-sig-${sig.id}`}
+                      >
+                        <div className="bg-muted/20 p-1.5">
+                          <img
+                            src={sig.signatureData}
+                            alt={`${sig.signerName} 서명`}
+                            className="w-full h-14 object-contain"
+                          />
+                        </div>
+                        <div className="p-2 text-center border-t">
+                          <p className="text-xs font-semibold truncate">{sig.signerName}</p>
+                          {sig.signerDepartment && (
+                            <p className="text-[10px] text-muted-foreground truncate">{sig.signerDepartment}</p>
+                          )}
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-8 text-center text-muted-foreground border-2 border-dashed rounded-xl">
+                    <PenTool className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                    <p className="text-sm">서명 내역이 없습니다.</p>
+                  </div>
+                )}
+              </div>
+
+              {/* 교육 사진 */}
+              <div>
+                <h3 className="text-sm font-bold flex items-center gap-2 mb-3">
+                  <Camera className="w-4 h-4 text-indigo-600" />
+                  교육 사진
+                  <span className="text-xs font-normal text-muted-foreground">({(previewSession.images || []).length}장)</span>
+                </h3>
+                {(previewSession.images || []).length > 0 ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {(previewSession.images || []).map((img, idx) => (
+                      <div
+                        key={idx}
+                        className="relative group overflow-hidden rounded-xl border cursor-pointer"
+                        onClick={() => setPreviewPhotoIndex(idx)}
+                        data-testid={`preview-photo-${idx}`}
+                      >
+                        <img
+                          src={img}
+                          alt={`교육 사진 ${idx + 1}`}
+                          className="w-full h-36 object-cover group-hover:scale-105 transition-transform duration-200"
+                        />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                          <Eye className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                        <div className="absolute bottom-1.5 right-1.5 bg-black/50 text-white text-[10px] px-1.5 py-0.5 rounded">
+                          {idx + 1}/{(previewSession.images || []).length}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-8 text-center text-muted-foreground border-2 border-dashed rounded-xl">
+                    <Camera className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                    <p className="text-sm">등록된 사진이 없습니다.</p>
+                  </div>
+                )}
+              </div>
+
+              {/* 교육 내용 */}
+              {previewSession.description && (
+                <div>
+                  <h3 className="text-sm font-bold flex items-center gap-2 mb-2">
+                    <FileText className="w-4 h-4 text-amber-600" />
+                    교육 내용
+                  </h3>
+                  <div className="p-4 bg-muted/30 rounded-xl text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
+                    {previewSession.description}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* 사진 전체화면 미리보기 */}
+      {previewPhotoIndex !== null && previewSession && (
+        <Dialog open={previewPhotoIndex !== null} onOpenChange={() => setPreviewPhotoIndex(null)}>
+          <DialogContent className="sm:max-w-4xl p-2">
+            <DialogHeader>
+              <DialogTitle className="sr-only">사진 미리보기</DialogTitle>
+            </DialogHeader>
+            <div className="relative">
+              <img
+                src={(previewSession.images || [])[previewPhotoIndex]}
+                alt="교육 사진"
+                className="w-full max-h-[75vh] object-contain rounded-lg"
+              />
+              <div className="flex justify-center gap-2 mt-3">
+                {(previewSession.images || []).map((_, i) => (
+                  <button
+                    key={i}
+                    className={`w-2 h-2 rounded-full transition-colors ${i === previewPhotoIndex ? "bg-indigo-500" : "bg-gray-300"}`}
+                    onClick={() => setPreviewPhotoIndex(i)}
+                  />
+                ))}
+              </div>
+              {(previewSession.images || []).length > 1 && (
+                <>
+                  <Button
+                    variant="outline" size="icon"
+                    className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/80"
+                    onClick={() => setPreviewPhotoIndex(prev => prev !== null ? (prev - 1 + (previewSession.images || []).length) % (previewSession.images || []).length : 0)}
+                  ><ChevronDown className="w-4 h-4 rotate-90" /></Button>
+                  <Button
+                    variant="outline" size="icon"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/80"
+                    onClick={() => setPreviewPhotoIndex(prev => prev !== null ? (prev + 1) % (previewSession.images || []).length : 0)}
+                  ><ChevronDown className="w-4 h-4 -rotate-90" /></Button>
+                </>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
