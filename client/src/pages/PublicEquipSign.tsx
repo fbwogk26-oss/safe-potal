@@ -30,13 +30,18 @@ function SignaturePad({ onSave, onClear }: { onSave: (data: string) => void; onC
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width;
-    canvas.height = rect.height;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const resize = () => {
+      const rect = canvas.getBoundingClientRect();
+      const imageData = canvas.getContext("2d")?.getImageData(0, 0, canvas.width, canvas.height);
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      if (imageData) ctx.putImageData(imageData, 0, 0);
+    };
+    resize();
   }, []);
 
   const getPos = useCallback((e: React.MouseEvent | React.TouchEvent) => {
@@ -66,16 +71,17 @@ function SignaturePad({ onSave, onClear }: { onSave: (data: string) => void; onC
     const ctx = canvasRef.current?.getContext("2d");
     if (!ctx) return;
     const { x, y } = getPos(e);
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2.5;
     ctx.lineCap = "round";
-    ctx.strokeStyle = "#1a1a1a";
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = "#1e293b";
     ctx.lineTo(x, y);
     ctx.stroke();
   }, [isDrawing, getPos]);
 
-  const stopDraw = useCallback(() => setIsDrawing(false), []);
+  const endDraw = useCallback(() => setIsDrawing(false), []);
 
-  const clear = () => {
+  const clear = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
@@ -84,35 +90,35 @@ function SignaturePad({ onSave, onClear }: { onSave: (data: string) => void; onC
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     setHasContent(false);
     onClear();
-  };
+  }, [onClear]);
 
-  const save = () => {
-    const canvas = canvasRef.current;
-    if (!canvas || !hasContent) return;
-    onSave(canvas.toDataURL("image/png"));
-  };
+  const save = useCallback(() => {
+    if (!hasContent || !canvasRef.current) return;
+    onSave(canvasRef.current.toDataURL("image/png"));
+  }, [hasContent, onSave]);
 
   return (
     <div className="space-y-2">
-      <div className="border-2 border-dashed border-border rounded-xl overflow-hidden bg-white touch-none" style={{ height: 160 }}>
+      <div className="border-2 border-dashed border-primary/40 rounded-xl overflow-hidden bg-white shadow-inner">
         <canvas
           ref={canvasRef}
-          className="w-full h-full cursor-crosshair"
+          className="w-full touch-none cursor-crosshair"
+          style={{ height: "160px", display: "block" }}
           onMouseDown={startDraw}
           onMouseMove={draw}
-          onMouseUp={stopDraw}
-          onMouseLeave={stopDraw}
+          onMouseUp={endDraw}
+          onMouseLeave={endDraw}
           onTouchStart={startDraw}
           onTouchMove={draw}
-          onTouchEnd={stopDraw}
+          onTouchEnd={endDraw}
         />
       </div>
       <div className="flex gap-2">
         <Button variant="outline" size="sm" onClick={clear} className="gap-1 flex-1" data-testid="button-clear-sig">
           <X className="w-3.5 h-3.5" />다시 쓰기
         </Button>
-        <Button size="sm" onClick={save} disabled={!hasContent} className="gap-1 flex-1" data-testid="button-save-sig">
-          <CheckCircle2 className="w-3.5 h-3.5" />서명 확인
+        <Button size="sm" onClick={save} disabled={!hasContent} className="gap-1.5 flex-1" data-testid="button-save-sig">
+          <PenTool className="w-3.5 h-3.5" />서명 완료
         </Button>
       </div>
     </div>
