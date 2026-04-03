@@ -195,12 +195,14 @@ function ProgressDashboard() {
   }
 
   const totalEducations = progress?.length || 0;
-  const completedAll = progress?.filter(p => p.progressRate === 100).length || 0;
-  const inProgress = progress?.filter(p => p.progressRate > 0 && p.progressRate < 100).length || 0;
+  // 전 부서 세션이 모두 '완료' 상태인 교육 건수
+  const completedAll = progress?.filter(p => p.totalDepartments > 0 && p.completedSessions === p.totalDepartments).length || 0;
+  // 일부 부서만 완료된 교육 건수
+  const inProgress = progress?.filter(p => p.completedSessions > 0 && p.completedSessions < p.totalDepartments).length || 0;
   const completionRate = totalEducations > 0 ? Math.round((completedAll / totalEducations) * 100) : 0;
 
-  // 가장 최근 미완료 교육
-  const latestIncomplete = progress?.find(p => p.progressRate < 100);
+  // 가장 최근 미완료 교육 (전 부서 완료되지 않은 것)
+  const latestIncomplete = progress?.find(p => p.completedSessions < p.totalDepartments);
 
   const toggleExpand = (key: string) => {
     setExpandedKey(prev => prev === key ? null : key);
@@ -226,7 +228,7 @@ function ProgressDashboard() {
         <Card>
           <CardContent className="p-3 sm:p-4 text-center">
             <Clock className="w-5 h-5 mx-auto mb-1 text-amber-500" />
-            <p className="text-[11px] text-muted-foreground">서명진행중</p>
+            <p className="text-[11px] text-muted-foreground">진행중</p>
             <p className="text-xl font-bold text-amber-600" data-testid="text-in-progress">{inProgress}건</p>
           </CardContent>
         </Card>
