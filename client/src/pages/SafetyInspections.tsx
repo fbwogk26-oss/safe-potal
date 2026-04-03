@@ -17,7 +17,7 @@ import type { SafetyInspection, Team } from "@shared/schema";
 import ExcelJS from "exceljs";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useAuth } from "@/hooks/use-auth";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LabelList } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LabelList, ReferenceLine } from "recharts";
 
 type ChecklistStatus = '양호' | '미흡' | '미점검';
 
@@ -569,8 +569,9 @@ export default function SafetyInspections() {
     const safetyTeamjang = inspectionTargets?.safetyTeamjang || 0;
     const accompanyBujang = inspectionTargets?.accompanyBujang || 0;
     const accompanyTeamjang = inspectionTargets?.accompanyTeamjang || 0;
-    const safetyTotal = safetyBujang + safetyTeamjang;
-    const accompanyTotal = accompanyBujang + accompanyTeamjang;
+    const multiplier = dashboardPeriod === "year" ? 12 : 1;
+    const safetyTotal = (safetyBujang + safetyTeamjang) * multiplier;
+    const accompanyTotal = (accompanyBujang + accompanyTeamjang) * multiplier;
 
     const deptMap = new Map<string, { safetyCount: number; accompanyCount: number }>();
     for (const dept of allDepts) {
@@ -591,13 +592,22 @@ export default function SafetyInspections() {
         }
       }
     }
+
+    const numDepts = allDepts.length || 1;
+    const safetyPerDept = safetyTotal / numDepts;
+    const accompanyPerDept = accompanyTotal / numDepts;
+    const combinedPerDept = safetyPerDept + accompanyPerDept;
+
     const chartData = allDepts.map(dept => {
       const stats = deptMap.get(dept)!;
       const shortName = dept.replace("운용팀", "").replace("팀", "");
+      const total = stats.safetyCount + stats.accompanyCount;
+      const pct = combinedPerDept > 0 ? Math.round(total / combinedPerDept * 100) : null;
       return {
         name: shortName,
         안전점검: stats.safetyCount,
         동행점검: stats.accompanyCount,
+        진행율: pct,
       };
     });
 
@@ -611,6 +621,9 @@ export default function SafetyInspections() {
       accompanyTeamjang,
       safetyTotal,
       accompanyTotal,
+      safetyPerDept,
+      accompanyPerDept,
+      combinedPerDept,
       chartData,
       periodLabel: dashboardPeriod === "month" ? `${selectedMonth}월` : `${now.getFullYear()}년`,
     };
@@ -850,7 +863,30 @@ export default function SafetyInspections() {
                           </Bar>
                           <Bar dataKey="동행점검" stackId="a" fill="#10b981" radius={[4, 4, 0, 0]}>
                             <LabelList dataKey="동행점검" position="inside" style={{ fontSize: 10, fontWeight: 700, fill: "#fff" }} formatter={(v: number) => v > 0 ? v : ""} />
+                            {inspectionStats.combinedPerDept > 0 && (
+                              <LabelList dataKey="진행율" position="top" style={{ fontSize: 10, fontWeight: 700, fill: "#374151" }} formatter={(v: number | null) => v != null ? `${v}%` : ""} />
+                            )}
                           </Bar>
+                          {inspectionStats.safetyPerDept > 0 && (
+                            <ReferenceLine
+                              y={inspectionStats.safetyPerDept}
+                              stroke="#3b82f6"
+                              strokeDasharray="4 3"
+                              strokeWidth={1.5}
+                              opacity={0.7}
+                              label={{ value: `안전목표 ${Number(inspectionStats.safetyPerDept.toFixed(1))}`, position: "insideTopLeft", fontSize: 9, fill: "#3b82f6" }}
+                            />
+                          )}
+                          {inspectionStats.combinedPerDept > 0 && (
+                            <ReferenceLine
+                              y={inspectionStats.combinedPerDept}
+                              stroke="#f59e0b"
+                              strokeDasharray="5 3"
+                              strokeWidth={1.5}
+                              opacity={0.8}
+                              label={{ value: `총목표 ${Number(inspectionStats.combinedPerDept.toFixed(1))}`, position: "insideTopLeft", fontSize: 9, fill: "#d97706" }}
+                            />
+                          )}
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
@@ -1277,15 +1313,18 @@ export default function SafetyInspections() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Settings className="w-5 h-5 text-green-600" />
-              점검 목표건수 설정
+              월 목표건수 설정
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-2">
+            <p className="text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
+              월 목표를 입력하면 연간 보기 시 <strong>×12</strong>로 자동 계산됩니다.
+            </p>
             <div className="space-y-3">
               <Label className="text-blue-600 font-semibold">안전점검</Label>
               <div className="grid grid-cols-2 gap-3 pl-2">
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">운용부장 목표</Label>
+                  <Label className="text-xs text-muted-foreground">운용부장 월 목표</Label>
                   <Input
                     type="number"
                     min={0}
@@ -1296,7 +1335,7 @@ export default function SafetyInspections() {
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">운용팀장 목표</Label>
+                  <Label className="text-xs text-muted-foreground">운용팀장 월 목표</Label>
                   <Input
                     type="number"
                     min={0}
@@ -1307,12 +1346,16 @@ export default function SafetyInspections() {
                   />
                 </div>
               </div>
+              <p className="text-[11px] text-muted-foreground pl-2">
+                월 합계: <strong>{(Number(editSafetyBujang) || 0) + (Number(editSafetyTeamjang) || 0)}건</strong>
+                &nbsp;→ 연간: <strong>{((Number(editSafetyBujang) || 0) + (Number(editSafetyTeamjang) || 0)) * 12}건</strong>
+              </p>
             </div>
             <div className="space-y-3">
               <Label className="text-emerald-600 font-semibold">동행점검</Label>
               <div className="grid grid-cols-2 gap-3 pl-2">
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">운용부장 목표</Label>
+                  <Label className="text-xs text-muted-foreground">운용부장 월 목표</Label>
                   <Input
                     type="number"
                     min={0}
@@ -1323,7 +1366,7 @@ export default function SafetyInspections() {
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">운용팀장 목표</Label>
+                  <Label className="text-xs text-muted-foreground">운용팀장 월 목표</Label>
                   <Input
                     type="number"
                     min={0}
@@ -1334,6 +1377,10 @@ export default function SafetyInspections() {
                   />
                 </div>
               </div>
+              <p className="text-[11px] text-muted-foreground pl-2">
+                월 합계: <strong>{(Number(editAccompanyBujang) || 0) + (Number(editAccompanyTeamjang) || 0)}건</strong>
+                &nbsp;→ 연간: <strong>{((Number(editAccompanyBujang) || 0) + (Number(editAccompanyTeamjang) || 0)) * 12}건</strong>
+              </p>
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" onClick={() => setShowTargetDialog(false)}>
