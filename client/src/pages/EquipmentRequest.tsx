@@ -519,6 +519,9 @@ export default function EquipmentRequest() {
   });
 
   useEffect(() => {
+    const today = new Date().toDateString();
+    const hideDate = localStorage.getItem("equip_sign_popup_hide_date");
+    if (hideDate === today) return;
     if (pendingReceiptRequests.length > 0 && !receiptPopupShown) {
       setReceiptPopupOpen(true);
       setReceiptPopupShown(true);
@@ -730,7 +733,18 @@ export default function EquipmentRequest() {
               })}
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              variant="ghost"
+              className="text-muted-foreground text-sm"
+              onClick={() => {
+                localStorage.setItem("equip_sign_popup_hide_date", new Date().toDateString());
+                setReceiptPopupOpen(false);
+              }}
+              data-testid="button-hide-today"
+            >
+              오늘 하루 안보기
+            </Button>
             <Button variant="outline" onClick={() => setReceiptPopupOpen(false)}>
               나중에
             </Button>
