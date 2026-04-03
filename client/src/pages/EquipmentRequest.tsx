@@ -711,12 +711,15 @@ export default function EquipmentRequest() {
                     </div>
                     <Button
                       size="sm"
-                      onClick={() => { setReceiptPopupOpen(false); handleReceiptSign(item); }}
-                      className="bg-blue-600 hover:bg-blue-700 text-white gap-1 shrink-0"
+                      onClick={() => {
+                        setReceiptPopupOpen(false);
+                        window.open(`/sign/equip/${item.id}`, "_blank");
+                      }}
+                      className="bg-orange-600 hover:bg-orange-700 text-white gap-1 shrink-0"
                       data-testid={`button-receipt-sign-${item.id}`}
                     >
-                      <Send className="w-4 h-4" />
-                      서명
+                      <PenLine className="w-4 h-4" />
+                      서명하기
                     </Button>
                   </div>
                 );
@@ -826,6 +829,16 @@ export default function EquipmentRequest() {
                           >
                             <Download className="w-3 h-3" />
                             지급대장
+                          </Button>
+                        ) : isAwaitingReceipt && isMyRequest && !canManageEquipmentRequests ? (
+                          <Button
+                            size="sm"
+                            className="gap-1 bg-orange-600 hover:bg-orange-700 text-white"
+                            onClick={() => window.open(`/sign/equip/${item.id}`, "_blank")}
+                            data-testid={`button-my-sign-${item.id}`}
+                          >
+                            <PenLine className="w-3 h-3" />
+                            서명하기
                           </Button>
                         ) : canManageEquipmentRequests ? (
                           <Button
