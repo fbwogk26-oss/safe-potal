@@ -353,6 +353,9 @@ export const newEquipmentRequests = pgTable("new_equipment_requests", {
   requestedBy: text("requested_by"),
   status: text("status").notNull().default("대기"),
   adminNote: text("admin_note"),
+  imageUrl: text("image_url"),
+  referenceUrl: text("reference_url"),
+  isReadByAdmin: boolean("is_read_by_admin").default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

@@ -3138,9 +3138,27 @@ export async function registerRoutes(
     }
   });
 
+  app.get('/api/new-equipment-requests/unread-count', requireAdmin, async (req: any, res) => {
+    try {
+      const count = await storage.getUnreadNewEquipmentCount();
+      res.json({ count });
+    } catch (error) {
+      res.status(500).json({ message: "미확인 건수 조회에 실패했습니다" });
+    }
+  });
+
+  app.post('/api/new-equipment-requests/mark-all-read', requireAdmin, async (req: any, res) => {
+    try {
+      await storage.markAllNewEquipmentRequestsRead();
+      res.json({ ok: true });
+    } catch (error) {
+      res.status(500).json({ message: "읽음 처리에 실패했습니다" });
+    }
+  });
+
   app.post('/api/new-equipment-requests', isAuthenticated, async (req: any, res) => {
     try {
-      const request = await storage.createNewEquipmentRequest({ ...req.body, requestedBy: req.user?.username || req.body.requestedBy || null });
+      const request = await storage.createNewEquipmentRequest({ ...req.body, requestedBy: req.user?.username || req.body.requestedBy || null, isReadByAdmin: false });
       res.status(201).json(request);
     } catch (error) {
       res.status(500).json({ message: "신규 상품요청 등록에 실패했습니다" });

@@ -9,6 +9,8 @@ import { useState, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
+import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/use-auth";
 
 const SUBMENU_ITEMS = [
   {
@@ -36,10 +38,19 @@ interface SafetyEquipmentProps {
 }
 
 export default function SafetyEquipment({ embedded = false }: SafetyEquipmentProps) {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
   const { data: materials, isLoading } = useNotices("equipment");
   const { mutate: createMaterial, isPending: isCreating } = useCreateNotice();
   const { mutate: deleteMaterial } = useDeleteNotice();
   const { toast } = useToast();
+
+  const { data: unreadData } = useQuery<{ count: number }>({
+    queryKey: ["/api/new-equipment-requests/unread-count"],
+    enabled: isAdmin,
+    refetchInterval: 60000,
+  });
+  const unreadCount = unreadData?.count ?? 0;
 
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
@@ -150,22 +161,34 @@ export default function SafetyEquipment({ embedded = false }: SafetyEquipmentPro
       )}
 
       <div className="grid grid-cols-2 gap-3 sm:gap-4 md:gap-6">
-        {SUBMENU_ITEMS.map((item) => (
-          <Link key={item.href} href={item.href}>
-            <Card className={`group cursor-pointer hover:shadow-lg transition-all duration-300 ${item.borderColor}`} data-testid={`card-submenu-${item.href.split('/').pop()}`}>
-              <CardHeader className="pb-2">
-                <div className={`w-12 h-12 rounded-xl ${item.bgColor} flex items-center justify-center mb-3`}>
-                  <item.icon className={`w-6 h-6 ${item.iconColor}`} />
-                </div>
-                <CardTitle className="flex items-center justify-between">
-                  {item.title}
-                  <ArrowRight className="w-5 h-5 text-muted-foreground group-hover:translate-x-1 transition-transform" />
-                </CardTitle>
-                <CardDescription>{item.description}</CardDescription>
-              </CardHeader>
-            </Card>
-          </Link>
-        ))}
+        {SUBMENU_ITEMS.map((item) => {
+          const isNewRequest = item.href.includes("new-request");
+          const showBadge = isNewRequest && isAdmin && unreadCount > 0;
+          return (
+            <Link key={item.href} href={item.href}>
+              <Card
+                className={`group relative cursor-pointer hover:shadow-lg transition-all duration-300 ${item.borderColor} hover:-translate-y-0.5`}
+                data-testid={`card-submenu-${item.href.split('/').pop()}`}
+              >
+                {showBadge && (
+                  <span className="absolute -top-2 -right-2 z-10 min-w-[22px] h-5 px-1 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold shadow-md">
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </span>
+                )}
+                <CardHeader className="pb-3 pt-5">
+                  <div className={`w-12 h-12 rounded-2xl ${item.bgColor} flex items-center justify-center mb-3 group-hover:scale-110 transition-transform duration-200`}>
+                    <item.icon className={`w-6 h-6 ${item.iconColor}`} />
+                  </div>
+                  <CardTitle className="flex items-center justify-between text-base">
+                    <span>{item.title}</span>
+                    <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:translate-x-1 transition-transform" />
+                  </CardTitle>
+                  <CardDescription className="text-xs leading-relaxed">{item.description}</CardDescription>
+                </CardHeader>
+              </Card>
+            </Link>
+          );
+        })}
       </div>
 
       <Card className="glass-card overflow-hidden border-amber-200 dark:border-amber-900/30">

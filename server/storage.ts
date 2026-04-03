@@ -104,6 +104,8 @@ export interface IStorage {
   createNewEquipmentRequest(request: InsertNewEquipmentRequest): Promise<NewEquipmentRequest>;
   updateNewEquipmentRequest(id: number, updates: Partial<InsertNewEquipmentRequest>): Promise<NewEquipmentRequest>;
   deleteNewEquipmentRequest(id: number): Promise<void>;
+  getUnreadNewEquipmentCount(): Promise<number>;
+  markAllNewEquipmentRequestsRead(): Promise<void>;
 
   // Musculoskeletal Assessments
   getMusculoskeletalAssessments(): Promise<MusculoskeletalAssessment[]>;
@@ -445,6 +447,15 @@ export class DatabaseStorage implements IStorage {
 
   async deleteNewEquipmentRequest(id: number): Promise<void> {
     await db.delete(newEquipmentRequests).where(eq(newEquipmentRequests.id, id));
+  }
+
+  async getUnreadNewEquipmentCount(): Promise<number> {
+    const result = await db.select().from(newEquipmentRequests).where(eq(newEquipmentRequests.isReadByAdmin, false));
+    return result.length;
+  }
+
+  async markAllNewEquipmentRequestsRead(): Promise<void> {
+    await db.update(newEquipmentRequests).set({ isReadByAdmin: true }).where(eq(newEquipmentRequests.isReadByAdmin, false));
   }
 
   // === MUSCULOSKELETAL ASSESSMENTS ===

@@ -106,6 +106,13 @@ export function Topbar() {
   });
   const isAdmin = roleData?.role === "admin";
 
+  const { data: unreadData } = useQuery<{ count: number }>({
+    queryKey: ["/api/new-equipment-requests/unread-count"],
+    enabled: isAuthenticated && isAdmin,
+    refetchInterval: 60000,
+  });
+  const unreadCount = unreadData?.count ?? 0;
+
   const resetPwDialog = () => {
     setCurrentPw(""); setNewPw(""); setConfirmPw(""); setPwError(""); setShowPw(false);
   };
@@ -179,8 +186,13 @@ export function Topbar() {
                   {user.name || user.username || "사용자"}
                 </span>
                 {isAdmin && (
-                  <span className="px-1.5 py-0.5 text-[10px] rounded bg-primary text-primary-foreground font-bold hidden sm:inline">
+                  <span className="relative px-1.5 py-0.5 text-[10px] rounded bg-primary text-primary-foreground font-bold hidden sm:inline">
                     관리자
+                    {unreadCount > 0 && (
+                      <span className="absolute -top-2 -right-2 min-w-[16px] h-4 px-0.5 flex items-center justify-center rounded-full bg-red-500 text-white text-[9px] font-bold leading-none">
+                        {unreadCount > 99 ? "99+" : unreadCount}
+                      </span>
+                    )}
                   </span>
                 )}
               </Button>
