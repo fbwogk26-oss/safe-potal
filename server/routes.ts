@@ -4192,6 +4192,160 @@ workers 배열은 실제 작업자 명단이며, supervisor는 KT/KTMOS 측 감�
     }
   });
 
+  // Gmail IMAP - 받은편지함 최근 목록
+  app.get('/api/work-plans/list-gmail', isAuthenticated, async (req: any, res) => {
+    try {
+      const { ImapFlow } = await import("imapflow");
+      const client = new ImapFlow({
+        host: "imap.gmail.com",
+        port: 993,
+        secure: true,
+        auth: { user: "fbwogk26@gmail.com", pass: process.env.GMAIL_APP_PASSWORD },
+        logger: false,
+      });
+      await client.connect();
+      const lock = await client.getMailboxLock("INBOX");
+      const emails: any[] = [];
+      try {
+        const total = (client.mailbox as any).exists as number;
+        if (total > 0) {
+          const start = Math.max(1, total - 29);
+          for await (const msg of client.fetch(`${start}:${total}`, { envelope: true, uid: true })) {
+            emails.push({
+              uid: msg.uid,
+              seq: msg.seq,
+              subject: msg.envelope?.subject || "(제목 없음)",
+              from: msg.envelope?.from?.[0]?.name || msg.envelope?.from?.[0]?.address || "",
+              fromAddr: msg.envelope?.from?.[0]?.address || "",
+              date: msg.envelope?.date,
+            });
+          }
+        }
+      } finally {
+        lock.release();
+      }
+      await client.logout();
+      res.json({ emails: emails.reverse().slice(0, 20) });
+    } catch (error: any) {
+      console.error("[list-gmail error]", error);
+      res.status(500).json({ message: error?.message || "Gmail 연결에 실패했습니다." });
+    }
+  });
+
+  // Gmail IMAP - 특정 이메일 처리 → 초안 생성
+  app.post('/api/work-plans/process-gmail', isAuthenticated, async (req: any, res) => {
+    try {
+      const { uid } = req.body;
+      if (!uid) return res.status(400).json({ message: "uid가 필요합니다." });
+
+      const { ImapFlow } = await import("imapflow");
+      const client = new ImapFlow({
+        host: "imap.gmail.com",
+        port: 993,
+        secure: true,
+        auth: { user: "fbwogk26@gmail.com", pass: process.env.GMAIL_APP_PASSWORD },
+        logger: false,
+      });
+      await client.connect();
+      const lock = await client.getMailboxLock("INBOX");
+      let rawBuffer: Buffer | null = null;
+      try {
+        const msg = await client.fetchOne(`${uid}`, { source: true }, { uid: true });
+        rawBuffer = msg.source as Buffer;
+      } finally {
+        lock.release();
+      }
+      await client.logout();
+
+      if (!rawBuffer) return res.status(404).json({ message: "이메일을 찾을 수 없습니다." });
+
+      const emailText = extractEmlText(rawBuffer);
+      if (!emailText || emailText.trim().length < 20) {
+        return res.status(400).json({ message: "이메일 내용을 추출할 수 없습니다." });
+      }
+
+      const OpenAI = (await import("openai")).default;
+      const aiClient = new OpenAI({
+        apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+        baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+      });
+
+      const systemPrompt = `당신은 하도급 업체가 보낸 작업일정 이메일을 파싱하는 전문 AI입니다.
+
+이메일에서 아래 정보를 추출하세요:
+- 발신 업체명 (예: 스피드이엔지)
+- 작업일자 (예: 26.04.06)
+- 지역별 작업 목록
+
+아래 형식의 JSON만 반환하세요 (마크다운 없이, 코드블록 없이):
+{
+  "company": "업체명",
+  "workDate": "YY.MM.DD",
+  "items": [
+    {
+      "region": "지역명(예: 포항)",
+      "workType": "작업내용(공사내용)",
+      "time": "HH:MM~HH:MM",
+      "locationName": "국소명",
+      "address": "주소",
+      "workers": ["이름(직책/연락처)"],
+      "supervisor": "MOS감독자 이름/연락처"
+    }
+  ]
+}
+
+workers 배열은 실제 작업자 명단이며, supervisor는 KT/KTMOS 측 감독자입니다.
+지역명이 없으면 빈 문자열로 두세요.`;
+
+      const response = await aiClient.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: `다음 하도급 업체 작업일정 이메일을 파싱해주세요:\n\n${emailText.slice(0, 8000)}` }
+        ],
+        temperature: 0,
+        max_tokens: 3000,
+      });
+
+      const rawJson = response.choices[0].message.content?.trim() || "{}";
+      let parsed: any = {};
+      try {
+        const cleaned = rawJson.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+        parsed = JSON.parse(cleaned);
+      } catch {
+        return res.status(500).json({ message: "AI 파싱에 실패했습니다." });
+      }
+
+      const workDate = parsed.workDate || "";
+      const fullDate = workDate.startsWith("20") ? workDate : workDate ? `20${workDate}` : "";
+      const DAYS_KR = ["일", "월", "화", "수", "목", "금", "토"];
+      let displayDate = fullDate || workDate;
+      if (fullDate && fullDate.match(/\d{4}\.\d{2}\.\d{2}/)) {
+        const [y, m, d] = fullDate.split(".").map(Number);
+        const dt = new Date(y, m - 1, d);
+        displayDate = `${fullDate}(${DAYS_KR[dt.getDay()]})`;
+      }
+
+      const company = parsed.company || "하도급 업체";
+      const items: any[] = parsed.items || [];
+      const subject = `[요청] ${displayDate} 입회작업 TBM / 순회점검 등록요청`;
+
+      let guideB64 = "";
+      try {
+        const { readFileSync } = await import("fs");
+        const { join } = await import("path");
+        const imgPath = join(process.cwd(), "attached_assets", "image_1775201291098.png");
+        guideB64 = readFileSync(imgPath).toString("base64");
+      } catch {}
+
+      const htmlDraft = buildSubcontractHtml(displayDate, company, items, guideB64);
+      res.json({ parsed, htmlDraft, subject, itemCount: items.length });
+    } catch (error: any) {
+      console.error("[process-gmail error]", error);
+      res.status(500).json({ message: error?.message || "처리에 실패했습니다." });
+    }
+  });
+
   // 이메일 직접 발송
   app.post('/api/work-plans/send-email', isAuthenticated, async (req: any, res) => {
     try {

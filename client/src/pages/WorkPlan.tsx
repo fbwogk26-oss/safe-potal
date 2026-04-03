@@ -10,7 +10,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Upload, CalendarCheck, CheckCircle2, X, Loader2, Copy, Check, Mail, Trash2, Clock, Send
+  Upload, CalendarCheck, CheckCircle2, X, Loader2, Copy, Check, Mail, Trash2, Clock, Send, RefreshCw, Inbox
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -46,6 +46,11 @@ export default function WorkPlan() {
   const [selectedPlan, setSelectedPlan] = useState<WorkPlan | null>(null);
   const [recipientEmail, setRecipientEmail] = useState("jaeha.ryu@ktmos.co.kr");
   const [sendSuccess, setSendSuccess] = useState(false);
+
+  // Gmail 받은편지함
+  const [gmailEmails, setGmailEmails] = useState<{uid:number;subject:string;from:string;fromAddr:string;date:string}[]>([]);
+  const [gmailOpen, setGmailOpen] = useState(false);
+  const [processingUid, setProcessingUid] = useState<number|null>(null);
 
   const { data: workPlans = [], isLoading } = useQuery<WorkPlan[]>({
     queryKey: ["/api/work-plans"],
@@ -98,6 +103,44 @@ export default function WorkPlan() {
     },
     onError: (err: any) => {
       toast({ title: "발송 실패", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const listGmailMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/work-plans/list-gmail", { credentials: "include" });
+      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.message || "연결 실패"); }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setGmailEmails(data.emails || []);
+      setGmailOpen(true);
+    },
+    onError: (err: any) => {
+      toast({ title: "Gmail 연결 실패", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const processGmailMutation = useMutation({
+    mutationFn: async (uid: number) => {
+      const res = await fetch("/api/work-plans/process-gmail", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ uid }),
+      });
+      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.message || "처리 실패"); }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setResult(data);
+      setSubjectCopied(false);
+      setBodyCopied(false);
+      setGmailOpen(false);
+      toast({ title: "초안 생성 완료", description: `${data.itemCount}건의 작업 항목이 추출되었습니다.` });
+    },
+    onError: (err: any) => {
+      toast({ title: "처리 실패", description: err.message, variant: "destructive" });
     },
   });
 
@@ -270,6 +313,26 @@ export default function WorkPlan() {
                   </Button>
                 )}
               </div>
+
+              {/* 구분선 */}
+              <div className="flex items-center gap-3">
+                <div className="flex-1 border-t border-muted-foreground/20" />
+                <span className="text-xs text-muted-foreground">또는</span>
+                <div className="flex-1 border-t border-muted-foreground/20" />
+              </div>
+
+              {/* Gmail 받은편지함 불러오기 */}
+              <Button
+                variant="outline"
+                className="w-full border-red-200 text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/30"
+                onClick={() => listGmailMutation.mutate()}
+                disabled={listGmailMutation.isPending}
+                data-testid="button-open-gmail"
+              >
+                {listGmailMutation.isPending
+                  ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Gmail 연결 중...</>
+                  : <><Inbox className="w-4 h-4 mr-2" />Gmail 받은편지함에서 불러오기</>}
+              </Button>
             </CardContent>
           </Card>
 
@@ -499,6 +562,67 @@ export default function WorkPlan() {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Gmail 받은편지함 다이얼로그 */}
+      <Dialog open={gmailOpen} onOpenChange={setGmailOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Inbox className="w-4 h-4 text-red-500" />
+              Gmail 받은편지함 — fbwogk26@gmail.com
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-1 max-h-[60vh] overflow-y-auto pr-1">
+            {gmailEmails.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">받은편지함이 비어 있습니다.</p>
+            ) : (
+              gmailEmails.map((email) => (
+                <button
+                  key={email.uid}
+                  className={cn(
+                    "text-left rounded-lg border px-3 py-2.5 flex flex-col gap-0.5 transition-colors",
+                    "hover:border-blue-300 hover:bg-blue-50 dark:hover:border-blue-700 dark:hover:bg-blue-950/40",
+                    processingUid === email.uid ? "border-blue-400 bg-blue-50 dark:bg-blue-950/40" : "border-muted"
+                  )}
+                  disabled={processGmailMutation.isPending}
+                  onClick={() => {
+                    setProcessingUid(email.uid);
+                    processGmailMutation.mutate(email.uid, {
+                      onSettled: () => setProcessingUid(null),
+                    });
+                  }}
+                  data-testid={`button-select-gmail-${email.uid}`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium text-foreground line-clamp-1 flex-1">{email.subject}</span>
+                    {processingUid === email.uid && processGmailMutation.isPending
+                      ? <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-500 shrink-0" />
+                      : null}
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span>{email.from || email.fromAddr}</span>
+                    <span>·</span>
+                    <span>{email.date ? new Date(email.date).toLocaleString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : ""}</span>
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => listGmailMutation.mutate()}
+              disabled={listGmailMutation.isPending}
+            >
+              {listGmailMutation.isPending
+                ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />새로고침</>
+                : <><RefreshCw className="w-3.5 h-3.5 mr-1.5" />새로고침</>}
+            </Button>
+            <Button variant="outline" onClick={() => setGmailOpen(false)}>닫기</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
