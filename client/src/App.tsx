@@ -34,7 +34,6 @@ import Login from "@/pages/Login";
 import NotFound from "@/pages/NotFound";
 import { useAuth } from "@/hooks/use-auth";
 import { usePermissions } from "@/hooks/use-permissions";
-import { ChatBot } from "@/components/ChatBot";
 import { ForcePasswordChange } from "@/components/ForcePasswordChange";
 import { MusicPlayer } from "@/components/MusicPlayer";
 import { ShieldOff } from "lucide-react";
@@ -125,7 +124,6 @@ function MainLayout() {
           <RouterContent />
         </div>
       </main>
-      <ChatBot />
       <MusicPlayer />
     </div>
   );

@@ -18,7 +18,6 @@ import { getKoshaMajorAccidents, clearKoshaCache } from "./kosha";
 import { fetchWeather, generateSafetyMessage, clearWeatherCache } from "./weather";
 import { setupAuth, registerAuthRoutes, isAuthenticated, authStorage } from "./replit_integrations/auth";
 import { ALL_PERMISSIONS, type UserPermissions } from "@shared/models/auth";
-import { registerChatbotRoutes } from "./chatbot";
 
 const uploadDir = path.join(process.cwd(), "uploads");
 if (!fs.existsSync(uploadDir)) {
@@ -300,7 +299,6 @@ export async function registerRoutes(
   // Setup authentication (must be before other routes)
   await setupAuth(app);
   registerAuthRoutes(app);
-  registerChatbotRoutes(app);
 
   // 소유권 체크: 관리자이거나, createdBy가 없거나, 본인이 작성한 경우
   const isOwnerOrAdmin = (req: any, createdBy: string | null | undefined): boolean => {
