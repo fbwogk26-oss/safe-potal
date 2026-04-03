@@ -299,7 +299,7 @@ function ProgressDashboard() {
                         <Badge variant="secondary" className="text-[10px] shrink-0">{edu.educationType}</Badge>
                       </div>
                       <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
-                        <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{edu.educationDate}</span>
+                        <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{edu.educationDate}{(edu as any).educationEndDate && (edu as any).educationEndDate !== edu.educationDate ? ` ~ ${(edu as any).educationEndDate}` : ""}</span>
                         <span>{edu.totalDepartments}개 부서</span>
                         <span className="flex items-center gap-1"><Users className="w-3 h-3" />{edu.totalSigned}/{edu.totalParticipants}명</span>
                       </div>
@@ -447,6 +447,7 @@ export default function EducationLogs() {
 
   const [newTitle, setNewTitle] = useState("");
   const [newDate, setNewDate] = useState(new Date().toISOString().split("T")[0]);
+  const [newEndDate, setNewEndDate] = useState("");
   const [selectedDepts, setSelectedDepts] = useState<string[]>([]);
   const [deptParticipants, setDeptParticipants] = useState<Record<string, string>>({});
   const [newType, setNewType] = useState("정기교육");
@@ -456,6 +457,7 @@ export default function EducationLogs() {
 
   const [editTitle, setEditTitle] = useState("");
   const [editDate, setEditDate] = useState("");
+  const [editEndDate, setEditEndDate] = useState("");
   const [editType, setEditType] = useState("정기교육");
   const [editInstructor, setEditInstructor] = useState("");
   const [editParticipants, setEditParticipants] = useState("");
@@ -768,6 +770,7 @@ export default function EducationLogs() {
   const resetForm = () => {
     setNewTitle("");
     setNewDate(new Date().toISOString().split("T")[0]);
+    setNewEndDate("");
     setSelectedDepts([]);
     setDeptParticipants({});
     setNewType("정기교육");
@@ -822,6 +825,7 @@ export default function EducationLogs() {
       createMutation.mutate({
         title: newTitle,
         educationDate: newDate,
+        educationEndDate: newEndDate || undefined,
         department: selectedDepts[0],
         educationType: newType,
         instructor: newInstructor || undefined,
@@ -842,6 +846,7 @@ export default function EducationLogs() {
       batchCreateMutation.mutate({
         title: newTitle,
         educationDate: newDate,
+        educationEndDate: newEndDate || undefined,
         departments,
         educationType: newType,
         instructor: newInstructor || undefined,
@@ -869,6 +874,7 @@ export default function EducationLogs() {
     setEditingSession(session);
     setEditTitle(session.title);
     setEditDate(session.educationDate);
+    setEditEndDate(session.educationEndDate || "");
     setEditType(session.educationType || "정기교육");
     setEditInstructor(session.instructor || "");
     setEditParticipants(String(session.totalParticipants));
@@ -891,6 +897,7 @@ export default function EducationLogs() {
       const data: any = {
         title: editTitle,
         educationDate: editDate,
+        educationEndDate: editEndDate || null,
         educationType: editType,
         instructor: editInstructor || undefined,
         description: editDescription || undefined,
@@ -917,6 +924,7 @@ export default function EducationLogs() {
       data: {
         title: editTitle,
         educationDate: editDate,
+        educationEndDate: editEndDate || null,
         department: editDepartment,
         educationType: editType,
         instructor: editInstructor || undefined,
@@ -1681,7 +1689,7 @@ export default function EducationLogs() {
                                   <Badge variant="outline" className="text-[10px]">{session.educationType}</Badge>
                                 </div>
                                 <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
-                                  <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{session.educationDate}</span>
+                                  <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{session.educationDate}{session.educationEndDate && session.educationEndDate !== session.educationDate ? ` ~ ${session.educationEndDate}` : ""}</span>
                                   <span>{session.department}</span>
                                   <span className="flex items-center gap-1"><Users className="w-3 h-3" />{session.totalParticipants}명</span>
                                 </div>
@@ -1871,16 +1879,42 @@ export default function EducationLogs() {
                 data-testid="input-session-title"
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">교육일자 *</label>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">교육 기간 *</label>
+              <div className="flex items-center gap-2">
                 <Input
                   type="date"
                   value={newDate}
-                  onChange={e => setNewDate(e.target.value)}
+                  onChange={e => {
+                    setNewDate(e.target.value);
+                    if (newEndDate && e.target.value > newEndDate) setNewEndDate(e.target.value);
+                  }}
+                  className="flex-1"
                   data-testid="input-session-date"
                 />
+                <span className="text-xs text-muted-foreground shrink-0">~</span>
+                <div className="flex-1 relative">
+                  <Input
+                    type="date"
+                    value={newEndDate}
+                    min={newDate}
+                    onChange={e => setNewEndDate(e.target.value)}
+                    placeholder="종료일 (선택)"
+                    className={`flex-1 ${!newEndDate ? "text-muted-foreground" : ""}`}
+                    data-testid="input-session-end-date"
+                  />
+                  {newEndDate && (
+                    <button
+                      type="button"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground text-xs"
+                      onClick={() => setNewEndDate("")}
+                    >✕</button>
+                  )}
+                </div>
               </div>
+              <p className="text-[10px] text-muted-foreground mt-1">종료일이 없으면 당일 교육으로 처리됩니다.</p>
+            </div>
+            <div className="grid grid-cols-1 gap-3">
               <div>
                 <label className="text-xs font-medium text-muted-foreground mb-1 block">교육유형</label>
                 <Select value={newType} onValueChange={setNewType}>
@@ -2025,9 +2059,11 @@ export default function EducationLogs() {
                       : selectedDepts.length > 1
                         ? `부서별 상이`
                         : newParticipants || "-";
+                    const periodStr = newEndDate && newEndDate !== newDate
+                      ? `${newDate} ~ ${newEndDate}` : newDate;
                     const template =
 `▶ 교육명: ${newTitle || "(미입력)"}
-▶ 교육일자: ${newDate}
+▶ 교육기간: ${periodStr}
 ▶ 교육유형: ${newType}
 ▶ 강사: ${newInstructor || "-"}
 ▶ 교육대상: ${depts}
@@ -2138,19 +2174,43 @@ export default function EducationLogs() {
                 data-testid="input-edit-title"
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">교육일자 *</label>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">교육 기간 *</label>
+              <div className="flex items-center gap-2">
                 <Input
                   type="date"
                   value={editDate}
-                  onChange={e => setEditDate(e.target.value)}
+                  onChange={e => {
+                    setEditDate(e.target.value);
+                    if (editEndDate && e.target.value > editEndDate) setEditEndDate(e.target.value);
+                  }}
+                  className="flex-1"
                   data-testid="input-edit-date"
                 />
+                <span className="text-xs text-muted-foreground shrink-0">~</span>
+                <div className="flex-1 relative">
+                  <Input
+                    type="date"
+                    value={editEndDate}
+                    min={editDate}
+                    onChange={e => setEditEndDate(e.target.value)}
+                    className="flex-1"
+                    data-testid="input-edit-end-date"
+                  />
+                  {editEndDate && (
+                    <button
+                      type="button"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground text-xs"
+                      onClick={() => setEditEndDate("")}
+                    >✕</button>
+                  )}
+                </div>
               </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">교육유형</label>
-                <Select value={editType} onValueChange={setEditType}>
+              <p className="text-[10px] text-muted-foreground mt-1">종료일이 없으면 당일 교육으로 처리됩니다.</p>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">교육유형</label>
+              <Select value={editType} onValueChange={setEditType}>
                   <SelectTrigger data-testid="select-edit-type">
                     <SelectValue />
                   </SelectTrigger>
@@ -2160,7 +2220,6 @@ export default function EducationLogs() {
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
             </div>
             {editingGroup && (
               <div className="border rounded-lg p-3 bg-muted/10">
@@ -2403,7 +2462,7 @@ export default function EducationLogs() {
             </DialogTitle>
             {previewSession && (
               <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-[11px] text-muted-foreground mt-0.5">
-                <span>□ 시행일시: <strong className="text-foreground">{previewSession.educationDate}</strong></span>
+                <span>□ 시행일시: <strong className="text-foreground">{previewSession.educationDate}{previewSession.educationEndDate && previewSession.educationEndDate !== previewSession.educationDate ? ` ~ ${previewSession.educationEndDate}` : ""}</strong></span>
                 <span>□ 부서명: <strong className="text-foreground">{previewSession.department}</strong></span>
                 <span>□ 교육유형: <strong className="text-foreground">{previewSession.educationType}</strong></span>
                 {previewSession.instructor && <span>□ 강사: <strong className="text-foreground">{previewSession.instructor}</strong></span>}

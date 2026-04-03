@@ -185,6 +185,7 @@ export const educationSessions = pgTable("education_sessions", {
   id: serial("id").primaryKey(),
   title: text("title").notNull(),
   educationDate: text("education_date").notNull(),
+  educationEndDate: text("education_end_date"),
   department: text("department").notNull(),
   educationType: text("education_type").notNull().default("정기교육"),
   instructor: text("instructor"),
