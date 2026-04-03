@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import rateLimit from "express-rate-limit";
+import { createHash } from "crypto";
 import { db } from "./db";
 import { teams, trafficFines, accidentReports, educationSignatures } from "@shared/schema";
 import { eq, and, count } from "drizzle-orm";
@@ -1859,6 +1860,7 @@ export async function registerRoutes(
         signerName: z.string().min(1, "이름을 입력해주세요").max(50, "이름은 50자 이내로 입력해주세요"),
         signerDepartment: z.string().max(100).optional().default(""),
         signatureData: z.string().min(1, "서명을 입력해주세요").max(MAX_SIGNATURE_SIZE, "서명 데이터가 너무 큽니다."),
+        consentAgreed: z.boolean().refine(v => v === true, { message: "개인정보 수집 및 전자서명 동의가 필요합니다." }),
       });
       const parsed = sigSchema.parse(req.body);
       const originalSessionId = Number(req.params.id);
@@ -1885,11 +1887,25 @@ export async function registerRoutes(
       if (alreadySigned) {
         return res.status(400).json({ message: "이미 서명을 등록하셨습니다. 한 사람당 한 번만 서명할 수 있습니다." });
       }
+
+      // 법적 증빙 메타데이터 수집
+      const signedAt = new Date().toISOString();
+      const ipAddress = (req.headers["x-forwarded-for"] as string)?.split(",")[0].trim() || req.socket.remoteAddress || "unknown";
+      const userAgent = (req.headers["user-agent"] as string) || "unknown";
+
+      // 무결성 해시 생성 (SHA-256) — 위변조 검증용
+      const hashSource = `${parsed.signerName}|${targetSessionId}|${signedAt}|${ipAddress}`;
+      const integrityHash = createHash("sha256").update(hashSource).digest("hex");
+
       const signature = await storage.createSignature({
         sessionId: targetSessionId,
         signerName: parsed.signerName,
         signerDepartment: signerDept,
         signatureData: parsed.signatureData,
+        consentAgreed: true,
+        ipAddress,
+        userAgent,
+        integrityHash,
       });
       res.status(201).json({ ...signature, resolvedSessionId: targetSessionId });
     } catch (err: any) {

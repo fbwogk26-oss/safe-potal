@@ -204,6 +204,10 @@ export const educationSignatures = pgTable("education_signatures", {
   signerDepartment: text("signer_department"),
   signatureData: text("signature_data").notNull(),
   signedAt: timestamp("signed_at").defaultNow(),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  consentAgreed: boolean("consent_agreed").default(false),
+  integrityHash: text("integrity_hash"),
 });
 
 export const insertEducationSessionSchema = createInsertSchema(educationSessions).omit({ id: true, createdAt: true });
