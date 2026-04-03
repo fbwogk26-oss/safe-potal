@@ -4035,54 +4035,61 @@ export async function registerRoutes(
         return res.status(500).json({ message: "AI 파싱에 실패했습니다. 메일 형식을 확인해주세요." });
       }
 
-      // 지역별로 그룹화
-      const byRegion: Record<string, typeof parsed.items> = {};
-      for (const item of (parsed.items || [])) {
-        const r = item.region || "기타";
-        if (!byRegion[r]) byRegion[r] = [];
-        byRegion[r].push(item);
-      }
-
-      // 날짜 포맷 (YY.MM.DD → 20YY.MM.DD)
+      // 날짜 포맷 처리
       const workDate = parsed.workDate || "";
-      const fullDate = workDate.startsWith("20") ? workDate : workDate ? `20${workDate}` : "작업일";
-
-      // 이메일 초안 생성
-      const lines: string[] = [];
-      lines.push(`안녕하십니까. 현장경영팀입니다.`);
-      lines.push(``);
-      lines.push(`${parsed.company || "하도급 업체"} ${fullDate} 작업일정을 아래와 같이 안내 드립니다.`);
-      lines.push(``);
-      lines.push(`◈ 안전 주의사항`);
-      lines.push(` - TBM 실시 후 작업 시작`);
-      lines.push(` - 고소작업 시 안전장비 착용 필수`);
-      lines.push(` - 작업 전/후 MOS 순회점검 등록 필수`);
-      lines.push(``);
-
-      for (const [region, items] of Object.entries(byRegion)) {
-        lines.push(`════════════════════════════════`);
-        lines.push(`[${region}운용팀]`);
-        lines.push(`════════════════════════════════`);
-        (items as any[]).forEach((item: any, idx: number) => {
-          lines.push(`${idx + 1}. ${item.workType} (${item.time})`);
-          if (item.locationName) lines.push(`   - 국소명: ${item.locationName}`);
-          if (item.address) lines.push(`   - 주소: ${item.address}`);
-          if (item.workers && item.workers.length > 0) {
-            lines.push(`   - 작업자: ${item.workers.join(" / ")}`);
-          }
-          if (item.supervisor) lines.push(`   - MOS감독자: ${item.supervisor}`);
-          lines.push(``);
-        });
+      const fullDate = workDate.startsWith("20") ? workDate : workDate ? `20${workDate}` : "";
+      const DAYS_KR = ["일", "월", "화", "수", "목", "금", "토"];
+      let displayDate = fullDate;
+      if (fullDate && fullDate.match(/\d{4}\.\d{2}\.\d{2}/)) {
+        const [y, m, d] = fullDate.split(".").map(Number);
+        const dt = new Date(y, m - 1, d);
+        displayDate = `${fullDate}(${DAYS_KR[dt.getDay()]})`;
       }
 
-      lines.push(`════════════════════════════════`);
+      const company = parsed.company || "하도급 업체";
+      const items: any[] = parsed.items || [];
+
+      // 이메일 본문 생성 (두 번째 메일 포맷 기준)
+      const lines: string[] = [];
+      lines.push(`안녕하십니까 현장경영팀입니다.`);
       lines.push(``);
-      lines.push(`★ 입회자 변경, 작업 취소 등 변경사항 발생 시 즉시 연락 부탁드립니다. ★`);
+      lines.push(`${displayDate} ${company} 하도급 작업 내 TBM 실시 및 순회점검 등록 요청드립니다.`);
       lines.push(``);
-      lines.push(`감사합니다.`);
+      lines.push(`순회점검 등록방법 확인 필요 시 첨부파일 참조 부탁드리며, TBM 및 순회점검 등록사진 예시 참조하시어 등록 부탁드립니다.`);
+      lines.push(``);
+      lines.push(`★입회자 변경, 작업취소 등 변경사항 있으시면 연락 부탁드립니다.★`);
+      lines.push(``);
+      lines.push(`문의사항 있으시면 연락 부탁드립니다.`);
+      lines.push(``);
+      lines.push(`감사합니다`);
+      lines.push(``);
+      lines.push(``);
+      lines.push(`※ ${displayDate} ${company} 작업계획`);
+      lines.push(``);
+
+      // 테이블 헤더
+      const COL_SEP = "\t";
+      const headers = ["지역", "작업자(협력사)", "공사내용", "작업시작", "작업종료", "국소명", "주소", "MOS감독자"];
+      lines.push(headers.join(COL_SEP));
+
+      // 각 작업 행
+      for (const item of items) {
+        const [startTime, endTime] = (item.time || "~").split("~");
+        const row = [
+          item.region || "",
+          (item.workers || []).join(", "),
+          item.workType || "",
+          startTime?.trim() || "",
+          endTime?.trim() || "",
+          item.locationName || "",
+          item.address || "",
+          item.supervisor || "",
+        ];
+        lines.push(row.join(COL_SEP));
+      }
 
       const emailDraft = lines.join("\n");
-      const subject = `[입회작업 안내] ${fullDate} ${parsed.company || ""} 하도급 작업일정`;
+      const subject = `[입회작업 안내] ${displayDate} ${company} 하도급 작업일정`;
 
       res.json({ parsed, emailDraft, subject });
     } catch (error: any) {

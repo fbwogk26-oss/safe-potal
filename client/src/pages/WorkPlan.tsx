@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   Upload, FileSpreadsheet, Download, Trash2, CalendarCheck,
-  Clock, CheckCircle2, X, Loader2, ClipboardPaste, Copy, Check, Mail, Wand2, MapPin, Users, User
+  Clock, CheckCircle2, X, Loader2, ClipboardPaste, Copy, Check, Mail, Wand2
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -686,40 +686,21 @@ export default function WorkPlan() {
                   {/* 생성 결과 */}
                   {subResult && (
                     <div className="flex flex-col gap-3 mt-1">
-                      {/* 파싱된 항목 요약 */}
-                      <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3">
-                        <div className="flex items-center gap-2 mb-2">
-                          <CheckCircle2 className="w-4 h-4 text-green-600" />
-                          <span className="text-sm font-semibold text-green-700">
-                            {subResult.parsed.company} | {subResult.parsed.workDate} | 총 {subResult.parsed.items?.length || 0}건
-                          </span>
-                        </div>
-                        <div className="flex flex-col gap-1.5 max-h-48 overflow-y-auto">
-                          {(subResult.parsed.items || []).map((item: any, idx: number) => (
-                            <div key={idx} className="text-xs bg-white rounded border border-green-100 px-3 py-2">
-                              <div className="flex items-center gap-2 font-semibold text-green-800 mb-1">
-                                <MapPin className="w-3 h-3" />
-                                [{item.region}] {item.workType}
-                                <span className="ml-auto text-muted-foreground font-normal">{item.time}</span>
-                              </div>
-                              <div className="text-muted-foreground space-y-0.5">
-                                {item.locationName && <div>국소명: {item.locationName}</div>}
-                                {item.workers && item.workers.length > 0 && (
-                                  <div className="flex items-start gap-1"><Users className="w-3 h-3 mt-0.5 shrink-0" />{item.workers.join(", ")}</div>
-                                )}
-                                {item.supervisor && (
-                                  <div className="flex items-center gap-1"><User className="w-3 h-3 shrink-0" />MOS감독자: {item.supervisor}</div>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
+                      {/* 완료 배지 */}
+                      <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2">
+                        <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
+                        <span className="text-xs font-semibold text-green-700">
+                          {subResult.parsed.company} · {subResult.parsed.workDate} · 총 {subResult.parsed.items?.length || 0}건 작업 파싱 완료
+                        </span>
                       </div>
 
-                      {/* 이메일 제목 */}
+                      {/* 메일 제목 */}
                       <div className="flex flex-col gap-1.5">
                         <div className="flex items-center justify-between">
-                          <Label className="text-sm font-medium">메일 제목</Label>
+                          <Label className="text-sm font-medium flex items-center gap-1.5">
+                            <Mail className="w-3.5 h-3.5 text-muted-foreground" />
+                            메일 제목
+                          </Label>
                           <Button
                             size="sm"
                             variant="outline"
@@ -727,34 +708,50 @@ export default function WorkPlan() {
                             onClick={handleCopySubSubject}
                             data-testid="button-copy-sub-subject"
                           >
-                            {subCopied ? <><Check className="w-3 h-3 mr-1 text-green-600" />복사됨</> : <><Copy className="w-3 h-3 mr-1" />복사</>}
+                            {subCopied
+                              ? <><Check className="w-3 h-3 mr-1 text-green-600" />복사됨</>
+                              : <><Copy className="w-3 h-3 mr-1" />복사</>}
                           </Button>
                         </div>
-                        <div className="rounded border bg-muted/30 px-3 py-2 text-sm font-mono select-all">
+                        <div
+                          className="rounded border bg-muted/40 px-3 py-2 text-sm select-all cursor-pointer hover:bg-muted/60 transition-colors"
+                          onClick={handleCopySubSubject}
+                          title="클릭하여 복사"
+                          data-testid="display-sub-subject"
+                        >
                           {subResult.subject}
                         </div>
                       </div>
 
-                      {/* 이메일 본문 */}
+                      {/* 메일 본문 */}
                       <div className="flex flex-col gap-1.5">
                         <div className="flex items-center justify-between">
-                          <Label className="text-sm font-medium">메일 본문</Label>
+                          <Label className="text-sm font-medium flex items-center gap-1.5">
+                            <Mail className="w-3.5 h-3.5 text-muted-foreground" />
+                            메일 본문
+                            <span className="text-xs font-normal text-muted-foreground">(직접 수정 가능)</span>
+                          </Label>
                           <Button
                             size="sm"
-                            className="h-7 text-xs px-2.5 bg-blue-600 hover:bg-blue-700 text-white"
+                            className="h-7 text-xs px-3 bg-blue-600 hover:bg-blue-700 text-white"
                             onClick={handleCopySubDraft}
                             data-testid="button-copy-sub-draft"
                           >
-                            {subCopiedDraft ? <><Check className="w-3 h-3 mr-1" />복사됨</> : <><Copy className="w-3 h-3 mr-1" />본문 복사</>}
+                            {subCopiedDraft
+                              ? <><Check className="w-3 h-3 mr-1" />복사됨</>
+                              : <><Copy className="w-3 h-3 mr-1" />본문 복사</>}
                           </Button>
                         </div>
                         <Textarea
                           value={subResult.emailDraft}
                           onChange={(e) => setSubResult(prev => prev ? { ...prev, emailDraft: e.target.value } : prev)}
-                          rows={16}
-                          className="text-xs font-mono resize-y"
+                          rows={18}
+                          className="text-xs font-mono resize-y leading-relaxed"
                           data-testid="textarea-sub-draft"
                         />
+                        <p className="text-[11px] text-muted-foreground">
+                          마지막 줄의 테이블은 탭 구분이므로 이메일 붙여넣기 시 자동으로 표 형식으로 정렬됩니다.
+                        </p>
                       </div>
                     </div>
                   )}
