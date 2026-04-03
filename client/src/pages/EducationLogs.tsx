@@ -219,7 +219,7 @@ function ProgressDashboard() {
         <Card>
           <CardContent className="p-3 sm:p-4 text-center">
             <CheckCircle2 className="w-5 h-5 mx-auto mb-1 text-emerald-500" />
-            <p className="text-[11px] text-muted-foreground">서명완료</p>
+            <p className="text-[11px] text-muted-foreground">교육완료</p>
             <p className="text-xl font-bold text-emerald-600" data-testid="text-completed-educations">{completedAll}건</p>
           </CardContent>
         </Card>
