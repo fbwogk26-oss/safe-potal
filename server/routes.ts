@@ -4085,10 +4085,12 @@ export async function registerRoutes(
       p("감사합니다"),
       `<p style="margin:16px 0"></p>`,
       `<p style="margin:8px 0 6px;font-family:맑은고딕,sans-serif;font-size:12pt;font-weight:bold">※ ${displayDate} ${company} 작업계획</p>`,
+      `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch">`,
       `<table style="border-collapse:collapse;border-spacing:0;font-family:맑은고딕,sans-serif;font-size:13px;background:#fff;table-layout:auto;overflow-wrap:break-word">`,
       `<thead>${theadHtml}</thead>`,
       `<tbody>${tbodyHtml}</tbody>`,
       `</table>`,
+      `</div>`,
       imgHtml,
       `</div>`,
     ].join("\n");
@@ -4205,11 +4207,26 @@ workers 배열은 실제 작업자 명단이며, supervisor는 KT/KTMOS 측 감�
           pass: process.env.GMAIL_APP_PASSWORD,
         },
       });
+      // 모바일 대응: viewport 메타태그가 포함된 완전한 HTML 문서로 래핑
+      const mobileReadyHtml = `<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  body { margin:16px 20px; padding:0; font-family:맑은고딕,Arial,sans-serif; }
+  img { max-width:100% !important; width:100% !important; height:auto !important; display:block; }
+</style>
+</head>
+<body>
+${htmlDraft}
+</body>
+</html>`;
       await transporter.sendMail({
         from: '"현장경영팀" <fbwogk26@gmail.com>',
         to,
         subject,
-        html: htmlDraft,
+        html: mobileReadyHtml,
       });
       res.json({ success: true, message: `${to}로 발송 완료` });
     } catch (error: any) {
