@@ -4189,6 +4189,34 @@ workers 배열은 실제 작업자 명단이며, supervisor는 KT/KTMOS 측 감�
     }
   });
 
+  // 이메일 직접 발송
+  app.post('/api/work-plans/send-email', isAuthenticated, async (req: any, res) => {
+    try {
+      const { subject, htmlDraft, to } = req.body;
+      if (!subject || !htmlDraft || !to) {
+        return res.status(400).json({ message: "제목, 본문, 수신자가 필요합니다." });
+      }
+      const nodemailer = await import("nodemailer");
+      const transporter = nodemailer.default.createTransport({
+        service: "gmail",
+        auth: {
+          user: "fbwogk26@gmail.com",
+          pass: process.env.GMAIL_APP_PASSWORD,
+        },
+      });
+      await transporter.sendMail({
+        from: '"현장경영팀" <fbwogk26@gmail.com>',
+        to,
+        subject,
+        html: htmlDraft,
+      });
+      res.json({ success: true, message: `${to}로 발송 완료` });
+    } catch (error: any) {
+      console.error("[send-email error]", error);
+      res.status(500).json({ message: error?.message || "발송에 실패했습니다." });
+    }
+  });
+
   app.post('/api/work-plans/from-paste', isAuthenticated, async (req: any, res) => {
     try {
       const { rows, title, emailDraft } = req.body;

@@ -7,8 +7,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
-  Upload, CalendarCheck, CheckCircle2, X, Loader2, Copy, Check, Mail, Trash2, Clock
+  Upload, CalendarCheck, CheckCircle2, X, Loader2, Copy, Check, Mail, Trash2, Clock, Send
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -42,6 +44,8 @@ export default function WorkPlan() {
   const [subjectCopied, setSubjectCopied] = useState(false);
   const [bodyCopied, setBodyCopied] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<WorkPlan | null>(null);
+  const [recipientEmail, setRecipientEmail] = useState("jaeha.ryu@ktmos.co.kr");
+  const [sendSuccess, setSendSuccess] = useState(false);
 
   const { data: workPlans = [], isLoading } = useQuery<WorkPlan[]>({
     queryKey: ["/api/work-plans"],
@@ -70,6 +74,30 @@ export default function WorkPlan() {
     },
     onError: (err: any) => {
       toast({ title: "처리 실패", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const sendMutation = useMutation({
+    mutationFn: async ({ subject, htmlDraft, to }: { subject: string; htmlDraft: string; to: string }) => {
+      const res = await fetch("/api/work-plans/send-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ subject, htmlDraft, to }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: "발송 실패" }));
+        throw new Error(err.message || "발송에 실패했습니다");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      setSendSuccess(true);
+      toast({ title: "발송 완료", description: `${recipientEmail}로 이메일이 발송되었습니다.` });
+      setTimeout(() => setSendSuccess(false), 4000);
+    },
+    onError: (err: any) => {
+      toast({ title: "발송 실패", description: err.message, variant: "destructive" });
     },
   });
 
@@ -314,6 +342,51 @@ export default function WorkPlan() {
                   </div>
                   <p className="text-[11px] text-muted-foreground">
                     위 미리보기 확인 후 "본문 복사" → 이메일 클라이언트에서 붙여넣기 하세요. 표 서식과 사진이 그대로 붙여넣어집니다.
+                  </p>
+                </div>
+
+                {/* 이메일 직접 발송 */}
+                <div className="flex flex-col gap-2 rounded-lg border border-blue-100 dark:border-blue-900 bg-blue-50/50 dark:bg-blue-950/30 px-4 py-3">
+                  <Label className="text-sm font-medium flex items-center gap-1.5">
+                    <Send className="w-3.5 h-3.5 text-blue-500" />
+                    이메일 직접 발송
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input
+                      type="email"
+                      value={recipientEmail}
+                      onChange={(e) => setRecipientEmail(e.target.value)}
+                      placeholder="수신자 이메일"
+                      className="flex-1 text-sm h-9"
+                      data-testid="input-recipient-email"
+                    />
+                    <Button
+                      className={cn(
+                        "h-9 px-4 text-sm font-medium transition-all",
+                        sendSuccess
+                          ? "bg-green-600 hover:bg-green-600 text-white"
+                          : "bg-blue-600 hover:bg-blue-700 text-white"
+                      )}
+                      onClick={() => {
+                        if (!result || !recipientEmail.trim()) return;
+                        sendMutation.mutate({
+                          subject: result.subject,
+                          htmlDraft: result.htmlDraft,
+                          to: recipientEmail.trim(),
+                        });
+                      }}
+                      disabled={!recipientEmail.trim() || sendMutation.isPending}
+                      data-testid="button-send-email"
+                    >
+                      {sendMutation.isPending
+                        ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />발송 중...</>
+                        : sendSuccess
+                          ? <><Check className="w-3.5 h-3.5 mr-1.5" />발송 완료</>
+                          : <><Send className="w-3.5 h-3.5 mr-1.5" />발송</>}
+                    </Button>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    발송자: fbwogk26@gmail.com → 위 주소로 이메일이 즉시 발송됩니다
                   </p>
                 </div>
               </CardContent>
