@@ -2059,21 +2059,9 @@ export default function EducationLogs() {
                       : selectedDepts.length > 1
                         ? `부서별 상이`
                         : newParticipants || "-";
-                    const periodStr = newEndDate && newEndDate !== newDate
-                      ? `${newDate} ~ ${newEndDate}` : newDate;
                     const template =
-`▶ 교육명: ${newTitle || "(미입력)"}
-▶ 교육기간: ${periodStr}
-▶ 교육유형: ${newType}
-▶ 강사: ${newInstructor || "-"}
-▶ 교육대상: ${depts}
-▶ 교육인원: ${participants}명
-
-▶ 교육 내용
-  - ${newType} 안전보건 교육 실시
-  - 관련 법령 및 사내 안전 수칙 교육
-  - 위험 요소 및 예방 대책 안내
-  - 사고 발생 시 대처 방법 교육
+`▶ 교육 내용
+  -
 
 ▶ 특이사항
   -`;
