@@ -20,6 +20,7 @@ import DigitalBoard from "@/pages/DigitalBoard";
 import SafetyInspections from "@/pages/SafetyInspections";
 import AdminUsers from "@/pages/AdminUsers";
 import SecurityLogs from "@/pages/SecurityLogs";
+import SignatureAdmin from "@/pages/SignatureAdmin";
 import MsdsSearch from "@/pages/MsdsSearch";
 import RiskAssessment from "@/pages/RiskAssessment";
 import AccidentReports from "@/pages/AccidentReports";
@@ -107,6 +108,7 @@ function RouterContent() {
       <Route path="/admin/security">{() => <G canAccess={canManageUsers} component={SecurityLogs} />}</Route>
       <Route path="/admin/music">{() => <G canAccess={isAdmin} component={MusicManager} />}</Route>
       <Route path="/admin/fuel-costs">{() => <G canAccess={isAdmin} component={FuelCosts} />}</Route>
+      <Route path="/admin/signatures">{() => <G canAccess={isAdmin} component={SignatureAdmin} />}</Route>
       <Route path="/weather-safety" component={WeatherSafetyMessage} />
       <Route component={NotFound} />
     </Switch>

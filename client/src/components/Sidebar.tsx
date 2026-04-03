@@ -24,6 +24,7 @@ import {
   CalendarCheck,
   Music2,
   Fuel,
+  FileSignature,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -118,6 +119,7 @@ const NAV_SECTIONS: NavSection[] = [
           { label: "보안 감사 로그", href: "/admin/security", icon: ScrollText },
           { label: "음악 관리", href: "/admin/music", icon: Music2 },
           { label: "유류비 현황", href: "/admin/fuel-costs", icon: Fuel },
+          { label: "서명 관리", href: "/admin/signatures", icon: FileSignature },
         ],
       },
     ],

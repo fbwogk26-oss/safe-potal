@@ -1785,6 +1785,28 @@ export async function registerRoutes(
     res.json(signatures);
   });
 
+  // 관리자 전용: 모든 서명 기록 (메타데이터 포함)
+  app.get("/api/admin/signatures", isAuthenticated, async (req: any, res) => {
+    if (req.user?.role !== "admin") return res.status(403).json({ message: "관리자만 접근 가능합니다." });
+    try {
+      const signatures = await storage.getAllSignaturesWithSession();
+      res.json(signatures);
+    } catch (err) {
+      res.status(500).json({ message: "서명 데이터 조회 실패" });
+    }
+  });
+
+  // 관리자 전용: 서명 삭제
+  app.delete("/api/admin/signatures/:id", isAuthenticated, async (req: any, res) => {
+    if (req.user?.role !== "admin") return res.status(403).json({ message: "관리자만 접근 가능합니다." });
+    try {
+      await storage.deleteSignature(Number(req.params.id));
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ message: "서명 삭제 실패" });
+    }
+  });
+
   app.post("/api/education-sessions/:id/signatures", isAuthenticated, async (req: any, res) => {
     try {
       const sigSchema = z.object({

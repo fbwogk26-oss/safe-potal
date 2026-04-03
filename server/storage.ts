@@ -68,6 +68,7 @@ export interface IStorage {
 
   // Education Signatures
   getSignaturesBySession(sessionId: number): Promise<EducationSignature[]>;
+  getAllSignaturesWithSession(): Promise<Array<EducationSignature & { sessionTitle: string; sessionDate: string; sessionDepartment: string }>>;
   createSignature(signature: InsertEducationSignature): Promise<EducationSignature>;
   deleteSignature(id: number): Promise<void>;
 
@@ -289,6 +290,34 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(educationSignatures)
       .where(eq(educationSignatures.sessionId, sessionId))
       .orderBy(asc(educationSignatures.signedAt));
+  }
+
+  async getAllSignaturesWithSession(): Promise<Array<EducationSignature & { sessionTitle: string; sessionDate: string; sessionDepartment: string }>> {
+    const rows = await db
+      .select({
+        id: educationSignatures.id,
+        sessionId: educationSignatures.sessionId,
+        signerName: educationSignatures.signerName,
+        signerDepartment: educationSignatures.signerDepartment,
+        signatureData: educationSignatures.signatureData,
+        signedAt: educationSignatures.signedAt,
+        ipAddress: educationSignatures.ipAddress,
+        userAgent: educationSignatures.userAgent,
+        consentAgreed: educationSignatures.consentAgreed,
+        integrityHash: educationSignatures.integrityHash,
+        sessionTitle: educationSessions.title,
+        sessionDate: educationSessions.educationDate,
+        sessionDepartment: educationSessions.department,
+      })
+      .from(educationSignatures)
+      .leftJoin(educationSessions, eq(educationSignatures.sessionId, educationSessions.id))
+      .orderBy(desc(educationSignatures.signedAt));
+    return rows.map(r => ({
+      ...r,
+      sessionTitle: r.sessionTitle ?? "",
+      sessionDate: r.sessionDate ?? "",
+      sessionDepartment: r.sessionDepartment ?? "",
+    }));
   }
 
   async createSignature(signature: InsertEducationSignature): Promise<EducationSignature> {
