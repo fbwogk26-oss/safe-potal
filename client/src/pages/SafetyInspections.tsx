@@ -17,7 +17,7 @@ import type { SafetyInspection, Team } from "@shared/schema";
 import ExcelJS from "exceljs";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useAuth } from "@/hooks/use-auth";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LabelList, ReferenceLine } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LabelList } from "recharts";
 
 type ChecklistStatus = '양호' | '미흡' | '미점검';
 
@@ -867,26 +867,6 @@ export default function SafetyInspections() {
                               <LabelList dataKey="진행율" position="top" style={{ fontSize: 10, fontWeight: 700, fill: "#374151" }} formatter={(v: number | null) => v != null ? `${v}%` : ""} />
                             )}
                           </Bar>
-                          {inspectionStats.safetyPerDept > 0 && (
-                            <ReferenceLine
-                              y={inspectionStats.safetyPerDept}
-                              stroke="#3b82f6"
-                              strokeDasharray="4 3"
-                              strokeWidth={1.5}
-                              opacity={0.7}
-                              label={{ value: `안전목표 ${Number(inspectionStats.safetyPerDept.toFixed(1))}`, position: "insideTopLeft", fontSize: 9, fill: "#3b82f6" }}
-                            />
-                          )}
-                          {inspectionStats.combinedPerDept > 0 && (
-                            <ReferenceLine
-                              y={inspectionStats.combinedPerDept}
-                              stroke="#f59e0b"
-                              strokeDasharray="5 3"
-                              strokeWidth={1.5}
-                              opacity={0.8}
-                              label={{ value: `총목표 ${Number(inspectionStats.combinedPerDept.toFixed(1))}`, position: "insideTopLeft", fontSize: 9, fill: "#d97706" }}
-                            />
-                          )}
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
