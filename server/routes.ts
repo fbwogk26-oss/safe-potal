@@ -3977,12 +3977,117 @@ export async function registerRoutes(
     }
   });
 
-  // 하도급 메일 파싱 → 작업계획 초안 생성
-  app.post('/api/work-plans/parse-subcontract-email', isAuthenticated, async (req: any, res) => {
+  // .eml 파일 업로드 → 하도급 작업계획 이메일 HTML 생성
+  const emlUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+
+  function extractEmlText(emlBuffer: Buffer): string {
+    const raw = emlBuffer.toString("latin1");
+    const texts: string[] = [];
+    const parts = raw.split(/\r?\n--[^\r\n]+\r?\n/);
+    for (const part of parts) {
+      const sepIdx = part.search(/\r?\n\r?\n/);
+      if (sepIdx === -1) continue;
+      const headerBlock = part.slice(0, sepIdx).toLowerCase();
+      const body = part.slice(sepIdx).trim();
+      if (!body) continue;
+      if (headerBlock.includes("content-transfer-encoding: base64")) {
+        const b64 = body.replace(/\s/g, "");
+        if (!b64) continue;
+        try {
+          let decoded = Buffer.from(b64, "base64").toString("utf-8");
+          if (headerBlock.includes("text/html") || decoded.trimStart().startsWith("<")) {
+            decoded = decoded
+              .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+              .replace(/<[^>]+>/g, " ")
+              .replace(/&nbsp;/g, " ")
+              .replace(/&amp;/g, "&")
+              .replace(/&lt;/g, "<")
+              .replace(/&gt;/g, ">")
+              .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+              .replace(/\s{2,}/g, " ")
+              .trim();
+          }
+          if (decoded.length > 30) texts.push(decoded);
+        } catch {}
+      } else if (
+        headerBlock.includes("text/plain") ||
+        headerBlock.includes("text/html")
+      ) {
+        let text = body;
+        if (headerBlock.includes("text/html")) {
+          text = text.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+        }
+        if (text.length > 30) texts.push(text);
+      }
+    }
+    if (texts.length === 0) {
+      const fallback = raw
+        .replace(/^[^\n]*\n/gm, l => l.includes(":") ? "" : l)
+        .replace(/<[^>]+>/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (fallback.length > 30) texts.push(fallback);
+    }
+    return texts.join("\n\n");
+  }
+
+  function buildSubcontractHtml(displayDate: string, company: string, items: any[], guideB64: string): string {
+    const thStyle = `border:1px solid #999;padding:5px 8px;background:#f0f0f0;white-space:nowrap;font-size:11px;text-align:center;font-weight:bold`;
+    const tdStyle = `border:1px solid #999;padding:5px 8px;font-size:11px;white-space:nowrap`;
+    const cols = ["지역/부팀", "작업자(협력사)", "공사내용", "작업시작", "작업종료", "국소명", "주소", "MOS감독자"];
+    const theadHtml = `<tr>${cols.map(c => `<th style="${thStyle}">${c}</th>`).join("")}</tr>`;
+    const tbodyHtml = items.map(item => {
+      const [startTime = "", endTime = ""] = (item.time || "~").split("~");
+      const cells = [
+        item.region || "",
+        (item.workers || []).join("<br>"),
+        item.workType || "",
+        startTime.trim(),
+        endTime.trim(),
+        item.locationName || "",
+        item.address || "",
+        item.supervisor || "",
+      ];
+      return `<tr>${cells.map(c => `<td style="${tdStyle}">${c}</td>`).join("")}</tr>`;
+    }).join("");
+    const imgHtml = guideB64
+      ? `<br><br><div><img src="data:image/png;base64,${guideB64}" style="max-width:700px;width:100%;border:1px solid #ddd" alt="TBM 활동 사진 등록 가이드" /></div>`
+      : "";
+    const p = (text: string, opts?: string) => `<p style="margin:2px 0;font-family:맑은고딕,sans-serif;font-size:10pt;line-height:1.5;${opts || ""}">${text}</p>`;
+    return [
+      `<div style="font-family:맑은고딕,sans-serif;font-size:10pt;line-height:1.5;color:#111">`,
+      p("안녕하십니까 현장경영팀입니다."),
+      `<p style="margin:6px 0"></p>`,
+      p(`${displayDate} ${company} 하도급 작업 내 TBM 실시 및 순회점검 등록 요청드립니다.`),
+      `<p style="margin:6px 0"></p>`,
+      p("순회점검 등록방법 확인 필요 시 첨부파일 참조 부탁드리며, TBM 및 순회점검 등록사진 예시 참조하시어 등록 부탁드립니다."),
+      `<p style="margin:6px 0"></p>`,
+      p("★입회자 변경, 작업취소 등 변경사항 있으시면 연락 부탁드립니다.★", "color:#cc0000;font-weight:bold"),
+      `<p style="margin:6px 0"></p>`,
+      p("문의사항 있으시면 연락 부탁드립니다."),
+      `<p style="margin:6px 0"></p>`,
+      p("감사합니다"),
+      `<p style="margin:14px 0"></p>`,
+      `<p style="margin:8px 0 4px;font-family:맑은고딕,sans-serif;font-size:10pt;font-weight:bold">※ ${displayDate} ${company} 작업계획</p>`,
+      `<table style="border-collapse:collapse;border-spacing:0;font-family:맑은고딕,sans-serif;font-size:11px;background:#fff;table-layout:fixed;overflow-wrap:break-word">`,
+      `<thead>${theadHtml}</thead>`,
+      `<tbody>${tbodyHtml}</tbody>`,
+      `</table>`,
+      imgHtml,
+      `</div>`,
+    ].join("\n");
+  }
+
+  app.post('/api/work-plans/parse-subcontract-email', isAuthenticated, emlUpload.single("emlFile"), async (req: any, res) => {
     try {
-      const { emailText } = req.body;
-      if (!emailText || typeof emailText !== 'string' || emailText.trim().length < 10) {
-        return res.status(400).json({ message: "메일 내용을 입력해주세요." });
+      const file = req.file;
+      if (!file) {
+        return res.status(400).json({ message: ".eml 파일을 업로드해주세요." });
+      }
+
+      const emailText = extractEmlText(file.buffer);
+      if (!emailText || emailText.trim().length < 20) {
+        return res.status(400).json({ message: "이메일 내용을 추출할 수 없습니다. 파일 형식을 확인해주세요." });
       }
 
       const OpenAI = (await import("openai")).default;
@@ -3991,39 +4096,41 @@ export async function registerRoutes(
         baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
       });
 
-      const systemPrompt = `당신은 하도급 업체가 보낸 작업일정 이메일을 파싱하여 
-표준화된 작업계획 통보 이메일 초안을 작성하는 전문 AI입니다.
+      const systemPrompt = `당신은 하도급 업체가 보낸 작업일정 이메일을 파싱하는 전문 AI입니다.
 
 이메일에서 아래 정보를 추출하세요:
-- 발신 업체명
-- 작업일자
-- 지역별 작업 목록 (각 항목: 지역, 작업내용, 시간, 국소명, 주소, 작업자정보, MOS감독자)
+- 발신 업체명 (예: 스피드이엔지)
+- 작업일자 (예: 26.04.06)
+- 지역별 작업 목록
 
-그리고 아래 형식의 JSON만 반환하세요 (마크다운 없이):
+아래 형식의 JSON만 반환하세요 (마크다운 없이, 코드블록 없이):
 {
   "company": "업체명",
   "workDate": "YY.MM.DD",
   "items": [
     {
       "region": "지역명(예: 포항)",
-      "workType": "작업내용",
+      "workType": "작업내용(공사내용)",
       "time": "HH:MM~HH:MM",
       "locationName": "국소명",
       "address": "주소",
-      "workers": ["이름 직책 연락처", ...],
-      "supervisor": "감독자 이름 연락처"
+      "workers": ["이름(직책/연락처)"],
+      "supervisor": "MOS감독자 이름/연락처"
     }
   ]
-}`;
+}
+
+workers 배열은 실제 작업자 명단이며, supervisor는 KT/KTMOS 측 감독자입니다.
+지역명이 없으면 빈 문자열로 두세요.`;
 
       const response = await aiClient.chat.completions.create({
         model: "gpt-4o",
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: `다음 하도급 업체 작업일정 이메일을 파싱해주세요:\n\n${emailText}` }
+          { role: "user", content: `다음 하도급 업체 작업일정 이메일을 파싱해주세요:\n\n${emailText.slice(0, 8000)}` }
         ],
         temperature: 0,
-        max_tokens: 2000,
+        max_tokens: 3000,
       });
 
       const rawJson = response.choices[0].message.content?.trim() || "{}";
@@ -4032,14 +4139,13 @@ export async function registerRoutes(
         const cleaned = rawJson.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
         parsed = JSON.parse(cleaned);
       } catch {
-        return res.status(500).json({ message: "AI 파싱에 실패했습니다. 메일 형식을 확인해주세요." });
+        return res.status(500).json({ message: "AI 파싱에 실패했습니다. .eml 파일 형식을 확인해주세요." });
       }
 
-      // 날짜 포맷 처리
       const workDate = parsed.workDate || "";
       const fullDate = workDate.startsWith("20") ? workDate : workDate ? `20${workDate}` : "";
       const DAYS_KR = ["일", "월", "화", "수", "목", "금", "토"];
-      let displayDate = fullDate;
+      let displayDate = fullDate || workDate;
       if (fullDate && fullDate.match(/\d{4}\.\d{2}\.\d{2}/)) {
         const [y, m, d] = fullDate.split(".").map(Number);
         const dt = new Date(y, m - 1, d);
@@ -4048,50 +4154,20 @@ export async function registerRoutes(
 
       const company = parsed.company || "하도급 업체";
       const items: any[] = parsed.items || [];
+      const subject = `[요청] ${displayDate} 입회작업 TBM / 순회점검 등록요청(${company}(하도급) 작업 포함)`;
 
-      // 이메일 본문 생성 (두 번째 메일 포맷 기준)
-      const lines: string[] = [];
-      lines.push(`안녕하십니까 현장경영팀입니다.`);
-      lines.push(``);
-      lines.push(`${displayDate} ${company} 하도급 작업 내 TBM 실시 및 순회점검 등록 요청드립니다.`);
-      lines.push(``);
-      lines.push(`순회점검 등록방법 확인 필요 시 첨부파일 참조 부탁드리며, TBM 및 순회점검 등록사진 예시 참조하시어 등록 부탁드립니다.`);
-      lines.push(``);
-      lines.push(`★입회자 변경, 작업취소 등 변경사항 있으시면 연락 부탁드립니다.★`);
-      lines.push(``);
-      lines.push(`문의사항 있으시면 연락 부탁드립니다.`);
-      lines.push(``);
-      lines.push(`감사합니다`);
-      lines.push(``);
-      lines.push(``);
-      lines.push(`※ ${displayDate} ${company} 작업계획`);
-      lines.push(``);
+      // 가이드 이미지 base64
+      let guideB64 = "";
+      try {
+        const { readFileSync } = await import("fs");
+        const { join } = await import("path");
+        const imgPath = join(process.cwd(), "attached_assets", "image_1775201291098.png");
+        guideB64 = readFileSync(imgPath).toString("base64");
+      } catch {}
 
-      // 테이블 헤더
-      const COL_SEP = "\t";
-      const headers = ["지역", "작업자(협력사)", "공사내용", "작업시작", "작업종료", "국소명", "주소", "MOS감독자"];
-      lines.push(headers.join(COL_SEP));
+      const htmlDraft = buildSubcontractHtml(displayDate, company, items, guideB64);
 
-      // 각 작업 행
-      for (const item of items) {
-        const [startTime, endTime] = (item.time || "~").split("~");
-        const row = [
-          item.region || "",
-          (item.workers || []).join(", "),
-          item.workType || "",
-          startTime?.trim() || "",
-          endTime?.trim() || "",
-          item.locationName || "",
-          item.address || "",
-          item.supervisor || "",
-        ];
-        lines.push(row.join(COL_SEP));
-      }
-
-      const emailDraft = lines.join("\n");
-      const subject = `[입회작업 안내] ${displayDate} ${company} 하도급 작업일정`;
-
-      res.json({ parsed, emailDraft, subject });
+      res.json({ parsed, htmlDraft, subject, itemCount: items.length });
     } catch (error: any) {
       console.error("[parse-subcontract-email error]", error);
       res.status(500).json({ message: error?.message || "처리에 실패했습니다." });
