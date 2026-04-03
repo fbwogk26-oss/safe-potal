@@ -1785,22 +1785,83 @@ export async function registerRoutes(
     res.json(signatures);
   });
 
-  // 관리자 전용: 모든 서명 기록 (메타데이터 포함)
+  // 관리자 전용: 모든 서명 기록 (교육 + 보호구 지급, 메타데이터 포함)
   app.get("/api/admin/signatures", isAuthenticated, async (req: any, res) => {
     if (req.user?.role !== "admin") return res.status(403).json({ message: "관리자만 접근 가능합니다." });
     try {
-      const signatures = await storage.getAllSignaturesWithSession();
-      res.json(signatures);
+      // 1) 교육 이수 서명
+      const eduSigs = await storage.getAllSignaturesWithSession();
+      const eduResult = eduSigs.map(s => ({
+        id: `edu_${s.id}`,
+        rawId: s.id,
+        type: "education" as const,
+        sessionTitle: s.sessionTitle,
+        sessionDate: s.sessionDate,
+        sessionDepartment: s.sessionDepartment,
+        signerName: s.signerName,
+        signerDepartment: s.signerDepartment ?? "",
+        signatureData: s.signatureData,
+        signedAt: s.signedAt,
+        ipAddress: s.ipAddress ?? null,
+        userAgent: s.userAgent ?? null,
+        consentAgreed: s.consentAgreed ?? null,
+        integrityHash: s.integrityHash ?? null,
+      }));
+
+      // 2) 보호구 지급 서명 (notices category=equip_request, status=수령완료, signature 존재)
+      const allNotices = await storage.getNotices("equip_request");
+      const equipResult = allNotices
+        .filter(n => {
+          try {
+            const p = JSON.parse(n.content);
+            return p.status === "수령완료" && p.signature;
+          } catch { return false; }
+        })
+        .map(n => {
+          const p = JSON.parse(n.content);
+          return {
+            id: `equip_${n.id}`,
+            rawId: n.id,
+            type: "equipment" as const,
+            sessionTitle: `보호구 지급 — ${n.title}`,
+            sessionDate: p.signedAt ? p.signedAt.slice(0, 10) : (n.createdAt ? String(n.createdAt).slice(0, 10) : ""),
+            sessionDepartment: p.team ?? "",
+            signerName: p.requester ?? "",
+            signerDepartment: p.team ?? "",
+            signatureData: p.signature,
+            signedAt: p.signedAt ?? n.createdAt,
+            ipAddress: null,
+            userAgent: null,
+            consentAgreed: null,
+            integrityHash: null,
+          };
+        });
+
+      // 최신순 정렬
+      const combined = [...eduResult, ...equipResult].sort((a, b) => {
+        const ta = a.signedAt ? new Date(a.signedAt).getTime() : 0;
+        const tb = b.signedAt ? new Date(b.signedAt).getTime() : 0;
+        return tb - ta;
+      });
+      res.json(combined);
     } catch (err) {
+      console.error(err);
       res.status(500).json({ message: "서명 데이터 조회 실패" });
     }
   });
 
-  // 관리자 전용: 서명 삭제
+  // 관리자 전용: 서명 삭제 (edu_ID 또는 equip_ID 형식)
   app.delete("/api/admin/signatures/:id", isAuthenticated, async (req: any, res) => {
     if (req.user?.role !== "admin") return res.status(403).json({ message: "관리자만 접근 가능합니다." });
     try {
-      await storage.deleteSignature(Number(req.params.id));
+      const rawId = req.params.id;
+      if (rawId.startsWith("equip_")) {
+        const noticeId = Number(rawId.replace("equip_", ""));
+        await storage.deleteNotice(noticeId);
+      } else {
+        const sigId = Number(rawId.replace("edu_", ""));
+        await storage.deleteSignature(sigId);
+      }
       res.json({ success: true });
     } catch (err) {
       res.status(500).json({ message: "서명 삭제 실패" });

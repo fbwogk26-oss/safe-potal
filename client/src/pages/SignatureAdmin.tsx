@@ -11,18 +11,20 @@ import { useToast } from "@/hooks/use-toast";
 import {
   ShieldCheck, Search, Copy, Trash2, Eye, CheckCircle2,
   XCircle, Monitor, MapPin, Hash, Clock, Users, BookOpen,
+  GraduationCap, ShoppingCart,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 
 interface SignatureRecord {
-  id: number;
-  sessionId: number;
+  id: string;
+  rawId: number;
+  type: "education" | "equipment";
   sessionTitle: string;
   sessionDate: string;
   sessionDepartment: string;
   signerName: string;
-  signerDepartment: string | null;
+  signerDepartment: string;
   signatureData: string;
   signedAt: string | null;
   ipAddress: string | null;
@@ -32,12 +34,27 @@ interface SignatureRecord {
 }
 
 function parseUA(ua: string | null) {
-  if (!ua) return "알 수 없음";
+  if (!ua) return null;
   if (/iPhone|iPad/i.test(ua)) return "iOS";
   if (/Android/i.test(ua)) return "Android";
   if (/Windows/i.test(ua)) return "Windows";
   if (/Mac OS/i.test(ua)) return "macOS";
-  return ua.slice(0, 30) + "…";
+  return ua.slice(0, 28) + "…";
+}
+
+function TypeBadge({ type }: { type: "education" | "equipment" }) {
+  if (type === "education") {
+    return (
+      <Badge className="gap-1 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-0 text-xs whitespace-nowrap">
+        <GraduationCap className="w-3 h-3" />교육
+      </Badge>
+    );
+  }
+  return (
+    <Badge className="gap-1 bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300 border-0 text-xs whitespace-nowrap">
+      <ShoppingCart className="w-3 h-3" />보호구
+    </Badge>
+  );
 }
 
 function SignaturePreviewDialog({ sig, open, onClose }: { sig: SignatureRecord; open: boolean; onClose: () => void }) {
@@ -56,30 +73,35 @@ function SignaturePreviewDialog({ sig, open, onClose }: { sig: SignatureRecord; 
           <DialogTitle className="flex items-center gap-2">
             <ShieldCheck className="w-5 h-5 text-primary" />
             서명 상세 정보
+            <TypeBadge type={sig.type} />
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <div className="rounded-xl border bg-muted/30 p-4 space-y-2 text-sm">
             <div className="flex justify-between">
-              <span className="text-muted-foreground">교육명</span>
-              <span className="font-medium">{sig.sessionTitle || "-"}</span>
+              <span className="text-muted-foreground">구분</span>
+              <span className="font-medium">{sig.type === "education" ? "교육 이수 서명" : "보호구 지급 서명"}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-muted-foreground">교육 일자</span>
+              <span className="text-muted-foreground">{sig.type === "education" ? "교육명" : "지급 항목"}</span>
+              <span className="font-medium text-right max-w-[220px]">{sig.sessionTitle || "-"}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">일자</span>
               <span className="font-medium">{sig.sessionDate || "-"}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-muted-foreground">교육 팀</span>
+              <span className="text-muted-foreground">팀</span>
               <span className="font-medium">{sig.sessionDepartment || "-"}</span>
             </div>
             <div className="border-t border-border/50 my-1" />
             <div className="flex justify-between">
               <span className="text-muted-foreground">서명자</span>
-              <span className="font-semibold">{sig.signerName}</span>
+              <span className="font-semibold">{sig.signerName || "-"}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">소속팀</span>
-              <span className="font-medium">{sig.signerDepartment || sig.sessionDepartment || "-"}</span>
+              <span className="font-medium">{sig.signerDepartment || "-"}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">서명 일시</span>
@@ -87,21 +109,36 @@ function SignaturePreviewDialog({ sig, open, onClose }: { sig: SignatureRecord; 
                 {sig.signedAt ? format(new Date(sig.signedAt), "yyyy-MM-dd HH:mm:ss", { locale: ko }) : "-"}
               </span>
             </div>
-            <div className="border-t border-border/50 my-1" />
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">개인정보 동의</span>
-              {sig.consentAgreed
-                ? <Badge className="gap-1 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border-0"><CheckCircle2 className="w-3 h-3" />동의함</Badge>
-                : <Badge variant="destructive" className="gap-1"><XCircle className="w-3 h-3" />미동의</Badge>}
-            </div>
-            <div className="flex justify-between items-start gap-2">
-              <span className="text-muted-foreground shrink-0">IP 주소</span>
-              <span className="font-mono text-xs text-right">{sig.ipAddress || "알 수 없음"}</span>
-            </div>
-            <div className="flex justify-between items-start gap-2">
-              <span className="text-muted-foreground shrink-0">브라우저</span>
-              <span className="text-xs text-right max-w-[220px] break-words">{sig.userAgent || "알 수 없음"}</span>
-            </div>
+
+            {sig.type === "education" && (
+              <>
+                <div className="border-t border-border/50 my-1" />
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">개인정보 동의</span>
+                  {sig.consentAgreed
+                    ? <Badge className="gap-1 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border-0"><CheckCircle2 className="w-3 h-3" />동의함</Badge>
+                    : <Badge variant="outline" className="text-muted-foreground text-xs">정보 없음</Badge>}
+                </div>
+                <div className="flex justify-between items-start gap-2">
+                  <span className="text-muted-foreground shrink-0">IP 주소</span>
+                  <span className="font-mono text-xs text-right">{sig.ipAddress || "알 수 없음"}</span>
+                </div>
+                <div className="flex justify-between items-start gap-2">
+                  <span className="text-muted-foreground shrink-0">브라우저</span>
+                  <span className="text-xs text-right max-w-[220px] break-words">{sig.userAgent || "알 수 없음"}</span>
+                </div>
+              </>
+            )}
+
+            {sig.type === "equipment" && (
+              <>
+                <div className="border-t border-border/50 my-1" />
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">비고</span>
+                  <span className="text-xs text-muted-foreground">안전용품신청 수령 완료 서명</span>
+                </div>
+              </>
+            )}
           </div>
 
           {sig.integrityHash && (
@@ -135,6 +172,7 @@ function SignaturePreviewDialog({ sig, open, onClose }: { sig: SignatureRecord; 
 export default function SignatureAdmin() {
   const { toast } = useToast();
   const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState<"all" | "education" | "equipment">("all");
   const [selected, setSelected] = useState<SignatureRecord | null>(null);
 
   const { data: signatures = [], isLoading } = useQuery<SignatureRecord[]>({
@@ -142,7 +180,7 @@ export default function SignatureAdmin() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => apiRequest("DELETE", `/api/admin/signatures/${id}`),
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/admin/signatures/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/signatures"] });
       toast({ title: "서명 기록이 삭제되었습니다." });
@@ -151,14 +189,17 @@ export default function SignatureAdmin() {
   });
 
   const filtered = signatures.filter(s => {
+    if (typeFilter !== "all" && s.type !== typeFilter) return false;
     const q = search.toLowerCase();
     return !q ||
       s.signerName.toLowerCase().includes(q) ||
-      (s.signerDepartment ?? "").toLowerCase().includes(q) ||
-      (s.sessionTitle ?? "").toLowerCase().includes(q) ||
+      s.signerDepartment.toLowerCase().includes(q) ||
+      s.sessionTitle.toLowerCase().includes(q) ||
       (s.ipAddress ?? "").includes(q);
   });
 
+  const eduCount = signatures.filter(s => s.type === "education").length;
+  const equipCount = signatures.filter(s => s.type === "equipment").length;
   const consentCount = signatures.filter(s => s.consentAgreed).length;
   const todayCount = signatures.filter(s => {
     if (!s.signedAt) return false;
@@ -174,7 +215,7 @@ export default function SignatureAdmin() {
           <ShieldCheck className="w-6 h-6 text-primary" />
           서명 관리
         </h1>
-        <p className="text-sm text-muted-foreground mt-1">교육 이수 서명 기록 및 법적 증빙 메타데이터</p>
+        <p className="text-sm text-muted-foreground mt-1">교육 이수 서명 및 보호구 지급 서명 통합 관리</p>
       </div>
 
       {/* 통계 카드 */}
@@ -192,19 +233,30 @@ export default function SignatureAdmin() {
         </Card>
         <Card>
           <CardContent className="p-4 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-green-500/10 flex items-center justify-center">
-              <CheckCircle2 className="w-4 h-4 text-green-600" />
+            <div className="w-9 h-9 rounded-lg bg-blue-500/10 flex items-center justify-center">
+              <GraduationCap className="w-4 h-4 text-blue-600" />
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">동의 완료</p>
-              <p className="text-xl font-bold">{consentCount}</p>
+              <p className="text-xs text-muted-foreground">교육 서명</p>
+              <p className="text-xl font-bold">{eduCount}</p>
             </div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-blue-500/10 flex items-center justify-center">
-              <Clock className="w-4 h-4 text-blue-600" />
+            <div className="w-9 h-9 rounded-lg bg-orange-500/10 flex items-center justify-center">
+              <ShoppingCart className="w-4 h-4 text-orange-600" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">보호구 서명</p>
+              <p className="text-xl font-bold">{equipCount}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-green-500/10 flex items-center justify-center">
+              <Clock className="w-4 h-4 text-green-600" />
             </div>
             <div>
               <p className="text-xs text-muted-foreground">오늘 서명</p>
@@ -212,33 +264,37 @@ export default function SignatureAdmin() {
             </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-orange-500/10 flex items-center justify-center">
-              <BookOpen className="w-4 h-4 text-orange-600" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">미동의</p>
-              <p className="text-xl font-bold">{signatures.length - consentCount}</p>
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
-      {/* 검색 + 테이블 */}
+      {/* 검색 + 필터 + 테이블 */}
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <CardTitle className="text-base">서명 기록 목록</CardTitle>
-            <div className="relative w-64">
-              <Search className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-muted-foreground" />
-              <Input
-                placeholder="이름, 팀, 교육명, IP 검색..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                className="pl-8 h-8 text-sm"
-                data-testid="input-signature-search"
-              />
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* 유형 필터 탭 */}
+              <div className="flex rounded-lg border bg-muted/40 p-0.5 text-xs">
+                {(["all", "education", "equipment"] as const).map(t => (
+                  <button
+                    key={t}
+                    onClick={() => setTypeFilter(t)}
+                    className={`px-3 py-1 rounded-md font-medium transition-colors ${typeFilter === t ? "bg-white dark:bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                    data-testid={`button-filter-${t}`}
+                  >
+                    {t === "all" ? "전체" : t === "education" ? "교육" : "보호구"}
+                  </button>
+                ))}
+              </div>
+              <div className="relative w-56">
+                <Search className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-muted-foreground" />
+                <Input
+                  placeholder="이름, 팀, 교육명 검색..."
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  className="pl-8 h-8 text-sm"
+                  data-testid="input-signature-search"
+                />
+              </div>
             </div>
           </div>
         </CardHeader>
@@ -255,7 +311,8 @@ export default function SignatureAdmin() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b bg-muted/40">
-                    <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs whitespace-nowrap">교육명</th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs whitespace-nowrap">구분</th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs whitespace-nowrap">교육명/지급항목</th>
                     <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs whitespace-nowrap">서명자</th>
                     <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs whitespace-nowrap">소속팀</th>
                     <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs whitespace-nowrap">서명 일시</th>
@@ -279,32 +336,41 @@ export default function SignatureAdmin() {
                       className="border-b last:border-0 hover:bg-muted/30 transition-colors"
                       data-testid={`row-signature-${sig.id}`}
                     >
-                      <td className="px-4 py-3 max-w-[160px]">
-                        <p className="font-medium truncate" title={sig.sessionTitle}>{sig.sessionTitle || "-"}</p>
+                      <td className="px-4 py-3">
+                        <TypeBadge type={sig.type} />
+                      </td>
+                      <td className="px-4 py-3 max-w-[180px]">
+                        <p className="font-medium truncate text-xs" title={sig.sessionTitle}>{sig.sessionTitle || "-"}</p>
                         <p className="text-xs text-muted-foreground">{sig.sessionDate || ""}</p>
                       </td>
-                      <td className="px-4 py-3 font-semibold whitespace-nowrap">{sig.signerName}</td>
-                      <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{sig.signerDepartment || sig.sessionDepartment || "-"}</td>
+                      <td className="px-4 py-3 font-semibold whitespace-nowrap">{sig.signerName || "-"}</td>
+                      <td className="px-4 py-3 text-muted-foreground whitespace-nowrap text-xs">{sig.signerDepartment || sig.sessionDepartment || "-"}</td>
                       <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
                         {sig.signedAt ? format(new Date(sig.signedAt), "MM-dd HH:mm", { locale: ko }) : "-"}
                       </td>
                       <td className="px-4 py-3 text-center">
-                        {sig.consentAgreed
-                          ? <Badge className="gap-1 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border-0 text-xs"><CheckCircle2 className="w-3 h-3" />동의</Badge>
-                          : <Badge variant="outline" className="text-xs text-muted-foreground">-</Badge>}
+                        {sig.type === "education"
+                          ? sig.consentAgreed
+                            ? <Badge className="gap-1 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border-0 text-xs"><CheckCircle2 className="w-3 h-3" />동의</Badge>
+                            : <Badge variant="outline" className="text-xs text-muted-foreground">-</Badge>
+                          : <span className="text-xs text-muted-foreground">—</span>}
                       </td>
-                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground whitespace-nowrap">{sig.ipAddress || "-"}</td>
+                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground whitespace-nowrap">
+                        {sig.ipAddress || <span className="text-muted-foreground/50">—</span>}
+                      </td>
                       <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <span className="cursor-default">{parseUA(sig.userAgent)}</span>
-                            </TooltipTrigger>
-                            <TooltipContent className="max-w-xs text-xs break-all">
-                              <p>{sig.userAgent || "알 수 없음"}</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
+                        {parseUA(sig.userAgent) ? (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="cursor-default">{parseUA(sig.userAgent)}</span>
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-xs text-xs break-all">
+                                <p>{sig.userAgent}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        ) : <span className="text-muted-foreground/50">—</span>}
                       </td>
                       <td className="px-4 py-3">
                         {sig.integrityHash ? (
@@ -320,7 +386,7 @@ export default function SignatureAdmin() {
                               </TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
-                        ) : <span className="text-muted-foreground text-xs">-</span>}
+                        ) : <span className="text-muted-foreground/50 text-xs">—</span>}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1">
@@ -338,7 +404,8 @@ export default function SignatureAdmin() {
                             size="icon"
                             className="h-7 w-7 text-destructive hover:text-destructive"
                             onClick={() => {
-                              if (confirm(`${sig.signerName}님의 서명 기록을 삭제하시겠습니까?`)) {
+                              const label = sig.type === "education" ? `${sig.signerName}님의 교육 서명` : `${sig.signerName}님의 보호구 지급 서명`;
+                              if (confirm(`${label} 기록을 삭제하시겠습니까?`)) {
                                 deleteMutation.mutate(sig.id);
                               }
                             }}
