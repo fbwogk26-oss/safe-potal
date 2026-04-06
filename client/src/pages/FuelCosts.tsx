@@ -221,12 +221,14 @@ export default function FuelCosts() {
   const [deleteBatchId, setDeleteBatchId] = useState<string | null>(null);
 
   // ── 차량DB 탭 상태 ──
+  const vdbFileInputRef = useRef<HTMLInputElement>(null);
   const [vdbSearch, setVdbSearch] = useState("");
   const [vdbTeamFilter, setVdbTeamFilter] = useState("all");
+  const [vdbStatusFilter, setVdbStatusFilter] = useState("all");
   const [vdbDialog, setVdbDialog] = useState(false);
   const [vdbEditing, setVdbEditing] = useState<Vehicle | null>(null);
   const [vdbDeleteId, setVdbDeleteId] = useState<number | null>(null);
-  const emptyVehicleForm = { plateNumber: "", team: "", vehicleType: "", model: "", fuelType: "", acquisitionType: "", driver: "", status: "운행중" };
+  const emptyVehicleForm = { plateNumber: "", team: "", vehicleType: "", model: "", fuelType: "", acquisitionType: "", driver: "", status: "사용중" };
   const [vdbForm, setVdbForm] = useState<typeof emptyVehicleForm>(emptyVehicleForm);
 
   const { data: summary, isLoading: summaryLoading } = useQuery<SummaryData>({
@@ -295,6 +297,21 @@ export default function FuelCosts() {
     onError: (e: Error) => toast({ title: "임포트 실패", description: e.message, variant: "destructive" }),
   });
 
+  const vdbExcelUploadMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch("/api/vehicles/upload-excel", { method: "POST", body: form, credentials: "include" });
+      if (!res.ok) throw new Error((await res.json()).message);
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      toast({ title: "차량 엑셀 업로드 완료", description: `${data.inserted}대 등록 (기존 데이터 교체)` });
+      queryClient.invalidateQueries({ queryKey: ["/api/vehicles"] });
+    },
+    onError: (e: Error) => toast({ title: "업로드 실패", description: e.message, variant: "destructive" }),
+  });
+
   const openVdbAdd = () => { setVdbEditing(null); setVdbForm(emptyVehicleForm); setVdbDialog(true); };
   const openVdbEdit = (v: Vehicle) => {
     setVdbEditing(v);
@@ -306,7 +323,7 @@ export default function FuelCosts() {
       fuelType: (v as any).fuelType ?? "",
       acquisitionType: (v as any).acquisitionType ?? "",
       driver: v.driver ?? "",
-      status: v.status ?? "운행중",
+      status: v.status ?? "사용중",
     });
     setVdbDialog(true);
   };
@@ -319,10 +336,11 @@ export default function FuelCosts() {
   const vdbTeams = Array.from(new Set(vehicleDbList.map(v => v.team ?? "").filter(Boolean))).sort();
   const vdbFiltered = vehicleDbList
     .filter(v => vdbTeamFilter === "all" || v.team === vdbTeamFilter)
+    .filter(v => vdbStatusFilter === "all" || v.status === vdbStatusFilter)
     .filter(v => {
       if (!vdbSearch) return true;
       const s = vdbSearch.toLowerCase();
-      return [v.plateNumber ?? "", v.team ?? "", v.model ?? "", v.driver ?? ""].some(f => f.toLowerCase().includes(s));
+      return [v.plateNumber ?? "", v.team ?? "", v.model ?? "", v.driver ?? "", (v as any).secondDriver ?? ""].some(f => f.toLowerCase().includes(s));
     })
     .sort((a, b) => (a.team ?? "").localeCompare(b.team ?? "", "ko") || (a.plateNumber ?? "").localeCompare(b.plateNumber ?? "", "ko"));
 
@@ -1075,21 +1093,27 @@ export default function FuelCosts() {
           </TabsContent>
 
           {/* ══════════ 차량DB ══════════ */}
-          <TabsContent value="vehicledb" className="space-y-5 mt-5">
+          <TabsContent value="vehicledb" className="space-y-4 mt-5">
             {/* 상단 툴바 */}
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-              <div className="relative flex-1 max-w-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 flex-wrap">
+              <div className="relative flex-1 min-w-[180px] max-w-xs">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  placeholder="차량번호·팀·차명·운전자 검색…"
-                  value={vdbSearch}
-                  onChange={e => setVdbSearch(e.target.value)}
-                  className="pl-9"
-                  data-testid="input-vdb-search"
-                />
+                <Input placeholder="차량번호·팀·운전자 검색…" value={vdbSearch} onChange={e => setVdbSearch(e.target.value)} className="pl-9 h-9" data-testid="input-vdb-search" />
               </div>
+              <Select value={vdbStatusFilter} onValueChange={setVdbStatusFilter}>
+                <SelectTrigger className="w-[110px] h-9" data-testid="select-vdb-status-filter">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">전체 상태</SelectItem>
+                  <SelectItem value="사용중">사용중</SelectItem>
+                  <SelectItem value="미사용">미사용</SelectItem>
+                  <SelectItem value="정비중">정비중</SelectItem>
+                  <SelectItem value="폐차">폐차</SelectItem>
+                </SelectContent>
+              </Select>
               <Select value={vdbTeamFilter} onValueChange={setVdbTeamFilter}>
-                <SelectTrigger className="w-[130px]" data-testid="select-vdb-team">
+                <SelectTrigger className="w-[130px] h-9" data-testid="select-vdb-team">
                   <SelectValue placeholder="팀 선택" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1098,23 +1122,28 @@ export default function FuelCosts() {
                 </SelectContent>
               </Select>
               <div className="flex gap-2 ml-auto">
-                <Button variant="outline" size="sm" onClick={() => vdbImportMutation.mutate()} disabled={vdbImportMutation.isPending} data-testid="btn-vdb-import">
-                  <Download className="w-4 h-4 mr-1.5" />
-                  유류비→차량 가져오기
+                <Button variant="outline" size="sm" className="h-9" onClick={() => vdbFileInputRef.current?.click()} disabled={vdbExcelUploadMutation.isPending} data-testid="btn-vdb-excel-upload">
+                  <Upload className="w-4 h-4 mr-1.5" />엑셀 교체
                 </Button>
-                <Button size="sm" onClick={openVdbAdd} data-testid="btn-vdb-add">
-                  <Plus className="w-4 h-4 mr-1.5" />
-                  차량 등록
+                <Button size="sm" className="h-9" onClick={openVdbAdd} data-testid="btn-vdb-add">
+                  <Plus className="w-4 h-4 mr-1.5" />차량 등록
                 </Button>
               </div>
             </div>
+            <input ref={vdbFileInputRef} type="file" accept=".xlsx,.xls" className="hidden" data-testid="input-vdb-excel"
+              onChange={e => { const f = e.target.files?.[0]; if (f) { vdbExcelUploadMutation.mutate(f); e.target.value = ""; } }} />
 
             {/* 통계 뱃지 */}
-            <div className="flex flex-wrap gap-2">
-              <Badge variant="secondary"><Database className="w-3.5 h-3.5 mr-1" />{vehicleDbList.length}대 등록</Badge>
-              <Badge variant="secondary"><Car className="w-3.5 h-3.5 mr-1" />{vehicleDbList.filter(v => v.status === "운행중").length}대 운행중</Badge>
+            <div className="flex flex-wrap gap-2 items-center">
+              <Badge variant="secondary" className="gap-1"><Database className="w-3.5 h-3.5" />{vehicleDbList.length}대 전체</Badge>
+              <Badge className="gap-1 bg-green-500/10 text-green-700 dark:text-green-400 border border-green-500/30 hover:bg-green-500/20">
+                <Car className="w-3.5 h-3.5" />{vehicleDbList.filter(v => v.status === "사용중").length}대 사용중
+              </Badge>
+              <Badge variant="secondary" className="gap-1 text-muted-foreground">
+                {vehicleDbList.filter(v => v.status === "미사용").length}대 미사용
+              </Badge>
               {vdbFiltered.length !== vehicleDbList.length && (
-                <Badge variant="outline">필터 결과 {vdbFiltered.length}대</Badge>
+                <Badge variant="outline" className="ml-1">필터 결과 {vdbFiltered.length}대</Badge>
               )}
             </div>
 
@@ -1126,66 +1155,63 @@ export default function FuelCosts() {
                 ) : vdbFiltered.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-48 text-muted-foreground gap-3">
                     <Database className="w-8 h-8 opacity-40" />
-                    <div className="text-center text-sm">
-                      <p className="font-medium">등록된 차량이 없습니다</p>
-                      <p className="text-xs mt-1">유류비 데이터에서 자동으로 가져오거나 직접 등록하세요</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm" onClick={() => vdbImportMutation.mutate()} disabled={vdbImportMutation.isPending}>
-                        <Download className="w-4 h-4 mr-1" />유류비→차량 가져오기
-                      </Button>
-                      <Button size="sm" onClick={openVdbAdd}><Plus className="w-4 h-4 mr-1" />직접 등록</Button>
-                    </div>
+                    <p className="text-sm font-medium">조건에 맞는 차량이 없습니다</p>
                   </div>
                 ) : (
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b bg-muted/30">
-                        <th className="text-left px-4 py-2.5 font-semibold text-xs text-muted-foreground whitespace-nowrap">차량번호</th>
-                        <th className="text-left px-4 py-2.5 font-semibold text-xs text-muted-foreground whitespace-nowrap">팀</th>
-                        <th className="text-left px-4 py-2.5 font-semibold text-xs text-muted-foreground whitespace-nowrap">차종</th>
-                        <th className="text-left px-4 py-2.5 font-semibold text-xs text-muted-foreground whitespace-nowrap">차명</th>
-                        <th className="text-left px-4 py-2.5 font-semibold text-xs text-muted-foreground whitespace-nowrap">연료</th>
-                        <th className="text-left px-4 py-2.5 font-semibold text-xs text-muted-foreground whitespace-nowrap">구입형태</th>
-                        <th className="text-left px-4 py-2.5 font-semibold text-xs text-muted-foreground whitespace-nowrap">운전자</th>
-                        <th className="text-left px-4 py-2.5 font-semibold text-xs text-muted-foreground whitespace-nowrap">상태</th>
-                        <th className="px-4 py-2.5" />
+                        <th className="text-left px-3 py-2.5 font-semibold text-xs text-muted-foreground whitespace-nowrap">상태</th>
+                        <th className="text-left px-3 py-2.5 font-semibold text-xs text-muted-foreground whitespace-nowrap">차량번호</th>
+                        <th className="text-left px-3 py-2.5 font-semibold text-xs text-muted-foreground whitespace-nowrap">팀</th>
+                        <th className="text-left px-3 py-2.5 font-semibold text-xs text-muted-foreground whitespace-nowrap">차명</th>
+                        <th className="text-left px-3 py-2.5 font-semibold text-xs text-muted-foreground whitespace-nowrap">연료</th>
+                        <th className="text-left px-3 py-2.5 font-semibold text-xs text-muted-foreground whitespace-nowrap">구입형태</th>
+                        <th className="text-left px-3 py-2.5 font-semibold text-xs text-muted-foreground whitespace-nowrap">주운전자</th>
+                        <th className="text-left px-3 py-2.5 font-semibold text-xs text-muted-foreground whitespace-nowrap">부운전자</th>
+                        <th className="text-left px-3 py-2.5 font-semibold text-xs text-muted-foreground whitespace-nowrap">계약종료일</th>
+                        <th className="text-left px-3 py-2.5 font-semibold text-xs text-muted-foreground whitespace-nowrap">주행km</th>
+                        <th className="px-3 py-2.5" />
                       </tr>
                     </thead>
                     <tbody>
-                      {vdbFiltered.map(v => (
-                        <tr key={v.id} className="border-b last:border-0 hover:bg-muted/20 transition-colors" data-testid={`row-vehicle-${v.id}`}>
-                          <td className="px-4 py-2.5 font-mono font-semibold text-sm">{v.plateNumber}</td>
-                          <td className="px-4 py-2.5"><Badge variant="outline" className="text-xs">{v.team ?? "-"}</Badge></td>
-                          <td className="px-4 py-2.5 text-xs text-muted-foreground">{v.vehicleType ?? "-"}</td>
-                          <td className="px-4 py-2.5 font-medium">{v.model ?? "-"}</td>
-                          <td className="px-4 py-2.5 text-xs">
-                            {(v as any).fuelType ? (
-                              <Badge variant="secondary" className="text-xs">{(v as any).fuelType}</Badge>
-                            ) : "-"}
-                          </td>
-                          <td className="px-4 py-2.5 text-xs text-muted-foreground">{(v as any).acquisitionType ?? "-"}</td>
-                          <td className="px-4 py-2.5 text-xs">{v.driver ?? "-"}</td>
-                          <td className="px-4 py-2.5">
-                            <Badge
-                              variant={v.status === "운행중" ? "default" : "secondary"}
-                              className={`text-xs ${v.status === "운행중" ? "bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/30" : ""}`}
-                            >
-                              {v.status ?? "운행중"}
-                            </Badge>
-                          </td>
-                          <td className="px-4 py-2.5">
-                            <div className="flex gap-1.5 justify-end">
-                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openVdbEdit(v)} data-testid={`btn-edit-vehicle-${v.id}`}>
-                                <Pencil className="w-3.5 h-3.5" />
-                              </Button>
-                              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setVdbDeleteId(v.id)} data-testid={`btn-delete-vehicle-${v.id}`}>
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                      {vdbFiltered.map(v => {
+                        const isActive = v.status === "사용중";
+                        const isMaintenance = v.status === "정비중";
+                        const statusCls = isActive
+                          ? "bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/30"
+                          : isMaintenance
+                          ? "bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-500/30"
+                          : "bg-muted text-muted-foreground border-border";
+                        return (
+                          <tr key={v.id} className={`border-b last:border-0 transition-colors ${isActive ? "hover:bg-green-50/30 dark:hover:bg-green-950/10" : "hover:bg-muted/20 opacity-75"}`} data-testid={`row-vehicle-${v.id}`}>
+                            <td className="px-3 py-2">
+                              <Badge variant="outline" className={`text-[11px] font-semibold px-2 ${statusCls}`}>{v.status ?? "사용중"}</Badge>
+                            </td>
+                            <td className="px-3 py-2 font-mono font-bold text-sm whitespace-nowrap">{v.plateNumber}</td>
+                            <td className="px-3 py-2"><Badge variant="outline" className="text-xs">{v.team ?? "-"}</Badge></td>
+                            <td className="px-3 py-2 text-xs font-medium">{v.model ?? "-"}</td>
+                            <td className="px-3 py-2 text-xs">
+                              {v.fuelType ? <Badge variant="secondary" className="text-xs">{v.fuelType}</Badge> : <span className="text-muted-foreground">-</span>}
+                            </td>
+                            <td className="px-3 py-2 text-xs text-muted-foreground">{v.acquisitionType ?? "-"}</td>
+                            <td className="px-3 py-2 text-xs">{v.driver ?? "-"}</td>
+                            <td className="px-3 py-2 text-xs text-muted-foreground">{(v as any).secondDriver ?? "-"}</td>
+                            <td className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap">{(v as any).contractEnd ?? "-"}</td>
+                            <td className="px-3 py-2 text-xs text-right tabular-nums">{v.mileage ? `${v.mileage.toLocaleString()}km` : "-"}</td>
+                            <td className="px-3 py-2">
+                              <div className="flex gap-1 justify-end">
+                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openVdbEdit(v)} data-testid={`btn-edit-vehicle-${v.id}`}>
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </Button>
+                                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setVdbDeleteId(v.id)} data-testid={`btn-delete-vehicle-${v.id}`}>
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 )}
@@ -1383,14 +1409,14 @@ export default function FuelCosts() {
               <Input value={vdbForm.driver} onChange={e => setVdbForm(f => ({ ...f, driver: e.target.value }))} placeholder="이름" data-testid="input-vdb-driver" />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">운행 상태</Label>
+              <Label className="text-xs">사용 상태</Label>
               <Select value={vdbForm.status} onValueChange={v => setVdbForm(f => ({ ...f, status: v }))}>
                 <SelectTrigger data-testid="select-vdb-status"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="운행중">운행중</SelectItem>
+                  <SelectItem value="사용중">사용중</SelectItem>
+                  <SelectItem value="미사용">미사용</SelectItem>
                   <SelectItem value="정비중">정비중</SelectItem>
                   <SelectItem value="폐차">폐차</SelectItem>
-                  <SelectItem value="반납">반납</SelectItem>
                 </SelectContent>
               </Select>
             </div>

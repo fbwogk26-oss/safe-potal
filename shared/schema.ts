@@ -60,12 +60,12 @@ export const vehicles = pgTable("vehicles", {
   model: text("model").notNull(),
   year: integer("year"),
   team: text("team").notNull(),
-  fuelType: text("fuel_type"),         // 경유/휘발유/LPG/EV/하이브리드
-  acquisitionType: text("acquisition_type"), // 렌트/자차/리스
+  fuelType: text("fuel_type"),
+  acquisitionType: text("acquisition_type"),
   driver: text("driver"),
   secondDriver: text("second_driver"),
   contact: text("contact"),
-  status: text("status").notNull().default("운행중"),
+  status: text("status").notNull().default("사용중"),  // 사용중/미사용/정비중/폐차
   purchaseDate: text("purchase_date"),
   inspectionDate: text("inspection_date"),
   insuranceExpiry: text("insurance_expiry"),
@@ -74,6 +74,14 @@ export const vehicles = pgTable("vehicles", {
   imageUrl: text("image_url"),
   createdBy: text("created_by"),
   createdAt: timestamp("created_at").defaultNow(),
+  // 엑셀 데이터 추가 컬럼
+  contractStart: text("contract_start"),   // 계약시작일
+  contractEnd: text("contract_end"),       // 계약종료일
+  garage: text("garage"),                  // 차고지
+  headquarters: text("headquarters"),      // 본부
+  operationsDept: text("operations_dept"), // 운용부
+  insuranceAge: text("insurance_age"),     // 보험연령
+  workArea: text("work_area"),             // 업무분야
 });
 
 // === SCHEMAS ===

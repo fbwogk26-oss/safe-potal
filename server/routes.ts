@@ -3595,6 +3595,55 @@ export async function registerRoutes(
     }
   });
 
+  // 차량DB: 엑셀 파일로 전체 교체 (기존 데이터 삭제 후 재등록)
+  app.post('/api/vehicles/upload-excel', requireEditor, upload.single('file'), async (req: any, res) => {
+    if (!req.file) return res.status(400).json({ message: "파일이 없습니다" });
+    try {
+      const XLSX = await import("xlsx");
+      const wb = XLSX.read(req.file.buffer, { type: "buffer" });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const raw: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+      const rows = raw.slice(1).filter((r: any[]) => String(r[0]).trim());
+
+      const { db: dbInst } = await import('./db');
+      const { vehicles: vTable } = await import('@shared/schema');
+
+      // 기존 전체 삭제
+      await dbInst.delete(vTable);
+
+      let inserted = 0;
+      for (const r of rows) {
+        const plateNumber = String(r[0]).trim();
+        if (!plateNumber) continue;
+        await dbInst.insert(vTable).values({
+          plateNumber,
+          model: String(r[1]).trim() || plateNumber,
+          vehicleType: String(r[2]).trim() || '기타',
+          contractStart: String(r[4]).trim() || null,
+          contractEnd: String(r[5]).trim() || null,
+          fuelType: String(r[6]).trim() || null,
+          garage: String(r[7]).trim() || null,
+          insuranceAge: String(r[8]).trim() || null,
+          headquarters: String(r[9]).trim() || null,
+          operationsDept: String(r[10]).trim() || null,
+          team: String(r[11]).trim() || '미배정',
+          driver: String(r[12]).trim() || null,
+          secondDriver: String(r[13]).trim() || null,
+          workArea: String(r[14]).trim() || null,
+          mileage: parseInt(r[16]) || 0,
+          year: parseInt(r[17]) || null,
+          status: r[20] == 1 ? '사용중' : '미사용',
+          acquisitionType: String(r[21]).trim() || null,
+        });
+        inserted++;
+      }
+      res.json({ success: true, inserted });
+    } catch (e: any) {
+      console.error("차량 엑셀 업로드 오류:", e);
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   // 차량DB: fuel_records에서 차량 메타 자동 임포트 (기존 vehicles 테이블에 없는 것만 추가)
   app.post('/api/vehicles/import-from-fuel', requireAdmin, async (req: any, res) => {
     try {
