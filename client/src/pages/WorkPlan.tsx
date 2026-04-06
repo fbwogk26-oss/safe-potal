@@ -619,38 +619,9 @@ export default function WorkPlan() {
                         <p className="text-xs text-muted-foreground">
                           {format(new Date(plan.createdAt), "yyyy년 MM월 dd일 HH:mm")}
                           {plan.createdBy && ` · ${plan.createdBy}`}
-                          {plan.emailDraft && (
-                            <span className="ml-2 inline-flex items-center gap-0.5 text-green-600 dark:text-green-400">
-                              <CheckCircle2 className="w-3 h-3" /> 초안 있음
-                            </span>
-                          )}
                         </p>
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
-                        {plan.emailDraft && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 text-xs px-2.5"
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              const html = plan.emailDraft!;
-                              try {
-                                await navigator.clipboard.write([
-                                  new ClipboardItem({
-                                    "text/html": new Blob([html], { type: "text/html" }),
-                                  }),
-                                ]);
-                              } catch {
-                                await navigator.clipboard.writeText(html);
-                              }
-                              toast({ title: "복사 완료" });
-                            }}
-                            data-testid={`button-copy-draft-${plan.id}`}
-                          >
-                            <Copy className="w-3 h-3 mr-1" />복사
-                          </Button>
-                        )}
                         <Button
                           size="icon"
                           variant="ghost"
@@ -674,7 +645,7 @@ export default function WorkPlan() {
                     {expandedPlanId === plan.id && (
                       <CardContent className="pt-0 pb-4 px-4 border-t border-muted">
                         {plan.emailDraft ? (
-                          <div className="mt-3 flex flex-col gap-3">
+                          <div className="mt-3">
                             <div className="rounded border overflow-hidden bg-white dark:bg-white" style={{ height: 560 }}>
                               <iframe
                                 srcDoc={`<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{margin:16px 20px;padding:0;background:#fff}</style></head><body>${plan.emailDraft.startsWith("<") ? plan.emailDraft : `<pre style="font-family:sans-serif;white-space:pre-wrap">${plan.emailDraft}</pre>`}</body></html>`}
@@ -684,47 +655,9 @@ export default function WorkPlan() {
                                 data-testid={`iframe-draft-${plan.id}`}
                               />
                             </div>
-                            {/* 발송 영역 */}
-                            <div className="flex flex-col gap-2 rounded-lg border border-blue-100 dark:border-blue-900 bg-blue-50/50 dark:bg-blue-950/30 px-4 py-3">
-                              <Label className="text-sm font-medium flex items-center gap-1.5">
-                                <Send className="w-3.5 h-3.5 text-blue-500" />
-                                이메일 직접 발송
-                              </Label>
-                              <div className="flex gap-2">
-                                <Input
-                                  type="email"
-                                  defaultValue="jaeha.ryu@ktmos.co.kr"
-                                  placeholder="수신자 이메일"
-                                  className="flex-1 text-sm h-9"
-                                  id={`recipient-${plan.id}`}
-                                  data-testid={`input-recipient-draft-${plan.id}`}
-                                />
-                                <Button
-                                  className="h-9 px-4 text-sm bg-blue-600 hover:bg-blue-700 text-white"
-                                  onClick={() => {
-                                    const inputEl = document.getElementById(`recipient-${plan.id}`) as HTMLInputElement;
-                                    const to = inputEl?.value?.trim() || "jaeha.ryu@ktmos.co.kr";
-                                    sendMutation.mutate({
-                                      subject: plan.title,
-                                      htmlDraft: plan.emailDraft!,
-                                      to,
-                                    });
-                                  }}
-                                  disabled={sendMutation.isPending}
-                                  data-testid={`button-send-draft-${plan.id}`}
-                                >
-                                  {sendMutation.isPending
-                                    ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />발송 중...</>
-                                    : <><Send className="w-3.5 h-3.5 mr-1.5" />발송</>}
-                                </Button>
-                              </div>
-                              <p className="text-[11px] text-muted-foreground">
-                                발송자: fbwogk26@gmail.com → 위 주소로 이메일이 즉시 발송됩니다
-                              </p>
-                            </div>
                           </div>
                         ) : (
-                          <p className="text-sm text-muted-foreground py-4 text-center">저장된 초안이 없습니다.</p>
+                          <p className="text-sm text-muted-foreground py-4 text-center">저장된 내역이 없습니다.</p>
                         )}
                       </CardContent>
                     )}
