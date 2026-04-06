@@ -2120,6 +2120,7 @@ export async function registerRoutes(
           return {
             title,
             educationDate,
+            educationEndDate: groupSessions[0].educationEndDate || null,
             educationType: groupSessions[0].educationType,
             totalDepartments: groupSessions.length,
             completedSessions,

@@ -25,7 +25,7 @@ import { Input } from "@/components/ui/input";
 import { useState, useRef, useMemo } from "react";
 import ExcelJS from "exceljs";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Download, RefreshCw, AlertTriangle, Trophy, ShieldCheck, RotateCcw, Upload, Settings2 } from "lucide-react";
+import { Download, RefreshCw, AlertTriangle, Trophy, ShieldCheck, RotateCcw, Upload, Settings2, BookOpen } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { TeamEditDialog } from "@/components/TeamEditDialog";
 import { cn } from "@/lib/utils";
@@ -41,6 +41,8 @@ export default function Dashboard() {
   const { canEditDashboard, canEditSafetyScores, canUploadDashboardData } = usePermissions();
   
   const { data: teams, isLoading, refetch, isRefetching } = useTeams(year);
+  const { data: educationProgress } = useQuery<{ title: string; educationDate: string; educationEndDate?: string | null; completedSessions: number; totalDepartments: number; progressRate: number }[]>({ queryKey: ["/api/education-progress"] });
+  const inProgressEducations = (educationProgress || []).filter(p => p.completedSessions < p.totalDepartments);
   const resetTeam = useResetTeam();
   const resetAllTeams = useResetAllTeams();
   const { toast } = useToast();
@@ -292,6 +294,32 @@ export default function Dashboard() {
                   </div>
                 );
               })()}
+
+              {/* 진행중 교육 현황 */}
+              {inProgressEducations.length > 0 && (
+                <Card className="border-0 shadow-sm bg-gradient-to-br from-indigo-50 to-indigo-100/60 dark:from-indigo-950/40 dark:to-indigo-900/20">
+                  <CardContent className="p-3 sm:p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <BookOpen className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                      <span className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400">서명 진행중인 교육</span>
+                      <span className="ml-auto text-2xl font-black text-indigo-700 dark:text-indigo-300">{inProgressEducations.length}<span className="text-xs font-normal ml-0.5">건</span></span>
+                    </div>
+                    <div className="space-y-1.5">
+                      {inProgressEducations.slice(0, 3).map((edu, i) => (
+                        <div key={i} className="flex items-center gap-2 text-[11px]">
+                          <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
+                          <span className="truncate flex-1 text-indigo-800 dark:text-indigo-200 font-medium">{edu.title}</span>
+                          <span className="text-indigo-500 shrink-0">
+                            {edu.educationDate}
+                            {edu.educationEndDate && edu.educationEndDate !== edu.educationDate ? ` ~ ${edu.educationEndDate.slice(5)}` : ""}
+                          </span>
+                          <span className="font-bold text-indigo-600 shrink-0">{edu.progressRate}%</span>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
               {/* Chart Section */}
               <Card className="shadow-lg border-border/50">

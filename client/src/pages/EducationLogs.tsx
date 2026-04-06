@@ -43,6 +43,7 @@ interface DeptProgress {
 interface ProgressData {
   title: string;
   educationDate: string;
+  educationEndDate?: string | null;
   educationType: string;
   totalDepartments: number;
   completedSessions: number;
@@ -256,7 +257,11 @@ function ProgressDashboard() {
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <div className="min-w-0 flex-1">
                       <p className="text-xs font-bold text-foreground truncate leading-tight">{edu.title}</p>
-                      <p className="text-[10px] text-muted-foreground mt-0.5">{edu.educationDate}</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">
+                        {edu.educationDate}
+                        {edu.educationEndDate && edu.educationEndDate !== edu.educationDate
+                          ? ` ~ ${edu.educationEndDate.slice(5)}` : ""}
+                      </p>
                     </div>
                     <span className="text-base font-bold text-amber-600 shrink-0">{edu.progressRate}%</span>
                   </div>
@@ -310,7 +315,7 @@ function ProgressDashboard() {
                         <Badge variant="secondary" className="text-[10px] shrink-0">{edu.educationType}</Badge>
                       </div>
                       <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
-                        <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{edu.educationDate}{(edu as any).educationEndDate && (edu as any).educationEndDate !== edu.educationDate ? ` ~ ${(edu as any).educationEndDate}` : ""}</span>
+                        <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{edu.educationDate}{edu.educationEndDate && edu.educationEndDate !== edu.educationDate ? ` ~ ${edu.educationEndDate}` : ""}</span>
                         <span>{edu.totalDepartments}개 부서</span>
                         <span className="flex items-center gap-1"><Users className="w-3 h-3" />{edu.totalSigned}/{edu.totalParticipants}명</span>
                       </div>
