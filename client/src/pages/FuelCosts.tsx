@@ -200,11 +200,8 @@ const ChartTooltip = ({ active, payload, label, unit = "만원" }: any) => {
 
 export default function FuelCosts() {
   const { toast } = useToast();
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const vehicleLogInputRef = useRef<HTMLInputElement>(null);
   const [tab, setTab] = useState("dashboard");
-  const [uploadYear, setUploadYear] = useState<string>("");
-  const [uploadMonth, setUploadMonth] = useState<string>("");
   const [vlogYear, setVlogYear] = useState<string>("");
   const [vlogMonth, setVlogMonth] = useState<string>("");
   const [chartMetric, setChartMetric] = useState<"fuel" | "distance">("fuel");
@@ -240,25 +237,6 @@ export default function FuelCosts() {
     enabled: tab === "upload",
   });
 
-  const uploadMutation = useMutation({
-    mutationFn: async ({ file, year, month }: { file: File; year?: string; month?: string }) => {
-      const form = new FormData();
-      form.append("file", file);
-      if (year) form.append("year", year);
-      if (month) form.append("month", month);
-      const res = await fetch("/api/fuel-records/upload", { method: "POST", body: form, credentials: "include" });
-      if (!res.ok) throw new Error((await res.json()).message);
-      return res.json();
-    },
-    onSuccess: (data) => {
-      toast({ title: "업로드 완료", description: data.message });
-      queryClient.invalidateQueries({ queryKey: ["/api/fuel-records"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/fuel-records/summary"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/fuel-records/batches"] });
-    },
-    onError: (e: Error) => toast({ title: "업로드 실패", description: e.message, variant: "destructive" }),
-  });
-
   const deleteBatchMutation = useMutation({
     mutationFn: (batchId: string) => apiRequest("DELETE", `/api/fuel-records/batches/${encodeURIComponent(batchId)}`),
     onSuccess: () => {
@@ -289,14 +267,6 @@ export default function FuelCosts() {
     },
     onError: (e: Error) => toast({ title: "업로드 실패", description: e.message, variant: "destructive" }),
   });
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    const yr = uploadYear === "auto" || !uploadYear ? undefined : uploadYear;
-    const mo = uploadMonth === "auto" || !uploadMonth ? undefined : uploadMonth;
-    if (file) uploadMutation.mutate({ file, year: yr, month: mo });
-    e.target.value = "";
-  };
 
   const handleVehicleLogChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -430,7 +400,6 @@ export default function FuelCosts() {
           <p className="text-sm text-muted-foreground mt-1 ml-11">업무용 차량 유류비 사용 현황 및 연도별 비교 분석</p>
         </div>
       </div>
-      <input ref={fileInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFileChange} data-testid="input-fuel-file" />
       <input ref={vehicleLogInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleVehicleLogChange} data-testid="input-vehicle-log-file" />
 
       <Tabs value={tab} onValueChange={setTab}>
@@ -1019,56 +988,6 @@ export default function FuelCosts() {
 
           {/* ══════════ 업로드 관리 ══════════ */}
           <TabsContent value="upload" className="space-y-5 mt-5">
-            <Card className="shadow-sm">
-              <CardContent className="p-6 space-y-5">
-                <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                    <Upload className="w-6 h-6 text-primary" />
-                  </div>
-                  <div>
-                    <p className="font-bold text-base">Excel 파일 업로드</p>
-                    <p className="text-sm text-muted-foreground mt-0.5">같은 연월의 기존 데이터는 자동으로 교체됩니다.</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-muted/30 rounded-xl">
-                  <div>
-                    <p className="text-xs font-bold text-foreground mb-1.5">📋 다중 시트 파일 (자동 처리)</p>
-                    <p className="text-xs text-muted-foreground">"24년 1월", "25년 12월" 형식 시트명 → 자동 인식</p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold text-foreground mb-1.5">📄 단일 시트 파일</p>
-                    <p className="text-xs text-muted-foreground">파일명에 날짜(YYYYMMDD) 포함 시 자동 인식<br />예: 차량사용실적현황_<strong>20260330</strong>_xxx.xlsx</p>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-3">
-                  <span className="text-sm font-medium text-muted-foreground">연월 수동 지정:</span>
-                  <Select value={uploadYear} onValueChange={setUploadYear}>
-                    <SelectTrigger className="w-24 h-9"><SelectValue placeholder="연도" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="auto">자동</SelectItem>
-                      {uploadYearOptions.map(y => <SelectItem key={y} value={y}>{y}년</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                  <Select value={uploadMonth} onValueChange={setUploadMonth}>
-                    <SelectTrigger className="w-20 h-9"><SelectValue placeholder="월" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="auto">자동</SelectItem>
-                      {MONTHS.map((m, i) => <SelectItem key={i} value={String(i + 1)}>{m}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                  {uploadYear && uploadYear !== "auto" && uploadMonth && uploadMonth !== "auto" && (
-                    <Badge className="bg-primary/10 text-primary border-0 font-semibold">{uploadYear}년 {uploadMonth}월</Badge>
-                  )}
-                  <Button onClick={() => fileInputRef.current?.click()} disabled={uploadMutation.isPending} className="ml-auto">
-                    {uploadMutation.isPending ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
-                    파일 선택
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
             {/* 차량일지 업로드 카드 */}
             <Card className="shadow-sm border-blue-200 dark:border-blue-900">
               <CardContent className="p-6 space-y-5">
