@@ -215,8 +215,9 @@ export default function FuelCosts() {
   const [filterTeam, setFilterTeam] = useState<string>("all");
   const [filterFuelType, setFilterFuelType] = useState<string>("all");
   const [search, setSearch] = useState("");
-  const [sortField, setSortField] = useState<string>("totalCost");
+  const [sortField, setSortField] = useState<string>("date");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [detailPage, setDetailPage] = useState(1);
   const [deleteBatchId, setDeleteBatchId] = useState<string | null>(null);
 
   // ── 차량DB 탭 상태 ──
@@ -487,13 +488,24 @@ export default function FuelCosts() {
         .some(v => v.toLowerCase().includes(s));
     })
     .sort((a, b) => {
+      if (sortField === "date") {
+        const av = (a.year ?? 0) * 100 + (a.month ?? 0);
+        const bv = (b.year ?? 0) * 100 + (b.month ?? 0);
+        return sortDir === "asc" ? av - bv : bv - av;
+      }
       const av = (a as any)[sortField] ?? 0, bv = (b as any)[sortField] ?? 0;
       return sortDir === "asc" ? av - bv : bv - av;
     });
 
+  const PAGE_SIZE = 100;
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(detailPage, totalPages);
+  const pagedRecords = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
   const handleSort = (field: string) => {
     if (sortField === field) setSortDir(d => d === "asc" ? "desc" : "asc");
     else { setSortField(field); setSortDir("desc"); }
+    setDetailPage(1);
   };
   const SortIcon = ({ field }: { field: string }) =>
     sortField === field ? (sortDir === "asc" ? <ChevronUp className="w-3 h-3 inline ml-0.5" /> : <ChevronDown className="w-3 h-3 inline ml-0.5" />) : null;
@@ -1004,28 +1016,28 @@ export default function FuelCosts() {
           {/* ══════════ 상세 데이터 ══════════ */}
           <TabsContent value="detail" className="space-y-4 mt-5">
             <div className="flex flex-wrap gap-2 items-center">
-              <Select value={filterYear} onValueChange={setFilterYear}>
+              <Select value={filterYear} onValueChange={v => { setFilterYear(v); setDetailPage(1); }}>
                 <SelectTrigger className="w-28 h-9" data-testid="select-year"><SelectValue placeholder="연도" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">전체 연도</SelectItem>
                   {sortedYears.map(yr => <SelectItem key={yr} value={String(yr)}>{shortYr(yr)}년</SelectItem>)}
                 </SelectContent>
               </Select>
-              <Select value={filterMonth} onValueChange={setFilterMonth}>
+              <Select value={filterMonth} onValueChange={v => { setFilterMonth(v); setDetailPage(1); }}>
                 <SelectTrigger className="w-24 h-9" data-testid="select-month"><SelectValue placeholder="월" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">전체 월</SelectItem>
                   {MONTHS.map((m, i) => <SelectItem key={i} value={String(i + 1)}>{m}</SelectItem>)}
                 </SelectContent>
               </Select>
-              <Select value={filterTeam} onValueChange={setFilterTeam}>
+              <Select value={filterTeam} onValueChange={v => { setFilterTeam(v); setDetailPage(1); }}>
                 <SelectTrigger className="w-36 h-9" data-testid="select-team"><SelectValue placeholder="팀" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">전체 팀</SelectItem>
                   {(summary?.byTeam ?? []).map(t => <SelectItem key={t.team} value={t.team}>{t.team}</SelectItem>)}
                 </SelectContent>
               </Select>
-              <Select value={filterFuelType} onValueChange={setFilterFuelType}>
+              <Select value={filterFuelType} onValueChange={v => { setFilterFuelType(v); setDetailPage(1); }}>
                 <SelectTrigger className="w-28 h-9" data-testid="select-fuel-type"><SelectValue placeholder="연료" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">전체 연료</SelectItem>
@@ -1036,7 +1048,7 @@ export default function FuelCosts() {
               </Select>
               <div className="relative flex-1 min-w-[180px]">
                 <Search className="absolute left-3 top-2.5 w-4 h-4 text-muted-foreground" />
-                <Input data-testid="input-search" placeholder="팀·사용자·차량번호·모델 검색" className="pl-9 h-9" value={search} onChange={e => setSearch(e.target.value)} />
+                <Input data-testid="input-search" placeholder="팀·사용자·차량번호·모델 검색" className="pl-9 h-9" value={search} onChange={e => { setSearch(e.target.value); setDetailPage(1); }} />
               </div>
             </div>
 
@@ -1053,7 +1065,9 @@ export default function FuelCosts() {
                     <table className="w-full text-sm border-collapse">
                       <thead>
                         <tr className="bg-muted/70 border-b-2 border-border">
-                          <th className="text-left py-3 px-4 font-bold text-foreground whitespace-nowrap">연월</th>
+                          <th className="text-left py-3 px-4 font-bold text-foreground whitespace-nowrap cursor-pointer hover:text-primary" onClick={() => handleSort("date")}>
+                            연월 <SortIcon field="date" />
+                          </th>
                           <th className="text-left py-3 px-3 font-bold text-foreground whitespace-nowrap">팀</th>
                           <th className="text-left py-3 px-3 font-bold text-foreground whitespace-nowrap">사용자</th>
                           <th className="text-left py-3 px-3 font-bold text-foreground whitespace-nowrap">차량번호</th>
@@ -1072,7 +1086,7 @@ export default function FuelCosts() {
                         </tr>
                       </thead>
                       <tbody>
-                        {filtered.map((r, i) => {
+                        {pagedRecords.map((r, i) => {
                           const p = YEAR_PALETTE[r.year] ?? YEAR_PALETTE[2025];
                           const fuelCost = (r.cardFuelCost ?? 0) + (r.cashFuelCost ?? 0);
                           const isZeroCost = r.totalCost === 0;
@@ -1113,7 +1127,7 @@ export default function FuelCosts() {
                           <tfoot>
                             <tr className="border-t-2 border-border bg-muted/60 font-bold">
                               <td className="py-3 px-4 text-xs font-black text-foreground whitespace-nowrap" colSpan={7}>
-                                합계 <span className="text-muted-foreground font-normal ml-1">({filtered.length}건)</span>
+                                합계 <span className="text-muted-foreground font-normal ml-1">({filtered.length}건 전체)</span>
                               </td>
                               <td className="py-3 px-3 text-right tabular-nums text-sm">{fmt(totDist)}</td>
                               <td className="py-3 px-3 text-right tabular-nums text-sm">{fmt(totFuel)}</td>
@@ -1127,6 +1141,61 @@ export default function FuelCosts() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* ── 페이지네이션 ── */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between flex-wrap gap-2 px-1">
+                <p className="text-sm text-muted-foreground">
+                  {((safePage - 1) * PAGE_SIZE) + 1}–{Math.min(safePage * PAGE_SIZE, filtered.length)} / 전체 {filtered.length}건
+                </p>
+                <div className="flex items-center gap-1 flex-wrap">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 px-2.5"
+                    onClick={() => setDetailPage(p => Math.max(1, p - 1))}
+                    disabled={safePage === 1}
+                    data-testid="button-page-prev"
+                  >
+                    이전
+                  </Button>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .filter(p => p === 1 || p === totalPages || Math.abs(p - safePage) <= 2)
+                    .reduce<(number | "...")[]>((acc, p, idx, arr) => {
+                      if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push("...");
+                      acc.push(p);
+                      return acc;
+                    }, [])
+                    .map((p, idx) =>
+                      p === "..." ? (
+                        <span key={`ellipsis-${idx}`} className="px-1 text-muted-foreground text-sm select-none">…</span>
+                      ) : (
+                        <Button
+                          key={p}
+                          variant={safePage === p ? "default" : "outline"}
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          onClick={() => setDetailPage(p as number)}
+                          data-testid={`button-page-${p}`}
+                        >
+                          {p}
+                        </Button>
+                      )
+                    )
+                  }
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 px-2.5"
+                    onClick={() => setDetailPage(p => Math.min(totalPages, p + 1))}
+                    disabled={safePage === totalPages}
+                    data-testid="button-page-next"
+                  >
+                    다음
+                  </Button>
+                </div>
+              </div>
+            )}
           </TabsContent>
 
           {/* ══════════ 차량DB ══════════ */}
