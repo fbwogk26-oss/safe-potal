@@ -510,7 +510,7 @@ export default function FuelCosts() {
             <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
               <Fuel className="w-5 h-5 text-primary" />
             </div>
-            유류비 현황
+            차량 관리
           </h1>
           <p className="text-sm text-muted-foreground mt-1 ml-11">업무용 차량 유류비 사용 현황 및 연도별 비교 분석</p>
         </div>

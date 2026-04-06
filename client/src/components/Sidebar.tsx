@@ -118,7 +118,7 @@ const NAV_SECTIONS: NavSection[] = [
           { label: "사용자 관리", href: "/admin/users", icon: Users },
           { label: "보안 감사 로그", href: "/admin/security", icon: ScrollText },
           { label: "음악 관리", href: "/admin/music", icon: Music2 },
-          { label: "유류비 현황", href: "/admin/fuel-costs", icon: Fuel },
+          { label: "차량 관리", href: "/admin/fuel-costs", icon: Fuel },
           { label: "서명 관리", href: "/admin/signatures", icon: FileSignature },
         ],
       },
