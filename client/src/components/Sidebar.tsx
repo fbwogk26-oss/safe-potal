@@ -25,6 +25,7 @@ import {
   Music2,
   Fuel,
   FileSignature,
+  Car,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -104,6 +105,16 @@ const NAV_SECTIONS: NavSection[] = [
         icon: Briefcase,
         children: [
           { label: "작업계획", href: "/work-plan", icon: CalendarCheck },
+        ],
+      },
+    ],
+  },
+  {
+    entries: [
+      {
+        label: "차량관리",
+        icon: Car,
+        children: [
           { label: "차량 관리", href: "/admin/fuel-costs", icon: Fuel },
         ],
       },

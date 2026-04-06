@@ -1,4 +1,4 @@
-import { Bell, LogOut, Users, Menu, LayoutDashboard, ShieldCheck, Shield, HeartPulse, GraduationCap, DoorOpen, ShoppingCart, MonitorPlay, ClipboardCheck, FileText, KeyRound, Eye, EyeOff, AlertTriangle, ShieldAlert, FlaskConical, ChevronDown, ScrollText, Bone, Home, ReceiptText, Briefcase, CalendarCheck, Music2, Fuel, FileSignature } from "lucide-react";
+import { Bell, LogOut, Users, Menu, LayoutDashboard, ShieldCheck, Shield, HeartPulse, GraduationCap, DoorOpen, ShoppingCart, MonitorPlay, ClipboardCheck, FileText, KeyRound, Eye, EyeOff, AlertTriangle, ShieldAlert, FlaskConical, ChevronDown, ScrollText, Bone, Home, ReceiptText, Briefcase, CalendarCheck, Music2, Fuel, FileSignature, Car } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -71,6 +71,12 @@ const MOBILE_NAV_ITEMS: MobileNavEntry[] = [
     icon: Briefcase,
     children: [
       { label: "작업계획", href: "/work-plan", icon: CalendarCheck },
+    ],
+  },
+  {
+    label: "차량관리",
+    icon: Car,
+    children: [
       { label: "차량 관리", href: "/admin/fuel-costs", icon: Fuel },
     ],
   },
