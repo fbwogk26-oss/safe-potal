@@ -49,7 +49,6 @@ const MOBILE_NAV_ITEMS: MobileNavEntry[] = [
     children: [
       { label: "안전점수", href: "/safety-scores", icon: LayoutDashboard },
       { label: "사고보고/통계", href: "/accidents", icon: AlertTriangle },
-      { label: "과태료 현황", href: "/traffic-fines", icon: ReceiptText },
       { label: "위험성평가", href: "/risk-assessment", icon: ShieldAlert },
       { label: "안전점검", href: "/inspections", icon: ClipboardCheck },
       { label: "교육 관리", href: "/education-logs", icon: GraduationCap },
@@ -78,6 +77,7 @@ const MOBILE_NAV_ITEMS: MobileNavEntry[] = [
     icon: Car,
     children: [
       { label: "차량 관리", href: "/admin/fuel-costs", icon: Fuel },
+      { label: "과태료 현황", href: "/traffic-fines", icon: ReceiptText },
     ],
   },
   {
