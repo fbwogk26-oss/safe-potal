@@ -213,7 +213,7 @@ export default function SignatureAdmin() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
           <ShieldCheck className="w-6 h-6 text-primary" />
-          서명 관리
+          서명 관리 로그
         </h1>
         <p className="text-sm text-muted-foreground mt-1">교육 이수 서명 및 보호구 지급 서명 통합 관리</p>
       </div>
