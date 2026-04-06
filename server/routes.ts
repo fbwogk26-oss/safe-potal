@@ -4331,6 +4331,21 @@ workers 배열은 실제 작업자 명단이며, supervisor는 KT/KTMOS 측 감�
 
       const htmlDraft = buildSubcontractHtml(displayDate, company, items, guideB64);
 
+      // DB에 초안 저장
+      try {
+        await storage.createWorkPlan({
+          title: `${company} ${displayDate} 작업계획`,
+          originalFileName: file.originalname || null,
+          originalFileUrl: null,
+          processedFileUrl: null,
+          emailDraft: htmlDraft,
+          sheetSummary: `총 ${items.length}건`,
+          createdBy: (req as any).user?.username || null,
+        });
+      } catch (saveErr) {
+        console.error("[parse-subcontract-email] DB 저장 실패:", saveErr);
+      }
+
       res.json({ parsed, htmlDraft, subject, itemCount: items.length });
     } catch (error: any) {
       console.error("[parse-subcontract-email error]", error);
@@ -4485,6 +4500,22 @@ workers 배열은 실제 작업자 명단이며, supervisor는 KT/KTMOS 측 감�
       } catch {}
 
       const htmlDraft = buildSubcontractHtml(displayDate, company, items, guideB64);
+
+      // DB에 초안 저장
+      try {
+        await storage.createWorkPlan({
+          title: `${company} ${displayDate} 작업계획`,
+          originalFileName: null,
+          originalFileUrl: null,
+          processedFileUrl: null,
+          emailDraft: htmlDraft,
+          sheetSummary: `총 ${items.length}건`,
+          createdBy: (req as any).user?.username || null,
+        });
+      } catch (saveErr) {
+        console.error("[process-gmail] DB 저장 실패:", saveErr);
+      }
+
       res.json({ parsed, htmlDraft, subject, itemCount: items.length });
     } catch (error: any) {
       console.error("[process-gmail error]", error);
