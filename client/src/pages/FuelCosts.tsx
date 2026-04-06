@@ -1423,7 +1423,7 @@ export default function FuelCosts() {
                   <SelectItem value="경유">경유</SelectItem>
                   <SelectItem value="휘발유">휘발유</SelectItem>
                   <SelectItem value="LPG">LPG</SelectItem>
-                  <SelectItem value="EV">전기(EV)</SelectItem>
+                  <SelectItem value="EV">EV</SelectItem>
                   <SelectItem value="하이브리드">하이브리드</SelectItem>
                 </SelectContent>
               </Select>
