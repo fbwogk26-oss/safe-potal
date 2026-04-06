@@ -202,8 +202,8 @@ export default function FuelCosts() {
   const { toast } = useToast();
   const vehicleLogInputRef = useRef<HTMLInputElement>(null);
   const [tab, setTab] = useState("dashboard");
-  const [vlogYear, setVlogYear] = useState<string>("");
-  const [vlogMonth, setVlogMonth] = useState<string>("");
+  const [vlogYear, setVlogYear] = useState<string>(String(new Date().getFullYear()));
+  const [vlogMonth, setVlogMonth] = useState<string>(String(new Date().getMonth() + 1));
   const [chartMetric, setChartMetric] = useState<"fuel" | "distance">("fuel");
   const [teamYearFilter, setTeamYearFilter] = useState<string>("all");
   const [teamTeamFilter, setTeamTeamFilter] = useState<string>("all");
@@ -271,9 +271,7 @@ export default function FuelCosts() {
   const handleVehicleLogChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const yr = vlogYear && vlogYear !== "none" ? vlogYear : undefined;
-    const mo = vlogMonth && vlogMonth !== "none" ? vlogMonth : undefined;
-    vehicleLogMutation.mutate({ file, year: yr, month: mo });
+    vehicleLogMutation.mutate({ file, year: vlogYear || undefined, month: vlogMonth || undefined });
     e.target.value = "";
   };
 
@@ -1020,30 +1018,29 @@ export default function FuelCosts() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3">
-                  <span className="text-xs text-muted-foreground">연월 수동 지정 (파일명 자동인식 시 생략 가능):</span>
+                  <span className="text-xs font-semibold text-foreground">대상 연월 <span className="text-red-500">*</span></span>
                   <Select value={vlogYear} onValueChange={setVlogYear}>
                     <SelectTrigger className="w-24 h-9" data-testid="select-vlog-year"><SelectValue placeholder="연도" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">자동</SelectItem>
                       {uploadYearOptions.map(y => <SelectItem key={y} value={y}>{y}년</SelectItem>)}
                     </SelectContent>
                   </Select>
                   <Select value={vlogMonth} onValueChange={setVlogMonth}>
                     <SelectTrigger className="w-20 h-9" data-testid="select-vlog-month"><SelectValue placeholder="월" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">자동</SelectItem>
                       {MONTHS.map((m, i) => <SelectItem key={i} value={String(i + 1)}>{m}</SelectItem>)}
                     </SelectContent>
                   </Select>
-                  {vlogYear && vlogYear !== "none" && vlogMonth && vlogMonth !== "none" && (
-                    <Badge className="bg-blue-500/10 text-blue-600 dark:text-blue-400 border-0 font-semibold">{vlogYear}년 {vlogMonth}월 (수동)</Badge>
+                  {vlogYear && vlogMonth && (
+                    <Badge className="bg-blue-500/10 text-blue-600 dark:text-blue-400 border-0 font-semibold">{vlogYear}년 {vlogMonth}월</Badge>
                   )}
                   <Button
                     variant="outline"
-                    className="ml-auto border-blue-400 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/30"
+                    className="ml-auto border-blue-400 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/30 disabled:opacity-50"
                     onClick={() => vehicleLogInputRef.current?.click()}
-                    disabled={vehicleLogMutation.isPending}
+                    disabled={vehicleLogMutation.isPending || !vlogYear || !vlogMonth}
                     data-testid="button-upload-vehicle-log"
+                    title={(!vlogYear || !vlogMonth) ? "연도와 월을 먼저 선택해주세요" : undefined}
                   >
                     {vehicleLogMutation.isPending ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
                     차량일지 파일 선택

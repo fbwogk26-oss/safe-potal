@@ -5056,8 +5056,14 @@ ${htmlDraft}
       }
 
       if (allRecordsToInsert.length === 0) {
+        if (processedYMs.size === 0) {
+          return res.status(400).json({
+            message: "연월을 인식할 수 없습니다. 업로드 폼에서 연도와 월을 직접 선택 후 다시 업로드해주세요.",
+          });
+        }
+        const ymLabel = [...processedYMs].map(k => { const [y,m] = k.split("-"); return `${y}년 ${m}월`; }).join(", ");
         return res.status(400).json({
-          message: "유효한 데이터가 없습니다. 파일명 또는 시트명에 '26년 3월' 형식이 포함되어 있거나, 연도/월을 직접 지정해주세요.",
+          message: `${ymLabel} 데이터를 처리했으나 저장할 차량이 없습니다. 기존 DB에 등록된 차량이어야 팀 정보를 자동 매핑할 수 있습니다. (미인식 차량 ${skippedVehicles.length}대: ${skippedVehicles.slice(0, 5).join(", ")}${skippedVehicles.length > 5 ? " 외 " + (skippedVehicles.length - 5) + "대" : ""})`,
         });
       }
 
