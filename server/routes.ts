@@ -4974,9 +4974,19 @@ ${htmlDraft}
           const plate = String(row[cPlate] ?? "").replace(/\s/g, "");
           if (!plate || plate.length < 4) continue;
 
-          // 출발시간 기반 월 필터
-          const departStr = String(row[cDepart] ?? "");
-          if (!departStr.startsWith(targetYM)) continue;
+          // 출발시간 기반 월 필터 (Date 객체 또는 "YYYY-MM-..." 문자열 모두 처리)
+          const depVal = row[cDepart];
+          let depYear: number | null = null;
+          let depMonth: number | null = null;
+          if (depVal instanceof Date) {
+            depYear  = depVal.getFullYear();
+            depMonth = depVal.getMonth() + 1;
+          } else {
+            const depStr = String(depVal ?? "");
+            const dm = depStr.match(/^(\d{4})-(\d{1,2})/);
+            if (dm) { depYear = parseInt(dm[1]); depMonth = parseInt(dm[2]); }
+          }
+          if (depYear !== year || depMonth !== month) continue;
 
           const num = (v: any) => typeof v === "number" ? v : (parseFloat(String(v ?? "0").replace(/,/g, "")) || 0);
           const dist = Math.max(0, Math.round(num(row[cEndKm]) - num(row[cStartKm])));
@@ -5008,7 +5018,7 @@ ${htmlDraft}
         if (!ym) continue;
 
         const ws   = wb.Sheets[sheetName];
-        const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+        const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", cellDates: true });
         if (rows.length < 2) continue;
 
         const agg = parseSheet(rows, ym.year, ym.month);
