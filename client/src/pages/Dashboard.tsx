@@ -1,5 +1,4 @@
 import { useTeams, useResetTeam, useResetAllTeams } from "@/hooks/use-teams";
-import { useQuery } from "@tanstack/react-query";
 import { 
   BarChart, 
   Bar, 
@@ -25,7 +24,7 @@ import { Input } from "@/components/ui/input";
 import { useState, useRef, useMemo } from "react";
 import ExcelJS from "exceljs";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Download, RefreshCw, AlertTriangle, Trophy, ShieldCheck, RotateCcw, Upload, Settings2, BookOpen } from "lucide-react";
+import { Download, RefreshCw, AlertTriangle, Trophy, ShieldCheck, RotateCcw, Upload, Settings2, Medal, TrendingUp, Users } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { TeamEditDialog } from "@/components/TeamEditDialog";
 import { cn } from "@/lib/utils";
@@ -41,8 +40,6 @@ export default function Dashboard() {
   const { canEditDashboard, canEditSafetyScores, canUploadDashboardData } = usePermissions();
   
   const { data: teams, isLoading, refetch, isRefetching } = useTeams(year);
-  const { data: educationProgress } = useQuery<{ title: string; educationDate: string; educationEndDate?: string | null; completedSessions: number; totalDepartments: number; progressRate: number }[]>({ queryKey: ["/api/education-progress"] });
-  const inProgressEducations = (educationProgress || []).filter(p => p.completedSessions < p.totalDepartments);
   const resetTeam = useResetTeam();
   const resetAllTeams = useResetAllTeams();
   const { toast } = useToast();
@@ -245,48 +242,86 @@ export default function Dashboard() {
               {/* ── KPI 요약 카드 ── */}
               {orderedTeams.length > 0 && (() => {
                 const scores = orderedTeams.map(t => t.totalScore);
-                const topTeam = orderedTeams.reduce((a, b) => a.totalScore >= b.totalScore ? a : b);
-                const botTeam = orderedTeams.reduce((a, b) => a.totalScore <= b.totalScore ? a : b);
+                const maxScore = Math.max(...scores);
+                const minScore = Math.min(...scores);
+                const topTeams = orderedTeams.filter(t => t.totalScore === maxScore);
+                const botTeams = orderedTeams.filter(t => t.totalScore === minScore);
                 const avg = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
                 const above90 = scores.filter(s => s >= 90).length;
                 const above80 = scores.filter(s => s >= 80 && s < 90).length;
+                const below80 = scores.filter(s => s < 80).length;
                 return (
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {/* 최우수 - 동점 모두 표시 */}
                     <Card className="border-0 shadow-sm bg-gradient-to-br from-emerald-50 to-emerald-100/60 dark:from-emerald-950/40 dark:to-emerald-900/20">
                       <CardContent className="p-3 sm:p-4">
-                        <p className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 mb-1">🏆 최우수</p>
-                        <p className="text-sm font-black text-emerald-700 dark:text-emerald-300 leading-tight truncate">{topTeam.name.replace('운용팀','').replace('팀','')}</p>
-                        <p className="text-2xl font-black text-emerald-700 dark:text-emerald-300">{topTeam.totalScore}<span className="text-xs font-normal ml-0.5">점</span></p>
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                          <Trophy className="w-3.5 h-3.5 text-emerald-500" />
+                          <p className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">최우수</p>
+                          {topTeams.length > 1 && (
+                            <span className="text-[9px] bg-emerald-200 dark:bg-emerald-800/60 text-emerald-700 dark:text-emerald-300 px-1 py-0.5 rounded font-bold">동점 {topTeams.length}팀</span>
+                          )}
+                        </div>
+                        <div className="space-y-0.5 mb-1">
+                          {topTeams.map(t => (
+                            <p key={t.id} className="text-sm font-black text-emerald-700 dark:text-emerald-300 leading-tight truncate">
+                              {t.name.replace('운용팀','').replace('팀','')}
+                            </p>
+                          ))}
+                        </div>
+                        <p className="text-2xl font-black text-emerald-700 dark:text-emerald-300">{maxScore}<span className="text-xs font-normal ml-0.5">점</span></p>
                       </CardContent>
                     </Card>
+                    {/* 최하위 - 동점 모두 표시 */}
                     <Card className="border-0 shadow-sm bg-gradient-to-br from-rose-50 to-rose-100/60 dark:from-rose-950/40 dark:to-rose-900/20">
                       <CardContent className="p-3 sm:p-4">
-                        <p className="text-[11px] font-semibold text-rose-600 dark:text-rose-400 mb-1">⚠️ 최하위</p>
-                        <p className="text-sm font-black text-rose-700 dark:text-rose-300 leading-tight truncate">{botTeam.name.replace('운용팀','').replace('팀','')}</p>
-                        <p className="text-2xl font-black text-rose-700 dark:text-rose-300">{botTeam.totalScore}<span className="text-xs font-normal ml-0.5">점</span></p>
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                          <AlertTriangle className="w-3.5 h-3.5 text-rose-500" />
+                          <p className="text-[11px] font-semibold text-rose-600 dark:text-rose-400">최하위</p>
+                          {botTeams.length > 1 && (
+                            <span className="text-[9px] bg-rose-200 dark:bg-rose-800/60 text-rose-700 dark:text-rose-300 px-1 py-0.5 rounded font-bold">동점 {botTeams.length}팀</span>
+                          )}
+                        </div>
+                        <div className="space-y-0.5 mb-1">
+                          {botTeams.map(t => (
+                            <p key={t.id} className="text-sm font-black text-rose-700 dark:text-rose-300 leading-tight truncate">
+                              {t.name.replace('운용팀','').replace('팀','')}
+                            </p>
+                          ))}
+                        </div>
+                        <p className="text-2xl font-black text-rose-700 dark:text-rose-300">{minScore}<span className="text-xs font-normal ml-0.5">점</span></p>
                       </CardContent>
                     </Card>
+                    {/* 평균 점수 */}
                     <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/60 dark:from-blue-950/40 dark:to-blue-900/20">
                       <CardContent className="p-3 sm:p-4">
-                        <p className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 mb-1">📊 평균 점수</p>
-                        <p className="text-2xl font-black text-blue-700 dark:text-blue-300 mt-3">{avg}<span className="text-xs font-normal ml-0.5">점</span></p>
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <TrendingUp className="w-3.5 h-3.5 text-blue-500" />
+                          <p className="text-[11px] font-semibold text-blue-600 dark:text-blue-400">평균 점수</p>
+                        </div>
+                        <p className="text-3xl font-black text-blue-700 dark:text-blue-300 mt-2">{avg}<span className="text-xs font-normal ml-0.5">점</span></p>
                       </CardContent>
                     </Card>
+                    {/* 팀 현황 */}
                     <Card className="border-0 shadow-sm bg-gradient-to-br from-violet-50 to-violet-100/60 dark:from-violet-950/40 dark:to-violet-900/20">
                       <CardContent className="p-3 sm:p-4">
-                        <p className="text-[11px] font-semibold text-violet-600 dark:text-violet-400 mb-1.5">팀 현황</p>
-                        <div className="flex items-end gap-2">
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <Users className="w-3.5 h-3.5 text-violet-500" />
+                          <p className="text-[11px] font-semibold text-violet-600 dark:text-violet-400">팀 현황</p>
+                          <span className="ml-auto text-[10px] text-muted-foreground">{orderedTeams.length}개팀</span>
+                        </div>
+                        <div className="flex items-end gap-3">
                           <div className="text-center">
                             <p className="text-2xl font-black text-emerald-600">{above90}</p>
-                            <p className="text-[10px] text-muted-foreground">90+</p>
+                            <p className="text-[10px] text-muted-foreground font-medium">90+</p>
                           </div>
                           <div className="text-center">
                             <p className="text-2xl font-black text-yellow-500">{above80}</p>
-                            <p className="text-[10px] text-muted-foreground">80+</p>
+                            <p className="text-[10px] text-muted-foreground font-medium">80+</p>
                           </div>
                           <div className="text-center">
-                            <p className="text-2xl font-black text-rose-500">{orderedTeams.length - above90 - above80}</p>
-                            <p className="text-[10px] text-muted-foreground">80↓</p>
+                            <p className="text-2xl font-black text-rose-500">{below80}</p>
+                            <p className="text-[10px] text-muted-foreground font-medium">80↓</p>
                           </div>
                         </div>
                       </CardContent>
@@ -294,32 +329,6 @@ export default function Dashboard() {
                   </div>
                 );
               })()}
-
-              {/* 진행중 교육 현황 */}
-              {inProgressEducations.length > 0 && (
-                <Card className="border-0 shadow-sm bg-gradient-to-br from-indigo-50 to-indigo-100/60 dark:from-indigo-950/40 dark:to-indigo-900/20">
-                  <CardContent className="p-3 sm:p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <BookOpen className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                      <span className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400">서명 진행중인 교육</span>
-                      <span className="ml-auto text-2xl font-black text-indigo-700 dark:text-indigo-300">{inProgressEducations.length}<span className="text-xs font-normal ml-0.5">건</span></span>
-                    </div>
-                    <div className="space-y-1.5">
-                      {inProgressEducations.slice(0, 3).map((edu, i) => (
-                        <div key={i} className="flex items-center gap-2 text-[11px]">
-                          <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
-                          <span className="truncate flex-1 text-indigo-800 dark:text-indigo-200 font-medium">{edu.title}</span>
-                          <span className="text-indigo-500 shrink-0">
-                            {edu.educationDate}
-                            {edu.educationEndDate && edu.educationEndDate !== edu.educationDate ? ` ~ ${edu.educationEndDate.slice(5)}` : ""}
-                          </span>
-                          <span className="font-bold text-indigo-600 shrink-0">{edu.progressRate}%</span>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
 
               {/* Chart Section */}
               <Card className="shadow-lg border-border/50">
