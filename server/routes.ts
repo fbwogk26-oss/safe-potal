@@ -4918,6 +4918,8 @@ ${htmlDraft}
       // DB에서 전체 차량 메타 + 팀 조회 (차량번호 → team/fuelType/acquisitionType/vehicleType/modelName)
       const allRecords = await storage.getFuelRecords({});
       const vehicleMeta: Record<string, { team: string | null; fuelType: string | null; acquisitionType: string | null; vehicleType: string | null; modelName: string | null; driver: string | null }> = {};
+      // 대차 역방향 매핑: 괄호 안 차량번호(대차 차량) → 원본 레코드 메타
+      const rentalReverse: Record<string, typeof vehicleMeta[string]> = {};
       for (const r of allRecords) {
         if (r.licensePlate && !vehicleMeta[r.licensePlate]) {
           vehicleMeta[r.licensePlate] = {
@@ -4928,6 +4930,23 @@ ${htmlDraft}
             modelName: r.modelName,
             driver: r.driver,
           };
+        }
+        // "대차/xxx(대차차량번호)" 패턴에서 괄호 안 번호 추출
+        if (r.licensePlate) {
+          const m = r.licensePlate.match(/\(([^)]+)\)/);
+          if (m) {
+            const rentalPlate = m[1].replace(/\s/g, "");
+            if (!rentalReverse[rentalPlate]) {
+              rentalReverse[rentalPlate] = {
+                team: r.team,
+                fuelType: r.fuelType,
+                acquisitionType: r.acquisitionType,
+                vehicleType: r.vehicleType,
+                modelName: r.modelName,
+                driver: r.driver,
+              };
+            }
+          }
         }
       }
 
@@ -5027,18 +5046,20 @@ ${htmlDraft}
 
         for (const [plate, v] of Object.entries(agg)) {
           if (v.dist === 0 && v.fuelCost === 0) continue;
-          const meta = vehicleMeta[plate];
-          if (!meta?.team) { skippedVehicles.push(plate); continue; } // 팀 매핑 없으면 제외
+          // 1순위: 직접 매핑, 2순위: 대차 역방향 매핑, 3순위: 미확인팀으로 포함
+          const meta = vehicleMeta[plate] ?? rentalReverse[plate] ?? null;
+          const team = meta?.team ?? "미확인팀";
+          if (!meta) skippedVehicles.push(plate); // 팀 미확인 기록 (제외하지 않음)
           allRecordsToInsert.push({
             year: ym.year,
             month: ym.month,
-            team: meta.team,
-            driver: v.driver || meta.driver || null,
+            team,
+            driver: v.driver || meta?.driver || null,
             licensePlate: plate,
-            fuelType: meta.fuelType ?? null,
-            acquisitionType: meta.acquisitionType ?? null,
-            vehicleType: meta.vehicleType ?? null,
-            modelName: meta.modelName ?? null,
+            fuelType: meta?.fuelType ?? null,
+            acquisitionType: meta?.acquisitionType ?? "렌트",
+            vehicleType: meta?.vehicleType ?? null,
+            modelName: meta?.modelName ?? null,
             totalDistance: v.dist,
             businessDistance: v.dist,
             cardFuelCost: 0,
@@ -5078,9 +5099,10 @@ ${htmlDraft}
         success: true,
         batchId,
         inserted,
-        skippedVehicles: skippedVehicles.length,
+        unknownVehicles: skippedVehicles.length,
+        unknownPlates: skippedVehicles,
         yearMonths: ymLabels,
-        message: `${inserted}건 처리 완료 — ${ymLabels.join(", ")} 차량일지 반영${skippedVehicles.length ? ` (팀매핑 없어 제외: ${skippedVehicles.length}대)` : ""}`,
+        message: `${inserted}건 처리 완료 — ${ymLabels.join(", ")} 차량일지 반영${skippedVehicles.length ? ` (팀미확인 ${skippedVehicles.length}대 "미확인팀"으로 포함: ${skippedVehicles.join(", ")})` : ""}`,
       });
     } catch (e: any) {
       console.error("차량일지 업로드 오류:", e);
