@@ -201,9 +201,12 @@ const ChartTooltip = ({ active, payload, label, unit = "만원" }: any) => {
 export default function FuelCosts() {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const vehicleLogInputRef = useRef<HTMLInputElement>(null);
   const [tab, setTab] = useState("dashboard");
   const [uploadYear, setUploadYear] = useState<string>("");
   const [uploadMonth, setUploadMonth] = useState<string>("");
+  const [vlogYear, setVlogYear] = useState<string>("");
+  const [vlogMonth, setVlogMonth] = useState<string>("");
   const [chartMetric, setChartMetric] = useState<"fuel" | "distance">("fuel");
   const [teamYearFilter, setTeamYearFilter] = useState<string>("all");
   const [teamTeamFilter, setTeamTeamFilter] = useState<string>("all");
@@ -268,11 +271,42 @@ export default function FuelCosts() {
     onError: (e: Error) => toast({ title: "삭제 실패", description: e.message, variant: "destructive" }),
   });
 
+  const vehicleLogMutation = useMutation({
+    mutationFn: async ({ file, year, month }: { file: File; year: string; month: string }) => {
+      const form = new FormData();
+      form.append("file", file);
+      form.append("year", year);
+      form.append("month", month);
+      const res = await fetch("/api/fuel-records/upload-vehicle-log", { method: "POST", body: form, credentials: "include" });
+      if (!res.ok) throw new Error((await res.json()).message);
+      return res.json();
+    },
+    onSuccess: (data) => {
+      toast({ title: "차량일지 업로드 완료", description: data.message });
+      queryClient.invalidateQueries({ queryKey: ["/api/fuel-records"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/fuel-records/summary"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/fuel-records/batches"] });
+    },
+    onError: (e: Error) => toast({ title: "업로드 실패", description: e.message, variant: "destructive" }),
+  });
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     const yr = uploadYear === "auto" || !uploadYear ? undefined : uploadYear;
     const mo = uploadMonth === "auto" || !uploadMonth ? undefined : uploadMonth;
     if (file) uploadMutation.mutate({ file, year: yr, month: mo });
+    e.target.value = "";
+  };
+
+  const handleVehicleLogChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!vlogYear || !vlogMonth) {
+      toast({ title: "연도/월 미지정", description: "차량일지 업로드 전 연도와 월을 먼저 선택하세요.", variant: "destructive" });
+      e.target.value = "";
+      return;
+    }
+    vehicleLogMutation.mutate({ file, year: vlogYear, month: vlogMonth });
     e.target.value = "";
   };
 
@@ -400,6 +434,7 @@ export default function FuelCosts() {
         </div>
       </div>
       <input ref={fileInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFileChange} data-testid="input-fuel-file" />
+      <input ref={vehicleLogInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleVehicleLogChange} data-testid="input-vehicle-log-file" />
 
       <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="h-10 w-full sm:w-auto">
@@ -1032,6 +1067,58 @@ export default function FuelCosts() {
                   <Button onClick={() => fileInputRef.current?.click()} disabled={uploadMutation.isPending} className="ml-auto">
                     {uploadMutation.isPending ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
                     파일 선택
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* 차량일지 업로드 카드 */}
+            <Card className="shadow-sm border-blue-200 dark:border-blue-900">
+              <CardContent className="p-6 space-y-5">
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center shrink-0">
+                    <Car className="w-6 h-6 text-blue-500" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-base">차량일지 업로드 <span className="text-xs font-medium text-blue-500 ml-1">NEW</span></p>
+                    <p className="text-sm text-muted-foreground mt-0.5">차량일지 형식 엑셀(시트=팀명, 행=운행기록)을 업로드합니다. 같은 연월 기존 데이터는 교체됩니다.</p>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-blue-50 dark:bg-blue-950/30 rounded-xl text-xs text-muted-foreground space-y-1.5">
+                  <p className="font-bold text-foreground text-sm mb-2">📋 차량일지 파일 형식</p>
+                  <p>• 시트명이 팀 이름인 엑셀 파일 (예: <strong>동대구운용팀</strong>, <strong>포항운용팀</strong> 등)</p>
+                  <p>• 각 시트는 차량별 일일 운행 기록이 행으로 구성</p>
+                  <p>• 헤더: <strong>차량번호, 운전자, 주행거리, 주유금액</strong> 컬럼 포함</p>
+                  <p>• 연료·구입형태 등 메타데이터는 기존 DB 데이터에서 자동 매핑</p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="text-sm font-semibold text-foreground">연월 지정 <span className="text-red-500">*</span></span>
+                  <Select value={vlogYear} onValueChange={setVlogYear}>
+                    <SelectTrigger className="w-24 h-9" data-testid="select-vlog-year"><SelectValue placeholder="연도 선택" /></SelectTrigger>
+                    <SelectContent>
+                      {uploadYearOptions.map(y => <SelectItem key={y} value={y}>{y}년</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <Select value={vlogMonth} onValueChange={setVlogMonth}>
+                    <SelectTrigger className="w-20 h-9" data-testid="select-vlog-month"><SelectValue placeholder="월 선택" /></SelectTrigger>
+                    <SelectContent>
+                      {MONTHS.map((m, i) => <SelectItem key={i} value={String(i + 1)}>{m}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  {vlogYear && vlogMonth && (
+                    <Badge className="bg-blue-500/10 text-blue-600 dark:text-blue-400 border-0 font-semibold">{vlogYear}년 {vlogMonth}월</Badge>
+                  )}
+                  <Button
+                    variant="outline"
+                    className="ml-auto border-blue-400 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/30"
+                    onClick={() => vehicleLogInputRef.current?.click()}
+                    disabled={vehicleLogMutation.isPending || !vlogYear || !vlogMonth}
+                    data-testid="button-upload-vehicle-log"
+                  >
+                    {vehicleLogMutation.isPending ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
+                    차량일지 파일 선택
                   </Button>
                 </div>
               </CardContent>
