@@ -1072,8 +1072,10 @@ export default function FuelCosts() {
                         </tr>
                       </thead>
                       <tbody>
-                        {filtered.slice(0, 300).map((r, i) => {
+                        {filtered.map((r, i) => {
                           const p = YEAR_PALETTE[r.year] ?? YEAR_PALETTE[2025];
+                          const fuelCost = (r.cardFuelCost ?? 0) + (r.cashFuelCost ?? 0);
+                          const isZeroCost = r.totalCost === 0;
                           return (
                             <tr key={r.id} className={`border-b border-border/40 hover:bg-muted/30 transition-colors ${i % 2 === 1 ? "bg-muted/10" : ""}`} data-testid={`row-fuel-${r.id}`}>
                               <td className="py-2.5 px-4 whitespace-nowrap">
@@ -1089,19 +1091,40 @@ export default function FuelCosts() {
                                 </span>
                               </td>
                               <td className="py-2.5 px-3 text-sm text-muted-foreground">{r.acquisitionType}</td>
-                              <td className="py-2.5 px-3 text-right tabular-nums text-sm">{r.totalDistance ? fmt(r.totalDistance) : "-"}</td>
-                              <td className="py-2.5 px-3 text-right tabular-nums text-sm">{(r.cardFuelCost || r.cashFuelCost) ? fmt((r.cardFuelCost ?? 0) + (r.cashFuelCost ?? 0)) : "-"}</td>
-                              <td className="py-2.5 px-4 text-right tabular-nums font-bold text-sm">{r.totalCost ? fmt(r.totalCost) : "-"}</td>
+                              <td className="py-2.5 px-3 text-right tabular-nums text-sm">
+                                {r.totalDistance ? fmt(r.totalDistance) : <span className="text-muted-foreground/40">0</span>}
+                              </td>
+                              <td className="py-2.5 px-3 text-right tabular-nums text-sm">
+                                {fuelCost > 0 ? fmt(fuelCost) : (isZeroCost ? <span className="text-muted-foreground/40">0</span> : "-")}
+                              </td>
+                              <td className="py-2.5 px-4 text-right tabular-nums font-bold text-sm">
+                                {r.totalCost > 0 ? fmt(r.totalCost) : (r.totalDistance > 0 ? <span className="text-muted-foreground/40">0</span> : "-")}
+                              </td>
                             </tr>
                           );
                         })}
                       </tbody>
+                      {/* ── 합계 행 ── */}
+                      {filtered.length > 0 && (() => {
+                        const totDist = filtered.reduce((s, r) => s + (r.totalDistance ?? 0), 0);
+                        const totFuel = filtered.reduce((s, r) => s + (r.cardFuelCost ?? 0) + (r.cashFuelCost ?? 0), 0);
+                        const totCost = filtered.reduce((s, r) => s + (r.totalCost ?? 0), 0);
+                        return (
+                          <tfoot>
+                            <tr className="border-t-2 border-border bg-muted/60 font-bold">
+                              <td className="py-3 px-4 text-xs font-black text-foreground whitespace-nowrap" colSpan={7}>
+                                합계 <span className="text-muted-foreground font-normal ml-1">({filtered.length}건)</span>
+                              </td>
+                              <td className="py-3 px-3 text-right tabular-nums text-sm">{fmt(totDist)}</td>
+                              <td className="py-3 px-3 text-right tabular-nums text-sm">{fmt(totFuel)}</td>
+                              <td className="py-3 px-4 text-right tabular-nums text-sm text-primary">{fmt(totCost)}</td>
+                            </tr>
+                          </tfoot>
+                        );
+                      })()}
                     </table>
                   )}
                 </div>
-                {filtered.length > 300 && (
-                  <p className="text-xs text-muted-foreground px-4 py-3 border-t border-border">상위 300건만 표시됩니다. 필터를 적용하여 범위를 좁혀주세요.</p>
-                )}
               </CardContent>
             </Card>
           </TabsContent>
