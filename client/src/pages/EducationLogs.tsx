@@ -198,8 +198,8 @@ function ProgressDashboard() {
   const totalEducations = progress?.length || 0;
   // 전 부서 세션이 모두 '완료' 상태인 교육 건수
   const completedAll = progress?.filter(p => p.totalDepartments > 0 && p.completedSessions === p.totalDepartments).length || 0;
-  // 일부 부서만 완료된 교육 건수
-  const inProgress = progress?.filter(p => p.completedSessions > 0 && p.completedSessions < p.totalDepartments).length || 0;
+  // 아직 전체 완료되지 않은 교육 건수 (서명 시작 전 포함)
+  const inProgress = progress?.filter(p => p.completedSessions < p.totalDepartments).length || 0;
   const completionRate = totalEducations > 0 ? Math.round((completedAll / totalEducations) * 100) : 0;
 
   // 서명 진행중인 교육 최대 3개 (일부 서명됐거나 아직 시작 전 모두 포함)
