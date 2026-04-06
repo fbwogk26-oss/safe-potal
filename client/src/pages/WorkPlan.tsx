@@ -9,8 +9,9 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Upload, CalendarCheck, CheckCircle2, X, Loader2, Copy, Check, Mail, Trash2, Clock, Send, RefreshCw, Inbox
+  Upload, CalendarCheck, CheckCircle2, X, Loader2, Copy, Check, Mail, Trash2, Clock, Send, RefreshCw, Inbox, FileText, ChevronRight
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -33,6 +34,7 @@ export default function WorkPlan() {
 
   const [isDragOver, setIsDragOver] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [activeTab, setActiveTab] = useState("upload");
 
   const [result, setResult] = useState<{
     parsed: any;
@@ -46,6 +48,7 @@ export default function WorkPlan() {
   const [selectedPlan, setSelectedPlan] = useState<WorkPlan | null>(null);
   const [recipientEmail, setRecipientEmail] = useState("jaeha.ryu@ktmos.co.kr");
   const [sendSuccess, setSendSuccess] = useState(false);
+  const [expandedPlanId, setExpandedPlanId] = useState<number | null>(null);
 
   // Gmail 받은편지함
   const [gmailEmails, setGmailEmails] = useState<{uid:number;subject:string;from:string;fromAddr:string;date:string}[]>([]);
@@ -75,6 +78,7 @@ export default function WorkPlan() {
       setResult(data);
       setSubjectCopied(false);
       setBodyCopied(false);
+      queryClient.invalidateQueries({ queryKey: ["/api/work-plans"] });
       toast({ title: "초안 생성 완료", description: `${data.itemCount}건의 작업 항목이 추출되었습니다.` });
     },
     onError: (err: any) => {
@@ -137,6 +141,7 @@ export default function WorkPlan() {
       setSubjectCopied(false);
       setBodyCopied(false);
       setGmailOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["/api/work-plans"] });
       toast({ title: "초안 생성 완료", description: `${data.itemCount}건의 작업 항목이 추출되었습니다.` });
     },
     onError: (err: any) => {
@@ -231,290 +236,507 @@ export default function WorkPlan() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        {/* 왼쪽: 업로드 + 결과 */}
-        <div className="lg:col-span-3 flex flex-col gap-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="mb-2">
+          <TabsTrigger value="upload" className="flex items-center gap-1.5" data-testid="tab-upload">
+            <Upload className="w-4 h-4" />
+            업로드
+          </TabsTrigger>
+          <TabsTrigger value="drafts" className="flex items-center gap-1.5" data-testid="tab-drafts">
+            <FileText className="w-4 h-4" />
+            메일 초안 이력
+            {workPlans.length > 0 && (
+              <span className="ml-1 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 text-[10px] font-semibold px-1.5 py-0.5 leading-none">
+                {workPlans.length}
+              </span>
+            )}
+          </TabsTrigger>
+        </TabsList>
 
-          {/* 파일 업로드 카드 */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Upload className="w-4 h-4 text-blue-500" />
-                .eml 파일 업로드
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-4">
-              {/* 드래그드롭 영역 */}
-              <div
-                className={cn(
-                  "relative border-2 border-dashed rounded-xl transition-all cursor-pointer",
-                  isDragOver
-                    ? "border-blue-400 bg-blue-50 dark:bg-blue-950/40"
-                    : "border-muted-foreground/30 hover:border-blue-300 hover:bg-muted/30"
-                )}
-                onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
-                onDragLeave={() => setIsDragOver(false)}
-                onDrop={handleDrop}
-                onClick={() => fileInputRef.current?.click()}
-                data-testid="dropzone-eml"
-              >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".eml"
-                  className="hidden"
-                  onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileSelect(f); }}
-                  data-testid="input-eml-file"
-                />
-                <div className="flex flex-col items-center justify-center gap-2 py-10 px-4 text-center">
-                  {selectedFile ? (
-                    <>
-                      <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/40 flex items-center justify-center">
-                        <CheckCircle2 className="w-5 h-5 text-green-600" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-foreground">{selectedFile.name}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">{(selectedFile.size / 1024).toFixed(1)} KB</p>
-                      </div>
-                      <p className="text-xs text-muted-foreground">다른 파일을 선택하려면 클릭하세요</p>
-                    </>
-                  ) : (
-                    <>
-                      <div className="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-950 flex items-center justify-center">
-                        <Mail className="w-5 h-5 text-blue-500" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-foreground">하도급 업체 메일 (.eml) 업로드</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">클릭하거나 파일을 여기에 끌어다 놓으세요</p>
-                      </div>
-                      <p className="text-[11px] text-muted-foreground bg-muted/50 rounded px-3 py-1.5">
-                        받은편지함에서 메일을 선택 → 파일로 저장(.eml) → 업로드
-                      </p>
-                    </>
-                  )}
-                </div>
-              </div>
+        {/* ── 탭1: 업로드 ── */}
+        <TabsContent value="upload">
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+            {/* 왼쪽: 업로드 + 결과 */}
+            <div className="lg:col-span-3 flex flex-col gap-4">
 
-              {/* 버튼 */}
-              <div className="flex gap-2">
-                <Button
-                  data-testid="button-generate-email"
-                  onClick={handleGenerate}
-                  disabled={!selectedFile || parseMutation.isPending}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
-                >
-                  {parseMutation.isPending
-                    ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />AI 분석 중...</>
-                    : <><Mail className="w-4 h-4 mr-2" />이메일 초안 생성</>}
-                </Button>
-                {(selectedFile || result) && (
-                  <Button variant="outline" size="icon" onClick={handleReset} data-testid="button-reset">
-                    <X className="w-4 h-4" />
-                  </Button>
-                )}
-              </div>
-
-              {/* 구분선 */}
-              <div className="flex items-center gap-3">
-                <div className="flex-1 border-t border-muted-foreground/20" />
-                <span className="text-xs text-muted-foreground">또는</span>
-                <div className="flex-1 border-t border-muted-foreground/20" />
-              </div>
-
-              {/* Gmail 받은편지함 불러오기 */}
-              <Button
-                variant="outline"
-                className="w-full border-red-200 text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/30"
-                onClick={() => listGmailMutation.mutate()}
-                disabled={listGmailMutation.isPending}
-                data-testid="button-open-gmail"
-              >
-                {listGmailMutation.isPending
-                  ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Gmail 연결 중...</>
-                  : <><Inbox className="w-4 h-4 mr-2" />Gmail 받은편지함에서 불러오기</>}
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* 결과 섹션 */}
-          {result && (
-            <Card className="border-green-200 dark:border-green-800">
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-green-600" />
-                  <CardTitle className="text-base text-green-700 dark:text-green-400">
-                    초안 생성 완료 — {result.parsed.company} · {result.parsed.workDate} · {result.itemCount}건
+              {/* 파일 업로드 카드 */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Upload className="w-4 h-4 text-blue-500" />
+                    .eml 파일 업로드
                   </CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-4">
-
-                {/* 메일 제목 */}
-                <div className="flex flex-col gap-1.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">메일 제목</span>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-7 text-xs px-2.5"
-                      onClick={handleCopySubject}
-                      data-testid="button-copy-subject"
-                    >
-                      {subjectCopied
-                        ? <><Check className="w-3 h-3 mr-1 text-green-600" />복사됨</>
-                        : <><Copy className="w-3 h-3 mr-1" />복사</>}
-                    </Button>
-                  </div>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-4">
+                  {/* 드래그드롭 영역 */}
                   <div
-                    className="rounded border bg-muted/40 px-3 py-2 text-sm cursor-pointer select-all hover:bg-muted/60 transition-colors"
-                    onClick={handleCopySubject}
-                    data-testid="display-subject"
-                    title="클릭하여 복사"
+                    className={cn(
+                      "relative border-2 border-dashed rounded-xl transition-all cursor-pointer",
+                      isDragOver
+                        ? "border-blue-400 bg-blue-50 dark:bg-blue-950/40"
+                        : "border-muted-foreground/30 hover:border-blue-300 hover:bg-muted/30"
+                    )}
+                    onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+                    onDragLeave={() => setIsDragOver(false)}
+                    onDrop={handleDrop}
+                    onClick={() => fileInputRef.current?.click()}
+                    data-testid="dropzone-eml"
                   >
-                    {result.subject}
-                  </div>
-                </div>
-
-                {/* 메일 본문 미리보기 + 복사 */}
-                <div className="flex flex-col gap-1.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">
-                      메일 본문
-                      <span className="ml-2 text-xs font-normal text-muted-foreground">(표 + 사진 포함)</span>
-                    </span>
-                    <Button
-                      size="sm"
-                      className="h-7 text-xs px-3 bg-blue-600 hover:bg-blue-700 text-white"
-                      onClick={handleCopyBody}
-                      data-testid="button-copy-body"
-                    >
-                      {bodyCopied
-                        ? <><Check className="w-3 h-3 mr-1" />복사됨</>
-                        : <><Copy className="w-3 h-3 mr-1" />본문 복사</>}
-                    </Button>
-                  </div>
-                  {/* HTML 미리보기 */}
-                  <div className="rounded border overflow-hidden bg-white dark:bg-white" style={{ height: 640 }}>
-                    <iframe
-                      srcDoc={`<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{margin:16px 20px;padding:0;background:#fff}</style></head><body>${result.htmlDraft}</body></html>`}
-                      className="w-full h-full border-0"
-                      sandbox="allow-same-origin"
-                      title="이메일 미리보기"
-                      data-testid="iframe-email-preview"
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".eml"
+                      className="hidden"
+                      onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileSelect(f); }}
+                      data-testid="input-eml-file"
                     />
-                  </div>
-                  <p className="text-[11px] text-muted-foreground">
-                    위 미리보기 확인 후 "본문 복사" → 이메일 클라이언트에서 붙여넣기 하세요. 표 서식과 사진이 그대로 붙여넣어집니다.
-                  </p>
-                </div>
-
-                {/* 이메일 직접 발송 */}
-                <div className="flex flex-col gap-2 rounded-lg border border-blue-100 dark:border-blue-900 bg-blue-50/50 dark:bg-blue-950/30 px-4 py-3">
-                  <Label className="text-sm font-medium flex items-center gap-1.5">
-                    <Send className="w-3.5 h-3.5 text-blue-500" />
-                    이메일 직접 발송
-                  </Label>
-                  <div className="flex gap-2">
-                    <Input
-                      type="email"
-                      value={recipientEmail}
-                      onChange={(e) => setRecipientEmail(e.target.value)}
-                      placeholder="수신자 이메일"
-                      className="flex-1 text-sm h-9"
-                      data-testid="input-recipient-email"
-                    />
-                    <Button
-                      className={cn(
-                        "h-9 px-4 text-sm font-medium transition-all",
-                        sendSuccess
-                          ? "bg-green-600 hover:bg-green-600 text-white"
-                          : "bg-blue-600 hover:bg-blue-700 text-white"
+                    <div className="flex flex-col items-center justify-center gap-2 py-10 px-4 text-center">
+                      {selectedFile ? (
+                        <>
+                          <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/40 flex items-center justify-center">
+                            <CheckCircle2 className="w-5 h-5 text-green-600" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-foreground">{selectedFile.name}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">{(selectedFile.size / 1024).toFixed(1)} KB</p>
+                          </div>
+                          <p className="text-xs text-muted-foreground">다른 파일을 선택하려면 클릭하세요</p>
+                        </>
+                      ) : (
+                        <>
+                          <div className="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-950 flex items-center justify-center">
+                            <Mail className="w-5 h-5 text-blue-500" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-foreground">하도급 업체 메일 (.eml) 업로드</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">클릭하거나 파일을 여기에 끌어다 놓으세요</p>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground bg-muted/50 rounded px-3 py-1.5">
+                            받은편지함에서 메일을 선택 → 파일로 저장(.eml) → 업로드
+                          </p>
+                        </>
                       )}
-                      onClick={() => {
-                        if (!result || !recipientEmail.trim()) return;
-                        sendMutation.mutate({
-                          subject: result.subject,
-                          htmlDraft: result.htmlDraft,
-                          to: recipientEmail.trim(),
-                        });
-                      }}
-                      disabled={!recipientEmail.trim() || sendMutation.isPending}
-                      data-testid="button-send-email"
-                    >
-                      {sendMutation.isPending
-                        ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />발송 중...</>
-                        : sendSuccess
-                          ? <><Check className="w-3.5 h-3.5 mr-1.5" />발송 완료</>
-                          : <><Send className="w-3.5 h-3.5 mr-1.5" />발송</>}
-                    </Button>
+                    </div>
                   </div>
-                  <p className="text-[11px] text-muted-foreground">
-                    발송자: fbwogk26@gmail.com → 위 주소로 이메일이 즉시 발송됩니다
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </div>
 
-        {/* 오른쪽: 이력 */}
-        <div className="lg:col-span-2 flex flex-col gap-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Clock className="w-4 h-4 text-muted-foreground" />
-                생성 이력
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-                </div>
-              ) : workPlans.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground text-sm">
-                  <CalendarCheck className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                  <p>생성 이력이 없습니다</p>
-                </div>
-              ) : (
-                <div className="flex flex-col gap-1.5 max-h-[600px] overflow-y-auto">
-                  {workPlans.map((plan) => (
-                    <div
-                      key={plan.id}
-                      className="flex items-start gap-2 rounded-lg border px-3 py-2.5 hover:bg-muted/40 transition-colors cursor-pointer group"
-                      onClick={() => setSelectedPlan(plan)}
-                      data-testid={`card-workplan-${plan.id}`}
+                  {/* 버튼 */}
+                  <div className="flex gap-2">
+                    <Button
+                      data-testid="button-generate-email"
+                      onClick={handleGenerate}
+                      disabled={!selectedFile || parseMutation.isPending}
+                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
                     >
-                      <CalendarCheck className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{plan.title}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {format(new Date(plan.createdAt), "yyyy.MM.dd HH:mm")}
-                          {plan.createdBy && ` · ${plan.createdBy}`}
-                        </p>
+                      {parseMutation.isPending
+                        ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />AI 분석 중...</>
+                        : <><Mail className="w-4 h-4 mr-2" />이메일 초안 생성</>}
+                    </Button>
+                    {(selectedFile || result) && (
+                      <Button variant="outline" size="icon" onClick={handleReset} data-testid="button-reset">
+                        <X className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
+
+                  {/* 구분선 */}
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 border-t border-muted-foreground/20" />
+                    <span className="text-xs text-muted-foreground">또는</span>
+                    <div className="flex-1 border-t border-muted-foreground/20" />
+                  </div>
+
+                  {/* Gmail 받은편지함 불러오기 */}
+                  <Button
+                    variant="outline"
+                    className="w-full border-red-200 text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/30"
+                    onClick={() => listGmailMutation.mutate()}
+                    disabled={listGmailMutation.isPending}
+                    data-testid="button-open-gmail"
+                  >
+                    {listGmailMutation.isPending
+                      ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Gmail 연결 중...</>
+                      : <><Inbox className="w-4 h-4 mr-2" />Gmail 받은편지함에서 불러오기</>}
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* 결과 섹션 */}
+              {result && (
+                <Card className="border-green-200 dark:border-green-800">
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-green-600" />
+                        <CardTitle className="text-base text-green-700 dark:text-green-400">
+                          초안 생성 완료 — {result.parsed.company} · {result.parsed.workDate} · {result.itemCount}건
+                        </CardTitle>
                       </div>
                       <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-6 w-6 opacity-0 group-hover:opacity-100 shrink-0"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteMutation.mutate(plan.id);
-                        }}
-                        data-testid={`button-delete-plan-${plan.id}`}
+                        size="sm"
+                        variant="outline"
+                        className="text-xs h-7"
+                        onClick={() => setActiveTab("drafts")}
+                        data-testid="button-goto-drafts"
                       >
-                        <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                        <FileText className="w-3.5 h-3.5 mr-1" />
+                        이력 보기
+                        <ChevronRight className="w-3.5 h-3.5 ml-0.5" />
                       </Button>
                     </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+                  </CardHeader>
+                  <CardContent className="flex flex-col gap-4">
 
-      {/* 이력 상세 다이얼로그 */}
+                    {/* 메일 제목 */}
+                    <div className="flex flex-col gap-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium">메일 제목</span>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs px-2.5"
+                          onClick={handleCopySubject}
+                          data-testid="button-copy-subject"
+                        >
+                          {subjectCopied
+                            ? <><Check className="w-3 h-3 mr-1 text-green-600" />복사됨</>
+                            : <><Copy className="w-3 h-3 mr-1" />복사</>}
+                        </Button>
+                      </div>
+                      <div
+                        className="rounded border bg-muted/40 px-3 py-2 text-sm cursor-pointer select-all hover:bg-muted/60 transition-colors"
+                        onClick={handleCopySubject}
+                        data-testid="display-subject"
+                        title="클릭하여 복사"
+                      >
+                        {result.subject}
+                      </div>
+                    </div>
+
+                    {/* 메일 본문 미리보기 + 복사 */}
+                    <div className="flex flex-col gap-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium">
+                          메일 본문
+                          <span className="ml-2 text-xs font-normal text-muted-foreground">(표 + 사진 포함)</span>
+                        </span>
+                        <Button
+                          size="sm"
+                          className="h-7 text-xs px-3 bg-blue-600 hover:bg-blue-700 text-white"
+                          onClick={handleCopyBody}
+                          data-testid="button-copy-body"
+                        >
+                          {bodyCopied
+                            ? <><Check className="w-3 h-3 mr-1" />복사됨</>
+                            : <><Copy className="w-3 h-3 mr-1" />본문 복사</>}
+                        </Button>
+                      </div>
+                      <div className="rounded border overflow-hidden bg-white dark:bg-white" style={{ height: 640 }}>
+                        <iframe
+                          srcDoc={`<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{margin:16px 20px;padding:0;background:#fff}</style></head><body>${result.htmlDraft}</body></html>`}
+                          className="w-full h-full border-0"
+                          sandbox="allow-same-origin"
+                          title="이메일 미리보기"
+                          data-testid="iframe-email-preview"
+                        />
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        위 미리보기 확인 후 "본문 복사" → 이메일 클라이언트에서 붙여넣기 하세요. 표 서식과 사진이 그대로 붙여넣어집니다.
+                      </p>
+                    </div>
+
+                    {/* 이메일 직접 발송 */}
+                    <div className="flex flex-col gap-2 rounded-lg border border-blue-100 dark:border-blue-900 bg-blue-50/50 dark:bg-blue-950/30 px-4 py-3">
+                      <Label className="text-sm font-medium flex items-center gap-1.5">
+                        <Send className="w-3.5 h-3.5 text-blue-500" />
+                        이메일 직접 발송
+                      </Label>
+                      <div className="flex gap-2">
+                        <Input
+                          type="email"
+                          value={recipientEmail}
+                          onChange={(e) => setRecipientEmail(e.target.value)}
+                          placeholder="수신자 이메일"
+                          className="flex-1 text-sm h-9"
+                          data-testid="input-recipient-email"
+                        />
+                        <Button
+                          className={cn(
+                            "h-9 px-4 text-sm font-medium transition-all",
+                            sendSuccess
+                              ? "bg-green-600 hover:bg-green-600 text-white"
+                              : "bg-blue-600 hover:bg-blue-700 text-white"
+                          )}
+                          onClick={() => {
+                            if (!result || !recipientEmail.trim()) return;
+                            sendMutation.mutate({
+                              subject: result.subject,
+                              htmlDraft: result.htmlDraft,
+                              to: recipientEmail.trim(),
+                            });
+                          }}
+                          disabled={!recipientEmail.trim() || sendMutation.isPending}
+                          data-testid="button-send-email"
+                        >
+                          {sendMutation.isPending
+                            ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />발송 중...</>
+                            : sendSuccess
+                              ? <><Check className="w-3.5 h-3.5 mr-1.5" />발송 완료</>
+                              : <><Send className="w-3.5 h-3.5 mr-1.5" />발송</>}
+                        </Button>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        발송자: fbwogk26@gmail.com → 위 주소로 이메일이 즉시 발송됩니다
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+
+            {/* 오른쪽: 최근 이력 미니 패널 */}
+            <div className="lg:col-span-2 flex flex-col gap-4">
+              <Card>
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-muted-foreground" />
+                      최근 생성 이력
+                    </CardTitle>
+                    {workPlans.length > 0 && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-xs text-blue-600 hover:text-blue-700"
+                        onClick={() => setActiveTab("drafts")}
+                        data-testid="button-viewall-drafts"
+                      >
+                        전체 보기 <ChevronRight className="w-3.5 h-3.5 ml-0.5" />
+                      </Button>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {isLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : workPlans.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground text-sm">
+                      <CalendarCheck className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                      <p>생성 이력이 없습니다</p>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-1.5 max-h-[500px] overflow-y-auto">
+                      {workPlans.slice(0, 8).map((plan) => (
+                        <div
+                          key={plan.id}
+                          className="flex items-start gap-2 rounded-lg border px-3 py-2.5 hover:bg-muted/40 transition-colors cursor-pointer group"
+                          onClick={() => setSelectedPlan(plan)}
+                          data-testid={`card-workplan-${plan.id}`}
+                        >
+                          <CalendarCheck className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{plan.title}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {format(new Date(plan.createdAt), "yyyy.MM.dd HH:mm")}
+                              {plan.createdBy && ` · ${plan.createdBy}`}
+                            </p>
+                          </div>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-6 w-6 opacity-0 group-hover:opacity-100 shrink-0"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteMutation.mutate(plan.id);
+                            }}
+                            data-testid={`button-delete-plan-${plan.id}`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                          </Button>
+                        </div>
+                      ))}
+                      {workPlans.length > 8 && (
+                        <button
+                          className="text-xs text-blue-600 hover:underline text-center py-2"
+                          onClick={() => setActiveTab("drafts")}
+                        >
+                          +{workPlans.length - 8}건 더 보기
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </TabsContent>
+
+        {/* ── 탭2: 메일 초안 이력 ── */}
+        <TabsContent value="drafts">
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">
+                업로드 시 자동 저장된 메일 초안 목록입니다. 항목을 클릭하면 본문을 확인할 수 있습니다.
+              </p>
+              <span className="text-sm font-semibold text-foreground">
+                총 {workPlans.length}건
+              </span>
+            </div>
+
+            {isLoading ? (
+              <div className="flex items-center justify-center py-16">
+                <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : workPlans.length === 0 ? (
+              <div className="text-center py-20 text-muted-foreground">
+                <FileText className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                <p className="text-sm">아직 생성된 메일 초안이 없습니다.</p>
+                <p className="text-xs mt-1">업로드 탭에서 .eml 파일을 업로드하면 여기에 자동으로 저장됩니다.</p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {workPlans.map((plan) => (
+                  <Card key={plan.id} className={cn(
+                    "transition-all",
+                    expandedPlanId === plan.id && "border-blue-300 dark:border-blue-700 shadow-sm"
+                  )}>
+                    <div
+                      className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-muted/30 transition-colors rounded-t-lg"
+                      onClick={() => setExpandedPlanId(expandedPlanId === plan.id ? null : plan.id)}
+                      data-testid={`row-draft-${plan.id}`}
+                    >
+                      <div className={cn(
+                        "w-8 h-8 rounded-full flex items-center justify-center shrink-0",
+                        expandedPlanId === plan.id
+                          ? "bg-blue-100 dark:bg-blue-900"
+                          : "bg-muted"
+                      )}>
+                        <Mail className={cn("w-4 h-4", expandedPlanId === plan.id ? "text-blue-600" : "text-muted-foreground")} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold truncate">{plan.title}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {format(new Date(plan.createdAt), "yyyy년 MM월 dd일 HH:mm")}
+                          {plan.createdBy && ` · ${plan.createdBy}`}
+                          {plan.emailDraft && (
+                            <span className="ml-2 inline-flex items-center gap-0.5 text-green-600 dark:text-green-400">
+                              <CheckCircle2 className="w-3 h-3" /> 초안 있음
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {plan.emailDraft && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs px-2.5"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              const html = plan.emailDraft!;
+                              try {
+                                await navigator.clipboard.write([
+                                  new ClipboardItem({
+                                    "text/html": new Blob([html], { type: "text/html" }),
+                                  }),
+                                ]);
+                              } catch {
+                                await navigator.clipboard.writeText(html);
+                              }
+                              toast({ title: "복사 완료" });
+                            }}
+                            data-testid={`button-copy-draft-${plan.id}`}
+                          >
+                            <Copy className="w-3 h-3 mr-1" />복사
+                          </Button>
+                        )}
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7 hover:text-destructive"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteMutation.mutate(plan.id);
+                          }}
+                          data-testid={`button-delete-draft-${plan.id}`}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                        <ChevronRight className={cn(
+                          "w-4 h-4 text-muted-foreground transition-transform",
+                          expandedPlanId === plan.id && "rotate-90"
+                        )} />
+                      </div>
+                    </div>
+
+                    {/* 인라인 펼침 미리보기 */}
+                    {expandedPlanId === plan.id && (
+                      <CardContent className="pt-0 pb-4 px-4 border-t border-muted">
+                        {plan.emailDraft ? (
+                          <div className="mt-3 flex flex-col gap-3">
+                            <div className="rounded border overflow-hidden bg-white dark:bg-white" style={{ height: 560 }}>
+                              <iframe
+                                srcDoc={`<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{margin:16px 20px;padding:0;background:#fff}</style></head><body>${plan.emailDraft.startsWith("<") ? plan.emailDraft : `<pre style="font-family:sans-serif;white-space:pre-wrap">${plan.emailDraft}</pre>`}</body></html>`}
+                                className="w-full h-full border-0"
+                                sandbox="allow-same-origin"
+                                title={`${plan.title} 미리보기`}
+                                data-testid={`iframe-draft-${plan.id}`}
+                              />
+                            </div>
+                            {/* 발송 영역 */}
+                            <div className="flex flex-col gap-2 rounded-lg border border-blue-100 dark:border-blue-900 bg-blue-50/50 dark:bg-blue-950/30 px-4 py-3">
+                              <Label className="text-sm font-medium flex items-center gap-1.5">
+                                <Send className="w-3.5 h-3.5 text-blue-500" />
+                                이메일 직접 발송
+                              </Label>
+                              <div className="flex gap-2">
+                                <Input
+                                  type="email"
+                                  defaultValue="jaeha.ryu@ktmos.co.kr"
+                                  placeholder="수신자 이메일"
+                                  className="flex-1 text-sm h-9"
+                                  id={`recipient-${plan.id}`}
+                                  data-testid={`input-recipient-draft-${plan.id}`}
+                                />
+                                <Button
+                                  className="h-9 px-4 text-sm bg-blue-600 hover:bg-blue-700 text-white"
+                                  onClick={() => {
+                                    const inputEl = document.getElementById(`recipient-${plan.id}`) as HTMLInputElement;
+                                    const to = inputEl?.value?.trim() || "jaeha.ryu@ktmos.co.kr";
+                                    sendMutation.mutate({
+                                      subject: plan.title,
+                                      htmlDraft: plan.emailDraft!,
+                                      to,
+                                    });
+                                  }}
+                                  disabled={sendMutation.isPending}
+                                  data-testid={`button-send-draft-${plan.id}`}
+                                >
+                                  {sendMutation.isPending
+                                    ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />발송 중...</>
+                                    : <><Send className="w-3.5 h-3.5 mr-1.5" />발송</>}
+                                </Button>
+                              </div>
+                              <p className="text-[11px] text-muted-foreground">
+                                발송자: fbwogk26@gmail.com → 위 주소로 이메일이 즉시 발송됩니다
+                              </p>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-sm text-muted-foreground py-4 text-center">저장된 초안이 없습니다.</p>
+                        )}
+                      </CardContent>
+                    )}
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+        </TabsContent>
+      </Tabs>
+
+      {/* 이력 상세 다이얼로그 (업로드 탭 이력 클릭 시) */}
       {selectedPlan && (
         <Dialog open={!!selectedPlan} onOpenChange={() => setSelectedPlan(null)}>
           <DialogContent className="max-w-3xl max-h-[80vh] flex flex-col">
