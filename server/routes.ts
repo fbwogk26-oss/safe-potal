@@ -3595,6 +3595,51 @@ export async function registerRoutes(
     }
   });
 
+  // 차량DB: fuel_records에서 차량 메타 자동 임포트 (기존 vehicles 테이블에 없는 것만 추가)
+  app.post('/api/vehicles/import-from-fuel', requireAdmin, async (req: any, res) => {
+    try {
+      const { db: dbInst } = await import('./db');
+      const { vehicles: vTable, fuelRecords } = await import('@shared/schema');
+      const { eq, sql: sqlExpr } = await import('drizzle-orm');
+
+      // 기존 vehicles 테이블의 차량번호 목록
+      const existing = await dbInst.select({ plate: vTable.plateNumber }).from(vTable);
+      const existingPlates = new Set(existing.map(e => e.plate));
+
+      // fuel_records에서 distinct 차량 메타 집계 (최신 데이터 기준)
+      const allFuelRecs = await storage.getFuelRecords({});
+      const metaMap: Record<string, any> = {};
+      for (const r of allFuelRecs) {
+        if (!r.licensePlate) continue;
+        if (!metaMap[r.licensePlate]) {
+          metaMap[r.licensePlate] = {
+            plateNumber: r.licensePlate,
+            vehicleType: r.vehicleType || "기타",
+            model: r.modelName || r.licensePlate,
+            team: r.team || "미확인팀",
+            fuelType: r.fuelType || null,
+            acquisitionType: r.acquisitionType || null,
+            driver: r.driver || null,
+            status: "운행중",
+          };
+        }
+      }
+
+      // 기존에 없는 차량만 삽입
+      const toInsert = Object.values(metaMap).filter((v: any) => !existingPlates.has(v.plateNumber));
+      let inserted = 0;
+      for (const v of toInsert) {
+        await dbInst.insert(vTable).values(v).onConflictDoNothing();
+        inserted++;
+      }
+
+      res.json({ success: true, inserted, total: Object.keys(metaMap).length, skipped: existingPlates.size });
+    } catch (e: any) {
+      console.error("차량 임포트 오류:", e);
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   // 과태료 엑셀 다운로드
   app.get('/api/traffic-fines/excel', isAuthenticated, async (req: any, res) => {
     try {
@@ -4915,11 +4960,24 @@ ${htmlDraft}
       const wb   = XLSX.read(req.file.buffer, { type: "buffer" });
       const batchId = `batch_${Date.now()}`;
 
-      // DB에서 전체 차량 메타 + 팀 조회 (차량번호 → team/fuelType/acquisitionType/vehicleType/modelName)
-      const allRecords = await storage.getFuelRecords({});
+      // 1) vehicles 테이블 우선 조회 (차량DB 탭에서 관리하는 데이터)
+      const allVehicles = await storage.getVehicles();
       const vehicleMeta: Record<string, { team: string | null; fuelType: string | null; acquisitionType: string | null; vehicleType: string | null; modelName: string | null; driver: string | null }> = {};
-      // 대차 역방향 매핑: 괄호 안 차량번호(대차 차량) → 원본 레코드 메타
-      const rentalReverse: Record<string, typeof vehicleMeta[string]> = {};
+      for (const v of allVehicles) {
+        if (v.plateNumber && !vehicleMeta[v.plateNumber]) {
+          vehicleMeta[v.plateNumber] = {
+            team: v.team,
+            fuelType: v.fuelType,
+            acquisitionType: v.acquisitionType,
+            vehicleType: v.vehicleType,
+            modelName: v.model,
+            driver: v.driver,
+          };
+        }
+      }
+
+      // 2) fuel_records에서 vehicles 테이블에 없는 차량 보완
+      const allRecords = await storage.getFuelRecords({});
       for (const r of allRecords) {
         if (r.licensePlate && !vehicleMeta[r.licensePlate]) {
           vehicleMeta[r.licensePlate] = {
@@ -4931,7 +4989,11 @@ ${htmlDraft}
             driver: r.driver,
           };
         }
-        // "대차/xxx(대차차량번호)" 패턴에서 괄호 안 번호 추출
+      }
+
+      // 3) 대차 역방향 매핑: "대차/xxx(차량번호)" 패턴에서 괄호 안 번호 → 팀 매핑
+      const rentalReverse: Record<string, typeof vehicleMeta[string]> = {};
+      for (const r of allRecords) {
         if (r.licensePlate) {
           const m = r.licensePlate.match(/\(([^)]+)\)/);
           if (m) {

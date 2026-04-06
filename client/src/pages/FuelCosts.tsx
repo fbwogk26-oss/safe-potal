@@ -9,6 +9,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import type { Vehicle } from "@shared/schema";
 import {
   ComposedChart, Area, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LabelList,
@@ -16,6 +19,7 @@ import {
 import {
   Fuel, Upload, Trash2, TrendingUp, TrendingDown, Minus,
   RefreshCw, Search, ChevronUp, ChevronDown, Car, Route,
+  Plus, Pencil, Database, Download,
 } from "lucide-react";
 import type { FuelRecord } from "@shared/schema";
 
@@ -216,6 +220,15 @@ export default function FuelCosts() {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [deleteBatchId, setDeleteBatchId] = useState<string | null>(null);
 
+  // ── 차량DB 탭 상태 ──
+  const [vdbSearch, setVdbSearch] = useState("");
+  const [vdbTeamFilter, setVdbTeamFilter] = useState("all");
+  const [vdbDialog, setVdbDialog] = useState(false);
+  const [vdbEditing, setVdbEditing] = useState<Vehicle | null>(null);
+  const [vdbDeleteId, setVdbDeleteId] = useState<number | null>(null);
+  const emptyVehicleForm = { plateNumber: "", team: "", vehicleType: "", model: "", fuelType: "", acquisitionType: "", driver: "", status: "운행중" };
+  const [vdbForm, setVdbForm] = useState<typeof emptyVehicleForm>(emptyVehicleForm);
+
   const { data: summary, isLoading: summaryLoading } = useQuery<SummaryData>({
     queryKey: ["/api/fuel-records/summary"],
   });
@@ -236,6 +249,82 @@ export default function FuelCosts() {
     queryKey: ["/api/fuel-records/batches"],
     enabled: tab === "upload",
   });
+
+  // ── 차량DB 쿼리 / 뮤테이션 ──
+  const { data: vehicleDbList = [], isLoading: vdbLoading } = useQuery<Vehicle[]>({
+    queryKey: ["/api/vehicles"],
+    enabled: tab === "vehicledb",
+  });
+
+  const vdbCreateMutation = useMutation({
+    mutationFn: (data: any) => apiRequest("POST", "/api/vehicles", data),
+    onSuccess: () => {
+      toast({ title: "차량 등록 완료" });
+      queryClient.invalidateQueries({ queryKey: ["/api/vehicles"] });
+      setVdbDialog(false);
+    },
+    onError: (e: Error) => toast({ title: "등록 실패", description: e.message, variant: "destructive" }),
+  });
+
+  const vdbUpdateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: any }) => apiRequest("PUT", `/api/vehicles/${id}`, data),
+    onSuccess: () => {
+      toast({ title: "차량 수정 완료" });
+      queryClient.invalidateQueries({ queryKey: ["/api/vehicles"] });
+      setVdbDialog(false);
+    },
+    onError: (e: Error) => toast({ title: "수정 실패", description: e.message, variant: "destructive" }),
+  });
+
+  const vdbDeleteMutation = useMutation({
+    mutationFn: (id: number) => apiRequest("DELETE", `/api/vehicles/${id}`),
+    onSuccess: () => {
+      toast({ title: "삭제 완료" });
+      queryClient.invalidateQueries({ queryKey: ["/api/vehicles"] });
+      setVdbDeleteId(null);
+    },
+    onError: (e: Error) => toast({ title: "삭제 실패", description: e.message, variant: "destructive" }),
+  });
+
+  const vdbImportMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/vehicles/import-from-fuel", {}),
+    onSuccess: (data: any) => {
+      toast({ title: "차량 임포트 완료", description: `${data.inserted}건 신규 등록 (전체 ${data.total}건)` });
+      queryClient.invalidateQueries({ queryKey: ["/api/vehicles"] });
+    },
+    onError: (e: Error) => toast({ title: "임포트 실패", description: e.message, variant: "destructive" }),
+  });
+
+  const openVdbAdd = () => { setVdbEditing(null); setVdbForm(emptyVehicleForm); setVdbDialog(true); };
+  const openVdbEdit = (v: Vehicle) => {
+    setVdbEditing(v);
+    setVdbForm({
+      plateNumber: v.plateNumber ?? "",
+      team: v.team ?? "",
+      vehicleType: v.vehicleType ?? "",
+      model: v.model ?? "",
+      fuelType: (v as any).fuelType ?? "",
+      acquisitionType: (v as any).acquisitionType ?? "",
+      driver: v.driver ?? "",
+      status: v.status ?? "운행중",
+    });
+    setVdbDialog(true);
+  };
+  const submitVdbForm = () => {
+    const payload = { ...vdbForm };
+    if (vdbEditing) vdbUpdateMutation.mutate({ id: vdbEditing.id, data: payload });
+    else vdbCreateMutation.mutate(payload);
+  };
+
+  const vdbTeams = Array.from(new Set(vehicleDbList.map(v => v.team ?? "").filter(Boolean))).sort();
+  const vdbFiltered = vehicleDbList
+    .filter(v => vdbTeamFilter === "all" || v.team === vdbTeamFilter)
+    .filter(v => {
+      if (!vdbSearch) return true;
+      const s = vdbSearch.toLowerCase();
+      return [v.plateNumber ?? "", v.team ?? "", v.model ?? "", v.driver ?? ""].some(f => f.toLowerCase().includes(s));
+    })
+    .sort((a, b) => (a.team ?? "").localeCompare(b.team ?? "", "ko") || (a.plateNumber ?? "").localeCompare(b.plateNumber ?? "", "ko"));
 
   const deleteBatchMutation = useMutation({
     mutationFn: (batchId: string) => apiRequest("DELETE", `/api/fuel-records/batches/${encodeURIComponent(batchId)}`),
@@ -404,6 +493,7 @@ export default function FuelCosts() {
           <TabsList className="h-10 w-full sm:w-auto">
             <TabsTrigger value="dashboard" className="flex-1 sm:flex-none sm:px-5 text-xs sm:text-sm" data-testid="tab-dashboard">대시보드</TabsTrigger>
             <TabsTrigger value="detail" className="flex-1 sm:flex-none sm:px-5 text-xs sm:text-sm" data-testid="tab-detail">상세 데이터</TabsTrigger>
+            <TabsTrigger value="vehicledb" className="flex-1 sm:flex-none sm:px-5 text-xs sm:text-sm" data-testid="tab-vehicledb">차량DB</TabsTrigger>
             <TabsTrigger value="upload" className="flex-1 sm:flex-none sm:px-5 text-xs sm:text-sm" data-testid="tab-upload">업로드 관리</TabsTrigger>
           </TabsList>
 
@@ -984,6 +1074,125 @@ export default function FuelCosts() {
             </Card>
           </TabsContent>
 
+          {/* ══════════ 차량DB ══════════ */}
+          <TabsContent value="vehicledb" className="space-y-5 mt-5">
+            {/* 상단 툴바 */}
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+              <div className="relative flex-1 max-w-xs">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="차량번호·팀·차명·운전자 검색…"
+                  value={vdbSearch}
+                  onChange={e => setVdbSearch(e.target.value)}
+                  className="pl-9"
+                  data-testid="input-vdb-search"
+                />
+              </div>
+              <Select value={vdbTeamFilter} onValueChange={setVdbTeamFilter}>
+                <SelectTrigger className="w-[130px]" data-testid="select-vdb-team">
+                  <SelectValue placeholder="팀 선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">전체 팀</SelectItem>
+                  {vdbTeams.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <div className="flex gap-2 ml-auto">
+                <Button variant="outline" size="sm" onClick={() => vdbImportMutation.mutate()} disabled={vdbImportMutation.isPending} data-testid="btn-vdb-import">
+                  <Download className="w-4 h-4 mr-1.5" />
+                  유류비→차량 가져오기
+                </Button>
+                <Button size="sm" onClick={openVdbAdd} data-testid="btn-vdb-add">
+                  <Plus className="w-4 h-4 mr-1.5" />
+                  차량 등록
+                </Button>
+              </div>
+            </div>
+
+            {/* 통계 뱃지 */}
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="secondary"><Database className="w-3.5 h-3.5 mr-1" />{vehicleDbList.length}대 등록</Badge>
+              <Badge variant="secondary"><Car className="w-3.5 h-3.5 mr-1" />{vehicleDbList.filter(v => v.status === "운행중").length}대 운행중</Badge>
+              {vdbFiltered.length !== vehicleDbList.length && (
+                <Badge variant="outline">필터 결과 {vdbFiltered.length}대</Badge>
+              )}
+            </div>
+
+            {/* 차량 목록 테이블 */}
+            <Card>
+              <CardContent className="p-0 overflow-x-auto">
+                {vdbLoading ? (
+                  <div className="flex items-center justify-center h-40 text-muted-foreground">불러오는 중…</div>
+                ) : vdbFiltered.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-48 text-muted-foreground gap-3">
+                    <Database className="w-8 h-8 opacity-40" />
+                    <div className="text-center text-sm">
+                      <p className="font-medium">등록된 차량이 없습니다</p>
+                      <p className="text-xs mt-1">유류비 데이터에서 자동으로 가져오거나 직접 등록하세요</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" onClick={() => vdbImportMutation.mutate()} disabled={vdbImportMutation.isPending}>
+                        <Download className="w-4 h-4 mr-1" />유류비→차량 가져오기
+                      </Button>
+                      <Button size="sm" onClick={openVdbAdd}><Plus className="w-4 h-4 mr-1" />직접 등록</Button>
+                    </div>
+                  </div>
+                ) : (
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b bg-muted/30">
+                        <th className="text-left px-4 py-2.5 font-semibold text-xs text-muted-foreground whitespace-nowrap">차량번호</th>
+                        <th className="text-left px-4 py-2.5 font-semibold text-xs text-muted-foreground whitespace-nowrap">팀</th>
+                        <th className="text-left px-4 py-2.5 font-semibold text-xs text-muted-foreground whitespace-nowrap">차종</th>
+                        <th className="text-left px-4 py-2.5 font-semibold text-xs text-muted-foreground whitespace-nowrap">차명</th>
+                        <th className="text-left px-4 py-2.5 font-semibold text-xs text-muted-foreground whitespace-nowrap">연료</th>
+                        <th className="text-left px-4 py-2.5 font-semibold text-xs text-muted-foreground whitespace-nowrap">구입형태</th>
+                        <th className="text-left px-4 py-2.5 font-semibold text-xs text-muted-foreground whitespace-nowrap">운전자</th>
+                        <th className="text-left px-4 py-2.5 font-semibold text-xs text-muted-foreground whitespace-nowrap">상태</th>
+                        <th className="px-4 py-2.5" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {vdbFiltered.map(v => (
+                        <tr key={v.id} className="border-b last:border-0 hover:bg-muted/20 transition-colors" data-testid={`row-vehicle-${v.id}`}>
+                          <td className="px-4 py-2.5 font-mono font-semibold text-sm">{v.plateNumber}</td>
+                          <td className="px-4 py-2.5"><Badge variant="outline" className="text-xs">{v.team ?? "-"}</Badge></td>
+                          <td className="px-4 py-2.5 text-xs text-muted-foreground">{v.vehicleType ?? "-"}</td>
+                          <td className="px-4 py-2.5 font-medium">{v.model ?? "-"}</td>
+                          <td className="px-4 py-2.5 text-xs">
+                            {(v as any).fuelType ? (
+                              <Badge variant="secondary" className="text-xs">{(v as any).fuelType}</Badge>
+                            ) : "-"}
+                          </td>
+                          <td className="px-4 py-2.5 text-xs text-muted-foreground">{(v as any).acquisitionType ?? "-"}</td>
+                          <td className="px-4 py-2.5 text-xs">{v.driver ?? "-"}</td>
+                          <td className="px-4 py-2.5">
+                            <Badge
+                              variant={v.status === "운행중" ? "default" : "secondary"}
+                              className={`text-xs ${v.status === "운행중" ? "bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/30" : ""}`}
+                            >
+                              {v.status ?? "운행중"}
+                            </Badge>
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <div className="flex gap-1.5 justify-end">
+                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openVdbEdit(v)} data-testid={`btn-edit-vehicle-${v.id}`}>
+                                <Pencil className="w-3.5 h-3.5" />
+                              </Button>
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setVdbDeleteId(v.id)} data-testid={`btn-delete-vehicle-${v.id}`}>
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           {/* ══════════ 업로드 관리 ══════════ */}
           <TabsContent value="upload" className="space-y-5 mt-5">
             {/* 차량일지 업로드 카드 */}
@@ -1102,6 +1311,119 @@ export default function FuelCosts() {
           <AlertDialogFooter>
             <AlertDialogCancel>취소</AlertDialogCancel>
             <AlertDialogAction className="bg-red-500 hover:bg-red-600" onClick={() => deleteBatchId && deleteBatchMutation.mutate(deleteBatchId)}>
+              삭제
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── 차량DB 등록/편집 다이얼로그 ── */}
+      <Dialog open={vdbDialog} onOpenChange={o => { if (!o) setVdbDialog(false); }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{vdbEditing ? "차량 정보 수정" : "차량 신규 등록"}</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4 py-2">
+            <div className="space-y-1">
+              <Label className="text-xs">차량번호 *</Label>
+              <Input value={vdbForm.plateNumber} onChange={e => setVdbForm(f => ({ ...f, plateNumber: e.target.value }))} placeholder="12가3456" data-testid="input-vdb-plate" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">팀</Label>
+              <Input value={vdbForm.team} onChange={e => setVdbForm(f => ({ ...f, team: e.target.value }))} placeholder="예) 1팀" data-testid="input-vdb-team" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">차종</Label>
+              <Select value={vdbForm.vehicleType || "none"} onValueChange={v => setVdbForm(f => ({ ...f, vehicleType: v === "none" ? "" : v }))}>
+                <SelectTrigger data-testid="select-vdb-vtype"><SelectValue placeholder="차종 선택" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">미지정</SelectItem>
+                  <SelectItem value="승용">승용</SelectItem>
+                  <SelectItem value="SUV">SUV</SelectItem>
+                  <SelectItem value="밴">밴</SelectItem>
+                  <SelectItem value="트럭">트럭</SelectItem>
+                  <SelectItem value="버스">버스</SelectItem>
+                  <SelectItem value="기타">기타</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">차명</Label>
+              <Input value={vdbForm.model} onChange={e => setVdbForm(f => ({ ...f, model: e.target.value }))} placeholder="예) 카니발" data-testid="input-vdb-model" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">연료</Label>
+              <Select value={vdbForm.fuelType || "none"} onValueChange={v => setVdbForm(f => ({ ...f, fuelType: v === "none" ? "" : v }))}>
+                <SelectTrigger data-testid="select-vdb-fuel"><SelectValue placeholder="연료 선택" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">미지정</SelectItem>
+                  <SelectItem value="경유">경유</SelectItem>
+                  <SelectItem value="휘발유">휘발유</SelectItem>
+                  <SelectItem value="LPG">LPG</SelectItem>
+                  <SelectItem value="EV">전기(EV)</SelectItem>
+                  <SelectItem value="하이브리드">하이브리드</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">구입형태</Label>
+              <Select value={vdbForm.acquisitionType || "none"} onValueChange={v => setVdbForm(f => ({ ...f, acquisitionType: v === "none" ? "" : v }))}>
+                <SelectTrigger data-testid="select-vdb-acqtype"><SelectValue placeholder="구입형태" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">미지정</SelectItem>
+                  <SelectItem value="자차">자차</SelectItem>
+                  <SelectItem value="렌트">렌트</SelectItem>
+                  <SelectItem value="리스">리스</SelectItem>
+                  <SelectItem value="대차">대차</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">운전자</Label>
+              <Input value={vdbForm.driver} onChange={e => setVdbForm(f => ({ ...f, driver: e.target.value }))} placeholder="이름" data-testid="input-vdb-driver" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">운행 상태</Label>
+              <Select value={vdbForm.status} onValueChange={v => setVdbForm(f => ({ ...f, status: v }))}>
+                <SelectTrigger data-testid="select-vdb-status"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="운행중">운행중</SelectItem>
+                  <SelectItem value="정비중">정비중</SelectItem>
+                  <SelectItem value="폐차">폐차</SelectItem>
+                  <SelectItem value="반납">반납</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setVdbDialog(false)}>취소</Button>
+            <Button
+              onClick={submitVdbForm}
+              disabled={!vdbForm.plateNumber || vdbCreateMutation.isPending || vdbUpdateMutation.isPending}
+              data-testid="btn-vdb-submit"
+            >
+              {vdbEditing ? "수정" : "등록"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── 차량DB 삭제 확인 ── */}
+      <AlertDialog open={!!vdbDeleteId} onOpenChange={o => !o && setVdbDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>차량 삭제</AlertDialogTitle>
+            <AlertDialogDescription>
+              선택한 차량을 차량DB에서 삭제합니다. 유류비 데이터에는 영향이 없습니다. 계속하시겠습니까?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-500 hover:bg-red-600"
+              onClick={() => vdbDeleteId && vdbDeleteMutation.mutate(vdbDeleteId)}
+              data-testid="btn-vdb-delete-confirm"
+            >
               삭제
             </AlertDialogAction>
           </AlertDialogFooter>

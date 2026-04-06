@@ -60,6 +60,8 @@ export const vehicles = pgTable("vehicles", {
   model: text("model").notNull(),
   year: integer("year"),
   team: text("team").notNull(),
+  fuelType: text("fuel_type"),         // 경유/휘발유/LPG/EV/하이브리드
+  acquisitionType: text("acquisition_type"), // 렌트/자차/리스
   driver: text("driver"),
   secondDriver: text("second_driver"),
   contact: text("contact"),

@@ -116,6 +116,10 @@ export interface IStorage {
 
   // Vehicles
   getVehicles(): Promise<any[]>;
+  insertVehicle(data: any): Promise<any>;
+  updateVehicle(id: number, data: any): Promise<any>;
+  deleteVehicle(id: number): Promise<void>;
+  getFuelVehicleMeta(): Promise<any[]>;
 
   // Traffic Fines
   getTrafficFines(): Promise<TrafficFine[]>;
@@ -485,6 +489,25 @@ export class DatabaseStorage implements IStorage {
   // === TRAFFIC FINES ===
   async getVehicles(): Promise<any[]> {
     return await db.select().from(vehicles).orderBy(vehicles.plateNumber);
+  }
+
+  async insertVehicle(data: any): Promise<any> {
+    const [row] = await db.insert(vehicles).values(data).returning();
+    return row;
+  }
+
+  async updateVehicle(id: number, data: any): Promise<any> {
+    const [row] = await db.update(vehicles).set(data).where(eq(vehicles.id, id)).returning();
+    return row;
+  }
+
+  async deleteVehicle(id: number): Promise<void> {
+    await db.delete(vehicles).where(eq(vehicles.id, id));
+  }
+
+  async getFuelVehicleMeta(): Promise<any[]> {
+    // vehicles 테이블 전체 (fuelType, acquisitionType 포함)
+    return await db.select().from(vehicles).orderBy(vehicles.team, vehicles.plateNumber);
   }
 
   async getTrafficFines(): Promise<TrafficFine[]> {
