@@ -86,6 +86,7 @@ const MOBILE_NAV_ITEMS: MobileNavEntry[] = [
     adminOnly: true,
     children: [
       { label: "사용자 관리", href: "/admin/users", icon: Users },
+      { label: "메뉴 권한 관리", href: "/admin/permissions", icon: ShieldCheck },
       { label: "보안 감사 로그", href: "/admin/security", icon: ScrollText },
       { label: "음악 관리", href: "/admin/music", icon: Music2 },
       { label: "서명 관리 로그", href: "/admin/signatures", icon: FileSignature },

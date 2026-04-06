@@ -1154,10 +1154,49 @@ export async function registerRoutes(
       return res.status(400).json({ message: "역할과 권한 설정이 필요합니다" });
     }
     if (role !== "user" && role !== "manager" && role !== "deptHead") {
-      return res.status(400).json({ message: "일반사용자 또는 담당자만 설정할 수 있습니다" });
+      return res.status(400).json({ message: "일반사용자, 담당자, 부서장만 설정할 수 있습니다" });
     }
     await storage.setSetting(`role_preset_${role}`, JSON.stringify(permissions));
     res.json({ success: true });
+  });
+
+  // 역할 프리셋을 해당 역할 전체 사용자에 일괄 적용
+  app.post("/api/settings/role-presets/apply-all", requireAdmin, async (req: any, res) => {
+    try {
+      const { role } = req.body;
+      if (!role || !["user", "manager", "deptHead"].includes(role)) {
+        return res.status(400).json({ message: "유효한 역할이 필요합니다" });
+      }
+      const presetSetting = await storage.getSetting(`role_preset_${role}`);
+      if (!presetSetting?.value) {
+        return res.status(400).json({ message: "저장된 프리셋이 없습니다. 먼저 프리셋을 저장하세요." });
+      }
+      const permissions = JSON.parse(presetSetting.value);
+      const allUsers = await authStorage.getAllUsers();
+      const targetUsers = allUsers.filter((u: any) => u.role === role);
+      for (const u of targetUsers) {
+        await authStorage.updateUser(u.id, { permissions });
+      }
+      res.json({ success: true, appliedCount: targetUsers.length });
+    } catch (error: any) {
+      console.error("[apply-all presets error]", error);
+      res.status(500).json({ message: error?.message || "일괄 적용에 실패했습니다" });
+    }
+  });
+
+  // 역할별 사용자 수 조회
+  app.get("/api/settings/role-user-counts", requireAdmin, async (req: any, res) => {
+    try {
+      const allUsers = await authStorage.getAllUsers();
+      const counts: Record<string, number> = { user: 0, manager: 0, deptHead: 0, admin: 0 };
+      for (const u of allUsers) {
+        if (counts[u.role] !== undefined) counts[u.role]++;
+        else counts[u.role] = 1;
+      }
+      res.json(counts);
+    } catch (error: any) {
+      res.status(500).json({ message: error?.message || "조회 실패" });
+    }
   });
 
   // === SAFETY EQUIPMENT ===
