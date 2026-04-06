@@ -561,9 +561,10 @@ export default function FuelCosts() {
                     </div>
                   );
                 }
+                const isCurrentYear = yr === new Date().getFullYear();
                 return <YearCard key={yr} stat={stat} prevStat={prevStat}
-                  activeVehicleCount={vehicleStats?.activeCount}
-                  totalMileage={vehicleStats?.totalMileage}
+                  activeVehicleCount={isCurrentYear ? vehicleStats?.activeCount : undefined}
+                  totalMileage={isCurrentYear ? vehicleStats?.totalMileage : undefined}
                 />;
               })}
             </div>
