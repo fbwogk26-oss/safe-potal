@@ -3562,6 +3562,57 @@ export async function registerRoutes(
     }
   });
 
+  // 차량DB 현황 통계 (대시보드용)
+  app.get('/api/vehicles/stats', isAuthenticated, async (req: any, res) => {
+    try {
+      const list = await storage.getVehicles();
+      const active = list.filter((v: any) => v.status === '사용중');
+      const inactive = list.filter((v: any) => v.status === '미사용');
+
+      const totalMileage = active.reduce((s: number, v: any) => s + (v.mileage ?? 0), 0);
+
+      // 팀별 현황
+      const byTeam: Record<string, { team: string; active: number; inactive: number; totalMileage: number }> = {};
+      for (const v of list) {
+        const t = (v.team as string) || '미배정';
+        if (!byTeam[t]) byTeam[t] = { team: t, active: 0, inactive: 0, totalMileage: 0 };
+        if (v.status === '사용중') {
+          byTeam[t].active++;
+          byTeam[t].totalMileage += v.mileage ?? 0;
+        } else {
+          byTeam[t].inactive++;
+        }
+      }
+
+      // 연료 타입별 현황 (사용중만)
+      const byFuelType: Record<string, number> = {};
+      for (const v of active) {
+        const ft = (v.fuelType as string) || '미지정';
+        byFuelType[ft] = (byFuelType[ft] ?? 0) + 1;
+      }
+
+      // 구입형태별 현황 (사용중만)
+      const byAcquisition: Record<string, number> = {};
+      for (const v of active) {
+        const at = (v.acquisitionType as string) || '미지정';
+        byAcquisition[at] = (byAcquisition[at] ?? 0) + 1;
+      }
+
+      res.json({
+        activeCount: active.length,
+        inactiveCount: inactive.length,
+        totalCount: list.length,
+        totalMileage,
+        byTeam: Object.values(byTeam).sort((a, b) => b.active - a.active),
+        byFuelType: Object.entries(byFuelType).map(([type, count]) => ({ type, count })).sort((a, b) => b.count - a.count),
+        byAcquisition: Object.entries(byAcquisition).map(([type, count]) => ({ type, count })).sort((a, b) => b.count - a.count),
+        updatedAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      res.status(500).json({ message: "차량 통계 조회에 실패했습니다" });
+    }
+  });
+
   app.post('/api/vehicles', requireEditor, async (req: any, res) => {
     try {
       const input = api.vehicles.create.input.parse(req.body);

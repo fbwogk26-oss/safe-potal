@@ -235,6 +235,17 @@ export default function FuelCosts() {
     queryKey: ["/api/fuel-records/summary"],
   });
 
+  const { data: vehicleStats } = useQuery<{
+    activeCount: number; inactiveCount: number; totalCount: number; totalMileage: number;
+    byTeam: { team: string; active: number; inactive: number; totalMileage: number }[];
+    byFuelType: { type: string; count: number }[];
+    byAcquisition: { type: string; count: number }[];
+    updatedAt: string;
+  }>({
+    queryKey: ["/api/vehicles/stats"],
+    enabled: tab === "dashboard",
+  });
+
   const recordParams = new URLSearchParams();
   if (filterYear !== "all") recordParams.set("year", filterYear);
   if (filterMonth !== "all") recordParams.set("month", filterMonth);
@@ -555,6 +566,97 @@ export default function FuelCosts() {
               })}
             </div>
 
+
+            {/* ── 현재 차량 현황 (차량DB 기준) ── */}
+            {vehicleStats && (
+              <Card className="shadow-sm border-green-200/60 dark:border-green-900/40">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-green-500/10 flex items-center justify-center">
+                        <Car className="w-4 h-4 text-green-600 dark:text-green-400" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-sm font-bold">현재 차량 현황</CardTitle>
+                        <p className="text-[11px] text-muted-foreground">차량DB 기준 실시간 현황</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="text-right">
+                        <p className="text-2xl font-black text-green-600 dark:text-green-400 leading-none">{vehicleStats.activeCount}<span className="text-base font-semibold text-muted-foreground ml-1">대</span></p>
+                        <p className="text-[10px] text-muted-foreground">사용중 / 전체 {vehicleStats.totalCount}대</p>
+                      </div>
+                      <div className="text-right border-l pl-3">
+                        <p className="text-2xl font-black text-foreground leading-none">{fmtK(vehicleStats.totalMileage)}</p>
+                        <p className="text-[10px] text-muted-foreground">사용중 차량 총 주행거리</p>
+                      </div>
+                      <div className="text-right border-l pl-3">
+                        <p className="text-2xl font-black text-muted-foreground leading-none">{vehicleStats.inactiveCount}<span className="text-base font-semibold ml-1">대</span></p>
+                        <p className="text-[10px] text-muted-foreground">미사용</p>
+                      </div>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  {/* 팀별 현황 그리드 */}
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="text-left py-1.5 pr-3 font-semibold text-muted-foreground">팀</th>
+                          <th className="text-center py-1.5 px-2 font-semibold text-muted-foreground">사용중</th>
+                          <th className="text-center py-1.5 px-2 font-semibold text-muted-foreground">미사용</th>
+                          <th className="text-right py-1.5 pl-2 font-semibold text-muted-foreground">주행거리</th>
+                          <th className="text-right py-1.5 pl-2 font-semibold text-muted-foreground w-32">비율</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {vehicleStats.byTeam.map(t => {
+                          const total = t.active + t.inactive;
+                          const pct = total > 0 ? Math.round(t.active / total * 100) : 0;
+                          return (
+                            <tr key={t.team} className="border-b last:border-0 hover:bg-muted/20">
+                              <td className="py-1.5 pr-3 font-medium whitespace-nowrap">{t.team}</td>
+                              <td className="py-1.5 px-2 text-center">
+                                <span className="font-bold text-green-600 dark:text-green-400">{t.active}</span>
+                                <span className="text-muted-foreground ml-0.5">대</span>
+                              </td>
+                              <td className="py-1.5 px-2 text-center text-muted-foreground">{t.inactive}대</td>
+                              <td className="py-1.5 pl-2 text-right tabular-nums">{t.totalMileage > 0 ? fmtK(t.totalMileage) : "-"}</td>
+                              <td className="py-1.5 pl-2">
+                                <div className="flex items-center gap-1.5">
+                                  <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
+                                    <div className="h-full rounded-full bg-green-500" style={{ width: `${pct}%` }} />
+                                  </div>
+                                  <span className="text-[10px] text-muted-foreground w-7 text-right">{pct}%</span>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  {/* 연료/구입형태 배지 */}
+                  <div className="flex flex-wrap gap-4 mt-3 pt-3 border-t">
+                    <div className="flex flex-wrap gap-1.5 items-center">
+                      <span className="text-[10px] font-semibold text-muted-foreground">연료:</span>
+                      {vehicleStats.byFuelType.map(f => (
+                        <Badge key={f.type} variant="secondary" className="text-[10px] h-5 px-1.5 gap-1" style={{ backgroundColor: (FUEL_COLORS as any)[f.type] + "20", color: (FUEL_COLORS as any)[f.type] ?? undefined }}>
+                          {f.type} {f.count}
+                        </Badge>
+                      ))}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 items-center">
+                      <span className="text-[10px] font-semibold text-muted-foreground">구입형태:</span>
+                      {vehicleStats.byAcquisition.map(a => (
+                        <Badge key={a.type} variant="outline" className="text-[10px] h-5 px-1.5">{a.type} {a.count}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* ── 월별 추이 + 증감 통합 차트 ── */}
             <Card className="shadow-sm">
