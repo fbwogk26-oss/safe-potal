@@ -34,7 +34,7 @@ export default function WorkPlan() {
 
   const [isDragOver, setIsDragOver] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [activeTab, setActiveTab] = useState("upload");
+  const [activeTab, setActiveTab] = useState("drafts");
 
   const [result, setResult] = useState<{
     parsed: any;
@@ -238,18 +238,18 @@ export default function WorkPlan() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="mb-2">
-          <TabsTrigger value="upload" className="flex items-center gap-1.5" data-testid="tab-upload">
-            <Upload className="w-4 h-4" />
-            업로드
-          </TabsTrigger>
           <TabsTrigger value="drafts" className="flex items-center gap-1.5" data-testid="tab-drafts">
             <FileText className="w-4 h-4" />
-            메일 초안 이력
+            작업계획
             {workPlans.length > 0 && (
               <span className="ml-1 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 text-[10px] font-semibold px-1.5 py-0.5 leading-none">
                 {workPlans.length}
               </span>
             )}
+          </TabsTrigger>
+          <TabsTrigger value="upload" className="flex items-center gap-1.5" data-testid="tab-upload">
+            <Upload className="w-4 h-4" />
+            업로드
           </TabsTrigger>
         </TabsList>
 
@@ -577,7 +577,7 @@ export default function WorkPlan() {
           <div className="flex flex-col gap-4">
             <div className="flex items-center justify-between">
               <p className="text-sm text-muted-foreground">
-                업로드 시 자동 저장된 메일 초안 목록입니다. 항목을 클릭하면 본문을 확인할 수 있습니다.
+                업로드 시 자동 저장된 작업계획 메일 초안 목록입니다. 항목을 클릭하면 본문을 확인할 수 있습니다.
               </p>
               <span className="text-sm font-semibold text-foreground">
                 총 {workPlans.length}건
@@ -591,7 +591,7 @@ export default function WorkPlan() {
             ) : workPlans.length === 0 ? (
               <div className="text-center py-20 text-muted-foreground">
                 <FileText className="w-10 h-10 mx-auto mb-3 opacity-30" />
-                <p className="text-sm">아직 생성된 메일 초안이 없습니다.</p>
+                <p className="text-sm">아직 생성된 작업계획이 없습니다.</p>
                 <p className="text-xs mt-1">업로드 탭에서 .eml 파일을 업로드하면 여기에 자동으로 저장됩니다.</p>
               </div>
             ) : (
