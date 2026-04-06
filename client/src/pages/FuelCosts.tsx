@@ -225,6 +225,7 @@ export default function FuelCosts() {
   const [vdbSearch, setVdbSearch] = useState("");
   const [vdbTeamFilter, setVdbTeamFilter] = useState("all");
   const [vdbStatusFilter, setVdbStatusFilter] = useState("all");
+  const [vdbPage, setVdbPage] = useState(1);
   const [vdbDialog, setVdbDialog] = useState(false);
   const [vdbEditing, setVdbEditing] = useState<Vehicle | null>(null);
   const [vdbDeleteId, setVdbDeleteId] = useState<number | null>(null);
@@ -344,6 +345,7 @@ export default function FuelCosts() {
     else vdbCreateMutation.mutate(payload);
   };
 
+  const VDB_PAGE_SIZE = 50;
   const vdbTeams = Array.from(new Set(vehicleDbList.map(v => v.team ?? "").filter(Boolean))).sort();
   const vdbFiltered = vehicleDbList
     .filter(v => vdbTeamFilter === "all" || v.team === vdbTeamFilter)
@@ -354,6 +356,10 @@ export default function FuelCosts() {
       return [v.plateNumber ?? "", v.team ?? "", v.model ?? "", v.driver ?? "", (v as any).secondDriver ?? ""].some(f => f.toLowerCase().includes(s));
     })
     .sort((a, b) => (a.team ?? "").localeCompare(b.team ?? "", "ko") || (a.plateNumber ?? "").localeCompare(b.plateNumber ?? "", "ko"));
+
+  const vdbTotalPages = Math.max(1, Math.ceil(vdbFiltered.length / VDB_PAGE_SIZE));
+  const vdbSafePage = Math.min(vdbPage, vdbTotalPages);
+  const vdbPagedList = vdbFiltered.slice((vdbSafePage - 1) * VDB_PAGE_SIZE, vdbSafePage * VDB_PAGE_SIZE);
 
   const deleteBatchMutation = useMutation({
     mutationFn: (batchId: string) => apiRequest("DELETE", `/api/fuel-records/batches/${encodeURIComponent(batchId)}`),
@@ -497,7 +503,7 @@ export default function FuelCosts() {
       return sortDir === "asc" ? av - bv : bv - av;
     });
 
-  const PAGE_SIZE = 100;
+  const PAGE_SIZE = 50;
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(detailPage, totalPages);
   const pagedRecords = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
@@ -1204,9 +1210,9 @@ export default function FuelCosts() {
             <div className="flex flex-col sm:flex-row sm:items-center gap-2 flex-wrap">
               <div className="relative flex-1 min-w-[180px] max-w-xs">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input placeholder="차량번호·팀·운전자 검색…" value={vdbSearch} onChange={e => setVdbSearch(e.target.value)} className="pl-9 h-9" data-testid="input-vdb-search" />
+                <Input placeholder="차량번호·팀·운전자 검색…" value={vdbSearch} onChange={e => { setVdbSearch(e.target.value); setVdbPage(1); }} className="pl-9 h-9" data-testid="input-vdb-search" />
               </div>
-              <Select value={vdbStatusFilter} onValueChange={setVdbStatusFilter}>
+              <Select value={vdbStatusFilter} onValueChange={v => { setVdbStatusFilter(v); setVdbPage(1); }}>
                 <SelectTrigger className="w-[110px] h-9" data-testid="select-vdb-status-filter">
                   <SelectValue />
                 </SelectTrigger>
@@ -1218,7 +1224,7 @@ export default function FuelCosts() {
                   <SelectItem value="폐차">폐차</SelectItem>
                 </SelectContent>
               </Select>
-              <Select value={vdbTeamFilter} onValueChange={setVdbTeamFilter}>
+              <Select value={vdbTeamFilter} onValueChange={v => { setVdbTeamFilter(v); setVdbPage(1); }}>
                 <SelectTrigger className="w-[130px] h-9" data-testid="select-vdb-team">
                   <SelectValue placeholder="팀 선택" />
                 </SelectTrigger>
@@ -1281,7 +1287,7 @@ export default function FuelCosts() {
                       </tr>
                     </thead>
                     <tbody>
-                      {vdbFiltered.map(v => {
+                      {vdbPagedList.map(v => {
                         const isActive = v.status === "사용중";
                         const isMaintenance = v.status === "정비중";
                         const statusCls = isActive
@@ -1323,6 +1329,22 @@ export default function FuelCosts() {
                 )}
               </CardContent>
             </Card>
+
+            {/* 차량DB 페이지네이션 */}
+            {vdbTotalPages > 1 && (
+              <div className="flex items-center justify-between mt-2">
+                <span className="text-xs text-muted-foreground">
+                  {(vdbSafePage - 1) * VDB_PAGE_SIZE + 1}–{Math.min(vdbSafePage * VDB_PAGE_SIZE, vdbFiltered.length)} / 전체 {vdbFiltered.length}대
+                </span>
+                <div className="flex items-center gap-1">
+                  <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => setVdbPage(p => Math.max(1, p - 1))} disabled={vdbSafePage === 1}>이전</Button>
+                  {Array.from({ length: vdbTotalPages }, (_, i) => i + 1).map(p => (
+                    <Button key={p} variant={p === vdbSafePage ? "default" : "outline"} size="sm" className="h-7 w-7 text-xs p-0" onClick={() => setVdbPage(p)}>{p}</Button>
+                  ))}
+                  <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => setVdbPage(p => Math.min(vdbTotalPages, p + 1))} disabled={vdbSafePage === vdbTotalPages}>다음</Button>
+                </div>
+              </div>
+            )}
           </TabsContent>
 
           {/* ══════════ 업로드 관리 ══════════ */}
