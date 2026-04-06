@@ -201,8 +201,10 @@ function ProgressDashboard() {
   const inProgress = progress?.filter(p => p.completedSessions > 0 && p.completedSessions < p.totalDepartments).length || 0;
   const completionRate = totalEducations > 0 ? Math.round((completedAll / totalEducations) * 100) : 0;
 
-  // 가장 최근 미완료 교육 (전 부서 완료되지 않은 것)
-  const latestIncomplete = progress?.find(p => p.completedSessions < p.totalDepartments);
+  // 서명 진행중인 교육 최대 3개 (일부 서명됐거나 아직 시작 전 모두 포함)
+  const activeEducations = (progress || [])
+    .filter(p => p.completedSessions < p.totalDepartments)
+    .slice(0, 3);
 
   const toggleExpand = (key: string) => {
     setExpandedKey(prev => prev === key ? null : key);
@@ -241,28 +243,35 @@ function ProgressDashboard() {
         </Card>
       </div>
 
-      {latestIncomplete && (
-        <Card className="border-amber-200 dark:border-amber-800/40 bg-amber-50/50 dark:bg-amber-900/10">
-          <CardContent className="p-3 sm:p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex-1 min-w-0">
-                <p className="text-[10px] font-semibold text-amber-600 mb-0.5 uppercase tracking-wide">서명 진행중인 교육</p>
-                <p className="text-sm font-bold text-foreground truncate">{latestIncomplete.title}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">{latestIncomplete.educationDate} · {latestIncomplete.totalDepartments}개 부서</p>
-              </div>
-              <div className="text-right shrink-0">
-                <p className="text-2xl font-bold text-amber-600">{latestIncomplete.progressRate}%</p>
-                <p className="text-[10px] text-muted-foreground">{latestIncomplete.totalSigned}/{latestIncomplete.totalParticipants}명 서명</p>
-              </div>
-            </div>
-            <div className="w-full bg-amber-200/60 dark:bg-amber-800/30 rounded-full h-2 overflow-hidden mt-3">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-amber-400 to-orange-400"
-                style={{ width: `${latestIncomplete.progressRate}%` }}
-              />
-            </div>
-          </CardContent>
-        </Card>
+      {activeEducations.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-[11px] font-semibold text-amber-600 uppercase tracking-wide flex items-center gap-1.5">
+            <Clock className="w-3.5 h-3.5" />
+            서명 진행중인 교육 ({activeEducations.length}건)
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            {activeEducations.map((edu, idx) => (
+              <Card key={idx} className="border-amber-200 dark:border-amber-800/40 bg-amber-50/50 dark:bg-amber-900/10">
+                <CardContent className="p-3">
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-bold text-foreground truncate leading-tight">{edu.title}</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">{edu.educationDate}</p>
+                    </div>
+                    <span className="text-base font-bold text-amber-600 shrink-0">{edu.progressRate}%</span>
+                  </div>
+                  <div className="w-full bg-amber-200/60 dark:bg-amber-800/30 rounded-full h-1.5 overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-amber-400 to-orange-400 transition-all"
+                      style={{ width: `${edu.progressRate}%` }}
+                    />
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-1.5">{edu.totalSigned}/{edu.totalParticipants}명 · {edu.totalDepartments}개 부서</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
       )}
 
       <Card>
