@@ -4893,48 +4893,35 @@ ${htmlDraft}
     }
   });
 
-  // POST /api/fuel-records/upload-vehicle-log - 차량일지 Excel 파싱 (시트=팀명, 행별 운행기록 → 차량별 집계)
+  // POST /api/fuel-records/upload-vehicle-log
+  // 차량일지 형식 (행=개별 운행기록, 차량번호+출발시간+시작km+종료km+주유금액) 파싱
+  // 파일명/시트명에서 "26년 3월" 형식 자동 인식. 연월 수동 지정도 가능.
   app.post("/api/fuel-records/upload-vehicle-log", requireAdmin, fuelUpload.single("file"), async (req: any, res) => {
     try {
       if (!req.file) return res.status(400).json({ message: "파일이 없습니다." });
-      const overrideYear = req.body?.year ? parseInt(req.body.year) : null;
-      const overrideMonth = req.body?.month ? parseInt(req.body.month) : null;
-      if (!overrideYear || !overrideMonth) {
-        return res.status(400).json({ message: "차량일지 업로드 시 연도와 월을 반드시 지정해야 합니다." });
-      }
+
+      // 파일명 또는 시트명에서 연도/월 자동 파싱 ("차량일지_26년_3월", "26년 3월" 등)
+      const parseYearMonth = (str: string): { year: number; month: number } | null => {
+        const m = str.replace(/_/g, " ").match(/(\d{2,4})년\s*(\d{1,2})월/);
+        if (!m) return null;
+        const yr = parseInt(m[1]);
+        return { year: yr < 100 ? 2000 + yr : yr, month: parseInt(m[2]) };
+      };
+
+      const manualYear  = req.body?.year  ? parseInt(req.body.year)  : null;
+      const manualMonth = req.body?.month ? parseInt(req.body.month) : null;
 
       const XLSX = await import("xlsx");
-      const wb = XLSX.read(req.file.buffer, { type: "buffer" });
+      const wb   = XLSX.read(req.file.buffer, { type: "buffer" });
       const batchId = `batch_${Date.now()}`;
 
-      // 팀 외 제외 시트
-      const SKIP_SHEETS = ["경북운용부", "대구운용부", "미확인", "차량현황", "전체"];
-
-      // 헤더 행 탐색 (키워드 포함 행 반환)
-      const findHeaderRow = (rows: any[][], keywords: string[]): number => {
-        for (let i = 0; i < Math.min(rows.length, 10); i++) {
-          const row = rows[i];
-          const txt = row.map((c: any) => String(c ?? "").replace(/\s/g, "")).join("|").toLowerCase();
-          if (keywords.some(k => txt.includes(k.toLowerCase()))) return i;
-        }
-        return -1;
-      };
-
-      // 헤더 행에서 컬럼 인덱스 탐색
-      const findCol = (headerRow: any[], names: string[]): number => {
-        for (let ci = 0; ci < headerRow.length; ci++) {
-          const cell = String(headerRow[ci] ?? "").replace(/\s/g, "").toLowerCase();
-          if (names.some(n => cell.includes(n.toLowerCase()))) return ci;
-        }
-        return -1;
-      };
-
-      // DB에서 기존 차량 메타데이터 조회 (차량번호 → fuelType/acquisitionType/vehicleType/modelName)
-      const existingRecords = await storage.getFuelRecords({});
-      const vehicleMeta: Record<string, { fuelType: string | null; acquisitionType: string | null; vehicleType: string | null; modelName: string | null; driver: string | null }> = {};
-      for (const r of existingRecords) {
+      // DB에서 전체 차량 메타 + 팀 조회 (차량번호 → team/fuelType/acquisitionType/vehicleType/modelName)
+      const allRecords = await storage.getFuelRecords({});
+      const vehicleMeta: Record<string, { team: string | null; fuelType: string | null; acquisitionType: string | null; vehicleType: string | null; modelName: string | null; driver: string | null }> = {};
+      for (const r of allRecords) {
         if (r.licensePlate && !vehicleMeta[r.licensePlate]) {
           vehicleMeta[r.licensePlate] = {
+            team: r.team,
             fuelType: r.fuelType,
             acquisitionType: r.acquisitionType,
             vehicleType: r.vehicleType,
@@ -4944,90 +4931,140 @@ ${htmlDraft}
         }
       }
 
-      const records: any[] = [];
-      const skippedSheets: string[] = [];
-
-      for (const sheetName of wb.SheetNames) {
-        const teamName = sheetName.trim();
-        if (SKIP_SHEETS.some(s => teamName.includes(s))) { skippedSheets.push(sheetName); continue; }
-        if (!teamName || teamName === "0") { skippedSheets.push(sheetName); continue; }
-
-        const ws = wb.Sheets[sheetName];
-        const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
-        if (rows.length < 3) { skippedSheets.push(sheetName); continue; }
+      // 차량일지 시트 1장 파싱 (행=운행기록): 차량별 집계 → year/month 기준 필터
+      // 컬럼: key(0) 운행목적(1) 사용용도(2) 차량번호(3) 출발시간(4) 종료시간(5)
+      //        운행일자(6) 시작km(7) 출발지(8) 종료km(9) 종료지(10) 경유지(11)
+      //        주유량(12) 주유금액(13) 탑승자(14)
+      const parseSheet = (rows: any[][], year: number, month: number) => {
+        const targetYM = `${year}-${String(month).padStart(2, "0")}`;
+        const agg: Record<string, { dist: number; fuelCost: number; driver: string }> = {};
 
         // 헤더 행 탐색
-        const hIdx = findHeaderRow(rows, ["차량번호", "차량 번호", "번호판", "등록번호"]);
-        if (hIdx < 0) { skippedSheets.push(sheetName + "(헤더없음)"); continue; }
-        const header = rows[hIdx];
-
-        // 컬럼 인덱스
-        const colPlate    = findCol(header, ["차량번호", "번호판", "등록번호", "차량No"]);
-        const colDriver   = findCol(header, ["운전자성명", "운전자", "사용자", "성명"]);
-        const colDist     = findCol(header, ["주행거리", "당월주행", "총주행", "운행거리"]);
-        const colFuelCost = findCol(header, ["주유금액", "주유비", "연료비", "유류비"]);
-
-        if (colPlate < 0) { skippedSheets.push(sheetName + "(차량번호컬럼없음)"); continue; }
-
-        // 차량별 집계
-        const vehicleAgg: Record<string, { driver: string; dist: number; fuelCost: number }> = {};
-        for (let ri = hIdx + 1; ri < rows.length; ri++) {
-          const row = rows[ri];
-          const plate = String(row[colPlate] ?? "").replace(/\s/g, "");
-          if (!plate || plate === "0" || plate === "합계" || plate === "소계") continue;
-          const dist     = colDist >= 0     ? (typeof row[colDist]     === "number" ? row[colDist]     : parseFloat(String(row[colDist]     ?? "0").replace(/,/g, "")) || 0) : 0;
-          const fuelCost = colFuelCost >= 0 ? (typeof row[colFuelCost] === "number" ? row[colFuelCost] : parseFloat(String(row[colFuelCost] ?? "0").replace(/,/g, "")) || 0) : 0;
-          const driver   = colDriver >= 0   ? String(row[colDriver] ?? "").trim() : "";
-          if (!vehicleAgg[plate]) vehicleAgg[plate] = { driver: "", dist: 0, fuelCost: 0 };
-          vehicleAgg[plate].dist     += Math.round(dist);
-          vehicleAgg[plate].fuelCost += Math.round(fuelCost);
-          if (driver && !vehicleAgg[plate].driver) vehicleAgg[plate].driver = driver;
+        let headerIdx = 0;
+        for (let hi = 0; hi < Math.min(rows.length, 5); hi++) {
+          const txt = rows[hi].map((c: any) => String(c ?? "")).join("|");
+          if (txt.includes("차량번호") || txt.includes("출발시간")) { headerIdx = hi; break; }
         }
+        const header = rows[headerIdx];
+        // 컬럼 위치를 헤더에서 찾거나 고정값(첨부 파일 기준) 사용
+        const findC = (names: string[]) => {
+          for (let ci = 0; ci < header.length; ci++) {
+            const cell = String(header[ci] ?? "").replace(/\s/g, "");
+            if (names.some(n => cell.includes(n))) return ci;
+          }
+          return -1;
+        };
+        const colPlate  = findC(["차량번호"]);
+        const colDeparture = findC(["출발시간"]);
+        const colStartKm   = findC(["시작km", "시작Km", "출발km"]);
+        const colEndKm     = findC(["종료km", "종료Km", "도착km"]);
+        const colFuel      = findC(["주유금액", "주유비", "연료비"]);
+        const colDriver    = findC(["탑승자", "운전자", "사용자"]);
 
-        for (const [plate, agg] of Object.entries(vehicleAgg)) {
-          if (agg.dist === 0 && agg.fuelCost === 0) continue;
-          const meta = vehicleMeta[plate] ?? {};
-          records.push({
-            year: overrideYear,
-            month: overrideMonth,
-            team: teamName,
-            driver: agg.driver || meta.driver || null,
+        // 컬럼 인덱스 기본값 (첨부 파일 형식 기준)
+        const cPlate   = colPlate >= 0     ? colPlate     : 3;
+        const cDepart  = colDeparture >= 0 ? colDeparture : 4;
+        const cStartKm = colStartKm >= 0   ? colStartKm   : 7;
+        const cEndKm   = colEndKm >= 0     ? colEndKm     : 9;
+        const cFuel    = colFuel >= 0      ? colFuel      : 13;
+        const cDriver  = colDriver >= 0    ? colDriver     : 14;
+
+        for (let ri = headerIdx + 1; ri < rows.length; ri++) {
+          const row = rows[ri];
+          const plate = String(row[cPlate] ?? "").replace(/\s/g, "");
+          if (!plate || plate.length < 4) continue;
+
+          // 출발시간 기반 월 필터
+          const departStr = String(row[cDepart] ?? "");
+          if (!departStr.startsWith(targetYM)) continue;
+
+          const num = (v: any) => typeof v === "number" ? v : (parseFloat(String(v ?? "0").replace(/,/g, "")) || 0);
+          const dist = Math.max(0, Math.round(num(row[cEndKm]) - num(row[cStartKm])));
+          const fuel = Math.round(num(row[cFuel]));
+          const driver = String(row[cDriver] ?? "").trim();
+
+          if (!agg[plate]) agg[plate] = { dist: 0, fuelCost: 0, driver: "" };
+          agg[plate].dist += dist;
+          agg[plate].fuelCost += fuel;
+          if (driver && !agg[plate].driver) agg[plate].driver = driver;
+        }
+        return agg;
+      };
+
+      const allRecordsToInsert: any[] = [];
+      const processedYMs: Set<string> = new Set();
+      const skippedVehicles: string[] = [];
+
+      // ─── 다중시트: 시트명에 "26년 3월" 형식 포함 ───
+      // ─── 단일시트: 파일명에 "26년 3월" 또는 수동 지정 ───
+      for (const sheetName of wb.SheetNames) {
+        // 연월 결정: 수동 → 시트명 → 파일명
+        let ym: { year: number; month: number } | null = null;
+        if (manualYear && manualMonth) {
+          ym = { year: manualYear, month: manualMonth };
+        } else {
+          ym = parseYearMonth(sheetName) ?? parseYearMonth(req.file.originalname);
+        }
+        if (!ym) continue;
+
+        const ws   = wb.Sheets[sheetName];
+        const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+        if (rows.length < 2) continue;
+
+        const agg = parseSheet(rows, ym.year, ym.month);
+        const ymKey = `${ym.year}-${ym.month}`;
+        processedYMs.add(ymKey);
+
+        for (const [plate, v] of Object.entries(agg)) {
+          if (v.dist === 0 && v.fuelCost === 0) continue;
+          const meta = vehicleMeta[plate];
+          if (!meta?.team) { skippedVehicles.push(plate); continue; } // 팀 매핑 없으면 제외
+          allRecordsToInsert.push({
+            year: ym.year,
+            month: ym.month,
+            team: meta.team,
+            driver: v.driver || meta.driver || null,
             licensePlate: plate,
             fuelType: meta.fuelType ?? null,
             acquisitionType: meta.acquisitionType ?? null,
             vehicleType: meta.vehicleType ?? null,
             modelName: meta.modelName ?? null,
-            totalDistance: agg.dist,
-            businessDistance: agg.dist,
+            totalDistance: v.dist,
+            businessDistance: v.dist,
             cardFuelCost: 0,
             cardHighpass: 0, cardParking: 0, cardToll: 0, cardCarWash: 0, cardFerry: 0,
             cardRepair: 0, cardMaintenance: 0, cardEmergencyFuel: 0, cardGeneratorFuel: 0,
-            cashFuelCost: agg.fuelCost,
+            cashFuelCost: v.fuelCost,
             cashHighpass: 0, cashParking: 0, cashToll: 0, cashCarWash: 0, cashFerry: 0,
             cashRepair: 0, cashMaintenance: 0, cashEmergencyFuel: 0, cashGeneratorFuel: 0,
-            totalCost: agg.fuelCost,
-            avgCostPerKm: agg.dist > 0 ? Math.round(agg.fuelCost / agg.dist) : 0,
+            totalCost: v.fuelCost,
+            avgCostPerKm: v.dist > 0 ? Math.round(v.fuelCost / v.dist) : 0,
             avgOperatingDays: 0,
             uploadBatch: batchId,
           });
         }
       }
 
-      if (records.length === 0) {
-        return res.status(400).json({ message: `유효한 데이터가 없습니다. 건너뛴 시트: ${skippedSheets.join(", ")}` });
+      if (allRecordsToInsert.length === 0) {
+        return res.status(400).json({
+          message: "유효한 데이터가 없습니다. 파일명 또는 시트명에 '26년 3월' 형식이 포함되어 있거나, 연도/월을 직접 지정해주세요.",
+        });
       }
 
-      // 같은 연월 기존 데이터 삭제 (재업로드)
-      await storage.deleteFuelRecordsByYearMonth(overrideYear, overrideMonth);
-      const inserted = await storage.insertFuelRecords(records);
-      const ym = `${overrideYear}년 ${overrideMonth}월`;
+      // 해당 연월 기존 데이터 삭제 후 재삽입
+      for (const ymKey of processedYMs) {
+        const [yr, mo] = ymKey.split("-").map(Number);
+        await storage.deleteFuelRecordsByYearMonth(yr, mo);
+      }
+      const inserted = await storage.insertFuelRecords(allRecordsToInsert);
+      const ymLabels = [...processedYMs].map(k => { const [y,m]=k.split("-"); return `${y}년 ${m}월`; });
       res.json({
         success: true,
         batchId,
         inserted,
-        skippedSheets,
-        yearMonths: [ym],
-        message: `${inserted}건 처리 완료 — ${ym} 차량일지 데이터 반영`,
+        skippedVehicles: skippedVehicles.length,
+        yearMonths: ymLabels,
+        message: `${inserted}건 처리 완료 — ${ymLabels.join(", ")} 차량일지 반영${skippedVehicles.length ? ` (팀매핑 없어 제외: ${skippedVehicles.length}대)` : ""}`,
       });
     } catch (e: any) {
       console.error("차량일지 업로드 오류:", e);
