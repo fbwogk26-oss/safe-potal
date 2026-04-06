@@ -113,12 +113,19 @@ function TrendBadge({ value }: { value: number | null }) {
   );
 }
 
-function YearCard({ stat, prevStat }: { stat: YearStat; prevStat?: YearStat }) {
+function YearCard({ stat, prevStat, activeVehicleCount, totalMileage }: {
+  stat: YearStat; prevStat?: YearStat;
+  activeVehicleCount?: number; totalMileage?: number;
+}) {
   const p = YEAR_PALETTE[stat.year] ?? YEAR_PALETTE[2025];
   const fuelTrend = prevStat ? pct(stat.fuelCost, prevStat.fuelCost) : null;
   const fuelD = prevStat ? stat.fuelCost - prevStat.fuelCost : null;
-  const distD = prevStat ? stat.totalDistance - prevStat.totalDistance : null;
-  const vehicleD = prevStat ? stat.vehicleCount - prevStat.vehicleCount : null;
+
+  // 차량 대수·주행거리는 vehicles DB 기준 (현행 데이터)
+  const displayDistance = totalMileage ?? stat.totalDistance;
+  const displayVehicles = activeVehicleCount ?? stat.vehicleCount;
+  const fromVehicleDb = activeVehicleCount !== undefined;
+
   return (
     <div className={`rounded-xl overflow-hidden border ${p.bg}`} style={{ borderColor: p.stroke + "30" }}>
       <div className="h-[3px] w-full" style={{ background: p.stroke }} />
@@ -136,7 +143,7 @@ function YearCard({ stat, prevStat }: { stat: YearStat; prevStat?: YearStat }) {
         <p className="text-[2rem] font-black text-foreground tracking-tight leading-none mb-3">
           {fmtM(stat.fuelCost)}<span className="text-base font-semibold text-muted-foreground ml-1">원</span>
         </p>
-        {/* 보조 지표: 거리 + 차량 (전년 증감 인라인) */}
+        {/* 보조 지표: 거리 + 차량 */}
         <div className="space-y-1.5 pb-2.5 border-b" style={{ borderColor: p.stroke + "20" }}>
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-1.5 text-xs">
@@ -144,12 +151,8 @@ function YearCard({ stat, prevStat }: { stat: YearStat; prevStat?: YearStat }) {
               <span className="text-[10px] text-muted-foreground font-medium">주행거리</span>
             </div>
             <div className="flex items-center gap-1.5 text-xs">
-              <span className="font-semibold text-foreground tabular-nums">{fmtK(stat.totalDistance)}</span>
-              {distD !== null && distD !== 0 && (
-                <span className={`text-[10px] font-semibold tabular-nums ${distD > 0 ? "text-red-500" : "text-blue-500"}`}>
-                  {distD > 0 ? "▲" : "▼"} {fmtK(Math.abs(distD))}
-                </span>
-              )}
+              <span className="font-semibold text-foreground tabular-nums">{fmtK(displayDistance)}</span>
+              {fromVehicleDb && <span className="text-[9px] text-muted-foreground/60">현행</span>}
             </div>
           </div>
           <div className="flex items-center justify-between gap-2">
@@ -158,12 +161,8 @@ function YearCard({ stat, prevStat }: { stat: YearStat; prevStat?: YearStat }) {
               <span className="text-[10px] text-muted-foreground font-medium">차량 대수</span>
             </div>
             <div className="flex items-center gap-1.5 text-xs">
-              <span className="font-semibold text-foreground tabular-nums">{stat.vehicleCount}대</span>
-              {vehicleD !== null && vehicleD !== 0 && (
-                <span className={`text-[10px] font-semibold tabular-nums ${vehicleD > 0 ? "text-orange-500" : "text-blue-500"}`}>
-                  {vehicleD > 0 ? "▲" : "▼"} {Math.abs(vehicleD)}대
-                </span>
-              )}
+              <span className="font-semibold text-foreground tabular-nums">{displayVehicles}대</span>
+              {fromVehicleDb && <span className="text-[9px] text-muted-foreground/60">사용중</span>}
             </div>
           </div>
         </div>
@@ -562,101 +561,13 @@ export default function FuelCosts() {
                     </div>
                   );
                 }
-                return <YearCard key={yr} stat={stat} prevStat={prevStat} />;
+                return <YearCard key={yr} stat={stat} prevStat={prevStat}
+                  activeVehicleCount={vehicleStats?.activeCount}
+                  totalMileage={vehicleStats?.totalMileage}
+                />;
               })}
             </div>
 
-
-            {/* ── 현재 차량 현황 (차량DB 기준) ── */}
-            {vehicleStats && (
-              <Card className="shadow-sm border-green-200/60 dark:border-green-900/40">
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-lg bg-green-500/10 flex items-center justify-center">
-                        <Car className="w-4 h-4 text-green-600 dark:text-green-400" />
-                      </div>
-                      <div>
-                        <CardTitle className="text-sm font-bold">현재 차량 현황</CardTitle>
-                        <p className="text-[11px] text-muted-foreground">차량DB 기준 실시간 현황</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="text-right">
-                        <p className="text-2xl font-black text-green-600 dark:text-green-400 leading-none">{vehicleStats.activeCount}<span className="text-base font-semibold text-muted-foreground ml-1">대</span></p>
-                        <p className="text-[10px] text-muted-foreground">사용중 / 전체 {vehicleStats.totalCount}대</p>
-                      </div>
-                      <div className="text-right border-l pl-3">
-                        <p className="text-2xl font-black text-foreground leading-none">{fmtK(vehicleStats.totalMileage)}</p>
-                        <p className="text-[10px] text-muted-foreground">사용중 차량 총 주행거리</p>
-                      </div>
-                      <div className="text-right border-l pl-3">
-                        <p className="text-2xl font-black text-muted-foreground leading-none">{vehicleStats.inactiveCount}<span className="text-base font-semibold ml-1">대</span></p>
-                        <p className="text-[10px] text-muted-foreground">미사용</p>
-                      </div>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  {/* 팀별 현황 그리드 */}
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="border-b">
-                          <th className="text-left py-1.5 pr-3 font-semibold text-muted-foreground">팀</th>
-                          <th className="text-center py-1.5 px-2 font-semibold text-muted-foreground">사용중</th>
-                          <th className="text-center py-1.5 px-2 font-semibold text-muted-foreground">미사용</th>
-                          <th className="text-right py-1.5 pl-2 font-semibold text-muted-foreground">주행거리</th>
-                          <th className="text-right py-1.5 pl-2 font-semibold text-muted-foreground w-32">비율</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {vehicleStats.byTeam.map(t => {
-                          const total = t.active + t.inactive;
-                          const pct = total > 0 ? Math.round(t.active / total * 100) : 0;
-                          return (
-                            <tr key={t.team} className="border-b last:border-0 hover:bg-muted/20">
-                              <td className="py-1.5 pr-3 font-medium whitespace-nowrap">{t.team}</td>
-                              <td className="py-1.5 px-2 text-center">
-                                <span className="font-bold text-green-600 dark:text-green-400">{t.active}</span>
-                                <span className="text-muted-foreground ml-0.5">대</span>
-                              </td>
-                              <td className="py-1.5 px-2 text-center text-muted-foreground">{t.inactive}대</td>
-                              <td className="py-1.5 pl-2 text-right tabular-nums">{t.totalMileage > 0 ? fmtK(t.totalMileage) : "-"}</td>
-                              <td className="py-1.5 pl-2">
-                                <div className="flex items-center gap-1.5">
-                                  <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
-                                    <div className="h-full rounded-full bg-green-500" style={{ width: `${pct}%` }} />
-                                  </div>
-                                  <span className="text-[10px] text-muted-foreground w-7 text-right">{pct}%</span>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                  {/* 연료/구입형태 배지 */}
-                  <div className="flex flex-wrap gap-4 mt-3 pt-3 border-t">
-                    <div className="flex flex-wrap gap-1.5 items-center">
-                      <span className="text-[10px] font-semibold text-muted-foreground">연료:</span>
-                      {vehicleStats.byFuelType.map(f => (
-                        <Badge key={f.type} variant="secondary" className="text-[10px] h-5 px-1.5 gap-1" style={{ backgroundColor: (FUEL_COLORS as any)[f.type] + "20", color: (FUEL_COLORS as any)[f.type] ?? undefined }}>
-                          {f.type} {f.count}
-                        </Badge>
-                      ))}
-                    </div>
-                    <div className="flex flex-wrap gap-1.5 items-center">
-                      <span className="text-[10px] font-semibold text-muted-foreground">구입형태:</span>
-                      {vehicleStats.byAcquisition.map(a => (
-                        <Badge key={a.type} variant="outline" className="text-[10px] h-5 px-1.5">{a.type} {a.count}</Badge>
-                      ))}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
 
             {/* ── 월별 추이 + 증감 통합 차트 ── */}
             <Card className="shadow-sm">
