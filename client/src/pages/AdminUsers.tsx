@@ -7,11 +7,13 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { 
   Shield, 
-  ShieldOff, 
+  ShieldOff,
+  ShieldCheck,
   Users, 
   ArrowLeft, 
   Plus, 
@@ -83,7 +85,7 @@ export default function AdminUsers() {
   const isAdmin = roleData?.role === "admin";
   const [expandedUser, setExpandedUser] = useState<string | null>(null);
   const [presetTab, setPresetTab] = useState<"user" | "manager" | "deptHead">("user");
-  const [showPresetSection, setShowPresetSection] = useState(false);
+  const [mainTab, setMainTab] = useState<"users" | "permissions">("users");
 
   const { data: users, isLoading } = useQuery<UserData[]>({
     queryKey: ["/api/users"],
@@ -205,53 +207,47 @@ export default function AdminUsers() {
             대시보드로 돌아가기
           </Button>
         </Link>
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-              <Users className="w-5 h-5 text-primary" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold">사용자 관리</h1>
-              <p className="text-sm text-muted-foreground">사용자 계정 및 기능별 권한을 관리합니다</p>
-            </div>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+            <Users className="w-5 h-5 text-primary" />
           </div>
-          <div className="flex gap-2 flex-wrap">
-            <Button 
-              variant="outline" 
-              className="gap-2" 
-              onClick={() => setShowPresetSection(!showPresetSection)}
-              data-testid="button-toggle-presets"
-            >
-              <Shield className="w-4 h-4" />
-              권한 프리셋 설정
-              {showPresetSection ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-            </Button>
-            <ExcelUploadDialog />
-            <CreateUserDialog />
+          <div>
+            <h1 className="text-2xl font-bold">사용자 관리</h1>
+            <p className="text-sm text-muted-foreground">사용자 계정 및 역할별 권한 프리셋을 관리합니다</p>
           </div>
         </div>
       </div>
 
-      {showPresetSection && (
-        <RolePresetManager
-          presets={presets || { user: null, manager: null, deptHead: null }}
-          activeTab={presetTab}
-          onTabChange={setPresetTab}
-        />
-      )}
+      <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as "users" | "permissions")}>
+        <TabsList className="mb-4">
+          <TabsTrigger value="users" className="gap-2" data-testid="tab-users">
+            <Users className="w-4 h-4" />
+            사용자 목록
+          </TabsTrigger>
+          <TabsTrigger value="permissions" className="gap-2" data-testid="tab-permissions">
+            <ShieldCheck className="w-4 h-4" />
+            역할별 권한 설정
+          </TabsTrigger>
+        </TabsList>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-2">
-          <CardTitle className="text-lg">등록된 사용자 ({users?.length || 0}명)</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="py-8 text-center text-muted-foreground">로딩 중...</div>
-          ) : !users || users.length === 0 ? (
-            <div className="py-8 text-center text-muted-foreground">등록된 사용자가 없습니다.</div>
-          ) : (
-            <div className="space-y-2">
-              {users.map((user) => {
+        <TabsContent value="users">
+          <div className="flex justify-end gap-2 mb-4 flex-wrap">
+            <ExcelUploadDialog />
+            <CreateUserDialog />
+          </div>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between gap-2">
+              <CardTitle className="text-lg">등록된 사용자 ({users?.length || 0}명)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="py-8 text-center text-muted-foreground">로딩 중...</div>
+              ) : !users || users.length === 0 ? (
+                <div className="py-8 text-center text-muted-foreground">등록된 사용자가 없습니다.</div>
+              ) : (
+                <div className="space-y-2">
+                  {users.map((user) => {
                 const isExpanded = expandedUser === user.id;
                 const isCurrentUser = user.id === currentUser?.id;
                 const isUserAdmin = user.role === "admin";
@@ -450,10 +446,20 @@ export default function AdminUsers() {
                   </div>
                 );
               })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="permissions">
+          <RolePresetManager
+            presets={presets || { user: null, manager: null, deptHead: null }}
+            activeTab={presetTab}
+            onTabChange={setPresetTab}
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
