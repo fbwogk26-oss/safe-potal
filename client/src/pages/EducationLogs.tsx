@@ -1650,9 +1650,16 @@ export default function EducationLogs() {
                               </div>
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 flex-wrap">
-                                  <h3 className="font-medium text-sm truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">{session.title}</h3>
-                                  <Badge variant={session.status === "완료" ? "default" : "secondary"} className="text-[10px]">{session.status}</Badge>
-                                  <Badge variant="outline" className="text-[10px]">{session.educationType}</Badge>
+                                  <h3 className="font-semibold text-sm truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">{session.title}</h3>
+                                  <Badge variant="secondary" className="text-[10px]">{session.educationType}</Badge>
+                                  {session.status !== "완료" && (
+                                    <Badge className="text-[10px] shrink-0 bg-amber-100 text-amber-700 border border-amber-300 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-700 gap-1">
+                                      <Clock className="w-2.5 h-2.5" />서명 진행중
+                                    </Badge>
+                                  )}
+                                  {session.status === "완료" && (
+                                    <Badge className="text-[10px] bg-emerald-100 text-emerald-700 border border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-700">완료</Badge>
+                                  )}
                                 </div>
                                 <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
                                   <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{session.educationDate}{session.educationEndDate && session.educationEndDate !== session.educationDate ? ` ~ ${session.educationEndDate}` : ""}</span>
@@ -1704,17 +1711,20 @@ export default function EducationLogs() {
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
-                                <h3 className="font-medium text-sm truncate">{group.title}</h3>
-                                <Badge variant="outline" className="text-[10px]">{group.type}</Badge>
-                                <Badge variant="secondary" className="text-[10px]">{group.sessions.length}개 부서</Badge>
-                                {completedCount === group.sessions.length && (
-                                  <Badge className="text-[10px] bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">전체완료</Badge>
+                                <h3 className="font-semibold text-sm truncate">{group.title}</h3>
+                                <Badge variant="secondary" className="text-[10px]">{group.type}</Badge>
+                                {completedCount < group.sessions.length ? (
+                                  <Badge className="text-[10px] shrink-0 bg-amber-100 text-amber-700 border border-amber-300 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-700 gap-1">
+                                    <Clock className="w-2.5 h-2.5" />서명 진행중
+                                  </Badge>
+                                ) : (
+                                  <Badge className="text-[10px] bg-emerald-100 text-emerald-700 border border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-700">전체완료</Badge>
                                 )}
                               </div>
                               <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
                                 <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{group.date}</span>
+                                <span>{group.sessions.length}개 부서</span>
                                 <span className="flex items-center gap-1"><Users className="w-3 h-3" />총 {totalParticipants}명</span>
-                                <span>{completedCount}/{group.sessions.length} 완료</span>
                               </div>
                             </div>
                             <div className="flex items-center gap-1 shrink-0">
