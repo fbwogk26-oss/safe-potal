@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import {
   AlertTriangle, CheckCircle2, Mic, MicOff, Camera, X, MapPin,
-  Calendar, User, ChevronRight, Shield, Zap, Lightbulb,
+  Calendar, User, ChevronRight, Shield, Zap, Lightbulb, ScanSearch, Loader2, Sparkles,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -35,28 +35,33 @@ type Step = "type" | "detail" | "action" | "done";
 
 const isSttSupported = typeof window !== "undefined" && ("SpeechRecognition" in window || "webkitSpeechRecognition" in window);
 
+const EMPTY_FORM = {
+  accidentType: "",
+  riskFactor: "",
+  riskDetail: "",
+  occurredAt: new Date().toISOString().slice(0, 16),
+  location: "",
+  team: "",
+  reporter: "",
+  isAnonymous: false,
+  description: "",
+  immediateAction: "",
+  preventionIdea: "",
+};
+
 export default function PublicNearMiss() {
   const { toast } = useToast();
   const [step, setStep] = useState<Step>("type");
   const [submitting, setSubmitting] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingField, setRecordingField] = useState<string | null>(null);
+  const [aiAnalyzing, setAiAnalyzing] = useState(false);
+  const [aiApplied, setAiApplied] = useState(false);
   const recognitionRef = useRef<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const aiFileInputRef = useRef<HTMLInputElement>(null);
 
-  const [form, setForm] = useState({
-    accidentType: "",
-    riskFactor: "",
-    riskDetail: "",
-    occurredAt: new Date().toISOString().slice(0, 16),
-    location: "",
-    team: "",
-    reporter: "",
-    isAnonymous: false,
-    description: "",
-    immediateAction: "",
-    preventionIdea: "",
-  });
+  const [form, setForm] = useState({ ...EMPTY_FORM });
   const [images, setImages] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
 
@@ -95,6 +100,43 @@ export default function PublicNearMiss() {
   const removeImage = (i: number) => {
     setImages(prev => prev.filter((_, j) => j !== i));
     setPreviews(prev => prev.filter((_, j) => j !== i));
+    if (images.length <= 1) setAiApplied(false);
+  };
+
+  // AI 사진 분석 — 사진 추가 + 전체 필드 자동 입력
+  const analyzeWithAI = async (file: File) => {
+    setAiAnalyzing(true);
+    try {
+      // 사진 미리보기에도 추가
+      if (images.length < 5) {
+        setImages(prev => [...prev, file]);
+        const reader = new FileReader();
+        reader.onload = e => setPreviews(prev => [...prev, e.target?.result as string]);
+        reader.readAsDataURL(file);
+      }
+
+      const fd = new FormData();
+      fd.append("photo", file);
+      const res = await fetch("/api/near-miss/ai/analyze-photo", { method: "POST", body: fd });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.message); }
+      const data = await res.json();
+
+      // 모든 필드 자동 입력
+      setForm(prev => ({
+        ...prev,
+        accidentType: data.accidentType && ACCIDENT_TYPES.find(t => t.label === data.accidentType) ? data.accidentType : prev.accidentType,
+        riskFactor: data.riskFactor && RISK_FACTORS.find(f => f.label === data.riskFactor) ? data.riskFactor : prev.riskFactor,
+        riskDetail: data.riskDetail || prev.riskDetail,
+        description: data.description || prev.description,
+        immediateAction: data.immediateAction || prev.immediateAction,
+        preventionIdea: data.preventionIdea || prev.preventionIdea,
+      }));
+      setAiApplied(true);
+      toast({ title: "✨ AI 분석 완료", description: "사고유형·위험요인·설명 등이 자동으로 입력되었습니다. 내용을 확인하고 수정해 주세요." });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "AI 분석 실패", description: e.message });
+    }
+    setAiAnalyzing(false);
   };
 
   const handleSubmit = async () => {
@@ -129,9 +171,9 @@ export default function PublicNearMiss() {
             <CheckCircle2 className="w-10 h-10 text-emerald-600" />
           </div>
           <h1 className="text-2xl font-bold text-emerald-700 mb-2">등록 완료!</h1>
-          <p className="text-muted-foreground text-sm mb-2">감사합니다. 당신의 제보가 동료의 안전을 지킵니다.</p>
+          <p className="text-muted-foreground text-sm mb-2">감사합니다. 당신의 기록이 동료의 안전을 지킵니다.</p>
           <p className="text-xs text-muted-foreground mb-6">담당자가 검토 후 조치할 예정입니다.</p>
-          <Button onClick={() => { setStep("type"); setForm({ accidentType:"",riskFactor:"",riskDetail:"",occurredAt:new Date().toISOString().slice(0,16),location:"",team:"",reporter:"",isAnonymous:false,description:"",immediateAction:"",preventionIdea:"" }); setImages([]); setPreviews([]); }} variant="outline">
+          <Button onClick={() => { setStep("type"); setForm({ ...EMPTY_FORM, occurredAt: new Date().toISOString().slice(0,16) }); setImages([]); setPreviews([]); setAiApplied(false); }} variant="outline">
             추가 등록하기
           </Button>
         </motion.div>
@@ -152,8 +194,42 @@ export default function PublicNearMiss() {
         </div>
       </div>
 
+      {/* AI 배너 */}
+      <div className="max-w-lg mx-auto px-4 pt-3">
+        <div className="flex items-center gap-2.5 bg-gradient-to-r from-violet-500/10 to-indigo-500/10 border border-violet-200 dark:border-violet-700 rounded-xl px-3 py-2.5">
+          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-indigo-500 flex items-center justify-center shrink-0">
+            <Sparkles className="w-3.5 h-3.5 text-white" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-bold text-violet-800 dark:text-violet-300">AI 자동 분석 사용 가능</p>
+            <p className="text-[10px] text-muted-foreground">사진을 찍으면 AI가 사고유형·위험요인·설명을 자동으로 입력합니다</p>
+          </div>
+          <label className={`shrink-0 inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1.5 rounded-md cursor-pointer transition-all shadow-sm ${aiAnalyzing ? "bg-violet-200 text-violet-700 opacity-60 pointer-events-none" : "bg-gradient-to-r from-violet-500 to-indigo-500 text-white hover:from-violet-600 hover:to-indigo-600"}`} data-testid="button-ai-analyze-banner">
+            <input type="file" accept="image/*,image/heic,image/heif" className="sr-only"
+              onChange={e => { const f = e.target.files?.[0]; if (f) analyzeWithAI(f); e.currentTarget.value = ""; }}
+              disabled={aiAnalyzing} capture="environment"
+            />
+            {aiAnalyzing ? <Loader2 className="w-3 h-3 animate-spin" /> : <ScanSearch className="w-3 h-3" />}
+            {aiAnalyzing ? "분석 중..." : "📸 AI 분석"}
+          </label>
+        </div>
+      </div>
+
+      {/* AI 적용 알림 배너 */}
+      <AnimatePresence>
+        {aiApplied && (
+          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="max-w-lg mx-auto px-4 mt-2">
+            <div className="flex items-center gap-2 bg-violet-50 dark:bg-violet-950/30 border border-violet-200 dark:border-violet-700 rounded-lg px-3 py-2">
+              <CheckCircle2 className="w-4 h-4 text-violet-500 shrink-0" />
+              <p className="text-xs text-violet-700 dark:text-violet-300 flex-1">✨ AI가 내용을 자동으로 입력했습니다. 각 항목을 확인하고 필요하면 수정해 주세요.</p>
+              <button type="button" onClick={() => setAiApplied(false)} className="text-muted-foreground hover:text-foreground shrink-0"><X className="w-3.5 h-3.5" /></button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Progress */}
-      <div className="max-w-lg mx-auto px-4 pt-4">
+      <div className="max-w-lg mx-auto px-4 pt-3">
         <div className="flex items-center gap-1 mb-5">
           {(["type","detail","action"] as Step[]).map((s, i) => (
             <div key={s} className="flex items-center flex-1">
@@ -168,7 +244,8 @@ export default function PublicNearMiss() {
           {step === "type" && (
             <motion.div key="type" initial={{ x: 30, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -30, opacity: 0 }} className="space-y-5 pb-20">
               <div>
-                <h2 className="text-base font-bold mb-3 flex items-center gap-2"><Zap className="w-4 h-4 text-amber-500" />어떤 일이 일어날 뻔했나요?</h2>
+                <h2 className="text-base font-bold mb-1 flex items-center gap-2"><Zap className="w-4 h-4 text-amber-500" />어떤 일이 일어날 뻔했나요?</h2>
+                {aiApplied && form.accidentType && <p className="text-[11px] text-violet-600 mb-2 flex items-center gap-1"><Sparkles className="w-3 h-3" />AI가 "{form.accidentType}"을 선택했습니다. 다른 유형으로 변경 가능합니다.</p>}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {ACCIDENT_TYPES.map(t => (
                     <button key={t.label} type="button" onClick={() => set("accidentType", t.label)}
@@ -181,7 +258,8 @@ export default function PublicNearMiss() {
               </div>
 
               <div>
-                <h2 className="text-base font-bold mb-3 flex items-center gap-2"><Shield className="w-4 h-4 text-indigo-500" />위험 요인 분류</h2>
+                <h2 className="text-base font-bold mb-1 flex items-center gap-2"><Shield className="w-4 h-4 text-indigo-500" />위험 요인 분류</h2>
+                {aiApplied && form.riskFactor && <p className="text-[11px] text-violet-600 mb-2 flex items-center gap-1"><Sparkles className="w-3 h-3" />AI가 "{form.riskFactor}"을 선택했습니다.</p>}
                 <div className="grid grid-cols-2 gap-2">
                   {RISK_FACTORS.map(f => (
                     <button key={f.label} type="button" onClick={() => set("riskFactor", f.label)}
@@ -236,7 +314,7 @@ export default function PublicNearMiss() {
               </label>
 
               <div>
-                <Label className="text-xs font-semibold">상황 설명 <span className="font-normal text-muted-foreground">(어떤 일이 일어날 뻔했나요?)</span></Label>
+                <Label className="text-xs font-semibold">상황 설명 <span className="font-normal text-muted-foreground">(어떤 일이 일어날 뻔했나요?)</span>{aiApplied && form.description && <span className="ml-1 text-violet-500 text-[10px]">✨ AI 입력됨</span>}</Label>
                 <div className="relative mt-1">
                   <Textarea value={form.description} onChange={e => set("description", e.target.value)} rows={3} placeholder="간략히 설명해주세요" className="pr-10" data-testid="input-description" />
                   <div className="absolute right-2 top-2"><SttButton field="description" /></div>
@@ -244,17 +322,27 @@ export default function PublicNearMiss() {
               </div>
 
               <div>
-                <Label className="text-xs font-semibold">위험요인 상세</Label>
+                <Label className="text-xs font-semibold">위험요인 상세{aiApplied && form.riskDetail && <span className="ml-1 text-violet-500 text-[10px]">✨ AI 입력됨</span>}</Label>
                 <div className="relative mt-1">
                   <Input value={form.riskDetail} onChange={e => set("riskDetail", e.target.value)} placeholder="구체적인 위험 요인" className="pr-10" data-testid="input-risk-detail" />
                   <div className="absolute right-2 top-1/2 -translate-y-1/2"><SttButton field="riskDetail" /></div>
                 </div>
               </div>
 
-              {/* 사진 첨부 */}
+              {/* 사진 첨부 + AI 분석 */}
               <div>
-                <Label className="text-xs font-semibold">사진 첨부 <span className="font-normal text-muted-foreground">(최대 5장)</span></Label>
-                <div className="mt-2 grid grid-cols-4 gap-2">
+                <div className="flex items-center justify-between mb-1">
+                  <Label className="text-xs font-semibold">사진 첨부 <span className="font-normal text-muted-foreground">(최대 5장)</span></Label>
+                  <label className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-md cursor-pointer transition-all ${aiAnalyzing ? "bg-violet-200 text-violet-700 opacity-60 pointer-events-none" : "bg-gradient-to-r from-violet-500 to-indigo-500 text-white hover:from-violet-600 hover:to-indigo-600 shadow-sm"}`} data-testid="button-ai-photo-detail">
+                    <input type="file" accept="image/*,image/heic,image/heif" className="sr-only"
+                      onChange={e => { const f = e.target.files?.[0]; if (f) analyzeWithAI(f); e.currentTarget.value = ""; }}
+                      disabled={aiAnalyzing} capture="environment"
+                    />
+                    {aiAnalyzing ? <Loader2 className="w-3 h-3 animate-spin" /> : <ScanSearch className="w-3 h-3" />}
+                    {aiAnalyzing ? "AI 분석 중..." : "📸 찍고 AI 분석"}
+                  </label>
+                </div>
+                <div className="mt-1 grid grid-cols-4 gap-2">
                   {previews.map((p, i) => (
                     <div key={i} className="relative aspect-square rounded-lg overflow-hidden border">
                       <img src={p} alt="" className="w-full h-full object-cover" />
@@ -267,11 +355,12 @@ export default function PublicNearMiss() {
                     <button type="button" onClick={() => fileInputRef.current?.click()}
                       className="aspect-square rounded-lg border-2 border-dashed border-border hover:border-amber-400 flex flex-col items-center justify-center gap-1 text-muted-foreground hover:text-amber-600 transition-colors" data-testid="button-add-photo">
                       <Camera className="w-5 h-5" />
-                      <span className="text-[10px]">사진 추가</span>
+                      <span className="text-[10px]">사진만 추가</span>
                     </button>
                   )}
                 </div>
                 <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={e => handleImages(e.target.files)} capture="environment" />
+                <p className="text-[10px] text-muted-foreground mt-1">📸 "찍고 AI 분석" 버튼으로 사진 업로드 시 AI가 모든 항목을 자동으로 채워줍니다</p>
               </div>
 
               <div className="flex gap-2">
@@ -289,7 +378,10 @@ export default function PublicNearMiss() {
               <h2 className="text-base font-bold flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-500" />조치 및 제안</h2>
 
               <div>
-                <Label className="text-xs font-semibold">즉시 조치 내용 <span className="font-normal text-muted-foreground">(현장에서 바로 한 일)</span></Label>
+                <Label className="text-xs font-semibold">
+                  즉시 조치 내용 <span className="font-normal text-muted-foreground">(현장에서 바로 한 일)</span>
+                  {aiApplied && form.immediateAction && <span className="ml-1 text-violet-500 text-[10px]">✨ AI 입력됨</span>}
+                </Label>
                 <div className="relative mt-1">
                   <Textarea value={form.immediateAction} onChange={e => set("immediateAction", e.target.value)} rows={3} placeholder="예: 바닥의 기름을 닦음, 안전표지 설치 등" className="pr-10" data-testid="input-immediate-action" />
                   <div className="absolute right-2 top-2"><SttButton field="immediateAction" /></div>
@@ -299,6 +391,7 @@ export default function PublicNearMiss() {
               <div>
                 <Label className="text-xs font-semibold flex items-center gap-1">
                   <Lightbulb className="w-3.5 h-3.5 text-yellow-500" />재발 방지 아이디어
+                  {aiApplied && form.preventionIdea && <span className="ml-1 text-violet-500 text-[10px]">✨ AI 입력됨</span>}
                 </Label>
                 <p className="text-[10px] text-muted-foreground mb-1">어떻게 하면 다음에는 이런 일이 없을까요?</p>
                 <div className="relative">
@@ -317,6 +410,7 @@ export default function PublicNearMiss() {
                   {form.team && <Badge variant="outline" className="text-[11px]">{form.team}</Badge>}
                   <Badge variant="outline" className="text-[11px]">{form.isAnonymous ? "익명" : (form.reporter || "신고자 미입력")}</Badge>
                   {images.length > 0 && <Badge className="text-[11px] bg-emerald-100 text-emerald-700 border-emerald-300">사진 {images.length}장</Badge>}
+                  {aiApplied && <Badge className="text-[11px] bg-violet-100 text-violet-700 border-violet-300">✨ AI 분석 적용됨</Badge>}
                 </div>
               </div>
 

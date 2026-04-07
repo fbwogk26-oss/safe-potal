@@ -3319,6 +3319,60 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
   });
 
   // === NEAR MISS REPORTS (아차사고) ===
+
+  // AI 사진 분석 (로그인 불필요 — 공개 등록 폼에서도 사용)
+  app.post('/api/near-miss/ai/analyze-photo', upload.single('photo'), async (req: any, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: "사진이 없습니다" });
+      const base64Image = req.file.buffer.toString('base64');
+      const mimeType = req.file.mimetype || 'image/jpeg';
+
+      const OpenAI = (await import("openai")).default;
+      const aiClient = new OpenAI({
+        apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+        baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+      });
+
+      const response = await aiClient.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          {
+            role: "system",
+            content: `당신은 산업안전보건 전문가입니다. 현장 사진을 분석하여 아차사고(Near-Miss) 보고서에 필요한 내용을 한국어로 작성합니다.
+다음 JSON 형식으로만 응답하세요 (코드블록 없이):
+{
+  "accidentType": "추락|전도(넘어짐)|감전|낙하·비래|협착(끼임)|충돌|화재|기타 중 가장 적합한 하나",
+  "riskFactor": "불안전한 상태|불안전한 행동|환경적 요인|기타 중 하나",
+  "riskDetail": "구체적인 위험요인 1~2문장",
+  "description": "사진 속 상황에서 어떤 아차사고가 발생할 뻔했는지 2~3문장 설명",
+  "immediateAction": "현장에서 즉시 취해야 할 조치 내용",
+  "preventionIdea": "재발 방지를 위한 구체적인 아이디어 2~3가지"
+}`,
+          },
+          {
+            role: "user",
+            content: [
+              { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64Image}`, detail: "high" } },
+              { type: "text", text: "이 현장 사진에서 발생할 수 있는 아차사고를 분석하여 보고서를 작성해주세요." },
+            ] as any,
+          },
+        ],
+        max_tokens: 1000,
+        temperature: 0.2,
+      });
+
+      const raw = response.choices[0].message.content?.trim() || "{}";
+      let parsed: any = {};
+      try { parsed = JSON.parse(raw); } catch {
+        parsed = { accidentType: "기타", riskFactor: "기타", riskDetail: "AI 분석 실패", description: raw, immediateAction: "", preventionIdea: "" };
+      }
+      res.json(parsed);
+    } catch (e: any) {
+      console.error("Near-miss AI analysis error:", e);
+      res.status(500).json({ message: "AI 분석에 실패했습니다: " + (e.message || "") });
+    }
+  });
+
   // 공개 등록 (로그인 불필요)
   app.post('/api/near-miss/public', upload.array('images', 5), async (req: any, res) => {
     try {
