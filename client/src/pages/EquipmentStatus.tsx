@@ -152,23 +152,108 @@ export default function EquipmentStatus({ embedded = false }: EquipmentStatusPro
 
   const handleExcelDownload = async () => {
     const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet('안전용품현황');
-    worksheet.addRow(['팀명', '용품명', '카테고리', '수량', '상태']);
-    allTeamsData.forEach(team => {
-      team.items?.forEach(item => {
-        worksheet.addRow([team.team, item.name, item.category || '기타품목', item.quantity, item.status || '등록']);
+    const ws = workbook.addWorksheet('보호구현황');
+
+    // ── 팀별 항목 맵 구성 ──
+    const teamItemMap: Record<string, Record<string, number>> = {};
+    const itemCategoryMap: Record<string, string> = {};
+    allTeamsData.forEach(td => {
+      if (!teamItemMap[td.team]) teamItemMap[td.team] = {};
+      td.items?.forEach(item => {
+        teamItemMap[td.team][item.name] = item.quantity ?? 0;
+        itemCategoryMap[item.name] = item.category || "기타품목";
       });
     });
+
+    // ── 모든 항목 수집 및 카테고리순 정렬 ──
+    const CATEGORY_ORDER = ["보호구", "안전용품", "기타품목"];
+    const allItemNames = new Set<string>([
+      ...DEFAULT_EQUIPMENT_LIST.map(d => d.name),
+      ...Object.keys(itemCategoryMap)
+    ]);
+    const sortedItems: { name: string; category: string }[] = [];
+    CATEGORY_ORDER.forEach(cat => {
+      DEFAULT_EQUIPMENT_LIST.filter(d => d.category === cat && allItemNames.has(d.name))
+        .forEach(d => { if (!sortedItems.find(s => s.name === d.name)) sortedItems.push({ name: d.name, category: cat }); });
+      Array.from(allItemNames)
+        .filter(n => (itemCategoryMap[n] || "기타품목") === cat && !DEFAULT_EQUIPMENT_LIST.find(d => d.name === n))
+        .forEach(n => { if (!sortedItems.find(s => s.name === n)) sortedItems.push({ name: n, category: cat }); });
+    });
+
+    // ── 열 너비 설정 ──
+    const TEAM_COLS = TEAMS;
+    ws.getColumn(1).width = 10;
+    ws.getColumn(2).width = 24;
+    TEAM_COLS.forEach((_, i) => { ws.getColumn(i + 3).width = 10; });
+    ws.getColumn(TEAM_COLS.length + 3).width = 8;  // 예비
+    ws.getColumn(TEAM_COLS.length + 4).width = 8;  // 합계
+
+    // ── 헤더 행 ──
+    const headerValues = ["구분", "품목명", ...TEAM_COLS, "예비", "합계"];
+    const headerRow = ws.addRow(headerValues);
+    headerRow.height = 40;
+    headerRow.eachCell(cell => {
+      cell.font = { bold: true, size: 10, color: { argb: "FF1F3864" } };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFD9E1F2" } };
+      cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+      cell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
+    });
+
+    // ── 데이터 행 ──
+    const catBgColors: Record<string, string> = {
+      "보호구":   "FFFFF2CC",
+      "안전용품": "FFE2EFDA",
+      "기타품목": "FFFCE4D6",
+    };
+    let catStartRow = 2;
+    let prevCat = "";
+
+    sortedItems.forEach((item, idx) => {
+      const rowNum = idx + 2;
+      const teamVals = TEAM_COLS.map(t => teamItemMap[t]?.[item.name] ?? 0);
+      const total = teamVals.reduce((a, b) => a + b, 0);
+      const row = ws.addRow([item.category !== prevCat ? item.category : "", item.name, ...teamVals, 0, total]);
+      row.height = 18;
+
+      const bg = catBgColors[item.category] || "FFFFFFFF";
+      row.eachCell((cell, colIdx) => {
+        cell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
+        cell.alignment = { vertical: "middle", horizontal: colIdx <= 2 ? "left" : "center" };
+        cell.font = { size: 10 };
+        if (colIdx === 1) {
+          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bg } };
+          cell.font = { bold: true, size: 10 };
+          cell.alignment = { horizontal: "center", vertical: "middle" };
+        }
+        if (colIdx === TEAM_COLS.length + 4) {
+          // 합계 열 강조
+          cell.font = { bold: true, size: 10 };
+          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFD6DCE4" } };
+        }
+      });
+
+      if (item.category !== prevCat) {
+        if (prevCat !== "" && rowNum > 2) {
+          ws.mergeCells(catStartRow, 1, rowNum - 1, 1);
+        }
+        prevCat = item.category;
+        catStartRow = rowNum;
+      }
+    });
+
+    // 마지막 카테고리 병합
+    if (sortedItems.length > 0) {
+      ws.mergeCells(catStartRow, 1, sortedItems.length + 1, 1);
+    }
+
     const buffer = await workbook.xlsx.writeBuffer();
-    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-    a.href = url;
-    a.download = `equipment_status_${today}.xlsx`;
-    a.click();
+    const a = document.createElement("a");
+    const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+    a.href = url; a.download = `보호구현황_${today}.xlsx`; a.click();
     URL.revokeObjectURL(url);
-    toast({ title: "다운로드 완료", description: "안전용품 현황이 엑셀 파일로 저장되었습니다." });
+    toast({ title: "다운로드 완료", description: "보호구 현황이 엑셀 파일로 저장되었습니다." });
   };
 
   const handleExcelUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -179,25 +264,56 @@ export default function EquipmentStatus({ embedded = false }: EquipmentStatusPro
       const arrayBuffer = await file.arrayBuffer();
       const workbook = new ExcelJS.Workbook();
       await workbook.xlsx.load(arrayBuffer);
-      const worksheet = workbook.worksheets[0];
-      const headers: string[] = [];
-      worksheet.getRow(1).eachCell((cell, colNumber) => { headers[colNumber - 1] = String(cell.value ?? ''); });
-      const jsonData: Record<string, unknown>[] = [];
-      worksheet.eachRow((row, rowNumber) => {
-        if (rowNumber === 1) return;
-        const rowData: Record<string, unknown> = {};
-        row.eachCell((cell, colNumber) => { const header = headers[colNumber - 1]; if (header) rowData[header] = cell.value; });
-        jsonData.push(rowData);
+      const ws = workbook.worksheets[0];
+
+      // ── 헤더 파싱: 팀 열 위치 탐색 ──
+      const headerRow = ws.getRow(1);
+      const colTeamMap: Record<number, string> = {}; // colIdx → teamName
+      const skipCols = new Set(["구분", "품목명", "예비", "합계", ""]);
+      headerRow.eachCell((cell, colNum) => {
+        const val = String(cell.value ?? "").trim();
+        if (!skipCols.has(val)) {
+          // 팀명 매칭: 셀 값에 팀명이 포함되는지 확인
+          const matched = TEAMS.find(t => val.includes(t) || t.includes(val));
+          if (matched) colTeamMap[colNum] = matched;
+        }
       });
+
+      if (Object.keys(colTeamMap).length === 0) {
+        toast({ variant: "destructive", title: "업로드 실패", description: "팀 열을 찾을 수 없습니다. 다운로드한 형식의 파일을 업로드해주세요." });
+        return;
+      }
+
+      // ── 데이터 행 파싱 ──
       const teamItemsMap = new Map<string, EquipmentItem[]>();
-      jsonData.forEach(row => {
-        const teamName = String(row['팀명'] || '');
-        if (!teamName) return;
-        if (!teamItemsMap.has(teamName)) teamItemsMap.set(teamName, []);
-        teamItemsMap.get(teamName)!.push({ name: String(row['용품명'] || row['name'] || ''), quantity: Number(row['수량'] || row['quantity']) || 0, category: String(row['카테고리'] || row['category'] || '기타품목'), status: String(row['상태'] || row['status'] || '등록') });
+      TEAMS.forEach(t => teamItemsMap.set(t, []));
+
+      let lastCategory = "기타품목";
+      ws.eachRow((row, rowNum) => {
+        if (rowNum === 1) return;
+
+        // 구분(카테고리) 열 = 1, 품목명 열 = 2
+        const catVal = String(row.getCell(1).value ?? "").trim();
+        const itemName = String(row.getCell(2).value ?? "").trim();
+        if (!itemName) return;
+        if (catVal) lastCategory = catVal;
+
+        Object.entries(colTeamMap).forEach(([colStr, teamName]) => {
+          const colNum = Number(colStr);
+          const qty = Number(row.getCell(colNum).value ?? 0) || 0;
+          teamItemsMap.get(teamName)!.push({
+            name: itemName,
+            quantity: qty,
+            category: lastCategory,
+            status: "등록",
+          });
+        });
       });
+
+      // ── 팀별 저장 ──
       let successCount = 0;
       for (const [teamName, items] of Array.from(teamItemsMap)) {
+        if (items.length === 0) continue;
         const existingRecord = statusRecords?.find(r => { try { return (JSON.parse(r.content) as TeamData).team === teamName; } catch { return false; } });
         const contentData = JSON.stringify({ team: teamName, items, lastUpdated: new Date().toISOString() });
         if (existingRecord) {
@@ -209,6 +325,7 @@ export default function EquipmentStatus({ embedded = false }: EquipmentStatusPro
       queryClient.invalidateQueries({ queryKey: ['/api/notices'] });
       toast({ title: "업로드 완료", description: `${successCount}개 팀 데이터가 업데이트되었습니다.` });
     } catch (err) {
+      console.error(err);
       toast({ variant: "destructive", title: "업로드 실패", description: "엑셀 파일 형식을 확인해주세요." });
     } finally {
       setIsUploading(false);
