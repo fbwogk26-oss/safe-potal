@@ -584,28 +584,6 @@ export default function AccidentReports() {
                         </CardContent>
                       </Card>
                     ))}
-                    <Card className="border-0 shadow-sm flex-1">
-                      <CardContent className="px-2 py-3 h-full" style={{ minHeight: 80 }}>
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={yearCompareData} margin={{ top: 24, right: 4, left: 0, bottom: 4 }}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" opacity={0.4} />
-                            <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: 700, fill: '#475569' }} axisLine={false} tickLine={false} />
-                            <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={22} />
-                            <Tooltip content={({ active, payload }) => active && payload?.length ? (
-                              <div style={{ background: '#fff', border: '1px solid #f1f5f9', borderRadius: 8, padding: '6px 12px', fontSize: 12 }}>
-                                <p style={{ fontWeight: 700 }}>{payload[0].payload.name}</p>
-                                <p style={{ color: payload[0].payload.year ? YEAR_COLORS[payload[0].payload.year] : '#64748b', fontWeight: 800 }}>{payload[0].value}건</p>
-                              </div>
-                            ) : null} />
-                            <Bar dataKey="value" radius={[6, 6, 0, 0]} maxBarSize={40} animationDuration={900} label={{ position: 'top', fontSize: 12, fontWeight: 800, fill: '#1e293b' }}>
-                              {yearCompareData.map(entry => (
-                                <Cell key={entry.name} fill={YEAR_COLORS[entry.year] || CHART_COLORS[0]} />
-                              ))}
-                            </Bar>
-                          </BarChart>
-                        </ResponsiveContainer>
-                      </CardContent>
-                    </Card>
                   </div>
 
                   {/* 우: 월별 트렌드 차트 (3열 차지) */}
@@ -767,12 +745,12 @@ export default function AccidentReports() {
                         <ResponsiveContainer width="100%" height="100%">
                           <BarChart
                             layout="vertical"
-                            data={toChartData(byDept2026).map(d => ({ ...d, shortName: d.name.replace(/운용팀$/, '팀').replace(/관제팀$/, '관제').replace(/지원팀$/, '지원') }))}
+                            data={toChartData(byDept2026)}
                             margin={{ top: 4, right: 48, left: 4, bottom: 4 }}
                           >
                             <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" opacity={0.4} />
                             <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                            <YAxis type="category" dataKey="shortName" tick={{ fontSize: 11, fontWeight: 600, fill: '#475569' }} axisLine={false} tickLine={false} width={68} />
+                            <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fontWeight: 600, fill: '#475569' }} axisLine={false} tickLine={false} width={90} />
                             <Tooltip content={({ active, payload }) => active && payload?.length ? (
                               <div style={{ background: '#fff', border: '1px solid #f1f5f9', borderRadius: 8, padding: '6px 12px', fontSize: 12 }}>
                                 <p style={{ fontWeight: 700 }}>{payload[0].payload.name}</p>
