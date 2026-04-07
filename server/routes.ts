@@ -4275,7 +4275,7 @@ export async function registerRoutes(
     }).join("");
 
     const imgHtml = guideB64
-      ? `<br><br><div><img src="data:image/jpeg;base64,${guideB64}" style="max-width:900px;width:100%;border:1px solid #ddd" alt="TBM 활동 사진 등록 가이드" /></div>`
+      ? `<br><br><div style="overflow-x:auto;-webkit-overflow-scrolling:touch"><img src="data:image/jpeg;base64,${guideB64}" style="min-width:700px;max-width:900px;width:100%;border:1px solid #ddd;display:block" alt="TBM 활동 사진 등록 가이드" /></div>`
       : "";
     const p = (text: string, opts?: string) => `<p style="margin:3px 0;font-family:맑은고딕,sans-serif;font-size:12pt;line-height:1.6;${opts || ""}">${text}</p>`;
     return [
