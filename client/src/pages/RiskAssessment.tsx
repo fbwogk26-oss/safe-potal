@@ -1116,12 +1116,6 @@ export default function RiskAssessmentPage() {
                           </div>
                         </div>
 
-                        {/* 현황 및 문제점 */}
-                        <div className="space-y-1.5">
-                          <Label className="text-xs font-semibold">현황 및 문제점</Label>
-                          <Textarea value={item.currentIssue} onChange={e => updateItem(idx, "currentIssue", e.target.value)} placeholder="현황 및 문제점을 입력하세요" rows={2} className="text-xs" data-testid={`input-current-issue-${idx}`} />
-                        </div>
-
                         {/* ① STEP 1 — 현장 사진 + AI 위험 분석 */}
                         <div className="rounded-xl border-2 border-violet-200 dark:border-violet-700/50 bg-violet-50/50 dark:bg-violet-950/20 p-3 space-y-2.5">
                           <div className="flex items-center gap-2">
