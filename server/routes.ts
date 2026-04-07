@@ -4275,7 +4275,7 @@ export async function registerRoutes(
     }).join("");
 
     const imgHtml = guideB64
-      ? `<br><br><div><img src="data:image/png;base64,${guideB64}" style="max-width:900px;width:100%;border:1px solid #ddd" alt="TBM 활동 사진 등록 가이드" /></div>`
+      ? `<br><br><div><img src="data:image/jpeg;base64,${guideB64}" style="max-width:900px;width:100%;border:1px solid #ddd" alt="TBM 활동 사진 등록 가이드" /></div>`
       : "";
     const p = (text: string, opts?: string) => `<p style="margin:3px 0;font-family:맑은고딕,sans-serif;font-size:12pt;line-height:1.6;${opts || ""}">${text}</p>`;
     return [
@@ -4387,7 +4387,7 @@ workers 배열은 실제 작업자 명단이며, supervisor는 KT/KTMOS 측 감�
       try {
         const { readFileSync } = await import("fs");
         const { join } = await import("path");
-        const imgPath = join(process.cwd(), "attached_assets", "image_1775201291098.png");
+        const imgPath = join(process.cwd(), "attached_assets", "TBM,순회점검_사진등록_안내_1775540706148.jpg");
         guideB64 = readFileSync(imgPath).toString("base64");
       } catch {}
 
@@ -4557,7 +4557,7 @@ workers 배열은 실제 작업자 명단이며, supervisor는 KT/KTMOS 측 감�
       try {
         const { readFileSync } = await import("fs");
         const { join } = await import("path");
-        const imgPath = join(process.cwd(), "attached_assets", "image_1775201291098.png");
+        const imgPath = join(process.cwd(), "attached_assets", "TBM,순회점검_사진등록_안내_1775540706148.jpg");
         guideB64 = readFileSync(imgPath).toString("base64");
       } catch {}
 
