@@ -149,7 +149,7 @@ export default function Dashboard() {
       <div className="flex items-center justify-between glass-card p-3 sm:p-4 rounded-xl">
         <h2 className="text-lg sm:text-xl md:text-2xl font-display font-bold text-foreground flex items-center gap-2">
           <Trophy className="w-5 h-5 md:w-6 md:h-6 text-yellow-500" />
-          안전점수 현황
+          안전성평가제 현황
         </h2>
         <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => refetch()} disabled={isRefetching}>
           <RefreshCw className={cn("w-4 h-4", isRefetching && "animate-spin")} />
@@ -336,7 +336,7 @@ export default function Dashboard() {
                   <div>
                     <CardTitle className="flex items-center gap-2 text-base sm:text-lg md:text-xl">
                       <Trophy className="w-5 h-5 md:w-6 md:h-6 text-yellow-500" />
-                      팀별 안전점수
+                      팀별 안전성평가제
                     </CardTitle>
                     <CardDescription className="text-xs sm:text-sm">실시간 안전 점수 현황</CardDescription>
                   </div>
@@ -457,14 +457,14 @@ export default function Dashboard() {
                         <TableRow className="hover:bg-transparent">
                           <TableHead className="w-[80px] sm:w-[100px] font-bold text-foreground py-2 text-xs sm:text-sm sticky left-0 bg-muted/50 z-10">부서</TableHead>
                           <TableHead className="text-center font-bold text-foreground text-xs sm:text-sm py-2 w-12">차량</TableHead>
-                          <TableHead className="text-center font-bold text-red-600 text-xs sm:text-sm py-2 w-12">산재</TableHead>
-                          <TableHead className="text-center font-bold text-orange-600 text-xs sm:text-sm py-2 w-12">사고</TableHead>
-                          <TableHead className="text-center font-bold text-orange-600 text-xs sm:text-sm py-2 w-12">과속</TableHead>
-                          <TableHead className="text-center font-bold text-orange-600 text-xs sm:text-sm py-2 w-12">신호</TableHead>
-                          <TableHead className="text-center font-bold text-orange-600 text-xs sm:text-sm py-2 w-12">법규</TableHead>
-                          <TableHead className="text-center font-bold text-red-600 text-xs sm:text-sm py-2 w-12">점검</TableHead>
-                          <TableHead className="text-center font-bold text-green-600 text-xs sm:text-sm py-2 w-12">제안</TableHead>
-                          <TableHead className="text-center font-bold text-green-600 text-xs sm:text-sm py-2 w-12">활동</TableHead>
+                          <TableHead className="text-center font-bold text-red-600 text-xs sm:text-sm py-2 w-16">작업사고</TableHead>
+                          <TableHead className="text-center font-bold text-orange-600 text-xs sm:text-sm py-2 w-16">차량사고</TableHead>
+                          <TableHead className="text-center font-bold text-orange-600 text-xs sm:text-sm py-2 w-16">과속위반</TableHead>
+                          <TableHead className="text-center font-bold text-orange-600 text-xs sm:text-sm py-2 w-16">신호위반</TableHead>
+                          <TableHead className="text-center font-bold text-orange-600 text-xs sm:text-sm py-2 w-16">법규위반</TableHead>
+                          <TableHead className="text-center font-bold text-red-600 text-xs sm:text-sm py-2 w-16">현장점검</TableHead>
+                          <TableHead className="text-center font-bold text-green-600 text-xs sm:text-sm py-2 w-16">우수제안</TableHead>
+                          <TableHead className="text-center font-bold text-green-600 text-xs sm:text-sm py-2 w-16">우수활동</TableHead>
                           <TableHead className="text-center font-black text-primary text-xs sm:text-sm py-2 w-14">점수</TableHead>
                           <TableHead className="w-[60px] py-2"></TableHead>
                         </TableRow>

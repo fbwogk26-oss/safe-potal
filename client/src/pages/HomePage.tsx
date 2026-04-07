@@ -96,7 +96,7 @@ export default function HomePage() {
   } = usePermissions();
 
   const QUICK_IN = [
-    { label: "안전점수", href: "/safety-scores", icon: ShieldCheck, color: "#3b82f6", bg: "#dbeafe", show: canViewDashboard },
+    { label: "안전성평가제", href: "/safety-scores", icon: ShieldCheck, color: "#3b82f6", bg: "#dbeafe", show: canViewDashboard },
     { label: "위험성평가", href: "/risk-assessment", icon: Target, color: "#f97316", bg: "#ffedd5", show: canViewRiskAssessment },
     { label: "안전점검", href: "/inspections", icon: ClipboardCheck, color: "#10b981", bg: "#d1fae5", show: canViewInspections },
     { label: "사고보고", href: "/accidents", icon: AlertTriangle, color: "#ef4444", bg: "#fee2e2", show: canViewAccidents },
@@ -486,7 +486,7 @@ export default function HomePage() {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                  <Users className="w-3.5 h-3.5" />팀별 안전점수
+                  <Users className="w-3.5 h-3.5" />팀별 안전성평가제
                 </h2>
                 {canViewDashboard && (
                   <Link href="/safety-scores">

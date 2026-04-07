@@ -47,7 +47,7 @@ const MOBILE_NAV_ITEMS: MobileNavEntry[] = [
     label: "안전관리",
     icon: Shield,
     children: [
-      { label: "안전점수", href: "/safety-scores", icon: LayoutDashboard },
+      { label: "안전성평가제", href: "/safety-scores", icon: LayoutDashboard },
       { label: "사고보고/통계", href: "/accidents", icon: AlertTriangle },
       { label: "위험성평가", href: "/risk-assessment", icon: ShieldAlert },
       { label: "안전점검", href: "/inspections", icon: ClipboardCheck },
