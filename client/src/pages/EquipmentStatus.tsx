@@ -3,7 +3,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { HardHat, Plus, Trash2, ChevronLeft, Save, Edit2, Cone, Package, Download, Upload } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { HardHat, Plus, Trash2, ChevronLeft, Save, Edit2, Cone, Package, Download, Upload, Users, User, Pencil, X, CheckCircle2 } from "lucide-react";
 import { useState, useEffect, useMemo, useRef } from "react";
 import ExcelJS from "exceljs";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -71,27 +74,8 @@ function CircularProgress({ value, max, color, label, size = 120 }: { value: num
     <div className="flex flex-col items-center">
       <div className="relative" style={{ width: size, height: size }}>
         <svg width={size} height={size} className="transform -rotate-90">
-          <circle
-            cx={size / 2}
-            cy={size / 2}
-            r={radius}
-            stroke="currentColor"
-            strokeWidth={strokeWidth}
-            fill="transparent"
-            className="text-muted/20"
-          />
-          <circle
-            cx={size / 2}
-            cy={size / 2}
-            r={radius}
-            stroke={color}
-            strokeWidth={strokeWidth}
-            fill="transparent"
-            strokeDasharray={circumference}
-            strokeDashoffset={strokeDashoffset}
-            strokeLinecap="round"
-            className="transition-all duration-500"
-          />
+          <circle cx={size / 2} cy={size / 2} r={radius} stroke="currentColor" strokeWidth={strokeWidth} fill="transparent" className="text-muted/20" />
+          <circle cx={size / 2} cy={size / 2} r={radius} stroke={color} strokeWidth={strokeWidth} fill="transparent" strokeDasharray={circumference} strokeDashoffset={strokeDashoffset} strokeLinecap="round" className="transition-all duration-500" />
         </svg>
         <div className="absolute inset-0 flex items-center justify-center">
           <span className="text-3xl font-bold">{value}</span>
@@ -102,35 +86,9 @@ function CircularProgress({ value, max, color, label, size = 120 }: { value: num
   );
 }
 
-function EquipmentListItem({ 
-  name, 
-  totalQuantity,
-  registeredQty, 
-  goodQty, 
-  badQty, 
-  isSelected, 
-  onClick,
-  icon: Icon
-}: { 
-  name: string; 
-  totalQuantity: number;
-  registeredQty: number; 
-  goodQty: number; 
-  badQty: number; 
-  isSelected: boolean; 
-  onClick: () => void;
-  icon?: any;
-}) {
+function EquipmentListItem({ name, totalQuantity, registeredQty, goodQty, badQty, isSelected, onClick, icon: Icon }: { name: string; totalQuantity: number; registeredQty: number; goodQty: number; badQty: number; isSelected: boolean; onClick: () => void; icon?: any; }) {
   return (
-    <motion.div
-      onClick={onClick}
-      className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all ${
-        isSelected 
-          ? "bg-primary/10 border-l-4 border-primary" 
-          : "hover:bg-muted/50"
-      }`}
-      whileHover={{ x: 4 }}
-    >
+    <motion.div onClick={onClick} className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all ${isSelected ? "bg-primary/10 border-l-4 border-primary" : "hover:bg-muted/50"}`} whileHover={{ x: 4 }}>
       <div className="w-10 h-10 rounded-full bg-muted/50 flex items-center justify-center">
         {Icon ? <Icon className="w-5 h-5 text-muted-foreground" /> : <HardHat className="w-5 h-5 text-muted-foreground" />}
       </div>
@@ -166,15 +124,30 @@ export default function EquipmentStatus({ embedded = false }: EquipmentStatusPro
   const [selectedTeam, setSelectedTeam] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
-  const [bulkAddMode, setBulkAddMode] = useState(false);
   const [equipmentList, setEquipmentList] = useState<EquipmentItem[]>(DEFAULT_EQUIPMENT_LIST);
   const [editingRecordId, setEditingRecordId] = useState<number | null>(null);
-  const [newItemName, setNewItemName] = useState("");
-  const [newItemCategory, setNewItemCategory] = useState("보호구");
-  const [bulkItemName, setBulkItemName] = useState("");
-  const [bulkItemCategory, setBulkItemCategory] = useState("보호구");
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 등록 Dialog 상태
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [addDialogTab, setAddDialogTab] = useState("single");
+  // 단일 등록
+  const [singleTeam, setSingleTeam] = useState("");
+  const [singleCategory, setSingleCategory] = useState("보호구");
+  const [singleName, setSingleName] = useState("");
+  const [singleQty, setSingleQty] = useState(0);
+  const [singleStatus, setSingleStatus] = useState("등록");
+  const [isSingleSaving, setIsSingleSaving] = useState(false);
+  // 팀별 전체 등록
+  const [bulkCategory, setBulkCategory] = useState("보호구");
+  const [bulkName, setBulkName] = useState("");
+  const [bulkQty, setBulkQty] = useState(0);
+  const [bulkStatus, setBulkStatus] = useState("등록");
+  const [isBulkSaving, setIsBulkSaving] = useState(false);
+
+  // 인라인 편집 행
+  const [editingRowIndex, setEditingRowIndex] = useState<number | null>(null);
 
   const handleExcelDownload = async () => {
     const workbook = new ExcelJS.Workbook();
@@ -200,7 +173,6 @@ export default function EquipmentStatus({ embedded = false }: EquipmentStatusPro
   const handleExcelUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    
     setIsUploading(true);
     try {
       const arrayBuffer = await file.arrayBuffer();
@@ -208,74 +180,34 @@ export default function EquipmentStatus({ embedded = false }: EquipmentStatusPro
       await workbook.xlsx.load(arrayBuffer);
       const worksheet = workbook.worksheets[0];
       const headers: string[] = [];
-      worksheet.getRow(1).eachCell((cell, colNumber) => {
-        headers[colNumber - 1] = String(cell.value ?? '');
-      });
+      worksheet.getRow(1).eachCell((cell, colNumber) => { headers[colNumber - 1] = String(cell.value ?? ''); });
       const jsonData: Record<string, unknown>[] = [];
       worksheet.eachRow((row, rowNumber) => {
         if (rowNumber === 1) return;
         const rowData: Record<string, unknown> = {};
-        row.eachCell((cell, colNumber) => {
-          const header = headers[colNumber - 1];
-          if (header) rowData[header] = cell.value;
-        });
+        row.eachCell((cell, colNumber) => { const header = headers[colNumber - 1]; if (header) rowData[header] = cell.value; });
         jsonData.push(rowData);
       });
-      
       const teamItemsMap = new Map<string, EquipmentItem[]>();
       jsonData.forEach(row => {
         const teamName = String(row['팀명'] || '');
         if (!teamName) return;
-        
-        if (!teamItemsMap.has(teamName)) {
-          teamItemsMap.set(teamName, []);
-        }
-        teamItemsMap.get(teamName)!.push({
-          name: String(row['용품명'] || row['name'] || ''),
-          quantity: Number(row['수량'] || row['quantity']) || 0,
-          category: String(row['카테고리'] || row['category'] || '기타품목'),
-          status: String(row['상태'] || row['status'] || '등록')
-        });
+        if (!teamItemsMap.has(teamName)) teamItemsMap.set(teamName, []);
+        teamItemsMap.get(teamName)!.push({ name: String(row['용품명'] || row['name'] || ''), quantity: Number(row['수량'] || row['quantity']) || 0, category: String(row['카테고리'] || row['category'] || '기타품목'), status: String(row['상태'] || row['status'] || '등록') });
       });
-      
       let successCount = 0;
       for (const [teamName, items] of Array.from(teamItemsMap)) {
-        const existingRecord = statusRecords?.find(r => {
-          try {
-            const parsed = JSON.parse(r.content) as TeamData;
-            return parsed.team === teamName;
-          } catch {
-            return false;
-          }
-        });
-        
-        const contentData = JSON.stringify({
-          team: teamName,
-          items,
-          lastUpdated: new Date().toISOString()
-        });
-        
+        const existingRecord = statusRecords?.find(r => { try { return (JSON.parse(r.content) as TeamData).team === teamName; } catch { return false; } });
+        const contentData = JSON.stringify({ team: teamName, items, lastUpdated: new Date().toISOString() });
         if (existingRecord) {
-          await new Promise<void>((resolve) => {
-            updateRecord({ id: existingRecord.id, title: `${teamName} 보호구 현황`, content: contentData }, {
-              onSuccess: () => { successCount++; resolve(); },
-              onError: () => resolve()
-            });
-          });
+          await new Promise<void>(resolve => { updateRecord({ id: existingRecord.id, title: `${teamName} 보호구 현황`, content: contentData }, { onSuccess: () => { successCount++; resolve(); }, onError: () => resolve() }); });
         } else {
-          await new Promise<void>((resolve) => {
-            createRecord({ title: `${teamName} 보호구 현황`, content: contentData, category: "equip_status" }, {
-              onSuccess: () => { successCount++; resolve(); },
-              onError: () => resolve()
-            });
-          });
+          await new Promise<void>(resolve => { createRecord({ title: `${teamName} 보호구 현황`, content: contentData, category: "equip_status" }, { onSuccess: () => { successCount++; resolve(); }, onError: () => resolve() }); });
         }
       }
-      
       queryClient.invalidateQueries({ queryKey: ['/api/notices'] });
       toast({ title: "업로드 완료", description: `${successCount}개 팀 데이터가 업데이트되었습니다.` });
     } catch (err) {
-      console.error(err);
       toast({ variant: "destructive", title: "업로드 실패", description: "엑셀 파일 형식을 확인해주세요." });
     } finally {
       setIsUploading(false);
@@ -285,47 +217,21 @@ export default function EquipmentStatus({ embedded = false }: EquipmentStatusPro
 
   const allTeamsData = useMemo(() => {
     if (!statusRecords) return [];
-    return statusRecords.map(record => {
-      try {
-        return JSON.parse(record.content) as TeamData;
-      } catch {
-        return null;
-      }
-    }).filter(Boolean) as TeamData[];
+    return statusRecords.map(record => { try { return JSON.parse(record.content) as TeamData; } catch { return null; } }).filter(Boolean) as TeamData[];
   }, [statusRecords]);
 
   const aggregatedData = useMemo(() => {
+    const teamsToShow = selectedTeam && selectedTeam !== "all" ? allTeamsData.filter(t => t.team === selectedTeam) : allTeamsData;
     const allItems: EquipmentItem[] = [];
-    const teamsToShow = selectedTeam && selectedTeam !== "all" 
-      ? allTeamsData.filter(t => t.team === selectedTeam)
-      : allTeamsData;
-    
-    teamsToShow.forEach(team => {
-      if (team.items) {
-        team.items.forEach(item => {
-          allItems.push({ ...item, category: item.category || "기타품목", status: item.status || "등록" });
-        });
-      }
-    });
+    teamsToShow.forEach(team => { if (team.items) team.items.forEach(item => allItems.push({ ...item, category: item.category || "기타품목", status: item.status || "등록" })); });
     return allItems;
   }, [allTeamsData, selectedTeam]);
 
   const categoryStats = useMemo(() => {
-    const items = selectedCategory 
-      ? aggregatedData.filter(i => i.category === selectedCategory)
-      : aggregatedData;
-    
+    const items = selectedCategory ? aggregatedData.filter(i => i.category === selectedCategory) : aggregatedData;
     const goodQty = items.filter(i => i.status === "양호").reduce((sum, i) => sum + (i.quantity || 0), 0);
     const badQty = items.filter(i => i.status === "불량").reduce((sum, i) => sum + (i.quantity || 0), 0);
-    const registeredQty = goodQty + badQty;
-    
-    return {
-      total: items.length,
-      totalQuantity: items.reduce((sum, i) => sum + (i.quantity || 0), 0),
-      registeredQty,
-      goodQty,
-      badQty,
-    };
+    return { total: items.length, totalQuantity: items.reduce((sum, i) => sum + (i.quantity || 0), 0), registeredQty: goodQty + badQty, goodQty, badQty };
   }, [aggregatedData, selectedCategory]);
 
   const equipmentCategories = useMemo(() => {
@@ -334,44 +240,20 @@ export default function EquipmentStatus({ embedded = false }: EquipmentStatusPro
       const items = aggregatedData.filter(i => i.name === name);
       const goodQty = items.filter(i => i.status === "양호").reduce((sum, i) => sum + (i.quantity || 0), 0);
       const badQty = items.filter(i => i.status === "불량").reduce((sum, i) => sum + (i.quantity || 0), 0);
-      const registeredQty = goodQty + badQty;
-      
-      return {
-        name,
-        category: items[0]?.category || "기타품목",
-        totalQuantity: items.reduce((sum, i) => sum + (i.quantity || 0), 0),
-        registeredQty,
-        goodQty,
-        badQty,
-      };
+      return { name, category: items[0]?.category || "기타품목", totalQuantity: items.reduce((sum, i) => sum + (i.quantity || 0), 0), registeredQty: goodQty + badQty, goodQty, badQty };
     });
   }, [aggregatedData]);
 
-  const filteredCategories = useMemo(() => {
-    if (!selectedCategory) return equipmentCategories;
-    return equipmentCategories.filter(e => e.category === selectedCategory);
-  }, [equipmentCategories, selectedCategory]);
+  const filteredCategories = useMemo(() => selectedCategory ? equipmentCategories.filter(e => e.category === selectedCategory) : equipmentCategories, [equipmentCategories, selectedCategory]);
 
-  const teamRecord = statusRecords?.find(r => {
-    try {
-      const parsed = JSON.parse(r.content);
-      return parsed.team === selectedTeam;
-    } catch {
-      return false;
-    }
-  });
+  const teamRecord = statusRecords?.find(r => { try { return (JSON.parse(r.content) as TeamData).team === selectedTeam; } catch { return false; } });
 
   useEffect(() => {
     if (teamRecord) {
       try {
         const parsed = JSON.parse(teamRecord.content);
         if (parsed.items && Array.isArray(parsed.items)) {
-          const itemsWithFields = parsed.items.map((item: any) => ({
-            ...item,
-            category: item.category || getCategoryFromName(item.name),
-            status: item.status || "등록"
-          }));
-          setEquipmentList(itemsWithFields);
+          setEquipmentList(parsed.items.map((item: any) => ({ ...item, category: item.category || getCategoryFromName(item.name), status: item.status || "등록" })));
           setEditingRecordId(teamRecord.id);
         }
       } catch {
@@ -382,424 +264,281 @@ export default function EquipmentStatus({ embedded = false }: EquipmentStatusPro
       setEquipmentList(DEFAULT_EQUIPMENT_LIST);
       setEditingRecordId(null);
     }
+    setEditingRowIndex(null);
   }, [teamRecord, selectedTeam]);
 
-  const getCategoryFromName = (name: string): string => {
-    const defaultItem = DEFAULT_EQUIPMENT_LIST.find(item => item.name === name);
-    return defaultItem?.category || "기타품목";
-  };
+  const getCategoryFromName = (name: string): string => DEFAULT_EQUIPMENT_LIST.find(item => item.name === name)?.category || "기타품목";
 
   const handleQuantityChange = (index: number, value: string) => {
     const newList = [...equipmentList];
     newList[index].quantity = parseInt(value) || 0;
     setEquipmentList(newList);
   };
-
   const handleStatusChange = (index: number, status: string) => {
     const newList = [...equipmentList];
     newList[index].status = status;
     setEquipmentList(newList);
   };
-
   const handleCategoryChange = (index: number, category: string) => {
     const newList = [...equipmentList];
     newList[index].category = category;
     setEquipmentList(newList);
   };
-
-  const handleAddItem = () => {
-    if (!newItemName.trim()) return;
-    if (equipmentList.some(item => item.name === newItemName.trim())) {
-      toast({ variant: "destructive", title: "이미 존재하는 용품입니다." });
-      return;
-    }
-    setEquipmentList([...equipmentList, { name: newItemName.trim(), quantity: 0, category: newItemCategory, status: "등록" }]);
-    setNewItemName("");
-    toast({ title: "용품 추가됨" });
-  };
-
   const handleRemoveItem = (index: number) => {
-    const newList = equipmentList.filter((_, i) => i !== index);
-    setEquipmentList(newList);
+    setEquipmentList(equipmentList.filter((_, i) => i !== index));
+    setEditingRowIndex(null);
   };
 
   const handleSave = () => {
-    if (!selectedTeam) {
-      toast({ variant: "destructive", title: "팀을 선택해주세요." });
-      return;
-    }
-
-    const contentData = JSON.stringify({
-      team: selectedTeam,
-      items: equipmentList,
-      lastUpdated: new Date().toISOString()
-    });
-
+    if (!selectedTeam) { toast({ variant: "destructive", title: "팀을 선택해주세요." }); return; }
+    const contentData = JSON.stringify({ team: selectedTeam, items: equipmentList, lastUpdated: new Date().toISOString() });
     if (editingRecordId) {
-      updateRecord({ id: editingRecordId, title: `${selectedTeam} 보호구 현황`, content: contentData }, {
-        onSuccess: () => {
-          toast({ title: "저장 완료", description: `${selectedTeam} 보호구 현황이 업데이트되었습니다.` });
-          setEditMode(false);
-        }
-      });
+      updateRecord({ id: editingRecordId, title: `${selectedTeam} 보호구 현황`, content: contentData }, { onSuccess: () => { toast({ title: "저장 완료", description: `${selectedTeam} 보호구 현황이 업데이트되었습니다.` }); setEditMode(false); setEditingRowIndex(null); } });
     } else {
-      createRecord({ title: `${selectedTeam} 보호구 현황`, content: contentData, category: "equip_status" }, {
-        onSuccess: () => {
-          toast({ title: "등록 완료", description: `${selectedTeam} 보호구 현황이 등록되었습니다.` });
-          setEditMode(false);
-        }
-      });
+      createRecord({ title: `${selectedTeam} 보호구 현황`, content: contentData, category: "equip_status" }, { onSuccess: () => { toast({ title: "등록 완료", description: `${selectedTeam} 보호구 현황이 등록되었습니다.` }); setEditMode(false); setEditingRowIndex(null); } });
     }
   };
 
-  const handleBulkAdd = async () => {
-    if (!bulkItemName.trim()) {
-      toast({ variant: "destructive", title: "용품명을 입력해주세요." });
-      return;
-    }
-
-    let successCount = 0;
-    let errorCount = 0;
-
-    for (const record of statusRecords || []) {
-      try {
-        const parsed = JSON.parse(record.content) as TeamData;
-        const existingItem = parsed.items?.find(i => i.name === bulkItemName.trim());
-        
-        if (existingItem) {
-          continue;
-        }
-
-        const newItems = [
-          ...(parsed.items || []),
-          { name: bulkItemName.trim(), quantity: 0, category: bulkItemCategory, status: "등록" }
-        ];
-
-        const contentData = JSON.stringify({
-          team: parsed.team,
-          items: newItems,
-          lastUpdated: new Date().toISOString()
-        });
-
-        await new Promise<void>((resolve, reject) => {
-          updateRecord({ id: record.id, title: record.title, content: contentData }, {
-            onSuccess: () => { successCount++; resolve(); },
-            onError: () => { errorCount++; resolve(); }
-          });
-        });
-      } catch {
-        errorCount++;
+  // 단일 등록 핸들러
+  const handleSingleRegister = async () => {
+    if (!singleTeam) { toast({ variant: "destructive", title: "팀을 선택해주세요." }); return; }
+    if (!singleName.trim()) { toast({ variant: "destructive", title: "용품명을 입력해주세요." }); return; }
+    setIsSingleSaving(true);
+    try {
+      const existingRecord = statusRecords?.find(r => { try { return (JSON.parse(r.content) as TeamData).team === singleTeam; } catch { return false; } });
+      const newItem: EquipmentItem = { name: singleName.trim(), quantity: singleQty, category: singleCategory, status: singleStatus };
+      if (existingRecord) {
+        const parsed = JSON.parse(existingRecord.content) as TeamData;
+        const alreadyExists = parsed.items?.find(i => i.name === singleName.trim());
+        if (alreadyExists) { toast({ variant: "destructive", title: `"${singleName.trim()}"은(는) 이미 ${singleTeam}에 등록되어 있습니다.` }); setIsSingleSaving(false); return; }
+        const newItems = [...(parsed.items || []), newItem];
+        const contentData = JSON.stringify({ team: singleTeam, items: newItems, lastUpdated: new Date().toISOString() });
+        await new Promise<void>(resolve => updateRecord({ id: existingRecord.id, title: existingRecord.title, content: contentData }, { onSuccess: () => resolve(), onError: () => resolve() }));
+      } else {
+        const initItems = DEFAULT_EQUIPMENT_LIST.map(d => ({ ...d }));
+        if (!initItems.find(i => i.name === newItem.name)) initItems.push(newItem);
+        else { const idx = initItems.findIndex(i => i.name === newItem.name); initItems[idx] = newItem; }
+        const contentData = JSON.stringify({ team: singleTeam, items: initItems, lastUpdated: new Date().toISOString() });
+        await new Promise<void>(resolve => createRecord({ title: `${singleTeam} 보호구 현황`, content: contentData, category: "equip_status" }, { onSuccess: () => resolve(), onError: () => resolve() }));
       }
+      queryClient.invalidateQueries({ queryKey: ['/api/notices'] });
+      toast({ title: "등록 완료", description: `${singleTeam}에 "${singleName.trim()}"이(가) 등록되었습니다.` });
+      setSingleName(""); setSingleQty(0); setSingleStatus("등록");
+    } finally {
+      setIsSingleSaving(false);
     }
-
-    setBulkItemName("");
-    toast({ 
-      title: "일괄 추가 완료", 
-      description: `${successCount}개 팀에 추가되었습니다.${errorCount > 0 ? ` (${errorCount}개 실패)` : ""}`
-    });
-    setBulkAddMode(false);
   };
+
+  // 팀별 전체 등록 핸들러
+  const handleBulkRegister = async () => {
+    if (!bulkName.trim()) { toast({ variant: "destructive", title: "용품명을 입력해주세요." }); return; }
+    setIsBulkSaving(true);
+    try {
+      const newItem: EquipmentItem = { name: bulkName.trim(), quantity: bulkQty, category: bulkCategory, status: bulkStatus };
+      let successCount = 0;
+      let skipCount = 0;
+      let newTeamCount = 0;
+      for (const teamName of TEAMS) {
+        const existingRecord = statusRecords?.find(r => { try { return (JSON.parse(r.content) as TeamData).team === teamName; } catch { return false; } });
+        if (existingRecord) {
+          const parsed = JSON.parse(existingRecord.content) as TeamData;
+          if (parsed.items?.find(i => i.name === bulkName.trim())) { skipCount++; continue; }
+          const newItems = [...(parsed.items || []), newItem];
+          const contentData = JSON.stringify({ team: teamName, items: newItems, lastUpdated: new Date().toISOString() });
+          await new Promise<void>(resolve => updateRecord({ id: existingRecord.id, title: existingRecord.title, content: contentData }, { onSuccess: () => { successCount++; resolve(); }, onError: () => resolve() }));
+        } else {
+          const initItems = DEFAULT_EQUIPMENT_LIST.map(d => ({ ...d }));
+          if (!initItems.find(i => i.name === newItem.name)) initItems.push(newItem);
+          const contentData = JSON.stringify({ team: teamName, items: initItems, lastUpdated: new Date().toISOString() });
+          await new Promise<void>(resolve => createRecord({ title: `${teamName} 보호구 현황`, content: contentData, category: "equip_status" }, { onSuccess: () => { newTeamCount++; successCount++; resolve(); }, onError: () => resolve() }));
+        }
+      }
+      queryClient.invalidateQueries({ queryKey: ['/api/notices'] });
+      const desc = [`전체 ${TEAMS.length}개 팀`, `추가 완료: ${successCount}개 팀`, skipCount > 0 ? `이미 존재: ${skipCount}개 팀` : null, newTeamCount > 0 ? `신규 생성: ${newTeamCount}개 팀` : null].filter(Boolean).join(" / ");
+      toast({ title: "팀별 전체 등록 완료", description: desc });
+      setBulkName(""); setBulkQty(0); setBulkStatus("등록");
+    } finally {
+      setIsBulkSaving(false);
+    }
+  };
+
+  const openAddDialog = (tab: string) => { setAddDialogTab(tab); setAddDialogOpen(true); };
 
   return (
     <div className={embedded ? "space-y-4" : "max-w-7xl mx-auto space-y-6"}>
-      <div className="flex items-center gap-4">
+      {/* ── 툴바 ── */}
+      <div className="flex items-center gap-2 flex-wrap">
         {!embedded && (
           <Link href="/equipment">
-            <Button variant="ghost" size="icon" className="shrink-0" data-testid="button-back">
-              <ChevronLeft className="w-5 h-5" />
-            </Button>
+            <Button variant="ghost" size="icon" className="shrink-0" data-testid="button-back"><ChevronLeft className="w-5 h-5" /></Button>
           </Link>
         )}
         {!embedded && (
           <div className="flex-1">
             <h2 className="text-2xl font-bold">등록 현황</h2>
-            <p className="text-sm text-muted-foreground">
-              <span className="text-blue-600">등록</span> / <span className="text-green-600">양호</span> / <span className="text-red-600">불량</span>
-            </p>
+            <p className="text-xs text-muted-foreground"><span className="text-blue-600">등록</span> / <span className="text-green-600">양호</span> / <span className="text-red-600">불량</span></p>
           </div>
         )}
         {embedded && <div className="flex-1" />}
-        <Select value={selectedTeam} onValueChange={(val) => { setSelectedTeam(val); setEditMode(false); }}>
-          <SelectTrigger className={embedded ? "w-[140px] h-8 text-xs" : "w-[200px]"} data-testid="select-team">
+
+        <Select value={selectedTeam} onValueChange={val => { setSelectedTeam(val); setEditMode(false); setEditingRowIndex(null); }}>
+          <SelectTrigger className={embedded ? "w-[140px] h-8 text-xs" : "w-[180px]"} data-testid="select-team">
             <SelectValue placeholder="팀 선택" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">전체</SelectItem>
-            {TEAMS.map(team => (
-              <SelectItem key={team} value={team}>{team}</SelectItem>
-            ))}
+            {TEAMS.map(team => <SelectItem key={team} value={team}>{team}</SelectItem>)}
           </SelectContent>
         </Select>
+
         {canEditEquipmentStatus && selectedTeam && selectedTeam !== "all" && (
-          <Button 
-            variant={editMode ? "default" : "outline"}
-            onClick={() => { setEditMode(!editMode); setBulkAddMode(false); }}
-            className="gap-2"
-            data-testid="button-edit-mode"
-          >
+          <Button variant={editMode ? "default" : "outline"} onClick={() => { setEditMode(!editMode); setEditingRowIndex(null); }} className="gap-2" data-testid="button-edit-mode">
             <Edit2 className="w-4 h-4" />
             {editMode ? "편집 중" : "편집"}
           </Button>
         )}
+
         {canEditEquipmentStatus && (
-          <Button 
-            variant={bulkAddMode ? "default" : "outline"}
-            onClick={() => { setBulkAddMode(!bulkAddMode); setEditMode(false); }}
-            className="gap-2"
-            data-testid="button-bulk-add"
-          >
-            <Plus className="w-4 h-4" />
-            일괄 추가
-          </Button>
+          <>
+            <Button variant="outline" onClick={() => openAddDialog("single")} className="gap-2 border-primary/40 text-primary hover:bg-primary/5" data-testid="button-single-add">
+              <User className="w-4 h-4" />
+              단일 등록
+            </Button>
+            <Button variant="outline" onClick={() => openAddDialog("bulk")} className="gap-2 border-green-500/40 text-green-700 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-950/20" data-testid="button-bulk-add">
+              <Users className="w-4 h-4" />
+              팀별 전체 등록
+            </Button>
+          </>
         )}
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleExcelUpload}
-          accept=".xlsx,.xls"
-          className="hidden"
-          data-testid="input-equipment-upload"
-        />
+
+        <input type="file" ref={fileInputRef} onChange={handleExcelUpload} accept=".xlsx,.xls" className="hidden" data-testid="input-equipment-upload" />
         {canEditEquipmentStatus && (
-          <Button 
-            variant="outline"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isUploading}
-            className="gap-2"
-            data-testid="button-upload-equipment"
-          >
+          <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isUploading} className="gap-2" data-testid="button-upload-equipment">
             <Upload className="w-4 h-4" />
             엑셀 업로드
           </Button>
         )}
         {canDownloadEquipmentExcel && (
-          <Button 
-            variant="secondary"
-            onClick={handleExcelDownload}
-            className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
-            data-testid="button-download-equipment"
-          >
+          <Button variant="secondary" onClick={handleExcelDownload} className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white" data-testid="button-download-equipment">
             <Download className="w-4 h-4" />
             엑셀 다운로드
           </Button>
         )}
       </div>
 
+      {/* ── 현황 카드 그리드 ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-1 max-h-[600px] overflow-hidden flex flex-col">
           <CardHeader className="border-b pb-3">
             <div className="flex items-center gap-2 flex-wrap">
-              <Button 
-                variant={!selectedCategory ? "default" : "outline"} 
-                size="sm"
-                onClick={() => setSelectedCategory(null)}
-              >
-                전체
-              </Button>
+              <Button variant={!selectedCategory ? "default" : "outline"} size="sm" onClick={() => setSelectedCategory(null)}>전체</Button>
               {CATEGORIES.map(cat => (
-                <Button 
-                  key={cat.id}
-                  variant={selectedCategory === cat.id ? "default" : "outline"} 
-                  size="sm"
-                  onClick={() => setSelectedCategory(cat.id)}
-                  className="gap-1"
-                >
-                  <cat.icon className="w-3 h-3" />
-                  {cat.label}
+                <Button key={cat.id} variant={selectedCategory === cat.id ? "default" : "outline"} size="sm" onClick={() => setSelectedCategory(cat.id)} className="gap-1">
+                  <cat.icon className="w-3 h-3" />{cat.label}
                 </Button>
               ))}
             </div>
           </CardHeader>
           <CardContent className="flex-1 overflow-y-auto p-2">
-            <EquipmentListItem
-              name="전체"
-              totalQuantity={categoryStats.totalQuantity}
-              registeredQty={categoryStats.registeredQty}
-              goodQty={categoryStats.goodQty}
-              badQty={categoryStats.badQty}
-              isSelected={!selectedCategory}
-              onClick={() => setSelectedCategory(null)}
-              icon={HardHat}
-            />
+            <EquipmentListItem name="전체" totalQuantity={categoryStats.totalQuantity} registeredQty={categoryStats.registeredQty} goodQty={categoryStats.goodQty} badQty={categoryStats.badQty} isSelected={!selectedCategory} onClick={() => setSelectedCategory(null)} icon={HardHat} />
             <div className="border-t my-2" />
             {filteredCategories.map((item, idx) => {
               const categoryInfo = CATEGORIES.find(c => c.id === item.category);
-              return (
-                <EquipmentListItem
-                  key={idx}
-                  name={item.name}
-                  totalQuantity={item.totalQuantity}
-                  registeredQty={item.registeredQty}
-                  goodQty={item.goodQty}
-                  badQty={item.badQty}
-                  isSelected={false}
-                  onClick={() => {}}
-                  icon={categoryInfo?.icon}
-                />
-              );
+              return <EquipmentListItem key={idx} name={item.name} totalQuantity={item.totalQuantity} registeredQty={item.registeredQty} goodQty={item.goodQty} badQty={item.badQty} isSelected={false} onClick={() => {}} icon={categoryInfo?.icon} />;
             })}
-            {filteredCategories.length === 0 && (
-              <div className="text-center py-8 text-muted-foreground">
-                등록된 보호구가 없습니다.
-              </div>
-            )}
+            {filteredCategories.length === 0 && <div className="text-center py-8 text-muted-foreground">등록된 보호구가 없습니다.</div>}
           </CardContent>
         </Card>
 
         <Card className="lg:col-span-2">
           <CardHeader className="border-b">
-            <CardTitle className="text-lg">
-              {selectedCategory || "전체"} 현황
-            </CardTitle>
+            <CardTitle className="text-lg">{selectedCategory || "전체"} 현황</CardTitle>
           </CardHeader>
           <CardContent className="p-3 sm:p-6">
             <div className="grid grid-cols-3 gap-2 sm:gap-6 mb-4 sm:mb-8">
-              <CircularProgress 
-                value={categoryStats.registeredQty} 
-                max={categoryStats.totalQuantity || 1} 
-                color="#3b82f6" 
-                label="등록"
-                size={90}
-              />
-              <CircularProgress 
-                value={categoryStats.goodQty} 
-                max={categoryStats.totalQuantity || 1} 
-                color="#22c55e" 
-                label="양호"
-                size={90}
-              />
-              <CircularProgress 
-                value={categoryStats.badQty} 
-                max={categoryStats.totalQuantity || 1} 
-                color="#ef4444" 
-                label="불량"
-                size={90}
-              />
+              <CircularProgress value={categoryStats.registeredQty} max={categoryStats.totalQuantity || 1} color="#3b82f6" label="등록" size={90} />
+              <CircularProgress value={categoryStats.goodQty} max={categoryStats.totalQuantity || 1} color="#22c55e" label="양호" size={90} />
+              <CircularProgress value={categoryStats.badQty} max={categoryStats.totalQuantity || 1} color="#ef4444" label="불량" size={90} />
             </div>
-
             <div className="grid grid-cols-3 gap-2 sm:gap-4 text-center border-t pt-4 sm:pt-6">
-              <div>
-                <div className="text-xl sm:text-3xl font-bold text-blue-600">{categoryStats.registeredQty}</div>
-                <div className="text-xs sm:text-sm text-muted-foreground">등록</div>
-              </div>
-              <div>
-                <div className="text-xl sm:text-3xl font-bold text-green-600">{categoryStats.goodQty}</div>
-                <div className="text-xs sm:text-sm text-muted-foreground">양호</div>
-              </div>
-              <div>
-                <div className="text-xl sm:text-3xl font-bold text-red-600">{categoryStats.badQty}</div>
-                <div className="text-xs sm:text-sm text-muted-foreground">불량</div>
-              </div>
+              <div><div className="text-xl sm:text-3xl font-bold text-blue-600">{categoryStats.registeredQty}</div><div className="text-xs sm:text-sm text-muted-foreground">등록</div></div>
+              <div><div className="text-xl sm:text-3xl font-bold text-green-600">{categoryStats.goodQty}</div><div className="text-xs sm:text-sm text-muted-foreground">양호</div></div>
+              <div><div className="text-xl sm:text-3xl font-bold text-red-600">{categoryStats.badQty}</div><div className="text-xs sm:text-sm text-muted-foreground">불량</div></div>
             </div>
           </CardContent>
         </Card>
       </div>
 
+      {/* ── 팀 편집 패널 ── */}
       {editMode && selectedTeam && selectedTeam !== "all" && (
         <Card className="border-amber-200 dark:border-amber-900/30">
           <CardHeader className="bg-amber-50/50 dark:bg-amber-900/10 border-b flex flex-row items-center justify-between gap-4">
             <CardTitle className="text-lg">{selectedTeam} 보호구 편집</CardTitle>
-            <Button 
-              onClick={handleSave} 
-              disabled={isCreating || isUpdating}
-              className="bg-amber-600 hover:bg-amber-700 text-white gap-2"
-              data-testid="button-save"
-            >
-              <Save className="w-4 h-4" />
-              {isCreating || isUpdating ? "저장 중..." : "저장"}
-            </Button>
-          </CardHeader>
-          <CardContent className="p-4 space-y-4">
-            <div className="p-3 bg-muted/30 rounded-lg border flex flex-wrap gap-2 items-center">
-              <Select value={newItemCategory} onValueChange={setNewItemCategory}>
-                <SelectTrigger className="w-[140px]" data-testid="select-new-category">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CATEGORIES.map(cat => (
-                    <SelectItem key={cat.id} value={cat.id}>{cat.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Input 
-                placeholder="새 용품명" 
-                value={newItemName} 
-                onChange={e => setNewItemName(e.target.value)}
-                className="flex-1 min-w-[200px]"
-                data-testid="input-new-item"
-                onKeyDown={e => e.key === 'Enter' && handleAddItem()}
-              />
-              <Button onClick={handleAddItem} disabled={!newItemName.trim()} className="gap-1" data-testid="button-add-item">
-                <Plus className="w-4 h-4" /> 추가
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => { setEditMode(false); setEditingRowIndex(null); }}>취소</Button>
+              <Button onClick={handleSave} disabled={isCreating || isUpdating} className="bg-amber-600 hover:bg-amber-700 text-white gap-2" data-testid="button-save">
+                <Save className="w-4 h-4" />{isCreating || isUpdating ? "저장 중..." : "저장"}
               </Button>
             </div>
-
-            <div className="border rounded-lg overflow-hidden max-h-[400px] overflow-y-auto">
+          </CardHeader>
+          <CardContent className="p-4">
+            <div className="border rounded-lg overflow-hidden max-h-[500px] overflow-y-auto">
               <table className="w-full text-sm">
                 <thead className="bg-muted/50 sticky top-0">
                   <tr>
-                    <th className="p-2 text-left font-medium">구분</th>
-                    <th className="p-2 text-left font-medium">용품명</th>
-                    <th className="p-2 text-center font-medium w-24">수량</th>
-                    <th className="p-2 text-center font-medium w-28">상태</th>
-                    <th className="p-2 w-12"></th>
+                    <th className="p-2 text-left font-medium text-xs">구분</th>
+                    <th className="p-2 text-left font-medium text-xs">용품명</th>
+                    <th className="p-2 text-center font-medium text-xs w-24">수량</th>
+                    <th className="p-2 text-center font-medium text-xs w-28">상태</th>
+                    <th className="p-2 w-16 text-xs text-center">관리</th>
                   </tr>
                 </thead>
                 <tbody>
                   {equipmentList.map((item, index) => (
-                    <tr key={index} className="border-t hover:bg-muted/20">
+                    <tr key={index} className={`border-t transition-colors ${editingRowIndex === index ? "bg-amber-50/60 dark:bg-amber-900/10" : "hover:bg-muted/20"}`}>
                       <td className="p-2">
-                        <Select value={item.category} onValueChange={val => handleCategoryChange(index, val)}>
-                          <SelectTrigger className="h-8 text-xs w-24">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {CATEGORIES.map(cat => (
-                              <SelectItem key={cat.id} value={cat.id}>{cat.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        {editingRowIndex === index ? (
+                          <Select value={item.category} onValueChange={val => handleCategoryChange(index, val)}>
+                            <SelectTrigger className="h-8 text-xs w-24"><SelectValue /></SelectTrigger>
+                            <SelectContent>{CATEGORIES.map(cat => <SelectItem key={cat.id} value={cat.id}>{cat.label}</SelectItem>)}</SelectContent>
+                          </Select>
+                        ) : (
+                          <Badge variant="outline" className="text-xs">{item.category}</Badge>
+                        )}
                       </td>
-                      <td className="p-2 font-medium">{item.name}</td>
+                      <td className="p-2 font-medium text-sm">{item.name}</td>
                       <td className="p-2 text-center">
-                        <Input
-                          type="number"
-                          min="0"
-                          value={item.quantity}
-                          onChange={e => handleQuantityChange(index, e.target.value)}
-                          className="w-16 mx-auto text-center h-8"
-                          data-testid={`input-qty-${index}`}
-                        />
+                        {editingRowIndex === index ? (
+                          <Input type="number" min="0" value={item.quantity} onChange={e => handleQuantityChange(index, e.target.value)} className="w-16 mx-auto text-center h-8" data-testid={`input-qty-${index}`} />
+                        ) : (
+                          <span className="tabular-nums font-semibold">{item.quantity}</span>
+                        )}
                       </td>
                       <td className="p-2 text-center">
-                        <Select value={item.status} onValueChange={val => handleStatusChange(index, val)}>
-                          <SelectTrigger 
-                            className={`h-8 text-xs w-20 mx-auto ${
-                              item.status === "양호" ? "text-green-600 bg-green-50" : 
-                              item.status === "불량" ? "text-red-600 bg-red-50" : 
-                              "text-blue-600 bg-blue-50"
-                            }`}
-                            data-testid={`select-status-${index}`}
-                          >
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {STATUS_OPTIONS.map(opt => (
-                              <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        {editingRowIndex === index ? (
+                          <Select value={item.status} onValueChange={val => handleStatusChange(index, val)}>
+                            <SelectTrigger className={`h-8 text-xs w-20 mx-auto ${item.status === "양호" ? "text-green-600 bg-green-50" : item.status === "불량" ? "text-red-600 bg-red-50" : "text-blue-600 bg-blue-50"}`} data-testid={`select-status-${index}`}><SelectValue /></SelectTrigger>
+                            <SelectContent>{STATUS_OPTIONS.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}</SelectContent>
+                          </Select>
+                        ) : (
+                          <Badge variant="outline" className={`text-xs ${item.status === "양호" ? "text-green-600 border-green-300 bg-green-50" : item.status === "불량" ? "text-red-600 border-red-300 bg-red-50" : "text-blue-600 border-blue-300 bg-blue-50"}`}>{item.status}</Badge>
+                        )}
                       </td>
                       <td className="p-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleRemoveItem(index)}
-                          className="h-8 w-8"
-                          data-testid={`button-remove-${index}`}
-                        >
-                          <Trash2 className="w-4 h-4 text-destructive" />
-                        </Button>
+                        <div className="flex gap-1 justify-center">
+                          {editingRowIndex === index ? (
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-amber-600 hover:text-amber-700" onClick={() => setEditingRowIndex(null)} data-testid={`button-confirm-${index}`}>
+                              <CheckCircle2 className="w-4 h-4" />
+                            </Button>
+                          ) : (
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditingRowIndex(index)} data-testid={`button-edit-row-${index}`}>
+                              <Pencil className="w-3.5 h-3.5" />
+                            </Button>
+                          )}
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleRemoveItem(index)} data-testid={`button-remove-${index}`}>
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -810,56 +549,114 @@ export default function EquipmentStatus({ embedded = false }: EquipmentStatusPro
         </Card>
       )}
 
-      {bulkAddMode && (
-        <Card className="border-green-200 dark:border-green-900/30">
-          <CardHeader className="bg-green-50/50 dark:bg-green-900/10 border-b">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Plus className="w-5 h-5 text-green-600" />
-              모든 팀에 용품 일괄 추가
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground mb-4">
-              새 용품을 등록하면 모든 팀(7개 팀)에 동시에 추가됩니다.
-            </p>
-            <div className="flex flex-wrap gap-3 items-center">
-              <Select value={bulkItemCategory} onValueChange={setBulkItemCategory}>
-                <SelectTrigger className="w-[140px]" data-testid="select-bulk-category">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CATEGORIES.map(cat => (
-                    <SelectItem key={cat.id} value={cat.id}>{cat.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Input 
-                placeholder="용품명 입력" 
-                value={bulkItemName} 
-                onChange={e => setBulkItemName(e.target.value)}
-                className="flex-1 min-w-[250px]"
-                data-testid="input-bulk-item"
-                onKeyDown={e => e.key === 'Enter' && handleBulkAdd()}
-              />
-              <Button 
-                onClick={handleBulkAdd} 
-                disabled={!bulkItemName.trim() || isUpdating}
-                className="bg-green-600 hover:bg-green-700 text-white gap-2"
-                data-testid="button-bulk-add-submit"
-              >
-                <Plus className="w-4 h-4" />
-                {isUpdating ? "추가 중..." : "전체 팀에 추가"}
-              </Button>
-              <Button 
-                variant="outline"
-                onClick={() => setBulkAddMode(false)}
-              >
-                취소
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* ── 등록 Dialog ── */}
+      <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <HardHat className="w-5 h-5 text-primary" />
+              보호구 등록
+            </DialogTitle>
+          </DialogHeader>
+
+          <Tabs value={addDialogTab} onValueChange={setAddDialogTab}>
+            <TabsList className="grid grid-cols-2 w-full">
+              <TabsTrigger value="single" className="gap-2" data-testid="tab-single">
+                <User className="w-4 h-4" />단일 등록
+              </TabsTrigger>
+              <TabsTrigger value="bulk" className="gap-2" data-testid="tab-bulk">
+                <Users className="w-4 h-4" />팀별 전체 등록
+              </TabsTrigger>
+            </TabsList>
+
+            {/* 단일 등록 */}
+            <TabsContent value="single" className="space-y-4 pt-3">
+              <p className="text-xs text-muted-foreground">특정 팀에 보호구 항목을 등록합니다.</p>
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">팀 선택 <span className="text-destructive">*</span></label>
+                  <Select value={singleTeam} onValueChange={setSingleTeam}>
+                    <SelectTrigger data-testid="select-single-team"><SelectValue placeholder="팀을 선택하세요" /></SelectTrigger>
+                    <SelectContent>{TEAMS.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">카테고리</label>
+                  <Select value={singleCategory} onValueChange={setSingleCategory}>
+                    <SelectTrigger data-testid="select-single-category"><SelectValue /></SelectTrigger>
+                    <SelectContent>{CATEGORIES.map(c => <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">용품명 <span className="text-destructive">*</span></label>
+                  <Input placeholder="용품명을 입력하세요" value={singleName} onChange={e => setSingleName(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSingleRegister()} data-testid="input-single-name" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground">수량</label>
+                    <Input type="number" min="0" value={singleQty} onChange={e => setSingleQty(parseInt(e.target.value) || 0)} data-testid="input-single-qty" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground">상태</label>
+                    <Select value={singleStatus} onValueChange={setSingleStatus}>
+                      <SelectTrigger data-testid="select-single-status"><SelectValue /></SelectTrigger>
+                      <SelectContent>{STATUS_OPTIONS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setAddDialogOpen(false)}>취소</Button>
+                <Button onClick={handleSingleRegister} disabled={isSingleSaving || !singleTeam || !singleName.trim()} className="gap-2" data-testid="button-single-submit">
+                  <Plus className="w-4 h-4" />{isSingleSaving ? "등록 중..." : "등록"}
+                </Button>
+              </DialogFooter>
+            </TabsContent>
+
+            {/* 팀별 전체 등록 */}
+            <TabsContent value="bulk" className="space-y-4 pt-3">
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900/40">
+                <Users className="w-4 h-4 text-green-600 mt-0.5 shrink-0" />
+                <p className="text-xs text-green-700 dark:text-green-400">
+                  전체 <strong>{TEAMS.length}개 팀</strong>에 동일한 보호구 항목을 일괄 등록합니다. 이미 존재하는 팀은 건너뜁니다.
+                </p>
+              </div>
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">카테고리</label>
+                  <Select value={bulkCategory} onValueChange={setBulkCategory}>
+                    <SelectTrigger data-testid="select-bulk-category"><SelectValue /></SelectTrigger>
+                    <SelectContent>{CATEGORIES.map(c => <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">용품명 <span className="text-destructive">*</span></label>
+                  <Input placeholder="전체 팀에 추가할 용품명" value={bulkName} onChange={e => setBulkName(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleBulkRegister()} data-testid="input-bulk-name" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground">초기 수량</label>
+                    <Input type="number" min="0" value={bulkQty} onChange={e => setBulkQty(parseInt(e.target.value) || 0)} data-testid="input-bulk-qty" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground">초기 상태</label>
+                    <Select value={bulkStatus} onValueChange={setBulkStatus}>
+                      <SelectTrigger data-testid="select-bulk-status"><SelectValue /></SelectTrigger>
+                      <SelectContent>{STATUS_OPTIONS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setAddDialogOpen(false)}>취소</Button>
+                <Button onClick={handleBulkRegister} disabled={isBulkSaving || !bulkName.trim()} className="gap-2 bg-green-600 hover:bg-green-700 text-white" data-testid="button-bulk-submit">
+                  <Users className="w-4 h-4" />{isBulkSaving ? "등록 중..." : `전체 ${TEAMS.length}개 팀에 등록`}
+                </Button>
+              </DialogFooter>
+            </TabsContent>
+          </Tabs>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
