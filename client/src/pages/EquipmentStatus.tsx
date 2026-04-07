@@ -142,7 +142,8 @@ export default function EquipmentStatus({ embedded = false }: EquipmentStatusPro
   // 팀별 전체 등록
   const [bulkCategory, setBulkCategory] = useState("보호구");
   const [bulkName, setBulkName] = useState("");
-  const [bulkQty, setBulkQty] = useState(0);
+  const [bulkTeamQtys, setBulkTeamQtys] = useState<Record<string, number>>(() => Object.fromEntries(TEAMS.map(t => [t, 0])));
+  const [bulkAllQty, setBulkAllQty] = useState(0);
   const [bulkStatus, setBulkStatus] = useState("등록");
   const [isBulkSaving, setIsBulkSaving] = useState(false);
 
