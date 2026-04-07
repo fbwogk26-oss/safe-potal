@@ -6,7 +6,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { HardHat, Plus, Trash2, ChevronLeft, Save, Edit2, Cone, Package, Download, Upload, Users, User, Pencil, X, CheckCircle2 } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { HardHat, Plus, Trash2, ChevronLeft, Save, Edit2, Cone, Package, Download, Upload, Users, User, Pencil, X, CheckCircle2, FileSpreadsheet, ChevronDown } from "lucide-react";
 import { useState, useEffect, useMemo, useRef } from "react";
 import ExcelJS from "exceljs";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -490,57 +491,105 @@ export default function EquipmentStatus({ embedded = false }: EquipmentStatusPro
   return (
     <div className={embedded ? "space-y-4" : "max-w-7xl mx-auto space-y-6"}>
       {/* ── 툴바 ── */}
-      <div className="flex items-center gap-2 flex-wrap">
+      <div className="space-y-2">
+        {/* 제목 행 */}
         {!embedded && (
-          <Link href="/equipment">
-            <Button variant="ghost" size="icon" className="shrink-0" data-testid="button-back"><ChevronLeft className="w-5 h-5" /></Button>
-          </Link>
-        )}
-        {!embedded && (
-          <div className="flex-1">
-            <h2 className="text-2xl font-bold">등록 현황</h2>
-            <p className="text-xs text-muted-foreground"><span className="text-blue-600">등록</span> / <span className="text-green-600">양호</span> / <span className="text-red-600">불량</span></p>
+          <div className="flex items-center gap-2">
+            <Link href="/equipment">
+              <Button variant="ghost" size="icon" className="shrink-0" data-testid="button-back">
+                <ChevronLeft className="w-5 h-5" />
+              </Button>
+            </Link>
+            <div>
+              <h2 className="text-xl sm:text-2xl font-bold">보호구 현황</h2>
+              <p className="text-xs text-muted-foreground">
+                <span className="text-blue-600">등록</span>
+                {" / "}
+                <span className="text-green-600">양호</span>
+                {" / "}
+                <span className="text-red-600">불량</span>
+              </p>
+            </div>
           </div>
         )}
-        {embedded && <div className="flex-1" />}
 
-        <Select value={selectedTeam} onValueChange={val => { setSelectedTeam(val); setEditMode(false); setEditingRowIndex(null); }}>
-          <SelectTrigger className={embedded ? "w-[140px] h-8 text-xs" : "w-[180px]"} data-testid="select-team">
-            <SelectValue placeholder="팀 선택" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">전체</SelectItem>
-            {TEAMS.map(team => <SelectItem key={team} value={team}>{team}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        {/* 액션 행 */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {embedded && <div className="flex-1" />}
 
-        {canEditEquipmentStatus && selectedTeam && selectedTeam !== "all" && (
-          <Button variant={editMode ? "default" : "outline"} onClick={() => { setEditMode(!editMode); setEditingRowIndex(null); }} className="gap-2" data-testid="button-edit-mode">
-            <Edit2 className="w-4 h-4" />
-            {editMode ? "편집 중" : "편집"}
-          </Button>
-        )}
+          {/* 팀 선택 */}
+          <Select value={selectedTeam} onValueChange={val => { setSelectedTeam(val); setEditMode(false); setEditingRowIndex(null); }}>
+            <SelectTrigger className="w-[130px] sm:w-[160px] h-9 text-sm" data-testid="select-team">
+              <SelectValue placeholder="팀 선택" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">전체</SelectItem>
+              {TEAMS.map(team => <SelectItem key={team} value={team}>{team}</SelectItem>)}
+            </SelectContent>
+          </Select>
 
-        {canEditEquipmentStatus && (
-          <Button onClick={() => openAddDialog("single")} className="gap-2" data-testid="button-open-add-dialog">
-            <Plus className="w-4 h-4" />
-            보호구 등록
-          </Button>
-        )}
+          {/* 편집 버튼 */}
+          {canEditEquipmentStatus && selectedTeam && selectedTeam !== "all" && (
+            <Button
+              variant={editMode ? "default" : "outline"}
+              size="sm"
+              onClick={() => { setEditMode(!editMode); setEditingRowIndex(null); }}
+              className="h-9 gap-1.5"
+              data-testid="button-edit-mode"
+            >
+              <Edit2 className="w-3.5 h-3.5 shrink-0" />
+              <span className="hidden sm:inline">{editMode ? "편집 중" : "편집"}</span>
+            </Button>
+          )}
 
-        <input type="file" ref={fileInputRef} onChange={handleExcelUpload} accept=".xlsx,.xls" className="hidden" data-testid="input-equipment-upload" />
-        {canEditEquipmentStatus && (
-          <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isUploading} className="gap-2" data-testid="button-upload-equipment">
-            <Upload className="w-4 h-4" />
-            엑셀 업로드
-          </Button>
-        )}
-        {canDownloadEquipmentExcel && (
-          <Button variant="secondary" onClick={handleExcelDownload} className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white" data-testid="button-download-equipment">
-            <Download className="w-4 h-4" />
-            엑셀 다운로드
-          </Button>
-        )}
+          {/* 보호구 등록 */}
+          {canEditEquipmentStatus && (
+            <Button
+              size="sm"
+              onClick={() => openAddDialog("single")}
+              className="h-9 gap-1.5"
+              data-testid="button-open-add-dialog"
+            >
+              <Plus className="w-3.5 h-3.5 shrink-0" />
+              <span className="hidden sm:inline">보호구 등록</span>
+            </Button>
+          )}
+
+          {/* 엑셀 업로드/다운로드 드롭다운 */}
+          <input type="file" ref={fileInputRef} onChange={handleExcelUpload} accept=".xlsx,.xls" className="hidden" data-testid="input-equipment-upload" />
+          {(canEditEquipmentStatus || canDownloadEquipmentExcel) && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="h-9 gap-1.5" data-testid="button-excel-menu">
+                  <FileSpreadsheet className="w-3.5 h-3.5 shrink-0" />
+                  <span className="hidden sm:inline">엑셀</span>
+                  <ChevronDown className="w-3 h-3 shrink-0" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44">
+                {canEditEquipmentStatus && (
+                  <DropdownMenuItem
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploading}
+                    data-testid="button-upload-equipment"
+                  >
+                    <Upload className="w-4 h-4 mr-2 text-blue-500" />
+                    {isUploading ? "업로드 중..." : "엑셀 업로드"}
+                  </DropdownMenuItem>
+                )}
+                {canEditEquipmentStatus && canDownloadEquipmentExcel && (
+                  <DropdownMenuSeparator />
+                )}
+                {canDownloadEquipmentExcel && (
+                  <DropdownMenuItem onClick={handleExcelDownload} data-testid="button-download-equipment">
+                    <Download className="w-4 h-4 mr-2 text-emerald-600" />
+                    엑셀 다운로드
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
       </div>
 
       {/* ── 현황 카드 그리드 ── */}
@@ -589,18 +638,21 @@ export default function EquipmentStatus({ embedded = false }: EquipmentStatusPro
       {/* ── 팀 편집 패널 ── */}
       {editMode && selectedTeam && selectedTeam !== "all" && (
         <Card className="border-amber-200 dark:border-amber-900/30">
-          <CardHeader className="bg-amber-50/50 dark:bg-amber-900/10 border-b flex flex-row items-center justify-between gap-4">
-            <CardTitle className="text-lg">{selectedTeam} 보호구 편집</CardTitle>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => { setEditMode(false); setEditingRowIndex(null); }}>취소</Button>
-              <Button onClick={handleSave} disabled={isCreating || isUpdating} className="bg-amber-600 hover:bg-amber-700 text-white gap-2" data-testid="button-save">
-                <Save className="w-4 h-4" />{isCreating || isUpdating ? "저장 중..." : "저장"}
-              </Button>
+          <CardHeader className="bg-amber-50/50 dark:bg-amber-900/10 border-b py-3 px-4">
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="text-base sm:text-lg truncate">{selectedTeam} 편집</CardTitle>
+              <div className="flex gap-1.5 shrink-0">
+                <Button variant="outline" size="sm" onClick={() => { setEditMode(false); setEditingRowIndex(null); }}>취소</Button>
+                <Button size="sm" onClick={handleSave} disabled={isCreating || isUpdating} className="bg-amber-600 hover:bg-amber-700 text-white gap-1.5" data-testid="button-save">
+                  <Save className="w-3.5 h-3.5" />
+                  <span>{isCreating || isUpdating ? "저장 중..." : "저장"}</span>
+                </Button>
+              </div>
             </div>
           </CardHeader>
-          <CardContent className="p-4">
-            <div className="border rounded-lg overflow-hidden max-h-[500px] overflow-y-auto">
-              <table className="w-full text-sm">
+          <CardContent className="p-2 sm:p-4">
+            <div className="border rounded-lg overflow-hidden max-h-[500px] overflow-y-auto overflow-x-auto">
+              <table className="w-full text-sm min-w-[480px]">
                 <thead className="bg-muted/50 sticky top-0">
                   <tr>
                     <th className="p-2 text-left font-medium text-xs">구분</th>
