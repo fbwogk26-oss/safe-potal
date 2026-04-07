@@ -24,7 +24,7 @@ const CATEGORIES = [
   { id: "기타품목", label: "기타품목", icon: Package },
 ];
 
-const STATUS_OPTIONS = ["등록", "양호", "불량"];
+const STATUS_OPTIONS = ["양호", "불량"];
 
 const DEFAULT_EQUIPMENT_LIST = [
   { name: "안전모(일반)", quantity: 0, category: "보호구", status: "등록" },
@@ -34,7 +34,7 @@ const DEFAULT_EQUIPMENT_LIST = [
   { name: "안전장화", quantity: 0, category: "보호구", status: "등록" },
   { name: "안전대(복합식)", quantity: 0, category: "보호구", status: "등록" },
   { name: "절연장갑", quantity: 0, category: "보호구", status: "등록" },
-  { name: "안전모(임업)", quantity: 0, category: "보호구", status: "등록" },
+  { name: "안전모(입회)", quantity: 0, category: "보호구", status: "양호" },
   { name: "안전모(신호수)", quantity: 0, category: "보호구", status: "등록" },
   { name: "추락방지대(로프식)", quantity: 0, category: "보호구", status: "등록" },
   { name: "추락방지대(와이어식)", quantity: 0, category: "보호구", status: "등록" },
@@ -65,7 +65,9 @@ interface TeamData {
 }
 
 function CircularProgress({ value, max, color, label, size = 120 }: { value: number; max: number; color: string; label: string; size?: number }) {
-  const percentage = max > 0 ? (value / max) * 100 : 0;
+  const safeValue = Number.isFinite(value) ? value : 0;
+  const safeMax = Number.isFinite(max) && max > 0 ? max : 1;
+  const percentage = (safeValue / safeMax) * 100;
   const strokeWidth = 8;
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
@@ -79,7 +81,7 @@ function CircularProgress({ value, max, color, label, size = 120 }: { value: num
           <circle cx={size / 2} cy={size / 2} r={radius} stroke={color} strokeWidth={strokeWidth} fill="transparent" strokeDasharray={circumference} strokeDashoffset={strokeDashoffset} strokeLinecap="round" className="transition-all duration-500" />
         </svg>
         <div className="absolute inset-0 flex items-center justify-center">
-          <span className="text-3xl font-bold">{value}</span>
+          <span className="text-3xl font-bold">{safeValue}</span>
         </div>
       </div>
       <span className="mt-2 text-sm font-medium text-muted-foreground">{label}</span>
@@ -87,7 +89,7 @@ function CircularProgress({ value, max, color, label, size = 120 }: { value: num
   );
 }
 
-function EquipmentListItem({ name, totalQuantity, registeredQty, goodQty, badQty, isSelected, onClick, icon: Icon }: { name: string; totalQuantity: number; registeredQty: number; goodQty: number; badQty: number; isSelected: boolean; onClick: () => void; icon?: any; }) {
+function EquipmentListItem({ name, totalQuantity, goodQty, badQty, isSelected, onClick, icon: Icon }: { name: string; totalQuantity: number; goodQty: number; badQty: number; isSelected: boolean; onClick: () => void; icon?: any; }) {
   return (
     <motion.div onClick={onClick} className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all ${isSelected ? "bg-primary/10 border-l-4 border-primary" : "hover:bg-muted/50"}`} whileHover={{ x: 4 }}>
       <div className="w-10 h-10 rounded-full bg-muted/50 flex items-center justify-center">
@@ -97,11 +99,9 @@ function EquipmentListItem({ name, totalQuantity, registeredQty, goodQty, badQty
         <p className="font-medium truncate">{name}</p>
         <p className="text-sm">
           <span className="text-foreground font-semibold">{totalQuantity}개</span>
-          <span className="text-muted-foreground"> (</span>
-          <span className="text-blue-600">{registeredQty}</span>
-          <span className="text-muted-foreground"> / </span>
+          <span className="text-muted-foreground"> (양호 </span>
           <span className="text-green-600">{goodQty}</span>
-          <span className="text-muted-foreground"> / </span>
+          <span className="text-muted-foreground"> / 불량 </span>
           <span className="text-red-600">{badQty}</span>
           <span className="text-muted-foreground">)</span>
         </p>
@@ -138,14 +138,14 @@ export default function EquipmentStatus({ embedded = false }: EquipmentStatusPro
   const [singleCategory, setSingleCategory] = useState("보호구");
   const [singleName, setSingleName] = useState("");
   const [singleQty, setSingleQty] = useState(0);
-  const [singleStatus, setSingleStatus] = useState("등록");
+  const [singleStatus, setSingleStatus] = useState("양호");
   const [isSingleSaving, setIsSingleSaving] = useState(false);
   // 팀별 전체 등록
   const [bulkCategory, setBulkCategory] = useState("보호구");
   const [bulkName, setBulkName] = useState("");
   const [bulkTeamQtys, setBulkTeamQtys] = useState<Record<string, number>>(() => Object.fromEntries(TEAMS.map(t => [t, 0])));
   const [bulkAllQty, setBulkAllQty] = useState(0);
-  const [bulkStatus, setBulkStatus] = useState("등록");
+  const [bulkStatus, setBulkStatus] = useState("양호");
   const [isBulkSaving, setIsBulkSaving] = useState(false);
 
   // 인라인 편집 행
@@ -181,8 +181,10 @@ export default function EquipmentStatus({ embedded = false }: EquipmentStatusPro
         .forEach(n => { if (!sortedItems.find(s => s.name === n)) sortedItems.push({ name: n, category: cat }); });
     });
 
-    // ── 열 너비 설정 ──
-    const TEAM_COLS = TEAMS;
+    // ── 열 너비 설정 (선택된 팀이 있으면 해당 팀 열 앞으로) ──
+    const TEAM_COLS = (selectedTeam && selectedTeam !== "all")
+      ? [selectedTeam, ...TEAMS.filter(t => t !== selectedTeam)]
+      : TEAMS;
     ws.getColumn(1).width = 10;
     ws.getColumn(2).width = 24;
     TEAM_COLS.forEach((_, i) => { ws.getColumn(i + 3).width = 10; });
@@ -306,13 +308,14 @@ export default function EquipmentStatus({ embedded = false }: EquipmentStatusPro
             name: itemName,
             quantity: qty,
             category: lastCategory,
-            status: "등록",
+            status: "양호",
           });
         });
       });
 
       // ── 팀별 저장 ──
       let successCount = 0;
+      const uploadedTeams: string[] = [];
       for (const [teamName, items] of Array.from(teamItemsMap)) {
         if (items.length === 0) continue;
         const existingRecord = statusRecords?.find(r => { try { return (JSON.parse(r.content) as TeamData).team === teamName; } catch { return false; } });
@@ -323,12 +326,21 @@ export default function EquipmentStatus({ embedded = false }: EquipmentStatusPro
           } else {
             await createRecordAsync({ title: `${teamName} 보호구 현황`, content: contentData, category: "equip_status" });
           }
+          uploadedTeams.push(teamName);
           successCount++;
         } catch {
           // 개별 팀 실패는 건너뜀
         }
       }
       await queryClient.refetchQueries({ queryKey: ['/api/notices', 'equip_status'] });
+      // 업로드 후 팀 자동 선택 (현재 팀이 없으면 첫 번째 업로드 팀으로)
+      if (uploadedTeams.length > 0) {
+        const targetTeam = (selectedTeam && selectedTeam !== "all" && uploadedTeams.includes(selectedTeam))
+          ? selectedTeam
+          : uploadedTeams[0];
+        setSelectedTeam(targetTeam);
+        setEditMode(false);
+      }
       toast({ title: "업로드 완료", description: `${successCount}개 팀 데이터가 업데이트되었습니다.` });
     } catch (err) {
       console.error(err);
@@ -353,18 +365,20 @@ export default function EquipmentStatus({ embedded = false }: EquipmentStatusPro
 
   const categoryStats = useMemo(() => {
     const items = selectedCategory ? aggregatedData.filter(i => i.category === selectedCategory) : aggregatedData;
-    const goodQty = items.filter(i => i.status === "양호").reduce((sum, i) => sum + (i.quantity || 0), 0);
+    // "등록" 상태는 "양호"로 통합 표시
+    const goodQty = items.filter(i => i.status !== "불량").reduce((sum, i) => sum + (i.quantity || 0), 0);
     const badQty = items.filter(i => i.status === "불량").reduce((sum, i) => sum + (i.quantity || 0), 0);
-    return { total: items.length, totalQuantity: items.reduce((sum, i) => sum + (i.quantity || 0), 0), registeredQty: goodQty + badQty, goodQty, badQty };
+    return { total: items.length, totalQuantity: items.reduce((sum, i) => sum + (i.quantity || 0), 0), goodQty, badQty };
   }, [aggregatedData, selectedCategory]);
 
   const equipmentCategories = useMemo(() => {
     const uniqueNames = Array.from(new Set(aggregatedData.map(i => i.name)));
     return uniqueNames.map(name => {
       const items = aggregatedData.filter(i => i.name === name);
-      const goodQty = items.filter(i => i.status === "양호").reduce((sum, i) => sum + (i.quantity || 0), 0);
+      // "등록" 상태는 "양호"로 통합 표시
+      const goodQty = items.filter(i => i.status !== "불량").reduce((sum, i) => sum + (i.quantity || 0), 0);
       const badQty = items.filter(i => i.status === "불량").reduce((sum, i) => sum + (i.quantity || 0), 0);
-      return { name, category: items[0]?.category || "기타품목", totalQuantity: items.reduce((sum, i) => sum + (i.quantity || 0), 0), registeredQty: goodQty + badQty, goodQty, badQty };
+      return { name, category: items[0]?.category || "기타품목", totalQuantity: items.reduce((sum, i) => sum + (i.quantity || 0), 0), goodQty, badQty };
     });
   }, [aggregatedData]);
 
@@ -494,6 +508,24 @@ export default function EquipmentStatus({ embedded = false }: EquipmentStatusPro
     }
   };
 
+  // 빠른 양호/불량 토글 (즉시 저장)
+  const handleQuickStatusToggle = async (index: number) => {
+    const newList = [...equipmentList];
+    newList[index] = { ...newList[index], status: newList[index].status === "불량" ? "양호" : "불량" };
+    setEquipmentList(newList);
+    const contentData = JSON.stringify({ team: selectedTeam, items: newList, lastUpdated: new Date().toISOString() });
+    try {
+      if (editingRecordId) {
+        await updateRecordAsync({ id: editingRecordId, title: `${selectedTeam} 보호구 현황`, content: contentData });
+      } else {
+        await createRecordAsync({ title: `${selectedTeam} 보호구 현황`, content: contentData, category: "equip_status" });
+      }
+      await queryClient.refetchQueries({ queryKey: ['/api/notices', 'equip_status'] });
+    } catch {
+      setEquipmentList(equipmentList);
+    }
+  };
+
   const openAddDialog = (tab: string) => { setAddDialogTab(tab); setAddDialogOpen(true); };
 
   return (
@@ -511,11 +543,10 @@ export default function EquipmentStatus({ embedded = false }: EquipmentStatusPro
             <div>
               <h2 className="text-xl sm:text-2xl font-bold">보호구 현황</h2>
               <p className="text-xs text-muted-foreground">
-                <span className="text-blue-600">등록</span>
-                {" / "}
                 <span className="text-green-600">양호</span>
                 {" / "}
                 <span className="text-red-600">불량</span>
+                {" — 상태 뱃지 클릭으로 불량 표시 가능"}
               </p>
             </div>
           </div>
@@ -536,12 +567,13 @@ export default function EquipmentStatus({ embedded = false }: EquipmentStatusPro
             </SelectContent>
           </Select>
 
-          {/* 편집 버튼 */}
-          {canEditEquipmentStatus && selectedTeam && selectedTeam !== "all" && (
+          {/* 편집 버튼 - 항상 표시, 팀 미선택 시 disabled */}
+          {canEditEquipmentStatus && (
             <Button
               variant={editMode ? "default" : "outline"}
               size="sm"
               onClick={() => { setEditMode(!editMode); setEditingRowIndex(null); }}
+              disabled={!selectedTeam || selectedTeam === "all"}
               className="h-9 gap-1.5"
               data-testid="button-edit-mode"
             >
@@ -614,11 +646,11 @@ export default function EquipmentStatus({ embedded = false }: EquipmentStatusPro
             </div>
           </CardHeader>
           <CardContent className="flex-1 overflow-y-auto p-2">
-            <EquipmentListItem name="전체" totalQuantity={categoryStats.totalQuantity} registeredQty={categoryStats.registeredQty} goodQty={categoryStats.goodQty} badQty={categoryStats.badQty} isSelected={!selectedCategory} onClick={() => setSelectedCategory(null)} icon={HardHat} />
+            <EquipmentListItem name="전체" totalQuantity={categoryStats.totalQuantity} goodQty={categoryStats.goodQty} badQty={categoryStats.badQty} isSelected={!selectedCategory} onClick={() => setSelectedCategory(null)} icon={HardHat} />
             <div className="border-t my-2" />
             {filteredCategories.map((item, idx) => {
               const categoryInfo = CATEGORIES.find(c => c.id === item.category);
-              return <EquipmentListItem key={idx} name={item.name} totalQuantity={item.totalQuantity} registeredQty={item.registeredQty} goodQty={item.goodQty} badQty={item.badQty} isSelected={false} onClick={() => {}} icon={categoryInfo?.icon} />;
+              return <EquipmentListItem key={idx} name={item.name} totalQuantity={item.totalQuantity} goodQty={item.goodQty} badQty={item.badQty} isSelected={false} onClick={() => {}} icon={categoryInfo?.icon} />;
             })}
             {filteredCategories.length === 0 && <div className="text-center py-8 text-muted-foreground">등록된 보호구가 없습니다.</div>}
           </CardContent>
@@ -630,18 +662,66 @@ export default function EquipmentStatus({ embedded = false }: EquipmentStatusPro
           </CardHeader>
           <CardContent className="p-3 sm:p-6">
             <div className="grid grid-cols-3 gap-2 sm:gap-6 mb-4 sm:mb-8">
-              <CircularProgress value={categoryStats.registeredQty} max={categoryStats.totalQuantity || 1} color="#3b82f6" label="등록" size={90} />
+              <CircularProgress value={categoryStats.totalQuantity} max={categoryStats.totalQuantity || 1} color="#6366f1" label="총계" size={90} />
               <CircularProgress value={categoryStats.goodQty} max={categoryStats.totalQuantity || 1} color="#22c55e" label="양호" size={90} />
               <CircularProgress value={categoryStats.badQty} max={categoryStats.totalQuantity || 1} color="#ef4444" label="불량" size={90} />
             </div>
             <div className="grid grid-cols-3 gap-2 sm:gap-4 text-center border-t pt-4 sm:pt-6">
-              <div><div className="text-xl sm:text-3xl font-bold text-blue-600">{categoryStats.registeredQty}</div><div className="text-xs sm:text-sm text-muted-foreground">등록</div></div>
+              <div><div className="text-xl sm:text-3xl font-bold text-indigo-600">{categoryStats.totalQuantity}</div><div className="text-xs sm:text-sm text-muted-foreground">총계</div></div>
               <div><div className="text-xl sm:text-3xl font-bold text-green-600">{categoryStats.goodQty}</div><div className="text-xs sm:text-sm text-muted-foreground">양호</div></div>
               <div><div className="text-xl sm:text-3xl font-bold text-red-600">{categoryStats.badQty}</div><div className="text-xs sm:text-sm text-muted-foreground">불량</div></div>
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* ── 팀 현황 테이블 (팀 선택 시, 비편집 모드) - 상태 클릭 즉시 저장 ── */}
+      {selectedTeam && selectedTeam !== "all" && !editMode && equipmentList.length > 0 && (
+        <Card>
+          <CardHeader className="border-b py-3 px-4">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base">{selectedTeam} 보호구 현황 <span className="text-xs font-normal text-muted-foreground">— 상태 클릭으로 불량 전환</span></CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="p-2">
+            <div className="border rounded-lg overflow-hidden max-h-[400px] overflow-y-auto overflow-x-auto">
+              <table className="w-full text-sm min-w-[360px]">
+                <thead className="bg-muted/50 sticky top-0">
+                  <tr>
+                    <th className="p-2 text-left font-medium text-xs">구분</th>
+                    <th className="p-2 text-left font-medium text-xs">용품명</th>
+                    <th className="p-2 text-center font-medium text-xs w-16">수량</th>
+                    <th className="p-2 text-center font-medium text-xs w-24">상태</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {equipmentList.map((item, index) => (
+                    <tr key={index} className="border-t hover:bg-muted/20">
+                      <td className="p-2"><Badge variant="outline" className="text-xs">{item.category}</Badge></td>
+                      <td className="p-2 font-medium">{item.name}</td>
+                      <td className="p-2 text-center tabular-nums font-semibold">{item.quantity}</td>
+                      <td className="p-2 text-center">
+                        <button
+                          onClick={() => handleQuickStatusToggle(index)}
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border transition-colors cursor-pointer hover:opacity-70 active:scale-95 ${
+                            item.status === "불량"
+                              ? "text-red-600 border-red-300 bg-red-50"
+                              : "text-green-600 border-green-300 bg-green-50"
+                          }`}
+                          data-testid={`badge-status-quick-${index}`}
+                          title={item.status === "불량" ? "클릭: 양호로 변경" : "클릭: 불량으로 변경"}
+                        >
+                          {item.status === "불량" ? "불량" : "양호"}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* ── 팀 편집 패널 ── */}
       {editMode && selectedTeam && selectedTeam !== "all" && (
@@ -693,12 +773,23 @@ export default function EquipmentStatus({ embedded = false }: EquipmentStatusPro
                       </td>
                       <td className="p-2 text-center">
                         {editingRowIndex === index ? (
-                          <Select value={item.status} onValueChange={val => handleStatusChange(index, val)}>
-                            <SelectTrigger className={`h-8 text-xs w-20 mx-auto ${item.status === "양호" ? "text-green-600 bg-green-50" : item.status === "불량" ? "text-red-600 bg-red-50" : "text-blue-600 bg-blue-50"}`} data-testid={`select-status-${index}`}><SelectValue /></SelectTrigger>
+                          <Select value={item.status === "등록" ? "양호" : item.status} onValueChange={val => handleStatusChange(index, val)}>
+                            <SelectTrigger className={`h-8 text-xs w-20 mx-auto ${item.status === "불량" ? "text-red-600 bg-red-50" : "text-green-600 bg-green-50"}`} data-testid={`select-status-${index}`}><SelectValue /></SelectTrigger>
                             <SelectContent>{STATUS_OPTIONS.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}</SelectContent>
                           </Select>
                         ) : (
-                          <Badge variant="outline" className={`text-xs ${item.status === "양호" ? "text-green-600 border-green-300 bg-green-50" : item.status === "불량" ? "text-red-600 border-red-300 bg-red-50" : "text-blue-600 border-blue-300 bg-blue-50"}`}>{item.status}</Badge>
+                          <button
+                            onClick={() => handleQuickStatusToggle(index)}
+                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border transition-colors cursor-pointer hover:opacity-70 active:scale-95 ${
+                              item.status === "불량"
+                                ? "text-red-600 border-red-300 bg-red-50"
+                                : "text-green-600 border-green-300 bg-green-50"
+                            }`}
+                            title={item.status === "불량" ? "클릭: 양호로 변경" : "클릭: 불량으로 변경"}
+                            data-testid={`badge-status-edit-${index}`}
+                          >
+                            {item.status === "불량" ? "불량" : "양호"}
+                          </button>
                         )}
                       </td>
                       <td className="p-2">
