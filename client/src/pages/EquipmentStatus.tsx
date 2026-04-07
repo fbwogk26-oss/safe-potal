@@ -335,11 +335,12 @@ export default function EquipmentStatus({ embedded = false }: EquipmentStatusPro
     if (!bulkName.trim()) { toast({ variant: "destructive", title: "용품명을 입력해주세요." }); return; }
     setIsBulkSaving(true);
     try {
-      const newItem: EquipmentItem = { name: bulkName.trim(), quantity: bulkQty, category: bulkCategory, status: bulkStatus };
       let successCount = 0;
       let skipCount = 0;
       let newTeamCount = 0;
       for (const teamName of TEAMS) {
+        const teamQty = bulkTeamQtys[teamName] ?? 0;
+        const newItem: EquipmentItem = { name: bulkName.trim(), quantity: teamQty, category: bulkCategory, status: bulkStatus };
         const existingRecord = statusRecords?.find(r => { try { return (JSON.parse(r.content) as TeamData).team === teamName; } catch { return false; } });
         if (existingRecord) {
           const parsed = JSON.parse(existingRecord.content) as TeamData;
@@ -350,6 +351,7 @@ export default function EquipmentStatus({ embedded = false }: EquipmentStatusPro
         } else {
           const initItems = DEFAULT_EQUIPMENT_LIST.map(d => ({ ...d }));
           if (!initItems.find(i => i.name === newItem.name)) initItems.push(newItem);
+          else { const idx = initItems.findIndex(i => i.name === newItem.name); initItems[idx] = newItem; }
           const contentData = JSON.stringify({ team: teamName, items: initItems, lastUpdated: new Date().toISOString() });
           await new Promise<void>(resolve => createRecord({ title: `${teamName} 보호구 현황`, content: contentData, category: "equip_status" }, { onSuccess: () => { newTeamCount++; successCount++; resolve(); }, onError: () => resolve() }));
         }
@@ -357,7 +359,10 @@ export default function EquipmentStatus({ embedded = false }: EquipmentStatusPro
       queryClient.invalidateQueries({ queryKey: ['/api/notices'] });
       const desc = [`전체 ${TEAMS.length}개 팀`, `추가 완료: ${successCount}개 팀`, skipCount > 0 ? `이미 존재: ${skipCount}개 팀` : null, newTeamCount > 0 ? `신규 생성: ${newTeamCount}개 팀` : null].filter(Boolean).join(" / ");
       toast({ title: "팀별 전체 등록 완료", description: desc });
-      setBulkName(""); setBulkQty(0); setBulkStatus("등록");
+      setBulkName("");
+      setBulkTeamQtys(Object.fromEntries(TEAMS.map(t => [t, 0])));
+      setBulkAllQty(0);
+      setBulkStatus("등록");
     } finally {
       setIsBulkSaving(false);
     }
@@ -400,16 +405,10 @@ export default function EquipmentStatus({ embedded = false }: EquipmentStatusPro
         )}
 
         {canEditEquipmentStatus && (
-          <>
-            <Button variant="outline" onClick={() => openAddDialog("single")} className="gap-2 border-primary/40 text-primary hover:bg-primary/5" data-testid="button-single-add">
-              <User className="w-4 h-4" />
-              단일 등록
-            </Button>
-            <Button variant="outline" onClick={() => openAddDialog("bulk")} className="gap-2 border-green-500/40 text-green-700 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-950/20" data-testid="button-bulk-add">
-              <Users className="w-4 h-4" />
-              팀별 전체 등록
-            </Button>
-          </>
+          <Button onClick={() => openAddDialog("single")} className="gap-2" data-testid="button-open-add-dialog">
+            <Plus className="w-4 h-4" />
+            보호구 등록
+          </Button>
         )}
 
         <input type="file" ref={fileInputRef} onChange={handleExcelUpload} accept=".xlsx,.xls" className="hidden" data-testid="input-equipment-upload" />
@@ -615,14 +614,9 @@ export default function EquipmentStatus({ embedded = false }: EquipmentStatusPro
             </TabsContent>
 
             {/* 팀별 전체 등록 */}
-            <TabsContent value="bulk" className="space-y-4 pt-3">
-              <div className="flex items-start gap-2 p-3 rounded-lg bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900/40">
-                <Users className="w-4 h-4 text-green-600 mt-0.5 shrink-0" />
-                <p className="text-xs text-green-700 dark:text-green-400">
-                  전체 <strong>{TEAMS.length}개 팀</strong>에 동일한 보호구 항목을 일괄 등록합니다. 이미 존재하는 팀은 건너뜁니다.
-                </p>
-              </div>
-              <div className="space-y-3">
+            <TabsContent value="bulk" className="space-y-3 pt-3">
+              {/* 공통 필드 */}
+              <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <label className="text-xs font-medium text-muted-foreground">카테고리</label>
                   <Select value={bulkCategory} onValueChange={setBulkCategory}>
@@ -631,23 +625,67 @@ export default function EquipmentStatus({ embedded = false }: EquipmentStatusPro
                   </Select>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground">용품명 <span className="text-destructive">*</span></label>
-                  <Input placeholder="전체 팀에 추가할 용품명" value={bulkName} onChange={e => setBulkName(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleBulkRegister()} data-testid="input-bulk-name" />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium text-muted-foreground">초기 수량</label>
-                    <Input type="number" min="0" value={bulkQty} onChange={e => setBulkQty(parseInt(e.target.value) || 0)} data-testid="input-bulk-qty" />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium text-muted-foreground">초기 상태</label>
-                    <Select value={bulkStatus} onValueChange={setBulkStatus}>
-                      <SelectTrigger data-testid="select-bulk-status"><SelectValue /></SelectTrigger>
-                      <SelectContent>{STATUS_OPTIONS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
-                    </Select>
-                  </div>
+                  <label className="text-xs font-medium text-muted-foreground">상태</label>
+                  <Select value={bulkStatus} onValueChange={setBulkStatus}>
+                    <SelectTrigger data-testid="select-bulk-status"><SelectValue /></SelectTrigger>
+                    <SelectContent>{STATUS_OPTIONS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                  </Select>
                 </div>
               </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">용품명 <span className="text-destructive">*</span></label>
+                <Input placeholder="전체 팀에 추가할 용품명" value={bulkName} onChange={e => setBulkName(e.target.value)} data-testid="input-bulk-name" />
+              </div>
+
+              {/* 일괄 수량 설정 */}
+              <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/40 border">
+                <span className="text-xs text-muted-foreground whitespace-nowrap">전체 일괄 적용:</span>
+                <Input
+                  type="number" min="0"
+                  value={bulkAllQty}
+                  onChange={e => setBulkAllQty(parseInt(e.target.value) || 0)}
+                  className="h-8 w-20 text-center"
+                  data-testid="input-bulk-all-qty"
+                />
+                <Button
+                  variant="outline" size="sm" className="h-8 text-xs whitespace-nowrap"
+                  onClick={() => setBulkTeamQtys(Object.fromEntries(TEAMS.map(t => [t, bulkAllQty])))}
+                  data-testid="button-apply-all-qty"
+                >
+                  전체 적용
+                </Button>
+              </div>
+
+              {/* 팀별 수량 입력 테이블 */}
+              <div className="border rounded-lg overflow-hidden">
+                <div className="max-h-[260px] overflow-y-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/50 sticky top-0">
+                      <tr>
+                        <th className="p-2 text-left text-xs font-medium text-muted-foreground">팀명</th>
+                        <th className="p-2 text-center text-xs font-medium text-muted-foreground w-24">수량</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {TEAMS.map(team => (
+                        <tr key={team} className="border-t hover:bg-muted/20">
+                          <td className="px-3 py-1.5 text-sm">{team}</td>
+                          <td className="px-3 py-1.5 text-center">
+                            <Input
+                              type="number" min="0"
+                              value={bulkTeamQtys[team] ?? 0}
+                              onChange={e => setBulkTeamQtys(prev => ({ ...prev, [team]: parseInt(e.target.value) || 0 }))}
+                              className="h-7 w-20 mx-auto text-center text-sm"
+                              data-testid={`input-bulk-qty-${team}`}
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
               <DialogFooter>
                 <Button variant="outline" onClick={() => setAddDialogOpen(false)}>취소</Button>
                 <Button onClick={handleBulkRegister} disabled={isBulkSaving || !bulkName.trim()} className="gap-2 bg-green-600 hover:bg-green-700 text-white" data-testid="button-bulk-submit">
