@@ -773,7 +773,7 @@ export default function AccidentReports() {
       </Tabs>
 
       <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) closeDialog(); }}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <div className="flex items-center justify-between gap-3">
               <DialogTitle>{editingId ? "사고보고 수정" : "사고보고 등록 (경위서 양식)"}</DialogTitle>
