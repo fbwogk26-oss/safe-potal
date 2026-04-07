@@ -86,6 +86,19 @@ const excelUpload = multer({
   }
 });
 
+const vehicleExcelUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowedExt = /xlsx|xls|csv/;
+    const allowedMime = /spreadsheet|excel|csv|text\/csv/;
+    const cleanName = file.originalname.replace(/\0/g, "");
+    const ext = allowedExt.test(path.extname(cleanName).toLowerCase());
+    const mime = allowedMime.test(file.mimetype);
+    cb(null, ext || mime);
+  }
+});
+
 function calculateScore(team: any) {
   let score = 100;
   
@@ -3709,7 +3722,7 @@ export async function registerRoutes(
   });
 
   // 차량DB: 엑셀 파일로 전체 교체 (기존 데이터 삭제 후 재등록)
-  app.post('/api/vehicles/upload-excel', requireEditor, upload.single('file'), async (req: any, res) => {
+  app.post('/api/vehicles/upload-excel', requireEditor, vehicleExcelUpload.single('file'), async (req: any, res) => {
     if (!req.file) return res.status(400).json({ message: "파일이 없습니다" });
     try {
       const XLSX = await import("xlsx");
