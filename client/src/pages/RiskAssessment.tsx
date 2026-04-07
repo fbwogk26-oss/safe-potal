@@ -12,7 +12,8 @@ import { Separator } from "@/components/ui/separator";
 import {
   ShieldAlert, Plus, Trash2, Pencil, Camera, X, Info, ClipboardEdit,
   CheckCircle2, Clock, FileDown, Download, CircleCheck, AlertCircle, Users,
-  ChevronRight, ChevronDown, MapPin, Save
+  ChevronRight, ChevronDown, MapPin, Save, Sparkles, ScanSearch, Loader2,
+  Lightbulb, Zap, TriangleAlert, ChevronUp
 } from "lucide-react";
 import { useState, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -161,6 +162,17 @@ export default function RiskAssessmentPage() {
   const [items, setItems] = useState<RiskItem[]>([defaultItem()]);
   const [expandedItemIdx, setExpandedItemIdx] = useState<number>(0);
   const [uploadingPhoto, setUploadingPhoto] = useState<string | null>(null);
+
+  // AI 기능 상태
+  const [aiAnalyzing, setAiAnalyzing] = useState<number | null>(null); // 분석 중인 항목 idx
+  const [aiSuggesting, setAiSuggesting] = useState<number | null>(null); // 대책 추천 중인 항목 idx
+  const [aiPhotoResult, setAiPhotoResult] = useState<Record<number, {
+    hazard: string; hazardType: string; details: string[]; urgency: string; summary: string;
+  }>>({});
+  const [aiMeasuresResult, setAiMeasuresResult] = useState<Record<number, {
+    measures: string[]; relatedLaw: string; priority: string; summary: string;
+  }>>({});
+  const [selectedMeasures, setSelectedMeasures] = useState<Record<number, boolean[]>>({});
 
   const [improvingItem, setImprovingItem] = useState<RiskAssessment | null>(null);
   const [improvementForm, setImprovementForm] = useState({
@@ -347,6 +359,66 @@ export default function RiskAssessmentPage() {
       toast({ variant: "destructive", title: "사진 업로드에 실패했습니다." });
     }
     setUploadingPhoto(null);
+  };
+
+  // AI 사진 분석 함수
+  const analyzePhotoWithAI = async (idx: number, file: File) => {
+    setAiAnalyzing(idx);
+    try {
+      const fd = new FormData();
+      fd.append("photo", file);
+      const res = await fetch("/api/risk-assessments/ai/analyze-photo", { method: "POST", body: fd, credentials: "include" });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.message); }
+      const data = await res.json();
+      setAiPhotoResult(prev => ({ ...prev, [idx]: data }));
+      // 자동 채우기
+      if (data.hazard) updateItem(idx, "hazard", data.hazard);
+      if (data.hazardType && HAZARD_TYPES.includes(data.hazardType)) updateItem(idx, "hazardType", data.hazardType);
+      toast({ title: "✨ AI 사진 분석 완료", description: "위험요인이 자동으로 입력되었습니다" });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "AI 분석 실패", description: e.message });
+    }
+    setAiAnalyzing(null);
+  };
+
+  // AI 감소대책 추천 함수
+  const suggestMeasuresWithAI = async (idx: number) => {
+    const item = items[idx];
+    if (!item.hazardType && !item.hazard) {
+      toast({ variant: "destructive", title: "위험유형 또는 위험요인을 먼저 입력해주세요" }); return;
+    }
+    setAiSuggesting(idx);
+    try {
+      const res = await fetch("/api/risk-assessments/ai/suggest-measures", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ hazardType: item.hazardType, hazard: item.hazard, process: item.process, currentControls: item.currentControls }),
+      });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.message); }
+      const data = await res.json();
+      setAiMeasuresResult(prev => ({ ...prev, [idx]: data }));
+      setSelectedMeasures(prev => ({ ...prev, [idx]: (data.measures || []).map(() => true) }));
+      toast({ title: "✨ AI 대책 추천 완료", description: "추천 대책을 확인하고 적용하세요" });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "AI 추천 실패", description: e.message });
+    }
+    setAiSuggesting(null);
+  };
+
+  // 선택된 대책 적용
+  const applySelectedMeasures = (idx: number) => {
+    const result = aiMeasuresResult[idx];
+    const sel = selectedMeasures[idx];
+    if (!result || !sel) return;
+    const chosen = result.measures.filter((_, i) => sel[i]);
+    if (chosen.length === 0) { toast({ variant: "destructive", title: "대책을 하나 이상 선택해주세요" }); return; }
+    const existing = items[idx].currentControls;
+    const combined = existing ? `${existing}\n${chosen.join("\n")}` : chosen.join("\n");
+    updateItem(idx, "currentControls", combined);
+    if (result.relatedLaw) updateItem(idx, "relatedLaw", result.relatedLaw);
+    setAiMeasuresResult(prev => { const n = { ...prev }; delete n[idx]; return n; });
+    toast({ title: "✅ 대책이 적용되었습니다" });
   };
 
   const openImprovementDialog = (item: RiskAssessment) => {
@@ -839,6 +911,17 @@ export default function RiskAssessmentPage() {
             </DialogTitle>
           </DialogHeader>
 
+          {/* AI 기능 안내 배너 */}
+          <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-gradient-to-r from-violet-500/10 via-indigo-500/10 to-blue-500/10 border border-violet-200/60 dark:border-violet-700/40">
+            <div className="shrink-0 w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-indigo-500 flex items-center justify-center shadow-sm">
+              <Sparkles className="w-4 h-4 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold text-violet-800 dark:text-violet-300">AI 스마트 어시스턴트 사용 가능</p>
+              <p className="text-[10px] text-muted-foreground">📸 현장 사진 업로드 → AI 위험요인 자동 분석 &nbsp;|&nbsp; ✨ 위험요인 입력 후 → AI 감소대책 자동 추천</p>
+            </div>
+          </div>
+
           <div className="space-y-4">
             {/* 기준정보 섹션 */}
             <div className="rounded-lg border bg-orange-50/50 dark:bg-orange-900/10 border-orange-200 dark:border-orange-800 overflow-hidden">
@@ -1042,7 +1125,35 @@ export default function RiskAssessmentPage() {
                         {/* 유해위험요인 */}
                         <div className="space-y-1.5">
                           <Label className="text-xs font-semibold">유해위험요인 *</Label>
-                          <Input value={item.hazard} onChange={e => updateItem(idx, "hazard", e.target.value)} placeholder="유해위험요인을 입력하세요" className="text-xs" data-testid={`input-hazard-${idx}`} />
+                          <Input value={item.hazard} onChange={e => updateItem(idx, "hazard", e.target.value)} placeholder="유해위험요인을 입력하거나 아래 AI 사진 분석을 사용하세요" className="text-xs" data-testid={`input-hazard-${idx}`} />
+                          {/* AI 사진 분석 결과 표시 */}
+                          {aiPhotoResult[idx] && (
+                            <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} className="rounded-lg border border-violet-200 bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-950/30 dark:to-purple-950/30 p-3 space-y-2">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-1.5 text-violet-700 dark:text-violet-400">
+                                  <Sparkles className="w-3.5 h-3.5" />
+                                  <span className="text-xs font-bold">AI 사진 분석 결과</span>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${aiPhotoResult[idx].urgency === "높음" ? "bg-red-100 text-red-700" : aiPhotoResult[idx].urgency === "보통" ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
+                                    위험도 {aiPhotoResult[idx].urgency}
+                                  </span>
+                                  <button type="button" onClick={() => setAiPhotoResult(p => { const n = {...p}; delete n[idx]; return n; })} className="text-muted-foreground hover:text-foreground"><X className="w-3.5 h-3.5" /></button>
+                                </div>
+                              </div>
+                              <p className="text-xs text-violet-800 dark:text-violet-300 leading-relaxed">{aiPhotoResult[idx].summary}</p>
+                              {aiPhotoResult[idx].details?.length > 0 && (
+                                <ul className="space-y-1">
+                                  {aiPhotoResult[idx].details.map((d, i) => (
+                                    <li key={i} className="flex items-start gap-1.5 text-xs text-foreground/80">
+                                      <TriangleAlert className="w-3 h-3 text-amber-500 mt-0.5 shrink-0" />
+                                      {d}
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                            </motion.div>
+                          )}
                         </div>
 
                         {/* 관련법규 */}
@@ -1053,8 +1164,54 @@ export default function RiskAssessmentPage() {
 
                         {/* 현재 안전조치 */}
                         <div className="space-y-1.5">
-                          <Label className="text-xs font-semibold">현재 안전조치</Label>
+                          <div className="flex items-center justify-between">
+                            <Label className="text-xs font-semibold">현재 안전조치</Label>
+                            <button
+                              type="button"
+                              onClick={() => suggestMeasuresWithAI(idx)}
+                              disabled={aiSuggesting === idx}
+                              className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-md bg-gradient-to-r from-violet-500 to-indigo-500 text-white hover:from-violet-600 hover:to-indigo-600 transition-all disabled:opacity-60"
+                              data-testid={`button-ai-suggest-${idx}`}
+                            >
+                              {aiSuggesting === idx ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                              {aiSuggesting === idx ? "AI 분석 중..." : "AI 대책 추천"}
+                            </button>
+                          </div>
                           <Textarea value={item.currentControls} onChange={e => updateItem(idx, "currentControls", e.target.value)} placeholder="현재 시행 중인 안전조치" rows={2} className="text-xs" data-testid={`input-current-controls-${idx}`} />
+                          {/* AI 대책 추천 결과 */}
+                          {aiMeasuresResult[idx] && (
+                            <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} className="rounded-lg border border-indigo-200 bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-indigo-950/30 dark:to-blue-950/30 p-3 space-y-2">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-1.5 text-indigo-700 dark:text-indigo-400">
+                                  <Lightbulb className="w-3.5 h-3.5 text-yellow-500" />
+                                  <span className="text-xs font-bold">AI 추천 대책</span>
+                                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${aiMeasuresResult[idx].priority === "즉시조치" ? "bg-red-100 text-red-700" : aiMeasuresResult[idx].priority === "단기" ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"}`}>
+                                    {aiMeasuresResult[idx].priority}
+                                  </span>
+                                </div>
+                                <button type="button" onClick={() => setAiMeasuresResult(p => { const n = {...p}; delete n[idx]; return n; })} className="text-muted-foreground hover:text-foreground"><X className="w-3.5 h-3.5" /></button>
+                              </div>
+                              <div className="space-y-1.5">
+                                {(aiMeasuresResult[idx].measures || []).map((m, i) => (
+                                  <label key={i} className="flex items-start gap-2 cursor-pointer group">
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedMeasures[idx]?.[i] ?? true}
+                                      onChange={e => setSelectedMeasures(prev => ({ ...prev, [idx]: (prev[idx] || []).map((v, j) => j === i ? e.target.checked : v) }))}
+                                      className="mt-0.5 shrink-0 rounded"
+                                    />
+                                    <span className={`text-xs leading-relaxed transition-colors ${selectedMeasures[idx]?.[i] !== false ? "text-foreground" : "text-muted-foreground line-through"}`}>{m}</span>
+                                  </label>
+                                ))}
+                              </div>
+                              {aiMeasuresResult[idx].relatedLaw && (
+                                <p className="text-[10px] text-muted-foreground border-t border-indigo-200 pt-2">📋 {aiMeasuresResult[idx].relatedLaw}</p>
+                              )}
+                              <Button size="sm" className="w-full h-7 text-xs bg-indigo-600 hover:bg-indigo-700" onClick={() => applySelectedMeasures(idx)} data-testid={`button-apply-measures-${idx}`}>
+                                <Zap className="w-3 h-3 mr-1" />선택한 대책 적용
+                              </Button>
+                            </motion.div>
+                          )}
                         </div>
 
                         {/* 위험성 결정 */}
@@ -1086,26 +1243,43 @@ export default function RiskAssessmentPage() {
                           </div>
                         </div>
 
-                        {/* 개선 전 사진 */}
+                        {/* 개선 전 사진 + AI 분석 */}
                         <div className="space-y-1.5">
-                          <Label className="text-xs font-semibold">개선 전 사진</Label>
-                          {item.beforePhotoUrl ? (
-                            <div className="relative inline-block">
-                              <img src={item.beforePhotoUrl} alt="개선 전" className="h-20 w-32 object-cover rounded-md border" />
-                              <button type="button" className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center shadow" onClick={() => updateItem(idx, "beforePhotoUrl", "")}>
-                                <X className="w-3 h-3" />
-                              </button>
-                            </div>
-                          ) : (
-                            <label className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-input bg-background text-xs font-medium cursor-pointer hover:bg-accent hover:text-accent-foreground transition-colors ${uploadingPhoto === `${idx}` ? "opacity-50 cursor-not-allowed pointer-events-none" : ""}`} data-testid={`button-before-photo-${idx}`}>
+                          <div className="flex items-center justify-between">
+                            <Label className="text-xs font-semibold">현장 사진</Label>
+                            <span className="text-[10px] text-muted-foreground">사진 추가 또는 AI로 위험요인 분석</span>
+                          </div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {item.beforePhotoUrl ? (
+                              <div className="relative inline-block">
+                                <img src={item.beforePhotoUrl} alt="개선 전" className="h-20 w-32 object-cover rounded-md border" />
+                                <button type="button" className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center shadow" onClick={() => updateItem(idx, "beforePhotoUrl", "")}>
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </div>
+                            ) : (
+                              <label className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-input bg-background text-xs font-medium cursor-pointer hover:bg-accent hover:text-accent-foreground transition-colors ${uploadingPhoto === `${idx}` ? "opacity-50 cursor-not-allowed pointer-events-none" : ""}`} data-testid={`button-before-photo-${idx}`}>
+                                <input type="file" accept="image/*,image/heic,image/heif" className="sr-only"
+                                  onChange={e => { const f = e.target.files?.[0]; if (f) uploadPhoto(idx, f); e.currentTarget.value = ""; }}
+                                  disabled={uploadingPhoto === `${idx}`}
+                                />
+                                <Camera className="w-3.5 h-3.5" />
+                                {uploadingPhoto === `${idx}` ? "업로드 중..." : "사진 추가"}
+                              </label>
+                            )}
+                            {/* AI 사진 분석 버튼 */}
+                            <label className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-xs font-semibold cursor-pointer transition-all ${aiAnalyzing === idx ? "bg-violet-200 text-violet-700 opacity-60 pointer-events-none" : "bg-gradient-to-r from-violet-500 to-indigo-500 text-white hover:from-violet-600 hover:to-indigo-600 shadow-sm"}`} data-testid={`button-ai-photo-${idx}`}>
                               <input type="file" accept="image/*,image/heic,image/heif" className="sr-only"
-                                onChange={e => { const f = e.target.files?.[0]; if (f) uploadPhoto(idx, f); e.currentTarget.value = ""; }}
-                                disabled={uploadingPhoto === `${idx}`}
+                                onChange={e => { const f = e.target.files?.[0]; if (f) analyzePhotoWithAI(idx, f); e.currentTarget.value = ""; }}
+                                disabled={aiAnalyzing === idx}
                               />
-                              <Camera className="w-3.5 h-3.5" />
-                              {uploadingPhoto === `${idx}` ? "업로드 중..." : "사진 추가"}
+                              {aiAnalyzing === idx ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ScanSearch className="w-3.5 h-3.5" />}
+                              {aiAnalyzing === idx ? "AI 분석 중..." : "AI 위험 분석"}
                             </label>
-                          )}
+                          </div>
+                          <p className="text-[10px] text-muted-foreground">
+                            💡 현장 사진을 업로드하면 AI가 위험요인을 자동으로 파악합니다
+                          </p>
                         </div>
                       </CardContent>
                     )}

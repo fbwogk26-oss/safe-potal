@@ -2678,6 +2678,114 @@ export async function registerRoutes(
     }
   });
 
+  // === 위험성평가 AI 기능 ===
+
+  // 사진 분석 → 위험요인 자동 탐지 (GPT-4o Vision)
+  app.post('/api/risk-assessments/ai/analyze-photo', requireEditor, upload.single('photo'), async (req: any, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: "사진이 없습니다" });
+
+      const base64Image = req.file.buffer.toString('base64');
+      const mimeType = req.file.mimetype || 'image/jpeg';
+
+      const OpenAI = (await import("openai")).default;
+      const aiClient = new OpenAI({
+        apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+        baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+      });
+
+      const response = await aiClient.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          {
+            role: "system",
+            content: `당신은 산업안전보건 전문가입니다. 현장 사진을 분석하여 잠재적인 위험 요인을 한국어로 파악합니다.
+다음 JSON 형식으로만 응답하세요 (코드블록 없이):
+{
+  "hazard": "주요 위험요인 1~2문장으로 요약",
+  "hazardType": "추락|전도|충돌|협착|감전|화재/폭발|기타 중 하나",
+  "details": ["구체적 위험요인1", "구체적 위험요인2", "구체적 위험요인3"],
+  "urgency": "높음|보통|낮음",
+  "summary": "2~3문장의 종합 분석"
+}`,
+          },
+          {
+            role: "user",
+            content: [
+              {
+                type: "image_url",
+                image_url: { url: `data:${mimeType};base64,${base64Image}`, detail: "high" },
+              },
+              { type: "text", text: "이 현장 사진에서 안전 위험 요인을 분석해주세요." },
+            ] as any,
+          },
+        ],
+        max_tokens: 800,
+        temperature: 0.2,
+      });
+
+      const raw = response.choices[0].message.content?.trim() || "{}";
+      let parsed: any = {};
+      try { parsed = JSON.parse(raw); } catch { parsed = { hazard: "AI 분석 실패 - 다시 시도해주세요", hazardType: "기타", details: [], urgency: "보통", summary: raw }; }
+      res.json(parsed);
+    } catch (e: any) {
+      console.error("AI photo analysis error:", e);
+      res.status(500).json({ message: "AI 사진 분석에 실패했습니다: " + (e.message || "") });
+    }
+  });
+
+  // 감소대책 AI 자동 추천 (hazardType + 공정 + 위험요인 기반)
+  app.post('/api/risk-assessments/ai/suggest-measures', requireEditor, async (req: any, res) => {
+    try {
+      const { hazardType, hazard, process: workProcess, currentControls } = req.body;
+      if (!hazardType && !hazard) return res.status(400).json({ message: "위험요인 유형 또는 내용이 필요합니다" });
+
+      const OpenAI = (await import("openai")).default;
+      const aiClient = new OpenAI({
+        apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+        baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+      });
+
+      const response = await aiClient.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          {
+            role: "system",
+            content: `당신은 산업안전보건법 전문가이며 현장 안전관리 컨설턴트입니다.
+주어진 위험 정보를 바탕으로 구체적이고 실행 가능한 안전 대책을 제안합니다.
+다음 JSON 형식으로만 응답하세요 (코드블록 없이):
+{
+  "measures": ["대책1 (구체적, 실행 가능한 형태)", "대책2", "대책3", "대책4"],
+  "relatedLaw": "산업안전보건법 관련 조항 (예: 산업안전보건기준에 관한 규칙 제42조)",
+  "priority": "즉시조치|단기|중기",
+  "summary": "주요 대책 요약 (1~2문장)"
+}`,
+          },
+          {
+            role: "user",
+            content: `다음 위험 요인에 대한 안전 대책을 추천해주세요:
+- 사고 유형: ${hazardType || "미지정"}
+- 작업 공정: ${workProcess || "일반 현장 작업"}
+- 유해위험요인: ${hazard || "미지정"}
+- 현재 안전조치: ${currentControls || "없음"}
+
+실제 현장에서 즉시 적용 가능한 구체적인 대책 4가지를 추천해주세요.`,
+          },
+        ],
+        max_tokens: 800,
+        temperature: 0.3,
+      });
+
+      const raw = response.choices[0].message.content?.trim() || "{}";
+      let parsed: any = {};
+      try { parsed = JSON.parse(raw); } catch { parsed = { measures: [raw], relatedLaw: "", priority: "단기", summary: "" }; }
+      res.json(parsed);
+    } catch (e: any) {
+      console.error("AI suggest measures error:", e);
+      res.status(500).json({ message: "AI 대책 추천에 실패했습니다: " + (e.message || "") });
+    }
+  });
+
   // === ACCIDENT REPORTS ===
   app.get('/api/accidents', isAuthenticated, async (req: any, res) => {
     try {
