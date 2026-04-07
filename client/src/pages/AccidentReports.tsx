@@ -563,10 +563,10 @@ export default function AccidentReports() {
                   <span className="text-sm font-bold text-foreground">최근 3년 비교</span>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  {/* 좌: 연도별 mini 카드 + 세로 바 차트 */}
-                  <div className="flex flex-col gap-3">
+                  {/* 좌: 연도별 mini 카드 */}
+                  <div className="flex flex-col gap-3 h-full">
                     {COMPARE_YEARS.map(yr => (
-                      <Card key={yr} className="border-0 shadow-sm" style={{ borderLeft: `3px solid ${YEAR_COLORS[yr]}` }}>
+                      <Card key={yr} className="border-0 shadow-sm flex-1 flex flex-col justify-center" style={{ borderLeft: `3px solid ${YEAR_COLORS[yr]}` }}>
                         <CardContent className="p-3 flex items-center justify-between">
                           <div>
                             <p className="text-xs text-muted-foreground font-medium">{yr}년</p>
