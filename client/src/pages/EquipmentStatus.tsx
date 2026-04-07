@@ -117,8 +117,8 @@ interface EquipmentStatusProps {
 export default function EquipmentStatus({ embedded = false }: EquipmentStatusProps) {
   const { canDownloadEquipmentExcel, canEditEquipmentStatus } = usePermissions();
   const { data: statusRecords, isLoading } = useNotices("equip_status");
-  const { mutate: createRecord, isPending: isCreating } = useCreateNotice();
-  const { mutate: updateRecord, isPending: isUpdating } = useUpdateNotice();
+  const { mutate: createRecord, mutateAsync: createRecordAsync, isPending: isCreating } = useCreateNotice();
+  const { mutate: updateRecord, mutateAsync: updateRecordAsync, isPending: isUpdating } = useUpdateNotice();
   const { mutate: deleteRecord } = useDeleteNotice();
   const { toast } = useToast();
 
@@ -317,13 +317,18 @@ export default function EquipmentStatus({ embedded = false }: EquipmentStatusPro
         if (items.length === 0) continue;
         const existingRecord = statusRecords?.find(r => { try { return (JSON.parse(r.content) as TeamData).team === teamName; } catch { return false; } });
         const contentData = JSON.stringify({ team: teamName, items, lastUpdated: new Date().toISOString() });
-        if (existingRecord) {
-          await new Promise<void>(resolve => { updateRecord({ id: existingRecord.id, title: `${teamName} 보호구 현황`, content: contentData }, { onSuccess: () => { successCount++; resolve(); }, onError: () => resolve() }); });
-        } else {
-          await new Promise<void>(resolve => { createRecord({ title: `${teamName} 보호구 현황`, content: contentData, category: "equip_status" }, { onSuccess: () => { successCount++; resolve(); }, onError: () => resolve() }); });
+        try {
+          if (existingRecord) {
+            await updateRecordAsync({ id: existingRecord.id, title: `${teamName} 보호구 현황`, content: contentData });
+          } else {
+            await createRecordAsync({ title: `${teamName} 보호구 현황`, content: contentData, category: "equip_status" });
+          }
+          successCount++;
+        } catch {
+          // 개별 팀 실패는 건너뜀
         }
       }
-      queryClient.invalidateQueries({ queryKey: ['/api/notices'] });
+      await queryClient.refetchQueries({ queryKey: ['/api/notices', 'equip_status'] });
       toast({ title: "업로드 완료", description: `${successCount}개 팀 데이터가 업데이트되었습니다.` });
     } catch (err) {
       console.error(err);
@@ -432,15 +437,15 @@ export default function EquipmentStatus({ embedded = false }: EquipmentStatusPro
         if (alreadyExists) { toast({ variant: "destructive", title: `"${singleName.trim()}"은(는) 이미 ${singleTeam}에 등록되어 있습니다.` }); setIsSingleSaving(false); return; }
         const newItems = [...(parsed.items || []), newItem];
         const contentData = JSON.stringify({ team: singleTeam, items: newItems, lastUpdated: new Date().toISOString() });
-        await new Promise<void>(resolve => updateRecord({ id: existingRecord.id, title: existingRecord.title, content: contentData }, { onSuccess: () => resolve(), onError: () => resolve() }));
+        await updateRecordAsync({ id: existingRecord.id, title: existingRecord.title, content: contentData });
       } else {
         const initItems = DEFAULT_EQUIPMENT_LIST.map(d => ({ ...d }));
         if (!initItems.find(i => i.name === newItem.name)) initItems.push(newItem);
         else { const idx = initItems.findIndex(i => i.name === newItem.name); initItems[idx] = newItem; }
         const contentData = JSON.stringify({ team: singleTeam, items: initItems, lastUpdated: new Date().toISOString() });
-        await new Promise<void>(resolve => createRecord({ title: `${singleTeam} 보호구 현황`, content: contentData, category: "equip_status" }, { onSuccess: () => resolve(), onError: () => resolve() }));
+        await createRecordAsync({ title: `${singleTeam} 보호구 현황`, content: contentData, category: "equip_status" });
       }
-      queryClient.invalidateQueries({ queryKey: ['/api/notices'] });
+      await queryClient.refetchQueries({ queryKey: ['/api/notices', 'equip_status'] });
       toast({ title: "등록 완료", description: `${singleTeam}에 "${singleName.trim()}"이(가) 등록되었습니다.` });
       setSingleName(""); setSingleQty(0); setSingleStatus("등록");
     } finally {
@@ -465,16 +470,19 @@ export default function EquipmentStatus({ embedded = false }: EquipmentStatusPro
           if (parsed.items?.find(i => i.name === bulkName.trim())) { skipCount++; continue; }
           const newItems = [...(parsed.items || []), newItem];
           const contentData = JSON.stringify({ team: teamName, items: newItems, lastUpdated: new Date().toISOString() });
-          await new Promise<void>(resolve => updateRecord({ id: existingRecord.id, title: existingRecord.title, content: contentData }, { onSuccess: () => { successCount++; resolve(); }, onError: () => resolve() }));
+          await updateRecordAsync({ id: existingRecord.id, title: existingRecord.title, content: contentData });
+          successCount++;
         } else {
           const initItems = DEFAULT_EQUIPMENT_LIST.map(d => ({ ...d }));
           if (!initItems.find(i => i.name === newItem.name)) initItems.push(newItem);
           else { const idx = initItems.findIndex(i => i.name === newItem.name); initItems[idx] = newItem; }
           const contentData = JSON.stringify({ team: teamName, items: initItems, lastUpdated: new Date().toISOString() });
-          await new Promise<void>(resolve => createRecord({ title: `${teamName} 보호구 현황`, content: contentData, category: "equip_status" }, { onSuccess: () => { newTeamCount++; successCount++; resolve(); }, onError: () => resolve() }));
+          await createRecordAsync({ title: `${teamName} 보호구 현황`, content: contentData, category: "equip_status" });
+          newTeamCount++;
+          successCount++;
         }
       }
-      queryClient.invalidateQueries({ queryKey: ['/api/notices'] });
+      await queryClient.refetchQueries({ queryKey: ['/api/notices', 'equip_status'] });
       const desc = [`전체 ${TEAMS.length}개 팀`, `추가 완료: ${successCount}개 팀`, skipCount > 0 ? `이미 존재: ${skipCount}개 팀` : null, newTeamCount > 0 ? `신규 생성: ${newTeamCount}개 팀` : null].filter(Boolean).join(" / ");
       toast({ title: "팀별 전체 등록 완료", description: desc });
       setBulkName("");
