@@ -361,27 +361,43 @@ export default function RiskAssessmentPage() {
     setUploadingPhoto(null);
   };
 
-  // AI 사진 분석 함수
+  // AI 사진 분석 함수 (사진 저장 + AI 분석 동시 수행)
   const analyzePhotoWithAI = async (idx: number, file: File) => {
     setAiAnalyzing(idx);
     try {
+      // 1) 사진 저장
+      const uploadFd = new FormData();
+      uploadFd.append("photo", file);
+      const uploadRes = await fetch("/api/risk-assessments/upload-photo", { method: "POST", body: uploadFd, credentials: "include" });
+      if (uploadRes.ok) {
+        const uploadData = await uploadRes.json();
+        updateItem(idx, "beforePhotoUrl", uploadData.photoUrl);
+      }
+
+      // 2) AI 분석
       const fd = new FormData();
       fd.append("photo", file);
       const res = await fetch("/api/risk-assessments/ai/analyze-photo", { method: "POST", body: fd, credentials: "include" });
       if (!res.ok) { const d = await res.json(); throw new Error(d.message); }
       const data = await res.json();
       setAiPhotoResult(prev => ({ ...prev, [idx]: data }));
-      // 자동 채우기
+
+      // 3) 자동 채우기: 위험요인, 위험유형
       if (data.hazard) updateItem(idx, "hazard", data.hazard);
       if (data.hazardType && HAZARD_TYPES.includes(data.hazardType)) updateItem(idx, "hazardType", data.hazardType);
-      toast({ title: "✨ AI 사진 분석 완료", description: "위험요인이 자동으로 입력되었습니다" });
+
+      // 4) 위험성 결정 AI 추천 (가능성·중대성)
+      if (data.probability && data.probability >= 1 && data.probability <= 5) updateItem(idx, "probability", data.probability);
+      if (data.criticality && data.criticality >= 1 && data.criticality <= 4) updateItem(idx, "criticality", data.criticality);
+
+      toast({ title: "✨ AI 사진 분석 완료", description: "위험요인·위험유형·위험성 등급이 자동으로 입력되었습니다" });
     } catch (e: any) {
       toast({ variant: "destructive", title: "AI 분석 실패", description: e.message });
     }
     setAiAnalyzing(null);
   };
 
-  // AI 감소대책 추천 함수
+  // AI 현재 안전조치 자동 입력 함수
   const suggestMeasuresWithAI = async (idx: number) => {
     const item = items[idx];
     if (!item.hazardType && !item.hazard) {
@@ -397,16 +413,18 @@ export default function RiskAssessmentPage() {
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.message); }
       const data = await res.json();
-      setAiMeasuresResult(prev => ({ ...prev, [idx]: data }));
-      setSelectedMeasures(prev => ({ ...prev, [idx]: (data.measures || []).map(() => true) }));
-      toast({ title: "✨ AI 대책 추천 완료", description: "추천 대책을 확인하고 적용하세요" });
+      // 현재 안전조치에 바로 자동 입력
+      const measures: string[] = data.measures || [];
+      updateItem(idx, "currentControls", measures.join("\n"));
+      if (data.relatedLaw) updateItem(idx, "relatedLaw", data.relatedLaw);
+      toast({ title: "✅ AI가 현재 안전조치를 자동으로 입력했습니다", description: `${measures.length}개 대책이 입력되었습니다` });
     } catch (e: any) {
       toast({ variant: "destructive", title: "AI 추천 실패", description: e.message });
     }
     setAiSuggesting(null);
   };
 
-  // 선택된 대책 적용
+  // 선택된 대책 적용 (레거시 호환용 — 현재 미사용)
   const applySelectedMeasures = (idx: number) => {
     const result = aiMeasuresResult[idx];
     const sel = selectedMeasures[idx];
@@ -1192,12 +1210,12 @@ export default function RiskAssessmentPage() {
                           <Textarea value={item.relatedLaw} onChange={e => updateItem(idx, "relatedLaw", e.target.value)} placeholder="관련 법규를 입력하세요 (선택)" rows={2} className="text-xs" data-testid={`input-related-law-${idx}`} />
                         </div>
 
-                        {/* ③ STEP 3 — 현재 안전조치 + AI 대책 추천 */}
+                        {/* ③ STEP 3 — 현재 안전조치 + AI 자동 입력 */}
                         <div className="rounded-xl border-2 border-indigo-200 dark:border-indigo-700/50 bg-indigo-50/40 dark:bg-indigo-950/20 p-3 space-y-2.5">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
                               <span className="shrink-0 w-5 h-5 rounded-full bg-indigo-500 text-white text-[10px] font-bold flex items-center justify-center">3</span>
-                              <span className="text-xs font-bold text-indigo-800 dark:text-indigo-300">감소대책 입력</span>
+                              <span className="text-xs font-bold text-indigo-800 dark:text-indigo-300">현재 안전조치</span>
                             </div>
                             <button
                               type="button"
@@ -1207,44 +1225,23 @@ export default function RiskAssessmentPage() {
                               data-testid={`button-ai-suggest-${idx}`}
                             >
                               {aiSuggesting === idx ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
-                              {aiSuggesting === idx ? "AI 분석 중..." : "✨ AI 대책 추천"}
+                              {aiSuggesting === idx ? "AI 입력 중..." : "✨ AI 자동 입력"}
                             </button>
                           </div>
-                          <Textarea value={item.currentControls} onChange={e => updateItem(idx, "currentControls", e.target.value)} placeholder="직접 입력하거나 AI 대책 추천 버튼을 눌러 자동 생성" rows={3} className="text-xs bg-white dark:bg-slate-900" data-testid={`input-current-controls-${idx}`} />
-                          {aiMeasuresResult[idx] && (
-                            <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} className="rounded-lg border border-indigo-200 bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-indigo-950/30 dark:to-blue-950/30 p-2.5 space-y-2">
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-1.5 text-indigo-700 dark:text-indigo-400">
-                                  <Lightbulb className="w-3.5 h-3.5 text-yellow-500" />
-                                  <span className="text-xs font-bold">AI 추천 대책</span>
-                                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${aiMeasuresResult[idx].priority === "즉시조치" ? "bg-red-100 text-red-700" : aiMeasuresResult[idx].priority === "단기" ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"}`}>{aiMeasuresResult[idx].priority}</span>
-                                </div>
-                                <button type="button" onClick={() => setAiMeasuresResult(p => { const n = {...p}; delete n[idx]; return n; })} className="text-muted-foreground hover:text-foreground"><X className="w-3.5 h-3.5" /></button>
-                              </div>
-                              <div className="space-y-1.5">
-                                {(aiMeasuresResult[idx].measures || []).map((m, i) => (
-                                  <label key={i} className="flex items-start gap-2 cursor-pointer">
-                                    <input type="checkbox" checked={selectedMeasures[idx]?.[i] ?? true}
-                                      onChange={e => setSelectedMeasures(prev => ({ ...prev, [idx]: (prev[idx] || []).map((v, j) => j === i ? e.target.checked : v) }))}
-                                      className="mt-0.5 shrink-0 rounded"
-                                    />
-                                    <span className={`text-xs leading-relaxed transition-colors ${selectedMeasures[idx]?.[i] !== false ? "text-foreground" : "text-muted-foreground line-through"}`}>{m}</span>
-                                  </label>
-                                ))}
-                              </div>
-                              {aiMeasuresResult[idx].relatedLaw && (
-                                <p className="text-[10px] text-muted-foreground border-t border-indigo-200 pt-2">📋 {aiMeasuresResult[idx].relatedLaw}</p>
-                              )}
-                              <Button size="sm" className="w-full h-7 text-xs bg-indigo-600 hover:bg-indigo-700" onClick={() => applySelectedMeasures(idx)} data-testid={`button-apply-measures-${idx}`}>
-                                <Zap className="w-3 h-3 mr-1" />선택한 대책 적용
-                              </Button>
-                            </motion.div>
-                          )}
+                          <Textarea value={item.currentControls} onChange={e => updateItem(idx, "currentControls", e.target.value)} placeholder="직접 입력하거나 ✨ AI 자동 입력 버튼을 눌러 자동 생성" rows={4} className="text-xs bg-white dark:bg-slate-900" data-testid={`input-current-controls-${idx}`} />
+                          <p className="text-[10px] text-indigo-600 dark:text-indigo-400">AI 자동 입력 버튼을 누르면 위험요인 기반 안전조치가 바로 채워집니다 (수정 가능)</p>
                         </div>
 
                         {/* 위험성 결정 */}
                         <div className="p-2.5 bg-muted/40 rounded-lg border space-y-2">
-                          <Label className="text-xs font-bold">위험성 결정 (가능성 × 중대성)</Label>
+                          <div className="flex items-center justify-between flex-wrap gap-1">
+                            <Label className="text-xs font-bold">위험성 결정 (가능성 × 중대성)</Label>
+                            {aiPhotoResult[idx]?.probability && (
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300 font-semibold">
+                                ✨ AI 추천: 가능성 {aiPhotoResult[idx].probability} × 중대성 {aiPhotoResult[idx].criticality} (수정 가능)
+                              </span>
+                            )}
+                          </div>
                           <div className="grid grid-cols-2 gap-3">
                             <div className="space-y-1.5">
                               <Label className="text-xs text-muted-foreground">가능성 (1~5)</Label>
