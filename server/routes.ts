@@ -931,6 +931,29 @@ export async function registerRoutes(
     }
   });
 
+  // 보호구 현황 일괄 등록 (관리자 전용 seed 엔드포인트)
+  app.post("/api/admin/seed-equipment-status", requireAdmin, async (req: any, res) => {
+    try {
+      const records: { title: string; content: string; category: string }[] = req.body.records;
+      if (!Array.isArray(records) || records.length === 0) return res.status(400).json({ message: "records 배열이 필요합니다" });
+      let inserted = 0, updated = 0;
+      for (const rec of records) {
+        const existing = await storage.getNotices("equip_status");
+        const found = existing.find(n => n.title === rec.title);
+        if (found) {
+          await storage.updateNotice(found.id, { content: rec.content });
+          updated++;
+        } else {
+          await storage.createNotice({ title: rec.title, content: rec.content, category: "equip_status" });
+          inserted++;
+        }
+      }
+      res.json({ ok: true, inserted, updated });
+    } catch (err) {
+      res.status(500).json({ message: String(err) });
+    }
+  });
+
   app.delete(api.notices.delete.path, requireEditor, async (req: any, res) => {
     const id = Number(req.params.id);
     const existing = await storage.getNotice(id);
