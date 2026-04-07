@@ -25,6 +25,8 @@ import SignatureAdmin from "@/pages/SignatureAdmin";
 import MsdsSearch from "@/pages/MsdsSearch";
 import RiskAssessment from "@/pages/RiskAssessment";
 import AccidentReports from "@/pages/AccidentReports";
+import NearMiss from "@/pages/NearMiss";
+import PublicNearMiss from "@/pages/PublicNearMiss";
 import MusculoskeletalDisease from "@/pages/MusculoskeletalDisease";
 import NewEquipmentRequest from "@/pages/NewEquipmentRequest";
 import TrafficFines from "@/pages/TrafficFines";
@@ -101,6 +103,7 @@ function RouterContent() {
       <Route path="/msds">{() => <G canAccess={canViewMsds} component={MsdsSearch} />}</Route>
       <Route path="/risk-assessment">{() => <G canAccess={canViewRiskAssessment} component={RiskAssessment} />}</Route>
       <Route path="/accidents">{() => <G canAccess={canViewAccidents} component={AccidentReports} />}</Route>
+      <Route path="/near-miss">{() => <G canAccess={canViewAccidents} component={NearMiss} />}</Route>
       <Route path="/musculoskeletal">{() => <G canAccess={canViewMusculoskeletal} component={MusculoskeletalDisease} />}</Route>
       <Route path="/traffic-fines">{() => <TrafficFines />}</Route>
       <Route path="/work-plan">{() => <WorkPlan />}</Route>
@@ -136,6 +139,9 @@ function AppContent() {
   const { isAuthenticated, isLoading, mustChangePassword } = useAuth();
   const [location] = useLocation();
 
+  if (location.startsWith("/near-miss/submit")) {
+    return <Switch><Route path="/near-miss/submit" component={PublicNearMiss} /></Switch>;
+  }
   if (location.startsWith("/sign/equip/")) {
     return <Switch><Route path="/sign/equip/:id" component={PublicEquipSign} /></Switch>;
   }

@@ -24,6 +24,8 @@ import {
   type MusicFile, type InsertMusicFile,
   fuelRecords,
   type FuelRecord, type InsertFuelRecord,
+  nearMissReports,
+  type NearMissReport,
 } from "@shared/schema";
 import { eq, desc, asc, and, ilike, or, sql, inArray } from "drizzle-orm";
 
@@ -97,6 +99,13 @@ export interface IStorage {
   createAccidentReport(report: InsertAccidentReport): Promise<AccidentReport>;
   updateAccidentReport(id: number, updates: Partial<InsertAccidentReport>): Promise<AccidentReport>;
   deleteAccidentReport(id: number): Promise<void>;
+
+  // Near Miss Reports
+  getNearMissReports(): Promise<NearMissReport[]>;
+  getNearMissReport(id: number): Promise<NearMissReport | undefined>;
+  createNearMissReport(report: any): Promise<NearMissReport>;
+  updateNearMissReport(id: number, updates: Partial<any>): Promise<NearMissReport>;
+  deleteNearMissReport(id: number): Promise<void>;
 
   // New Equipment Requests
   getNewEquipmentRequests(): Promise<NewEquipmentRequest[]>;
@@ -427,6 +436,30 @@ export class DatabaseStorage implements IStorage {
 
   async deleteAccidentReport(id: number): Promise<void> {
     await db.delete(accidentReports).where(eq(accidentReports.id, id));
+  }
+
+  // === NEAR MISS REPORTS ===
+  async getNearMissReports(): Promise<NearMissReport[]> {
+    return await db.select().from(nearMissReports).orderBy(desc(nearMissReports.createdAt));
+  }
+
+  async getNearMissReport(id: number): Promise<NearMissReport | undefined> {
+    const [r] = await db.select().from(nearMissReports).where(eq(nearMissReports.id, id));
+    return r;
+  }
+
+  async createNearMissReport(report: any): Promise<NearMissReport> {
+    const [created] = await db.insert(nearMissReports).values(report).returning();
+    return created;
+  }
+
+  async updateNearMissReport(id: number, updates: Partial<any>): Promise<NearMissReport> {
+    const [updated] = await db.update(nearMissReports).set({ ...updates, updatedAt: new Date() }).where(eq(nearMissReports.id, id)).returning();
+    return updated;
+  }
+
+  async deleteNearMissReport(id: number): Promise<void> {
+    await db.delete(nearMissReports).where(eq(nearMissReports.id, id));
   }
 
   // === NEW EQUIPMENT REQUESTS ===

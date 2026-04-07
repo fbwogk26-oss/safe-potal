@@ -481,6 +481,32 @@ export const insertFuelRecordSchema = createInsertSchema(fuelRecords).omit({ id:
 export type FuelRecord = typeof fuelRecords.$inferSelect;
 export type InsertFuelRecord = z.infer<typeof insertFuelRecordSchema>;
 
+// === NEAR MISS REPORTS (아차사고) ===
+export const nearMissReports = pgTable("near_miss_reports", {
+  id: serial("id").primaryKey(),
+  occurredAt: timestamp("occurred_at").notNull(),
+  location: text("location").notNull(),
+  team: text("team"),
+  reporter: text("reporter"),
+  isAnonymous: boolean("is_anonymous").default(false),
+  accidentType: text("accident_type").notNull(),
+  riskFactor: text("risk_factor").notNull(),
+  riskDetail: text("risk_detail"),
+  description: text("description"),
+  immediateAction: text("immediate_action"),
+  preventionIdea: text("prevention_idea"),
+  images: text("images").array().default([]),
+  status: text("status").default("접수"),
+  adminNote: text("admin_note"),
+  assignedTo: text("assigned_to"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertNearMissSchema = createInsertSchema(nearMissReports).omit({ id: true, createdAt: true, updatedAt: true });
+export type NearMissReport = typeof nearMissReports.$inferSelect;
+export type InsertNearMiss = z.infer<typeof insertNearMissSchema>;
+
 // Export auth schema
 export * from "./models/auth";
 

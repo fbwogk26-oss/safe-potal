@@ -3207,6 +3207,108 @@ export async function registerRoutes(
     }
   });
 
+  // === NEAR MISS REPORTS (아차사고) ===
+  // 공개 등록 (로그인 불필요)
+  app.post('/api/near-miss/public', upload.array('images', 5), async (req: any, res) => {
+    try {
+      const { occurredAt, location, team, reporter, isAnonymous, accidentType, riskFactor, riskDetail, description, immediateAction, preventionIdea } = req.body;
+      if (!occurredAt || !location || !accidentType || !riskFactor) return res.status(400).json({ message: "필수 항목을 입력해주세요" });
+      const imageUrls: string[] = [];
+      if (req.files && Array.isArray(req.files)) {
+        for (const file of req.files as Express.Multer.File[]) {
+          try {
+            const { uploadToObjectStorage } = await import('./objectStorage');
+            const filename = `near-miss-${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
+            const url = await uploadToObjectStorage(file.buffer, filename, file.mimetype);
+            imageUrls.push(url);
+          } catch {
+            imageUrls.push(`/uploads/${file.originalname}`);
+          }
+        }
+      }
+      const report = await storage.createNearMissReport({
+        occurredAt: new Date(occurredAt),
+        location, team: team || null, reporter: isAnonymous === 'true' ? '익명' : (reporter || '익명'),
+        isAnonymous: isAnonymous === 'true',
+        accidentType, riskFactor, riskDetail: riskDetail || null,
+        description: description || null, immediateAction: immediateAction || null,
+        preventionIdea: preventionIdea || null,
+        images: imageUrls, status: '접수',
+      });
+      res.json({ success: true, id: report.id });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.get('/api/near-miss', isAuthenticated, async (req: any, res) => {
+    try { res.json(await storage.getNearMissReports()); }
+    catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.get('/api/near-miss/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const r = await storage.getNearMissReport(Number(req.params.id));
+      if (!r) return res.status(404).json({ message: "찾을 수 없습니다" });
+      res.json(r);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.patch('/api/near-miss/:id', requireEditor, async (req: any, res) => {
+    try {
+      const updated = await storage.updateNearMissReport(Number(req.params.id), req.body);
+      res.json(updated);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.delete('/api/near-miss/:id', requireEditor, async (req: any, res) => {
+    try {
+      await storage.deleteNearMissReport(Number(req.params.id));
+      res.json({ success: true });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // 아차사고 엑셀 다운로드
+  app.get('/api/near-miss/export/excel', isAuthenticated, async (req: any, res) => {
+    try {
+      const reports = await storage.getNearMissReports();
+      const ExcelJS = (await import('exceljs')).default;
+      const wb = new ExcelJS.Workbook();
+      const ws = wb.addWorksheet('아차사고 목록');
+      ws.columns = [
+        { header: 'ID', key: 'id', width: 6 },
+        { header: '발생일시', key: 'occurredAt', width: 20 },
+        { header: '장소', key: 'location', width: 20 },
+        { header: '소속팀', key: 'team', width: 15 },
+        { header: '신고자', key: 'reporter', width: 12 },
+        { header: '사고유형', key: 'accidentType', width: 12 },
+        { header: '위험요인', key: 'riskFactor', width: 15 },
+        { header: '위험요인 상세', key: 'riskDetail', width: 20 },
+        { header: '상황설명', key: 'description', width: 30 },
+        { header: '즉시조치', key: 'immediateAction', width: 25 },
+        { header: '재발방지', key: 'preventionIdea', width: 25 },
+        { header: '상태', key: 'status', width: 10 },
+        { header: '담당자', key: 'assignedTo', width: 12 },
+        { header: '등록일', key: 'createdAt', width: 20 },
+      ];
+      ws.getRow(1).font = { bold: true };
+      ws.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
+      for (const r of reports) {
+        ws.addRow({
+          id: r.id,
+          occurredAt: r.occurredAt ? new Date(r.occurredAt).toLocaleString('ko-KR') : '',
+          location: r.location, team: r.team || '', reporter: r.reporter || '',
+          accidentType: r.accidentType, riskFactor: r.riskFactor, riskDetail: r.riskDetail || '',
+          description: r.description || '', immediateAction: r.immediateAction || '',
+          preventionIdea: r.preventionIdea || '', status: r.status || '접수',
+          assignedTo: r.assignedTo || '', createdAt: r.createdAt ? new Date(r.createdAt).toLocaleString('ko-KR') : '',
+        });
+      }
+      const buf = await wb.xlsx.writeBuffer();
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="near_miss_${new Date().toISOString().slice(0,10)}.xlsx"`);
+      res.send(buf);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
   // === NEW EQUIPMENT REQUESTS ===
   app.get('/api/new-equipment-requests', isAuthenticated, async (req: any, res) => {
     try {

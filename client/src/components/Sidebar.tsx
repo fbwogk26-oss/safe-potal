@@ -75,6 +75,7 @@ const NAV_SECTIONS: NavSection[] = [
         children: [
           { label: "안전성평가제", href: "/safety-scores", icon: LayoutDashboard, permissionKey: "canViewDashboard" },
           { label: "사고보고/통계", href: "/accidents", icon: AlertTriangle, permissionKey: "canViewAccidents" },
+          { label: "아차사고 관리", href: "/near-miss", icon: AlertTriangle, permissionKey: "canViewAccidents" },
           { label: "위험성평가", href: "/risk-assessment", icon: ShieldAlert, permissionKey: "canViewRiskAssessment" },
           { label: "안전점검", href: "/inspections", icon: ClipboardCheck, permissionKey: "canViewInspections" },
           { label: "교육 관리", href: "/education-logs", icon: GraduationCap, permissionKey: "canViewEducationOrLogs" },
