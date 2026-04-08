@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
+import { setObjectAclPolicy, getObjectAclPolicy } from "./objectAcl";
 import { isAuthenticated } from "../auth";
 
 export function registerObjectStorageRoutes(app: Express): void {
@@ -83,16 +84,48 @@ export function registerObjectStorageRoutes(app: Express): void {
   });
 
   /**
+   * Make an uploaded object publicly accessible (no auth needed to view).
+   * Called by the client after a successful signed PUT upload.
+   */
+  app.post("/api/uploads/make-public", isAuthenticated, async (req: any, res) => {
+    try {
+      const { objectPath } = req.body;
+      if (!objectPath || !objectPath.startsWith("/objects/")) {
+        return res.status(400).json({ error: "Invalid objectPath" });
+      }
+      const objectFile = await objectStorageService.getObjectEntityFile(objectPath);
+      await setObjectAclPolicy(objectFile, {
+        owner: req.user?.id || "system",
+        visibility: "public",
+      });
+      res.json({ success: true, objectPath });
+    } catch (error) {
+      console.error("Error making object public:", error);
+      if (error instanceof ObjectNotFoundError) {
+        return res.status(404).json({ error: "Object not found" });
+      }
+      return res.status(500).json({ error: "Failed to set ACL" });
+    }
+  });
+
+  /**
    * Serve uploaded objects.
    *
    * GET /objects/:objectPath(*)
    *
-   * This serves files from object storage. For public files, no auth needed.
-   * For protected files, add authentication middleware and ACL checks.
+   * Public files (ACL visibility="public") are served without auth.
+   * Private files require the user to be authenticated.
    */
-  app.get(/^\/objects\/(.*)$/, isAuthenticated, async (req: any, res) => {
+  app.get(/^\/objects\/(.*)$/, async (req: any, res) => {
     try {
       const objectFile = await objectStorageService.getObjectEntityFile(req.path);
+      const aclPolicy = await getObjectAclPolicy(objectFile);
+      const isPublic = aclPolicy?.visibility === "public";
+      if (!isPublic) {
+        if (!req.isAuthenticated || !req.isAuthenticated()) {
+          return res.status(401).json({ error: "Authentication required" });
+        }
+      }
       await objectStorageService.downloadObject(objectFile, res, req);
     } catch (error) {
       console.error("Error serving object:", error);

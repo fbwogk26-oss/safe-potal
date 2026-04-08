@@ -3381,13 +3381,13 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
       const imageUrls: string[] = [];
       if (req.files && Array.isArray(req.files)) {
         for (const file of req.files as Express.Multer.File[]) {
-          try {
-            const { uploadToObjectStorage } = await import('./objectStorage');
-            const filename = `near-miss-${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
-            const url = await uploadToObjectStorage(file.buffer, filename, file.mimetype);
-            imageUrls.push(url);
-          } catch {
-            imageUrls.push(`/uploads/${file.originalname}`);
+          const filename = `near-miss-${Date.now()}-${Math.random().toString(36).slice(2)}${path.extname(file.originalname) || '.jpg'}`;
+          const objUrl = await uploadToObjectStorage(file.buffer, filename, file.mimetype);
+          if (objUrl) {
+            imageUrls.push(objUrl);
+          } else {
+            fs.writeFileSync(path.join(uploadDir, filename), file.buffer);
+            imageUrls.push(`/uploads/${filename}`);
           }
         }
       }

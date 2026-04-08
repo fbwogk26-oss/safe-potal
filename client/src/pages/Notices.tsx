@@ -99,6 +99,11 @@ export default function Notices() {
       });
       const { uploadURL, objectPath } = await urlRes.json();
       await fetch(uploadURL, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } });
+      await fetch('/api/uploads/make-public', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ objectPath }),
+      });
       setImageUrl(objectPath);
       toast({ title: "이미지 업로드 완료" });
     } catch {
