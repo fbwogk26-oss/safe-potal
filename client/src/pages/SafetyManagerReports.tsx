@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { HardHat, Plus, Trash2, Pencil, FileText, ChevronLeft, ChevronRight, CheckCircle2, AlertCircle, Loader2, Paperclip, X } from "lucide-react";
 import { FileViewer } from "@/components/FileViewer";
+import { extractDateFromPdf } from "@/lib/extractPdfDate";
 import type { SafetyManagerReport } from "@shared/schema";
 
 const DAEGU_TEAMS = ["동대구운용팀", "서대구운용팀", "남대구운용팀", "공공망관제팀"];
@@ -59,8 +60,21 @@ export default function SafetyManagerReports() {
 
   const [form, setForm] = useState({ visitDate: format(now, "yyyy-MM-dd"), team: "", visitSequence: "1" });
   const [file, setFile] = useState<File | null>(null);
+  const [extractingDate, setExtractingDate] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  async function handleFileChange(selected: File | null) {
+    setFile(selected);
+    if (!selected) return;
+    setExtractingDate(true);
+    try {
+      const date = await extractDateFromPdf(selected);
+      if (date) setForm(f => ({ ...f, visitDate: date }));
+    } finally {
+      setExtractingDate(false);
+    }
+  }
 
   const yearMonth = getYearMonth(year, month);
 
@@ -315,8 +329,11 @@ export default function SafetyManagerReports() {
                 {file ? (
                   <div className="flex items-center gap-2">
                     <FileText className="h-5 w-5 text-orange-500 shrink-0" />
-                    <span className="text-sm font-medium flex-1 truncate">{file.name}</span>
-                    <button type="button" onClick={e => { e.stopPropagation(); setFile(null); if (fileRef.current) fileRef.current.value = ""; }} className="p-0.5 rounded hover:bg-muted" data-testid="btn-remove-file">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{file.name}</p>
+                      {extractingDate && <p className="text-xs text-muted-foreground flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" />날짜 추출 중...</p>}
+                    </div>
+                    <button type="button" onClick={e => { e.stopPropagation(); handleFileChange(null); if (fileRef.current) fileRef.current.value = ""; }} className="p-0.5 rounded hover:bg-muted" data-testid="btn-remove-file">
                       <X className="h-4 w-4 text-muted-foreground" />
                     </button>
                   </div>
@@ -333,7 +350,7 @@ export default function SafetyManagerReports() {
                   </div>
                 )}
               </div>
-              <input ref={fileRef} type="file" className="hidden" accept=".pdf,.doc,.docx,.hwp,.hwpx,.xlsx,.xls,.jpg,.jpeg,.png" onChange={e => setFile(e.target.files?.[0] || null)} data-testid="input-file" />
+              <input ref={fileRef} type="file" className="hidden" accept=".pdf,.doc,.docx,.hwp,.hwpx,.xlsx,.xls,.jpg,.jpeg,.png" onChange={e => handleFileChange(e.target.files?.[0] || null)} data-testid="input-file" />
             </div>
 
             <div className="flex justify-end gap-2 pt-1">
