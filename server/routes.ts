@@ -5695,7 +5695,8 @@ ${htmlDraft}
   app.get('/api/safety-manager-reports', isAuthenticated, async (req: any, res) => {
     try {
       const yearMonth = req.query.yearMonth as string | undefined;
-      res.json(await storage.getSafetyManagerReports(yearMonth));
+      const year = req.query.year as string | undefined;
+      res.json(await storage.getSafetyManagerReports(yearMonth, year));
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
@@ -5741,8 +5742,10 @@ ${htmlDraft}
 
   app.post('/api/safety-manager-reports', requireEditor, reportUpload.single('file'), async (req: any, res) => {
     try {
-      const { yearMonth, visitDate, team, visitSequence } = req.body;
-      if (!yearMonth || !visitDate || !team) return res.status(400).json({ message: "필수 항목 누락" });
+      const { visitDate, team, visitSequence } = req.body;
+      if (!visitDate || !team) return res.status(400).json({ message: "필수 항목 누락" });
+      // visitDate 기준으로 yearMonth 자동 계산 (클라이언트 전송값 무시)
+      const derivedYearMonth = visitDate.substring(0, 7);
       let fileUrl: string | null = null;
       let fileOriginalName: string | null = null;
       if (req.file) {
@@ -5757,7 +5760,7 @@ ${htmlDraft}
         fileOriginalName = origName;
       }
       const report = await storage.createSafetyManagerReport({
-        yearMonth, visitDate, team,
+        yearMonth: derivedYearMonth, visitDate, team,
         visitSequence: parseInt(visitSequence) || 1,
         safetyManagerName: null, reportContent: null,
         fileUrl, fileOriginalName,
@@ -5771,8 +5774,11 @@ ${htmlDraft}
   app.patch('/api/safety-manager-reports/:id', requireEditor, reportUpload.single('file'), async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
-      const { yearMonth, visitDate, team, visitSequence } = req.body;
-      const updates: any = { yearMonth, visitDate, team, visitSequence: parseInt(visitSequence) || 1 };
+      const { visitDate, team, visitSequence } = req.body;
+      // visitDate 기준으로 yearMonth 자동 계산
+      const derivedYearMonth = visitDate ? visitDate.substring(0, 7) : undefined;
+      const updates: any = { visitDate, team, visitSequence: parseInt(visitSequence) || 1 };
+      if (derivedYearMonth) updates.yearMonth = derivedYearMonth;
       if (req.file) {
         const origName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
         const ext = path.extname(origName) || '.bin';
@@ -5806,7 +5812,8 @@ ${htmlDraft}
   app.get('/api/health-manager-reports', isAuthenticated, async (req: any, res) => {
     try {
       const yearMonth = req.query.yearMonth as string | undefined;
-      res.json(await storage.getHealthManagerReports(yearMonth));
+      const year = req.query.year as string | undefined;
+      res.json(await storage.getHealthManagerReports(yearMonth, year));
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 

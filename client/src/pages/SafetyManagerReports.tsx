@@ -100,10 +100,15 @@ export default function SafetyManagerReports() {
     queryFn: () => fetch(`/api/safety-manager-reports?yearMonth=${yearMonth}`).then(r => r.json()),
   });
 
+  const { data: annualReports = [] } = useQuery<SafetyManagerReport[]>({
+    queryKey: ["/api/safety-manager-reports", "year", String(year)],
+    queryFn: () => fetch(`/api/safety-manager-reports?year=${year}`).then(r => r.json()),
+  });
+
   const deleteMutation = useMutation({
     mutationFn: (id: number) => apiRequest("DELETE", `/api/safety-manager-reports/${id}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/safety-manager-reports", yearMonth] });
+      queryClient.invalidateQueries({ queryKey: ["/api/safety-manager-reports"] });
       toast({ title: "삭제 완료" });
       setDayReports(null);
     },
@@ -128,21 +133,30 @@ export default function SafetyManagerReports() {
     setSubmitting(true);
     try {
       const fd = new FormData();
-      fd.append("yearMonth", yearMonth);
       fd.append("visitDate", form.visitDate);
       fd.append("team", form.team);
       fd.append("visitSequence", form.visitSequence);
       if (file) fd.append("file", file);
+      let res: Response;
       if (editing) {
-        await fetch(`/api/safety-manager-reports/${editing.id}`, { method: "PATCH", body: fd });
+        res = await fetch(`/api/safety-manager-reports/${editing.id}`, { method: "PATCH", body: fd });
       } else {
-        await fetch("/api/safety-manager-reports", { method: "POST", body: fd });
+        res = await fetch("/api/safety-manager-reports", { method: "POST", body: fd });
       }
-      queryClient.invalidateQueries({ queryKey: ["/api/safety-manager-reports", yearMonth] });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || "저장 실패");
+      }
+      // visitDate 기준 월로 캘린더 이동 및 캐시 무효화
+      const visitYM = form.visitDate.substring(0, 7);
+      const [vy, vm] = visitYM.split("-").map(Number);
+      queryClient.invalidateQueries({ queryKey: ["/api/safety-manager-reports"] });
+      setYear(vy);
+      setMonth(vm);
       setDialogOpen(false);
       toast({ title: editing ? "수정 완료" : "등록 완료" });
-    } catch {
-      toast({ variant: "destructive", title: "저장 실패" });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "저장 실패", description: e?.message });
     } finally {
       setSubmitting(false);
     }
@@ -168,6 +182,8 @@ export default function SafetyManagerReports() {
   const visitCountByGroup = VISIT_PLAN.map(g => ({ ...g, count: reports.filter(r => g.teams.includes(r.team)).length }));
   const totalPlanned = VISIT_PLAN.reduce((s, g) => s + g.planned, 0);
   const totalDone = reports.length;
+  const annualCount = annualReports.length;
+  const annualPlanned = VISIT_PLAN.reduce((s, g) => s + g.planned, 0) * 12;
 
   function handleDayClick(dateStr: string, dayRpts: SafetyManagerReport[]) {
     if (dayRpts.length === 1) {
@@ -218,35 +234,41 @@ export default function SafetyManagerReports() {
 
       {/* 캘린더 */}
       <Card>
-        <CardContent className="p-3 md:p-4">
+        <CardContent className="p-3">
           {/* 진행률 헤더 */}
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-medium">방문 현황</span>
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
             <div className="flex items-center gap-2">
+              <span className="text-sm font-medium">이번달 현황</span>
               <Badge variant={totalDone >= totalPlanned ? "default" : "secondary"} className="text-xs">
-                {totalDone} / {totalPlanned}회 완료
+                {totalDone} / {totalPlanned}회
               </Badge>
-              <div className="w-24 bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+              <div className="w-20 bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
                 <div className="bg-orange-500 h-1.5 rounded-full transition-all" style={{ width: `${Math.min(100, (totalDone / totalPlanned) * 100)}%` }} />
               </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">{year}년 연간</span>
+              <Badge variant={annualCount >= annualPlanned ? "default" : "outline"} className="text-xs font-semibold">
+                {annualCount}회 / 목표 {annualPlanned}회
+              </Badge>
             </div>
           </div>
 
           {/* 요일 헤더 */}
-          <div className="grid grid-cols-7 mb-1">
+          <div className="grid grid-cols-7 mb-0.5">
             {DAY_NAMES.map((d, i) => (
-              <div key={d} className={`text-center text-xs font-semibold py-1 ${i === 0 ? "text-red-500" : i === 6 ? "text-blue-500" : "text-muted-foreground"}`}>{d}</div>
+              <div key={d} className={`text-center text-[10px] font-semibold py-0.5 ${i === 0 ? "text-red-500" : i === 6 ? "text-blue-500" : "text-muted-foreground"}`}>{d}</div>
             ))}
           </div>
 
           {/* 날짜 셀 */}
           {isLoading ? (
-            <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+            <div className="flex justify-center py-10"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
           ) : (
             <div className="grid grid-cols-7 gap-px bg-border rounded-lg overflow-hidden">
               {/* 앞 빈 칸 */}
               {Array.from({ length: startPad }).map((_, i) => (
-                <div key={`pad-${i}`} className="bg-muted/20 min-h-[64px] md:min-h-[80px]" />
+                <div key={`pad-${i}`} className="bg-muted/20 min-h-[46px]" />
               ))}
               {/* 날짜 셀 */}
               {days.map(day => {
@@ -261,13 +283,13 @@ export default function SafetyManagerReports() {
                 return (
                   <div
                     key={dateStr}
-                    className={`bg-background min-h-[64px] md:min-h-[80px] p-1 md:p-1.5 flex flex-col gap-0.5 transition-colors
+                    className={`bg-background min-h-[46px] p-0.5 flex flex-col gap-0.5 transition-colors
                       ${hasReports ? "cursor-pointer hover:bg-orange-50 dark:hover:bg-orange-950/20" : ""}
                       ${today ? "ring-2 ring-orange-400 ring-inset" : ""}
                     `}
                     onClick={() => hasReports && handleDayClick(dateStr, dayRpts)}
                   >
-                    <span className={`text-xs font-medium leading-none mb-0.5
+                    <span className={`text-[10px] font-medium leading-none mb-0.5 pl-0.5
                       ${today ? "text-orange-600 font-bold" : isSun ? "text-red-500" : isSat ? "text-blue-500" : "text-foreground"}
                     `}>
                       {format(day, "d")}
@@ -275,11 +297,11 @@ export default function SafetyManagerReports() {
                     {dayRpts.map(r => (
                       <span
                         key={r.id}
-                        className={`text-[9px] md:text-[10px] leading-tight px-1 py-0.5 rounded font-medium truncate ${TEAM_COLOR[r.team] ?? "bg-gray-400 text-white"}`}
+                        className={`text-[8px] leading-tight px-0.5 py-px rounded font-medium truncate ${TEAM_COLOR[r.team] ?? "bg-gray-400 text-white"}`}
                         title={`${r.team}${needsSequence(r.team) ? ` ${r.visitSequence}차` : ""}`}
                       >
                         {r.team.replace("운용팀", "").replace("관제팀", "")}
-                        {needsSequence(r.team) ? `·${r.visitSequence}차` : ""}
+                        {needsSequence(r.team) ? `·${r.visitSequence}` : ""}
                       </span>
                     ))}
                   </div>

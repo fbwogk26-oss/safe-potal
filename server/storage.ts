@@ -160,14 +160,14 @@ export interface IStorage {
   getFuelBatches(): Promise<{ batchId: string; uploadedAt: Date; recordCount: number; yearMonths: string[] }[]>;
 
   // Safety Manager Reports
-  getSafetyManagerReports(yearMonth?: string): Promise<SafetyManagerReport[]>;
+  getSafetyManagerReports(yearMonth?: string, year?: string): Promise<SafetyManagerReport[]>;
   getSafetyManagerReport(id: number): Promise<SafetyManagerReport | undefined>;
   createSafetyManagerReport(data: any): Promise<SafetyManagerReport>;
   updateSafetyManagerReport(id: number, data: any): Promise<SafetyManagerReport>;
   deleteSafetyManagerReport(id: number): Promise<void>;
 
   // Health Manager Reports
-  getHealthManagerReports(yearMonth?: string): Promise<HealthManagerReport[]>;
+  getHealthManagerReports(yearMonth?: string, year?: string): Promise<HealthManagerReport[]>;
   getHealthManagerReport(id: number): Promise<HealthManagerReport | undefined>;
   createHealthManagerReport(data: any): Promise<HealthManagerReport>;
   updateHealthManagerReport(id: number, data: any): Promise<HealthManagerReport>;
@@ -679,8 +679,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   // === SAFETY MANAGER REPORTS ===
-  async getSafetyManagerReports(yearMonth?: string): Promise<SafetyManagerReport[]> {
-    const cond = yearMonth ? eq(safetyManagerReports.yearMonth, yearMonth) : undefined;
+  async getSafetyManagerReports(yearMonth?: string, year?: string): Promise<SafetyManagerReport[]> {
+    let cond: any = undefined;
+    if (yearMonth) {
+      cond = sql`LEFT(${safetyManagerReports.visitDate}, 7) = ${yearMonth}`;
+    } else if (year) {
+      cond = sql`LEFT(${safetyManagerReports.visitDate}, 4) = ${year}`;
+    }
     return await db.select().from(safetyManagerReports)
       .where(cond)
       .orderBy(desc(safetyManagerReports.createdAt));
@@ -702,11 +707,14 @@ export class DatabaseStorage implements IStorage {
   }
 
   // === HEALTH MANAGER REPORTS ===
-  async getHealthManagerReports(yearMonth?: string): Promise<HealthManagerReport[]> {
+  async getHealthManagerReports(yearMonth?: string, year?: string): Promise<HealthManagerReport[]> {
     // visitDate 기준으로 조회 — 기존 yearMonth 필드 오염 데이터도 올바르게 처리
-    const cond = yearMonth
-      ? sql`LEFT(${healthManagerReports.visitDate}, 7) = ${yearMonth}`
-      : undefined;
+    let cond: any = undefined;
+    if (yearMonth) {
+      cond = sql`LEFT(${healthManagerReports.visitDate}, 7) = ${yearMonth}`;
+    } else if (year) {
+      cond = sql`LEFT(${healthManagerReports.visitDate}, 4) = ${year}`;
+    }
     return await db.select().from(healthManagerReports)
       .where(cond)
       .orderBy(desc(healthManagerReports.visitDate));

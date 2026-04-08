@@ -111,10 +111,15 @@ export default function HealthManagerReports() {
     queryFn: () => fetch(`/api/health-manager-reports?yearMonth=${yearMonth}`).then(r => r.json()),
   });
 
+  const { data: annualReports = [] } = useQuery<HealthManagerReport[]>({
+    queryKey: ["/api/health-manager-reports", "year", String(year)],
+    queryFn: () => fetch(`/api/health-manager-reports?year=${year}`).then(r => r.json()),
+  });
+
   const deleteMutation = useMutation({
     mutationFn: (id: number) => apiRequest("DELETE", `/api/health-manager-reports/${id}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/health-manager-reports", yearMonth] });
+      queryClient.invalidateQueries({ queryKey: ["/api/health-manager-reports"] });
       toast({ title: "삭제 완료" });
       setDayReports(null);
     },
@@ -143,22 +148,25 @@ export default function HealthManagerReports() {
       fd.append("staffType", form.staffType);
       if (form.team) fd.append("team", form.team);
       if (file) fd.append("file", file);
+      let res: Response;
       if (editing) {
-        await fetch(`/api/health-manager-reports/${editing.id}`, { method: "PATCH", body: fd });
+        res = await fetch(`/api/health-manager-reports/${editing.id}`, { method: "PATCH", body: fd });
       } else {
-        await fetch("/api/health-manager-reports", { method: "POST", body: fd });
+        res = await fetch("/api/health-manager-reports", { method: "POST", body: fd });
+      }
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || "저장 실패");
       }
       // visitDate 기준으로 올바른 년월 캐시 무효화 + 캘린더 이동
-      const visitYM = form.visitDate.substring(0, 7);
       queryClient.invalidateQueries({ queryKey: ["/api/health-manager-reports"] });
-      // 캘린더를 visitDate 월로 이동
-      const [vy, vm] = visitYM.split("-").map(Number);
+      const [vy, vm] = form.visitDate.substring(0, 7).split("-").map(Number);
       setYear(vy);
       setMonth(vm);
       setDialogOpen(false);
       toast({ title: editing ? "수정 완료" : "등록 완료" });
-    } catch {
-      toast({ variant: "destructive", title: "저장 실패" });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "저장 실패", description: e?.message });
     } finally {
       setSubmitting(false);
     }
@@ -183,6 +191,7 @@ export default function HealthManagerReports() {
   const expectedConfigs = STAFF_CONFIGS.filter(cfg => isExpectedThisMonth(cfg.frequencyMonths, month));
   const totalPlanned = expectedConfigs.length;
   const totalDone = expectedConfigs.filter(cfg => reports.some(r => r.staffType === cfg.type)).length;
+  const annualCount = annualReports.length;
 
   function handleDayClick(dateStr: string, dayRpts: HealthManagerReport[]) {
     if (dayRpts.length === 1) {
@@ -251,34 +260,40 @@ export default function HealthManagerReports() {
 
       {/* 캘린더 */}
       <Card>
-        <CardContent className="p-3 md:p-4">
+        <CardContent className="p-3">
           {/* 진행률 헤더 */}
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-medium">방문 현황</span>
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
             <div className="flex items-center gap-2">
+              <span className="text-sm font-medium">이번달 현황</span>
               <Badge variant={totalDone >= totalPlanned ? "default" : "secondary"} className="text-xs">
-                {totalDone} / {totalPlanned}직종 완료
+                {totalDone} / {totalPlanned}직종
               </Badge>
-              <div className="w-24 bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+              <div className="w-20 bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
                 <div className="bg-rose-500 h-1.5 rounded-full transition-all" style={{ width: `${totalPlanned > 0 ? Math.min(100, (totalDone / totalPlanned) * 100) : 0}%` }} />
               </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">{year}년 연간</span>
+              <Badge variant="outline" className="text-xs font-semibold">
+                {annualCount}회 방문
+              </Badge>
             </div>
           </div>
 
           {/* 요일 헤더 */}
-          <div className="grid grid-cols-7 mb-1">
+          <div className="grid grid-cols-7 mb-0.5">
             {DAY_NAMES.map((d, i) => (
-              <div key={d} className={`text-center text-xs font-semibold py-1 ${i === 0 ? "text-red-500" : i === 6 ? "text-blue-500" : "text-muted-foreground"}`}>{d}</div>
+              <div key={d} className={`text-center text-[10px] font-semibold py-0.5 ${i === 0 ? "text-red-500" : i === 6 ? "text-blue-500" : "text-muted-foreground"}`}>{d}</div>
             ))}
           </div>
 
           {/* 날짜 셀 */}
           {isLoading ? (
-            <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+            <div className="flex justify-center py-10"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
           ) : (
             <div className="grid grid-cols-7 gap-px bg-border rounded-lg overflow-hidden">
               {Array.from({ length: startPad }).map((_, i) => (
-                <div key={`pad-${i}`} className="bg-muted/20 min-h-[72px] md:min-h-[88px]" />
+                <div key={`pad-${i}`} className="bg-muted/20 min-h-[46px]" />
               ))}
               {days.map(day => {
                 const dateStr = format(day, "yyyy-MM-dd");
@@ -292,13 +307,13 @@ export default function HealthManagerReports() {
                 return (
                   <div
                     key={dateStr}
-                    className={`bg-background min-h-[72px] md:min-h-[88px] p-1 md:p-1.5 flex flex-col gap-0.5 transition-colors
+                    className={`bg-background min-h-[46px] p-0.5 flex flex-col gap-0.5 transition-colors
                       ${hasReports ? "cursor-pointer hover:bg-rose-50 dark:hover:bg-rose-950/20" : ""}
                       ${today ? "ring-2 ring-rose-400 ring-inset" : ""}
                     `}
                     onClick={() => hasReports && handleDayClick(dateStr, dayRpts)}
                   >
-                    <span className={`text-xs font-medium leading-none mb-0.5
+                    <span className={`text-[10px] font-medium leading-none mb-0.5 pl-0.5
                       ${today ? "text-rose-600 font-bold" : isSun ? "text-red-500" : isSat ? "text-blue-500" : "text-foreground"}
                     `}>
                       {format(day, "d")}
@@ -306,7 +321,7 @@ export default function HealthManagerReports() {
                     {dayRpts.map(r => (
                       <span
                         key={r.id}
-                        className={`text-[9px] md:text-[10px] leading-tight px-1 py-0.5 rounded font-medium truncate ${STAFF_COLOR[r.staffType as StaffType] ?? "bg-gray-400 text-white"}`}
+                        className={`text-[8px] leading-tight px-0.5 py-px rounded font-medium truncate ${STAFF_COLOR[r.staffType as StaffType] ?? "bg-gray-400 text-white"}`}
                         title={`${r.staffType}${r.team ? ` · ${r.team}` : ""}`}
                       >
                         {r.team ? `${shortTeam(r.team)}·${r.staffType === "위생기사" ? "위생" : r.staffType}` : r.staffType}
