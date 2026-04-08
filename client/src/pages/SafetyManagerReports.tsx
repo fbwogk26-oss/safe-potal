@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { HardHat, Plus, Trash2, Pencil, FileText, ChevronLeft, ChevronRight, Download, CheckCircle2, AlertCircle, Loader2, Sparkles, Upload } from "lucide-react";
+import { HardHat, Plus, Trash2, Pencil, FileText, ChevronLeft, ChevronRight, Download, CheckCircle2, AlertCircle, Loader2, Paperclip, X } from "lucide-react";
 import type { SafetyManagerReport } from "@shared/schema";
 
 const DAEGU_TEAMS = ["동대구운용팀", "서대구운용팀", "남대구운용팀", "공공망관제팀"];
@@ -51,9 +51,7 @@ export default function SafetyManagerReports() {
   });
   const [file, setFile] = useState<File | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  const analyzeRef = useRef<HTMLInputElement>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [analyzing, setAnalyzing] = useState(false);
 
   const yearMonth = getYearMonth(year, month);
 
@@ -89,38 +87,6 @@ export default function SafetyManagerReports() {
     });
     setFile(null);
     setDialogOpen(true);
-  }
-
-  async function handleAnalyzePdf(pdfFile: File) {
-    if (!pdfFile.name.toLowerCase().endsWith(".pdf")) {
-      toast({ variant: "destructive", title: "PDF 파일만 분석 가능합니다" });
-      return;
-    }
-    setAnalyzing(true);
-    setFile(pdfFile);
-    try {
-      const fd = new FormData();
-      fd.append("file", pdfFile);
-      const res = await fetch("/api/safety-manager-reports/analyze-pdf", { method: "POST", body: fd });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.message || "분석 실패");
-      }
-      const { data } = await res.json();
-      setForm(f => ({
-        ...f,
-        visitDate: data.visitDate || f.visitDate,
-        team: data.team && ALL_TEAMS.includes(data.team) ? data.team : f.team,
-        safetyManagerName: data.safetyManagerName || f.safetyManagerName,
-        reportContent: data.reportContent || f.reportContent,
-        notes: data.notes ? `근로자수: ${data.workerCount || "-"}명\n${data.notes}` : f.notes,
-      }));
-      toast({ title: "AI 분석 완료", description: "보고서 내용이 자동으로 입력되었습니다. 내용을 확인 후 수정해주세요." });
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "AI 분석 실패", description: e.message });
-    } finally {
-      setAnalyzing(false);
-    }
   }
 
   async function handleSubmit() {
@@ -269,44 +235,6 @@ export default function SafetyManagerReports() {
           </DialogHeader>
           <div className="space-y-4 pt-2">
 
-            {/* AI PDF 분석 버튼 영역 */}
-            {!editing && (
-              <div className="rounded-lg border-2 border-dashed border-orange-200 bg-orange-50 dark:bg-orange-950/20 dark:border-orange-800 p-4">
-                <div className="flex items-start gap-3">
-                  <Sparkles className="h-5 w-5 text-orange-500 mt-0.5 shrink-0" />
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-orange-700 dark:text-orange-300">PDF AI 자동 분석</p>
-                    <p className="text-xs text-muted-foreground mt-0.5 mb-3">안전관리상태보고서 PDF를 업로드하면 날짜·팀명·관리자·지도내용을 자동으로 입력합니다.</p>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="gap-1.5 border-orange-300 text-orange-700 hover:bg-orange-100 dark:border-orange-700 dark:text-orange-300"
-                      onClick={() => analyzeRef.current?.click()}
-                      disabled={analyzing}
-                      data-testid="btn-analyze-pdf"
-                    >
-                      {analyzing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-                      {analyzing ? "AI 분석 중..." : "PDF 선택 및 분석"}
-                    </Button>
-                    <input
-                      ref={analyzeRef}
-                      type="file"
-                      className="hidden"
-                      accept=".pdf"
-                      onChange={e => { const f = e.target.files?.[0]; if (f) handleAnalyzePdf(f); e.target.value = ""; }}
-                      data-testid="input-analyze-pdf"
-                    />
-                    {file && !analyzing && (
-                      <p className="text-xs text-green-600 mt-2 flex items-center gap-1">
-                        <CheckCircle2 className="h-3 w-3" /> {file.name} — 분석 완료 (아래 내용 확인 후 저장)
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label>방문 팀 *</Label>
@@ -353,20 +281,43 @@ export default function SafetyManagerReports() {
 
             <div className="space-y-1">
               <Label>보고서 파일 첨부</Label>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()} data-testid="btn-file-select">
-                  <FileText className="h-4 w-4 mr-1" /> 파일 선택
-                </Button>
-                <span className="text-sm text-muted-foreground truncate">
-                  {file ? file.name : (editing?.fileOriginalName ? `현재: ${editing.fileOriginalName}` : "파일 없음")}
-                </span>
+              <div
+                className="border-2 border-dashed rounded-lg p-3 cursor-pointer hover:bg-muted/50 transition-colors"
+                onClick={() => fileRef.current?.click()}
+                data-testid="drop-file-area"
+              >
+                {file ? (
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-5 w-5 text-orange-500 shrink-0" />
+                    <span className="text-sm font-medium flex-1 truncate">{file.name}</span>
+                    <button
+                      type="button"
+                      onClick={e => { e.stopPropagation(); setFile(null); if (fileRef.current) fileRef.current.value = ""; }}
+                      className="p-0.5 rounded hover:bg-muted"
+                      data-testid="btn-remove-file"
+                    >
+                      <X className="h-4 w-4 text-muted-foreground" />
+                    </button>
+                  </div>
+                ) : editing?.fileOriginalName ? (
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-5 w-5 text-blue-500 shrink-0" />
+                    <span className="text-sm flex-1 truncate">현재: {editing.fileOriginalName}</span>
+                    <span className="text-xs text-muted-foreground">(클릭하여 교체)</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Paperclip className="h-5 w-5 shrink-0" />
+                    <span className="text-sm">파일을 클릭하여 첨부 (PDF, HWP, DOC, 엑셀, 이미지)</span>
+                  </div>
+                )}
               </div>
-              <input ref={fileRef} type="file" className="hidden" accept=".pdf,.doc,.docx,.hwp,.xlsx,.xls,.jpg,.jpeg,.png" onChange={e => setFile(e.target.files?.[0] || null)} data-testid="input-file" />
+              <input ref={fileRef} type="file" className="hidden" accept=".pdf,.doc,.docx,.hwp,.hwpx,.xlsx,.xls,.jpg,.jpeg,.png" onChange={e => setFile(e.target.files?.[0] || null)} data-testid="input-file" />
             </div>
 
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" onClick={() => setDialogOpen(false)} data-testid="btn-cancel">취소</Button>
-              <Button onClick={handleSubmit} disabled={submitting || analyzing} data-testid="btn-submit">
+              <Button onClick={handleSubmit} disabled={submitting} data-testid="btn-submit">
                 {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
                 {editing ? "수정" : "등록"}
               </Button>

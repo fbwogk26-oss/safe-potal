@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { HeartPulse, Plus, Trash2, Pencil, FileText, ChevronLeft, ChevronRight, Download, CheckCircle2, AlertCircle, Loader2, Calendar, Sparkles, Upload } from "lucide-react";
+import { HeartPulse, Plus, Trash2, Pencil, FileText, ChevronLeft, ChevronRight, Download, CheckCircle2, AlertCircle, Loader2, Calendar, Paperclip, X } from "lucide-react";
 import type { HealthManagerReport } from "@shared/schema";
 
 type StaffType = "위생기사" | "의사" | "간호사";
@@ -60,9 +60,7 @@ export default function HealthManagerReports() {
   });
   const [file, setFile] = useState<File | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  const analyzeRef = useRef<HTMLInputElement>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [analyzing, setAnalyzing] = useState(false);
 
   const yearMonth = getYearMonth(year, month);
 
@@ -91,44 +89,6 @@ export default function HealthManagerReports() {
     setForm({ visitDate: r.visitDate, staffType: r.staffType as StaffType, staffName: r.staffName || "", reportContent: r.reportContent || "", notes: r.notes || "" });
     setFile(null);
     setDialogOpen(true);
-  }
-
-  const VALID_STAFF_TYPES: StaffType[] = ["간호사", "위생기사", "의사"];
-
-  async function handleAnalyzePdf(pdfFile: File) {
-    if (!pdfFile.name.toLowerCase().endsWith(".pdf")) {
-      toast({ variant: "destructive", title: "PDF 파일만 분석 가능합니다" });
-      return;
-    }
-    setAnalyzing(true);
-    setFile(pdfFile);
-    try {
-      const fd = new FormData();
-      fd.append("file", pdfFile);
-      const res = await fetch("/api/health-manager-reports/analyze-pdf", { method: "POST", body: fd });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.message || "분석 실패");
-      }
-      const { data } = await res.json();
-      setForm(f => ({
-        ...f,
-        visitDate: data.visitDate || f.visitDate,
-        staffType: (data.staffType && VALID_STAFF_TYPES.includes(data.staffType)) ? data.staffType : f.staffType,
-        staffName: data.staffName || f.staffName,
-        reportContent: data.reportContent || f.reportContent,
-        notes: [
-          data.healthConsultCount ? `건강상담: ${data.healthConsultCount}명` : "",
-          data.nextVisitDate ? `차기방문: ${data.nextVisitDate}` : "",
-          data.notes || "",
-        ].filter(Boolean).join("\n") || f.notes,
-      }));
-      toast({ title: "AI 분석 완료", description: "보고서 내용이 자동으로 입력되었습니다. 내용을 확인 후 수정해주세요." });
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "AI 분석 실패", description: e.message });
-    } finally {
-      setAnalyzing(false);
-    }
   }
 
   async function handleSubmit() {
@@ -265,44 +225,6 @@ export default function HealthManagerReports() {
           </DialogHeader>
           <div className="space-y-4 pt-2">
 
-            {/* AI PDF 분석 버튼 영역 */}
-            {!editing && (
-              <div className="rounded-lg border-2 border-dashed border-rose-200 bg-rose-50 dark:bg-rose-950/20 dark:border-rose-800 p-4">
-                <div className="flex items-start gap-3">
-                  <Sparkles className="h-5 w-5 text-rose-500 mt-0.5 shrink-0" />
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-rose-700 dark:text-rose-300">PDF AI 자동 분석</p>
-                    <p className="text-xs text-muted-foreground mt-0.5 mb-3">보건관리상태보고서 PDF를 업로드하면 날짜·직종·성명·업무내용을 자동으로 입력합니다.</p>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="gap-1.5 border-rose-300 text-rose-700 hover:bg-rose-100 dark:border-rose-700 dark:text-rose-300"
-                      onClick={() => analyzeRef.current?.click()}
-                      disabled={analyzing}
-                      data-testid="btn-analyze-pdf"
-                    >
-                      {analyzing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-                      {analyzing ? "AI 분석 중..." : "PDF 선택 및 분석"}
-                    </Button>
-                    <input
-                      ref={analyzeRef}
-                      type="file"
-                      className="hidden"
-                      accept=".pdf"
-                      onChange={e => { const f = e.target.files?.[0]; if (f) handleAnalyzePdf(f); e.target.value = ""; }}
-                      data-testid="input-analyze-pdf"
-                    />
-                    {file && !analyzing && (
-                      <p className="text-xs text-green-600 mt-2 flex items-center gap-1">
-                        <CheckCircle2 className="h-3 w-3" /> {file.name} — 분석 완료 (아래 내용 확인 후 저장)
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label>직종 *</Label>
@@ -338,20 +260,43 @@ export default function HealthManagerReports() {
 
             <div className="space-y-1">
               <Label>보고서 파일 첨부</Label>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()} data-testid="btn-file-select">
-                  <FileText className="h-4 w-4 mr-1" /> 파일 선택
-                </Button>
-                <span className="text-sm text-muted-foreground truncate">
-                  {file ? file.name : (editing?.fileOriginalName ? `현재: ${editing.fileOriginalName}` : "파일 없음")}
-                </span>
+              <div
+                className="border-2 border-dashed rounded-lg p-3 cursor-pointer hover:bg-muted/50 transition-colors"
+                onClick={() => fileRef.current?.click()}
+                data-testid="drop-file-area"
+              >
+                {file ? (
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-5 w-5 text-rose-500 shrink-0" />
+                    <span className="text-sm font-medium flex-1 truncate">{file.name}</span>
+                    <button
+                      type="button"
+                      onClick={e => { e.stopPropagation(); setFile(null); if (fileRef.current) fileRef.current.value = ""; }}
+                      className="p-0.5 rounded hover:bg-muted"
+                      data-testid="btn-remove-file"
+                    >
+                      <X className="h-4 w-4 text-muted-foreground" />
+                    </button>
+                  </div>
+                ) : editing?.fileOriginalName ? (
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-5 w-5 text-blue-500 shrink-0" />
+                    <span className="text-sm flex-1 truncate">현재: {editing.fileOriginalName}</span>
+                    <span className="text-xs text-muted-foreground">(클릭하여 교체)</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Paperclip className="h-5 w-5 shrink-0" />
+                    <span className="text-sm">파일을 클릭하여 첨부 (PDF, HWP, DOC, 엑셀, 이미지)</span>
+                  </div>
+                )}
               </div>
-              <input ref={fileRef} type="file" className="hidden" accept=".pdf,.doc,.docx,.hwp,.xlsx,.xls,.jpg,.jpeg,.png" onChange={e => setFile(e.target.files?.[0] || null)} data-testid="input-file" />
+              <input ref={fileRef} type="file" className="hidden" accept=".pdf,.doc,.docx,.hwp,.hwpx,.xlsx,.xls,.jpg,.jpeg,.png" onChange={e => setFile(e.target.files?.[0] || null)} data-testid="input-file" />
             </div>
 
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" onClick={() => setDialogOpen(false)} data-testid="btn-cancel">취소</Button>
-              <Button onClick={handleSubmit} disabled={submitting || analyzing} data-testid="btn-submit">
+              <Button onClick={handleSubmit} disabled={submitting} data-testid="btn-submit">
                 {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
                 {editing ? "수정" : "등록"}
               </Button>
