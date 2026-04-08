@@ -36,7 +36,6 @@ import MusicManager from "@/pages/MusicManager";
 import FuelCosts from "@/pages/FuelCosts";
 import SafetyManagerReports from "@/pages/SafetyManagerReports";
 import HealthManagerReports from "@/pages/HealthManagerReports";
-import KoshaSiren from "@/pages/KoshaSiren";
 import Login from "@/pages/Login";
 import NotFound from "@/pages/NotFound";
 import { useAuth } from "@/hooks/use-auth";
@@ -118,7 +117,6 @@ function RouterContent() {
       <Route path="/admin/signatures">{() => <G canAccess={isAdmin} component={SignatureAdmin} />}</Route>
       <Route path="/safety-manager-reports">{() => <G canAccess={canViewInspections} component={SafetyManagerReports} />}</Route>
       <Route path="/health-manager-reports">{() => <G canAccess={canViewInspections} component={HealthManagerReports} />}</Route>
-      <Route path="/kosha-siren" component={KoshaSiren} />
       <Route path="/weather-safety" component={WeatherSafetyMessage} />
       <Route component={NotFound} />
     </Switch>
