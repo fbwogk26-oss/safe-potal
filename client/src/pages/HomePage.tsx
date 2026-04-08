@@ -627,11 +627,15 @@ export default function HomePage() {
 
           <div className="py-4 space-y-4">
             {currentNotice?.imageUrl && (
-              <div className="rounded-lg overflow-hidden border">
+              <div className="rounded-lg overflow-hidden border" id="notice-image-wrap">
                 <img
                   src={currentNotice.imageUrl}
                   alt="공지 이미지"
                   className="w-full h-auto object-cover max-h-64"
+                  onError={(e) => {
+                    const wrap = (e.currentTarget as HTMLImageElement).closest("#notice-image-wrap") as HTMLElement | null;
+                    if (wrap) wrap.style.display = "none";
+                  }}
                 />
               </div>
             )}

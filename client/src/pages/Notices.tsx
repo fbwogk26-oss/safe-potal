@@ -392,6 +392,7 @@ export default function Notices() {
                     src={selectedNotice.imageUrl}
                     alt={selectedNotice.title}
                     className="w-full max-h-80 object-contain rounded-xl border bg-muted/20"
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                   />
                 )}
                 <p className="text-foreground/90 leading-relaxed whitespace-pre-wrap">{selectedNotice.content}</p>

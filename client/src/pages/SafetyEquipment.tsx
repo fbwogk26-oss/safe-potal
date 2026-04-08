@@ -330,6 +330,7 @@ export default function SafetyEquipment({ embedded = false }: SafetyEquipmentPro
                       src={item.imageUrl} 
                       alt="첨부 이미지" 
                       className="max-w-full max-h-48 rounded-lg border"
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                     />
                   )}
                   {parsed.excelUrl && (

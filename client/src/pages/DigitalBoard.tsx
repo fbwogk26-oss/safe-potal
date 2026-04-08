@@ -64,7 +64,7 @@ const PreloadedImage = memo(function PreloadedImage({ src, alt, className }: { s
       src={src}
       alt={alt}
       className={className}
-      onError={e => { (e.target as HTMLImageElement).style.opacity = "0.3"; }}
+      onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
     />
   );
 });
