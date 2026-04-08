@@ -8,7 +8,7 @@ import crypto from "crypto";
 const SESSION_SECRET = process.env.SESSION_SECRET || generateSessionSecret();
 
 export function getSession() {
-  const sessionTtl = 24 * 60 * 60 * 1000; // 1 day (reduced from 1 week)
+  const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 7 days
   const pgStore = connectPg(session);
   const sessionStore = new pgStore({
     conString: process.env.DATABASE_URL,
@@ -22,6 +22,7 @@ export function getSession() {
     store: sessionStore,
     resave: false,
     saveUninitialized: false,
+    rolling: true,
     name: "__sb_sid",
     cookie: {
       httpOnly: true,

@@ -2,6 +2,10 @@ import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
+    if (res.status === 401) {
+      queryClient.setQueryData(["/api/auth/user"], null);
+      throw new Error("401: 로그인이 필요합니다. 다시 로그인해 주세요.");
+    }
     const text = (await res.text()) || res.statusText;
     throw new Error(`${res.status}: ${text}`);
   }

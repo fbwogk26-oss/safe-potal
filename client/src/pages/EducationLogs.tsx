@@ -506,7 +506,16 @@ export default function EducationLogs() {
       setShowCreateDialog(false);
       toast({ title: `${selectedDepts.length}개 부서에 교육일지가 일괄 생성되었습니다.` });
     },
-    onError: () => toast({ variant: "destructive", title: "일괄 교육일지 생성 실패" }),
+    onError: (err: any) => {
+      const msg = err?.message || "";
+      if (msg.includes("401")) {
+        toast({ variant: "destructive", title: "세션이 만료되었습니다. 다시 로그인해 주세요." });
+      } else if (msg.includes("403")) {
+        toast({ variant: "destructive", title: "교육 등록 권한이 없습니다." });
+      } else {
+        toast({ variant: "destructive", title: "교육일지 생성 실패", description: msg });
+      }
+    },
   });
 
   const deleteMutation = useMutation({
@@ -674,6 +683,10 @@ export default function EducationLogs() {
         if (res.ok) {
           const data = await res.json();
           uploaded.push({ url: data.url, name: file.name, type: file.type });
+        } else if (res.status === 401) {
+          toast({ variant: "destructive", title: "세션이 만료되었습니다. 다시 로그인해 주세요." });
+          queryClient.setQueryData(["/api/auth/user"], null);
+          break;
         } else {
           toast({ variant: "destructive", title: `업로드 실패: ${file.name}` });
         }
@@ -704,10 +717,18 @@ export default function EducationLogs() {
         if (res.ok) {
           const data = await res.json();
           uploaded.push({ url: data.url, name: file.name, type: file.type });
+        } else if (res.status === 401) {
+          toast({ variant: "destructive", title: "세션이 만료되었습니다. 다시 로그인해 주세요." });
+          queryClient.setQueryData(["/api/auth/user"], null);
+          break;
+        } else {
+          toast({ variant: "destructive", title: `업로드 실패: ${file.name}` });
         }
       }
-      setMatAttachments(prev => [...prev, ...uploaded]);
-      toast({ title: `${uploaded.length}개 파일이 첨부되었습니다.` });
+      if (uploaded.length > 0) {
+        setMatAttachments(prev => [...prev, ...uploaded]);
+        toast({ title: `${uploaded.length}개 파일이 첨부되었습니다.` });
+      }
     } catch {
       toast({ variant: "destructive", title: "파일 업로드 실패" });
     } finally {
