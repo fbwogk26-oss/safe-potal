@@ -5782,8 +5782,10 @@ ${htmlDraft}
 
   app.post('/api/health-manager-reports', requireEditor, reportUpload.single('file'), async (req: any, res) => {
     try {
-      const { yearMonth, visitDate, staffType, team } = req.body;
-      if (!yearMonth || !visitDate || !staffType) return res.status(400).json({ message: "필수 항목 누락" });
+      const { visitDate, staffType, team } = req.body;
+      if (!visitDate || !staffType) return res.status(400).json({ message: "필수 항목 누락" });
+      // visitDate 기준으로 yearMonth 자동 계산 (클라이언트 전송값 무시)
+      const derivedYearMonth = visitDate.substring(0, 7);
       let fileUrl: string | null = null;
       let fileOriginalName: string | null = null;
       if (req.file) {
@@ -5798,7 +5800,7 @@ ${htmlDraft}
         fileOriginalName = origName;
       }
       const report = await storage.createHealthManagerReport({
-        yearMonth, visitDate, staffType,
+        yearMonth: derivedYearMonth, visitDate, staffType,
         team: team || null,
         staffName: null, reportContent: null,
         fileUrl, fileOriginalName,
@@ -5812,8 +5814,11 @@ ${htmlDraft}
   app.patch('/api/health-manager-reports/:id', requireEditor, reportUpload.single('file'), async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
-      const { yearMonth, visitDate, staffType, team } = req.body;
-      const updates: any = { yearMonth, visitDate, staffType, team: team || null };
+      const { visitDate, staffType, team } = req.body;
+      // visitDate 기준으로 yearMonth 자동 계산
+      const derivedYearMonth = visitDate ? visitDate.substring(0, 7) : undefined;
+      const updates: any = { visitDate, staffType, team: team || null };
+      if (derivedYearMonth) updates.yearMonth = derivedYearMonth;
       if (req.file) {
         const origName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
         const ext = path.extname(origName) || '.bin';
@@ -5843,24 +5848,13 @@ ${htmlDraft}
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  // ─── PDF 텍스트 추출 공통 함수 ─────────────────────────────────
+  // ─── PDF 텍스트 추출 공통 함수 (pdf-parse v2 사용 — 배포 환경 호환) ─
   async function extractPdfText(buffer: Buffer): Promise<string> {
     try {
-      const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs' as any);
-      const pdfLib = (pdfjsLib as any).default || pdfjsLib;
-      const loadingTask = pdfLib.getDocument({ data: new Uint8Array(buffer) });
-      const pdf = await loadingTask.promise;
-      const pages: string[] = [];
-      for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const content = await page.getTextContent();
-        const str = (content.items as any[])
-          .filter((item: any) => 'str' in item)
-          .map((item: any) => item.str)
-          .join(' ');
-        pages.push(str);
-      }
-      return pages.join('\n\n');
+      const { PDFParse } = await import('pdf-parse');
+      const result = await PDFParse(buffer);
+      if (!result?.text) throw new Error("텍스트 없음");
+      return result.text;
     } catch (e: any) {
       throw new Error(`PDF 텍스트 추출 실패: ${e.message}`);
     }

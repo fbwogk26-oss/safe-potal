@@ -703,10 +703,13 @@ export class DatabaseStorage implements IStorage {
 
   // === HEALTH MANAGER REPORTS ===
   async getHealthManagerReports(yearMonth?: string): Promise<HealthManagerReport[]> {
-    const cond = yearMonth ? eq(healthManagerReports.yearMonth, yearMonth) : undefined;
+    // visitDate 기준으로 조회 — 기존 yearMonth 필드 오염 데이터도 올바르게 처리
+    const cond = yearMonth
+      ? sql`LEFT(${healthManagerReports.visitDate}, 7) = ${yearMonth}`
+      : undefined;
     return await db.select().from(healthManagerReports)
       .where(cond)
-      .orderBy(desc(healthManagerReports.createdAt));
+      .orderBy(desc(healthManagerReports.visitDate));
   }
   async getHealthManagerReport(id: number): Promise<HealthManagerReport | undefined> {
     const [row] = await db.select().from(healthManagerReports).where(eq(healthManagerReports.id, id));

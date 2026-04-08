@@ -139,7 +139,6 @@ export default function HealthManagerReports() {
     setSubmitting(true);
     try {
       const fd = new FormData();
-      fd.append("yearMonth", yearMonth);
       fd.append("visitDate", form.visitDate);
       fd.append("staffType", form.staffType);
       if (form.team) fd.append("team", form.team);
@@ -149,7 +148,13 @@ export default function HealthManagerReports() {
       } else {
         await fetch("/api/health-manager-reports", { method: "POST", body: fd });
       }
-      queryClient.invalidateQueries({ queryKey: ["/api/health-manager-reports", yearMonth] });
+      // visitDate 기준으로 올바른 년월 캐시 무효화 + 캘린더 이동
+      const visitYM = form.visitDate.substring(0, 7);
+      queryClient.invalidateQueries({ queryKey: ["/api/health-manager-reports"] });
+      // 캘린더를 visitDate 월로 이동
+      const [vy, vm] = visitYM.split("-").map(Number);
+      setYear(vy);
+      setMonth(vm);
       setDialogOpen(false);
       toast({ title: editing ? "수정 완료" : "등록 완료" });
     } catch {
