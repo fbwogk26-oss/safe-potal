@@ -61,6 +61,7 @@ import { serveStatic } from "./static";
 import { createServer } from "http";
 import { authStorage } from "./replit_integrations/auth/storage";
 import { setupSecurity } from "./security";
+import "./autoEmailJob";
 
 const app = express();
 const httpServer = createServer(app);

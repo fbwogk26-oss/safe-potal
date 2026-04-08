@@ -5966,6 +5966,18 @@ ${htmlDraft}
     }
   });
 
+  // ─── 스피드이엔지 자동 이메일 잡 상태/트리거 ──────────────────────
+  app.get('/api/auto-email/status', isAuthenticated, async (_req, res) => {
+    const { getAutoJobStatus } = await import('./autoEmailJob');
+    res.json(getAutoJobStatus());
+  });
+
+  app.post('/api/auto-email/run-now', requireEditor, async (_req, res) => {
+    const { runSpeedEngAutoJob, getAutoJobStatus } = await import('./autoEmailJob');
+    runSpeedEngAutoJob().catch(console.error);
+    res.json({ message: "수동 실행 시작됨", status: getAutoJobStatus() });
+  });
+
   return httpServer;
 }
 
