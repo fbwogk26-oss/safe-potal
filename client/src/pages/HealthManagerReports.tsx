@@ -292,6 +292,46 @@ export default function HealthManagerReports() {
         </CardContent>
       </Card>
 
+      {/* 등록된 보고서 목록 (수정/삭제) */}
+      {reports.length > 0 && (
+        <div className="space-y-2">
+          <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
+            등록된 보고서 ({reports.length}건)
+          </h2>
+          <div className="space-y-2">
+            {reports.map(r => (
+              <div
+                key={r.id}
+                className="flex items-center justify-between gap-2 px-4 py-3 border rounded-lg hover:bg-muted/40 cursor-pointer transition-colors"
+                onClick={() => setDetailReport(r)}
+                data-testid={`card-report-${r.id}`}
+              >
+                <div className="flex items-center gap-2 flex-wrap min-w-0">
+                  <span className={`px-2 py-0.5 rounded text-xs font-medium shrink-0 ${STAFF_COLOR[r.staffType as StaffType] ?? "bg-gray-400 text-white"}`}>{r.staffType}</span>
+                  <span className="text-sm text-muted-foreground shrink-0">{r.visitDate}</span>
+                  {r.fileOriginalName && (
+                    <span className="flex items-center gap-1 text-xs text-blue-600 min-w-0">
+                      <FileText className="h-3 w-3 shrink-0" />
+                      <span className="truncate max-w-[160px]">{r.fileOriginalName}</span>
+                    </span>
+                  )}
+                </div>
+                {canEditInspections && (
+                  <div className="flex gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)} data-testid={`btn-edit-${r.id}`}>
+                      <Pencil className="h-3 w-3" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => { if (confirm("삭제하시겠습니까?")) deleteMutation.mutate(r.id); }} data-testid={`btn-delete-${r.id}`}>
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* 등록/수정 다이얼로그 */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="w-[95vw] max-w-md">

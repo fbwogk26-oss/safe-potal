@@ -13,7 +13,7 @@ export async function extractDateFromPdf(file: File): Promise<string | null> {
     const arrayBuffer = await file.arrayBuffer();
     const pdf = await lib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
 
-    // 첫 3페이지에서 텍스트 추출
+    // 첫 3페이지 텍스트 추출
     const maxPages = Math.min(pdf.numPages, 3);
     let fullText = '';
     for (let i = 1; i <= maxPages; i++) {
@@ -22,22 +22,38 @@ export async function extractDateFromPdf(file: File): Promise<string | null> {
       fullText += textContent.items.map((item: any) => item.str).join(' ') + ' ';
     }
 
-    // 한국어: 2026년 04월 13일 / 2026년 4월 13일
-    const korMatch = fullText.match(/(\d{4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일/);
-    if (korMatch) {
-      const [, y, m, d] = korMatch;
-      return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+    // ── 1순위: 점검일자 / 방문일자 / 보고일자 라벨 옆 날짜 ──────────────
+    const labelPatterns = [
+      /점검\s*일\s*자\s*[:\uff1a]?\s*(\d{4})\s*[.\-년]\s*(\d{1,2})\s*[.\-월]\s*(\d{1,2})/,
+      /방문\s*일\s*자\s*[:\uff1a]?\s*(\d{4})\s*[.\-년]\s*(\d{1,2})\s*[.\-월]\s*(\d{1,2})/,
+      /보고\s*일\s*자\s*[:\uff1a]?\s*(\d{4})\s*[.\-년]\s*(\d{1,2})\s*[.\-월]\s*(\d{1,2})/,
+      /작성\s*일\s*자\s*[:\uff1a]?\s*(\d{4})\s*[.\-년]\s*(\d{1,2})\s*[.\-월]\s*(\d{1,2})/,
+      /상태\s*보고\s*일\s*[:\uff1a]?\s*(\d{4})\s*[.\-년]\s*(\d{1,2})\s*[.\-월]\s*(\d{1,2})/,
+    ];
+    for (const pat of labelPatterns) {
+      const m = fullText.match(pat);
+      if (m) {
+        const [, y, mo, d] = m;
+        return `${y}-${mo.padStart(2, '0')}-${d.padStart(2, '0')}`;
+      }
     }
 
-    // ISO 형식: 2026-04-13
+    // ── 2순위: 한국어 날짜 "2026년 4월 13일" ─────────────────────────────
+    const korMatch = fullText.match(/(\d{4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일/);
+    if (korMatch) {
+      const [, y, mo, d] = korMatch;
+      return `${y}-${mo.padStart(2, '0')}-${d.padStart(2, '0')}`;
+    }
+
+    // ── 3순위: ISO 형식 "2026-04-13" ──────────────────────────────────────
     const isoMatch = fullText.match(/\b(20\d{2})-(\d{2})-(\d{2})\b/);
     if (isoMatch) return isoMatch[0];
 
-    // 점 구분: 2026.04.13
+    // ── 4순위: 점 구분 "2026.04.13" ───────────────────────────────────────
     const dotMatch = fullText.match(/\b(20\d{2})\.(\d{2})\.(\d{2})\b/);
     if (dotMatch) {
-      const [, y, m, d] = dotMatch;
-      return `${y}-${m}-${d}`;
+      const [, y, mo, d] = dotMatch;
+      return `${y}-${mo}-${d}`;
     }
 
     return null;
