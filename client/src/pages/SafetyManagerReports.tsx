@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState, useRef } from "react";
-import { format } from "date-fns";
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameDay, isToday } from "date-fns";
 import { ko } from "date-fns/locale";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -19,13 +19,26 @@ import type { SafetyManagerReport } from "@shared/schema";
 const DAEGU_TEAMS = ["동대구운용팀", "서대구운용팀", "남대구운용팀", "공공망관제팀"];
 const ALL_TEAMS = [...DAEGU_TEAMS, "구미운용팀", "포항운용팀", "안동운용팀", "문경운용팀"];
 
+const TEAM_COLOR: Record<string, string> = {
+  "동대구운용팀": "bg-orange-500 text-white",
+  "서대구운용팀": "bg-orange-400 text-white",
+  "남대구운용팀": "bg-amber-500 text-white",
+  "공공망관제팀": "bg-yellow-500 text-white",
+  "구미운용팀":   "bg-blue-500 text-white",
+  "포항운용팀":   "bg-green-500 text-white",
+  "안동운용팀":   "bg-purple-500 text-white",
+  "문경운용팀":   "bg-rose-500 text-white",
+};
+
 const VISIT_PLAN: { label: string; teams: string[]; planned: number; note: string }[] = [
-  { label: "대구 지역", teams: DAEGU_TEAMS, planned: 2, note: "동대구·서대구·남대구·공공망 4팀 중 매월 2팀 순환" },
+  { label: "대구 지역", teams: DAEGU_TEAMS, planned: 2, note: "4팀 중 매월 2팀 순환" },
   { label: "구미운용팀", teams: ["구미운용팀"], planned: 2, note: "매월 2회" },
   { label: "포항운용팀", teams: ["포항운용팀"], planned: 2, note: "매월 2회" },
   { label: "안동운용팀", teams: ["안동운용팀"], planned: 1, note: "매월 1회" },
   { label: "문경운용팀", teams: ["문경운용팀"], planned: 1, note: "매월 1회" },
 ];
+
+const DAY_NAMES = ["일", "월", "화", "수", "목", "금", "토"];
 
 function getYearMonth(year: number, month: number) {
   return `${year}-${String(month).padStart(2, "0")}`;
@@ -42,6 +55,7 @@ export default function SafetyManagerReports() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<SafetyManagerReport | null>(null);
   const [detailReport, setDetailReport] = useState<SafetyManagerReport | null>(null);
+  const [dayReports, setDayReports] = useState<{ date: string; reports: SafetyManagerReport[] } | null>(null);
 
   const [form, setForm] = useState({ visitDate: format(now, "yyyy-MM-dd"), team: "", visitSequence: "1" });
   const [file, setFile] = useState<File | null>(null);
@@ -60,12 +74,13 @@ export default function SafetyManagerReports() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/safety-manager-reports", yearMonth] });
       toast({ title: "삭제 완료" });
+      setDayReports(null);
     },
   });
 
-  function openAdd() {
+  function openAdd(date?: string) {
     setEditing(null);
-    setForm({ visitDate: format(new Date(year, month - 1, 1), "yyyy-MM-dd"), team: "", visitSequence: "1" });
+    setForm({ visitDate: date || format(new Date(year, month - 1, 1), "yyyy-MM-dd"), team: "", visitSequence: "1" });
     setFile(null);
     setDialogOpen(true);
   }
@@ -105,12 +120,35 @@ export default function SafetyManagerReports() {
   function prevMonth() { if (month === 1) { setYear(y => y - 1); setMonth(12); } else setMonth(m => m - 1); }
   function nextMonth() { if (month === 12) { setYear(y => y + 1); setMonth(1); } else setMonth(m => m + 1); }
 
+  // 캘린더 날짜 계산
+  const monthStart = startOfMonth(new Date(year, month - 1));
+  const monthEnd = endOfMonth(monthStart);
+  const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
+  const startPad = getDay(monthStart); // 0=일요일
+
+  // 날짜별 보고서 맵
+  const reportsByDate = new Map<string, SafetyManagerReport[]>();
+  for (const r of reports) {
+    const key = r.visitDate;
+    if (!reportsByDate.has(key)) reportsByDate.set(key, []);
+    reportsByDate.get(key)!.push(r);
+  }
+
   const visitCountByGroup = VISIT_PLAN.map(g => ({ ...g, count: reports.filter(r => g.teams.includes(r.team)).length }));
   const totalPlanned = VISIT_PLAN.reduce((s, g) => s + g.planned, 0);
   const totalDone = reports.length;
 
+  function handleDayClick(dateStr: string, dayRpts: SafetyManagerReport[]) {
+    if (dayRpts.length === 1) {
+      setDetailReport(dayRpts[0]);
+    } else if (dayRpts.length > 1) {
+      setDayReports({ date: dateStr, reports: dayRpts });
+    }
+  }
+
   return (
-    <div className="p-4 md:p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-5">
+      {/* 헤더 */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="flex items-center gap-2">
           <HardHat className="h-6 w-6 text-orange-600" />
@@ -121,14 +159,14 @@ export default function SafetyManagerReports() {
           <span className="font-semibold min-w-[6rem] text-center">{year}년 {month}월</span>
           <Button variant="outline" size="icon" onClick={nextMonth}><ChevronRight className="h-4 w-4" /></Button>
           {canEditInspections && (
-            <Button onClick={openAdd} className="gap-1" data-testid="btn-add-report">
+            <Button onClick={() => openAdd()} className="gap-1" data-testid="btn-add-report">
               <Plus className="h-4 w-4" /> 등록
             </Button>
           )}
         </div>
       </div>
 
-      {/* 방문 현황 요약 */}
+      {/* 방문 현황 요약 카드 */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {visitCountByGroup.map(g => (
           <Card key={g.label} className={`border-2 ${g.count >= g.planned ? "border-green-400 bg-green-50 dark:bg-green-950/30" : "border-gray-200 dark:border-gray-700"}`}>
@@ -141,62 +179,95 @@ export default function SafetyManagerReports() {
                 <span className={g.count >= g.planned ? "text-green-600" : "text-amber-600"}>{g.count}</span>
                 <span className="text-sm text-muted-foreground"> / {g.planned}회</span>
               </div>
-              <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{g.note}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{g.note}</p>
             </CardContent>
           </Card>
         ))}
       </div>
 
-      {/* 진행률 */}
+      {/* 캘린더 */}
       <Card>
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between mb-2">
-            <span className="font-medium">{year}년 {month}월 방문 현황</span>
-            <Badge variant={totalDone >= totalPlanned ? "default" : "secondary"}>{totalDone} / {totalPlanned}회</Badge>
+        <CardContent className="p-3 md:p-4">
+          {/* 진행률 헤더 */}
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm font-medium">방문 현황</span>
+            <div className="flex items-center gap-2">
+              <Badge variant={totalDone >= totalPlanned ? "default" : "secondary"} className="text-xs">
+                {totalDone} / {totalPlanned}회 완료
+              </Badge>
+              <div className="w-24 bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+                <div className="bg-orange-500 h-1.5 rounded-full transition-all" style={{ width: `${Math.min(100, (totalDone / totalPlanned) * 100)}%` }} />
+              </div>
+            </div>
           </div>
-          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-            <div className="bg-orange-500 h-2 rounded-full transition-all" style={{ width: `${Math.min(100, (totalDone / totalPlanned) * 100)}%` }} />
+
+          {/* 요일 헤더 */}
+          <div className="grid grid-cols-7 mb-1">
+            {DAY_NAMES.map((d, i) => (
+              <div key={d} className={`text-center text-xs font-semibold py-1 ${i === 0 ? "text-red-500" : i === 6 ? "text-blue-500" : "text-muted-foreground"}`}>{d}</div>
+            ))}
+          </div>
+
+          {/* 날짜 셀 */}
+          {isLoading ? (
+            <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+          ) : (
+            <div className="grid grid-cols-7 gap-px bg-border rounded-lg overflow-hidden">
+              {/* 앞 빈 칸 */}
+              {Array.from({ length: startPad }).map((_, i) => (
+                <div key={`pad-${i}`} className="bg-muted/20 min-h-[64px] md:min-h-[80px]" />
+              ))}
+              {/* 날짜 셀 */}
+              {days.map(day => {
+                const dateStr = format(day, "yyyy-MM-dd");
+                const dayRpts = reportsByDate.get(dateStr) || [];
+                const hasReports = dayRpts.length > 0;
+                const today = isToday(day);
+                const dayOfWeek = getDay(day);
+                const isSun = dayOfWeek === 0;
+                const isSat = dayOfWeek === 6;
+
+                return (
+                  <div
+                    key={dateStr}
+                    className={`bg-background min-h-[64px] md:min-h-[80px] p-1 md:p-1.5 flex flex-col gap-0.5 transition-colors
+                      ${hasReports ? "cursor-pointer hover:bg-orange-50 dark:hover:bg-orange-950/20" : ""}
+                      ${today ? "ring-2 ring-orange-400 ring-inset" : ""}
+                    `}
+                    onClick={() => hasReports && handleDayClick(dateStr, dayRpts)}
+                  >
+                    <span className={`text-xs font-medium leading-none mb-0.5
+                      ${today ? "text-orange-600 font-bold" : isSun ? "text-red-500" : isSat ? "text-blue-500" : "text-foreground"}
+                    `}>
+                      {format(day, "d")}
+                    </span>
+                    {dayRpts.map(r => (
+                      <span
+                        key={r.id}
+                        className={`text-[9px] md:text-[10px] leading-tight px-1 py-0.5 rounded font-medium truncate ${TEAM_COLOR[r.team] ?? "bg-gray-400 text-white"}`}
+                        title={`${r.team}${needsSequence(r.team) ? ` ${r.visitSequence}차` : ""}`}
+                      >
+                        {r.team.replace("운용팀", "").replace("관제팀", "")}
+                        {needsSequence(r.team) ? `·${r.visitSequence}차` : ""}
+                      </span>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* 팀 색상 범례 */}
+          <div className="flex flex-wrap gap-x-3 gap-y-1 mt-3 pt-3 border-t">
+            {ALL_TEAMS.map(team => (
+              <span key={team} className="flex items-center gap-1 text-xs text-muted-foreground">
+                <span className={`inline-block w-2.5 h-2.5 rounded-sm ${TEAM_COLOR[team]?.split(" ")[0] ?? "bg-gray-400"}`} />
+                {team.replace("운용팀", "").replace("관제팀", "")}
+              </span>
+            ))}
           </div>
         </CardContent>
       </Card>
-
-      {/* 보고서 목록 */}
-      <div className="space-y-2">
-        <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">등록된 보고서 ({reports.length}건)</h2>
-        {isLoading ? (
-          <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
-        ) : reports.length === 0 ? (
-          <div className="text-center py-10 text-muted-foreground">등록된 보고서가 없습니다</div>
-        ) : (
-          <div className="space-y-2">
-            {reports.map(r => (
-              <Card key={r.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => setDetailReport(r)} data-testid={`card-report-${r.id}`}>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 flex-wrap min-w-0">
-                      <Badge variant="outline" className="text-xs shrink-0">{r.team}</Badge>
-                      {needsSequence(r.team) && <Badge variant="secondary" className="text-xs shrink-0">{r.visitSequence}차 방문</Badge>}
-                      <span className="text-xs text-muted-foreground shrink-0">{r.visitDate}</span>
-                      {r.fileOriginalName && (
-                        <span className="flex items-center gap-1 text-xs text-blue-600 min-w-0">
-                          <FileText className="h-3 w-3 shrink-0" />
-                          <span className="truncate max-w-[160px]">{r.fileOriginalName}</span>
-                        </span>
-                      )}
-                    </div>
-                    {canEditInspections && (
-                      <div className="flex gap-1 shrink-0" onClick={e => e.stopPropagation()}>
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)} data-testid={`btn-edit-${r.id}`}><Pencil className="h-3 w-3" /></Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => { if (confirm("삭제하시겠습니까?")) deleteMutation.mutate(r.id); }} data-testid={`btn-delete-${r.id}`}><Trash2 className="h-3 w-3" /></Button>
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
-      </div>
 
       {/* 등록/수정 다이얼로그 */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -276,6 +347,32 @@ export default function SafetyManagerReports() {
         </DialogContent>
       </Dialog>
 
+      {/* 하루에 여러 보고서가 있을 때 선택 다이얼로그 */}
+      <Dialog open={!!dayReports} onOpenChange={() => setDayReports(null)}>
+        <DialogContent className="w-[95vw] max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{dayReports?.date} 방문 보고서</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 pt-2">
+            {dayReports?.reports.map(r => (
+              <div key={r.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 cursor-pointer" onClick={() => { setDayReports(null); setDetailReport(r); }}>
+                <div className="flex items-center gap-2">
+                  <span className={`px-2 py-0.5 rounded text-xs font-medium ${TEAM_COLOR[r.team] ?? "bg-gray-400 text-white"}`}>{r.team}</span>
+                  {needsSequence(r.team) && <span className="text-xs text-muted-foreground">{r.visitSequence}차 방문</span>}
+                  {r.fileOriginalName && <FileText className="h-3 w-3 text-blue-500" />}
+                </div>
+                {canEditInspections && (
+                  <div className="flex gap-1" onClick={e => e.stopPropagation()}>
+                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { setDayReports(null); openEdit(r); }}><Pencil className="h-3 w-3" /></Button>
+                    <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => { if (confirm("삭제하시겠습니까?")) deleteMutation.mutate(r.id); }}><Trash2 className="h-3 w-3" /></Button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* 상세 보기 다이얼로그 */}
       <Dialog open={!!detailReport} onOpenChange={() => setDetailReport(null)}>
         <DialogContent className="w-[95vw] max-w-3xl max-h-[90vh] overflow-y-auto">
@@ -285,11 +382,21 @@ export default function SafetyManagerReports() {
           {detailReport && (
             <div className="space-y-4 pt-2">
               <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
-                <div><span className="text-muted-foreground mr-1">팀</span><span className="font-semibold">{detailReport.team}</span></div>
+                <div><span className="text-muted-foreground mr-1">팀</span><span className={`px-2 py-0.5 rounded text-xs font-medium ${TEAM_COLOR[detailReport.team] ?? ""}`}>{detailReport.team}</span></div>
                 <div><span className="text-muted-foreground mr-1">방문일</span><span className="font-semibold">{detailReport.visitDate}</span></div>
                 {needsSequence(detailReport.team) && <div><span className="text-muted-foreground mr-1">방문 차수</span><span className="font-semibold">{detailReport.visitSequence}차</span></div>}
                 <div><span className="text-muted-foreground mr-1">등록일</span><span>{detailReport.createdAt ? format(new Date(detailReport.createdAt), "yyyy.MM.dd HH:mm", { locale: ko }) : "-"}</span></div>
               </div>
+              {canEditInspections && (
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" className="gap-1" onClick={() => { setDetailReport(null); openEdit(detailReport); }}>
+                    <Pencil className="h-3 w-3" /> 수정
+                  </Button>
+                  <Button variant="outline" size="sm" className="gap-1 text-destructive hover:text-destructive" onClick={() => { if (confirm("삭제하시겠습니까?")) { deleteMutation.mutate(detailReport.id); setDetailReport(null); } }}>
+                    <Trash2 className="h-3 w-3" /> 삭제
+                  </Button>
+                </div>
+              )}
               <FileViewer
                 fileUrl={detailReport.fileUrl}
                 fileOriginalName={detailReport.fileOriginalName}
