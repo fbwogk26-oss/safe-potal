@@ -66,6 +66,22 @@ const upload = multer({
   }
 });
 
+const reportUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const cleanName = file.originalname.replace(/\0/g, "");
+    const ext = path.extname(cleanName).toLowerCase();
+    const allowedExts = ['.pdf', '.doc', '.docx', '.hwp', '.hwpx', '.xlsx', '.xls', '.jpg', '.jpeg', '.png'];
+    const allowedMimes = ['application/pdf', 'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/haansofthwp', 'application/x-hwp', 'image/jpeg', 'image/png',
+      'application/octet-stream'];
+    cb(null, allowedExts.includes(ext) || allowedMimes.includes(file.mimetype));
+  }
+});
+
 const excelUpload = multer({
   storage: multer.diskStorage({
     destination: uploadDir,
@@ -5653,7 +5669,7 @@ ${htmlDraft}
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  app.post('/api/safety-manager-reports', requireEditor, upload.single('file'), async (req: any, res) => {
+  app.post('/api/safety-manager-reports', requireEditor, reportUpload.single('file'), async (req: any, res) => {
     try {
       const { yearMonth, visitDate, team, visitSequence, safetyManagerName, reportContent, notes } = req.body;
       if (!yearMonth || !visitDate || !team) return res.status(400).json({ message: "필수 항목 누락" });
@@ -5682,7 +5698,7 @@ ${htmlDraft}
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  app.patch('/api/safety-manager-reports/:id', requireEditor, upload.single('file'), async (req: any, res) => {
+  app.patch('/api/safety-manager-reports/:id', requireEditor, reportUpload.single('file'), async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
       const { yearMonth, visitDate, team, visitSequence, safetyManagerName, reportContent, notes } = req.body;
@@ -5714,7 +5730,7 @@ ${htmlDraft}
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  app.post('/api/health-manager-reports', requireEditor, upload.single('file'), async (req: any, res) => {
+  app.post('/api/health-manager-reports', requireEditor, reportUpload.single('file'), async (req: any, res) => {
     try {
       const { yearMonth, visitDate, staffType, staffName, reportContent, notes } = req.body;
       if (!yearMonth || !visitDate || !staffType) return res.status(400).json({ message: "필수 항목 누락" });
@@ -5742,7 +5758,7 @@ ${htmlDraft}
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  app.patch('/api/health-manager-reports/:id', requireEditor, upload.single('file'), async (req: any, res) => {
+  app.patch('/api/health-manager-reports/:id', requireEditor, reportUpload.single('file'), async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
       const { yearMonth, visitDate, staffType, staffName, reportContent, notes } = req.body;
@@ -5790,7 +5806,7 @@ ${htmlDraft}
   }
 
   // ─── 안전관리자 상태보고서 PDF AI 분석 ────────────────────────────
-  app.post('/api/safety-manager-reports/analyze-pdf', requireEditor, upload.single('file'), async (req: any, res) => {
+  app.post('/api/safety-manager-reports/analyze-pdf', requireEditor, reportUpload.single('file'), async (req: any, res) => {
     try {
       if (!req.file) return res.status(400).json({ message: "PDF 파일이 없습니다" });
       const pdfText = await extractPdfText(req.file.buffer);
@@ -5839,7 +5855,7 @@ ${htmlDraft}
   });
 
   // ─── 보건관리자 상태보고서 PDF AI 분석 ────────────────────────────
-  app.post('/api/health-manager-reports/analyze-pdf', requireEditor, upload.single('file'), async (req: any, res) => {
+  app.post('/api/health-manager-reports/analyze-pdf', requireEditor, reportUpload.single('file'), async (req: any, res) => {
     try {
       if (!req.file) return res.status(400).json({ message: "PDF 파일이 없습니다" });
       const pdfText = await extractPdfText(req.file.buffer);
