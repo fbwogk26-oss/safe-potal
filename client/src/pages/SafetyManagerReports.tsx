@@ -12,8 +12,55 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { HardHat, Plus, Trash2, Pencil, FileText, ChevronLeft, ChevronRight, Download, CheckCircle2, AlertCircle, Loader2, Paperclip, X } from "lucide-react";
+import { HardHat, Plus, Trash2, Pencil, FileText, ChevronLeft, ChevronRight, CheckCircle2, AlertCircle, Loader2, Paperclip, X, ExternalLink } from "lucide-react";
 import type { SafetyManagerReport } from "@shared/schema";
+
+const PREVIEWABLE_EXTS = ['.pdf', '.jpg', '.jpeg', '.png', '.gif', '.webp'];
+const IMAGE_EXTS = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+
+function getFileExt(name: string | null): string {
+  if (!name) return '';
+  return name.includes('.') ? '.' + name.split('.').pop()!.toLowerCase() : '';
+}
+
+function FileViewer({ fileUrl, fileOriginalName, apiBase }: { fileUrl: string | null; fileOriginalName: string | null; apiBase: string }) {
+  const ext = getFileExt(fileOriginalName);
+  const previewUrl = `${apiBase}?inline=true`;
+  const isImage = IMAGE_EXTS.includes(ext);
+  const isPdf = ext === '.pdf';
+  const canPreview = PREVIEWABLE_EXTS.includes(ext);
+
+  if (!fileUrl) return <div className="border rounded-lg p-4 bg-muted/20 text-center text-muted-foreground text-sm">첨부 파일 없음</div>;
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 min-w-0">
+          <FileText className="h-4 w-4 text-orange-500 shrink-0" />
+          <span className="text-sm font-medium truncate">{fileOriginalName || "보고서 파일"}</span>
+        </div>
+        <a href={`${apiBase}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-blue-600 hover:underline shrink-0 ml-2">
+          <ExternalLink className="h-3 w-3" /> 다운로드
+        </a>
+      </div>
+      {canPreview ? (
+        isImage ? (
+          <img src={previewUrl} alt={fileOriginalName || "파일"} className="w-full rounded-lg border object-contain max-h-[60vh]" />
+        ) : isPdf ? (
+          <iframe src={previewUrl} className="w-full rounded-lg border bg-white" style={{ height: "60vh", minHeight: 320 }} title={fileOriginalName || "PDF 미리보기"} />
+        ) : null
+      ) : (
+        <div className="border rounded-lg p-4 bg-muted/20 flex items-center gap-3">
+          <FileText className="h-8 w-8 text-muted-foreground shrink-0" />
+          <div>
+            <p className="text-sm font-medium">{fileOriginalName}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">이 파일 형식은 미리보기를 지원하지 않습니다. 위 다운로드 버튼을 사용하세요.</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const DAEGU_TEAMS = ["동대구운용팀", "서대구운용팀", "남대구운용팀", "공공망관제팀"];
 const ALL_TEAMS = [...DAEGU_TEAMS, "구미운용팀", "포항운용팀", "안동운용팀", "문경운용팀"];
@@ -46,7 +93,6 @@ export default function SafetyManagerReports() {
   const [file, setFile] = useState<File | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [downloading, setDownloading] = useState(false);
 
   const yearMonth = getYearMonth(year, month);
 
@@ -99,28 +145,6 @@ export default function SafetyManagerReports() {
       toast({ variant: "destructive", title: "저장 실패" });
     } finally {
       setSubmitting(false);
-    }
-  }
-
-  async function handleDownload(r: SafetyManagerReport) {
-    if (!r.fileUrl) return;
-    setDownloading(true);
-    try {
-      const res = await fetch(`/api/safety-manager-reports/${r.id}/file`);
-      if (!res.ok) throw new Error("다운로드 실패");
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = r.fileOriginalName || "보고서";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch {
-      toast({ variant: "destructive", title: "파일 다운로드에 실패했습니다" });
-    } finally {
-      setDownloading(false);
     }
   }
 
@@ -300,60 +324,23 @@ export default function SafetyManagerReports() {
 
       {/* 상세 보기 다이얼로그 */}
       <Dialog open={!!detailReport} onOpenChange={() => setDetailReport(null)}>
-        <DialogContent className="w-[95vw] max-w-md">
+        <DialogContent className="w-[95vw] max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>방문 보고서 상세</DialogTitle>
           </DialogHeader>
           {detailReport && (
             <div className="space-y-4 pt-2">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">방문 팀</p>
-                  <p className="font-semibold">{detailReport.team}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">방문일</p>
-                  <p className="font-semibold">{detailReport.visitDate}</p>
-                </div>
-                {needsSequence(detailReport.team) && (
-                  <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">방문 차수</p>
-                    <p className="font-semibold">{detailReport.visitSequence}차 방문</p>
-                  </div>
-                )}
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">등록일</p>
-                  <p className="text-sm">{detailReport.createdAt ? format(new Date(detailReport.createdAt), "yyyy.MM.dd HH:mm", { locale: ko }) : "-"}</p>
-                </div>
+              <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
+                <div><span className="text-muted-foreground mr-1">팀</span><span className="font-semibold">{detailReport.team}</span></div>
+                <div><span className="text-muted-foreground mr-1">방문일</span><span className="font-semibold">{detailReport.visitDate}</span></div>
+                {needsSequence(detailReport.team) && <div><span className="text-muted-foreground mr-1">방문 차수</span><span className="font-semibold">{detailReport.visitSequence}차</span></div>}
+                <div><span className="text-muted-foreground mr-1">등록일</span><span>{detailReport.createdAt ? format(new Date(detailReport.createdAt), "yyyy.MM.dd HH:mm", { locale: ko }) : "-"}</span></div>
               </div>
-
-              {detailReport.fileUrl ? (
-                <div className="border rounded-lg p-4 bg-muted/30">
-                  <p className="text-xs text-muted-foreground mb-2">첨부 파일</p>
-                  <div className="flex items-center gap-3">
-                    <FileText className="h-8 w-8 text-orange-500 shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{detailReport.fileOriginalName || "보고서 파일"}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">클릭하여 다운로드</p>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="gap-1.5 shrink-0"
-                      onClick={() => handleDownload(detailReport)}
-                      disabled={downloading}
-                      data-testid="btn-download-file"
-                    >
-                      {downloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-                      다운로드
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="border rounded-lg p-4 bg-muted/20 text-center text-muted-foreground text-sm">
-                  첨부 파일 없음
-                </div>
-              )}
+              <FileViewer
+                fileUrl={detailReport.fileUrl}
+                fileOriginalName={detailReport.fileOriginalName}
+                apiBase={`/api/safety-manager-reports/${detailReport.id}/file`}
+              />
             </div>
           )}
         </DialogContent>

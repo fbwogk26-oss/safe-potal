@@ -5670,7 +5670,7 @@ ${htmlDraft}
   });
 
   // 보고서 파일 다운로드 프록시 (object storage → 브라우저)
-  async function proxyReportFile(fileUrl: string | null, fileOriginalName: string | null, res: any) {
+  async function proxyReportFile(fileUrl: string | null, fileOriginalName: string | null, res: any, inline = false) {
     if (!fileUrl) return res.status(404).json({ message: "파일 없음" });
     try {
       if (fileUrl.startsWith('/objects/')) {
@@ -5694,7 +5694,11 @@ ${htmlDraft}
           const contentType = mimeMap[ext] || 'application/octet-stream';
           const safeFilename = encodeURIComponent(fileOriginalName || filename);
           res.setHeader('Content-Type', contentType);
-          res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${safeFilename}`);
+          if (inline) {
+            res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${safeFilename}`);
+          } else {
+            res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${safeFilename}`);
+          }
           return res.send(buffer);
         }
       }
@@ -5757,7 +5761,7 @@ ${htmlDraft}
       const reports = await storage.getSafetyManagerReports();
       const report = reports.find((r: any) => r.id === parseInt(req.params.id));
       if (!report) return res.status(404).json({ message: "보고서 없음" });
-      await proxyReportFile(report.fileUrl, report.fileOriginalName, res);
+      await proxyReportFile(report.fileUrl, report.fileOriginalName, res, req.query.inline === 'true');
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
@@ -5827,7 +5831,7 @@ ${htmlDraft}
       const reports = await storage.getHealthManagerReports();
       const report = reports.find((r: any) => r.id === parseInt(req.params.id));
       if (!report) return res.status(404).json({ message: "보고서 없음" });
-      await proxyReportFile(report.fileUrl, report.fileOriginalName, res);
+      await proxyReportFile(report.fileUrl, report.fileOriginalName, res, req.query.inline === 'true');
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
