@@ -5889,9 +5889,12 @@ ${htmlDraft}
   async function extractPdfText(buffer: Buffer): Promise<string> {
     try {
       const { PDFParse } = await import('pdf-parse');
-      const result = await PDFParse(buffer);
-      if (!result?.text) throw new Error("텍스트 없음");
-      return result.text;
+      // pdf-parse v2: PDFParse는 클래스 — { data: buffer } 옵션으로 생성 후 getText() 호출
+      const parser = new (PDFParse as any)({ data: buffer });
+      const result = await parser.getText();
+      const text: string = result?.text ?? result?.pages?.map((p: any) => p.text ?? "").join("\n") ?? "";
+      if (!text || text.trim().length < 5) throw new Error("텍스트 없음");
+      return text;
     } catch (e: any) {
       throw new Error(`PDF 텍스트 추출 실패: ${e.message}`);
     }
