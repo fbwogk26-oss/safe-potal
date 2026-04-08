@@ -18,6 +18,7 @@ import {
   Volume2, VolumeX, X, ChevronDown, ChevronUp, ListMusic, Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
 import type { MusicFile } from "@shared/schema";
 
 interface DayConfig {
@@ -66,6 +67,8 @@ function useMusicUrl(path: string | null | undefined): string | null {
 const SESSION_KEY = "music_approved";
 
 export function MusicPlayer() {
+  const { toast } = useToast();
+
   // ── UI state ──────────────────────────────────────────────────────────────
   const [activeType, setActiveType] = useState<string | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -201,6 +204,13 @@ export function MusicPlayer() {
       } else if (!wasTriggeredRef.current) {
         wasTriggeredRef.current = true;
         wantPlayRef.current = true;
+        // Show toast to draw user attention (especially if autoplay is blocked)
+        const label = newType === "출근" ? "🌅 출근음악" : "🌆 퇴근음악";
+        toast({
+          title: `${label} 시작`,
+          description: "하단 플레이어를 눌러 재생하세요.",
+          duration: 6000,
+        });
         // If URL is already available, play now. Otherwise musicUrl effect handles it.
         const el = videoRef.current;
         if (el && musicUrl) {
@@ -214,7 +224,7 @@ export function MusicPlayer() {
     };
 
     check();
-    const timer = setInterval(check, 30_000);
+    const timer = setInterval(check, 10_000);
     return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schedule]); // musicUrl & tryAutoplay intentionally omitted (stable refs)
