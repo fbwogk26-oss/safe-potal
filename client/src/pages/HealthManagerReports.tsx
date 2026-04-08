@@ -19,10 +19,10 @@ import type { HealthManagerReport } from "@shared/schema";
 
 type StaffType = "위생기사" | "의사" | "간호사";
 
-const STAFF_CONFIGS: { type: StaffType; label: string; shortLabel: string; frequencyLabel: string; frequencyMonths: number }[] = [
-  { type: "간호사",  label: "간호사",  shortLabel: "간호사", frequencyLabel: "매월 1회",    frequencyMonths: 1 },
-  { type: "위생기사", label: "위생기사", shortLabel: "위생기사", frequencyLabel: "2개월 1회", frequencyMonths: 2 },
-  { type: "의사",   label: "의사",   shortLabel: "의사",  frequencyLabel: "3개월 1회",   frequencyMonths: 3 },
+const STAFF_CONFIGS: { type: StaffType; label: string; frequencyLabel: string; frequencyMonths: number }[] = [
+  { type: "간호사",  label: "간호사",  frequencyLabel: "매월 1회",    frequencyMonths: 1 },
+  { type: "위생기사", label: "위생기사", frequencyLabel: "2개월 1회", frequencyMonths: 2 },
+  { type: "의사",   label: "의사",   frequencyLabel: "3개월 1회",   frequencyMonths: 3 },
 ];
 
 const STAFF_COLOR: Record<StaffType, string> = {
@@ -31,11 +31,10 @@ const STAFF_COLOR: Record<StaffType, string> = {
   "의사":    "bg-green-600 text-white",
 };
 
-const STAFF_BADGE: Record<StaffType, string> = {
-  "간호사":  "bg-pink-100 text-pink-800 dark:bg-pink-900/50 dark:text-pink-200",
-  "위생기사": "bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200",
-  "의사":    "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200",
-};
+const ALL_TEAMS = [
+  "동대구운용팀", "서대구운용팀", "남대구운용팀", "공공망관제팀",
+  "구미운용팀", "포항운용팀", "안동운용팀", "문경운용팀",
+];
 
 const DAY_NAMES = ["일", "월", "화", "수", "목", "금", "토"];
 
@@ -50,6 +49,11 @@ function isExpectedThisMonth(frequencyMonths: number, month: number): boolean {
   return false;
 }
 
+function shortTeam(team: string | null | undefined): string {
+  if (!team) return "";
+  return team.replace("운용팀", "").replace("관제팀", "");
+}
+
 export default function HealthManagerReports() {
   const { canEditInspections } = usePermissions();
   const { toast } = useToast();
@@ -61,7 +65,11 @@ export default function HealthManagerReports() {
   const [detailReport, setDetailReport] = useState<HealthManagerReport | null>(null);
   const [dayReports, setDayReports] = useState<{ date: string; reports: HealthManagerReport[] } | null>(null);
 
-  const [form, setForm] = useState({ visitDate: format(now, "yyyy-MM-dd"), staffType: "" as StaffType | "" });
+  const [form, setForm] = useState({
+    visitDate: format(now, "yyyy-MM-dd"),
+    staffType: "" as StaffType | "",
+    team: "",
+  });
   const [file, setFile] = useState<File | null>(null);
   const [extractingDate, setExtractingDate] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -97,14 +105,14 @@ export default function HealthManagerReports() {
 
   function openAdd(date?: string) {
     setEditing(null);
-    setForm({ visitDate: date || format(new Date(year, month - 1, 1), "yyyy-MM-dd"), staffType: "" });
+    setForm({ visitDate: date || format(new Date(year, month - 1, 1), "yyyy-MM-dd"), staffType: "", team: "" });
     setFile(null);
     setDialogOpen(true);
   }
 
   function openEdit(r: HealthManagerReport) {
     setEditing(r);
-    setForm({ visitDate: r.visitDate, staffType: r.staffType as StaffType });
+    setForm({ visitDate: r.visitDate, staffType: r.staffType as StaffType, team: r.team || "" });
     setFile(null);
     setDialogOpen(true);
   }
@@ -117,6 +125,7 @@ export default function HealthManagerReports() {
       fd.append("yearMonth", yearMonth);
       fd.append("visitDate", form.visitDate);
       fd.append("staffType", form.staffType);
+      if (form.team) fd.append("team", form.team);
       if (file) fd.append("file", file);
       if (editing) {
         await fetch(`/api/health-manager-reports/${editing.id}`, { method: "PATCH", body: fd });
@@ -149,7 +158,6 @@ export default function HealthManagerReports() {
     reportsByDate.get(r.visitDate)!.push(r);
   }
 
-  // 이번달 예상 방문 수 / 완료 수
   const expectedConfigs = STAFF_CONFIGS.filter(cfg => isExpectedThisMonth(cfg.frequencyMonths, month));
   const totalPlanned = expectedConfigs.length;
   const totalDone = expectedConfigs.filter(cfg => reports.some(r => r.staffType === cfg.type)).length;
@@ -205,6 +213,14 @@ export default function HealthManagerReports() {
                   {expected && <span className="text-sm text-muted-foreground"> 방문</span>}
                   {!expected && <span className="text-sm text-muted-foreground"> (이번달 해당없음)</span>}
                 </div>
+                {/* 방문한 팀 목록 */}
+                {done > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {reports.filter(r => r.staffType === cfg.type && r.team).map(r => (
+                      <span key={r.id} className="text-[10px] px-1.5 py-0.5 bg-muted rounded text-muted-foreground">{r.team}</span>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           );
@@ -240,7 +256,7 @@ export default function HealthManagerReports() {
           ) : (
             <div className="grid grid-cols-7 gap-px bg-border rounded-lg overflow-hidden">
               {Array.from({ length: startPad }).map((_, i) => (
-                <div key={`pad-${i}`} className="bg-muted/20 min-h-[64px] md:min-h-[80px]" />
+                <div key={`pad-${i}`} className="bg-muted/20 min-h-[72px] md:min-h-[88px]" />
               ))}
               {days.map(day => {
                 const dateStr = format(day, "yyyy-MM-dd");
@@ -254,7 +270,7 @@ export default function HealthManagerReports() {
                 return (
                   <div
                     key={dateStr}
-                    className={`bg-background min-h-[64px] md:min-h-[80px] p-1 md:p-1.5 flex flex-col gap-0.5 transition-colors
+                    className={`bg-background min-h-[72px] md:min-h-[88px] p-1 md:p-1.5 flex flex-col gap-0.5 transition-colors
                       ${hasReports ? "cursor-pointer hover:bg-rose-50 dark:hover:bg-rose-950/20" : ""}
                       ${today ? "ring-2 ring-rose-400 ring-inset" : ""}
                     `}
@@ -269,9 +285,9 @@ export default function HealthManagerReports() {
                       <span
                         key={r.id}
                         className={`text-[9px] md:text-[10px] leading-tight px-1 py-0.5 rounded font-medium truncate ${STAFF_COLOR[r.staffType as StaffType] ?? "bg-gray-400 text-white"}`}
-                        title={r.staffType}
+                        title={`${r.staffType}${r.team ? ` · ${r.team}` : ""}`}
                       >
-                        {r.staffType}
+                        {r.team ? `${shortTeam(r.team)}·${r.staffType === "위생기사" ? "위생" : r.staffType}` : r.staffType}
                       </span>
                     ))}
                   </div>
@@ -292,7 +308,7 @@ export default function HealthManagerReports() {
         </CardContent>
       </Card>
 
-      {/* 등록된 보고서 목록 (수정/삭제) */}
+      {/* 등록된 보고서 목록 */}
       {reports.length > 0 && (
         <div className="space-y-2">
           <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
@@ -308,11 +324,12 @@ export default function HealthManagerReports() {
               >
                 <div className="flex items-center gap-2 flex-wrap min-w-0">
                   <span className={`px-2 py-0.5 rounded text-xs font-medium shrink-0 ${STAFF_COLOR[r.staffType as StaffType] ?? "bg-gray-400 text-white"}`}>{r.staffType}</span>
+                  {r.team && <Badge variant="outline" className="text-xs shrink-0">{r.team}</Badge>}
                   <span className="text-sm text-muted-foreground shrink-0">{r.visitDate}</span>
                   {r.fileOriginalName && (
                     <span className="flex items-center gap-1 text-xs text-blue-600 min-w-0">
                       <FileText className="h-3 w-3 shrink-0" />
-                      <span className="truncate max-w-[160px]">{r.fileOriginalName}</span>
+                      <span className="truncate max-w-[140px]">{r.fileOriginalName}</span>
                     </span>
                   )}
                 </div>
@@ -355,6 +372,17 @@ export default function HealthManagerReports() {
                 <Label>방문일 *</Label>
                 <Input type="date" value={form.visitDate} onChange={e => setForm(f => ({ ...f, visitDate: e.target.value }))} data-testid="input-visit-date" />
               </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label>방문 팀</Label>
+              <Select value={form.team || "__none__"} onValueChange={v => setForm(f => ({ ...f, team: v === "__none__" ? "" : v }))} data-testid="select-team">
+                <SelectTrigger><SelectValue placeholder="팀 선택 (선택사항)" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">선택 안 함</SelectItem>
+                  {ALL_TEAMS.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-1">
@@ -411,8 +439,9 @@ export default function HealthManagerReports() {
           <div className="space-y-2 pt-2">
             {dayReports?.reports.map(r => (
               <div key={r.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 cursor-pointer" onClick={() => { setDayReports(null); setDetailReport(r); }}>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className={`px-2 py-0.5 rounded text-xs font-medium ${STAFF_COLOR[r.staffType as StaffType] ?? "bg-gray-400 text-white"}`}>{r.staffType}</span>
+                  {r.team && <Badge variant="outline" className="text-xs">{r.team}</Badge>}
                   {r.fileOriginalName && <FileText className="h-3 w-3 text-blue-500" />}
                 </div>
                 {canEditInspections && (
@@ -440,6 +469,9 @@ export default function HealthManagerReports() {
                   <span className="text-muted-foreground mr-1">직종</span>
                   <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${STAFF_COLOR[detailReport.staffType as StaffType] ?? ""}`}>{detailReport.staffType}</span>
                 </div>
+                {detailReport.team && (
+                  <div><span className="text-muted-foreground mr-1">방문 팀</span><span className="font-semibold">{detailReport.team}</span></div>
+                )}
                 <div><span className="text-muted-foreground mr-1">방문일</span><span className="font-semibold">{detailReport.visitDate}</span></div>
                 <div><span className="text-muted-foreground mr-1">기준 월</span><span>{detailReport.yearMonth}</span></div>
                 <div><span className="text-muted-foreground mr-1">등록일</span><span>{detailReport.createdAt ? format(new Date(detailReport.createdAt), "yyyy.MM.dd HH:mm", { locale: ko }) : "-"}</span></div>

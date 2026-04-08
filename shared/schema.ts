@@ -531,6 +531,7 @@ export const healthManagerReports = pgTable("health_manager_reports", {
   id: serial("id").primaryKey(),
   yearMonth: text("year_month").notNull(), // "2025-04"
   visitDate: text("visit_date").notNull(), // "YYYY-MM-DD"
+  team: text("team"),                      // 방문 팀 (구미운용팀 등)
   staffType: text("staff_type").notNull(), // "위생기사" | "의사" | "간호사"
   staffName: text("staff_name"),
   reportContent: text("report_content"),

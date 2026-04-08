@@ -5782,7 +5782,7 @@ ${htmlDraft}
 
   app.post('/api/health-manager-reports', requireEditor, reportUpload.single('file'), async (req: any, res) => {
     try {
-      const { yearMonth, visitDate, staffType } = req.body;
+      const { yearMonth, visitDate, staffType, team } = req.body;
       if (!yearMonth || !visitDate || !staffType) return res.status(400).json({ message: "필수 항목 누락" });
       let fileUrl: string | null = null;
       let fileOriginalName: string | null = null;
@@ -5799,6 +5799,7 @@ ${htmlDraft}
       }
       const report = await storage.createHealthManagerReport({
         yearMonth, visitDate, staffType,
+        team: team || null,
         staffName: null, reportContent: null,
         fileUrl, fileOriginalName,
         notes: null,
@@ -5811,8 +5812,8 @@ ${htmlDraft}
   app.patch('/api/health-manager-reports/:id', requireEditor, reportUpload.single('file'), async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
-      const { yearMonth, visitDate, staffType } = req.body;
-      const updates: any = { yearMonth, visitDate, staffType };
+      const { yearMonth, visitDate, staffType, team } = req.body;
+      const updates: any = { yearMonth, visitDate, staffType, team: team || null };
       if (req.file) {
         const origName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
         const ext = path.extname(origName) || '.bin';
