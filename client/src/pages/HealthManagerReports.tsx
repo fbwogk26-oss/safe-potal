@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState, useRef } from "react";
-import { format } from "date-fns";
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isToday } from "date-fns";
 import { ko } from "date-fns/locale";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -18,17 +18,25 @@ import type { HealthManagerReport } from "@shared/schema";
 
 type StaffType = "위생기사" | "의사" | "간호사";
 
-const STAFF_CONFIGS: { type: StaffType; label: string; frequencyLabel: string; frequencyMonths: number }[] = [
-  { type: "간호사", label: "간호사", frequencyLabel: "매월 1회", frequencyMonths: 1 },
-  { type: "위생기사", label: "위생기사", frequencyLabel: "2개월 1회", frequencyMonths: 2 },
-  { type: "의사", label: "의사", frequencyLabel: "3개월 1회", frequencyMonths: 3 },
+const STAFF_CONFIGS: { type: StaffType; label: string; shortLabel: string; frequencyLabel: string; frequencyMonths: number }[] = [
+  { type: "간호사",  label: "간호사",  shortLabel: "간호사", frequencyLabel: "매월 1회",    frequencyMonths: 1 },
+  { type: "위생기사", label: "위생기사", shortLabel: "위생기사", frequencyLabel: "2개월 1회", frequencyMonths: 2 },
+  { type: "의사",   label: "의사",   shortLabel: "의사",  frequencyLabel: "3개월 1회",   frequencyMonths: 3 },
 ];
 
-const STAFF_BADGE: Record<StaffType, string> = {
-  "간호사": "bg-pink-100 text-pink-800 dark:bg-pink-900/50 dark:text-pink-200",
-  "위생기사": "bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200",
-  "의사": "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200",
+const STAFF_COLOR: Record<StaffType, string> = {
+  "간호사":  "bg-pink-500 text-white",
+  "위생기사": "bg-blue-500 text-white",
+  "의사":    "bg-green-600 text-white",
 };
+
+const STAFF_BADGE: Record<StaffType, string> = {
+  "간호사":  "bg-pink-100 text-pink-800 dark:bg-pink-900/50 dark:text-pink-200",
+  "위생기사": "bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200",
+  "의사":    "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200",
+};
+
+const DAY_NAMES = ["일", "월", "화", "수", "목", "금", "토"];
 
 function getYearMonth(year: number, month: number) {
   return `${year}-${String(month).padStart(2, "0")}`;
@@ -50,6 +58,7 @@ export default function HealthManagerReports() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<HealthManagerReport | null>(null);
   const [detailReport, setDetailReport] = useState<HealthManagerReport | null>(null);
+  const [dayReports, setDayReports] = useState<{ date: string; reports: HealthManagerReport[] } | null>(null);
 
   const [form, setForm] = useState({ visitDate: format(now, "yyyy-MM-dd"), staffType: "" as StaffType | "" });
   const [file, setFile] = useState<File | null>(null);
@@ -68,12 +77,13 @@ export default function HealthManagerReports() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/health-manager-reports", yearMonth] });
       toast({ title: "삭제 완료" });
+      setDayReports(null);
     },
   });
 
-  function openAdd() {
+  function openAdd(date?: string) {
     setEditing(null);
-    setForm({ visitDate: format(new Date(year, month - 1, 1), "yyyy-MM-dd"), staffType: "" });
+    setForm({ visitDate: date || format(new Date(year, month - 1, 1), "yyyy-MM-dd"), staffType: "" });
     setFile(null);
     setDialogOpen(true);
   }
@@ -112,8 +122,35 @@ export default function HealthManagerReports() {
   function prevMonth() { if (month === 1) { setYear(y => y - 1); setMonth(12); } else setMonth(m => m - 1); }
   function nextMonth() { if (month === 12) { setYear(y => y + 1); setMonth(1); } else setMonth(m => m + 1); }
 
+  // 캘린더 날짜 계산
+  const monthStart = startOfMonth(new Date(year, month - 1));
+  const monthEnd = endOfMonth(monthStart);
+  const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
+  const startPad = getDay(monthStart);
+
+  // 날짜별 보고서 맵
+  const reportsByDate = new Map<string, HealthManagerReport[]>();
+  for (const r of reports) {
+    if (!reportsByDate.has(r.visitDate)) reportsByDate.set(r.visitDate, []);
+    reportsByDate.get(r.visitDate)!.push(r);
+  }
+
+  // 이번달 예상 방문 수 / 완료 수
+  const expectedConfigs = STAFF_CONFIGS.filter(cfg => isExpectedThisMonth(cfg.frequencyMonths, month));
+  const totalPlanned = expectedConfigs.length;
+  const totalDone = expectedConfigs.filter(cfg => reports.some(r => r.staffType === cfg.type)).length;
+
+  function handleDayClick(dateStr: string, dayRpts: HealthManagerReport[]) {
+    if (dayRpts.length === 1) {
+      setDetailReport(dayRpts[0]);
+    } else {
+      setDayReports({ date: dateStr, reports: dayRpts });
+    }
+  }
+
   return (
-    <div className="p-4 md:p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-5">
+      {/* 헤더 */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="flex items-center gap-2">
           <Heart className="h-6 w-6 text-rose-600" />
@@ -124,7 +161,7 @@ export default function HealthManagerReports() {
           <span className="font-semibold min-w-[6rem] text-center">{year}년 {month}월</span>
           <Button variant="outline" size="icon" onClick={nextMonth}><ChevronRight className="h-4 w-4" /></Button>
           {canEditInspections && (
-            <Button onClick={openAdd} className="gap-1" data-testid="btn-add-report">
+            <Button onClick={() => openAdd()} className="gap-1 bg-rose-600 hover:bg-rose-700" data-testid="btn-add-report">
               <Plus className="h-4 w-4" /> 등록
             </Button>
           )}
@@ -132,29 +169,27 @@ export default function HealthManagerReports() {
       </div>
 
       {/* 직종별 현황 카드 */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {STAFF_CONFIGS.map(cfg => {
           const done = reports.filter(r => r.staffType === cfg.type).length;
           const expected = isExpectedThisMonth(cfg.frequencyMonths, month);
           const status = !expected ? "해당없음" : done > 0 ? "완료" : "미완료";
           return (
-            <Card key={cfg.type} className={`border-2 ${status === "완료" ? "border-green-400" : status === "미완료" ? "border-amber-400" : "border-gray-200 dark:border-gray-700"}`} data-testid={`card-staff-${cfg.type}`}>
-              <CardContent className="p-4">
+            <Card key={cfg.type} className={`border-2 ${status === "완료" ? "border-green-400 bg-green-50 dark:bg-green-950/30" : status === "미완료" ? "border-amber-400" : "border-gray-200 dark:border-gray-700"}`} data-testid={`card-staff-${cfg.type}`}>
+              <CardContent className="p-3">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="font-semibold">{cfg.label}</span>
+                  <div className="flex items-center gap-2">
+                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${STAFF_COLOR[cfg.type]}`}>{cfg.label}</span>
+                    <span className="text-xs text-muted-foreground">{cfg.frequencyLabel}</span>
+                  </div>
                   {status === "완료" && <CheckCircle2 className="h-5 w-5 text-green-500" />}
                   {status === "미완료" && <AlertCircle className="h-5 w-5 text-amber-500" />}
                   {status === "해당없음" && <Calendar className="h-5 w-5 text-gray-400" />}
                 </div>
-                <div className="space-y-1 text-sm">
-                  <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground">방문 주기</span>
-                    <Badge variant="outline" className="text-xs">{cfg.frequencyLabel}</Badge>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground">이번달 방문</span>
-                    <span className={`font-medium ${done > 0 ? "text-green-600" : expected ? "text-amber-600" : "text-gray-500"}`}>{done}회</span>
-                  </div>
+                <div className="text-lg font-bold">
+                  <span className={done > 0 ? "text-green-600" : expected ? "text-amber-600" : "text-gray-400"}>{done}회</span>
+                  {expected && <span className="text-sm text-muted-foreground"> 방문</span>}
+                  {!expected && <span className="text-sm text-muted-foreground"> (이번달 해당없음)</span>}
                 </div>
               </CardContent>
             </Card>
@@ -162,42 +197,86 @@ export default function HealthManagerReports() {
         })}
       </div>
 
-      {/* 보고서 목록 */}
-      <div className="space-y-2">
-        <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">등록된 보고서 ({reports.length}건)</h2>
-        {isLoading ? (
-          <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
-        ) : reports.length === 0 ? (
-          <div className="text-center py-10 text-muted-foreground">등록된 보고서가 없습니다</div>
-        ) : (
-          <div className="space-y-2">
-            {reports.map(r => (
-              <Card key={r.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => setDetailReport(r)} data-testid={`card-report-${r.id}`}>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 flex-wrap min-w-0">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium shrink-0 ${STAFF_BADGE[r.staffType as StaffType] ?? ""}`}>{r.staffType}</span>
-                      <span className="text-xs text-muted-foreground shrink-0">{r.visitDate}</span>
-                      {r.fileOriginalName && (
-                        <span className="flex items-center gap-1 text-xs text-blue-600 min-w-0">
-                          <FileText className="h-3 w-3 shrink-0" />
-                          <span className="truncate max-w-[160px]">{r.fileOriginalName}</span>
-                        </span>
-                      )}
-                    </div>
-                    {canEditInspections && (
-                      <div className="flex gap-1 shrink-0" onClick={e => e.stopPropagation()}>
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)} data-testid={`btn-edit-${r.id}`}><Pencil className="h-3 w-3" /></Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => { if (confirm("삭제하시겠습니까?")) deleteMutation.mutate(r.id); }} data-testid={`btn-delete-${r.id}`}><Trash2 className="h-3 w-3" /></Button>
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
+      {/* 캘린더 */}
+      <Card>
+        <CardContent className="p-3 md:p-4">
+          {/* 진행률 헤더 */}
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm font-medium">방문 현황</span>
+            <div className="flex items-center gap-2">
+              <Badge variant={totalDone >= totalPlanned ? "default" : "secondary"} className="text-xs">
+                {totalDone} / {totalPlanned}직종 완료
+              </Badge>
+              <div className="w-24 bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+                <div className="bg-rose-500 h-1.5 rounded-full transition-all" style={{ width: `${totalPlanned > 0 ? Math.min(100, (totalDone / totalPlanned) * 100) : 0}%` }} />
+              </div>
+            </div>
+          </div>
+
+          {/* 요일 헤더 */}
+          <div className="grid grid-cols-7 mb-1">
+            {DAY_NAMES.map((d, i) => (
+              <div key={d} className={`text-center text-xs font-semibold py-1 ${i === 0 ? "text-red-500" : i === 6 ? "text-blue-500" : "text-muted-foreground"}`}>{d}</div>
             ))}
           </div>
-        )}
-      </div>
+
+          {/* 날짜 셀 */}
+          {isLoading ? (
+            <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+          ) : (
+            <div className="grid grid-cols-7 gap-px bg-border rounded-lg overflow-hidden">
+              {Array.from({ length: startPad }).map((_, i) => (
+                <div key={`pad-${i}`} className="bg-muted/20 min-h-[64px] md:min-h-[80px]" />
+              ))}
+              {days.map(day => {
+                const dateStr = format(day, "yyyy-MM-dd");
+                const dayRpts = reportsByDate.get(dateStr) || [];
+                const hasReports = dayRpts.length > 0;
+                const today = isToday(day);
+                const dayOfWeek = getDay(day);
+                const isSun = dayOfWeek === 0;
+                const isSat = dayOfWeek === 6;
+
+                return (
+                  <div
+                    key={dateStr}
+                    className={`bg-background min-h-[64px] md:min-h-[80px] p-1 md:p-1.5 flex flex-col gap-0.5 transition-colors
+                      ${hasReports ? "cursor-pointer hover:bg-rose-50 dark:hover:bg-rose-950/20" : ""}
+                      ${today ? "ring-2 ring-rose-400 ring-inset" : ""}
+                    `}
+                    onClick={() => hasReports && handleDayClick(dateStr, dayRpts)}
+                  >
+                    <span className={`text-xs font-medium leading-none mb-0.5
+                      ${today ? "text-rose-600 font-bold" : isSun ? "text-red-500" : isSat ? "text-blue-500" : "text-foreground"}
+                    `}>
+                      {format(day, "d")}
+                    </span>
+                    {dayRpts.map(r => (
+                      <span
+                        key={r.id}
+                        className={`text-[9px] md:text-[10px] leading-tight px-1 py-0.5 rounded font-medium truncate ${STAFF_COLOR[r.staffType as StaffType] ?? "bg-gray-400 text-white"}`}
+                        title={r.staffType}
+                      >
+                        {r.staffType}
+                      </span>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* 색상 범례 */}
+          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 pt-3 border-t">
+            {STAFF_CONFIGS.map(cfg => (
+              <span key={cfg.type} className="flex items-center gap-1 text-xs text-muted-foreground">
+                <span className={`inline-block w-2.5 h-2.5 rounded-sm ${STAFF_COLOR[cfg.type].split(" ")[0]}`} />
+                {cfg.label}
+              </span>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* 등록/수정 다이얼로그 */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -257,11 +336,36 @@ export default function HealthManagerReports() {
 
             <div className="flex justify-end gap-2 pt-1">
               <Button variant="outline" onClick={() => setDialogOpen(false)}>취소</Button>
-              <Button onClick={handleSubmit} disabled={submitting} data-testid="btn-submit">
+              <Button onClick={handleSubmit} disabled={submitting} className="bg-rose-600 hover:bg-rose-700" data-testid="btn-submit">
                 {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
                 {editing ? "수정" : "등록"}
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 하루에 여러 보고서 선택 다이얼로그 */}
+      <Dialog open={!!dayReports} onOpenChange={() => setDayReports(null)}>
+        <DialogContent className="w-[95vw] max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{dayReports?.date} 방문 보고서</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 pt-2">
+            {dayReports?.reports.map(r => (
+              <div key={r.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 cursor-pointer" onClick={() => { setDayReports(null); setDetailReport(r); }}>
+                <div className="flex items-center gap-2">
+                  <span className={`px-2 py-0.5 rounded text-xs font-medium ${STAFF_COLOR[r.staffType as StaffType] ?? "bg-gray-400 text-white"}`}>{r.staffType}</span>
+                  {r.fileOriginalName && <FileText className="h-3 w-3 text-blue-500" />}
+                </div>
+                {canEditInspections && (
+                  <div className="flex gap-1" onClick={e => e.stopPropagation()}>
+                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { setDayReports(null); openEdit(r); }}><Pencil className="h-3 w-3" /></Button>
+                    <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => { if (confirm("삭제하시겠습니까?")) deleteMutation.mutate(r.id); }}><Trash2 className="h-3 w-3" /></Button>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         </DialogContent>
       </Dialog>
@@ -277,16 +381,27 @@ export default function HealthManagerReports() {
               <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
                 <div>
                   <span className="text-muted-foreground mr-1">직종</span>
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${STAFF_BADGE[detailReport.staffType as StaffType] ?? ""}`}>{detailReport.staffType}</span>
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${STAFF_COLOR[detailReport.staffType as StaffType] ?? ""}`}>{detailReport.staffType}</span>
                 </div>
                 <div><span className="text-muted-foreground mr-1">방문일</span><span className="font-semibold">{detailReport.visitDate}</span></div>
                 <div><span className="text-muted-foreground mr-1">기준 월</span><span>{detailReport.yearMonth}</span></div>
                 <div><span className="text-muted-foreground mr-1">등록일</span><span>{detailReport.createdAt ? format(new Date(detailReport.createdAt), "yyyy.MM.dd HH:mm", { locale: ko }) : "-"}</span></div>
               </div>
+              {canEditInspections && (
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" className="gap-1" onClick={() => { setDetailReport(null); openEdit(detailReport); }}>
+                    <Pencil className="h-3 w-3" /> 수정
+                  </Button>
+                  <Button variant="outline" size="sm" className="gap-1 text-destructive hover:text-destructive" onClick={() => { if (confirm("삭제하시겠습니까?")) { deleteMutation.mutate(detailReport.id); setDetailReport(null); } }}>
+                    <Trash2 className="h-3 w-3" /> 삭제
+                  </Button>
+                </div>
+              )}
               <FileViewer
                 fileUrl={detailReport.fileUrl}
                 fileOriginalName={detailReport.fileOriginalName}
                 apiBase={`/api/health-manager-reports/${detailReport.id}/file`}
+                accentColor="text-rose-500"
               />
             </div>
           )}
