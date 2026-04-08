@@ -78,8 +78,25 @@ export default function HealthManagerReports() {
   async function handleFileChange(selected: File | null) {
     setFile(selected);
     if (!selected) return;
+    if (!selected.name.toLowerCase().endsWith('.pdf')) return;
     setExtractingDate(true);
     try {
+      // 서버 AI 분석으로 방문일자·직종 추출
+      const fd = new FormData();
+      fd.append("file", selected);
+      const res = await fetch("/api/health-manager-reports/analyze-pdf", { method: "POST", body: fd });
+      if (res.ok) {
+        const { data } = await res.json();
+        if (data?.visitDate) setForm(f => ({ ...f, visitDate: data.visitDate }));
+        if (data?.staffType && ["간호사", "위생기사", "의사"].includes(data.staffType)) {
+          setForm(f => ({ ...f, staffType: data.staffType as StaffType }));
+        }
+        if (data?.visitDate) return;
+      }
+      // AI 실패 시 클라이언트 정규식 폴백
+      const date = await extractDateFromPdf(selected);
+      if (date) setForm(f => ({ ...f, visitDate: date }));
+    } catch {
       const date = await extractDateFromPdf(selected);
       if (date) setForm(f => ({ ...f, visitDate: date }));
     } finally {

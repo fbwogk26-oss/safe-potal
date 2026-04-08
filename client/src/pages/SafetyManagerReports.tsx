@@ -67,8 +67,25 @@ export default function SafetyManagerReports() {
   async function handleFileChange(selected: File | null) {
     setFile(selected);
     if (!selected) return;
+    if (!selected.name.toLowerCase().endsWith('.pdf')) return;
     setExtractingDate(true);
     try {
+      // 서버 AI 분석으로 점검일자 추출
+      const fd = new FormData();
+      fd.append("file", selected);
+      const res = await fetch("/api/safety-manager-reports/analyze-pdf", { method: "POST", body: fd });
+      if (res.ok) {
+        const { data } = await res.json();
+        if (data?.visitDate) {
+          setForm(f => ({ ...f, visitDate: data.visitDate }));
+          return;
+        }
+      }
+      // AI 실패 시 클라이언트 정규식 폴백
+      const date = await extractDateFromPdf(selected);
+      if (date) setForm(f => ({ ...f, visitDate: date }));
+    } catch {
+      // 폴백
       const date = await extractDateFromPdf(selected);
       if (date) setForm(f => ({ ...f, visitDate: date }));
     } finally {
