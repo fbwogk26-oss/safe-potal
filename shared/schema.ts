@@ -507,6 +507,43 @@ export const insertNearMissSchema = createInsertSchema(nearMissReports).omit({ i
 export type NearMissReport = typeof nearMissReports.$inferSelect;
 export type InsertNearMiss = z.infer<typeof insertNearMissSchema>;
 
+// 안전관리자 상태보고서
+export const safetyManagerReports = pgTable("safety_manager_reports", {
+  id: serial("id").primaryKey(),
+  yearMonth: text("year_month").notNull(), // "2025-04"
+  visitDate: text("visit_date").notNull(), // "YYYY-MM-DD"
+  team: text("team").notNull(),
+  visitSequence: integer("visit_sequence").notNull().default(1), // 1 or 2 (팀당 월 방문 순서)
+  safetyManagerName: text("safety_manager_name"),
+  reportContent: text("report_content"),
+  fileUrl: text("file_url"),
+  fileOriginalName: text("file_original_name"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  createdBy: text("created_by"),
+});
+export const insertSafetyManagerReportSchema = createInsertSchema(safetyManagerReports).omit({ id: true, createdAt: true });
+export type SafetyManagerReport = typeof safetyManagerReports.$inferSelect;
+export type InsertSafetyManagerReport = z.infer<typeof insertSafetyManagerReportSchema>;
+
+// 보건관리자 상태보고서
+export const healthManagerReports = pgTable("health_manager_reports", {
+  id: serial("id").primaryKey(),
+  yearMonth: text("year_month").notNull(), // "2025-04"
+  visitDate: text("visit_date").notNull(), // "YYYY-MM-DD"
+  staffType: text("staff_type").notNull(), // "위생기사" | "의사" | "간호사"
+  staffName: text("staff_name"),
+  reportContent: text("report_content"),
+  fileUrl: text("file_url"),
+  fileOriginalName: text("file_original_name"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  createdBy: text("created_by"),
+});
+export const insertHealthManagerReportSchema = createInsertSchema(healthManagerReports).omit({ id: true, createdAt: true });
+export type HealthManagerReport = typeof healthManagerReports.$inferSelect;
+export type InsertHealthManagerReport = z.infer<typeof insertHealthManagerReportSchema>;
+
 // Export auth schema
 export * from "./models/auth";
 

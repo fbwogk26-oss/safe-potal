@@ -1,4 +1,4 @@
-import { Bell, LogOut, Users, Menu, LayoutDashboard, ShieldCheck, Shield, HeartPulse, GraduationCap, DoorOpen, ShoppingCart, MonitorPlay, ClipboardCheck, FileText, KeyRound, Eye, EyeOff, AlertTriangle, ShieldAlert, FlaskConical, ChevronDown, ScrollText, Bone, Home, ReceiptText, Briefcase, CalendarCheck, Music2, Fuel, FileSignature, Car } from "lucide-react";
+import { Bell, LogOut, Users, Menu, LayoutDashboard, ShieldCheck, Shield, HeartPulse, GraduationCap, DoorOpen, ShoppingCart, MonitorPlay, ClipboardCheck, FileText, KeyRound, Eye, EyeOff, AlertTriangle, ShieldAlert, FlaskConical, ChevronDown, ScrollText, Bone, Home, ReceiptText, Briefcase, CalendarCheck, Music2, Fuel, FileSignature, Car, HardHat, Stethoscope } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -56,6 +56,7 @@ const MOBILE_NAV_ITEMS: MobileNavEntry[] = [
       { label: "보호구 현황", href: "/equipment/status", icon: ShieldCheck },
       { label: "안전용품 신청", href: "/equipment", icon: ShoppingCart },
       { label: "출입신청", href: "/access", icon: DoorOpen },
+      { label: "안전관리자 보고서", href: "/safety-manager-reports", icon: HardHat },
     ],
   },
   {
@@ -64,6 +65,7 @@ const MOBILE_NAV_ITEMS: MobileNavEntry[] = [
     children: [
       { label: "MSDS검색", href: "/msds", icon: FlaskConical },
       { label: "근골격계질환", href: "/musculoskeletal", icon: Bone },
+      { label: "보건관리자 보고서", href: "/health-manager-reports", icon: Stethoscope },
     ],
   },
   {

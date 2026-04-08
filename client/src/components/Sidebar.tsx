@@ -26,6 +26,8 @@ import {
   Fuel,
   FileSignature,
   Car,
+  HardHat,
+  Stethoscope,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -82,6 +84,7 @@ const NAV_SECTIONS: NavSection[] = [
           { label: "보호구 현황", href: "/equipment/status", icon: ShieldCheck, permissionKey: "canViewEquipmentStatus" },
           { label: "안전용품 신청", href: "/equipment", icon: ShoppingCart, permissionKey: "canViewEquipment" },
           { label: "출입신청", href: "/access", icon: DoorOpen, permissionKey: "canViewAccess" },
+          { label: "안전관리자 보고서", href: "/safety-manager-reports", icon: HardHat, permissionKey: "canViewInspections" },
         ],
       },
     ],
@@ -94,6 +97,7 @@ const NAV_SECTIONS: NavSection[] = [
         children: [
           { label: "MSDS검색", href: "/msds", icon: FlaskConical, permissionKey: "canViewMsds" },
           { label: "근골격계질환", href: "/musculoskeletal", icon: Bone, permissionKey: "canViewMusculoskeletal" },
+          { label: "보건관리자 보고서", href: "/health-manager-reports", icon: Stethoscope, permissionKey: "canViewMusculoskeletal" },
         ],
       },
     ],

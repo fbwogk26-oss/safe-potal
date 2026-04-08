@@ -26,6 +26,10 @@ import {
   type FuelRecord, type InsertFuelRecord,
   nearMissReports,
   type NearMissReport,
+  safetyManagerReports,
+  type SafetyManagerReport,
+  healthManagerReports,
+  type HealthManagerReport,
 } from "@shared/schema";
 import { eq, desc, asc, and, ilike, or, sql, inArray } from "drizzle-orm";
 
@@ -154,6 +158,20 @@ export interface IStorage {
   deleteFuelRecordsByBatch(batchId: string): Promise<void>;
   deleteFuelRecordsByYearMonth(year: number, month: number): Promise<void>;
   getFuelBatches(): Promise<{ batchId: string; uploadedAt: Date; recordCount: number; yearMonths: string[] }[]>;
+
+  // Safety Manager Reports
+  getSafetyManagerReports(yearMonth?: string): Promise<SafetyManagerReport[]>;
+  getSafetyManagerReport(id: number): Promise<SafetyManagerReport | undefined>;
+  createSafetyManagerReport(data: any): Promise<SafetyManagerReport>;
+  updateSafetyManagerReport(id: number, data: any): Promise<SafetyManagerReport>;
+  deleteSafetyManagerReport(id: number): Promise<void>;
+
+  // Health Manager Reports
+  getHealthManagerReports(yearMonth?: string): Promise<HealthManagerReport[]>;
+  getHealthManagerReport(id: number): Promise<HealthManagerReport | undefined>;
+  createHealthManagerReport(data: any): Promise<HealthManagerReport>;
+  updateHealthManagerReport(id: number, data: any): Promise<HealthManagerReport>;
+  deleteHealthManagerReport(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -658,6 +676,52 @@ export class DatabaseStorage implements IStorage {
       recordCount: r.recordCount,
       yearMonths: r.yearMonths ?? [],
     }));
+  }
+
+  // === SAFETY MANAGER REPORTS ===
+  async getSafetyManagerReports(yearMonth?: string): Promise<SafetyManagerReport[]> {
+    const cond = yearMonth ? eq(safetyManagerReports.yearMonth, yearMonth) : undefined;
+    return await db.select().from(safetyManagerReports)
+      .where(cond)
+      .orderBy(desc(safetyManagerReports.createdAt));
+  }
+  async getSafetyManagerReport(id: number): Promise<SafetyManagerReport | undefined> {
+    const [row] = await db.select().from(safetyManagerReports).where(eq(safetyManagerReports.id, id));
+    return row;
+  }
+  async createSafetyManagerReport(data: any): Promise<SafetyManagerReport> {
+    const [row] = await db.insert(safetyManagerReports).values(data).returning();
+    return row;
+  }
+  async updateSafetyManagerReport(id: number, data: any): Promise<SafetyManagerReport> {
+    const [row] = await db.update(safetyManagerReports).set(data).where(eq(safetyManagerReports.id, id)).returning();
+    return row;
+  }
+  async deleteSafetyManagerReport(id: number): Promise<void> {
+    await db.delete(safetyManagerReports).where(eq(safetyManagerReports.id, id));
+  }
+
+  // === HEALTH MANAGER REPORTS ===
+  async getHealthManagerReports(yearMonth?: string): Promise<HealthManagerReport[]> {
+    const cond = yearMonth ? eq(healthManagerReports.yearMonth, yearMonth) : undefined;
+    return await db.select().from(healthManagerReports)
+      .where(cond)
+      .orderBy(desc(healthManagerReports.createdAt));
+  }
+  async getHealthManagerReport(id: number): Promise<HealthManagerReport | undefined> {
+    const [row] = await db.select().from(healthManagerReports).where(eq(healthManagerReports.id, id));
+    return row;
+  }
+  async createHealthManagerReport(data: any): Promise<HealthManagerReport> {
+    const [row] = await db.insert(healthManagerReports).values(data).returning();
+    return row;
+  }
+  async updateHealthManagerReport(id: number, data: any): Promise<HealthManagerReport> {
+    const [row] = await db.update(healthManagerReports).set(data).where(eq(healthManagerReports.id, id)).returning();
+    return row;
+  }
+  async deleteHealthManagerReport(id: number): Promise<void> {
+    await db.delete(healthManagerReports).where(eq(healthManagerReports.id, id));
   }
 }
 

@@ -5645,6 +5645,127 @@ ${htmlDraft}
     }
   });
 
+  // ── 안전관리자 상태보고서 ────────────────────────────────────
+  app.get('/api/safety-manager-reports', isAuthenticated, async (req: any, res) => {
+    try {
+      const yearMonth = req.query.yearMonth as string | undefined;
+      res.json(await storage.getSafetyManagerReports(yearMonth));
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.post('/api/safety-manager-reports', requireEditor, upload.single('file'), async (req: any, res) => {
+    try {
+      const { yearMonth, visitDate, team, visitSequence, safetyManagerName, reportContent, notes } = req.body;
+      if (!yearMonth || !visitDate || !team) return res.status(400).json({ message: "필수 항목 누락" });
+      let fileUrl: string | null = null;
+      let fileOriginalName: string | null = null;
+      if (req.file) {
+        const ext = path.extname(req.file.originalname) || '.bin';
+        const filename = `safety-mgr-${Date.now()}${ext}`;
+        const objUrl = await uploadToObjectStorage(req.file.buffer, filename, req.file.mimetype);
+        if (objUrl) { fileUrl = objUrl; } else {
+          fs.writeFileSync(path.join(uploadDir, filename), req.file.buffer);
+          fileUrl = `/uploads/${filename}`;
+        }
+        fileOriginalName = req.file.originalname;
+      }
+      const report = await storage.createSafetyManagerReport({
+        yearMonth, visitDate, team,
+        visitSequence: parseInt(visitSequence) || 1,
+        safetyManagerName: safetyManagerName || null,
+        reportContent: reportContent || null,
+        fileUrl, fileOriginalName,
+        notes: notes || null,
+        createdBy: req.user?.id?.toString() || null,
+      });
+      res.json(report);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.patch('/api/safety-manager-reports/:id', requireEditor, upload.single('file'), async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { yearMonth, visitDate, team, visitSequence, safetyManagerName, reportContent, notes } = req.body;
+      const updates: any = { yearMonth, visitDate, team, visitSequence: parseInt(visitSequence) || 1, safetyManagerName, reportContent, notes };
+      if (req.file) {
+        const ext = path.extname(req.file.originalname) || '.bin';
+        const filename = `safety-mgr-${Date.now()}${ext}`;
+        const objUrl = await uploadToObjectStorage(req.file.buffer, filename, req.file.mimetype);
+        updates.fileUrl = objUrl ?? `/uploads/${filename}`;
+        updates.fileOriginalName = req.file.originalname;
+        if (!objUrl) fs.writeFileSync(path.join(uploadDir, filename), req.file.buffer);
+      }
+      res.json(await storage.updateSafetyManagerReport(id, updates));
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.delete('/api/safety-manager-reports/:id', requireEditor, async (req: any, res) => {
+    try {
+      await storage.deleteSafetyManagerReport(parseInt(req.params.id));
+      res.json({ success: true });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // ── 보건관리자 상태보고서 ────────────────────────────────────
+  app.get('/api/health-manager-reports', isAuthenticated, async (req: any, res) => {
+    try {
+      const yearMonth = req.query.yearMonth as string | undefined;
+      res.json(await storage.getHealthManagerReports(yearMonth));
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.post('/api/health-manager-reports', requireEditor, upload.single('file'), async (req: any, res) => {
+    try {
+      const { yearMonth, visitDate, staffType, staffName, reportContent, notes } = req.body;
+      if (!yearMonth || !visitDate || !staffType) return res.status(400).json({ message: "필수 항목 누락" });
+      let fileUrl: string | null = null;
+      let fileOriginalName: string | null = null;
+      if (req.file) {
+        const ext = path.extname(req.file.originalname) || '.bin';
+        const filename = `health-mgr-${Date.now()}${ext}`;
+        const objUrl = await uploadToObjectStorage(req.file.buffer, filename, req.file.mimetype);
+        if (objUrl) { fileUrl = objUrl; } else {
+          fs.writeFileSync(path.join(uploadDir, filename), req.file.buffer);
+          fileUrl = `/uploads/${filename}`;
+        }
+        fileOriginalName = req.file.originalname;
+      }
+      const report = await storage.createHealthManagerReport({
+        yearMonth, visitDate, staffType,
+        staffName: staffName || null,
+        reportContent: reportContent || null,
+        fileUrl, fileOriginalName,
+        notes: notes || null,
+        createdBy: req.user?.id?.toString() || null,
+      });
+      res.json(report);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.patch('/api/health-manager-reports/:id', requireEditor, upload.single('file'), async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { yearMonth, visitDate, staffType, staffName, reportContent, notes } = req.body;
+      const updates: any = { yearMonth, visitDate, staffType, staffName, reportContent, notes };
+      if (req.file) {
+        const ext = path.extname(req.file.originalname) || '.bin';
+        const filename = `health-mgr-${Date.now()}${ext}`;
+        const objUrl = await uploadToObjectStorage(req.file.buffer, filename, req.file.mimetype);
+        updates.fileUrl = objUrl ?? `/uploads/${filename}`;
+        updates.fileOriginalName = req.file.originalname;
+        if (!objUrl) fs.writeFileSync(path.join(uploadDir, filename), req.file.buffer);
+      }
+      res.json(await storage.updateHealthManagerReport(id, updates));
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.delete('/api/health-manager-reports/:id', requireEditor, async (req: any, res) => {
+    try {
+      await storage.deleteHealthManagerReport(parseInt(req.params.id));
+      res.json({ success: true });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
   return httpServer;
 }
 
