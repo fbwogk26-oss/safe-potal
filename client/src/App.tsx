@@ -42,6 +42,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { usePermissions } from "@/hooks/use-permissions";
 import { ForcePasswordChange } from "@/components/ForcePasswordChange";
 import { MusicPlayer } from "@/components/MusicPlayer";
+import { useRealtime } from "@/hooks/use-realtime";
 import { ShieldOff } from "lucide-react";
 
 function AccessDenied() {
@@ -124,6 +125,7 @@ function RouterContent() {
 }
 
 function MainLayout() {
+  useRealtime();
   return (
     <div className="flex min-h-screen bg-background text-foreground font-body">
       <Sidebar />

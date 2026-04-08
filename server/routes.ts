@@ -334,6 +334,31 @@ export async function registerRoutes(
     return req.user?.role === "admin" || !createdBy || req.user?.username === createdBy;
   };
 
+  // ─── Server-Sent Events (SSE) — 실시간 공지/알림 브로드캐스트 ────────
+  const sseClients = new Set<any>();
+
+  function broadcastSSE(event: string, data: object) {
+    const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+    for (const res of sseClients) {
+      try { res.write(payload); } catch { sseClients.delete(res); }
+    }
+  }
+
+  app.get('/api/sse', isAuthenticated, (req: any, res) => {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders();
+    res.write('event: connected\ndata: {}\n\n');
+    sseClients.add(res);
+    // 30초마다 heartbeat (연결 유지)
+    const heartbeat = setInterval(() => {
+      try { res.write(':heartbeat\n\n'); } catch { clearInterval(heartbeat); sseClients.delete(res); }
+    }, 30000);
+    req.on('close', () => { clearInterval(heartbeat); sseClients.delete(res); });
+  });
+
   // Add routes to get/update user role
   app.get("/api/auth/user-role", isAuthenticated, async (req: any, res) => {
     try {
@@ -941,6 +966,9 @@ export async function registerRoutes(
     const input = api.notices.create.input.parse(req.body);
     const notice = await storage.createNotice({ ...input, createdBy: req.user?.username || null });
     res.status(201).json(notice);
+    if (input.category === 'notice' || input.category === 'rule') {
+      broadcastSSE('notice', { action: 'created', id: notice.id, title: notice.title, category: notice.category });
+    }
   });
 
   app.put(api.notices.update.path, requireEditor, async (req: any, res) => {
@@ -1151,6 +1179,7 @@ export async function registerRoutes(
       await storage.setSetting('pinned_notice_id', String(noticeId));
     }
     res.json({ success: true, pinnedNoticeId: noticeId });
+    broadcastSSE('pinned', { pinnedNoticeId: noticeId });
   });
 
   // === INSPECTION TARGETS ===
@@ -3592,6 +3621,7 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
         createdBy: req.user?.username ?? null,
       });
       res.json(notice);
+      broadcastSSE('notice', { action: 'created', id: notice.id, title: notice.title, category: 'notice' });
     } catch (error: any) {
       res.status(500).json({ message: error?.message || "공지 게시에 실패했습니다" });
     }
