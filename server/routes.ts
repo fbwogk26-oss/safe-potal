@@ -5766,6 +5766,232 @@ ${htmlDraft}
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
+  // ─── PDF 텍스트 추출 공통 함수 ─────────────────────────────────
+  async function extractPdfText(buffer: Buffer): Promise<string> {
+    try {
+      const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs' as any);
+      const pdfLib = (pdfjsLib as any).default || pdfjsLib;
+      const loadingTask = pdfLib.getDocument({ data: new Uint8Array(buffer) });
+      const pdf = await loadingTask.promise;
+      const pages: string[] = [];
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        const str = (content.items as any[])
+          .filter((item: any) => 'str' in item)
+          .map((item: any) => item.str)
+          .join(' ');
+        pages.push(str);
+      }
+      return pages.join('\n\n');
+    } catch (e: any) {
+      throw new Error(`PDF 텍스트 추출 실패: ${e.message}`);
+    }
+  }
+
+  // ─── 안전관리자 상태보고서 PDF AI 분석 ────────────────────────────
+  app.post('/api/safety-manager-reports/analyze-pdf', requireEditor, upload.single('file'), async (req: any, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: "PDF 파일이 없습니다" });
+      const pdfText = await extractPdfText(req.file.buffer);
+      if (!pdfText || pdfText.trim().length < 10) {
+        return res.status(400).json({ message: "PDF에서 텍스트를 추출할 수 없습니다" });
+      }
+
+      const OpenAI = (await import("openai")).default;
+      const aiClient = new OpenAI({
+        apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+        baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+      });
+
+      const aiRes = await aiClient.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          {
+            role: "system",
+            content: `당신은 산업안전관리 전문가입니다. 안전관리상태보고서 PDF 텍스트에서 핵심 정보를 추출합니다.
+다음 JSON 형식으로만 응답하세요(코드블록 없이):
+{
+  "visitDate": "YYYY-MM-DD 형식의 점검일자, 없으면 null",
+  "team": "팀명(예: 남대구운용팀), 괄호 안 팀명 추출, 없으면 null",
+  "safetyManagerName": "수행요원 이름(서명란 위 이름), 없으면 null",
+  "reportContent": "기술지도 내용 요약(①②③④ 항목들을 한국어로 200자 이내 요약)",
+  "workerCount": "근로자수 숫자, 없으면 null",
+  "notes": "기타 특이사항 또는 중점 위험요인 요약, 없으면 null"
+}`
+          },
+          {
+            role: "user",
+            content: `다음 안전관리상태보고서 텍스트에서 정보를 추출해주세요:\n\n${pdfText.slice(0, 6000)}`
+          }
+        ],
+        temperature: 0.1,
+        max_tokens: 800,
+      });
+
+      const raw = aiRes.choices[0].message.content?.trim() || '{}';
+      const data = JSON.parse(raw);
+      res.json({ success: true, data });
+    } catch (e: any) {
+      console.error('안전관리자 PDF 분석 오류:', e.message);
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // ─── 보건관리자 상태보고서 PDF AI 분석 ────────────────────────────
+  app.post('/api/health-manager-reports/analyze-pdf', requireEditor, upload.single('file'), async (req: any, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: "PDF 파일이 없습니다" });
+      const pdfText = await extractPdfText(req.file.buffer);
+      if (!pdfText || pdfText.trim().length < 10) {
+        return res.status(400).json({ message: "PDF에서 텍스트를 추출할 수 없습니다" });
+      }
+
+      const OpenAI = (await import("openai")).default;
+      const aiClient = new OpenAI({
+        apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+        baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+      });
+
+      const aiRes = await aiClient.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          {
+            role: "system",
+            content: `당신은 산업보건관리 전문가입니다. 보건관리상태보고서 PDF 텍스트에서 핵심 정보를 추출합니다.
+다음 JSON 형식으로만 응답하세요(코드블록 없이):
+{
+  "visitDate": "YYYY-MM-DD 형식의 방문일자, 없으면 null",
+  "nextVisitDate": "YYYY-MM-DD 형식의 차기방문 예정일, 없으면 null",
+  "staffType": "직종(간호사/의사/위생기사 중 하나), 없으면 null",
+  "staffName": "보건관리자 성명, 없으면 null",
+  "workerCount": "근로자 계약인원 숫자, 없으면 null",
+  "reportContent": "업무수행내용 요약(안전보건교육, 건강진단, 건강상담 등 주요 내용 200자 이내)",
+  "healthConsultCount": "건강상담 실시 인원수, 없으면 null",
+  "notes": "준비 및 특기사항, 없으면 null"
+}`
+          },
+          {
+            role: "user",
+            content: `다음 보건관리상태보고서 텍스트에서 정보를 추출해주세요:\n\n${pdfText.slice(0, 6000)}`
+          }
+        ],
+        temperature: 0.1,
+        max_tokens: 800,
+      });
+
+      const raw = aiRes.choices[0].message.content?.trim() || '{}';
+      const data = JSON.parse(raw);
+      res.json({ success: true, data });
+    } catch (e: any) {
+      console.error('보건관리자 PDF 분석 오류:', e.message);
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // ─── 중대재해 사이렌 게시판 크롤링 ────────────────────────────────
+  let koshaSirenCache: { data: any[]; fetchedAt: number } | null = null;
+  const KOSHA_CACHE_TTL = 60 * 60 * 1000; // 1시간
+
+  app.get('/api/kosha/siren', isAuthenticated, async (req: any, res) => {
+    try {
+      const page = parseInt(req.query.page as string) || 1;
+      const pageSize = parseInt(req.query.pageSize as string) || 5;
+
+      // 캐시 유효하면 캐시에서 반환
+      if (koshaSirenCache && (Date.now() - koshaSirenCache.fetchedAt) < KOSHA_CACHE_TTL) {
+        const start = (page - 1) * pageSize;
+        const items = koshaSirenCache.data.slice(start, start + pageSize);
+        return res.json({ items, total: koshaSirenCache.data.length, page, cached: true });
+      }
+
+      const axios = (await import('axios')).default;
+      const cheerio = await import('cheerio');
+
+      const baseUrl = 'https://portal.kosha.or.kr';
+      const listUrl = `${baseUrl}/archive/imprtnDsstrAlrame/CSADV50000/CSADV50000M01`;
+
+      const response = await axios.get(listUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.8',
+          'Accept-Encoding': 'gzip, deflate, br',
+          'Referer': baseUrl,
+          'Connection': 'keep-alive',
+        },
+        timeout: 15000,
+        maxRedirects: 5,
+      });
+
+      const $ = cheerio.load(response.data);
+      const items: any[] = [];
+
+      // 일반 게시판 테이블 구조 파싱 (td 기반)
+      $('table tbody tr, .board-list li, ul.list li').each((_, el) => {
+        const tds = $(el).find('td');
+        let title = '';
+        let date = '';
+        let link = '';
+
+        if (tds.length > 0) {
+          // 테이블 형식
+          tds.each((i, td) => {
+            const text = $(td).text().trim();
+            const anchor = $(td).find('a');
+            if (anchor.length > 0 && !title) {
+              title = anchor.text().trim();
+              const href = anchor.attr('href');
+              if (href) {
+                link = href.startsWith('http') ? href : `${baseUrl}${href.startsWith('/') ? '' : '/'}${href}`;
+              }
+            }
+            if (/\d{4}[-./]\d{2}[-./]\d{2}/.test(text) && !date) {
+              date = text.replace(/[./]/g, '-').replace(/(\d{4})-(\d{2})-(\d{2}).*/, '$1-$2-$3');
+            }
+          });
+        } else {
+          // 리스트 형식
+          const anchor = $(el).find('a');
+          title = anchor.text().trim();
+          const href = anchor.attr('href');
+          if (href) link = href.startsWith('http') ? href : `${baseUrl}${href}`;
+          const dateEl = $(el).find('.date, .reg-date, time');
+          date = dateEl.text().trim();
+        }
+
+        if (title && title.length > 2 && !/번호|제목|날짜|등록일/.test(title)) {
+          items.push({ title, date: date || '', link: link || listUrl });
+        }
+      });
+
+      // 아무것도 파싱 안 되면 a 태그 전체에서 추출 시도
+      if (items.length === 0) {
+        $('a').each((_, el) => {
+          const title = $(el).text().trim();
+          const href = $(el).attr('href') || '';
+          if (title.length > 10 && (href.includes('CSADV') || href.includes('boardId') || href.includes('seq'))) {
+            const link = href.startsWith('http') ? href : `${baseUrl}${href}`;
+            items.push({ title, date: '', link });
+          }
+        });
+      }
+
+      // 중복 제거
+      const unique = items.filter((item, idx, arr) => arr.findIndex(i => i.title === item.title) === idx);
+
+      koshaSirenCache = { data: unique, fetchedAt: Date.now() };
+
+      const start = (page - 1) * pageSize;
+      const pageItems = unique.slice(start, start + pageSize);
+      res.json({ items: pageItems, total: unique.length, page, cached: false });
+    } catch (e: any) {
+      console.error('KOSHA 크롤링 오류:', e.message);
+      // 오류 시 빈 배열 반환하되 오류 메시지도 함께
+      res.json({ items: [], total: 0, page: 1, error: `데이터를 가져올 수 없습니다: ${e.message}` });
+    }
+  });
+
   return httpServer;
 }
 

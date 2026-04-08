@@ -8,18 +8,17 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { HardHat, Plus, Trash2, Pencil, FileText, ChevronLeft, ChevronRight, Download, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { HardHat, Plus, Trash2, Pencil, FileText, ChevronLeft, ChevronRight, Download, CheckCircle2, AlertCircle, Loader2, Sparkles, Upload } from "lucide-react";
 import type { SafetyManagerReport } from "@shared/schema";
 
 const DAEGU_TEAMS = ["동대구운용팀", "서대구운용팀", "남대구운용팀", "공공망관제팀"];
 const ALL_TEAMS = [...DAEGU_TEAMS, "구미운용팀", "포항운용팀", "안동운용팀", "문경운용팀"];
 
-// 월별 방문 계획
 const VISIT_PLAN: { label: string; teams: string[]; planned: number; note: string }[] = [
   { label: "대구 지역", teams: DAEGU_TEAMS, planned: 2, note: "동대구·서대구·남대구·공공망 4팀 중 매월 2팀 순환" },
   { label: "구미운용팀", teams: ["구미운용팀"], planned: 2, note: "매월 2회" },
@@ -42,7 +41,6 @@ export default function SafetyManagerReports() {
   const [editing, setEditing] = useState<SafetyManagerReport | null>(null);
   const [detailReport, setDetailReport] = useState<SafetyManagerReport | null>(null);
 
-  // Form state
   const [form, setForm] = useState({
     visitDate: format(now, "yyyy-MM-dd"),
     team: "",
@@ -53,7 +51,9 @@ export default function SafetyManagerReports() {
   });
   const [file, setFile] = useState<File | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const analyzeRef = useRef<HTMLInputElement>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
 
   const yearMonth = getYearMonth(year, month);
 
@@ -91,6 +91,38 @@ export default function SafetyManagerReports() {
     setDialogOpen(true);
   }
 
+  async function handleAnalyzePdf(pdfFile: File) {
+    if (!pdfFile.name.toLowerCase().endsWith(".pdf")) {
+      toast({ variant: "destructive", title: "PDF 파일만 분석 가능합니다" });
+      return;
+    }
+    setAnalyzing(true);
+    setFile(pdfFile);
+    try {
+      const fd = new FormData();
+      fd.append("file", pdfFile);
+      const res = await fetch("/api/safety-manager-reports/analyze-pdf", { method: "POST", body: fd });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "분석 실패");
+      }
+      const { data } = await res.json();
+      setForm(f => ({
+        ...f,
+        visitDate: data.visitDate || f.visitDate,
+        team: data.team && ALL_TEAMS.includes(data.team) ? data.team : f.team,
+        safetyManagerName: data.safetyManagerName || f.safetyManagerName,
+        reportContent: data.reportContent || f.reportContent,
+        notes: data.notes ? `근로자수: ${data.workerCount || "-"}명\n${data.notes}` : f.notes,
+      }));
+      toast({ title: "AI 분석 완료", description: "보고서 내용이 자동으로 입력되었습니다. 내용을 확인 후 수정해주세요." });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "AI 분석 실패", description: e.message });
+    } finally {
+      setAnalyzing(false);
+    }
+  }
+
   async function handleSubmit() {
     if (!form.team || !form.visitDate) return toast({ variant: "destructive", title: "팀과 방문일을 입력해주세요" });
     setSubmitting(true);
@@ -123,14 +155,12 @@ export default function SafetyManagerReports() {
   function prevMonth() { if (month === 1) { setYear(y => y - 1); setMonth(12); } else setMonth(m => m - 1); }
   function nextMonth() { if (month === 12) { setYear(y => y + 1); setMonth(1); } else setMonth(m => m + 1); }
 
-  // 방문 현황 집계
   const visitCountByGroup = VISIT_PLAN.map(g => {
     const count = reports.filter(r => g.teams.includes(r.team)).length;
     return { ...g, count };
   });
   const totalPlanned = VISIT_PLAN.reduce((s, g) => s + g.planned, 0);
   const totalDone = reports.length;
-
   const needsSequence = (team: string) => team === "구미운용팀" || team === "포항운용팀";
 
   return (
@@ -238,6 +268,45 @@ export default function SafetyManagerReports() {
             <DialogTitle>{editing ? "보고서 수정" : "안전관리자 방문 보고서 등록"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-2">
+
+            {/* AI PDF 분석 버튼 영역 */}
+            {!editing && (
+              <div className="rounded-lg border-2 border-dashed border-orange-200 bg-orange-50 dark:bg-orange-950/20 dark:border-orange-800 p-4">
+                <div className="flex items-start gap-3">
+                  <Sparkles className="h-5 w-5 text-orange-500 mt-0.5 shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-orange-700 dark:text-orange-300">PDF AI 자동 분석</p>
+                    <p className="text-xs text-muted-foreground mt-0.5 mb-3">안전관리상태보고서 PDF를 업로드하면 날짜·팀명·관리자·지도내용을 자동으로 입력합니다.</p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5 border-orange-300 text-orange-700 hover:bg-orange-100 dark:border-orange-700 dark:text-orange-300"
+                      onClick={() => analyzeRef.current?.click()}
+                      disabled={analyzing}
+                      data-testid="btn-analyze-pdf"
+                    >
+                      {analyzing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                      {analyzing ? "AI 분석 중..." : "PDF 선택 및 분석"}
+                    </Button>
+                    <input
+                      ref={analyzeRef}
+                      type="file"
+                      className="hidden"
+                      accept=".pdf"
+                      onChange={e => { const f = e.target.files?.[0]; if (f) handleAnalyzePdf(f); e.target.value = ""; }}
+                      data-testid="input-analyze-pdf"
+                    />
+                    {file && !analyzing && (
+                      <p className="text-xs text-green-600 mt-2 flex items-center gap-1">
+                        <CheckCircle2 className="h-3 w-3" /> {file.name} — 분석 완료 (아래 내용 확인 후 저장)
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label>방문 팀 *</Label>
@@ -279,7 +348,7 @@ export default function SafetyManagerReports() {
 
             <div className="space-y-1">
               <Label>메모</Label>
-              <Input placeholder="기타 사항" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} data-testid="input-notes" />
+              <Textarea rows={2} placeholder="기타 사항" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} data-testid="input-notes" />
             </div>
 
             <div className="space-y-1">
@@ -297,7 +366,7 @@ export default function SafetyManagerReports() {
 
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" onClick={() => setDialogOpen(false)} data-testid="btn-cancel">취소</Button>
-              <Button onClick={handleSubmit} disabled={submitting} data-testid="btn-submit">
+              <Button onClick={handleSubmit} disabled={submitting || analyzing} data-testid="btn-submit">
                 {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
                 {editing ? "수정" : "등록"}
               </Button>
@@ -324,7 +393,7 @@ export default function SafetyManagerReports() {
                 <div><p className="text-muted-foreground text-sm mb-1">보고 내용</p><p className="text-sm whitespace-pre-wrap bg-muted p-3 rounded">{detailReport.reportContent}</p></div>
               )}
               {detailReport.notes && (
-                <div><p className="text-muted-foreground text-sm mb-1">메모</p><p className="text-sm">{detailReport.notes}</p></div>
+                <div><p className="text-muted-foreground text-sm mb-1">메모</p><p className="text-sm whitespace-pre-wrap">{detailReport.notes}</p></div>
               )}
               {detailReport.fileUrl && (
                 <div>

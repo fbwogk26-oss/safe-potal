@@ -28,6 +28,7 @@ import {
   Car,
   HardHat,
   Stethoscope,
+  Siren,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -85,6 +86,7 @@ const NAV_SECTIONS: NavSection[] = [
           { label: "안전용품 신청", href: "/equipment", icon: ShoppingCart, permissionKey: "canViewEquipment" },
           { label: "출입신청", href: "/access", icon: DoorOpen, permissionKey: "canViewAccess" },
           { label: "안전관리자 보고서", href: "/safety-manager-reports", icon: HardHat, permissionKey: "canViewInspections" },
+          { label: "중대재해 사이렌", href: "/kosha-siren", icon: Siren },
         ],
       },
     ],
