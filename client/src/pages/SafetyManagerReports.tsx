@@ -7,7 +7,6 @@ import { useToast } from "@/hooks/use-toast";
 import { usePermissions } from "@/hooks/use-permissions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -31,6 +30,8 @@ function getYearMonth(year: number, month: number) {
   return `${year}-${String(month).padStart(2, "0")}`;
 }
 
+const needsSequence = (team: string) => team === "구미운용팀" || team === "포항운용팀";
+
 export default function SafetyManagerReports() {
   const { canEditInspections } = usePermissions();
   const { toast } = useToast();
@@ -41,17 +42,11 @@ export default function SafetyManagerReports() {
   const [editing, setEditing] = useState<SafetyManagerReport | null>(null);
   const [detailReport, setDetailReport] = useState<SafetyManagerReport | null>(null);
 
-  const [form, setForm] = useState({
-    visitDate: format(now, "yyyy-MM-dd"),
-    team: "",
-    visitSequence: "1",
-    safetyManagerName: "",
-    reportContent: "",
-    notes: "",
-  });
+  const [form, setForm] = useState({ visitDate: format(now, "yyyy-MM-dd"), team: "", visitSequence: "1" });
   const [file, setFile] = useState<File | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   const yearMonth = getYearMonth(year, month);
 
@@ -70,21 +65,14 @@ export default function SafetyManagerReports() {
 
   function openAdd() {
     setEditing(null);
-    setForm({ visitDate: format(new Date(year, month - 1, 1), "yyyy-MM-dd"), team: "", visitSequence: "1", safetyManagerName: "", reportContent: "", notes: "" });
+    setForm({ visitDate: format(new Date(year, month - 1, 1), "yyyy-MM-dd"), team: "", visitSequence: "1" });
     setFile(null);
     setDialogOpen(true);
   }
 
   function openEdit(r: SafetyManagerReport) {
     setEditing(r);
-    setForm({
-      visitDate: r.visitDate,
-      team: r.team,
-      visitSequence: String(r.visitSequence),
-      safetyManagerName: r.safetyManagerName || "",
-      reportContent: r.reportContent || "",
-      notes: r.notes || "",
-    });
+    setForm({ visitDate: r.visitDate, team: r.team, visitSequence: String(r.visitSequence) });
     setFile(null);
     setDialogOpen(true);
   }
@@ -98,11 +86,7 @@ export default function SafetyManagerReports() {
       fd.append("visitDate", form.visitDate);
       fd.append("team", form.team);
       fd.append("visitSequence", form.visitSequence);
-      fd.append("safetyManagerName", form.safetyManagerName);
-      fd.append("reportContent", form.reportContent);
-      fd.append("notes", form.notes);
       if (file) fd.append("file", file);
-
       if (editing) {
         await fetch(`/api/safety-manager-reports/${editing.id}`, { method: "PATCH", body: fd });
       } else {
@@ -118,29 +102,46 @@ export default function SafetyManagerReports() {
     }
   }
 
+  async function handleDownload(r: SafetyManagerReport) {
+    if (!r.fileUrl) return;
+    setDownloading(true);
+    try {
+      const res = await fetch(`/api/safety-manager-reports/${r.id}/file`);
+      if (!res.ok) throw new Error("다운로드 실패");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = r.fileOriginalName || "보고서";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      toast({ variant: "destructive", title: "파일 다운로드에 실패했습니다" });
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   function prevMonth() { if (month === 1) { setYear(y => y - 1); setMonth(12); } else setMonth(m => m - 1); }
   function nextMonth() { if (month === 12) { setYear(y => y + 1); setMonth(1); } else setMonth(m => m + 1); }
 
-  const visitCountByGroup = VISIT_PLAN.map(g => {
-    const count = reports.filter(r => g.teams.includes(r.team)).length;
-    return { ...g, count };
-  });
+  const visitCountByGroup = VISIT_PLAN.map(g => ({ ...g, count: reports.filter(r => g.teams.includes(r.team)).length }));
   const totalPlanned = VISIT_PLAN.reduce((s, g) => s + g.planned, 0);
   const totalDone = reports.length;
-  const needsSequence = (team: string) => team === "구미운용팀" || team === "포항운용팀";
 
   return (
     <div className="p-4 md:p-6 space-y-6">
-      {/* 헤더 */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="flex items-center gap-2">
           <HardHat className="h-6 w-6 text-orange-600" />
           <h1 className="text-xl font-bold">안전관리자 상태보고서</h1>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" onClick={prevMonth} data-testid="btn-prev-month"><ChevronLeft className="h-4 w-4" /></Button>
+          <Button variant="outline" size="icon" onClick={prevMonth}><ChevronLeft className="h-4 w-4" /></Button>
           <span className="font-semibold min-w-[6rem] text-center">{year}년 {month}월</span>
-          <Button variant="outline" size="icon" onClick={nextMonth} data-testid="btn-next-month"><ChevronRight className="h-4 w-4" /></Button>
+          <Button variant="outline" size="icon" onClick={nextMonth}><ChevronRight className="h-4 w-4" /></Button>
           {canEditInspections && (
             <Button onClick={openAdd} className="gap-1" data-testid="btn-add-report">
               <Plus className="h-4 w-4" /> 등록
@@ -152,13 +153,11 @@ export default function SafetyManagerReports() {
       {/* 방문 현황 요약 */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {visitCountByGroup.map(g => (
-          <Card key={g.label} className={`border-2 ${g.count >= g.planned ? "border-green-400 bg-green-50 dark:bg-green-950/30" : "border-gray-200 dark:border-gray-700"}`} data-testid={`card-visit-${g.label}`}>
+          <Card key={g.label} className={`border-2 ${g.count >= g.planned ? "border-green-400 bg-green-50 dark:bg-green-950/30" : "border-gray-200 dark:border-gray-700"}`}>
             <CardContent className="p-3">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-xs font-medium text-muted-foreground truncate">{g.label}</span>
-                {g.count >= g.planned
-                  ? <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
-                  : <AlertCircle className="h-4 w-4 text-amber-500 shrink-0" />}
+                {g.count >= g.planned ? <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" /> : <AlertCircle className="h-4 w-4 text-amber-500 shrink-0" />}
               </div>
               <div className="text-lg font-bold">
                 <span className={g.count >= g.planned ? "text-green-600" : "text-amber-600"}>{g.count}</span>
@@ -170,7 +169,7 @@ export default function SafetyManagerReports() {
         ))}
       </div>
 
-      {/* 전체 진행률 */}
+      {/* 진행률 */}
       <Card>
         <CardContent className="p-4">
           <div className="flex items-center justify-between mb-2">
@@ -178,10 +177,7 @@ export default function SafetyManagerReports() {
             <Badge variant={totalDone >= totalPlanned ? "default" : "secondary"}>{totalDone} / {totalPlanned}회</Badge>
           </div>
           <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-            <div
-              className="bg-orange-500 h-2 rounded-full transition-all"
-              style={{ width: `${Math.min(100, (totalDone / totalPlanned) * 100)}%` }}
-            />
+            <div className="bg-orange-500 h-2 rounded-full transition-all" style={{ width: `${Math.min(100, (totalDone / totalPlanned) * 100)}%` }} />
           </div>
         </CardContent>
       </Card>
@@ -198,19 +194,16 @@ export default function SafetyManagerReports() {
             {reports.map(r => (
               <Card key={r.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => setDetailReport(r)} data-testid={`card-report-${r.id}`}>
                 <CardContent className="p-4">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <Badge variant="outline" className="text-xs">{r.team}</Badge>
-                        {needsSequence(r.team) && <Badge variant="secondary" className="text-xs">{r.visitSequence}차 방문</Badge>}
-                        <span className="text-xs text-muted-foreground">{r.visitDate}</span>
-                      </div>
-                      {r.safetyManagerName && <p className="text-sm mt-1 font-medium">{r.safetyManagerName} 안전관리자</p>}
-                      {r.reportContent && <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{r.reportContent}</p>}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 flex-wrap min-w-0">
+                      <Badge variant="outline" className="text-xs shrink-0">{r.team}</Badge>
+                      {needsSequence(r.team) && <Badge variant="secondary" className="text-xs shrink-0">{r.visitSequence}차 방문</Badge>}
+                      <span className="text-xs text-muted-foreground shrink-0">{r.visitDate}</span>
                       {r.fileOriginalName && (
-                        <div className="flex items-center gap-1 mt-2 text-xs text-blue-600">
-                          <FileText className="h-3 w-3" />{r.fileOriginalName}
-                        </div>
+                        <span className="flex items-center gap-1 text-xs text-blue-600 min-w-0">
+                          <FileText className="h-3 w-3 shrink-0" />
+                          <span className="truncate max-w-[160px]">{r.fileOriginalName}</span>
+                        </span>
                       )}
                     </div>
                     {canEditInspections && (
@@ -229,12 +222,11 @@ export default function SafetyManagerReports() {
 
       {/* 등록/수정 다이얼로그 */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="w-[95vw] max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] max-w-md">
           <DialogHeader>
             <DialogTitle>{editing ? "보고서 수정" : "안전관리자 방문 보고서 등록"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-2">
-
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label>방문 팀 *</Label>
@@ -265,24 +257,9 @@ export default function SafetyManagerReports() {
             )}
 
             <div className="space-y-1">
-              <Label>안전관리자 성명</Label>
-              <Input placeholder="홍길동" value={form.safetyManagerName} onChange={e => setForm(f => ({ ...f, safetyManagerName: e.target.value }))} data-testid="input-manager-name" />
-            </div>
-
-            <div className="space-y-1">
-              <Label>보고 내용</Label>
-              <Textarea placeholder="방문 결과 및 주요 지적사항..." rows={4} value={form.reportContent} onChange={e => setForm(f => ({ ...f, reportContent: e.target.value }))} data-testid="textarea-content" />
-            </div>
-
-            <div className="space-y-1">
-              <Label>메모</Label>
-              <Textarea rows={2} placeholder="기타 사항" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} data-testid="input-notes" />
-            </div>
-
-            <div className="space-y-1">
               <Label>보고서 파일 첨부</Label>
               <div
-                className="border-2 border-dashed rounded-lg p-3 cursor-pointer hover:bg-muted/50 transition-colors"
+                className="border-2 border-dashed rounded-lg p-4 cursor-pointer hover:bg-muted/50 transition-colors"
                 onClick={() => fileRef.current?.click()}
                 data-testid="drop-file-area"
               >
@@ -290,12 +267,7 @@ export default function SafetyManagerReports() {
                   <div className="flex items-center gap-2">
                     <FileText className="h-5 w-5 text-orange-500 shrink-0" />
                     <span className="text-sm font-medium flex-1 truncate">{file.name}</span>
-                    <button
-                      type="button"
-                      onClick={e => { e.stopPropagation(); setFile(null); if (fileRef.current) fileRef.current.value = ""; }}
-                      className="p-0.5 rounded hover:bg-muted"
-                      data-testid="btn-remove-file"
-                    >
+                    <button type="button" onClick={e => { e.stopPropagation(); setFile(null); if (fileRef.current) fileRef.current.value = ""; }} className="p-0.5 rounded hover:bg-muted" data-testid="btn-remove-file">
                       <X className="h-4 w-4 text-muted-foreground" />
                     </button>
                   </div>
@@ -308,15 +280,15 @@ export default function SafetyManagerReports() {
                 ) : (
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <Paperclip className="h-5 w-5 shrink-0" />
-                    <span className="text-sm">파일을 클릭하여 첨부 (PDF, HWP, DOC, 엑셀, 이미지)</span>
+                    <span className="text-sm">파일 클릭하여 첨부 (PDF, HWP, DOC, 엑셀, 이미지)</span>
                   </div>
                 )}
               </div>
               <input ref={fileRef} type="file" className="hidden" accept=".pdf,.doc,.docx,.hwp,.hwpx,.xlsx,.xls,.jpg,.jpeg,.png" onChange={e => setFile(e.target.files?.[0] || null)} data-testid="input-file" />
             </div>
 
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={() => setDialogOpen(false)} data-testid="btn-cancel">취소</Button>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="outline" onClick={() => setDialogOpen(false)}>취소</Button>
               <Button onClick={handleSubmit} disabled={submitting} data-testid="btn-submit">
                 {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
                 {editing ? "수정" : "등록"}
@@ -328,33 +300,60 @@ export default function SafetyManagerReports() {
 
       {/* 상세 보기 다이얼로그 */}
       <Dialog open={!!detailReport} onOpenChange={() => setDetailReport(null)}>
-        <DialogContent className="w-[95vw] max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] max-w-md">
           <DialogHeader>
             <DialogTitle>방문 보고서 상세</DialogTitle>
           </DialogHeader>
           {detailReport && (
-            <div className="space-y-3 pt-2">
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div><span className="text-muted-foreground">팀</span><p className="font-medium">{detailReport.team}</p></div>
-                <div><span className="text-muted-foreground">방문일</span><p className="font-medium">{detailReport.visitDate}</p></div>
-                <div><span className="text-muted-foreground">안전관리자</span><p className="font-medium">{detailReport.safetyManagerName || "-"}</p></div>
-                <div><span className="text-muted-foreground">방문 차수</span><p className="font-medium">{detailReport.visitSequence}차</p></div>
+            <div className="space-y-4 pt-2">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">방문 팀</p>
+                  <p className="font-semibold">{detailReport.team}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">방문일</p>
+                  <p className="font-semibold">{detailReport.visitDate}</p>
+                </div>
+                {needsSequence(detailReport.team) && (
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">방문 차수</p>
+                    <p className="font-semibold">{detailReport.visitSequence}차 방문</p>
+                  </div>
+                )}
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">등록일</p>
+                  <p className="text-sm">{detailReport.createdAt ? format(new Date(detailReport.createdAt), "yyyy.MM.dd HH:mm", { locale: ko }) : "-"}</p>
+                </div>
               </div>
-              {detailReport.reportContent && (
-                <div><p className="text-muted-foreground text-sm mb-1">보고 내용</p><p className="text-sm whitespace-pre-wrap bg-muted p-3 rounded">{detailReport.reportContent}</p></div>
-              )}
-              {detailReport.notes && (
-                <div><p className="text-muted-foreground text-sm mb-1">메모</p><p className="text-sm whitespace-pre-wrap">{detailReport.notes}</p></div>
-              )}
-              {detailReport.fileUrl && (
-                <div>
-                  <p className="text-muted-foreground text-sm mb-1">첨부 파일</p>
-                  <a href={detailReport.fileUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-blue-600 hover:underline text-sm" data-testid="link-download-file">
-                    <Download className="h-4 w-4" />{detailReport.fileOriginalName || "파일 다운로드"}
-                  </a>
+
+              {detailReport.fileUrl ? (
+                <div className="border rounded-lg p-4 bg-muted/30">
+                  <p className="text-xs text-muted-foreground mb-2">첨부 파일</p>
+                  <div className="flex items-center gap-3">
+                    <FileText className="h-8 w-8 text-orange-500 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{detailReport.fileOriginalName || "보고서 파일"}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">클릭하여 다운로드</p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5 shrink-0"
+                      onClick={() => handleDownload(detailReport)}
+                      disabled={downloading}
+                      data-testid="btn-download-file"
+                    >
+                      {downloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                      다운로드
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="border rounded-lg p-4 bg-muted/20 text-center text-muted-foreground text-sm">
+                  첨부 파일 없음
                 </div>
               )}
-              <p className="text-xs text-muted-foreground">등록일: {detailReport.createdAt ? format(new Date(detailReport.createdAt), "yyyy년 M월 d일 HH:mm", { locale: ko }) : "-"}</p>
             </div>
           )}
         </DialogContent>

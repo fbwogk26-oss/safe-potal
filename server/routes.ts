@@ -5669,29 +5669,65 @@ ${htmlDraft}
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
+  // 보고서 파일 다운로드 프록시 (object storage → 브라우저)
+  async function proxyReportFile(fileUrl: string | null, fileOriginalName: string | null, res: any) {
+    if (!fileUrl) return res.status(404).json({ message: "파일 없음" });
+    try {
+      if (fileUrl.startsWith('/objects/')) {
+        const privateDir = process.env.PRIVATE_OBJECT_DIR;
+        if (privateDir) {
+          const filename = fileUrl.split('/').pop()!;
+          const fullPath = `${privateDir.replace(/\/$/, "")}/uploads/${filename}`;
+          const parts = fullPath.replace(/^\//, "").split("/");
+          const bucketName = parts[0];
+          const objectName = parts.slice(1).join("/");
+          const [buffer] = await objectStorageClient.bucket(bucketName).file(objectName).download();
+          const ext = path.extname(filename).toLowerCase();
+          const mimeMap: Record<string, string> = {
+            '.pdf': 'application/pdf', '.doc': 'application/msword',
+            '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            '.hwp': 'application/x-hwp', '.hwpx': 'application/x-hwp',
+            '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            '.xls': 'application/vnd.ms-excel',
+            '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
+          };
+          const contentType = mimeMap[ext] || 'application/octet-stream';
+          const safeFilename = encodeURIComponent(fileOriginalName || filename);
+          res.setHeader('Content-Type', contentType);
+          res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${safeFilename}`);
+          return res.send(buffer);
+        }
+      }
+      // local uploads 폴백
+      const localPath = path.join(uploadDir, fileUrl.split('/').pop()!);
+      if (fs.existsSync(localPath)) return res.sendFile(localPath);
+      res.status(404).json({ message: "파일을 찾을 수 없습니다" });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  }
+
   app.post('/api/safety-manager-reports', requireEditor, reportUpload.single('file'), async (req: any, res) => {
     try {
-      const { yearMonth, visitDate, team, visitSequence, safetyManagerName, reportContent, notes } = req.body;
+      const { yearMonth, visitDate, team, visitSequence } = req.body;
       if (!yearMonth || !visitDate || !team) return res.status(400).json({ message: "필수 항목 누락" });
       let fileUrl: string | null = null;
       let fileOriginalName: string | null = null;
       if (req.file) {
-        const ext = path.extname(req.file.originalname) || '.bin';
+        const origName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+        const ext = path.extname(origName) || '.bin';
         const filename = `safety-mgr-${Date.now()}${ext}`;
         const objUrl = await uploadToObjectStorage(req.file.buffer, filename, req.file.mimetype);
         if (objUrl) { fileUrl = objUrl; } else {
           fs.writeFileSync(path.join(uploadDir, filename), req.file.buffer);
           fileUrl = `/uploads/${filename}`;
         }
-        fileOriginalName = req.file.originalname;
+        fileOriginalName = origName;
       }
       const report = await storage.createSafetyManagerReport({
         yearMonth, visitDate, team,
         visitSequence: parseInt(visitSequence) || 1,
-        safetyManagerName: safetyManagerName || null,
-        reportContent: reportContent || null,
+        safetyManagerName: null, reportContent: null,
         fileUrl, fileOriginalName,
-        notes: notes || null,
+        notes: null,
         createdBy: req.user?.id?.toString() || null,
       });
       res.json(report);
@@ -5701,17 +5737,27 @@ ${htmlDraft}
   app.patch('/api/safety-manager-reports/:id', requireEditor, reportUpload.single('file'), async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
-      const { yearMonth, visitDate, team, visitSequence, safetyManagerName, reportContent, notes } = req.body;
-      const updates: any = { yearMonth, visitDate, team, visitSequence: parseInt(visitSequence) || 1, safetyManagerName, reportContent, notes };
+      const { yearMonth, visitDate, team, visitSequence } = req.body;
+      const updates: any = { yearMonth, visitDate, team, visitSequence: parseInt(visitSequence) || 1 };
       if (req.file) {
-        const ext = path.extname(req.file.originalname) || '.bin';
+        const origName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+        const ext = path.extname(origName) || '.bin';
         const filename = `safety-mgr-${Date.now()}${ext}`;
         const objUrl = await uploadToObjectStorage(req.file.buffer, filename, req.file.mimetype);
         updates.fileUrl = objUrl ?? `/uploads/${filename}`;
-        updates.fileOriginalName = req.file.originalname;
+        updates.fileOriginalName = origName;
         if (!objUrl) fs.writeFileSync(path.join(uploadDir, filename), req.file.buffer);
       }
       res.json(await storage.updateSafetyManagerReport(id, updates));
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.get('/api/safety-manager-reports/:id/file', isAuthenticated, async (req: any, res) => {
+    try {
+      const reports = await storage.getSafetyManagerReports();
+      const report = reports.find((r: any) => r.id === parseInt(req.params.id));
+      if (!report) return res.status(404).json({ message: "보고서 없음" });
+      await proxyReportFile(report.fileUrl, report.fileOriginalName, res);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
@@ -5732,26 +5778,26 @@ ${htmlDraft}
 
   app.post('/api/health-manager-reports', requireEditor, reportUpload.single('file'), async (req: any, res) => {
     try {
-      const { yearMonth, visitDate, staffType, staffName, reportContent, notes } = req.body;
+      const { yearMonth, visitDate, staffType } = req.body;
       if (!yearMonth || !visitDate || !staffType) return res.status(400).json({ message: "필수 항목 누락" });
       let fileUrl: string | null = null;
       let fileOriginalName: string | null = null;
       if (req.file) {
-        const ext = path.extname(req.file.originalname) || '.bin';
+        const origName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+        const ext = path.extname(origName) || '.bin';
         const filename = `health-mgr-${Date.now()}${ext}`;
         const objUrl = await uploadToObjectStorage(req.file.buffer, filename, req.file.mimetype);
         if (objUrl) { fileUrl = objUrl; } else {
           fs.writeFileSync(path.join(uploadDir, filename), req.file.buffer);
           fileUrl = `/uploads/${filename}`;
         }
-        fileOriginalName = req.file.originalname;
+        fileOriginalName = origName;
       }
       const report = await storage.createHealthManagerReport({
         yearMonth, visitDate, staffType,
-        staffName: staffName || null,
-        reportContent: reportContent || null,
+        staffName: null, reportContent: null,
         fileUrl, fileOriginalName,
-        notes: notes || null,
+        notes: null,
         createdBy: req.user?.id?.toString() || null,
       });
       res.json(report);
@@ -5761,17 +5807,27 @@ ${htmlDraft}
   app.patch('/api/health-manager-reports/:id', requireEditor, reportUpload.single('file'), async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
-      const { yearMonth, visitDate, staffType, staffName, reportContent, notes } = req.body;
-      const updates: any = { yearMonth, visitDate, staffType, staffName, reportContent, notes };
+      const { yearMonth, visitDate, staffType } = req.body;
+      const updates: any = { yearMonth, visitDate, staffType };
       if (req.file) {
-        const ext = path.extname(req.file.originalname) || '.bin';
+        const origName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+        const ext = path.extname(origName) || '.bin';
         const filename = `health-mgr-${Date.now()}${ext}`;
         const objUrl = await uploadToObjectStorage(req.file.buffer, filename, req.file.mimetype);
         updates.fileUrl = objUrl ?? `/uploads/${filename}`;
-        updates.fileOriginalName = req.file.originalname;
+        updates.fileOriginalName = origName;
         if (!objUrl) fs.writeFileSync(path.join(uploadDir, filename), req.file.buffer);
       }
       res.json(await storage.updateHealthManagerReport(id, updates));
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.get('/api/health-manager-reports/:id/file', isAuthenticated, async (req: any, res) => {
+    try {
+      const reports = await storage.getHealthManagerReports();
+      const report = reports.find((r: any) => r.id === parseInt(req.params.id));
+      if (!report) return res.status(404).json({ message: "보고서 없음" });
+      await proxyReportFile(report.fileUrl, report.fileOriginalName, res);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
