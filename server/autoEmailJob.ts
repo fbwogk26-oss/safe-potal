@@ -4,6 +4,9 @@
  * 오늘 수신된 스피드이엔지 메일이 있으면 AI 파싱 후 jaeha.ryu@ktmos.co.kr로 자동 발송
  */
 import cron from "node-cron";
+import { storage } from "./storage";
+
+const AUTO_EMAIL_SETTING_KEY = "auto_email_sent_date";
 
 const GMAIL_USER = "fbwogk26@gmail.com";
 const AUTO_SEND_TO = "jaeha.ryu@ktmos.co.kr";
@@ -143,6 +146,22 @@ export async function runSpeedEngAutoJob(): Promise<void> {
     console.log("[AutoEmail] 이미 실행 중 - 건너뜀");
     return;
   }
+
+  // DB 기반 중복 발송 방지 — 오늘 KST 날짜에 이미 발송된 경우 건너뜀
+  try {
+    const kstNow = new Date(Date.now() + 9 * 3600 * 1000);
+    const todayKST = kstNow.toISOString().slice(0, 10);
+    const lastSent = await storage.getSetting(AUTO_EMAIL_SETTING_KEY);
+    if (lastSent === todayKST) {
+      console.log(`[AutoEmail] 오늘(${todayKST}) 이미 발송 완료 - 중복 방지로 건너뜀`);
+      status.lastResult = "sent";
+      status.lastMessage = `오늘(${todayKST}) 이미 발송 완료 (중복 방지)`;
+      return;
+    }
+  } catch (settingErr) {
+    console.warn("[AutoEmail] 발송일 확인 오류 (계속 진행):", settingErr);
+  }
+
   status.running = true;
   status.lastRun = new Date().toISOString();
   console.log("[AutoEmail] 스피드이엔지 작업일정 메일 자동 확인 시작...");
@@ -346,6 +365,14 @@ ${htmlDraft}
     status.lastItemCount = items.length;
     status.lastMessage = `[${targetSubject}] → ${items.length}건 파싱 → ${AUTO_SEND_TO} 발송 완료`;
     console.log(`[AutoEmail] 발송 완료: ${subject} → ${AUTO_SEND_TO} (${items.length}건)`);
+
+    // 오늘 KST 날짜를 DB에 기록 (다중 프로세스/재시작 중복 방지)
+    try {
+      const kstNow2 = new Date(Date.now() + 9 * 3600 * 1000);
+      await storage.setSetting(AUTO_EMAIL_SETTING_KEY, kstNow2.toISOString().slice(0, 10));
+    } catch (setErr) {
+      console.warn("[AutoEmail] 발송일 기록 오류:", setErr);
+    }
 
   } catch (e: any) {
     status.lastResult = "error";

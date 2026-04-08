@@ -5,7 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Bell, Plus, Trash2, Megaphone, ImagePlus, X, Pin, PinOff, Eye, Calendar, Image, MoreVertical } from "lucide-react";
+import { Bell, Plus, Trash2, Megaphone, ImagePlus, X, Pin, PinOff, Eye, Calendar, Image, MoreVertical, ImageOff } from "lucide-react";
 import { useState, useRef, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -15,6 +15,35 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useAuth } from "@/hooks/use-auth";
+
+function NoticeImage({ src, alt }: { src: string; alt: string }) {
+  const [status, setStatus] = useState<"loading" | "ok" | "error">("loading");
+  return (
+    <div className="relative">
+      {status === "loading" && (
+        <div className="w-full h-40 bg-muted/40 animate-pulse rounded-xl border flex items-center justify-center">
+          <Image className="w-8 h-8 text-muted-foreground/30" />
+        </div>
+      )}
+      {status === "error" && (
+        <div className="w-full h-28 bg-muted/30 rounded-xl border flex flex-col items-center justify-center gap-2 text-muted-foreground">
+          <ImageOff className="w-7 h-7 opacity-40" />
+          <span className="text-xs">이미지를 불러올 수 없습니다</span>
+        </div>
+      )}
+      <img
+        src={src}
+        alt={alt}
+        className={`w-full max-h-80 object-contain rounded-xl border bg-muted/20 transition-opacity ${
+          status === "error" ? "hidden" :
+          status === "loading" ? "opacity-0 h-0 overflow-hidden" : "opacity-100"
+        }`}
+        onLoad={() => setStatus("ok")}
+        onError={() => setStatus("error")}
+      />
+    </div>
+  );
+}
 
 export default function Notices() {
   const { canRegisterNotices } = usePermissions();
@@ -388,12 +417,7 @@ export default function Notices() {
               </DialogHeader>
               <div className="space-y-4 pt-4">
                 {selectedNotice.imageUrl && (
-                  <img
-                    src={selectedNotice.imageUrl}
-                    alt={selectedNotice.title}
-                    className="w-full max-h-80 object-contain rounded-xl border bg-muted/20"
-                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-                  />
+                  <NoticeImage src={selectedNotice.imageUrl} alt={selectedNotice.title} />
                 )}
                 <p className="text-foreground/90 leading-relaxed whitespace-pre-wrap">{selectedNotice.content}</p>
                 <div className="flex items-center justify-between pt-4 border-t text-sm text-muted-foreground">

@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Heart, Plus, Trash2, Pencil, FileText, ChevronLeft, ChevronRight, CheckCircle2, AlertCircle, Loader2, Calendar, Paperclip, X } from "lucide-react";
+import { Heart, Plus, Trash2, Pencil, FileText, ChevronLeft, ChevronRight, CheckCircle2, AlertCircle, Loader2, Calendar, Paperclip, X, TrendingUp, CalendarDays } from "lucide-react";
 import { FileViewer } from "@/components/FileViewer";
 import { extractDateFromPdf } from "@/lib/extractPdfDate";
 import type { HealthManagerReport } from "@shared/schema";
@@ -221,6 +221,75 @@ export default function HealthManagerReports() {
         </div>
       </div>
 
+      {/* 대시보드 — 이번달 현황 + 연간 현황 */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {/* 이번달 현황 */}
+        <Card className="border-rose-200/60 dark:border-rose-900/40">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <CalendarDays className="h-4 w-4 text-rose-500" />
+              <span className="text-sm font-semibold">{year}년 {month}월 현황</span>
+              <Badge variant={totalDone >= totalPlanned ? "default" : "secondary"} className="ml-auto text-xs">
+                {totalDone} / {totalPlanned}직종
+              </Badge>
+            </div>
+            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-3">
+              <div className="bg-rose-500 h-2 rounded-full transition-all" style={{ width: `${totalPlanned > 0 ? Math.min(100, (totalDone / totalPlanned) * 100) : 0}%` }} />
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {STAFF_CONFIGS.map(cfg => {
+                const done = reports.filter(r => r.staffType === cfg.type).length;
+                const expected = isExpectedThisMonth(cfg.frequencyMonths, month);
+                const statusLabel = !expected ? "해당없음" : done > 0 ? "완료" : "미완료";
+                return (
+                  <div key={cfg.type} className={`rounded-lg p-2 text-center border ${statusLabel === "완료" ? "bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800" : statusLabel === "미완료" ? "border-amber-300" : "border-border bg-muted/20"}`}>
+                    <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium mb-1 ${STAFF_COLOR[cfg.type]}`}>{cfg.label}</span>
+                    <div className={`font-bold text-sm ${statusLabel === "완료" ? "text-green-600" : statusLabel === "미완료" ? "text-amber-600" : "text-muted-foreground"}`}>
+                      {done}회
+                    </div>
+                    <div className="text-[10px] text-muted-foreground">{cfg.frequencyLabel}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* 연간 현황 */}
+        <Card className="border-blue-200/60 dark:border-blue-900/40">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <TrendingUp className="h-4 w-4 text-blue-500" />
+              <span className="text-sm font-semibold">{year}년 연간 현황</span>
+            </div>
+            <div className="flex items-end gap-2 mb-3">
+              <span className="text-4xl font-bold text-blue-600">{annualCount}</span>
+              <span className="text-muted-foreground mb-1">회 방문</span>
+            </div>
+            <div className="grid grid-cols-3 gap-1.5">
+              {Array.from({ length: 12 }, (_, i) => {
+                const m = i + 1;
+                const cnt = annualReports.filter(r => {
+                  const rm = parseInt(r.visitDate.slice(5, 7));
+                  return rm === m;
+                }).length;
+                const isPast = m <= month;
+                const isCurrentMonth = m === month;
+                return (
+                  <div key={m} className={`rounded p-1.5 text-center text-[11px] border ${
+                    isCurrentMonth ? "bg-blue-100 dark:bg-blue-900/30 border-blue-400 dark:border-blue-600 font-semibold" :
+                    cnt > 0 ? "bg-muted/40 border-border" : isPast ? "bg-muted/20 border-border" : "border-dashed border-border/50"
+                  }`}>
+                    <div className="text-muted-foreground text-[10px]">{m}월</div>
+                    <div className={`font-bold ${cnt > 0 ? "text-blue-600" : "text-muted-foreground/50"}`}>{cnt}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* 직종별 현황 카드 */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {STAFF_CONFIGS.map(cfg => {
@@ -261,21 +330,12 @@ export default function HealthManagerReports() {
       {/* 캘린더 */}
       <Card>
         <CardContent className="p-3">
-          {/* 진행률 헤더 */}
+          {/* 캘린더 헤더 */}
           <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-medium">이번달 현황</span>
+              <span className="text-sm font-medium">{year}년 {month}월 방문 캘린더</span>
               <Badge variant={totalDone >= totalPlanned ? "default" : "secondary"} className="text-xs">
                 {totalDone} / {totalPlanned}직종
-              </Badge>
-              <div className="w-20 bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
-                <div className="bg-rose-500 h-1.5 rounded-full transition-all" style={{ width: `${totalPlanned > 0 ? Math.min(100, (totalDone / totalPlanned) * 100) : 0}%` }} />
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">{year}년 연간</span>
-              <Badge variant="outline" className="text-xs font-semibold">
-                {annualCount}회 방문
               </Badge>
             </div>
           </div>

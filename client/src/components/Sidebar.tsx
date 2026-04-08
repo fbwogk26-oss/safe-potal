@@ -83,7 +83,6 @@ const NAV_SECTIONS: NavSection[] = [
           { label: "교육 관리", href: "/education-logs", icon: GraduationCap, permissionKey: "canViewEducationOrLogs" },
           { label: "보호구 현황", href: "/equipment/status", icon: ShieldCheck, permissionKey: "canViewEquipmentStatus" },
           { label: "안전용품 신청", href: "/equipment", icon: ShoppingCart, permissionKey: "canViewEquipment" },
-          { label: "출입신청", href: "/access", icon: DoorOpen, permissionKey: "canViewAccess" },
           { label: "안전관리자 보고서", href: "/safety-manager-reports", icon: HardHat, permissionKey: "canViewInspections" },
         ],
       },
@@ -130,12 +129,12 @@ const NAV_SECTIONS: NavSection[] = [
       {
         label: "시스템 관리",
         icon: Shield,
-        adminOnly: true,
         children: [
-          { label: "사용자 관리", href: "/admin/users", icon: Users },
-          { label: "보안 감사 로그", href: "/admin/security", icon: ScrollText },
-          { label: "음악 관리", href: "/admin/music", icon: Music2 },
-          { label: "서명 관리 로그", href: "/admin/signatures", icon: FileSignature },
+          { label: "사용자 관리", href: "/admin/users", icon: Users, adminOnly: true },
+          { label: "보안 감사 로그", href: "/admin/security", icon: ScrollText, adminOnly: true },
+          { label: "음악 관리", href: "/admin/music", icon: Music2, adminOnly: true },
+          { label: "서명 관리 로그", href: "/admin/signatures", icon: FileSignature, adminOnly: true },
+          { label: "출입신청", href: "/access", icon: DoorOpen, permissionKey: "canViewAccess" },
         ],
       },
     ],
@@ -151,6 +150,7 @@ export function Sidebar() {
 
   const hasItemPermission = (item: NavItem): boolean => {
     if (isAdmin) return true;
+    if (item.adminOnly) return false;
     if (!item.permissionKey) return true;
     return !!permissions[item.permissionKey];
   };

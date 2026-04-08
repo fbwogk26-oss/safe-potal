@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { HardHat, Plus, Trash2, Pencil, FileText, ChevronLeft, ChevronRight, CheckCircle2, AlertCircle, Loader2, Paperclip, X } from "lucide-react";
+import { HardHat, Plus, Trash2, Pencil, FileText, ChevronLeft, ChevronRight, CheckCircle2, AlertCircle, Loader2, Paperclip, X, TrendingUp, CalendarDays } from "lucide-react";
 import { FileViewer } from "@/components/FileViewer";
 import { extractDateFromPdf } from "@/lib/extractPdfDate";
 import type { SafetyManagerReport } from "@shared/schema";
@@ -213,43 +213,82 @@ export default function SafetyManagerReports() {
         </div>
       </div>
 
-      {/* 방문 현황 요약 카드 */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        {visitCountByGroup.map(g => (
-          <Card key={g.label} className={`border-2 ${g.count >= g.planned ? "border-green-400 bg-green-50 dark:bg-green-950/30" : "border-gray-200 dark:border-gray-700"}`}>
-            <CardContent className="p-3">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-medium text-muted-foreground truncate">{g.label}</span>
-                {g.count >= g.planned ? <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" /> : <AlertCircle className="h-4 w-4 text-amber-500 shrink-0" />}
-              </div>
-              <div className="text-lg font-bold">
-                <span className={g.count >= g.planned ? "text-green-600" : "text-amber-600"}>{g.count}</span>
-                <span className="text-sm text-muted-foreground"> / {g.planned}회</span>
-              </div>
-              <p className="text-xs text-muted-foreground mt-0.5">{g.note}</p>
-            </CardContent>
-          </Card>
-        ))}
+      {/* 대시보드 — 이번달 현황 + 연간 현황 */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {/* 이번달 현황 */}
+        <Card className="border-orange-200/60 dark:border-orange-900/40">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <CalendarDays className="h-4 w-4 text-orange-500" />
+              <span className="text-sm font-semibold">{year}년 {month}월 현황</span>
+              <Badge variant={totalDone >= totalPlanned ? "default" : "secondary"} className="ml-auto text-xs">
+                {totalDone} / {totalPlanned}회
+              </Badge>
+            </div>
+            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-3">
+              <div className="bg-orange-500 h-2 rounded-full transition-all" style={{ width: `${Math.min(100, (totalDone / (totalPlanned || 1)) * 100)}%` }} />
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {visitCountByGroup.map(g => (
+                <div key={g.label} className={`rounded-lg p-2 text-xs ${g.count >= g.planned ? "bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800" : "bg-muted/40 border border-border"}`}>
+                  <div className="flex items-center justify-between mb-0.5">
+                    <span className="font-medium truncate text-[11px]">{g.label}</span>
+                    {g.count >= g.planned
+                      ? <CheckCircle2 className="h-3 w-3 text-green-500 shrink-0" />
+                      : <AlertCircle className="h-3 w-3 text-amber-500 shrink-0" />}
+                  </div>
+                  <span className={`font-bold text-sm ${g.count >= g.planned ? "text-green-600" : "text-amber-600"}`}>{g.count}</span>
+                  <span className="text-muted-foreground text-[10px]"> / {g.planned}회</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* 연간 현황 */}
+        <Card className="border-blue-200/60 dark:border-blue-900/40">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <TrendingUp className="h-4 w-4 text-blue-500" />
+              <span className="text-sm font-semibold">{year}년 연간 현황</span>
+            </div>
+            <div className="flex items-end gap-2 mb-3">
+              <span className="text-4xl font-bold text-blue-600">{annualCount}</span>
+              <span className="text-muted-foreground mb-1">회 방문</span>
+            </div>
+            <div className="grid grid-cols-3 gap-1.5">
+              {Array.from({ length: 12 }, (_, i) => {
+                const m = i + 1;
+                const cnt = annualReports.filter(r => {
+                  const rm = parseInt(r.visitDate.slice(5, 7));
+                  return rm === m;
+                }).length;
+                const isPast = m < month || (m === month);
+                const isCurrentMonth = m === month;
+                return (
+                  <div key={m} className={`rounded p-1.5 text-center text-[11px] border ${
+                    isCurrentMonth ? "bg-blue-100 dark:bg-blue-900/30 border-blue-400 dark:border-blue-600 font-semibold" :
+                    cnt > 0 ? "bg-muted/40 border-border" : isPast ? "bg-muted/20 border-border" : "border-dashed border-border/50"
+                  }`}>
+                    <div className="text-muted-foreground text-[10px]">{m}월</div>
+                    <div className={`font-bold ${cnt > 0 ? "text-blue-600" : "text-muted-foreground/50"}`}>{cnt}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* 캘린더 */}
       <Card>
         <CardContent className="p-3">
-          {/* 진행률 헤더 */}
+          {/* 캘린더 헤더 */}
           <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-medium">이번달 현황</span>
+              <span className="text-sm font-medium">{year}년 {month}월 방문 캘린더</span>
               <Badge variant={totalDone >= totalPlanned ? "default" : "secondary"} className="text-xs">
                 {totalDone} / {totalPlanned}회
-              </Badge>
-              <div className="w-20 bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
-                <div className="bg-orange-500 h-1.5 rounded-full transition-all" style={{ width: `${Math.min(100, (totalDone / totalPlanned) * 100)}%` }} />
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">{year}년 연간</span>
-              <Badge variant={annualCount >= annualPlanned ? "default" : "outline"} className="text-xs font-semibold">
-                {annualCount}회 / 목표 {annualPlanned}회
               </Badge>
             </div>
           </div>
