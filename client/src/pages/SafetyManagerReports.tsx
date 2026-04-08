@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -12,89 +12,9 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { HardHat, Plus, Trash2, Pencil, FileText, ChevronLeft, ChevronRight, CheckCircle2, AlertCircle, Loader2, Paperclip, X, ExternalLink } from "lucide-react";
+import { HardHat, Plus, Trash2, Pencil, FileText, ChevronLeft, ChevronRight, CheckCircle2, AlertCircle, Loader2, Paperclip, X } from "lucide-react";
+import { FileViewer } from "@/components/FileViewer";
 import type { SafetyManagerReport } from "@shared/schema";
-
-const PREVIEWABLE_EXTS = ['.pdf', '.jpg', '.jpeg', '.png', '.gif', '.webp'];
-const IMAGE_EXTS = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
-
-function getFileExt(name: string | null): string {
-  if (!name) return '';
-  return name.includes('.') ? '.' + name.split('.').pop()!.toLowerCase() : '';
-}
-
-function FileViewer({ fileUrl, fileOriginalName, apiBase }: { fileUrl: string | null; fileOriginalName: string | null; apiBase: string }) {
-  const [blobUrl, setBlobUrl] = useState<string | null>(null);
-  const [loadError, setLoadError] = useState(false);
-  const [loading, setLoading] = useState(false);
-
-  const ext = getFileExt(fileOriginalName);
-  const isImage = IMAGE_EXTS.includes(ext);
-  const isPdf = ext === '.pdf';
-  const canPreview = PREVIEWABLE_EXTS.includes(ext);
-
-  useEffect(() => {
-    if (!fileUrl || !canPreview) return;
-    let objectUrl: string | null = null;
-    setLoading(true);
-    fetch(`${apiBase}?inline=true`)
-      .then(r => { if (!r.ok) throw new Error("failed"); return r.blob(); })
-      .then(blob => { objectUrl = URL.createObjectURL(blob); setBlobUrl(objectUrl); setLoadError(false); })
-      .catch(() => setLoadError(true))
-      .finally(() => setLoading(false));
-    return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
-  }, [apiBase, fileUrl, canPreview]);
-
-  if (!fileUrl) return <div className="border rounded-lg p-4 bg-muted/20 text-center text-muted-foreground text-sm">첨부 파일 없음</div>;
-
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 min-w-0">
-          <FileText className="h-4 w-4 text-orange-500 shrink-0" />
-          <span className="text-sm font-medium truncate">{fileOriginalName || "보고서 파일"}</span>
-        </div>
-        <button
-          onClick={async () => {
-            const res = await fetch(apiBase);
-            const blob = await res.blob();
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url; a.download = fileOriginalName || "파일";
-            document.body.appendChild(a); a.click();
-            document.body.removeChild(a); URL.revokeObjectURL(url);
-          }}
-          className="flex items-center gap-1 text-xs text-blue-600 hover:underline shrink-0 ml-2"
-        >
-          <ExternalLink className="h-3 w-3" /> 다운로드
-        </button>
-      </div>
-      {canPreview ? (
-        loading ? (
-          <div className="flex items-center justify-center h-40 border rounded-lg bg-muted/20">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
-        ) : loadError ? (
-          <div className="border rounded-lg p-4 bg-muted/20 text-center text-sm text-muted-foreground">파일을 불러올 수 없습니다</div>
-        ) : blobUrl ? (
-          isImage ? (
-            <img src={blobUrl} alt={fileOriginalName || "파일"} className="w-full rounded-lg border object-contain max-h-[60vh]" />
-          ) : isPdf ? (
-            <iframe src={blobUrl} className="w-full rounded-lg border bg-white" style={{ height: "60vh", minHeight: 320 }} title={fileOriginalName || "PDF 미리보기"} />
-          ) : null
-        ) : null
-      ) : (
-        <div className="border rounded-lg p-4 bg-muted/20 flex items-center gap-3">
-          <FileText className="h-8 w-8 text-muted-foreground shrink-0" />
-          <div>
-            <p className="text-sm font-medium">{fileOriginalName}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">이 파일 형식은 미리보기를 지원하지 않습니다. 위 다운로드 버튼을 사용하세요.</p>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
 
 const DAEGU_TEAMS = ["동대구운용팀", "서대구운용팀", "남대구운용팀", "공공망관제팀"];
 const ALL_TEAMS = [...DAEGU_TEAMS, "구미운용팀", "포항운용팀", "안동운용팀", "문경운용팀"];
