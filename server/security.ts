@@ -36,7 +36,7 @@ export function setupSecurity(app: Express) {
           fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
           imgSrc: ["'self'", "data:", "blob:", "https:"],
           connectSrc: isProduction ? ["'self'", "https:"] : ["'self'", "https:", "wss:", "ws:"],
-          frameSrc: ["'none'"],
+          frameSrc: ["blob:"],
           objectSrc: ["'none'"],
           baseUri: ["'self'"],
           formAction: ["'self'"],
