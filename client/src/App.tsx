@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -128,12 +129,13 @@ function RouterContent() {
 
 function MainLayout() {
   useRealtime();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   return (
     <div className="flex min-h-screen bg-background text-foreground font-body">
-      <Sidebar />
+      <Sidebar mobileOpen={mobileMenuOpen} onMobileClose={() => setMobileMenuOpen(false)} />
       <main className="flex-1 flex flex-col min-w-0 bg-background/50 relative overflow-x-hidden">
         <div className="fixed top-0 left-0 w-full h-96 bg-primary/5 blur-3xl pointer-events-none -z-10" />
-        <Topbar />
+        <Topbar onMenuClick={() => setMobileMenuOpen(true)} />
         <div className="flex-1 px-3 sm:px-5 md:px-8 pt-4 pb-24 max-w-[1600px] mx-auto w-full animate-in fade-in duration-500">
           <RouterContent />
         </div>

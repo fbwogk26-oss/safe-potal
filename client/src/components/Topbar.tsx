@@ -1,4 +1,4 @@
-import { Bell, LogOut, Users, Shield, KeyRound, Eye, EyeOff } from "lucide-react";
+import { Bell, LogOut, Users, Shield, KeyRound, Eye, EyeOff, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,7 +24,11 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 
-export function Topbar() {
+interface TopbarProps {
+  onMenuClick?: () => void;
+}
+
+export function Topbar({ onMenuClick }: TopbarProps) {
   const [pwDialogOpen, setPwDialogOpen] = useState(false);
   const [currentPw, setCurrentPw] = useState("");
   const [newPw, setNewPw] = useState("");
@@ -77,16 +81,22 @@ export function Topbar() {
 
   return (
     <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border/70 shadow-sm">
-      <div className="flex items-center px-4 py-2.5 gap-3">
-        {/* Logo — shown on mobile (sidebar shows only icon) */}
-        <Link href="/">
-          <div className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity md:hidden">
-            <div className="w-7 h-7 rounded-lg bg-[#0066CC] flex flex-col items-center justify-center shadow-sm text-white shrink-0">
-              <span className="text-[9px] font-bold leading-none tracking-tight">kt</span>
-              <span className="text-[7px] font-semibold leading-none tracking-tight">MOS</span>
-            </div>
+      <div className="flex items-center px-3 py-2.5 gap-3">
+        {/* 모바일 햄버거 버튼 */}
+        <button
+          onClick={onMenuClick}
+          className="md:hidden w-10 h-10 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted/70 hover:text-foreground transition-colors shrink-0"
+          data-testid="button-mobile-menu"
+          aria-label="메뉴 열기"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+
+        {/* 모바일 타이틀 */}
+        <Link href="/" className="md:hidden">
+          <div className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity">
             <div className="min-w-0">
-              <h1 className="text-sm font-bold leading-tight text-foreground truncate max-w-[150px]">종합안전포털</h1>
+              <h1 className="text-sm font-bold leading-tight text-foreground truncate max-w-[160px]">종합안전포털</h1>
             </div>
           </div>
         </Link>
