@@ -288,80 +288,80 @@ function computeWarnings(weather: {
 
   if (weather.tempC >= 35) {
     warnings.push("폭염주의보");
-    risks.push("열사병·열탈진 위험");
-    actions.push("그늘 휴식, 규칙적 수분 섭취");
+    risks.push("기지국 옥상·전신주 작업 중 열사병·열탈진 위험");
+    actions.push("철탑·옥상 작업 1시간마다 그늘 휴식 필수, 물·이온음료 수시 섭취, 2인 1조 작업으로 건강 상태 상호 확인, 어지럼증 느끼면 즉시 작업 중단 후 신고");
   } else if (weather.tempC >= 33) {
     warnings.push("고온주의");
-    risks.push("온열질환 발생 가능");
-    actions.push("1시간마다 휴식, 수분 300ml 이상");
+    risks.push("야외 현장 장시간 작업 시 온열질환 위험");
+    actions.push("1시간 작업 후 15분 이상 그늘 휴식, 수분 300ml 이상 섭취, 통기성 좋은 작업복 착용, 얼음조끼 활용 권고");
   }
 
   if (weather.tempC <= -5 || weather.tempMinC <= 0) {
     warnings.push("결빙우려");
-    risks.push(weather.tempMinC <= 0 ? "야간·새벽 노면 결빙 가능성" : "지면·발판 결빙 위험");
-    actions.push("이른 아침 작업 전 노면 상태 확인, 방수포 설치");
+    risks.push("전주 발판·기지국 옥상 바닥 결빙으로 추락 위험, 야간 노면 결빙으로 차량 사고 위험");
+    actions.push("승주 전 발판 결빙 상태 반드시 확인 및 제빙, 아이젠 또는 미끄럼방지 안전화 착용, 새벽 현장 이동 시 서행 및 안전거리 확보, 고소작업차 아웃트리거 설치 지면 상태 확인");
   } else if (weather.tempC <= 5 || weather.tempMinC <= 5) {
     warnings.push("저온주의");
-    risks.push("근육경직·저체온 위험");
-    actions.push("방한복 착용, 핫팩 지참");
+    risks.push("손발 감각 저하로 공구 조작 실수, 근육경직으로 추락 위험 증가");
+    actions.push("방한복·방한장갑 착용(단, 작업 시 절연장갑으로 교체), 핫팩 지참, 승주 전 준비운동으로 근육 경직 예방, 저체온 증상 시 즉시 작업 중단");
   }
 
   if (weather.precipMM >= 20) {
     warnings.push("집중호우");
-    risks.push("낙뢰·지반 유실 위험");
-    actions.push("고소작업 즉시 중단, 대피 장소 확보");
+    risks.push("낙뢰·지반 유실·맨홀 침수 위험");
+    actions.push("통신탑·전신주 고소작업 즉시 중단 및 지상 대기, 맨홀 개방 작업 금지, 차량은 안전지대로 이동, 낙뢰 시 안테나·철구조물 접근 금지");
   } else if (weather.precipMM >= 5) {
     warnings.push("강우주의");
-    risks.push("발판·노면 미끄럼 위험");
-    actions.push("절연장갑 착용, 미끄럼방지 안전화 착용");
+    risks.push("전신주·통신탑 발판 미끄럼·감전 위험");
+    actions.push("절연장갑·미끄럼방지 안전화 착용, 전주 승주 시 2인 1조 작업, 광케이블 접속 작업 전 절연 확인, 전기 설비 접촉 금지");
   } else if (weather.precipMM > 0) {
     warnings.push("소량 강수");
-    risks.push("노면 습기로 미끄럼 주의");
-    actions.push("안전화 착용, 발판 물기 제거");
+    risks.push("전주·기지국 발판 습기로 미끄럼 위험");
+    actions.push("승주 전 발판 물기 완전 제거, 안전화 착용, 젖은 케이블 함부로 다루지 않기");
   }
 
   if (weather.windspeedKmph >= 55) {
     warnings.push("강풍경보");
-    risks.push("고소작업 추락·낙하물 위험");
-    actions.push("고소작업 전면 금지, 장비 고정");
+    risks.push("통신탑·전신주 고소작업 추락·낙하물 위험");
+    actions.push("기지국 옥상·통신탑·전신주 고소작업 전면 금지, 안테나 교체·케이블 포설 작업 중단, 공구·자재 낙하 방지 고정 후 철수");
   } else if (weather.windspeedKmph >= 35) {
     warnings.push("강풍주의보");
-    risks.push("고소작업 균형 불안정");
-    actions.push("안전대 이중 체결, 경량 자재 고정");
+    risks.push("고소작업 균형 불안정, 공중 케이블 포설 위험");
+    actions.push("안전대 이중 체결 필수, 경량 자재·공구 밧줄 결박, 공중 광케이블 포설 작업 보류");
   } else if (weather.windspeedKmph >= 20) {
     warnings.push("바람 강함");
-    risks.push("공구·자재 낙하 위험");
-    actions.push("안전대 착용, 낙하물 방지망 설치");
+    risks.push("전신주 작업 시 공구·자재 낙하 위험");
+    actions.push("안전대 착용 및 낙하물 방지망 설치, 공구는 공구함에 보관, 아래 작업자 접근 통제");
   }
 
   if (weather.uvIndex >= 8) {
     warnings.push("자외선 매우강함");
-    risks.push("피부 화상·눈 손상 위험");
-    actions.push("SPF50+ 자외선차단제 도포, 선글라스 착용");
+    risks.push("옥상·철탑 장시간 노출 시 피부 화상·열사병 위험");
+    actions.push("기지국 옥상·통신탑 작업 시 자외선차단제(SPF50+) 도포, 차광 모자·선글라스 착용, 1시간마다 그늘 휴식");
   } else if (weather.uvIndex >= 6) {
     warnings.push("자외선 강함");
-    risks.push("장시간 노출 시 피부 손상");
-    actions.push("자외선차단제 도포, 모자 착용 권고");
+    risks.push("야외 현장 작업 시 피부 손상 위험");
+    actions.push("자외선차단제 도포, 긴소매 작업복 착용, 직사광선 노출 최소화");
   }
 
   if (pm10 !== null && pm10 > 150) {
     warnings.push("미세먼지 매우나쁨");
-    risks.push("호흡기 심각한 손상 위험");
-    actions.push("N95 이상 마스크 착용, 야외작업 자제");
+    risks.push("야외 현장 호흡기 심각한 손상 위험");
+    actions.push("KF94 이상 마스크 착용 필수, 맨홀·지하 공동구 작업 시 환기 후 입장, 야외 작업 시간 최소화 및 차량 내 대기");
   } else if (pm10 !== null && pm10 > 80) {
-    warnings.push("호흡기 질환 주의");
-    risks.push("호흡기 PPE 필요");
-    actions.push("마스크 착용 권고, 환기 최소화");
+    warnings.push("미세먼지 나쁨");
+    risks.push("야외 현장 호흡기 질환 위험");
+    actions.push("KF80 이상 마스크 착용, 지하 공동구·맨홀 작업 전 환기 실시");
   } else if (pm10 !== null && pm10 > 30) {
     warnings.push("미세먼지 보통");
     risks.push("민감군 호흡기 주의");
-    actions.push("장시간 야외 작업 시 마스크 착용");
+    actions.push("장시간 야외 현장 작업 시 마스크 착용 권고");
   }
 
   if (warnings.length === 0) {
     warnings.push("특이 기상 없음");
-    risks.push("기본 안전수칙 준수 필요");
-    actions.push("작업 전 안전장비 착용 확인");
+    risks.push("통신 현장 기본 안전수칙 준수 필요");
+    actions.push("작업 전 안전장비(안전대·안전모·절연장갑) 착용 확인, 2인 1조 원칙 준수, 작업 전 위험성평가 실시");
   }
 
   return {
@@ -487,20 +487,30 @@ export async function generateSafetyMessage(weather: WeatherData): Promise<{
     `📢 기상특보: ${weather.specialReport}`,
   ].join("\n");
 
-  const prompt = `당신은 KT MOS남부 통신 현장 안전관리 전문가입니다.
-아래 날씨 데이터와 위험 분석을 바탕으로, 현장 근무자를 위한 구체적인 안전 당부 2~3문장을 작성하세요.
+  const prompt = `당신은 스피드이엔지(KT MOS 남부) 통신 현장 안전보건관리 전문가입니다.
+아래 날씨 정보를 바탕으로 통신 현장 작업자들을 위한 실질적이고 구체적인 안전 당부 메시지를 작성하세요.
 
-[${weather.city} 오늘 날씨]
+[오늘 ${weather.city} 기상 현황]
 - 기온: ${weather.tempC}°C (체감 ${weather.feelsLikeC}°C, 최고 ${weather.tempMaxC}°C / 최저 ${weather.tempMinC}°C)
+- 강수량: ${weather.precipMM}mm | 풍속: ${weather.windspeedMs}m/s | 습도: ${weather.humidity}%
 - 경고요인: ${weather.warningFactor}
 - 위험요인: ${weather.riskFactor}
-- 안전조치: ${weather.safetyAction}
+- 권장 안전조치: ${weather.safetyAction}
+
+[작업 현장 환경 — 반드시 아래 상황에 맞는 안전조치를 포함할 것]
+- 전신주(전주) 승주 작업: 추락방지용 안전대(Y형/벨트형) 착용, 승주 발판 상태 확인, 2인 1조 원칙
+- 이동통신 기지국(BTS) 옥상 및 철탑 작업: 안전모·안전대 착용, 공구낙하 방지줄 사용, 혼자 작업 금지
+- 통신 케이블(광케이블·동축케이블) 포설 및 접속 작업: 절연장갑 착용, 활선 여부 확인 후 작업, 케이블 장력 조심
+- 맨홀·지하 공동구 진입 작업: 산소농도·유해가스 측정 후 진입, 환기 실시, 안전줄 착용, 보조자 배치
+- 차량 이동 및 현장 진출입: 방어운전 생활화, 현장 주차 시 안전삼각대 설치, 야간 반사조끼 착용
+- 고소작업차(버킷트럭) 운용: 아웃트리거 완전 전개, 탑승 전 장비 점검, 풍속 10m/s 초과 시 작업 중단
 
 [작성 규칙]
-- 통신탑, 기지국, 전신주, 광케이블 야외 작업자 대상
-- 위의 경고/위험/안전조치 내용을 반드시 반영
-- 이모지 활용, 간결하게 2~3문장
-- 마지막에 안전 당부 마무리 문장 포함
+- 반드시 한글로만 작성 (영어 단어 사용 금지)
+- 오늘의 기상 상황과 연계하여 위 작업 중 위험이 높아지는 항목을 우선 강조
+- 이모지를 적극 활용하여 가독성 높이기
+- 3~5문장으로 작성 (너무 짧지 않게, 현장에서 바로 실천할 수 있는 구체적인 행동 지침)
+- 마지막 문장은 "오늘도 모두 안전하게 귀가하시길 바랍니다" 류의 마무리 문구로 끝내기
 
 반드시 아래 형식으로만 출력하세요:
 ADVICE: 여기에 안전 당부 내용만`;
@@ -508,8 +518,14 @@ ADVICE: 여기에 안전 당부 내용만`;
   try {
     const response = await openai.chat.completions.create({
       model: "gpt-5-nano",
-      messages: [{ role: "user", content: prompt }],
-      max_completion_tokens: 400,
+      messages: [
+        {
+          role: "system",
+          content: "당신은 통신 현장(전신주 승주, 기지국 철탑, 맨홀, 고소작업차 등) 안전보건 전문가입니다. 모든 답변은 반드시 한글로만 작성하고, 날씨와 연계된 구체적인 현장 안전조치를 상세히 안내합니다.",
+        },
+        { role: "user", content: prompt },
+      ],
+      max_completion_tokens: 700,
     });
 
     const raw = (response.choices[0]?.message?.content ?? "").trim();
