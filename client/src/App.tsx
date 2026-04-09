@@ -22,6 +22,7 @@ import SafetyInspections from "@/pages/SafetyInspections";
 import AdminUsers from "@/pages/AdminUsers";
 import SecurityLogs from "@/pages/SecurityLogs";
 import SignatureAdmin from "@/pages/SignatureAdmin";
+import AdminBackup from "@/pages/AdminBackup";
 import MsdsSearch from "@/pages/MsdsSearch";
 import RiskAssessment from "@/pages/RiskAssessment";
 import AccidentReports from "@/pages/AccidentReports";
@@ -116,6 +117,7 @@ function RouterContent() {
       <Route path="/admin/music">{() => <G canAccess={isAdmin} component={MusicManager} />}</Route>
       <Route path="/admin/fuel-costs">{() => <G canAccess={isAdmin} component={FuelCosts} />}</Route>
       <Route path="/admin/signatures">{() => <G canAccess={isAdmin} component={SignatureAdmin} />}</Route>
+      <Route path="/admin/backup">{() => <G canAccess={isAdmin} component={AdminBackup} />}</Route>
       <Route path="/safety-manager-reports">{() => <G canAccess={canViewInspections} component={SafetyManagerReports} />}</Route>
       <Route path="/health-manager-reports">{() => <G canAccess={canViewInspections} component={HealthManagerReports} />}</Route>
       <Route path="/weather-safety" component={WeatherSafetyMessage} />

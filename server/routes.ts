@@ -7,7 +7,7 @@ import rateLimit from "express-rate-limit";
 import { createHash } from "crypto";
 import { db } from "./db";
 import { teams, trafficFines, accidentReports, educationSignatures } from "@shared/schema";
-import { eq, and, count } from "drizzle-orm";
+import { eq, and, count, sql } from "drizzle-orm";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -1994,6 +1994,83 @@ export async function registerRoutes(
       res.json({ success: true });
     } catch (err) {
       res.status(500).json({ message: "서명 삭제 실패" });
+    }
+  });
+
+  // ===== 관리자 데이터 백업 =====
+  app.get("/api/admin/backup/info", isAuthenticated, async (req: any, res) => {
+    if (req.user?.role !== "admin") return res.status(403).json({ message: "관리자만 접근 가능합니다." });
+    try {
+      const sizeResult = await db.execute(sql`
+        SELECT pg_database_size(current_database()) / 1024 AS size_kb
+      `);
+      const dbSizeKb = Number((sizeResult.rows[0] as any)?.size_kb ?? 0);
+      const privateDir = process.env.PRIVATE_OBJECT_DIR;
+      let fileCount = 0;
+      if (privateDir) {
+        const parts = privateDir.replace(/^\//, "").split("/");
+        const bucketName = parts[0];
+        const prefix = parts.slice(1).join("/");
+        try {
+          const [files] = await objectStorageClient.bucket(bucketName).getFiles({ prefix });
+          fileCount = files.length;
+        } catch (_) {}
+      }
+      res.json({ dbSizeKb, fileCount, lastDbBackup: null, lastFilesBackup: null });
+    } catch (err) {
+      res.status(500).json({ message: "정보 조회 실패" });
+    }
+  });
+
+  app.get("/api/admin/backup/database", isAuthenticated, async (req: any, res) => {
+    if (req.user?.role !== "admin") return res.status(403).json({ message: "관리자만 접근 가능합니다." });
+    try {
+      const { exec } = await import("child_process");
+      const { promisify } = await import("util");
+      const execAsync = promisify(exec);
+      const dbUrl = process.env.DATABASE_URL!;
+      const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+      const filename = `backup_db_${stamp}.sql`;
+      res.setHeader("Content-Type", "application/sql");
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      const { stdout } = await execAsync(`pg_dump --no-owner --no-acl "${dbUrl}"`, {
+        maxBuffer: 200 * 1024 * 1024,
+      });
+      res.send(stdout);
+    } catch (err: any) {
+      console.error("DB 백업 실패:", err?.message);
+      if (!res.headersSent) res.status(500).json({ message: "DB 백업 실패" });
+    }
+  });
+
+  app.get("/api/admin/backup/files", isAuthenticated, async (req: any, res) => {
+    if (req.user?.role !== "admin") return res.status(403).json({ message: "관리자만 접근 가능합니다." });
+    const privateDir = process.env.PRIVATE_OBJECT_DIR;
+    if (!privateDir) return res.status(400).json({ message: "클라우드 스토리지 미설정" });
+    try {
+      const archiver = (await import("archiver")).default;
+      const parts = privateDir.replace(/^\//, "").split("/");
+      const bucketName = parts[0];
+      const prefix = parts.slice(1).join("/");
+      const [files] = await objectStorageClient.bucket(bucketName).getFiles({ prefix });
+      const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+      res.setHeader("Content-Type", "application/zip");
+      res.setHeader("Content-Disposition", `attachment; filename="backup_files_${stamp}.zip"`);
+      const archive = archiver("zip", { zlib: { level: 4 } });
+      archive.on("error", (err: any) => { console.error("Archive error:", err); });
+      archive.pipe(res);
+      for (const file of files) {
+        const name = file.name.replace(prefix + "/", "");
+        if (!name || name.endsWith("/")) continue;
+        try {
+          const [contents] = await file.download();
+          archive.append(contents, { name });
+        } catch (_) {}
+      }
+      await archive.finalize();
+    } catch (err: any) {
+      console.error("파일 백업 실패:", err?.message);
+      if (!res.headersSent) res.status(500).json({ message: "파일 백업 실패" });
     }
   });
 

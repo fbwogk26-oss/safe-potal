@@ -28,6 +28,7 @@ import {
   Car,
   HardHat,
   Stethoscope,
+  HardDrive,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -135,6 +136,7 @@ const NAV_SECTIONS: NavSection[] = [
           { label: "음악 관리", href: "/admin/music", icon: Music2, adminOnly: true },
           { label: "서명 관리 로그", href: "/admin/signatures", icon: FileSignature, adminOnly: true },
           { label: "출입신청", href: "/access", icon: DoorOpen, permissionKey: "canViewAccess" },
+          { label: "데이터 백업", href: "/admin/backup", icon: HardDrive, adminOnly: true },
         ],
       },
     ],
