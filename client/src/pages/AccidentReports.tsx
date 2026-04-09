@@ -18,7 +18,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { AlertTriangle, BarChart3, Plus, Pencil, Trash2, Download, Upload, X, Camera, FileText, Loader2, User, CheckSquare } from "lucide-react";
+import { AlertTriangle, BarChart3, Plus, Pencil, Trash2, Download, Upload, X, Camera, FileText, Loader2, User, CheckSquare, BookOpen, EyeOff, ImageOff, MapPin, Clock, Building2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -426,6 +426,10 @@ export default function AccidentReports() {
             <AlertTriangle className="w-4 h-4 mr-1.5" />
             사고 관리
           </TabsTrigger>
+          <TabsTrigger value="sharing" data-testid="tab-sharing">
+            <BookOpen className="w-4 h-4 mr-1.5" />
+            사고사례 공유
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="management">
@@ -832,6 +836,188 @@ export default function AccidentReports() {
             </motion.div>
           </AnimatePresence>
         </TabsContent>
+
+        {/* ── 사고사례 공유 탭 ─────────────────────────────────────── */}
+        <TabsContent value="sharing">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key="sharing"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="space-y-4"
+            >
+              <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-200 dark:border-blue-900/50 text-sm text-blue-700 dark:text-blue-300">
+                <EyeOff className="w-4 h-4 shrink-0" />
+                <span>개인정보 보호를 위해 차량번호, 사고자 성명, 보고자 성명은 비공개 처리됩니다.</span>
+              </div>
+
+              {isLoading ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {[1,2,3,4].map(i => <div key={i} className="h-64 rounded-xl bg-muted/30 animate-pulse" />)}
+                </div>
+              ) : sortedReports.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
+                  <BookOpen className="w-12 h-12 mb-3 opacity-30" />
+                  <p className="text-sm">등록된 사고사례가 없습니다.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {sortedReports.map((report, idx) => {
+                    let progressItems: ProgressItem[] = [];
+                    if (report.progressDetails) {
+                      try {
+                        const parsed = JSON.parse(report.progressDetails);
+                        if (Array.isArray(parsed)) progressItems = parsed;
+                      } catch {}
+                    }
+                    const imageCaptions: string[] = (() => {
+                      try {
+                        return (report as any).imageCaptions ? JSON.parse((report as any).imageCaptions) : [];
+                      } catch { return []; }
+                    })();
+
+                    return (
+                      <motion.div
+                        key={report.id}
+                        initial={{ opacity: 0, y: 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: idx * 0.04 }}
+                      >
+                        <Card className="overflow-hidden border-0 shadow-sm hover:shadow-md transition-shadow">
+                          {/* 헤더 */}
+                          <div className={`px-5 py-3 flex items-center justify-between ${
+                            report.severity === "사망" ? "bg-red-600" :
+                            report.severity === "중대" ? "bg-orange-500" :
+                            report.severity === "보통" ? "bg-yellow-500" : "bg-sky-500"
+                          }`}>
+                            <div className="flex items-center gap-2">
+                              <AlertTriangle className="w-4 h-4 text-white" />
+                              <span className="text-white font-bold text-sm truncate max-w-[200px]">{report.title}</span>
+                            </div>
+                            <Badge variant="outline" className="bg-white/20 border-white/40 text-white text-xs shrink-0">
+                              {report.severity}
+                            </Badge>
+                          </div>
+
+                          <CardContent className="p-4 space-y-3">
+                            {/* 기본 정보 */}
+                            <div className="grid grid-cols-2 gap-2 text-xs">
+                              <div className="flex items-center gap-1.5 text-muted-foreground">
+                                <Clock className="w-3.5 h-3.5 shrink-0" />
+                                <span>{report.occurredAt ? format(new Date(report.occurredAt), "yyyy-MM-dd HH:mm") : "-"}</span>
+                              </div>
+                              <div className="flex items-center gap-1.5 text-muted-foreground">
+                                <Building2 className="w-3.5 h-3.5 shrink-0" />
+                                <span>{report.department}</span>
+                              </div>
+                              {report.location && (
+                                <div className="flex items-center gap-1.5 text-muted-foreground col-span-2">
+                                  <MapPin className="w-3.5 h-3.5 shrink-0" />
+                                  <span>{report.location}</span>
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="flex flex-wrap gap-1.5">
+                              <Badge variant="secondary" className="text-xs">{report.accidentType}</Badge>
+                              <Badge variant="outline" className="text-xs text-muted-foreground">{report.cause}</Badge>
+                            </div>
+
+                            {/* 사고개요 */}
+                            {(report.accidentOverview || report.description) && (
+                              <div className="bg-muted/40 rounded-lg p-3">
+                                <p className="text-xs font-semibold text-muted-foreground mb-1">사고 개요</p>
+                                <p className="text-sm leading-relaxed line-clamp-3">
+                                  {report.accidentOverview || report.description}
+                                </p>
+                              </div>
+                            )}
+
+                            {/* 경과/조치사항 */}
+                            {progressItems.length > 0 && progressItems.some(p => p.content) && (
+                              <div>
+                                <p className="text-xs font-semibold text-muted-foreground mb-1.5">경과 및 조치</p>
+                                <div className="space-y-1">
+                                  {progressItems.filter(p => p.content).slice(0, 3).map((item, i) => (
+                                    <div key={i} className="flex gap-2 text-xs">
+                                      {item.time && <span className="text-muted-foreground shrink-0 font-mono">{item.time}</span>}
+                                      <span className="text-foreground/80">{item.content}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* 원인 상세 */}
+                            {report.causeDetail && (
+                              <div>
+                                <p className="text-xs font-semibold text-muted-foreground mb-1">원인 분석</p>
+                                <p className="text-xs text-foreground/80 line-clamp-2">{report.causeDetail}</p>
+                              </div>
+                            )}
+
+                            {/* 재발방지 대책 */}
+                            {report.preventionPlan && (
+                              <div className="bg-emerald-50 dark:bg-emerald-950/30 rounded-lg p-3">
+                                <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 mb-1">재발방지 대책</p>
+                                <p className="text-xs text-emerald-800 dark:text-emerald-300 line-clamp-2">{report.preventionPlan}</p>
+                              </div>
+                            )}
+
+                            {/* 사진 */}
+                            {report.images && report.images.length > 0 && (
+                              <div>
+                                <p className="text-xs font-semibold text-muted-foreground mb-1.5">사고 현장 사진</p>
+                                <div className={`grid gap-1.5 ${report.images.length === 1 ? "grid-cols-1" : "grid-cols-2"}`}>
+                                  {report.images.slice(0, 4).map((imgUrl, i) => (
+                                    <div key={i} className="relative aspect-[4/3] rounded-lg overflow-hidden bg-muted/30">
+                                      <img
+                                        src={imgUrl}
+                                        alt={imageCaptions[i] || `사진 ${i + 1}`}
+                                        className="w-full h-full object-cover"
+                                        onError={(e) => {
+                                          const target = e.currentTarget;
+                                          target.style.display = "none";
+                                          const parent = target.parentElement;
+                                          if (parent && !parent.querySelector(".img-error")) {
+                                            const err = document.createElement("div");
+                                            err.className = "img-error absolute inset-0 flex flex-col items-center justify-center gap-1 text-muted-foreground bg-muted/40";
+                                            err.innerHTML = `<svg xmlns='http://www.w3.org/2000/svg' class='w-6 h-6 opacity-40' fill='none' viewBox='0 0 24 24' stroke='currentColor'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z'/></svg><span class='text-xs'>사진 없음</span>`;
+                                            parent.appendChild(err);
+                                          }
+                                        }}
+                                      />
+                                      {imageCaptions[i] && (
+                                        <div className="absolute bottom-0 inset-x-0 bg-black/50 px-2 py-0.5">
+                                          <p className="text-white text-[10px] truncate">{imageCaptions[i]}</p>
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* 비공개 필드 표시 */}
+                            <div className="pt-1 border-t flex flex-wrap gap-3 text-xs text-muted-foreground">
+                              <span className="flex items-center gap-1">
+                                <EyeOff className="w-3 h-3" />차량정보 비공개
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <EyeOff className="w-3 h-3" />사고자 비공개
+                              </span>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              )}
+            </motion.div>
+          </AnimatePresence>
+        </TabsContent>
       </Tabs>
 
       <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) closeDialog(); }}>
@@ -1024,8 +1210,21 @@ export default function AccidentReports() {
                 <div className="grid grid-cols-2 gap-3 mb-3">
                   {form.images.map((url, idx) => (
                     <div key={idx} className="relative border rounded-lg overflow-hidden group">
-                      <div className="aspect-[4/3] bg-muted">
-                        <img src={url} alt={form.imageCaptions[idx] || `사진 ${idx + 1}`} className="w-full h-full object-cover" />
+                      <div className="aspect-[4/3] bg-muted flex items-center justify-center relative">
+                        <img
+                          src={url}
+                          alt={form.imageCaptions[idx] || `사진 ${idx + 1}`}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.currentTarget.style.display = "none";
+                            const sibling = e.currentTarget.nextElementSibling as HTMLElement | null;
+                            if (sibling) sibling.style.display = "flex";
+                          }}
+                        />
+                        <div className="hidden absolute inset-0 flex-col items-center justify-center gap-2 bg-muted text-muted-foreground">
+                          <ImageOff className="w-8 h-8 opacity-40" />
+                          <span className="text-xs">사진을 불러올 수 없습니다</span>
+                        </div>
                       </div>
                       <button
                         type="button"
