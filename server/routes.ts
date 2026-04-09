@@ -14,6 +14,7 @@ import fs from "fs";
 import ExcelJS from "exceljs";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 import { objectStorageClient } from "./replit_integrations/object_storage/objectStorage";
+import { setObjectAclPolicy } from "./replit_integrations/object_storage/objectAcl";
 import { getKoshaMajorAccidents, clearKoshaCache } from "./kosha";
 import { fetchWeather, generateSafetyMessage, clearWeatherCache } from "./weather";
 import { setupAuth, registerAuthRoutes, isAuthenticated, authStorage } from "./replit_integrations/auth";
@@ -43,7 +44,12 @@ async function uploadToObjectStorage(buffer: Buffer, filename: string, contentTy
     const parts = fullPath.replace(/^\//, "").split("/");
     const bucketName = parts[0];
     const objectName = parts.slice(1).join("/");
-    await objectStorageClient.bucket(bucketName).file(objectName).save(buffer, { contentType, resumable: false });
+    const fileRef = objectStorageClient.bucket(bucketName).file(objectName);
+    await fileRef.save(buffer, { contentType, resumable: false });
+    // 이미지·문서 파일은 public으로 설정해서 <img> 태그가 인증 없이 접근 가능하게 함
+    try {
+      await setObjectAclPolicy(fileRef, { owner: "system", visibility: "public" });
+    } catch (_) {}
     return `/objects/uploads/${filename}`;
   } catch (e: any) {
     console.error("Object storage 업로드 실패:", e?.message);

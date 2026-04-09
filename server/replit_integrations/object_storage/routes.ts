@@ -111,11 +111,22 @@ export function registerObjectStorageRoutes(app: Express): void {
   /**
    * Serve uploaded objects.
    *
-   * GET /objects/:objectPath(*)
-   *
-   * Public files (ACL visibility="public") are served without auth.
-   * Private files require the user to be authenticated.
+   * GET /objects/uploads/:filename  — served without auth (app-internal uploads)
+   * Other /objects/ paths require authentication unless ACL is public.
    */
+  app.get(/^\/objects\/uploads\/(.*)$/, async (req: any, res) => {
+    try {
+      const objectFile = await objectStorageService.getObjectEntityFile(req.path);
+      await objectStorageService.downloadObject(objectFile, res, req);
+    } catch (error) {
+      if (error instanceof ObjectNotFoundError) {
+        return res.status(404).json({ error: "Object not found" });
+      }
+      console.error("Error serving upload:", error);
+      return res.status(500).json({ error: "Failed to serve object" });
+    }
+  });
+
   app.get(/^\/objects\/(.*)$/, async (req: any, res) => {
     try {
       const objectFile = await objectStorageService.getObjectEntityFile(req.path);
