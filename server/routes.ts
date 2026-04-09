@@ -2058,6 +2058,40 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/admin/backup/orphans", isAuthenticated, async (req: any, res) => {
+    if (req.user?.role !== "admin") return res.status(403).json({ message: "관리자만 접근 가능합니다." });
+    const privateDir = process.env.PRIVATE_OBJECT_DIR;
+    if (!privateDir) return res.status(400).json({ message: "클라우드 스토리지 미설정" });
+    try {
+      const parts = privateDir.replace(/^\//, "").split("/");
+      const bucketName = parts[0];
+      const prefix = parts.slice(1).join("/");
+      const [files] = await objectStorageClient.bucket(bucketName).getFiles({ prefix });
+      const uuidFiles = files.filter(f => UUID_RE.test(f.name.replace(prefix + "/uploads/", "")));
+      const dbText = await getAllDbTextForCleanup();
+      const orphans = uuidFiles
+        .filter(f => {
+          const name = f.name.replace(prefix + "/uploads/", "");
+          return !dbText.includes(name);
+        })
+        .map(f => {
+          const meta = f.metadata as any;
+          return {
+            name: f.name.replace(prefix + "/uploads/", ""),
+            sizeMb: Math.round(Number(meta.size || 0) / 1024 / 10) / 100,
+            sizeBytes: Number(meta.size || 0),
+            contentType: meta.contentType || "unknown",
+            createdAt: meta.timeCreated || null,
+            url: "/objects/uploads/" + f.name.replace(prefix + "/uploads/", ""),
+          };
+        })
+        .sort((a, b) => b.sizeBytes - a.sizeBytes);
+      res.json(orphans);
+    } catch (err: any) {
+      res.status(500).json({ message: "조회 실패: " + err?.message });
+    }
+  });
+
   app.post("/api/admin/backup/cleanup-orphans", isAuthenticated, async (req: any, res) => {
     if (req.user?.role !== "admin") return res.status(403).json({ message: "관리자만 접근 가능합니다." });
     const privateDir = process.env.PRIVATE_OBJECT_DIR;

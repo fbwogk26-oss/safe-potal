@@ -3,13 +3,20 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Database, Images, Download, CheckCircle, AlertCircle, Loader2, HardDrive, RefreshCw, Trash2 } from "lucide-react";
+import {
+  Database, Images, Download, CheckCircle, AlertCircle, Loader2,
+  HardDrive, RefreshCw, Trash2, Eye, FileImage, FileVideo, File, FileText
+} from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
+} from "@/components/ui/sheet";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface BackupInfo {
   lastDbBackup: string | null;
@@ -21,13 +28,50 @@ interface BackupInfo {
   totalSizeMb: number;
 }
 
+interface OrphanFile {
+  name: string;
+  sizeMb: number;
+  sizeBytes: number;
+  contentType: string;
+  createdAt: string | null;
+  url: string;
+}
+
+function fileIcon(contentType: string) {
+  if (contentType.startsWith("image/")) return <FileImage className="w-4 h-4 text-blue-500 flex-shrink-0" />;
+  if (contentType.startsWith("video/")) return <FileVideo className="w-4 h-4 text-purple-500 flex-shrink-0" />;
+  if (contentType === "application/pdf") return <FileText className="w-4 h-4 text-red-500 flex-shrink-0" />;
+  return <File className="w-4 h-4 text-gray-400 flex-shrink-0" />;
+}
+
+function fileTypeLabel(contentType: string) {
+  if (contentType.startsWith("image/")) return "이미지";
+  if (contentType.startsWith("video/")) return "동영상";
+  if (contentType === "application/pdf") return "PDF";
+  if (contentType.includes("word")) return "Word";
+  if (contentType.includes("excel") || contentType.includes("spreadsheet")) return "Excel";
+  return contentType.split("/").pop() || "파일";
+}
+
+function formatDate(iso: string | null) {
+  if (!iso) return "-";
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+}
+
 export default function AdminBackup() {
   const { toast } = useToast();
   const [dbDownloading, setDbDownloading] = useState(false);
   const [filesDownloading, setFilesDownloading] = useState(false);
+  const [showOrphans, setShowOrphans] = useState(false);
 
   const { data: info, isLoading: infoLoading, refetch } = useQuery<BackupInfo>({
     queryKey: ["/api/admin/backup/info"],
+  });
+
+  const { data: orphans, isLoading: orphansLoading } = useQuery<OrphanFile[]>({
+    queryKey: ["/api/admin/backup/orphans"],
+    enabled: showOrphans,
   });
 
   const cleanupMutation = useMutation({
@@ -38,7 +82,9 @@ export default function AdminBackup() {
         title: "정리 완료",
         description: `${data.deleted}개 파일 삭제, ${data.freedMb}MB 확보`,
       });
+      setShowOrphans(false);
       queryClient.invalidateQueries({ queryKey: ["/api/admin/backup/info"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/backup/orphans"] });
     },
     onError: () => toast({ title: "정리 실패", variant: "destructive" }),
   });
@@ -67,6 +113,14 @@ export default function AdminBackup() {
       setLoading(false);
     }
   }
+
+  // Group orphans by type
+  const orphanGroups = orphans ? orphans.reduce<Record<string, OrphanFile[]>>((acc, f) => {
+    const label = fileTypeLabel(f.contentType);
+    if (!acc[label]) acc[label] = [];
+    acc[label].push(f);
+    return acc;
+  }, {}) : {};
 
   const now = new Date();
   const stamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}_${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}`;
@@ -110,8 +164,9 @@ export default function AdminBackup() {
               <div>
                 <p className="text-xs text-muted-foreground">클라우드 파일</p>
                 <p className="text-lg font-bold">
-                  {infoLoading ? "..." : info ? `${info.fileCount}개 (${info.totalSizeMb}MB)` : "-"}
+                  {infoLoading ? "..." : info ? `${info.fileCount}개` : "-"}
                 </p>
+                <p className="text-xs text-muted-foreground">{info ? `${info.totalSizeMb}MB` : ""}</p>
               </div>
             </div>
           </CardContent>
@@ -125,8 +180,9 @@ export default function AdminBackup() {
               <div>
                 <p className="text-xs text-muted-foreground">미사용 파일</p>
                 <p className="text-lg font-bold">
-                  {infoLoading ? "..." : info ? `${info.orphanCount}개 (${info.orphanSizeMb}MB)` : "-"}
+                  {infoLoading ? "..." : info ? `${info.orphanCount}개` : "-"}
                 </p>
+                <p className="text-xs text-muted-foreground">{info ? `${info.orphanSizeMb}MB 낭비` : ""}</p>
               </div>
             </div>
           </CardContent>
@@ -142,28 +198,37 @@ export default function AdminBackup() {
                 <Trash2 className="w-5 h-5 text-amber-600" />
                 <CardTitle className="text-amber-800 dark:text-amber-200">미사용 파일 정리</CardTitle>
               </div>
-              <Badge variant="outline" className="border-amber-400 text-amber-700">
+              <Badge variant="outline" className="border-amber-400 text-amber-700 dark:text-amber-300">
                 {info.orphanSizeMb}MB 낭비 중
               </Badge>
             </div>
             <CardDescription className="text-amber-700 dark:text-amber-300">
               업로드했다가 저장하지 않은 파일 <strong>{info.orphanCount}개</strong>가 클라우드에 남아있습니다.
-              이 파일들은 실제로 사용되지 않으므로 삭제해도 앱에 영향이 없습니다.
+              삭제하기 전에 목록을 먼저 확인할 수 있습니다.
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex gap-2">
+            <Button
+              data-testid="button-view-orphans"
+              variant="outline"
+              className="flex-1 border-amber-400 text-amber-700 hover:bg-amber-100 dark:text-amber-300 dark:hover:bg-amber-900"
+              onClick={() => setShowOrphans(true)}
+            >
+              <Eye className="w-4 h-4 mr-2" />
+              목록 확인 ({info.orphanCount}개)
+            </Button>
+
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button
                   data-testid="button-cleanup-orphans"
-                  variant="outline"
-                  className="w-full border-amber-400 text-amber-700 hover:bg-amber-100"
+                  className="flex-1 bg-amber-600 hover:bg-amber-700 text-white"
                   disabled={cleanupMutation.isPending}
                 >
                   {cleanupMutation.isPending ? (
                     <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> 삭제 중...</>
                   ) : (
-                    <><Trash2 className="w-4 h-4 mr-2" /> 미사용 파일 {info.orphanCount}개 삭제 ({info.orphanSizeMb}MB 확보)</>
+                    <><Trash2 className="w-4 h-4 mr-2" /> 전체 삭제 ({info.orphanSizeMb}MB 확보)</>
                   )}
                 </Button>
               </AlertDialogTrigger>
@@ -198,7 +263,6 @@ export default function AdminBackup() {
           </div>
           <CardDescription>
             모든 테이블 데이터 (사고보고서, 안전점검, 공지, 교육, 과태료, 차량 등)를 SQL 파일로 백업합니다.
-            이 파일을 보관해두면 데이터가 손실되어도 복구할 수 있습니다.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -208,17 +272,6 @@ export default function AdminBackup() {
               마지막 백업: {info.lastDbBackup}
             </div>
           )}
-          <div className="bg-muted rounded-lg p-3 text-sm space-y-1">
-            <p className="font-medium">백업 파일에 포함되는 데이터:</p>
-            <ul className="list-disc list-inside text-muted-foreground space-y-0.5">
-              <li>공지사항, 안전점검 기록</li>
-              <li>사고보고서, 아차사고, 위험성평가</li>
-              <li>교육 이력, 서명 기록</li>
-              <li>차량 정보, 과태료, 유류비</li>
-              <li>사용자 계정, 팀 정보</li>
-              <li>기타 모든 데이터</li>
-            </ul>
-          </div>
           <Button
             data-testid="button-db-backup"
             onClick={() => downloadFile("/api/admin/backup/database", `backup_db_${stamp}.sql`, setDbDownloading)}
@@ -246,7 +299,6 @@ export default function AdminBackup() {
           </div>
           <CardDescription>
             클라우드 스토리지에 저장된 모든 사진과 파일을 ZIP으로 받습니다.
-            공지 이미지, 점검 사진, 사고 사진, 동영상, 음악 파일 등이 포함됩니다.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -264,7 +316,7 @@ export default function AdminBackup() {
             className="w-full"
           >
             {filesDownloading ? (
-              <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> ZIP 생성 중... (기다려 주세요)</>
+              <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> ZIP 생성 중...</>
             ) : (
               <><Download className="w-4 h-4 mr-2" /> 파일 전체 백업 다운로드 (.zip)</>
             )}
@@ -288,6 +340,104 @@ export default function AdminBackup() {
           <p>5. 미사용 파일 정리를 주기적으로 실행하면 클라우드 용량을 절약할 수 있습니다</p>
         </CardContent>
       </Card>
+
+      {/* Orphan File List Sheet */}
+      <Sheet open={showOrphans} onOpenChange={setShowOrphans}>
+        <SheetContent side="right" className="w-full sm:w-[560px] sm:max-w-none">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              <Trash2 className="w-5 h-5 text-amber-600" />
+              미사용 파일 목록
+            </SheetTitle>
+            <SheetDescription>
+              DB에 저장되지 않은 임시 파일입니다. 이 파일들은 안전하게 삭제할 수 있습니다.
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="mt-4 flex flex-col h-[calc(100vh-180px)]">
+            {orphansLoading ? (
+              <div className="flex-1 flex items-center justify-center">
+                <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : orphans && orphans.length > 0 ? (
+              <>
+                {/* Summary by type */}
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {Object.entries(orphanGroups).map(([type, files]) => (
+                    <Badge key={type} variant="secondary">
+                      {type} {files.length}개 ({files.reduce((s, f) => s + f.sizeMb, 0).toFixed(1)}MB)
+                    </Badge>
+                  ))}
+                </div>
+
+                <ScrollArea className="flex-1 border rounded-lg">
+                  <div className="p-2 space-y-1">
+                    {orphans.map((f, i) => (
+                      <div
+                        key={f.name}
+                        data-testid={`orphan-file-${i}`}
+                        className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-muted transition-colors"
+                      >
+                        {fileIcon(f.contentType)}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-mono text-muted-foreground truncate">{f.name.slice(0, 8)}...{f.name.slice(-4)}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {fileTypeLabel(f.contentType)} · {f.sizeMb}MB · {formatDate(f.createdAt)}
+                          </p>
+                        </div>
+                        {f.contentType.startsWith("image/") && (
+                          <a
+                            href={f.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-blue-500 underline flex-shrink-0"
+                          >
+                            미리보기
+                          </a>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+
+                <div className="mt-4 pt-4 border-t space-y-2">
+                  <p className="text-sm text-muted-foreground text-center">
+                    총 {orphans.length}개 파일, {orphans.reduce((s, f) => s + f.sizeMb, 0).toFixed(1)}MB
+                  </p>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white" disabled={cleanupMutation.isPending}>
+                        {cleanupMutation.isPending ? (
+                          <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> 삭제 중...</>
+                        ) : (
+                          <><Trash2 className="w-4 h-4 mr-2" /> 전체 삭제</>
+                        )}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>미사용 파일 전체 삭제</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          위 목록의 파일 <strong>{orphans.length}개</strong>를 모두 삭제합니다. 되돌릴 수 없습니다.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>취소</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => cleanupMutation.mutate()}>삭제</AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              </>
+            ) : (
+              <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground gap-2">
+                <CheckCircle className="w-12 h-12 text-green-500" />
+                <p>미사용 파일이 없습니다</p>
+              </div>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
