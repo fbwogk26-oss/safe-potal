@@ -208,7 +208,7 @@ export default function DigitalBoard() {
   const exitSlideSelectMode = () => { setSlideSelectMode(false); setSelectedSlideIds(new Set()); };
 
   const bulkSlideDeleteMutation = useMutation({
-    mutationFn: (ids: number[]) => apiRequest("DELETE", "/api/notices/bulk", { ids }),
+    mutationFn: (ids: number[]) => apiRequest("POST", "/api/notices/bulk-delete", { ids }),
     onSuccess: async (res: Response) => {
       const data = await res.json().catch(() => ({ deleted: selectedSlideIds.size }));
       queryClient.invalidateQueries({ queryKey: ["/api/notices"] });

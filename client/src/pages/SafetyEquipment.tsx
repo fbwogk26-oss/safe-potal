@@ -67,7 +67,7 @@ export default function SafetyEquipment({ embedded = false }: SafetyEquipmentPro
   const excelInputRef = useRef<HTMLInputElement>(null);
 
   const bulkDeleteMutation = useMutation({
-    mutationFn: (ids: number[]) => apiRequest("DELETE", "/api/notices/bulk", { ids }),
+    mutationFn: (ids: number[]) => apiRequest("POST", "/api/notices/bulk-delete", { ids }),
     onSuccess: async (res) => {
       const data = await (res as any).json();
       queryClient.invalidateQueries({ queryKey: ["/api/notices"] });

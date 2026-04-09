@@ -164,7 +164,7 @@ export default function Notices() {
   };
 
   const bulkDeleteMutation = useMutation({
-    mutationFn: (ids: number[]) => apiRequest("DELETE", "/api/notices/bulk", { ids }),
+    mutationFn: (ids: number[]) => apiRequest("POST", "/api/notices/bulk-delete", { ids }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/notices"] });
       const count = selectedIds.size;
