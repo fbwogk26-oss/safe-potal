@@ -1,7 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -13,9 +13,13 @@ import {
   ShieldAlert, Plus, Trash2, Pencil, Camera, X, Info, ClipboardEdit,
   CheckCircle2, Clock, FileDown, Download, CircleCheck, AlertCircle, Users,
   ChevronRight, ChevronDown, MapPin, Save, Sparkles, ScanSearch, Loader2,
-  Lightbulb, Zap, TriangleAlert, ChevronUp, CheckSquare
+  Lightbulb, Zap, TriangleAlert, ChevronUp, CheckSquare,
+  BarChart3, TrendingUp, Search, Filter, Shield,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
+} from "recharts";
 import { useState, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -124,9 +128,11 @@ export default function RiskAssessmentPage() {
   const [isDownloading, setIsDownloading] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [activeTab, setActiveTab] = useState<"dashboard" | "list">("dashboard");
   const [activeType, setActiveType] = useState("상반기정기평가");
   const [filterDept, setFilterDept] = useState("전체");
   const [filterGrade, setFilterGrade] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -542,15 +548,22 @@ export default function RiskAssessmentPage() {
   }, [assessments, filterDept]);
 
   const filteredAssessments = useMemo(() => {
-    if (!filterGrade) return filteredByDept;
-    return filteredByDept.filter(a => {
-      const lvl = a.riskLevel || "";
-      if (filterGrade === "A") return lvl === "A등급" || (!lvl && a.riskScore >= 8);
-      if (filterGrade === "B") return lvl === "B등급" || (!lvl && a.riskScore >= 3 && a.riskScore < 8);
-      if (filterGrade === "C") return lvl === "C등급" || (!lvl && a.riskScore < 3);
-      return true;
-    });
-  }, [filteredByDept, filterGrade]);
+    let result = filteredByDept;
+    if (filterGrade) {
+      result = result.filter(a => {
+        const lvl = a.riskLevel || "";
+        if (filterGrade === "A") return lvl === "A등급" || (!lvl && a.riskScore >= 8);
+        if (filterGrade === "B") return lvl === "B등급" || (!lvl && a.riskScore >= 3 && a.riskScore < 8);
+        if (filterGrade === "C") return lvl === "C등급" || (!lvl && a.riskScore < 3);
+        return true;
+      });
+    }
+    if (search) {
+      const q = search.toLowerCase();
+      result = result.filter(a => [a.hazard, a.department, a.process, a.hazardType, (a as any).responsibleTask].some(v => v?.toLowerCase().includes(q)));
+    }
+    return result;
+  }, [filteredByDept, filterGrade, search]);
 
   const riskStats = useMemo(() => {
     if (!filteredByDept.length) return null;
@@ -565,6 +578,28 @@ export default function RiskAssessmentPage() {
     return counts;
   }, [filteredByDept]);
 
+  const typeStats = useMemo(() => {
+    if (!assessments) return [];
+    const map: Record<string, number> = {};
+    assessments.forEach(a => { if (a.hazardType) map[a.hazardType] = (map[a.hazardType] || 0) + 1; });
+    return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+  }, [assessments]);
+
+  const deptStats = useMemo(() => {
+    if (!assessments) return [];
+    const map: Record<string, number> = {};
+    assessments.forEach(a => { if (a.department) map[a.department] = (map[a.department] || 0) + 1; });
+    return Object.entries(map).map(([name, value]) => ({ name: name.replace("운용팀","").replace("팀",""), value })).sort((a, b) => b.value - a.value).slice(0, 8);
+  }, [assessments]);
+
+  const GRADE_COLORS = ["#f97316", "#64748b", "#60a5fa"];
+
+  const allSelected = filteredAssessments.length > 0 && filteredAssessments.every(a => selectedIds.has(a.id));
+  const toggleAll = () => {
+    if (allSelected) setSelectedIds(new Set());
+    else setSelectedIds(new Set(filteredAssessments.map(a => a.id)));
+  };
+
   const selectedItem = assessments?.find(a => a.id === selectedId) ?? null;
   const isOwner = (item: RiskAssessment) => !item.createdBy || user?.role === "admin" || user?.username === item.createdBy;
 
@@ -577,199 +612,310 @@ export default function RiskAssessmentPage() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-4">
+    <div className="space-y-4 sm:space-y-6 p-3 sm:p-4">
       {/* 헤더 */}
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div className="flex items-center gap-2.5">
-          <div className="bg-orange-100 p-2 rounded-lg text-orange-600 dark:bg-orange-900/30 dark:text-orange-400">
-            <ShieldAlert className="w-6 h-6 sm:w-7 sm:h-7" />
-          </div>
-          <div>
-            <h2 className="text-xl sm:text-2xl font-display font-bold text-foreground">위험성평가</h2>
-            <p className="text-xs text-muted-foreground">KRAS 위험성평가 관리</p>
-          </div>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
+            <ShieldAlert className="w-6 h-6 text-orange-500" />
+            위험성평가
+          </h1>
+          <p className="text-sm text-muted-foreground mt-0.5">KRAS 위험성평가 관리</p>
         </div>
-        {canEditRiskAssessment && (
-          <Button
-            onClick={() => {
-              setHeader({ department: "", assessor: user?.name || user?.username || "", assessmentDate: format(new Date(), "yyyy-MM-dd"), responsibleTask: "", departmentHead: "" });
-              setItems([defaultItem()]); setEditingId(null); setShowForm(true);
-            }}
-            className="bg-orange-500 hover:bg-orange-600 text-white gap-2 h-9"
-            data-testid="button-add-assessment"
-          >
-            <Plus className="w-4 h-4" />새 평가 등록
-          </Button>
-        )}
-      </div>
-
-      {/* 위험성 계산표 */}
-      <Card className="shadow-sm">
-        <CardContent className="p-3">
-          <div className="flex items-center gap-2 mb-2">
-            <p className="text-xs sm:text-sm font-bold">위험성 계산표 (가능성 × 중대성)</p>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-[10px]" style={{ minWidth: 380 }} data-testid="risk-matrix">
-              <thead>
-                <tr>
-                  <th className="border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800 p-1 text-center align-middle min-w-[60px]">
-                    <div className="text-[9px] text-muted-foreground leading-tight">중대성</div>
-                    <div className="text-[9px] font-normal text-muted-foreground leading-tight">가능성</div>
-                  </th>
-                  {[1, 2, 3, 4].map(s => (
-                    <th key={s} className="border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/60 p-1 text-center">
-                      <div className="text-[10px] font-bold leading-tight">{CRITICALITY_LABELS[s]}</div>
-                      <div className="text-[9px] text-muted-foreground font-normal leading-tight">({s})</div>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {[5, 4, 3, 2, 1].map(f => (
-                  <tr key={f}>
-                    <td className="border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/60 p-1 text-center">
-                      <div className="text-[10px] font-bold leading-tight">{PROBABILITY_LABELS[f]}</div>
-                      <div className="text-[9px] text-muted-foreground leading-tight">({f})</div>
-                    </td>
-                    {[1, 2, 3, 4].map(s => {
-                      const score = f * s;
-                      const { grade, category } = getRiskGrade(score);
-                      const style = getMatrixStyle(score);
-                      return (
-                        <td key={s} className={`border ${style.border} ${style.bg} ${style.text} p-1 text-center`}>
-                          <div className="text-[9px] font-semibold leading-tight">{category}</div>
-                          <div className="text-[11px] font-bold">({score})</div>
-                          <span className={`text-[8px] font-bold px-1 py-px rounded-full inline-block ${grade === "A" ? "bg-orange-500 text-white" : grade === "B" ? "bg-slate-500 text-white" : "bg-blue-400 text-white"}`}>{grade}등급</span>
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-1.5">
-            <div className="flex items-start gap-1.5 p-1.5 rounded-md border border-orange-200 bg-orange-50 dark:bg-orange-950/30 dark:border-orange-800">
-              <span className="shrink-0 mt-0.5 bg-orange-500 text-white text-[9px] font-bold px-1 py-0.5 rounded-full">A등급</span>
-              <div>
-                <p className="text-[10px] font-semibold text-orange-800 dark:text-orange-300">중점관리 위험도 (8~20)</p>
-                <p className="text-[9px] text-orange-700 dark:text-orange-400 leading-relaxed">중대재해 연계 가능성 높음</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-1.5 p-1.5 rounded-md border border-slate-200 bg-slate-50 dark:bg-slate-800/50 dark:border-slate-600">
-              <span className="shrink-0 mt-0.5 bg-slate-500 text-white text-[9px] font-bold px-1 py-0.5 rounded-full">B등급</span>
-              <div>
-                <p className="text-[10px] font-semibold text-slate-700 dark:text-slate-300">일상관리 위험도 (3~7)</p>
-                <p className="text-[9px] text-slate-600 dark:text-slate-400 leading-relaxed">안전 대책으로 예방 가능</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-1.5 p-1.5 rounded-md border border-blue-100 bg-blue-50/50 dark:bg-blue-950/20 dark:border-blue-900">
-              <span className="shrink-0 mt-0.5 bg-blue-400 text-white text-[9px] font-bold px-1 py-0.5 rounded-full">C등급</span>
-              <div>
-                <p className="text-[10px] font-semibold text-blue-800 dark:text-blue-300">허용가능 위험도 (1~2)</p>
-                <p className="text-[9px] text-blue-700 dark:text-blue-400 leading-relaxed">일상관리로 예방 가능</p>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* 조회 필터 바 */}
-      <div className="flex items-center justify-between gap-2 flex-wrap bg-card border rounded-lg px-3 py-2 shadow-sm">
         <div className="flex items-center gap-2 flex-wrap">
-          {/* 평가 구분 드롭다운 */}
-          <Select value={activeType} onValueChange={v => { setActiveType(v); setSelectedId(null); setFilterGrade(null); }}>
-            <SelectTrigger className="h-8 text-xs w-[160px] font-medium border-orange-200 bg-orange-50 dark:bg-orange-900/20 dark:border-orange-800 text-orange-700 dark:text-orange-300" data-testid="select-assessment-type">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {ASSESSMENT_OPTIONS.map(opt => (
-                <SelectItem key={opt.value} value={opt.value} className="text-xs">{opt.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          {/* 부서 필터 */}
-          <Select value={filterDept} onValueChange={v => { setFilterDept(v); setFilterGrade(null); setSelectedId(null); }}>
-            <SelectTrigger className="h-8 text-xs w-[130px]" data-testid="select-filter-dept">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="전체">전체 부서</SelectItem>
-              {DEPARTMENTS.map(dept => <SelectItem key={dept} value={dept}>{dept}</SelectItem>)}
-            </SelectContent>
-          </Select>
-
-          {/* 등급 필터 배지 */}
-          {riskStats && (
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {(Object.entries(riskStats) as [string, number][]).map(([level, count]) => {
-                const gradeKey = level[0];
-                const isActive = filterGrade === gradeKey;
-                return (
-                  <button
-                    key={level}
-                    type="button"
-                    onClick={() => setFilterGrade(isActive ? null : gradeKey)}
-                    className={`inline-flex items-center gap-1 rounded-full text-xs font-semibold px-2.5 py-0.5 transition-all cursor-pointer select-none border-2 ${isActive ? `${getRiskBadgeClass(level)} border-white ring-2 ring-offset-1 ring-current scale-105 shadow-md` : `${getRiskBadgeClass(level)} border-transparent opacity-70 hover:opacity-100 hover:scale-105`}`}
-                    data-testid={`stat-${level}`}
-                  >
-                    {level} {count}건
-                  </button>
-                );
-              })}
-              <span className="text-xs text-muted-foreground font-medium px-1.5 py-0.5 bg-muted rounded-full border">총 {filteredByDept.length}건</span>
-              {filterGrade && (
-                <button type="button" onClick={() => setFilterGrade(null)} className="text-[10px] text-muted-foreground hover:text-foreground underline">필터 해제</button>
-              )}
-            </div>
+          {canDownloadRiskAssessmentExcel && (
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => handleDownloadExcel("전체")} disabled={isDownloading} data-testid="button-download-all">
+              {isDownloading ? <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-current" /> : <Download className="w-4 h-4" />}엑셀
+            </Button>
+          )}
+          {canEditRiskAssessment && (
+            <Button
+              size="sm"
+              className="gap-1.5 bg-orange-500 hover:bg-orange-600"
+              onClick={() => {
+                setHeader({ department: "", assessor: user?.name || user?.username || "", assessmentDate: format(new Date(), "yyyy-MM-dd"), responsibleTask: "", departmentHead: "" });
+                setItems([defaultItem()]); setEditingId(null); setShowForm(true);
+              }}
+              data-testid="button-add-assessment"
+            >
+              <Plus className="w-4 h-4" />새 평가 등록
+            </Button>
           )}
         </div>
+      </div>
 
-        {/* 엑셀 다운로드 + 선택 버튼 */}
-        <div className="flex items-center gap-1.5">
-          {canEditRiskAssessment && (
+      {/* 탭 */}
+      <div className="flex items-center gap-1 border-b">
+        {(["dashboard", "list"] as const).map(tab => (
+          <button
+            key={tab}
+            onClick={() => { setActiveTab(tab); setSelectionMode(false); setSelectedIds(new Set()); setSelectedId(null); }}
+            className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${activeTab === tab ? "border-orange-500 text-orange-600" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+          >
+            {tab === "dashboard" ? "📊 대시보드" : "📋 목록 관리"}
+          </button>
+        ))}
+        {activeTab === "list" && canEditRiskAssessment && (
+          <div className="ml-auto pb-1">
             <Button
               variant={selectionMode ? "default" : "outline"}
               size="sm"
-              className={`gap-1 h-8 text-xs px-3 ${selectionMode ? "bg-red-500 hover:bg-red-600 text-white" : ""}`}
+              className={`gap-1.5 h-8 ${selectionMode ? "bg-red-500 hover:bg-red-600 text-white" : ""}`}
               onClick={() => { setSelectionMode(v => !v); setSelectedIds(new Set()); }}
               data-testid="button-toggle-selection"
             >
               <CheckSquare className="w-3.5 h-3.5" />
-              {selectionMode ? "취소" : "선택"}
+              {selectionMode ? `취소${selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}` : "선택"}
             </Button>
-          )}
-          {canDownloadRiskAssessmentExcel && (
-            <>
-              <Button variant="outline" size="sm" className="gap-1 text-green-700 border-green-300 hover:bg-green-50 h-8 text-xs px-3" onClick={() => handleDownloadExcel("전체")} disabled={isDownloading} data-testid="button-download-all">
-                {isDownloading ? <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-green-700" /> : <Download className="w-3.5 h-3.5" />}전체 엑셀
-              </Button>
-              {filterDept !== "전체" && (
-                <Button variant="outline" size="sm" className="gap-1 text-blue-700 border-blue-300 hover:bg-blue-50 h-8 text-xs px-3" onClick={() => handleDownloadExcel(filterDept)} disabled={isDownloading} data-testid="button-download-dept">
-                  {isDownloading ? <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-700" /> : <FileDown className="w-3.5 h-3.5" />}{filterDept} 엑셀
-                </Button>
-              )}
-            </>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
-      {/* 목록 + 상세 패널 */}
-      <div className={`flex gap-3 ${selectedItem ? "items-start" : ""}`}>
-        {/* 카드 목록 */}
-        <div className={`flex-1 min-w-0 space-y-2`}>
-          {isLoading ? (
-            <div className="flex items-center justify-center py-12 text-muted-foreground">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mr-2" />로딩 중...
-            </div>
-          ) : filteredAssessments.length === 0 ? (
-            <Card className="border-dashed">
-              <CardContent className="py-12 text-center text-muted-foreground text-sm">
-                {filterGrade ? `${filterGrade}등급 항목이 없습니다.` : filterDept === "전체" ? "등록된 평가가 없습니다." : `${filterDept} 평가가 없습니다.`}
+      {/* ===== 대시보드 탭 ===== */}
+      {activeTab === "dashboard" && (
+        <div className="space-y-4">
+          {/* 평가 구분 선택 */}
+          <div className="flex items-center gap-2">
+            <Select value={activeType} onValueChange={v => { setActiveType(v); setFilterGrade(null); }}>
+              <SelectTrigger className="h-9 text-sm w-[180px] font-medium border-orange-200 bg-orange-50 dark:bg-orange-900/20 dark:border-orange-800 text-orange-700 dark:text-orange-300" data-testid="select-assessment-type">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {ASSESSMENT_OPTIONS.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* 요약 카드 4종 */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[
+              { label: "전체", value: filteredByDept.length, icon: Shield, color: "text-slate-600", bg: "bg-slate-100" },
+              { label: "A등급 (중점관리)", value: riskStats?.["A등급"] ?? 0, icon: AlertCircle, color: "text-orange-600", bg: "bg-orange-100" },
+              { label: "B등급 (일상관리)", value: riskStats?.["B등급"] ?? 0, icon: Clock, color: "text-slate-600", bg: "bg-slate-100" },
+              { label: "C등급 (허용가능)", value: riskStats?.["C등급"] ?? 0, icon: CheckCircle2, color: "text-blue-600", bg: "bg-blue-100" },
+            ].map(({ label, value, icon: Icon, color, bg }) => (
+              <Card key={label}>
+                <CardContent className="p-3 sm:p-4 flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${bg}`}>
+                    <Icon className={`w-5 h-5 ${color}`} />
+                  </div>
+                  <div>
+                    <p className="text-[11px] text-muted-foreground">{label}</p>
+                    <p className={`text-xl font-bold ${color}`}>{value}<span className="text-xs font-normal text-muted-foreground ml-1">건</span></p>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {/* 차트 2종 */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Card>
+              <CardHeader className="pb-2 pt-4 px-4">
+                <CardTitle className="text-sm flex items-center gap-2"><BarChart3 className="w-4 h-4 text-orange-500" />위험유형별 분포</CardTitle>
+              </CardHeader>
+              <CardContent className="px-3 pb-4">
+                {typeStats.length === 0 ? (
+                  <div className="h-32 flex items-center justify-center text-muted-foreground text-sm">데이터 없음</div>
+                ) : (
+                  <div style={{ height: Math.max(120, typeStats.length * 40) + "px" }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart layout="vertical" data={typeStats} margin={{ top: 4, right: 40, left: 4, bottom: 4 }}>
+                        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" opacity={0.5} />
+                        <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                        <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fontWeight: 600 }} axisLine={false} tickLine={false} width={80} />
+                        <Tooltip formatter={(v) => [`${v}건`]} />
+                        <Bar dataKey="value" radius={[0, 6, 6, 0]} maxBarSize={26} label={{ position: "right", fontSize: 12, fontWeight: 700 }}>
+                          {typeStats.map((_, i) => <Cell key={i} fill={["#f97316","#fb923c","#fdba74","#fde68a","#64748b","#94a3b8","#60a5fa"][i % 7]} />)}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
               </CardContent>
             </Card>
+
+            <Card>
+              <CardHeader className="pb-2 pt-4 px-4">
+                <CardTitle className="text-sm flex items-center gap-2"><TrendingUp className="w-4 h-4 text-indigo-500" />부서별 등록건수</CardTitle>
+              </CardHeader>
+              <CardContent className="px-3 pb-4">
+                {deptStats.length === 0 ? (
+                  <div className="h-32 flex items-center justify-center text-muted-foreground text-sm">데이터 없음</div>
+                ) : (
+                  <div style={{ height: Math.max(120, deptStats.length * 40) + "px" }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart layout="vertical" data={deptStats} margin={{ top: 4, right: 40, left: 4, bottom: 4 }}>
+                        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" opacity={0.5} />
+                        <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                        <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fontWeight: 600 }} axisLine={false} tickLine={false} width={60} />
+                        <Tooltip formatter={(v) => [`${v}건`]} />
+                        <Bar dataKey="value" fill="#8b5cf6" radius={[0, 6, 6, 0]} maxBarSize={26} label={{ position: "right", fontSize: 12, fontWeight: 700 }} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* A등급 중점관리 목록 */}
+          <Card>
+            <CardHeader className="pb-2 pt-4 px-4">
+              <CardTitle className="text-sm flex items-center gap-2"><AlertCircle className="w-4 h-4 text-orange-500" />A등급 중점관리 (미개선)</CardTitle>
+            </CardHeader>
+            <CardContent className="px-3 pb-4 space-y-2">
+              {(filteredByDept.filter(a => {
+                const lvl = a.riskLevel || "";
+                return (lvl === "A등급" || (!lvl && a.riskScore >= 8)) && (a as any).improvementStatus !== "완료";
+              }).slice(0, 5)).length === 0 ? (
+                <div className="py-6 text-center text-muted-foreground text-sm">A등급 미개선 항목이 없습니다</div>
+              ) : filteredByDept.filter(a => {
+                const lvl = a.riskLevel || "";
+                return (lvl === "A등급" || (!lvl && a.riskScore >= 8)) && (a as any).improvementStatus !== "완료";
+              }).slice(0, 5).map(a => (
+                <div key={a.id} onClick={() => { setActiveTab("list"); setSelectedId(a.id); }} className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-muted/40 cursor-pointer transition-colors border border-transparent hover:border-border">
+                  <div className="w-9 h-9 rounded-lg bg-orange-100 flex items-center justify-center shrink-0">
+                    <AlertCircle className="w-4 h-4 text-orange-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-semibold truncate">{a.hazard}</span>
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-500 text-white">A등급 {a.riskScore}점</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground truncate">{a.department} · {a.assessmentDate}</p>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          {/* 위험성 계산표 */}
+          <Card className="shadow-sm">
+            <CardHeader className="pb-2 pt-4 px-4">
+              <CardTitle className="text-sm">위험성 계산표 (가능성 × 중대성)</CardTitle>
+            </CardHeader>
+            <CardContent className="p-3">
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse text-[10px]" style={{ minWidth: 380 }} data-testid="risk-matrix">
+                  <thead>
+                    <tr>
+                      <th className="border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800 p-1 text-center align-middle min-w-[60px]">
+                        <div className="text-[9px] text-muted-foreground leading-tight">중대성</div>
+                        <div className="text-[9px] font-normal text-muted-foreground leading-tight">가능성</div>
+                      </th>
+                      {[1, 2, 3, 4].map(s => (
+                        <th key={s} className="border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/60 p-1 text-center">
+                          <div className="text-[10px] font-bold leading-tight">{CRITICALITY_LABELS[s]}</div>
+                          <div className="text-[9px] text-muted-foreground font-normal leading-tight">({s})</div>
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[5, 4, 3, 2, 1].map(f => (
+                      <tr key={f}>
+                        <td className="border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/60 p-1 text-center">
+                          <div className="text-[10px] font-bold leading-tight">{PROBABILITY_LABELS[f]}</div>
+                          <div className="text-[9px] text-muted-foreground leading-tight">({f})</div>
+                        </td>
+                        {[1, 2, 3, 4].map(s => {
+                          const score = f * s;
+                          const { grade, category } = getRiskGrade(score);
+                          const style = getMatrixStyle(score);
+                          return (
+                            <td key={s} className={`border ${style.border} ${style.bg} ${style.text} p-1 text-center`}>
+                              <div className="text-[9px] font-semibold leading-tight">{category}</div>
+                              <div className="text-[11px] font-bold">({score})</div>
+                              <span className={`text-[8px] font-bold px-1 py-px rounded-full inline-block ${grade === "A" ? "bg-orange-500 text-white" : grade === "B" ? "bg-slate-500 text-white" : "bg-blue-400 text-white"}`}>{grade}등급</span>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-1.5">
+                <div className="flex items-start gap-1.5 p-1.5 rounded-md border border-orange-200 bg-orange-50 dark:bg-orange-950/30 dark:border-orange-800">
+                  <span className="shrink-0 mt-0.5 bg-orange-500 text-white text-[9px] font-bold px-1 py-0.5 rounded-full">A등급</span>
+                  <div><p className="text-[10px] font-semibold text-orange-800 dark:text-orange-300">중점관리 위험도 (8~20)</p><p className="text-[9px] text-orange-700 dark:text-orange-400">중대재해 연계 가능성 높음</p></div>
+                </div>
+                <div className="flex items-start gap-1.5 p-1.5 rounded-md border border-slate-200 bg-slate-50 dark:bg-slate-800/50 dark:border-slate-600">
+                  <span className="shrink-0 mt-0.5 bg-slate-500 text-white text-[9px] font-bold px-1 py-0.5 rounded-full">B등급</span>
+                  <div><p className="text-[10px] font-semibold text-slate-700 dark:text-slate-300">일상관리 위험도 (3~7)</p><p className="text-[9px] text-slate-600 dark:text-slate-400">안전 대책으로 예방 가능</p></div>
+                </div>
+                <div className="flex items-start gap-1.5 p-1.5 rounded-md border border-blue-100 bg-blue-50/50 dark:bg-blue-950/20 dark:border-blue-900">
+                  <span className="shrink-0 mt-0.5 bg-blue-400 text-white text-[9px] font-bold px-1 py-0.5 rounded-full">C등급</span>
+                  <div><p className="text-[10px] font-semibold text-blue-800 dark:text-blue-300">허용가능 위험도 (1~2)</p><p className="text-[9px] text-blue-700 dark:text-blue-400">일상관리로 예방 가능</p></div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* ===== 목록 관리 탭 ===== */}
+      {activeTab === "list" && (
+        <div className="space-y-3">
+          {/* 필터 바 */}
+          <div className="flex flex-col sm:flex-row gap-2">
+            <div className="relative flex-1">
+              <Input placeholder="위험요인, 부서, 공정 검색..." value={search} onChange={e => setSearch(e.target.value)} className="pr-8" data-testid="input-search" />
+              <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            </div>
+            <Select value={activeType} onValueChange={v => { setActiveType(v); setFilterGrade(null); setSelectedId(null); }}>
+              <SelectTrigger className="w-full sm:w-44 h-9 text-sm border-orange-200 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300" data-testid="select-assessment-type-list">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {ASSESSMENT_OPTIONS.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={filterDept} onValueChange={v => { setFilterDept(v); setFilterGrade(null); setSelectedId(null); }}>
+              <SelectTrigger className="w-full sm:w-36" data-testid="select-filter-dept">
+                <Filter className="w-3.5 h-3.5 mr-1" /><SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="전체">전체 부서</SelectItem>
+                {DEPARTMENTS.map(dept => <SelectItem key={dept} value={dept}>{dept}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* 등급 필터 배지 + 전체선택 */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {riskStats && (Object.entries(riskStats) as [string, number][]).map(([level, count]) => {
+              const gradeKey = level[0];
+              const isActive = filterGrade === gradeKey;
+              return (
+                <button key={level} type="button" onClick={() => setFilterGrade(isActive ? null : gradeKey)}
+                  className={`inline-flex items-center gap-1 rounded-full text-xs font-semibold px-2.5 py-0.5 transition-all border-2 ${isActive ? `${getRiskBadgeClass(level)} border-white ring-2 ring-offset-1 ring-current scale-105 shadow-md` : `${getRiskBadgeClass(level)} border-transparent opacity-70 hover:opacity-100 hover:scale-105`}`}
+                  data-testid={`stat-${level}`}>{level} {count}건</button>
+              );
+            })}
+            <span className="text-xs text-muted-foreground font-medium px-1.5 py-0.5 bg-muted rounded-full border">총 {filteredByDept.length}건</span>
+            {filterGrade && <button type="button" onClick={() => setFilterGrade(null)} className="text-[10px] text-muted-foreground hover:text-foreground underline">필터 해제</button>}
+          </div>
+
+          {/* 전체 선택 행 */}
+          {selectionMode && filteredAssessments.length > 0 && (
+            <div className="flex items-center gap-3 px-3 py-2 bg-orange-50 dark:bg-orange-900/20 rounded-lg border border-orange-200 dark:border-orange-800">
+              <Checkbox checked={allSelected} onCheckedChange={toggleAll} data-testid="checkbox-select-all" />
+              <span className="text-sm text-orange-700 dark:text-orange-300 font-medium">
+                전체 선택 ({selectedIds.size}/{filteredAssessments.length})
+              </span>
+            </div>
+          )}
+
+          {/* 카드 목록 */}
+          {isLoading ? (
+            <div className="space-y-3">{[1,2,3].map(i => <div key={i} className="h-20 bg-muted/20 animate-pulse rounded-lg" />)}</div>
+          ) : filteredAssessments.length === 0 ? (
+            <div className="py-16 text-center text-muted-foreground">
+              <ShieldAlert className="w-12 h-12 mx-auto mb-3 opacity-30" />
+              <p className="text-sm">{filterGrade ? `${filterGrade}등급 항목이 없습니다.` : "등록된 평가가 없습니다."}</p>
+            </div>
           ) : (
             <AnimatePresence>
               {filteredAssessments.map((item, idx) => {
@@ -783,170 +929,111 @@ export default function RiskAssessmentPage() {
                 return (
                   <motion.div
                     key={item.id}
-                    initial={{ opacity: 0, y: 6 }}
+                    initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0 }}
+                    transition={{ delay: idx * 0.02 }}
                     data-testid={`card-assessment-${item.id}`}
                   >
-                    <Card
-                      className={`cursor-pointer transition-all duration-150 hover:shadow-md ${selectionMode && selectedIds.has(item.id) ? "border-red-400 bg-red-50/50 dark:bg-red-900/20" : isSelected ? "border-orange-400 shadow-md ring-1 ring-orange-300 dark:ring-orange-700" : "border-border hover:border-orange-200 dark:hover:border-orange-800"}`}
+                    <div
                       onClick={() => selectionMode ? toggleSelect(item.id) : setSelectedId(isSelected ? null : item.id)}
+                      className={`border rounded-lg p-3 sm:p-4 cursor-pointer transition-colors ${
+                        selectionMode && selectedIds.has(item.id)
+                          ? "bg-red-50 border-red-300 dark:bg-red-900/20 dark:border-red-700"
+                          : isSelected
+                          ? "border-orange-400 bg-orange-50/30 dark:bg-orange-900/10"
+                          : "hover:bg-orange-50/40 dark:hover:bg-orange-900/10"
+                      }`}
                     >
-                      <CardContent className="px-2.5 py-2">
-                        {/* 상단: 번호 + 경로 + 유해위험요인 */}
-                        <div className="flex items-start gap-2 min-w-0">
-                          {selectionMode ? (
-                            <Checkbox
-                              checked={selectedIds.has(item.id)}
-                              onCheckedChange={() => toggleSelect(item.id)}
-                              onClick={e => e.stopPropagation()}
-                              className="shrink-0 mt-0.5"
-                              data-testid={`checkbox-assessment-${item.id}`}
-                            />
-                          ) : (
-                            <span className="shrink-0 text-[10px] font-bold text-muted-foreground tabular-nums w-4 text-center pt-0.5">{idx + 1}</span>
-                          )}
-                          <div className="min-w-0 flex-1">
-                            {/* 조직 경로 */}
-                            <div className="flex items-center gap-0.5 text-[10px] text-muted-foreground mb-0.5">
-                              <MapPin className="w-2.5 h-2.5 shrink-0 text-orange-400" />
-                              <span>{division}</span>
-                              <ChevronRight className="w-2.5 h-2.5 opacity-40" />
-                              <span className="font-medium text-foreground/80">{shortName}</span>
-                              {item.assessor && <><ChevronRight className="w-2.5 h-2.5 opacity-40" /><span className="text-foreground/70">{item.assessor}</span></>}
-                            </div>
-                            {/* 유해위험요인 */}
-                            <p className="text-[13px] font-semibold text-foreground leading-snug line-clamp-1">{item.hazard}</p>
+                      <div className="flex items-start gap-3">
+                        {selectionMode ? (
+                          <Checkbox
+                            checked={selectedIds.has(item.id)}
+                            onCheckedChange={() => toggleSelect(item.id)}
+                            onClick={e => e.stopPropagation()}
+                            className="mt-0.5 shrink-0"
+                            data-testid={`checkbox-assessment-${item.id}`}
+                          />
+                        ) : (
+                          <div className="shrink-0 w-10 h-10 rounded-lg bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center text-orange-600 dark:text-orange-400">
+                            <ShieldAlert className="w-5 h-5" />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap mb-1">
+                            <span className="font-semibold text-sm truncate">{item.hazard}</span>
+                            <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${getRiskBadgeClass(grade.label)}`}>{grade.label} {item.riskScore}점</span>
+                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold shrink-0 ${isTypeSuji ? "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300" : "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"}`}>{isTypeSuji ? "수시" : "정기"}</span>
+                            {getApprovalBadge(ra.approvalStatus)}
+                          </div>
+                          <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+                            <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{shortName}</span>
+                            <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{item.assessmentDate}</span>
+                            {item.hazardType && <span>{item.hazardType}</span>}
                           </div>
                         </div>
-
-                        {/* 하단: 모든 메타 정보 + 등급 + 승인 + 개선 + 상세보기 한 줄 */}
-                        <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                          {/* 평가 구분 */}
-                          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold shrink-0 ${isTypeSuji ? "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300" : "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"}`}>
-                            {isTypeSuji ? "수시" : "정기"}
-                          </span>
-                          {/* 등급 + 점수 */}
-                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${getRiskBadgeClass(grade.label)}`}>
-                            {grade.label} {item.riskScore}점
-                          </span>
-                          {/* 승인 상태 */}
-                          {getApprovalBadge(ra.approvalStatus)}
-                          {/* 개선 상태 */}
-                          {grade.grade === "A" && ra.improvementStatus && ra.improvementStatus !== "미완료" && (
-                            <span className={`inline-flex items-center text-[9px] font-medium px-1.5 py-0.5 rounded-full shrink-0 ${ra.improvementStatus === "완료" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"}`}>
-                              개선{ra.improvementStatus}
-                            </span>
-                          )}
-                          {/* 날짜 */}
-                          <span className="text-[10px] text-muted-foreground ml-auto shrink-0">
-                            {item.assessmentDate}
-                          </span>
-                          {/* 상세보기 */}
-                          <span className="text-[10px] text-muted-foreground flex items-center gap-0.5 shrink-0 font-medium">
-                            {isSelected ? <><ChevronDown className="w-3 h-3" />접기</> : <><ChevronRight className="w-3 h-3" />상세</>}
-                          </span>
-                        </div>
-                      </CardContent>
-                    </Card>
+                        {!selectionMode && <ChevronDown className={`w-4 h-4 text-muted-foreground shrink-0 transition-transform ${isSelected ? "rotate-180" : ""}`} />}
+                      </div>
+                    </div>
 
                     {/* 인라인 상세 패널 */}
                     <AnimatePresence>
                       {isSelected && (
-                        <motion.div
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: "auto" }}
-                          exit={{ opacity: 0, height: 0 }}
-                          transition={{ duration: 0.2 }}
-                        >
-                          <Card className="border-t-0 rounded-t-none border-orange-300 dark:border-orange-700 shadow-md">
-                            <CardContent className="p-4 space-y-3">
-                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                                <div><span className="text-muted-foreground block mb-0.5">부서</span><span className="font-medium">{item.department}</span></div>
-                                <div><span className="text-muted-foreground block mb-0.5">평가 구분</span><span className="font-medium">{ASSESSMENT_OPTIONS.find(o => o.value === item.assessmentType)?.label || item.assessmentType}</span></div>
-                                <div><span className="text-muted-foreground block mb-0.5">담당업무</span><span className="font-medium">{ra.responsibleTask || "-"}</span></div>
-                                <div><span className="text-muted-foreground block mb-0.5">공정명</span><span className="font-medium">{item.process || "-"}</span></div>
-
+                        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.2 }}>
+                          <div className="border border-t-0 rounded-b-lg border-orange-200 dark:border-orange-800 bg-orange-50/20 dark:bg-orange-900/10 px-4 pb-4 pt-3 space-y-3">
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                              <div><span className="text-muted-foreground block mb-0.5">부서</span><span className="font-medium">{item.department}</span></div>
+                              <div><span className="text-muted-foreground block mb-0.5">평가 구분</span><span className="font-medium">{ASSESSMENT_OPTIONS.find(o => o.value === item.assessmentType)?.label || item.assessmentType}</span></div>
+                              <div><span className="text-muted-foreground block mb-0.5">담당업무</span><span className="font-medium">{ra.responsibleTask || "-"}</span></div>
+                              <div><span className="text-muted-foreground block mb-0.5">공정명</span><span className="font-medium">{item.process || "-"}</span></div>
+                            </div>
+                            <Separator />
+                            <div className="space-y-2 text-xs">
+                              {ra.currentIssue && <div><span className="text-muted-foreground font-semibold">현황 및 문제점</span><p className="mt-0.5 text-foreground/80 leading-relaxed">{ra.currentIssue}</p></div>}
+                              <div><span className="text-muted-foreground font-semibold">유해위험요인</span><p className="mt-0.5 text-foreground font-medium">{item.hazard}</p></div>
+                              {ra.relatedLaw && <div><span className="text-muted-foreground font-semibold">관련법규</span><p className="mt-0.5 text-foreground/80">{ra.relatedLaw}</p></div>}
+                              {item.currentControls && <div><span className="text-muted-foreground font-semibold">현재 안전조치</span><p className="mt-0.5 text-foreground/80 leading-relaxed">{item.currentControls}</p></div>}
+                            </div>
+                            <div className="flex items-center gap-3 p-2 bg-muted/40 rounded-lg text-xs">
+                              <span className="text-muted-foreground">가능성</span><span className="font-bold">{item.frequency} ({PROBABILITY_LABELS[item.frequency]})</span>
+                              <span className="text-muted-foreground ml-2">중대성</span><span className="font-bold">{item.severity} ({CRITICALITY_LABELS[item.severity]})</span>
+                              <span className="text-muted-foreground ml-2">위험도</span>
+                              <span className={`font-bold px-2 py-0.5 rounded-full text-xs ${getRiskBadgeClass(grade.label)}`}>{item.riskScore}점 {grade.label}</span>
+                            </div>
+                            {(ra.beforePhotoUrl || ra.afterPhotoUrl) && (
+                              <div className="flex gap-4 flex-wrap">
+                                {ra.beforePhotoUrl && <div><p className="text-xs text-muted-foreground font-semibold mb-1">개선 전 사진</p><img src={ra.beforePhotoUrl} alt="개선 전" className="h-24 w-36 object-cover rounded-md border" /></div>}
+                                {ra.afterPhotoUrl && <div><p className="text-xs text-muted-foreground font-semibold mb-1">개선 후 사진</p><img src={ra.afterPhotoUrl} alt="개선 후" className="h-24 w-36 object-cover rounded-md border" /></div>}
                               </div>
-
-                              <Separator />
-
-                              <div className="space-y-2 text-xs">
-                                {ra.currentIssue && (
-                                  <div><span className="text-muted-foreground font-semibold">현황 및 문제점</span><p className="mt-0.5 text-foreground/80 leading-relaxed">{ra.currentIssue}</p></div>
-                                )}
-                                <div><span className="text-muted-foreground font-semibold">유해위험요인</span><p className="mt-0.5 text-foreground font-medium">{item.hazard}</p></div>
-                                {ra.relatedLaw && (
-                                  <div><span className="text-muted-foreground font-semibold">관련법규</span><p className="mt-0.5 text-foreground/80">{ra.relatedLaw}</p></div>
-                                )}
-                                {item.currentControls && (
-                                  <div><span className="text-muted-foreground font-semibold">현재 안전조치</span><p className="mt-0.5 text-foreground/80 leading-relaxed">{item.currentControls}</p></div>
-                                )}
-                              </div>
-
-                              <div className="flex items-center gap-3 p-2 bg-muted/40 rounded-lg text-xs">
-                                <span className="text-muted-foreground">가능성</span><span className="font-bold">{item.frequency} ({PROBABILITY_LABELS[item.frequency]})</span>
-                                <span className="text-muted-foreground ml-2">중대성</span><span className="font-bold">{item.severity} ({CRITICALITY_LABELS[item.severity]})</span>
-                                <span className="text-muted-foreground ml-2">위험도</span>
-                                <span className={`font-bold px-2 py-0.5 rounded-full text-xs ${getRiskBadgeClass(grade.label)}`}>{item.riskScore}점 {grade.label}</span>
-                              </div>
-
-                              {/* 사진 */}
-                              {(ra.beforePhotoUrl || ra.afterPhotoUrl) && (
-                                <div className="flex gap-4 flex-wrap">
-                                  {ra.beforePhotoUrl && (
-                                    <div>
-                                      <p className="text-xs text-muted-foreground font-semibold mb-1">개선 전 사진</p>
-                                      <img src={ra.beforePhotoUrl} alt="개선 전" className="h-24 w-36 object-cover rounded-md border" />
-                                    </div>
-                                  )}
-                                  {ra.afterPhotoUrl && (
-                                    <div>
-                                      <p className="text-xs text-muted-foreground font-semibold mb-1">개선 후 사진</p>
-                                      <img src={ra.afterPhotoUrl} alt="개선 후" className="h-24 w-36 object-cover rounded-md border" />
-                                    </div>
-                                  )}
+                            )}
+                            {grade.grade === "A" && ra.improvementMeasures && (
+                              <div className="p-2 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800 text-xs space-y-1">
+                                <p className="font-semibold text-green-700 dark:text-green-400">개선 내용</p>
+                                <p>{ra.improvementMeasures}</p>
+                                <div className="flex gap-3 text-muted-foreground">
+                                  {ra.plannedDate && <span>예정일: {ra.plannedDate}</span>}
+                                  {ra.completionDate && <span>완료일: {ra.completionDate}</span>}
                                 </div>
+                              </div>
+                            )}
+                            <div className="flex gap-2 pt-1 flex-wrap">
+                              {isDeptHead && grade.grade === "A" && (
+                                <Button variant="outline" size="sm" className="h-8 px-3 text-xs gap-1 border-orange-300 text-orange-700 hover:bg-orange-50" onClick={() => openImprovementDialog(item)} data-testid={`button-improvement-${item.id}`}>
+                                  <ClipboardEdit className="w-3.5 h-3.5" />개선 등록
+                                </Button>
                               )}
-
-                              {/* A등급 개선 정보 */}
-                              {grade.grade === "A" && ra.improvementMeasures && (
-                                <div className="p-2 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800 text-xs space-y-1">
-                                  <p className="font-semibold text-green-700 dark:text-green-400">개선 내용</p>
-                                  <p>{ra.improvementMeasures}</p>
-                                  <div className="flex gap-3 text-muted-foreground">
-                                    {ra.plannedDate && <span>예정일: {ra.plannedDate}</span>}
-                                    {ra.completionDate && <span>완료일: {ra.completionDate}</span>}
-                                  </div>
-                                  {ra.afterRiskScore && (
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-muted-foreground">개선후 위험도:</span>
-                                      <span className={`font-bold px-1.5 py-0.5 rounded-full text-[11px] ${getRiskBadgeClass(ra.afterRiskLevel || "")}`}>{ra.afterRiskScore}점 {ra.afterRiskLevel}</span>
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-
-                              {/* 관리 버튼 */}
-                              <div className="flex gap-2 pt-1 flex-wrap">
-                                {isDeptHead && grade.grade === "A" && (
-                                  <Button variant="outline" size="sm" className="h-8 px-3 text-xs gap-1 border-orange-300 text-orange-700 hover:bg-orange-50" onClick={() => openImprovementDialog(item)} data-testid={`button-improvement-${item.id}`}>
-                                    <ClipboardEdit className="w-3.5 h-3.5" />개선 등록
+                              {canEditRiskAssessment && isOwner(item) && (
+                                <>
+                                  <Button variant="outline" size="sm" className="h-8 px-3 text-xs gap-1" onClick={() => handleEdit(item)} data-testid={`button-edit-${item.id}`}>
+                                    <Pencil className="w-3.5 h-3.5" />수정
                                   </Button>
-                                )}
-                                {canEditRiskAssessment && isOwner(item) && (
-                                  <>
-                                    <Button variant="outline" size="sm" className="h-8 px-3 text-xs gap-1" onClick={() => handleEdit(item)} data-testid={`button-edit-${item.id}`}>
-                                      <Pencil className="w-3.5 h-3.5" />수정
-                                    </Button>
-                                    <Button variant="outline" size="sm" className="h-8 px-3 text-xs gap-1 border-red-200 text-red-600 hover:bg-red-50" onClick={() => handleDelete(item.id)} data-testid={`button-delete-${item.id}`}>
-                                      <Trash2 className="w-3.5 h-3.5" />삭제
-                                    </Button>
-                                  </>
-                                )}
-                              </div>
-                            </CardContent>
-                          </Card>
+                                  <Button variant="outline" size="sm" className="h-8 px-3 text-xs gap-1 border-red-200 text-red-600 hover:bg-red-50" onClick={() => handleDelete(item.id)} data-testid={`button-delete-${item.id}`}>
+                                    <Trash2 className="w-3.5 h-3.5" />삭제
+                                  </Button>
+                                </>
+                              )}
+                            </div>
+                          </div>
                         </motion.div>
                       )}
                     </AnimatePresence>
@@ -956,7 +1043,26 @@ export default function RiskAssessmentPage() {
             </AnimatePresence>
           )}
         </div>
-      </div>
+      )}
+
+      {/* 플로팅 벌크 삭제 바 */}
+      {selectionMode && selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-background border border-border shadow-xl rounded-full px-5 py-3">
+          <span className="text-sm font-semibold text-orange-600">{selectedIds.size}건 선택됨</span>
+          <div className="w-px h-5 bg-border" />
+          <Button variant="ghost" size="sm" className="h-8 text-muted-foreground" onClick={() => setSelectedIds(new Set())}>
+            <X className="w-3.5 h-3.5 mr-1" />선택 해제
+          </Button>
+          <Button
+            variant="destructive" size="sm" className="h-8"
+            onClick={() => { if (confirm(`선택한 ${selectedIds.size}건을 삭제하시겠습니까?`)) bulkDeleteMutation.mutate(Array.from(selectedIds)); }}
+            disabled={bulkDeleteMutation.isPending}
+            data-testid="button-bulk-delete"
+          >
+            <Trash2 className="w-3.5 h-3.5 mr-1" />삭제
+          </Button>
+        </div>
+      )}
 
       {/* 등록/수정 다이얼로그 */}
       <Dialog open={showForm} onOpenChange={(open) => { if (!open) resetForm(); }}>
