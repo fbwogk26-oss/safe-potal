@@ -6,7 +6,7 @@ import { z } from "zod";
 import rateLimit from "express-rate-limit";
 import { createHash } from "crypto";
 import { db } from "./db";
-import { teams, trafficFines, accidentReports, educationSignatures } from "@shared/schema";
+import { teams, trafficFines, accidentReports, educationSignatures, safetyInspections } from "@shared/schema";
 import { eq, and, count, sql } from "drizzle-orm";
 import multer from "multer";
 import path from "path";
@@ -2207,7 +2207,38 @@ export async function registerRoutes(
           .where(eq(accidentReports.id, accident.id));
       }
 
-      // ── 2. 전자게시판 슬라이드 정리 ──────────────────────────────
+      // ── 2. 안전점검 이미지 복구 ───────────────────────────────────
+      const inspections = await db.select().from(safetyInspections);
+      for (const insp of inspections) {
+        const imgs: string[] = Array.isArray(insp.images) ? (insp.images as string[]) : [];
+        const hasBroken = imgs.some(img => img.startsWith("/uploads/"));
+        if (!hasBroken) continue;
+
+        const fixedImages: string[] = [];
+        for (const imgPath of imgs) {
+          if (!imgPath.startsWith("/uploads/")) {
+            fixedImages.push(imgPath);
+            continue;
+          }
+          const filename = imgPath.replace("/uploads/", "");
+          const localPath = path.join(uploadDir, filename);
+          if (fs.existsSync(localPath)) {
+            const buf = fs.readFileSync(localPath);
+            const ext = filename.split(".").pop()?.toLowerCase() || "jpg";
+            const mime = ext === "png" ? "image/png" : ext === "gif" ? "image/gif" : "image/jpeg";
+            const objUrl = await uploadToObjectStorage(buf, filename, mime);
+            if (objUrl) { fixedImages.push(objUrl); results.recovered++; }
+            else results.removed++;
+          } else {
+            results.removed++; // 파일 없음 → 참조 제거
+          }
+        }
+        await db.update(safetyInspections)
+          .set({ images: fixedImages })
+          .where(eq(safetyInspections.id, insp.id));
+      }
+
+      // ── 3. 전자게시판 슬라이드 정리 ──────────────────────────────
       const slides = await storage.getNotices("digital_board");
       for (const slide of slides) {
         try {
