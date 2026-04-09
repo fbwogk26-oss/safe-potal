@@ -5,7 +5,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ShieldCheck, Plus, Trash2, Search, ImagePlus, X, Eye, FileText, Calendar, Image, CheckSquare } from "lucide-react";
+import {
+  ShieldCheck, Plus, Trash2, Search, ImagePlus, X, Eye, FileText,
+  Calendar, Image, CheckSquare, FileUp, Download, Loader2,
+} from "lucide-react";
 import { useState, useMemo, useRef } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -16,10 +19,32 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
+type Attachment = { url: string; name: string; type: "image" | "pdf" };
+
+const MAX_IMAGES = 3;
+
+async function uploadFile(file: File): Promise<string> {
+  const urlRes = await fetch("/api/uploads/request-url", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type }),
+  });
+  if (!urlRes.ok) throw new Error("URL 요청 실패");
+  const { uploadURL, objectPath } = await urlRes.json();
+  const putRes = await fetch(uploadURL, {
+    method: "PUT",
+    body: file,
+    headers: { "Content-Type": file.type },
+  });
+  if (!putRes.ok) throw new Error("업로드 실패");
+  return objectPath as string;
+}
+
 export default function Rules() {
-  const { canRegisterRules, canDownloadRulesFiles } = usePermissions();
+  const { canRegisterRules } = usePermissions();
   const { user } = useAuth();
-  const isOwner = (createdBy?: string | null) => !createdBy || user?.role === "admin" || user?.username === createdBy;
+  const isOwner = (createdBy?: string | null) =>
+    !createdBy || user?.role === "admin" || user?.username === createdBy;
   const { data: rules, isLoading } = useNotices("rule");
   const { mutate: createRule, isPending: isCreating } = useCreateNotice();
   const { mutate: deleteRule } = useDeleteNotice();
@@ -30,74 +55,99 @@ export default function Rules() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [uploadingIdx, setUploadingIdx] = useState<string | null>(null);
   const [selectedRule, setSelectedRule] = useState<{
     id: number;
     category: string;
     title: string;
     content: string;
     imageUrl: string | null;
+    attachments?: Attachment[] | null;
     createdAt: Date | null;
     createdBy?: string | null;
   } | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const pdfInputRef = useRef<HTMLInputElement>(null);
 
   const filteredRules = useMemo(() => {
     if (!rules) return [];
     if (!searchQuery.trim()) return rules;
     const query = searchQuery.toLowerCase();
-    return rules.filter(rule => 
-      rule.title.toLowerCase().includes(query) || 
-      rule.content.toLowerCase().includes(query)
+    return rules.filter(
+      (rule) =>
+        rule.title.toLowerCase().includes(query) ||
+        rule.content.toLowerCase().includes(query)
     );
   }, [rules, searchQuery]);
 
+  const imageAttachments = attachments.filter((a) => a.type === "image");
+  const pdfAttachment = attachments.find((a) => a.type === "pdf");
+
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+
+    const remaining = MAX_IMAGES - imageAttachments.length;
+    const toUpload = files.slice(0, remaining);
+
+    for (const file of toUpload) {
+      setUploadingIdx(file.name);
+      try {
+        const url = await uploadFile(file);
+        setAttachments((prev) => [...prev, { url, name: file.name, type: "image" }]);
+      } catch {
+        toast({ variant: "destructive", title: `${file.name} 업로드 실패` });
+      }
+    }
+    setUploadingIdx(null);
+    if (imageInputRef.current) imageInputRef.current.value = "";
+  };
+
+  const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    
-    setIsUploading(true);
-    
+    setUploadingIdx("pdf");
     try {
-      const urlRes = await fetch('/api/uploads/request-url', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: file.name,
-          size: file.size,
-          contentType: file.type,
-        }),
+      const url = await uploadFile(file);
+      setAttachments((prev) => {
+        const withoutPdf = prev.filter((a) => a.type !== "pdf");
+        return [...withoutPdf, { url, name: file.name, type: "pdf" }];
       });
-      const { uploadURL, objectPath } = await urlRes.json();
-      
-      await fetch(uploadURL, {
-        method: 'PUT',
-        body: file,
-        headers: { 'Content-Type': file.type },
-      });
-      
-      setImageUrl(objectPath);
-      toast({ title: "이미지 업로드 완료" });
-    } catch (err) {
-      toast({ variant: "destructive", title: "업로드 실패" });
+      toast({ title: "PDF 업로드 완료" });
+    } catch {
+      toast({ variant: "destructive", title: "PDF 업로드 실패" });
     } finally {
-      setIsUploading(false);
+      setUploadingIdx(null);
+      if (pdfInputRef.current) pdfInputRef.current.value = "";
     }
+  };
+
+  const removeAttachment = (idx: number) => {
+    setAttachments((prev) => prev.filter((_, i) => i !== idx));
   };
 
   const handleAdd = () => {
     if (!title || !content) return;
-    createRule({ title, content, category: "rule", imageUrl: imageUrl || undefined }, {
-      onSuccess: () => {
-        setTitle("");
-        setContent("");
-        setImageUrl(null);
-        setShowAddForm(false);
-        toast({ title: "수칙 추가 완료", description: "새로운 안전 수칙이 게시되었습니다." });
+    createRule(
+      {
+        title,
+        content,
+        category: "rule",
+        imageUrl: imageAttachments[0]?.url || undefined,
+        attachments: attachments.length > 0 ? attachments : undefined,
+      } as any,
+      {
+        onSuccess: () => {
+          setTitle("");
+          setContent("");
+          setAttachments([]);
+          setShowAddForm(false);
+          toast({ title: "수칙 추가 완료", description: "새로운 안전 수칙이 게시되었습니다." });
+        },
       }
-    });
+    );
   };
 
   const handleDelete = (id: number, e?: React.MouseEvent) => {
@@ -113,13 +163,37 @@ export default function Rules() {
     onSuccess: async (res) => {
       const data = await (res as any).json();
       queryClient.invalidateQueries({ queryKey: ["/api/notices"] });
-      setSelectedIds(new Set()); setSelectionMode(false);
+      setSelectedIds(new Set());
+      setSelectionMode(false);
       toast({ title: `${data.deleted ?? selectedIds.size}건 삭제 완료` });
     },
     onError: () => toast({ variant: "destructive", title: "삭제 실패" }),
   });
 
-  const toggleSelect = (id: number) => setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggleSelect = (id: number) =>
+    setSelectedIds((prev) => {
+      const n = new Set(prev);
+      n.has(id) ? n.delete(id) : n.add(id);
+      return n;
+    });
+
+  const getRuleAttachments = (rule: any): Attachment[] => {
+    if (rule.attachments && Array.isArray(rule.attachments)) return rule.attachments;
+    if (rule.imageUrl) return [{ url: rule.imageUrl, name: "이미지", type: "image" }];
+    return [];
+  };
+
+  const getRuleBadge = (rule: any) => {
+    const atts = getRuleAttachments(rule);
+    const imgs = atts.filter((a: Attachment) => a.type === "image");
+    const pdf = atts.find((a: Attachment) => a.type === "pdf");
+    if (pdf && imgs.length > 0) return { label: `이미지${imgs.length}·PDF`, color: "secondary" };
+    if (pdf) return { label: "PDF", color: "secondary" };
+    if (imgs.length > 0) return { label: `이미지 ${imgs.length}`, color: "secondary" };
+    return null;
+  };
+
+  const isUploading = uploadingIdx !== null;
 
   return (
     <div className="max-w-5xl mx-auto space-y-4">
@@ -137,10 +211,10 @@ export default function Rules() {
             </CardTitle>
             <div className="flex items-center gap-2">
               <div className="relative flex-1 sm:w-48">
-                <Input 
-                  placeholder="검색..." 
+                <Input
+                  placeholder="검색..."
                   value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                   className="pr-8 h-9 text-sm bg-white/80 dark:bg-background/80"
                   data-testid="input-search-rules"
                 />
@@ -152,19 +226,22 @@ export default function Rules() {
                     variant={selectionMode ? "default" : "outline"}
                     size="sm"
                     className={`gap-1.5 h-9 ${selectionMode ? "bg-red-500 hover:bg-red-600 text-white" : ""}`}
-                    onClick={() => { setSelectionMode(v => !v); setSelectedIds(new Set()); }}
+                    onClick={() => {
+                      setSelectionMode((v) => !v);
+                      setSelectedIds(new Set());
+                    }}
                     data-testid="button-toggle-selection"
                   >
                     <CheckSquare className="w-4 h-4" />
                     {selectionMode ? "취소" : "선택"}
                   </Button>
-                  <Button 
-                    onClick={() => setShowAddForm(true)} 
+                  <Button
+                    onClick={() => setShowAddForm(true)}
                     size="sm"
                     className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white gap-1.5 h-9"
                     data-testid="button-open-add-rule"
                   >
-                    <Plus className="w-4 h-4" /> 
+                    <Plus className="w-4 h-4" />
                     새 수칙
                   </Button>
                 </>
@@ -175,88 +252,113 @@ export default function Rules() {
         <CardContent className="p-0">
           <div className="divide-y divide-border/50">
             {isLoading ? (
-              [1,2,3,4,5].map(i => (
+              [1, 2, 3, 4, 5].map((i) => (
                 <div key={i} className="h-16 bg-muted/20 animate-pulse" />
               ))
             ) : filteredRules.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 <ShieldCheck className="w-12 h-12 mx-auto mb-3 opacity-30" />
                 <p className="text-sm">
-                  {searchQuery ? `"${searchQuery}"에 대한 검색 결과가 없습니다.` : "아직 등록된 수칙이 없습니다."}
+                  {searchQuery
+                    ? `"${searchQuery}"에 대한 검색 결과가 없습니다.`
+                    : "아직 등록된 수칙이 없습니다."}
                 </p>
                 {!searchQuery && canRegisterRules && (
-                  <Button onClick={() => setShowAddForm(true)} variant="outline" size="sm" className="mt-3 gap-1.5">
+                  <Button
+                    onClick={() => setShowAddForm(true)}
+                    variant="outline"
+                    size="sm"
+                    className="mt-3 gap-1.5"
+                  >
                     <Plus className="w-4 h-4" /> 첫 번째 수칙 추가
                   </Button>
                 )}
               </div>
             ) : (
               <AnimatePresence mode="popLayout">
-                {filteredRules.map((rule, idx) => (
-                  <motion.div
-                    key={rule.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    transition={{ delay: idx * 0.03 }}
-                    onClick={() => selectionMode ? toggleSelect(rule.id) : setSelectedRule(rule)}
-                    className={`group flex items-center gap-4 px-4 py-3 cursor-pointer transition-colors ${selectionMode && selectedIds.has(rule.id) ? "bg-red-50 dark:bg-red-900/20" : "hover:bg-emerald-50/50 dark:hover:bg-emerald-900/10"}`}
-                    data-testid={`row-rule-${rule.id}`}
-                  >
-                    {selectionMode && (
-                      <Checkbox
-                        checked={selectedIds.has(rule.id)}
-                        onCheckedChange={() => toggleSelect(rule.id)}
-                        onClick={e => e.stopPropagation()}
-                        data-testid={`checkbox-rule-${rule.id}`}
-                      />
-                    )}
-                    <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
-                      {rule.imageUrl ? (
-                        <Image className="w-4 h-4" />
-                      ) : (
-                        <FileText className="w-4 h-4" />
+                {filteredRules.map((rule, idx) => {
+                  const badge = getRuleBadge(rule);
+                  return (
+                    <motion.div
+                      key={rule.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      transition={{ delay: idx * 0.03 }}
+                      onClick={() =>
+                        selectionMode ? toggleSelect(rule.id) : setSelectedRule(rule as any)
+                      }
+                      className={`group flex items-center gap-4 px-4 py-3 cursor-pointer transition-colors ${
+                        selectionMode && selectedIds.has(rule.id)
+                          ? "bg-red-50 dark:bg-red-900/20"
+                          : "hover:bg-emerald-50/50 dark:hover:bg-emerald-900/10"
+                      }`}
+                      data-testid={`row-rule-${rule.id}`}
+                    >
+                      {selectionMode && (
+                        <Checkbox
+                          checked={selectedIds.has(rule.id)}
+                          onCheckedChange={() => toggleSelect(rule.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          data-testid={`checkbox-rule-${rule.id}`}
+                        />
                       )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-medium text-sm truncate group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
-                          {rule.title}
-                        </h3>
-                        {rule.imageUrl && (
-                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">첨부</Badge>
+                      <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+                        {badge?.label.includes("PDF") ? (
+                          <FileText className="w-4 h-4" />
+                        ) : badge ? (
+                          <Image className="w-4 h-4" />
+                        ) : (
+                          <FileText className="w-4 h-4" />
                         )}
                       </div>
-                      <p className="text-xs text-muted-foreground truncate mt-0.5">{rule.content}</p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs text-muted-foreground flex items-center gap-1">
-                        <Calendar className="w-3 h-3" />
-                        {rule.createdAt && format(new Date(rule.createdAt), "MM.dd")}
-                      </span>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-emerald-600"
-                        onClick={(e) => { e.stopPropagation(); setSelectedRule(rule); }}
-                        data-testid={`button-view-rule-${rule.id}`}
-                      >
-                        <Eye className="w-4 h-4" />
-                      </Button>
-                      {canRegisterRules && isOwner(rule.createdBy) && (
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-red-500"
-                          onClick={(e) => handleDelete(rule.id, e)}
-                          data-testid={`button-delete-rule-${rule.id}`}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-medium text-sm truncate group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                            {rule.title}
+                          </h3>
+                          {badge && (
+                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0">
+                              {badge.label}
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground truncate mt-0.5">
+                          {rule.content}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Calendar className="w-3 h-3" />
+                          {rule.createdAt && format(new Date(rule.createdAt), "MM.dd")}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-emerald-600"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedRule(rule as any);
+                          }}
+                          data-testid={`button-view-rule-${rule.id}`}
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Eye className="w-4 h-4" />
                         </Button>
-                      )}
-                    </div>
-                  </motion.div>
-                ))}
+                        {canRegisterRules && isOwner(rule.createdBy) && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-red-500"
+                            onClick={(e) => handleDelete(rule.id, e)}
+                            data-testid={`button-delete-rule-${rule.id}`}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </motion.div>
+                  );
+                })}
               </AnimatePresence>
             )}
           </div>
@@ -269,6 +371,7 @@ export default function Rules() {
         </CardContent>
       </Card>
 
+      {/* 수칙 등록 다이얼로그 */}
       <Dialog open={showAddForm} onOpenChange={setShowAddForm}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
@@ -278,61 +381,148 @@ export default function Rules() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-4">
-            <Input 
-              placeholder="수칙 제목 (예: 필수 보호구 착용)" 
-              value={title} 
-              onChange={e => setTitle(e.target.value)}
+            <Input
+              placeholder="수칙 제목 (예: 필수 보호구 착용)"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
               className="font-medium"
               data-testid="input-rule-title"
             />
-            <Textarea 
-              placeholder="안전 수칙에 대한 상세 설명을 입력하세요..." 
-              value={content} 
-              onChange={e => setContent(e.target.value)}
+            <Textarea
+              placeholder="안전 수칙에 대한 상세 설명을 입력하세요..."
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
               className="min-h-[120px]"
               data-testid="input-rule-content"
             />
-            
+
+            {/* 파일 첨부 영역 */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-muted-foreground">파일 첨부</p>
+                <span className="text-xs text-muted-foreground">
+                  이미지 {imageAttachments.length}/{MAX_IMAGES}
+                </span>
+              </div>
+
+              {/* 이미지 미리보기 그리드 */}
+              {imageAttachments.length > 0 && (
+                <div className="grid grid-cols-3 gap-2">
+                  {imageAttachments.map((att, i) => (
+                    <div key={i} className="relative aspect-square rounded-lg overflow-hidden border bg-muted/20">
+                      <img
+                        src={att.url}
+                        alt={att.name}
+                        className="w-full h-full object-cover"
+                      />
+                      <button
+                        className="absolute top-1 right-1 bg-black/60 hover:bg-black/80 text-white rounded-full p-0.5 transition-colors"
+                        onClick={() => removeAttachment(attachments.indexOf(att))}
+                        data-testid={`button-remove-image-${i}`}
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                  {imageAttachments.length < MAX_IMAGES && (
+                    <button
+                      onClick={() => imageInputRef.current?.click()}
+                      disabled={isUploading}
+                      className="aspect-square rounded-lg border-2 border-dashed border-muted-foreground/30 flex flex-col items-center justify-center gap-1 text-muted-foreground hover:border-emerald-400 hover:text-emerald-600 transition-colors"
+                      data-testid="button-add-more-image"
+                    >
+                      {isUploading && uploadingIdx !== "pdf" ? (
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                      ) : (
+                        <>
+                          <ImagePlus className="w-5 h-5" />
+                          <span className="text-[10px]">추가</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* 첫 이미지 추가 버튼 (이미지 없을 때) */}
+              {imageAttachments.length === 0 && (
+                <Button
+                  variant="outline"
+                  onClick={() => imageInputRef.current?.click()}
+                  disabled={isUploading}
+                  className="w-full gap-2 border-dashed h-16 flex-col"
+                  data-testid="button-add-rule-image"
+                >
+                  {isUploading && uploadingIdx !== "pdf" ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <>
+                      <ImagePlus className="w-5 h-5" />
+                      <span className="text-sm">이미지 추가 (최대 3개)</span>
+                    </>
+                  )}
+                </Button>
+              )}
+
+              {/* PDF 첨부 */}
+              {pdfAttachment ? (
+                <div className="flex items-center gap-3 px-3 py-2 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-200 dark:border-blue-900/50">
+                  <FileText className="w-5 h-5 text-blue-600 shrink-0" />
+                  <span className="text-sm text-blue-700 dark:text-blue-300 flex-1 truncate">
+                    {pdfAttachment.name}
+                  </span>
+                  <button
+                    onClick={() => removeAttachment(attachments.indexOf(pdfAttachment))}
+                    className="text-blue-400 hover:text-red-500 transition-colors"
+                    data-testid="button-remove-pdf"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <Button
+                  variant="outline"
+                  onClick={() => pdfInputRef.current?.click()}
+                  disabled={isUploading}
+                  className="w-full gap-2 text-blue-600 border-blue-200 hover:bg-blue-50 hover:border-blue-400"
+                  data-testid="button-add-rule-pdf"
+                >
+                  {isUploading && uploadingIdx === "pdf" ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <FileUp className="w-4 h-4" />
+                  )}
+                  {isUploading && uploadingIdx === "pdf" ? "업로드 중..." : "PDF 파일 첨부"}
+                </Button>
+              )}
+            </div>
+
+            {/* 숨김 파일 입력 */}
             <input
               type="file"
               accept="image/*"
-              ref={fileInputRef}
+              multiple
+              ref={imageInputRef}
               onChange={handleImageUpload}
               className="hidden"
-              data-testid="input-rule-image"
+              data-testid="input-rule-images"
             />
-            
-            {imageUrl ? (
-              <div className="relative inline-block">
-                <img src={imageUrl} alt="미리보기" className="max-h-40 rounded-lg border" />
-                <Button
-                  variant="destructive"
-                  size="icon"
-                  className="absolute -top-2 -right-2 h-6 w-6"
-                  onClick={() => setImageUrl(null)}
-                  data-testid="button-remove-rule-image"
-                >
-                  <X className="w-3 h-3" />
-                </Button>
-              </div>
-            ) : (
-              <Button
-                variant="outline"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isUploading}
-                className="gap-2"
-                data-testid="button-add-rule-image"
-              >
-                <ImagePlus className="w-4 h-4" />
-                {isUploading ? "업로드 중..." : "이미지 추가"}
-              </Button>
-            )}
-            
+            <input
+              type="file"
+              accept=".pdf,application/pdf"
+              ref={pdfInputRef}
+              onChange={handlePdfUpload}
+              className="hidden"
+              data-testid="input-rule-pdf"
+            />
+
             <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={() => setShowAddForm(false)}>취소</Button>
-              <Button 
-                onClick={handleAdd} 
-                disabled={isCreating || !title || !content} 
+              <Button variant="outline" onClick={() => setShowAddForm(false)}>
+                취소
+              </Button>
+              <Button
+                onClick={handleAdd}
+                disabled={isCreating || isUploading || !title || !content}
                 className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white gap-2"
                 data-testid="button-add-rule"
               >
@@ -343,42 +533,87 @@ export default function Rules() {
         </DialogContent>
       </Dialog>
 
+      {/* 상세보기 다이얼로그 */}
       <Dialog open={!!selectedRule} onOpenChange={() => setSelectedRule(null)}>
         <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
-          {selectedRule && (
-            <>
-              <DialogHeader>
-                <DialogTitle className="text-xl pr-8">{selectedRule.title}</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 pt-4">
-                {selectedRule.imageUrl && (
-                  <img 
-                    src={selectedRule.imageUrl} 
-                    alt={selectedRule.title}
-                    className="w-full max-h-80 object-contain rounded-xl border bg-muted/20"
-                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-                  />
-                )}
-                <p className="text-foreground/90 leading-relaxed whitespace-pre-wrap">{selectedRule.content}</p>
-                <div className="flex items-center justify-between pt-4 border-t text-sm text-muted-foreground">
-                  <span className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4" />
-                    {selectedRule.createdAt && format(new Date(selectedRule.createdAt), "yyyy년 MM월 dd일")}
-                  </span>
-                  {canRegisterRules && isOwner(selectedRule.createdBy) && (
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      className="text-red-500 hover:text-red-600 hover:bg-red-50"
-                      onClick={() => handleDelete(selectedRule.id)}
-                    >
-                      <Trash2 className="w-4 h-4 mr-1" /> 삭제
-                    </Button>
+          {selectedRule && (() => {
+            const atts = getRuleAttachments(selectedRule);
+            const imgs = atts.filter((a) => a.type === "image");
+            const pdf = atts.find((a) => a.type === "pdf");
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle className="text-xl pr-8">{selectedRule.title}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 pt-4">
+                  {/* 이미지들 */}
+                  {imgs.length === 1 && (
+                    <img
+                      src={imgs[0].url}
+                      alt={imgs[0].name}
+                      className="w-full max-h-80 object-contain rounded-xl border bg-muted/20"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).style.display = "none";
+                      }}
+                    />
                   )}
+                  {imgs.length > 1 && (
+                    <div className={`grid gap-2 ${imgs.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
+                      {imgs.map((img, i) => (
+                        <img
+                          key={i}
+                          src={img.url}
+                          alt={img.name}
+                          className="w-full aspect-square object-cover rounded-lg border bg-muted/20"
+                          onError={(e) => {
+                            (e.currentTarget as HTMLImageElement).style.display = "none";
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  {/* PDF 다운로드 */}
+                  {pdf && (
+                    <a
+                      href={pdf.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-3 px-4 py-3 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-200 dark:border-blue-900/50 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors group"
+                      data-testid="link-view-pdf"
+                    >
+                      <FileText className="w-5 h-5 text-blue-600 shrink-0" />
+                      <span className="text-sm text-blue-700 dark:text-blue-300 flex-1 truncate font-medium">
+                        {pdf.name}
+                      </span>
+                      <Download className="w-4 h-4 text-blue-400 group-hover:text-blue-600 transition-colors shrink-0" />
+                    </a>
+                  )}
+
+                  <p className="text-foreground/90 leading-relaxed whitespace-pre-wrap">
+                    {selectedRule.content}
+                  </p>
+                  <div className="flex items-center justify-between pt-4 border-t text-sm text-muted-foreground">
+                    <span className="flex items-center gap-2">
+                      <Calendar className="w-4 h-4" />
+                      {selectedRule.createdAt &&
+                        format(new Date(selectedRule.createdAt), "yyyy년 MM월 dd일")}
+                    </span>
+                    {canRegisterRules && isOwner(selectedRule.createdBy) && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                        onClick={() => handleDelete(selectedRule.id)}
+                      >
+                        <Trash2 className="w-4 h-4 mr-1" /> 삭제
+                      </Button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </>
-          )}
+              </>
+            );
+          })()}
         </DialogContent>
       </Dialog>
 
@@ -387,13 +622,23 @@ export default function Rules() {
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-background border border-border shadow-xl rounded-full px-5 py-3">
           <span className="text-sm font-semibold text-red-600">{selectedIds.size}건 선택됨</span>
           <div className="w-px h-5 bg-border" />
-          <Button variant="ghost" size="sm" className="h-8" onClick={() => setSelectedIds(new Set())}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8"
+            onClick={() => setSelectedIds(new Set())}
+          >
             <X className="w-3.5 h-3.5 mr-1" />선택 해제
           </Button>
           <Button
-            variant="destructive" size="sm" className="h-8"
+            variant="destructive"
+            size="sm"
+            className="h-8"
             disabled={bulkDeleteMutation.isPending}
-            onClick={() => { if (confirm(`선택한 ${selectedIds.size}건을 삭제하시겠습니까?`)) bulkDeleteMutation.mutate(Array.from(selectedIds)); }}
+            onClick={() => {
+              if (confirm(`선택한 ${selectedIds.size}건을 삭제하시겠습니까?`))
+                bulkDeleteMutation.mutate(Array.from(selectedIds));
+            }}
             data-testid="button-bulk-delete"
           >
             <Trash2 className="w-3.5 h-3.5 mr-1" />삭제
