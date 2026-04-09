@@ -2166,6 +2166,132 @@ export async function registerRoutes(
     }
   });
 
+  // POST /api/admin/fix-broken-images - 로컬 /uploads/ 경로 사진 복구/정리
+  app.post("/api/admin/fix-broken-images", requireAdmin, async (req: any, res) => {
+    try {
+      const uploadDir = path.join(process.cwd(), "uploads");
+      const results = { recovered: 0, removed: 0, skipped: 0, slides_deleted: 0 };
+
+      // ── 1. 사고보고 이미지 복구 ──────────────────────────────────
+      const accidents = await db.select().from(accidentReports);
+      for (const accident of accidents) {
+        const hasBroken = accident.images.some(img => img.startsWith("/uploads/"));
+        if (!hasBroken) continue;
+
+        const fixedImages: string[] = [];
+        for (const imgPath of accident.images) {
+          if (!imgPath.startsWith("/uploads/")) {
+            fixedImages.push(imgPath);
+            continue;
+          }
+          const filename = imgPath.replace("/uploads/", "");
+          const localPath = path.join(uploadDir, filename);
+          if (fs.existsSync(localPath)) {
+            // 로컬 파일 있음 → 오브젝트 스토리지로 이전
+            const buf = fs.readFileSync(localPath);
+            const ext = filename.split(".").pop()?.toLowerCase() || "jpg";
+            const mime = ext === "png" ? "image/png" : ext === "gif" ? "image/gif" : "image/jpeg";
+            const objUrl = await uploadToObjectStorage(buf, filename, mime);
+            if (objUrl) {
+              fixedImages.push(objUrl);
+              results.recovered++;
+            } else {
+              results.removed++;
+            }
+          } else {
+            results.removed++; // 파일 없음 → 참조 제거
+          }
+        }
+        await db.update(accidentReports)
+          .set({ images: fixedImages })
+          .where(eq(accidentReports.id, accident.id));
+      }
+
+      // ── 2. 전자게시판 슬라이드 정리 ──────────────────────────────
+      const slides = await storage.getNotices("digital_board");
+      for (const slide of slides) {
+        try {
+          const parsed = JSON.parse(slide.content || "{}");
+          if (parsed.imageUrl?.startsWith("/uploads/")) {
+            const filename = parsed.imageUrl.replace("/uploads/", "");
+            const localPath = path.join(uploadDir, filename);
+            if (fs.existsSync(localPath)) {
+              const buf = fs.readFileSync(localPath);
+              const ext = filename.split(".").pop()?.toLowerCase() || "jpg";
+              const mime = ext === "png" ? "image/png" : "image/jpeg";
+              const objUrl = await uploadToObjectStorage(buf, filename, mime);
+              if (objUrl) {
+                const newContent = JSON.stringify({ ...parsed, imageUrl: objUrl });
+                await storage.updateNotice(slide.id, { content: newContent });
+                results.recovered++;
+                continue;
+              }
+            }
+            // 파일 없음 → 슬라이드 삭제
+            await storage.deleteNotice(slide.id);
+            results.slides_deleted++;
+          }
+        } catch (_) {}
+      }
+
+      // ── 3. 공지/수칙 imageUrl/attachments 정리 ───────────────────
+      const notices = await storage.getNotices();
+      for (const notice of notices) {
+        let changed = false;
+        let imageUrl = notice.imageUrl;
+        type Att = { url: string; name: string; type: string };
+        let attachments = notice.attachments as Att[] | null;
+
+        if (imageUrl?.startsWith("/uploads/")) {
+          const filename = imageUrl.replace("/uploads/", "");
+          const localPath = path.join(uploadDir, filename);
+          if (fs.existsSync(localPath)) {
+            const buf = fs.readFileSync(localPath);
+            const objUrl = await uploadToObjectStorage(buf, filename, "image/jpeg");
+            imageUrl = objUrl || null;
+            if (objUrl) results.recovered++;
+            else results.removed++;
+          } else {
+            imageUrl = null;
+            results.removed++;
+          }
+          changed = true;
+        }
+
+        if (attachments && Array.isArray(attachments)) {
+          const fixed: Att[] = [];
+          for (const att of attachments) {
+            if (att.url.startsWith("/uploads/")) {
+              const filename = att.url.replace("/uploads/", "");
+              const localPath = path.join(uploadDir, filename);
+              if (fs.existsSync(localPath)) {
+                const buf = fs.readFileSync(localPath);
+                const mime = att.type === "pdf" ? "application/pdf" : "image/jpeg";
+                const objUrl = await uploadToObjectStorage(buf, filename, mime);
+                if (objUrl) { fixed.push({ ...att, url: objUrl }); results.recovered++; }
+                else results.removed++;
+              } else {
+                results.removed++;
+              }
+              changed = true;
+            } else {
+              fixed.push(att);
+            }
+          }
+          attachments = fixed;
+        }
+
+        if (changed) {
+          await storage.updateNotice(notice.id, { imageUrl: imageUrl ?? undefined, attachments: attachments ?? undefined });
+        }
+      }
+
+      res.json({ ...results, message: `복구: ${results.recovered}건, 참조제거: ${results.removed}건, 슬라이드삭제: ${results.slides_deleted}건` });
+    } catch (e: any) {
+      res.status(500).json({ message: "정리 실패: " + e.message });
+    }
+  });
+
   app.get("/api/admin/backup/database", isAuthenticated, async (req: any, res) => {
     if (req.user?.role !== "admin") return res.status(403).json({ message: "관리자만 접근 가능합니다." });
     try {

@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import {
   Database, Images, Download, CheckCircle, AlertCircle, Loader2,
-  HardDrive, RefreshCw, Trash2, Eye, FileImage, FileVideo, File, FileText
+  HardDrive, RefreshCw, Trash2, Eye, FileImage, FileVideo, File, FileText, ImageOff, WandSparkles
 } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -74,6 +74,8 @@ export default function AdminBackup() {
     enabled: showOrphans,
   });
 
+  const [fixResult, setFixResult] = useState<{ recovered: number; removed: number; slides_deleted: number; message: string } | null>(null);
+
   const cleanupMutation = useMutation({
     mutationFn: () => apiRequest("POST", "/api/admin/backup/cleanup-orphans"),
     onSuccess: async (res: any) => {
@@ -87,6 +89,21 @@ export default function AdminBackup() {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/backup/orphans"] });
     },
     onError: () => toast({ title: "정리 실패", variant: "destructive" }),
+  });
+
+  const fixBrokenImagesMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/admin/fix-broken-images"),
+    onSuccess: async (res: any) => {
+      const data = await res.json();
+      setFixResult(data);
+      toast({
+        title: "사진 복구/정리 완료",
+        description: data.message,
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/accidents"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/notices"] });
+    },
+    onError: (e: any) => toast({ title: "실패", description: e.message, variant: "destructive" }),
   });
 
   async function downloadFile(url: string, filename: string, setLoading: (v: boolean) => void) {
@@ -250,6 +267,64 @@ export default function AdminBackup() {
           </CardContent>
         </Card>
       )}
+
+      {/* 깨진 사진 복구/정리 */}
+      <Card className="border-rose-200 dark:border-rose-900/40">
+        <CardHeader className="bg-rose-50/60 dark:bg-rose-900/10">
+          <div className="flex items-center gap-2">
+            <ImageOff className="w-5 h-5 text-rose-500" />
+            <CardTitle className="text-rose-700 dark:text-rose-300">깨진 사진 복구 / 정리</CardTitle>
+          </div>
+          <CardDescription>
+            배포 전 로컬 서버에만 저장된 사진을 클라우드로 이전하거나, 복구 불가한 사진 참조를 DB에서 제거합니다.
+            사고보고·전자게시판·공지사항·안전수칙의 <code className="text-xs bg-muted px-1 rounded">/uploads/</code> 경로를 모두 검사합니다.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-4 space-y-3">
+          {fixResult && (
+            <div className="rounded-lg border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-900/20 p-4 text-sm space-y-1">
+              <p className="font-semibold text-rose-700 dark:text-rose-300">처리 결과</p>
+              <p className="text-muted-foreground">✅ 복구됨: <strong>{fixResult.recovered}건</strong></p>
+              <p className="text-muted-foreground">🗑️ 참조 제거: <strong>{fixResult.removed}건</strong></p>
+              <p className="text-muted-foreground">🖼️ 슬라이드 삭제: <strong>{fixResult.slides_deleted}건</strong></p>
+              <p className="mt-2 text-xs text-muted-foreground">복구된 사진은 클라우드 스토리지로 이전됐습니다. 참조가 제거된 사진은 직접 재업로드가 필요합니다.</p>
+            </div>
+          )}
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                data-testid="button-fix-broken-images"
+                className="w-full gap-2 bg-rose-600 hover:bg-rose-700 text-white"
+                disabled={fixBrokenImagesMutation.isPending}
+              >
+                {fixBrokenImagesMutation.isPending ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> 처리 중 (시간이 걸릴 수 있습니다)...</>
+                ) : (
+                  <><WandSparkles className="w-4 h-4" /> 깨진 사진 복구 / 정리 실행</>
+                )}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>깨진 사진 복구 / 정리</AlertDialogTitle>
+                <AlertDialogDescription>
+                  로컬 파일이 남아있으면 클라우드 스토리지로 이전하고, 없으면 DB에서 참조를 제거합니다.
+                  복구 불가한 사진 데이터는 영구 삭제됩니다. 계속하시겠습니까?
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>취소</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-rose-600 hover:bg-rose-700"
+                  onClick={() => fixBrokenImagesMutation.mutate()}
+                >
+                  실행
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </CardContent>
+      </Card>
 
       {/* DB Backup */}
       <Card>
