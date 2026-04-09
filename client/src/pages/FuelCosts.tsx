@@ -19,8 +19,9 @@ import {
 import {
   Fuel, Upload, Trash2, TrendingUp, TrendingDown, Minus,
   RefreshCw, Search, ChevronUp, ChevronDown, Car, Route,
-  Plus, Pencil, Database, Download,
+  Plus, Pencil, Database, Download, CheckSquare, X,
 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import type { FuelRecord } from "@shared/schema";
 
 const fmt = (n: number) => new Intl.NumberFormat("ko-KR").format(Math.round(n));
@@ -227,6 +228,8 @@ export default function FuelCosts() {
   const [vdbStatusFilter, setVdbStatusFilter] = useState("all");
   const [vdbPage, setVdbPage] = useState(1);
   const [vdbDialog, setVdbDialog] = useState(false);
+  const [vdbSelectionMode, setVdbSelectionMode] = useState(false);
+  const [vdbSelectedIds, setVdbSelectedIds] = useState<Set<number>>(new Set());
   const [vdbEditing, setVdbEditing] = useState<Vehicle | null>(null);
   const [vdbDeleteId, setVdbDeleteId] = useState<number | null>(null);
   const emptyVehicleForm = { plateNumber: "", team: "", vehicleType: "", model: "", fuelType: "", acquisitionType: "", driver: "", status: "사용중" };
@@ -299,6 +302,19 @@ export default function FuelCosts() {
     },
     onError: (e: Error) => toast({ title: "삭제 실패", description: e.message, variant: "destructive" }),
   });
+
+  const vdbBulkDeleteMutation = useMutation({
+    mutationFn: (ids: number[]) => apiRequest("DELETE", "/api/vehicles/bulk-delete", { ids }),
+    onSuccess: async (res) => {
+      const data = await (res as any).json();
+      queryClient.invalidateQueries({ queryKey: ["/api/vehicles"] });
+      setVdbSelectedIds(new Set()); setVdbSelectionMode(false);
+      toast({ title: `${data.deleted ?? vdbSelectedIds.size}건 삭제 완료` });
+    },
+    onError: () => toast({ variant: "destructive", title: "삭제 실패" }),
+  });
+
+  const toggleVdbSelect = (id: number) => setVdbSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
   const vdbImportMutation = useMutation({
     mutationFn: () => apiRequest("POST", "/api/vehicles/import-from-fuel", {}),
@@ -1234,6 +1250,16 @@ export default function FuelCosts() {
                 </SelectContent>
               </Select>
               <div className="flex gap-2 ml-auto">
+                <Button
+                  variant={vdbSelectionMode ? "default" : "outline"}
+                  size="sm"
+                  className={`h-9 gap-1.5 ${vdbSelectionMode ? "bg-red-500 hover:bg-red-600 text-white" : ""}`}
+                  onClick={() => { setVdbSelectionMode(v => !v); setVdbSelectedIds(new Set()); }}
+                  data-testid="btn-vdb-toggle-selection"
+                >
+                  <CheckSquare className="w-4 h-4" />
+                  {vdbSelectionMode ? "취소" : "선택"}
+                </Button>
                 <Button variant="outline" size="sm" className="h-9" onClick={() => vdbFileInputRef.current?.click()} disabled={vdbExcelUploadMutation.isPending} data-testid="btn-vdb-excel-upload">
                   <Upload className="w-4 h-4 mr-1.5" />엑셀 교체
                 </Button>
@@ -1273,6 +1299,18 @@ export default function FuelCosts() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b bg-muted/30">
+                        {vdbSelectionMode && (
+                          <th className="px-3 py-2.5 w-8">
+                            <Checkbox
+                              checked={vdbPagedList.length > 0 && vdbPagedList.every(v => vdbSelectedIds.has(v.id))}
+                              onCheckedChange={(checked) => {
+                                if (checked) setVdbSelectedIds(prev => { const n = new Set(prev); vdbPagedList.forEach(v => n.add(v.id)); return n; });
+                                else setVdbSelectedIds(prev => { const n = new Set(prev); vdbPagedList.forEach(v => n.delete(v.id)); return n; });
+                              }}
+                              data-testid="checkbox-select-all-vehicles"
+                            />
+                          </th>
+                        )}
                         <th className="text-left px-3 py-2.5 font-semibold text-xs text-muted-foreground whitespace-nowrap">상태</th>
                         <th className="text-left px-3 py-2.5 font-semibold text-xs text-muted-foreground whitespace-nowrap">차량번호</th>
                         <th className="text-left px-3 py-2.5 font-semibold text-xs text-muted-foreground whitespace-nowrap">팀</th>
@@ -1296,7 +1334,22 @@ export default function FuelCosts() {
                           ? "bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-500/30"
                           : "bg-muted text-muted-foreground border-border";
                         return (
-                          <tr key={v.id} className={`border-b last:border-0 transition-colors ${isActive ? "hover:bg-green-50/30 dark:hover:bg-green-950/10" : "hover:bg-muted/20 opacity-75"}`} data-testid={`row-vehicle-${v.id}`}>
+                          <tr
+                            key={v.id}
+                            className={`border-b last:border-0 transition-colors cursor-${vdbSelectionMode ? "pointer" : "default"} ${vdbSelectionMode && vdbSelectedIds.has(v.id) ? "bg-red-50 dark:bg-red-900/20" : isActive ? "hover:bg-green-50/30 dark:hover:bg-green-950/10" : "hover:bg-muted/20 opacity-75"}`}
+                            data-testid={`row-vehicle-${v.id}`}
+                            onClick={() => vdbSelectionMode && toggleVdbSelect(v.id)}
+                          >
+                            {vdbSelectionMode && (
+                              <td className="px-3 py-2 w-8">
+                                <Checkbox
+                                  checked={vdbSelectedIds.has(v.id)}
+                                  onCheckedChange={() => toggleVdbSelect(v.id)}
+                                  onClick={e => e.stopPropagation()}
+                                  data-testid={`checkbox-vehicle-${v.id}`}
+                                />
+                              </td>
+                            )}
                             <td className="px-3 py-2">
                               <Badge variant="outline" className={`text-[11px] font-semibold px-2 ${statusCls}`}>{v.status ?? "사용중"}</Badge>
                             </td>
@@ -1583,6 +1636,25 @@ export default function FuelCosts() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* 플로팅 벌크 액션 바 (차량 선택) */}
+      {vdbSelectionMode && vdbSelectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-background border border-border shadow-xl rounded-full px-5 py-3">
+          <span className="text-sm font-semibold text-red-600">{vdbSelectedIds.size}대 선택됨</span>
+          <div className="w-px h-5 bg-border" />
+          <Button variant="ghost" size="sm" className="h-8" onClick={() => setVdbSelectedIds(new Set())}>
+            <X className="w-3.5 h-3.5 mr-1" />선택 해제
+          </Button>
+          <Button
+            variant="destructive" size="sm" className="h-8"
+            disabled={vdbBulkDeleteMutation.isPending}
+            onClick={() => { if (confirm(`선택한 ${vdbSelectedIds.size}대를 삭제하시겠습니까?`)) vdbBulkDeleteMutation.mutate(Array.from(vdbSelectedIds)); }}
+            data-testid="btn-vdb-bulk-delete"
+          >
+            <Trash2 className="w-3.5 h-3.5 mr-1" />삭제
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

@@ -1759,11 +1759,30 @@ export default function EducationLogs() {
                       }
 
                       return (
-                        <div key={group.key} className="border rounded-lg overflow-hidden" data-testid={`session-group-${group.key}`}>
+                        <div key={group.key} className={`border rounded-lg overflow-hidden ${selectionMode && group.sessions.every(s => selectedSessionIds.has(s.id)) ? "border-red-300 dark:border-red-700 bg-red-50/20 dark:bg-red-900/10" : ""}`} data-testid={`session-group-${group.key}`}>
                           <div
                             className="flex items-center gap-3 p-3 sm:p-4 cursor-pointer hover:bg-indigo-50/30 dark:hover:bg-indigo-900/5 transition-colors"
-                            onClick={() => toggleGroup(group.key)}
+                            onClick={() => {
+                              if (selectionMode) {
+                                const allSelected = group.sessions.every(s => selectedSessionIds.has(s.id));
+                                setSelectedSessionIds(prev => { const n = new Set(prev); group.sessions.forEach(s => allSelected ? n.delete(s.id) : n.add(s.id)); return n; });
+                              } else {
+                                toggleGroup(group.key);
+                              }
+                            }}
                           >
+                            {selectionMode && (
+                              <Checkbox
+                                checked={group.sessions.every(s => selectedSessionIds.has(s.id))}
+                                onCheckedChange={() => {
+                                  const allSelected = group.sessions.every(s => selectedSessionIds.has(s.id));
+                                  setSelectedSessionIds(prev => { const n = new Set(prev); group.sessions.forEach(s => allSelected ? n.delete(s.id) : n.add(s.id)); return n; });
+                                }}
+                                onClick={e => e.stopPropagation()}
+                                className="shrink-0"
+                                data-testid={`checkbox-group-${group.key}`}
+                              />
+                            )}
                             <div className="shrink-0 w-10 h-10 rounded-lg flex items-center justify-center bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400">
                               <GraduationCap className="w-5 h-5" />
                             </div>
@@ -1848,10 +1867,19 @@ export default function EducationLogs() {
                                   {group.sessions.map((session) => (
                                     <div
                                       key={session.id}
-                                      className="flex items-center gap-3 px-4 sm:px-6 py-2.5 cursor-pointer hover:bg-indigo-50/50 dark:hover:bg-indigo-900/10 transition-colors group"
-                                      onClick={() => setSelectedSession(session)}
+                                      className={`flex items-center gap-3 px-4 sm:px-6 py-2.5 cursor-pointer transition-colors group ${selectionMode && selectedSessionIds.has(session.id) ? "bg-red-50 dark:bg-red-900/20" : "hover:bg-indigo-50/50 dark:hover:bg-indigo-900/10"}`}
+                                      onClick={() => selectionMode ? toggleSelectSession(session.id) : setSelectedSession(session)}
                                       data-testid={`session-card-${session.id}`}
                                     >
+                                      {selectionMode && (
+                                        <Checkbox
+                                          checked={selectedSessionIds.has(session.id)}
+                                          onCheckedChange={() => toggleSelectSession(session.id)}
+                                          onClick={e => e.stopPropagation()}
+                                          className="shrink-0"
+                                          data-testid={`checkbox-session-${session.id}`}
+                                        />
+                                      )}
                                       <div className={`shrink-0 w-7 h-7 rounded-md flex items-center justify-center ${
                                         session.status === "완료"
                                           ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400"

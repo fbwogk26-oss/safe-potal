@@ -8,7 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
-import { Bone, Plus, Trash2, Pencil, Search } from "lucide-react";
+import { Bone, Plus, Trash2, Pencil, Search, CheckSquare, X } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useState, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -73,6 +74,8 @@ export default function MusculoskeletalDisease() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<FormState>(defaultForm);
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
   const { data: assessments, isLoading } = useQuery<MusculoskeletalAssessment[]>({
     queryKey: ["/api/musculoskeletal-assessments"],
@@ -109,6 +112,19 @@ export default function MusculoskeletalDisease() {
     },
     onError: () => toast({ variant: "destructive", title: "삭제 실패" }),
   });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: (ids: number[]) => apiRequest("POST", "/api/musculoskeletal-assessments/bulk-delete", { ids }),
+    onSuccess: async (res) => {
+      const data = await (res as any).json();
+      queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments"] });
+      setSelectedIds(new Set()); setSelectionMode(false);
+      toast({ title: `${data.deleted}건 삭제 완료` });
+    },
+    onError: () => toast({ variant: "destructive", title: "삭제 실패" }),
+  });
+
+  const toggleSelect = (id: number) => setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
   const resetForm = () => {
     setForm(defaultForm);
@@ -191,18 +207,26 @@ export default function MusculoskeletalDisease() {
           </div>
         </div>
         {canEdit && (
-          <Button
-            onClick={() => {
-              setForm(defaultForm);
-              setEditingId(null);
-              setShowForm(true);
-            }}
-            className="bg-purple-600 text-white gap-2"
-            data-testid="button-add-assessment"
-          >
-            <Plus className="w-4 h-4" />
-            새 조사 등록
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant={selectionMode ? "default" : "outline"}
+              size="sm"
+              className={`gap-1.5 ${selectionMode ? "bg-red-500 hover:bg-red-600 text-white" : ""}`}
+              onClick={() => { setSelectionMode(v => !v); setSelectedIds(new Set()); }}
+              data-testid="button-toggle-selection"
+            >
+              <CheckSquare className="w-4 h-4" />
+              {selectionMode ? "취소" : "선택"}
+            </Button>
+            <Button
+              onClick={() => { setForm(defaultForm); setEditingId(null); setShowForm(true); }}
+              className="bg-purple-600 text-white gap-2"
+              data-testid="button-add-assessment"
+            >
+              <Plus className="w-4 h-4" />
+              새 조사 등록
+            </Button>
+          </div>
         )}
       </div>
 
@@ -242,6 +266,18 @@ export default function MusculoskeletalDisease() {
             <Table data-testid="table-assessments">
               <TableHeader>
                 <TableRow>
+                  {selectionMode && (
+                    <TableHead className="w-10">
+                      <Checkbox
+                        checked={filteredAssessments.length > 0 && filteredAssessments.every(a => selectedIds.has(a.id))}
+                        onCheckedChange={() => {
+                          const allSel = filteredAssessments.every(a => selectedIds.has(a.id));
+                          setSelectedIds(allSel ? new Set() : new Set(filteredAssessments.map(a => a.id)));
+                        }}
+                        data-testid="checkbox-select-all"
+                      />
+                    </TableHead>
+                  )}
                   <TableHead className="min-w-[50px]">No</TableHead>
                   <TableHead className="min-w-[100px]">부서</TableHead>
                   <TableHead className="min-w-[120px]">작업내용</TableHead>
@@ -263,9 +299,19 @@ export default function MusculoskeletalDisease() {
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -10 }}
-                      className="border-b border-border"
+                      className={`border-b border-border ${selectionMode ? "cursor-pointer" : ""} ${selectionMode && selectedIds.has(item.id) ? "bg-red-50 dark:bg-red-900/20" : ""}`}
+                      onClick={() => selectionMode && toggleSelect(item.id)}
                       data-testid={`row-assessment-${item.id}`}
                     >
+                      {selectionMode && (
+                        <TableCell onClick={e => e.stopPropagation()}>
+                          <Checkbox
+                            checked={selectedIds.has(item.id)}
+                            onCheckedChange={() => toggleSelect(item.id)}
+                            data-testid={`checkbox-assessment-${item.id}`}
+                          />
+                        </TableCell>
+                      )}
                       <TableCell className="text-sm">{idx + 1}</TableCell>
                       <TableCell className="text-sm">{item.department}</TableCell>
                       <TableCell className="text-sm font-medium">{item.task}</TableCell>
@@ -446,6 +492,25 @@ export default function MusculoskeletalDisease() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* 플로팅 벌크 액션 바 */}
+      {selectionMode && selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-background border border-border shadow-xl rounded-full px-5 py-3">
+          <span className="text-sm font-semibold text-red-600">{selectedIds.size}건 선택됨</span>
+          <div className="w-px h-5 bg-border" />
+          <Button variant="ghost" size="sm" className="h-8" onClick={() => setSelectedIds(new Set())}>
+            <X className="w-3.5 h-3.5 mr-1" />선택 해제
+          </Button>
+          <Button
+            variant="destructive" size="sm" className="h-8"
+            disabled={bulkDeleteMutation.isPending}
+            onClick={() => { if (confirm(`선택한 ${selectedIds.size}건을 삭제하시겠습니까?`)) bulkDeleteMutation.mutate(Array.from(selectedIds)); }}
+            data-testid="button-bulk-delete"
+          >
+            <Trash2 className="w-3.5 h-3.5 mr-1" />삭제
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

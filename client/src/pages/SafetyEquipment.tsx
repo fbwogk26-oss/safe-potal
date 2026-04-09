@@ -1,16 +1,18 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { HardHat, ShoppingCart, ArrowRight, FileText, Plus, Trash2, ImagePlus, X, Upload, Download, FileSpreadsheet, PackagePlus } from "lucide-react";
+import { HardHat, ShoppingCart, ArrowRight, FileText, Plus, Trash2, ImagePlus, X, Upload, Download, FileSpreadsheet, PackagePlus, CheckSquare } from "lucide-react";
 import { Link } from "wouter";
 import { useNotices, useCreateNotice, useDeleteNotice } from "@/hooks/use-notices";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useState, useRef } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
-import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 const SUBMENU_ITEMS = [
   {
@@ -59,8 +61,23 @@ export default function SafetyEquipment({ embedded = false }: SafetyEquipmentPro
   const [excelName, setExcelName] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isExcelUploading, setIsExcelUploading] = useState(false);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
   const excelInputRef = useRef<HTMLInputElement>(null);
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: (ids: number[]) => apiRequest("DELETE", "/api/notices/bulk", { ids }),
+    onSuccess: async (res) => {
+      const data = await (res as any).json();
+      queryClient.invalidateQueries({ queryKey: ["/api/notices"] });
+      setSelectedIds(new Set()); setSelectionMode(false);
+      toast({ title: `${data.deleted ?? selectedIds.size}건 삭제 완료` });
+    },
+    onError: () => toast({ variant: "destructive", title: "삭제 실패" }),
+  });
+
+  const toggleSelect = (id: number) => setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -293,6 +310,20 @@ export default function SafetyEquipment({ embedded = false }: SafetyEquipmentPro
         </CardContent>
       </Card>
 
+      {materials && materials.length > 0 && isAdmin && (
+        <div className="flex justify-end">
+          <Button
+            variant={selectionMode ? "default" : "outline"}
+            size="sm"
+            className={`gap-1.5 h-8 ${selectionMode ? "bg-red-500 hover:bg-red-600 text-white" : ""}`}
+            onClick={() => { setSelectionMode(v => !v); setSelectedIds(new Set()); }}
+            data-testid="button-toggle-selection"
+          >
+            <CheckSquare className="w-4 h-4" />
+            {selectionMode ? "취소" : "선택"}
+          </Button>
+        </div>
+      )}
       <div className="grid grid-cols-1 gap-6">
         <AnimatePresence>
           {materials?.map((item) => {
@@ -303,14 +334,26 @@ export default function SafetyEquipment({ embedded = false }: SafetyEquipmentPro
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
-                className="group bg-card rounded-2xl p-6 border border-border/50 shadow-sm hover:shadow-lg transition-all duration-300 flex flex-col justify-between h-full"
+                className={`group bg-card rounded-2xl p-6 border shadow-sm hover:shadow-lg transition-all duration-300 flex flex-col justify-between h-full ${selectionMode && selectedIds.has(item.id) ? "border-red-400 bg-red-50/50 dark:bg-red-900/20" : "border-border/50"} ${selectionMode ? "cursor-pointer" : ""}`}
                 data-testid={`card-equipment-${item.id}`}
+                onClick={() => selectionMode && toggleSelect(item.id)}
               >
                 <div className="space-y-4">
                   <div className="flex justify-between items-start">
-                    <div className="p-3 bg-amber-50 text-amber-600 rounded-lg dark:bg-amber-900/20">
-                      <FileText className="w-6 h-6" />
+                    <div className="flex items-center gap-3">
+                      {selectionMode && (
+                        <Checkbox
+                          checked={selectedIds.has(item.id)}
+                          onCheckedChange={() => toggleSelect(item.id)}
+                          onClick={e => e.stopPropagation()}
+                          data-testid={`checkbox-equipment-${item.id}`}
+                        />
+                      )}
+                      <div className="p-3 bg-amber-50 text-amber-600 rounded-lg dark:bg-amber-900/20">
+                        <FileText className="w-6 h-6" />
+                      </div>
                     </div>
+                    {!selectionMode && (
                     <Button 
                       variant="ghost" 
                       size="icon" 
@@ -320,6 +363,7 @@ export default function SafetyEquipment({ embedded = false }: SafetyEquipmentPro
                     >
                       <Trash2 className="w-4 h-4 text-destructive" />
                     </Button>
+                    )}
                   </div>
                   <div>
                     <h3 className="font-bold text-lg mb-1 line-clamp-2">{item.title}</h3>
@@ -352,6 +396,25 @@ export default function SafetyEquipment({ embedded = false }: SafetyEquipmentPro
           })}
         </AnimatePresence>
       </div>
+
+      {/* 플로팅 벌크 액션 바 */}
+      {selectionMode && selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-background border border-border shadow-xl rounded-full px-5 py-3">
+          <span className="text-sm font-semibold text-red-600">{selectedIds.size}건 선택됨</span>
+          <div className="w-px h-5 bg-border" />
+          <Button variant="ghost" size="sm" className="h-8" onClick={() => setSelectedIds(new Set())}>
+            <X className="w-3.5 h-3.5 mr-1" />선택 해제
+          </Button>
+          <Button
+            variant="destructive" size="sm" className="h-8"
+            disabled={bulkDeleteMutation.isPending}
+            onClick={() => { if (confirm(`선택한 ${selectedIds.size}건을 삭제하시겠습니까?`)) bulkDeleteMutation.mutate(Array.from(selectedIds)); }}
+            data-testid="button-bulk-delete"
+          >
+            <Trash2 className="w-3.5 h-3.5 mr-1" />삭제
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

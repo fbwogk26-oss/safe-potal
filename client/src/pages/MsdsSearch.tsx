@@ -48,7 +48,9 @@ import {
   Download,
   Loader2,
   X,
+  CheckSquare,
 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { motion, AnimatePresence } from "framer-motion";
 
 const CATEGORIES = [
@@ -111,6 +113,8 @@ export default function MsdsSearch() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: chemicals, isLoading } = useQuery<Chemical[]>({
@@ -160,6 +164,19 @@ export default function MsdsSearch() {
       toast({ variant: "destructive", title: "오류", description: "삭제에 실패했습니다." });
     },
   });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: (ids: number[]) => apiRequest("DELETE", "/api/chemicals/bulk-delete", { ids }),
+    onSuccess: async (res) => {
+      const data = await (res as any).json();
+      queryClient.invalidateQueries({ queryKey: ["/api/chemicals"] });
+      setSelectedIds(new Set()); setSelectionMode(false);
+      toast({ title: `${data.deleted ?? selectedIds.size}건 삭제 완료` });
+    },
+    onError: () => toast({ variant: "destructive", title: "삭제 실패" }),
+  });
+
+  const toggleSelect = (id: number) => setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
   const resetForm = () => {
     setFormData({ ...EMPTY_FORM });
@@ -303,14 +320,26 @@ export default function MsdsSearch() {
           </p>
         </div>
         {canEdit && (
-          <Button
-            onClick={openCreateDialog}
-            className="ml-auto gap-2"
-            data-testid="button-add-chemical"
-          >
-            <Plus className="w-4 h-4" />
-            물질 등록
-          </Button>
+          <div className="ml-auto flex items-center gap-2">
+            <Button
+              variant={selectionMode ? "default" : "outline"}
+              size="sm"
+              className={`gap-2 ${selectionMode ? "bg-red-500 hover:bg-red-600 text-white" : ""}`}
+              onClick={() => { setSelectionMode(v => !v); setSelectedIds(new Set()); }}
+              data-testid="button-toggle-selection"
+            >
+              <CheckSquare className="w-4 h-4" />
+              {selectionMode ? "취소" : "선택"}
+            </Button>
+            <Button
+              onClick={openCreateDialog}
+              className="gap-2"
+              data-testid="button-add-chemical"
+            >
+              <Plus className="w-4 h-4" />
+              물질 등록
+            </Button>
+          </div>
         )}
       </div>
 
@@ -369,14 +398,22 @@ export default function MsdsSearch() {
                   exit={{ opacity: 0, y: -10 }}
                   data-testid={`card-chemical-${chemical.id}`}
                 >
-                  <Card className="hover-elevate">
+                  <Card className={`hover-elevate ${selectionMode && selectedIds.has(chemical.id) ? "border-red-400 bg-red-50/50 dark:bg-red-900/20" : ""}`}>
                     <CardHeader
                       className="cursor-pointer"
-                      onClick={() => toggleExpand(chemical.id)}
+                      onClick={() => selectionMode ? toggleSelect(chemical.id) : toggleExpand(chemical.id)}
                       data-testid={`button-expand-chemical-${chemical.id}`}
                     >
                       <div className="flex items-start justify-between gap-2 flex-wrap">
                         <div className="flex items-center gap-3 min-w-0 flex-wrap">
+                          {selectionMode && (
+                            <Checkbox
+                              checked={selectedIds.has(chemical.id)}
+                              onCheckedChange={() => toggleSelect(chemical.id)}
+                              onClick={e => e.stopPropagation()}
+                              data-testid={`checkbox-chemical-${chemical.id}`}
+                            />
+                          )}
                           <CardTitle className="text-base sm:text-lg">
                             {chemical.name}
                           </CardTitle>
@@ -681,6 +718,25 @@ export default function MsdsSearch() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* 플로팅 벌크 액션 바 */}
+      {selectionMode && selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-background border border-border shadow-xl rounded-full px-5 py-3">
+          <span className="text-sm font-semibold text-red-600">{selectedIds.size}건 선택됨</span>
+          <div className="w-px h-5 bg-border" />
+          <Button variant="ghost" size="sm" className="h-8" onClick={() => setSelectedIds(new Set())}>
+            <X className="w-3.5 h-3.5 mr-1" />선택 해제
+          </Button>
+          <Button
+            variant="destructive" size="sm" className="h-8"
+            disabled={bulkDeleteMutation.isPending}
+            onClick={() => { if (confirm(`선택한 ${selectedIds.size}건을 삭제하시겠습니까?`)) bulkDeleteMutation.mutate(Array.from(selectedIds)); }}
+            data-testid="button-bulk-delete"
+          >
+            <Trash2 className="w-3.5 h-3.5 mr-1" />삭제
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

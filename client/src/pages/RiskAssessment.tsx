@@ -13,8 +13,9 @@ import {
   ShieldAlert, Plus, Trash2, Pencil, Camera, X, Info, ClipboardEdit,
   CheckCircle2, Clock, FileDown, Download, CircleCheck, AlertCircle, Users,
   ChevronRight, ChevronDown, MapPin, Save, Sparkles, ScanSearch, Loader2,
-  Lightbulb, Zap, TriangleAlert, ChevronUp
+  Lightbulb, Zap, TriangleAlert, ChevronUp, CheckSquare
 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useState, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -121,6 +122,8 @@ export default function RiskAssessmentPage() {
   const isDeptHead = user?.role === "deptHead" || user?.role === "admin";
   const { toast } = useToast();
   const [isDownloading, setIsDownloading] = useState(false);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [activeType, setActiveType] = useState("상반기정기평가");
   const [filterDept, setFilterDept] = useState("전체");
   const [filterGrade, setFilterGrade] = useState<string | null>(null);
@@ -223,6 +226,19 @@ export default function RiskAssessmentPage() {
     },
     onError: () => toast({ variant: "destructive", title: "삭제 실패" }),
   });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: (ids: number[]) => apiRequest("DELETE", "/api/risk-assessments/bulk-delete", { ids }),
+    onSuccess: async (res) => {
+      const data = await (res as any).json();
+      queryClient.invalidateQueries({ queryKey: ["/api/risk-assessments"] });
+      setSelectedIds(new Set()); setSelectionMode(false);
+      toast({ title: `${data.deleted ?? selectedIds.size}건 삭제 완료` });
+    },
+    onError: () => toast({ variant: "destructive", title: "삭제 실패" }),
+  });
+
+  const toggleSelect = (id: number) => setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
   const improvementMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: typeof improvementForm }) =>
@@ -711,8 +727,20 @@ export default function RiskAssessmentPage() {
           )}
         </div>
 
-        {/* 엑셀 다운로드 */}
+        {/* 엑셀 다운로드 + 선택 버튼 */}
         <div className="flex items-center gap-1.5">
+          {canEditRiskAssessment && (
+            <Button
+              variant={selectionMode ? "default" : "outline"}
+              size="sm"
+              className={`gap-1 h-8 text-xs px-3 ${selectionMode ? "bg-red-500 hover:bg-red-600 text-white" : ""}`}
+              onClick={() => { setSelectionMode(v => !v); setSelectedIds(new Set()); }}
+              data-testid="button-toggle-selection"
+            >
+              <CheckSquare className="w-3.5 h-3.5" />
+              {selectionMode ? "취소" : "선택"}
+            </Button>
+          )}
           {canDownloadRiskAssessmentExcel && (
             <>
               <Button variant="outline" size="sm" className="gap-1 text-green-700 border-green-300 hover:bg-green-50 h-8 text-xs px-3" onClick={() => handleDownloadExcel("전체")} disabled={isDownloading} data-testid="button-download-all">
@@ -761,13 +789,23 @@ export default function RiskAssessmentPage() {
                     data-testid={`card-assessment-${item.id}`}
                   >
                     <Card
-                      className={`cursor-pointer transition-all duration-150 hover:shadow-md ${isSelected ? "border-orange-400 shadow-md ring-1 ring-orange-300 dark:ring-orange-700" : "border-border hover:border-orange-200 dark:hover:border-orange-800"}`}
-                      onClick={() => setSelectedId(isSelected ? null : item.id)}
+                      className={`cursor-pointer transition-all duration-150 hover:shadow-md ${selectionMode && selectedIds.has(item.id) ? "border-red-400 bg-red-50/50 dark:bg-red-900/20" : isSelected ? "border-orange-400 shadow-md ring-1 ring-orange-300 dark:ring-orange-700" : "border-border hover:border-orange-200 dark:hover:border-orange-800"}`}
+                      onClick={() => selectionMode ? toggleSelect(item.id) : setSelectedId(isSelected ? null : item.id)}
                     >
                       <CardContent className="px-2.5 py-2">
                         {/* 상단: 번호 + 경로 + 유해위험요인 */}
                         <div className="flex items-start gap-2 min-w-0">
-                          <span className="shrink-0 text-[10px] font-bold text-muted-foreground tabular-nums w-4 text-center pt-0.5">{idx + 1}</span>
+                          {selectionMode ? (
+                            <Checkbox
+                              checked={selectedIds.has(item.id)}
+                              onCheckedChange={() => toggleSelect(item.id)}
+                              onClick={e => e.stopPropagation()}
+                              className="shrink-0 mt-0.5"
+                              data-testid={`checkbox-assessment-${item.id}`}
+                            />
+                          ) : (
+                            <span className="shrink-0 text-[10px] font-bold text-muted-foreground tabular-nums w-4 text-center pt-0.5">{idx + 1}</span>
+                          )}
                           <div className="min-w-0 flex-1">
                             {/* 조직 경로 */}
                             <div className="flex items-center gap-0.5 text-[10px] text-muted-foreground mb-0.5">
@@ -1411,6 +1449,25 @@ export default function RiskAssessmentPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* 플로팅 벌크 액션 바 */}
+      {selectionMode && selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-background border border-border shadow-xl rounded-full px-5 py-3">
+          <span className="text-sm font-semibold text-red-600">{selectedIds.size}건 선택됨</span>
+          <div className="w-px h-5 bg-border" />
+          <Button variant="ghost" size="sm" className="h-8" onClick={() => setSelectedIds(new Set())}>
+            <X className="w-3.5 h-3.5 mr-1" />선택 해제
+          </Button>
+          <Button
+            variant="destructive" size="sm" className="h-8"
+            disabled={bulkDeleteMutation.isPending}
+            onClick={() => { if (confirm(`선택한 ${selectedIds.size}건을 삭제하시겠습니까?`)) bulkDeleteMutation.mutate(Array.from(selectedIds)); }}
+            data-testid="button-bulk-delete"
+          >
+            <Trash2 className="w-3.5 h-3.5 mr-1" />삭제
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

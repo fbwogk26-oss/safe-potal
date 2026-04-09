@@ -1391,6 +1391,14 @@ export async function registerRoutes(
     res.status(204).send();
   });
 
+  app.post("/api/safety-equipment/bulk-delete", requireEditor, async (req: any, res) => {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ message: "ids required" });
+    let deleted = 0;
+    for (const id of ids) { try { await storage.deleteSafetyEquipment(Number(id)); deleted++; } catch {} }
+    res.json({ deleted });
+  });
+
   // Update team equipment (when new equipment is issued without disposal)
   app.post("/api/teams/update-equipment", requireEditor, async (req: any, res) => {
     try {
@@ -1529,6 +1537,14 @@ export async function registerRoutes(
     if (!isOwnerOrAdmin(req, existing.createdBy)) return res.status(403).json({ message: "본인이 작성한 점검만 삭제할 수 있습니다" });
     await storage.deleteSafetyInspection(id);
     res.status(204).send();
+  });
+
+  app.post("/api/safety-inspections/bulk-delete", requireEditor, async (req: any, res) => {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ message: "ids required" });
+    let deleted = 0;
+    for (const id of ids) { try { await storage.deleteSafetyInspection(Number(id)); deleted++; } catch {} }
+    res.json({ deleted });
   });
 
   // Seed Data
@@ -2511,6 +2527,14 @@ export async function registerRoutes(
     }
   });
 
+  app.post('/api/chemicals/bulk-delete', requireEditor, async (req: any, res) => {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ message: "ids required" });
+    let deleted = 0;
+    for (const id of ids) { try { await storage.deleteChemical(Number(id)); deleted++; } catch {} }
+    res.json({ deleted });
+  });
+
   // === MUSCULOSKELETAL ASSESSMENTS ===
   app.get('/api/musculoskeletal-assessments', isAuthenticated, async (req: any, res) => {
     try {
@@ -2554,6 +2578,14 @@ export async function registerRoutes(
     } catch (error) {
       res.status(500).json({ message: "근골격계 유해요인조사 삭제에 실패했습니다" });
     }
+  });
+
+  app.post('/api/musculoskeletal-assessments/bulk-delete', requireEditor, async (req: any, res) => {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ message: "ids required" });
+    let deleted = 0;
+    for (const id of ids) { try { await storage.deleteMusculoskeletalAssessment(Number(id)); deleted++; } catch {} }
+    res.json({ deleted });
   });
 
   // === RISK ASSESSMENTS ===
@@ -2875,6 +2907,14 @@ export async function registerRoutes(
     } catch (error) {
       res.status(500).json({ message: "위험성평가 삭제에 실패했습니다" });
     }
+  });
+
+  app.post('/api/risk-assessments/bulk-delete', requireEditor, async (req: any, res) => {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ message: "ids required" });
+    let deleted = 0;
+    for (const id of ids) { try { await storage.deleteRiskAssessment(Number(id)); deleted++; } catch {} }
+    res.json({ deleted });
   });
 
   app.post('/api/risk-assessments/batch', requireEditor, async (req: any, res) => {
@@ -4241,6 +4281,14 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
     } catch (error) {
       res.status(500).json({ message: "차량 삭제에 실패했습니다" });
     }
+  });
+
+  app.post('/api/vehicles/bulk-delete', requireEditor, async (req: any, res) => {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ message: "ids required" });
+    let deleted = 0;
+    for (const id of ids) { try { await storage.deleteVehicle(Number(id)); deleted++; } catch {} }
+    res.json({ deleted });
   });
 
   // 차량DB: 엑셀 파일로 전체 교체 (기존 데이터 삭제 후 재등록)

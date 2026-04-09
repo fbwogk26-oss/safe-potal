@@ -4,14 +4,17 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ShieldCheck, Plus, Trash2, Search, ImagePlus, X, Eye, FileText, Calendar, Image } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ShieldCheck, Plus, Trash2, Search, ImagePlus, X, Eye, FileText, Calendar, Image, CheckSquare } from "lucide-react";
 import { useState, useMemo, useRef } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useAuth } from "@/hooks/use-auth";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 export default function Rules() {
   const { canRegisterRules, canDownloadRulesFiles } = usePermissions();
@@ -25,6 +28,8 @@ export default function Rules() {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [selectedRule, setSelectedRule] = useState<{
@@ -103,6 +108,19 @@ export default function Rules() {
     }
   };
 
+  const bulkDeleteMutation = useMutation({
+    mutationFn: (ids: number[]) => apiRequest("DELETE", "/api/notices/bulk", { ids }),
+    onSuccess: async (res) => {
+      const data = await (res as any).json();
+      queryClient.invalidateQueries({ queryKey: ["/api/notices"] });
+      setSelectedIds(new Set()); setSelectionMode(false);
+      toast({ title: `${data.deleted ?? selectedIds.size}건 삭제 완료` });
+    },
+    onError: () => toast({ variant: "destructive", title: "삭제 실패" }),
+  });
+
+  const toggleSelect = (id: number) => setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+
   return (
     <div className="max-w-5xl mx-auto space-y-4">
       <Card className="border-emerald-200/50 dark:border-emerald-900/30 overflow-hidden">
@@ -129,15 +147,27 @@ export default function Rules() {
                 <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               </div>
               {canRegisterRules && (
-                <Button 
-                  onClick={() => setShowAddForm(true)} 
-                  size="sm"
-                  className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white gap-1.5 h-9"
-                  data-testid="button-open-add-rule"
-                >
-                  <Plus className="w-4 h-4" /> 
-                  새 수칙
-                </Button>
+                <>
+                  <Button
+                    variant={selectionMode ? "default" : "outline"}
+                    size="sm"
+                    className={`gap-1.5 h-9 ${selectionMode ? "bg-red-500 hover:bg-red-600 text-white" : ""}`}
+                    onClick={() => { setSelectionMode(v => !v); setSelectedIds(new Set()); }}
+                    data-testid="button-toggle-selection"
+                  >
+                    <CheckSquare className="w-4 h-4" />
+                    {selectionMode ? "취소" : "선택"}
+                  </Button>
+                  <Button 
+                    onClick={() => setShowAddForm(true)} 
+                    size="sm"
+                    className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white gap-1.5 h-9"
+                    data-testid="button-open-add-rule"
+                  >
+                    <Plus className="w-4 h-4" /> 
+                    새 수칙
+                  </Button>
+                </>
               )}
             </div>
           </div>
@@ -169,10 +199,18 @@ export default function Rules() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, x: -20 }}
                     transition={{ delay: idx * 0.03 }}
-                    onClick={() => setSelectedRule(rule)}
-                    className="group flex items-center gap-4 px-4 py-3 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/10 cursor-pointer transition-colors"
+                    onClick={() => selectionMode ? toggleSelect(rule.id) : setSelectedRule(rule)}
+                    className={`group flex items-center gap-4 px-4 py-3 cursor-pointer transition-colors ${selectionMode && selectedIds.has(rule.id) ? "bg-red-50 dark:bg-red-900/20" : "hover:bg-emerald-50/50 dark:hover:bg-emerald-900/10"}`}
                     data-testid={`row-rule-${rule.id}`}
                   >
+                    {selectionMode && (
+                      <Checkbox
+                        checked={selectedIds.has(rule.id)}
+                        onCheckedChange={() => toggleSelect(rule.id)}
+                        onClick={e => e.stopPropagation()}
+                        data-testid={`checkbox-rule-${rule.id}`}
+                      />
+                    )}
                     <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
                       {rule.imageUrl ? (
                         <Image className="w-4 h-4" />
@@ -343,6 +381,25 @@ export default function Rules() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* 플로팅 벌크 액션 바 */}
+      {selectionMode && selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-background border border-border shadow-xl rounded-full px-5 py-3">
+          <span className="text-sm font-semibold text-red-600">{selectedIds.size}건 선택됨</span>
+          <div className="w-px h-5 bg-border" />
+          <Button variant="ghost" size="sm" className="h-8" onClick={() => setSelectedIds(new Set())}>
+            <X className="w-3.5 h-3.5 mr-1" />선택 해제
+          </Button>
+          <Button
+            variant="destructive" size="sm" className="h-8"
+            disabled={bulkDeleteMutation.isPending}
+            onClick={() => { if (confirm(`선택한 ${selectedIds.size}건을 삭제하시겠습니까?`)) bulkDeleteMutation.mutate(Array.from(selectedIds)); }}
+            data-testid="button-bulk-delete"
+          >
+            <Trash2 className="w-3.5 h-3.5 mr-1" />삭제
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

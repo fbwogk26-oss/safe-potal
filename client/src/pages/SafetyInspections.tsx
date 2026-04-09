@@ -7,7 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ClipboardCheck, Plus, Trash2, ImagePlus, X, Calendar, MapPin, User, ChevronDown, ChevronUp, Download, Check, AlertCircle, BarChart3, Settings, FileText, Loader2, Pencil } from "lucide-react";
+import { ClipboardCheck, Plus, Trash2, ImagePlus, X, Calendar, MapPin, User, ChevronDown, ChevronUp, Download, Check, AlertCircle, BarChart3, Settings, FileText, Loader2, Pencil, CheckSquare } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useState, useRef, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -88,6 +89,21 @@ export default function SafetyInspections() {
   });
   
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: (ids: number[]) => apiRequest("DELETE", "/api/safety-inspections/bulk-delete", { ids }),
+    onSuccess: async (res) => {
+      const data = await (res as any).json();
+      queryClient.invalidateQueries({ queryKey: ["/api/safety-inspections"] });
+      setSelectedIds(new Set()); setSelectionMode(false);
+      toast({ title: `${data.deleted ?? selectedIds.size}건 삭제 완료` });
+    },
+    onError: () => toast({ variant: "destructive", title: "삭제 실패" }),
+  });
+
+  const toggleSelect = (id: number) => setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
   const createMutation = useMutation({
     mutationFn: async (data: {
@@ -1134,7 +1150,21 @@ export default function SafetyInspections() {
             </Badge>
             <span className="text-xs text-muted-foreground">{filteredInspections.length}건</span>
           </div>
-          <span className="text-[11px] text-muted-foreground">위 그래프 월 필터와 연동</span>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] text-muted-foreground">위 그래프 월 필터와 연동</span>
+            {canEditInspections && (
+              <Button
+                variant={selectionMode ? "default" : "outline"}
+                size="sm"
+                className={`gap-1 h-7 text-xs px-2.5 ${selectionMode ? "bg-red-500 hover:bg-red-600 text-white" : ""}`}
+                onClick={() => { setSelectionMode(v => !v); setSelectedIds(new Set()); }}
+                data-testid="button-toggle-selection"
+              >
+                <CheckSquare className="w-3.5 h-3.5" />
+                {selectionMode ? "취소" : "선택"}
+              </Button>
+            )}
+          </div>
         </div>
         {isLoading ? (
           <div className="text-center py-8 text-muted-foreground">로딩 중...</div>
@@ -1152,11 +1182,19 @@ export default function SafetyInspections() {
                 const isExpanded = expandedId === inspection.id;
 
                 return (
-                  <div key={inspection.id} data-testid={`card-inspection-${inspection.id}`}>
+                  <div key={inspection.id} data-testid={`card-inspection-${inspection.id}`} className={selectionMode && selectedIds.has(inspection.id) ? "bg-red-50 dark:bg-red-900/20" : ""}>
                     <div
                       className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 cursor-pointer hover:bg-muted/30 transition-colors group"
-                      onClick={() => setExpandedId(isExpanded ? null : inspection.id)}
+                      onClick={() => selectionMode ? toggleSelect(inspection.id) : setExpandedId(isExpanded ? null : inspection.id)}
                     >
+                      {selectionMode && (
+                        <Checkbox
+                          checked={selectedIds.has(inspection.id)}
+                          onCheckedChange={() => toggleSelect(inspection.id)}
+                          onClick={e => e.stopPropagation()}
+                          data-testid={`checkbox-inspection-${inspection.id}`}
+                        />
+                      )}
                       {inspection.inspectionType === "안전점검" ? (
                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 shrink-0 font-bold border border-blue-200 dark:border-blue-800">
                           안전
@@ -1383,6 +1421,25 @@ export default function SafetyInspections() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* 플로팅 벌크 액션 바 */}
+      {selectionMode && selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-background border border-border shadow-xl rounded-full px-5 py-3">
+          <span className="text-sm font-semibold text-red-600">{selectedIds.size}건 선택됨</span>
+          <div className="w-px h-5 bg-border" />
+          <Button variant="ghost" size="sm" className="h-8" onClick={() => setSelectedIds(new Set())}>
+            <X className="w-3.5 h-3.5 mr-1" />선택 해제
+          </Button>
+          <Button
+            variant="destructive" size="sm" className="h-8"
+            disabled={bulkDeleteMutation.isPending}
+            onClick={() => { if (confirm(`선택한 ${selectedIds.size}건을 삭제하시겠습니까?`)) bulkDeleteMutation.mutate(Array.from(selectedIds)); }}
+            data-testid="button-bulk-delete"
+          >
+            <Trash2 className="w-3.5 h-3.5 mr-1" />삭제
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
