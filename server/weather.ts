@@ -529,17 +529,57 @@ ADVICE: 여기에 안전 당부 내용만`;
     });
 
     const raw = (response.choices[0]?.message?.content ?? "").trim();
-    const adviceMatch = raw.match(/ADVICE:\s*([\s\S]+)/);
-    const advice = adviceMatch?.[1]?.trim() || "";
+    // ADVICE: 패턴 포함 여부 우선 확인, 없으면 전체 내용 사용
+    const adviceMatch = raw.match(/ADVICE:\s*([\s\S]+)/i);
+    const advice = adviceMatch ? adviceMatch[1].trim() : raw;
 
     if (advice && advice.length >= 20) {
       const content = `${structuredHeader}\n\n${advice}`;
       return { title: `☀️ ${weather.city} 날씨 안전메시지`, content };
     }
-  } catch (_) {
-    // AI 실패 시 구조화 내용만 사용
+  } catch (err) {
+    console.error("[Weather AI] 메시지 생성 실패:", err);
   }
 
-  const content = `${structuredHeader}\n\n🙏 오늘도 현장 근무자 여러분 모두 안전한 하루 보내시길 바랍니다. 작업 전 안전장비 착용을 반드시 확인해 주세요.`;
+  // AI 실패 시 날씨 조건별 맞춤 안전 당부 메시지 생성
+  const fallbackLines: string[] = [];
+
+  if (weather.precipMM >= 20) {
+    fallbackLines.push(`🌧️ 오늘 ${weather.city} 지역에 집중호우(${weather.precipMM}mm)가 예보되어 있습니다. 전신주 승주·기지국 옥상·통신탑 등 모든 고소작업을 즉시 중단하고, 낙뢰 발생 시 안테나·철구조물 접근을 금지하세요.`);
+    fallbackLines.push(`🚫 맨홀·지하 공동구 진입 작업은 침수 위험으로 절대 금지하며, 차량은 안전지대로 이동하고 호우 상황이 종료될 때까지 대기하세요.`);
+  } else if (weather.precipMM >= 5) {
+    fallbackLines.push(`🌧️ 오늘 ${weather.city}에 강우(${weather.precipMM}mm)가 예보되어 전신주·통신탑 발판이 미끄러울 수 있습니다. 승주 전 발판 물기를 완전히 제거하고 미끄럼방지 안전화와 절연장갑을 반드시 착용하세요.`);
+    fallbackLines.push(`⚡ 빗물로 인한 감전 위험이 높아집니다. 전주 승주 작업은 2인 1조로 진행하고, 광케이블 접속 작업 전 활선 여부를 반드시 확인하세요. 고소작업차(버킷트럭) 운용 시 젖은 지면의 아웃트리거 침하 여부를 점검하세요.`);
+  } else if (weather.precipMM > 0) {
+    fallbackLines.push(`🌦️ 오늘 이슬비 또는 소량 강수(${weather.precipMM}mm)가 내려 전신주 발판과 기지국 옥상 바닥이 미끄러울 수 있습니다. 승주 전 발판 물기를 완전히 닦아내고, 젖은 케이블·전기설비는 절연장갑 착용 후 다루세요.`);
+    fallbackLines.push(`🔧 광케이블 포설·접속 작업 시 케이블 피복 손상 여부를 사전 확인하고, 맨홀 진입 전 유해가스 측정과 환기를 실시하세요. 차량 현장 이동 시 빗길 서행 및 안전거리를 확보하세요.`);
+  }
+
+  if (weather.windspeedKmph >= 55) {
+    fallbackLines.push(`💨 강풍경보(풍속 ${weather.windspeedMs}m/s)가 발효 중입니다. 기지국 옥상·통신탑·전신주 고소작업을 전면 금지하고 장비·자재를 고정 후 즉시 철수하세요.`);
+  } else if (weather.windspeedKmph >= 35) {
+    fallbackLines.push(`💨 강풍(풍속 ${weather.windspeedMs}m/s)으로 고소작업 중 균형 불안정이 우려됩니다. 안전대를 이중으로 체결하고, 공중 광케이블 포설 작업은 보류하세요.`);
+  } else if (weather.windspeedKmph >= 20) {
+    fallbackLines.push(`🌬️ 바람이 강합니다(풍속 ${weather.windspeedMs}m/s). 전신주 작업 중 공구·볼트 등 낙하물 위험에 주의하고, 낙하물 방지망을 설치한 뒤 아래 작업자 접근을 통제하세요.`);
+  }
+
+  if (weather.tempC >= 35) {
+    fallbackLines.push(`🌡️ 폭염(${weather.tempC}°C)으로 기지국 옥상·철탑 작업 중 열사병 위험이 높습니다. 1시간마다 그늘에서 휴식하고, 물·이온음료를 수시로 섭취하세요. 어지럼증 발생 시 즉시 작업을 중단하고 신고하세요.`);
+  } else if (weather.tempC <= -5 || weather.tempMinC <= 0) {
+    fallbackLines.push(`🧊 결빙 우려(최저 ${weather.tempMinC}°C)로 전주 발판·기지국 옥상이 얼어 있을 수 있습니다. 승주 전 발판 결빙 여부를 반드시 확인하고 제빙한 뒤 아이젠·미끄럼방지 안전화를 착용하세요.`);
+  }
+
+  if (weather.pm10 !== null && weather.pm10 > 150) {
+    fallbackLines.push(`😷 미세먼지 매우나쁨(PM10 ${weather.pm10}μg/m³)입니다. 야외 현장 작업 시 KF94 이상 마스크를 착용하고, 맨홀·지하 공동구 진입 전 환기를 충분히 실시하세요.`);
+  }
+
+  if (fallbackLines.length === 0) {
+    fallbackLines.push(`✅ 오늘 ${weather.city}의 기상 상태는 비교적 양호합니다(기온 ${weather.tempC}°C, 풍속 ${weather.windspeedMs}m/s). 통신 현장 작업 전 안전모·안전대·절연장갑 등 보호구 착용 상태를 반드시 점검하고, 전신주 승주·맨홀 진입 시 2인 1조 원칙을 지켜주세요.`);
+    fallbackLines.push(`🔧 고소작업차(버킷트럭) 운용 전 아웃트리거 완전 전개 여부와 주변 장애물을 확인하고, 광케이블 접속 작업 시 활선 여부 확인을 생활화하세요.`);
+  }
+
+  fallbackLines.push(`🙏 오늘도 현장 근무자 여러분 모두 안전하게 작업하고 무사히 귀가하시길 바랍니다.`);
+
+  const content = `${structuredHeader}\n\n${fallbackLines.join("\n")}`;
   return { title: `☀️ ${weather.city} 날씨 안전메시지`, content };
 }
