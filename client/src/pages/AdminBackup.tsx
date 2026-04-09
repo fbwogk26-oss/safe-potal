@@ -3,14 +3,22 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Database, Images, Download, CheckCircle, AlertCircle, Loader2, HardDrive, RefreshCw } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { Database, Images, Download, CheckCircle, AlertCircle, Loader2, HardDrive, RefreshCw, Trash2 } from "lucide-react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface BackupInfo {
   lastDbBackup: string | null;
   lastFilesBackup: string | null;
   dbSizeKb: number;
   fileCount: number;
+  orphanCount: number;
+  orphanSizeMb: number;
+  totalSizeMb: number;
 }
 
 export default function AdminBackup() {
@@ -20,6 +28,19 @@ export default function AdminBackup() {
 
   const { data: info, isLoading: infoLoading, refetch } = useQuery<BackupInfo>({
     queryKey: ["/api/admin/backup/info"],
+  });
+
+  const cleanupMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/admin/backup/cleanup-orphans"),
+    onSuccess: async (res: any) => {
+      const data = await res.json();
+      toast({
+        title: "정리 완료",
+        description: `${data.deleted}개 파일 삭제, ${data.freedMb}MB 확보`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/backup/info"] });
+    },
+    onError: () => toast({ title: "정리 실패", variant: "destructive" }),
   });
 
   async function downloadFile(url: string, filename: string, setLoading: (v: boolean) => void) {
@@ -64,7 +85,7 @@ export default function AdminBackup() {
       </div>
 
       {/* Status Cards */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
@@ -72,8 +93,8 @@ export default function AdminBackup() {
                 <Database className="w-5 h-5 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">데이터베이스 크기</p>
-                <p className="text-xl font-bold">
+                <p className="text-xs text-muted-foreground">DB 크기</p>
+                <p className="text-lg font-bold">
                   {infoLoading ? "..." : info ? `${(info.dbSizeKb / 1024).toFixed(1)} MB` : "-"}
                 </p>
               </div>
@@ -87,15 +108,83 @@ export default function AdminBackup() {
                 <Images className="w-5 h-5 text-green-600 dark:text-green-400" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">클라우드 파일 수</p>
-                <p className="text-xl font-bold">
-                  {infoLoading ? "..." : info ? `${info.fileCount}개` : "-"}
+                <p className="text-xs text-muted-foreground">클라우드 파일</p>
+                <p className="text-lg font-bold">
+                  {infoLoading ? "..." : info ? `${info.fileCount}개 (${info.totalSizeMb}MB)` : "-"}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className={info && info.orphanCount > 0 ? "border-amber-300 dark:border-amber-700" : ""}>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-amber-100 dark:bg-amber-900 rounded-lg">
+                <Trash2 className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">미사용 파일</p>
+                <p className="text-lg font-bold">
+                  {infoLoading ? "..." : info ? `${info.orphanCount}개 (${info.orphanSizeMb}MB)` : "-"}
                 </p>
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* Orphan Cleanup */}
+      {info && info.orphanCount > 0 && (
+        <Card className="border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Trash2 className="w-5 h-5 text-amber-600" />
+                <CardTitle className="text-amber-800 dark:text-amber-200">미사용 파일 정리</CardTitle>
+              </div>
+              <Badge variant="outline" className="border-amber-400 text-amber-700">
+                {info.orphanSizeMb}MB 낭비 중
+              </Badge>
+            </div>
+            <CardDescription className="text-amber-700 dark:text-amber-300">
+              업로드했다가 저장하지 않은 파일 <strong>{info.orphanCount}개</strong>가 클라우드에 남아있습니다.
+              이 파일들은 실제로 사용되지 않으므로 삭제해도 앱에 영향이 없습니다.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  data-testid="button-cleanup-orphans"
+                  variant="outline"
+                  className="w-full border-amber-400 text-amber-700 hover:bg-amber-100"
+                  disabled={cleanupMutation.isPending}
+                >
+                  {cleanupMutation.isPending ? (
+                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> 삭제 중...</>
+                  ) : (
+                    <><Trash2 className="w-4 h-4 mr-2" /> 미사용 파일 {info.orphanCount}개 삭제 ({info.orphanSizeMb}MB 확보)</>
+                  )}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>미사용 파일 삭제</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    DB에 저장되지 않은 임시 파일 <strong>{info.orphanCount}개 ({info.orphanSizeMb}MB)</strong>를
+                    삭제합니다. 실제 사용 중인 사진이나 문서는 삭제되지 않습니다.
+                    계속하시겠습니까?
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>취소</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => cleanupMutation.mutate()}>삭제</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </CardContent>
+        </Card>
+      )}
 
       {/* DB Backup */}
       <Card>
@@ -161,12 +250,6 @@ export default function AdminBackup() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {info?.lastFilesBackup && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <CheckCircle className="w-4 h-4 text-green-500" />
-              마지막 백업: {info.lastFilesBackup}
-            </div>
-          )}
           <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg p-3 text-sm flex gap-2">
             <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
             <span className="text-amber-700 dark:text-amber-300">
@@ -202,6 +285,7 @@ export default function AdminBackup() {
           <p>2. 백업 파일 이름에 날짜가 포함되어 있으니 그대로 저장하면 됩니다</p>
           <p>3. SQL 파일은 PostgreSQL 데이터베이스에 <code>psql</code> 명령으로 복원할 수 있습니다</p>
           <p>4. 중요한 사진 자료가 추가될 때마다 파일 백업도 함께 받아두세요</p>
+          <p>5. 미사용 파일 정리를 주기적으로 실행하면 클라우드 용량을 절약할 수 있습니다</p>
         </CardContent>
       </Card>
     </div>

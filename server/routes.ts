@@ -1998,6 +1998,27 @@ export async function registerRoutes(
   });
 
   // ===== 관리자 데이터 백업 =====
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+  const BACKUP_ALL_TABLES = [
+    "notices","safety_inspections","accident_reports","near_miss_reports",
+    "safety_equipment","education_sessions","risk_assessments",
+    "health_manager_reports","safety_manager_reports","vehicles",
+    "fuel_records","traffic_fines","work_plans","new_equipment_requests",
+    "musculoskeletal_assessments","chemicals","conversations","messages",
+    "music_files","users","teams",
+  ];
+
+  async function getAllDbTextForCleanup(): Promise<string> {
+    let combined = "";
+    for (const t of BACKUP_ALL_TABLES) {
+      try {
+        const r = await db.execute(sql.raw(`SELECT string_agg(to_jsonb(${t})::text, ' ') FROM ${t}`));
+        combined += (r.rows[0] as any)?.string_agg || "";
+      } catch (_) {}
+    }
+    return combined;
+  }
+
   app.get("/api/admin/backup/info", isAuthenticated, async (req: any, res) => {
     if (req.user?.role !== "admin") return res.status(403).json({ message: "관리자만 접근 가능합니다." });
     try {
@@ -2007,6 +2028,9 @@ export async function registerRoutes(
       const dbSizeKb = Number((sizeResult.rows[0] as any)?.size_kb ?? 0);
       const privateDir = process.env.PRIVATE_OBJECT_DIR;
       let fileCount = 0;
+      let orphanCount = 0;
+      let orphanSizeMb = 0;
+      let totalSizeMb = 0;
       if (privateDir) {
         const parts = privateDir.replace(/^\//, "").split("/");
         const bucketName = parts[0];
@@ -2014,11 +2038,52 @@ export async function registerRoutes(
         try {
           const [files] = await objectStorageClient.bucket(bucketName).getFiles({ prefix });
           fileCount = files.length;
+          totalSizeMb = files.reduce((acc, f) => acc + Number((f.metadata as any).size || 0), 0) / 1024 / 1024;
+          const uuidFiles = files.filter(f => UUID_RE.test(f.name.replace(prefix + "/uploads/", "")));
+          if (uuidFiles.length > 0) {
+            const dbText = await getAllDbTextForCleanup();
+            for (const f of uuidFiles) {
+              const name = f.name.replace(prefix + "/uploads/", "");
+              if (!dbText.includes(name)) {
+                orphanCount++;
+                orphanSizeMb += Number((f.metadata as any).size || 0) / 1024 / 1024;
+              }
+            }
+          }
         } catch (_) {}
       }
-      res.json({ dbSizeKb, fileCount, lastDbBackup: null, lastFilesBackup: null });
+      res.json({ dbSizeKb, fileCount, orphanCount, orphanSizeMb: Math.round(orphanSizeMb), totalSizeMb: Math.round(totalSizeMb), lastDbBackup: null, lastFilesBackup: null });
     } catch (err) {
       res.status(500).json({ message: "정보 조회 실패" });
+    }
+  });
+
+  app.post("/api/admin/backup/cleanup-orphans", isAuthenticated, async (req: any, res) => {
+    if (req.user?.role !== "admin") return res.status(403).json({ message: "관리자만 접근 가능합니다." });
+    const privateDir = process.env.PRIVATE_OBJECT_DIR;
+    if (!privateDir) return res.status(400).json({ message: "클라우드 스토리지 미설정" });
+    try {
+      const parts = privateDir.replace(/^\//, "").split("/");
+      const bucketName = parts[0];
+      const prefix = parts.slice(1).join("/");
+      const [files] = await objectStorageClient.bucket(bucketName).getFiles({ prefix });
+      const uuidFiles = files.filter(f => UUID_RE.test(f.name.replace(prefix + "/uploads/", "")));
+      const dbText = await getAllDbTextForCleanup();
+      let deleted = 0;
+      let freedMb = 0;
+      for (const f of uuidFiles) {
+        const name = f.name.replace(prefix + "/uploads/", "");
+        if (!dbText.includes(name)) {
+          try {
+            freedMb += Number((f.metadata as any).size || 0) / 1024 / 1024;
+            await f.delete();
+            deleted++;
+          } catch (_) {}
+        }
+      }
+      res.json({ deleted, freedMb: Math.round(freedMb) });
+    } catch (err: any) {
+      res.status(500).json({ message: "정리 실패: " + err?.message });
     }
   });
 
