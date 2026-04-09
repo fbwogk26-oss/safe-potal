@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   ShieldCheck, Plus, Trash2, Search, ImagePlus, X, Eye, FileText,
-  Calendar, Image, CheckSquare, FileUp, Download, Loader2, Pencil,
+  Calendar, Image, CheckSquare, FileUp, Download, Loader2, Pencil, ZoomIn,
 } from "lucide-react";
 import { useState, useMemo, useRef } from "react";
 import { useMutation } from "@tanstack/react-query";
@@ -251,6 +251,8 @@ export default function Rules() {
   const [selectedRule, setSelectedRule] = useState<RuleRecord | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingRule, setEditingRule] = useState<RuleRecord | null>(null);
+
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
 
   const [addTitle, setAddTitle] = useState("");
   const [addContent, setAddContent] = useState("");
@@ -644,23 +646,36 @@ export default function Rules() {
                 </DialogHeader>
                 <div className="space-y-4 pt-4">
                   {imgs.length === 1 && (
-                    <img
-                      src={imgs[0].url}
-                      alt={imgs[0].name}
-                      className="w-full max-h-80 object-contain rounded-xl border bg-muted/20"
-                      onError={(e) => { e.currentTarget.style.display = "none"; }}
-                    />
+                    <div className="relative group cursor-zoom-in" onClick={() => setLightboxSrc(imgs[0].url)}>
+                      <img
+                        src={imgs[0].url}
+                        alt={imgs[0].name}
+                        className="w-full max-h-80 object-contain rounded-xl border bg-muted/20"
+                        onError={(e) => { e.currentTarget.style.display = "none"; }}
+                      />
+                      <div className="absolute inset-0 rounded-xl flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/20 transition-opacity">
+                        <div className="bg-black/60 text-white rounded-full p-2">
+                          <ZoomIn className="w-5 h-5" />
+                        </div>
+                      </div>
+                    </div>
                   )}
                   {imgs.length > 1 && (
                     <div className={`grid gap-2 ${imgs.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
                       {imgs.map((img, i) => (
-                        <img
-                          key={i}
-                          src={img.url}
-                          alt={img.name}
-                          className="w-full aspect-square object-cover rounded-lg border bg-muted/20"
-                          onError={(e) => { e.currentTarget.style.display = "none"; }}
-                        />
+                        <div key={i} className="relative group cursor-zoom-in" onClick={() => setLightboxSrc(img.url)}>
+                          <img
+                            src={img.url}
+                            alt={img.name}
+                            className="w-full aspect-square object-cover rounded-lg border bg-muted/20"
+                            onError={(e) => { e.currentTarget.style.display = "none"; }}
+                          />
+                          <div className="absolute inset-0 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/20 transition-opacity">
+                            <div className="bg-black/60 text-white rounded-full p-1.5">
+                              <ZoomIn className="w-4 h-4" />
+                            </div>
+                          </div>
+                        </div>
                       ))}
                     </div>
                   )}
@@ -710,6 +725,27 @@ export default function Rules() {
           })()}
         </DialogContent>
       </Dialog>
+
+      {/* ── 이미지 라이트박스 ── */}
+      {lightboxSrc && (
+        <div
+          className="fixed inset-0 z-[99999] bg-black/90 flex items-center justify-center"
+          onClick={() => setLightboxSrc(null)}
+        >
+          <button
+            className="absolute top-4 right-4 text-white bg-white/10 hover:bg-white/20 rounded-full p-2 transition-colors"
+            onClick={() => setLightboxSrc(null)}
+          >
+            <X className="w-6 h-6" />
+          </button>
+          <img
+            src={lightboxSrc}
+            alt="확대 이미지"
+            className="max-w-[92vw] max-h-[92vh] object-contain rounded-lg shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
 
       {/* ── 플로팅 벌크 삭제 바 ── */}
       {selectionMode && selectedIds.size > 0 && (

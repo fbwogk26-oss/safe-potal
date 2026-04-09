@@ -58,13 +58,21 @@ function usePreloadedSlideUrls(slideList: any[], parseContent: (c: string) => Pa
 }
 
 const PreloadedImage = memo(function PreloadedImage({ src, alt, className }: { src: string | undefined; alt: string; className: string }) {
-  if (!src) return <div className="w-full h-full bg-gray-900" />;
+  const [failed, setFailed] = useState(false);
+  if (!src || failed) {
+    return (
+      <div className="w-full h-full bg-gray-900 flex flex-col items-center justify-center gap-2 text-white/40">
+        <MonitorPlay className="w-10 h-10" />
+        <span className="text-xs text-center px-2">이미지를 불러올 수 없습니다<br/>슬라이드를 삭제 후 재업로드하세요</span>
+      </div>
+    );
+  }
   return (
     <img
       src={src}
       alt={alt}
       className={className}
-      onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
+      onError={() => setFailed(true)}
     />
   );
 });
