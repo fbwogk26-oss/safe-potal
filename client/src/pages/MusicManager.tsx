@@ -426,7 +426,7 @@ export default function MusicManager() {
   const schedule = ensureWeekly(rawSchedule);
   const form = scheduleForm ?? schedule;
 
-  const MAX_SONGS = 5;
+  const MAX_SONGS = 10;
   const atLimit = files.length >= MAX_SONGS;
 
   const deleteMutation = useMutation({

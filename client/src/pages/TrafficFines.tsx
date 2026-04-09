@@ -11,7 +11,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Loader2, Upload, FileText, Pencil, Trash2, Plus, ReceiptText, AlertCircle, Car, X, ZoomIn, FileDown, Zap, AlertTriangle } from "lucide-react";
+import { Loader2, Upload, FileText, Pencil, Trash2, Plus, ReceiptText, AlertCircle, Car, X, ZoomIn, FileDown, Zap, AlertTriangle, CheckSquare } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import type { TrafficFine, Vehicle } from "@shared/schema";
 
 const todayStr = () => {
@@ -224,6 +225,8 @@ export default function TrafficFines() {
   const [filterStatus, setFilterStatus] = useState<"전체" | "미납" | "납부완료">("전체");
   const [filterText, setFilterText] = useState("");
   const [viewerSrc, setViewerSrc] = useState<{ src: string; pdfUrl?: string | null } | null>(null);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
   const { data: fines = [], isLoading } = useQuery<TrafficFine[]>({
     queryKey: ["/api/traffic-fines"],
@@ -288,6 +291,20 @@ export default function TrafficFines() {
   });
 
   const isAdmin = user?.role === "admin";
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: (ids: number[]) => apiRequest("POST", "/api/traffic-fines/bulk-delete", { ids }),
+    onSuccess: async (res) => {
+      const data = await (res as any).json();
+      queryClient.invalidateQueries({ queryKey: ["/api/traffic-fines"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/traffic-fines/stats"] });
+      setSelectedIds(new Set()); setSelectionMode(false);
+      toast({ title: `${data.deleted}건 삭제 완료` });
+    },
+    onError: (e: any) => toast({ title: "삭제 실패", description: e?.message, variant: "destructive" }),
+  });
+
+  const toggleSelect = (id: number) => setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
   const setField = (key: keyof TrafficFine, val: any) =>
     setForm((f) => ({ ...f, [key]: val }));
@@ -427,6 +444,18 @@ export default function TrafficFines() {
             <FileDown className="h-3.5 w-3.5 mr-1" /> 엑셀
           </Button>
           {isAdmin && (
+            <Button
+              variant={selectionMode ? "default" : "outline"}
+              size="sm"
+              className={`gap-1.5 ${selectionMode ? "bg-red-500 hover:bg-red-600 text-white" : ""}`}
+              onClick={() => { setSelectionMode(v => !v); setSelectedIds(new Set()); }}
+              data-testid="button-toggle-selection"
+            >
+              <CheckSquare className="h-4 w-4" />
+              {selectionMode ? "취소" : "선택"}
+            </Button>
+          )}
+          {isAdmin && (
             <Button onClick={openNew} data-testid="button-new-fine">
               <Plus className="h-4 w-4 mr-1" /> 직접 등록
             </Button>
@@ -549,7 +578,12 @@ export default function TrafficFines() {
       <Card>
         <CardHeader>
           <div className="flex flex-col md:flex-row gap-3 md:items-center">
+            <div className="flex items-center gap-2">
             <CardTitle className="text-base">과태료 목록</CardTitle>
+            {selectionMode && (
+              <span className="text-sm text-muted-foreground">({selectedIds.size}개 선택됨)</span>
+            )}
+          </div>
             <div className="flex gap-2 ml-auto">
               <Input
                 placeholder="차량번호, 운전자, 위반내역 검색..."
@@ -583,6 +617,19 @@ export default function TrafficFines() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-muted-foreground">
+                    {selectionMode && (
+                      <th className="py-2 px-2 w-8">
+                        <Checkbox
+                          checked={filtered.length > 0 && filtered.every(f => selectedIds.has(f.id))}
+                          onCheckedChange={() => {
+                            const allSel = filtered.every(f => selectedIds.has(f.id));
+                            if (allSel) setSelectedIds(new Set());
+                            else setSelectedIds(new Set(filtered.map(f => f.id)));
+                          }}
+                          data-testid="checkbox-select-all"
+                        />
+                      </th>
+                    )}
                     <th className="text-left py-2 px-2 font-medium">고지서</th>
                     <th className="text-left py-2 px-2 font-medium">위반일시</th>
                     <th className="text-left py-2 px-2 font-medium">차량번호</th>
@@ -600,9 +647,24 @@ export default function TrafficFines() {
                 </thead>
                 <tbody>
                   {filtered.map((fine) => (
-                    <tr key={fine.id} className="border-b hover:bg-muted/30 transition-colors" data-testid={`row-fine-${fine.id}`}>
+                    <tr
+                      key={fine.id}
+                      className={`border-b transition-colors cursor-pointer ${selectionMode && selectedIds.has(fine.id) ? "bg-red-50 dark:bg-red-900/20" : "hover:bg-muted/30"}`}
+                      onClick={() => selectionMode && toggleSelect(fine.id)}
+                      data-testid={`row-fine-${fine.id}`}
+                    >
+                      {selectionMode && (
+                        <td className="py-1.5 px-2">
+                          <Checkbox
+                            checked={selectedIds.has(fine.id)}
+                            onCheckedChange={() => toggleSelect(fine.id)}
+                            onClick={e => e.stopPropagation()}
+                            data-testid={`checkbox-fine-${fine.id}`}
+                          />
+                        </td>
+                      )}
                       {/* PDF 썸네일 */}
-                      <td className="py-1.5 px-2">
+                      <td className="py-1.5 px-2" onClick={e => selectionMode && e.stopPropagation()}>
                         {(fine as any).thumbnailUrl ? (
                           <button
                             className="group relative"
@@ -873,6 +935,25 @@ export default function TrafficFines() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* 플로팅 벌크 액션 바 */}
+      {selectionMode && selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-background border border-border shadow-xl rounded-full px-5 py-3">
+          <span className="text-sm font-semibold text-red-600">{selectedIds.size}건 선택됨</span>
+          <div className="w-px h-5 bg-border" />
+          <Button variant="ghost" size="sm" className="h-8" onClick={() => setSelectedIds(new Set())}>
+            <X className="h-3.5 w-3.5 mr-1" />선택 해제
+          </Button>
+          <Button
+            variant="destructive" size="sm" className="h-8"
+            disabled={bulkDeleteMutation.isPending}
+            onClick={() => { if (confirm(`선택한 ${selectedIds.size}건을 삭제하시겠습니까?`)) bulkDeleteMutation.mutate(Array.from(selectedIds)); }}
+            data-testid="button-bulk-delete"
+          >
+            <Trash2 className="h-3.5 w-3.5 mr-1" />삭제
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

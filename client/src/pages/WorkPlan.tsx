@@ -11,8 +11,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Upload, CalendarCheck, CheckCircle2, X, Loader2, Copy, Check, Mail, Trash2, Clock, Send, RefreshCw, Inbox, FileText, ChevronRight, Bot, Play, AlertCircle, Timer
+  Upload, CalendarCheck, CheckCircle2, X, Loader2, Copy, Check, Mail, Trash2, Clock, Send, RefreshCw, Inbox, FileText, ChevronRight, Bot, Play, AlertCircle, Timer, CheckSquare
 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
@@ -60,6 +61,8 @@ export default function WorkPlan() {
   const [recipientEmail, setRecipientEmail] = useState("jaeha.ryu@ktmos.co.kr");
   const [sendSuccess, setSendSuccess] = useState(false);
   const [expandedPlanId, setExpandedPlanId] = useState<number | null>(null);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
   // Gmail 받은편지함
   const [gmailEmails, setGmailEmails] = useState<{uid:number;subject:string;from:string;fromAddr:string;date:string}[]>([]);
@@ -191,6 +194,19 @@ export default function WorkPlan() {
       toast({ title: "삭제 실패", variant: "destructive" });
     },
   });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: (ids: number[]) => apiRequest("POST", "/api/work-plans/bulk-delete", { ids }),
+    onSuccess: async (res) => {
+      const data = await (res as any).json();
+      queryClient.invalidateQueries({ queryKey: ["/api/work-plans"] });
+      setSelectedIds(new Set()); setSelectionMode(false);
+      toast({ title: `${data.deleted}건 삭제 완료` });
+    },
+    onError: () => toast({ title: "삭제 실패", variant: "destructive" }),
+  });
+
+  const toggleSelect = (id: number) => setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
   const handleFileSelect = (file: File) => {
     if (!file.name.toLowerCase().endsWith(".eml")) {
@@ -618,9 +634,22 @@ export default function WorkPlan() {
               <p className="text-sm text-muted-foreground">
                 업로드 시 자동 저장된 작업계획 메일 초안 목록입니다. 항목을 클릭하면 본문을 확인할 수 있습니다.
               </p>
-              <span className="text-sm font-semibold text-foreground">
-                총 {workPlans.length}건
-              </span>
+              <div className="flex items-center gap-2">
+                {selectionMode && selectedIds.size > 0 && (
+                  <span className="text-sm text-muted-foreground">{selectedIds.size}건 선택됨</span>
+                )}
+                <span className="text-sm font-semibold text-foreground">총 {workPlans.length}건</span>
+                <Button
+                  variant={selectionMode ? "default" : "outline"}
+                  size="sm"
+                  className={`gap-1.5 ${selectionMode ? "bg-red-500 hover:bg-red-600 text-white" : ""}`}
+                  onClick={() => { setSelectionMode(v => !v); setSelectedIds(new Set()); }}
+                  data-testid="button-toggle-selection"
+                >
+                  <CheckSquare className="w-4 h-4" />
+                  {selectionMode ? "취소" : "선택"}
+                </Button>
+              </div>
             </div>
 
             {isLoading ? (
@@ -638,20 +667,29 @@ export default function WorkPlan() {
                 {workPlans.map((plan) => (
                   <Card key={plan.id} className={cn(
                     "transition-all",
-                    expandedPlanId === plan.id && "border-blue-300 dark:border-blue-700 shadow-sm"
+                    selectionMode && selectedIds.has(plan.id) && "border-red-300 dark:border-red-700 bg-red-50/50 dark:bg-red-900/10",
+                    expandedPlanId === plan.id && !selectionMode && "border-blue-300 dark:border-blue-700 shadow-sm"
                   )}>
                     <div
                       className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-muted/30 transition-colors rounded-t-lg"
-                      onClick={() => setExpandedPlanId(expandedPlanId === plan.id ? null : plan.id)}
+                      onClick={() => selectionMode ? toggleSelect(plan.id) : setExpandedPlanId(expandedPlanId === plan.id ? null : plan.id)}
                       data-testid={`row-draft-${plan.id}`}
                     >
+                      {selectionMode && (
+                        <Checkbox
+                          checked={selectedIds.has(plan.id)}
+                          onCheckedChange={() => toggleSelect(plan.id)}
+                          onClick={e => e.stopPropagation()}
+                          data-testid={`checkbox-plan-${plan.id}`}
+                        />
+                      )}
                       <div className={cn(
                         "w-8 h-8 rounded-full flex items-center justify-center shrink-0",
-                        expandedPlanId === plan.id
+                        expandedPlanId === plan.id && !selectionMode
                           ? "bg-blue-100 dark:bg-blue-900"
                           : "bg-muted"
                       )}>
-                        <Mail className={cn("w-4 h-4", expandedPlanId === plan.id ? "text-blue-600" : "text-muted-foreground")} />
+                        <Mail className={cn("w-4 h-4", expandedPlanId === plan.id && !selectionMode ? "text-blue-600" : "text-muted-foreground")} />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold truncate">{plan.title}</p>
@@ -661,22 +699,24 @@ export default function WorkPlan() {
                         </p>
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-7 w-7 hover:text-destructive"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteMutation.mutate(plan.id);
-                          }}
-                          data-testid={`button-delete-draft-${plan.id}`}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
-                        <ChevronRight className={cn(
+                        {!selectionMode && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7 hover:text-destructive"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteMutation.mutate(plan.id);
+                            }}
+                            data-testid={`button-delete-draft-${plan.id}`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        )}
+                        {!selectionMode && <ChevronRight className={cn(
                           "w-4 h-4 text-muted-foreground transition-transform",
                           expandedPlanId === plan.id && "rotate-90"
-                        )} />
+                        )} />}
                       </div>
                     </div>
 
@@ -957,6 +997,25 @@ export default function WorkPlan() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* 플로팅 벌크 액션 바 */}
+      {selectionMode && selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-background border border-border shadow-xl rounded-full px-5 py-3">
+          <span className="text-sm font-semibold text-red-600">{selectedIds.size}건 선택됨</span>
+          <div className="w-px h-5 bg-border" />
+          <Button variant="ghost" size="sm" className="h-8" onClick={() => setSelectedIds(new Set())}>
+            <X className="w-3.5 h-3.5 mr-1" />선택 해제
+          </Button>
+          <Button
+            variant="destructive" size="sm" className="h-8"
+            disabled={bulkDeleteMutation.isPending}
+            onClick={() => { if (confirm(`선택한 ${selectedIds.size}건을 삭제하시겠습니까?`)) bulkDeleteMutation.mutate(Array.from(selectedIds)); }}
+            data-testid="button-bulk-delete"
+          >
+            <Trash2 className="w-3.5 h-3.5 mr-1" />삭제
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

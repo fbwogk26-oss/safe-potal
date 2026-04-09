@@ -1908,6 +1908,15 @@ export async function registerRoutes(
     res.status(204).send();
   });
 
+  app.post("/api/education-sessions/bulk-delete", requirePermission("registerEducation"), async (req: any, res) => {
+    const ids: number[] = req.body.ids || [];
+    if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ message: "ids 필요" });
+    try {
+      for (const id of ids) { try { await storage.deleteEducationSession(id); } catch (_) {} }
+      res.json({ deleted: ids.length });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
   // === EDUCATION SIGNATURES ===
   app.get("/api/education-sessions/:id/signatures", isAuthenticated, async (req: any, res) => {
     const signatures = await storage.getSignaturesBySession(Number(req.params.id));
@@ -3144,6 +3153,15 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
     }
   });
 
+  app.post('/api/accidents/bulk-delete', requireEditor, async (req: any, res) => {
+    const ids: number[] = req.body.ids || [];
+    if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ message: "ids 필요" });
+    try {
+      for (const id of ids) { try { await storage.deleteAccidentReport(id); } catch (_) {} }
+      res.json({ deleted: ids.length });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
   app.post('/api/accidents/upload-photos', requireEditor, upload.array('photos', 10), async (req: any, res) => {
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ message: "No files uploaded" });
@@ -3655,6 +3673,15 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
     try {
       await storage.deleteNearMissReport(Number(req.params.id));
       res.json({ success: true });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.post('/api/near-miss/bulk-delete', requireEditor, async (req: any, res) => {
+    const ids: number[] = req.body.ids || [];
+    if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ message: "ids 필요" });
+    try {
+      for (const id of ids) { try { await storage.deleteNearMissReport(id); } catch (_) {} }
+      res.json({ deleted: ids.length });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
@@ -4483,6 +4510,16 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
     }
   });
 
+  app.post('/api/traffic-fines/bulk-delete', isAuthenticated, async (req: any, res) => {
+    if (req.user?.role !== 'admin') return res.status(403).json({ message: "관리자만 사용할 수 있습니다" });
+    const ids: number[] = req.body.ids || [];
+    if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ message: "ids 필요" });
+    try {
+      for (const id of ids) { try { await storage.deleteTrafficFine(id); } catch (_) {} }
+      res.json({ deleted: ids.length });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
   // 과태료 통계
   app.get('/api/traffic-fines/stats', isAuthenticated, async (req: any, res) => {
     try {
@@ -5213,6 +5250,15 @@ ${htmlDraft}
     }
   });
 
+  app.post('/api/work-plans/bulk-delete', isAuthenticated, async (req: any, res) => {
+    const ids: number[] = req.body.ids || [];
+    if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ message: "ids 필요" });
+    try {
+      for (const id of ids) { try { await storage.deleteWorkPlan(id); } catch (_) {} }
+      res.json({ deleted: ids.length });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
   // 서버 시작 시 PM10 API 연결 테스트 (비동기, 블로킹 없음)
   setTimeout(() => {
     fetchWeather("대구").then(w => {
@@ -5250,10 +5296,10 @@ ${htmlDraft}
       const { originalName, size } = req.body;
       if (!originalName) return res.status(400).json({ message: "파일명이 없습니다" });
 
-      // Max 5 songs limit
+      // Max 10 songs limit
       const existing = await storage.getMusicFiles();
-      if (existing.length >= 5) {
-        return res.status(400).json({ message: "음악은 최대 5개까지만 등록할 수 있습니다. 기존 파일을 삭제 후 업로드해주세요." });
+      if (existing.length >= 10) {
+        return res.status(400).json({ message: "음악은 최대 10개까지만 등록할 수 있습니다. 기존 파일을 삭제 후 업로드해주세요." });
       }
 
       const ext = path.extname(originalName).toLowerCase();

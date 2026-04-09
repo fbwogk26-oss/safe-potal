@@ -9,12 +9,14 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   AlertTriangle, Download, Search, Filter, ChevronDown, ChevronUp,
   MapPin, Calendar, User, Clipboard, CheckCircle2, Clock, Eye,
   Trash2, QrCode, BarChart3, TrendingUp, Shield, Zap, ArrowRight,
+  CheckSquare, X,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -53,6 +55,8 @@ export default function NearMiss() {
   const [showDetail, setShowDetail] = useState(false);
   const [showQr, setShowQr] = useState(false);
   const [activeTab, setActiveTab] = useState<"list"|"dashboard">("dashboard");
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
   const { data: reports = [], isLoading } = useQuery<NearMiss[]>({
     queryKey: ["/api/near-miss"],
@@ -69,6 +73,26 @@ export default function NearMiss() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/near-miss"] }); setShowDetail(false); toast({ title: "삭제 완료" }); },
     onError: (e: Error) => toast({ title: "오류", description: e.message, variant: "destructive" }),
   });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: (ids: number[]) => apiRequest("POST", "/api/near-miss/bulk-delete", { ids }),
+    onSuccess: async (res) => {
+      const data = await (res as any).json();
+      qc.invalidateQueries({ queryKey: ["/api/near-miss"] });
+      setSelectedIds(new Set());
+      setSelectionMode(false);
+      toast({ title: `${data.deleted}건 삭제 완료` });
+    },
+    onError: (e: Error) => toast({ title: "삭제 실패", description: e.message, variant: "destructive" }),
+  });
+
+  const toggleSelect = (id: number) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
 
   const filtered = useMemo(() => reports.filter(r => {
     if (filterStatus !== "all" && r.status !== filterStatus) return false;
@@ -97,6 +121,12 @@ export default function NearMiss() {
     검토중: reports.filter(r => r.status === "검토중").length,
     조치완료: reports.filter(r => r.status === "조치완료").length,
   }), [reports]);
+
+  const allSelected = filtered.length > 0 && filtered.every(r => selectedIds.has(r.id));
+  const toggleAll = () => {
+    if (allSelected) setSelectedIds(new Set());
+    else setSelectedIds(new Set(filtered.map(r => r.id)));
+  };
 
   const publicUrl = typeof window !== "undefined" ? `${window.location.origin}/near-miss/submit` : "";
 
@@ -127,12 +157,26 @@ export default function NearMiss() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b">
+      <div className="flex items-center gap-1 border-b">
         {(["dashboard","list"] as const).map(tab => (
-          <button key={tab} onClick={() => setActiveTab(tab)} className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${activeTab === tab ? "border-amber-500 text-amber-600" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+          <button key={tab} onClick={() => { setActiveTab(tab); setSelectionMode(false); setSelectedIds(new Set()); }} className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${activeTab === tab ? "border-amber-500 text-amber-600" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
             {tab === "dashboard" ? "📊 대시보드" : "📋 목록 관리"}
           </button>
         ))}
+        {activeTab === "list" && isAdmin && (
+          <div className="ml-auto pb-1">
+            <Button
+              variant={selectionMode ? "default" : "outline"}
+              size="sm"
+              className={`gap-1.5 h-8 ${selectionMode ? "bg-amber-500 hover:bg-amber-600 text-white" : ""}`}
+              onClick={() => { setSelectionMode(v => !v); setSelectedIds(new Set()); }}
+              data-testid="button-toggle-selection"
+            >
+              <CheckSquare className="w-3.5 h-3.5" />
+              {selectionMode ? "선택 취소" : "선택"}
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Dashboard Tab */}
@@ -268,6 +312,16 @@ export default function NearMiss() {
             </Select>
           </div>
 
+          {/* 전체 선택 행 */}
+          {selectionMode && filtered.length > 0 && (
+            <div className="flex items-center gap-3 px-3 py-2 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+              <Checkbox checked={allSelected} onCheckedChange={toggleAll} data-testid="checkbox-select-all" />
+              <span className="text-sm text-amber-700 dark:text-amber-300 font-medium">
+                전체 선택 ({selectedIds.size}/{filtered.length})
+              </span>
+            </div>
+          )}
+
           {isLoading ? (
             <div className="space-y-3">{[1,2,3].map(i => <div key={i} className="h-20 bg-muted/20 animate-pulse rounded-lg" />)}</div>
           ) : filtered.length === 0 ? (
@@ -279,11 +333,29 @@ export default function NearMiss() {
             <div className="space-y-2">
               {filtered.map((r, idx) => (
                 <motion.div key={r.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.02 }}>
-                  <div onClick={() => openDetail(r)} className="border rounded-lg p-3 sm:p-4 hover:bg-amber-50/40 dark:hover:bg-amber-900/10 cursor-pointer transition-colors" data-testid={`near-miss-card-${r.id}`}>
+                  <div
+                    onClick={() => selectionMode ? toggleSelect(r.id) : openDetail(r)}
+                    className={`border rounded-lg p-3 sm:p-4 cursor-pointer transition-colors ${
+                      selectionMode && selectedIds.has(r.id)
+                        ? "bg-amber-50 border-amber-300 dark:bg-amber-900/20 dark:border-amber-700"
+                        : "hover:bg-amber-50/40 dark:hover:bg-amber-900/10"
+                    }`}
+                    data-testid={`near-miss-card-${r.id}`}
+                  >
                     <div className="flex items-start gap-3">
-                      <div className="shrink-0 w-10 h-10 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center text-amber-600 dark:text-amber-400">
-                        <AlertTriangle className="w-5 h-5" />
-                      </div>
+                      {selectionMode ? (
+                        <Checkbox
+                          checked={selectedIds.has(r.id)}
+                          onCheckedChange={() => toggleSelect(r.id)}
+                          onClick={e => e.stopPropagation()}
+                          className="mt-0.5 shrink-0"
+                          data-testid={`checkbox-near-miss-${r.id}`}
+                        />
+                      ) : (
+                        <div className="shrink-0 w-10 h-10 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center text-amber-600 dark:text-amber-400">
+                          <AlertTriangle className="w-5 h-5" />
+                        </div>
+                      )}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap mb-1">
                           <span className="font-semibold text-sm">{r.accidentType}</span>
@@ -298,13 +370,39 @@ export default function NearMiss() {
                         </div>
                         {r.description && <p className="text-xs text-muted-foreground mt-1 truncate">{r.description}</p>}
                       </div>
-                      <Eye className="w-4 h-4 text-muted-foreground shrink-0" />
+                      {!selectionMode && <Eye className="w-4 h-4 text-muted-foreground shrink-0" />}
                     </div>
                   </div>
                 </motion.div>
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* 플로팅 벌크 액션 바 */}
+      {selectionMode && selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-background border border-border shadow-xl rounded-full px-5 py-3">
+          <span className="text-sm font-semibold text-amber-600">{selectedIds.size}건 선택됨</span>
+          <div className="w-px h-5 bg-border" />
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 text-muted-foreground"
+            onClick={() => setSelectedIds(new Set())}
+          >
+            <X className="w-3.5 h-3.5 mr-1" />선택 해제
+          </Button>
+          <Button
+            variant="destructive"
+            size="sm"
+            className="h-8"
+            onClick={() => { if (confirm(`선택한 ${selectedIds.size}건을 삭제하시겠습니까?`)) bulkDeleteMutation.mutate(Array.from(selectedIds)); }}
+            disabled={bulkDeleteMutation.isPending}
+            data-testid="button-bulk-delete"
+          >
+            <Trash2 className="w-3.5 h-3.5 mr-1" />삭제
+          </Button>
         </div>
       )}
 

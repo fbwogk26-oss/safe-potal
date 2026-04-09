@@ -5,7 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Bell, Plus, Trash2, Megaphone, ImagePlus, X, Pin, PinOff, Eye, Calendar, Image, MoreVertical, ImageOff } from "lucide-react";
+import { Bell, Plus, Trash2, Megaphone, ImagePlus, X, Pin, PinOff, Eye, Calendar, Image, MoreVertical, ImageOff, CheckSquare } from "lucide-react";
 import { useState, useRef, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -13,6 +13,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -68,6 +69,8 @@ export default function Notices() {
     createdBy?: string | null;
   } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ── 상단 고정 ──────────────────────────────────────────
@@ -160,6 +163,27 @@ export default function Notices() {
     }
   };
 
+  const bulkDeleteMutation = useMutation({
+    mutationFn: (ids: number[]) => apiRequest("DELETE", "/api/notices/bulk", { ids }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/notices"] });
+      const count = selectedIds.size;
+      setSelectedIds(new Set());
+      setSelectionMode(false);
+      toast({ title: `${count}개 공지 삭제 완료` });
+    },
+    onError: () => toast({ title: "삭제 실패", variant: "destructive" }),
+  });
+
+  const toggleSelect = (id: number) => {
+    setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  };
+  const allSelected = filteredNotices.length > 0 && filteredNotices.every(n => selectedIds.has(n.id));
+  const toggleAll = () => {
+    if (allSelected) setSelectedIds(new Set());
+    else setSelectedIds(new Set(filteredNotices.map(n => n.id)));
+  };
+
   return (
     <div className="max-w-5xl mx-auto space-y-4">
       <Card className="border-orange-200/50 dark:border-orange-900/30 overflow-hidden">
@@ -189,6 +213,18 @@ export default function Notices() {
                 </div>
                 {canRegisterNotices && (
                   <Button
+                    variant={selectionMode ? "default" : "outline"}
+                    size="sm"
+                    className={`gap-1.5 h-9 ${selectionMode ? "bg-orange-500 hover:bg-orange-600 text-white" : ""}`}
+                    onClick={() => { setSelectionMode(v => !v); setSelectedIds(new Set()); }}
+                    data-testid="button-toggle-selection"
+                  >
+                    <CheckSquare className="w-4 h-4" />
+                    {selectionMode ? "취소" : "선택"}
+                  </Button>
+                )}
+                {canRegisterNotices && (
+                  <Button
                     onClick={() => setShowAddForm(true)}
                     size="sm"
                     className="bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white gap-1.5 h-9"
@@ -205,6 +241,15 @@ export default function Notices() {
         </CardHeader>
 
         <CardContent className="p-0">
+          {/* 전체 선택 행 */}
+          {selectionMode && filteredNotices.length > 0 && (
+            <div className="flex items-center gap-3 px-4 py-2 bg-orange-50 dark:bg-orange-900/20 border-b border-orange-200 dark:border-orange-800">
+              <Checkbox checked={allSelected} onCheckedChange={toggleAll} data-testid="checkbox-select-all" />
+              <span className="text-sm text-orange-700 dark:text-orange-300 font-medium">
+                전체 선택 ({selectedIds.size}/{filteredNotices.length})
+              </span>
+            </div>
+          )}
           <div className="divide-y divide-border/50">
             {isLoading ? (
               [1,2,3,4,5].map(i => (
@@ -232,15 +277,26 @@ export default function Notices() {
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, x: -20 }}
                       transition={{ delay: idx * 0.03 }}
-                      onClick={() => setSelectedNotice(notice)}
+                      onClick={() => selectionMode ? toggleSelect(notice.id) : setSelectedNotice(notice)}
                       className={`group flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors ${
-                        pinnedNoticeId === notice.id
-                          ? 'bg-orange-50/70 dark:bg-orange-900/20 hover:bg-orange-100/70 dark:hover:bg-orange-900/30'
-                          : 'hover:bg-orange-50/50 dark:hover:bg-orange-900/10'
+                        selectionMode && selectedIds.has(notice.id)
+                          ? 'bg-orange-50 dark:bg-orange-900/20 border-l-2 border-l-orange-400'
+                          : pinnedNoticeId === notice.id
+                            ? 'bg-orange-50/70 dark:bg-orange-900/20 hover:bg-orange-100/70 dark:hover:bg-orange-900/30'
+                            : 'hover:bg-orange-50/50 dark:hover:bg-orange-900/10'
                       }`}
                       data-testid={`row-notice-${notice.id}`}
                     >
-                      {/* 아이콘 */}
+                      {/* 체크박스 or 아이콘 */}
+                      {selectionMode ? (
+                        <Checkbox
+                          checked={selectedIds.has(notice.id)}
+                          onCheckedChange={() => toggleSelect(notice.id)}
+                          onClick={e => e.stopPropagation()}
+                          className="shrink-0"
+                          data-testid={`checkbox-notice-${notice.id}`}
+                        />
+                      ) : (
                       <div className={`flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${
                         pinnedNoticeId === notice.id
                           ? 'bg-orange-200 dark:bg-orange-800/50 text-orange-600 dark:text-orange-400'
@@ -254,6 +310,7 @@ export default function Notices() {
                           <Bell className="w-4 h-4" />
                         )}
                       </div>
+                      )}
 
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
@@ -456,6 +513,25 @@ export default function Notices() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* 플로팅 벌크 액션 바 */}
+      {selectionMode && selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-background border border-border shadow-xl rounded-full px-5 py-3">
+          <span className="text-sm font-semibold text-orange-600">{selectedIds.size}개 선택됨</span>
+          <div className="w-px h-5 bg-border" />
+          <Button variant="ghost" size="sm" className="h-8" onClick={() => setSelectedIds(new Set())}>
+            <X className="w-3.5 h-3.5 mr-1" />선택 해제
+          </Button>
+          <Button
+            variant="destructive" size="sm" className="h-8"
+            disabled={bulkDeleteMutation.isPending}
+            onClick={() => { if (confirm(`선택한 ${selectedIds.size}개 공지를 삭제하시겠습니까?`)) bulkDeleteMutation.mutate(Array.from(selectedIds)); }}
+            data-testid="button-bulk-delete"
+          >
+            <Trash2 className="w-3.5 h-3.5 mr-1" />삭제
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

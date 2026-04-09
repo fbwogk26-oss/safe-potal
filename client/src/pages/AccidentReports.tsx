@@ -18,7 +18,8 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { AlertTriangle, BarChart3, Plus, Pencil, Trash2, Download, Upload, X, Camera, FileText, Loader2, User } from "lucide-react";
+import { AlertTriangle, BarChart3, Plus, Pencil, Trash2, Download, Upload, X, Camera, FileText, Loader2, User, CheckSquare } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell, PieChart, Pie, Legend,
@@ -79,6 +80,8 @@ export default function AccidentReports() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [form, setForm] = useState({ ...emptyForm });
   const [progressItems, setProgressItems] = useState<ProgressItem[]>([{ no: 1, time: "", content: "" }]);
   const [uploadingPhotos, setUploadingPhotos] = useState(false);
@@ -188,6 +191,19 @@ export default function AccidentReports() {
     },
     onError: (error) => toast({ variant: "destructive", title: "삭제에 실패했습니다.", description: getServerError(error, "") }),
   });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: (ids: number[]) => apiRequest("POST", "/api/accidents/bulk-delete", { ids }),
+    onSuccess: async (res) => {
+      const data = await (res as any).json();
+      queryClient.invalidateQueries({ queryKey: ["/api/accidents"] });
+      setSelectedIds(new Set()); setSelectionMode(false);
+      toast({ title: `${data.deleted}건 삭제 완료` });
+    },
+    onError: (e: any) => toast({ variant: "destructive", title: "삭제 실패", description: e.message }),
+  });
+
+  const toggleSelect = (id: number) => setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
   const closeDialog = () => {
     setDialogOpen(false);
@@ -421,14 +437,33 @@ export default function AccidentReports() {
               exit={{ opacity: 0, y: -10 }}
               className="space-y-4"
             >
-              {canEditAccidents && (
-                <div className="flex justify-end">
-                  <Button onClick={openCreate} data-testid="button-add-accident">
-                    <Plus className="w-4 h-4 mr-1.5" />
-                    사고보고 등록
-                  </Button>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  {selectionMode && selectedIds.size > 0 && (
+                    <span className="text-sm text-muted-foreground">{selectedIds.size}건 선택됨</span>
+                  )}
                 </div>
-              )}
+                <div className="flex gap-2">
+                  {canEditAccidents && (
+                    <Button
+                      variant={selectionMode ? "default" : "outline"}
+                      size="sm"
+                      className={`gap-1.5 ${selectionMode ? "bg-red-500 hover:bg-red-600 text-white" : ""}`}
+                      onClick={() => { setSelectionMode(v => !v); setSelectedIds(new Set()); }}
+                      data-testid="button-toggle-selection"
+                    >
+                      <CheckSquare className="w-4 h-4" />
+                      {selectionMode ? "선택 취소" : "선택"}
+                    </Button>
+                  )}
+                  {canEditAccidents && (
+                    <Button onClick={openCreate} data-testid="button-add-accident">
+                      <Plus className="w-4 h-4 mr-1.5" />
+                      사고보고 등록
+                    </Button>
+                  )}
+                </div>
+              </div>
 
               <Card>
                 <CardContent className="p-0">
@@ -446,6 +481,18 @@ export default function AccidentReports() {
                       <Table>
                         <TableHeader>
                           <TableRow>
+                            {selectionMode && (
+                              <TableHead className="w-10">
+                                <Checkbox
+                                  checked={sortedReports.length > 0 && sortedReports.every(r => selectedIds.has(r.id))}
+                                  onCheckedChange={() => {
+                                    const allSel = sortedReports.every(r => selectedIds.has(r.id));
+                                    setSelectedIds(allSel ? new Set() : new Set(sortedReports.map(r => r.id)));
+                                  }}
+                                  data-testid="checkbox-select-all"
+                                />
+                              </TableHead>
+                            )}
                             <TableHead className="min-w-[150px]">제목</TableHead>
                             <TableHead className="min-w-[100px]">발생일</TableHead>
                             <TableHead>유형</TableHead>
@@ -456,7 +503,22 @@ export default function AccidentReports() {
                         </TableHeader>
                         <TableBody>
                           {sortedReports.map((report) => (
-                            <TableRow key={report.id} data-testid={`row-accident-${report.id}`}>
+                            <TableRow
+                              key={report.id}
+                              className={selectionMode && selectedIds.has(report.id) ? "bg-red-50 dark:bg-red-900/20" : ""}
+                              onClick={() => selectionMode && toggleSelect(report.id)}
+                              style={{ cursor: selectionMode ? "pointer" : undefined }}
+                              data-testid={`row-accident-${report.id}`}
+                            >
+                              {selectionMode && (
+                                <TableCell onClick={e => e.stopPropagation()}>
+                                  <Checkbox
+                                    checked={selectedIds.has(report.id)}
+                                    onCheckedChange={() => toggleSelect(report.id)}
+                                    data-testid={`checkbox-accident-${report.id}`}
+                                  />
+                                </TableCell>
+                              )}
                               <TableCell className="font-medium" data-testid={`text-title-${report.id}`}>{report.title}</TableCell>
                               <TableCell data-testid={`text-date-${report.id}`}>
                                 {report.occurredAt ? format(new Date(report.occurredAt), "yyyy-MM-dd") : "-"}
@@ -1017,6 +1079,25 @@ export default function AccidentReports() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* 플로팅 벌크 액션 바 */}
+      {selectionMode && selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-background border border-border shadow-xl rounded-full px-5 py-3">
+          <span className="text-sm font-semibold text-red-600">{selectedIds.size}건 선택됨</span>
+          <div className="w-px h-5 bg-border" />
+          <Button variant="ghost" size="sm" className="h-8" onClick={() => setSelectedIds(new Set())}>
+            <X className="w-3.5 h-3.5 mr-1" />선택 해제
+          </Button>
+          <Button
+            variant="destructive" size="sm" className="h-8"
+            disabled={bulkDeleteMutation.isPending}
+            onClick={() => { if (confirm(`선택한 ${selectedIds.size}건을 삭제하시겠습니까?`)) bulkDeleteMutation.mutate(Array.from(selectedIds)); }}
+            data-testid="button-bulk-delete"
+          >
+            <Trash2 className="w-3.5 h-3.5 mr-1" />삭제
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

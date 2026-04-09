@@ -18,7 +18,7 @@ import {
   GraduationCap, Plus, Trash2, ArrowLeft, Users, Calendar, FileText,
   PenTool, CheckCircle2, Clock, BarChart3, TrendingUp, Award, X, Search, Eye, Download,
   ChevronDown, ChevronRight, Copy, Pencil, Camera, ImagePlus, Save,
-  BookOpen, Paperclip, FileSpreadsheet, FileIcon, Image, Video, Loader2, Link2
+  BookOpen, Paperclip, FileSpreadsheet, FileIcon, Image, Video, Loader2, Link2, CheckSquare
 } from "lucide-react";
 import type { EducationSession, EducationSignature } from "@shared/schema";
 
@@ -451,6 +451,8 @@ export default function EducationLogs() {
 
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [editingGroup, setEditingGroup] = useState<{ key: string; title: string; date: string; type: string; sessions: EducationSession[] } | null>(null);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedSessionIds, setSelectedSessionIds] = useState<Set<number>>(new Set());
 
   const [isEditingDescription, setIsEditingDescription] = useState(false);
   const [inlineDescription, setInlineDescription] = useState("");
@@ -542,6 +544,20 @@ export default function EducationLogs() {
     },
     onError: () => toast({ variant: "destructive", title: "삭제 실패" }),
   });
+
+  const bulkDeleteSessionsMutation = useMutation({
+    mutationFn: (ids: number[]) => apiRequest("POST", "/api/education-sessions/bulk-delete", { ids }),
+    onSuccess: async (res) => {
+      const data = await (res as any).json();
+      queryClient.invalidateQueries({ queryKey: ["/api/education-sessions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/education-progress"] });
+      setSelectedSessionIds(new Set()); setSelectionMode(false);
+      toast({ title: `${data.deleted}건 삭제 완료` });
+    },
+    onError: () => toast({ variant: "destructive", title: "삭제 실패" }),
+  });
+
+  const toggleSelectSession = (id: number) => setSelectedSessionIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
   const batchEditMutation = useMutation({
     mutationFn: async ({ ids, data }: { ids: number[]; data: any }) => {
@@ -1617,6 +1633,18 @@ export default function EducationLogs() {
                       ))}
                     </SelectContent>
                   </Select>
+                  {canEditLogs && (
+                    <Button
+                      variant={selectionMode ? "default" : "outline"}
+                      size="sm"
+                      className={`gap-1.5 shrink-0 ${selectionMode ? "bg-red-500 hover:bg-red-600 text-white" : ""}`}
+                      onClick={() => { setSelectionMode(v => !v); setSelectedSessionIds(new Set()); }}
+                      data-testid="button-toggle-selection"
+                    >
+                      <CheckSquare className="w-4 h-4" />
+                      {selectionMode ? `취소${selectedSessionIds.size > 0 ? ` (${selectedSessionIds.size})` : ""}` : "선택"}
+                    </Button>
+                  )}
                 </div>
 
                 {sessionsLoading ? (
@@ -1657,11 +1685,20 @@ export default function EducationLogs() {
                             key={session.id}
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
-                            onClick={() => setSelectedSession(session)}
-                            className="group border rounded-lg p-3 sm:p-4 hover:bg-indigo-50/50 dark:hover:bg-indigo-900/10 cursor-pointer transition-colors"
+                            onClick={() => selectionMode ? toggleSelectSession(session.id) : setSelectedSession(session)}
+                            className={`group border rounded-lg p-3 sm:p-4 cursor-pointer transition-colors ${selectionMode && selectedSessionIds.has(session.id) ? "bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700" : "hover:bg-indigo-50/50 dark:hover:bg-indigo-900/10"}`}
                             data-testid={`session-card-${session.id}`}
                           >
                             <div className="flex items-start gap-3">
+                              {selectionMode && (
+                                <Checkbox
+                                  checked={selectedSessionIds.has(session.id)}
+                                  onCheckedChange={() => toggleSelectSession(session.id)}
+                                  onClick={e => e.stopPropagation()}
+                                  className="mt-1 shrink-0"
+                                  data-testid={`checkbox-session-${session.id}`}
+                                />
+                              )}
                               <div className={`shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${
                                 session.status === "완료"
                                   ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400"
@@ -2637,6 +2674,25 @@ export default function EducationLogs() {
             </div>
           </DialogContent>
         </Dialog>
+      )}
+
+      {/* 플로팅 벌크 액션 바 */}
+      {selectionMode && selectedSessionIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-background border border-border shadow-xl rounded-full px-5 py-3">
+          <span className="text-sm font-semibold text-red-600">{selectedSessionIds.size}건 선택됨</span>
+          <div className="w-px h-5 bg-border" />
+          <Button variant="ghost" size="sm" className="h-8" onClick={() => setSelectedSessionIds(new Set())}>
+            <X className="w-3.5 h-3.5 mr-1" />선택 해제
+          </Button>
+          <Button
+            variant="destructive" size="sm" className="h-8"
+            disabled={bulkDeleteSessionsMutation.isPending}
+            onClick={() => { if (confirm(`선택한 ${selectedSessionIds.size}건을 삭제하시겠습니까?`)) bulkDeleteSessionsMutation.mutate(Array.from(selectedSessionIds)); }}
+            data-testid="button-bulk-delete"
+          >
+            <Trash2 className="w-3.5 h-3.5 mr-1" />삭제
+          </Button>
+        </div>
       )}
     </div>
   );
