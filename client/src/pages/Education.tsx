@@ -305,8 +305,8 @@ export default function Education() {
                       </div>
                       <p className="text-xs text-muted-foreground truncate mt-0.5">{item.content}</p>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs text-muted-foreground flex items-center gap-1">
+                    <div className="flex items-center gap-0.5 shrink-0">
+                      <span className="text-xs text-muted-foreground flex items-center gap-0.5 mr-1 whitespace-nowrap">
                         <Calendar className="w-3 h-3" />
                         {item.createdAt && format(new Date(item.createdAt), "MM.dd")}
                       </span>
@@ -314,7 +314,7 @@ export default function Education() {
                         <Button 
                           variant="ghost" 
                           size="icon" 
-                          className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-green-600"
+                          className="hidden sm:flex h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-green-600"
                           onClick={(e) => handleDownload(item.imageUrl!, (item as any).fileName || '첨부파일', e)}
                           disabled={isDownloading}
                           data-testid={`button-download-edu-${item.id}`}
@@ -325,7 +325,7 @@ export default function Education() {
                       <Button 
                         variant="ghost" 
                         size="icon" 
-                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-blue-600"
+                        className="h-8 w-8 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-blue-600"
                         onClick={(e) => { e.stopPropagation(); setSelectedItem(item); }}
                         data-testid={`button-view-edu-${item.id}`}
                       >
@@ -335,7 +335,7 @@ export default function Education() {
                         <Button 
                           variant="ghost" 
                           size="icon" 
-                          className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-red-500"
+                          className="h-8 w-8 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-red-500"
                           onClick={(e) => handleDelete(item.id, e)}
                           data-testid={`button-delete-edu-${item.id}`}
                         >

@@ -499,15 +499,15 @@ export default function Rules() {
                           {rule.content}
                         </p>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <span className="text-xs text-muted-foreground flex items-center gap-1 mr-1">
+                      <div className="flex items-center gap-0.5 shrink-0">
+                        <span className="text-xs text-muted-foreground flex items-center gap-0.5 mr-1 whitespace-nowrap">
                           <Calendar className="w-3 h-3" />
                           {rule.createdAt && format(new Date(rule.createdAt), "MM.dd")}
                         </span>
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-emerald-600"
+                          className="h-8 w-8 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-emerald-600"
                           onClick={(e) => { e.stopPropagation(); setSelectedRule(rule as any); }}
                           data-testid={`button-view-rule-${rule.id}`}
                         >
@@ -518,7 +518,7 @@ export default function Rules() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-blue-500"
+                              className="h-8 w-8 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-blue-500"
                               onClick={(e) => openEdit(rule as any, e)}
                               data-testid={`button-edit-rule-${rule.id}`}
                             >
@@ -527,7 +527,7 @@ export default function Rules() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-red-500"
+                              className="h-8 w-8 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-red-500"
                               onClick={(e) => handleDelete(rule.id, e)}
                               data-testid={`button-delete-rule-${rule.id}`}
                             >

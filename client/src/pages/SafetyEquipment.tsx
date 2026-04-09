@@ -357,7 +357,7 @@ export default function SafetyEquipment({ embedded = false }: SafetyEquipmentPro
                     <Button 
                       variant="ghost" 
                       size="icon" 
-                      className="opacity-0 group-hover:opacity-100"
+                      className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
                       onClick={() => handleDelete(item.id)}
                       data-testid={`button-delete-equipment-${item.id}`}
                     >

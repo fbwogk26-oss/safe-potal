@@ -600,7 +600,7 @@ export default function WorkPlan() {
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-6 w-6 opacity-0 group-hover:opacity-100 shrink-0"
+                            className="h-7 w-7 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 shrink-0"
                             onClick={(e) => {
                               e.stopPropagation();
                               deleteMutation.mutate(plan.id);

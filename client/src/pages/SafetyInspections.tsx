@@ -1230,7 +1230,7 @@ export default function SafetyInspections() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-7 w-7 opacity-0 group-hover:opacity-100"
+                              className="h-7 w-7 opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleEdit(inspection);
@@ -1242,7 +1242,7 @@ export default function SafetyInspections() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-7 w-7 opacity-0 group-hover:opacity-100"
+                              className="h-7 w-7 opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleDelete(inspection.id);

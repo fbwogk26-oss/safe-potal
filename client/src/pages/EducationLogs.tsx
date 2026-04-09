@@ -1719,13 +1719,13 @@ export default function EducationLogs() {
                                     <Badge className="text-[10px] bg-emerald-100 text-emerald-700 border border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-700">완료</Badge>
                                   )}
                                 </div>
-                                <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
-                                  <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{session.educationDate}{session.educationEndDate && session.educationEndDate !== session.educationDate ? ` ~ ${session.educationEndDate}` : ""}</span>
-                                  <span>{session.department}</span>
-                                  <span className="flex items-center gap-1"><Users className="w-3 h-3" />{session.totalParticipants}명</span>
+                                <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground flex-wrap">
+                                  <span className="flex items-center gap-1 whitespace-nowrap"><Calendar className="w-3 h-3" />{session.educationDate}{session.educationEndDate && session.educationEndDate !== session.educationDate ? ` ~ ${session.educationEndDate}` : ""}</span>
+                                  <span className="whitespace-nowrap">{session.department}</span>
+                                  <span className="flex items-center gap-1 whitespace-nowrap"><Users className="w-3 h-3" />{session.totalParticipants}명</span>
                                 </div>
                               </div>
-                              <div className="flex items-center gap-1 shrink-0">
+                              <div className="flex items-center gap-0.5 shrink-0">
                                 <Button
                                   variant="ghost" size="icon" className="h-8 w-8 text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50"
                                   onClick={(e) => { e.stopPropagation(); setPreviewSession(session); }}
@@ -1733,19 +1733,19 @@ export default function EducationLogs() {
                                   title="교육 결과 보기"
                                 ><Eye className="w-4 h-4" /></Button>
                                 {canEditLogs && (!session.createdBy || user?.role === "admin" || user?.username === session.createdBy) && (
-                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground"
+                                  <Button variant="ghost" size="icon" className="hidden sm:flex h-8 w-8 text-muted-foreground"
                                     onClick={(e) => { e.stopPropagation(); handleStartEdit(session); }}
                                     data-testid={`button-edit-session-${session.id}`}
                                   ><Pencil className="w-4 h-4" /></Button>
                                 )}
                                 {canRegisterEducation && (
                                   <>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground"
+                                    <Button variant="ghost" size="icon" className="hidden sm:flex h-8 w-8 text-muted-foreground"
                                       onClick={(e) => { e.stopPropagation(); handleCopy(session); }}
                                       data-testid={`button-copy-session-${session.id}`}
                                     ><Copy className="w-4 h-4" /></Button>
                                     {(!session.createdBy || user?.role === "admin" || user?.username === session.createdBy) && (
-                                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground"
+                                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-red-500"
                                         onClick={(e) => { e.stopPropagation(); if (confirm("이 교육일지를 삭제하시겠습니까?")) deleteMutation.mutate(session.id); }}
                                         data-testid={`button-delete-session-${session.id}`}
                                       ><Trash2 className="w-4 h-4" /></Button>
@@ -1798,16 +1798,17 @@ export default function EducationLogs() {
                                   <Badge className="text-[10px] bg-emerald-100 text-emerald-700 border border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-700">전체완료</Badge>
                                 )}
                               </div>
-                              <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
-                                <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{group.date}</span>
-                                <span>{group.sessions.length}개 부서</span>
-                                <span className="flex items-center gap-1"><Users className="w-3 h-3" />총 {totalParticipants}명</span>
+                              <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground flex-wrap">
+                                <span className="flex items-center gap-1 whitespace-nowrap"><Calendar className="w-3 h-3" />{group.date}</span>
+                                <span className="whitespace-nowrap">{group.sessions.length}개 부서</span>
+                                <span className="flex items-center gap-1 whitespace-nowrap"><Users className="w-3 h-3" />총 {totalParticipants}명</span>
                               </div>
                             </div>
-                            <div className="flex items-center gap-1 shrink-0">
+                            <div className="flex items-center gap-0.5 shrink-0">
                               <Button
                                 variant="ghost"
                                 size="icon"
+                                className="hidden sm:flex h-8 w-8"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   const firstSession = group.sessions[0];
@@ -1824,6 +1825,7 @@ export default function EducationLogs() {
                               </Button>
                               {canDownloadEducationExcel && (
                                 <Button variant="ghost" size="icon"
+                                  className="hidden sm:flex h-8 w-8"
                                   disabled={excelDownloading}
                                   onClick={(e) => { e.stopPropagation(); handleGroupExcelDownload(group); }}
                                   data-testid={`button-group-excel-${group.key}`}
@@ -1831,7 +1833,7 @@ export default function EducationLogs() {
                                 ><Download className="w-4 h-4" /></Button>
                               )}
                               {canEditLogs && (!group.sessions[0]?.createdBy || user?.role === "admin" || user?.username === group.sessions[0]?.createdBy) && (
-                                <Button variant="ghost" size="icon"
+                                <Button variant="ghost" size="icon" className="h-8 w-8"
                                   onClick={(e) => { e.stopPropagation(); handleGroupEdit(group); }}
                                   data-testid={`button-group-edit-${group.key}`}
                                 ><Pencil className="w-4 h-4" /></Button>
@@ -1839,11 +1841,12 @@ export default function EducationLogs() {
                               {canRegisterEducation && (
                                 <>
                                   <Button variant="ghost" size="icon"
+                                    className="hidden sm:flex h-8 w-8"
                                     onClick={(e) => { e.stopPropagation(); handleGroupCopy(group); }}
                                     data-testid={`button-group-copy-${group.key}`}
                                   ><Copy className="w-4 h-4" /></Button>
                                   {(!group.sessions[0]?.createdBy || user?.role === "admin" || user?.username === group.sessions[0]?.createdBy) && (
-                                    <Button variant="ghost" size="icon"
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 hover:text-red-500"
                                       onClick={(e) => { e.stopPropagation(); handleGroupDelete(group); }}
                                       data-testid={`button-group-delete-${group.key}`}
                                     ><Trash2 className="w-4 h-4" /></Button>
