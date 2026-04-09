@@ -39,12 +39,13 @@ export function useCreateNotice() {
 export function useUpdateNotice() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (data: { id: number; title?: string; content?: string; imageUrl?: string }) => {
-      const url = buildUrl(api.notices.update.path, { id: data.id });
+    mutationFn: async (data: { id: number } & Partial<InsertNotice>) => {
+      const { id, ...rest } = data;
+      const url = buildUrl(api.notices.update.path, { id });
       const res = await fetch(url, {
         method: api.notices.update.method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: data.title, content: data.content, imageUrl: data.imageUrl }),
+        body: JSON.stringify(rest),
         credentials: "include",
       });
       if (!res.ok) throw new Error("Failed to update notice");
