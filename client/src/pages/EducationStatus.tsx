@@ -9,7 +9,7 @@ import {
   PieChart, Pie, Cell, Label as ReLabel,
 } from "recharts";
 import {
-  BarChart2, CheckCircle2, AlertCircle, Download, Search, Paperclip,
+  BarChart2, CheckCircle2, AlertCircle, Search,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -270,21 +270,20 @@ export default function EducationStatus() {
                   <th className="px-3 py-2.5 text-left font-medium text-muted-foreground text-xs whitespace-nowrap">시작일</th>
                   <th className="px-3 py-2.5 text-left font-medium text-muted-foreground text-xs whitespace-nowrap">종료일</th>
                   <th className="px-3 py-2.5 text-left font-medium text-muted-foreground text-xs">완료상태</th>
-                  <th className="px-3 py-2.5 text-left font-medium text-muted-foreground text-xs">증빙자료</th>
                 </tr>
               </thead>
               <tbody>
                 {isLoading ? (
                   Array.from({ length: 5 }).map((_, i) => (
                     <tr key={i} className="border-b">
-                      {Array.from({ length: 9 }).map((_, j) => (
+                      {Array.from({ length: 8 }).map((_, j) => (
                         <td key={j} className="px-3 py-3"><div className="h-4 bg-muted rounded animate-pulse" /></td>
                       ))}
                     </tr>
                   ))
                 ) : filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="px-3 py-12 text-center text-muted-foreground text-sm">
+                    <td colSpan={8} className="px-3 py-12 text-center text-muted-foreground text-sm">
                       데이터가 없습니다.
                     </td>
                   </tr>
@@ -327,30 +326,6 @@ export default function EducationStatus() {
                           </Badge>
                         ) : (
                           <Badge variant="outline" className="text-amber-600 border-amber-300 text-[10px]">미완료</Badge>
-                        )}
-                      </td>
-                      <td className="px-3 py-3">
-                        {t.attachmentUrl ? (
-                          <a
-                            href={t.attachmentUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            download={t.attachmentName || true}
-                          >
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-7 text-xs gap-1 text-primary border-primary/30 hover:bg-primary/10"
-                              data-testid={`button-download-${t.id}`}
-                            >
-                              <Download className="w-3 h-3" />
-                              다운로드
-                            </Button>
-                          </a>
-                        ) : (
-                          <span className="text-xs text-muted-foreground flex items-center gap-1">
-                            <Paperclip className="w-3 h-3" /> 미등록
-                          </span>
                         )}
                       </td>
                     </tr>

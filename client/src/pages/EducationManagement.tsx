@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
@@ -11,7 +11,7 @@ import {
   RotateCcw, X, Pencil, Link2,
   ChevronDown, ChevronUp, Users, Calendar, Clock,
   Copy, ExternalLink, Send, QrCode, GraduationCap, Download, Eye,
-  ImagePlus, Camera, Save,
+  ImagePlus, Camera, Save, PenTool, X as XIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -137,6 +137,102 @@ function getExpectedDepts(task: EducationTaskWithLinked): string[] {
   return DEPARTMENTS;
 }
 
+function SignaturePad({ onSave, onClear, padKey }: { onSave: (data: string) => void; onClear: () => void; padKey?: number }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [hasContent, setHasContent] = useState(false);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    canvas.width = canvas.getBoundingClientRect().width || 400;
+    canvas.height = 140;
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    setHasContent(false);
+  }, [padKey]);
+
+  const getPos = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+    const rect = canvas.getBoundingClientRect();
+    if ("touches" in e) return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  }, []);
+
+  const startDraw = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
+    setIsDrawing(true);
+    setHasContent(true);
+    const ctx = canvasRef.current?.getContext("2d");
+    if (!ctx) return;
+    const { x, y } = getPos(e);
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+  }, [getPos]);
+
+  const draw = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    if (!isDrawing) return;
+    e.preventDefault();
+    const ctx = canvasRef.current?.getContext("2d");
+    if (!ctx) return;
+    const { x, y } = getPos(e);
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = "#1e293b";
+    ctx.lineTo(x, y);
+    ctx.stroke();
+  }, [isDrawing, getPos]);
+
+  const endDraw = useCallback(() => setIsDrawing(false), []);
+
+  const clear = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    setHasContent(false);
+    onClear();
+  }, [onClear]);
+
+  const save = useCallback(() => {
+    if (!hasContent || !canvasRef.current) return;
+    onSave(canvasRef.current.toDataURL("image/png"));
+  }, [hasContent, onSave]);
+
+  return (
+    <div className="space-y-2">
+      <div className="border-2 border-dashed border-primary/40 rounded-xl overflow-hidden bg-white shadow-inner">
+        <canvas
+          ref={canvasRef}
+          className="w-full touch-none cursor-crosshair"
+          style={{ height: "140px", display: "block" }}
+          onMouseDown={startDraw}
+          onMouseMove={draw}
+          onMouseUp={endDraw}
+          onMouseLeave={endDraw}
+          onTouchStart={startDraw}
+          onTouchMove={draw}
+          onTouchEnd={endDraw}
+        />
+      </div>
+      <div className="flex gap-2 justify-end">
+        <Button variant="outline" size="sm" onClick={clear} className="gap-1.5">
+          <XIcon className="w-3.5 h-3.5" /> 지우기
+        </Button>
+        <Button size="sm" disabled={!hasContent} onClick={save} className="gap-1.5 bg-indigo-600 hover:bg-indigo-700">
+          <PenTool className="w-3.5 h-3.5" /> 서명 완료
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 // 연결된 세션을 보여주는 인라인 패널 컴포넌트 (카드형 행 리스트)
 function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: EducationTaskWithLinked }) {
   const { toast } = useToast();
@@ -241,6 +337,89 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
     enabled: !!viewSigSession,
   });
 
+  // 통합 상세/서명 다이얼로그
+  const [detailSession, setDetailSession] = useState<SessionWithSigs | null>(null);
+  const [detailDesc, setDetailDesc] = useState("");
+  const [detailImages, setDetailImages] = useState<string[]>([]);
+  const [detailSaving, setDetailSaving] = useState(false);
+  const [signerName, setSignerName] = useState("");
+  const [signerDept, setSignerDept] = useState("");
+  const [sigData, setSigData] = useState("");
+  const [sigPadKey, setSigPadKey] = useState(0);
+  const [signing, setSigning] = useState(false);
+  const [detailSigs, setDetailSigs] = useState<any[]>([]);
+  const detailPhotoRef = useRef<HTMLInputElement>(null);
+  const [detailUploadingPhoto, setDetailUploadingPhoto] = useState(false);
+
+  const openDetail = (s: SessionWithSigs) => {
+    setDetailSession(s);
+    setDetailDesc(s.description || "");
+    setDetailImages([...(s.images || [])]);
+    setSignerName("");
+    setSignerDept("");
+    setSigData("");
+    setSigPadKey(k => k + 1);
+    setDetailSigs([]);
+    fetch(`/api/education-sessions/${s.id}/signatures`, { credentials: "include" })
+      .then(r => r.json()).then(setDetailSigs).catch(() => {});
+  };
+
+  const handleDetailPhotoUpload = async (files: FileList) => {
+    if (detailImages.length >= 4) {
+      toast({ title: "사진은 최대 4장까지 등록 가능합니다.", variant: "destructive" }); return;
+    }
+    setDetailUploadingPhoto(true);
+    try {
+      const newImages = [...detailImages];
+      for (const file of Array.from(files)) {
+        if (newImages.length >= 4) break;
+        const res = await apiRequest("POST", "/api/uploads/request-url", { name: file.name, size: file.size, contentType: file.type });
+        const { uploadURL, objectPath } = await res.json();
+        await fetch(uploadURL, { method: "PUT", body: file, headers: { "Content-Type": file.type } });
+        newImages.push(objectPath);
+      }
+      setDetailImages(newImages);
+    } catch { toast({ title: "사진 업로드 실패", variant: "destructive" }); }
+    finally { setDetailUploadingPhoto(false); if (detailPhotoRef.current) detailPhotoRef.current.value = ""; }
+  };
+
+  const handleDetailSave = async () => {
+    if (!detailSession) return;
+    setDetailSaving(true);
+    try {
+      await apiRequest("PATCH", `/api/education-sessions/${detailSession.id}`, { description: detailDesc, images: detailImages });
+      await refetch();
+      toast({ title: "저장되었습니다." });
+    } catch { toast({ title: "저장 실패", variant: "destructive" }); }
+    finally { setDetailSaving(false); }
+  };
+
+  const handleInlineSign = async () => {
+    if (!detailSession || !signerName.trim() || !sigData) {
+      toast({ title: "이름과 서명을 입력해주세요.", variant: "destructive" }); return;
+    }
+    setSigning(true);
+    try {
+      const res = await fetch(`/api/public/education/${detailSession.id}/sign`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ signerName: signerName.trim(), signerDepartment: signerDept.trim(), signatureData: sigData }),
+      });
+      if (!res.ok) throw new Error("서명 실패");
+      toast({ title: "서명이 완료되었습니다." });
+      setSignerName("");
+      setSignerDept("");
+      setSigData("");
+      setSigPadKey(k => k + 1);
+      await refetch();
+      const updated = await fetch(`/api/education-sessions/${detailSession.id}/signatures`, { credentials: "include" }).then(r => r.json());
+      setDetailSigs(updated);
+      const updatedSession = (await fetch(`/api/education-tasks/${taskId}/sessions`, { credentials: "include" }).then(r => r.json()) as SessionWithSigs[]).find(ss => ss.id === detailSession.id);
+      if (updatedSession) setDetailSession(updatedSession);
+    } catch { toast({ title: "서명 실패. 다시 시도해주세요.", variant: "destructive" }); }
+    finally { setSigning(false); }
+  };
+
   if (isLoading || autoCreating) {
     return (
       <div className="border-t px-5 py-3 bg-muted/10 flex items-center gap-2 text-xs text-muted-foreground">
@@ -262,7 +441,14 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
           ? <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
           : <Clock className="w-4 h-4 text-amber-400 shrink-0" />
         }
-        <span className="flex-1 text-sm font-medium">{s.department}</span>
+        <button
+          className="flex-1 text-sm font-medium text-left hover:text-primary hover:underline underline-offset-2 transition-colors"
+          onClick={() => openDetail(s)}
+          data-testid={`button-detail-${s.id}`}
+          title="상세 보기 / 서명"
+        >
+          {s.department}
+        </button>
         {hasContent && (
           <span className="text-[10px] text-primary/60 flex items-center gap-0.5">
             <Camera className="w-3 h-3" />{(s.images || []).length}
@@ -483,6 +669,148 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
             </Button>
             <Button size="sm" onClick={() => setViewSigSession(null)}>닫기</Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 통합 상세/서명 다이얼로그 */}
+      <Dialog open={!!detailSession} onOpenChange={open => { if (!open) setDetailSession(null); }}>
+        <DialogContent className="max-w-lg max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
+          <DialogHeader className="px-5 pt-5 pb-3 border-b shrink-0">
+            <DialogTitle className="text-base font-semibold">
+              {detailSession?.department}
+            </DialogTitle>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {detailSession?.educationType} · {detailSession?.educationDate} ~ {detailSession?.educationEndDate || detailSession?.educationDate} · 강사: {detailSession?.instructor || "-"}
+            </p>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+            {/* 교육내용 */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">교육내용</Label>
+              <Textarea
+                value={detailDesc}
+                onChange={e => setDetailDesc(e.target.value)}
+                placeholder="교육 내용을 입력하세요..."
+                className="min-h-[80px] resize-none text-sm"
+                data-testid="textarea-detail-desc"
+              />
+            </div>
+
+            {/* 교육사진 */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">교육사진</Label>
+                <span className="text-[10px] text-muted-foreground">{detailImages.length}/4장</span>
+              </div>
+              <div className="grid grid-cols-4 gap-2">
+                {detailImages.map((img, i) => (
+                  <div key={i} className="relative aspect-square rounded-lg overflow-hidden border bg-muted/20 group">
+                    <img src={img.startsWith("http") ? img : `/api/uploads/view?path=${encodeURIComponent(img)}`}
+                      alt={`교육사진 ${i + 1}`} className="w-full h-full object-cover" />
+                    <button
+                      className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                      onClick={() => setDetailImages(imgs => imgs.filter((_, idx) => idx !== i))}
+                    >
+                      <XIcon className="w-4 h-4 text-white" />
+                    </button>
+                  </div>
+                ))}
+                {detailImages.length < 4 && (
+                  <button
+                    className="aspect-square rounded-lg border-2 border-dashed border-muted-foreground/30 flex flex-col items-center justify-center gap-1 hover:border-primary/50 hover:bg-primary/5 transition-colors"
+                    onClick={() => detailPhotoRef.current?.click()}
+                    disabled={detailUploadingPhoto}
+                  >
+                    {detailUploadingPhoto
+                      ? <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                      : <><ImagePlus className="w-4 h-4 text-muted-foreground" /><span className="text-[10px] text-muted-foreground">추가</span></>
+                    }
+                  </button>
+                )}
+              </div>
+              <input ref={detailPhotoRef} type="file" accept="image/*" multiple className="hidden"
+                onChange={e => e.target.files && handleDetailPhotoUpload(e.target.files)} />
+            </div>
+
+            <div className="flex justify-end">
+              <Button size="sm" onClick={handleDetailSave} disabled={detailSaving} className="gap-1.5" data-testid="button-detail-save">
+                {detailSaving ? <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                내용 저장
+              </Button>
+            </div>
+
+            {/* 구분선 */}
+            <div className="border-t pt-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                  <PenTool className="w-3.5 h-3.5" /> 서명 ({detailSigs.length}명 완료)
+                </Label>
+                <Button variant="ghost" size="sm" className="h-6 text-[10px] gap-1 text-muted-foreground"
+                  onClick={() => copyLink(detailSession!.id)}>
+                  <Copy className="w-3 h-3" /> 링크 복사
+                </Button>
+              </div>
+
+              {/* 기존 서명자 */}
+              {detailSigs.length > 0 && (
+                <div className="border rounded-lg divide-y max-h-[120px] overflow-y-auto">
+                  {detailSigs.map((sig: any, idx: number) => (
+                    <div key={sig.id} className="flex items-center gap-2.5 px-3 py-2">
+                      <span className="w-5 h-5 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-[10px] text-indigo-600 font-bold shrink-0">{idx + 1}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium">{sig.signerName}</p>
+                        {sig.signerDepartment && <p className="text-[10px] text-muted-foreground">{sig.signerDepartment}</p>}
+                      </div>
+                      {sig.signatureData && (
+                        <img src={sig.signatureData} alt="서명" className="h-7 w-14 object-contain border rounded bg-white" />
+                      )}
+                      <span className="text-[10px] text-muted-foreground shrink-0">
+                        {sig.signedAt ? new Date(sig.signedAt).toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }) : ""}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* 서명 입력 */}
+              <div className="space-y-2 bg-muted/10 rounded-lg p-3 border">
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs">이름 *</Label>
+                    <Input value={signerName} onChange={e => setSignerName(e.target.value)}
+                      placeholder="성명 입력" className="h-8 text-sm" data-testid="input-signer-name" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">소속 (선택)</Label>
+                    <Input value={signerDept} onChange={e => setSignerDept(e.target.value)}
+                      placeholder="소속 입력" className="h-8 text-sm" data-testid="input-signer-dept" />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">서명</Label>
+                  {sigData ? (
+                    <div className="flex items-center gap-3 p-2 border rounded-lg bg-white">
+                      <img src={sigData} alt="서명" className="h-12 object-contain flex-1" />
+                      <Button variant="outline" size="sm" className="h-7 text-xs shrink-0"
+                        onClick={() => { setSigData(""); setSigPadKey(k => k + 1); }}>다시</Button>
+                    </div>
+                  ) : (
+                    <SignaturePad padKey={sigPadKey} onSave={data => setSigData(data)} onClear={() => setSigData("")} />
+                  )}
+                </div>
+                <Button className="w-full gap-1.5" disabled={signing || !signerName.trim() || !sigData}
+                  onClick={handleInlineSign} data-testid="button-inline-sign">
+                  {signing ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <PenTool className="w-4 h-4" />}
+                  서명 제출
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <div className="shrink-0 border-t px-5 py-3 flex justify-end">
+            <Button variant="outline" size="sm" onClick={() => setDetailSession(null)}>닫기</Button>
+          </div>
         </DialogContent>
       </Dialog>
     </>
