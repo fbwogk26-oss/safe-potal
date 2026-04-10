@@ -7110,6 +7110,9 @@ ${htmlDraft}
       };
       const task = await storage.createEducationTask(data);
       const depts = getEduDeptsByTask(task);
+      // 원본 세션 목록 조회 (인원수 복사용)
+      const sourceSessions = await storage.getSessionsByTaskId(sourceId);
+      const sourceParticipantsMap = new Map(sourceSessions.map(s => [s.department, s.totalParticipants ?? 0]));
       for (const dept of depts) {
         try {
           await storage.createEducationSession({
@@ -7119,7 +7122,7 @@ ${htmlDraft}
             department: dept,
             educationType: "정기교육",
             instructor: task.requestedBy || "",
-            totalParticipants: 0,
+            totalParticipants: sourceParticipantsMap.get(dept) ?? 0,
             status: "진행중",
             taskId: task.id,
             createdBy: req.user?.username || req.user?.name,
