@@ -1299,11 +1299,9 @@ export default function EducationManagement() {
                           <span className="flex items-center gap-1 font-medium text-foreground/70">
                             <Users className="w-3 h-3" />
                             {t.linkedSessionCount}개 부서
-                            {(t.totalParticipantsSum ?? 0) > 0 && (
-                              <span className="text-muted-foreground font-normal">
-                                · 교육 대상인원 <span className="font-semibold text-primary">{t.totalParticipantsSum}명</span>
-                              </span>
-                            )}
+                            <span className="text-muted-foreground font-normal">
+                              · 교육 대상인원 <span className="font-semibold text-primary">{t.totalParticipantsSum ?? 0}명</span>
+                            </span>
                           </span>
                         )}
                         {t.requestedBy && (
