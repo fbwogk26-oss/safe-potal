@@ -2,26 +2,25 @@ import { useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
-import { User, Lock, Eye, EyeOff } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { CalendarDays, Mail, Lock } from "lucide-react";
 import { motion } from "framer-motion";
 
 export default function Login() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const { login, isLoggingIn } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    
     if (!username || !password) {
       setError("아이디와 비밀번호를 입력해주세요");
       return;
     }
-
     try {
       await login({ username, password });
     } catch (err: any) {
@@ -30,137 +29,97 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 via-background to-primary/10 p-4">
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-primary/10 rounded-full blur-3xl" />
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-primary/5 rounded-full blur-3xl" />
-      </div>
-      
+    <div className="min-h-screen flex flex-col items-center justify-center bg-[#e8eafd] p-4">
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="w-full max-w-md relative z-10"
+        transition={{ duration: 0.45, ease: "easeOut" }}
+        className="w-full max-w-sm"
       >
-        <div className="text-center mb-8">
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-            className="inline-flex flex-col items-center justify-center w-20 h-20 rounded-2xl bg-[#0066CC] shadow-lg shadow-primary/25 mb-4 text-white"
-          >
-            <span className="text-xl font-bold leading-none tracking-tight">kt</span>
-            <span className="text-sm font-semibold leading-none tracking-tight">MOS</span>
-          </motion.div>
-          <motion.h1
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.3 }}
-            className="text-2xl font-bold tracking-tight"
-          >
-            종합안전포털시스템
-          </motion.h1>
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.4 }}
-            className="text-muted-foreground mt-1"
-          >
-            KT MOS남부
-          </motion.p>
-        </div>
+        <div className="bg-white rounded-2xl shadow-lg shadow-indigo-200/40 px-8 pt-10 pb-8 space-y-6">
+          {/* 로고 아이콘 */}
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-14 h-14 rounded-full bg-[#4F58E8] flex items-center justify-center shadow-md shadow-indigo-300/40">
+              <CalendarDays className="w-7 h-7 text-white" />
+            </div>
+            <div className="text-center">
+              <h1 className="text-[1.6rem] font-bold italic tracking-tight text-gray-800" style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}>
+                <span className="not-italic font-black">SHS</span>cheduler
+              </h1>
+              <p className="text-sm text-gray-500 mt-0.5">안전 관리 시스템에 로그인하세요</p>
+            </div>
+          </div>
 
-        <Card className="border-0 shadow-xl shadow-black/5 bg-card/80 backdrop-blur-sm">
-          <CardContent className="p-6 sm:p-8">
-            <form onSubmit={handleSubmit} className="space-y-5">
-              <div className="space-y-2">
-                <label className="text-sm font-medium flex items-center gap-2" htmlFor="username">
-                  <User className="w-4 h-4 text-muted-foreground" />
-                  아이디
-                </label>
+          {/* 폼 */}
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="username" className="text-sm font-medium text-gray-700">아이디</Label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                 <Input
                   id="username"
                   type="text"
                   value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="아이디를 입력하세요"
+                  onChange={e => setUsername(e.target.value)}
+                  placeholder=""
                   autoComplete="username"
-                  className="h-12 bg-background/50 border-border/50 focus:border-primary transition-colors"
+                  className="pl-10 h-11 bg-gray-50 border-gray-200 focus:border-indigo-400 focus:ring-indigo-100 rounded-lg text-sm"
                   data-testid="input-username"
                 />
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium flex items-center gap-2" htmlFor="password">
-                  <Lock className="w-4 h-4 text-muted-foreground" />
-                  비밀번호
-                </label>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="비밀번호를 입력하세요"
-                    autoComplete="current-password"
-                    className="h-12 bg-background/50 border-border/50 focus:border-primary transition-colors pr-12"
-                    data-testid="input-password"
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="absolute right-1 top-1/2 -translate-y-1/2 h-10 w-10 text-muted-foreground hover:text-foreground"
-                    onClick={() => setShowPassword(!showPassword)}
-                    tabIndex={-1}
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </Button>
-                </div>
-              </div>
-              
-              {error && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="p-3 rounded-lg bg-destructive/10 border border-destructive/20"
-                >
-                  <p className="text-sm text-destructive text-center" data-testid="text-error">
-                    {error}
-                  </p>
-                </motion.div>
-              )}
-              
-              <Button
-                type="submit"
-                className="w-full h-12 text-base font-medium shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 transition-all"
-                disabled={isLoggingIn}
-                data-testid="button-login"
-              >
-                {isLoggingIn ? (
-                  <span className="flex items-center gap-2">
-                    <motion.span
-                      animate={{ rotate: 360 }}
-                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                      className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full"
-                    />
-                    로그인 중...
-                  </span>
-                ) : (
-                  "로그인"
-                )}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+            </div>
 
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.6 }}
-          className="text-center text-xs text-muted-foreground mt-6"
-        >
-          안전은 우리 모두의 책임입니다
-        </motion.p>
+            <div className="space-y-1.5">
+              <Label htmlFor="password" className="text-sm font-medium text-gray-700">비밀번호</Label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder=""
+                  autoComplete="current-password"
+                  className="pl-10 h-11 bg-gray-50 border-gray-200 focus:border-indigo-400 focus:ring-indigo-100 rounded-lg text-sm"
+                  data-testid="input-password"
+                />
+              </div>
+            </div>
+
+            {error && (
+              <p className="text-xs text-red-500 text-center" data-testid="text-error">{error}</p>
+            )}
+
+            <div className="flex items-center gap-2 pt-0.5">
+              <Checkbox
+                id="remember"
+                checked={rememberMe}
+                onCheckedChange={v => setRememberMe(!!v)}
+                className="rounded border-gray-300"
+                data-testid="checkbox-remember"
+              />
+              <Label htmlFor="remember" className="text-sm text-gray-600 cursor-pointer select-none">로그인 상태 유지</Label>
+            </div>
+
+            <Button
+              type="submit"
+              disabled={isLoggingIn}
+              className="w-full h-12 text-base font-semibold rounded-xl bg-[#4F58E8] hover:bg-[#3d46d4] text-white shadow-md shadow-indigo-300/40 transition-all"
+              data-testid="button-login"
+            >
+              {isLoggingIn ? (
+                <span className="flex items-center gap-2">
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  로그인 중...
+                </span>
+              ) : "로그인"}
+            </Button>
+          </form>
+        </div>
+
+        <p className="text-center text-xs text-gray-400 mt-5">
+          © KTMOS남부 임직원 외 사용금지
+        </p>
       </motion.div>
     </div>
   );

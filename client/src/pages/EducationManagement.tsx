@@ -10,6 +10,7 @@ import {
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
   RotateCcw, X, Paperclip, Upload, Pencil, BookOpen, Link2,
   ChevronDown, ChevronUp, Users, Calendar, Clock,
+  Copy, ExternalLink, Send, QrCode,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -94,12 +95,20 @@ const emptyForm = (): FormState => ({
   selectedTeams: [],
 });
 
-// 예시 2: 연결된 세션을 보여주는 인라인 패널 컴포넌트
+// 연결된 세션을 보여주는 인라인 패널 컴포넌트
 function LinkedSessionsPanel({ taskId }: { taskId: number }) {
+  const { toast } = useToast();
   const { data: sessions = [], isLoading } = useQuery<SessionWithSigs[]>({
     queryKey: ["/api/education-tasks", taskId, "sessions"],
     queryFn: () => fetch(`/api/education-tasks/${taskId}/sessions`, { credentials: "include" }).then(r => r.json()),
   });
+
+  const copyLink = (sessionId: number) => {
+    const url = `${window.location.origin}/sign/${sessionId}`;
+    navigator.clipboard.writeText(url).then(() => {
+      toast({ title: "서명 링크가 복사되었습니다.", description: url });
+    });
+  };
 
   if (isLoading) {
     return (
@@ -114,30 +123,33 @@ function LinkedSessionsPanel({ taskId }: { taskId: number }) {
 
   if (sessions.length === 0) {
     return (
-      <td colSpan={14} className="px-6 py-3 bg-muted/10">
-        <div className="flex items-center gap-2 text-muted-foreground text-xs italic">
-          <BookOpen className="w-3.5 h-3.5" />
-          연결된 교육일지가 없습니다. "교육일지 생성" 버튼으로 연결하세요.
+      <td colSpan={14} className="px-6 py-3 bg-primary/5 border-b">
+        <div className="flex items-center gap-2 text-muted-foreground text-xs italic py-1">
+          <BookOpen className="w-3.5 h-3.5 text-primary" />
+          연결된 교육일지가 없습니다. 행 오른쪽의 <strong className="not-italic text-foreground">교육일지</strong> 버튼으로 바로 생성하세요.
         </div>
       </td>
     );
   }
 
   return (
-    <td colSpan={14} className="px-6 py-3 bg-primary/5 border-b">
+    <td colSpan={14} className="px-4 py-3 bg-primary/5 border-b">
       <div className="space-y-2">
-        <p className="text-xs font-semibold text-primary flex items-center gap-1.5 mb-2">
+        <p className="text-xs font-semibold text-primary flex items-center gap-1.5">
           <Link2 className="w-3.5 h-3.5" /> 연결된 교육일지 ({sessions.length}개)
+          <span className="text-muted-foreground font-normal">— 서명 링크를 복사해 참여자에게 전달하세요</span>
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
           {sessions.map(s => {
             const signedRate = s.totalParticipants > 0 ? Math.round((s.signedCount / s.totalParticipants) * 100) : 0;
             const isDone = s.status === "완료" || signedRate >= 100;
+            const signUrl = `${window.location.origin}/sign/${s.id}`;
             return (
               <div
                 key={s.id}
-                className="bg-background border rounded-lg px-3 py-2.5 flex flex-col gap-1.5 shadow-sm"
+                className="bg-background border rounded-lg px-3 py-2.5 flex flex-col gap-2 shadow-sm"
               >
+                {/* 헤더: 부서명 + 상태 */}
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold flex items-center gap-1">
                     {isDone
@@ -153,14 +165,19 @@ function LinkedSessionsPanel({ taskId }: { taskId: number }) {
                     {isDone ? "완료" : "진행중"}
                   </Badge>
                 </div>
+
+                {/* 날짜 + 서명 인원 */}
                 <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
                   <span className="flex items-center gap-0.5">
                     <Calendar className="w-3 h-3" />{s.educationDate}
                   </span>
                   <span className="flex items-center gap-0.5">
-                    <Users className="w-3 h-3" />{s.signedCount}/{s.totalParticipants}명 서명
+                    <Users className="w-3 h-3" />
+                    <strong className="text-foreground">{s.signedCount}</strong>/{s.totalParticipants}명 서명
                   </span>
                 </div>
+
+                {/* 진행률 바 */}
                 <div className="flex items-center gap-1.5">
                   <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
                     <div
@@ -169,6 +186,30 @@ function LinkedSessionsPanel({ taskId }: { taskId: number }) {
                     />
                   </div>
                   <span className="text-[11px] font-medium w-8 text-right">{signedRate}%</span>
+                </div>
+
+                {/* 서명 링크 액션 */}
+                <div className="flex gap-1.5 pt-0.5">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-[11px] flex-1 gap-1 border-primary/30 text-primary hover:bg-primary/5"
+                    onClick={() => copyLink(s.id)}
+                    data-testid={`button-copy-link-${s.id}`}
+                  >
+                    <Copy className="w-3 h-3" /> 링크 복사
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-[11px] gap-1 px-2"
+                    asChild
+                    data-testid={`button-open-sign-${s.id}`}
+                  >
+                    <a href={signUrl} target="_blank" rel="noopener noreferrer">
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </Button>
                 </div>
               </div>
             );
@@ -202,6 +243,7 @@ export default function EducationManagement() {
   const [quickSessionTaskId, setQuickSessionTaskId] = useState<number | null>(null);
   const [quickSessionTask, setQuickSessionTask] = useState<EducationTask | null>(null);
   const [quickForm, setQuickForm] = useState<QuickSessionForm>({ department: "", educationType: "정기교육", instructor: "", totalParticipants: "10" });
+  const [createdSessionId, setCreatedSessionId] = useState<number | null>(null);
 
   // 예시 3: 확장 행
   const [expandedTaskId, setExpandedTaskId] = useState<number | null>(null);
@@ -271,19 +313,20 @@ export default function EducationManagement() {
 
   // 예시 1: 교육일지 빠른 생성 뮤테이션
   const quickSessionMutation = useMutation({
-    mutationFn: (data: any) => apiRequest("POST", "/api/education-sessions", data),
-    onSuccess: () => {
+    mutationFn: async (data: any) => {
+      const res = await apiRequest("POST", "/api/education-sessions", data);
+      return res.json();
+    },
+    onSuccess: (session: any) => {
       if (quickSessionTaskId) {
         queryClient.invalidateQueries({ queryKey: ["/api/education-tasks", quickSessionTaskId, "sessions"] });
         queryClient.invalidateQueries({ queryKey: ["/api/education-sessions"] });
         setExpandedTaskId(quickSessionTaskId);
       }
-      // 업무 목록(완료율·linkedSessionCount) 즉시 갱신
       queryClient.invalidateQueries({ queryKey: ["/api/education-tasks"] });
-      setQuickSessionTaskId(null);
-      setQuickSessionTask(null);
+      // 생성된 세션 ID를 저장해 서명 링크 표시
+      if (session?.id) setCreatedSessionId(session.id);
       setQuickForm({ department: "", educationType: "정기교육", instructor: "", totalParticipants: "10" });
-      toast({ title: "교육일지가 생성되어 업무에 연결되었습니다." });
     },
     onError: (e: any) => toast({ title: "생성 실패", description: e.message, variant: "destructive" }),
   });
@@ -703,91 +746,180 @@ export default function EducationManagement() {
       </div>
 
       {/* 예시 1: 교육일지 빠른 생성 다이얼로그 */}
-      <Dialog open={quickSessionTaskId !== null} onOpenChange={v => { if (!v) { setQuickSessionTaskId(null); setQuickSessionTask(null); } }}>
+      <Dialog
+        open={quickSessionTaskId !== null}
+        onOpenChange={v => {
+          if (!v) {
+            setQuickSessionTaskId(null);
+            setQuickSessionTask(null);
+            setCreatedSessionId(null);
+          }
+        }}
+      >
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-primary">
-              <BookOpen className="w-4 h-4" /> 교육일지 생성 (업무 연결)
+              <BookOpen className="w-4 h-4" />
+              {createdSessionId ? "교육일지 생성 완료" : "교육일지 생성 (업무 연결)"}
             </DialogTitle>
           </DialogHeader>
-          {quickSessionTask && (
-            <div className="space-y-4 py-1">
-              {/* 자동 채워진 정보 표시 */}
-              <div className="bg-muted/40 rounded-lg p-3 space-y-1.5 text-sm">
-                <p className="font-semibold text-foreground">{quickSessionTask.title}</p>
-                <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                  <Calendar className="w-3.5 h-3.5" />
-                  {quickSessionTask.startDate} ~ {quickSessionTask.endDate}
-                  <Badge variant="secondary" className="text-[10px] ml-1">{quickSessionTask.field}</Badge>
-                </p>
-              </div>
-              <p className="text-xs text-muted-foreground -mt-1">위 업무 정보가 자동 입력됩니다. 아래 부서와 인원만 입력하세요.</p>
 
-              {/* 부서 선택 */}
-              <div className="space-y-1.5">
-                <Label className="text-sm font-semibold">부서 <span className="text-destructive">*</span></Label>
-                <Select value={quickForm.department} onValueChange={v => setQuickForm(f => ({ ...f, department: v }))}>
-                  <SelectTrigger className="h-9" data-testid="select-quick-department">
-                    <SelectValue placeholder="부서를 선택하세요" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {DEPARTMENTS.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* 교육 종류 */}
-              <div className="space-y-1.5">
-                <Label className="text-sm font-semibold">교육 종류</Label>
-                <Select value={quickForm.educationType} onValueChange={v => setQuickForm(f => ({ ...f, educationType: v }))}>
-                  <SelectTrigger className="h-9" data-testid="select-quick-edu-type">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {EDUCATION_TYPES.map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                {/* 강사 */}
-                <div className="space-y-1.5">
-                  <Label className="text-sm font-semibold">강사</Label>
-                  <Input
-                    placeholder="강사 이름"
-                    value={quickForm.instructor}
-                    onChange={e => setQuickForm(f => ({ ...f, instructor: e.target.value }))}
-                    data-testid="input-quick-instructor"
-                  />
+          {/* 성공 상태: 서명 링크 표시 */}
+          {createdSessionId ? (
+            <div className="space-y-4 py-2">
+              <div className="flex flex-col items-center gap-3 py-2">
+                <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center">
+                  <CheckCircle2 className="w-6 h-6 text-emerald-500" />
                 </div>
-                {/* 인원 */}
-                <div className="space-y-1.5">
-                  <Label className="text-sm font-semibold">총 인원 <span className="text-destructive">*</span></Label>
-                  <Input
-                    type="number"
-                    min="1"
-                    placeholder="10"
-                    value={quickForm.totalParticipants}
-                    onChange={e => setQuickForm(f => ({ ...f, totalParticipants: e.target.value }))}
-                    data-testid="input-quick-participants"
-                  />
+                <div className="text-center">
+                  <p className="font-semibold text-sm">교육일지가 생성되었습니다!</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">아래 서명 링크를 참여자에게 전달하세요.</p>
                 </div>
               </div>
+
+              {/* 서명 링크 */}
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold flex items-center gap-1.5">
+                  <Send className="w-3.5 h-3.5 text-primary" /> 서명 링크
+                </Label>
+                <div className="flex gap-2">
+                  <Input
+                    readOnly
+                    value={`${window.location.origin}/sign/${createdSessionId}`}
+                    className="text-xs bg-muted/30 font-mono"
+                    data-testid="input-sign-link"
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="shrink-0 gap-1"
+                    onClick={() => {
+                      const url = `${window.location.origin}/sign/${createdSessionId}`;
+                      navigator.clipboard.writeText(url);
+                      toast({ title: "서명 링크가 복사되었습니다." });
+                    }}
+                    data-testid="button-copy-sign-link"
+                  >
+                    <Copy className="w-3.5 h-3.5" /> 복사
+                  </Button>
+                </div>
+                <div className="flex gap-2 pt-1">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="flex-1 gap-1 text-xs"
+                    asChild
+                    data-testid="button-open-sign-page"
+                  >
+                    <a href={`/sign/${createdSessionId}`} target="_blank" rel="noopener noreferrer">
+                      <ExternalLink className="w-3.5 h-3.5" /> 서명 페이지 열기
+                    </a>
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="flex-1 gap-1 text-xs"
+                    onClick={() => {
+                      setCreatedSessionId(null);
+                      setQuickForm({ department: "", educationType: "정기교육", instructor: "", totalParticipants: "10" });
+                    }}
+                    data-testid="button-create-another"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> 다른 부서 추가
+                  </Button>
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button
+                  onClick={() => { setQuickSessionTaskId(null); setQuickSessionTask(null); setCreatedSessionId(null); }}
+                  data-testid="button-quick-done"
+                >
+                  완료
+                </Button>
+              </DialogFooter>
             </div>
+          ) : (
+            /* 입력 폼 상태 */
+            <>
+              {quickSessionTask && (
+                <div className="space-y-4 py-1">
+                  {/* 자동 채워진 정보 */}
+                  <div className="bg-muted/40 rounded-lg p-3 space-y-1.5 text-sm">
+                    <p className="font-semibold text-foreground">{quickSessionTask.title}</p>
+                    <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                      <Calendar className="w-3.5 h-3.5" />
+                      {quickSessionTask.startDate} ~ {quickSessionTask.endDate}
+                      <Badge variant="secondary" className="text-[10px] ml-1">{quickSessionTask.field}</Badge>
+                    </p>
+                  </div>
+                  <p className="text-xs text-muted-foreground -mt-1">위 업무 정보가 자동 입력됩니다. 아래 부서와 인원만 입력하세요.</p>
+
+                  {/* 부서 선택 */}
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-semibold">부서 <span className="text-destructive">*</span></Label>
+                    <Select value={quickForm.department} onValueChange={v => setQuickForm(f => ({ ...f, department: v }))}>
+                      <SelectTrigger className="h-9" data-testid="select-quick-department">
+                        <SelectValue placeholder="부서를 선택하세요" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {DEPARTMENTS.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* 교육 종류 */}
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-semibold">교육 종류</Label>
+                    <Select value={quickForm.educationType} onValueChange={v => setQuickForm(f => ({ ...f, educationType: v }))}>
+                      <SelectTrigger className="h-9" data-testid="select-quick-edu-type">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {EDUCATION_TYPES.map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-sm font-semibold">강사</Label>
+                      <Input
+                        placeholder="강사 이름"
+                        value={quickForm.instructor}
+                        onChange={e => setQuickForm(f => ({ ...f, instructor: e.target.value }))}
+                        data-testid="input-quick-instructor"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-sm font-semibold">총 인원 <span className="text-destructive">*</span></Label>
+                      <Input
+                        type="number"
+                        min="1"
+                        placeholder="10"
+                        value={quickForm.totalParticipants}
+                        onChange={e => setQuickForm(f => ({ ...f, totalParticipants: e.target.value }))}
+                        data-testid="input-quick-participants"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+              <DialogFooter className="gap-2">
+                <Button variant="outline" onClick={() => { setQuickSessionTaskId(null); setQuickSessionTask(null); }} data-testid="button-quick-cancel">
+                  <X className="w-4 h-4 mr-1" /> 취소
+                </Button>
+                <Button
+                  onClick={handleQuickSessionSubmit}
+                  disabled={quickSessionMutation.isPending}
+                  data-testid="button-quick-submit"
+                >
+                  <BookOpen className="w-4 h-4 mr-1" />
+                  {quickSessionMutation.isPending ? "생성 중..." : "교육일지 생성"}
+                </Button>
+              </DialogFooter>
+            </>
           )}
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => { setQuickSessionTaskId(null); setQuickSessionTask(null); }} data-testid="button-quick-cancel">
-              <X className="w-4 h-4 mr-1" /> 취소
-            </Button>
-            <Button
-              onClick={handleQuickSessionSubmit}
-              disabled={quickSessionMutation.isPending}
-              data-testid="button-quick-submit"
-            >
-              <BookOpen className="w-4 h-4 mr-1" />
-              {quickSessionMutation.isPending ? "생성 중..." : "교육일지 생성"}
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 
