@@ -500,10 +500,6 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
         >
           {isDone ? "완료" : "진행중"}
         </Badge>
-        <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-primary shrink-0"
-          onClick={() => copyLink(s.id)} title="서명 링크 복사" data-testid={`button-copy-link-${s.id}`}>
-          <Copy className="w-3.5 h-3.5" />
-        </Button>
         <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-indigo-500 shrink-0"
           onClick={() => setViewSigSession(s)} title="서명자 확인" data-testid={`button-view-sigs-${s.id}`}>
           <Eye className="w-3.5 h-3.5" />
@@ -1226,18 +1222,32 @@ export default function EducationManagement() {
           </div>
         </div>
 
-        {/* 카드 리스트 */}
+        {/* 테이블 헤더 */}
+        <div className="flex items-center px-4 py-2 border-b bg-muted/40 text-[11px] font-semibold text-muted-foreground select-none">
+          <div className="w-5 shrink-0" />
+          <div className="w-10 shrink-0 text-center">ID</div>
+          <div className="flex-1 min-w-0 pl-2">제목</div>
+          <div className="w-[84px] shrink-0 text-center">시작일</div>
+          <div className="w-[84px] shrink-0 text-center">종료일</div>
+          <div className="w-12 shrink-0 text-center">완료율</div>
+          <div className="w-[68px] shrink-0 text-center">분야</div>
+          <div className="w-[72px] shrink-0 text-center">본부</div>
+          <div className="w-[60px] shrink-0 text-center">대상인원</div>
+          <div className="w-14 shrink-0 text-center">요청자</div>
+          <div className="w-8 shrink-0 text-center">반복</div>
+          <div className="w-[76px] shrink-0 text-center">등록일</div>
+          <div className="w-[116px] shrink-0" />
+        </div>
+
+        {/* 리스트 */}
         <div className="divide-y">
           {isLoading ? (
             Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="px-4 py-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-muted rounded-full animate-pulse shrink-0" />
-                  <div className="flex-1 space-y-2">
-                    <div className="h-4 bg-muted rounded animate-pulse w-1/3" />
-                    <div className="h-3 bg-muted rounded animate-pulse w-1/4" />
-                  </div>
-                </div>
+              <div key={i} className="px-4 py-3 flex items-center gap-3">
+                <div className="w-5 h-4 bg-muted rounded animate-pulse" />
+                <div className="w-8 h-4 bg-muted rounded animate-pulse" />
+                <div className="flex-1 h-4 bg-muted rounded animate-pulse" />
+                <div className="w-40 h-4 bg-muted rounded animate-pulse" />
               </div>
             ))
           ) : paged.length === 0 ? (
@@ -1247,6 +1257,9 @@ export default function EducationManagement() {
           ) : (
             paged.map(t => {
               const isExpanded = expandedTaskId === t.id;
+              const createdAtStr = (t as any).createdAt
+                ? new Date((t as any).createdAt).toLocaleDateString('ko-KR', { year: '2-digit', month: '2-digit', day: '2-digit' })
+                : '-';
               return (
                 <motion.div
                   key={t.id}
@@ -1255,13 +1268,13 @@ export default function EducationManagement() {
                   data-testid={`card-task-${t.id}`}
                   className="group"
                 >
-                  {/* 카드 헤더 */}
+                  {/* 행 */}
                   <div
-                    className={`flex items-start gap-3 px-4 py-3.5 cursor-pointer transition-colors ${isExpanded ? "bg-primary/5" : "hover:bg-muted/20"}`}
+                    className={`flex items-center px-4 py-2.5 cursor-pointer transition-colors ${isExpanded ? "bg-primary/5" : "hover:bg-muted/20"}`}
                     onClick={() => toggleExpand(t.id)}
                   >
                     {/* 체크박스 */}
-                    <div className="pt-0.5" onClick={e => e.stopPropagation()}>
+                    <div className="w-5 shrink-0" onClick={e => e.stopPropagation()}>
                       <Checkbox
                         checked={selectedIds.has(t.id)}
                         onCheckedChange={() => toggleOne(t.id)}
@@ -1269,61 +1282,67 @@ export default function EducationManagement() {
                       />
                     </div>
 
-                    {/* 아이콘 */}
-                    <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
-                      <GraduationCap className="w-4.5 h-4.5 text-primary" />
-                    </div>
+                    {/* ID */}
+                    <div className="w-10 shrink-0 text-center text-xs text-muted-foreground">{t.id}</div>
 
-                    {/* 내용 */}
-                    <div className="flex-1 min-w-0">
-                      {/* 제목 + 배지 */}
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-semibold text-sm leading-snug">{t.title}</span>
-                        <Badge variant="secondary" className="text-[10px] whitespace-nowrap">{t.field}</Badge>
+                    {/* 제목 */}
+                    <div className="flex-1 min-w-0 pl-2">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-sm font-medium leading-snug truncate max-w-[240px]">{t.title}</span>
                         {statusBadge(t)}
                         {(t.linkedSessionCount ?? 0) > 0 && (
-                          <Badge variant="outline" className="text-[10px] text-primary border-primary/40 gap-0.5">
+                          <Badge variant="outline" className="text-[10px] text-primary border-primary/40 gap-0.5 shrink-0">
                             <Link2 className="w-2.5 h-2.5" />
                             서명 {t.completionRate}%
                           </Badge>
                         )}
                       </div>
-
-                      {/* 메타 정보 */}
-                      <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1 flex-wrap">
-                        <span className="flex items-center gap-1">
-                          <Calendar className="w-3 h-3" />
-                          {t.startDate} ~ {t.endDate}
-                        </span>
-                        {(t.linkedSessionCount ?? 0) > 0 && (
-                          <span className="flex items-center gap-1 font-medium text-foreground/70">
-                            <Users className="w-3 h-3" />
-                            {t.linkedSessionCount}개 부서
-                            <span className="text-muted-foreground font-normal">
-                              · 교육 대상인원 <span className="font-semibold text-primary">{t.totalParticipantsSum ?? 0}명</span>
-                            </span>
-                          </span>
-                        )}
-                        {t.requestedBy && (
-                          <span className="text-muted-foreground">{t.requestedBy}</span>
-                        )}
-                        {t.isRecurring && (
-                          <span className="text-primary font-medium">반복</span>
-                        )}
-                      </div>
+                      {(t.linkedSessionCount ?? 0) > 0 && (
+                        <div className="text-[10px] text-muted-foreground mt-0.5">
+                          {t.linkedSessionCount}개 부서 · 대상 <span className="font-semibold text-primary">{t.totalParticipantsSum ?? 0}명</span>
+                        </div>
+                      )}
                     </div>
+
+                    {/* 시작일 */}
+                    <div className="w-[84px] shrink-0 text-center text-xs text-muted-foreground">{t.startDate}</div>
+
+                    {/* 종료일 */}
+                    <div className="w-[84px] shrink-0 text-center text-xs text-muted-foreground">{t.endDate}</div>
+
+                    {/* 완료율 */}
+                    <div className="w-12 shrink-0 text-center text-xs font-semibold text-foreground">{t.completionRate ?? 0}%</div>
+
+                    {/* 분야 */}
+                    <div className="w-[68px] shrink-0 text-center text-xs text-muted-foreground truncate px-0.5">{t.field || '-'}</div>
+
+                    {/* 본부 */}
+                    <div className="w-[72px] shrink-0 text-center text-xs text-muted-foreground truncate px-0.5">{(t.headquarters || t.requestScope || '-').replace('본부', '')}</div>
+
+                    {/* 대상인원 */}
+                    <div className="w-[60px] shrink-0 text-center text-xs font-semibold text-primary">{t.totalParticipantsSum ?? 0}명</div>
+
+                    {/* 요청자 */}
+                    <div className="w-14 shrink-0 text-center text-xs text-muted-foreground truncate">{t.requestedBy || '-'}</div>
+
+                    {/* 반복 */}
+                    <div className="w-8 shrink-0 text-center text-xs">
+                      {t.isRecurring ? <span className="text-primary font-semibold">Y</span> : <span className="text-muted-foreground">-</span>}
+                    </div>
+
+                    {/* 등록일 */}
+                    <div className="w-[76px] shrink-0 text-center text-[10px] text-muted-foreground">{createdAtStr}</div>
 
                     {/* 액션 버튼들 */}
                     <div
-                      className="flex items-center gap-0.5 shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+                      className="w-[116px] shrink-0 flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
                       onClick={e => e.stopPropagation()}
                     >
-                      {/* 대표 링크 복사 */}
                       <Button
                         size="icon"
                         variant="ghost"
-                        className="h-8 w-8 text-muted-foreground hover:text-primary"
-                        title="대표 서명 링크 복사 (부서 선택 가능)"
+                        className="h-7 w-7 text-muted-foreground hover:text-primary"
+                        title="대표 서명 링크 복사"
                         onClick={() => {
                           const url = `${window.location.origin}/sign/task/${t.id}`;
                           navigator.clipboard.writeText(url);
@@ -1333,13 +1352,11 @@ export default function EducationManagement() {
                       >
                         <Link2 className="w-3.5 h-3.5" />
                       </Button>
-
-                      {/* 교육일지 다운로드 */}
                       <Button
                         size="icon"
                         variant="ghost"
-                        className="h-8 w-8 text-muted-foreground hover:text-emerald-600"
-                        title="교육일지 엑셀 다운로드 (사진·참석자 서명 포함)"
+                        className="h-7 w-7 text-muted-foreground hover:text-emerald-600"
+                        title="교육일지 엑셀 다운로드"
                         onClick={() => handleTaskDownload(t)}
                         disabled={downloadingTaskId === t.id}
                         data-testid={`button-download-task-${t.id}`}
@@ -1349,14 +1366,12 @@ export default function EducationManagement() {
                           : <Download className="w-3.5 h-3.5" />
                         }
                       </Button>
-
                       {isEditor && (
                         <>
-                          {/* 교육 복사 */}
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-8 w-8 text-muted-foreground hover:text-violet-500"
+                            className="h-7 w-7 text-muted-foreground hover:text-violet-500"
                             title="교육 복사하기"
                             onClick={() => copyTaskMutation.mutate(t.id)}
                             disabled={copyTaskMutation.isPending}
@@ -1367,21 +1382,21 @@ export default function EducationManagement() {
                               : <Files className="w-3.5 h-3.5" />
                             }
                           </Button>
-                          {/* 수정 */}
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-8 w-8 text-muted-foreground hover:text-blue-500"
+                            className="h-7 w-7 text-muted-foreground hover:text-blue-500"
+                            title="수정"
                             onClick={() => openEdit(t)}
                             data-testid={`button-edit-task-${t.id}`}
                           >
                             <Pencil className="w-3.5 h-3.5" />
                           </Button>
-                          {/* 삭제 */}
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                            className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                            title="삭제"
                             onClick={() => setDeleteConfirmIds([t.id])}
                             data-testid={`button-delete-task-${t.id}`}
                           >
@@ -1389,18 +1404,14 @@ export default function EducationManagement() {
                           </Button>
                         </>
                       )}
-
-                      {/* 확장/축소 */}
                       <Button
                         size="icon"
                         variant="ghost"
-                        className="h-8 w-8 text-muted-foreground"
+                        className="h-7 w-7 text-muted-foreground"
                         data-testid={`button-expand-task-${t.id}`}
+                        onClick={() => toggleExpand(t.id)}
                       >
-                        {isExpanded
-                          ? <ChevronUp className="w-4 h-4" />
-                          : <ChevronDown className="w-4 h-4" />
-                        }
+                        {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                       </Button>
                     </div>
                   </div>
