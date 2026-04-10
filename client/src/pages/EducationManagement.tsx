@@ -539,15 +539,15 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
           {s.department}
         </button>
 
-        {/* 진행율 바 (w-40) */}
-        <div className="w-40 shrink-0 flex flex-col gap-0.5 pr-3">
-          <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+        {/* 진행율 바 */}
+        <div className="w-56 shrink-0 flex items-center gap-2 pr-3">
+          <span className="text-[11px] text-muted-foreground tabular-nums w-7 text-right shrink-0">{signedRate}%</span>
+          <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
             <div
               className={`h-full rounded-full transition-all ${isDone ? "bg-emerald-500" : "bg-primary"}`}
               style={{ width: `${signedRate}%` }}
             />
           </div>
-          <span className="text-[10px] text-muted-foreground">{signedRate}%</span>
         </div>
 
         {/* 사진 수 (w-8, 항상 자리 차지) */}
