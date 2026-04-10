@@ -264,6 +264,24 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
     }
   }, [isLoading, sessions.length, taskId, expectedLen]);
 
+  // 부서별 다운로드
+  const [downloadingSessionId, setDownloadingSessionId] = useState<number | null>(null);
+  const handleSessionDownload = async (s: SessionWithSigs) => {
+    setDownloadingSessionId(s.id);
+    try {
+      const res = await fetch(`/api/education-tasks/${taskId}/sessions/${s.id}/excel`, { credentials: "include" });
+      if (!res.ok) { toast({ title: "다운로드 실패", variant: "destructive" }); return; }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${s.department}_교육일지.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch { toast({ title: "다운로드 실패", variant: "destructive" }); }
+    finally { setDownloadingSessionId(null); }
+  };
+
   // 편집 다이얼로그 상태
   const [editingSession, setEditingSession] = useState<SessionWithSigs | null>(null);
   const [editDesc, setEditDesc] = useState("");
@@ -503,6 +521,13 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
         <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-indigo-500 shrink-0"
           onClick={() => setViewSigSession(s)} title="서명자 확인" data-testid={`button-view-sigs-${s.id}`}>
           <Eye className="w-3.5 h-3.5" />
+        </Button>
+        <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-emerald-600 shrink-0"
+          onClick={() => handleSessionDownload(s)} title="부서별 엑셀 다운로드" disabled={downloadingSessionId === s.id} data-testid={`button-session-excel-${s.id}`}>
+          {downloadingSessionId === s.id
+            ? <div className="w-3.5 h-3.5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+            : <Download className="w-3.5 h-3.5" />
+          }
         </Button>
 
         {/* 서명수 / 인원수(편집 가능) */}
