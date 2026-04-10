@@ -44,7 +44,7 @@ const DEPARTMENTS = [
 ];
 const HQ_OPTIONS = ["충청본부", "부산본부", "호남본부", "대구본부", "경영총괄", "품질지원센터", "사업총괄", "감사실"];
 const TEAMS_BY_HQ: Record<string, string[]> = {
-  "대구본부":    ["동대구운용팀", "서대구운용팀", "남대구운용팀"],
+  "대구본부":    ["동대구운용팀", "서대구운용팀", "남대구운용팀", "포항운용팀", "안동운용팀", "구미운용팀", "문경운용팀"],
   "경영총괄":    ["운용지원팀", "운용계획팀", "사업지원팀", "현장경영팀"],
   "사업총괄":    ["공공망관제팀"],
   "부산본부":    ["포항운용팀", "안동운용팀", "구미운용팀", "문경운용팀"],
@@ -668,6 +668,22 @@ export default function EducationManagement() {
                       className="flex items-center gap-0.5 shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
                       onClick={e => e.stopPropagation()}
                     >
+                      {/* 대표 링크 복사 */}
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8 text-muted-foreground hover:text-primary"
+                        title="대표 서명 링크 복사 (부서 선택 가능)"
+                        onClick={() => {
+                          const url = `${window.location.origin}/sign/task/${t.id}`;
+                          navigator.clipboard.writeText(url);
+                          toast({ title: "대표 링크가 복사되었습니다.", description: "참여자가 부서를 선택 후 서명할 수 있습니다." });
+                        }}
+                        data-testid={`button-task-link-${t.id}`}
+                      >
+                        <Link2 className="w-3.5 h-3.5" />
+                      </Button>
+
                       {/* 교육일지 다운로드 */}
                       <Button
                         size="icon"

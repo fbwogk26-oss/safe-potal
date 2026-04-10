@@ -2463,15 +2463,52 @@ export async function registerRoutes(
     try {
       const session = await storage.getEducationSession(Number(req.params.id));
       if (!session) return res.status(404).json({ message: "교육 세션을 찾을 수 없습니다." });
+      // taskId가 있으면 업무 제목도 함께 반환
+      let taskTitle: string | null = null;
+      if (session.taskId) {
+        const task = await storage.getEducationTask(session.taskId);
+        if (task) taskTitle = task.title;
+      }
       res.json({
         id: session.id,
-        title: session.title,
+        title: taskTitle || session.title,
         educationDate: session.educationDate,
         department: session.department,
         educationType: session.educationType,
         instructor: session.instructor,
         totalParticipants: session.totalParticipants,
         status: session.status,
+      });
+    } catch (err) {
+      res.status(500).json({ message: "서버 오류가 발생했습니다." });
+    }
+  });
+
+  // 업무 기반 대표 서명 페이지용 공개 API
+  app.get("/api/public/task/:taskId", async (req: any, res) => {
+    try {
+      const taskId = Number(req.params.taskId);
+      const task = await storage.getEducationTask(taskId);
+      if (!task) return res.status(404).json({ message: "교육 업무를 찾을 수 없습니다." });
+      const allSessions = await storage.getEducationSessions();
+      const sessions = allSessions.filter(s => s.taskId === taskId);
+      const sigs = await Promise.all(sessions.map(s => storage.getSignaturesBySession(s.id)));
+      const sessionList = sessions.map((s, i) => ({
+        id: s.id,
+        department: s.department,
+        educationType: s.educationType,
+        totalParticipants: s.totalParticipants,
+        signedCount: sigs[i].length,
+        status: s.status,
+      }));
+      res.json({
+        id: task.id,
+        title: task.title,
+        startDate: task.startDate,
+        endDate: task.endDate,
+        field: task.field,
+        educationType: sessions[0]?.educationType || "정기교육",
+        sessions: sessionList,
       });
     } catch (err) {
       res.status(500).json({ message: "서버 오류가 발생했습니다." });

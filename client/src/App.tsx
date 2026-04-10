@@ -8,6 +8,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
 import PublicSign from "@/pages/PublicSign";
 import PublicEquipSign from "@/pages/PublicEquipSign";
+import PublicTaskSign from "@/pages/PublicTaskSign";
 import Dashboard from "@/pages/Dashboard";
 import HomePage from "@/pages/HomePage";
 import Rules from "@/pages/Rules";
@@ -156,6 +157,9 @@ function AppContent() {
   }
   if (location.startsWith("/sign/equip/")) {
     return <Switch><Route path="/sign/equip/:id" component={PublicEquipSign} /></Switch>;
+  }
+  if (location.startsWith("/sign/task/")) {
+    return <Switch><Route path="/sign/task/:id" component={PublicTaskSign} /></Switch>;
   }
   if (location.startsWith("/sign/")) {
     return <Switch><Route path="/sign/:id" component={PublicSign} /></Switch>;
