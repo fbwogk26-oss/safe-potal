@@ -8,7 +8,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   CheckCircle2, Trash2, Plus, FileSpreadsheet, Search,
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
-  RotateCcw, X, Paperclip, Upload, Pencil,
+  RotateCcw, X, Paperclip, Upload, Pencil, BookOpen, Link2,
+  ChevronDown, ChevronUp, Users, Calendar, Clock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,14 +28,21 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import type { EducationTask } from "@shared/schema";
+import type { EducationTask, EducationSession } from "@shared/schema";
 
 const FIELDS = ["안전/보건", "법령", "이벤트"] as const;
 const SCOPES = ["전사", "본부", "지정", "안전보건업무 부서"] as const;
 const FIELD_TYPES = ["Text", "Date", "Number", "Select"] as const;
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
+const DEPARTMENTS = [
+  "동대구운용팀", "서대구운용팀", "남대구운용팀", "포항운용팀",
+  "안동운용팀", "구미운용팀", "문경운용팀",
+  "운용지원팀", "운용계획팀", "사업지원팀", "현장경영팀", "공공망관제팀",
+];
+const EDUCATION_TYPES = ["정기교육", "신규교육", "특별교육", "안전교육", "직무교육"];
 
 type TaskField = { type: string; title: string };
+type SessionWithSigs = EducationSession & { signedCount: number };
 
 interface FormState {
   title: string;
@@ -49,6 +57,13 @@ interface FormState {
   requestedBy: string;
 }
 
+interface QuickSessionForm {
+  department: string;
+  educationType: string;
+  instructor: string;
+  totalParticipants: string;
+}
+
 const emptyForm = (): FormState => ({
   title: "",
   startDate: "",
@@ -61,6 +76,91 @@ const emptyForm = (): FormState => ({
   department: "",
   requestedBy: "",
 });
+
+// 예시 2: 연결된 세션을 보여주는 인라인 패널 컴포넌트
+function LinkedSessionsPanel({ taskId }: { taskId: number }) {
+  const { data: sessions = [], isLoading } = useQuery<SessionWithSigs[]>({
+    queryKey: ["/api/education-tasks", taskId, "sessions"],
+    queryFn: () => fetch(`/api/education-tasks/${taskId}/sessions`, { credentials: "include" }).then(r => r.json()),
+  });
+
+  if (isLoading) {
+    return (
+      <td colSpan={14} className="px-6 py-3 bg-muted/20">
+        <div className="flex items-center gap-2 text-muted-foreground text-xs">
+          <div className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          교육일지 로딩 중...
+        </div>
+      </td>
+    );
+  }
+
+  if (sessions.length === 0) {
+    return (
+      <td colSpan={14} className="px-6 py-3 bg-muted/10">
+        <div className="flex items-center gap-2 text-muted-foreground text-xs italic">
+          <BookOpen className="w-3.5 h-3.5" />
+          연결된 교육일지가 없습니다. "교육일지 생성" 버튼으로 연결하세요.
+        </div>
+      </td>
+    );
+  }
+
+  return (
+    <td colSpan={14} className="px-6 py-3 bg-primary/5 border-b">
+      <div className="space-y-2">
+        <p className="text-xs font-semibold text-primary flex items-center gap-1.5 mb-2">
+          <Link2 className="w-3.5 h-3.5" /> 연결된 교육일지 ({sessions.length}개)
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+          {sessions.map(s => {
+            const signedRate = s.totalParticipants > 0 ? Math.round((s.signedCount / s.totalParticipants) * 100) : 0;
+            const isDone = s.status === "완료" || signedRate >= 100;
+            return (
+              <div
+                key={s.id}
+                className="bg-background border rounded-lg px-3 py-2.5 flex flex-col gap-1.5 shadow-sm"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold flex items-center gap-1">
+                    {isDone
+                      ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                      : <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    }
+                    {s.department}
+                  </span>
+                  <Badge
+                    className={`text-[10px] ${isDone ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-amber-50 text-amber-600 border-amber-300"}`}
+                    variant={isDone ? "default" : "outline"}
+                  >
+                    {isDone ? "완료" : "진행중"}
+                  </Badge>
+                </div>
+                <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+                  <span className="flex items-center gap-0.5">
+                    <Calendar className="w-3 h-3" />{s.educationDate}
+                  </span>
+                  <span className="flex items-center gap-0.5">
+                    <Users className="w-3 h-3" />{s.signedCount}/{s.totalParticipants}명 서명
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all ${isDone ? "bg-emerald-500" : signedRate >= 50 ? "bg-amber-400" : "bg-red-400"}`}
+                      style={{ width: `${signedRate}%` }}
+                    />
+                  </div>
+                  <span className="text-[11px] font-medium w-8 text-right">{signedRate}%</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </td>
+  );
+}
 
 export default function EducationManagement() {
   const { user } = useAuth();
@@ -80,6 +180,14 @@ export default function EducationManagement() {
   const [confirmConfirmIds, setConfirmConfirmIds] = useState<number[]>([]);
   const [attachmentTaskId, setAttachmentTaskId] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 예시 1: 교육일지 빠른 생성
+  const [quickSessionTaskId, setQuickSessionTaskId] = useState<number | null>(null);
+  const [quickSessionTask, setQuickSessionTask] = useState<EducationTask | null>(null);
+  const [quickForm, setQuickForm] = useState<QuickSessionForm>({ department: "", educationType: "정기교육", instructor: "", totalParticipants: "10" });
+
+  // 예시 3: 확장 행
+  const [expandedTaskId, setExpandedTaskId] = useState<number | null>(null);
 
   const { data: tasks = [], isLoading } = useQuery<EducationTask[]>({
     queryKey: ["/api/education-tasks"],
@@ -142,6 +250,23 @@ export default function EducationManagement() {
       toast({ title: "증빙자료가 업로드되었습니다." });
     },
     onError: (e: any) => toast({ title: "업로드 실패", description: e.message, variant: "destructive" }),
+  });
+
+  // 예시 1: 교육일지 빠른 생성 뮤테이션
+  const quickSessionMutation = useMutation({
+    mutationFn: (data: any) => apiRequest("POST", "/api/education-sessions", data),
+    onSuccess: () => {
+      if (quickSessionTaskId) {
+        queryClient.invalidateQueries({ queryKey: ["/api/education-tasks", quickSessionTaskId, "sessions"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/education-sessions"] });
+        setExpandedTaskId(quickSessionTaskId);
+      }
+      setQuickSessionTaskId(null);
+      setQuickSessionTask(null);
+      setQuickForm({ department: "", educationType: "정기교육", instructor: "", totalParticipants: "10" });
+      toast({ title: "교육일지가 생성되어 업무에 연결되었습니다." });
+    },
+    onError: (e: any) => toast({ title: "생성 실패", description: e.message, variant: "destructive" }),
   });
 
   const filtered = tasks.filter(t => {
@@ -210,6 +335,42 @@ export default function EducationManagement() {
 
   const handleExport = () => { window.location.href = "/api/education-tasks/export"; };
 
+  // 예시 1: 교육일지 빠른 생성 열기
+  const openQuickSession = (t: EducationTask, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setQuickSessionTaskId(t.id);
+    setQuickSessionTask(t);
+    setQuickForm({ department: "", educationType: "정기교육", instructor: "", totalParticipants: "10" });
+  };
+
+  const handleQuickSessionSubmit = () => {
+    if (!quickSessionTask) return;
+    if (!quickForm.department) {
+      toast({ title: "부서를 선택해주세요.", variant: "destructive" });
+      return;
+    }
+    const participants = parseInt(quickForm.totalParticipants);
+    if (isNaN(participants) || participants < 1) {
+      toast({ title: "인원 수를 올바르게 입력해주세요.", variant: "destructive" });
+      return;
+    }
+    quickSessionMutation.mutate({
+      title: quickSessionTask.title,
+      educationDate: quickSessionTask.startDate,
+      educationEndDate: quickSessionTask.endDate,
+      department: quickForm.department,
+      educationType: quickForm.educationType,
+      instructor: quickForm.instructor || undefined,
+      totalParticipants: participants,
+      taskId: quickSessionTask.id,
+    });
+  };
+
+  // 예시 3: 행 확장 토글
+  const toggleExpand = (id: number) => {
+    setExpandedTaskId(prev => prev === id ? null : id);
+  };
+
   const statusBadge = (t: EducationTask) => {
     if (t.status === "완료") return <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 text-[10px]">완료</Badge>;
     return <Badge variant="outline" className="text-amber-600 border-amber-300 text-[10px]">미완료</Badge>;
@@ -222,6 +383,13 @@ export default function EducationManagement() {
           <CheckCircle2 className="w-6 h-6 text-primary" />
           교육업무 관리
         </h1>
+      </div>
+
+      {/* 기능 안내 배너 */}
+      <div className="bg-primary/5 border border-primary/20 rounded-xl px-4 py-3 flex flex-wrap gap-4 text-xs text-muted-foreground">
+        <span className="flex items-center gap-1.5"><BookOpen className="w-3.5 h-3.5 text-primary" /><strong className="text-foreground">교육일지 생성</strong> — 업무 행의 버튼으로 교육일지를 바로 연결 생성</span>
+        <span className="flex items-center gap-1.5"><Link2 className="w-3.5 h-3.5 text-primary" /><strong className="text-foreground">자동 연동</strong> — 🔗 아이콘은 서명률이 완료율로 자동 반영됨을 표시</span>
+        <span className="flex items-center gap-1.5"><ChevronDown className="w-3.5 h-3.5 text-primary" /><strong className="text-foreground">세션 보기</strong> — 행 클릭으로 연결된 교육일지 현황 인라인 확인</span>
       </div>
 
       {/* 필터 영역 */}
@@ -323,6 +491,7 @@ export default function EducationManagement() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/20">
+                <th className="w-8 px-3 py-3" />
                 <th className="w-10 px-3 py-3">
                   <Checkbox checked={allChecked} onCheckedChange={toggleAll} data-testid="checkbox-all" />
                 </th>
@@ -344,95 +513,127 @@ export default function EducationManagement() {
               {isLoading ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <tr key={i} className="border-b">
-                    {Array.from({ length: 13 }).map((_, j) => (
+                    {Array.from({ length: 14 }).map((_, j) => (
                       <td key={j} className="px-3 py-3"><div className="h-4 bg-muted rounded animate-pulse" /></td>
                     ))}
                   </tr>
                 ))
               ) : paged.length === 0 ? (
                 <tr>
-                  <td colSpan={13} className="px-3 py-16 text-center text-muted-foreground text-sm">
+                  <td colSpan={14} className="px-3 py-16 text-center text-muted-foreground text-sm">
                     등록된 업무가 없습니다.
                   </td>
                 </tr>
               ) : (
                 paged.map(t => (
-                  <motion.tr
-                    key={t.id}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="border-b hover:bg-muted/30 transition-colors group"
-                    data-testid={`row-task-${t.id}`}
-                  >
-                    <td className="px-3 py-3">
-                      <Checkbox
-                        checked={selectedIds.has(t.id)}
-                        onCheckedChange={() => toggleOne(t.id)}
-                        data-testid={`checkbox-task-${t.id}`}
-                      />
-                    </td>
-                    <td className="px-3 py-3 text-muted-foreground text-xs">{t.id}</td>
-                    <td className="px-3 py-3 max-w-[220px]">
-                      <span className="font-medium line-clamp-2 text-xs sm:text-sm">{t.title}</span>
-                    </td>
-                    <td className="px-3 py-3 text-xs text-muted-foreground whitespace-nowrap">{t.startDate}</td>
-                    <td className="px-3 py-3 text-xs text-muted-foreground whitespace-nowrap">{t.endDate}</td>
-                    <td className="px-3 py-3">
-                      <div className="flex items-center gap-1.5 min-w-[70px]">
-                        <div className="flex-1 bg-muted/50 rounded-full h-1.5 overflow-hidden">
-                          <div
-                            className={`h-full rounded-full ${t.completionRate >= 100 ? "bg-emerald-500" : t.completionRate >= 50 ? "bg-amber-500" : "bg-red-400"}`}
-                            style={{ width: `${t.completionRate}%` }}
+                  <>
+                    <motion.tr
+                      key={t.id}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className={`border-b transition-colors group cursor-pointer ${expandedTaskId === t.id ? "bg-primary/5" : "hover:bg-muted/30"}`}
+                      onClick={() => toggleExpand(t.id)}
+                      data-testid={`row-task-${t.id}`}
+                    >
+                      {/* 예시 3: 확장 아이콘 */}
+                      <td className="px-2 py-3 text-muted-foreground">
+                        {expandedTaskId === t.id
+                          ? <ChevronUp className="w-3.5 h-3.5" />
+                          : <ChevronDown className="w-3.5 h-3.5" />
+                        }
+                      </td>
+                      <td className="px-3 py-3" onClick={e => e.stopPropagation()}>
+                        <Checkbox
+                          checked={selectedIds.has(t.id)}
+                          onCheckedChange={() => toggleOne(t.id)}
+                          data-testid={`checkbox-task-${t.id}`}
+                        />
+                      </td>
+                      <td className="px-3 py-3 text-muted-foreground text-xs">{t.id}</td>
+                      <td className="px-3 py-3 max-w-[220px]">
+                        <span className="font-medium line-clamp-2 text-xs sm:text-sm">{t.title}</span>
+                      </td>
+                      <td className="px-3 py-3 text-xs text-muted-foreground whitespace-nowrap">{t.startDate}</td>
+                      <td className="px-3 py-3 text-xs text-muted-foreground whitespace-nowrap">{t.endDate}</td>
+                      {/* 예시 2: 완료율 + 자동계산 아이콘 */}
+                      <td className="px-3 py-3">
+                        <div className="flex items-center gap-1 min-w-[80px]">
+                          <div className="flex-1 bg-muted/50 rounded-full h-1.5 overflow-hidden">
+                            <div
+                              className={`h-full rounded-full ${t.completionRate >= 100 ? "bg-emerald-500" : t.completionRate >= 50 ? "bg-amber-500" : "bg-red-400"}`}
+                              style={{ width: `${t.completionRate}%` }}
+                            />
+                          </div>
+                          <span className="text-xs font-medium w-8 text-right">{t.completionRate}%</span>
+                          <Link2
+                            className="w-3 h-3 text-primary/60 shrink-0"
+                            title="교육일지 서명률과 연동 가능 — 행을 클릭해 세션을 확인하세요"
                           />
                         </div>
-                        <span className="text-xs font-medium w-8 text-right">{t.completionRate}%</span>
-                      </div>
-                    </td>
-                    <td className="px-3 py-3">
-                      <Badge variant="secondary" className="text-[10px] whitespace-nowrap">{t.field}</Badge>
-                    </td>
-                    <td className="px-3 py-3 text-xs text-muted-foreground max-w-[100px] truncate">{t.department || "-"}</td>
-                    <td className="px-3 py-3 text-xs text-muted-foreground whitespace-nowrap">{t.requestedBy || "-"}</td>
-                    <td className="px-3 py-3 text-xs text-center">{t.isRecurring ? "Y" : "-"}</td>
-                    <td className="px-3 py-3">{statusBadge(t)}</td>
-                    <td className="px-3 py-3 text-xs text-muted-foreground whitespace-nowrap">
-                      {t.createdAt ? format(new Date(t.createdAt), "yyyy.M.d") : "-"}
-                    </td>
-                    {isEditor && (
-                      <td className="px-3 py-3">
-                        <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-7 w-7"
-                            onClick={() => openEdit(t)}
-                            data-testid={`button-edit-task-${t.id}`}
-                          >
-                            <Pencil className="w-3.5 h-3.5 text-blue-500" />
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-7 w-7"
-                            onClick={() => setAttachmentTaskId(t.id)}
-                            title="증빙자료 업로드"
-                            data-testid={`button-attach-task-${t.id}`}
-                          >
-                            <Paperclip className="w-3.5 h-3.5 text-muted-foreground" />
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-7 w-7"
-                            onClick={() => setDeleteConfirmIds([t.id])}
-                            data-testid={`button-delete-task-${t.id}`}
-                          >
-                            <Trash2 className="w-3.5 h-3.5 text-destructive" />
-                          </Button>
-                        </div>
                       </td>
+                      <td className="px-3 py-3">
+                        <Badge variant="secondary" className="text-[10px] whitespace-nowrap">{t.field}</Badge>
+                      </td>
+                      <td className="px-3 py-3 text-xs text-muted-foreground max-w-[100px] truncate">{t.department || "-"}</td>
+                      <td className="px-3 py-3 text-xs text-muted-foreground whitespace-nowrap">{t.requestedBy || "-"}</td>
+                      <td className="px-3 py-3 text-xs text-center">{t.isRecurring ? "Y" : "-"}</td>
+                      <td className="px-3 py-3">{statusBadge(t)}</td>
+                      <td className="px-3 py-3 text-xs text-muted-foreground whitespace-nowrap">
+                        {t.createdAt ? format(new Date(t.createdAt), "yyyy.M.d") : "-"}
+                      </td>
+                      {isEditor && (
+                        <td className="px-3 py-3" onClick={e => e.stopPropagation()}>
+                          <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                            {/* 예시 1: 교육일지 생성 버튼 */}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-[10px] gap-0.5 text-primary border-primary/40 hover:bg-primary/10 px-1.5"
+                              onClick={(e) => openQuickSession(t, e)}
+                              title="이 업무로 교육일지 생성"
+                              data-testid={`button-quick-session-${t.id}`}
+                            >
+                              <BookOpen className="w-3 h-3" /> 교육일지
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7"
+                              onClick={() => openEdit(t)}
+                              data-testid={`button-edit-task-${t.id}`}
+                            >
+                              <Pencil className="w-3.5 h-3.5 text-blue-500" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7"
+                              onClick={() => setAttachmentTaskId(t.id)}
+                              title="증빙자료 업로드"
+                              data-testid={`button-attach-task-${t.id}`}
+                            >
+                              <Paperclip className="w-3.5 h-3.5 text-muted-foreground" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7"
+                              onClick={() => setDeleteConfirmIds([t.id])}
+                              data-testid={`button-delete-task-${t.id}`}
+                            >
+                              <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                            </Button>
+                          </div>
+                        </td>
+                      )}
+                    </motion.tr>
+                    {/* 예시 3: 확장 패널 - 연결된 교육일지 현황 */}
+                    {expandedTaskId === t.id && (
+                      <tr key={`expanded-${t.id}`} className="border-b">
+                        <LinkedSessionsPanel taskId={t.id} />
+                      </tr>
                     )}
-                  </motion.tr>
+                  </>
                 ))
               )}
             </tbody>
@@ -464,6 +665,95 @@ export default function EducationManagement() {
           </div>
         </div>
       </div>
+
+      {/* 예시 1: 교육일지 빠른 생성 다이얼로그 */}
+      <Dialog open={quickSessionTaskId !== null} onOpenChange={v => { if (!v) { setQuickSessionTaskId(null); setQuickSessionTask(null); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-primary">
+              <BookOpen className="w-4 h-4" /> 교육일지 생성 (업무 연결)
+            </DialogTitle>
+          </DialogHeader>
+          {quickSessionTask && (
+            <div className="space-y-4 py-1">
+              {/* 자동 채워진 정보 표시 */}
+              <div className="bg-muted/40 rounded-lg p-3 space-y-1.5 text-sm">
+                <p className="font-semibold text-foreground">{quickSessionTask.title}</p>
+                <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5" />
+                  {quickSessionTask.startDate} ~ {quickSessionTask.endDate}
+                  <Badge variant="secondary" className="text-[10px] ml-1">{quickSessionTask.field}</Badge>
+                </p>
+              </div>
+              <p className="text-xs text-muted-foreground -mt-1">위 업무 정보가 자동 입력됩니다. 아래 부서와 인원만 입력하세요.</p>
+
+              {/* 부서 선택 */}
+              <div className="space-y-1.5">
+                <Label className="text-sm font-semibold">부서 <span className="text-destructive">*</span></Label>
+                <Select value={quickForm.department} onValueChange={v => setQuickForm(f => ({ ...f, department: v }))}>
+                  <SelectTrigger className="h-9" data-testid="select-quick-department">
+                    <SelectValue placeholder="부서를 선택하세요" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {DEPARTMENTS.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* 교육 종류 */}
+              <div className="space-y-1.5">
+                <Label className="text-sm font-semibold">교육 종류</Label>
+                <Select value={quickForm.educationType} onValueChange={v => setQuickForm(f => ({ ...f, educationType: v }))}>
+                  <SelectTrigger className="h-9" data-testid="select-quick-edu-type">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {EDUCATION_TYPES.map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                {/* 강사 */}
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-semibold">강사</Label>
+                  <Input
+                    placeholder="강사 이름"
+                    value={quickForm.instructor}
+                    onChange={e => setQuickForm(f => ({ ...f, instructor: e.target.value }))}
+                    data-testid="input-quick-instructor"
+                  />
+                </div>
+                {/* 인원 */}
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-semibold">총 인원 <span className="text-destructive">*</span></Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    placeholder="10"
+                    value={quickForm.totalParticipants}
+                    onChange={e => setQuickForm(f => ({ ...f, totalParticipants: e.target.value }))}
+                    data-testid="input-quick-participants"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => { setQuickSessionTaskId(null); setQuickSessionTask(null); }} data-testid="button-quick-cancel">
+              <X className="w-4 h-4 mr-1" /> 취소
+            </Button>
+            <Button
+              onClick={handleQuickSessionSubmit}
+              disabled={quickSessionMutation.isPending}
+              data-testid="button-quick-submit"
+            >
+              <BookOpen className="w-4 h-4 mr-1" />
+              {quickSessionMutation.isPending ? "생성 중..." : "교육일지 생성"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* 등록/수정 모달 */}
       <Dialog open={registerOpen} onOpenChange={v => { if (!v) { setRegisterOpen(false); setEditTask(null); setForm(emptyForm()); } }}>

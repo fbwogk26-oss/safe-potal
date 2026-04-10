@@ -206,6 +206,7 @@ export const educationSessions = pgTable("education_sessions", {
   createdBy: text("created_by"),
   createdAt: timestamp("created_at").defaultNow(),
   materialAttachments: jsonb("material_attachments").$type<Array<{url: string; name: string; type: string}>>().default([]),
+  taskId: integer("task_id"),
 });
 
 export const educationSignatures = pgTable("education_signatures", {

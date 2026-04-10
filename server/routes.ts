@@ -1823,6 +1823,7 @@ export async function registerRoutes(
         totalParticipants: z.number().int().min(1),
         description: z.string().optional(),
         materialAttachments: z.array(z.object({ url: z.string(), name: z.string(), type: z.string() })).optional(),
+        taskId: z.number().int().optional().nullable(),
       });
       const parsed = bodySchema.parse(req.body);
       const createdBy = req.user?.username || req.user?.name || "unknown";
@@ -6588,6 +6589,23 @@ ${htmlDraft}
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', `attachment; filename=education_tasks_${today}.xlsx`);
       res.send(buf);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // 교육업무와 연결된 교육일지 세션 조회 (서명 수 포함)
+  app.get('/api/education-tasks/:id/sessions', isAuthenticated, async (req, res) => {
+    try {
+      const taskId = Number(req.params.id);
+      const sessions = await storage.getSessionsByTaskId(taskId);
+      // Fetch signature counts for each session
+      const result = await Promise.all(sessions.map(async (s) => {
+        const sigs = await storage.getSignaturesBySession(s.id);
+        return {
+          ...s,
+          signedCount: sigs.length,
+        };
+      }));
+      res.json(result);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 

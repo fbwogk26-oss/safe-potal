@@ -70,6 +70,7 @@ export interface IStorage {
   // Education Sessions
   getEducationSessions(department?: string): Promise<EducationSession[]>;
   getEducationSession(id: number): Promise<EducationSession | undefined>;
+  getSessionsByTaskId(taskId: number): Promise<EducationSession[]>;
   createEducationSession(session: InsertEducationSession): Promise<EducationSession>;
   updateEducationSession(id: number, updates: Partial<InsertEducationSession>): Promise<EducationSession>;
   deleteEducationSession(id: number): Promise<void>;
@@ -312,6 +313,12 @@ export class DatabaseStorage implements IStorage {
   async getEducationSession(id: number): Promise<EducationSession | undefined> {
     const [session] = await db.select().from(educationSessions).where(eq(educationSessions.id, id));
     return session;
+  }
+
+  async getSessionsByTaskId(taskId: number): Promise<EducationSession[]> {
+    return await db.select().from(educationSessions)
+      .where(eq(educationSessions.taskId, taskId))
+      .orderBy(desc(educationSessions.createdAt));
   }
 
   async createEducationSession(session: InsertEducationSession): Promise<EducationSession> {
