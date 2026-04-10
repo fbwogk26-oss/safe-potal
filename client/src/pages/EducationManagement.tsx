@@ -333,6 +333,7 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
     try {
       await apiRequest("PATCH", `/api/education-sessions/${sessionId}`, { totalParticipants: count });
       await refetch();
+      toast({ title: `인원수가 ${count}명으로 저장되었습니다.` });
     } catch {
       toast({ title: "인원수 저장 실패", variant: "destructive" });
     }
@@ -501,6 +502,9 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
             key={s.totalParticipants}
             defaultValue={s.totalParticipants}
             onFocus={e => e.target.select()}
+            onKeyDown={e => {
+              if (e.key === "Enter") e.currentTarget.blur();
+            }}
             onBlur={e => {
               const v = parseInt(e.target.value, 10);
               if (!isNaN(v) && v >= 0 && v !== s.totalParticipants) {
