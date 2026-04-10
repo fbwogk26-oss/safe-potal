@@ -1059,14 +1059,19 @@ export default function EducationManagement() {
     onError: (e: any) => toast({ title: "처리 실패", description: e.message, variant: "destructive" }),
   });
 
-  const copyTaskMutation = useMutation({
-    mutationFn: (id: number) => apiRequest("POST", `/api/education-tasks/${id}/copy`, {}),
-    onSuccess: () => {
+  const [bulkCopying, setBulkCopying] = useState(false);
+  const handleBulkCopy = async () => {
+    const ids = Array.from(selectedIds);
+    setBulkCopying(true);
+    try {
+      for (const id of ids) {
+        await fetch(`/api/education-tasks/${id}/copy`, { method: "POST", credentials: "include" });
+      }
       queryClient.invalidateQueries({ queryKey: ["/api/education-tasks"] });
-      toast({ title: "교육이 복사되었습니다." });
-    },
-    onError: (e: any) => toast({ title: "복사 실패", description: e.message, variant: "destructive" }),
-  });
+      toast({ title: `${ids.length}개 교육이 복사되었습니다.` });
+    } catch { toast({ title: "복사 실패", variant: "destructive" }); }
+    finally { setBulkCopying(false); }
+  };
 
   const filtered = tasks.filter(t => {
     if (filterScope !== "전체" && t.requestScope !== filterScope) return false;
@@ -1281,6 +1286,20 @@ export default function EducationManagement() {
                 <Button
                   size="sm"
                   variant="outline"
+                  className="h-8 text-xs gap-1 text-violet-600 border-violet-300 hover:bg-violet-50"
+                  disabled={selectedIds.size === 0 || bulkCopying}
+                  onClick={handleBulkCopy}
+                  data-testid="button-bulk-copy"
+                >
+                  {bulkCopying
+                    ? <div className="w-3.5 h-3.5 border-2 border-violet-400 border-t-transparent rounded-full animate-spin" />
+                    : <Files className="w-3.5 h-3.5" />
+                  }
+                  복사하기
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
                   className="h-8 text-xs gap-1 text-destructive hover:text-destructive"
                   disabled={selectedIds.size === 0}
                   onClick={() => setDeleteConfirmIds(Array.from(selectedIds))}
@@ -1442,20 +1461,6 @@ export default function EducationManagement() {
                       </Button>
                       {isEditor && (
                         <>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-7 w-7 text-muted-foreground hover:text-violet-500"
-                            title="교육 복사하기"
-                            onClick={() => copyTaskMutation.mutate(t.id)}
-                            disabled={copyTaskMutation.isPending}
-                            data-testid={`button-copy-task-${t.id}`}
-                          >
-                            {copyTaskMutation.isPending
-                              ? <div className="w-3.5 h-3.5 border-2 border-violet-400 border-t-transparent rounded-full animate-spin" />
-                              : <Files className="w-3.5 h-3.5" />
-                            }
-                          </Button>
                           <Button
                             size="icon"
                             variant="ghost"
