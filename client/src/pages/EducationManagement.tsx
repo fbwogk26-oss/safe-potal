@@ -397,6 +397,8 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
   const [detailSession, setDetailSession] = useState<SessionWithSigs | null>(null);
   const [detailDesc, setDetailDesc] = useState("");
   const [detailImages, setDetailImages] = useState<string[]>([]);
+  const [detailDate, setDetailDate] = useState("");
+  const [viewSigTab, setViewSigTab] = useState<"명단" | "내용" | "사진">("명단");
   const [detailSaving, setDetailSaving] = useState(false);
   const [signerName, setSignerName] = useState("");
   const [signerDept, setSignerDept] = useState("");
@@ -412,6 +414,7 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
     setDetailSession(s);
     setDetailDesc(s.description || "");
     setDetailImages([...(s.images || [])]);
+    setDetailDate(s.educationDate || "");
     setSignerName("");
     setSignerDept("");
     setSigData("");
@@ -446,7 +449,7 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
     if (!detailSession) return;
     setDetailSaving(true);
     try {
-      await apiRequest("PATCH", `/api/education-sessions/${detailSession.id}`, { description: detailDesc, images: detailImages });
+      await apiRequest("PATCH", `/api/education-sessions/${detailSession.id}`, { description: detailDesc, images: detailImages, educationDate: detailDate || undefined });
       await refetch();
       toast({ title: "저장되었습니다." });
     } catch { toast({ title: "저장 실패", variant: "destructive" }); }
@@ -511,8 +514,8 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
     const hasContent = !!(s.description || (s.images && s.images.length > 0));
     return (
       <div className={`relative flex items-center pl-12 pr-4 py-2 group transition-colors hover:bg-muted/30 ${isDone ? "hover:bg-emerald-50/40 dark:hover:bg-emerald-900/10" : ""}`}>
-        {/* 왼쪽 상태 컬러 라인 */}
-        <div className={`absolute left-0 top-1/4 bottom-1/4 w-0.5 rounded-r-full ${isDone ? "bg-emerald-400" : "bg-amber-300"}`} />
+        {/* 왼쪽 상태 컬러 라인 (완료 시만) */}
+        {isDone && <div className="absolute left-0 top-1/4 bottom-1/4 w-0.5 rounded-r-full bg-emerald-400" />}
 
         {/* 체크박스 */}
         <div className="w-5 shrink-0 flex items-center" onClick={e => e.stopPropagation()}>
@@ -592,7 +595,7 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
           size="icon"
           variant="ghost"
           className="h-7 w-7 ml-1 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-indigo-500"
-          onClick={() => setViewSigSession(s)}
+          onClick={() => { setViewSigSession(s); setViewSigTab("명단"); }}
           title="서명자 확인"
           data-testid={`button-view-sigs-${s.id}`}
         >
@@ -756,7 +759,7 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
       </Dialog>
 
       {/* 서명자 목록 확인 다이얼로그 */}
-      <Dialog open={!!viewSigSession} onOpenChange={open => { if (!open) setViewSigSession(null); }}>
+      <Dialog open={!!viewSigSession} onOpenChange={open => { if (!open) { setViewSigSession(null); setViewSigTab("명단"); } }}>
         <DialogContent className="max-w-lg max-h-[85vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base">
@@ -765,14 +768,31 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
             </DialogTitle>
           </DialogHeader>
 
+          {/* 탭 */}
+          <div className="flex border-b -mx-6 px-6 gap-0 shrink-0">
+            {(["명단", "내용", "사진"] as const).map(tab => (
+              <button
+                key={tab}
+                onClick={() => setViewSigTab(tab)}
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  viewSigTab === tab
+                    ? "border-primary text-primary"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {tab === "명단" ? "참석자 명단" : tab === "내용" ? "교육 내용" : "교육 사진"}
+              </button>
+            ))}
+          </div>
+
           <div className="flex-1 overflow-y-auto">
             {sigsLoading ? (
               <div className="py-10 text-center text-muted-foreground text-xs">불러오는 중...</div>
-            ) : (
+            ) : viewSigTab === "명단" ? (
               <div className="bg-white text-black text-[10px] p-3 space-y-2">
                 {/* 제목 */}
                 <div className="text-center font-bold text-[13px] border border-black py-1">
-                  "{viewSigSession?.title || task.title}" 참석자 명단
+                  "{task.title}" 참석자 명단
                 </div>
                 {/* 헤더 정보 */}
                 <div className="flex justify-between text-[10px] px-1">
@@ -826,6 +846,34 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
                   <span>서명완료: <strong className="text-black">{viewSigs.length}명</strong></span>
                 </div>
               </div>
+            ) : viewSigTab === "내용" ? (
+              <div className="p-4">
+                {viewSigSession?.description ? (
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap text-foreground">
+                    {viewSigSession.description}
+                  </p>
+                ) : (
+                  <div className="py-12 text-center text-muted-foreground text-sm">
+                    등록된 교육 내용이 없습니다.
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="p-4">
+                {viewSigSession?.images && viewSigSession.images.length > 0 ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    {viewSigSession.images.map((img, i) => (
+                      <div key={i} className="rounded-lg overflow-hidden border aspect-video bg-muted">
+                        <img src={img} alt={`교육사진 ${i + 1}`} className="w-full h-full object-cover" />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-12 text-center text-muted-foreground text-sm">
+                    등록된 교육 사진이 없습니다.
+                  </div>
+                )}
+              </div>
             )}
           </div>
 
@@ -833,7 +881,7 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
             <Button variant="outline" size="sm" onClick={() => copyLink(viewSigSession!.id)} className="gap-1.5 text-xs">
               <Copy className="w-3.5 h-3.5" /> 서명 링크 복사
             </Button>
-            <Button size="sm" onClick={() => setViewSigSession(null)}>닫기</Button>
+            <Button size="sm" onClick={() => { setViewSigSession(null); setViewSigTab("명단"); }}>닫기</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -851,6 +899,18 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
           </DialogHeader>
 
           <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+            {/* 시행일시 */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">시행일시</Label>
+              <input
+                type="date"
+                value={detailDate}
+                onChange={e => setDetailDate(e.target.value)}
+                className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                data-testid="input-detail-date"
+              />
+            </div>
+
             {/* 교육내용 */}
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">교육내용</Label>
