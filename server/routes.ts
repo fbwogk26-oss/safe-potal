@@ -6593,18 +6593,46 @@ ${htmlDraft}
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
+  // 업무 범위에 따른 부서 목록 계산 (교육 자동 생성용)
+  const EDU_TEAMS_BY_HQ: Record<string, string[]> = {
+    "대구본부": ["현장경영팀", "동대구운용팀", "서대구운용팀", "남대구운용팀", "포항운용팀", "안동운용팀", "구미운용팀", "문경운용팀", "공공망관제팀"],
+    "부산본부": ["현장경영팀", "운용계획팀", "운용지원팀", "사업지원팀", "동부산운용팀", "중부산운용팀", "서부산운용팀", "울산운용팀", "지하철운용팀", "김해운용팀", "창원운용팀", "진주운용팀", "통영운용팀", "고객케어팀"],
+    "충청본부": ["현장경영팀", "운용계획팀", "운용지원팀", "사업지원팀", "천안운용팀", "서대전운용팀", "서산운용팀", "홍성운용팀", "논산운용팀", "청주운용팀", "충주운용팀", "동대전운용팀", "세종운용팀"],
+    "호남본부": ["현장경영팀", "운용계획팀", "운용지원팀", "사업지원팀", "서광주운용팀", "북광주운용팀", "목포운용팀", "해남운용팀", "제주운용팀", "전주운용팀", "익산운용팀", "남원운용팀", "정읍운용팀", "순천운용팀"],
+    "경영총괄": ["현장경영팀", "운용계획팀", "운용지원팀", "사업지원팀"],
+    "사업총괄": ["공공망관제팀"],
+  };
+
+  function getEduDeptsByTask(task: any): string[] {
+    const scope = task.requestScope;
+    const ALL_DEPTS: string[] = [];
+    for (const teams of Object.values(EDU_TEAMS_BY_HQ)) {
+      for (const t of teams as string[]) { if (!ALL_DEPTS.includes(t)) ALL_DEPTS.push(t); }
+    }
+    if (scope === "전사" || scope === "안전보건업무 부서") return ALL_DEPTS;
+    if (scope === "본부") {
+      const hqs = (task.headquarters || "").split(",").map((s: string) => s.trim()).filter(Boolean);
+      const depts: string[] = [];
+      for (const hq of hqs) {
+        for (const t of (EDU_TEAMS_BY_HQ[hq] ?? [])) { if (!depts.includes(t)) depts.push(t); }
+      }
+      return depts.length ? depts : ALL_DEPTS;
+    }
+    if (scope === "지정") {
+      const teams = (task.department || "").split(",").map((s: string) => s.trim()).filter(Boolean);
+      return teams.length ? teams : ALL_DEPTS;
+    }
+    return ALL_DEPTS;
+  }
+
   app.post('/api/education-tasks', requireEditor, async (req: any, res) => {
     try {
       const data = { ...req.body, createdBy: req.user?.username || req.user?.name };
       const task = await storage.createEducationTask(data);
 
-      // 12개 부서 세션 자동 생성
-      const ALL_DEPARTMENTS = [
-        "동대구운용팀", "서대구운용팀", "남대구운용팀", "포항운용팀",
-        "안동운용팀", "구미운용팀", "문경운용팀",
-        "운용지원팀", "운용계획팀", "사업지원팀", "현장경영팀", "공공망관제팀",
-      ];
-      for (const dept of ALL_DEPARTMENTS) {
+      // 업무 범위 기반 세션 자동 생성
+      const depts = getEduDeptsByTask(task);
+      for (const dept of depts) {
         try {
           await storage.createEducationSession({
             title: task.title,
@@ -6632,15 +6660,10 @@ ${htmlDraft}
       const task = await storage.getEducationTask(taskId);
       if (!task) return res.status(404).json({ message: "업무를 찾을 수 없습니다." });
 
-      const ALL_DEPARTMENTS = [
-        "동대구운용팀", "서대구운용팀", "남대구운용팀", "포항운용팀",
-        "안동운용팀", "구미운용팀", "문경운용팀",
-        "운용지원팀", "운용계획팀", "사업지원팀", "현장경영팀", "공공망관제팀",
-      ];
-
+      const depts = getEduDeptsByTask(task);
       const existing = await storage.getSessionsByTaskId(taskId);
       const existingDepts = new Set(existing.map((s: any) => s.department));
-      const missing = ALL_DEPARTMENTS.filter(d => !existingDepts.has(d));
+      const missing = depts.filter(d => !existingDepts.has(d));
 
       for (const dept of missing) {
         try {

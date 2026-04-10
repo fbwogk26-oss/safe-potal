@@ -39,22 +39,48 @@ const FIELDS = ["안전/보건", "법령", "이벤트"] as const;
 const SCOPES = ["전사", "본부", "지정", "안전보건업무 부서"] as const;
 const FIELD_TYPES = ["Text", "Date", "Number", "Select"] as const;
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
-const DEPARTMENTS = [
-  "동대구운용팀", "서대구운용팀", "남대구운용팀", "포항운용팀",
-  "안동운용팀", "구미운용팀", "문경운용팀",
-  "운용지원팀", "운용계획팀", "사업지원팀", "현장경영팀", "공공망관제팀",
-];
-const HQ_OPTIONS = ["충청본부", "부산본부", "호남본부", "대구본부", "경영총괄", "품질지원센터", "사업총괄", "감사실"];
 const TEAMS_BY_HQ: Record<string, string[]> = {
-  "대구본부":    ["동대구운용팀", "서대구운용팀", "남대구운용팀", "포항운용팀", "안동운용팀", "구미운용팀", "문경운용팀"],
-  "경영총괄":    ["운용지원팀", "운용계획팀", "사업지원팀", "현장경영팀"],
-  "사업총괄":    ["공공망관제팀"],
-  "부산본부":    ["포항운용팀", "안동운용팀", "구미운용팀", "문경운용팀"],
-  "충청본부":    [],
-  "호남본부":    [],
+  "대구본부": [
+    "현장경영팀",
+    "동대구운용팀", "서대구운용팀", "남대구운용팀",
+    "포항운용팀", "안동운용팀", "구미운용팀", "문경운용팀",
+    "공공망관제팀",
+  ],
+  "부산본부": [
+    "현장경영팀",
+    "운용계획팀", "운용지원팀", "사업지원팀",
+    "동부산운용팀", "중부산운용팀", "서부산운용팀", "울산운용팀", "지하철운용팀",
+    "김해운용팀", "창원운용팀", "진주운용팀", "통영운용팀",
+    "고객케어팀",
+  ],
+  "충청본부": [
+    "현장경영팀",
+    "운용계획팀", "운용지원팀", "사업지원팀",
+    "천안운용팀", "서대전운용팀", "서산운용팀", "홍성운용팀", "논산운용팀",
+    "청주운용팀", "충주운용팀", "동대전운용팀", "세종운용팀",
+  ],
+  "호남본부": [
+    "현장경영팀",
+    "운용계획팀", "운용지원팀", "사업지원팀",
+    "서광주운용팀", "북광주운용팀", "목포운용팀", "해남운용팀", "제주운용팀",
+    "전주운용팀", "익산운용팀", "남원운용팀", "정읍운용팀", "순천운용팀",
+  ],
+  "경영총괄": ["현장경영팀", "운용계획팀", "운용지원팀", "사업지원팀"],
+  "사업총괄": ["공공망관제팀"],
   "품질지원센터": [],
-  "감사실":      [],
+  "감사실": [],
 };
+
+// 전체 부서 목록 (모든 HQ의 팀 중복 제거)
+const DEPARTMENTS: string[] = (() => {
+  const all: string[] = [];
+  for (const teams of Object.values(TEAMS_BY_HQ)) {
+    for (const t of teams) { if (!all.includes(t)) all.push(t); }
+  }
+  return all;
+})();
+
+const HQ_OPTIONS = ["대구본부", "부산본부", "충청본부", "호남본부", "경영총괄", "품질지원센터", "사업총괄", "감사실"];
 const EDUCATION_TYPES = ["정기교육", "신규교육", "특별교육", "안전교육", "직무교육"];
 
 type TaskField = { type: string; title: string };
@@ -97,8 +123,22 @@ const emptyForm = (): FormState => ({
   selectedTeams: [],
 });
 
-// 항상 전체 12개 부서 표시
-function getExpectedDepts(_task: EducationTaskWithLinked): string[] {
+// 업무 범위(scope/HQ/dept)에 따른 예상 부서 목록 계산
+function getExpectedDepts(task: EducationTaskWithLinked): string[] {
+  const scope = task.requestScope;
+  if (scope === "전사" || scope === "안전보건업무 부서") return DEPARTMENTS;
+  if (scope === "본부") {
+    const hqs = (task.headquarters || "").split(",").map(s => s.trim()).filter(Boolean);
+    const depts: string[] = [];
+    for (const hq of hqs) {
+      for (const t of (TEAMS_BY_HQ[hq] ?? [])) { if (!depts.includes(t)) depts.push(t); }
+    }
+    return depts.length ? depts : DEPARTMENTS;
+  }
+  if (scope === "지정") {
+    const teams = (task.department || "").split(",").map(s => s.trim()).filter(Boolean);
+    return teams.length ? teams : DEPARTMENTS;
+  }
   return DEPARTMENTS;
 }
 
@@ -110,11 +150,12 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
     queryFn: () => fetch(`/api/education-tasks/${taskId}/sessions`, { credentials: "include" }).then(r => r.json()),
   });
 
-  // 패널 열릴 때 누락된 세션 자동 생성
+  // 패널 열릴 때 누락된 세션 자동 생성 (업무 범위 기반)
+  const expectedDeptsForTask = getExpectedDepts(task);
   const [autoCreating, setAutoCreating] = useState(false);
   const autoCreatedRef = useRef(false);
   useEffect(() => {
-    if (!isLoading && sessions.length < DEPARTMENTS.length && !autoCreatedRef.current) {
+    if (!isLoading && sessions.length < expectedDeptsForTask.length && !autoCreatedRef.current) {
       autoCreatedRef.current = true;
       setAutoCreating(true);
       fetch(`/api/education-tasks/${taskId}/auto-sessions`, { method: "POST", credentials: "include" })
