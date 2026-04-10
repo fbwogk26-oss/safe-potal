@@ -95,8 +95,28 @@ const emptyForm = (): FormState => ({
   selectedTeams: [],
 });
 
+// 업무 범위(scope/HQ/dept)에 따른 예상 부서 목록 계산
+function getExpectedDepts(task: EducationTaskWithLinked): string[] {
+  const scope = task.requestScope;
+  if (scope === "전사" || scope === "안전보건업무 부서") return DEPARTMENTS;
+  if (scope === "본부") {
+    const hqs = (task.headquarters || "").split(",").map(s => s.trim()).filter(Boolean);
+    const depts: string[] = [];
+    for (const hq of hqs) {
+      const teams = TEAMS_BY_HQ[hq] ?? [];
+      for (const t of teams) { if (!depts.includes(t)) depts.push(t); }
+    }
+    return depts.length ? depts : DEPARTMENTS;
+  }
+  if (scope === "지정") {
+    const teams = (task.department || "").split(",").map(s => s.trim()).filter(Boolean);
+    return teams.length ? teams : DEPARTMENTS;
+  }
+  return DEPARTMENTS;
+}
+
 // 연결된 세션을 보여주는 인라인 패널 컴포넌트 (카드형 행 리스트)
-function LinkedSessionsPanel({ taskId }: { taskId: number }) {
+function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: EducationTaskWithLinked }) {
   const { toast } = useToast();
   const { data: sessions = [], isLoading } = useQuery<SessionWithSigs[]>({
     queryKey: ["/api/education-tasks", taskId, "sessions"],
@@ -119,68 +139,80 @@ function LinkedSessionsPanel({ taskId }: { taskId: number }) {
     );
   }
 
-  if (sessions.length === 0) {
-    return (
-      <div className="border-t px-5 py-4 bg-primary/5 flex items-center gap-2 text-xs text-muted-foreground italic">
-        <BookOpen className="w-3.5 h-3.5 text-primary shrink-0" />
-        연결된 교육일지가 없습니다. 우측 <strong className="not-italic text-foreground">교육일지</strong> 버튼으로 바로 생성하세요.
-      </div>
-    );
-  }
+  const expectedDepts = getExpectedDepts(task);
 
   return (
     <div className="border-t divide-y">
-      {sessions.map(s => {
-        const signedRate = s.totalParticipants > 0 ? Math.round((s.signedCount / s.totalParticipants) * 100) : 0;
-        const isDone = s.status === "완료" || signedRate >= 100;
+      {expectedDepts.map(dept => {
+        const s = sessions.find(ss => ss.department === dept);
+        if (s) {
+          const signedRate = s.totalParticipants > 0 ? Math.round((s.signedCount / s.totalParticipants) * 100) : 0;
+          const isDone = s.status === "완료" || signedRate >= 100;
+          return (
+            <div key={dept} className="flex items-center gap-3 px-5 py-2.5 hover:bg-muted/20 transition-colors">
+              {isDone
+                ? <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                : <Clock className="w-4 h-4 text-amber-400 shrink-0" />
+              }
+              <span className="flex-1 text-sm font-medium">{dept}</span>
+              <Badge
+                className={`text-[10px] ${isDone ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-amber-50 text-amber-600 border-amber-300"}`}
+                variant={isDone ? "default" : "outline"}
+              >
+                {isDone ? "완료" : "진행중"}
+              </Badge>
+              <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-primary"
+                onClick={() => copyLink(s.id)} title="서명 링크 복사" data-testid={`button-copy-link-${s.id}`}>
+                <Copy className="w-3.5 h-3.5" />
+              </Button>
+              <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-primary"
+                asChild data-testid={`button-open-sign-${s.id}`}>
+                <a href={`/sign/${s.id}`} target="_blank" rel="noopener noreferrer" title="서명 페이지 열기">
+                  <Eye className="w-3.5 h-3.5" />
+                </a>
+              </Button>
+              <span className="text-xs text-muted-foreground flex items-center gap-1 min-w-[52px] justify-end">
+                <Users className="w-3.5 h-3.5" />
+                {s.signedCount}/{s.totalParticipants}명
+              </span>
+            </div>
+          );
+        }
+        // 세션이 없는 부서: 미등록 행
         return (
-          <div
-            key={s.id}
-            className="flex items-center gap-3 px-5 py-2.5 hover:bg-muted/20 transition-colors"
-          >
-            {/* 상태 아이콘 */}
+          <div key={dept} className="flex items-center gap-3 px-5 py-2.5 text-muted-foreground/60">
+            <div className="w-4 h-4 rounded-full border-2 border-muted-foreground/25 shrink-0" />
+            <span className="flex-1 text-sm">{dept}</span>
+            <Badge variant="outline" className="text-[10px] text-muted-foreground/50 border-muted-foreground/20">
+              미등록
+            </Badge>
+            <div className="w-7" /><div className="w-7" />
+            <span className="text-xs text-muted-foreground/40 min-w-[52px] text-right">-</span>
+          </div>
+        );
+      })}
+      {sessions.filter(s => !expectedDepts.includes(s.department)).map(s => {
+        const isDone = s.status === "완료" || (s.totalParticipants > 0 && s.signedCount >= s.totalParticipants);
+        return (
+          <div key={s.id} className="flex items-center gap-3 px-5 py-2.5 hover:bg-muted/20 transition-colors">
             {isDone
               ? <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
               : <Clock className="w-4 h-4 text-amber-400 shrink-0" />
             }
-
-            {/* 부서명 */}
             <span className="flex-1 text-sm font-medium">{s.department}</span>
-
-            {/* 상태 배지 */}
-            <Badge
-              className={`text-[10px] ${isDone ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-amber-50 text-amber-600 border-amber-300"}`}
-              variant={isDone ? "default" : "outline"}
-            >
+            <Badge className={`text-[10px] ${isDone ? "bg-emerald-100 text-emerald-700" : "bg-amber-50 text-amber-600 border-amber-300"}`} variant={isDone ? "default" : "outline"}>
               {isDone ? "완료" : "진행중"}
             </Badge>
-
-            {/* 서명 링크 복사 */}
-            <Button
-              size="icon"
-              variant="ghost"
-              className="h-7 w-7 text-muted-foreground hover:text-primary"
-              onClick={() => copyLink(s.id)}
-              title="서명 링크 복사"
-              data-testid={`button-copy-link-${s.id}`}
-            >
+            <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-primary"
+              onClick={() => copyLink(s.id)} title="서명 링크 복사" data-testid={`button-copy-link-extra-${s.id}`}>
               <Copy className="w-3.5 h-3.5" />
             </Button>
-
-            {/* 서명 페이지 열기 */}
-            <Button
-              size="icon"
-              variant="ghost"
-              className="h-7 w-7 text-muted-foreground hover:text-primary"
-              asChild
-              data-testid={`button-open-sign-${s.id}`}
-            >
+            <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-primary"
+              asChild data-testid={`button-open-sign-extra-${s.id}`}>
               <a href={`/sign/${s.id}`} target="_blank" rel="noopener noreferrer" title="서명 페이지 열기">
                 <Eye className="w-3.5 h-3.5" />
               </a>
             </Button>
-
-            {/* 인원 */}
             <span className="text-xs text-muted-foreground flex items-center gap-1 min-w-[52px] justify-end">
               <Users className="w-3.5 h-3.5" />
               {s.signedCount}/{s.totalParticipants}명
@@ -772,7 +804,7 @@ export default function EducationManagement() {
                         transition={{ duration: 0.15 }}
                         className="overflow-hidden"
                       >
-                        <LinkedSessionsPanel taskId={t.id} />
+                        <LinkedSessionsPanel taskId={t.id} task={t} />
                       </motion.div>
                     )}
                   </AnimatePresence>
