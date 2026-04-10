@@ -357,6 +357,7 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
   const [sigData, setSigData] = useState("");
   const [sigPadKey, setSigPadKey] = useState(0);
   const [signing, setSigning] = useState(false);
+  const [consentAgreed, setConsentAgreed] = useState(false);
   const [detailSigs, setDetailSigs] = useState<any[]>([]);
   const detailPhotoRef = useRef<HTMLInputElement>(null);
   const [detailUploadingPhoto, setDetailUploadingPhoto] = useState(false);
@@ -369,6 +370,7 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
     setSignerDept("");
     setSigData("");
     setSigPadKey(k => k + 1);
+    setConsentAgreed(false);
     setDetailSigs([]);
     setSignError(null);
     fetch(`/api/education-sessions/${s.id}/signatures`, { credentials: "include" })
@@ -411,6 +413,9 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
     if (!detailSession || !signerName.trim() || !sigData) {
       toast({ title: "이름과 서명을 입력해주세요.", variant: "destructive" }); return;
     }
+    if (!consentAgreed) {
+      toast({ title: "개인정보 수집 및 전자서명에 동의해주세요.", variant: "destructive" }); return;
+    }
     setSigning(true);
     setSignError(null);
     try {
@@ -418,7 +423,7 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
       const res = await fetch(`/api/public/education/${detailSession.id}/sign`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ signerName: signerName.trim(), signerDepartment: effectiveDept, signatureData: sigData, consentAgreed: true }),
+        body: JSON.stringify({ signerName: signerName.trim(), signerDepartment: effectiveDept, signatureData: sigData, consentAgreed }),
       });
       if (!res.ok) {
         const errBody = await res.json().catch(() => ({}));
@@ -431,6 +436,7 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
       setSignerDept("");
       setSigData("");
       setSigPadKey(k => k + 1);
+      setConsentAgreed(false);
       setSignError(null);
       await refetch();
       const updated = await fetch(`/api/education-sessions/${detailSession.id}/signatures`, { credentials: "include" }).then(r => r.json());
@@ -840,13 +846,33 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
                     <SignaturePad padKey={sigPadKey} onSave={data => setSigData(data)} onClear={() => setSigData("")} />
                   )}
                 </div>
+                {/* 개인정보 수집·이용 동의 */}
+                <div className="rounded-lg border border-border bg-muted/30 px-3 py-2.5 space-y-2">
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    수집 항목: 성명, 소속, 서명 이미지 · 목적: 교육 이수 확인 · 보유기간: 교육 종료 후 3년
+                  </p>
+                  <label className="flex items-start gap-2 cursor-pointer select-none" data-testid="label-consent-inline">
+                    <Checkbox
+                      id="consent-inline"
+                      checked={consentAgreed}
+                      onCheckedChange={v => setConsentAgreed(v === true)}
+                      className="mt-0.5 shrink-0"
+                      data-testid="checkbox-consent-inline"
+                    />
+                    <span className="text-xs text-foreground/80 leading-relaxed">
+                      개인정보 수집·이용 및 전자서명 제출에 동의합니다.{" "}
+                      <span className="text-destructive font-medium">(필수)</span>
+                    </span>
+                  </label>
+                </div>
+
                 {signError && (
                   <div className="flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
                     <span className="mt-0.5 shrink-0">⚠️</span>
                     <span>{signError}</span>
                   </div>
                 )}
-                <Button className="w-full gap-1.5" disabled={signing || !signerName.trim() || !sigData}
+                <Button className="w-full gap-1.5" disabled={signing || !signerName.trim() || !sigData || !consentAgreed}
                   onClick={handleInlineSign} data-testid="button-inline-sign">
                   {signing ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <PenTool className="w-4 h-4" />}
                   서명 제출
