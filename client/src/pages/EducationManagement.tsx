@@ -590,19 +590,22 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
 
   return (
     <>
-      {/* 패널 헤더: 전체 선택 + 선택 다운로드 */}
-      <div className="flex items-center gap-3 px-5 py-2 border-t bg-muted/20">
-        <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-          <Checkbox
-            checked={sessions.length > 0 && selectedSessionIds.size === sessions.length}
-            onCheckedChange={toggleAllSessions}
-            className="w-3.5 h-3.5"
-            data-testid="checkbox-session-all"
-          />
-          <span className="text-xs text-muted-foreground">
-            {selectedSessionIds.size > 0 ? `${selectedSessionIds.size}개 선택됨` : "전체 선택"}
-          </span>
-        </div>
+      {/* 패널 헤더: 체크박스 + 카운터 + 다운로드 */}
+      <div className="flex items-center gap-2 px-5 py-2 border-t bg-muted/20" onClick={e => e.stopPropagation()}>
+        <Checkbox
+          checked={sessions.length > 0 && selectedSessionIds.size === sessions.length}
+          onCheckedChange={toggleAllSessions}
+          className="w-3.5 h-3.5"
+          data-testid="checkbox-session-all"
+        />
+        <span className="text-[11px] text-muted-foreground tabular-nums">
+          {selectedSessionIds.size > 0
+            ? <span className="text-primary font-medium">{selectedSessionIds.size}</span>
+            : <span>0</span>
+          }
+          <span className="mx-0.5">/</span>
+          {sessions.length}개 부서
+        </span>
         <Button
           size="sm"
           variant="outline"
@@ -615,7 +618,7 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
             ? <div className="w-3 h-3 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
             : <Download className="w-3.5 h-3.5" />
           }
-          선택 다운로드{selectedSessionIds.size > 0 ? ` (${selectedSessionIds.size}개)` : ""}
+          엑셀 다운로드{selectedSessionIds.size > 0 ? ` (${selectedSessionIds.size}개)` : ""}
         </Button>
       </div>
 
