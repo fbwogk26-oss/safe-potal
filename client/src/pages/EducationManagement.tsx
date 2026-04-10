@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
@@ -95,33 +95,32 @@ const emptyForm = (): FormState => ({
   selectedTeams: [],
 });
 
-// 업무 범위(scope/HQ/dept)에 따른 예상 부서 목록 계산
-function getExpectedDepts(task: EducationTaskWithLinked): string[] {
-  const scope = task.requestScope;
-  if (scope === "전사" || scope === "안전보건업무 부서") return DEPARTMENTS;
-  if (scope === "본부") {
-    const hqs = (task.headquarters || "").split(",").map(s => s.trim()).filter(Boolean);
-    const depts: string[] = [];
-    for (const hq of hqs) {
-      const teams = TEAMS_BY_HQ[hq] ?? [];
-      for (const t of teams) { if (!depts.includes(t)) depts.push(t); }
-    }
-    return depts.length ? depts : DEPARTMENTS;
-  }
-  if (scope === "지정") {
-    const teams = (task.department || "").split(",").map(s => s.trim()).filter(Boolean);
-    return teams.length ? teams : DEPARTMENTS;
-  }
+// 항상 전체 12개 부서 표시
+function getExpectedDepts(_task: EducationTaskWithLinked): string[] {
   return DEPARTMENTS;
 }
 
 // 연결된 세션을 보여주는 인라인 패널 컴포넌트 (카드형 행 리스트)
 function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: EducationTaskWithLinked }) {
   const { toast } = useToast();
-  const { data: sessions = [], isLoading } = useQuery<SessionWithSigs[]>({
+  const { data: sessions = [], isLoading, refetch } = useQuery<SessionWithSigs[]>({
     queryKey: ["/api/education-tasks", taskId, "sessions"],
     queryFn: () => fetch(`/api/education-tasks/${taskId}/sessions`, { credentials: "include" }).then(r => r.json()),
   });
+
+  // 패널 열릴 때 누락된 세션 자동 생성
+  const [autoCreating, setAutoCreating] = useState(false);
+  const autoCreatedRef = useRef(false);
+  useEffect(() => {
+    if (!isLoading && sessions.length < DEPARTMENTS.length && !autoCreatedRef.current) {
+      autoCreatedRef.current = true;
+      setAutoCreating(true);
+      fetch(`/api/education-tasks/${taskId}/auto-sessions`, { method: "POST", credentials: "include" })
+        .then(r => r.json())
+        .then(data => { if (data.created > 0) refetch(); })
+        .finally(() => setAutoCreating(false));
+    }
+  }, [isLoading, sessions.length, taskId]);
 
   const copyLink = (sessionId: number) => {
     const url = `${window.location.origin}/sign/${sessionId}`;
@@ -130,11 +129,11 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
     });
   };
 
-  if (isLoading) {
+  if (isLoading || autoCreating) {
     return (
       <div className="border-t px-5 py-3 bg-muted/10 flex items-center gap-2 text-xs text-muted-foreground">
         <div className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-        교육일지 로딩 중...
+        {autoCreating ? "부서별 교육일지 생성 중..." : "교육일지 로딩 중..."}
       </div>
     );
   }

@@ -6597,7 +6597,69 @@ ${htmlDraft}
     try {
       const data = { ...req.body, createdBy: req.user?.username || req.user?.name };
       const task = await storage.createEducationTask(data);
+
+      // 12개 부서 세션 자동 생성
+      const ALL_DEPARTMENTS = [
+        "동대구운용팀", "서대구운용팀", "남대구운용팀", "포항운용팀",
+        "안동운용팀", "구미운용팀", "문경운용팀",
+        "운용지원팀", "운용계획팀", "사업지원팀", "현장경영팀", "공공망관제팀",
+      ];
+      for (const dept of ALL_DEPARTMENTS) {
+        try {
+          await storage.createEducationSession({
+            title: task.title,
+            educationDate: task.startDate,
+            educationEndDate: task.endDate || task.startDate,
+            department: dept,
+            educationType: "정기교육",
+            instructor: task.requestedBy || "",
+            totalParticipants: 0,
+            status: "진행중",
+            taskId: task.id,
+            createdBy: req.user?.username || req.user?.name,
+          });
+        } catch (_) { /* 개별 세션 생성 실패 무시 */ }
+      }
+
       res.json(task);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // 기존 업무에 누락된 세션 자동 생성
+  app.post('/api/education-tasks/:id/auto-sessions', requireEditor, async (req: any, res) => {
+    try {
+      const taskId = Number(req.params.id);
+      const task = await storage.getEducationTask(taskId);
+      if (!task) return res.status(404).json({ message: "업무를 찾을 수 없습니다." });
+
+      const ALL_DEPARTMENTS = [
+        "동대구운용팀", "서대구운용팀", "남대구운용팀", "포항운용팀",
+        "안동운용팀", "구미운용팀", "문경운용팀",
+        "운용지원팀", "운용계획팀", "사업지원팀", "현장경영팀", "공공망관제팀",
+      ];
+
+      const existing = await storage.getSessionsByTaskId(taskId);
+      const existingDepts = new Set(existing.map((s: any) => s.department));
+      const missing = ALL_DEPARTMENTS.filter(d => !existingDepts.has(d));
+
+      for (const dept of missing) {
+        try {
+          await storage.createEducationSession({
+            title: task.title,
+            educationDate: task.startDate,
+            educationEndDate: task.endDate || task.startDate,
+            department: dept,
+            educationType: "정기교육",
+            instructor: task.requestedBy || "",
+            totalParticipants: 0,
+            status: "진행중",
+            taskId: task.id,
+            createdBy: req.user?.username || req.user?.name,
+          });
+        } catch (_) { /* 무시 */ }
+      }
+
+      res.json({ created: missing.length });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
