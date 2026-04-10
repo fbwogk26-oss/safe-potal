@@ -642,10 +642,6 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
               <div className="flex items-center gap-2 p-3 bg-muted/30 rounded-lg text-xs text-muted-foreground">
                 <Users className="w-3.5 h-3.5 shrink-0" />
                 <span>서명 현황: <strong className="text-foreground">{editingSession.signedCount}/{editingSession.totalParticipants}명</strong></span>
-                <a href={`/sign/${editingSession.id}`} target="_blank" rel="noopener noreferrer"
-                  className="ml-auto text-primary hover:underline flex items-center gap-1">
-                  <Eye className="w-3 h-3" />서명 페이지
-                </a>
               </div>
             )}
           </div>
@@ -670,16 +666,8 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
             </DialogTitle>
           </DialogHeader>
 
-          <div className="flex items-center justify-between text-xs text-muted-foreground px-1 pb-1">
+          <div className="flex items-center text-xs text-muted-foreground px-1 pb-1">
             <span>총 {viewSigs.length}명 서명 완료</span>
-            <a
-              href={viewSigSession ? `/sign/${viewSigSession.id}` : "#"}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1 text-primary hover:underline"
-            >
-              <ExternalLink className="w-3 h-3" /> 서명 페이지 열기
-            </a>
           </div>
 
           <div className="flex-1 overflow-y-auto divide-y border rounded-lg">
