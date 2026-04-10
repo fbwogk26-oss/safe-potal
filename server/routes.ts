@@ -2529,6 +2529,11 @@ export async function registerRoutes(
         integrityHash,
       });
       res.status(201).json({ ...signature, resolvedSessionId: targetSessionId });
+      // 서명 후 연결된 업무 완료율 자동 동기화
+      const targetSession = await storage.getEducationSession(targetSessionId);
+      if (targetSession?.taskId) {
+        syncTaskCompletionFromSessions(targetSession.taskId).catch(console.error);
+      }
     } catch (err: any) {
       if (err?.name === "ZodError") return res.status(400).json({ message: err.errors?.[0]?.message || "입력값 오류" });
       res.status(500).json({ message: "서명 등록에 실패했습니다." });

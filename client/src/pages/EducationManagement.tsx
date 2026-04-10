@@ -263,6 +263,8 @@ export default function EducationManagement() {
         queryClient.invalidateQueries({ queryKey: ["/api/education-sessions"] });
         setExpandedTaskId(quickSessionTaskId);
       }
+      // 업무 목록(완료율·linkedSessionCount) 즉시 갱신
+      queryClient.invalidateQueries({ queryKey: ["/api/education-tasks"] });
       setQuickSessionTaskId(null);
       setQuickSessionTask(null);
       setQuickForm({ department: "", educationType: "정기교육", instructor: "", totalParticipants: "10" });
