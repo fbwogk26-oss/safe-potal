@@ -1,4 +1,4 @@
-import { useState, useRef, Fragment } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
@@ -10,7 +10,7 @@ import {
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
   RotateCcw, X, Paperclip, Upload, Pencil, BookOpen, Link2,
   ChevronDown, ChevronUp, Users, Calendar, Clock,
-  Copy, ExternalLink, Send, QrCode,
+  Copy, ExternalLink, Send, QrCode, GraduationCap, Download, Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -95,7 +95,7 @@ const emptyForm = (): FormState => ({
   selectedTeams: [],
 });
 
-// 연결된 세션을 보여주는 인라인 패널 컴포넌트
+// 연결된 세션을 보여주는 인라인 패널 컴포넌트 (카드형 행 리스트)
 function LinkedSessionsPanel({ taskId }: { taskId: number }) {
   const { toast } = useToast();
   const { data: sessions = [], isLoading } = useQuery<SessionWithSigs[]>({
@@ -106,117 +106,89 @@ function LinkedSessionsPanel({ taskId }: { taskId: number }) {
   const copyLink = (sessionId: number) => {
     const url = `${window.location.origin}/sign/${sessionId}`;
     navigator.clipboard.writeText(url).then(() => {
-      toast({ title: "서명 링크가 복사되었습니다.", description: url });
+      toast({ title: "서명 링크가 복사되었습니다." });
     });
   };
 
   if (isLoading) {
     return (
-      <td colSpan={14} className="px-6 py-3 bg-muted/20">
-        <div className="flex items-center gap-2 text-muted-foreground text-xs">
-          <div className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-          교육일지 로딩 중...
-        </div>
-      </td>
+      <div className="border-t px-5 py-3 bg-muted/10 flex items-center gap-2 text-xs text-muted-foreground">
+        <div className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        교육일지 로딩 중...
+      </div>
     );
   }
 
   if (sessions.length === 0) {
     return (
-      <td colSpan={14} className="px-6 py-3 bg-primary/5 border-b">
-        <div className="flex items-center gap-2 text-muted-foreground text-xs italic py-1">
-          <BookOpen className="w-3.5 h-3.5 text-primary" />
-          연결된 교육일지가 없습니다. 행 오른쪽의 <strong className="not-italic text-foreground">교육일지</strong> 버튼으로 바로 생성하세요.
-        </div>
-      </td>
+      <div className="border-t px-5 py-4 bg-primary/5 flex items-center gap-2 text-xs text-muted-foreground italic">
+        <BookOpen className="w-3.5 h-3.5 text-primary shrink-0" />
+        연결된 교육일지가 없습니다. 우측 <strong className="not-italic text-foreground">교육일지</strong> 버튼으로 바로 생성하세요.
+      </div>
     );
   }
 
   return (
-    <td colSpan={14} className="px-4 py-3 bg-primary/5 border-b">
-      <div className="space-y-2">
-        <p className="text-xs font-semibold text-primary flex items-center gap-1.5">
-          <Link2 className="w-3.5 h-3.5" /> 연결된 교육일지 ({sessions.length}개)
-          <span className="text-muted-foreground font-normal">— 서명 링크를 복사해 참여자에게 전달하세요</span>
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-          {sessions.map(s => {
-            const signedRate = s.totalParticipants > 0 ? Math.round((s.signedCount / s.totalParticipants) * 100) : 0;
-            const isDone = s.status === "완료" || signedRate >= 100;
-            const signUrl = `${window.location.origin}/sign/${s.id}`;
-            return (
-              <div
-                key={s.id}
-                className="bg-background border rounded-lg px-3 py-2.5 flex flex-col gap-2 shadow-sm"
-              >
-                {/* 헤더: 부서명 + 상태 */}
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold flex items-center gap-1">
-                    {isDone
-                      ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                      : <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                    }
-                    {s.department}
-                  </span>
-                  <Badge
-                    className={`text-[10px] ${isDone ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-amber-50 text-amber-600 border-amber-300"}`}
-                    variant={isDone ? "default" : "outline"}
-                  >
-                    {isDone ? "완료" : "진행중"}
-                  </Badge>
-                </div>
+    <div className="border-t divide-y">
+      {sessions.map(s => {
+        const signedRate = s.totalParticipants > 0 ? Math.round((s.signedCount / s.totalParticipants) * 100) : 0;
+        const isDone = s.status === "완료" || signedRate >= 100;
+        return (
+          <div
+            key={s.id}
+            className="flex items-center gap-3 px-5 py-2.5 hover:bg-muted/20 transition-colors"
+          >
+            {/* 상태 아이콘 */}
+            {isDone
+              ? <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+              : <Clock className="w-4 h-4 text-amber-400 shrink-0" />
+            }
 
-                {/* 날짜 + 서명 인원 */}
-                <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
-                  <span className="flex items-center gap-0.5">
-                    <Calendar className="w-3 h-3" />{s.educationDate}
-                  </span>
-                  <span className="flex items-center gap-0.5">
-                    <Users className="w-3 h-3" />
-                    <strong className="text-foreground">{s.signedCount}</strong>/{s.totalParticipants}명 서명
-                  </span>
-                </div>
+            {/* 부서명 */}
+            <span className="flex-1 text-sm font-medium">{s.department}</span>
 
-                {/* 진행률 바 */}
-                <div className="flex items-center gap-1.5">
-                  <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all ${isDone ? "bg-emerald-500" : signedRate >= 50 ? "bg-amber-400" : "bg-red-400"}`}
-                      style={{ width: `${signedRate}%` }}
-                    />
-                  </div>
-                  <span className="text-[11px] font-medium w-8 text-right">{signedRate}%</span>
-                </div>
+            {/* 상태 배지 */}
+            <Badge
+              className={`text-[10px] ${isDone ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-amber-50 text-amber-600 border-amber-300"}`}
+              variant={isDone ? "default" : "outline"}
+            >
+              {isDone ? "완료" : "진행중"}
+            </Badge>
 
-                {/* 서명 링크 액션 */}
-                <div className="flex gap-1.5 pt-0.5">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 text-[11px] flex-1 gap-1 border-primary/30 text-primary hover:bg-primary/5"
-                    onClick={() => copyLink(s.id)}
-                    data-testid={`button-copy-link-${s.id}`}
-                  >
-                    <Copy className="w-3 h-3" /> 링크 복사
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 text-[11px] gap-1 px-2"
-                    asChild
-                    data-testid={`button-open-sign-${s.id}`}
-                  >
-                    <a href={signUrl} target="_blank" rel="noopener noreferrer">
-                      <ExternalLink className="w-3 h-3" />
-                    </a>
-                  </Button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </td>
+            {/* 서명 링크 복사 */}
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-7 w-7 text-muted-foreground hover:text-primary"
+              onClick={() => copyLink(s.id)}
+              title="서명 링크 복사"
+              data-testid={`button-copy-link-${s.id}`}
+            >
+              <Copy className="w-3.5 h-3.5" />
+            </Button>
+
+            {/* 서명 페이지 열기 */}
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-7 w-7 text-muted-foreground hover:text-primary"
+              asChild
+              data-testid={`button-open-sign-${s.id}`}
+            >
+              <a href={`/sign/${s.id}`} target="_blank" rel="noopener noreferrer" title="서명 페이지 열기">
+                <Eye className="w-3.5 h-3.5" />
+              </a>
+            </Button>
+
+            {/* 인원 */}
+            <span className="text-xs text-muted-foreground flex items-center gap-1 min-w-[52px] justify-end">
+              <Users className="w-3.5 h-3.5" />
+              {s.signedCount}/{s.totalParticipants}명
+            </span>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -413,6 +385,34 @@ export default function EducationManagement() {
 
   const handleExport = () => { window.location.href = "/api/education-tasks/export"; };
 
+  const [downloadingTaskId, setDownloadingTaskId] = useState<number | null>(null);
+  const handleTaskDownload = async (t: EducationTaskWithLinked) => {
+    if ((t.linkedSessionCount ?? 0) === 0) {
+      toast({ title: "연결된 교육일지가 없습니다.", description: "교육일지를 먼저 생성하세요.", variant: "destructive" });
+      return;
+    }
+    setDownloadingTaskId(t.id);
+    try {
+      const params = new URLSearchParams({ title: t.title, date: t.startDate });
+      const res = await fetch(`/api/education-sessions/group-excel?${params}`, { credentials: "include" });
+      if (!res.ok) throw new Error("다운로드 실패");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${t.title}_안전보건교육_${t.startDate}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast({ title: "교육일지 엑셀이 다운로드되었습니다." });
+    } catch {
+      toast({ title: "다운로드 실패", variant: "destructive" });
+    } finally {
+      setDownloadingTaskId(null);
+    }
+  };
+
   // 예시 1: 교육일지 빠른 생성 열기
   const openQuickSession = (t: EducationTask, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -520,203 +520,250 @@ export default function EducationManagement() {
 
       {/* 액션 바 + 테이블 */}
       <div className="bg-card border rounded-xl shadow-sm overflow-hidden">
-        <div className="flex flex-wrap gap-2 items-center justify-end px-4 py-3 border-b bg-muted/30">
-          {isEditor && (
-            <>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8 text-xs gap-1"
-                disabled={selectedIds.size === 0}
-                onClick={() => setConfirmConfirmIds(Array.from(selectedIds))}
-                data-testid="button-bulk-confirm"
-              >
-                <CheckCircle2 className="w-3.5 h-3.5" /> Confirm
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8 text-xs gap-1 text-destructive hover:text-destructive"
-                disabled={selectedIds.size === 0}
-                onClick={() => setDeleteConfirmIds(Array.from(selectedIds))}
-                data-testid="button-bulk-delete"
-              >
-                <Trash2 className="w-3.5 h-3.5" /> 삭제
-              </Button>
-              <Button
-                size="sm"
-                className="h-8 text-xs gap-1"
-                onClick={openRegister}
-                data-testid="button-register"
-              >
-                <Plus className="w-3.5 h-3.5" /> 등록
-              </Button>
-            </>
-          )}
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-8 text-xs gap-1 text-emerald-700 border-emerald-300 hover:bg-emerald-50"
-            onClick={handleExport}
-            data-testid="button-excel-export"
-          >
-            <FileSpreadsheet className="w-3.5 h-3.5" /> Excel 다운로드
-          </Button>
+        <div className="flex flex-wrap gap-2 items-center justify-between px-4 py-3 border-b bg-muted/30">
+          {/* 왼쪽: 전체 선택 */}
+          <div className="flex items-center gap-2">
+            <Checkbox
+              checked={allChecked}
+              onCheckedChange={toggleAll}
+              data-testid="checkbox-all"
+            />
+            <span className="text-xs text-muted-foreground">
+              {selectedIds.size > 0 ? `${selectedIds.size}개 선택됨` : "전체 선택"}
+            </span>
+          </div>
+
+          {/* 오른쪽: 액션 버튼 */}
+          <div className="flex flex-wrap gap-2 items-center">
+            {isEditor && (
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-xs gap-1"
+                  disabled={selectedIds.size === 0}
+                  onClick={() => setConfirmConfirmIds(Array.from(selectedIds))}
+                  data-testid="button-bulk-confirm"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Confirm
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-xs gap-1 text-destructive hover:text-destructive"
+                  disabled={selectedIds.size === 0}
+                  onClick={() => setDeleteConfirmIds(Array.from(selectedIds))}
+                  data-testid="button-bulk-delete"
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> 삭제
+                </Button>
+                <Button
+                  size="sm"
+                  className="h-8 text-xs gap-1"
+                  onClick={openRegister}
+                  data-testid="button-register"
+                >
+                  <Plus className="w-3.5 h-3.5" /> 등록
+                </Button>
+              </>
+            )}
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs gap-1 text-emerald-700 border-emerald-300 hover:bg-emerald-50"
+              onClick={handleExport}
+              data-testid="button-excel-export"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" /> Excel 다운로드
+            </Button>
+          </div>
         </div>
 
-        {/* 테이블 */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b bg-muted/20">
-                <th className="w-8 px-3 py-3" />
-                <th className="w-10 px-3 py-3">
-                  <Checkbox checked={allChecked} onCheckedChange={toggleAll} data-testid="checkbox-all" />
-                </th>
-                <th className="px-3 py-3 text-left font-medium text-muted-foreground text-xs">ID</th>
-                <th className="px-3 py-3 text-left font-medium text-muted-foreground text-xs min-w-[180px]">제목</th>
-                <th className="px-3 py-3 text-left font-medium text-muted-foreground text-xs whitespace-nowrap">시작일</th>
-                <th className="px-3 py-3 text-left font-medium text-muted-foreground text-xs whitespace-nowrap">종료일</th>
-                <th className="px-3 py-3 text-left font-medium text-muted-foreground text-xs">완료율</th>
-                <th className="px-3 py-3 text-left font-medium text-muted-foreground text-xs">분야</th>
-                <th className="px-3 py-3 text-left font-medium text-muted-foreground text-xs">부서</th>
-                <th className="px-3 py-3 text-left font-medium text-muted-foreground text-xs">요청자</th>
-                <th className="px-3 py-3 text-left font-medium text-muted-foreground text-xs">반복</th>
-                <th className="px-3 py-3 text-left font-medium text-muted-foreground text-xs">상태</th>
-                <th className="px-3 py-3 text-left font-medium text-muted-foreground text-xs whitespace-nowrap">등록일</th>
-                {isEditor && <th className="px-3 py-3 text-left font-medium text-muted-foreground text-xs">작업</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading ? (
-                Array.from({ length: 5 }).map((_, i) => (
-                  <tr key={i} className="border-b">
-                    {Array.from({ length: 14 }).map((_, j) => (
-                      <td key={j} className="px-3 py-3"><div className="h-4 bg-muted rounded animate-pulse" /></td>
-                    ))}
-                  </tr>
-                ))
-              ) : paged.length === 0 ? (
-                <tr>
-                  <td colSpan={14} className="px-3 py-16 text-center text-muted-foreground text-sm">
-                    등록된 업무가 없습니다.
-                  </td>
-                </tr>
-              ) : (
-                paged.map(t => (
-                  <Fragment key={t.id}>
-                    <motion.tr
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className={`border-b transition-colors group cursor-pointer ${expandedTaskId === t.id ? "bg-primary/5" : "hover:bg-muted/30"}`}
-                      onClick={() => toggleExpand(t.id)}
-                      data-testid={`row-task-${t.id}`}
-                    >
-                      {/* 예시 3: 확장 아이콘 */}
-                      <td className="px-2 py-3 text-muted-foreground">
-                        {expandedTaskId === t.id
-                          ? <ChevronUp className="w-3.5 h-3.5" />
-                          : <ChevronDown className="w-3.5 h-3.5" />
-                        }
-                      </td>
-                      <td className="px-3 py-3" onClick={e => e.stopPropagation()}>
-                        <Checkbox
-                          checked={selectedIds.has(t.id)}
-                          onCheckedChange={() => toggleOne(t.id)}
-                          data-testid={`checkbox-task-${t.id}`}
-                        />
-                      </td>
-                      <td className="px-3 py-3 text-muted-foreground text-xs">{t.id}</td>
-                      <td className="px-3 py-3 max-w-[220px]">
-                        <span className="font-medium line-clamp-2 text-xs sm:text-sm">{t.title}</span>
-                      </td>
-                      <td className="px-3 py-3 text-xs text-muted-foreground whitespace-nowrap">{t.startDate}</td>
-                      <td className="px-3 py-3 text-xs text-muted-foreground whitespace-nowrap">{t.endDate}</td>
-                      {/* 예시 2: 완료율 + 자동계산 아이콘 (교육일지 연결 시) */}
-                      <td className="px-3 py-3">
-                        <div className="flex items-center gap-1 min-w-[80px]">
-                          <div className="flex-1 bg-muted/50 rounded-full h-1.5 overflow-hidden">
-                            <div
-                              className={`h-full rounded-full ${t.completionRate >= 100 ? "bg-emerald-500" : t.completionRate >= 50 ? "bg-amber-500" : "bg-red-400"}`}
-                              style={{ width: `${t.completionRate}%` }}
-                            />
-                          </div>
-                          <span className="text-xs font-medium w-8 text-right">{t.completionRate}%</span>
-                          {(t.linkedSessionCount ?? 0) > 0 && (
-                            <Link2
-                              className="w-3 h-3 text-primary shrink-0"
-                              title={`교육일지 ${t.linkedSessionCount}개 연결됨 — 서명률이 완료율에 자동 반영`}
-                            />
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-3 py-3">
+        {/* 카드 리스트 */}
+        <div className="divide-y">
+          {isLoading ? (
+            Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="px-4 py-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-muted rounded-full animate-pulse shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 bg-muted rounded animate-pulse w-1/3" />
+                    <div className="h-3 bg-muted rounded animate-pulse w-1/4" />
+                  </div>
+                </div>
+              </div>
+            ))
+          ) : paged.length === 0 ? (
+            <div className="px-4 py-16 text-center text-muted-foreground text-sm">
+              등록된 업무가 없습니다.
+            </div>
+          ) : (
+            paged.map(t => {
+              const isExpanded = expandedTaskId === t.id;
+              return (
+                <motion.div
+                  key={t.id}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  data-testid={`card-task-${t.id}`}
+                  className="group"
+                >
+                  {/* 카드 헤더 */}
+                  <div
+                    className={`flex items-start gap-3 px-4 py-3.5 cursor-pointer transition-colors ${isExpanded ? "bg-primary/5" : "hover:bg-muted/20"}`}
+                    onClick={() => toggleExpand(t.id)}
+                  >
+                    {/* 체크박스 */}
+                    <div className="pt-0.5" onClick={e => e.stopPropagation()}>
+                      <Checkbox
+                        checked={selectedIds.has(t.id)}
+                        onCheckedChange={() => toggleOne(t.id)}
+                        data-testid={`checkbox-task-${t.id}`}
+                      />
+                    </div>
+
+                    {/* 아이콘 */}
+                    <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+                      <GraduationCap className="w-4.5 h-4.5 text-primary" />
+                    </div>
+
+                    {/* 내용 */}
+                    <div className="flex-1 min-w-0">
+                      {/* 제목 + 배지 */}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-sm leading-snug">{t.title}</span>
                         <Badge variant="secondary" className="text-[10px] whitespace-nowrap">{t.field}</Badge>
-                      </td>
-                      <td className="px-3 py-3 text-xs text-muted-foreground max-w-[100px] truncate">{t.department || "-"}</td>
-                      <td className="px-3 py-3 text-xs text-muted-foreground whitespace-nowrap">{t.requestedBy || "-"}</td>
-                      <td className="px-3 py-3 text-xs text-center">{t.isRecurring ? "Y" : "-"}</td>
-                      <td className="px-3 py-3">{statusBadge(t)}</td>
-                      <td className="px-3 py-3 text-xs text-muted-foreground whitespace-nowrap">
-                        {t.createdAt ? format(new Date(t.createdAt), "yyyy.M.d") : "-"}
-                      </td>
+                        {statusBadge(t)}
+                        {(t.linkedSessionCount ?? 0) > 0 && (
+                          <Badge variant="outline" className="text-[10px] text-primary border-primary/40 gap-0.5">
+                            <Link2 className="w-2.5 h-2.5" />
+                            서명 {t.completionRate}%
+                          </Badge>
+                        )}
+                      </div>
+
+                      {/* 메타 정보 */}
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1 flex-wrap">
+                        <span className="flex items-center gap-1">
+                          <Calendar className="w-3 h-3" />
+                          {t.startDate} ~ {t.endDate}
+                        </span>
+                        {(t.linkedSessionCount ?? 0) > 0 && (
+                          <span className="flex items-center gap-1">
+                            <Users className="w-3 h-3" />
+                            {t.linkedSessionCount}개 부서
+                          </span>
+                        )}
+                        {t.requestedBy && (
+                          <span className="text-muted-foreground">{t.requestedBy}</span>
+                        )}
+                        {t.isRecurring && (
+                          <span className="text-primary font-medium">반복</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 액션 버튼들 */}
+                    <div
+                      className="flex items-center gap-0.5 shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+                      onClick={e => e.stopPropagation()}
+                    >
+                      {/* 교육일지 다운로드 */}
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8 text-muted-foreground hover:text-emerald-600"
+                        title="교육일지 엑셀 다운로드 (사진·참석자 서명 포함)"
+                        onClick={() => handleTaskDownload(t)}
+                        disabled={downloadingTaskId === t.id}
+                        data-testid={`button-download-task-${t.id}`}
+                      >
+                        {downloadingTaskId === t.id
+                          ? <div className="w-3.5 h-3.5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                          : <Download className="w-3.5 h-3.5" />
+                        }
+                      </Button>
+
                       {isEditor && (
-                        <td className="px-3 py-3" onClick={e => e.stopPropagation()}>
-                          <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                            {/* 예시 1: 교육일지 생성 버튼 */}
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-7 text-[10px] gap-0.5 text-primary border-primary/40 hover:bg-primary/10 px-1.5"
-                              onClick={(e) => openQuickSession(t, e)}
-                              title="이 업무로 교육일지 생성"
-                              data-testid={`button-quick-session-${t.id}`}
-                            >
-                              <BookOpen className="w-3 h-3" /> 교육일지
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-7 w-7"
-                              onClick={() => openEdit(t)}
-                              data-testid={`button-edit-task-${t.id}`}
-                            >
-                              <Pencil className="w-3.5 h-3.5 text-blue-500" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-7 w-7"
-                              onClick={() => setAttachmentTaskId(t.id)}
-                              title="증빙자료 업로드"
-                              data-testid={`button-attach-task-${t.id}`}
-                            >
-                              <Paperclip className="w-3.5 h-3.5 text-muted-foreground" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-7 w-7"
-                              onClick={() => setDeleteConfirmIds([t.id])}
-                              data-testid={`button-delete-task-${t.id}`}
-                            >
-                              <Trash2 className="w-3.5 h-3.5 text-destructive" />
-                            </Button>
-                          </div>
-                        </td>
+                        <>
+                          {/* 교육일지 생성 */}
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-muted-foreground hover:text-primary"
+                            title="교육일지 생성"
+                            onClick={(e) => openQuickSession(t, e)}
+                            data-testid={`button-quick-session-${t.id}`}
+                          >
+                            <BookOpen className="w-3.5 h-3.5" />
+                          </Button>
+                          {/* 수정 */}
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-muted-foreground hover:text-blue-500"
+                            onClick={() => openEdit(t)}
+                            data-testid={`button-edit-task-${t.id}`}
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </Button>
+                          {/* 증빙자료 업로드 */}
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                            title="증빙자료 업로드"
+                            onClick={() => setAttachmentTaskId(t.id)}
+                            data-testid={`button-attach-task-${t.id}`}
+                          >
+                            <Paperclip className="w-3.5 h-3.5" />
+                          </Button>
+                          {/* 삭제 */}
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                            onClick={() => setDeleteConfirmIds([t.id])}
+                            data-testid={`button-delete-task-${t.id}`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </>
                       )}
-                    </motion.tr>
-                    {/* 예시 3: 확장 패널 - 연결된 교육일지 현황 */}
-                    {expandedTaskId === t.id && (
-                      <tr key={`expanded-${t.id}`} className="border-b">
+
+                      {/* 확장/축소 */}
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8 text-muted-foreground"
+                        data-testid={`button-expand-task-${t.id}`}
+                      >
+                        {isExpanded
+                          ? <ChevronUp className="w-4 h-4" />
+                          : <ChevronDown className="w-4 h-4" />
+                        }
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* 확장 패널: 연결된 교육일지 부서 리스트 */}
+                  <AnimatePresence>
+                    {isExpanded && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.15 }}
+                        className="overflow-hidden"
+                      >
                         <LinkedSessionsPanel taskId={t.id} />
-                      </tr>
+                      </motion.div>
                     )}
-                  </Fragment>
-                ))
-              )}
-            </tbody>
-          </table>
+                  </AnimatePresence>
+                </motion.div>
+              );
+            })
+          )}
         </div>
 
         {/* 페이지네이션 */}
