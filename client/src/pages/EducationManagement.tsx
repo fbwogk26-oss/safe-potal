@@ -322,10 +322,10 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
     }
   };
 
-  const copyLink = (sessionId: number) => {
-    const url = `${window.location.origin}/sign/${sessionId}`;
+  const copyLink = (_sessionId: number) => {
+    const url = `${window.location.origin}/sign/task/${taskId}`;
     navigator.clipboard.writeText(url).then(() => {
-      toast({ title: "서명 링크가 복사되었습니다." });
+      toast({ title: "서명 링크가 복사되었습니다.", description: "참석자가 부서를 직접 선택할 수 있는 통합 링크입니다." });
     });
   };
 

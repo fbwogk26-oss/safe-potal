@@ -4,7 +4,6 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -38,11 +37,17 @@ function SignaturePad({ onSave, onClear }: { onSave: (data: string) => void; onC
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width;
-    canvas.height = rect.height;
-    const ctx = canvas.getContext("2d");
-    if (ctx) { ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+    const init = () => {
+      const rect = canvas.getBoundingClientRect();
+      if (rect.width === 0) return;
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+      const ctx = canvas.getContext("2d");
+      if (ctx) { ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+    };
+    init();
+    const timer = setTimeout(init, 60);
+    return () => clearTimeout(timer);
   }, []);
 
   const getPos = useCallback((e: React.MouseEvent | React.TouchEvent) => {
@@ -55,6 +60,14 @@ function SignaturePad({ onSave, onClear }: { onSave: (data: string) => void; onC
 
   const startDraw = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault();
+    const canvas = canvasRef.current;
+    if (canvas && canvas.width === 0) {
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+      const ctx = canvas.getContext("2d");
+      if (ctx) { ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+    }
     setIsDrawing(true);
     setHasContent(true);
     const ctx = canvasRef.current?.getContext("2d");
@@ -87,7 +100,13 @@ function SignaturePad({ onSave, onClear }: { onSave: (data: string) => void; onC
 
   const save = useCallback(() => {
     if (!hasContent || !canvasRef.current) return;
-    onSave(canvasRef.current.toDataURL("image/png"));
+    const canvas = canvasRef.current;
+    if (canvas.width === 0 || canvas.height === 0) {
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+    }
+    onSave(canvas.toDataURL("image/png"));
   }, [hasContent, onSave]);
 
   return (
@@ -123,6 +142,7 @@ export default function PublicTaskSign() {
   const [submitted, setSubmitted] = useState(false);
   const [padKey, setPadKey] = useState(0);
   const [consentAgreed, setConsentAgreed] = useState(false);
+  const [signError, setSignError] = useState<string | null>(null);
 
   const { data: task, isLoading, isError } = useQuery<TaskInfo>({
     queryKey: ["/api/public/task", id],
@@ -135,20 +155,13 @@ export default function PublicTaskSign() {
     retry: false,
   });
 
-  const [signError, setSignError] = useState<string | null>(null);
-
   const signMutation = useMutation({
     mutationFn: async () => {
       if (!selectedSessionId) throw new Error("부서를 선택해주세요");
       const res = await fetch(`/api/public/education/${selectedSessionId}/sign`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          signerName,
-          signerDepartment: selectedDept,
-          signatureData,
-          consentAgreed,
-        }),
+        body: JSON.stringify({ signerName, signerDepartment: selectedDept, signatureData, consentAgreed }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -167,25 +180,22 @@ export default function PublicTaskSign() {
       setSelectedSessionId(session.id);
       setSignatureData("");
       setPadKey(k => k + 1);
+      setSignError(null);
     }
   };
 
   const handleSubmit = () => {
     if (!selectedSessionId) {
-      toast({ variant: "destructive", title: "부서를 선택해주세요." });
-      return;
+      toast({ variant: "destructive", title: "부서를 선택해주세요." }); return;
     }
     if (!signerName.trim()) {
-      toast({ variant: "destructive", title: "이름을 입력해주세요." });
-      return;
+      toast({ variant: "destructive", title: "이름을 입력해주세요." }); return;
     }
     if (!signatureData) {
-      toast({ variant: "destructive", title: "서명을 먼저 완료해주세요." });
-      return;
+      toast({ variant: "destructive", title: "서명을 완료해주세요. '서명 완료' 버튼을 눌러주세요." }); return;
     }
     if (!consentAgreed) {
-      toast({ variant: "destructive", title: "개인정보 수집 및 전자서명에 동의해주세요." });
-      return;
+      toast({ variant: "destructive", title: "개인정보 수집 및 전자서명에 동의해주세요." }); return;
     }
     signMutation.mutate();
   };
@@ -251,6 +261,7 @@ export default function PublicTaskSign() {
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-50 flex flex-col">
       <div className="flex-1 flex flex-col items-center justify-center p-4 sm:p-6">
         <div className="w-full max-w-md space-y-4">
+
           {/* 헤더 */}
           <div className="text-center space-y-3">
             <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary/10 text-primary">
@@ -291,8 +302,7 @@ export default function PublicTaskSign() {
               <div className="grid grid-cols-1 gap-2 max-h-56 overflow-y-auto pr-1">
                 {task.sessions.map(s => {
                   const rate = s.totalParticipants > 0
-                    ? Math.round((s.signedCount / s.totalParticipants) * 100)
-                    : 0;
+                    ? Math.round((s.signedCount / s.totalParticipants) * 100) : 0;
                   const isDone = s.status === "완료" || rate >= 100;
                   const isSelected = selectedSessionId === s.id;
                   return (
@@ -337,7 +347,7 @@ export default function PublicTaskSign() {
                 {selectedSession && (
                   <div className="text-xs text-muted-foreground flex items-center gap-1">
                     <Users className="w-3 h-3" />
-                    현재 서명 완료: <span className="font-semibold text-primary">{selectedSession.signedCount}/{selectedSession.totalParticipants}명</span>
+                    현재 서명 완료: <span className="font-semibold text-primary ml-1">{selectedSession.signedCount}/{selectedSession.totalParticipants}명</span>
                   </div>
                 )}
 
@@ -355,27 +365,61 @@ export default function PublicTaskSign() {
                 {/* 서명 패드 */}
                 <div className="space-y-1.5">
                   <Label className="text-xs font-medium">전자서명 <span className="text-destructive">*</span></Label>
-                  <p className="text-xs text-muted-foreground">아래 칸에 서명해주세요</p>
-                  <SignaturePad
-                    key={padKey}
-                    onSave={data => setSignatureData(data)}
-                    onClear={() => setSignatureData("")}
-                  />
+                  {signatureData ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-3 p-3 border-2 border-emerald-400 rounded-xl bg-white">
+                        <img src={signatureData} alt="서명" className="h-16 object-contain flex-1" />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="shrink-0 text-xs"
+                          onClick={() => { setSignatureData(""); setPadKey(k => k + 1); }}
+                        >
+                          다시 서명
+                        </Button>
+                      </div>
+                      <p className="text-xs text-emerald-600 flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> 서명이 캡처되었습니다.
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="text-xs text-muted-foreground">아래 칸에 서명 후 <strong>'서명 완료'</strong> 버튼을 눌러주세요</p>
+                      <SignaturePad
+                        key={padKey}
+                        onSave={data => setSignatureData(data)}
+                        onClear={() => setSignatureData("")}
+                      />
+                    </>
+                  )}
                 </div>
 
-                {/* 동의 */}
-                <div className="flex items-start gap-2 p-3 bg-muted/30 rounded-lg">
-                  <input
-                    type="checkbox"
-                    id="consent"
-                    checked={consentAgreed}
-                    onChange={e => setConsentAgreed(e.target.checked)}
-                    className="mt-0.5"
-                    data-testid="checkbox-consent"
-                  />
-                  <label htmlFor="consent" className="text-xs text-muted-foreground leading-relaxed cursor-pointer">
-                    개인정보(성명, 서명) 수집·이용 및 전자서명 제출에 동의합니다.
-                    수집된 정보는 교육 이수 확인 목적으로만 사용됩니다.
+                {/* 개인정보 수집·이용 동의 */}
+                <div className="space-y-2">
+                  <div className="max-h-28 overflow-y-auto rounded-lg border border-border bg-muted/40 p-3 text-xs text-muted-foreground leading-relaxed">
+                    <p className="font-semibold text-foreground mb-1">개인정보 수집·이용 동의 (필수)</p>
+                    <p>본 전자서명은 「개인정보 보호법」 및 「산업안전보건법」에 따라 교육 이수 증빙을 목적으로 다음 정보를 수집합니다.</p>
+                    <ul className="mt-1 space-y-0.5 list-disc list-inside">
+                      <li>수집 항목: 성명, 소속팀, 서명 이미지, 서명 일시</li>
+                      <li>수집 목적: 안전교육 이수 증빙 (중대재해처벌법 대응)</li>
+                      <li>보존 기간: 서명일로부터 <strong>3년</strong> (산업안전보건법 제165조)</li>
+                      <li>제3자 제공: 관계 법령에 의한 경우 외 제공 없음</li>
+                    </ul>
+                    <p className="mt-1">귀하는 동의를 거부할 권리가 있으나, 거부 시 교육 서명 등록이 불가합니다.</p>
+                  </div>
+                  <label className="flex items-start gap-2 cursor-pointer select-none" data-testid="label-consent">
+                    <input
+                      type="checkbox"
+                      id="consent"
+                      checked={consentAgreed}
+                      onChange={e => setConsentAgreed(e.target.checked)}
+                      className="mt-0.5 w-4 h-4 accent-primary shrink-0"
+                      data-testid="checkbox-consent"
+                    />
+                    <span className="text-xs text-foreground">
+                      위 내용을 숙지하였으며, 본인의 필적으로 전자서명함에 동의합니다.{" "}
+                      <span className="text-destructive font-medium">(필수)</span>
+                    </span>
                   </label>
                 </div>
 
@@ -388,14 +432,13 @@ export default function PublicTaskSign() {
                 <Button
                   className="w-full gap-2"
                   onClick={handleSubmit}
-                  disabled={signMutation.isPending}
+                  disabled={signMutation.isPending || !signerName.trim() || !signatureData || !consentAgreed}
                   data-testid="button-submit-sign"
                 >
                   {signMutation.isPending
-                    ? <Loader2 className="w-4 h-4 animate-spin" />
-                    : <CheckCircle2 className="w-4 h-4" />
+                    ? <><Loader2 className="w-4 h-4 animate-spin" />등록 중...</>
+                    : <><CheckCircle2 className="w-4 h-4" />서명 제출</>
                   }
-                  서명 제출
                 </Button>
               </CardContent>
             </Card>
