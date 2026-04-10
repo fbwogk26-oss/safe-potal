@@ -6,7 +6,7 @@ import { z } from "zod";
 import rateLimit from "express-rate-limit";
 import { createHash } from "crypto";
 import { db } from "./db";
-import { teams, trafficFines, accidentReports, educationSignatures, safetyInspections } from "@shared/schema";
+import { teams, trafficFines, accidentReports, educationSignatures, safetyInspections, educationTasks } from "@shared/schema";
 import { eq, and, count, sql } from "drizzle-orm";
 import multer from "multer";
 import path from "path";
@@ -6463,6 +6463,132 @@ ${htmlDraft}
     const { runSpeedEngAutoJob, getAutoJobStatus } = await import('./autoEmailJob');
     runSpeedEngAutoJob().catch(console.error);
     res.json({ message: "수동 실행 시작됨", status: getAutoJobStatus() });
+  });
+
+  // === EDUCATION TASKS (교육업무 관리) ===
+  app.get('/api/education-tasks', isAuthenticated, async (_req, res) => {
+    try {
+      const tasks = await storage.getEducationTasks();
+      res.json(tasks);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.post('/api/education-tasks', requireEditor, async (req: any, res) => {
+    try {
+      const data = { ...req.body, createdBy: req.user?.username || req.user?.name };
+      const task = await storage.createEducationTask(data);
+      res.json(task);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.put('/api/education-tasks/:id', requireEditor, async (req: any, res) => {
+    try {
+      const task = await storage.updateEducationTask(Number(req.params.id), req.body);
+      res.json(task);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.delete('/api/education-tasks/:id', requireEditor, async (req, res) => {
+    try {
+      await storage.deleteEducationTask(Number(req.params.id));
+      res.json({ success: true });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.post('/api/education-tasks/bulk-delete', requireEditor, async (req, res) => {
+    try {
+      const { ids } = req.body as { ids: number[] };
+      await storage.bulkDeleteEducationTasks(ids);
+      res.json({ success: true });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.post('/api/education-tasks/bulk-confirm', requireEditor, async (req, res) => {
+    try {
+      const { ids } = req.body as { ids: number[] };
+      await storage.bulkConfirmEducationTasks(ids);
+      res.json({ success: true });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // 증빙자료 업로드
+  const eduTaskAttachmentUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 20 * 1024 * 1024 },
+  });
+
+  app.post('/api/education-tasks/:id/attachment', requireEditor, eduTaskAttachmentUpload.single('file'), async (req: any, res) => {
+    try {
+      const file = req.file;
+      if (!file) return res.status(400).json({ message: "파일이 없습니다" });
+      const ext = safeExt(file.originalname, ["pdf", "jpg", "jpeg", "png", "doc", "docx", "xlsx", "xls", "hwp", "hwpx"]);
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+      const filename = `edu-task-${uniqueSuffix}${ext || path.extname(file.originalname)}`;
+      let fileUrl = `/uploads/${filename}`;
+      const objUrl = await uploadToObjectStorage(file.buffer, filename, file.mimetype);
+      if (objUrl) {
+        fileUrl = objUrl;
+      } else {
+        fs.writeFileSync(path.join(uploadDir, filename), file.buffer);
+      }
+      const task = await storage.updateEducationTask(Number(req.params.id), {
+        attachmentUrl: fileUrl,
+        attachmentName: file.originalname,
+        status: "완료",
+        completionRate: 100,
+      });
+      res.json(task);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // Excel 다운로드
+  app.get('/api/education-tasks/export', isAuthenticated, async (_req, res) => {
+    try {
+      const tasks = await storage.getEducationTasks();
+      const wb = new ExcelJS.Workbook();
+      const ws = wb.addWorksheet('교육업무 관리');
+      ws.columns = [
+        { header: 'ID', key: 'id', width: 8 },
+        { header: '업무명', key: 'title', width: 40 },
+        { header: '시작일', key: 'startDate', width: 14 },
+        { header: '종료일', key: 'endDate', width: 14 },
+        { header: '완료율', key: 'completionRate', width: 10 },
+        { header: '업무 분야', key: 'field', width: 14 },
+        { header: '요청 구분', key: 'requestScope', width: 18 },
+        { header: '본부', key: 'headquarters', width: 14 },
+        { header: '부서/팀', key: 'department', width: 14 },
+        { header: '요청자', key: 'requestedBy', width: 12 },
+        { header: '완료상태', key: 'status', width: 10 },
+        { header: '반복', key: 'isRecurring', width: 8 },
+        { header: 'Confirm', key: 'confirmed', width: 10 },
+        { header: '등록일', key: 'createdAt', width: 18 },
+      ];
+      ws.getRow(1).font = { bold: true };
+      ws.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E7FF' } };
+      for (const t of tasks) {
+        ws.addRow({
+          id: t.id,
+          title: t.title,
+          startDate: t.startDate,
+          endDate: t.endDate,
+          completionRate: `${t.completionRate}%`,
+          field: t.field,
+          requestScope: t.requestScope,
+          headquarters: t.headquarters || '',
+          department: t.department || '',
+          requestedBy: t.requestedBy || '',
+          status: t.status,
+          isRecurring: t.isRecurring ? 'Y' : 'N',
+          confirmed: t.confirmed ? 'Y' : 'N',
+          createdAt: t.createdAt ? new Date(t.createdAt).toLocaleString('ko-KR') : '',
+        });
+      }
+      const buf = await wb.xlsx.writeBuffer();
+      const today = new Date().toISOString().slice(0, 10);
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename=education_tasks_${today}.xlsx`);
+      res.send(buf);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
   return httpServer;

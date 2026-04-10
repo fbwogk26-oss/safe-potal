@@ -33,6 +33,8 @@ import MusculoskeletalDisease from "@/pages/MusculoskeletalDisease";
 import NewEquipmentRequest from "@/pages/NewEquipmentRequest";
 import TrafficFines from "@/pages/TrafficFines";
 import WorkPlan from "@/pages/WorkPlan";
+import EducationManagement from "@/pages/EducationManagement";
+import EducationStatus from "@/pages/EducationStatus";
 import WeatherSafetyMessage from "@/pages/WeatherSafetyMessage";
 import MusicManager from "@/pages/MusicManager";
 import FuelCosts from "@/pages/FuelCosts";
@@ -112,6 +114,8 @@ function RouterContent() {
       <Route path="/musculoskeletal">{() => <G canAccess={canViewMusculoskeletal} component={MusculoskeletalDisease} />}</Route>
       <Route path="/traffic-fines">{() => <TrafficFines />}</Route>
       <Route path="/work-plan">{() => <WorkPlan />}</Route>
+      <Route path="/education-management">{() => <EducationManagement />}</Route>
+      <Route path="/education-status">{() => <EducationStatus />}</Route>
       <Route path="/digital-board">{() => <G canAccess={canViewDigitalBoard} component={DigitalBoard} />}</Route>
       <Route path="/admin/users">{() => <G canAccess={canManageUsers} component={AdminUsers} />}</Route>
       <Route path="/admin/security">{() => <G canAccess={canManageUsers} component={SecurityLogs} />}</Route>

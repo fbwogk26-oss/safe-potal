@@ -30,6 +30,8 @@ import {
   type SafetyManagerReport,
   healthManagerReports,
   type HealthManagerReport,
+  educationTasks,
+  type EducationTask, type InsertEducationTask,
 } from "@shared/schema";
 import { eq, desc, asc, and, ilike, or, sql, inArray } from "drizzle-orm";
 
@@ -172,6 +174,15 @@ export interface IStorage {
   createHealthManagerReport(data: any): Promise<HealthManagerReport>;
   updateHealthManagerReport(id: number, data: any): Promise<HealthManagerReport>;
   deleteHealthManagerReport(id: number): Promise<void>;
+
+  // Education Tasks
+  getEducationTasks(): Promise<EducationTask[]>;
+  getEducationTask(id: number): Promise<EducationTask | undefined>;
+  createEducationTask(data: InsertEducationTask): Promise<EducationTask>;
+  updateEducationTask(id: number, data: Partial<InsertEducationTask>): Promise<EducationTask>;
+  deleteEducationTask(id: number): Promise<void>;
+  bulkDeleteEducationTasks(ids: number[]): Promise<void>;
+  bulkConfirmEducationTasks(ids: number[]): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -733,6 +744,34 @@ export class DatabaseStorage implements IStorage {
   }
   async deleteHealthManagerReport(id: number): Promise<void> {
     await db.delete(healthManagerReports).where(eq(healthManagerReports.id, id));
+  }
+
+  // === EDUCATION TASKS ===
+  async getEducationTasks(): Promise<EducationTask[]> {
+    return await db.select().from(educationTasks).orderBy(desc(educationTasks.createdAt));
+  }
+  async getEducationTask(id: number): Promise<EducationTask | undefined> {
+    const [row] = await db.select().from(educationTasks).where(eq(educationTasks.id, id));
+    return row;
+  }
+  async createEducationTask(data: InsertEducationTask): Promise<EducationTask> {
+    const [row] = await db.insert(educationTasks).values(data).returning();
+    return row;
+  }
+  async updateEducationTask(id: number, data: Partial<InsertEducationTask>): Promise<EducationTask> {
+    const [row] = await db.update(educationTasks).set(data).where(eq(educationTasks.id, id)).returning();
+    return row;
+  }
+  async deleteEducationTask(id: number): Promise<void> {
+    await db.delete(educationTasks).where(eq(educationTasks.id, id));
+  }
+  async bulkDeleteEducationTasks(ids: number[]): Promise<void> {
+    if (ids.length === 0) return;
+    await db.delete(educationTasks).where(inArray(educationTasks.id, ids));
+  }
+  async bulkConfirmEducationTasks(ids: number[]): Promise<void> {
+    if (ids.length === 0) return;
+    await db.update(educationTasks).set({ confirmed: true, status: "완료", completionRate: 100 }).where(inArray(educationTasks.id, ids));
   }
 }
 

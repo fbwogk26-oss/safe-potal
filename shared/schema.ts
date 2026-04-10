@@ -545,6 +545,32 @@ export const insertHealthManagerReportSchema = createInsertSchema(healthManagerR
 export type HealthManagerReport = typeof healthManagerReports.$inferSelect;
 export type InsertHealthManagerReport = z.infer<typeof insertHealthManagerReportSchema>;
 
+// === 교육업무 관리 (Education Task Management) ===
+export const educationTasks = pgTable("education_tasks", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  startDate: text("start_date").notNull(),
+  endDate: text("end_date").notNull(),
+  field: text("field").notNull().default("안전/보건"),
+  requestScope: text("request_scope").notNull().default("전사"),
+  isRecurring: boolean("is_recurring").notNull().default(false),
+  taskFields: jsonb("task_fields").$type<Array<{type: string; title: string}>>().default([]),
+  headquarters: text("headquarters"),
+  department: text("department"),
+  requestedBy: text("requested_by"),
+  completionRate: integer("completion_rate").notNull().default(0),
+  status: text("status").notNull().default("미완료"),
+  confirmed: boolean("confirmed").notNull().default(false),
+  attachmentUrl: text("attachment_url"),
+  attachmentName: text("attachment_name"),
+  createdBy: text("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertEducationTaskSchema = createInsertSchema(educationTasks).omit({ id: true, createdAt: true });
+export type EducationTask = typeof educationTasks.$inferSelect;
+export type InsertEducationTask = z.infer<typeof insertEducationTaskSchema>;
+
 // Export auth schema
 export * from "./models/auth";
 
