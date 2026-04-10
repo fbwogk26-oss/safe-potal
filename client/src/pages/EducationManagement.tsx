@@ -510,7 +510,7 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
     const isDone = s.status === "완료" || signedRate >= 100;
     const hasContent = !!(s.description || (s.images && s.images.length > 0));
     return (
-      <div className="flex items-center px-5 py-2.5 hover:bg-muted/20 transition-colors">
+      <div className="flex items-center pl-12 pr-5 py-2.5 hover:bg-muted/20 transition-colors">
         {/* 체크박스 (w-6) */}
         <div className="w-6 shrink-0 flex items-center" onClick={e => e.stopPropagation()}>
           <Checkbox
@@ -604,7 +604,7 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
   return (
     <>
       {/* 패널 헤더: 체크박스 + 카운터 + 다운로드 */}
-      <div className="flex items-center gap-2 px-5 py-2 border-t bg-muted/20" onClick={e => e.stopPropagation()}>
+      <div className="flex items-center gap-2 pl-12 pr-5 py-2 border-t bg-muted/20" onClick={e => e.stopPropagation()}>
         <Checkbox
           checked={sessions.length > 0 && selectedSessionIds.size === sessions.length}
           onCheckedChange={toggleAllSessions}
@@ -640,7 +640,7 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
           const s = sessions.find(ss => ss.department === dept);
           if (s) return <SessionRow key={dept} s={s} />;
           return (
-            <div key={dept} className="flex items-center gap-2 px-5 py-2.5 text-muted-foreground/60">
+            <div key={dept} className="flex items-center gap-2 pl-12 pr-5 py-2.5 text-muted-foreground/60">
               <div className="w-3.5 h-3.5 shrink-0" />
               <div className="w-4 h-4 rounded-full border-2 border-muted-foreground/25 shrink-0" />
               <span className="flex-1 text-sm">{dept}</span>
