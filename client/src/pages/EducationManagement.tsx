@@ -329,9 +329,6 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
     });
   };
 
-  // 인원수 인라인 편집 상태
-  const [participantEdits, setParticipantEdits] = useState<Record<number, string>>({});
-
   const updateParticipants = async (sessionId: number, count: number) => {
     try {
       await apiRequest("PATCH", `/api/education-sessions/${sessionId}`, { totalParticipants: count });
@@ -448,7 +445,6 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
     const signedRate = s.totalParticipants > 0 ? Math.round((s.signedCount / s.totalParticipants) * 100) : 0;
     const isDone = s.status === "완료" || signedRate >= 100;
     const hasContent = !!(s.description || (s.images && s.images.length > 0));
-    const currentEdit = participantEdits[s.id] ?? String(s.totalParticipants);
     return (
       <div className="flex items-center gap-2 px-5 py-2.5 hover:bg-muted/20 transition-colors">
         {isDone
@@ -502,14 +498,14 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
           <input
             type="number"
             min={0}
-            value={currentEdit}
-            onChange={e => setParticipantEdits(prev => ({ ...prev, [s.id]: e.target.value }))}
+            key={s.totalParticipants}
+            defaultValue={s.totalParticipants}
+            onFocus={e => e.target.select()}
             onBlur={e => {
               const v = parseInt(e.target.value, 10);
               if (!isNaN(v) && v >= 0 && v !== s.totalParticipants) {
                 updateParticipants(s.id, v);
               }
-              setParticipantEdits(prev => { const n = { ...prev }; delete n[s.id]; return n; });
             }}
             className="w-10 text-xs border rounded px-1 py-0.5 bg-background text-center focus:outline-none focus:ring-1 focus:ring-primary"
             data-testid={`input-participants-${s.id}`}
