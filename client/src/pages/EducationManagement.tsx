@@ -693,10 +693,10 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
                         <tr className="bg-gray-200">
                           <th className="border border-black px-1 py-1 text-center w-8">순번</th>
                           <th className="border border-black px-1 py-1 text-center w-16">이름</th>
-                          <th className="border border-black px-1 py-1 text-center">서명</th>
+                          <th className="border border-black px-1 py-1 text-center w-16">서명</th>
                           <th className="border border-black px-1 py-1 text-center w-8">순번</th>
                           <th className="border border-black px-1 py-1 text-center w-16">이름</th>
-                          <th className="border border-black px-1 py-1 text-center">서명</th>
+                          <th className="border border-black px-1 py-1 text-center w-16">서명</th>
                         </tr>
                       </thead>
                       <tbody>
