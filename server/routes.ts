@@ -6663,6 +6663,232 @@ ${htmlDraft}
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
+  // taskId 기반 교육일지 엑셀 다운로드 (교육내용 + 사진 4장 + 서명 포함)
+  app.get('/api/education-tasks/:id/excel', isAuthenticated, async (req: any, res) => {
+    try {
+      const taskId = Number(req.params.id);
+      const task = await storage.getEducationTask(taskId);
+      if (!task) return res.status(404).json({ message: "업무를 찾을 수 없습니다." });
+
+      const sessions = await storage.getSessionsByTaskId(taskId);
+      if (sessions.length === 0) return res.status(404).json({ message: "연결된 교육일지가 없습니다." });
+
+      const workbook = new ExcelJS.Workbook();
+      const { ObjectStorageService } = await import("./replit_integrations/object_storage/objectStorage");
+      const objService = new ObjectStorageService();
+
+      for (const session of sessions) {
+        const dept = session.department;
+        const signatures = await storage.getSignaturesBySession(session.id);
+
+        // === 참석자 명단 시트 ===
+        const sigSheet = workbook.addWorksheet(`${dept}_참석자명단`);
+        sigSheet.properties.defaultColWidth = 14;
+        sigSheet.getColumn(1).width = 8;
+        sigSheet.getColumn(2).width = 14;
+        sigSheet.getColumn(3).width = 22;
+        sigSheet.getColumn(4).width = 8;
+        sigSheet.getColumn(5).width = 14;
+        sigSheet.getColumn(6).width = 22;
+
+        // 제목행
+        sigSheet.mergeCells("A1:F1");
+        const titleCell = sigSheet.getCell("A1");
+        titleCell.value = `"${task.title}" 참석자 명단`;
+        titleCell.font = { bold: true, size: 16 };
+        titleCell.alignment = { horizontal: "center", vertical: "middle" };
+        titleCell.border = { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } };
+        sigSheet.getRow(1).height = 36;
+        sigSheet.getRow(2).height = 8;
+
+        // 날짜/부서
+        sigSheet.mergeCells("A3:C3");
+        const dateCell = sigSheet.getCell("A3");
+        dateCell.value = `□ 시행일시: ${session.educationDate}`;
+        dateCell.font = { size: 11 };
+        dateCell.alignment = { vertical: "middle" };
+        sigSheet.mergeCells("D3:F3");
+        const deptCell = sigSheet.getCell("D3");
+        deptCell.value = `□ 부서명: ${dept}`;
+        deptCell.font = { size: 11 };
+        deptCell.alignment = { vertical: "middle" };
+        sigSheet.getRow(3).height = 24;
+
+        // 교육내용 (description)
+        if (session.description) {
+          sigSheet.mergeCells("A4:F4");
+          const descCell = sigSheet.getCell("A4");
+          descCell.value = `□ 교육내용: ${session.description}`;
+          descCell.font = { size: 10 };
+          descCell.alignment = { vertical: "middle", wrapText: true };
+          descCell.border = { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } };
+          sigSheet.getRow(4).height = 32;
+        }
+
+        const headerStartRow = session.description ? 6 : 5;
+        sigSheet.getRow(headerStartRow - 1).height = 6;
+
+        const headers = ["순번", "이름", "서명", "순번", "이름", "서명"];
+        const headerRow = sigSheet.getRow(headerStartRow);
+        headers.forEach((h, i) => {
+          const cell = headerRow.getCell(i + 1);
+          cell.value = h;
+          cell.font = { bold: true, size: 10 };
+          cell.alignment = { horizontal: "center", vertical: "middle" };
+          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE0E0E0" } };
+          cell.border = { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } };
+        });
+        headerRow.height = 22;
+
+        for (let i = 0; i < 25; i++) {
+          const row = sigSheet.getRow(headerStartRow + 1 + i);
+          row.height = 32;
+          const leftNumCell = row.getCell(1);
+          leftNumCell.value = i + 1;
+          leftNumCell.alignment = { horizontal: "center", vertical: "middle" };
+          leftNumCell.border = { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } };
+          const leftNameCell = row.getCell(2);
+          leftNameCell.alignment = { horizontal: "center", vertical: "middle" };
+          leftNameCell.border = { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } };
+          const leftSigCell = row.getCell(3);
+          leftSigCell.border = { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } };
+
+          if (signatures[i]) {
+            leftNameCell.value = signatures[i].signerName;
+            try {
+              const sigData = signatures[i].signatureData;
+              if (sigData && sigData.startsWith("data:image/")) {
+                const base64Part = sigData.split(",")[1];
+                const ext = sigData.includes("image/png") ? "png" : "jpeg";
+                const imageId = workbook.addImage({ base64: base64Part, extension: ext as "png" | "jpeg" });
+                (sigSheet as any).addImage(imageId, { tl: { col: 2, row: headerStartRow + i }, br: { col: 3, row: headerStartRow + 1 + i }, editAs: "oneCell" });
+              }
+            } catch (e) { /* skip */ }
+          }
+
+          const rightIdx = i + 25;
+          const rightNumCell = row.getCell(4);
+          rightNumCell.value = i + 26;
+          rightNumCell.alignment = { horizontal: "center", vertical: "middle" };
+          rightNumCell.border = { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } };
+          const rightNameCell = row.getCell(5);
+          rightNameCell.alignment = { horizontal: "center", vertical: "middle" };
+          rightNameCell.border = { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } };
+          const rightSigCell = row.getCell(6);
+          rightSigCell.border = { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } };
+
+          if (signatures[rightIdx]) {
+            rightNameCell.value = signatures[rightIdx].signerName;
+            try {
+              const sigData = signatures[rightIdx].signatureData;
+              if (sigData && sigData.startsWith("data:image/")) {
+                const base64Part = sigData.split(",")[1];
+                const ext = sigData.includes("image/png") ? "png" : "jpeg";
+                const imageId = workbook.addImage({ base64: base64Part, extension: ext as "png" | "jpeg" });
+                (sigSheet as any).addImage(imageId, { tl: { col: 5, row: headerStartRow + i }, br: { col: 6, row: headerStartRow + 1 + i }, editAs: "oneCell" });
+              }
+            } catch (e) { /* skip */ }
+          }
+        }
+      }
+
+      // === 교육 사진 통합 시트 (부서별 최대 4장) ===
+      const photoSheet = workbook.addWorksheet("교육 진행 사진");
+      for (let c = 1; c <= 8; c++) { photoSheet.getColumn(c).width = 12; }
+
+      photoSheet.mergeCells("A1:H1");
+      const photoTitleCell = photoSheet.getCell("A1");
+      photoTitleCell.value = `"${task.title}" 교육 시행 사진`;
+      photoTitleCell.font = { bold: true, size: 16 };
+      photoTitleCell.alignment = { horizontal: "center", vertical: "middle" };
+      photoTitleCell.border = { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } };
+      photoSheet.getRow(1).height = 36;
+
+      let currentRow = 2;
+
+      for (const session of sessions) {
+        const dept = session.department;
+        const images = session.images || [];
+        if (images.length === 0) continue; // 사진 없는 부서는 건너뜀
+
+        // 부서 라벨
+        const deptRowNum = currentRow;
+        photoSheet.mergeCells(`A${deptRowNum}:H${deptRowNum}`);
+        const photoDeptCell = photoSheet.getCell(`A${deptRowNum}`);
+        photoDeptCell.value = `■ ${dept}`;
+        photoDeptCell.font = { bold: true, size: 12 };
+        photoDeptCell.alignment = { vertical: "middle" };
+        photoDeptCell.border = { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } };
+        photoSheet.getRow(deptRowNum).height = 28;
+        currentRow++;
+
+        // 사진 영역: 4장을 2x2 배치 (각 사진: 4열 x 12행)
+        const photoStartRow = currentRow;
+        const photoEndRow = currentRow + 11;
+
+        // 상단 2장 (col 1-4, 5-8)
+        photoSheet.mergeCells(`A${photoStartRow}:D${photoStartRow + 11}`);
+        photoSheet.mergeCells(`E${photoStartRow}:H${photoStartRow + 11}`);
+        // 하단 2장 (아래 블록)
+        const photo2StartRow = photoEndRow + 1;
+        const photo2EndRow = photo2StartRow + 11;
+        photoSheet.mergeCells(`A${photo2StartRow}:D${photo2EndRow}`);
+        photoSheet.mergeCells(`E${photo2StartRow}:H${photo2EndRow}`);
+
+        for (let r = photoStartRow; r <= photo2EndRow; r++) {
+          photoSheet.getRow(r).height = 24;
+          for (let c = 1; c <= 8; c++) {
+            photoSheet.getRow(r).getCell(c).border = { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } };
+          }
+        }
+
+        // 최대 4장 삽입
+        const positions = [
+          { tl: { col: 0, row: photoStartRow - 1 }, br: { col: 4, row: photoEndRow + 1 } },
+          { tl: { col: 4, row: photoStartRow - 1 }, br: { col: 8, row: photoEndRow + 1 } },
+          { tl: { col: 0, row: photo2StartRow - 1 }, br: { col: 4, row: photo2EndRow + 1 } },
+          { tl: { col: 4, row: photo2StartRow - 1 }, br: { col: 8, row: photo2EndRow + 1 } },
+        ];
+
+        for (let pi = 0; pi < Math.min(images.length, 4); pi++) {
+          try {
+            const objectFile = await objService.getObjectEntityFile(images[pi]);
+            const [imgBuffer] = await objectFile.download();
+            const base64 = imgBuffer.toString("base64");
+            const contentType = images[pi].toLowerCase().endsWith(".png") ? "png" : "jpeg";
+            const imageId = workbook.addImage({ base64, extension: contentType as "png" | "jpeg" });
+            (photoSheet as any).addImage(imageId, { ...positions[pi], editAs: "oneCell" });
+          } catch (e) {
+            console.error(`사진 삽입 실패 ${dept} #${pi}:`, e);
+          }
+        }
+
+        // 레이블 행
+        const labelRow1 = photo2EndRow + 1;
+        photoSheet.mergeCells(`A${labelRow1}:D${labelRow1}`);
+        photoSheet.mergeCells(`E${labelRow1}:H${labelRow1}`);
+        ["A", "E"].forEach(col => {
+          const cell = photoSheet.getCell(`${col}${labelRow1}`);
+          cell.value = "교육사진";
+          cell.font = { bold: true, size: 10 };
+          cell.alignment = { horizontal: "center", vertical: "middle" };
+          cell.border = { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } };
+        });
+        photoSheet.getRow(labelRow1).height = 24;
+
+        currentRow = labelRow1 + 1;
+      }
+
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader("Content-Disposition", `attachment; filename*=UTF-8''${encodeURIComponent(`${task.title}_안전보건교육_${task.startDate}`)}.xlsx`);
+      await workbook.xlsx.write(res);
+      res.end();
+    } catch (e: any) {
+      console.error("Task Excel error:", e);
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   app.put('/api/education-tasks/:id', requireEditor, async (req: any, res) => {
     try {
       const task = await storage.updateEducationTask(Number(req.params.id), req.body);

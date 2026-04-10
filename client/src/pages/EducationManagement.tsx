@@ -11,6 +11,7 @@ import {
   RotateCcw, X, Paperclip, Upload, Pencil, BookOpen, Link2,
   ChevronDown, ChevronUp, Users, Calendar, Clock,
   Copy, ExternalLink, Send, QrCode, GraduationCap, Download, Eye,
+  ImagePlus, Camera, Save,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,6 +30,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Textarea } from "@/components/ui/textarea";
 import type { EducationTask, EducationSession } from "@shared/schema";
 
 type EducationTaskWithLinked = EducationTask & { linkedSessionCount?: number };
@@ -122,6 +124,64 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
     }
   }, [isLoading, sessions.length, taskId]);
 
+  // 편집 다이얼로그 상태
+  const [editingSession, setEditingSession] = useState<SessionWithSigs | null>(null);
+  const [editDesc, setEditDesc] = useState("");
+  const [editImages, setEditImages] = useState<string[]>([]);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const photoEditRef = useRef<HTMLInputElement>(null);
+
+  const openEdit = (s: SessionWithSigs) => {
+    setEditingSession(s);
+    setEditDesc(s.description || "");
+    setEditImages([...(s.images || [])]);
+  };
+
+  const handlePhotoUpload = async (files: FileList) => {
+    if (editImages.length >= 4) {
+      toast({ title: "사진은 최대 4장까지 등록 가능합니다.", variant: "destructive" });
+      return;
+    }
+    setUploadingPhoto(true);
+    try {
+      const newImages = [...editImages];
+      for (const file of Array.from(files)) {
+        if (newImages.length >= 4) break;
+        const res = await apiRequest("POST", "/api/uploads/request-url", {
+          name: file.name, size: file.size, contentType: file.type,
+        });
+        const { uploadURL, objectPath } = await res.json();
+        await fetch(uploadURL, { method: "PUT", body: file, headers: { "Content-Type": file.type } });
+        newImages.push(objectPath);
+      }
+      setEditImages(newImages);
+    } catch {
+      toast({ title: "사진 업로드 실패", variant: "destructive" });
+    } finally {
+      setUploadingPhoto(false);
+      if (photoEditRef.current) photoEditRef.current.value = "";
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingSession) return;
+    setSavingEdit(true);
+    try {
+      await apiRequest("PATCH", `/api/education-sessions/${editingSession.id}`, {
+        description: editDesc,
+        images: editImages,
+      });
+      await refetch();
+      toast({ title: "저장되었습니다." });
+      setEditingSession(null);
+    } catch {
+      toast({ title: "저장 실패", variant: "destructive" });
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
   const copyLink = (sessionId: number) => {
     const url = `${window.location.origin}/sign/${sessionId}`;
     navigator.clipboard.writeText(url).then(() => {
@@ -140,86 +200,173 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
 
   const expectedDepts = getExpectedDepts(task);
 
+  const SessionRow = ({ s }: { s: SessionWithSigs }) => {
+    const signedRate = s.totalParticipants > 0 ? Math.round((s.signedCount / s.totalParticipants) * 100) : 0;
+    const isDone = s.status === "완료" || signedRate >= 100;
+    const hasContent = !!(s.description || (s.images && s.images.length > 0));
+    return (
+      <div className="flex items-center gap-2 px-5 py-2.5 hover:bg-muted/20 transition-colors">
+        {isDone
+          ? <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+          : <Clock className="w-4 h-4 text-amber-400 shrink-0" />
+        }
+        <span className="flex-1 text-sm font-medium">{s.department}</span>
+        {hasContent && (
+          <span className="text-[10px] text-primary/60 flex items-center gap-0.5">
+            <Camera className="w-3 h-3" />{(s.images || []).length}
+          </span>
+        )}
+        <Badge
+          className={`text-[10px] ${isDone ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-amber-50 text-amber-600 border-amber-300"}`}
+          variant={isDone ? "default" : "outline"}
+        >
+          {isDone ? "완료" : "진행중"}
+        </Badge>
+        <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-blue-600"
+          onClick={() => openEdit(s)} title="교육내용/사진 등록" data-testid={`button-edit-session-${s.id}`}>
+          <Pencil className="w-3.5 h-3.5" />
+        </Button>
+        <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-primary"
+          onClick={() => copyLink(s.id)} title="서명 링크 복사" data-testid={`button-copy-link-${s.id}`}>
+          <Copy className="w-3.5 h-3.5" />
+        </Button>
+        <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-primary"
+          asChild data-testid={`button-open-sign-${s.id}`}>
+          <a href={`/sign/${s.id}`} target="_blank" rel="noopener noreferrer" title="서명 페이지 열기">
+            <Eye className="w-3.5 h-3.5" />
+          </a>
+        </Button>
+        <span className="text-xs text-muted-foreground flex items-center gap-1 min-w-[48px] justify-end">
+          <Users className="w-3.5 h-3.5" />
+          {s.signedCount}/{s.totalParticipants}명
+        </span>
+      </div>
+    );
+  };
+
   return (
-    <div className="border-t divide-y">
-      {expectedDepts.map(dept => {
-        const s = sessions.find(ss => ss.department === dept);
-        if (s) {
-          const signedRate = s.totalParticipants > 0 ? Math.round((s.signedCount / s.totalParticipants) * 100) : 0;
-          const isDone = s.status === "완료" || signedRate >= 100;
+    <>
+      <div className="border-t divide-y">
+        {expectedDepts.map(dept => {
+          const s = sessions.find(ss => ss.department === dept);
+          if (s) return <SessionRow key={dept} s={s} />;
           return (
-            <div key={dept} className="flex items-center gap-3 px-5 py-2.5 hover:bg-muted/20 transition-colors">
-              {isDone
-                ? <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                : <Clock className="w-4 h-4 text-amber-400 shrink-0" />
-              }
-              <span className="flex-1 text-sm font-medium">{dept}</span>
-              <Badge
-                className={`text-[10px] ${isDone ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-amber-50 text-amber-600 border-amber-300"}`}
-                variant={isDone ? "default" : "outline"}
-              >
-                {isDone ? "완료" : "진행중"}
-              </Badge>
-              <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-primary"
-                onClick={() => copyLink(s.id)} title="서명 링크 복사" data-testid={`button-copy-link-${s.id}`}>
-                <Copy className="w-3.5 h-3.5" />
-              </Button>
-              <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-primary"
-                asChild data-testid={`button-open-sign-${s.id}`}>
-                <a href={`/sign/${s.id}`} target="_blank" rel="noopener noreferrer" title="서명 페이지 열기">
-                  <Eye className="w-3.5 h-3.5" />
-                </a>
-              </Button>
-              <span className="text-xs text-muted-foreground flex items-center gap-1 min-w-[52px] justify-end">
-                <Users className="w-3.5 h-3.5" />
-                {s.signedCount}/{s.totalParticipants}명
-              </span>
+            <div key={dept} className="flex items-center gap-2 px-5 py-2.5 text-muted-foreground/60">
+              <div className="w-4 h-4 rounded-full border-2 border-muted-foreground/25 shrink-0" />
+              <span className="flex-1 text-sm">{dept}</span>
+              <Badge variant="outline" className="text-[10px] text-muted-foreground/50 border-muted-foreground/20">미등록</Badge>
+              <div className="w-7" /><div className="w-7" /><div className="w-7" />
+              <span className="text-xs text-muted-foreground/40 min-w-[48px] text-right">-</span>
             </div>
           );
-        }
-        // 세션이 없는 부서: 미등록 행
-        return (
-          <div key={dept} className="flex items-center gap-3 px-5 py-2.5 text-muted-foreground/60">
-            <div className="w-4 h-4 rounded-full border-2 border-muted-foreground/25 shrink-0" />
-            <span className="flex-1 text-sm">{dept}</span>
-            <Badge variant="outline" className="text-[10px] text-muted-foreground/50 border-muted-foreground/20">
-              미등록
-            </Badge>
-            <div className="w-7" /><div className="w-7" />
-            <span className="text-xs text-muted-foreground/40 min-w-[52px] text-right">-</span>
+        })}
+        {sessions.filter(s => !expectedDepts.includes(s.department)).map(s => (
+          <SessionRow key={s.id} s={s} />
+        ))}
+      </div>
+
+      {/* 교육내용/사진 편집 다이얼로그 */}
+      <Dialog open={!!editingSession} onOpenChange={open => { if (!open) setEditingSession(null); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-base">
+              {editingSession?.department} — 교육내용 등록
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-1">
+            {/* 교육내용 */}
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">교육내용</Label>
+              <Textarea
+                placeholder="교육 내용을 입력하세요..."
+                value={editDesc}
+                onChange={e => setEditDesc(e.target.value)}
+                className="resize-none min-h-[90px] text-sm"
+                data-testid="textarea-edit-desc"
+              />
+            </div>
+
+            {/* 교육사진 (최대 4장) */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-medium">교육사진 ({editImages.length}/4장)</Label>
+                {editImages.length < 4 && (
+                  <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5"
+                    onClick={() => photoEditRef.current?.click()}
+                    disabled={uploadingPhoto}
+                    data-testid="button-add-photo"
+                  >
+                    {uploadingPhoto
+                      ? <div className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                      : <ImagePlus className="w-3.5 h-3.5" />
+                    }
+                    {uploadingPhoto ? "업로드 중..." : "사진 추가"}
+                  </Button>
+                )}
+              </div>
+              <input
+                ref={photoEditRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={e => e.target.files && e.target.files.length > 0 && handlePhotoUpload(e.target.files)}
+              />
+              {editImages.length === 0 ? (
+                <div className="border-2 border-dashed border-muted rounded-lg p-6 text-center text-muted-foreground cursor-pointer hover:border-primary/40 transition-colors"
+                  onClick={() => photoEditRef.current?.click()}>
+                  <Camera className="w-7 h-7 mx-auto mb-1.5 opacity-30" />
+                  <p className="text-xs">클릭하여 교육 사진을 추가하세요 (최대 4장)</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  {editImages.map((img, idx) => (
+                    <div key={idx} className="relative group rounded-lg overflow-hidden border aspect-video bg-muted">
+                      <img src={img} alt={`사진 ${idx + 1}`} className="w-full h-full object-cover" />
+                      <button
+                        className="absolute top-1 right-1 bg-black/60 text-white rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => setEditImages(prev => prev.filter((_, i) => i !== idx))}
+                        data-testid={`button-remove-photo-${idx}`}
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                      <span className="absolute bottom-1 left-1 bg-black/50 text-white text-[10px] px-1 rounded">{idx + 1}</span>
+                    </div>
+                  ))}
+                  {editImages.length < 4 && (
+                    <div className="border-2 border-dashed border-muted rounded-lg aspect-video flex items-center justify-center cursor-pointer hover:border-primary/40 transition-colors"
+                      onClick={() => photoEditRef.current?.click()}>
+                      <ImagePlus className="w-5 h-5 text-muted-foreground/40" />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* 참석자 서명 링크 */}
+            {editingSession && (
+              <div className="flex items-center gap-2 p-3 bg-muted/30 rounded-lg text-xs text-muted-foreground">
+                <Users className="w-3.5 h-3.5 shrink-0" />
+                <span>서명 현황: <strong className="text-foreground">{editingSession.signedCount}/{editingSession.totalParticipants}명</strong></span>
+                <a href={`/sign/${editingSession.id}`} target="_blank" rel="noopener noreferrer"
+                  className="ml-auto text-primary hover:underline flex items-center gap-1">
+                  <Eye className="w-3 h-3" />서명 페이지
+                </a>
+              </div>
+            )}
           </div>
-        );
-      })}
-      {sessions.filter(s => !expectedDepts.includes(s.department)).map(s => {
-        const isDone = s.status === "완료" || (s.totalParticipants > 0 && s.signedCount >= s.totalParticipants);
-        return (
-          <div key={s.id} className="flex items-center gap-3 px-5 py-2.5 hover:bg-muted/20 transition-colors">
-            {isDone
-              ? <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-              : <Clock className="w-4 h-4 text-amber-400 shrink-0" />
-            }
-            <span className="flex-1 text-sm font-medium">{s.department}</span>
-            <Badge className={`text-[10px] ${isDone ? "bg-emerald-100 text-emerald-700" : "bg-amber-50 text-amber-600 border-amber-300"}`} variant={isDone ? "default" : "outline"}>
-              {isDone ? "완료" : "진행중"}
-            </Badge>
-            <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-primary"
-              onClick={() => copyLink(s.id)} title="서명 링크 복사" data-testid={`button-copy-link-extra-${s.id}`}>
-              <Copy className="w-3.5 h-3.5" />
+
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setEditingSession(null)}>취소</Button>
+            <Button onClick={handleSaveEdit} disabled={savingEdit} className="gap-1.5" data-testid="button-save-session">
+              {savingEdit ? <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+              저장
             </Button>
-            <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-primary"
-              asChild data-testid={`button-open-sign-extra-${s.id}`}>
-              <a href={`/sign/${s.id}`} target="_blank" rel="noopener noreferrer" title="서명 페이지 열기">
-                <Eye className="w-3.5 h-3.5" />
-              </a>
-            </Button>
-            <span className="text-xs text-muted-foreground flex items-center gap-1 min-w-[52px] justify-end">
-              <Users className="w-3.5 h-3.5" />
-              {s.signedCount}/{s.totalParticipants}명
-            </span>
-          </div>
-        );
-      })}
-    </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -418,15 +565,13 @@ export default function EducationManagement() {
 
   const [downloadingTaskId, setDownloadingTaskId] = useState<number | null>(null);
   const handleTaskDownload = async (t: EducationTaskWithLinked) => {
-    if ((t.linkedSessionCount ?? 0) === 0) {
-      toast({ title: "연결된 교육일지가 없습니다.", description: "교육일지를 먼저 생성하세요.", variant: "destructive" });
-      return;
-    }
     setDownloadingTaskId(t.id);
     try {
-      const params = new URLSearchParams({ title: t.title, date: t.startDate });
-      const res = await fetch(`/api/education-sessions/group-excel?${params}`, { credentials: "include" });
-      if (!res.ok) throw new Error("다운로드 실패");
+      const res = await fetch(`/api/education-tasks/${t.id}/excel`, { credentials: "include" });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || "다운로드 실패");
+      }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -437,8 +582,8 @@ export default function EducationManagement() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       toast({ title: "교육일지 엑셀이 다운로드되었습니다." });
-    } catch {
-      toast({ title: "다운로드 실패", variant: "destructive" });
+    } catch (e: any) {
+      toast({ title: "다운로드 실패", description: e.message, variant: "destructive" });
     } finally {
       setDownloadingTaskId(null);
     }
