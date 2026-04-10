@@ -1762,8 +1762,8 @@ export async function registerRoutes(
         photoSheet.getRow(deptRowNum).height = 28;
         currentRow++;
 
-        // Photo area: 5 rows (1/4 크기)
-        const G_PHOTO_ROWS = 5;
+        // Photo area: 8 rows
+        const G_PHOTO_ROWS = 8;
         const G_PHOTO_ROW_H = 28;
         const photoStartRow = currentRow;
         const photoEndRow = currentRow + G_PHOTO_ROWS - 1;
@@ -1782,7 +1782,7 @@ export async function registerRoutes(
             const objectFile = await objService.getObjectEntityFile(images[pi]);
             const [rawBuf] = await objectFile.download();
             const sharp = (await import("sharp")).default;
-            const procBuf = await sharp(rawBuf).rotate().resize(450, 300, { fit:"inside", withoutEnlargement:true }).jpeg({ quality:82, mozjpeg:true }).toBuffer();
+            const procBuf = await sharp(rawBuf).rotate().resize(700, 460, { fit:"inside", withoutEnlargement:true }).jpeg({ quality:92, mozjpeg:true }).toBuffer();
             const imageId = workbook.addImage({ base64: procBuf.toString("base64"), extension: "jpeg" });
             if (pi === 0) {
               (photoSheet as any).addImage(imageId, { tl:{col:0, row:photoStartRow-1}, br:{col:4, row:photoEndRow}, editAs:"oneCell" });
@@ -6727,8 +6727,8 @@ ${htmlDraft}
       const sharp = (await import("sharp")).default;
       const buf = await sharp(rawBuffer)
         .rotate()                                          // EXIF 방향 자동 보정
-        .resize(450, 300, { fit: "inside", withoutEnlargement: true })
-        .jpeg({ quality: 82, mozjpeg: true })
+        .resize(700, 460, { fit: "inside", withoutEnlargement: true })
+        .jpeg({ quality: 92, mozjpeg: true })
         .toBuffer();
       return { buffer: buf, ext: "jpeg" };
     } catch {
@@ -6948,7 +6948,7 @@ ${htmlDraft}
     photoSheet.getRow(3).height = 6;  // 구분선
 
     const PHOTO_ROW_H = 28;    // 행 높이(pt)
-    const PHOTO_ROWS  = 5;     // 사진 1장당 행 수 (1/4 크기)
+    const PHOTO_ROWS  = 8;     // 사진 1장당 행 수
 
     // 상단 2장(A~D, E~H)
     const topStart = 4;
