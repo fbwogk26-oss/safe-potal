@@ -764,7 +764,10 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">선택 안함</SelectItem>
-                        {DEPARTMENTS.map(d => (
+                        {(task.headquarters && TEAMS_BY_HQ[task.headquarters]
+                          ? TEAMS_BY_HQ[task.headquarters]
+                          : DEPARTMENTS
+                        ).map(d => (
                           <SelectItem key={d} value={d}>{d}</SelectItem>
                         ))}
                       </SelectContent>
