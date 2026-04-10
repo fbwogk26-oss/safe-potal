@@ -1677,7 +1677,7 @@ export async function registerRoutes(
                 const base64Part = sigData.split(",")[1];
                 const ext = sigData.includes("image/png") ? "png" : "jpeg";
                 const imageId = workbook.addImage({ base64: base64Part, extension: ext as "png" | "jpeg" });
-                (sigSheet as any).addImage(imageId, { tl: { col: 2, row: 4 + i }, br: { col: 3, row: 5 + i }, editAs: "oneCell" });
+                (sigSheet as any).addImage(imageId, { tl: { col: 2.04, row: 4 + i + 0.08 }, br: { col: 2.96, row: 5 + i - 0.08 }, editAs: "oneCell" });
               }
             } catch (e) { /* skip */ }
           }
@@ -1701,7 +1701,7 @@ export async function registerRoutes(
                 const base64Part = sigData.split(",")[1];
                 const ext = sigData.includes("image/png") ? "png" : "jpeg";
                 const imageId = workbook.addImage({ base64: base64Part, extension: ext as "png" | "jpeg" });
-                (sigSheet as any).addImage(imageId, { tl: { col: 5, row: 4 + i }, br: { col: 6, row: 5 + i }, editAs: "oneCell" });
+                (sigSheet as any).addImage(imageId, { tl: { col: 5.04, row: 4 + i + 0.08 }, br: { col: 5.96, row: 5 + i - 0.08 }, editAs: "oneCell" });
               }
             } catch (e) { /* skip */ }
           }
@@ -6840,8 +6840,8 @@ ${htmlDraft}
           if (processed) {
             const imgId = workbook.addImage({ base64: processed.base64, extension: processed.ext });
             (sigSheet as any).addImage(imgId, {
-              tl: { col: 2, row: headerRow + i },
-              br: { col: 3, row: headerRow + 1 + i },
+              tl: { col: 2.04, row: headerRow + i + 0.08 },
+              br: { col: 2.96, row: headerRow + 1 + i - 0.08 },
               editAs: "oneCell",
             });
           }
@@ -6867,8 +6867,8 @@ ${htmlDraft}
           if (processed) {
             const imgId = workbook.addImage({ base64: processed.base64, extension: processed.ext });
             (sigSheet as any).addImage(imgId, {
-              tl: { col: 5, row: headerRow + i },
-              br: { col: 6, row: headerRow + 1 + i },
+              tl: { col: 5.04, row: headerRow + i + 0.08 },
+              br: { col: 5.96, row: headerRow + 1 + i - 0.08 },
               editAs: "oneCell",
             });
           }
