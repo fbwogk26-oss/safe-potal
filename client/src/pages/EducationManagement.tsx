@@ -33,7 +33,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
 import type { EducationTask, EducationSession } from "@shared/schema";
 
-type EducationTaskWithLinked = EducationTask & { linkedSessionCount?: number };
+type EducationTaskWithLinked = EducationTask & { linkedSessionCount?: number; totalParticipantsSum?: number };
 
 const FIELDS = ["안전/보건", "법령", "이벤트"] as const;
 const SCOPES = ["전사", "본부", "지정", "안전보건업무 부서"] as const;
@@ -1236,9 +1236,14 @@ export default function EducationManagement() {
                           {t.startDate} ~ {t.endDate}
                         </span>
                         {(t.linkedSessionCount ?? 0) > 0 && (
-                          <span className="flex items-center gap-1">
+                          <span className="flex items-center gap-1 font-medium text-foreground/70">
                             <Users className="w-3 h-3" />
                             {t.linkedSessionCount}개 부서
+                            {(t.totalParticipantsSum ?? 0) > 0 && (
+                              <span className="text-muted-foreground font-normal">
+                                · 교육 대상인원 <span className="font-semibold text-primary">{t.totalParticipantsSum}명</span>
+                              </span>
+                            )}
                           </span>
                         )}
                         {t.requestedBy && (

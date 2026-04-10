@@ -6584,10 +6584,11 @@ ${htmlDraft}
   app.get('/api/education-tasks', isAuthenticated, async (_req, res) => {
     try {
       const tasks = await storage.getEducationTasks();
-      // 연결된 세션 수(linkedSessionCount) 포함하여 반환
+      // 연결된 세션 수(linkedSessionCount) 및 총 대상인원 포함하여 반환
       const enriched = await Promise.all(tasks.map(async (t) => {
         const sessions = await storage.getSessionsByTaskId(t.id);
-        return { ...t, linkedSessionCount: sessions.length };
+        const totalParticipantsSum = sessions.reduce((sum, s) => sum + (s.totalParticipants || 0), 0);
+        return { ...t, linkedSessionCount: sessions.length, totalParticipantsSum };
       }));
       res.json(enriched);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
