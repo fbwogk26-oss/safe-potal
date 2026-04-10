@@ -341,7 +341,6 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
 
   // 서명자 목록 확인 다이얼로그
   const [viewSigSession, setViewSigSession] = useState<SessionWithSigs | null>(null);
-  const [viewSigTab, setViewSigTab] = useState<"list" | "preview">("list");
   const { data: viewSigs = [], isLoading: sigsLoading } = useQuery<any[]>({
     queryKey: ["/api/education-sessions", viewSigSession?.id, "signatures"],
     queryFn: () => fetch(`/api/education-sessions/${viewSigSession!.id}/signatures`, { credentials: "include" }).then(r => r.json()),
@@ -658,7 +657,7 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
       </Dialog>
 
       {/* 서명자 목록 확인 다이얼로그 */}
-      <Dialog open={!!viewSigSession} onOpenChange={open => { if (!open) { setViewSigSession(null); setViewSigTab("list"); } }}>
+      <Dialog open={!!viewSigSession} onOpenChange={open => { if (!open) setViewSigSession(null); }}>
         <DialogContent className="max-w-lg max-h-[85vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base">
@@ -667,154 +666,84 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
             </DialogTitle>
           </DialogHeader>
 
-          {/* 탭 */}
-          <div className="flex gap-1 border-b pb-0 -mx-1">
-            <button
-              onClick={() => setViewSigTab("list")}
-              className={`px-3 py-1.5 text-xs font-medium rounded-t border-b-2 transition-colors ${
-                viewSigTab === "list"
-                  ? "border-primary text-primary"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              서명자 목록
-            </button>
-            <button
-              onClick={() => setViewSigTab("preview")}
-              className={`px-3 py-1.5 text-xs font-medium rounded-t border-b-2 transition-colors ${
-                viewSigTab === "preview"
-                  ? "border-primary text-primary"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              양식 미리보기
-            </button>
-          </div>
-
-          {viewSigTab === "list" ? (
-            <>
-              <div className="flex items-center text-xs text-muted-foreground px-1">
-                <span>총 {viewSigs.length}명 서명 완료</span>
+          <div className="flex-1 overflow-y-auto">
+            <div className="border rounded-lg bg-white dark:bg-card text-foreground p-4 space-y-3 text-[11px]">
+              <div className="text-center pb-2 border-b">
+                <p className="text-[15px] font-bold tracking-wide">안전보건교육 참석자 서명부</p>
               </div>
-              <div className="flex-1 overflow-y-auto divide-y border rounded-lg">
-                {sigsLoading ? (
-                  <div className="flex items-center justify-center py-8 text-muted-foreground text-sm gap-2">
-                    <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                    불러오는 중...
-                  </div>
-                ) : viewSigs.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-10 text-muted-foreground gap-2">
-                    <Users className="w-8 h-8 opacity-20" />
-                    <p className="text-sm">아직 서명한 인원이 없습니다.</p>
-                  </div>
-                ) : (
-                  viewSigs.map((sig: any, idx: number) => (
-                    <div key={sig.id} className="flex items-center gap-3 px-3 py-2.5 hover:bg-muted/20">
-                      <div className="w-7 h-7 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 text-xs font-bold shrink-0">
-                        {idx + 1}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium leading-tight">{sig.signerName}</p>
-                        {sig.signerDepartment && (
-                          <p className="text-xs text-muted-foreground">{sig.signerDepartment}</p>
-                        )}
-                      </div>
-                      {sig.signatureData && (
-                        <img src={sig.signatureData} alt="서명" className="h-8 w-16 object-contain border rounded bg-white" />
-                      )}
-                      <span className="text-[10px] text-muted-foreground shrink-0">
-                        {sig.signedAt ? new Date(sig.signedAt).toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }) : ""}
-                      </span>
-                    </div>
-                  ))
-                )}
-              </div>
-            </>
-          ) : (
-            /* 양식 미리보기 */
-            <div className="flex-1 overflow-y-auto">
-              <div className="border rounded-lg bg-white dark:bg-card text-foreground p-4 space-y-3 text-[11px]">
-                {/* 제목 */}
-                <div className="text-center pb-2 border-b">
-                  <p className="text-[15px] font-bold tracking-wide">안전보건교육 참석자 서명부</p>
-                </div>
-                {/* 교육 정보 테이블 */}
-                <table className="w-full border-collapse border border-gray-400 text-[10px]">
-                  <tbody>
+              <table className="w-full border-collapse border border-gray-400 text-[10px]">
+                <tbody>
+                  <tr>
+                    <td className="border border-gray-400 bg-muted px-2 py-1 font-semibold w-20">교 육 명</td>
+                    <td className="border border-gray-400 px-2 py-1" colSpan={3}>{viewSigSession?.title || task.title}</td>
+                  </tr>
+                  <tr>
+                    <td className="border border-gray-400 bg-muted px-2 py-1 font-semibold">교육일자</td>
+                    <td className="border border-gray-400 px-2 py-1">
+                      {viewSigSession?.educationDate}{viewSigSession?.educationEndDate && viewSigSession.educationEndDate !== viewSigSession.educationDate ? ` ~ ${viewSigSession.educationEndDate}` : ""}
+                    </td>
+                    <td className="border border-gray-400 bg-muted px-2 py-1 font-semibold w-16">교육종류</td>
+                    <td className="border border-gray-400 px-2 py-1">{viewSigSession?.educationType}</td>
+                  </tr>
+                  <tr>
+                    <td className="border border-gray-400 bg-muted px-2 py-1 font-semibold">대상부서</td>
+                    <td className="border border-gray-400 px-2 py-1">{viewSigSession?.department}</td>
+                    <td className="border border-gray-400 bg-muted px-2 py-1 font-semibold">강 사 명</td>
+                    <td className="border border-gray-400 px-2 py-1">{viewSigSession?.instructor || "-"}</td>
+                  </tr>
+                </tbody>
+              </table>
+              <table className="w-full border-collapse border border-gray-400 text-[10px]">
+                <thead>
+                  <tr className="bg-muted">
+                    <th className="border border-gray-400 px-2 py-1.5 font-semibold text-center w-8">순번</th>
+                    <th className="border border-gray-400 px-2 py-1.5 font-semibold text-center w-20">성 명</th>
+                    <th className="border border-gray-400 px-2 py-1.5 font-semibold text-center">소 속</th>
+                    <th className="border border-gray-400 px-2 py-1.5 font-semibold text-center w-28">서 명</th>
+                    <th className="border border-gray-400 px-2 py-1.5 font-semibold text-center w-20">서명일시</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sigsLoading ? (
                     <tr>
-                      <td className="border border-gray-400 bg-muted px-2 py-1 font-semibold w-20">교 육 명</td>
-                      <td className="border border-gray-400 px-2 py-1" colSpan={3}>{viewSigSession?.title || task.title}</td>
+                      <td colSpan={5} className="border border-gray-400 py-4 text-center text-muted-foreground">불러오는 중...</td>
                     </tr>
+                  ) : viewSigs.length === 0 ? (
                     <tr>
-                      <td className="border border-gray-400 bg-muted px-2 py-1 font-semibold">교육일자</td>
-                      <td className="border border-gray-400 px-2 py-1">
-                        {viewSigSession?.educationDate}{viewSigSession?.educationEndDate && viewSigSession.educationEndDate !== viewSigSession.educationDate ? ` ~ ${viewSigSession.educationEndDate}` : ""}
-                      </td>
-                      <td className="border border-gray-400 bg-muted px-2 py-1 font-semibold w-16">교육종류</td>
-                      <td className="border border-gray-400 px-2 py-1">{viewSigSession?.educationType}</td>
+                      <td colSpan={5} className="border border-gray-400 py-4 text-center text-muted-foreground">아직 서명한 인원이 없습니다.</td>
                     </tr>
-                    <tr>
-                      <td className="border border-gray-400 bg-muted px-2 py-1 font-semibold">대상부서</td>
-                      <td className="border border-gray-400 px-2 py-1">{viewSigSession?.department}</td>
-                      <td className="border border-gray-400 bg-muted px-2 py-1 font-semibold">강 사 명</td>
-                      <td className="border border-gray-400 px-2 py-1">{viewSigSession?.instructor || "-"}</td>
-                    </tr>
-                  </tbody>
-                </table>
-                {/* 서명 테이블 */}
-                <table className="w-full border-collapse border border-gray-400 text-[10px]">
-                  <thead>
-                    <tr className="bg-muted">
-                      <th className="border border-gray-400 px-2 py-1.5 font-semibold text-center w-8">순번</th>
-                      <th className="border border-gray-400 px-2 py-1.5 font-semibold text-center w-20">성 명</th>
-                      <th className="border border-gray-400 px-2 py-1.5 font-semibold text-center">소 속</th>
-                      <th className="border border-gray-400 px-2 py-1.5 font-semibold text-center w-28">서 명</th>
-                      <th className="border border-gray-400 px-2 py-1.5 font-semibold text-center w-20">서명일시</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sigsLoading ? (
-                      <tr>
-                        <td colSpan={5} className="border border-gray-400 py-4 text-center text-muted-foreground">불러오는 중...</td>
+                  ) : (
+                    viewSigs.map((sig: any, idx: number) => (
+                      <tr key={sig.id} className={idx % 2 === 0 ? "" : "bg-muted/20"}>
+                        <td className="border border-gray-400 px-2 py-1 text-center">{idx + 1}</td>
+                        <td className="border border-gray-400 px-2 py-1 text-center font-medium">{sig.signerName}</td>
+                        <td className="border border-gray-400 px-2 py-1 text-center">{sig.signerDepartment || viewSigSession?.department}</td>
+                        <td className="border border-gray-400 px-1 py-0.5 text-center">
+                          {sig.signatureData
+                            ? <img src={sig.signatureData} alt="서명" className="h-8 mx-auto object-contain" />
+                            : <span className="text-muted-foreground">-</span>
+                          }
+                        </td>
+                        <td className="border border-gray-400 px-1 py-1 text-center text-[9px] text-muted-foreground">
+                          {sig.signedAt ? new Date(sig.signedAt).toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }) : "-"}
+                        </td>
                       </tr>
-                    ) : viewSigs.length === 0 ? (
-                      <tr>
-                        <td colSpan={5} className="border border-gray-400 py-4 text-center text-muted-foreground">아직 서명한 인원이 없습니다.</td>
-                      </tr>
-                    ) : (
-                      viewSigs.map((sig: any, idx: number) => (
-                        <tr key={sig.id} className={idx % 2 === 0 ? "" : "bg-muted/20"}>
-                          <td className="border border-gray-400 px-2 py-1 text-center">{idx + 1}</td>
-                          <td className="border border-gray-400 px-2 py-1 text-center font-medium">{sig.signerName}</td>
-                          <td className="border border-gray-400 px-2 py-1 text-center">{sig.signerDepartment || viewSigSession?.department}</td>
-                          <td className="border border-gray-400 px-1 py-0.5 text-center">
-                            {sig.signatureData
-                              ? <img src={sig.signatureData} alt="서명" className="h-8 mx-auto object-contain" />
-                              : <span className="text-muted-foreground">-</span>
-                            }
-                          </td>
-                          <td className="border border-gray-400 px-1 py-1 text-center text-[9px] text-muted-foreground">
-                            {sig.signedAt ? new Date(sig.signedAt).toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }) : "-"}
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-                {/* 하단 서명 */}
-                <div className="flex justify-end gap-6 pt-1 text-[10px] text-muted-foreground">
-                  <span>대상인원: <strong className="text-foreground">{viewSigSession?.totalParticipants}명</strong></span>
-                  <span>서명완료: <strong className="text-foreground">{viewSigs.length}명</strong></span>
-                </div>
+                    ))
+                  )}
+                </tbody>
+              </table>
+              <div className="flex justify-end gap-6 pt-1 text-[10px] text-muted-foreground">
+                <span>대상인원: <strong className="text-foreground">{viewSigSession?.totalParticipants}명</strong></span>
+                <span>서명완료: <strong className="text-foreground">{viewSigs.length}명</strong></span>
               </div>
             </div>
-          )}
+          </div>
 
           <DialogFooter className="pt-2">
             <Button variant="outline" size="sm" onClick={() => copyLink(viewSigSession!.id)} className="gap-1.5 text-xs">
               <Copy className="w-3.5 h-3.5" /> 서명 링크 복사
             </Button>
-            <Button size="sm" onClick={() => { setViewSigSession(null); setViewSigTab("list"); }}>닫기</Button>
+            <Button size="sm" onClick={() => setViewSigSession(null)}>닫기</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
