@@ -172,6 +172,8 @@ export default function PublicSign() {
 
   const deptDiffers = !!session && !!signerDept && signerDept !== session.department;
 
+  const [signError, setSignError] = useState<string | null>(null);
+
   const signMutation = useMutation({
     mutationFn: async () => {
       const res = await fetch(`/api/public/education/${id}/sign`, {
@@ -180,16 +182,17 @@ export default function PublicSign() {
         body: JSON.stringify({ signerName, signerDepartment: signerDept, signatureData, consentAgreed }),
       });
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.message || "서명 등록 실패");
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || "서명 등록에 실패했습니다. 다시 시도해주세요.");
       }
       return res.json();
     },
     onSuccess: () => {
+      setSignError(null);
       setSubmitted(true);
     },
     onError: (err: any) => {
-      toast({ variant: "destructive", title: "서명 실패", description: err.message });
+      setSignError(err.message);
     },
   });
 
@@ -397,6 +400,12 @@ export default function PublicSign() {
                 </label>
               </div>
 
+              {signError && (
+                <div className="flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2.5 text-sm text-destructive">
+                  <span className="mt-0.5 shrink-0">⚠️</span>
+                  <span>{signError}</span>
+                </div>
+              )}
               <Button
                 className="w-full gap-2"
                 onClick={handleSubmit}

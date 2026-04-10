@@ -370,6 +370,7 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
     setSigData("");
     setSigPadKey(k => k + 1);
     setDetailSigs([]);
+    setSignError(null);
     fetch(`/api/education-sessions/${s.id}/signatures`, { credentials: "include" })
       .then(r => r.json()).then(setDetailSigs).catch(() => {});
   };
@@ -404,11 +405,14 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
     finally { setDetailSaving(false); }
   };
 
+  const [signError, setSignError] = useState<string | null>(null);
+
   const handleInlineSign = async () => {
     if (!detailSession || !signerName.trim() || !sigData) {
       toast({ title: "이름과 서명을 입력해주세요.", variant: "destructive" }); return;
     }
     setSigning(true);
+    setSignError(null);
     try {
       const effectiveDept = signerDept === "none" ? "" : signerDept.trim();
       const res = await fetch(`/api/public/education/${detailSession.id}/sign`, {
@@ -416,19 +420,26 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ signerName: signerName.trim(), signerDepartment: effectiveDept, signatureData: sigData, consentAgreed: true }),
       });
-      if (!res.ok) throw new Error("서명 실패");
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        const msg = errBody.message || "서명 등록에 실패했습니다. 다시 시도해주세요.";
+        setSignError(msg);
+        return;
+      }
       toast({ title: "서명이 완료되었습니다." });
       setSignerName("");
       setSignerDept("");
       setSigData("");
       setSigPadKey(k => k + 1);
+      setSignError(null);
       await refetch();
       const updated = await fetch(`/api/education-sessions/${detailSession.id}/signatures`, { credentials: "include" }).then(r => r.json());
       setDetailSigs(updated);
       const updatedSession = (await fetch(`/api/education-tasks/${taskId}/sessions`, { credentials: "include" }).then(r => r.json()) as SessionWithSigs[]).find(ss => ss.id === detailSession.id);
       if (updatedSession) setDetailSession(updatedSession);
-    } catch { toast({ title: "서명 실패. 다시 시도해주세요.", variant: "destructive" }); }
-    finally { setSigning(false); }
+    } catch {
+      setSignError("네트워크 오류가 발생했습니다. 다시 시도해주세요.");
+    } finally { setSigning(false); }
   };
 
   if (isLoading || autoCreating) {
@@ -829,6 +840,12 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
                     <SignaturePad padKey={sigPadKey} onSave={data => setSigData(data)} onClear={() => setSigData("")} />
                   )}
                 </div>
+                {signError && (
+                  <div className="flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+                    <span className="mt-0.5 shrink-0">⚠️</span>
+                    <span>{signError}</span>
+                  </div>
+                )}
                 <Button className="w-full gap-1.5" disabled={signing || !signerName.trim() || !sigData}
                   onClick={handleInlineSign} data-testid="button-inline-sign">
                   {signing ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <PenTool className="w-4 h-4" />}
