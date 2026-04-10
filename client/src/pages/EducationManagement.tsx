@@ -510,9 +510,12 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
     const isDone = s.status === "완료" || signedRate >= 100;
     const hasContent = !!(s.description || (s.images && s.images.length > 0));
     return (
-      <div className="flex items-center pl-12 pr-5 py-2.5 hover:bg-muted/20 transition-colors">
-        {/* 체크박스 (w-6) */}
-        <div className="w-6 shrink-0 flex items-center" onClick={e => e.stopPropagation()}>
+      <div className={`relative flex items-center pl-12 pr-4 py-2 group transition-colors hover:bg-muted/30 ${isDone ? "hover:bg-emerald-50/40 dark:hover:bg-emerald-900/10" : ""}`}>
+        {/* 왼쪽 상태 컬러 라인 */}
+        <div className={`absolute left-0 top-1/4 bottom-1/4 w-0.5 rounded-r-full ${isDone ? "bg-emerald-400" : "bg-amber-300"}`} />
+
+        {/* 체크박스 */}
+        <div className="w-5 shrink-0 flex items-center" onClick={e => e.stopPropagation()}>
           <Checkbox
             checked={selectedSessionIds.has(s.id)}
             onCheckedChange={() => toggleSession(s.id)}
@@ -521,58 +524,52 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
           />
         </div>
 
-        {/* 상태 아이콘 (w-5) */}
-        <div className="w-5 shrink-0 flex items-center">
-          {isDone
-            ? <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-            : <Clock className="w-4 h-4 text-amber-400" />
-          }
-        </div>
-
-        {/* 부서명 (w-32) */}
+        {/* 부서명 + 상태 도트 */}
         <button
-          className="w-32 shrink-0 text-sm font-medium text-left hover:text-primary hover:underline underline-offset-2 transition-colors truncate pr-2"
+          className="w-32 shrink-0 flex items-center gap-1.5 text-left group/btn"
           onClick={() => openDetail(s)}
           data-testid={`button-detail-${s.id}`}
           title="상세 보기 / 서명"
         >
-          {s.department}
+          <span className={`text-sm font-semibold group-hover/btn:text-primary transition-colors truncate ${isDone ? "text-foreground" : "text-foreground"}`}>
+            {s.department}
+          </span>
         </button>
 
-        {/* 진행율 바 */}
-        <div className="w-80 shrink-0 flex items-center gap-2">
-          <span className="text-[11px] text-muted-foreground tabular-nums w-7 text-right shrink-0">{signedRate}%</span>
-          <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+        {/* 진행률 바 (flex-1) */}
+        <div className="flex-1 flex items-center gap-2.5 mx-3">
+          <span className="text-[11px] tabular-nums font-medium text-muted-foreground w-8 text-right shrink-0">
+            {signedRate}%
+          </span>
+          <div className="flex-1 h-2 bg-muted/60 rounded-full overflow-hidden">
             <div
-              className={`h-full rounded-full transition-all ${isDone ? "bg-emerald-500" : "bg-primary"}`}
+              className={`h-full rounded-full transition-all duration-500 ${
+                isDone
+                  ? "bg-gradient-to-r from-emerald-400 to-emerald-500"
+                  : signedRate > 50
+                  ? "bg-gradient-to-r from-primary/80 to-primary"
+                  : "bg-gradient-to-r from-primary/60 to-primary/90"
+              }`}
               style={{ width: `${signedRate}%` }}
             />
           </div>
         </div>
 
-        {/* 사진 수 (w-8, 항상 자리 차지) */}
+        {/* 사진 수 */}
         <div className="w-8 shrink-0 flex items-center justify-center">
           {hasContent && (
-            <span className="text-[10px] text-primary/60 flex items-center gap-0.5">
+            <span className="text-[10px] text-muted-foreground/70 flex items-center gap-0.5 font-medium">
               <Camera className="w-3 h-3" />{(s.images || []).length}
             </span>
           )}
         </div>
 
-        {/* 상태 배지 (w-14) */}
-        <div className="w-14 shrink-0 flex items-center justify-center">
-          <Badge
-            className={`text-[10px] ${isDone ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-amber-50 text-amber-600 border-amber-300"}`}
-            variant={isDone ? "default" : "outline"}
-          >
-            {isDone ? "완료" : "진행중"}
-          </Badge>
-        </div>
-
-        {/* 서명수 / 인원수 (고정) */}
-        <div className="flex items-center gap-1 text-xs text-muted-foreground shrink-0 ml-auto" onClick={e => e.stopPropagation()}>
-          <Users className="w-3.5 h-3.5 shrink-0" />
-          <span>{s.signedCount}/</span>
+        {/* 서명수 / 인원수 */}
+        <div className="flex items-center gap-1 text-xs shrink-0 ml-1" onClick={e => e.stopPropagation()}>
+          <span className={`font-semibold tabular-nums ${s.signedCount > 0 ? "text-primary" : "text-muted-foreground"}`}>
+            {s.signedCount}
+          </span>
+          <span className="text-muted-foreground/50">/</span>
           <input
             type="number"
             min={0}
@@ -584,54 +581,56 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
               const v = parseInt(e.target.value, 10);
               if (!isNaN(v) && v >= 0 && v !== s.totalParticipants) updateParticipants(s.id, v);
             }}
-            className="w-10 text-xs border rounded px-1 py-0.5 bg-background text-center focus:outline-none focus:ring-1 focus:ring-primary"
+            className="w-9 text-xs text-muted-foreground text-center bg-transparent border-b border-dashed border-muted-foreground/30 focus:outline-none focus:border-primary focus:text-foreground tabular-nums"
             data-testid={`input-participants-${s.id}`}
           />
-          <span>명</span>
+          <span className="text-muted-foreground text-[11px]">명</span>
         </div>
 
-        {/* 서명자 확인 버튼 (인원 수 뒤) */}
-        <div className="w-8 shrink-0 flex items-center justify-center">
-          <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-indigo-500"
-            onClick={() => setViewSigSession(s)} title="서명자 확인" data-testid={`button-view-sigs-${s.id}`}>
-            <Eye className="w-3.5 h-3.5" />
-          </Button>
-        </div>
+        {/* 서명자 확인 (호버 시만 표시) */}
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-7 w-7 ml-1 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-indigo-500"
+          onClick={() => setViewSigSession(s)}
+          title="서명자 확인"
+          data-testid={`button-view-sigs-${s.id}`}
+        >
+          <Eye className="w-3.5 h-3.5" />
+        </Button>
       </div>
     );
   };
 
   return (
     <>
-      {/* 패널 헤더: 체크박스 + 카운터 + 다운로드 */}
-      <div className="flex items-center gap-2 pl-12 pr-5 py-2 border-t bg-muted/20" onClick={e => e.stopPropagation()}>
+      {/* 패널 헤더 */}
+      <div className="flex items-center gap-3 pl-12 pr-4 py-1.5 border-t border-b bg-muted/10" onClick={e => e.stopPropagation()}>
         <Checkbox
           checked={sessions.length > 0 && selectedSessionIds.size === sessions.length}
           onCheckedChange={toggleAllSessions}
           className="w-3.5 h-3.5"
           data-testid="checkbox-session-all"
         />
-        <span className="text-[11px] text-muted-foreground tabular-nums">
+        <span className="text-[11px] text-muted-foreground">
           {selectedSessionIds.size > 0
-            ? <span className="text-primary font-medium">{selectedSessionIds.size}</span>
-            : <span>0</span>
+            ? <><span className="text-primary font-semibold">{selectedSessionIds.size}</span><span className="text-muted-foreground/60">/{sessions.length}</span><span className="ml-1">개 선택</span></>
+            : <span className="text-muted-foreground/60">{sessions.length}개 부서</span>
           }
-          <span className="mx-0.5">/</span>
-          {sessions.length}개 부서
         </span>
         <Button
           size="sm"
-          variant="outline"
-          className="h-7 text-xs gap-1.5 text-emerald-700 border-emerald-300 hover:bg-emerald-50 ml-auto"
+          variant={selectedSessionIds.size > 0 ? "default" : "ghost"}
+          className={`h-6 text-[11px] gap-1 ml-auto transition-all ${selectedSessionIds.size > 0 ? "bg-emerald-600 hover:bg-emerald-700 text-white" : "text-muted-foreground"}`}
           onClick={handleBatchDownload}
           disabled={selectedSessionIds.size === 0 || batchDownloading}
           data-testid="button-batch-session-excel"
         >
           {batchDownloading
-            ? <div className="w-3 h-3 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-            : <Download className="w-3.5 h-3.5" />
+            ? <div className="w-3 h-3 border-2 border-white/60 border-t-transparent rounded-full animate-spin" />
+            : <Download className="w-3 h-3" />
           }
-          엑셀 다운로드{selectedSessionIds.size > 0 ? ` (${selectedSessionIds.size}개)` : ""}
+          {selectedSessionIds.size > 0 ? `${selectedSessionIds.size}개 엑셀 저장` : "엑셀 다운로드"}
         </Button>
       </div>
 
@@ -640,13 +639,16 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
           const s = sessions.find(ss => ss.department === dept);
           if (s) return <SessionRow key={dept} s={s} />;
           return (
-            <div key={dept} className="flex items-center gap-2 pl-12 pr-5 py-2.5 text-muted-foreground/60">
-              <div className="w-3.5 h-3.5 shrink-0" />
-              <div className="w-4 h-4 rounded-full border-2 border-muted-foreground/25 shrink-0" />
-              <span className="flex-1 text-sm">{dept}</span>
-              <Badge variant="outline" className="text-[10px] text-muted-foreground/50 border-muted-foreground/20">미등록</Badge>
-              <div className="w-7" /><div className="w-7" />
-              <span className="text-xs text-muted-foreground/40 min-w-[48px] text-right">-</span>
+            <div key={dept} className="relative flex items-center pl-12 pr-4 py-2">
+              <div className="absolute left-0 top-1/4 bottom-1/4 w-0.5 rounded-r-full bg-muted-foreground/15" />
+              <div className="w-5 shrink-0" />
+              <span className="w-32 shrink-0 text-sm text-muted-foreground/50">{dept}</span>
+              <div className="flex-1 mx-3 flex items-center gap-2.5">
+                <span className="w-8 text-right text-[11px] text-muted-foreground/30">-</span>
+                <div className="flex-1 h-2 bg-muted/30 rounded-full" />
+              </div>
+              <div className="w-8 shrink-0" />
+              <span className="text-[10px] text-muted-foreground/30 shrink-0 px-1">미등록</span>
             </div>
           );
         })}
