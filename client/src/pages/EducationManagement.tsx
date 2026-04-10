@@ -264,22 +264,50 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
     }
   }, [isLoading, sessions.length, taskId, expectedLen]);
 
-  // 부서별 다운로드
-  const [downloadingSessionId, setDownloadingSessionId] = useState<number | null>(null);
-  const handleSessionDownload = async (s: SessionWithSigs) => {
-    setDownloadingSessionId(s.id);
+  // 부서별 체크박스 선택 다운로드
+  const [selectedSessionIds, setSelectedSessionIds] = useState<Set<number>>(new Set());
+  const [batchDownloading, setBatchDownloading] = useState(false);
+
+  const toggleSession = (id: number) => {
+    setSelectedSessionIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAllSessions = () => {
+    const allIds = sessions.filter(s => s.id).map(s => s.id);
+    if (selectedSessionIds.size === allIds.length) {
+      setSelectedSessionIds(new Set());
+    } else {
+      setSelectedSessionIds(new Set(allIds));
+    }
+  };
+
+  const handleBatchDownload = async () => {
+    if (selectedSessionIds.size === 0) {
+      toast({ title: "다운로드할 부서를 선택해주세요.", variant: "destructive" }); return;
+    }
+    setBatchDownloading(true);
     try {
-      const res = await fetch(`/api/education-tasks/${taskId}/sessions/${s.id}/excel`, { credentials: "include" });
+      const res = await fetch(`/api/education-tasks/${taskId}/sessions/batch-excel`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionIds: Array.from(selectedSessionIds) }),
+      });
       if (!res.ok) { toast({ title: "다운로드 실패", variant: "destructive" }); return; }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${s.department}_교육일지.xlsx`;
+      a.download = `선택부서_교육일지_${selectedSessionIds.size}개.xlsx`;
       a.click();
       URL.revokeObjectURL(url);
+      toast({ title: `${selectedSessionIds.size}개 부서 엑셀 다운로드 완료` });
     } catch { toast({ title: "다운로드 실패", variant: "destructive" }); }
-    finally { setDownloadingSessionId(null); }
+    finally { setBatchDownloading(false); }
   };
 
   // 편집 다이얼로그 상태
@@ -483,6 +511,15 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
     const hasContent = !!(s.description || (s.images && s.images.length > 0));
     return (
       <div className="flex items-center gap-2 px-5 py-2.5 hover:bg-muted/20 transition-colors">
+        {/* 체크박스 */}
+        <div onClick={e => e.stopPropagation()}>
+          <Checkbox
+            checked={selectedSessionIds.has(s.id)}
+            onCheckedChange={() => toggleSession(s.id)}
+            className="w-3.5 h-3.5"
+            data-testid={`checkbox-session-${s.id}`}
+          />
+        </div>
         {isDone
           ? <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
           : <Clock className="w-4 h-4 text-amber-400 shrink-0" />
@@ -522,13 +559,6 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
           onClick={() => setViewSigSession(s)} title="서명자 확인" data-testid={`button-view-sigs-${s.id}`}>
           <Eye className="w-3.5 h-3.5" />
         </Button>
-        <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-emerald-600 shrink-0"
-          onClick={() => handleSessionDownload(s)} title="부서별 엑셀 다운로드" disabled={downloadingSessionId === s.id} data-testid={`button-session-excel-${s.id}`}>
-          {downloadingSessionId === s.id
-            ? <div className="w-3.5 h-3.5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-            : <Download className="w-3.5 h-3.5" />
-          }
-        </Button>
 
         {/* 서명수 / 인원수(편집 가능) */}
         <div className="flex items-center gap-1 text-xs text-muted-foreground shrink-0" onClick={e => e.stopPropagation()}>
@@ -560,16 +590,46 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
 
   return (
     <>
-      <div className="border-t divide-y">
+      {/* 패널 헤더: 전체 선택 + 선택 다운로드 */}
+      <div className="flex items-center gap-3 px-5 py-2 border-t bg-muted/20">
+        <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+          <Checkbox
+            checked={sessions.length > 0 && selectedSessionIds.size === sessions.length}
+            onCheckedChange={toggleAllSessions}
+            className="w-3.5 h-3.5"
+            data-testid="checkbox-session-all"
+          />
+          <span className="text-xs text-muted-foreground">
+            {selectedSessionIds.size > 0 ? `${selectedSessionIds.size}개 선택됨` : "전체 선택"}
+          </span>
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 text-xs gap-1.5 text-emerald-700 border-emerald-300 hover:bg-emerald-50 ml-auto"
+          onClick={handleBatchDownload}
+          disabled={selectedSessionIds.size === 0 || batchDownloading}
+          data-testid="button-batch-session-excel"
+        >
+          {batchDownloading
+            ? <div className="w-3 h-3 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+            : <Download className="w-3.5 h-3.5" />
+          }
+          선택 다운로드{selectedSessionIds.size > 0 ? ` (${selectedSessionIds.size}개)` : ""}
+        </Button>
+      </div>
+
+      <div className="divide-y">
         {expectedDepts.map(dept => {
           const s = sessions.find(ss => ss.department === dept);
           if (s) return <SessionRow key={dept} s={s} />;
           return (
             <div key={dept} className="flex items-center gap-2 px-5 py-2.5 text-muted-foreground/60">
+              <div className="w-3.5 h-3.5 shrink-0" />
               <div className="w-4 h-4 rounded-full border-2 border-muted-foreground/25 shrink-0" />
               <span className="flex-1 text-sm">{dept}</span>
               <Badge variant="outline" className="text-[10px] text-muted-foreground/50 border-muted-foreground/20">미등록</Badge>
-              <div className="w-7" /><div className="w-7" /><div className="w-7" />
+              <div className="w-7" /><div className="w-7" />
               <span className="text-xs text-muted-foreground/40 min-w-[48px] text-right">-</span>
             </div>
           );
@@ -1261,7 +1321,7 @@ export default function EducationManagement() {
           <div className="w-14 shrink-0 text-center">요청자</div>
           <div className="w-8 shrink-0 text-center">반복</div>
           <div className="w-[76px] shrink-0 text-center">등록일</div>
-          <div className="w-[116px] shrink-0" />
+          <div className="w-[88px] shrink-0" />
         </div>
 
         {/* 리스트 */}
@@ -1324,7 +1384,7 @@ export default function EducationManagement() {
                       </div>
                       {(t.linkedSessionCount ?? 0) > 0 && (
                         <div className="text-[10px] text-muted-foreground mt-0.5">
-                          {t.linkedSessionCount}개 부서 · 대상 <span className="font-semibold text-primary">{t.totalParticipantsSum ?? 0}명</span>
+                          {t.linkedSessionCount}개 부서
                         </div>
                       )}
                     </div>
@@ -1360,23 +1420,9 @@ export default function EducationManagement() {
 
                     {/* 액션 버튼들 */}
                     <div
-                      className="w-[116px] shrink-0 flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="w-[88px] shrink-0 flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
                       onClick={e => e.stopPropagation()}
                     >
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-7 w-7 text-muted-foreground hover:text-primary"
-                        title="대표 서명 링크 복사"
-                        onClick={() => {
-                          const url = `${window.location.origin}/sign/task/${t.id}`;
-                          navigator.clipboard.writeText(url);
-                          toast({ title: "대표 링크가 복사되었습니다.", description: "참여자가 부서를 선택 후 서명할 수 있습니다." });
-                        }}
-                        data-testid={`button-task-link-${t.id}`}
-                      >
-                        <Link2 className="w-3.5 h-3.5" />
-                      </Button>
                       <Button
                         size="icon"
                         variant="ghost"

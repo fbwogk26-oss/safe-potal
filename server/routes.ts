@@ -6954,7 +6954,7 @@ ${htmlDraft}
     }
 
     if (images.length === 0) {
-      photoSheet.mergeCells(`A${topStart}:H${botEnd}`);
+      // 4개 영역은 이미 위에서 병합됨 → 첫 번째 셀에만 텍스트 삽입
       const noPhotoCell = photoSheet.getCell(`A${topStart}`);
       noPhotoCell.value = "등록된 사진이 없습니다.";
       noPhotoCell.font = { size: 11, color: { argb: "FF999999" } };
@@ -7017,6 +7017,43 @@ ${htmlDraft}
       res.end();
     } catch (e: any) {
       console.error("Session Excel error:", e);
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // ─── 선택 부서 일괄 다운로드 ─────────────────────────────────────────────
+  app.post('/api/education-tasks/:taskId/sessions/batch-excel', isAuthenticated, async (req: any, res) => {
+    try {
+      const taskId = Number(req.params.taskId);
+      const { sessionIds } = req.body as { sessionIds: number[] };
+      if (!Array.isArray(sessionIds) || sessionIds.length === 0)
+        return res.status(400).json({ message: "sessionIds가 필요합니다." });
+
+      const task = await storage.getEducationTask(taskId);
+      if (!task) return res.status(404).json({ message: "업무를 찾을 수 없습니다." });
+
+      const allSessions = await storage.getSessionsByTaskId(taskId);
+      const selected = allSessions.filter(s => sessionIds.includes(s.id));
+      if (selected.length === 0) return res.status(404).json({ message: "세션을 찾을 수 없습니다." });
+
+      const workbook = new ExcelJS.Workbook();
+      const { ObjectStorageService } = await import("./replit_integrations/object_storage/objectStorage");
+      const objService = new ObjectStorageService();
+
+      for (const session of selected) {
+        const signatures = await storage.getSignaturesBySession(session.id);
+        await buildSessionSheets(workbook, task.title, session, signatures, objService);
+      }
+
+      const fname = selected.length === 1
+        ? `${task.title}_${selected[0].department}_${selected[0].educationDate}`
+        : `${task.title}_선택부서_${selected.length}개`;
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader("Content-Disposition", `attachment; filename*=UTF-8''${encodeURIComponent(fname)}.xlsx`);
+      await workbook.xlsx.write(res);
+      res.end();
+    } catch (e: any) {
+      console.error("Batch Excel error:", e);
       res.status(500).json({ message: e.message });
     }
   });
