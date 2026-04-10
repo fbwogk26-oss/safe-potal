@@ -1846,6 +1846,10 @@ export async function registerRoutes(
         });
       }
       res.status(201).json(session);
+      // 세션에 taskId가 있으면 업무 완료율 자동 업데이트
+      if (session.taskId) {
+        syncTaskCompletionFromSessions(session.taskId).catch(console.error);
+      }
     } catch (error: any) {
       if (error?.name === "ZodError") return res.status(400).json({ message: "입력값이 올바르지 않습니다" });
       console.error("Error creating education session:", error);
@@ -2425,18 +2429,20 @@ export async function registerRoutes(
 
   app.delete("/api/education-signatures/:id", requirePermission("registerEducation"), async (req: any, res) => {
     try {
-      // 서명 삭제 전 sessionId 조회 후 taskId 동기화
+      // 서명 삭제 전 sessionId 조회 (taskId 역추적용)
       const sig = await storage.getSignature(Number(req.params.id));
       await storage.deleteSignature(Number(req.params.id));
       res.status(204).send();
+      // 삭제 성공 후 연결된 업무 완료율 재계산
       if (sig?.sessionId) {
         const session = await storage.getEducationSession(sig.sessionId);
         if (session?.taskId) {
           syncTaskCompletionFromSessions(session.taskId).catch(console.error);
         }
       }
-    } catch {
-      res.status(204).send();
+    } catch (e: any) {
+      console.error("Error deleting signature:", e);
+      res.status(500).json({ message: "서명 삭제에 실패했습니다" });
     }
   });
 
@@ -6498,7 +6504,11 @@ ${htmlDraft}
   async function syncTaskCompletionFromSessions(taskId: number) {
     try {
       const sessions = await storage.getSessionsByTaskId(taskId);
-      if (sessions.length === 0) return;
+      // 연결 세션이 없으면 완료율 0, 미완료로 초기화
+      if (sessions.length === 0) {
+        await storage.updateEducationTask(taskId, { completionRate: 0, status: "미완료" });
+        return;
+      }
       let totalRate = 0;
       let allDone = true;
       for (const s of sessions) {
