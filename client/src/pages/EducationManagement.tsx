@@ -539,8 +539,8 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
           {s.department}
         </button>
 
-        {/* 진행율 바 */}
-        <div className="w-56 shrink-0 flex items-center gap-2 pr-3">
+        {/* 진행율 바 (flex-1로 가득 채움) */}
+        <div className="flex-1 flex items-center gap-2 min-w-0">
           <span className="text-[11px] text-muted-foreground tabular-nums w-7 text-right shrink-0">{signedRate}%</span>
           <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
             <div
@@ -578,7 +578,7 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
         </div>
 
         {/* 서명수 / 인원수 (고정) */}
-        <div className="flex items-center gap-1 text-xs text-muted-foreground ml-auto shrink-0" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center gap-1 text-xs text-muted-foreground shrink-0" onClick={e => e.stopPropagation()}>
           <Users className="w-3.5 h-3.5 shrink-0" />
           <span>{s.signedCount}/</span>
           <input
