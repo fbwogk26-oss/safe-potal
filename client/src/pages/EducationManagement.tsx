@@ -41,6 +41,17 @@ const DEPARTMENTS = [
   "안동운용팀", "구미운용팀", "문경운용팀",
   "운용지원팀", "운용계획팀", "사업지원팀", "현장경영팀", "공공망관제팀",
 ];
+const HQ_OPTIONS = ["충청본부", "부산본부", "호남본부", "대구본부", "경영총괄", "품질지원센터", "사업총괄", "감사실"];
+const TEAMS_BY_HQ: Record<string, string[]> = {
+  "대구본부":    ["동대구운용팀", "서대구운용팀", "남대구운용팀"],
+  "경영총괄":    ["운용지원팀", "운용계획팀", "사업지원팀", "현장경영팀"],
+  "사업총괄":    ["공공망관제팀"],
+  "부산본부":    ["포항운용팀", "안동운용팀", "구미운용팀", "문경운용팀"],
+  "충청본부":    [],
+  "호남본부":    [],
+  "품질지원센터": [],
+  "감사실":      [],
+};
 const EDUCATION_TYPES = ["정기교육", "신규교육", "특별교육", "안전교육", "직무교육"];
 
 type TaskField = { type: string; title: string };
@@ -57,6 +68,8 @@ interface FormState {
   headquarters: string;
   department: string;
   requestedBy: string;
+  selectedHqs: string[];   // 본부 scope: 체크박스 다중선택
+  selectedTeams: string[]; // 지정 scope: 팀 다중선택
 }
 
 interface QuickSessionForm {
@@ -77,6 +90,8 @@ const emptyForm = (): FormState => ({
   headquarters: "",
   department: "",
   requestedBy: "",
+  selectedHqs: [],
+  selectedTeams: [],
 });
 
 // 예시 2: 연결된 세션을 보여주는 인라인 패널 컴포넌트
@@ -303,6 +318,10 @@ export default function EducationManagement() {
   };
   const openEdit = (t: EducationTask) => {
     setEditTask(t);
+    const hqRaw = t.headquarters || "";
+    const deptRaw = t.department || "";
+    const isHqScope = t.requestScope === "본부";
+    const isDesignated = t.requestScope === "지정";
     setForm({
       title: t.title,
       startDate: t.startDate,
@@ -311,9 +330,11 @@ export default function EducationManagement() {
       requestScope: t.requestScope,
       isRecurring: t.isRecurring,
       taskFields: (t.taskFields as TaskField[]) || [{ type: "Text", title: "" }],
-      headquarters: t.headquarters || "",
-      department: t.department || "",
+      headquarters: isHqScope ? "" : hqRaw,
+      department: isDesignated ? "" : deptRaw,
       requestedBy: t.requestedBy || "",
+      selectedHqs: isHqScope ? hqRaw.split(",").filter(Boolean) : [],
+      selectedTeams: isDesignated ? deptRaw.split(",").filter(Boolean) : [],
     });
     setRegisterOpen(true);
   };
@@ -323,7 +344,17 @@ export default function EducationManagement() {
       toast({ title: "업무명, 시작일, 종료일은 필수입니다.", variant: "destructive" });
       return;
     }
-    const payload = { ...form };
+    // scope에 따라 headquarters/department 조립
+    let hq = form.headquarters;
+    let dept = form.department;
+    if (form.requestScope === "본부") {
+      hq = form.selectedHqs.join(",");
+      dept = "";
+    } else if (form.requestScope === "지정") {
+      // headquarters = 단일 본부 드롭다운, department = 팀 다중선택
+      dept = form.selectedTeams.join(",");
+    }
+    const payload = { ...form, headquarters: hq, department: dept };
     if (editTask) {
       updateMutation.mutate({ id: editTask.id, data: payload });
     } else {
@@ -850,26 +881,109 @@ export default function EducationManagement() {
               </RadioGroup>
             </div>
 
-            {/* 본부/부서/요청자 */}
-            <div className="grid grid-cols-3 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-sm">본부</Label>
-                <Input
-                  placeholder="예: 대구본부"
-                  value={form.headquarters}
-                  onChange={e => setForm(f => ({ ...f, headquarters: e.target.value }))}
-                  data-testid="input-headquarters"
-                />
+            {/* 대상 선택 — requestScope에 따라 동적 UI */}
+            {form.requestScope === "본부" && (
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1.5 font-semibold text-sm">
+                  <span className="w-3 h-3 bg-primary rounded-sm inline-block" />
+                  대상 본부 선택<span className="text-destructive">*</span>
+                  <span className="font-normal text-muted-foreground text-xs">(2개 이상 선택 가능)</span>
+                </Label>
+                <div className="grid grid-cols-2 gap-x-8 gap-y-2">
+                  {HQ_OPTIONS.map(hq => (
+                    <div key={hq} className="flex items-center gap-2">
+                      <Checkbox
+                        id={`hq-${hq}`}
+                        checked={form.selectedHqs.includes(hq)}
+                        onCheckedChange={checked => setForm(f => ({
+                          ...f,
+                          selectedHqs: checked
+                            ? [...f.selectedHqs, hq]
+                            : f.selectedHqs.filter(h => h !== hq),
+                        }))}
+                        data-testid={`checkbox-hq-${hq}`}
+                      />
+                      <Label htmlFor={`hq-${hq}`} className="cursor-pointer text-sm">{hq}</Label>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">✓ 선택된 본부의 모든 사용자에게 업무가 생성됩니다.</p>
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-sm">부서/팀</Label>
-                <Input
-                  placeholder="예: 현장경영팀"
-                  value={form.department}
-                  onChange={e => setForm(f => ({ ...f, department: e.target.value }))}
-                  data-testid="input-department"
-                />
+            )}
+
+            {form.requestScope === "지정" && (
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1.5 font-semibold text-sm">
+                  대상 본부 및 팀 선택<span className="text-destructive">*</span>
+                </Label>
+                <div className="grid grid-cols-2 gap-4">
+                  {/* 본부 드롭다운 */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">본부</Label>
+                    <Select
+                      value={form.headquarters}
+                      onValueChange={v => setForm(f => ({ ...f, headquarters: v, selectedTeams: [] }))}
+                    >
+                      <SelectTrigger data-testid="select-hq-designated">
+                        <SelectValue placeholder="본부를 선택하세요" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {HQ_OPTIONS.map(hq => <SelectItem key={hq} value={hq}>{hq}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {/* 팀 다중선택 listbox */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">팀(다중 선택 가능)</Label>
+                    <div
+                      className="border rounded-md h-36 overflow-y-auto bg-background"
+                      data-testid="listbox-teams"
+                    >
+                      {!form.headquarters ? (
+                        <p className="text-xs text-muted-foreground p-3">본부를 먼저 선택하세요</p>
+                      ) : (TEAMS_BY_HQ[form.headquarters] || []).length === 0 ? (
+                        <p className="text-xs text-muted-foreground p-3">해당 본부에 팀 정보가 없습니다</p>
+                      ) : (
+                        (TEAMS_BY_HQ[form.headquarters] || []).map(team => (
+                          <div
+                            key={team}
+                            onClick={() => setForm(f => ({
+                              ...f,
+                              selectedTeams: f.selectedTeams.includes(team)
+                                ? f.selectedTeams.filter(t => t !== team)
+                                : [...f.selectedTeams, team],
+                            }))}
+                            className={`px-3 py-1.5 text-sm cursor-pointer select-none transition-colors ${
+                              form.selectedTeams.includes(team)
+                                ? "bg-primary text-primary-foreground"
+                                : "hover:bg-muted/60"
+                            }`}
+                            data-testid={`team-option-${team}`}
+                          >
+                            {team}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">✓ Ctrl+클릭 또는 Shift+클릭으로 여러 팀을 선택할 수 있습니다.</p>
               </div>
+            )}
+
+            {/* 요청자 (전사/안전보건업무 부서/지정 공통) */}
+            <div className={`grid gap-3 ${form.requestScope === "본부" ? "grid-cols-1" : "grid-cols-2"}`}>
+              {(form.requestScope === "전사" || form.requestScope === "안전보건업무 부서") && (
+                <div className="space-y-1.5">
+                  <Label className="text-sm">본부/부서</Label>
+                  <Input
+                    placeholder="예: 대구본부"
+                    value={form.headquarters}
+                    onChange={e => setForm(f => ({ ...f, headquarters: e.target.value }))}
+                    data-testid="input-headquarters"
+                  />
+                </div>
+              )}
               <div className="space-y-1.5">
                 <Label className="text-sm">요청자</Label>
                 <Input
