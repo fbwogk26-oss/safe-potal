@@ -11,7 +11,7 @@ import {
   RotateCcw, X, Pencil, Link2,
   ChevronDown, ChevronUp, Users, Calendar, Clock,
   Copy, ExternalLink, Send, QrCode, GraduationCap, Download, Eye,
-  ImagePlus, Camera, Save, PenTool, X as XIcon,
+  ImagePlus, Camera, Save, PenTool, X as XIcon, Files,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -329,6 +329,18 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
     });
   };
 
+  // 인원수 인라인 편집 상태
+  const [participantEdits, setParticipantEdits] = useState<Record<number, string>>({});
+
+  const updateParticipants = async (sessionId: number, count: number) => {
+    try {
+      await apiRequest("PATCH", `/api/education-sessions/${sessionId}`, { totalParticipants: count });
+      await refetch();
+    } catch {
+      toast({ title: "인원수 저장 실패", variant: "destructive" });
+    }
+  };
+
   // 서명자 목록 확인 다이얼로그
   const [viewSigSession, setViewSigSession] = useState<SessionWithSigs | null>(null);
   const { data: viewSigs = [], isLoading: sigsLoading } = useQuery<any[]>({
@@ -436,6 +448,7 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
     const signedRate = s.totalParticipants > 0 ? Math.round((s.signedCount / s.totalParticipants) * 100) : 0;
     const isDone = s.status === "완료" || signedRate >= 100;
     const hasContent = !!(s.description || (s.images && s.images.length > 0));
+    const currentEdit = participantEdits[s.id] ?? String(s.totalParticipants);
     return (
       <div className="flex items-center gap-2 px-5 py-2.5 hover:bg-muted/20 transition-colors">
         {isDone
@@ -443,36 +456,66 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
           : <Clock className="w-4 h-4 text-amber-400 shrink-0" />
         }
         <button
-          className="flex-1 text-sm font-medium text-left hover:text-primary hover:underline underline-offset-2 transition-colors"
+          className="w-28 shrink-0 text-sm font-medium text-left hover:text-primary hover:underline underline-offset-2 transition-colors"
           onClick={() => openDetail(s)}
           data-testid={`button-detail-${s.id}`}
           title="상세 보기 / 서명"
         >
           {s.department}
         </button>
+
+        {/* 진행율 바 */}
+        <div className="flex-1 flex flex-col gap-0.5 min-w-0">
+          <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all ${isDone ? "bg-emerald-500" : "bg-primary"}`}
+              style={{ width: `${signedRate}%` }}
+            />
+          </div>
+          <span className="text-[10px] text-muted-foreground">{signedRate}%</span>
+        </div>
+
         {hasContent && (
-          <span className="text-[10px] text-primary/60 flex items-center gap-0.5">
+          <span className="text-[10px] text-primary/60 flex items-center gap-0.5 shrink-0">
             <Camera className="w-3 h-3" />{(s.images || []).length}
           </span>
         )}
         <Badge
-          className={`text-[10px] ${isDone ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-amber-50 text-amber-600 border-amber-300"}`}
+          className={`text-[10px] shrink-0 ${isDone ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-amber-50 text-amber-600 border-amber-300"}`}
           variant={isDone ? "default" : "outline"}
         >
           {isDone ? "완료" : "진행중"}
         </Badge>
-        <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-primary"
+        <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-primary shrink-0"
           onClick={() => copyLink(s.id)} title="서명 링크 복사" data-testid={`button-copy-link-${s.id}`}>
           <Copy className="w-3.5 h-3.5" />
         </Button>
-        <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-indigo-500"
+        <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-indigo-500 shrink-0"
           onClick={() => setViewSigSession(s)} title="서명자 확인" data-testid={`button-view-sigs-${s.id}`}>
           <Eye className="w-3.5 h-3.5" />
         </Button>
-        <span className="text-xs text-muted-foreground flex items-center gap-1 min-w-[48px] justify-end">
-          <Users className="w-3.5 h-3.5" />
-          {s.signedCount}/{s.totalParticipants}명
-        </span>
+
+        {/* 서명수 / 인원수(편집 가능) */}
+        <div className="flex items-center gap-1 text-xs text-muted-foreground shrink-0" onClick={e => e.stopPropagation()}>
+          <Users className="w-3.5 h-3.5 shrink-0" />
+          <span>{s.signedCount}/</span>
+          <input
+            type="number"
+            min={0}
+            value={currentEdit}
+            onChange={e => setParticipantEdits(prev => ({ ...prev, [s.id]: e.target.value }))}
+            onBlur={e => {
+              const v = parseInt(e.target.value, 10);
+              if (!isNaN(v) && v >= 0 && v !== s.totalParticipants) {
+                updateParticipants(s.id, v);
+              }
+              setParticipantEdits(prev => { const n = { ...prev }; delete n[s.id]; return n; });
+            }}
+            className="w-10 text-xs border rounded px-1 py-0.5 bg-background text-center focus:outline-none focus:ring-1 focus:ring-primary"
+            data-testid={`input-participants-${s.id}`}
+          />
+          <span>명</span>
+        </div>
       </div>
     );
   };
@@ -872,6 +915,15 @@ export default function EducationManagement() {
     onError: (e: any) => toast({ title: "처리 실패", description: e.message, variant: "destructive" }),
   });
 
+  const copyTaskMutation = useMutation({
+    mutationFn: (id: number) => apiRequest("POST", `/api/education-tasks/${id}/copy`, {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/education-tasks"] });
+      toast({ title: "교육이 복사되었습니다." });
+    },
+    onError: (e: any) => toast({ title: "복사 실패", description: e.message, variant: "destructive" }),
+  });
+
   const filtered = tasks.filter(t => {
     if (filterScope !== "전체" && t.requestScope !== filterScope) return false;
     if (filterField !== "전체" && t.field !== filterField) return false;
@@ -1237,6 +1289,21 @@ export default function EducationManagement() {
 
                       {isEditor && (
                         <>
+                          {/* 교육 복사 */}
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-muted-foreground hover:text-violet-500"
+                            title="교육 복사하기"
+                            onClick={() => copyTaskMutation.mutate(t.id)}
+                            disabled={copyTaskMutation.isPending}
+                            data-testid={`button-copy-task-${t.id}`}
+                          >
+                            {copyTaskMutation.isPending
+                              ? <div className="w-3.5 h-3.5 border-2 border-violet-400 border-t-transparent rounded-full animate-spin" />
+                              : <Files className="w-3.5 h-3.5" />
+                            }
+                          </Button>
                           {/* 수정 */}
                           <Button
                             size="icon"

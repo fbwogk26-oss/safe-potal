@@ -6944,6 +6944,48 @@ ${htmlDraft}
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
+  app.post('/api/education-tasks/:id/copy', requireEditor, async (req: any, res) => {
+    try {
+      const sourceId = Number(req.params.id);
+      const source = await storage.getEducationTask(sourceId);
+      if (!source) return res.status(404).json({ message: "업무를 찾을 수 없습니다." });
+      const data = {
+        title: source.title + " (복사)",
+        startDate: source.startDate,
+        endDate: source.endDate,
+        field: source.field,
+        requestScope: source.requestScope,
+        isRecurring: source.isRecurring,
+        taskFields: source.taskFields,
+        headquarters: source.headquarters,
+        department: source.department,
+        requestedBy: source.requestedBy,
+        selectedHqs: (source as any).selectedHqs,
+        selectedTeams: (source as any).selectedTeams,
+        createdBy: req.user?.username || req.user?.name,
+      };
+      const task = await storage.createEducationTask(data);
+      const depts = getEduDeptsByTask(task);
+      for (const dept of depts) {
+        try {
+          await storage.createEducationSession({
+            title: task.title,
+            educationDate: task.startDate,
+            educationEndDate: task.endDate || task.startDate,
+            department: dept,
+            educationType: "정기교육",
+            instructor: task.requestedBy || "",
+            totalParticipants: 0,
+            status: "진행중",
+            taskId: task.id,
+            createdBy: req.user?.username || req.user?.name,
+          });
+        } catch (_) {}
+      }
+      res.json(task);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
   // 증빙자료 업로드
   const eduTaskAttachmentUpload = multer({
     storage: multer.memoryStorage(),
