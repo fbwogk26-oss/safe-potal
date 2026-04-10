@@ -233,6 +233,14 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
     });
   };
 
+  // 서명자 목록 확인 다이얼로그
+  const [viewSigSession, setViewSigSession] = useState<SessionWithSigs | null>(null);
+  const { data: viewSigs = [], isLoading: sigsLoading } = useQuery<any[]>({
+    queryKey: ["/api/education-sessions", viewSigSession?.id, "signatures"],
+    queryFn: () => fetch(`/api/education-sessions/${viewSigSession!.id}/signatures`, { credentials: "include" }).then(r => r.json()),
+    enabled: !!viewSigSession,
+  });
+
   if (isLoading || autoCreating) {
     return (
       <div className="border-t px-5 py-3 bg-muted/10 flex items-center gap-2 text-xs text-muted-foreground">
@@ -274,11 +282,9 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
           onClick={() => copyLink(s.id)} title="서명 링크 복사" data-testid={`button-copy-link-${s.id}`}>
           <Copy className="w-3.5 h-3.5" />
         </Button>
-        <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-primary"
-          asChild data-testid={`button-open-sign-${s.id}`}>
-          <a href={`/sign/${s.id}`} target="_blank" rel="noopener noreferrer" title="서명 페이지 열기">
-            <Eye className="w-3.5 h-3.5" />
-          </a>
+        <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-indigo-500"
+          onClick={() => setViewSigSession(s)} title="서명자 확인" data-testid={`button-view-sigs-${s.id}`}>
+          <Eye className="w-3.5 h-3.5" />
         </Button>
         <span className="text-xs text-muted-foreground flex items-center gap-1 min-w-[48px] justify-end">
           <Users className="w-3.5 h-3.5" />
@@ -407,6 +413,75 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
               {savingEdit ? <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Save className="w-3.5 h-3.5" />}
               저장
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 서명자 목록 확인 다이얼로그 */}
+      <Dialog open={!!viewSigSession} onOpenChange={open => { if (!open) setViewSigSession(null); }}>
+        <DialogContent className="max-w-md max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <Eye className="w-4 h-4 text-indigo-500" />
+              서명 현황 — {viewSigSession?.department}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="flex items-center justify-between text-xs text-muted-foreground px-1 pb-1">
+            <span>총 {viewSigs.length}명 서명 완료</span>
+            <a
+              href={viewSigSession ? `/sign/${viewSigSession.id}` : "#"}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 text-primary hover:underline"
+            >
+              <ExternalLink className="w-3 h-3" /> 서명 페이지 열기
+            </a>
+          </div>
+
+          <div className="flex-1 overflow-y-auto divide-y border rounded-lg">
+            {sigsLoading ? (
+              <div className="flex items-center justify-center py-8 text-muted-foreground text-sm gap-2">
+                <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                불러오는 중...
+              </div>
+            ) : viewSigs.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-10 text-muted-foreground gap-2">
+                <Users className="w-8 h-8 opacity-20" />
+                <p className="text-sm">아직 서명한 인원이 없습니다.</p>
+              </div>
+            ) : (
+              viewSigs.map((sig: any, idx: number) => (
+                <div key={sig.id} className="flex items-center gap-3 px-3 py-2.5 hover:bg-muted/20">
+                  <div className="w-7 h-7 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 text-xs font-bold shrink-0">
+                    {idx + 1}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium leading-tight">{sig.signerName}</p>
+                    {sig.signerDepartment && (
+                      <p className="text-xs text-muted-foreground">{sig.signerDepartment}</p>
+                    )}
+                  </div>
+                  {sig.signatureData && (
+                    <img
+                      src={sig.signatureData}
+                      alt="서명"
+                      className="h-8 w-16 object-contain border rounded bg-white"
+                    />
+                  )}
+                  <span className="text-[10px] text-muted-foreground shrink-0">
+                    {sig.signedAt ? new Date(sig.signedAt).toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }) : ""}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+
+          <DialogFooter className="pt-2">
+            <Button variant="outline" size="sm" onClick={() => copyLink(viewSigSession!.id)} className="gap-1.5 text-xs">
+              <Copy className="w-3.5 h-3.5" /> 서명 링크 복사
+            </Button>
+            <Button size="sm" onClick={() => setViewSigSession(null)}>닫기</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
