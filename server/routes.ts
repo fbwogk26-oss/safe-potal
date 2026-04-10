@@ -1674,10 +1674,14 @@ export async function registerRoutes(
             try {
               const sigData = signatures[i].signatureData;
               if (sigData && sigData.startsWith("data:image/")) {
-                const base64Part = sigData.split(",")[1];
-                const ext = sigData.includes("image/png") ? "png" : "jpeg";
-                const imageId = workbook.addImage({ base64: base64Part, extension: ext as "png" | "jpeg" });
-                (sigSheet as any).addImage(imageId, { tl: { col: 2.04, row: 4 + i + 0.08 }, br: { col: 2.96, row: 5 + i - 0.08 }, editAs: "oneCell" });
+                const sharp = (await import("sharp")).default;
+                const raw = Buffer.from(sigData.split(",")[1], "base64");
+                const { data, info } = await sharp(raw).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+                const px = new Uint8Array(data.buffer);
+                for (let p = 0; p < px.length; p += 4) { if (px[p] > 230 && px[p+1] > 230 && px[p+2] > 230) px[p+3] = 0; }
+                const buf = await sharp(Buffer.from(px), { raw: { width: info.width, height: info.height, channels: 4 } }).resize(360, 90, { fit: "inside", withoutEnlargement: true }).png().toBuffer();
+                const imageId = workbook.addImage({ base64: buf.toString("base64"), extension: "png" });
+                (sigSheet as any).addImage(imageId, { tl: { col: 2, row: 4 + i }, br: { col: 3, row: 5 + i }, editAs: "oneCell" });
               }
             } catch (e) { /* skip */ }
           }
@@ -1698,10 +1702,14 @@ export async function registerRoutes(
             try {
               const sigData = signatures[rightIdx].signatureData;
               if (sigData && sigData.startsWith("data:image/")) {
-                const base64Part = sigData.split(",")[1];
-                const ext = sigData.includes("image/png") ? "png" : "jpeg";
-                const imageId = workbook.addImage({ base64: base64Part, extension: ext as "png" | "jpeg" });
-                (sigSheet as any).addImage(imageId, { tl: { col: 5.04, row: 4 + i + 0.08 }, br: { col: 5.96, row: 5 + i - 0.08 }, editAs: "oneCell" });
+                const sharp = (await import("sharp")).default;
+                const raw = Buffer.from(sigData.split(",")[1], "base64");
+                const { data, info } = await sharp(raw).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+                const px = new Uint8Array(data.buffer);
+                for (let p = 0; p < px.length; p += 4) { if (px[p] > 230 && px[p+1] > 230 && px[p+2] > 230) px[p+3] = 0; }
+                const buf = await sharp(Buffer.from(px), { raw: { width: info.width, height: info.height, channels: 4 } }).resize(360, 90, { fit: "inside", withoutEnlargement: true }).png().toBuffer();
+                const imageId = workbook.addImage({ base64: buf.toString("base64"), extension: "png" });
+                (sigSheet as any).addImage(imageId, { tl: { col: 5, row: 4 + i }, br: { col: 6, row: 5 + i }, editAs: "oneCell" });
               }
             } catch (e) { /* skip */ }
           }
@@ -6718,11 +6726,27 @@ ${htmlDraft}
       const sharp = (await import("sharp")).default;
       const base64Part = dataUrl.split(",")[1];
       const raw = Buffer.from(base64Part, "base64");
-      const buf = await sharp(raw)
+
+      // 흰색 배경 → 투명 처리
+      const { data, info } = await sharp(raw)
         .rotate()
+        .ensureAlpha()
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+
+      const pixels = new Uint8Array(data.buffer);
+      for (let i = 0; i < pixels.length; i += 4) {
+        const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2];
+        if (r > 230 && g > 230 && b > 230) pixels[i + 3] = 0;
+      }
+
+      const buf = await sharp(Buffer.from(pixels), {
+        raw: { width: info.width, height: info.height, channels: 4 },
+      })
         .resize(360, 90, { fit: "inside", withoutEnlargement: true })
         .png()
         .toBuffer();
+
       return { base64: buf.toString("base64"), ext: "png" };
     } catch {
       const base64Part = dataUrl.split(",")[1];
@@ -6840,8 +6864,8 @@ ${htmlDraft}
           if (processed) {
             const imgId = workbook.addImage({ base64: processed.base64, extension: processed.ext });
             (sigSheet as any).addImage(imgId, {
-              tl: { col: 2.04, row: headerRow + i + 0.08 },
-              br: { col: 2.96, row: headerRow + 1 + i - 0.08 },
+              tl: { col: 2, row: headerRow + i },
+              br: { col: 3, row: headerRow + 1 + i },
               editAs: "oneCell",
             });
           }
@@ -6867,8 +6891,8 @@ ${htmlDraft}
           if (processed) {
             const imgId = workbook.addImage({ base64: processed.base64, extension: processed.ext });
             (sigSheet as any).addImage(imgId, {
-              tl: { col: 5.04, row: headerRow + i + 0.08 },
-              br: { col: 5.96, row: headerRow + 1 + i - 0.08 },
+              tl: { col: 5, row: headerRow + i },
+              br: { col: 6, row: headerRow + 1 + i },
               editAs: "oneCell",
             });
           }
