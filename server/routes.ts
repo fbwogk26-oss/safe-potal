@@ -2463,11 +2463,15 @@ export async function registerRoutes(
     try {
       const session = await storage.getEducationSession(Number(req.params.id));
       if (!session) return res.status(404).json({ message: "교육 세션을 찾을 수 없습니다." });
-      // taskId가 있으면 업무 제목도 함께 반환
+      // taskId가 있으면 업무 제목 + 커스텀 양식 필드도 함께 반환
       let taskTitle: string | null = null;
+      let taskFields: Array<{type: string; title: string}> = [];
       if (session.taskId) {
         const task = await storage.getEducationTask(session.taskId);
-        if (task) taskTitle = task.title;
+        if (task) {
+          taskTitle = task.title;
+          taskFields = (task.taskFields as Array<{type: string; title: string}>) || [];
+        }
       }
       res.json({
         id: session.id,
@@ -2478,6 +2482,7 @@ export async function registerRoutes(
         instructor: session.instructor,
         totalParticipants: session.totalParticipants,
         status: session.status,
+        taskFields,
       });
     } catch (err) {
       res.status(500).json({ message: "서버 오류가 발생했습니다." });
@@ -2509,6 +2514,7 @@ export async function registerRoutes(
         field: task.field,
         educationType: sessions[0]?.educationType || "정기교육",
         sessions: sessionList,
+        taskFields: (task.taskFields as Array<{type: string; title: string}>) || [],
       });
     } catch (err) {
       res.status(500).json({ message: "서버 오류가 발생했습니다." });
@@ -2531,6 +2537,7 @@ export async function registerRoutes(
         signerDepartment: z.string().max(100).optional().default(""),
         signatureData: z.string().min(1, "서명을 입력해주세요").max(MAX_SIGNATURE_SIZE, "서명 데이터가 너무 큽니다."),
         consentAgreed: z.boolean().refine(v => v === true, { message: "개인정보 수집 및 전자서명 동의가 필요합니다." }),
+        fieldValues: z.record(z.string(), z.string()).optional().default({}),
       });
       const parsed = sigSchema.parse(req.body);
       const originalSessionId = Number(req.params.id);
@@ -2576,6 +2583,7 @@ export async function registerRoutes(
         ipAddress,
         userAgent,
         integrityHash,
+        fieldValues: parsed.fieldValues && Object.keys(parsed.fieldValues).length > 0 ? parsed.fieldValues : undefined,
       });
       res.status(201).json({ ...signature, resolvedSessionId: targetSessionId });
       // 서명 후 연결된 업무 완료율 자동 동기화

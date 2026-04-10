@@ -845,6 +845,20 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
                   <span>대상인원: <strong className="text-black">{viewSigSession?.totalParticipants}명</strong></span>
                   <span>서명완료: <strong className="text-black">{viewSigs.length}명</strong></span>
                 </div>
+                {/* 커스텀 양식 입력값 표시 */}
+                {viewSigs.some((s: any) => s.fieldValues && Object.keys(s.fieldValues).length > 0) && (
+                  <div className="mt-2 border-t pt-2 space-y-1">
+                    <p className="text-[10px] font-semibold text-gray-600 mb-1">추가 입력 데이터</p>
+                    {viewSigs.filter((s: any) => s.fieldValues && Object.keys(s.fieldValues).length > 0).map((s: any, i: number) => (
+                      <div key={i} className="text-[10px] flex flex-wrap gap-x-4 gap-y-0.5 border-b border-gray-100 pb-1">
+                        <span className="font-medium text-gray-700">{s.signerName}</span>
+                        {Object.entries(s.fieldValues as Record<string, string>).map(([k, v]) => (
+                          <span key={k} className="text-gray-500">{k}: <span className="text-gray-800">{v}</span></span>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ) : (
               <div className="p-4 space-y-4">

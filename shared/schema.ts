@@ -220,6 +220,7 @@ export const educationSignatures = pgTable("education_signatures", {
   userAgent: text("user_agent"),
   consentAgreed: boolean("consent_agreed").default(false),
   integrityHash: text("integrity_hash"),
+  fieldValues: jsonb("field_values").$type<Record<string, string>>(),
 });
 
 export const insertEducationSessionSchema = createInsertSchema(educationSessions).omit({ id: true, createdAt: true });

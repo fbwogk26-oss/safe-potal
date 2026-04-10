@@ -357,6 +357,7 @@ export class DatabaseStorage implements IStorage {
         userAgent: educationSignatures.userAgent,
         consentAgreed: educationSignatures.consentAgreed,
         integrityHash: educationSignatures.integrityHash,
+        fieldValues: educationSignatures.fieldValues,
         sessionTitle: educationSessions.title,
         sessionDate: educationSessions.educationDate,
         sessionDepartment: educationSessions.department,

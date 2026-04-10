@@ -12,6 +12,8 @@ import {
   BookOpen, Loader2, X, ChevronRight, Building2,
 } from "lucide-react";
 
+interface TaskField { type: string; title: string; }
+
 interface TaskInfo {
   id: number;
   title: string;
@@ -27,6 +29,7 @@ interface TaskInfo {
     signedCount: number;
     status: string;
   }[];
+  taskFields: TaskField[];
 }
 
 function SignaturePad({ onSave, onClear }: { onSave: (data: string) => void; onClear: () => void }) {
@@ -143,6 +146,7 @@ export default function PublicTaskSign() {
   const [padKey, setPadKey] = useState(0);
   const [consentAgreed, setConsentAgreed] = useState(false);
   const [signError, setSignError] = useState<string | null>(null);
+  const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
 
   const { data: task, isLoading, isError } = useQuery<TaskInfo>({
     queryKey: ["/api/public/task", id],
@@ -161,7 +165,7 @@ export default function PublicTaskSign() {
       const res = await fetch(`/api/public/education/${selectedSessionId}/sign`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ signerName, signerDepartment: selectedDept, signatureData, consentAgreed }),
+        body: JSON.stringify({ signerName, signerDepartment: selectedDept, signatureData, consentAgreed, fieldValues }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -361,6 +365,43 @@ export default function PublicTaskSign() {
                     data-testid="input-signer-name"
                   />
                 </div>
+
+                {/* 관리자 커스텀 양식 필드 */}
+                {task?.taskFields && task.taskFields.filter(f => f.title.trim()).length > 0 && (
+                  <div className="space-y-3 rounded-lg border border-primary/20 bg-primary/5 p-3">
+                    <p className="text-xs font-semibold text-primary">추가 입력 항목</p>
+                    {task.taskFields.filter(f => f.title.trim()).map((field, i) => (
+                      <div key={i} className="space-y-1">
+                        <Label className="text-xs font-medium">{field.title}</Label>
+                        {field.type === "Date" ? (
+                          <input
+                            type="date"
+                            value={fieldValues[field.title] || ""}
+                            onChange={e => setFieldValues(prev => ({ ...prev, [field.title]: e.target.value }))}
+                            className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                            data-testid={`input-field-${i}`}
+                          />
+                        ) : field.type === "Number" ? (
+                          <Input
+                            type="number"
+                            value={fieldValues[field.title] || ""}
+                            onChange={e => setFieldValues(prev => ({ ...prev, [field.title]: e.target.value }))}
+                            placeholder={`${field.title}을(를) 입력하세요`}
+                            data-testid={`input-field-${i}`}
+                          />
+                        ) : (
+                          <Input
+                            type="text"
+                            value={fieldValues[field.title] || ""}
+                            onChange={e => setFieldValues(prev => ({ ...prev, [field.title]: e.target.value }))}
+                            placeholder={`${field.title}을(를) 입력하세요`}
+                            data-testid={`input-field-${i}`}
+                          />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 {/* 서명 패드 */}
                 <div className="space-y-1.5">
