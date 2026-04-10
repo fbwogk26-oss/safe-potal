@@ -30,6 +30,8 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import type { EducationTask, EducationSession } from "@shared/schema";
 
+type EducationTaskWithLinked = EducationTask & { linkedSessionCount?: number };
+
 const FIELDS = ["안전/보건", "법령", "이벤트"] as const;
 const SCOPES = ["전사", "본부", "지정", "안전보건업무 부서"] as const;
 const FIELD_TYPES = ["Text", "Date", "Number", "Select"] as const;
@@ -189,7 +191,7 @@ export default function EducationManagement() {
   // 예시 3: 확장 행
   const [expandedTaskId, setExpandedTaskId] = useState<number | null>(null);
 
-  const { data: tasks = [], isLoading } = useQuery<EducationTask[]>({
+  const { data: tasks = [], isLoading } = useQuery<EducationTaskWithLinked[]>({
     queryKey: ["/api/education-tasks"],
   });
 
@@ -555,7 +557,7 @@ export default function EducationManagement() {
                       </td>
                       <td className="px-3 py-3 text-xs text-muted-foreground whitespace-nowrap">{t.startDate}</td>
                       <td className="px-3 py-3 text-xs text-muted-foreground whitespace-nowrap">{t.endDate}</td>
-                      {/* 예시 2: 완료율 + 자동계산 아이콘 */}
+                      {/* 예시 2: 완료율 + 자동계산 아이콘 (교육일지 연결 시) */}
                       <td className="px-3 py-3">
                         <div className="flex items-center gap-1 min-w-[80px]">
                           <div className="flex-1 bg-muted/50 rounded-full h-1.5 overflow-hidden">
@@ -565,10 +567,12 @@ export default function EducationManagement() {
                             />
                           </div>
                           <span className="text-xs font-medium w-8 text-right">{t.completionRate}%</span>
-                          <Link2
-                            className="w-3 h-3 text-primary/60 shrink-0"
-                            title="교육일지 서명률과 연동 가능 — 행을 클릭해 세션을 확인하세요"
-                          />
+                          {(t.linkedSessionCount ?? 0) > 0 && (
+                            <Link2
+                              className="w-3 h-3 text-primary shrink-0"
+                              title={`교육일지 ${t.linkedSessionCount}개 연결됨 — 서명률이 완료율에 자동 반영`}
+                            />
+                          )}
                         </div>
                       </td>
                       <td className="px-3 py-3">

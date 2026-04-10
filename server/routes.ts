@@ -1930,6 +1930,10 @@ export async function registerRoutes(
     try {
       const session = await storage.updateEducationSession(Number(req.params.id), req.body);
       res.json(session);
+      // 세션 상태 변경 시 연결된 업무 완료율 자동 동기화
+      if (session.taskId) {
+        syncTaskCompletionFromSessions(session.taskId).catch(console.error);
+      }
     } catch (error) {
       console.error("Error updating education session:", error);
       res.status(500).json({ message: "교육일지 수정에 실패했습니다" });
@@ -1941,8 +1945,13 @@ export async function registerRoutes(
     const existing = await storage.getEducationSession(id);
     if (!existing) return res.status(404).json({ message: "Not found" });
     if (!isOwnerOrAdmin(req, existing.createdBy)) return res.status(403).json({ message: "본인이 작성한 교육일지만 삭제할 수 있습니다" });
+    const taskId = existing.taskId;
     await storage.deleteEducationSession(id);
     res.status(204).send();
+    // 세션 삭제 후 연결된 업무 완료율 재계산
+    if (taskId) {
+      syncTaskCompletionFromSessions(taskId).catch(console.error);
+    }
   });
 
   app.post("/api/education-sessions/bulk-delete", requirePermission("registerEducation"), async (req: any, res) => {
@@ -2402,6 +2411,11 @@ export async function registerRoutes(
         sessionId,
       });
       res.status(201).json(signature);
+      // 세션에 taskId가 있으면 완료율 자동 업데이트
+      const session = await storage.getEducationSession(sessionId);
+      if (session?.taskId) {
+        syncTaskCompletionFromSessions(session.taskId).catch(console.error);
+      }
     } catch (error: any) {
       if (error?.name === "ZodError") return res.status(400).json({ message: "입력값이 올바르지 않습니다" });
       console.error("Error creating signature:", error);
@@ -2410,8 +2424,20 @@ export async function registerRoutes(
   });
 
   app.delete("/api/education-signatures/:id", requirePermission("registerEducation"), async (req: any, res) => {
-    await storage.deleteSignature(Number(req.params.id));
-    res.status(204).send();
+    try {
+      // 서명 삭제 전 sessionId 조회 후 taskId 동기화
+      const sig = await storage.getSignature(Number(req.params.id));
+      await storage.deleteSignature(Number(req.params.id));
+      res.status(204).send();
+      if (sig?.sessionId) {
+        const session = await storage.getEducationSession(sig.sessionId);
+        if (session?.taskId) {
+          syncTaskCompletionFromSessions(session.taskId).catch(console.error);
+        }
+      }
+    } catch {
+      res.status(204).send();
+    }
   });
 
   // === 공개 서명 링크 (로그인 불필요) ===
@@ -6467,10 +6493,39 @@ ${htmlDraft}
   });
 
   // === EDUCATION TASKS (교육업무 관리) ===
+
+  // 교육일지 서명률 → 업무 완료율 자동 동기화 헬퍼
+  async function syncTaskCompletionFromSessions(taskId: number) {
+    try {
+      const sessions = await storage.getSessionsByTaskId(taskId);
+      if (sessions.length === 0) return;
+      let totalRate = 0;
+      let allDone = true;
+      for (const s of sessions) {
+        const sigs = await storage.getSignaturesBySession(s.id);
+        const sessionRate = s.totalParticipants > 0
+          ? Math.min(100, Math.round((sigs.length / s.totalParticipants) * 100))
+          : 0;
+        totalRate += sessionRate;
+        if (s.status !== "완료" && sessionRate < 100) allDone = false;
+      }
+      const avgRate = Math.round(totalRate / sessions.length);
+      const newStatus = allDone ? "완료" : "미완료";
+      await storage.updateEducationTask(taskId, { completionRate: avgRate, status: newStatus });
+    } catch (e) {
+      console.error("[syncTask] 완료율 동기화 실패:", e);
+    }
+  }
+
   app.get('/api/education-tasks', isAuthenticated, async (_req, res) => {
     try {
       const tasks = await storage.getEducationTasks();
-      res.json(tasks);
+      // 연결된 세션 수(linkedSessionCount) 포함하여 반환
+      const enriched = await Promise.all(tasks.map(async (t) => {
+        const sessions = await storage.getSessionsByTaskId(t.id);
+        return { ...t, linkedSessionCount: sessions.length };
+      }));
+      res.json(enriched);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 

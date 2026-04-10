@@ -78,6 +78,7 @@ export interface IStorage {
   // Education Signatures
   getSignaturesBySession(sessionId: number): Promise<EducationSignature[]>;
   getAllSignaturesWithSession(): Promise<Array<EducationSignature & { sessionTitle: string; sessionDate: string; sessionDepartment: string }>>;
+  getSignature(id: number): Promise<EducationSignature | undefined>;
   createSignature(signature: InsertEducationSignature): Promise<EducationSignature>;
   deleteSignature(id: number): Promise<void>;
 
@@ -369,6 +370,11 @@ export class DatabaseStorage implements IStorage {
       sessionDate: r.sessionDate ?? "",
       sessionDepartment: r.sessionDepartment ?? "",
     }));
+  }
+
+  async getSignature(id: number): Promise<EducationSignature | undefined> {
+    const [sig] = await db.select().from(educationSignatures).where(eq(educationSignatures.id, id));
+    return sig;
   }
 
   async createSignature(signature: InsertEducationSignature): Promise<EducationSignature> {
