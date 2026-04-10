@@ -398,7 +398,7 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
   const [detailDesc, setDetailDesc] = useState("");
   const [detailImages, setDetailImages] = useState<string[]>([]);
   const [detailDate, setDetailDate] = useState("");
-  const [viewSigTab, setViewSigTab] = useState<"명단" | "내용" | "사진">("명단");
+  const [viewSigTab, setViewSigTab] = useState<"명단" | "내용">("명단");
   const [detailSaving, setDetailSaving] = useState(false);
   const [signerName, setSignerName] = useState("");
   const [signerDept, setSignerDept] = useState("");
@@ -770,7 +770,7 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
 
           {/* 탭 */}
           <div className="flex border-b -mx-6 px-6 gap-0 shrink-0">
-            {(["명단", "내용", "사진"] as const).map(tab => (
+            {(["명단", "내용"] as const).map(tab => (
               <button
                 key={tab}
                 onClick={() => setViewSigTab(tab)}
@@ -780,7 +780,7 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
                     : "border-transparent text-muted-foreground hover:text-foreground"
                 }`}
               >
-                {tab === "명단" ? "참석자 명단" : tab === "내용" ? "교육 내용" : "교육 사진"}
+                {tab === "명단" ? "참석자 명단" : "교육 내용·사진"}
               </button>
             ))}
           </div>
@@ -846,33 +846,34 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
                   <span>서명완료: <strong className="text-black">{viewSigs.length}명</strong></span>
                 </div>
               </div>
-            ) : viewSigTab === "내용" ? (
-              <div className="p-4">
-                {viewSigSession?.description ? (
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap text-foreground">
-                    {viewSigSession.description}
-                  </p>
-                ) : (
-                  <div className="py-12 text-center text-muted-foreground text-sm">
-                    등록된 교육 내용이 없습니다.
-                  </div>
-                )}
-              </div>
             ) : (
-              <div className="p-4">
-                {viewSigSession?.images && viewSigSession.images.length > 0 ? (
-                  <div className="grid grid-cols-2 gap-3">
-                    {viewSigSession.images.map((img, i) => (
-                      <div key={i} className="rounded-lg overflow-hidden border aspect-video bg-muted">
-                        <img src={img} alt={`교육사진 ${i + 1}`} className="w-full h-full object-cover" />
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="py-12 text-center text-muted-foreground text-sm">
-                    등록된 교육 사진이 없습니다.
-                  </div>
-                )}
+              <div className="p-4 space-y-4">
+                {/* 교육 내용 */}
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">교육 내용</p>
+                  {viewSigSession?.description ? (
+                    <p className="text-sm leading-relaxed whitespace-pre-wrap text-foreground">
+                      {viewSigSession.description}
+                    </p>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">등록된 교육 내용이 없습니다.</p>
+                  )}
+                </div>
+                {/* 교육 사진 */}
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">교육 사진</p>
+                  {viewSigSession?.images && viewSigSession.images.length > 0 ? (
+                    <div className="grid grid-cols-2 gap-3">
+                      {viewSigSession.images.map((img, i) => (
+                        <div key={i} className="rounded-lg overflow-hidden border aspect-video bg-muted">
+                          <img src={img} alt={`교육사진 ${i + 1}`} className="w-full h-full object-cover" />
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">등록된 교육 사진이 없습니다.</p>
+                  )}
+                </div>
               </div>
             )}
           </div>
