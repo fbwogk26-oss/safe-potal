@@ -1466,16 +1466,6 @@ export default function EducationManagement() {
                           >
                             <Pencil className="w-3.5 h-3.5" />
                           </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                            title="삭제"
-                            onClick={() => setDeleteConfirmIds([t.id])}
-                            data-testid={`button-delete-task-${t.id}`}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </Button>
                         </>
                       )}
                       <Button
