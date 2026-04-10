@@ -667,82 +667,67 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
           </DialogHeader>
 
           <div className="flex-1 overflow-y-auto">
-            <div className="border rounded-lg bg-white dark:bg-card text-foreground p-4 space-y-3 text-[11px]">
-              <div className="text-center pb-2 border-b">
-                <p className="text-[15px] font-bold tracking-wide">안전보건교육 참석자 서명부</p>
-              </div>
-              <table className="w-full border-collapse border border-gray-400 text-[10px]">
-                <tbody>
-                  <tr>
-                    <td className="border border-gray-400 bg-muted px-2 py-1 font-semibold w-20">교 육 명</td>
-                    <td className="border border-gray-400 px-2 py-1" colSpan={3}>{viewSigSession?.title || task.title}</td>
-                  </tr>
-                  <tr>
-                    <td className="border border-gray-400 bg-muted px-2 py-1 font-semibold">교육일자</td>
-                    <td className="border border-gray-400 px-2 py-1">
-                      {viewSigSession?.educationDate}{viewSigSession?.educationEndDate && viewSigSession.educationEndDate !== viewSigSession.educationDate ? ` ~ ${viewSigSession.educationEndDate}` : ""}
-                    </td>
-                    <td className="border border-gray-400 bg-muted px-2 py-1 font-semibold w-16">교육종류</td>
-                    <td className="border border-gray-400 px-2 py-1">{viewSigSession?.educationType}</td>
-                  </tr>
-                  <tr>
-                    <td className="border border-gray-400 bg-muted px-2 py-1 font-semibold">대상부서</td>
-                    <td className="border border-gray-400 px-2 py-1">{viewSigSession?.department}</td>
-                    <td className="border border-gray-400 bg-muted px-2 py-1 font-semibold">강 사 명</td>
-                    <td className="border border-gray-400 px-2 py-1">{viewSigSession?.instructor || "-"}</td>
-                  </tr>
-                </tbody>
-              </table>
-              {sigsLoading ? (
-                <div className="py-6 text-center text-muted-foreground text-xs">불러오는 중...</div>
-              ) : viewSigs.length === 0 ? (
-                <div className="py-6 text-center text-muted-foreground text-xs">아직 서명한 인원이 없습니다.</div>
-              ) : (
-                (() => {
-                  const left = viewSigs.slice(0, 20);
-                  const right = viewSigs.slice(20, 40);
-                  const SigTable = ({ items, offset }: { items: any[]; offset: number }) => (
-                    <table className="flex-1 border-collapse border border-gray-400 text-[10px]" style={{ minWidth: 0 }}>
+            {sigsLoading ? (
+              <div className="py-10 text-center text-muted-foreground text-xs">불러오는 중...</div>
+            ) : (
+              <div className="bg-white text-black text-[10px] p-3 space-y-2">
+                {/* 제목 */}
+                <div className="text-center font-bold text-[13px] border border-black py-1">
+                  "{viewSigSession?.title || task.title}" 참석자 명단
+                </div>
+                {/* 헤더 정보 */}
+                <div className="flex justify-between text-[10px] px-1">
+                  <span>□ 시행일시: {viewSigSession?.educationDate}</span>
+                  <span>□ 부서명: {viewSigSession?.department}</span>
+                </div>
+                {/* 2단 서명 테이블 */}
+                {(() => {
+                  const ROWS = 20;
+                  const slots = Array.from({ length: ROWS }, (_, i) => ({
+                    left: viewSigs[i] ?? null,
+                    right: viewSigs[i + ROWS] ?? null,
+                  }));
+                  return (
+                    <table className="w-full border-collapse border border-black text-[10px]">
                       <thead>
-                        <tr className="bg-muted">
-                          <th className="border border-gray-400 px-1 py-1 font-semibold text-center w-6">No</th>
-                          <th className="border border-gray-400 px-1 py-1 font-semibold text-center">성명</th>
-                          <th className="border border-gray-400 px-1 py-1 font-semibold text-center w-24">서 명</th>
-                          <th className="border border-gray-400 px-1 py-1 font-semibold text-center w-14">일시</th>
+                        <tr className="bg-gray-200">
+                          <th className="border border-black px-1 py-1 text-center w-8">순번</th>
+                          <th className="border border-black px-1 py-1 text-center w-16">이름</th>
+                          <th className="border border-black px-1 py-1 text-center">서명</th>
+                          <th className="border border-black px-1 py-1 text-center w-8">순번</th>
+                          <th className="border border-black px-1 py-1 text-center w-16">이름</th>
+                          <th className="border border-black px-1 py-1 text-center">서명</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {items.map((sig: any, i: number) => (
-                          <tr key={sig.id} className={i % 2 === 0 ? "" : "bg-muted/20"}>
-                            <td className="border border-gray-400 px-1 py-0.5 text-center">{offset + i + 1}</td>
-                            <td className="border border-gray-400 px-1 py-0.5 text-center font-medium">{sig.signerName}</td>
-                            <td className="border border-gray-400 px-0.5 py-0.5 text-center">
-                              {sig.signatureData
-                                ? <img src={sig.signatureData} alt="서명" className="h-7 mx-auto object-contain" />
-                                : <span className="text-muted-foreground">-</span>
-                              }
+                        {slots.map(({ left, right }, i) => (
+                          <tr key={i}>
+                            <td className="border border-black px-1 py-0.5 text-center">{i + 1}</td>
+                            <td className="border border-black px-1 py-0.5 text-center">{left?.signerName ?? ""}</td>
+                            <td className="border border-black px-1 py-0.5 text-center h-7">
+                              {left?.signatureData
+                                ? <img src={left.signatureData} alt="서명" className="h-6 mx-auto object-contain" />
+                                : ""}
                             </td>
-                            <td className="border border-gray-400 px-0.5 py-0.5 text-center text-[9px] text-muted-foreground leading-tight">
-                              {sig.signedAt ? new Date(sig.signedAt).toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }) : "-"}
+                            <td className="border border-black px-1 py-0.5 text-center">{i + ROWS + 1}</td>
+                            <td className="border border-black px-1 py-0.5 text-center">{right?.signerName ?? ""}</td>
+                            <td className="border border-black px-1 py-0.5 text-center h-7">
+                              {right?.signatureData
+                                ? <img src={right.signatureData} alt="서명" className="h-6 mx-auto object-contain" />
+                                : ""}
                             </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   );
-                  return (
-                    <div className="flex gap-2 items-start">
-                      <SigTable items={left} offset={0} />
-                      {right.length > 0 && <SigTable items={right} offset={20} />}
-                    </div>
-                  );
-                })()
-              )}
-              <div className="flex justify-end gap-6 pt-1 text-[10px] text-muted-foreground">
-                <span>대상인원: <strong className="text-foreground">{viewSigSession?.totalParticipants}명</strong></span>
-                <span>서명완료: <strong className="text-foreground">{viewSigs.length}명</strong></span>
+                })()}
+                <div className="flex justify-end gap-6 pt-0.5 text-[10px] text-gray-600">
+                  <span>대상인원: <strong className="text-black">{viewSigSession?.totalParticipants}명</strong></span>
+                  <span>서명완료: <strong className="text-black">{viewSigs.length}명</strong></span>
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           <DialogFooter className="pt-2">
