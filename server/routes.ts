@@ -1962,8 +1962,20 @@ export async function registerRoutes(
     const ids: number[] = req.body.ids || [];
     if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ message: "ids 필요" });
     try {
-      for (const id of ids) { try { await storage.deleteEducationSession(id); } catch (_) {} }
+      // 삭제 전 연결된 taskId 수집 (완료율 재계산용)
+      const affectedTaskIds = new Set<number>();
+      for (const id of ids) {
+        try {
+          const sess = await storage.getEducationSession(id);
+          if (sess?.taskId) affectedTaskIds.add(sess.taskId);
+          await storage.deleteEducationSession(id);
+        } catch (_) {}
+      }
       res.json({ deleted: ids.length });
+      // 영향받은 업무 완료율 재계산 (응답 후 비동기)
+      for (const taskId of affectedTaskIds) {
+        syncTaskCompletionFromSessions(taskId).catch(console.error);
+      }
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 

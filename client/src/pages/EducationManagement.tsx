@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, Fragment } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
@@ -530,9 +530,8 @@ export default function EducationManagement() {
                 </tr>
               ) : (
                 paged.map(t => (
-                  <>
+                  <Fragment key={t.id}>
                     <motion.tr
-                      key={t.id}
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       className={`border-b transition-colors group cursor-pointer ${expandedTaskId === t.id ? "bg-primary/5" : "hover:bg-muted/30"}`}
@@ -639,7 +638,7 @@ export default function EducationManagement() {
                         <LinkedSessionsPanel taskId={t.id} />
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 ))
               )}
             </tbody>
