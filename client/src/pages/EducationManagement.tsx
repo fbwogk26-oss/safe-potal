@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   CheckCircle2, Trash2, Plus, FileSpreadsheet, Search,
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
-  RotateCcw, X, Paperclip, Upload, Pencil, Link2,
+  RotateCcw, X, Pencil, Link2,
   ChevronDown, ChevronUp, Users, Calendar, Clock,
   Copy, ExternalLink, Send, QrCode, GraduationCap, Download, Eye,
   ImagePlus, Camera, Save,
@@ -430,9 +430,6 @@ export default function EducationManagement() {
   const [form, setForm] = useState<FormState>(emptyForm());
   const [deleteConfirmIds, setDeleteConfirmIds] = useState<number[]>([]);
   const [confirmConfirmIds, setConfirmConfirmIds] = useState<number[]>([]);
-  const [attachmentTaskId, setAttachmentTaskId] = useState<number | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
   // 확장 행
   const [expandedTaskId, setExpandedTaskId] = useState<number | null>(null);
 
@@ -483,20 +480,6 @@ export default function EducationManagement() {
       toast({ title: "완료 처리되었습니다." });
     },
     onError: (e: any) => toast({ title: "처리 실패", description: e.message, variant: "destructive" }),
-  });
-
-  const attachmentMutation = useMutation({
-    mutationFn: ({ id, file }: { id: number; file: File }) => {
-      const fd = new FormData();
-      fd.append("file", file);
-      return fetch(`/api/education-tasks/${id}/attachment`, { method: "POST", body: fd }).then(r => r.json());
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/education-tasks"] });
-      setAttachmentTaskId(null);
-      toast({ title: "증빙자료가 업로드되었습니다." });
-    },
-    onError: (e: any) => toast({ title: "업로드 실패", description: e.message, variant: "destructive" }),
   });
 
   const filtered = tasks.filter(t => {
@@ -874,17 +857,6 @@ export default function EducationManagement() {
                           >
                             <Pencil className="w-3.5 h-3.5" />
                           </Button>
-                          {/* 증빙자료 업로드 */}
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                            title="증빙자료 업로드"
-                            onClick={() => setAttachmentTaskId(t.id)}
-                            data-testid={`button-attach-task-${t.id}`}
-                          >
-                            <Paperclip className="w-3.5 h-3.5" />
-                          </Button>
                           {/* 삭제 */}
                           <Button
                             size="icon"
@@ -1246,44 +1218,6 @@ export default function EducationManagement() {
               {editTask ? "수정 완료" : "업무 등록"}
             </Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* 증빙자료 업로드 다이얼로그 */}
-      <Dialog open={attachmentTaskId !== null} onOpenChange={v => { if (!v) setAttachmentTaskId(null); }}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Upload className="w-4 h-4" /> 증빙자료 업로드
-            </DialogTitle>
-          </DialogHeader>
-          <div className="py-4">
-            <input
-              type="file"
-              ref={fileInputRef}
-              className="hidden"
-              accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xlsx,.xls,.hwp,.hwpx"
-              onChange={e => {
-                const file = e.target.files?.[0];
-                if (file && attachmentTaskId !== null) {
-                  attachmentMutation.mutate({ id: attachmentTaskId, file });
-                }
-              }}
-            />
-            <Button
-              className="w-full gap-2"
-              variant="outline"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={attachmentMutation.isPending}
-              data-testid="button-file-select"
-            >
-              <Paperclip className="w-4 h-4" />
-              {attachmentMutation.isPending ? "업로드 중..." : "파일 선택 (PDF, 이미지, 문서)"}
-            </Button>
-            <p className="text-xs text-muted-foreground mt-2 text-center">
-              업로드 시 해당 업무가 자동으로 완료 처리됩니다.
-            </p>
-          </div>
         </DialogContent>
       </Dialog>
 
