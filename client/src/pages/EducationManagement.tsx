@@ -748,27 +748,6 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
                 </Button>
               </div>
 
-              {/* 기존 서명자 */}
-              {detailSigs.length > 0 && (
-                <div className="border rounded-lg divide-y max-h-[120px] overflow-y-auto">
-                  {detailSigs.map((sig: any, idx: number) => (
-                    <div key={sig.id} className="flex items-center gap-2.5 px-3 py-2">
-                      <span className="w-5 h-5 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-[10px] text-indigo-600 font-bold shrink-0">{idx + 1}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium">{sig.signerName}</p>
-                        {sig.signerDepartment && <p className="text-[10px] text-muted-foreground">{sig.signerDepartment}</p>}
-                      </div>
-                      {sig.signatureData && (
-                        <img src={sig.signatureData} alt="서명" className="h-7 w-14 object-contain border rounded bg-white" />
-                      )}
-                      <span className="text-[10px] text-muted-foreground shrink-0">
-                        {sig.signedAt ? new Date(sig.signedAt).toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }) : ""}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
               {/* 서명 입력 */}
               <div className="space-y-2 bg-muted/10 rounded-lg p-3 border">
                 <div className="grid grid-cols-2 gap-2">
