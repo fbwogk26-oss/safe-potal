@@ -1612,106 +1612,121 @@ export async function registerRoutes(
         const dept = session.department;
         const signatures = await storage.getSignaturesBySession(session.id);
 
-        const sigSheet = workbook.addWorksheet(`${dept}_참석자명단`);
-        sigSheet.properties.defaultColWidth = 14;
-        sigSheet.getColumn(1).width = 8;
-        sigSheet.getColumn(2).width = 14;
-        sigSheet.getColumn(3).width = 22;
-        sigSheet.getColumn(4).width = 8;
-        sigSheet.getColumn(5).width = 14;
-        sigSheet.getColumn(6).width = 22;
+        const sheetName = dept.length > 20 ? dept.slice(0, 20) : dept;
+        const sigSheet = workbook.addWorksheet(`${sheetName}_참석자명단`);
+        const COL_W_G = [8, 14, 22, 8, 14, 22];
+        COL_W_G.forEach((w, ci) => { sigSheet.getColumn(ci + 1).width = w; });
 
+        // ── 제목
         sigSheet.mergeCells("A1:F1");
         const titleCell = sigSheet.getCell("A1");
         titleCell.value = `"${title}" 참석자 명단`;
-        titleCell.font = { bold: true, size: 16 };
+        titleCell.font = { bold: true, size: 15 };
         titleCell.alignment = { horizontal: "center", vertical: "middle" };
-        titleCell.border = { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } };
-        sigSheet.getRow(1).height = 36;
+        titleCell.border = { top:{style:"medium"}, bottom:{style:"medium"}, left:{style:"medium"}, right:{style:"medium"} };
+        sigSheet.getRow(1).height = 38;
+        sigSheet.getRow(2).height = 6;
 
-        sigSheet.getRow(2).height = 8;
-
+        // ── 시행일시 / 부서명
         sigSheet.mergeCells("A3:C3");
         const dateCell = sigSheet.getCell("A3");
-        dateCell.value = `□ 시행일시: ${date}`;
-        dateCell.font = { size: 11 };
-        dateCell.alignment = { vertical: "middle" };
+        dateCell.value = `□ 시행일시: ${session.educationDate || date}${session.educationEndDate && session.educationEndDate !== session.educationDate ? ` ~ ${session.educationEndDate}` : ""}`;
+        dateCell.font = { size: 10 }; dateCell.alignment = { vertical: "middle" };
         sigSheet.mergeCells("D3:F3");
         const deptCell = sigSheet.getCell("D3");
         deptCell.value = `□ 부서명: ${dept}`;
-        deptCell.font = { size: 11 };
-        deptCell.alignment = { vertical: "middle" };
-        sigSheet.getRow(3).height = 24;
+        deptCell.font = { size: 10 }; deptCell.alignment = { vertical: "middle" };
+        sigSheet.getRow(3).height = 22;
 
-        const headers = ["순번", "이름", "서명", "순번", "이름", "서명"];
-        const headerRow = sigSheet.getRow(4);
-        headers.forEach((h, i) => {
-          const cell = headerRow.getCell(i + 1);
-          cell.value = h;
-          cell.font = { bold: true, size: 10 };
-          cell.alignment = { horizontal: "center", vertical: "middle" };
-          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE0E0E0" } };
-          cell.border = { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } };
+        // ── 강사 / 대상인원
+        sigSheet.mergeCells("A4:C4");
+        const instrCell = sigSheet.getCell("A4");
+        instrCell.value = `□ 강사: ${session.instructor || "-"}`;
+        instrCell.font = { size: 10 }; instrCell.alignment = { vertical: "middle" };
+        sigSheet.mergeCells("D4:F4");
+        const partCell = sigSheet.getCell("D4");
+        partCell.value = `□ 대상인원: ${session.totalParticipants || 0}명`;
+        partCell.font = { size: 10 }; partCell.alignment = { vertical: "middle" };
+        sigSheet.getRow(4).height = 22;
+
+        // ── 교육내용 (있을 때만)
+        let gHeaderRow = 6;
+        if (session.description) {
+          sigSheet.mergeCells("A5:F5");
+          const descCell = sigSheet.getCell("A5");
+          descCell.value = `□ 교육내용: ${session.description}`;
+          descCell.font = { size: 10 }; descCell.alignment = { vertical: "middle", wrapText: true };
+          descCell.border = { top:{style:"thin"}, bottom:{style:"thin"}, left:{style:"thin"}, right:{style:"thin"} };
+          sigSheet.getRow(5).height = 36;
+          sigSheet.getRow(6).height = 6;
+          gHeaderRow = 7;
+        } else {
+          sigSheet.getRow(5).height = 6;
+          gHeaderRow = 6;
+        }
+
+        // ── 헤더
+        const G_SIG_ROWS = 20;
+        ["순번","이름","서명","순번","이름","서명"].forEach((h, ci) => {
+          const c = sigSheet.getRow(gHeaderRow).getCell(ci + 1);
+          c.value = h; c.font = { bold: true, size: 10 };
+          c.alignment = { horizontal: "center", vertical: "middle" };
+          c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFD6E4F0" } };
+          c.border = { top:{style:"medium"}, bottom:{style:"medium"}, left:{style:"thin"}, right:{style:"thin"} };
         });
-        headerRow.height = 22;
+        sigSheet.getRow(gHeaderRow).height = 22;
 
-        for (let i = 0; i < 25; i++) {
-          const row = sigSheet.getRow(5 + i);
-          row.height = 32;
+        // ── 서명 행 (좌 1~20, 우 21~40)
+        const makeSigBuf = async (sigData: string) => {
+          if (!sigData || !sigData.startsWith("data:image/")) return null;
+          const sharp = (await import("sharp")).default;
+          const raw = Buffer.from(sigData.split(",")[1], "base64");
+          const { data: pd, info: pi } = await sharp(raw).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+          const px = new Uint8Array(pd.buffer);
+          for (let p = 0; p < px.length; p += 4) { if (px[p]>230 && px[p+1]>230 && px[p+2]>230) px[p+3]=0; }
+          return sharp(Buffer.from(px), { raw:{ width:pi.width, height:pi.height, channels:4 } }).resize(360,90,{fit:"inside",withoutEnlargement:true}).png().toBuffer();
+        };
 
-          const leftNumCell = row.getCell(1);
-          leftNumCell.value = i + 1;
-          leftNumCell.alignment = { horizontal: "center", vertical: "middle" };
-          leftNumCell.border = { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } };
-          const leftNameCell = row.getCell(2);
-          leftNameCell.alignment = { horizontal: "center", vertical: "middle" };
-          leftNameCell.border = { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } };
-          const leftSigCell = row.getCell(3);
-          leftSigCell.border = { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } };
+        for (let i = 0; i < G_SIG_ROWS; i++) {
+          const row = sigSheet.getRow(gHeaderRow + 1 + i);
+          row.height = 38;
+          const setBorder = (cell: ExcelJS.Cell) => {
+            cell.border = { top:{style:"thin"}, bottom:{style:"thin"}, left:{style:"thin"}, right:{style:"thin"} };
+          };
+
+          const lNum = row.getCell(1); lNum.value = i+1;
+          lNum.alignment = { horizontal:"center", vertical:"middle" }; setBorder(lNum);
+          const lName = row.getCell(2);
+          lName.alignment = { horizontal:"center", vertical:"middle" }; setBorder(lName);
+          setBorder(row.getCell(3));
 
           if (signatures[i]) {
-            leftNameCell.value = signatures[i].signerName;
+            lName.value = signatures[i].signerName;
             try {
-              const sigData = signatures[i].signatureData;
-              if (sigData && sigData.startsWith("data:image/")) {
-                const sharp = (await import("sharp")).default;
-                const raw = Buffer.from(sigData.split(",")[1], "base64");
-                const { data, info } = await sharp(raw).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-                const px = new Uint8Array(data.buffer);
-                for (let p = 0; p < px.length; p += 4) { if (px[p] > 230 && px[p+1] > 230 && px[p+2] > 230) px[p+3] = 0; }
-                const buf = await sharp(Buffer.from(px), { raw: { width: info.width, height: info.height, channels: 4 } }).resize(360, 90, { fit: "inside", withoutEnlargement: true }).png().toBuffer();
-                const imageId = workbook.addImage({ base64: buf.toString("base64"), extension: "png" });
-                (sigSheet as any).addImage(imageId, { tl: { col: 2, row: 4 + i }, br: { col: 3, row: 5 + i }, editAs: "oneCell" });
+              const buf = await makeSigBuf(signatures[i].signatureData);
+              if (buf) {
+                const imgId = workbook.addImage({ base64: buf.toString("base64"), extension: "png" });
+                (sigSheet as any).addImage(imgId, { tl:{col:2, row:gHeaderRow+i}, br:{col:3, row:gHeaderRow+1+i}, editAs:"oneCell" });
               }
-            } catch (e) { /* skip */ }
+            } catch { /* skip */ }
           }
 
-          const rightIdx = i + 25;
-          const rightNumCell = row.getCell(4);
-          rightNumCell.value = i + 26;
-          rightNumCell.alignment = { horizontal: "center", vertical: "middle" };
-          rightNumCell.border = { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } };
-          const rightNameCell = row.getCell(5);
-          rightNameCell.alignment = { horizontal: "center", vertical: "middle" };
-          rightNameCell.border = { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } };
-          const rightSigCell = row.getCell(6);
-          rightSigCell.border = { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } };
+          const rIdx = i + G_SIG_ROWS;
+          const rNum = row.getCell(4); rNum.value = i+G_SIG_ROWS+1;
+          rNum.alignment = { horizontal:"center", vertical:"middle" }; setBorder(rNum);
+          const rName = row.getCell(5);
+          rName.alignment = { horizontal:"center", vertical:"middle" }; setBorder(rName);
+          setBorder(row.getCell(6));
 
-          if (signatures[rightIdx]) {
-            rightNameCell.value = signatures[rightIdx].signerName;
+          if (signatures[rIdx]) {
+            rName.value = signatures[rIdx].signerName;
             try {
-              const sigData = signatures[rightIdx].signatureData;
-              if (sigData && sigData.startsWith("data:image/")) {
-                const sharp = (await import("sharp")).default;
-                const raw = Buffer.from(sigData.split(",")[1], "base64");
-                const { data, info } = await sharp(raw).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-                const px = new Uint8Array(data.buffer);
-                for (let p = 0; p < px.length; p += 4) { if (px[p] > 230 && px[p+1] > 230 && px[p+2] > 230) px[p+3] = 0; }
-                const buf = await sharp(Buffer.from(px), { raw: { width: info.width, height: info.height, channels: 4 } }).resize(360, 90, { fit: "inside", withoutEnlargement: true }).png().toBuffer();
-                const imageId = workbook.addImage({ base64: buf.toString("base64"), extension: "png" });
-                (sigSheet as any).addImage(imageId, { tl: { col: 5, row: 4 + i }, br: { col: 6, row: 5 + i }, editAs: "oneCell" });
+              const buf = await makeSigBuf(signatures[rIdx].signatureData);
+              if (buf) {
+                const imgId = workbook.addImage({ base64: buf.toString("base64"), extension: "png" });
+                (sigSheet as any).addImage(imgId, { tl:{col:5, row:gHeaderRow+i}, br:{col:6, row:gHeaderRow+1+i}, editAs:"oneCell" });
               }
-            } catch (e) { /* skip */ }
+            } catch { /* skip */ }
           }
         }
 
@@ -1747,31 +1762,32 @@ export async function registerRoutes(
         photoSheet.getRow(deptRowNum).height = 28;
         currentRow++;
 
-        // Photo area: 11 rows (currentRow to currentRow+10)
+        // Photo area: 5 rows (1/4 크기)
+        const G_PHOTO_ROWS = 5;
+        const G_PHOTO_ROW_H = 28;
         const photoStartRow = currentRow;
-        const photoEndRow = currentRow + 10;
+        const photoEndRow = currentRow + G_PHOTO_ROWS - 1;
         photoSheet.mergeCells(`A${photoStartRow}:D${photoEndRow}`);
         photoSheet.mergeCells(`E${photoStartRow}:H${photoEndRow}`);
         for (let r = photoStartRow; r <= photoEndRow; r++) {
-          photoSheet.getRow(r).height = 30;
-          for (let c = 1; c <= 8; c++) {
-            photoSheet.getRow(r).getCell(c).border = { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } };
-          }
+          photoSheet.getRow(r).height = G_PHOTO_ROW_H;
+          photoSheet.getRow(r).getCell(1).border = { top:{style:"thin"}, bottom:{style:"thin"}, left:{style:"thin"}, right:{style:"thin"} };
+          photoSheet.getRow(r).getCell(5).border = { top:{style:"thin"}, bottom:{style:"thin"}, left:{style:"thin"}, right:{style:"thin"} };
         }
 
-        // Embed photos
+        // Embed photos (sharp로 리사이즈)
         const images = session.images || [];
         for (let pi = 0; pi < Math.min(images.length, 2); pi++) {
           try {
             const objectFile = await objService.getObjectEntityFile(images[pi]);
-            const [imgBuffer] = await objectFile.download();
-            const base64 = imgBuffer.toString("base64");
-            const contentType = images[pi].toLowerCase().endsWith(".png") ? "png" : "jpeg";
-            const imageId = workbook.addImage({ base64, extension: contentType as "png" | "jpeg" });
+            const [rawBuf] = await objectFile.download();
+            const sharp = (await import("sharp")).default;
+            const procBuf = await sharp(rawBuf).rotate().resize(450, 300, { fit:"inside", withoutEnlargement:true }).jpeg({ quality:82, mozjpeg:true }).toBuffer();
+            const imageId = workbook.addImage({ base64: procBuf.toString("base64"), extension: "jpeg" });
             if (pi === 0) {
-              (photoSheet as any).addImage(imageId, { tl: { col: 0, row: photoStartRow - 1 }, br: { col: 4, row: photoEndRow }, editAs: "oneCell" });
+              (photoSheet as any).addImage(imageId, { tl:{col:0, row:photoStartRow-1}, br:{col:4, row:photoEndRow}, editAs:"oneCell" });
             } else {
-              (photoSheet as any).addImage(imageId, { tl: { col: 4, row: photoStartRow - 1 }, br: { col: 8, row: photoEndRow }, editAs: "oneCell" });
+              (photoSheet as any).addImage(imageId, { tl:{col:4, row:photoStartRow-1}, br:{col:8, row:photoEndRow}, editAs:"oneCell" });
             }
           } catch (e) {
             console.error(`Failed to embed photo ${pi} for ${dept}:`, e);
@@ -1780,25 +1796,25 @@ export async function registerRoutes(
 
         currentRow = photoEndRow + 1;
 
-        // Labels row
+        // 캡션 행
         const labelRowNum = currentRow;
         photoSheet.mergeCells(`A${labelRowNum}:D${labelRowNum}`);
         photoSheet.mergeCells(`E${labelRowNum}:H${labelRowNum}`);
         const labelLeft = photoSheet.getCell(`A${labelRowNum}`);
-        labelLeft.value = "교육사진";
-        labelLeft.font = { bold: true, size: 10 };
+        labelLeft.value = "교육 실시 사진";
+        labelLeft.font = { bold: true, size: 9 };
         labelLeft.alignment = { horizontal: "center", vertical: "middle" };
-        labelLeft.border = { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } };
+        labelLeft.border = { top:{style:"thin"}, bottom:{style:"thin"}, left:{style:"thin"}, right:{style:"thin"} };
         const labelRight = photoSheet.getCell(`E${labelRowNum}`);
-        labelRight.value = "교육사진";
-        labelRight.font = { bold: true, size: 10 };
+        labelRight.value = "교육 실시 사진";
+        labelRight.font = { bold: true, size: 9 };
         labelRight.alignment = { horizontal: "center", vertical: "middle" };
-        labelRight.border = { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } };
-        photoSheet.getRow(labelRowNum).height = 24;
+        labelRight.border = { top:{style:"thin"}, bottom:{style:"thin"}, left:{style:"thin"}, right:{style:"thin"} };
+        photoSheet.getRow(labelRowNum).height = 20;
         currentRow++;
 
-        // Spacing row between departments
-        photoSheet.getRow(currentRow).height = 10;
+        // 부서 간 여백
+        photoSheet.getRow(currentRow).height = 8;
         currentRow++;
       }
 
@@ -6711,8 +6727,8 @@ ${htmlDraft}
       const sharp = (await import("sharp")).default;
       const buf = await sharp(rawBuffer)
         .rotate()                                          // EXIF 방향 자동 보정
-        .resize(900, 600, { fit: "inside", withoutEnlargement: true })
-        .jpeg({ quality: 88, mozjpeg: true })
+        .resize(450, 300, { fit: "inside", withoutEnlargement: true })
+        .jpeg({ quality: 82, mozjpeg: true })
         .toBuffer();
       return { buffer: buf, ext: "jpeg" };
     } catch {
@@ -6931,8 +6947,8 @@ ${htmlDraft}
 
     photoSheet.getRow(3).height = 6;  // 구분선
 
-    const PHOTO_ROW_H = 28;    // 행 높이(pt) — 18행 × 28pt ≈ 357pt ≈ 12.6cm
-    const PHOTO_ROWS  = 18;    // 사진 1장당 행 수
+    const PHOTO_ROW_H = 28;    // 행 높이(pt)
+    const PHOTO_ROWS  = 5;     // 사진 1장당 행 수 (1/4 크기)
 
     // 상단 2장(A~D, E~H)
     const topStart = 4;
