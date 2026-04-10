@@ -153,18 +153,26 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
 
   // 패널 열릴 때 누락된 세션 자동 생성 (업무 범위 기반)
   const expectedDeptsForTask = getExpectedDepts(task);
+  const expectedLen = expectedDeptsForTask.length;
   const [autoCreating, setAutoCreating] = useState(false);
   const autoCreatedRef = useRef(false);
+  const prevExpectedLenRef = useRef(expectedLen);
+  // expectedLen이 바뀌면(팀 구조 변경 등) autoCreatedRef 초기화
+  if (prevExpectedLenRef.current !== expectedLen) {
+    prevExpectedLenRef.current = expectedLen;
+    autoCreatedRef.current = false;
+  }
   useEffect(() => {
-    if (!isLoading && sessions.length < expectedDeptsForTask.length && !autoCreatedRef.current) {
+    if (!isLoading && sessions.length < expectedLen && !autoCreatedRef.current) {
       autoCreatedRef.current = true;
       setAutoCreating(true);
       fetch(`/api/education-tasks/${taskId}/auto-sessions`, { method: "POST", credentials: "include" })
         .then(r => r.json())
         .then(data => { if (data.created > 0) refetch(); })
+        .catch(() => { autoCreatedRef.current = false; })
         .finally(() => setAutoCreating(false));
     }
-  }, [isLoading, sessions.length, taskId]);
+  }, [isLoading, sessions.length, taskId, expectedLen]);
 
   // 편집 다이얼로그 상태
   const [editingSession, setEditingSession] = useState<SessionWithSigs | null>(null);

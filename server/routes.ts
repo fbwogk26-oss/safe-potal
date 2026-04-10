@@ -6665,6 +6665,7 @@ ${htmlDraft}
       const existingDepts = new Set(existing.map((s: any) => s.department));
       const missing = depts.filter(d => !existingDepts.has(d));
 
+      let created = 0;
       for (const dept of missing) {
         try {
           await storage.createEducationSession({
@@ -6679,10 +6680,11 @@ ${htmlDraft}
             taskId: task.id,
             createdBy: req.user?.username || req.user?.name,
           });
-        } catch (_) { /* 무시 */ }
+          created++;
+        } catch (err) { console.error(`[auto-sessions] ${dept} 생성 실패:`, err); }
       }
 
-      res.json({ created: missing.length });
+      res.json({ created });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
