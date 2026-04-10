@@ -400,10 +400,11 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
     }
     setSigning(true);
     try {
+      const effectiveDept = signerDept === "none" ? "" : signerDept.trim();
       const res = await fetch(`/api/public/education/${detailSession.id}/sign`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ signerName: signerName.trim(), signerDepartment: signerDept.trim(), signatureData: sigData }),
+        body: JSON.stringify({ signerName: signerName.trim(), signerDepartment: effectiveDept, signatureData: sigData, consentAgreed: true }),
       });
       if (!res.ok) throw new Error("서명 실패");
       toast({ title: "서명이 완료되었습니다." });
@@ -460,10 +461,6 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
         >
           {isDone ? "완료" : "진행중"}
         </Badge>
-        <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-blue-600"
-          onClick={() => openEdit(s)} title="교육내용/사진 등록" data-testid={`button-edit-session-${s.id}`}>
-          <Pencil className="w-3.5 h-3.5" />
-        </Button>
         <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-primary"
           onClick={() => copyLink(s.id)} title="서명 링크 복사" data-testid={`button-copy-link-${s.id}`}>
           <Copy className="w-3.5 h-3.5" />
@@ -706,8 +703,7 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
               <div className="grid grid-cols-4 gap-2">
                 {detailImages.map((img, i) => (
                   <div key={i} className="relative aspect-square rounded-lg overflow-hidden border bg-muted/20 group">
-                    <img src={img.startsWith("http") ? img : `/api/uploads/view?path=${encodeURIComponent(img)}`}
-                      alt={`교육사진 ${i + 1}`} className="w-full h-full object-cover" />
+                    <img src={img} alt={`교육사진 ${i + 1}`} className="w-full h-full object-cover" />
                     <button
                       className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
                       onClick={() => setDetailImages(imgs => imgs.filter((_, idx) => idx !== i))}
@@ -783,8 +779,17 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">소속 (선택)</Label>
-                    <Input value={signerDept} onChange={e => setSignerDept(e.target.value)}
-                      placeholder="소속 입력" className="h-8 text-sm" data-testid="input-signer-dept" />
+                    <Select value={signerDept} onValueChange={setSignerDept}>
+                      <SelectTrigger className="h-8 text-sm" data-testid="select-signer-dept">
+                        <SelectValue placeholder="소속 선택" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">선택 안함</SelectItem>
+                        {DEPARTMENTS.map(d => (
+                          <SelectItem key={d} value={d}>{d}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
                 <div className="space-y-1">
