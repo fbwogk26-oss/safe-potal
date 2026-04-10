@@ -704,16 +704,16 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
                           <tr key={i}>
                             <td className="border border-black px-1 py-0.5 text-center">{i + 1}</td>
                             <td className="border border-black px-1 py-0.5 text-center">{left?.signerName ?? ""}</td>
-                            <td className="border border-black px-1 py-0.5 text-center h-7">
+                            <td className="border border-black px-1 py-0 text-center" style={{ height: "22px" }}>
                               {left?.signatureData
-                                ? <img src={left.signatureData} alt="서명" className="h-6 mx-auto object-contain" />
+                                ? <img src={left.signatureData} alt="서명" className="h-5 mx-auto object-contain" />
                                 : ""}
                             </td>
                             <td className="border border-black px-1 py-0.5 text-center">{i + ROWS + 1}</td>
                             <td className="border border-black px-1 py-0.5 text-center">{right?.signerName ?? ""}</td>
-                            <td className="border border-black px-1 py-0.5 text-center h-7">
+                            <td className="border border-black px-1 py-0 text-center" style={{ height: "22px" }}>
                               {right?.signatureData
-                                ? <img src={right.signatureData} alt="서명" className="h-6 mx-auto object-contain" />
+                                ? <img src={right.signatureData} alt="서명" className="h-5 mx-auto object-contain" />
                                 : ""}
                             </td>
                           </tr>
