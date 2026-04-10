@@ -847,21 +847,28 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
                   )}
                 </div>
                 {/* 개인정보 수집·이용 동의 */}
-                <div className="rounded-lg border border-border bg-muted/30 px-3 py-2.5 space-y-2">
-                  <p className="text-[11px] text-muted-foreground leading-relaxed">
-                    수집 항목: 성명, 소속, 서명 이미지 · 목적: 교육 이수 확인 · 보유기간: 교육 종료 후 3년
-                  </p>
+                <div className="space-y-2">
+                  <div className="max-h-28 overflow-y-auto rounded-lg border border-border bg-muted/40 p-3 text-xs text-muted-foreground leading-relaxed">
+                    <p className="font-semibold text-foreground mb-1">개인정보 수집·이용 동의 (필수)</p>
+                    <p>본 전자서명은 「개인정보 보호법」 및 「산업안전보건법」에 따라 교육 이수 증빙을 목적으로 다음 정보를 수집합니다.</p>
+                    <ul className="mt-1 space-y-0.5 list-disc list-inside">
+                      <li>수집 항목: 성명, 소속팀, 서명 이미지, 서명 일시</li>
+                      <li>수집 목적: 안전교육 이수 증빙 (중대재해처벌법 대응)</li>
+                      <li>보존 기간: 서명일로부터 <strong>3년</strong> (산업안전보건법 제165조)</li>
+                      <li>제3자 제공: 관계 법령에 의한 경우 외 제공 없음</li>
+                    </ul>
+                    <p className="mt-1">귀하는 동의를 거부할 권리가 있으나, 거부 시 교육 서명 등록이 불가합니다.</p>
+                  </div>
                   <label className="flex items-start gap-2 cursor-pointer select-none" data-testid="label-consent-inline">
-                    <Checkbox
-                      id="consent-inline"
+                    <input
+                      type="checkbox"
                       checked={consentAgreed}
-                      onCheckedChange={v => setConsentAgreed(v === true)}
-                      className="mt-0.5 shrink-0"
+                      onChange={e => setConsentAgreed(e.target.checked)}
+                      className="mt-0.5 w-4 h-4 accent-primary shrink-0"
                       data-testid="checkbox-consent-inline"
                     />
-                    <span className="text-xs text-foreground/80 leading-relaxed">
-                      개인정보 수집·이용 및 전자서명 제출에 동의합니다.{" "}
-                      <span className="text-destructive font-medium">(필수)</span>
+                    <span className="text-xs text-foreground">
+                      위 내용을 숙지하였으며, 본인의 필적으로 전자서명함에 동의합니다. <span className="text-destructive font-medium">(필수)</span>
                     </span>
                   </label>
                 </div>
