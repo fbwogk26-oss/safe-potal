@@ -43,8 +43,8 @@ export default function Login() {
               <CalendarDays className="w-7 h-7 text-white" />
             </div>
             <div className="text-center">
-              <h1 className="text-[1.6rem] font-bold italic tracking-tight text-gray-800" style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}>
-                <span className="not-italic font-black">SHS</span>cheduler
+              <h1 className="text-[1.35rem] font-bold tracking-tight text-gray-800">
+                종합안전포털시스템
               </h1>
               <p className="text-sm text-gray-500 mt-0.5">안전 관리 시스템에 로그인하세요</p>
             </div>
