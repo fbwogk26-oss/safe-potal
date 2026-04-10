@@ -534,7 +534,7 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
         </button>
 
         {/* 진행율 바 */}
-        <div className="flex-1 flex flex-col gap-0.5 min-w-0">
+        <div className="w-24 shrink-0 flex flex-col gap-0.5">
           <div className="h-1.5 bg-muted rounded-full overflow-hidden">
             <div
               className={`h-full rounded-full transition-all ${isDone ? "bg-emerald-500" : "bg-primary"}`}
@@ -1394,21 +1394,7 @@ export default function EducationManagement() {
 
                     {/* 제목 */}
                     <div className="flex-1 min-w-0 pl-2">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-sm font-medium leading-snug truncate max-w-[240px]">{t.title}</span>
-                        {statusBadge(t)}
-                        {(t.linkedSessionCount ?? 0) > 0 && (
-                          <Badge variant="outline" className="text-[10px] text-primary border-primary/40 gap-0.5 shrink-0">
-                            <Link2 className="w-2.5 h-2.5" />
-                            서명 {t.completionRate}%
-                          </Badge>
-                        )}
-                      </div>
-                      {(t.linkedSessionCount ?? 0) > 0 && (
-                        <div className="text-[10px] text-muted-foreground mt-0.5">
-                          {t.linkedSessionCount}개 부서
-                        </div>
-                      )}
+                      <span className="text-sm font-medium leading-snug truncate max-w-[280px] block">{t.title}</span>
                     </div>
 
                     {/* 시작일 */}
