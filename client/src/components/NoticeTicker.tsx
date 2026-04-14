@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNotices } from "@/hooks/use-notices";
+import { Megaphone } from "lucide-react";
 
 interface NoticeTickerProps {
   inline?: boolean;
@@ -26,26 +27,28 @@ export function NoticeTicker({ inline = false }: NoticeTickerProps) {
 
   const segment = (
     <>
-      <span className="px-6">{text}</span>
-      <span className="opacity-30 text-slate-400 dark:text-slate-500 shrink-0">◆</span>
+      <span className="px-8">{text}</span>
+      <span className="opacity-20 shrink-0 text-blue-400 dark:text-blue-500 text-xs">◆◆</span>
     </>
   );
 
   return (
-    <div className={`${inline ? "" : "sticky top-0 z-40"} flex items-center px-4 py-2 bg-slate-50 dark:bg-gray-900 border-b border-slate-100 dark:border-gray-800`}>
-      <div className="flex items-center w-full rounded-full border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-800 h-8 overflow-hidden">
+    <div className={`${inline ? "" : "sticky top-0 z-40"} px-4 sm:px-5 pb-3`}>
+      <div className="flex items-center rounded-xl border border-blue-100 dark:border-blue-900/50 bg-blue-50 dark:bg-blue-950/30 h-9 overflow-hidden">
         {/* 고정 레이블 */}
-        <div className="flex items-center gap-1.5 px-3 h-full shrink-0 border-r border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-800 z-10">
-          <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0 animate-pulse" />
-          <span className="text-[10px] font-bold text-slate-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">공지</span>
+        <div className="flex items-center gap-1.5 pl-3 pr-3 h-full shrink-0 border-r border-blue-100 dark:border-blue-800/50">
+          <Megaphone className="w-3 h-3 text-blue-500 dark:text-blue-400 flex-shrink-0" />
+          <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider whitespace-nowrap">공지</span>
         </div>
-        {/* 스크롤 텍스트 */}
+        {/* 스크롤 영역 */}
         <div className="flex-1 overflow-hidden">
-          <div className="animate-ticker pause-hover text-[11px] font-medium text-slate-700 dark:text-gray-300">
-            {segment}{segment}{segment}{segment}
-            {segment}{segment}{segment}{segment}
+          <div className="animate-ticker pause-hover text-xs font-medium text-blue-800 dark:text-blue-200">
+            {segment}{segment}
+            {segment}{segment}
           </div>
         </div>
+        {/* 우측 fade */}
+        <div className="w-8 h-full bg-gradient-to-l from-blue-50 dark:from-blue-950/30 to-transparent flex-shrink-0 pointer-events-none" />
       </div>
     </div>
   );

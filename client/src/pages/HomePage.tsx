@@ -12,7 +12,7 @@ import {
   ShieldCheck, Bell, GraduationCap, AlertTriangle,
   ClipboardCheck, FlaskConical,
   ChevronRight, Users, FileWarning, Target,
-  RefreshCw, AlertCircle,
+  RefreshCw, AlertCircle, Shield, Clock,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { format } from "date-fns";
@@ -113,7 +113,12 @@ export default function HomePage() {
     canViewAccess && "출입신청",
   ].filter(Boolean) as Tab[];
 
-  const now = new Date();
+  const [liveTime, setLiveTime] = useState(new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setLiveTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  const now = liveTime;
   const [activeTab, setActiveTab] = useState<Tab>("공지사항");
 
   useEffect(() => {
@@ -239,16 +244,49 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-gray-950">
 
-      {/* ── Clean Header ── */}
-      <div className="flex items-center justify-between px-5 py-3 bg-white dark:bg-gray-900 border-b border-slate-100 dark:border-gray-800">
-        <div>
-          <p className="text-[13px] font-bold text-slate-800 dark:text-gray-100">{format(now, "yyyy년 M월 d일 (EEE)", { locale: ko })}</p>
-          <p className="text-[11px] text-slate-400 dark:text-gray-500">안녕하세요, <span className="font-semibold text-slate-600 dark:text-gray-300">{user?.name ?? user?.username}</span>님</p>
+      {/* ── Hero Banner Header ── */}
+      <div className="bg-white dark:bg-gray-900 border-b border-slate-100 dark:border-gray-800">
+        {/* 상단: 날짜 + 인사 + 시각 */}
+        <div className="px-4 sm:px-5 pt-4 pb-3 flex items-center justify-between gap-3">
+          {/* 좌측 */}
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-sm flex-shrink-0">
+              <Shield className="w-5 h-5 text-white" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-sm font-bold text-slate-800 dark:text-gray-100 leading-tight">
+                  {format(now, "yyyy년 M월 d일 (EEE)", { locale: ko })}
+                </p>
+                <span className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 bg-emerald-50 dark:bg-emerald-950/40 rounded-full flex-shrink-0 border border-emerald-100 dark:border-emerald-900/50">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">시스템 정상</span>
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 dark:text-gray-500 mt-0.5">
+                안녕하세요,{" "}
+                <span className="font-semibold text-slate-600 dark:text-gray-300">{user?.name ?? user?.username}</span>
+                님. 오늘도 안전한 하루 되세요.
+              </p>
+            </div>
+          </div>
+          {/* 우측: 실시간 시각 */}
+          <div className="hidden sm:flex flex-col items-end flex-shrink-0">
+            <div className="flex items-center gap-1.5">
+              <Clock className="w-3 h-3 text-slate-300 dark:text-gray-600" />
+              <p className="text-xl font-bold text-slate-700 dark:text-gray-200 tabular-nums leading-none">
+                {format(now, "HH:mm")}
+              </p>
+            </div>
+            <p className="text-[10px] text-slate-400 dark:text-gray-500 mt-0.5 tabular-nums">
+              :{format(now, "ss")}
+            </p>
+          </div>
         </div>
-      </div>
 
-      {/* ── Notice Ticker (Pill) ── */}
-      <NoticeTicker inline />
+        {/* 하단: 공지 티커 (배너 안에 통합) */}
+        <NoticeTicker inline />
+      </div>
 
       {/* ── Main Grid ── */}
       <div className="w-full px-3 sm:px-4 md:px-6 py-4 sm:py-5 md:py-6">
