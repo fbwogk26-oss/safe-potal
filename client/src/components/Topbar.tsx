@@ -1,4 +1,4 @@
-import { Bell, LogOut, Users, Shield, KeyRound, Eye, EyeOff, Menu } from "lucide-react";
+import { Bell, LogOut, Users, Shield, KeyRound, Eye, EyeOff, Menu, Sun, Moon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useTheme } from "@/hooks/use-theme";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -37,6 +38,7 @@ export function Topbar({ onMenuClick }: TopbarProps) {
   const [pwSubmitting, setPwSubmitting] = useState(false);
   const [showPw, setShowPw] = useState(false);
   const { toast } = useToast();
+  const { theme, toggleTheme } = useTheme();
   const { user, isLoading: authLoading, isAuthenticated, logout, isLoggingOut } = useAuth();
   const { data: roleData } = useQuery<{ role: string }>({
     queryKey: ["/api/auth/user-role"],
@@ -103,6 +105,17 @@ export function Topbar({ onMenuClick }: TopbarProps) {
 
         {/* Spacer */}
         <div className="flex-1" />
+
+        {/* 다크/라이트 모드 토글 */}
+        <button
+          onClick={toggleTheme}
+          className="w-9 h-9 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted/70 hover:text-foreground transition-colors shrink-0"
+          data-testid="button-theme-toggle"
+          aria-label={theme === "dark" ? "라이트 모드로 전환" : "다크 모드로 전환"}
+          title={theme === "dark" ? "라이트 모드" : "다크 모드"}
+        >
+          {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+        </button>
 
         {/* User button on right */}
         {!authLoading && isAuthenticated && user && (

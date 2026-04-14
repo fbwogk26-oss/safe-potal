@@ -29,33 +29,33 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-[#e8eafd] p-4">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-[#e8eafd] dark:bg-gray-950 p-4 transition-colors duration-300">
       <motion.div
         initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.45, ease: "easeOut" }}
         className="w-full max-w-sm"
       >
-        <div className="bg-white rounded-2xl shadow-lg shadow-indigo-200/40 px-8 pt-10 pb-8 space-y-6">
+        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg shadow-indigo-200/40 dark:shadow-black/40 px-8 pt-10 pb-8 space-y-6 border border-transparent dark:border-gray-800">
           {/* 로고 아이콘 */}
           <div className="flex flex-col items-center gap-3">
             <div className="w-14 h-14 rounded-full bg-[#4F58E8] flex items-center justify-center shadow-md shadow-indigo-300/40">
               <CalendarDays className="w-7 h-7 text-white" />
             </div>
             <div className="text-center">
-              <h1 className="text-[1.35rem] font-bold tracking-tight text-gray-800">
+              <h1 className="text-[1.35rem] font-bold tracking-tight text-gray-800 dark:text-gray-100">
                 종합안전포털시스템
               </h1>
-              <p className="text-sm text-gray-500 mt-0.5">안전 관리 시스템에 로그인하세요</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">안전 관리 시스템에 로그인하세요</p>
             </div>
           </div>
 
           {/* 폼 */}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="username" className="text-sm font-medium text-gray-700">아이디</Label>
+              <Label htmlFor="username" className="text-sm font-medium text-gray-700 dark:text-gray-300">아이디</Label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500 pointer-events-none" />
                 <Input
                   id="username"
                   type="text"
@@ -63,16 +63,16 @@ export default function Login() {
                   onChange={e => setUsername(e.target.value)}
                   placeholder=""
                   autoComplete="username"
-                  className="pl-10 h-11 bg-gray-50 border-gray-200 focus:border-indigo-400 focus:ring-indigo-100 rounded-lg text-sm"
+                  className="pl-10 h-11 bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 focus:border-indigo-400 focus:ring-indigo-100 dark:focus:border-indigo-500 rounded-lg text-sm dark:text-gray-100 dark:placeholder-gray-500"
                   data-testid="input-username"
                 />
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="password" className="text-sm font-medium text-gray-700">비밀번호</Label>
+              <Label htmlFor="password" className="text-sm font-medium text-gray-700 dark:text-gray-300">비밀번호</Label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500 pointer-events-none" />
                 <Input
                   id="password"
                   type="password"
@@ -80,7 +80,7 @@ export default function Login() {
                   onChange={e => setPassword(e.target.value)}
                   placeholder=""
                   autoComplete="current-password"
-                  className="pl-10 h-11 bg-gray-50 border-gray-200 focus:border-indigo-400 focus:ring-indigo-100 rounded-lg text-sm"
+                  className="pl-10 h-11 bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 focus:border-indigo-400 focus:ring-indigo-100 dark:focus:border-indigo-500 rounded-lg text-sm dark:text-gray-100"
                   data-testid="input-password"
                 />
               </div>
@@ -95,10 +95,10 @@ export default function Login() {
                 id="remember"
                 checked={rememberMe}
                 onCheckedChange={v => setRememberMe(!!v)}
-                className="rounded border-gray-300"
+                className="rounded border-gray-300 dark:border-gray-600"
                 data-testid="checkbox-remember"
               />
-              <Label htmlFor="remember" className="text-sm text-gray-600 cursor-pointer select-none">로그인 상태 유지</Label>
+              <Label htmlFor="remember" className="text-sm text-gray-600 dark:text-gray-400 cursor-pointer select-none">로그인 상태 유지</Label>
             </div>
 
             <Button
@@ -117,7 +117,7 @@ export default function Login() {
           </form>
         </div>
 
-        <p className="text-center text-xs text-gray-400 mt-5">
+        <p className="text-center text-xs text-gray-400 dark:text-gray-600 mt-5">
           © KTMOS남부 임직원 외 사용금지
         </p>
       </motion.div>

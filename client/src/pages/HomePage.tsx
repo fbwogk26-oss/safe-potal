@@ -237,13 +237,13 @@ export default function HomePage() {
   const sortedTeams = [...teamList].sort((a, b) => b.totalScore - a.totalScore);
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-slate-50 dark:bg-gray-950">
 
       {/* ── Clean Header ── */}
-      <div className="flex items-center justify-between px-5 py-3 bg-white border-b border-slate-100">
+      <div className="flex items-center justify-between px-5 py-3 bg-white dark:bg-gray-900 border-b border-slate-100 dark:border-gray-800">
         <div>
-          <p className="text-[13px] font-bold text-slate-800">{format(now, "yyyy년 M월 d일 (EEE)", { locale: ko })}</p>
-          <p className="text-[11px] text-slate-400">안녕하세요, <span className="font-semibold text-slate-600">{user?.name ?? user?.username}</span>님</p>
+          <p className="text-[13px] font-bold text-slate-800 dark:text-gray-100">{format(now, "yyyy년 M월 d일 (EEE)", { locale: ko })}</p>
+          <p className="text-[11px] text-slate-400 dark:text-gray-500">안녕하세요, <span className="font-semibold text-slate-600 dark:text-gray-300">{user?.name ?? user?.username}</span>님</p>
         </div>
       </div>
 
@@ -265,13 +265,13 @@ export default function HomePage() {
                 { label: "공지/알림", value: `${Array.isArray(notices) ? notices.filter((n: any) => n.category === "notice").length : 0}건`, icon: Bell, color: "#f59e0b", bg: "#fef3c7" },
                 { label: "승인대기 위험성평가", value: `${pendingRisks.length}건`, icon: FileWarning, color: pendingRisks.length > 0 ? "#f97316" : "#64748b", bg: pendingRisks.length > 0 ? "#ffedd5" : "#f1f5f9" },
               ].map((item) => (
-                <div key={item.label} className="flex items-center gap-3 rounded-xl p-4 bg-white border border-slate-100">
+                <div key={item.label} className="flex items-center gap-3 rounded-xl p-4 bg-white dark:bg-gray-900 border border-slate-100 dark:border-gray-800">
                   <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: item.bg }}>
                     <item.icon className="w-5 h-5" style={{ color: item.color }} />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 truncate">{item.label}</p>
-                    <p className="text-xl sm:text-2xl font-bold leading-tight" style={{ color: "#1e293b" }}>{item.value}</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500 truncate">{item.label}</p>
+                    <p className="text-xl sm:text-2xl font-bold leading-tight text-foreground">{item.value}</p>
                   </div>
                 </div>
               ))}
@@ -280,8 +280,8 @@ export default function HomePage() {
             {/* Quick-in */}
             {QUICK_IN.length > 0 && (
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2.5">QUICK-IN</p>
-                <div className="bg-white border border-slate-100 rounded-xl p-3 sm:p-4">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-gray-500 mb-2.5">QUICK-IN</p>
+                <div className="bg-white dark:bg-gray-900 border border-slate-100 dark:border-gray-800 rounded-xl p-3 sm:p-4">
                   <div className={`grid gap-2 sm:gap-3 ${QUICK_IN.length <= 3 ? "grid-cols-3" : "grid-cols-3 sm:grid-cols-6"}`}>
                     {QUICK_IN.map((item) => (
                       <Link key={item.href} href={item.href}>
@@ -289,7 +289,7 @@ export default function HomePage() {
                           <div className="w-12 h-12 sm:w-13 sm:h-13 rounded-2xl flex items-center justify-center transition-all group-hover:scale-105" style={{ background: item.bg }}>
                             <item.icon className="w-6 h-6" style={{ color: item.color }} />
                           </div>
-                          <p className="text-[11px] font-semibold text-slate-600 group-hover:text-slate-900 transition-colors text-center leading-tight">{item.label}</p>
+                          <p className="text-[11px] font-semibold text-slate-600 dark:text-gray-400 group-hover:text-slate-900 dark:group-hover:text-gray-100 transition-colors text-center leading-tight">{item.label}</p>
                         </div>
                       </Link>
                     ))}
@@ -483,7 +483,7 @@ export default function HomePage() {
                           <p className="text-[11px] text-foreground w-14 truncate flex-shrink-0 font-medium">
                             {team.name.replace(/운용팀$/, '').replace(/팀$/, '')}
                           </p>
-                          <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                          <div className="flex-1 h-1.5 bg-slate-100 dark:bg-gray-700 rounded-full overflow-hidden">
                             <motion.div
                               className="h-full rounded-full"
                               style={{ background: color }}
