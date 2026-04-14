@@ -12,7 +12,6 @@ import {
   ShieldCheck, Bell, GraduationCap, AlertTriangle,
   ClipboardCheck, FlaskConical,
   ChevronRight, Users, FileWarning, Target,
-  ShieldAlert, TrendingUp,
   RefreshCw, AlertCircle,
 } from "lucide-react";
 import { motion } from "framer-motion";
@@ -240,29 +239,15 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-slate-50">
 
-      {/* ── Hero Banner ── */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-blue-700 via-blue-600 to-blue-500 px-4 py-5 sm:px-8 sm:py-7 md:px-10 md:py-8">
-        <div className="absolute inset-0 opacity-[0.07] pointer-events-none"
-          style={{ backgroundImage: "repeating-linear-gradient(45deg,#fff 0,#fff 1px,transparent 0,transparent 50%)", backgroundSize: "18px 18px" }}
-        />
-        <div className="relative w-full flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center shadow flex-shrink-0">
-              <ShieldAlert className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <p className="text-blue-100 text-[11px] font-medium tracking-widest uppercase">KT MOS남부</p>
-              <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-white leading-tight">종합안전포털시스템</h1>
-            </div>
-          </div>
-          <div className="flex flex-col items-start sm:items-end gap-0.5">
-            <p className="text-white text-base sm:text-lg font-bold">{format(now, "yyyy년 M월 d일 (EEE)", { locale: ko })}</p>
-            <p className="text-blue-100 text-xs sm:text-sm">안전한 하루 되세요, <span className="font-semibold text-white">{user?.name ?? user?.username}</span>님</p>
-          </div>
+      {/* ── Clean Header ── */}
+      <div className="flex items-center justify-between px-5 py-3 bg-white border-b border-slate-100">
+        <div>
+          <p className="text-[13px] font-bold text-slate-800">{format(now, "yyyy년 M월 d일 (EEE)", { locale: ko })}</p>
+          <p className="text-[11px] text-slate-400">안녕하세요, <span className="font-semibold text-slate-600">{user?.name ?? user?.username}</span>님</p>
         </div>
       </div>
 
-      {/* ── Notice Ticker ── */}
+      {/* ── Notice Ticker (Pill) ── */}
       <NoticeTicker inline />
 
       {/* ── Main Grid ── */}
@@ -279,48 +264,37 @@ export default function HomePage() {
                 { label: "금년 사고건수", value: `${thisYearAccidents}건`, icon: AlertTriangle, color: thisYearAccidents > 0 ? "#ef4444" : "#10b981", bg: thisYearAccidents > 0 ? "#fee2e2" : "#d1fae5" },
                 { label: "공지/알림", value: `${Array.isArray(notices) ? notices.filter((n: any) => n.category === "notice").length : 0}건`, icon: Bell, color: "#f59e0b", bg: "#fef3c7" },
                 { label: "승인대기 위험성평가", value: `${pendingRisks.length}건`, icon: FileWarning, color: pendingRisks.length > 0 ? "#f97316" : "#64748b", bg: pendingRisks.length > 0 ? "#ffedd5" : "#f1f5f9" },
-              ].map((item, i) => (
-                <motion.div key={item.label} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
-                  <Card className="border-0 shadow-sm hover:shadow transition-shadow">
-                    <CardContent className="p-3 flex items-center gap-2.5">
-                      <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: item.bg }}>
-                        <item.icon className="w-4 h-4" style={{ color: item.color }} />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{item.label}</p>
-                        <p className="text-base sm:text-lg font-bold leading-tight" style={{ color: item.color }}>{item.value}</p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
+              ].map((item) => (
+                <div key={item.label} className="flex items-center gap-3 rounded-xl p-4 bg-white border border-slate-100">
+                  <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: item.bg }}>
+                    <item.icon className="w-5 h-5" style={{ color: item.color }} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 truncate">{item.label}</p>
+                    <p className="text-xl sm:text-2xl font-bold leading-tight" style={{ color: "#1e293b" }}>{item.value}</p>
+                  </div>
+                </div>
               ))}
             </div>
 
             {/* Quick-in */}
             {QUICK_IN.length > 0 && (
               <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <TrendingUp className="w-3.5 h-3.5 text-primary" />
-                  <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Quick-in</h2>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2.5">QUICK-IN</p>
+                <div className="bg-white border border-slate-100 rounded-xl p-3 sm:p-4">
+                  <div className={`grid gap-2 sm:gap-3 ${QUICK_IN.length <= 3 ? "grid-cols-3" : "grid-cols-3 sm:grid-cols-6"}`}>
+                    {QUICK_IN.map((item) => (
+                      <Link key={item.href} href={item.href}>
+                        <div className="group flex flex-col items-center gap-1.5 cursor-pointer">
+                          <div className="w-12 h-12 sm:w-13 sm:h-13 rounded-2xl flex items-center justify-center transition-all group-hover:scale-105" style={{ background: item.bg }}>
+                            <item.icon className="w-6 h-6" style={{ color: item.color }} />
+                          </div>
+                          <p className="text-[11px] font-semibold text-slate-600 group-hover:text-slate-900 transition-colors text-center leading-tight">{item.label}</p>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
                 </div>
-                <Card className="border-0 shadow-sm">
-                  <CardContent className="p-3 sm:p-4">
-                    <div className={`grid gap-2 sm:gap-3 ${QUICK_IN.length <= 3 ? "grid-cols-3" : "grid-cols-3 sm:grid-cols-6"}`}>
-                      {QUICK_IN.map((item, i) => (
-                        <motion.div key={item.href} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.1 + i * 0.05 }}>
-                          <Link href={item.href}>
-                            <div className="group flex flex-col items-center gap-1.5 cursor-pointer">
-                              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center shadow-sm group-hover:shadow-md transition-all group-hover:scale-105" style={{ background: item.bg }}>
-                                <item.icon className="w-6 h-6 sm:w-7 sm:h-7" style={{ color: item.color }} />
-                              </div>
-                              <p className="text-[11px] sm:text-xs font-semibold text-foreground group-hover:text-primary transition-colors text-center leading-tight">{item.label}</p>
-                            </div>
-                          </Link>
-                        </motion.div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
               </div>
             )}
 
