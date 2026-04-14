@@ -12,7 +12,7 @@ import {
   ShieldCheck, Bell, GraduationCap, AlertTriangle,
   ClipboardCheck, FlaskConical,
   ChevronRight, Users, FileWarning, Target,
-  RefreshCw, AlertCircle, Shield, Clock,
+  RefreshCw, AlertCircle, Shield,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { format } from "date-fns";
@@ -271,15 +271,17 @@ export default function HomePage() {
             </div>
           </div>
           {/* 우측: 실시간 시각 */}
-          <div className="hidden sm:flex flex-col items-end flex-shrink-0">
-            <div className="flex items-center gap-1.5">
-              <Clock className="w-3 h-3 text-slate-300 dark:text-gray-600" />
-              <p className="text-xl font-bold text-slate-700 dark:text-gray-200 tabular-nums leading-none">
+          <div className="hidden sm:flex flex-col items-end flex-shrink-0 gap-0.5">
+            <div className="flex items-baseline gap-0.5">
+              <p className="text-2xl font-bold text-slate-800 dark:text-gray-100 tabular-nums leading-none tracking-tight">
                 {format(now, "HH:mm")}
               </p>
+              <p className="text-sm font-semibold text-slate-400 dark:text-gray-500 tabular-nums leading-none">
+                :{format(now, "ss")}
+              </p>
             </div>
-            <p className="text-[10px] text-slate-400 dark:text-gray-500 mt-0.5 tabular-nums">
-              :{format(now, "ss")}
+            <p className="text-[10px] text-slate-400 dark:text-gray-500 tracking-wide">
+              현재 시각
             </p>
           </div>
         </div>

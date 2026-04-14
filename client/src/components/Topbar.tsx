@@ -3,8 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
-import { Link } from "wouter";
+import { useState, useMemo } from "react";
+import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { apiRequest } from "@/lib/queryClient";
@@ -39,6 +39,7 @@ export function Topbar({ onMenuClick }: TopbarProps) {
   const [showPw, setShowPw] = useState(false);
   const { toast } = useToast();
   const { theme, toggleTheme } = useTheme();
+  const [, navigate] = useLocation();
   const { user, isLoading: authLoading, isAuthenticated, logout, isLoggingOut } = useAuth();
   const { data: roleData } = useQuery<{ role: string }>({
     queryKey: ["/api/auth/user-role"],
@@ -52,6 +53,32 @@ export function Topbar({ onMenuClick }: TopbarProps) {
     refetchInterval: 60000,
   });
   const unreadCount = unreadData?.count ?? 0;
+
+  const { data: noticesList } = useQuery<any[]>({
+    queryKey: ["/api/notices"],
+    enabled: isAuthenticated,
+    staleTime: 60000,
+  });
+
+  const unreadNoticesCount = useMemo(() => {
+    if (!noticesList) return 0;
+    const notices = noticesList.filter((n: any) => n.category === "notice");
+    try {
+      const lastViewed = localStorage.getItem("noticesLastViewed");
+      if (!lastViewed) return Math.min(notices.length, 99);
+      const lastViewedDate = new Date(lastViewed);
+      return notices.filter((n: any) => new Date(n.createdAt) > lastViewedDate).length;
+    } catch {
+      return 0;
+    }
+  }, [noticesList]);
+
+  const handleBellClick = () => {
+    try {
+      localStorage.setItem("noticesLastViewed", new Date().toISOString());
+    } catch {}
+    navigate("/notices");
+  };
 
   const resetPwDialog = () => {
     setCurrentPw(""); setNewPw(""); setConfirmPw(""); setPwError(""); setShowPw(false);
@@ -83,7 +110,7 @@ export function Topbar({ onMenuClick }: TopbarProps) {
 
   return (
     <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border/70 shadow-sm">
-      <div className="flex items-center px-3 py-2.5 gap-3">
+      <div className="flex items-center px-3 py-2.5 gap-2">
         {/* 모바일 햄버거 버튼 */}
         <button
           onClick={onMenuClick}
@@ -116,6 +143,24 @@ export function Topbar({ onMenuClick }: TopbarProps) {
         >
           {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
         </button>
+
+        {/* 알림 벨 */}
+        {isAuthenticated && (
+          <button
+            onClick={handleBellClick}
+            className="relative w-9 h-9 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted/70 hover:text-foreground transition-colors shrink-0"
+            data-testid="button-notifications"
+            aria-label="알림 보기"
+            title="공지/알림"
+          >
+            <Bell className="w-4 h-4" />
+            {unreadNoticesCount > 0 && (
+              <span className="absolute top-1 right-1 min-w-[14px] h-3.5 px-0.5 flex items-center justify-center rounded-full bg-red-500 text-white text-[8px] font-bold leading-none">
+                {unreadNoticesCount > 99 ? "99+" : unreadNoticesCount}
+              </span>
+            )}
+          </button>
+        )}
 
         {/* User button on right */}
         {!authLoading && isAuthenticated && user && (
