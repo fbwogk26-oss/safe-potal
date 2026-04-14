@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Checkbox } from "@/components/ui/checkbox";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useAuth } from "@/hooks/use-auth";
+import { useReadNotices } from "@/hooks/use-read-notices";
 
 function NoticeImage({ src, alt }: { src: string; alt: string }) {
   const [status, setStatus] = useState<"loading" | "ok" | "error">("loading");
@@ -54,6 +55,7 @@ export default function Notices() {
   const { mutate: createNotice, isPending: isCreating } = useCreateNotice();
   const { mutate: deleteNotice } = useDeleteNotice();
   const { toast } = useToast();
+  const { markAsRead, isRead } = useReadNotices();
 
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
@@ -277,7 +279,14 @@ export default function Notices() {
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, x: -20 }}
                       transition={{ delay: idx * 0.03 }}
-                      onClick={() => selectionMode ? toggleSelect(notice.id) : setSelectedNotice(notice)}
+                      onClick={() => {
+                        if (selectionMode) {
+                          toggleSelect(notice.id);
+                        } else {
+                          setSelectedNotice(notice);
+                          markAsRead(notice.id);
+                        }
+                      }}
                       className={`group flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors ${
                         selectionMode && selectedIds.has(notice.id)
                           ? 'bg-orange-50 dark:bg-orange-900/20 border-l-2 border-l-orange-400'
@@ -314,9 +323,12 @@ export default function Notices() {
 
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <h3 className="font-medium text-sm truncate group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors">
+                          <h3 className={`font-medium text-sm truncate group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors ${!isRead(notice.id) ? "font-semibold" : ""}`}>
                             {notice.title}
                           </h3>
+                          {!isRead(notice.id) && (
+                            <span className="inline-flex shrink-0 w-2 h-2 rounded-full bg-red-500 animate-pulse" title="미확인" />
+                          )}
                           {pinnedNoticeId === notice.id && (
                             <Badge className="bg-orange-500 text-white text-[10px] px-1.5 py-0">고정</Badge>
                           )}
@@ -345,7 +357,7 @@ export default function Notices() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={e => { e.stopPropagation(); setSelectedNotice(notice); }}>
+                            <DropdownMenuItem onClick={e => { e.stopPropagation(); setSelectedNotice(notice); markAsRead(notice.id); }}>
                               <Eye className="w-4 h-4 mr-2" />
                               상세보기
                             </DropdownMenuItem>

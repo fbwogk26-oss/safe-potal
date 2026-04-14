@@ -3,13 +3,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useQuery } from "@tanstack/react-query";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useTheme } from "@/hooks/use-theme";
+import { useReadNotices, initializeReadNotices } from "@/hooks/use-read-notices";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -60,23 +61,21 @@ export function Topbar({ onMenuClick }: TopbarProps) {
     staleTime: 60000,
   });
 
+  const { countUnread } = useReadNotices();
+
+  useEffect(() => {
+    if (!noticesList) return;
+    const notices = noticesList.filter((n: any) => n.category === "notice");
+    initializeReadNotices(notices.map((n: any) => n.id));
+  }, [noticesList]);
+
   const unreadNoticesCount = useMemo(() => {
     if (!noticesList) return 0;
     const notices = noticesList.filter((n: any) => n.category === "notice");
-    try {
-      const lastViewed = localStorage.getItem("noticesLastViewed");
-      if (!lastViewed) return Math.min(notices.length, 99);
-      const lastViewedDate = new Date(lastViewed);
-      return notices.filter((n: any) => new Date(n.createdAt) > lastViewedDate).length;
-    } catch {
-      return 0;
-    }
-  }, [noticesList]);
+    return countUnread(notices.map((n: any) => n.id));
+  }, [noticesList, countUnread]);
 
   const handleBellClick = () => {
-    try {
-      localStorage.setItem("noticesLastViewed", new Date().toISOString());
-    } catch {}
     navigate("/notices");
   };
 
