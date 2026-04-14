@@ -42,6 +42,7 @@ import SafetyManagerReports from "@/pages/SafetyManagerReports";
 import HealthManagerReports from "@/pages/HealthManagerReports";
 import Login from "@/pages/Login";
 import NotFound from "@/pages/NotFound";
+import UiMockupPreview from "@/pages/UiMockupPreview";
 import { useAuth } from "@/hooks/use-auth";
 import { usePermissions } from "@/hooks/use-permissions";
 import { ForcePasswordChange } from "@/components/ForcePasswordChange";
@@ -124,6 +125,7 @@ function RouterContent() {
       <Route path="/safety-manager-reports">{() => <G canAccess={canViewInspections} component={SafetyManagerReports} />}</Route>
       <Route path="/health-manager-reports">{() => <G canAccess={canViewInspections} component={HealthManagerReports} />}</Route>
       <Route path="/weather-safety" component={WeatherSafetyMessage} />
+      <Route path="/ui-mockup-preview" component={UiMockupPreview} />
       <Route component={NotFound} />
     </Switch>
   );
