@@ -45,3 +45,7 @@ integrations = ["github:1.0.0", "javascript_openai_ai_integrations:2.0.0", "java
 
 [userenv.production]
 NODE_ENV = "production"
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 20000
