@@ -5,7 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Bell, Plus, Trash2, Megaphone, ImagePlus, X, Pin, PinOff, Eye, Calendar, Image, MoreVertical, ImageOff, CheckSquare } from "lucide-react";
+import { Bell, Plus, Trash2, Megaphone, ImagePlus, X, Pin, PinOff, Eye, Calendar, Image, MoreVertical, ImageOff, CheckSquare, ZoomIn } from "lucide-react";
 import { useState, useRef, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -18,10 +18,10 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { useAuth } from "@/hooks/use-auth";
 import { useReadNotices } from "@/hooks/use-read-notices";
 
-function NoticeImage({ src, alt }: { src: string; alt: string }) {
+function NoticeImage({ src, alt, onClick }: { src: string; alt: string; onClick?: () => void }) {
   const [status, setStatus] = useState<"loading" | "ok" | "error">("loading");
   return (
-    <div className="relative">
+    <div className="relative group">
       {status === "loading" && (
         <div className="w-full h-40 bg-muted/40 animate-pulse rounded-xl border flex items-center justify-center">
           <Image className="w-8 h-8 text-muted-foreground/30" />
@@ -31,6 +31,16 @@ function NoticeImage({ src, alt }: { src: string; alt: string }) {
         <div className="w-full h-28 bg-muted/30 rounded-xl border flex flex-col items-center justify-center gap-2 text-muted-foreground">
           <ImageOff className="w-7 h-7 opacity-40" />
           <span className="text-xs">이미지를 불러올 수 없습니다</span>
+        </div>
+      )}
+      {status === "ok" && onClick && (
+        <div
+          className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/20 rounded-xl transition-all duration-200 cursor-zoom-in"
+          onClick={onClick}
+        >
+          <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 text-white rounded-full p-2">
+            <ZoomIn className="w-5 h-5" />
+          </div>
         </div>
       )}
       <img
@@ -73,6 +83,7 @@ export default function Notices() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ── 상단 고정 ──────────────────────────────────────────
@@ -486,7 +497,11 @@ export default function Notices() {
               </DialogHeader>
               <div className="space-y-4 pt-4">
                 {selectedNotice.imageUrl && (
-                  <NoticeImage src={selectedNotice.imageUrl} alt={selectedNotice.title} />
+                  <NoticeImage
+                    src={selectedNotice.imageUrl}
+                    alt={selectedNotice.title}
+                    onClick={() => setLightboxSrc(selectedNotice.imageUrl)}
+                  />
                 )}
                 <p className="text-foreground/90 leading-relaxed whitespace-pre-wrap">{selectedNotice.content}</p>
                 <div className="flex items-center justify-between pt-4 border-t text-sm text-muted-foreground">
@@ -544,6 +559,38 @@ export default function Notices() {
           </Button>
         </div>
       )}
+
+      {/* 이미지 라이트박스 */}
+      <AnimatePresence>
+        {lightboxSrc && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 cursor-zoom-out p-4"
+            onClick={() => setLightboxSrc(null)}
+          >
+            <button
+              className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
+              onClick={() => setLightboxSrc(null)}
+              aria-label="닫기"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <motion.img
+              initial={{ scale: 0.85, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.85, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              src={lightboxSrc}
+              alt="확대 이미지"
+              className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+              onClick={e => e.stopPropagation()}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
