@@ -481,83 +481,170 @@ export default function AccidentReports() {
                       <p>등록된 사고보고가 없습니다.</p>
                     </div>
                   ) : (
-                    <div className="overflow-x-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            {selectionMode && (
-                              <TableHead className="w-10">
-                                <Checkbox
-                                  checked={sortedReports.length > 0 && sortedReports.every(r => selectedIds.has(r.id))}
-                                  onCheckedChange={() => {
-                                    const allSel = sortedReports.every(r => selectedIds.has(r.id));
-                                    setSelectedIds(allSel ? new Set() : new Set(sortedReports.map(r => r.id)));
-                                  }}
-                                  data-testid="checkbox-select-all"
-                                />
-                              </TableHead>
-                            )}
-                            <TableHead className="min-w-[150px]">제목</TableHead>
-                            <TableHead className="min-w-[100px]">발생일</TableHead>
-                            <TableHead>유형</TableHead>
-                            <TableHead>심각도</TableHead>
-                            <TableHead>부서</TableHead>
-                            <TableHead className="w-[140px]" />
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {sortedReports.map((report) => (
-                            <TableRow
-                              key={report.id}
-                              className={selectionMode && selectedIds.has(report.id) ? "bg-red-50 dark:bg-red-900/20" : ""}
-                              onClick={() => selectionMode && toggleSelect(report.id)}
-                              style={{ cursor: selectionMode ? "pointer" : undefined }}
-                              data-testid={`row-accident-${report.id}`}
-                            >
+                    <>
+                      {/* ── 모바일 카드 뷰 (md 미만) ── */}
+                      <div className="md:hidden divide-y divide-border/50">
+                        {selectionMode && (
+                          <div className="flex items-center gap-3 px-4 py-2.5 bg-muted/30 border-b">
+                            <Checkbox
+                              checked={sortedReports.length > 0 && sortedReports.every(r => selectedIds.has(r.id))}
+                              onCheckedChange={() => {
+                                const allSel = sortedReports.every(r => selectedIds.has(r.id));
+                                setSelectedIds(allSel ? new Set() : new Set(sortedReports.map(r => r.id)));
+                              }}
+                              data-testid="checkbox-select-all-mobile"
+                            />
+                            <span className="text-xs text-muted-foreground">전체 선택</span>
+                          </div>
+                        )}
+                        {sortedReports.map((report) => (
+                          <div
+                            key={report.id}
+                            className={`px-4 py-3 transition-colors ${selectionMode && selectedIds.has(report.id) ? "bg-red-50 dark:bg-red-900/20" : "hover:bg-muted/30"}`}
+                            onClick={() => selectionMode && toggleSelect(report.id)}
+                            data-testid={`row-accident-${report.id}`}
+                          >
+                            <div className="flex items-start gap-3">
                               {selectionMode && (
-                                <TableCell onClick={e => e.stopPropagation()}>
-                                  <Checkbox
-                                    checked={selectedIds.has(report.id)}
-                                    onCheckedChange={() => toggleSelect(report.id)}
-                                    data-testid={`checkbox-accident-${report.id}`}
-                                  />
-                                </TableCell>
+                                <Checkbox
+                                  checked={selectedIds.has(report.id)}
+                                  onCheckedChange={() => toggleSelect(report.id)}
+                                  onClick={e => e.stopPropagation()}
+                                  className="mt-0.5 shrink-0"
+                                  data-testid={`checkbox-accident-${report.id}`}
+                                />
                               )}
-                              <TableCell className="font-medium" data-testid={`text-title-${report.id}`}>{report.title}</TableCell>
-                              <TableCell data-testid={`text-date-${report.id}`}>
-                                {report.occurredAt ? format(new Date(report.occurredAt), "yyyy-MM-dd") : "-"}
-                              </TableCell>
-                              <TableCell data-testid={`text-type-${report.id}`}>{report.accidentType}</TableCell>
-                              <TableCell>
-                                <Badge variant="outline" className={SEVERITY_COLORS[report.severity] || ""} data-testid={`badge-severity-${report.id}`}>
-                                  {report.severity}
-                                </Badge>
-                              </TableCell>
-                              <TableCell data-testid={`text-dept-${report.id}`}>{report.department}</TableCell>
-                              <TableCell>
-                                <div className="flex items-center gap-1">
-                                  {canDownloadAccidentReport && (
-                                    <Button variant="ghost" size="icon" onClick={() => handleDownloadDocx(report.id)} title="경위서 다운로드" data-testid={`button-download-${report.id}`}>
-                                      <Download className="w-4 h-4 text-blue-500" />
-                                    </Button>
-                                  )}
-                                  {canEditAccidents && isOwner(report.createdBy) && (
-                                    <>
-                                      <Button variant="ghost" size="icon" onClick={() => openEdit(report)} data-testid={`button-edit-${report.id}`}>
-                                        <Pencil className="w-4 h-4" />
-                                      </Button>
-                                      <Button variant="ghost" size="icon" onClick={() => handleDelete(report.id)} data-testid={`button-delete-${report.id}`}>
-                                        <Trash2 className="w-4 h-4 text-red-500" />
-                                      </Button>
-                                    </>
-                                  )}
+                              <div className="flex-1 min-w-0">
+                                {/* 제목 + 심각도 배지 */}
+                                <div className="flex items-start justify-between gap-2 mb-1.5">
+                                  <p className="font-semibold text-sm leading-snug" data-testid={`text-title-${report.id}`}>{report.title}</p>
+                                  <Badge variant="outline" className={`shrink-0 text-xs ${SEVERITY_COLORS[report.severity] || ""}`} data-testid={`badge-severity-${report.id}`}>
+                                    {report.severity}
+                                  </Badge>
                                 </div>
-                              </TableCell>
+                                {/* 메타 정보 */}
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                                  <span className="flex items-center gap-1">
+                                    <Clock className="w-3 h-3" />
+                                    {report.occurredAt ? format(new Date(report.occurredAt), "yyyy.MM.dd") : "-"}
+                                  </span>
+                                  <span className="flex items-center gap-1">
+                                    <AlertTriangle className="w-3 h-3" />
+                                    {report.accidentType}
+                                  </span>
+                                  <span className="flex items-center gap-1">
+                                    <Building2 className="w-3 h-3" />
+                                    {report.department}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                            {/* 액션 버튼 */}
+                            {!selectionMode && (canDownloadAccidentReport || (canEditAccidents && isOwner(report.createdBy))) && (
+                              <div className="flex items-center gap-1 mt-2 justify-end">
+                                {canDownloadAccidentReport && (
+                                  <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={e => { e.stopPropagation(); handleDownloadDocx(report.id); }} data-testid={`button-download-${report.id}`}>
+                                    <Download className="w-3.5 h-3.5 text-blue-500" />
+                                    경위서
+                                  </Button>
+                                )}
+                                {canEditAccidents && isOwner(report.createdBy) && (
+                                  <>
+                                    <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={e => { e.stopPropagation(); openEdit(report); }} data-testid={`button-edit-${report.id}`}>
+                                      <Pencil className="w-3.5 h-3.5" />
+                                      수정
+                                    </Button>
+                                    <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs text-red-600 hover:text-red-700 hover:border-red-200" onClick={e => { e.stopPropagation(); handleDelete(report.id); }} data-testid={`button-delete-${report.id}`}>
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                      삭제
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* ── 데스크톱 테이블 뷰 (md 이상) ── */}
+                      <div className="hidden md:block overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              {selectionMode && (
+                                <TableHead className="w-10">
+                                  <Checkbox
+                                    checked={sortedReports.length > 0 && sortedReports.every(r => selectedIds.has(r.id))}
+                                    onCheckedChange={() => {
+                                      const allSel = sortedReports.every(r => selectedIds.has(r.id));
+                                      setSelectedIds(allSel ? new Set() : new Set(sortedReports.map(r => r.id)));
+                                    }}
+                                    data-testid="checkbox-select-all"
+                                  />
+                                </TableHead>
+                              )}
+                              <TableHead className="min-w-[150px]">제목</TableHead>
+                              <TableHead className="min-w-[100px]">발생일</TableHead>
+                              <TableHead>유형</TableHead>
+                              <TableHead>심각도</TableHead>
+                              <TableHead>부서</TableHead>
+                              <TableHead className="w-[140px]" />
                             </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
+                          </TableHeader>
+                          <TableBody>
+                            {sortedReports.map((report) => (
+                              <TableRow
+                                key={report.id}
+                                className={selectionMode && selectedIds.has(report.id) ? "bg-red-50 dark:bg-red-900/20" : ""}
+                                onClick={() => selectionMode && toggleSelect(report.id)}
+                                style={{ cursor: selectionMode ? "pointer" : undefined }}
+                                data-testid={`row-accident-${report.id}`}
+                              >
+                                {selectionMode && (
+                                  <TableCell onClick={e => e.stopPropagation()}>
+                                    <Checkbox
+                                      checked={selectedIds.has(report.id)}
+                                      onCheckedChange={() => toggleSelect(report.id)}
+                                      data-testid={`checkbox-accident-${report.id}`}
+                                    />
+                                  </TableCell>
+                                )}
+                                <TableCell className="font-medium" data-testid={`text-title-${report.id}`}>{report.title}</TableCell>
+                                <TableCell data-testid={`text-date-${report.id}`}>
+                                  {report.occurredAt ? format(new Date(report.occurredAt), "yyyy-MM-dd") : "-"}
+                                </TableCell>
+                                <TableCell data-testid={`text-type-${report.id}`}>{report.accidentType}</TableCell>
+                                <TableCell>
+                                  <Badge variant="outline" className={SEVERITY_COLORS[report.severity] || ""} data-testid={`badge-severity-${report.id}`}>
+                                    {report.severity}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell data-testid={`text-dept-${report.id}`}>{report.department}</TableCell>
+                                <TableCell>
+                                  <div className="flex items-center gap-1">
+                                    {canDownloadAccidentReport && (
+                                      <Button variant="ghost" size="icon" onClick={() => handleDownloadDocx(report.id)} title="경위서 다운로드" data-testid={`button-download-${report.id}`}>
+                                        <Download className="w-4 h-4 text-blue-500" />
+                                      </Button>
+                                    )}
+                                    {canEditAccidents && isOwner(report.createdBy) && (
+                                      <>
+                                        <Button variant="ghost" size="icon" onClick={() => openEdit(report)} data-testid={`button-edit-${report.id}`}>
+                                          <Pencil className="w-4 h-4" />
+                                        </Button>
+                                        <Button variant="ghost" size="icon" onClick={() => handleDelete(report.id)} data-testid={`button-delete-${report.id}`}>
+                                          <Trash2 className="w-4 h-4 text-red-500" />
+                                        </Button>
+                                      </>
+                                    )}
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </>
                   )}
                 </CardContent>
               </Card>
