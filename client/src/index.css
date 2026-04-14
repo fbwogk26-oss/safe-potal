@@ -274,13 +274,14 @@ table tbody td {
 }
 
 @keyframes ticker {
-  0% { transform: translateX(100%); }
-  100% { transform: translateX(-100%); }
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
 }
 .animate-ticker {
-  animation: ticker 35s linear infinite;
+  animation: ticker 60s linear infinite;
   white-space: nowrap;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
 }
 .pause-hover:hover {
   animation-play-state: paused;
