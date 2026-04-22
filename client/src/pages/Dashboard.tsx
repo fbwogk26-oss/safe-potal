@@ -162,28 +162,22 @@ export default function Dashboard() {
 
       const root = sectionRef.current;
 
-      // Step 1: Temporarily expand all overflow-x-auto containers to show full content
-      type SavedStyle = { el: HTMLElement; overflowX: string; width: string; scrollLeft: number };
-      const saved: SavedStyle[] = [];
-      root.querySelectorAll<HTMLElement>(".overflow-x-auto, .overflow-x-scroll").forEach(node => {
-        saved.push({ el: node, overflowX: node.style.overflowX, width: node.style.width, scrollLeft: node.scrollLeft });
-        node.style.overflowX = "visible";
-        node.style.width = "max-content";
-        node.scrollLeft = 0;
-      });
-      // Also reset any element with non-zero scrollLeft
+      // Step 1: Reset scroll positions only — do NOT change widths
+      // (changing width breaks the full-width layout of chart and table)
+      type SavedScroll = { el: HTMLElement; scrollLeft: number };
+      const savedScrolls: SavedScroll[] = [];
       root.querySelectorAll<HTMLElement>("*").forEach(node => {
         if (node.scrollLeft > 0) {
-          saved.push({ el: node, overflowX: node.style.overflowX, width: node.style.width, scrollLeft: node.scrollLeft });
+          savedScrolls.push({ el: node, scrollLeft: node.scrollLeft });
           node.scrollLeft = 0;
         }
       });
 
-      // Step 2: Wait one frame for DOM to reflow
+      // Step 2: Measure the natural render width of the section (full container width)
       await new Promise(r => requestAnimationFrame(r));
       await new Promise(r => requestAnimationFrame(r));
 
-      const fullW = root.scrollWidth;
+      const fullW = root.offsetWidth;
       const fullH = root.scrollHeight;
 
       const canvas = await html2canvas(root, {
@@ -201,20 +195,16 @@ export default function Dashboard() {
             node.style.backdropFilter = "none";
             node.style.webkitBackdropFilter = "none";
           });
+          // Only fix overflow, keep natural width so chart and table stay the same full width
           el.querySelectorAll<HTMLElement>(".overflow-x-auto, .overflow-x-scroll").forEach(node => {
             node.style.overflowX = "visible";
-            node.style.width = "max-content";
             node.scrollLeft = 0;
           });
         },
       });
 
-      // Step 3: Restore original styles
-      saved.forEach(({ el, overflowX, width, scrollLeft }) => {
-        el.style.overflowX = overflowX;
-        el.style.width = width;
-        el.scrollLeft = scrollLeft;
-      });
+      // Step 3: Restore scroll positions
+      savedScrolls.forEach(({ el, scrollLeft }) => { el.scrollLeft = scrollLeft; });
 
       const blob = await new Promise<Blob>((resolve, reject) => {
         canvas.toBlob((b) => b ? resolve(b) : reject(new Error("blob null")), "image/png");
