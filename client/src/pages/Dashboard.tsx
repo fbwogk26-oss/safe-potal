@@ -164,45 +164,58 @@ export default function Dashboard() {
         chartImgSrc = canvas.toDataURL("image/png");
       }
 
-      const headerStyle = `padding:6px 12px;border:1px solid #cbd5e1;font-weight:bold;background:#f1f5f9;font-family:Arial,sans-serif;font-size:12px;white-space:nowrap`;
-      const cellStyle = `padding:6px 12px;border:1px solid #e2e8f0;font-family:Arial,sans-serif;font-size:12px;white-space:nowrap`;
-      const numCenter = `${cellStyle};text-align:center`;
+      const COLS = 11;
+      const COL_WIDTHS = [90, 58, 74, 74, 74, 74, 74, 74, 74, 74, 58];
+      const TABLE_W = COL_WIDTHS.reduce((a, b) => a + b, 0) + COLS * 2; // +border
+
+      const hd = (extra = "") =>
+        `padding:5px 10px;border:1px solid #cbd5e1;font-weight:bold;background:#f1f5f9;font-family:Arial,sans-serif;font-size:11px;white-space:nowrap;${extra}`;
+      const td = (extra = "") =>
+        `padding:5px 10px;border:1px solid #e2e8f0;font-family:Arial,sans-serif;font-size:11px;white-space:nowrap;${extra}`;
+
+      const colWidthTags = COL_WIDTHS.map(w => `<col width="${w}"/>`).join("");
 
       const tableRows = sortedTeams.map(team => {
         const vehicleAcc = calculateVehicleAccidentCount(team.vehicleAccidents);
         const scoreColor = team.totalScore >= 90 ? "#16a34a" : team.totalScore >= 80 ? "#d97706" : "#dc2626";
         return `<tr>
-          <td style="${cellStyle};font-weight:bold">${team.name.replace("운용팀", "T")}</td>
-          <td style="${numCenter}">${team.vehicleCount}</td>
-          <td style="${numCenter};color:#dc2626;font-weight:bold">${team.workAccident}</td>
-          <td style="${numCenter};color:#ea580c">${vehicleAcc}</td>
-          <td style="${numCenter};color:#ea580c">${team.fineSpeed}</td>
-          <td style="${numCenter};color:#ea580c">${team.fineSignal}</td>
-          <td style="${numCenter};color:#ea580c">${team.fineLane}</td>
-          <td style="${numCenter};color:#dc2626">${team.inspectionMiss}</td>
-          <td style="${numCenter};color:#16a34a">${team.suggestion}</td>
-          <td style="${numCenter};color:#16a34a">${team.activity}</td>
-          <td style="${numCenter};font-weight:bold;color:${scoreColor}">${team.totalScore}</td>
+          <td style="${td("font-weight:bold")}">${team.name.replace("운용팀", "T")}</td>
+          <td style="${td("text-align:center")}">${team.vehicleCount}</td>
+          <td style="${td("text-align:center;color:#dc2626;font-weight:bold")}">${team.workAccident}</td>
+          <td style="${td("text-align:center;color:#ea580c")}">${vehicleAcc}</td>
+          <td style="${td("text-align:center;color:#ea580c")}">${team.fineSpeed}</td>
+          <td style="${td("text-align:center;color:#ea580c")}">${team.fineSignal}</td>
+          <td style="${td("text-align:center;color:#ea580c")}">${team.fineLane}</td>
+          <td style="${td("text-align:center;color:#dc2626")}">${team.inspectionMiss}</td>
+          <td style="${td("text-align:center;color:#16a34a")}">${team.suggestion}</td>
+          <td style="${td("text-align:center;color:#16a34a")}">${team.activity}</td>
+          <td style="${td(`text-align:center;font-weight:bold;color:${scoreColor}`)}">${team.totalScore}</td>
         </tr>`;
       }).join("");
 
+      // Single unified table: chart image in first row (colspan=COLS), data rows below
       const htmlContent = `<html><body>
-        ${chartImgSrc ? `<img src="${chartImgSrc}" style="max-width:900px;display:block;margin-bottom:12px"/><br/>` : ""}
-        <table cellspacing="0" style="border-collapse:collapse">
-          <thead><tr>
-            <th style="${headerStyle}">부서</th>
-            <th style="${headerStyle};text-align:center">차량</th>
-            <th style="${headerStyle};text-align:center;color:#dc2626">작업사고</th>
-            <th style="${headerStyle};text-align:center;color:#ea580c">차량사고</th>
-            <th style="${headerStyle};text-align:center;color:#ea580c">과속위반</th>
-            <th style="${headerStyle};text-align:center;color:#ea580c">신호위반</th>
-            <th style="${headerStyle};text-align:center;color:#ea580c">법규위반</th>
-            <th style="${headerStyle};text-align:center;color:#dc2626">현장점검</th>
-            <th style="${headerStyle};text-align:center;color:#16a34a">우수제안</th>
-            <th style="${headerStyle};text-align:center;color:#16a34a">우수활동</th>
-            <th style="${headerStyle};text-align:center">점수</th>
-          </tr></thead>
-          <tbody>${tableRows}</tbody>
+        <table cellspacing="0" cellpadding="0" style="border-collapse:collapse;table-layout:fixed;width:${TABLE_W}px">
+          <colgroup>${colWidthTags}</colgroup>
+          ${chartImgSrc ? `<tr>
+            <td colspan="${COLS}" style="padding:0 0 6px 0;border:none;line-height:0">
+              <img src="${chartImgSrc}" width="${TABLE_W}" style="display:block;width:${TABLE_W}px"/>
+            </td>
+          </tr>` : ""}
+          <tr>
+            <th style="${hd()}">부서</th>
+            <th style="${hd("text-align:center")}">차량</th>
+            <th style="${hd("text-align:center;color:#dc2626")}">작업사고</th>
+            <th style="${hd("text-align:center;color:#ea580c")}">차량사고</th>
+            <th style="${hd("text-align:center;color:#ea580c")}">과속위반</th>
+            <th style="${hd("text-align:center;color:#ea580c")}">신호위반</th>
+            <th style="${hd("text-align:center;color:#ea580c")}">법규위반</th>
+            <th style="${hd("text-align:center;color:#dc2626")}">현장점검</th>
+            <th style="${hd("text-align:center;color:#16a34a")}">우수제안</th>
+            <th style="${hd("text-align:center;color:#16a34a")}">우수활동</th>
+            <th style="${hd("text-align:center")}">점수</th>
+          </tr>
+          ${tableRows}
         </table>
       </body></html>`;
 
