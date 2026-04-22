@@ -157,27 +157,63 @@ export default function Dashboard() {
     if (wasHidden) setShowDetailTable(true);
 
     try {
-      // Wait for table to render and fonts to load
       await document.fonts.ready;
       await new Promise(r => setTimeout(r, wasHidden ? 400 : 100));
 
-      const canvas = await html2canvas(sectionRef.current, {
+      const root = sectionRef.current;
+
+      // Step 1: Temporarily expand all overflow-x-auto containers to show full content
+      type SavedStyle = { el: HTMLElement; overflowX: string; width: string; scrollLeft: number };
+      const saved: SavedStyle[] = [];
+      root.querySelectorAll<HTMLElement>(".overflow-x-auto, .overflow-x-scroll").forEach(node => {
+        saved.push({ el: node, overflowX: node.style.overflowX, width: node.style.width, scrollLeft: node.scrollLeft });
+        node.style.overflowX = "visible";
+        node.style.width = "max-content";
+        node.scrollLeft = 0;
+      });
+      // Also reset any element with non-zero scrollLeft
+      root.querySelectorAll<HTMLElement>("*").forEach(node => {
+        if (node.scrollLeft > 0) {
+          saved.push({ el: node, overflowX: node.style.overflowX, width: node.style.width, scrollLeft: node.scrollLeft });
+          node.scrollLeft = 0;
+        }
+      });
+
+      // Step 2: Wait one frame for DOM to reflow
+      await new Promise(r => requestAnimationFrame(r));
+      await new Promise(r => requestAnimationFrame(r));
+
+      const fullW = root.scrollWidth;
+      const fullH = root.scrollHeight;
+
+      const canvas = await html2canvas(root, {
         backgroundColor: "#ffffff",
         scale: 2,
         useCORS: true,
         allowTaint: true,
         logging: false,
-        foreignObjectRendering: true,
-        windowWidth: sectionRef.current.scrollWidth,
+        width: fullW,
+        height: fullH,
+        windowWidth: document.documentElement.clientWidth,
         ignoreElements: (el) => el.hasAttribute("data-copy-ignore"),
         onclone: (_doc, el) => {
-          // Remove backdrop-filter which html2canvas cannot render
           el.querySelectorAll<HTMLElement>("*").forEach(node => {
-            const s = node.style;
-            s.backdropFilter = "none";
-            s.webkitBackdropFilter = "none";
+            node.style.backdropFilter = "none";
+            node.style.webkitBackdropFilter = "none";
+          });
+          el.querySelectorAll<HTMLElement>(".overflow-x-auto, .overflow-x-scroll").forEach(node => {
+            node.style.overflowX = "visible";
+            node.style.width = "max-content";
+            node.scrollLeft = 0;
           });
         },
+      });
+
+      // Step 3: Restore original styles
+      saved.forEach(({ el, overflowX, width, scrollLeft }) => {
+        el.style.overflowX = overflowX;
+        el.style.width = width;
+        el.scrollLeft = scrollLeft;
       });
 
       const blob = await new Promise<Blob>((resolve, reject) => {
