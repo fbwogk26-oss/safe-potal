@@ -21,7 +21,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useState, useRef, useMemo, useCallback } from "react";
+import { useState, useRef, useMemo, useCallback, useEffect } from "react";
 import ExcelJS from "exceljs";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Download, RefreshCw, AlertTriangle, Trophy, ShieldCheck, RotateCcw, Upload, Settings2, Medal, TrendingUp, Users, Copy, Check } from "lucide-react";
@@ -39,6 +39,21 @@ export default function Dashboard() {
   const [isUploading, setIsUploading] = useState(false);
   const [isCopying, setIsCopying] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [nowStr, setNowStr] = useState(() => {
+    const d = new Date();
+    return d.toLocaleDateString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit" }).replace(/\. /g, ".").replace(/\.$/, "") +
+      " " + d.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+  });
+
+  useEffect(() => {
+    const fmt = () => {
+      const d = new Date();
+      return d.toLocaleDateString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit" }).replace(/\. /g, ".").replace(/\.$/, "") +
+        " " + d.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+    };
+    const id = setInterval(() => setNowStr(fmt()), 1000);
+    return () => clearInterval(id);
+  }, []);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chartRef = useRef<HTMLDivElement>(null);
   const sectionRef = useRef<HTMLDivElement>(null);
@@ -233,9 +248,14 @@ export default function Dashboard() {
           <Trophy className="w-5 h-5 md:w-6 md:h-6 text-yellow-500" />
           안전성평가제 현황
         </h2>
-        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => refetch()} disabled={isRefetching}>
-          <RefreshCw className={cn("w-4 h-4", isRefetching && "animate-spin")} />
-        </Button>
+        <div className="flex items-center gap-2">
+          <span className="text-xs sm:text-sm font-mono text-muted-foreground tabular-nums select-none">
+            {nowStr}
+          </span>
+          <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => refetch()} disabled={isRefetching} data-copy-ignore>
+            <RefreshCw className={cn("w-4 h-4", isRefetching && "animate-spin")} />
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
