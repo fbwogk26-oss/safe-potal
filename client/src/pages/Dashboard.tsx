@@ -157,8 +157,9 @@ export default function Dashboard() {
     if (wasHidden) setShowDetailTable(true);
 
     try {
-      // Wait for table to render if we just toggled it
-      await new Promise(r => setTimeout(r, wasHidden ? 350 : 50));
+      // Wait for table to render and fonts to load
+      await document.fonts.ready;
+      await new Promise(r => setTimeout(r, wasHidden ? 400 : 100));
 
       const canvas = await html2canvas(sectionRef.current, {
         backgroundColor: "#ffffff",
@@ -166,7 +167,17 @@ export default function Dashboard() {
         useCORS: true,
         allowTaint: true,
         logging: false,
+        foreignObjectRendering: true,
+        windowWidth: sectionRef.current.scrollWidth,
         ignoreElements: (el) => el.hasAttribute("data-copy-ignore"),
+        onclone: (_doc, el) => {
+          // Remove backdrop-filter which html2canvas cannot render
+          el.querySelectorAll<HTMLElement>("*").forEach(node => {
+            const s = node.style;
+            s.backdropFilter = "none";
+            s.webkitBackdropFilter = "none";
+          });
+        },
       });
 
       const blob = await new Promise<Blob>((resolve, reject) => {
