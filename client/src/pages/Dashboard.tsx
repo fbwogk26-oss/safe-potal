@@ -21,22 +21,26 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo, useCallback } from "react";
 import ExcelJS from "exceljs";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Download, RefreshCw, AlertTriangle, Trophy, ShieldCheck, RotateCcw, Upload, Settings2, Medal, TrendingUp, Users } from "lucide-react";
+import { Download, RefreshCw, AlertTriangle, Trophy, ShieldCheck, RotateCcw, Upload, Settings2, Medal, TrendingUp, Users, Copy, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { TeamEditDialog } from "@/components/TeamEditDialog";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePermissions } from "@/hooks/use-permissions";
+import html2canvas from "html2canvas";
 
 export default function Dashboard() {
   const [showDetailTable, setShowDetailTable] = useState(false);
   const [year, setYear] = useState(2026);
   const [baseVehicleCount, setBaseVehicleCount] = useState(15);
   const [isUploading, setIsUploading] = useState(false);
+  const [isCopying, setIsCopying] = useState(false);
+  const [copied, setCopied] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const chartRef = useRef<HTMLDivElement>(null);
   const { canEditDashboard, canEditSafetyScores, canUploadDashboardData } = usePermissions();
   
   const { data: teams, isLoading, refetch, isRefetching } = useTeams(year);
@@ -143,6 +147,87 @@ export default function Dashboard() {
     if (!data) return 0;
     return Object.values(data).reduce((a, b) => a + b, 0);
   };
+
+  const handleCopyAll = useCallback(async () => {
+    if (!teams) return;
+    setIsCopying(true);
+    try {
+      let chartImgSrc = "";
+      if (chartRef.current) {
+        const canvas = await html2canvas(chartRef.current, {
+          backgroundColor: "#ffffff",
+          scale: 2,
+          useCORS: true,
+          allowTaint: true,
+          logging: false,
+        });
+        chartImgSrc = canvas.toDataURL("image/png");
+      }
+
+      const headerStyle = `padding:6px 12px;border:1px solid #cbd5e1;font-weight:bold;background:#f1f5f9;font-family:Arial,sans-serif;font-size:12px;white-space:nowrap`;
+      const cellStyle = `padding:6px 12px;border:1px solid #e2e8f0;font-family:Arial,sans-serif;font-size:12px;white-space:nowrap`;
+      const numCenter = `${cellStyle};text-align:center`;
+
+      const tableRows = sortedTeams.map(team => {
+        const vehicleAcc = calculateVehicleAccidentCount(team.vehicleAccidents);
+        const scoreColor = team.totalScore >= 90 ? "#16a34a" : team.totalScore >= 80 ? "#d97706" : "#dc2626";
+        return `<tr>
+          <td style="${cellStyle};font-weight:bold">${team.name.replace("운용팀", "T")}</td>
+          <td style="${numCenter}">${team.vehicleCount}</td>
+          <td style="${numCenter};color:#dc2626;font-weight:bold">${team.workAccident}</td>
+          <td style="${numCenter};color:#ea580c">${vehicleAcc}</td>
+          <td style="${numCenter};color:#ea580c">${team.fineSpeed}</td>
+          <td style="${numCenter};color:#ea580c">${team.fineSignal}</td>
+          <td style="${numCenter};color:#ea580c">${team.fineLane}</td>
+          <td style="${numCenter};color:#dc2626">${team.inspectionMiss}</td>
+          <td style="${numCenter};color:#16a34a">${team.suggestion}</td>
+          <td style="${numCenter};color:#16a34a">${team.activity}</td>
+          <td style="${numCenter};font-weight:bold;color:${scoreColor}">${team.totalScore}</td>
+        </tr>`;
+      }).join("");
+
+      const htmlContent = `<html><body>
+        ${chartImgSrc ? `<img src="${chartImgSrc}" style="max-width:900px;display:block;margin-bottom:12px"/><br/>` : ""}
+        <table cellspacing="0" style="border-collapse:collapse">
+          <thead><tr>
+            <th style="${headerStyle}">부서</th>
+            <th style="${headerStyle};text-align:center">차량</th>
+            <th style="${headerStyle};text-align:center;color:#dc2626">작업사고</th>
+            <th style="${headerStyle};text-align:center;color:#ea580c">차량사고</th>
+            <th style="${headerStyle};text-align:center;color:#ea580c">과속위반</th>
+            <th style="${headerStyle};text-align:center;color:#ea580c">신호위반</th>
+            <th style="${headerStyle};text-align:center;color:#ea580c">법규위반</th>
+            <th style="${headerStyle};text-align:center;color:#dc2626">현장점검</th>
+            <th style="${headerStyle};text-align:center;color:#16a34a">우수제안</th>
+            <th style="${headerStyle};text-align:center;color:#16a34a">우수활동</th>
+            <th style="${headerStyle};text-align:center">점수</th>
+          </tr></thead>
+          <tbody>${tableRows}</tbody>
+        </table>
+      </body></html>`;
+
+      const tsvHeader = "부서\t차량\t작업사고\t차량사고\t과속위반\t신호위반\t법규위반\t현장점검\t우수제안\t우수활동\t점수";
+      const tsvRows = sortedTeams.map(team =>
+        `${team.name.replace("운용팀", "T")}\t${team.vehicleCount}\t${team.workAccident}\t${calculateVehicleAccidentCount(team.vehicleAccidents)}\t${team.fineSpeed}\t${team.fineSignal}\t${team.fineLane}\t${team.inspectionMiss}\t${team.suggestion}\t${team.activity}\t${team.totalScore}`
+      ).join("\n");
+
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          "text/html": new Blob([htmlContent], { type: "text/html" }),
+          "text/plain": new Blob([`${tsvHeader}\n${tsvRows}`], { type: "text/plain" }),
+        })
+      ]);
+
+      setCopied(true);
+      toast({ title: "복사 완료", description: "그래프와 상세 데이터가 클립보드에 복사되었습니다. 엑셀에 붙여넣기 하세요." });
+      setTimeout(() => setCopied(false), 2500);
+    } catch (err) {
+      console.error("Copy failed:", err);
+      toast({ title: "복사 실패", description: "클립보드 접근이 허용되지 않았습니다.", variant: "destructive" });
+    } finally {
+      setIsCopying(false);
+    }
+  }, [teams, sortedTeams]);
 
   return (
     <div className="space-y-4 md:space-y-6">
@@ -356,6 +441,17 @@ export default function Dashboard() {
                       </div>
                     </div>
                     <Button
+                      variant="outline"
+                      size="sm"
+                      className={cn("gap-1.5 transition-all", copied ? "border-green-500 text-green-600 bg-green-50 dark:bg-green-900/20" : "border-primary/30 text-primary")}
+                      onClick={handleCopyAll}
+                      disabled={isCopying || !teams}
+                      data-testid="button-copy-all"
+                    >
+                      {copied ? <Check className="w-3.5 h-3.5" /> : isCopying ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Copy className="w-3.5 h-3.5" />}
+                      {copied ? "복사됨" : "복사"}
+                    </Button>
+                    <Button
                       variant={showDetailTable ? "default" : "outline"}
                       size="sm"
                       className="gap-1.5 border-primary/30 text-primary"
@@ -368,7 +464,7 @@ export default function Dashboard() {
                   </div>
                 </CardHeader>
               <CardContent className="p-2 sm:p-4 md:p-6 pt-2">
-                <div className="w-full overflow-x-auto">
+                <div ref={chartRef} className="w-full overflow-x-auto bg-white dark:bg-card">
                   <div style={{ minWidth: Math.max(480, (chartData.length * 56) + 60), height: 280 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={chartData} margin={{ top: 20, right: 5, left: -25, bottom: 0 }}>
