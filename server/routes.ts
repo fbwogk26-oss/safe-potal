@@ -7575,8 +7575,8 @@ ${htmlDraft}
       });
 
       const mimeType = req.file.mimetype || 'image/jpeg';
-      const docType = req.query.docType || 'quote'; // 'quote' | 'transaction'
-      const base64Data = req.file.buffer.toString('base64');
+      const docType = req.query.docType || 'quote';
+      const isPdf = mimeType === 'application/pdf' || req.file.originalname.toLowerCase().endsWith('.pdf');
 
       const systemPrompt = `당신은 한국 기업의 구매 서류(견적서, 거래명세서)를 분석하는 전문가입니다.
 문서에서 다음 정보를 추출하여 JSON 형식으로만 반환하세요 (코드블록 없이).
@@ -7601,25 +7601,35 @@ ${htmlDraft}
 숫자는 쉼표 없이 순수 숫자로 반환하세요. 찾을 수 없는 값은 null로 반환하세요.`;
 
       let messages: any[];
-      if (mimeType === 'application/pdf') {
-        // PDF → 텍스트로 처리 (base64 전달)
+
+      if (isPdf) {
+        // PDF → 공통 extractPdfText 함수로 텍스트 추출 후 GPT-4o에 텍스트로 전달
+        let pdfText = "";
+        try {
+          pdfText = await extractPdfText(req.file.buffer);
+        } catch (pdfErr: any) {
+          console.warn("pdf-parse 실패, 텍스트 없이 진행:", pdfErr.message);
+        }
+        const docLabel = docType === 'quote' ? '견적서' : '거래명세서';
         messages = [
           { role: "system", content: systemPrompt },
           {
             role: "user",
-            content: [
-              { type: "text", text: `다음은 ${docType === 'quote' ? '견적서' : '거래명세서'} PDF 파일입니다. 내용을 분석하여 JSON으로 추출해주세요.` },
-              { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64Data}`, detail: "high" } },
-            ],
+            content: pdfText.trim()
+              ? `다음은 ${docLabel} PDF에서 추출한 텍스트입니다. 내용을 분석하여 JSON으로 추출해주세요.\n\n---\n${pdfText.slice(0, 8000)}\n---`
+              : `${docLabel} PDF 파일이 업로드되었으나 텍스트 추출에 실패했습니다. 빈 JSON {}을 반환하세요.`,
           },
         ];
       } else {
+        // 이미지 → Vision API 사용
+        const base64Data = req.file.buffer.toString('base64');
+        const docLabel = docType === 'quote' ? '견적서' : '거래명세서';
         messages = [
           { role: "system", content: systemPrompt },
           {
             role: "user",
             content: [
-              { type: "text", text: `다음은 ${docType === 'quote' ? '견적서' : '거래명세서'} 이미지입니다. 내용을 분석하여 JSON으로 추출해주세요.` },
+              { type: "text", text: `다음은 ${docLabel} 이미지입니다. 내용을 분석하여 JSON으로 추출해주세요.` },
               { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64Data}`, detail: "high" } },
             ],
           },
@@ -7643,6 +7653,21 @@ ${htmlDraft}
           try { parsed = JSON.parse(jsonMatch[0]); } catch { parsed = {}; }
         }
       }
+
+      // 파일을 스토리지에 업로드하고 URL도 함께 반환 (프론트 2차 업로드 불필요)
+      try {
+        const ext = req.file.originalname.split('.').pop() || (isPdf ? 'pdf' : 'jpg');
+        const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+        const objUrl = await uploadToObjectStorage(req.file.buffer, filename, req.file.mimetype);
+        if (objUrl) {
+          parsed._fileUrl = objUrl;
+        } else {
+          const localP = path.join(uploadDir, filename);
+          fs.writeFileSync(localP, req.file.buffer);
+          parsed._fileUrl = `/uploads/${filename}`;
+        }
+      } catch { /* 파일 저장 실패는 무시 */ }
+
       res.json(parsed);
     } catch (e: any) {
       console.error("Safety cost extract error:", e.message);

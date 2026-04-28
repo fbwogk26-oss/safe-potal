@@ -216,22 +216,37 @@ export default function SafetyCostBudget() {
     try {
       const fd = new FormData(); fd.append("file", file);
       const r = await fetch(`/api/safety-cost-records/extract?docType=${docType}`, { method:"POST", body:fd, credentials:"include" });
-      if (!r.ok) throw new Error(await r.text());
-      const data: ExtractedData = await r.json();
+      if (!r.ok) {
+        const errText = await r.text();
+        let errMsg = "추출 실패";
+        try { errMsg = JSON.parse(errText).message || errMsg; } catch { errMsg = errText || errMsg; }
+        throw new Error(errMsg);
+      }
+      const data: ExtractedData & { _fileUrl?: string } = await r.json();
       if (data.vendorName) setF("vendorName", data.vendorName);
       if (data.documentDate) setF("purchaseDate", data.documentDate);
       if (data.items?.length) { setExtractedItems(data.items); setSelItemIdx(0); applyItem(data.items[0]); }
       else if (data.totalAmount) setF("totalAmount", data.totalAmount.toString());
-      // 파일 업로드
-      const uFd = new FormData(); uFd.append("file", file);
-      const ur = await fetch("/api/upload/general", { method:"POST", body:uFd, credentials:"include" });
-      if (ur.ok) {
-        const ud = await ur.json();
-        const url = ud.fileUrl||ud.imageUrl||ud.url||"";
-        if (docType==="quote") setF("quoteFileUrl", url); else setF("transactionFileUrl", url);
+      // 서버에서 업로드된 파일 URL 사용 (없으면 2차 업로드)
+      if (data._fileUrl) {
+        if (docType==="quote") setF("quoteFileUrl", data._fileUrl);
+        else setF("transactionFileUrl", data._fileUrl);
+      } else {
+        const uFd = new FormData(); uFd.append("file", file);
+        const ur = await fetch("/api/upload/general", { method:"POST", body:uFd, credentials:"include" });
+        if (ur.ok) {
+          const ud = await ur.json();
+          const url = ud.fileUrl||ud.imageUrl||ud.url||"";
+          if (docType==="quote") setF("quoteFileUrl", url); else setF("transactionFileUrl", url);
+        }
       }
-      toast({ title: "추출 완료", description: `${data.items?.length||0}개 항목 감지됨` });
-    } catch (e: any) { toast({ title: "추출 실패", description: e.message, variant:"destructive" }); }
+      const itemCount = data.items?.length || 0;
+      const isPdf = file.name.toLowerCase().endsWith(".pdf");
+      toast({
+        title: isPdf ? "PDF 분석 완료" : "추출 완료",
+        description: itemCount > 0 ? `${itemCount}개 항목 감지됨` : "업체명·금액을 확인하세요."
+      });
+    } catch (e: any) { toast({ title: "분석 실패", description: e.message, variant:"destructive" }); }
     finally { setExtracting(null); }
   }
 
