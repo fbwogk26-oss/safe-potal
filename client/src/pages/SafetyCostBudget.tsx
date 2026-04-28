@@ -12,9 +12,10 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Plus, Trash2, Edit2, Upload, FileText, ImageIcon, Loader2,
-  BarChart3, List, X, Download, Receipt, FileCheck
+  BarChart3, List, X, Download, Receipt, FileCheck, PackagePlus, CheckSquare
 } from "lucide-react";
 import type { SafetyCostRecord, SafetyCostTaxInvoice } from "@shared/schema";
 
@@ -84,6 +85,17 @@ interface ExtractedItem {
 }
 interface ExtractedData {
   vendorName?: string; documentDate?: string; totalAmount?: number; items?: ExtractedItem[];
+  _fileUrl?: string;
+}
+
+// 일괄 등록 품목 행
+interface BulkItemRow extends ExtractedItem {
+  checked: boolean;
+}
+// 일괄 등록 공통 필드
+interface BulkCommon {
+  year: number; month: number; category: string; subCategory: string;
+  purchaseDate: string; vendorName: string; quoteFileUrl: string; transactionFileUrl: string;
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -103,12 +115,21 @@ export default function SafetyCostBudget() {
   const [extractedItems, setExtractedItems] = useState<ExtractedItem[]>([]);
   const [selItemIdx, setSelItemIdx] = useState(0);
 
+  // 일괄 등록 다이얼로그
+  const [bulkDlgOpen, setBulkDlgOpen] = useState(false);
+  const [bulkCommon, setBulkCommon] = useState<BulkCommon>({
+    year: currentYear, month: new Date().getMonth() + 1,
+    category: "", subCategory: "", purchaseDate: "", vendorName: "",
+    quoteFileUrl: "", transactionFileUrl: "",
+  });
+  const [bulkItems, setBulkItems] = useState<BulkItemRow[]>([]);
+  const [bulkSaving, setBulkSaving] = useState(false);
+
   // 세금계산서 다이얼로그
   const [taxDlgOpen, setTaxDlgOpen] = useState(false);
   const [editTax, setEditTax] = useState<SafetyCostTaxInvoice | null>(null);
   const [taxForm, setTaxForm] = useState({ ...emptyTaxForm });
   const [taxFile, setTaxFile] = useState<File | null>(null);
-  const [taxUploading, setTaxUploading] = useState(false);
 
   // 첨부파일 미리보기
   const [preview, setPreview] = useState<{ url: string; title: string } | null>(null);
@@ -158,7 +179,7 @@ export default function SafetyCostBudget() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/safety-cost-tax-invoices"] }); toast({ title: "삭제 완료" }); setDelConfirm(null); },
   });
 
-  // ── 다이얼로그 헬퍼 ───────────────────────────────────────────────
+  // ── 단일 등록 다이얼로그 헬퍼 ─────────────────────────────────────
   function openAdd() { setEditRec(null); setForm({ ...emptyForm, year }); setExtractedItems([]); setDlgOpen(true); }
   function openEdit(r: SafetyCostRecord) {
     setEditRec(r);
@@ -190,6 +211,81 @@ export default function SafetyCostBudget() {
     }));
   }
 
+  // ── 일괄 등록 헬퍼 ───────────────────────────────────────────────
+  function openBulkDlg(data: ExtractedData) {
+    const items: BulkItemRow[] = (data.items || []).map(it => ({ ...it, checked: true }));
+    setBulkItems(items);
+    setBulkCommon({
+      year, month: new Date().getMonth() + 1,
+      category: "", subCategory: "",
+      purchaseDate: data.documentDate || "",
+      vendorName: data.vendorName || "",
+      quoteFileUrl: data._fileUrl || "",
+      transactionFileUrl: "",
+    });
+    setBulkDlgOpen(true);
+  }
+  function closeBulkDlg() { setBulkDlgOpen(false); setBulkItems([]); }
+  function setBC(k: keyof BulkCommon, v: any) { setBulkCommon(p => ({ ...p, [k]: v })); }
+  function setBulkItem(idx: number, k: keyof BulkItemRow, v: any) {
+    setBulkItems(p => p.map((it, i) => i === idx ? { ...it, [k]: v } : it));
+  }
+  function bulkAutoCalc(idx: number, k: "quantity"|"unitPrice", v: string) {
+    setBulkItems(p => p.map((it, i) => {
+      if (i !== idx) return it;
+      const up = { ...it, [k]: v === "" ? undefined : Number(v) };
+      const q = Number(up.quantity || 0), u = Number(up.unitPrice || 0);
+      if (q > 0 && u > 0) {
+        const supply = q * u, vat = Math.round(supply * 0.1);
+        return { ...up, supplyAmount: supply, vatAmount: vat, totalAmount: supply + vat };
+      }
+      return up;
+    }));
+  }
+
+  async function handleBulkSubmit() {
+    if (!bulkCommon.category) {
+      toast({ title: "항목 구분 선택 필요", description: "공통 항목 구분을 선택하세요.", variant: "destructive" });
+      return;
+    }
+    const selected = bulkItems.filter(it => it.checked && it.totalAmount);
+    if (selected.length === 0) {
+      toast({ title: "등록할 품목 없음", description: "체크된 품목이 없거나 합계금액이 없습니다.", variant: "destructive" });
+      return;
+    }
+    setBulkSaving(true);
+    let success = 0, fail = 0;
+    for (const it of selected) {
+      try {
+        await apiRequest("POST", "/api/safety-cost-records", {
+          year: Number(bulkCommon.year), month: Number(bulkCommon.month),
+          category: bulkCommon.category, subCategory: bulkCommon.subCategory || null,
+          itemName: it.itemName || "품명 미상",
+          specification: it.specification || null, unit: it.unit || null,
+          quantity: it.quantity || null, unitPrice: it.unitPrice || null,
+          supplyAmount: it.supplyAmount || null, vatAmount: it.vatAmount || null,
+          totalAmount: String(it.totalAmount),
+          purchaseDate: bulkCommon.purchaseDate || null,
+          vendorName: bulkCommon.vendorName || null,
+          notes: null,
+          quoteFileUrl: bulkCommon.quoteFileUrl || null,
+          transactionFileUrl: bulkCommon.transactionFileUrl || null,
+        });
+        success++;
+      } catch { fail++; }
+    }
+    setBulkSaving(false);
+    qc.invalidateQueries({ queryKey: ["/api/safety-cost-records"] });
+    if (fail === 0) {
+      toast({ title: `${success}개 품목 일괄 등록 완료 ✓` });
+      closeBulkDlg();
+      setDlgOpen(false);
+    } else {
+      toast({ title: `${success}개 등록 성공, ${fail}개 실패`, variant: "destructive" });
+    }
+  }
+
+  // ── 세금계산서 헬퍼 ───────────────────────────────────────────────
   function openAddTax() { setEditTax(null); setTaxForm({ ...emptyTaxForm, year }); setTaxFile(null); setTaxDlgOpen(true); }
   function openEditTax(t: SafetyCostTaxInvoice) {
     setEditTax(t);
@@ -222,12 +318,11 @@ export default function SafetyCostBudget() {
         try { errMsg = JSON.parse(errText).message || errMsg; } catch { errMsg = errText || errMsg; }
         throw new Error(errMsg);
       }
-      const data: ExtractedData & { _fileUrl?: string } = await r.json();
+      const data: ExtractedData = await r.json();
       if (data.vendorName) setF("vendorName", data.vendorName);
       if (data.documentDate) setF("purchaseDate", data.documentDate);
-      if (data.items?.length) { setExtractedItems(data.items); setSelItemIdx(0); applyItem(data.items[0]); }
-      else if (data.totalAmount) setF("totalAmount", data.totalAmount.toString());
-      // 서버에서 업로드된 파일 URL 사용 (없으면 2차 업로드)
+
+      // 파일 URL 적용
       if (data._fileUrl) {
         if (docType==="quote") setF("quoteFileUrl", data._fileUrl);
         else setF("transactionFileUrl", data._fileUrl);
@@ -237,20 +332,37 @@ export default function SafetyCostBudget() {
         if (ur.ok) {
           const ud = await ur.json();
           const url = ud.fileUrl||ud.imageUrl||ud.url||"";
+          data._fileUrl = url;
           if (docType==="quote") setF("quoteFileUrl", url); else setF("transactionFileUrl", url);
         }
       }
+
       const itemCount = data.items?.length || 0;
+      if (itemCount > 0) {
+        setExtractedItems(data.items!);
+        setSelItemIdx(0);
+        applyItem(data.items![0]);
+      } else if (data.totalAmount) {
+        setF("totalAmount", data.totalAmount.toString());
+      }
+
       const isPdf = file.name.toLowerCase().endsWith(".pdf");
       toast({
         title: isPdf ? "PDF 분석 완료" : "추출 완료",
-        description: itemCount > 0 ? `${itemCount}개 항목 감지됨` : "업체명·금액을 확인하세요."
+        description: itemCount > 1
+          ? `${itemCount}개 품목 감지 — 아래에서 일괄 등록을 이용하세요.`
+          : itemCount === 1 ? "1개 항목 적용됨" : "업체명·금액을 확인하세요.",
       });
+
+      // 2개 이상 품목이면 일괄 등록 다이얼로그 자동 오픈
+      if (itemCount >= 2 && docType === "quote") {
+        openBulkDlg(data);
+      }
     } catch (e: any) { toast({ title: "분석 실패", description: e.message, variant:"destructive" }); }
     finally { setExtracting(null); }
   }
 
-  // ── 제출 ─────────────────────────────────────────────────────────
+  // ── 단일 제출 ────────────────────────────────────────────────────
   function handleSubmit() {
     if (!form.category || !form.itemName || !form.totalAmount) {
       toast({ title: "필수 항목 누락", description: "항목·품명·합계금액은 필수입니다.", variant:"destructive" }); return;
@@ -311,6 +423,9 @@ export default function SafetyCostBudget() {
   const monthlyTotals = MONTHS.map((_,i) => records.filter(r=>r.month===i+1).reduce((s,r)=>s+toNum(r.totalAmount),0));
   const taxGrandTotal = taxInvoices.reduce((s,t) => s+toNum(t.totalAmount), 0);
   const catIdx = (cat: string) => CATEGORIES.indexOf(cat);
+
+  const bulkSelectedTotal = bulkItems.filter(it => it.checked).reduce((s, it) => s + toNum(it.totalAmount), 0);
+  const bulkSelectedCount = bulkItems.filter(it => it.checked).length;
 
   // ══════════════════════════════════════════════════════════════════
   return (
@@ -488,7 +603,6 @@ export default function SafetyCostBudget() {
 
         {/* ══ 항목별 요약 탭 ══ */}
         <TabsContent value="summary" className="mt-3 space-y-3">
-          {/* 카테고리 카드 그리드 */}
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
             {catTotals.map((c, i) => (
               <div key={i} className={`rounded-xl border p-4 transition-all ${c.total===0 ? "opacity-40" : "hover:shadow-sm"}`}>
@@ -502,11 +616,9 @@ export default function SafetyCostBudget() {
                     <div className="text-xs text-muted-foreground">{c.count}건</div>
                   </div>
                 </div>
-                {/* 진행바 */}
                 <div className="h-2 rounded-full bg-muted overflow-hidden mb-3">
                   <div className={`h-full rounded-full transition-all ${c.color.bar}`} style={{ width:`${c.pct}%` }} />
                 </div>
-                {/* 월별 미니 바 */}
                 {c.total > 0 && (
                   <div className="flex gap-0.5 items-end h-8">
                     {c.monthly.map((v, mi) => {
@@ -528,8 +640,6 @@ export default function SafetyCostBudget() {
               </div>
             ))}
           </div>
-
-          {/* 월별 합계 표 */}
           <div className="rounded-xl border overflow-hidden">
             <div className="px-4 py-3 bg-muted/40 border-b">
               <span className="font-semibold text-sm">월별 총계</span>
@@ -560,19 +670,15 @@ export default function SafetyCostBudget() {
         {/* ══ 세금계산서 탭 ══ */}
         <TabsContent value="tax" className="mt-3 space-y-3">
           <div className="flex items-center justify-between">
-            <div className="text-sm text-muted-foreground">
-              월별 세금계산서 현황 · 총 {fmt(taxGrandTotal)}
-            </div>
+            <div className="text-sm text-muted-foreground">월별 세금계산서 현황 · 총 {fmt(taxGrandTotal)}</div>
             <Button onClick={openAddTax} size="sm" data-testid="button-add-tax">
               <Plus className="w-4 h-4 mr-1" /> 세금계산서 등록
             </Button>
           </div>
-
           {taxInvoices.length === 0 ? (
             <div className="text-center py-16 text-muted-foreground border rounded-xl">
               <Receipt className="w-10 h-10 mx-auto mb-2 opacity-30" />
               <p className="text-sm">등록된 세금계산서가 없습니다.</p>
-              <p className="text-xs mt-1 text-muted-foreground/60">월별로 발행된 세금계산서를 등록하세요.</p>
               <Button variant="outline" size="sm" className="mt-3" onClick={openAddTax}>첫 세금계산서 등록</Button>
             </div>
           ) : (
@@ -619,7 +725,6 @@ export default function SafetyCostBudget() {
                       </TableCell>
                     </TableRow>
                   ))}
-                  {/* 합계 행 */}
                   <TableRow className="bg-muted/40 font-bold">
                     <TableCell colSpan={2} className="text-center">합계</TableCell>
                     <TableCell className="text-right">{fmt(taxInvoices.reduce((s,t)=>s+toNum(t.supplyAmount),0))}</TableCell>
@@ -645,6 +750,7 @@ export default function SafetyCostBudget() {
           <div className="space-y-3 border rounded-xl p-3 bg-muted/20">
             <div className="text-sm font-semibold flex items-center gap-2 text-foreground">
               <Upload className="w-4 h-4" /> AI 자동 입력 (견적서 / 거래명세서)
+              <span className="text-xs font-normal text-muted-foreground">· 이미지 및 PDF 지원</span>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -653,7 +759,7 @@ export default function SafetyCostBudget() {
                 <Button variant="outline" size="sm" className="w-full" disabled={extracting!==null}
                   onClick={() => quoteRef.current?.click()} data-testid="btn-upload-quote">
                   {extracting==="quote" ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <ImageIcon className="w-4 h-4 mr-1" />}
-                  견적서 첨부
+                  견적서 첨부 (AI 분석)
                 </Button>
                 {form.quoteFileUrl && <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1"><FileText className="w-3 h-3" />견적서 업로드됨</p>}
               </div>
@@ -663,20 +769,40 @@ export default function SafetyCostBudget() {
                 <Button variant="outline" size="sm" className="w-full" disabled={extracting!==null}
                   onClick={() => transRef.current?.click()} data-testid="btn-upload-trans">
                   {extracting==="transaction" ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <FileText className="w-4 h-4 mr-1" />}
-                  거래명세서 첨부
+                  거래명세서 첨부 (AI 분석)
                 </Button>
                 {form.transactionFileUrl && <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1"><FileText className="w-3 h-3" />거래명세서 업로드됨</p>}
               </div>
             </div>
-            {extractedItems.length > 1 && (
+
+            {/* 다중 품목 감지 시 일괄 등록 안내 */}
+            {extractedItems.length >= 2 && (
+              <div className="flex items-center gap-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-2">
+                <PackagePlus className="w-4 h-4 text-blue-600 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                    {extractedItems.length}개 품목 감지됨
+                  </p>
+                  <p className="text-xs text-blue-600 dark:text-blue-400">일괄 등록으로 한 번에 추가할 수 있습니다.</p>
+                </div>
+                <Button size="sm" variant="default" className="shrink-0 bg-blue-600 hover:bg-blue-700 text-white"
+                  onClick={() => openBulkDlg({ items: extractedItems, vendorName: form.vendorName, documentDate: form.purchaseDate, _fileUrl: form.quoteFileUrl })}
+                  data-testid="btn-open-bulk">
+                  <CheckSquare className="w-3.5 h-3.5 mr-1" /> 일괄 등록
+                </Button>
+              </div>
+            )}
+
+            {/* 단일 품목 선택 */}
+            {extractedItems.length >= 2 && (
               <div>
-                <p className="text-xs text-muted-foreground mb-1">감지된 품목 {extractedItems.length}개 — 적용할 항목 선택:</p>
+                <p className="text-xs text-muted-foreground mb-1">또는 단일 품목만 등록:</p>
                 <div className="flex flex-wrap gap-1">
                   {extractedItems.map((item, i) => (
                     <button key={i} onClick={() => { setSelItemIdx(i); applyItem(item); }}
                       className={`text-xs px-2 py-1 rounded border transition-colors ${selItemIdx===i ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
                       data-testid={`btn-item-${i}`}>
-                      {item.itemName} ({fmtNum(item.quantity)}{item.unit})
+                      {item.itemName || `품목 ${i+1}`} ({fmtNum(item.quantity)}{item.unit || ""})
                     </button>
                   ))}
                 </div>
@@ -701,21 +827,18 @@ export default function SafetyCostBudget() {
               <Input type="date" value={form.purchaseDate} onChange={e=>setF("purchaseDate",e.target.value)} data-testid="input-purchase-date" />
             </div>
           </div>
-
           <div><Label>항목 구분 *</Label>
             <Select value={form.category} onValueChange={v=>setF("category",v)}>
               <SelectTrigger data-testid="select-category"><SelectValue placeholder="항목 선택" /></SelectTrigger>
               <SelectContent>{CATEGORIES.map(c=><SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
             </Select>
           </div>
-
           <div className="grid grid-cols-2 gap-3">
             <div><Label>세부항목</Label><Input placeholder="세부항목" value={form.subCategory} onChange={e=>setF("subCategory",e.target.value)} /></div>
             <div><Label>업체명</Label><Input placeholder="공급업체명" value={form.vendorName} onChange={e=>setF("vendorName",e.target.value)} data-testid="input-vendor" /></div>
           </div>
           <div><Label>품명 *</Label><Input placeholder="품명" value={form.itemName} onChange={e=>setF("itemName",e.target.value)} data-testid="input-item-name" /></div>
           <div><Label>규격</Label><Input placeholder="규격" value={form.specification} onChange={e=>setF("specification",e.target.value)} /></div>
-
           <div className="grid grid-cols-3 gap-3">
             <div><Label>단위</Label>
               <Select value={form.unit} onValueChange={v=>setF("unit",v)}>
@@ -743,13 +866,143 @@ export default function SafetyCostBudget() {
         </DialogContent>
       </Dialog>
 
+      {/* ══ 일괄 등록 다이얼로그 ══ */}
+      <Dialog open={bulkDlgOpen} onOpenChange={v => { if (!v) closeBulkDlg(); }}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <PackagePlus className="w-5 h-5 text-primary" />
+              다중 품목 일괄 등록
+            </DialogTitle>
+          </DialogHeader>
+
+          {/* 공통 필드 */}
+          <div className="rounded-xl border bg-muted/20 p-4 space-y-3">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">공통 정보 (모든 품목에 적용)</p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div><Label>연도</Label>
+                <Select value={bulkCommon.year.toString()} onValueChange={v=>setBC("year",Number(v))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{[currentYear-1,currentYear,currentYear+1].map(y=><SelectItem key={y} value={y.toString()}>{y}년</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div><Label>월</Label>
+                <Select value={bulkCommon.month.toString()} onValueChange={v=>setBC("month",Number(v))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{MONTHS.map((m,i)=><SelectItem key={i} value={(i+1).toString()}>{m}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div><Label>구매일자</Label>
+                <Input type="date" value={bulkCommon.purchaseDate} onChange={e=>setBC("purchaseDate",e.target.value)} />
+              </div>
+              <div><Label>업체명</Label>
+                <Input placeholder="업체명" value={bulkCommon.vendorName} onChange={e=>setBC("vendorName",e.target.value)} />
+              </div>
+            </div>
+            <div><Label>항목 구분 * <span className="text-destructive">필수</span></Label>
+              <Select value={bulkCommon.category} onValueChange={v=>setBC("category",v)}>
+                <SelectTrigger data-testid="bulk-select-category"><SelectValue placeholder="항목 구분 선택" /></SelectTrigger>
+                <SelectContent>{CATEGORIES.map(c=><SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* 품목 테이블 */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium">품목 목록</p>
+              <div className="flex gap-2">
+                <Button variant="ghost" size="sm" onClick={() => setBulkItems(p => p.map(it => ({ ...it, checked: true })))}>
+                  전체 선택
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setBulkItems(p => p.map(it => ({ ...it, checked: false })))}>
+                  전체 해제
+                </Button>
+              </div>
+            </div>
+            <div className="rounded-lg border overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/40">
+                    <TableHead className="w-10 text-center">선택</TableHead>
+                    <TableHead>품명</TableHead>
+                    <TableHead>규격</TableHead>
+                    <TableHead className="w-14">단위</TableHead>
+                    <TableHead className="w-16 text-right">수량</TableHead>
+                    <TableHead className="w-24 text-right">단가</TableHead>
+                    <TableHead className="w-24 text-right">공급가액</TableHead>
+                    <TableHead className="w-20 text-right">세액</TableHead>
+                    <TableHead className="w-24 text-right font-semibold">합계</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {bulkItems.map((it, idx) => (
+                    <TableRow key={idx} className={it.checked ? "" : "opacity-40 bg-muted/10"} data-testid={`bulk-row-${idx}`}>
+                      <TableCell className="text-center">
+                        <Checkbox checked={it.checked} onCheckedChange={v => setBulkItem(idx, "checked", !!v)}
+                          data-testid={`bulk-check-${idx}`} />
+                      </TableCell>
+                      <TableCell>
+                        <Input className="h-7 text-sm min-w-28" value={it.itemName||""} placeholder="품명"
+                          onChange={e => setBulkItem(idx, "itemName", e.target.value)} />
+                      </TableCell>
+                      <TableCell>
+                        <Input className="h-7 text-sm min-w-20" value={it.specification||""} placeholder="규격"
+                          onChange={e => setBulkItem(idx, "specification", e.target.value)} />
+                      </TableCell>
+                      <TableCell>
+                        <Input className="h-7 text-sm w-14" value={it.unit||""} placeholder="EA"
+                          onChange={e => setBulkItem(idx, "unit", e.target.value)} />
+                      </TableCell>
+                      <TableCell>
+                        <Input type="number" className="h-7 text-sm w-16 text-right" value={it.quantity ?? ""}
+                          onChange={e => bulkAutoCalc(idx, "quantity", e.target.value)} />
+                      </TableCell>
+                      <TableCell>
+                        <Input type="number" className="h-7 text-sm w-24 text-right" value={it.unitPrice ?? ""}
+                          onChange={e => bulkAutoCalc(idx, "unitPrice", e.target.value)} />
+                      </TableCell>
+                      <TableCell className="text-right text-sm text-muted-foreground">
+                        {it.supplyAmount ? fmtNum(it.supplyAmount) : "-"}
+                      </TableCell>
+                      <TableCell className="text-right text-sm text-muted-foreground">
+                        {it.vatAmount ? fmtNum(it.vatAmount) : "-"}
+                      </TableCell>
+                      <TableCell>
+                        <Input type="number" className="h-7 text-sm w-24 text-right font-semibold" value={it.totalAmount ?? ""}
+                          onChange={e => setBulkItem(idx, "totalAmount", e.target.value === "" ? undefined : Number(e.target.value))} />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {/* 합계 행 */}
+                  <TableRow className="bg-muted/30 font-semibold">
+                    <TableCell colSpan={8} className="text-right text-sm">선택 {bulkSelectedCount}개 합계</TableCell>
+                    <TableCell className="text-right text-primary">{fmt(bulkSelectedTotal)}</TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={closeBulkDlg}>취소</Button>
+            <Button onClick={handleBulkSubmit} disabled={bulkSaving || bulkSelectedCount === 0}
+              className="gap-1" data-testid="btn-bulk-submit">
+              {bulkSaving
+                ? <><Loader2 className="w-4 h-4 animate-spin" />등록 중...</>
+                : <><PackagePlus className="w-4 h-4" />{bulkSelectedCount}개 품목 일괄 등록</>
+              }
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* ══ 세금계산서 등록/수정 다이얼로그 ══ */}
       <Dialog open={taxDlgOpen} onOpenChange={setTaxDlgOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>{editTax ? "세금계산서 수정" : "세금계산서 등록"}</DialogTitle>
           </DialogHeader>
-
           <div className="grid grid-cols-2 gap-3">
             <div><Label>연도 *</Label>
               <Select value={taxForm.year.toString()} onValueChange={v=>setTF("year",Number(v))}>
@@ -764,18 +1017,13 @@ export default function SafetyCostBudget() {
               </Select>
             </div>
           </div>
-
           <div><Label>업체명</Label><Input placeholder="공급업체명" value={taxForm.vendorName} onChange={e=>setTF("vendorName",e.target.value)} data-testid="input-tax-vendor" /></div>
-
           <div className="grid grid-cols-3 gap-3">
             <div><Label>공급가액</Label><Input type="number" placeholder="0" value={taxForm.supplyAmount} onChange={e=>taxAutoCalc("supplyAmount",e.target.value)} /></div>
             <div><Label>세액</Label><Input type="number" placeholder="0" value={taxForm.vatAmount} onChange={e=>taxAutoCalc("vatAmount",e.target.value)} /></div>
             <div><Label className="font-semibold">합계 *</Label><Input type="number" placeholder="0" value={taxForm.totalAmount} onChange={e=>setTF("totalAmount",e.target.value)} className="font-semibold" data-testid="input-tax-total" /></div>
           </div>
-
           <div><Label>비고</Label><Input placeholder="비고" value={taxForm.notes} onChange={e=>setTF("notes",e.target.value)} /></div>
-
-          {/* 파일 업로드 */}
           <div className="space-y-2">
             <Label>세금계산서 파일</Label>
             <input ref={taxFileRef} type="file" accept="image/*,application/pdf" className="hidden"
@@ -791,7 +1039,6 @@ export default function SafetyCostBudget() {
               </button>
             )}
           </div>
-
           <DialogFooter>
             <Button variant="outline" onClick={closeTaxDlg}>취소</Button>
             <Button onClick={handleTaxSubmit} disabled={createTaxMut.isPending||updateTaxMut.isPending} data-testid="btn-tax-submit">
