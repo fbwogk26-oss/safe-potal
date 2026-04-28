@@ -7232,6 +7232,134 @@ ${htmlDraft}
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
+  // === 산업안전보건관리비 사용내역 ===
+  app.get('/api/safety-cost-records', isAuthenticated, async (req, res) => {
+    try {
+      const year = req.query.year ? Number(req.query.year) : undefined;
+      const records = await storage.getSafetyCostRecords(year);
+      res.json(records);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.get('/api/safety-cost-records/:id', isAuthenticated, async (req, res) => {
+    try {
+      const record = await storage.getSafetyCostRecord(Number(req.params.id));
+      if (!record) return res.status(404).json({ message: "Not found" });
+      res.json(record);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.post('/api/safety-cost-records', requireEditor, async (req, res) => {
+    try {
+      const { insertSafetyCostRecordSchema } = await import("@shared/schema");
+      const data = insertSafetyCostRecordSchema.parse(req.body);
+      const record = await storage.createSafetyCostRecord(data);
+      res.json(record);
+    } catch (e: any) { res.status(400).json({ message: e.message }); }
+  });
+
+  app.put('/api/safety-cost-records/:id', requireEditor, async (req, res) => {
+    try {
+      const record = await storage.updateSafetyCostRecord(Number(req.params.id), req.body);
+      res.json(record);
+    } catch (e: any) { res.status(400).json({ message: e.message }); }
+  });
+
+  app.delete('/api/safety-cost-records/:id', requireEditor, async (req, res) => {
+    try {
+      await storage.deleteSafetyCostRecord(Number(req.params.id));
+      res.json({ success: true });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // AI 자동 추출 — 견적서/거래명세서 이미지 업로드 → GPT-4o Vision
+  const safetyCostUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+  app.post('/api/safety-cost-records/extract', requireEditor, safetyCostUpload.single('file'), async (req: any, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: "파일이 없습니다" });
+
+      const OpenAI = (await import("openai")).default;
+      const aiClient = new OpenAI({
+        apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+        baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+      });
+
+      const mimeType = req.file.mimetype || 'image/jpeg';
+      const docType = req.query.docType || 'quote'; // 'quote' | 'transaction'
+      const base64Data = req.file.buffer.toString('base64');
+
+      const systemPrompt = `당신은 한국 기업의 구매 서류(견적서, 거래명세서)를 분석하는 전문가입니다.
+문서에서 다음 정보를 추출하여 JSON 형식으로만 반환하세요 (코드블록 없이).
+여러 품목이 있는 경우 items 배열에 모두 포함하세요.
+{
+  "vendorName": "공급업체명",
+  "documentDate": "YYYY-MM-DD 형식의 날짜",
+  "totalAmount": 합계금액(VAT포함, 숫자),
+  "items": [
+    {
+      "itemName": "품명",
+      "specification": "규격",
+      "unit": "단위(EA/개/식 등)",
+      "quantity": 수량(숫자),
+      "unitPrice": 단가(숫자),
+      "supplyAmount": 공급가액(숫자),
+      "vatAmount": 세액(숫자),
+      "totalAmount": 합계(숫자)
+    }
+  ]
+}
+숫자는 쉼표 없이 순수 숫자로 반환하세요. 찾을 수 없는 값은 null로 반환하세요.`;
+
+      let messages: any[];
+      if (mimeType === 'application/pdf') {
+        // PDF → 텍스트로 처리 (base64 전달)
+        messages = [
+          { role: "system", content: systemPrompt },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: `다음은 ${docType === 'quote' ? '견적서' : '거래명세서'} PDF 파일입니다. 내용을 분석하여 JSON으로 추출해주세요.` },
+              { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64Data}`, detail: "high" } },
+            ],
+          },
+        ];
+      } else {
+        messages = [
+          { role: "system", content: systemPrompt },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: `다음은 ${docType === 'quote' ? '견적서' : '거래명세서'} 이미지입니다. 내용을 분석하여 JSON으로 추출해주세요.` },
+              { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64Data}`, detail: "high" } },
+            ],
+          },
+        ];
+      }
+
+      const response = await aiClient.chat.completions.create({
+        model: "gpt-4o",
+        messages,
+        max_tokens: 2000,
+        temperature: 0.1,
+      });
+
+      const raw = response.choices[0].message.content?.trim() || "{}";
+      let parsed: any = {};
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        const jsonMatch = raw.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          try { parsed = JSON.parse(jsonMatch[0]); } catch { parsed = {}; }
+        }
+      }
+      res.json(parsed);
+    } catch (e: any) {
+      console.error("Safety cost extract error:", e.message);
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   return httpServer;
 }
 

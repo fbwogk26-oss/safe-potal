@@ -32,6 +32,8 @@ import {
   type HealthManagerReport,
   educationTasks,
   type EducationTask, type InsertEducationTask,
+  safetyCostRecords,
+  type SafetyCostRecord, type InsertSafetyCostRecord,
 } from "@shared/schema";
 import { eq, desc, asc, and, ilike, or, sql, inArray } from "drizzle-orm";
 
@@ -185,6 +187,13 @@ export interface IStorage {
   deleteEducationTask(id: number): Promise<void>;
   bulkDeleteEducationTasks(ids: number[]): Promise<void>;
   bulkConfirmEducationTasks(ids: number[]): Promise<void>;
+
+  // Safety Cost Records (산업안전보건관리비)
+  getSafetyCostRecords(year?: number): Promise<SafetyCostRecord[]>;
+  getSafetyCostRecord(id: number): Promise<SafetyCostRecord | undefined>;
+  createSafetyCostRecord(data: InsertSafetyCostRecord): Promise<SafetyCostRecord>;
+  updateSafetyCostRecord(id: number, data: Partial<InsertSafetyCostRecord>): Promise<SafetyCostRecord>;
+  deleteSafetyCostRecord(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -786,6 +795,32 @@ export class DatabaseStorage implements IStorage {
   async bulkConfirmEducationTasks(ids: number[]): Promise<void> {
     if (ids.length === 0) return;
     await db.update(educationTasks).set({ confirmed: true, status: "완료", completionRate: 100 }).where(inArray(educationTasks.id, ids));
+  }
+
+  // === 산업안전보건관리비 사용내역 ===
+  async getSafetyCostRecords(year?: number): Promise<SafetyCostRecord[]> {
+    if (year) {
+      return await db.select().from(safetyCostRecords)
+        .where(eq(safetyCostRecords.year, year))
+        .orderBy(desc(safetyCostRecords.month), desc(safetyCostRecords.createdAt));
+    }
+    return await db.select().from(safetyCostRecords)
+      .orderBy(desc(safetyCostRecords.year), desc(safetyCostRecords.month), desc(safetyCostRecords.createdAt));
+  }
+  async getSafetyCostRecord(id: number): Promise<SafetyCostRecord | undefined> {
+    const [row] = await db.select().from(safetyCostRecords).where(eq(safetyCostRecords.id, id));
+    return row;
+  }
+  async createSafetyCostRecord(data: InsertSafetyCostRecord): Promise<SafetyCostRecord> {
+    const [row] = await db.insert(safetyCostRecords).values(data).returning();
+    return row;
+  }
+  async updateSafetyCostRecord(id: number, data: Partial<InsertSafetyCostRecord>): Promise<SafetyCostRecord> {
+    const [row] = await db.update(safetyCostRecords).set(data).where(eq(safetyCostRecords.id, id)).returning();
+    return row;
+  }
+  async deleteSafetyCostRecord(id: number): Promise<void> {
+    await db.delete(safetyCostRecords).where(eq(safetyCostRecords.id, id));
   }
 }
 

@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, jsonb, numeric } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -572,6 +572,34 @@ export const educationTasks = pgTable("education_tasks", {
 export const insertEducationTaskSchema = createInsertSchema(educationTasks).omit({ id: true, createdAt: true });
 export type EducationTask = typeof educationTasks.$inferSelect;
 export type InsertEducationTask = z.infer<typeof insertEducationTaskSchema>;
+
+// === 산업안전보건관리비 사용내역 ===
+export const safetyCostRecords = pgTable("safety_cost_records", {
+  id: serial("id").primaryKey(),
+  year: integer("year").notNull(),
+  month: integer("month").notNull(),
+  category: text("category").notNull(), // "1. 안전관리자 등 인건비..." ~ "9. 위험성평가..."
+  subCategory: text("sub_category"),
+  itemName: text("item_name").notNull(),
+  specification: text("specification"),
+  unit: text("unit"),
+  quantity: numeric("quantity"),
+  unitPrice: numeric("unit_price"),
+  supplyAmount: numeric("supply_amount"),
+  vatAmount: numeric("vat_amount"),
+  totalAmount: numeric("total_amount").notNull(),
+  purchaseDate: text("purchase_date"),
+  vendorName: text("vendor_name"),
+  notes: text("notes"),
+  quoteFileUrl: text("quote_file_url"),
+  transactionFileUrl: text("transaction_file_url"),
+  createdAt: timestamp("created_at").defaultNow(),
+  createdBy: text("created_by"),
+});
+
+export const insertSafetyCostRecordSchema = createInsertSchema(safetyCostRecords).omit({ id: true, createdAt: true });
+export type SafetyCostRecord = typeof safetyCostRecords.$inferSelect;
+export type InsertSafetyCostRecord = z.infer<typeof insertSafetyCostRecordSchema>;
 
 // Export auth schema
 export * from "./models/auth";

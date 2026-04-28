@@ -41,6 +41,7 @@ import MusicManager from "@/pages/MusicManager";
 import FuelCosts from "@/pages/FuelCosts";
 import SafetyManagerReports from "@/pages/SafetyManagerReports";
 import HealthManagerReports from "@/pages/HealthManagerReports";
+import SafetyCostBudget from "@/pages/SafetyCostBudget";
 import Login from "@/pages/Login";
 import NotFound from "@/pages/NotFound";
 import UiMockupPreview from "@/pages/UiMockupPreview";
@@ -125,6 +126,7 @@ function RouterContent() {
       <Route path="/admin/backup">{() => <G canAccess={isAdmin} component={AdminBackup} />}</Route>
       <Route path="/safety-manager-reports">{() => <G canAccess={canViewInspections} component={SafetyManagerReports} />}</Route>
       <Route path="/health-manager-reports">{() => <G canAccess={canViewInspections} component={HealthManagerReports} />}</Route>
+      <Route path="/safety-cost-budget">{() => <G canAccess={canViewInspections} component={SafetyCostBudget} />}</Route>
       <Route path="/weather-safety" component={WeatherSafetyMessage} />
       <Route path="/ui-mockup-preview" component={UiMockupPreview} />
       <Route component={NotFound} />

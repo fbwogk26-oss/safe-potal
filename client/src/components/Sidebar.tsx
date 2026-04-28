@@ -31,6 +31,7 @@ import {
   HardDrive,
   X,
   ClipboardList,
+  Receipt,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
@@ -87,6 +88,7 @@ const NAV_SECTIONS: NavSection[] = [
           { label: "보호구 현황", href: "/equipment/status", icon: ShieldCheck, permissionKey: "canViewEquipmentStatus" },
           { label: "안전용품 신청", href: "/equipment", icon: ShoppingCart, permissionKey: "canViewEquipment" },
           { label: "안전관리자 보고서", href: "/safety-manager-reports", icon: HardHat, permissionKey: "canViewInspections" },
+          { label: "산업안전보건관리비", href: "/safety-cost-budget", icon: Receipt, permissionKey: "canViewInspections" },
         ],
       },
     ],

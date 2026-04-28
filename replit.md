@@ -112,6 +112,15 @@ shared/
 ├── routes.ts       # API route type definitions
 ```
 
+## Recent Features Added
+
+### 산업안전보건관리비 사용내역 관리 (2026-04-28)
+- **Page**: `client/src/pages/SafetyCostBudget.tsx` — `/safety-cost-budget` route
+- **DB Table**: `safety_cost_records` (year, month, category, itemName, specification, unit, quantity, unitPrice, supplyAmount, vatAmount, totalAmount, purchaseDate, vendorName, notes, quoteFileUrl, transactionFileUrl)
+- **API**: `GET/POST /api/safety-cost-records`, `GET/PUT/DELETE /api/safety-cost-records/:id`, `POST /api/safety-cost-records/extract` (GPT-4o Vision AI 자동 추출)
+- **Features**: 9개 항목별 분류, 월별/항목별 요약 탭, 견적서/거래명세서 업로드 → GPT-4o Vision으로 자동 내용 추출, 다중 품목 선택, 수량×단가 자동계산
+- **Sidebar**: 안전관리 메뉴 하위 "산업안전보건관리비" 항목 추가 (Receipt 아이콘)
+
 ## External Dependencies
 
 ### Database
