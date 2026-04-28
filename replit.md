@@ -4,6 +4,12 @@
 
 SafeBoard is a Korean-language enterprise safety management portal for tracking team safety scores, managing safety notices, rules, education materials, and safety equipment. The application provides a dashboard with real-time safety score visualization, administrative controls with PIN-based locking, and CRUD operations for various safety-related content categories.
 
+### 산업안전보건관리비 기능
+- **사용내역 관리**: 9개 항목별 지출 등록/수정/삭제. GPT-4o Vision AI로 견적서/거래명세서에서 자동 추출
+- **항목별 요약**: 카드+진행바+월별 미니바 차트로 가독성 개선된 요약
+- **세금계산서 관리**: 월별 세금계산서 등록/첨부파일(이미지/PDF) 업로드 (`safety_cost_tax_invoices` 테이블)
+- **법정경비 Excel 다운로드**: `/api/safety-cost-records/export` — 사용내역+세금계산서 시트에 첨부 이미지 임베딩
+
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.

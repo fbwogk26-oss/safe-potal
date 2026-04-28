@@ -34,6 +34,8 @@ import {
   type EducationTask, type InsertEducationTask,
   safetyCostRecords,
   type SafetyCostRecord, type InsertSafetyCostRecord,
+  safetyCostTaxInvoices,
+  type SafetyCostTaxInvoice, type InsertSafetyCostTaxInvoice,
 } from "@shared/schema";
 import { eq, desc, asc, and, ilike, or, sql, inArray } from "drizzle-orm";
 
@@ -194,6 +196,12 @@ export interface IStorage {
   createSafetyCostRecord(data: InsertSafetyCostRecord): Promise<SafetyCostRecord>;
   updateSafetyCostRecord(id: number, data: Partial<InsertSafetyCostRecord>): Promise<SafetyCostRecord>;
   deleteSafetyCostRecord(id: number): Promise<void>;
+
+  // Safety Cost Tax Invoices (세금계산서)
+  getSafetyCostTaxInvoices(year?: number): Promise<SafetyCostTaxInvoice[]>;
+  createSafetyCostTaxInvoice(data: InsertSafetyCostTaxInvoice): Promise<SafetyCostTaxInvoice>;
+  updateSafetyCostTaxInvoice(id: number, data: Partial<InsertSafetyCostTaxInvoice>): Promise<SafetyCostTaxInvoice>;
+  deleteSafetyCostTaxInvoice(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -821,6 +829,28 @@ export class DatabaseStorage implements IStorage {
   }
   async deleteSafetyCostRecord(id: number): Promise<void> {
     await db.delete(safetyCostRecords).where(eq(safetyCostRecords.id, id));
+  }
+
+  // === 세금계산서 ===
+  async getSafetyCostTaxInvoices(year?: number): Promise<SafetyCostTaxInvoice[]> {
+    if (year) {
+      return await db.select().from(safetyCostTaxInvoices)
+        .where(eq(safetyCostTaxInvoices.year, year))
+        .orderBy(desc(safetyCostTaxInvoices.month));
+    }
+    return await db.select().from(safetyCostTaxInvoices)
+      .orderBy(desc(safetyCostTaxInvoices.year), desc(safetyCostTaxInvoices.month));
+  }
+  async createSafetyCostTaxInvoice(data: InsertSafetyCostTaxInvoice): Promise<SafetyCostTaxInvoice> {
+    const [row] = await db.insert(safetyCostTaxInvoices).values(data).returning();
+    return row;
+  }
+  async updateSafetyCostTaxInvoice(id: number, data: Partial<InsertSafetyCostTaxInvoice>): Promise<SafetyCostTaxInvoice> {
+    const [row] = await db.update(safetyCostTaxInvoices).set(data).where(eq(safetyCostTaxInvoices.id, id)).returning();
+    return row;
+  }
+  async deleteSafetyCostTaxInvoice(id: number): Promise<void> {
+    await db.delete(safetyCostTaxInvoices).where(eq(safetyCostTaxInvoices.id, id));
   }
 }
 

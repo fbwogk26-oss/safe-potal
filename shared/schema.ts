@@ -601,6 +601,25 @@ export const insertSafetyCostRecordSchema = createInsertSchema(safetyCostRecords
 export type SafetyCostRecord = typeof safetyCostRecords.$inferSelect;
 export type InsertSafetyCostRecord = z.infer<typeof insertSafetyCostRecordSchema>;
 
+// === 세금계산서 (월별) ===
+export const safetyCostTaxInvoices = pgTable("safety_cost_tax_invoices", {
+  id: serial("id").primaryKey(),
+  year: integer("year").notNull(),
+  month: integer("month").notNull(),
+  vendorName: text("vendor_name"),
+  supplyAmount: numeric("supply_amount"),
+  vatAmount: numeric("vat_amount"),
+  totalAmount: numeric("total_amount").notNull(),
+  fileUrl: text("file_url"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  createdBy: text("created_by"),
+});
+
+export const insertSafetyCostTaxInvoiceSchema = createInsertSchema(safetyCostTaxInvoices).omit({ id: true, createdAt: true });
+export type SafetyCostTaxInvoice = typeof safetyCostTaxInvoices.$inferSelect;
+export type InsertSafetyCostTaxInvoice = z.infer<typeof insertSafetyCostTaxInvoiceSchema>;
+
 // Export auth schema
 export * from "./models/auth";
 

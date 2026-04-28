@@ -9,12 +9,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Trash2, Edit2, Upload, FileText, ImageIcon, Loader2, ChevronDown, ChevronUp, BarChart3, List, X, Eye } from "lucide-react";
-import type { SafetyCostRecord } from "@shared/schema";
+import {
+  Plus, Trash2, Edit2, Upload, FileText, ImageIcon, Loader2,
+  BarChart3, List, X, Download, Receipt, FileCheck
+} from "lucide-react";
+import type { SafetyCostRecord, SafetyCostTaxInvoice } from "@shared/schema";
 
+// ── 상수 ────────────────────────────────────────────────────────────
 const CATEGORIES = [
   "1. 안전관리자 등 인건비 및 각종 업무수당 등",
   "2. 안전시설비 등",
@@ -26,20 +30,21 @@ const CATEGORIES = [
   "8. 본사사용비",
   "9. 위험성평가 및 산보위 안건 비용",
 ];
-
-const MONTHS = ["1월","2월","3월","4월","5월","6월","7월","8월","9월","10월","11월","12월"];
-const CATEGORY_COLORS = [
-  "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
-  "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
-  "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300",
-  "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
-  "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
-  "bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-300",
-  "bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300",
-  "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
-  "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300",
+const CAT_COLORS = [
+  { bar: "bg-blue-500", badge: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300" },
+  { bar: "bg-emerald-500", badge: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300" },
+  { bar: "bg-amber-500", badge: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300" },
+  { bar: "bg-violet-500", badge: "bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-900/30 dark:text-violet-300" },
+  { bar: "bg-orange-500", badge: "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900/30 dark:text-orange-300" },
+  { bar: "bg-pink-500", badge: "bg-pink-50 text-pink-700 border-pink-200 dark:bg-pink-900/30 dark:text-pink-300" },
+  { bar: "bg-teal-500", badge: "bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-900/30 dark:text-teal-300" },
+  { bar: "bg-rose-500", badge: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-900/30 dark:text-rose-300" },
+  { bar: "bg-indigo-500", badge: "bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300" },
 ];
+const MONTHS = ["1월","2월","3월","4월","5월","6월","7월","8월","9월","10월","11월","12월"];
+const currentYear = new Date().getFullYear();
 
+// ── 포맷 헬퍼 ───────────────────────────────────────────────────────
 function fmt(n: number | string | null | undefined) {
   if (n === null || n === undefined || n === "") return "-";
   const num = typeof n === "string" ? parseFloat(n) : n;
@@ -52,337 +57,319 @@ function fmtNum(n: number | string | null | undefined) {
   if (isNaN(num)) return "-";
   return num.toLocaleString("ko-KR");
 }
-
-const currentYear = new Date().getFullYear();
-
-interface ExtractedItem {
-  itemName: string;
-  specification: string;
-  unit: string;
-  quantity: number;
-  unitPrice: number;
-  supplyAmount: number;
-  vatAmount: number;
-  totalAmount: number;
+function fmtMan(n: number) {
+  if (n === 0) return "-";
+  if (n >= 100000000) return `${(n / 100000000).toFixed(1)}억`;
+  if (n >= 10000) return `${Math.round(n / 10000).toLocaleString("ko-KR")}만`;
+  return n.toLocaleString("ko-KR");
 }
+function toNum(v: any): number { return v ? parseFloat(v.toString()) || 0 : 0; }
 
-interface ExtractedData {
-  vendorName: string;
-  documentDate: string;
-  totalAmount: number;
-  items: ExtractedItem[];
-}
-
+// ── 빈 폼 ──────────────────────────────────────────────────────────
 const emptyForm = {
-  year: currentYear,
-  month: new Date().getMonth() + 1,
-  category: "",
-  subCategory: "",
-  itemName: "",
-  specification: "",
-  unit: "EA",
-  quantity: "",
-  unitPrice: "",
-  supplyAmount: "",
-  vatAmount: "",
-  totalAmount: "",
-  purchaseDate: "",
-  vendorName: "",
-  notes: "",
-  quoteFileUrl: "",
-  transactionFileUrl: "",
+  year: currentYear, month: new Date().getMonth() + 1,
+  category: "", subCategory: "", itemName: "", specification: "",
+  unit: "EA", quantity: "", unitPrice: "", supplyAmount: "", vatAmount: "",
+  totalAmount: "", purchaseDate: "", vendorName: "", notes: "",
+  quoteFileUrl: "", transactionFileUrl: "",
+};
+const emptyTaxForm = {
+  year: currentYear, month: new Date().getMonth() + 1,
+  vendorName: "", supplyAmount: "", vatAmount: "", totalAmount: "", notes: "",
 };
 
+interface ExtractedItem {
+  itemName?: string; specification?: string; unit?: string;
+  quantity?: number; unitPrice?: number; supplyAmount?: number; vatAmount?: number; totalAmount?: number;
+}
+interface ExtractedData {
+  vendorName?: string; documentDate?: string; totalAmount?: number; items?: ExtractedItem[];
+}
+
+// ══════════════════════════════════════════════════════════════════
 export default function SafetyCostBudget() {
   const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const [selectedYear, setSelectedYear] = useState(currentYear);
-  const [activeTab, setActiveTab] = useState<"list" | "summary">("list");
-  const [filterCategory, setFilterCategory] = useState("all");
+  const qc = useQueryClient();
+  const [year, setYear] = useState(currentYear);
+  const [activeTab, setActiveTab] = useState<"list" | "summary" | "tax">("list");
+  const [filterCat, setFilterCat] = useState("all");
   const [filterMonth, setFilterMonth] = useState("all");
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editRecord, setEditRecord] = useState<SafetyCostRecord | null>(null);
-  const [form, setForm] = useState({ ...emptyForm });
-  const [extracting, setExtracting] = useState<"quote" | "transaction" | null>(null);
-  const [extractedItems, setExtractedItems] = useState<ExtractedItem[]>([]);
-  const [selectedItemIdx, setSelectedItemIdx] = useState<number>(0);
-  const [imagePreview, setImagePreview] = useState<{ url: string; title: string } | null>(null);
-  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
-  const quoteInputRef = useRef<HTMLInputElement>(null);
-  const transactionInputRef = useRef<HTMLInputElement>(null);
 
+  // 사용내역 다이얼로그
+  const [dlgOpen, setDlgOpen] = useState(false);
+  const [editRec, setEditRec] = useState<SafetyCostRecord | null>(null);
+  const [form, setForm] = useState({ ...emptyForm });
+  const [extracting, setExtracting] = useState<"quote"|"transaction"|null>(null);
+  const [extractedItems, setExtractedItems] = useState<ExtractedItem[]>([]);
+  const [selItemIdx, setSelItemIdx] = useState(0);
+
+  // 세금계산서 다이얼로그
+  const [taxDlgOpen, setTaxDlgOpen] = useState(false);
+  const [editTax, setEditTax] = useState<SafetyCostTaxInvoice | null>(null);
+  const [taxForm, setTaxForm] = useState({ ...emptyTaxForm });
+  const [taxFile, setTaxFile] = useState<File | null>(null);
+  const [taxUploading, setTaxUploading] = useState(false);
+
+  // 첨부파일 미리보기
+  const [preview, setPreview] = useState<{ url: string; title: string } | null>(null);
+  const [delConfirm, setDelConfirm] = useState<{ type: "record"|"tax"; id: number } | null>(null);
+  const [downloading, setDownloading] = useState(false);
+
+  const quoteRef = useRef<HTMLInputElement>(null);
+  const transRef = useRef<HTMLInputElement>(null);
+  const taxFileRef = useRef<HTMLInputElement>(null);
+
+  // ── Queries ──────────────────────────────────────────────────────
   const { data: records = [], isLoading } = useQuery<SafetyCostRecord[]>({
-    queryKey: ["/api/safety-cost-records", selectedYear],
-    queryFn: () => fetch(`/api/safety-cost-records?year=${selectedYear}`, { credentials: "include" }).then(r => r.json()),
+    queryKey: ["/api/safety-cost-records", year],
+    queryFn: () => fetch(`/api/safety-cost-records?year=${year}`, { credentials: "include" }).then(r => r.json()),
+  });
+  const { data: taxInvoices = [] } = useQuery<SafetyCostTaxInvoice[]>({
+    queryKey: ["/api/safety-cost-tax-invoices", year],
+    queryFn: () => fetch(`/api/safety-cost-tax-invoices?year=${year}`, { credentials: "include" }).then(r => r.json()),
   });
 
-  const createMutation = useMutation({
-    mutationFn: (data: any) => apiRequest("POST", "/api/safety-cost-records", data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/safety-cost-records"] });
-      toast({ title: "저장 완료", description: "사용내역이 등록되었습니다." });
-      closeDialog();
-    },
+  // ── Mutations ────────────────────────────────────────────────────
+  const createMut = useMutation({
+    mutationFn: (d: any) => apiRequest("POST", "/api/safety-cost-records", d),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/safety-cost-records"] }); toast({ title: "저장 완료" }); closeDlg(); },
     onError: (e: any) => toast({ title: "저장 실패", description: e.message, variant: "destructive" }),
   });
-
-  const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: any }) => apiRequest("PUT", `/api/safety-cost-records/${id}`, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/safety-cost-records"] });
-      toast({ title: "수정 완료" });
-      closeDialog();
-    },
+  const updateMut = useMutation({
+    mutationFn: ({ id, d }: { id: number; d: any }) => apiRequest("PUT", `/api/safety-cost-records/${id}`, d),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/safety-cost-records"] }); toast({ title: "수정 완료" }); closeDlg(); },
     onError: (e: any) => toast({ title: "수정 실패", description: e.message, variant: "destructive" }),
   });
-
-  const deleteMutation = useMutation({
+  const deleteMut = useMutation({
     mutationFn: (id: number) => apiRequest("DELETE", `/api/safety-cost-records/${id}`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/safety-cost-records"] });
-      toast({ title: "삭제 완료" });
-      setDeleteConfirmId(null);
-    },
-    onError: (e: any) => toast({ title: "삭제 실패", description: e.message, variant: "destructive" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/safety-cost-records"] }); toast({ title: "삭제 완료" }); setDelConfirm(null); },
+  });
+  const createTaxMut = useMutation({
+    mutationFn: (fd: FormData) => fetch("/api/safety-cost-tax-invoices", { method: "POST", body: fd, credentials: "include" }).then(r => { if (!r.ok) throw new Error("저장 실패"); return r.json(); }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/safety-cost-tax-invoices"] }); toast({ title: "세금계산서 저장 완료" }); closeTaxDlg(); },
+    onError: (e: any) => toast({ title: "저장 실패", description: e.message, variant: "destructive" }),
+  });
+  const updateTaxMut = useMutation({
+    mutationFn: ({ id, fd }: { id: number; fd: FormData }) => fetch(`/api/safety-cost-tax-invoices/${id}`, { method: "PUT", body: fd, credentials: "include" }).then(r => { if (!r.ok) throw new Error("수정 실패"); return r.json(); }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/safety-cost-tax-invoices"] }); toast({ title: "수정 완료" }); closeTaxDlg(); },
+  });
+  const deleteTaxMut = useMutation({
+    mutationFn: (id: number) => apiRequest("DELETE", `/api/safety-cost-tax-invoices/${id}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/safety-cost-tax-invoices"] }); toast({ title: "삭제 완료" }); setDelConfirm(null); },
   });
 
-  function openAdd() {
-    setEditRecord(null);
-    setForm({ ...emptyForm, year: selectedYear });
-    setExtractedItems([]);
-    setSelectedItemIdx(0);
-    setDialogOpen(true);
+  // ── 다이얼로그 헬퍼 ───────────────────────────────────────────────
+  function openAdd() { setEditRec(null); setForm({ ...emptyForm, year }); setExtractedItems([]); setDlgOpen(true); }
+  function openEdit(r: SafetyCostRecord) {
+    setEditRec(r);
+    setForm({ year: r.year, month: r.month, category: r.category, subCategory: r.subCategory||"", itemName: r.itemName,
+      specification: r.specification||"", unit: r.unit||"EA", quantity: r.quantity?.toString()||"",
+      unitPrice: r.unitPrice?.toString()||"", supplyAmount: r.supplyAmount?.toString()||"",
+      vatAmount: r.vatAmount?.toString()||"", totalAmount: r.totalAmount?.toString()||"",
+      purchaseDate: r.purchaseDate||"", vendorName: r.vendorName||"", notes: r.notes||"",
+      quoteFileUrl: r.quoteFileUrl||"", transactionFileUrl: r.transactionFileUrl||"" });
+    setExtractedItems([]); setDlgOpen(true);
   }
-
-  function openEdit(rec: SafetyCostRecord) {
-    setEditRecord(rec);
-    setForm({
-      year: rec.year,
-      month: rec.month,
-      category: rec.category,
-      subCategory: rec.subCategory || "",
-      itemName: rec.itemName,
-      specification: rec.specification || "",
-      unit: rec.unit || "EA",
-      quantity: rec.quantity?.toString() || "",
-      unitPrice: rec.unitPrice?.toString() || "",
-      supplyAmount: rec.supplyAmount?.toString() || "",
-      vatAmount: rec.vatAmount?.toString() || "",
-      totalAmount: rec.totalAmount?.toString() || "",
-      purchaseDate: rec.purchaseDate || "",
-      vendorName: rec.vendorName || "",
-      notes: rec.notes || "",
-      quoteFileUrl: rec.quoteFileUrl || "",
-      transactionFileUrl: rec.transactionFileUrl || "",
-    });
-    setExtractedItems([]);
-    setSelectedItemIdx(0);
-    setDialogOpen(true);
-  }
-
-  function closeDialog() {
-    setDialogOpen(false);
-    setEditRecord(null);
-    setExtractedItems([]);
-  }
-
-  function setField(key: string, val: string | number) {
-    setForm(prev => ({ ...prev, [key]: val }));
-  }
-
-  function autoCalc(field: string, val: string) {
-    const updated = { ...form, [field]: val };
-    if (field === "quantity" || field === "unitPrice") {
-      const q = parseFloat(updated.quantity?.toString() || "0");
-      const u = parseFloat(updated.unitPrice?.toString() || "0");
-      if (!isNaN(q) && !isNaN(u) && q > 0 && u > 0) {
-        const supply = q * u;
-        const vat = Math.round(supply * 0.1);
-        updated.supplyAmount = supply.toString();
-        updated.vatAmount = vat.toString();
-        updated.totalAmount = (supply + vat).toString();
-      }
+  function closeDlg() { setDlgOpen(false); setEditRec(null); setExtractedItems([]); }
+  function setF(k: string, v: any) { setForm(p => ({ ...p, [k]: v })); }
+  function autoCalc(k: string, v: string) {
+    const up = { ...form, [k]: v };
+    const q = parseFloat(up.quantity||"0"), u = parseFloat(up.unitPrice||"0");
+    if ((k==="quantity"||k==="unitPrice") && !isNaN(q) && !isNaN(u) && q>0 && u>0) {
+      const supply = q*u, vat = Math.round(supply*0.1);
+      up.supplyAmount = supply.toString(); up.vatAmount = vat.toString(); up.totalAmount = (supply+vat).toString();
     }
-    setForm(updated);
+    setForm(up);
   }
-
-  async function handleExtract(docType: "quote" | "transaction", file: File) {
-    setExtracting(docType);
-    try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const res = await fetch(`/api/safety-cost-records/extract?docType=${docType}`, {
-        method: "POST",
-        body: fd,
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error(await res.text());
-      const data: ExtractedData = await res.json();
-
-      if (data.vendorName) setField("vendorName", data.vendorName);
-      if (data.documentDate) setField("purchaseDate", data.documentDate);
-
-      if (data.items && data.items.length > 0) {
-        setExtractedItems(data.items);
-        setSelectedItemIdx(0);
-        applyItem(data.items[0]);
-      } else {
-        if (data.totalAmount) setField("totalAmount", data.totalAmount.toString());
-      }
-
-      // upload file to get URL
-      const uploadFd = new FormData();
-      uploadFd.append("file", file);
-      const uploadRes = await fetch("/api/upload/general", { method: "POST", body: uploadFd, credentials: "include" });
-      if (uploadRes.ok) {
-        const uploadData = await uploadRes.json();
-        const url = uploadData.fileUrl || uploadData.imageUrl || uploadData.url || "";
-        if (docType === "quote") setField("quoteFileUrl", url);
-        else setField("transactionFileUrl", url);
-      }
-
-      toast({ title: "추출 완료", description: `${data.items?.length || 0}개 항목이 감지되었습니다.` });
-    } catch (e: any) {
-      toast({ title: "추출 실패", description: e.message, variant: "destructive" });
-    } finally {
-      setExtracting(null);
-    }
-  }
-
   function applyItem(item: ExtractedItem) {
-    setForm(prev => ({
-      ...prev,
-      itemName: item.itemName || prev.itemName,
-      specification: item.specification || prev.specification,
-      unit: item.unit || prev.unit,
-      quantity: item.quantity?.toString() || prev.quantity,
-      unitPrice: item.unitPrice?.toString() || prev.unitPrice,
-      supplyAmount: item.supplyAmount?.toString() || prev.supplyAmount,
-      vatAmount: item.vatAmount?.toString() || prev.vatAmount,
-      totalAmount: item.totalAmount?.toString() || prev.totalAmount,
+    setForm(p => ({ ...p,
+      itemName: item.itemName||p.itemName, specification: item.specification||p.specification,
+      unit: item.unit||p.unit, quantity: item.quantity?.toString()||p.quantity,
+      unitPrice: item.unitPrice?.toString()||p.unitPrice, supplyAmount: item.supplyAmount?.toString()||p.supplyAmount,
+      vatAmount: item.vatAmount?.toString()||p.vatAmount, totalAmount: item.totalAmount?.toString()||p.totalAmount,
     }));
   }
 
-  function handleSubmit() {
-    if (!form.category || !form.itemName || !form.totalAmount) {
-      toast({ title: "필수 항목 누락", description: "항목, 품명, 합계금액은 필수입니다.", variant: "destructive" });
-      return;
+  function openAddTax() { setEditTax(null); setTaxForm({ ...emptyTaxForm, year }); setTaxFile(null); setTaxDlgOpen(true); }
+  function openEditTax(t: SafetyCostTaxInvoice) {
+    setEditTax(t);
+    setTaxForm({ year: t.year, month: t.month, vendorName: t.vendorName||"",
+      supplyAmount: t.supplyAmount?.toString()||"", vatAmount: t.vatAmount?.toString()||"",
+      totalAmount: t.totalAmount?.toString()||"", notes: t.notes||"" });
+    setTaxFile(null); setTaxDlgOpen(true);
+  }
+  function closeTaxDlg() { setTaxDlgOpen(false); setEditTax(null); setTaxFile(null); }
+  function setTF(k: string, v: any) { setTaxForm(p => ({ ...p, [k]: v })); }
+  function taxAutoCalc(k: string, v: string) {
+    const up = { ...taxForm, [k]: v };
+    const s = parseFloat(up.supplyAmount||"0"), va = parseFloat(up.vatAmount||"0");
+    if ((k==="supplyAmount"||k==="vatAmount") && !isNaN(s) && !isNaN(va) && s>0) {
+      up.totalAmount = (s + (isNaN(va)?0:va)).toString();
+      if (k==="supplyAmount" && !taxForm.vatAmount) up.vatAmount = Math.round(s*0.1).toString(), up.totalAmount=(s+Math.round(s*0.1)).toString();
     }
-    const payload = {
-      year: Number(form.year),
-      month: Number(form.month),
-      category: form.category,
-      subCategory: form.subCategory || null,
-      itemName: form.itemName,
-      specification: form.specification || null,
-      unit: form.unit || null,
-      quantity: form.quantity ? form.quantity.toString() : null,
-      unitPrice: form.unitPrice ? form.unitPrice.toString() : null,
-      supplyAmount: form.supplyAmount ? form.supplyAmount.toString() : null,
-      vatAmount: form.vatAmount ? form.vatAmount.toString() : null,
-      totalAmount: form.totalAmount.toString(),
-      purchaseDate: form.purchaseDate || null,
-      vendorName: form.vendorName || null,
-      notes: form.notes || null,
-      quoteFileUrl: form.quoteFileUrl || null,
-      transactionFileUrl: form.transactionFileUrl || null,
-    };
-    if (editRecord) {
-      updateMutation.mutate({ id: editRecord.id, data: payload });
-    } else {
-      createMutation.mutate(payload);
-    }
+    setTaxForm(up);
   }
 
-  // Filter
-  const filtered = records.filter(r => {
-    if (filterCategory !== "all" && r.category !== filterCategory) return false;
-    if (filterMonth !== "all" && r.month !== Number(filterMonth)) return false;
-    return true;
-  });
+  // ── AI 추출 ───────────────────────────────────────────────────────
+  async function handleExtract(docType: "quote"|"transaction", file: File) {
+    setExtracting(docType);
+    try {
+      const fd = new FormData(); fd.append("file", file);
+      const r = await fetch(`/api/safety-cost-records/extract?docType=${docType}`, { method:"POST", body:fd, credentials:"include" });
+      if (!r.ok) throw new Error(await r.text());
+      const data: ExtractedData = await r.json();
+      if (data.vendorName) setF("vendorName", data.vendorName);
+      if (data.documentDate) setF("purchaseDate", data.documentDate);
+      if (data.items?.length) { setExtractedItems(data.items); setSelItemIdx(0); applyItem(data.items[0]); }
+      else if (data.totalAmount) setF("totalAmount", data.totalAmount.toString());
+      // 파일 업로드
+      const uFd = new FormData(); uFd.append("file", file);
+      const ur = await fetch("/api/upload/general", { method:"POST", body:uFd, credentials:"include" });
+      if (ur.ok) {
+        const ud = await ur.json();
+        const url = ud.fileUrl||ud.imageUrl||ud.url||"";
+        if (docType==="quote") setF("quoteFileUrl", url); else setF("transactionFileUrl", url);
+      }
+      toast({ title: "추출 완료", description: `${data.items?.length||0}개 항목 감지됨` });
+    } catch (e: any) { toast({ title: "추출 실패", description: e.message, variant:"destructive" }); }
+    finally { setExtracting(null); }
+  }
 
-  // Summary by category
-  const categoryTotals = CATEGORIES.map(cat => {
-    const catRecords = records.filter(r => r.category === cat);
-    const total = catRecords.reduce((s, r) => s + parseFloat(r.totalAmount?.toString() || "0"), 0);
-    const monthly = MONTHS.map((_, i) => {
-      const m = i + 1;
-      return catRecords.filter(r => r.month === m).reduce((s, r) => s + parseFloat(r.totalAmount?.toString() || "0"), 0);
-    });
-    return { cat, total, monthly, count: catRecords.length };
-  });
+  // ── 제출 ─────────────────────────────────────────────────────────
+  function handleSubmit() {
+    if (!form.category || !form.itemName || !form.totalAmount) {
+      toast({ title: "필수 항목 누락", description: "항목·품명·합계금액은 필수입니다.", variant:"destructive" }); return;
+    }
+    const payload = {
+      year: Number(form.year), month: Number(form.month), category: form.category,
+      subCategory: form.subCategory||null, itemName: form.itemName,
+      specification: form.specification||null, unit: form.unit||null,
+      quantity: form.quantity||null, unitPrice: form.unitPrice||null,
+      supplyAmount: form.supplyAmount||null, vatAmount: form.vatAmount||null,
+      totalAmount: form.totalAmount, purchaseDate: form.purchaseDate||null,
+      vendorName: form.vendorName||null, notes: form.notes||null,
+      quoteFileUrl: form.quoteFileUrl||null, transactionFileUrl: form.transactionFileUrl||null,
+    };
+    if (editRec) updateMut.mutate({ id: editRec.id, d: payload }); else createMut.mutate(payload);
+  }
 
-  const grandTotal = categoryTotals.reduce((s, c) => s + c.total, 0);
-  const monthlyTotals = MONTHS.map((_, i) =>
-    records.filter(r => r.month === i + 1).reduce((s, r) => s + parseFloat(r.totalAmount?.toString() || "0"), 0)
+  function handleTaxSubmit() {
+    if (!taxForm.totalAmount) { toast({ title: "합계금액 필수", variant:"destructive" }); return; }
+    const fd = new FormData();
+    const body = { year: Number(taxForm.year), month: Number(taxForm.month),
+      vendorName: taxForm.vendorName||null, supplyAmount: taxForm.supplyAmount||null,
+      vatAmount: taxForm.vatAmount||null, totalAmount: taxForm.totalAmount, notes: taxForm.notes||null };
+    fd.append("data", JSON.stringify(body));
+    if (taxFile) fd.append("file", taxFile);
+    if (editTax) updateTaxMut.mutate({ id: editTax.id, fd }); else createTaxMut.mutate(fd);
+  }
+
+  // ── 다운로드 ──────────────────────────────────────────────────────
+  async function handleDownload() {
+    setDownloading(true);
+    try {
+      const r = await fetch(`/api/safety-cost-records/export?year=${year}`, { credentials:"include" });
+      if (!r.ok) throw new Error("다운로드 실패");
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a"); a.href=url;
+      a.download=`${year}년_산업안전보건관리비_법정경비.xlsx`; a.click();
+      URL.revokeObjectURL(url);
+      toast({ title: "다운로드 완료" });
+    } catch (e: any) { toast({ title: "다운로드 실패", description: e.message, variant:"destructive" }); }
+    finally { setDownloading(false); }
+  }
+
+  // ── 계산 ─────────────────────────────────────────────────────────
+  const filtered = records.filter(r =>
+    (filterCat==="all" || r.category===filterCat) &&
+    (filterMonth==="all" || r.month===Number(filterMonth))
   );
+  const grandTotal = records.reduce((s, r) => s + toNum(r.totalAmount), 0);
+  const catTotals = CATEGORIES.map((cat, i) => {
+    const catRecs = records.filter(r => r.category===cat);
+    const total = catRecs.reduce((s, r) => s+toNum(r.totalAmount), 0);
+    const monthly = MONTHS.map((_, mi) => catRecs.filter(r=>r.month===mi+1).reduce((s,r)=>s+toNum(r.totalAmount),0));
+    const pct = grandTotal>0 ? (total/grandTotal)*100 : 0;
+    return { cat, total, monthly, count: catRecs.length, pct, color: CAT_COLORS[i] };
+  });
+  const monthlyTotals = MONTHS.map((_,i) => records.filter(r=>r.month===i+1).reduce((s,r)=>s+toNum(r.totalAmount),0));
+  const taxGrandTotal = taxInvoices.reduce((s,t) => s+toNum(t.totalAmount), 0);
+  const catIdx = (cat: string) => CATEGORIES.indexOf(cat);
 
-  const catIndex = (cat: string) => CATEGORIES.indexOf(cat);
-
+  // ══════════════════════════════════════════════════════════════════
   return (
     <div className="p-4 md:p-6 space-y-4">
-      {/* Header */}
+      {/* ── 헤더 ── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-foreground">산업안전보건관리비 사용내역</h1>
-          <p className="text-sm text-muted-foreground">대구본부 산업안전보건관리비 지출 현황 관리</p>
+          <p className="text-sm text-muted-foreground">대구본부 · {year}년 법정경비 관리</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Select value={selectedYear.toString()} onValueChange={v => setSelectedYear(Number(v))}>
-            <SelectTrigger className="w-24" data-testid="select-year">
-              <SelectValue />
-            </SelectTrigger>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Select value={year.toString()} onValueChange={v => setYear(Number(v))}>
+            <SelectTrigger className="w-24" data-testid="select-year"><SelectValue /></SelectTrigger>
             <SelectContent>
-              {[currentYear - 1, currentYear, currentYear + 1].map(y => (
+              {[currentYear-1, currentYear, currentYear+1].map(y => (
                 <SelectItem key={y} value={y.toString()}>{y}년</SelectItem>
               ))}
             </SelectContent>
           </Select>
+          <Button variant="outline" onClick={handleDownload} disabled={downloading} data-testid="button-download">
+            {downloading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Download className="w-4 h-4 mr-1" />}
+            법정경비 다운로드
+          </Button>
           <Button onClick={openAdd} data-testid="button-add-record">
             <Plus className="w-4 h-4 mr-1" /> 지출 등록
           </Button>
         </div>
       </div>
 
-      {/* Summary Cards */}
+      {/* ── 요약 카드 ── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Card className="col-span-2 md:col-span-1">
-          <CardContent className="pt-4 pb-4">
-            <div className="text-xs text-muted-foreground">연간 총 지출</div>
-            <div className="text-xl font-bold text-primary mt-1">{fmt(grandTotal)}</div>
-            <div className="text-xs text-muted-foreground mt-1">총 {records.length}건</div>
+        <Card className="col-span-2 md:col-span-1 border-primary/20 bg-primary/5">
+          <CardContent className="pt-4 pb-3">
+            <div className="text-xs text-muted-foreground font-medium uppercase tracking-wide">연간 총 지출</div>
+            <div className="text-2xl font-bold text-primary mt-1">{fmtMan(grandTotal)}</div>
+            <div className="text-xs text-muted-foreground mt-1 flex gap-2">
+              <span>사용내역 {records.length}건</span>
+              <span>·</span>
+              <span>세금계산서 {taxInvoices.length}건</span>
+            </div>
           </CardContent>
         </Card>
-        {categoryTotals.filter(c => c.total > 0).slice(0, 3).map((c, i) => (
+        {catTotals.filter(c=>c.total>0).slice(0,3).map((c,i) => (
           <Card key={i}>
-            <CardContent className="pt-4 pb-4">
-              <div className="text-xs text-muted-foreground truncate">{c.cat.split(". ")[1]?.split(" ")[0]}</div>
-              <div className="text-lg font-semibold mt-1">{fmt(c.total)}</div>
-              <div className="text-xs text-muted-foreground">{c.count}건</div>
+            <CardContent className="pt-4 pb-3">
+              <div className="text-xs text-muted-foreground truncate">{c.cat.split(". ")[1]?.split(" 등")[0]}</div>
+              <div className="text-lg font-bold mt-1">{fmtMan(c.total)}</div>
+              <div className="mt-2 h-1.5 rounded-full bg-muted overflow-hidden">
+                <div className={`h-full rounded-full ${c.color.bar}`} style={{ width:`${c.pct}%` }} />
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">{c.count}건 · {c.pct.toFixed(1)}%</div>
             </CardContent>
           </Card>
         ))}
       </div>
 
-      {/* Tabs */}
+      {/* ── 탭 ── */}
       <Tabs value={activeTab} onValueChange={v => setActiveTab(v as any)}>
         <TabsList>
-          <TabsTrigger value="list" data-testid="tab-list"><List className="w-4 h-4 mr-1" />사용내역</TabsTrigger>
-          <TabsTrigger value="summary" data-testid="tab-summary"><BarChart3 className="w-4 h-4 mr-1" />항목별 요약</TabsTrigger>
+          <TabsTrigger value="list" data-testid="tab-list"><List className="w-4 h-4 mr-1 hidden sm:inline" />사용내역</TabsTrigger>
+          <TabsTrigger value="summary" data-testid="tab-summary"><BarChart3 className="w-4 h-4 mr-1 hidden sm:inline" />항목별 요약</TabsTrigger>
+          <TabsTrigger value="tax" data-testid="tab-tax"><FileCheck className="w-4 h-4 mr-1 hidden sm:inline" />세금계산서</TabsTrigger>
         </TabsList>
 
-        {/* === LIST TAB === */}
+        {/* ══ 사용내역 탭 ══ */}
         <TabsContent value="list" className="mt-3 space-y-3">
-          <div className="flex flex-wrap gap-2">
-            <Select value={filterCategory} onValueChange={setFilterCategory}>
-              <SelectTrigger className="w-52" data-testid="select-filter-category">
+          <div className="flex flex-wrap gap-2 items-center">
+            <Select value={filterCat} onValueChange={setFilterCat}>
+              <SelectTrigger className="w-48" data-testid="select-filter-category">
                 <SelectValue placeholder="전체 항목" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">전체 항목</SelectItem>
-                {CATEGORIES.map(c => (
-                  <SelectItem key={c} value={c}>{c.substring(0, 20)}...</SelectItem>
-                ))}
+                {CATEGORIES.map(c => <SelectItem key={c} value={c}>{c.substring(0,22)}...</SelectItem>)}
               </SelectContent>
             </Select>
             <Select value={filterMonth} onValueChange={setFilterMonth}>
@@ -391,16 +378,15 @@ export default function SafetyCostBudget() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">전체 월</SelectItem>
-                {MONTHS.map((m, i) => (
-                  <SelectItem key={i} value={(i + 1).toString()}>{m}</SelectItem>
-                ))}
+                {MONTHS.map((m,i) => <SelectItem key={i} value={(i+1).toString()}>{m}</SelectItem>)}
               </SelectContent>
             </Select>
-            {(filterCategory !== "all" || filterMonth !== "all") && (
-              <Button variant="ghost" size="sm" onClick={() => { setFilterCategory("all"); setFilterMonth("all"); }}>
-                <X className="w-3 h-3 mr-1" /> 초기화
+            {(filterCat!=="all"||filterMonth!=="all") && (
+              <Button variant="ghost" size="sm" onClick={() => { setFilterCat("all"); setFilterMonth("all"); }}>
+                <X className="w-3 h-3 mr-1" />초기화
               </Button>
             )}
+            <span className="text-sm text-muted-foreground ml-auto">{filtered.length}건 · {fmt(filtered.reduce((s,r)=>s+toNum(r.totalAmount),0))}</span>
           </div>
 
           {isLoading ? (
@@ -415,8 +401,8 @@ export default function SafetyCostBudget() {
             <div className="rounded-lg border overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-12">월</TableHead>
+                  <TableRow className="bg-muted/40">
+                    <TableHead className="w-10 text-center">월</TableHead>
                     <TableHead>항목</TableHead>
                     <TableHead>품명</TableHead>
                     <TableHead>업체명</TableHead>
@@ -424,163 +410,257 @@ export default function SafetyCostBudget() {
                     <TableHead className="text-right">단가</TableHead>
                     <TableHead className="text-right">공급가액</TableHead>
                     <TableHead className="text-right">세액</TableHead>
-                    <TableHead className="text-right">합계(VAT포함)</TableHead>
-                    <TableHead className="w-20">첨부</TableHead>
-                    <TableHead className="w-16">관리</TableHead>
+                    <TableHead className="text-right font-semibold">합계</TableHead>
+                    <TableHead className="w-16 text-center">첨부</TableHead>
+                    <TableHead className="w-14 text-center">관리</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filtered.map(rec => (
-                    <TableRow key={rec.id} data-testid={`row-record-${rec.id}`}>
-                      <TableCell className="font-medium">{rec.month}월</TableCell>
-                      <TableCell>
-                        <Badge className={`text-xs ${CATEGORY_COLORS[catIndex(rec.category)] || ""}`} variant="outline">
-                          {rec.category.split(". ")[0]}항
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="font-medium text-sm">{rec.itemName}</div>
-                        {rec.specification && <div className="text-xs text-muted-foreground truncate max-w-32">{rec.specification}</div>}
-                      </TableCell>
-                      <TableCell className="text-sm">{rec.vendorName || "-"}</TableCell>
-                      <TableCell className="text-right text-sm">{rec.quantity ? `${fmtNum(rec.quantity)}${rec.unit ? " " + rec.unit : ""}` : "-"}</TableCell>
-                      <TableCell className="text-right text-sm">{rec.unitPrice ? fmt(rec.unitPrice) : "-"}</TableCell>
-                      <TableCell className="text-right text-sm">{rec.supplyAmount ? fmt(rec.supplyAmount) : "-"}</TableCell>
-                      <TableCell className="text-right text-sm">{rec.vatAmount ? fmt(rec.vatAmount) : "-"}</TableCell>
-                      <TableCell className="text-right font-semibold">{fmt(rec.totalAmount)}</TableCell>
-                      <TableCell>
-                        <div className="flex gap-1">
-                          {rec.quoteFileUrl && (
-                            <button onClick={() => setImagePreview({ url: rec.quoteFileUrl!, title: "견적서" })}
-                              className="text-blue-500 hover:text-blue-700" title="견적서 보기" data-testid={`button-view-quote-${rec.id}`}>
-                              <FileText className="w-4 h-4" />
+                  {filtered.map(rec => {
+                    const ci = catIdx(rec.category);
+                    return (
+                      <TableRow key={rec.id} className="hover:bg-muted/30" data-testid={`row-record-${rec.id}`}>
+                        <TableCell className="text-center font-medium text-sm">{rec.month}월</TableCell>
+                        <TableCell>
+                          <Badge className={`text-xs border ${CAT_COLORS[ci]?.badge||""}`} variant="outline">
+                            {rec.category.split(". ")[0]}항
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-medium text-sm leading-tight">{rec.itemName}</div>
+                          {rec.specification && <div className="text-xs text-muted-foreground truncate max-w-36">{rec.specification}</div>}
+                        </TableCell>
+                        <TableCell className="text-sm">{rec.vendorName||"-"}</TableCell>
+                        <TableCell className="text-right text-sm">{rec.quantity ? `${fmtNum(rec.quantity)}${rec.unit?" "+rec.unit:""}` : "-"}</TableCell>
+                        <TableCell className="text-right text-sm">{rec.unitPrice ? fmt(rec.unitPrice) : "-"}</TableCell>
+                        <TableCell className="text-right text-sm">{rec.supplyAmount ? fmt(rec.supplyAmount) : "-"}</TableCell>
+                        <TableCell className="text-right text-sm">{rec.vatAmount ? fmt(rec.vatAmount) : "-"}</TableCell>
+                        <TableCell className="text-right font-bold text-sm">{fmt(rec.totalAmount)}</TableCell>
+                        <TableCell className="text-center">
+                          <div className="flex gap-1 justify-center">
+                            {rec.quoteFileUrl && (
+                              <button onClick={() => setPreview({ url: rec.quoteFileUrl!, title: "견적서" })}
+                                className="text-blue-500 hover:text-blue-700 transition-colors" title="견적서" data-testid={`btn-quote-${rec.id}`}>
+                                <FileText className="w-4 h-4" />
+                              </button>
+                            )}
+                            {rec.transactionFileUrl && (
+                              <button onClick={() => setPreview({ url: rec.transactionFileUrl!, title: "거래명세서" })}
+                                className="text-emerald-500 hover:text-emerald-700 transition-colors" title="거래명세서" data-testid={`btn-trans-${rec.id}`}>
+                                <FileText className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <div className="flex gap-1 justify-center">
+                            <button onClick={() => openEdit(rec)} className="text-muted-foreground hover:text-foreground" data-testid={`btn-edit-${rec.id}`}>
+                              <Edit2 className="w-3.5 h-3.5" />
                             </button>
-                          )}
-                          {rec.transactionFileUrl && (
-                            <button onClick={() => setImagePreview({ url: rec.transactionFileUrl!, title: "거래명세서" })}
-                              className="text-green-500 hover:text-green-700" title="거래명세서 보기" data-testid={`button-view-transaction-${rec.id}`}>
-                              <FileText className="w-4 h-4" />
+                            <button onClick={() => setDelConfirm({ type:"record", id:rec.id })} className="text-muted-foreground hover:text-red-500" data-testid={`btn-del-${rec.id}`}>
+                              <Trash2 className="w-3.5 h-3.5" />
                             </button>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-1">
-                          <button onClick={() => openEdit(rec)} className="text-muted-foreground hover:text-foreground" data-testid={`button-edit-${rec.id}`}>
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                          <button onClick={() => setDeleteConfirmId(rec.id)} className="text-muted-foreground hover:text-red-500" data-testid={`button-delete-${rec.id}`}>
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
           )}
         </TabsContent>
 
-        {/* === SUMMARY TAB === */}
-        <TabsContent value="summary" className="mt-3">
-          <div className="rounded-lg border overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="min-w-48">항목</TableHead>
-                  {MONTHS.map(m => <TableHead key={m} className="text-right min-w-20">{m}</TableHead>)}
-                  <TableHead className="text-right min-w-28 font-bold">합계</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {categoryTotals.map((c, i) => (
-                  <TableRow key={i} className={c.total === 0 ? "opacity-40" : ""}>
-                    <TableCell>
-                      <div className="text-sm font-medium">{c.cat}</div>
-                      <div className="text-xs text-muted-foreground">{c.count}건</div>
-                    </TableCell>
-                    {c.monthly.map((val, mi) => (
-                      <TableCell key={mi} className="text-right text-sm">
-                        {val > 0 ? <span className="text-foreground">{(val / 10000).toFixed(0)}만</span> : <span className="text-muted-foreground/40">-</span>}
+        {/* ══ 항목별 요약 탭 ══ */}
+        <TabsContent value="summary" className="mt-3 space-y-3">
+          {/* 카테고리 카드 그리드 */}
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+            {catTotals.map((c, i) => (
+              <div key={i} className={`rounded-xl border p-4 transition-all ${c.total===0 ? "opacity-40" : "hover:shadow-sm"}`}>
+                <div className="flex items-start justify-between gap-2 mb-3">
+                  <div>
+                    <div className="text-xs text-muted-foreground mb-0.5">항목 {i+1}</div>
+                    <div className="text-sm font-semibold leading-tight text-foreground">{c.cat.split(". ")[1]}</div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="text-lg font-bold text-foreground">{c.total>0 ? fmtMan(c.total) : "-"}</div>
+                    <div className="text-xs text-muted-foreground">{c.count}건</div>
+                  </div>
+                </div>
+                {/* 진행바 */}
+                <div className="h-2 rounded-full bg-muted overflow-hidden mb-3">
+                  <div className={`h-full rounded-full transition-all ${c.color.bar}`} style={{ width:`${c.pct}%` }} />
+                </div>
+                {/* 월별 미니 바 */}
+                {c.total > 0 && (
+                  <div className="flex gap-0.5 items-end h-8">
+                    {c.monthly.map((v, mi) => {
+                      const maxM = Math.max(...c.monthly);
+                      const barH = maxM > 0 ? Math.max(2, (v / maxM) * 32) : 2;
+                      return (
+                        <div key={mi} className="flex-1 flex flex-col items-center gap-0.5" title={`${mi+1}월: ${fmt(v)}`}>
+                          <div className={`w-full rounded-sm ${c.color.bar} opacity-70`} style={{ height: `${barH}px` }} />
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                {c.total > 0 && (
+                  <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
+                    <span>1월</span><span>6월</span><span>12월</span>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* 월별 합계 표 */}
+          <div className="rounded-xl border overflow-hidden">
+            <div className="px-4 py-3 bg-muted/40 border-b">
+              <span className="font-semibold text-sm">월별 총계</span>
+            </div>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    {MONTHS.map(m => <TableHead key={m} className="text-center text-xs">{m}</TableHead>)}
+                    <TableHead className="text-right text-xs font-bold">연간합계</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  <TableRow>
+                    {monthlyTotals.map((v, i) => (
+                      <TableCell key={i} className="text-center text-sm">
+                        {v > 0 ? <span className="font-medium text-foreground">{fmtMan(v)}</span> : <span className="text-muted-foreground/40 text-xs">-</span>}
                       </TableCell>
                     ))}
-                    <TableCell className="text-right font-bold">{c.total > 0 ? fmt(c.total) : "-"}</TableCell>
+                    <TableCell className="text-right font-bold text-primary">{fmt(grandTotal)}</TableCell>
                   </TableRow>
-                ))}
-                <TableRow className="bg-muted/50 font-bold">
-                  <TableCell>합계</TableCell>
-                  {monthlyTotals.map((val, i) => (
-                    <TableCell key={i} className="text-right text-sm">
-                      {val > 0 ? fmt(val) : "-"}
-                    </TableCell>
-                  ))}
-                  <TableCell className="text-right text-primary font-bold">{fmt(grandTotal)}</TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
+                </TableBody>
+              </Table>
+            </div>
           </div>
+        </TabsContent>
+
+        {/* ══ 세금계산서 탭 ══ */}
+        <TabsContent value="tax" className="mt-3 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-muted-foreground">
+              월별 세금계산서 현황 · 총 {fmt(taxGrandTotal)}
+            </div>
+            <Button onClick={openAddTax} size="sm" data-testid="button-add-tax">
+              <Plus className="w-4 h-4 mr-1" /> 세금계산서 등록
+            </Button>
+          </div>
+
+          {taxInvoices.length === 0 ? (
+            <div className="text-center py-16 text-muted-foreground border rounded-xl">
+              <Receipt className="w-10 h-10 mx-auto mb-2 opacity-30" />
+              <p className="text-sm">등록된 세금계산서가 없습니다.</p>
+              <p className="text-xs mt-1 text-muted-foreground/60">월별로 발행된 세금계산서를 등록하세요.</p>
+              <Button variant="outline" size="sm" className="mt-3" onClick={openAddTax}>첫 세금계산서 등록</Button>
+            </div>
+          ) : (
+            <div className="rounded-lg border overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/40">
+                    <TableHead className="w-12 text-center">월</TableHead>
+                    <TableHead>업체명</TableHead>
+                    <TableHead className="text-right">공급가액</TableHead>
+                    <TableHead className="text-right">세액</TableHead>
+                    <TableHead className="text-right font-semibold">합계</TableHead>
+                    <TableHead>비고</TableHead>
+                    <TableHead className="w-14 text-center">파일</TableHead>
+                    <TableHead className="w-14 text-center">관리</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {taxInvoices.map(t => (
+                    <TableRow key={t.id} data-testid={`row-tax-${t.id}`}>
+                      <TableCell className="text-center font-medium">{t.month}월</TableCell>
+                      <TableCell>{t.vendorName||"-"}</TableCell>
+                      <TableCell className="text-right text-sm">{t.supplyAmount ? fmt(t.supplyAmount) : "-"}</TableCell>
+                      <TableCell className="text-right text-sm">{t.vatAmount ? fmt(t.vatAmount) : "-"}</TableCell>
+                      <TableCell className="text-right font-bold">{fmt(t.totalAmount)}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{t.notes||"-"}</TableCell>
+                      <TableCell className="text-center">
+                        {t.fileUrl ? (
+                          <button onClick={() => setPreview({ url: t.fileUrl!, title: `${t.month}월 세금계산서` })}
+                            className="text-violet-500 hover:text-violet-700" data-testid={`btn-taxfile-${t.id}`}>
+                            <FileCheck className="w-4 h-4" />
+                          </button>
+                        ) : <span className="text-muted-foreground/30 text-xs">-</span>}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <div className="flex gap-1 justify-center">
+                          <button onClick={() => openEditTax(t)} className="text-muted-foreground hover:text-foreground" data-testid={`btn-tax-edit-${t.id}`}>
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button onClick={() => setDelConfirm({ type:"tax", id:t.id })} className="text-muted-foreground hover:text-red-500" data-testid={`btn-tax-del-${t.id}`}>
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {/* 합계 행 */}
+                  <TableRow className="bg-muted/40 font-bold">
+                    <TableCell colSpan={2} className="text-center">합계</TableCell>
+                    <TableCell className="text-right">{fmt(taxInvoices.reduce((s,t)=>s+toNum(t.supplyAmount),0))}</TableCell>
+                    <TableCell className="text-right">{fmt(taxInvoices.reduce((s,t)=>s+toNum(t.vatAmount),0))}</TableCell>
+                    <TableCell className="text-right text-primary">{fmt(taxGrandTotal)}</TableCell>
+                    <TableCell colSpan={3} />
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
 
-      {/* === ADD/EDIT DIALOG === */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      {/* ══ 지출 등록/수정 다이얼로그 ══ */}
+      <Dialog open={dlgOpen} onOpenChange={setDlgOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editRecord ? "사용내역 수정" : "사용내역 등록"}</DialogTitle>
+            <DialogTitle>{editRec ? "사용내역 수정" : "사용내역 등록"}</DialogTitle>
           </DialogHeader>
 
-          {/* AI 문서 첨부 */}
-          <div className="space-y-3 border rounded-lg p-3 bg-muted/30">
-            <div className="text-sm font-semibold flex items-center gap-2">
-              <Upload className="w-4 h-4" />
-              AI 자동 입력 (견적서 / 거래명세서 첨부)
+          {/* AI 첨부 */}
+          <div className="space-y-3 border rounded-xl p-3 bg-muted/20">
+            <div className="text-sm font-semibold flex items-center gap-2 text-foreground">
+              <Upload className="w-4 h-4" /> AI 자동 입력 (견적서 / 거래명세서)
             </div>
             <div className="grid grid-cols-2 gap-3">
-              {/* 견적서 */}
               <div>
-                <input ref={quoteInputRef} type="file" accept="image/*,application/pdf" className="hidden"
-                  onChange={e => { if (e.target.files?.[0]) handleExtract("quote", e.target.files[0]); e.target.value = ""; }} />
-                <Button variant="outline" size="sm" className="w-full" data-testid="button-upload-quote"
-                  disabled={extracting !== null}
-                  onClick={() => quoteInputRef.current?.click()}>
-                  {extracting === "quote" ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <ImageIcon className="w-4 h-4 mr-1" />}
+                <input ref={quoteRef} type="file" accept="image/*,application/pdf" className="hidden"
+                  onChange={e => { if (e.target.files?.[0]) handleExtract("quote", e.target.files[0]); e.target.value=""; }} />
+                <Button variant="outline" size="sm" className="w-full" disabled={extracting!==null}
+                  onClick={() => quoteRef.current?.click()} data-testid="btn-upload-quote">
+                  {extracting==="quote" ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <ImageIcon className="w-4 h-4 mr-1" />}
                   견적서 첨부
                 </Button>
-                {form.quoteFileUrl && (
-                  <div className="text-xs text-green-600 mt-1 flex items-center gap-1">
-                    <FileText className="w-3 h-3" /> 견적서 업로드됨
-                  </div>
-                )}
+                {form.quoteFileUrl && <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1"><FileText className="w-3 h-3" />견적서 업로드됨</p>}
               </div>
-              {/* 거래명세서 */}
               <div>
-                <input ref={transactionInputRef} type="file" accept="image/*,application/pdf" className="hidden"
-                  onChange={e => { if (e.target.files?.[0]) handleExtract("transaction", e.target.files[0]); e.target.value = ""; }} />
-                <Button variant="outline" size="sm" className="w-full" data-testid="button-upload-transaction"
-                  disabled={extracting !== null}
-                  onClick={() => transactionInputRef.current?.click()}>
-                  {extracting === "transaction" ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <FileText className="w-4 h-4 mr-1" />}
+                <input ref={transRef} type="file" accept="image/*,application/pdf" className="hidden"
+                  onChange={e => { if (e.target.files?.[0]) handleExtract("transaction", e.target.files[0]); e.target.value=""; }} />
+                <Button variant="outline" size="sm" className="w-full" disabled={extracting!==null}
+                  onClick={() => transRef.current?.click()} data-testid="btn-upload-trans">
+                  {extracting==="transaction" ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <FileText className="w-4 h-4 mr-1" />}
                   거래명세서 첨부
                 </Button>
-                {form.transactionFileUrl && (
-                  <div className="text-xs text-green-600 mt-1 flex items-center gap-1">
-                    <FileText className="w-3 h-3" /> 거래명세서 업로드됨
-                  </div>
-                )}
+                {form.transactionFileUrl && <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1"><FileText className="w-3 h-3" />거래명세서 업로드됨</p>}
               </div>
             </div>
-
-            {/* 다중 항목 선택 */}
             {extractedItems.length > 1 && (
-              <div className="space-y-2">
-                <div className="text-xs text-muted-foreground">감지된 품목 ({extractedItems.length}개) — 적용할 항목을 선택하세요:</div>
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">감지된 품목 {extractedItems.length}개 — 적용할 항목 선택:</p>
                 <div className="flex flex-wrap gap-1">
                   {extractedItems.map((item, i) => (
-                    <button key={i}
-                      className={`text-xs px-2 py-1 rounded border transition-colors ${selectedItemIdx === i ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border hover:bg-muted"}`}
-                      onClick={() => { setSelectedItemIdx(i); applyItem(item); }}
-                      data-testid={`button-select-item-${i}`}>
+                    <button key={i} onClick={() => { setSelItemIdx(i); applyItem(item); }}
+                      className={`text-xs px-2 py-1 rounded border transition-colors ${selItemIdx===i ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
+                      data-testid={`btn-item-${i}`}>
                       {item.itemName} ({fmtNum(item.quantity)}{item.unit})
                     </button>
                   ))}
@@ -589,165 +669,161 @@ export default function SafetyCostBudget() {
             )}
           </div>
 
-          {/* 기본 정보 */}
           <div className="grid grid-cols-3 gap-3">
-            <div>
-              <Label>연도 *</Label>
-              <Select value={form.year.toString()} onValueChange={v => setField("year", Number(v))}>
-                <SelectTrigger data-testid="select-form-year"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {[currentYear - 1, currentYear, currentYear + 1].map(y => (
-                    <SelectItem key={y} value={y.toString()}>{y}년</SelectItem>
-                  ))}
-                </SelectContent>
+            <div><Label>연도 *</Label>
+              <Select value={form.year.toString()} onValueChange={v => setF("year", Number(v))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{[currentYear-1,currentYear,currentYear+1].map(y=><SelectItem key={y} value={y.toString()}>{y}년</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div>
-              <Label>월 *</Label>
-              <Select value={form.month.toString()} onValueChange={v => setField("month", Number(v))}>
-                <SelectTrigger data-testid="select-form-month"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {MONTHS.map((m, i) => <SelectItem key={i} value={(i + 1).toString()}>{m}</SelectItem>)}
-                </SelectContent>
+            <div><Label>월 *</Label>
+              <Select value={form.month.toString()} onValueChange={v => setF("month", Number(v))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{MONTHS.map((m,i)=><SelectItem key={i} value={(i+1).toString()}>{m}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div>
-              <Label>구매일자</Label>
-              <Input type="date" value={form.purchaseDate} onChange={e => setField("purchaseDate", e.target.value)}
-                data-testid="input-purchase-date" />
+            <div><Label>구매일자</Label>
+              <Input type="date" value={form.purchaseDate} onChange={e=>setF("purchaseDate",e.target.value)} data-testid="input-purchase-date" />
             </div>
           </div>
 
-          <div>
-            <Label>항목 구분 *</Label>
-            <Select value={form.category} onValueChange={v => setField("category", v)}>
-              <SelectTrigger data-testid="select-form-category"><SelectValue placeholder="항목을 선택하세요" /></SelectTrigger>
-              <SelectContent>
-                {CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-              </SelectContent>
+          <div><Label>항목 구분 *</Label>
+            <Select value={form.category} onValueChange={v=>setF("category",v)}>
+              <SelectTrigger data-testid="select-category"><SelectValue placeholder="항목 선택" /></SelectTrigger>
+              <SelectContent>{CATEGORIES.map(c=><SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
             </Select>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label>세부항목</Label>
-              <Input placeholder="세부항목 (예: 안전화, 쿨토시 등)" value={form.subCategory}
-                onChange={e => setField("subCategory", e.target.value)} data-testid="input-sub-category" />
-            </div>
-            <div>
-              <Label>업체명</Label>
-              <Input placeholder="공급업체명" value={form.vendorName}
-                onChange={e => setField("vendorName", e.target.value)} data-testid="input-vendor-name" />
-            </div>
+            <div><Label>세부항목</Label><Input placeholder="세부항목" value={form.subCategory} onChange={e=>setF("subCategory",e.target.value)} /></div>
+            <div><Label>업체명</Label><Input placeholder="공급업체명" value={form.vendorName} onChange={e=>setF("vendorName",e.target.value)} data-testid="input-vendor" /></div>
           </div>
-
-          <div>
-            <Label>품명 *</Label>
-            <Input placeholder="품명을 입력하세요" value={form.itemName}
-              onChange={e => setField("itemName", e.target.value)} data-testid="input-item-name" />
-          </div>
-
-          <div>
-            <Label>규격</Label>
-            <Input placeholder="규격 (예: 70×125mm, 125g...)" value={form.specification}
-              onChange={e => setField("specification", e.target.value)} data-testid="input-specification" />
-          </div>
+          <div><Label>품명 *</Label><Input placeholder="품명" value={form.itemName} onChange={e=>setF("itemName",e.target.value)} data-testid="input-item-name" /></div>
+          <div><Label>규격</Label><Input placeholder="규격" value={form.specification} onChange={e=>setF("specification",e.target.value)} /></div>
 
           <div className="grid grid-cols-3 gap-3">
-            <div>
-              <Label>단위</Label>
-              <Select value={form.unit} onValueChange={v => setField("unit", v)}>
-                <SelectTrigger data-testid="select-unit"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {["EA","개","식","세트","쌍","묶음","롤","kg","L","m"].map(u => (
-                    <SelectItem key={u} value={u}>{u}</SelectItem>
-                  ))}
-                </SelectContent>
+            <div><Label>단위</Label>
+              <Select value={form.unit} onValueChange={v=>setF("unit",v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{["EA","개","식","세트","쌍","묶음","kg","L","m"].map(u=><SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div>
-              <Label>수량</Label>
-              <Input type="number" placeholder="0" value={form.quantity}
-                onChange={e => autoCalc("quantity", e.target.value)} data-testid="input-quantity" />
+            <div><Label>수량</Label><Input type="number" placeholder="0" value={form.quantity} onChange={e=>autoCalc("quantity",e.target.value)} data-testid="input-quantity" /></div>
+            <div><Label>단가</Label><Input type="number" placeholder="0" value={form.unitPrice} onChange={e=>autoCalc("unitPrice",e.target.value)} data-testid="input-unit-price" /></div>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div><Label>공급가액</Label><Input type="number" placeholder="0" value={form.supplyAmount} onChange={e=>setF("supplyAmount",e.target.value)} /></div>
+            <div><Label>세액</Label><Input type="number" placeholder="0" value={form.vatAmount} onChange={e=>setF("vatAmount",e.target.value)} /></div>
+            <div><Label className="font-semibold">합계(VAT포함) *</Label><Input type="number" placeholder="0" value={form.totalAmount} onChange={e=>setF("totalAmount",e.target.value)} className="font-semibold" data-testid="input-total" /></div>
+          </div>
+          <div><Label>비고</Label><Textarea rows={2} value={form.notes} onChange={e=>setF("notes",e.target.value)} /></div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={closeDlg}>취소</Button>
+            <Button onClick={handleSubmit} disabled={createMut.isPending||updateMut.isPending} data-testid="btn-submit">
+              {(createMut.isPending||updateMut.isPending) && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
+              {editRec ? "수정 저장" : "등록"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ══ 세금계산서 등록/수정 다이얼로그 ══ */}
+      <Dialog open={taxDlgOpen} onOpenChange={setTaxDlgOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{editTax ? "세금계산서 수정" : "세금계산서 등록"}</DialogTitle>
+          </DialogHeader>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>연도 *</Label>
+              <Select value={taxForm.year.toString()} onValueChange={v=>setTF("year",Number(v))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{[currentYear-1,currentYear,currentYear+1].map(y=><SelectItem key={y} value={y.toString()}>{y}년</SelectItem>)}</SelectContent>
+              </Select>
             </div>
-            <div>
-              <Label>단가</Label>
-              <Input type="number" placeholder="0" value={form.unitPrice}
-                onChange={e => autoCalc("unitPrice", e.target.value)} data-testid="input-unit-price" />
+            <div><Label>월 *</Label>
+              <Select value={taxForm.month.toString()} onValueChange={v=>setTF("month",Number(v))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{MONTHS.map((m,i)=><SelectItem key={i} value={(i+1).toString()}>{m}</SelectItem>)}</SelectContent>
+              </Select>
             </div>
           </div>
+
+          <div><Label>업체명</Label><Input placeholder="공급업체명" value={taxForm.vendorName} onChange={e=>setTF("vendorName",e.target.value)} data-testid="input-tax-vendor" /></div>
 
           <div className="grid grid-cols-3 gap-3">
-            <div>
-              <Label>공급가액</Label>
-              <Input type="number" placeholder="0" value={form.supplyAmount}
-                onChange={e => setField("supplyAmount", e.target.value)} data-testid="input-supply-amount" />
-            </div>
-            <div>
-              <Label>세액</Label>
-              <Input type="number" placeholder="0" value={form.vatAmount}
-                onChange={e => setField("vatAmount", e.target.value)} data-testid="input-vat-amount" />
-            </div>
-            <div>
-              <Label>합계(VAT포함) *</Label>
-              <Input type="number" placeholder="0" value={form.totalAmount}
-                onChange={e => setField("totalAmount", e.target.value)} data-testid="input-total-amount"
-                className="font-semibold" />
-            </div>
+            <div><Label>공급가액</Label><Input type="number" placeholder="0" value={taxForm.supplyAmount} onChange={e=>taxAutoCalc("supplyAmount",e.target.value)} /></div>
+            <div><Label>세액</Label><Input type="number" placeholder="0" value={taxForm.vatAmount} onChange={e=>taxAutoCalc("vatAmount",e.target.value)} /></div>
+            <div><Label className="font-semibold">합계 *</Label><Input type="number" placeholder="0" value={taxForm.totalAmount} onChange={e=>setTF("totalAmount",e.target.value)} className="font-semibold" data-testid="input-tax-total" /></div>
           </div>
 
-          <div>
-            <Label>비고</Label>
-            <Textarea placeholder="비고 사항" value={form.notes} rows={2}
-              onChange={e => setField("notes", e.target.value)} data-testid="input-notes" />
+          <div><Label>비고</Label><Input placeholder="비고" value={taxForm.notes} onChange={e=>setTF("notes",e.target.value)} /></div>
+
+          {/* 파일 업로드 */}
+          <div className="space-y-2">
+            <Label>세금계산서 파일</Label>
+            <input ref={taxFileRef} type="file" accept="image/*,application/pdf" className="hidden"
+              onChange={e => { if (e.target.files?.[0]) setTaxFile(e.target.files[0]); }} />
+            <Button variant="outline" size="sm" className="w-full" onClick={() => taxFileRef.current?.click()} data-testid="btn-tax-file">
+              <Upload className="w-4 h-4 mr-1" />
+              {taxFile ? taxFile.name : (editTax?.fileUrl ? "파일 교체" : "세금계산서 첨부 (이미지/PDF)")}
+            </Button>
+            {editTax?.fileUrl && !taxFile && (
+              <button onClick={() => setPreview({ url: editTax.fileUrl!, title: "세금계산서" })}
+                className="text-xs text-violet-600 flex items-center gap-1 hover:underline">
+                <FileCheck className="w-3 h-3" />현재 첨부파일 보기
+              </button>
+            )}
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={closeDialog}>취소</Button>
-            <Button onClick={handleSubmit} disabled={createMutation.isPending || updateMutation.isPending}
-              data-testid="button-submit-record">
-              {(createMutation.isPending || updateMutation.isPending) && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
-              {editRecord ? "수정 저장" : "등록"}
+            <Button variant="outline" onClick={closeTaxDlg}>취소</Button>
+            <Button onClick={handleTaxSubmit} disabled={createTaxMut.isPending||updateTaxMut.isPending} data-testid="btn-tax-submit">
+              {(createTaxMut.isPending||updateTaxMut.isPending) && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
+              {editTax ? "수정 저장" : "등록"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* 삭제 확인 다이얼로그 */}
-      <Dialog open={deleteConfirmId !== null} onOpenChange={() => setDeleteConfirmId(null)}>
+      {/* ══ 삭제 확인 ══ */}
+      <Dialog open={delConfirm!==null} onOpenChange={() => setDelConfirm(null)}>
         <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>삭제 확인</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">이 사용내역을 삭제하시겠습니까? 삭제 후 복구할 수 없습니다.</p>
+          <DialogHeader><DialogTitle>삭제 확인</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">삭제 후 복구할 수 없습니다. 계속하시겠습니까?</p>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteConfirmId(null)}>취소</Button>
-            <Button variant="destructive" onClick={() => deleteConfirmId && deleteMutation.mutate(deleteConfirmId)}
-              disabled={deleteMutation.isPending} data-testid="button-confirm-delete">
-              {deleteMutation.isPending && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
-              삭제
+            <Button variant="outline" onClick={() => setDelConfirm(null)}>취소</Button>
+            <Button variant="destructive" data-testid="btn-confirm-delete"
+              disabled={deleteMut.isPending||deleteTaxMut.isPending}
+              onClick={() => {
+                if (!delConfirm) return;
+                if (delConfirm.type==="record") deleteMut.mutate(delConfirm.id);
+                else deleteTaxMut.mutate(delConfirm.id);
+              }}>
+              {(deleteMut.isPending||deleteTaxMut.isPending) && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}삭제
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* 첨부파일 미리보기 */}
-      {imagePreview && (
-        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4"
-          onClick={() => setImagePreview(null)}>
-          <div className="bg-background rounded-xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-auto"
+      {/* ══ 첨부파일 미리보기 ══ */}
+      {preview && (
+        <div className="fixed inset-0 bg-black/75 z-50 flex items-center justify-center p-4"
+          onClick={() => setPreview(null)}>
+          <div className="bg-background rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-auto"
             onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-4 border-b">
-              <span className="font-semibold">{imagePreview.title}</span>
-              <button onClick={() => setImagePreview(null)} data-testid="button-close-preview">
+            <div className="flex items-center justify-between px-5 py-3 border-b">
+              <span className="font-semibold text-foreground">{preview.title}</span>
+              <button onClick={() => setPreview(null)} data-testid="btn-close-preview" className="text-muted-foreground hover:text-foreground">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="p-4">
-              {imagePreview.url.toLowerCase().endsWith(".pdf") || imagePreview.url.includes("pdf") ? (
-                <iframe src={imagePreview.url} className="w-full h-[70vh]" title={imagePreview.title} />
+            <div className="p-5">
+              {(preview.url.toLowerCase().endsWith(".pdf") || preview.url.includes("pdf")) ? (
+                <iframe src={preview.url} className="w-full h-[70vh] rounded" title={preview.title} />
               ) : (
-                <img src={imagePreview.url} alt={imagePreview.title} className="w-full object-contain" />
+                <img src={preview.url} alt={preview.title} className="w-full object-contain rounded" />
               )}
             </div>
           </div>
