@@ -83,10 +83,22 @@ export default function HealthManagerReports() {
     if (!selected.name.toLowerCase().endsWith('.pdf')) return;
     setExtractingDate(true);
     try {
-      // 서버 AI 분석으로 방문일자·직종 추출
+      // 서버 AI 분석으로 방문일자·직종 추출 (45초 타임아웃)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 45000);
       const fd = new FormData();
       fd.append("file", selected);
-      const res = await fetch("/api/health-manager-reports/analyze-pdf", { method: "POST", body: fd });
+      let res: Response;
+      try {
+        res = await fetch("/api/health-manager-reports/analyze-pdf", {
+          method: "POST",
+          body: fd,
+          credentials: "include",
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
       if (res.ok) {
         const { data } = await res.json();
         if (data?.visitDate) setForm(f => ({ ...f, visitDate: data.visitDate }));
@@ -104,8 +116,13 @@ export default function HealthManagerReports() {
       const date = await extractDateFromPdf(selected);
       if (date) setForm(f => ({ ...f, visitDate: date }));
       setPdfAnalyzed(true);
-    } catch {
-      toast({ title: "PDF 자동 분석 실패", description: "직종과 방문일을 직접 입력해주세요.", variant: "destructive" });
+    } catch (e: any) {
+      const isTimeout = e?.name === "AbortError";
+      toast({
+        title: "PDF 자동 분석 실패",
+        description: isTimeout ? "분석 시간이 초과되었습니다. 직종과 방문일을 직접 입력해주세요." : "직종과 방문일을 직접 입력해주세요.",
+        variant: "destructive",
+      });
       const date = await extractDateFromPdf(selected);
       if (date) setForm(f => ({ ...f, visitDate: date }));
       setPdfAnalyzed(true);
@@ -161,14 +178,15 @@ export default function HealthManagerReports() {
       if (form.team) fd.append("team", form.team);
       if (file) fd.append("file", file);
       let res: Response;
+      const fetchOpts: RequestInit = { method: editing ? "PATCH" : "POST", body: fd, credentials: "include" };
       if (editing) {
-        res = await fetch(`/api/health-manager-reports/${editing.id}`, { method: "PATCH", body: fd });
+        res = await fetch(`/api/health-manager-reports/${editing.id}`, fetchOpts);
       } else {
-        res = await fetch("/api/health-manager-reports", { method: "POST", body: fd });
+        res = await fetch("/api/health-manager-reports", fetchOpts);
       }
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.message || "저장 실패");
+        throw new Error(err.message || `서버 오류 (${res.status})`);
       }
       // visitDate 기준으로 올바른 년월 캐시 무효화 + 캘린더 이동
       queryClient.invalidateQueries({ queryKey: ["/api/health-manager-reports"] });
@@ -178,7 +196,14 @@ export default function HealthManagerReports() {
       setDialogOpen(false);
       toast({ title: editing ? "수정 완료" : "등록 완료" });
     } catch (e: any) {
-      toast({ variant: "destructive", title: "저장 실패", description: e?.message });
+      const isNetworkError = e instanceof TypeError;
+      toast({
+        variant: "destructive",
+        title: "저장 실패",
+        description: isNetworkError
+          ? "네트워크 연결 오류입니다. 잠시 후 다시 시도해주세요."
+          : (e?.message || "알 수 없는 오류"),
+      });
     } finally {
       setSubmitting(false);
     }

@@ -6375,9 +6375,15 @@ ${htmlDraft}
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  app.post('/api/health-manager-reports', requireEditor, reportUpload.single('file'), async (req: any, res) => {
+  app.post('/api/health-manager-reports',
+    (req: any, _res: any, next: any) => {
+      console.log('[HMR] POST /api/health-manager-reports 수신, sessionUserId:', (req.session as any)?.userId, 'ct:', (req.headers['content-type'] || '').substring(0, 80));
+      next();
+    },
+    requireEditor, reportUpload.single('file'), async (req: any, res) => {
     try {
       const { visitDate, staffType, team } = req.body;
+      console.log('[HMR] POST body:', { visitDate, staffType, team, hasFile: !!req.file });
       if (!visitDate || !staffType) return res.status(400).json({ message: "필수 항목 누락" });
       // visitDate 기준으로 yearMonth 자동 계산 (클라이언트 전송값 무시)
       const derivedYearMonth = visitDate.substring(0, 7);
