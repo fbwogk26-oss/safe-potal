@@ -82,8 +82,9 @@ const reportUpload = multer({
     const allowedMimes = ['application/pdf', 'application/msword',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'application/haansofthwp', 'application/x-hwp', 'image/jpeg', 'image/png',
-      'application/octet-stream'];
+      'application/haansofthwp', 'application/x-hwp', 'application/hwp', 'application/x-hwpml',
+      'application/vnd.hancom.hwp', 'application/vnd.hancom.hwpx',
+      'image/jpeg', 'image/png', 'application/octet-stream'];
     cb(null, allowedExts.includes(ext) || allowedMimes.includes(file.mimetype));
   }
 });

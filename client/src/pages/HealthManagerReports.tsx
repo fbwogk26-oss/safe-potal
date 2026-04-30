@@ -74,9 +74,11 @@ export default function HealthManagerReports() {
   const [extractingDate, setExtractingDate] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [pdfAnalyzed, setPdfAnalyzed] = useState(false);
 
   async function handleFileChange(selected: File | null) {
     setFile(selected);
+    setPdfAnalyzed(false);
     if (!selected) return;
     if (!selected.name.toLowerCase().endsWith('.pdf')) return;
     setExtractingDate(true);
@@ -90,15 +92,23 @@ export default function HealthManagerReports() {
         if (data?.visitDate) setForm(f => ({ ...f, visitDate: data.visitDate }));
         if (data?.staffType && ["간호사", "위생기사", "의사"].includes(data.staffType)) {
           setForm(f => ({ ...f, staffType: data.staffType as StaffType }));
+        } else {
+          // AI가 직종을 추출하지 못한 경우 사용자에게 알림
+          toast({ title: "직종 자동 인식 실패", description: "직종을 직접 선택해주세요.", variant: "destructive" });
         }
-        if (data?.visitDate) return;
+        setPdfAnalyzed(true);
+        return;
       }
-      // AI 실패 시 클라이언트 정규식 폴백
+      // AI 분석 실패: 사용자에게 알림 후 클라이언트 폴백
+      toast({ title: "PDF 자동 분석 실패", description: "직종과 방문일을 직접 입력해주세요.", variant: "destructive" });
       const date = await extractDateFromPdf(selected);
       if (date) setForm(f => ({ ...f, visitDate: date }));
+      setPdfAnalyzed(true);
     } catch {
+      toast({ title: "PDF 자동 분석 실패", description: "직종과 방문일을 직접 입력해주세요.", variant: "destructive" });
       const date = await extractDateFromPdf(selected);
       if (date) setForm(f => ({ ...f, visitDate: date }));
+      setPdfAnalyzed(true);
     } finally {
       setExtractingDate(false);
     }
@@ -127,8 +137,9 @@ export default function HealthManagerReports() {
 
   function openAdd(date?: string) {
     setEditing(null);
-    setForm({ visitDate: date || format(new Date(year, month - 1, 1), "yyyy-MM-dd"), staffType: "", team: "" });
+    setForm({ visitDate: date || format(now, "yyyy-MM-dd"), staffType: "", team: "" });
     setFile(null);
+    setPdfAnalyzed(false);
     setDialogOpen(true);
   }
 
@@ -136,6 +147,7 @@ export default function HealthManagerReports() {
     setEditing(r);
     setForm({ visitDate: r.visitDate, staffType: r.staffType as StaffType, team: r.team || "" });
     setFile(null);
+    setPdfAnalyzed(false);
     setDialogOpen(true);
   }
 
@@ -416,13 +428,16 @@ export default function HealthManagerReports() {
               <div className="space-y-1">
                 <Label>직종 *</Label>
                 <Select value={form.staffType} onValueChange={v => setForm(f => ({ ...f, staffType: v as StaffType }))} data-testid="select-staff-type">
-                  <SelectTrigger><SelectValue placeholder="직종 선택" /></SelectTrigger>
+                  <SelectTrigger className={!form.staffType && pdfAnalyzed ? "border-amber-500 ring-1 ring-amber-400" : ""}><SelectValue placeholder="직종 선택" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="간호사">간호사 (매월 1회)</SelectItem>
                     <SelectItem value="위생기사">위생기사 (2개월 1회)</SelectItem>
                     <SelectItem value="의사">의사 (3개월 1회)</SelectItem>
                   </SelectContent>
                 </Select>
+                {!form.staffType && pdfAnalyzed && (
+                  <p className="text-xs text-amber-600 flex items-center gap-1 mt-1"><AlertCircle className="h-3 w-3" />직종을 선택해주세요</p>
+                )}
               </div>
               <div className="space-y-1">
                 <Label>방문일 *</Label>
@@ -477,9 +492,9 @@ export default function HealthManagerReports() {
 
             <div className="flex justify-end gap-2 pt-1">
               <Button variant="outline" onClick={() => setDialogOpen(false)}>취소</Button>
-              <Button onClick={handleSubmit} disabled={submitting} className="bg-rose-600 hover:bg-rose-700" data-testid="btn-submit">
-                {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
-                {editing ? "수정" : "등록"}
+              <Button onClick={handleSubmit} disabled={submitting || extractingDate} className="bg-rose-600 hover:bg-rose-700" data-testid="btn-submit">
+                {(submitting || extractingDate) ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                {extractingDate ? "PDF 분석 중..." : editing ? "수정" : "등록"}
               </Button>
             </div>
           </div>
