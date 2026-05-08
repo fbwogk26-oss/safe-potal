@@ -8202,55 +8202,37 @@ function buildCardNewsEmailHtml(cards: any[]): string {
   const today = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
   const icons = ['🚗','⚠️','🚨','📋','🔔'];
 
-  // 2열 그리드 — 쌍으로 묶기
+  // 2열 그리드 — Gmail 호환 bgcolor + solid color
   const paired: any[][] = [];
   for (let i = 0; i < cards.length; i += 2) paired.push(cards.slice(i, i + 2));
 
-  const gridHtml = paired.map(pair => `
+  const gridRows = paired.map(pair => {
+    const cells = pair.map((card, j) => {
+      const idx = cards.indexOf(card);
+      const icon = icons[idx % icons.length];
+      const content = card.핵심내용 || (card.description || '').slice(0, 100);
+      const bullets = content.split(/(?<=\.) /).slice(0, 2).join('<br>&#8226; ');
+      return `<td width="47%" valign="top" bgcolor="#ffffff" style="background:#ffffff;border-radius:14px;padding:18px 16px;${j === 0 ? 'margin-right:12px;' : ''}">
+  <table width="100%" cellpadding="0" cellspacing="0">
     <tr>
-      <td style="padding:0 0 12px;">
-        <table width="100%" cellpadding="0" cellspacing="0">
-          <tr>
-            ${pair.map((card, j) => {
-              const idx = cards.indexOf(card);
-              return `
-            <td width="48%" valign="top" style="padding:${j === 0 ? '0 6px 0 0' : '0 0 0 6px'};">
-              <table width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;box-shadow:0 2px 12px rgba(109,78,193,0.08);">
-                <tr>
-                  <td style="padding:16px 16px 10px;">
-                    <table width="100%" cellpadding="0" cellspacing="0">
-                      <tr>
-                        <td>
-                          <div style="width:40px;height:40px;background:linear-gradient(135deg,#ede9fe,#ddd6fe);border-radius:12px;text-align:center;line-height:40px;font-size:20px;">${icons[idx % icons.length]}</div>
-                        </td>
-                        <td align="right" valign="top">
-                          <span style="font-size:10px;color:#c4b5fd;font-weight:700;">${String(idx + 1).padStart(2, '0')}</span>
-                        </td>
-                      </tr>
-                    </table>
-                  </td>
-                </tr>
-                <tr>
-                  <td style="padding:4px 16px 10px;">
-                    <p style="margin:0 0 8px;font-size:13px;font-weight:800;color:#1e1b4b;line-height:1.4;">${card.제목 || card.title}</p>
-                    <p style="margin:0;font-size:11px;color:#6b7280;line-height:1.7;">• ${(card.핵심내용 || (card.description || '').slice(0, 80)).replace(/\. /g, '<br>• ')}</p>
-                  </td>
-                </tr>
-                <tr>
-                  <td style="padding:0 16px 14px;">
-                    ${card.link ? `<a href="${card.link}" style="font-size:10px;color:#a78bfa;text-decoration:none;">원문 →</a>` : ''}
-                  </td>
-                </tr>
-              </table>
-            </td>`;
-            }).join('')}
-            ${pair.length === 1 ? '<td width="48%"></td>' : ''}
-          </tr>
-        </table>
+      <td bgcolor="#ede9fe" style="background:#ede9fe;border-radius:10px;width:42px;height:42px;text-align:center;vertical-align:middle;font-size:22px;" width="42" height="42">${icon}</td>
+      <td align="right" valign="top" style="padding-left:8px;">
+        <span style="font-size:11px;font-weight:800;color:#8b5cf6;">${String(idx + 1).padStart(2, '0')}</span>
       </td>
-    </tr>`).join('');
+    </tr>
+    <tr><td colspan="2" style="padding-top:12px;">
+      <p style="margin:0 0 8px;font-size:13px;font-weight:800;color:#1e1b4b;line-height:1.45;">${card.제목 || card.title}</p>
+      <p style="margin:0;font-size:11.5px;color:#6b7280;line-height:1.75;">&#8226; ${bullets}</p>
+    </td></tr>
+    ${card.link ? `<tr><td colspan="2" style="padding-top:10px;"><a href="${card.link}" style="font-size:10.5px;color:#8b5cf6;text-decoration:none;font-weight:600;">원문 보기 →</a></td></tr>` : ''}
+  </table>
+</td>`;
+    });
+    // 홀수일 때 빈 칸 채우기
+    if (cells.length === 1) cells.push(`<td width="47%" valign="top"></td>`);
+    return `<tr>${cells[0]}<td width="6%"></td>${cells[1]}</tr><tr><td colspan="3" height="12"></td></tr>`;
+  }).join('');
 
-  // 모든 경각심 문구 수집
   const summaryMsg = cards.map(c => c.경각심문구).filter(Boolean)[0] || '음주운전은 범죄입니다. 단 한 잔도 안 됩니다.';
 
   return `<!DOCTYPE html>
@@ -8260,70 +8242,77 @@ function buildCardNewsEmailHtml(cards: any[]): string {
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
   <title>음주운전 경각심 카드뉴스</title>
 </head>
-<body style="margin:0;padding:0;background:#ede9fe;font-family:'Malgun Gothic','Apple SD Gothic Neo',Helvetica,Arial,sans-serif;">
+<body style="margin:0;padding:0;background-color:#7c3aed;" bgcolor="#7c3aed">
 
-<table width="100%" cellpadding="0" cellspacing="0" style="background:linear-gradient(160deg,#7c3aed 0%,#a78bfa 50%,#c4b5fd 100%);min-height:100%;">
-<tr><td align="center" style="padding:36px 16px 40px;">
+<!-- 외부 배경 -->
+<table width="100%" cellpadding="0" cellspacing="0" bgcolor="#7c3aed" style="background-color:#7c3aed;">
+<tr><td align="center" style="padding:32px 16px 40px;">
 <table width="520" cellpadding="0" cellspacing="0">
 
-  <!-- 폴더 탭 모양 상단 -->
+  <!-- ① 탭 라벨 -->
   <tr>
-    <td style="padding:0 24px 0 0;">
+    <td style="padding:0 0 0 2px;">
       <table cellpadding="0" cellspacing="0">
         <tr>
-          <td style="background:#ffffff;border-radius:14px 14px 0 0;padding:10px 22px;">
-            <span style="font-size:11px;font-weight:700;color:#7c3aed;letter-spacing:0.04em;">KT MOS 대구현장경영팀</span>
+          <td bgcolor="#f5f3ff" style="background-color:#f5f3ff;border-radius:12px 12px 0 0;padding:9px 20px;">
+            <span style="font-size:11px;font-weight:700;color:#6d28d9;letter-spacing:0.03em;">KT MOS 대구현장경영팀</span>
           </td>
         </tr>
       </table>
     </td>
   </tr>
 
-  <!-- 메인 카드 컨테이너 -->
+  <!-- ② 메인 컨테이너 (흰/연보라 배경) -->
   <tr>
     <td>
-      <table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f3ff;border-radius:0 16px 16px 16px;overflow:hidden;">
+      <table width="100%" cellpadding="0" cellspacing="0" bgcolor="#f5f3ff" style="background-color:#f5f3ff;border-radius:0 14px 0 0;">
 
-        <!-- 헤더 영역 -->
+        <!-- 헤더 타이틀 -->
         <tr>
-          <td style="padding:28px 28px 20px;">
+          <td style="padding:28px 28px 6px;">
             <table width="100%" cellpadding="0" cellspacing="0">
               <tr>
-                <td>
-                  <p style="margin:0 0 4px;font-size:28px;font-weight:900;color:#1e1b4b;letter-spacing:-0.03em;line-height:1.15;">음주운전<br>경각심 뉴스</p>
+                <td valign="bottom">
+                  <p style="margin:0;font-size:30px;font-weight:900;color:#1e1b4b;letter-spacing:-0.03em;line-height:1.15;">음주운전<br>경각심 뉴스</p>
                 </td>
                 <td align="right" valign="top">
-                  <span style="font-size:10px;color:#a78bfa;">${today}</span>
+                  <span style="font-size:10px;color:#a78bfa;white-space:nowrap;">${today}</span>
                 </td>
               </tr>
             </table>
-            <p style="margin:10px 0 0;font-size:12px;color:#7c6fb5;">오늘의 음주운전 관련 주요 뉴스를 전달드립니다</p>
-            <!-- 구분선 -->
-            <table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0 0;">
-              <tr><td style="border-top:1px solid #e0d9f7;font-size:0;">&nbsp;</td></tr>
-            </table>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:6px 28px 0;">
+            <p style="margin:0;font-size:12.5px;color:#7c6fb5;">오늘의 음주운전 관련 주요 뉴스를 전달드립니다</p>
+          </td>
+        </tr>
+        <!-- 구분선 -->
+        <tr>
+          <td style="padding:16px 28px 0;">
+            <table width="100%" cellpadding="0" cellspacing="0"><tr><td bgcolor="#ddd6fe" style="background-color:#ddd6fe;height:1px;font-size:0;line-height:0;">&nbsp;</td></tr></table>
           </td>
         </tr>
 
-        <!-- 2열 뉴스 그리드 -->
+        <!-- ③ 2열 카드 그리드 -->
         <tr>
-          <td style="padding:0 16px 4px;">
+          <td style="padding:20px 20px 8px;">
             <table width="100%" cellpadding="0" cellspacing="0">
-              ${gridHtml}
+              ${gridRows}
             </table>
           </td>
         </tr>
 
-        <!-- 핵심 메시지 박스 (Solution 스타일) -->
+        <!-- ④ 핵심 메시지 박스 -->
         <tr>
-          <td style="padding:4px 16px 24px;">
-            <table width="100%" cellpadding="0" cellspacing="0" style="background:linear-gradient(135deg,#6d28d9,#7c3aed);border-radius:14px;">
+          <td style="padding:4px 20px 24px;">
+            <table width="100%" cellpadding="0" cellspacing="0" bgcolor="#6d28d9" style="background-color:#6d28d9;border-radius:12px;">
               <tr>
-                <td style="padding:6px 20px 0;" align="left">
+                <td style="padding:12px 20px 6px;">
                   <table cellpadding="0" cellspacing="0">
                     <tr>
-                      <td style="background:#a78bfa;border-radius:20px;padding:3px 12px;margin-bottom:4px;">
-                        <span style="font-size:9px;font-weight:800;color:#ffffff;letter-spacing:0.06em;">핵심 메시지</span>
+                      <td bgcolor="#a78bfa" style="background-color:#a78bfa;border-radius:20px;padding:3px 12px;">
+                        <span style="font-size:9px;font-weight:800;color:#ffffff;letter-spacing:0.07em;">핵심 메시지</span>
                       </td>
                     </tr>
                   </table>
@@ -8331,7 +8320,7 @@ function buildCardNewsEmailHtml(cards: any[]): string {
               </tr>
               <tr>
                 <td style="padding:8px 20px 18px;">
-                  <p style="margin:0;font-size:13px;font-weight:700;color:#ffffff;line-height:1.6;">${summaryMsg}</p>
+                  <p style="margin:0;font-size:13.5px;font-weight:700;color:#ffffff;line-height:1.65;">${summaryMsg}</p>
                 </td>
               </tr>
             </table>
@@ -8344,16 +8333,15 @@ function buildCardNewsEmailHtml(cards: any[]): string {
 
   <!-- 푸터 -->
   <tr>
-    <td style="padding:20px 0 0;" align="center">
-      <p style="margin:0 0 3px;font-size:10px;color:rgba(255,255,255,0.7);font-weight:600;">KT MOS 남부 대구본부 · 종합안전포털시스템</p>
-      <p style="margin:0;font-size:10px;color:rgba(255,255,255,0.45);">음주운전 예방 경각심 제고를 위해 자동 발송됩니다.</p>
+    <td style="padding:20px 0 4px;" align="center">
+      <p style="margin:0 0 3px;font-size:10.5px;color:#ddd6fe;font-weight:600;">KT MOS 남부 대구본부 · 종합안전포털시스템</p>
+      <p style="margin:0;font-size:10px;color:#c4b5fd;">음주운전 예방 경각심 제고를 위해 자동 발송됩니다.</p>
     </td>
   </tr>
 
 </table>
 </td></tr>
 </table>
-
 </body></html>`;
 }
 
