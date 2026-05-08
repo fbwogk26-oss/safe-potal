@@ -1568,7 +1568,169 @@ export async function registerRoutes(
     res.json({ deleted });
   });
 
-  // === 기타 안전점검 이메일 발송 ===
+  // ─────────────────────────────────────────────────────────────────────────────
+  //  공통 이메일 헬퍼 (현장경영팀 점검용)
+  // ─────────────────────────────────────────────────────────────────────────────
+  /**
+   * 체크리스트 표 + 사진 행을 생성한다.
+   * photoLabel : 사진 행 왼쪽 셀 텍스트 (줄바꿈은 <br> 사용)
+   * cidCounter : CID 중복 방지용 mutable 배열 (cidCounter[0] 값 사용 후 증가)
+   */
+  async function buildInspectionTable(
+    checklistArr: Array<{ item: string; status: string }>,
+    imagesArr: string[],
+    photoLabel: string,
+    allAttachments: any[],
+    cidCounter: { n: number },
+  ): Promise<string> {
+    const ITEM_LABEL: Record<string, string> = {
+      "검전기 사용":                 "누전확인<br>(검전기)",
+      "안전모 착용":                 "안전모<br>착용",
+      "안전화 착용":                 "안전화<br>착용",
+      "안전대 착용방법":             "안전대착용<br>(작업지침)",
+      "이동식사다리 작업지침 준수":  "이동식사다리<br>안전작업",
+      "고임목 사용":                 "경사로<br>주차방법",
+      "2인1조 준수":                 "2인1조",
+      "작업(절연)장갑 착용":         "작업장갑<br>또는<br>절연장갑",
+      "라바콘설치":                  "도로주차<br>작업표시<br>(라바콘)",
+      "유해위험요인 확인":           "유해&#8226;위험<br>요인제거",
+      "관계수급인 고위험 작업 입회": "고위험작업<br>입회<br>(수급사)",
+      "입회 임무 준수":              "위험작업<br>입회여부<br>(수급사)",
+      "고위험 작업절차 준수":        "입회자<br>업무준수<br>(수급사)",
+    };
+    const CW = 58;  const GW = 88;
+    const thH  = `border:1px solid #aaa;padding:5px 3px;background:#dce6f1;font-size:10px;font-weight:bold;text-align:center;vertical-align:middle;line-height:1.4;`;
+    const thG  = `border:1px solid #aaa;padding:5px 6px;background:#e2efda;font-size:11px;font-weight:bold;text-align:center;vertical-align:middle;white-space:nowrap;`;
+    const tdPh = `border:1px solid #aaa;padding:8px;vertical-align:top;`;
+    const numCols = checklistArr.length;
+    const tblW   = GW + CW * numCols;
+
+    const headerCells = checklistArr.map(c =>
+      `<th width="${CW}" style="${thH}">${ITEM_LABEL[c.item] ?? c.item}</th>`
+    ).join("");
+
+    const resultCells = checklistArr.map(c => {
+      const display = c.status === "양호" ? "준수" : c.status === "미점검" ? "해당없음" : "미흡";
+      const bold    = c.status === "미흡"
+        ? `color:#c0392b;font-weight:bold;`
+        : c.status === "양호" ? `color:#1a6d1a;` : `color:#555;`;
+      return `<td width="${CW}" style="border:1px solid #aaa;padding:6px 2px;font-size:11px;text-align:center;vertical-align:middle;${bold}">${display}</td>`;
+    }).join("");
+
+    // 사진 로드
+    let photoContent = `<span style="font-size:11px;color:#888;">(사진 없음)</span>`;
+    if (imagesArr.length > 0) {
+      try {
+        const { ObjectStorageService } = await import("./replit_integrations/object_storage/objectStorage");
+        const objSvc = new ObjectStorageService();
+        const imgTags: string[] = [];
+        for (const imgPath of imagesArr) {
+          try {
+            const gcsFile = await objSvc.getObjectEntityFile(imgPath);
+            const [buf]   = await (gcsFile as any).download();
+            const cid     = `photo_${cidCounter.n++}@insp`;
+            const ext     = imgPath.toLowerCase().endsWith(".png") ? "png" : "jpeg";
+            allAttachments.push({
+              filename: `photo_${cidCounter.n}.${ext}`,
+              content: buf as Buffer,
+              cid,
+              contentType: `image/${ext}`,
+              contentDisposition: "inline",
+            });
+            imgTags.push(
+              `<img src="cid:${cid}" alt="점검사진" style="max-width:380px;max-height:280px;display:block;border:1px solid #ccc;margin:3px 0;" />`
+            );
+          } catch { /* 개별 사진 실패 무시 */ }
+        }
+        if (imgTags.length > 0) photoContent = imgTags.join("");
+      } catch { /* ObjectStorage 접근 실패 */ }
+    }
+
+    return `
+<table width="${tblW}" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:8px 0 16px;font-family:맑은고딕,Arial,sans-serif;">
+  <tr>
+    <th width="${GW}" style="${thG}">구분</th>${headerCells}
+  </tr>
+  <tr>
+    <td width="${GW}" style="${thG}">점검결과</td>${resultCells}
+  </tr>
+  <tr>
+    <td width="${GW}" style="${thG};padding:8px 4px;line-height:1.6;">${photoLabel}</td>
+    <td colspan="${numCols}" style="${tdPh}">${photoContent}</td>
+  </tr>
+</table>`;
+  }
+
+  /** 페널티 표 HTML */
+  function buildPenaltyTable(): string {
+    const pTh  = `border:1px solid #aaa;padding:5px 10px;background:#f2f2f2;font-size:11px;font-weight:bold;text-align:center;vertical-align:middle;`;
+    const pTdL = `border:1px solid #aaa;padding:5px 10px;font-size:11px;vertical-align:middle;`;
+    const pTdC = `border:1px solid #aaa;padding:5px 10px;font-size:11px;text-align:center;vertical-align:middle;`;
+    return `
+<table cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-family:맑은고딕,Arial,sans-serif;width:100%;max-width:700px;">
+  <tr>
+    <th style="${pTh}">세부내역</th>
+    <th style="${pTh}">벌칙사항</th>
+    <th style="${pTh}">벌칙대상</th>
+  </tr>
+  <tr>
+    <td style="${pTdL}" rowspan="4">
+      13개 체크리스트 항목 중 미준수 사례 적용<br>
+      &nbsp;- 안전관리팀 / 현장경영팀 점검 시 반영<br>
+      &nbsp;- 점검 항목 1개 이상 적발 시
+    </td>
+    <td style="${pTdC}">『1회』→ 서면경고</td>
+    <td style="${pTdC}">팀장</td>
+  </tr>
+  <tr>
+    <td style="${pTdC}">『2회』→ 서면경고</td>
+    <td style="${pTdC}">미준수자</td>
+  </tr>
+  <tr>
+    <td style="${pTdC}">『3회』→ 서면경고 및 인사위원회</td>
+    <td style="${pTdC}" rowspan="2">본부</td>
+  </tr>
+  <tr>
+    <td style="${pTdC}">『3회』→ KPI(안전점검) 최하점(1.2점) 부여</td>
+  </tr>
+</table>`;
+  }
+
+  /** 공통 이메일 footer HTML */
+  function buildEmailFooter(): string {
+    const L = (t: string) => `<p style="margin:1px 0;font-family:맑은고딕,Arial,sans-serif;font-size:11pt;line-height:1.7;">${t}</p>`;
+    return `
+${L("■ 안전관리위반시 페널티 부여안내")}
+${L("&#8251; '3진 아웃제' 운영(발생 시)")}
+${buildPenaltyTable()}
+${L("&#8251; 미준수 사례 발생 시 '시정조치요구서' 발행 (본사 → 본부 또는 본부 → 운용팀)")}
+${L("&#8251; 본부 내 '3진 아웃' 발생 시 KPI(안전점검 항목) 2.2점 부여, 2회 이상 발생 시에는 0점 부여")}
+${L("&#8251; 팀장에 대한 '3진 아웃'은 소속팀 누적 3회 적발 시 해당(인원에 상관없이 팀 적발 횟수)")}
+<br>
+${L("현장안전점검 목적은 안전한 직장에서 사고없이 업무를 하기 위함으로 적발이 목적은 아닙니다.")}
+<br>
+${L("다만 본사에서 기공지한 상벌제도에 의해 위와같이 페널티가 부여되면 불이익이 생길 수 있음을 인지하시고")}
+<br>
+${L("안전보호구 착용, 안전수칙 준수는 100% 준수 될수 있도록 습관적으로 실천해주십시요.")}
+${L("오늘도 안전한 대구본부 함께 만들어갑시다.")}
+<br>
+${L("감사합니다.")}`;
+  }
+
+  /** Gmail SMTP transporter 생성 */
+  async function createMailTransporter(appPassword: string): Promise<any> {
+    const nodemailer = (await import("nodemailer")).default;
+    const t = nodemailer.createTransport({
+      host: "smtp.gmail.com", port: 587, secure: false,
+      auth: { user: "fbwogk26@gmail.com", pass: appPassword },
+      tls: { rejectUnauthorized: false },
+      connectionTimeout: 15000, greetingTimeout: 10000, socketTimeout: 30000,
+    });
+    await t.verify();
+    return t;
+  }
+
+  // === 기타 안전점검 이메일 발송 (단건 — 등록 폼에서 직접 호출) ===
   app.post("/api/other-inspections/send-email", isAuthenticated, async (req: any, res) => {
     try {
       const {
@@ -1580,149 +1742,40 @@ export async function registerRoutes(
         return res.status(400).json({ message: "점검일자와 부서명은 필수입니다." });
       }
 
-      const GMAIL_USER = "fbwogk26@gmail.com";
       const appPassword = process.env.GMAIL_APP_PASSWORD;
       if (!appPassword) {
         return res.status(500).json({ message: "이메일 설정이 되어 있지 않습니다." });
       }
 
-      const [year, month, day] = (inspectionDate as string).split("-");
-      const yy = year.slice(2);
-      const m = parseInt(month, 10);
-      const d = parseInt(day, 10);
-      const DAYS_KR = ["일", "월", "화", "수", "목", "금", "토"];
-      const dt = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-      const dayKr = DAYS_KR[dt.getDay()];
+      const GMAIL_USER  = "fbwogk26@gmail.com";
+      const FORWARD_TO  = "jaeha.ryu@ktmos.co.kr";
 
-      const checklistArr: Array<{ item: string; status: string }> = Array.isArray(checklist) ? checklist : [];
-      const poorCount  = checklistArr.filter(c => c.status === "미흡").length;
+      const [year, month, day] = (inspectionDate as string).split("-");
+      const yy  = year.slice(2);
+      const m   = parseInt(month, 10);
+      const d   = parseInt(day, 10);
+      const mm  = String(m).padStart(2, "0");
+      const dd  = String(d).padStart(2, "0");
+      const DAYS_KR = ["일", "월", "화", "수", "목", "금", "토"];
+      const dayKr   = DAYS_KR[new Date(+year, m - 1, d).getDay()];
+
+      const checklistArr: Array<{ item: string; status: string }> =
+        Array.isArray(checklist) ? checklist : [];
+      const poorCount     = checklistArr.filter(c => c.status === "미흡").length;
       const overallResult = poorCount > 0 ? "미흡" : "양호";
 
-      // ── 항목명 (참고 메일 초안과 동일한 원문 표현) ──────────────────
-      const ITEM_LABEL: Record<string, string> = {
-        "검전기 사용":                 "누전확인<br>(검전기)",
-        "안전모 착용":                 "안전모<br>착용",
-        "안전화 착용":                 "안전화<br>착용",
-        "안전대 착용방법":             "안전대착용<br>(작업지침)",
-        "이동식사다리 작업지침 준수":  "이동식사다리<br>안전작업",
-        "고임목 사용":                 "경사로<br>주차방법",
-        "2인1조 준수":                 "2인1조",
-        "작업(절연)장갑 착용":         "작업장갑<br>또는<br>절연장갑",
-        "라바콘설치":                  "도로주차<br>작업표시<br>(라바콘)",
-        "유해위험요인 확인":           "유해&#8226;위험<br>요인제거",
-        "관계수급인 고위험 작업 입회": "고위험작업<br>입회<br>(수급사)",
-        "입회 임무 준수":              "위험작업<br>입회여부<br>(수급사)",
-        "고위험 작업절차 준수":        "입회자<br>업무준수<br>(수급사)",
-      };
-
-      // ── Gmail 호환 체크리스트 표 (HTML width 속성) ──────────────────
-      const CW = 62;  // 항목 열 너비
-      const GW = 90;  // 구분 열 너비
-      const thStyle = `border:1px solid #aaa;padding:5px 4px;background:#dce6f1;font-size:10.5px;font-weight:bold;text-align:center;vertical-align:middle;line-height:1.4;`;
-      const thGStyle = `border:1px solid #aaa;padding:5px 6px;background:#e2efda;font-size:11px;font-weight:bold;text-align:center;vertical-align:middle;`;
-
-      const headerCells = checklistArr.map(c =>
-        `<th width="${CW}" style="${thStyle}">${ITEM_LABEL[c.item] ?? c.item}</th>`
-      ).join("");
-
-      const resultCells = checklistArr.map(c => {
-        const display = c.status === "양호" ? "준수" : c.status === "미점검" ? "해당없음" : "미흡";
-        const color   = c.status === "미흡" ? "color:#c0392b;font-weight:bold;" : "";
-        return `<td width="${CW}" style="border:1px solid #aaa;padding:6px 3px;font-size:11px;text-align:center;vertical-align:middle;${color}">${display}</td>`;
-      }).join("");
-
-      const tableWidth = GW + CW * checklistArr.length;
-      const checklistTable = `
-<table width="${tableWidth}" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:8px 0 12px;font-family:맑은고딕,Arial,sans-serif;">
-  <tr>
-    <th width="${GW}" style="${thGStyle}">구분</th>${headerCells}
-  </tr>
-  <tr>
-    <td width="${GW}" style="${thGStyle}">점검결과</td>${resultCells}
-  </tr>
-</table>`;
-
-      // ── 사진 인라인 임베드 (CID) ───────────────────────────────────
+      const allAttachments: any[] = [];
+      const cidCounter = { n: 0 };
       const imagesArr: string[] = Array.isArray(images) ? images : [];
-      const attachments: any[] = [];
-      const photoImgTags: string[] = [];
 
-      if (imagesArr.length > 0) {
-        const { ObjectStorageService } = await import("./replit_integrations/object_storage/objectStorage");
-        const objSvc = new ObjectStorageService();
-        for (let pi = 0; pi < imagesArr.length; pi++) {
-          const imgPath = imagesArr[pi];
-          try {
-            const gcsFile = await objSvc.getObjectEntityFile(imgPath);
-            const [buf] = await (gcsFile as any).download();
-            const cid   = `photo_${pi}@inspection`;
-            const ext   = imgPath.toLowerCase().includes(".png") ? "png" : "jpeg";
-            attachments.push({
-              filename:        `photo_${pi + 1}.${ext}`,
-              content:         buf as Buffer,
-              cid,
-              contentType:     `image/${ext}`,
-              contentDisposition: "inline",
-            });
-            photoImgTags.push(
-              `<img src="cid:${cid}" alt="점검사진 ${pi + 1}" style="max-width:400px;max-height:300px;display:block;border:1px solid #ccc;margin:4px 0;" />`
-            );
-          } catch {
-            photoImgTags.push(`<span style="font-size:11px;color:#888;">[사진 ${pi + 1} 로드 실패]</span>`);
-          }
-        }
-      }
+      // 사진이 표 안 3번째 행에 들어가는 표 생성
+      const photoLabel = `${department}<br>점검결과`;
+      const inspectionTable = await buildInspectionTable(
+        checklistArr, imagesArr, photoLabel, allAttachments, cidCounter
+      );
 
-      const photosSection = photoImgTags.length > 0
-        ? `<p style="margin:12px 0 6px;font-family:맑은고딕,Arial,sans-serif;font-size:11pt;font-weight:bold;">■ ${department} 점검사진</p>
-           <table cellpadding="4" cellspacing="0" style="border:none;"><tr>${photoImgTags.map(t => `<td style="vertical-align:top;border:none;">${t}</td>`).join("")}</tr></table>`
-        : "";
-
-      // ── 3진 아웃제 표 ──────────────────────────────────────────────
-      const penaltyTh  = `border:1px solid #aaa;padding:5px 10px;background:#f2f2f2;font-size:11px;font-weight:bold;text-align:center;vertical-align:middle;`;
-      const penaltyTdL = `border:1px solid #aaa;padding:5px 10px;font-size:11px;vertical-align:middle;`;
-      const penaltyTdC = `border:1px solid #aaa;padding:5px 10px;font-size:11px;text-align:center;vertical-align:middle;`;
-      const penaltyTable = `
-<div style="overflow-x:auto;margin:6px 0 10px;">
-<table style="border-collapse:collapse;font-family:맑은고딕,Arial,sans-serif;width:100%;max-width:680px;">
-  <thead>
-    <tr>
-      <th style="${penaltyTh}">세부내역</th>
-      <th style="${penaltyTh}">벌칙사항</th>
-      <th style="${penaltyTh}">벌칙대상</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td style="${penaltyTdL}" rowspan="4">
-        13개 체크리스트 항목 중 미준수 사례 적용<br>
-        &nbsp;- 안전관리팀 / 현장경영팀 점검 시 반영<br>
-        &nbsp;- 점검 항목 1개 이상 적발 시
-      </td>
-      <td style="${penaltyTdC}">『1회』→ 서면경고</td>
-      <td style="${penaltyTdC}">팀장</td>
-    </tr>
-    <tr>
-      <td style="${penaltyTdC}">『2회』→ 서면경고</td>
-      <td style="${penaltyTdC}">미준수자</td>
-    </tr>
-    <tr>
-      <td style="${penaltyTdC}">『3회』→ 서면경고 및 인사위원회</td>
-      <td style="${penaltyTdC}" rowspan="2">본부</td>
-    </tr>
-    <tr>
-      <td style="${penaltyTdC}">『3회』→ KPI(안전점검) 최하점(1.2점) 부여</td>
-    </tr>
-  </tbody>
-</table>
-</div>`;
-
-      // ── HTML 본문 조립 (참고 메일 초안과 동일한 형식) ──────────────
-      const L = (text: string) =>
-        `<p style="margin:1px 0;font-family:맑은고딕,Arial,sans-serif;font-size:11pt;line-height:1.7;">${text}</p>`;
-
-      const mm = m < 10 ? "0" + m : String(m);
-      const dd = d < 10 ? "0" + d : String(d);
+      const L = (t: string) =>
+        `<p style="margin:1px 0;font-family:맑은고딕,Arial,sans-serif;font-size:11pt;line-height:1.7;">${t}</p>`;
 
       const htmlBody = `
 <div style="font-family:맑은고딕,Arial,sans-serif;font-size:11pt;line-height:1.7;color:#000;">
@@ -1738,227 +1791,122 @@ ${L("==========================================================")}
 ${L(`${m}월 ${d}일 현장경영팀에서 진행한 현장 안전점검 결과에 대해서`)}
 ${L("아래와 같이 공유하여 드리오니 작업 시 보호구 착용과 안전수칙 준수를 생활화하여 주시기 바랍니다.")}
 <br>
-${L(`■ 점검일자 : ${mm}.${dd}(${dayKr})`)}
-${L(`■ 점검지역 : ${department}`)}
-${L(`■ 점검결과 : ${overallResult}`)}
+${L(`<b>■ 점검일자 : ${mm}.${dd}(${dayKr})</b>`)}
+${L(`<b>■ 점검지역 : ${department}</b>`)}
+${L(`<b>■ 점검결과 : ${overallResult === "미흡" ? `<span style="color:#c0392b;font-weight:bold;">${overallResult}</span>` : overallResult}</b>`)}
 ${workerName ? L(`&nbsp;&nbsp;• 작업인원 : ${workerName}`) : ""}
 ${workContent ? L(`■ 작업내용 : ${workContent}`) : ""}
 ${notes       ? L(`■ 비고 : ${notes}`) : ""}
-${L(`■ 점검내역(현장점검 체크리스트 ${checklistArr.length}개 항목 점검)`)}
-${checklistTable}
-${photosSection}
-<br>
-${L("■ 안전관리위반시 페널티 부여안내")}
-${L("&#8251; '3진 아웃제' 운영(발생 시)")}
-${penaltyTable}
-${L("&#8251; 미준수 사례 발생 시 '시정조치요구서' 발행 (본사 → 본부 또는 본부 → 운용팀)")}
-${L("&#8251; 본부 내 '3진 아웃' 발생 시 KPI(안전점검 항목) 2.2점 부여, 2회 이상 발생 시에는 0점 부여")}
-${L("&#8251; 팀장에 대한 '3진 아웃'은 소속팀 누적 3회 적발 시 해당(인원에 상관없이 팀 적발 횟수)")}
-<br>
-${L("현장안전점검 목적은 안전한 직장에서 사고없이 업무를 하기 위함으로 적발이 목적은 아닙니다.")}
-<br>
-${L("다만 본사에서 기공지한 상벌제도에 의해 위와같이 페널티가 부여되면 불이익이 생길 수 있음을 인지하시고")}
-<br>
-${L("안전보호구 착용, 안전수칙 준수는 100% 준수 될수 있도록 습관적으로 실천해주십시요.")}
-${L("오늘도 안전한 대구본부 함께 만들어갑시다.")}
-<br>
-${L("감사합니다.")}
+${L(`<b>■ 점검내역(현장점검 체크리스트 ${checklistArr.length}개 항목 점검)</b>`)}
+${inspectionTable}
+${buildEmailFooter()}
 </div>`;
 
       const fullHtml = `<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"></head><body style="margin:20px;padding:0;">${htmlBody}</body></html>`;
+      const subject  = `[공유] 대구본부 현장 안전점검 결과(\`${yy}.${m}.${d})_현장경영팀`;
 
-      const subTypeLabel = subType || "현장 안전점검";
-      const subject = `[공유] 대구본부 현장 안전점검 결과(\`${yy}.${m}.${d})_현장경영팀`;
-
-      const nodemailer = (await import("nodemailer")).default;
-
-      const transporter = nodemailer.createTransport({
-        host: "smtp.gmail.com",
-        port: 587,
-        secure: false,
-        auth: { user: GMAIL_USER, pass: appPassword },
-        tls: { rejectUnauthorized: false },
-        connectionTimeout: 15000,
-        greetingTimeout: 10000,
-        socketTimeout: 20000,
-      });
-
-      try {
-        await transporter.verify();
-      } catch (verifyErr: any) {
-        console.error("[OtherInspectionEmail] SMTP 연결 실패:", verifyErr.message);
-        return res.status(500).json({ message: `이메일 서버 연결 실패: ${verifyErr.message}` });
-      }
-
-      const FORWARD_TO = "jaeha.ryu@ktmos.co.kr";
+      const transporter = await createMailTransporter(appPassword);
       await transporter.sendMail({
         from: `"현장경영팀" <${GMAIL_USER}>`,
         to: `${GMAIL_USER}, ${FORWARD_TO}`,
         subject,
         html: fullHtml,
-        attachments,
+        attachments: allAttachments,
       });
-
-      console.log(`[OtherInspectionEmail] 발송 완료 → ${GMAIL_USER}, ${FORWARD_TO} | 제목: ${subject}`);
-      res.json({ success: true, message: `이메일이 ${GMAIL_USER}으로 발송되었습니다.` });
+      console.log(`[SingleEmail] 발송 완료 → ${GMAIL_USER}, ${FORWARD_TO} | 제목: ${subject}`);
+      res.json({ success: true, message: "이메일이 발송되었습니다." });
     } catch (e: any) {
-      console.error("[OtherInspectionEmail] 발송 오류:", e.message, e.code || "");
+      console.error("[SingleEmail] 오류:", e.message, e.code || "");
       res.status(500).json({ message: `이메일 발송 실패: ${e.message}` });
     }
   });
 
-  // === 기타 안전점검 복수 선택 이메일 발송 ===
+  // === 기타 안전점검 복수 선택 이메일 발송 (2건 이상 → 팀별 표 분리) ===
   app.post("/api/other-inspections/send-email-bulk", isAuthenticated, async (req: any, res) => {
     try {
       const { ids } = req.body;
-      if (!Array.isArray(ids) || ids.length === 0) {
+      if (!Array.isArray(ids) || ids.length === 0)
         return res.status(400).json({ message: "ids 배열이 필요합니다." });
-      }
 
       const GMAIL_USER  = "fbwogk26@gmail.com";
       const FORWARD_TO  = "jaeha.ryu@ktmos.co.kr";
       const appPassword = process.env.GMAIL_APP_PASSWORD;
       if (!appPassword) return res.status(500).json({ message: "이메일 설정이 되어 있지 않습니다." });
 
-      // 점검 데이터 로드 (현장경영팀 점검만)
+      // 현장경영팀 점검만 로드
       const rows: any[] = [];
       for (const id of ids) {
         const insp = await storage.getSafetyInspection(Number(id));
         if (insp && insp.inspectionType === "현장경영팀 점검") rows.push(insp);
       }
-      if (rows.length === 0) return res.status(400).json({ message: "현장경영팀 점검 항목이 없습니다." });
+      if (rows.length === 0)
+        return res.status(400).json({ message: "현장경영팀 점검 항목이 없습니다." });
 
-      // 날짜 정렬 (오름차순) — 제목용
       rows.sort((a, b) => a.inspectionDate.localeCompare(b.inspectionDate));
-      const firstDate = rows[0].inspectionDate;
-      const [fy, fm, fd] = firstDate.split("-");
-      const yy2 = fy.slice(2);
-      const m0  = parseInt(fm, 10);
-      const d0  = parseInt(fd, 10);
 
-      // 공통 헬퍼
       const DAYS_KR = ["일", "월", "화", "수", "목", "금", "토"];
-      const ITEM_LABEL: Record<string, string> = {
-        "검전기 사용":                 "누전확인<br>(검전기)",
-        "안전모 착용":                 "안전모<br>착용",
-        "안전화 착용":                 "안전화<br>착용",
-        "안전대 착용방법":             "안전대착용<br>(작업지침)",
-        "이동식사다리 작업지침 준수":  "이동식사다리<br>안전작업",
-        "고임목 사용":                 "경사로<br>주차방법",
-        "2인1조 준수":                 "2인1조",
-        "작업(절연)장갑 착용":         "작업장갑<br>또는<br>절연장갑",
-        "라바콘설치":                  "도로주차<br>작업표시<br>(라바콘)",
-        "유해위험요인 확인":           "유해&#8226;위험<br>요인제거",
-        "관계수급인 고위험 작업 입회": "고위험작업<br>입회<br>(수급사)",
-        "입회 임무 준수":              "위험작업<br>입회여부<br>(수급사)",
-        "고위험 작업절차 준수":        "입회자<br>업무준수<br>(수급사)",
-      };
-      const CW = 62; const GW = 90;
-      const thStyle  = `border:1px solid #aaa;padding:5px 4px;background:#dce6f1;font-size:10.5px;font-weight:bold;text-align:center;vertical-align:middle;line-height:1.4;`;
-      const thGStyle = `border:1px solid #aaa;padding:5px 6px;background:#e2efda;font-size:11px;font-weight:bold;text-align:center;vertical-align:middle;`;
-      const L = (text: string) =>
-        `<p style="margin:1px 0;font-family:맑은고딕,Arial,sans-serif;font-size:11pt;line-height:1.7;">${text}</p>`;
+      const L = (t: string) =>
+        `<p style="margin:1px 0;font-family:맑은고딕,Arial,sans-serif;font-size:11pt;line-height:1.7;">${t}</p>`;
 
-      // 공통 페널티 표
-      const penaltyTh  = `border:1px solid #aaa;padding:5px 10px;background:#f2f2f2;font-size:11px;font-weight:bold;text-align:center;vertical-align:middle;`;
-      const penaltyTdL = `border:1px solid #aaa;padding:5px 10px;font-size:11px;vertical-align:middle;`;
-      const penaltyTdC = `border:1px solid #aaa;padding:5px 10px;font-size:11px;text-align:center;vertical-align:middle;`;
-      const penaltyTable = `
-<table width="640" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-family:맑은고딕,Arial,sans-serif;">
-  <tr>
-    <th style="${penaltyTh}">세부내역</th>
-    <th style="${penaltyTh}">벌칙사항</th>
-    <th style="${penaltyTh}">벌칙대상</th>
-  </tr>
-  <tr>
-    <td style="${penaltyTdL}" rowspan="4">13개 체크리스트 항목 중 미준수 사례 적용<br>&nbsp;- 안전관리팀 / 현장경영팀 점검 시 반영<br>&nbsp;- 점검 항목 1개 이상 적발 시</td>
-    <td style="${penaltyTdC}">『1회』→ 서면경고</td><td style="${penaltyTdC}">팀장</td>
-  </tr>
-  <tr><td style="${penaltyTdC}">『2회』→ 서면경고</td><td style="${penaltyTdC}">미준수자</td></tr>
-  <tr><td style="${penaltyTdC}">『3회』→ 서면경고 및 인사위원회</td><td style="${penaltyTdC}" rowspan="2">본부</td></tr>
-  <tr><td style="${penaltyTdC}">『3회』→ KPI(안전점검) 최하점(1.2점) 부여</td></tr>
-</table>`;
+      // ── 헤더 정보 (날짜/지역/결과를 / 로 구분) ───────────────────────
+      const dateLabels: string[]   = [];
+      const regionLabels: string[] = [];
+      const resultLabels: string[] = [];
+      const workerLabels: string[] = [];
 
-      // 이미지 첨부 (CID) 전체
-      const allAttachments: any[] = [];
-      let cidCounter = 0;
-
-      // 각 점검 블록 생성
-      const inspectionBlocks: string[] = [];
       for (const insp of rows) {
         const [iy, im, id2] = insp.inspectionDate.split("-");
-        const imN = parseInt(im, 10);
-        const idN = parseInt(id2, 10);
-        const dtI = new Date(parseInt(iy), imN - 1, idN);
-        const dayI = DAYS_KR[dtI.getDay()];
-        const mmI  = im.padStart(2, "0");
-        const ddI  = id2.padStart(2, "0");
-        const dept = insp.title?.split(" - ")[0] || insp.title || "";
+        const mn = parseInt(im, 10);
+        const dn = parseInt(id2, 10);
+        const dy = DAYS_KR[new Date(+iy, mn - 1, dn).getDay()];
+        const mm = String(mn).padStart(2, "0");
+        const dd = String(dn).padStart(2, "0");
+        dateLabels.push(`${mm}.${dd}(${dy})`);
 
-        const checklistArr: Array<{ item: string; status: string }> =
-          Array.isArray(insp.checklist) ? insp.checklist : [];
-        const poorCnt   = checklistArr.filter(c => c.status === "미흡").length;
-        const overallR  = poorCnt > 0 ? "미흡" : "양호";
-        const workerN   = insp.workerName || "";
-        const workC     = insp.workContent || "";
-        const notesI    = insp.notes || "";
+        const dept = insp.department || insp.title?.split(" - ")[0] || insp.title || "";
+        regionLabels.push(dept);
 
-        const headerCells = checklistArr.map(c =>
-          `<th width="${CW}" style="${thStyle}">${ITEM_LABEL[c.item] ?? c.item}</th>`
-        ).join("");
-        const resultCells = checklistArr.map(c => {
-          const display = c.status === "양호" ? "준수" : c.status === "미점검" ? "해당없음" : "미흡";
-          const colorS  = c.status === "미흡" ? "color:#c0392b;font-weight:bold;" : "";
-          return `<td width="${CW}" style="border:1px solid #aaa;padding:6px 3px;font-size:11px;text-align:center;vertical-align:middle;${colorS}">${display}</td>`;
-        }).join("");
-        const tblW = GW + CW * checklistArr.length;
+        const clArr: any[] = Array.isArray(insp.checklist) ? insp.checklist : [];
+        const poor = clArr.filter((c: any) => c.status === "미흡").length;
+        resultLabels.push(poor > 0
+          ? `<span style="color:#c0392b;font-weight:bold;">미흡</span>`
+          : "양호");
 
-        const checklistTable = `
-<table width="${tblW}" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:8px 0 12px;font-family:맑은고딕,Arial,sans-serif;">
-  <tr><th width="${GW}" style="${thGStyle}">구분</th>${headerCells}</tr>
-  <tr><td width="${GW}" style="${thGStyle}">점검결과</td>${resultCells}</tr>
-</table>`;
-
-        // 사진 임베드
-        const imgsArr: string[] = Array.isArray(insp.images) ? insp.images : [];
-        const photoTags: string[] = [];
-        if (imgsArr.length > 0) {
-          const { ObjectStorageService } = await import("./replit_integrations/object_storage/objectStorage");
-          const objSvc = new ObjectStorageService();
-          for (const imgPath of imgsArr) {
-            try {
-              const gcsFile = await objSvc.getObjectEntityFile(imgPath);
-              const [buf] = await (gcsFile as any).download();
-              const cid = `photo_${cidCounter++}@inspection`;
-              const ext = imgPath.toLowerCase().includes(".png") ? "png" : "jpeg";
-              allAttachments.push({ filename: `photo_${cidCounter}.${ext}`, content: buf as Buffer, cid, contentType: `image/${ext}`, contentDisposition: "inline" });
-              photoTags.push(`<img src="cid:${cid}" alt="점검사진" style="max-width:400px;max-height:300px;display:block;border:1px solid #ccc;margin:4px 0;" />`);
-            } catch { /* 사진 로드 실패 무시 */ }
-          }
-        }
-        const photoSection = photoTags.length > 0
-          ? `${L(`■ ${dept} 점검사진`)}<table cellpadding="4" cellspacing="0" style="border:none;"><tr>${photoTags.map(t => `<td style="vertical-align:top;border:none;">${t}</td>`).join("")}</tr></table>`
-          : "";
-
-        inspectionBlocks.push(`
-${L(`■ 점검일자 : ${mmI}.${ddI}(${dayI})`)}
-${L(`■ 점검지역 : ${dept}`)}
-${L(`■ 점검결과 : ${overallR}`)}
-${workerN ? L(`&nbsp;&nbsp;• 작업인원 : ${workerN}`) : ""}
-${workC   ? L(`■ 작업내용 : ${workC}`) : ""}
-${notesI  ? L(`■ 비고 : ${notesI}`) : ""}
-${L(`■ 점검내역(현장점검 체크리스트 ${checklistArr.length}개 항목 점검)`)}
-${checklistTable}
-${photoSection}
-<br>`);
+        if (insp.workerName) workerLabels.push(`${dept} ${insp.workerName}`);
       }
 
-      // 여러 날짜인 경우 제목 처리
-      const lastDate = rows[rows.length - 1].inspectionDate;
+      const firstDate = rows[0].inspectionDate;
+      const lastDate  = rows[rows.length - 1].inspectionDate;
+      const [fy, fm, fd] = firstDate.split("-");
       const [ly, lm, ld] = lastDate.split("-");
-      const sameDaySubject = firstDate === lastDate
+      const yy2 = fy.slice(2);
+      const m0  = parseInt(fm, 10);  const d0 = parseInt(fd, 10);
+      const mE  = parseInt(lm, 10);  const dE = parseInt(ld, 10);
+
+      // 인트로 날짜 문구
+      const singleDay = firstDate === lastDate;
+      const introDate = singleDay
+        ? `${m0}월 ${d0}일`
+        : `${m0}월 ${d0}일~${mE}월 ${dE}일`;
+      const subject = singleDay
         ? `[공유] 대구본부 현장 안전점검 결과(\`${yy2}.${m0}.${d0})_현장경영팀`
-        : `[공유] 대구본부 현장 안전점검 결과(\`${yy2}.${m0}.${d0}~${parseInt(lm, 10)}.${parseInt(ld, 10)})_현장경영팀`;
+        : `[공유] 대구본부 현장 안전점검 결과(\`${yy2}.${m0}.${d0}~${mE}.${dE})_현장경영팀`;
+
+      // 각 점검별 표 (사진이 표 3행으로 들어감)
+      const allAttachments: any[] = [];
+      const cidCounter = { n: 0 };
+      const tables: string[] = [];
+
+      for (let i = 0; i < rows.length; i++) {
+        const insp = rows[i];
+        const dept = insp.department || insp.title?.split(" - ")[0] || insp.title || "";
+        const clArr: Array<{ item: string; status: string }> =
+          Array.isArray(insp.checklist) ? insp.checklist : [];
+        const imgsArr: string[] = Array.isArray(insp.images) ? insp.images : [];
+        const photoLabel = `${dept}<br>점검사진`;
+        const tbl = await buildInspectionTable(clArr, imgsArr, photoLabel, allAttachments, cidCounter);
+        tables.push(tbl);
+      }
 
       const htmlBody = `
 <div style="font-family:맑은고딕,Arial,sans-serif;font-size:11pt;line-height:1.7;color:#000;">
@@ -1971,45 +1919,29 @@ ${L('대구본부 전직원 모두 &ldquo;안전분야 STAR&rdquo;가 되어주�
 <br>
 ${L("==========================================================")}
 <br>
-${L("현장경영팀에서 진행한 현장 안전점검 결과에 대해서")}
+${L(`${introDate} 현장경영팀에서 진행한 현장 안전점검 결과에 대해서`)}
 ${L("아래와 같이 공유하여 드리오니 작업 시 보호구 착용과 안전수칙 준수를 생활화하여 주시기 바랍니다.")}
 <br>
-${inspectionBlocks.join("")}
-${L("■ 안전관리위반시 페널티 부여안내")}
-${L("&#8251; '3진 아웃제' 운영(발생 시)")}
-${penaltyTable}
-${L("&#8251; 미준수 사례 발생 시 '시정조치요구서' 발행 (본사 → 본부 또는 본부 → 운용팀)")}
-${L("&#8251; 본부 내 '3진 아웃' 발생 시 KPI(안전점검 항목) 2.2점 부여, 2회 이상 발생 시에는 0점 부여")}
-${L("&#8251; 팀장에 대한 '3진 아웃'은 소속팀 누적 3회 적발 시 해당(인원에 상관없이 팀 적발 횟수)")}
-<br>
-${L("현장안전점검 목적은 안전한 직장에서 사고없이 업무를 하기 위함으로 적발이 목적은 아닙니다.")}
-<br>
-${L("다만 본사에서 기공지한 상벌제도에 의해 위와같이 페널티가 부여되면 불이익이 생길 수 있음을 인지하시고")}
-<br>
-${L("안전보호구 착용, 안전수칙 준수는 100% 준수 될수 있도록 습관적으로 실천해주십시요.")}
-${L("오늘도 안전한 대구본부 함께 만들어갑시다.")}
-<br>
-${L("감사합니다.")}
+${L(`<b>■ 점검일자 : ${dateLabels.join(", ")}</b>`)}
+${L(`<b>■ 점검지역 : ${regionLabels.join(", ")}</b>`)}
+${L(`<b>■ 점검결과 : ${resultLabels.join(" / ")}</b>`)}
+${workerLabels.length > 0 ? L(`&nbsp;&nbsp;• 작업인원 : ${workerLabels.join(" / ")}`) : ""}
+${L(`<b>■ 점검내역(현장점검 체크리스트 13개 항목 점검)</b>`)}
+${tables.join("")}
+${buildEmailFooter()}
 </div>`;
 
       const fullHtml = `<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"></head><body style="margin:20px;padding:0;">${htmlBody}</body></html>`;
 
-      const nodemailer = (await import("nodemailer")).default;
-      const transporter = nodemailer.createTransport({
-        host: "smtp.gmail.com", port: 587, secure: false,
-        auth: { user: GMAIL_USER, pass: appPassword },
-        tls: { rejectUnauthorized: false },
-        connectionTimeout: 15000, greetingTimeout: 10000, socketTimeout: 30000,
-      });
-      await transporter.verify();
+      const transporter = await createMailTransporter(appPassword);
       await transporter.sendMail({
         from: `"현장경영팀" <${GMAIL_USER}>`,
         to: `${GMAIL_USER}, ${FORWARD_TO}`,
-        subject: sameDaySubject,
+        subject,
         html: fullHtml,
         attachments: allAttachments,
       });
-      console.log(`[BulkEmail] 발송 완료 ${rows.length}건 → ${GMAIL_USER}, ${FORWARD_TO}`);
+      console.log(`[BulkEmail] 발송 ${rows.length}건 → ${GMAIL_USER}, ${FORWARD_TO}`);
       res.json({ success: true, message: `${rows.length}건 이메일 발송 완료` });
     } catch (e: any) {
       console.error("[BulkEmail] 오류:", e.message);

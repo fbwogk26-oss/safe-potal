@@ -239,6 +239,8 @@ export default function OtherSafetyInspections() {
     }
   };
 
+  const pendingSendEmail = useRef(false);
+
   const createMutation = useMutation({
     mutationFn: async (data: {
       inspectionType: string;
@@ -253,23 +255,25 @@ export default function OtherSafetyInspections() {
     }) => apiRequest("POST", "/api/safety-inspections", data),
     onSuccess: async (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/safety-inspections"] });
-      const payload = {
-        inspectionDate: variables.inspectionDate,
-        department,
-        inspector: variables.inspector || "",
-        workerName: variables.workerName || "",
-        location: variables.location || "",
-        workContent,
-        checklist: variables.checklist,
-        notes: variables.notes || "",
-        images: variables.images,
-        subType: variables.inspectionType,
-      };
+      const shouldEmail = pendingSendEmail.current;
+      pendingSendEmail.current = false;
       resetForm();
-      toast({ title: "점검 등록 완료" });
-      // 현장경영팀 점검만 이메일 자동 발송
-      if (variables.inspectionType === "현장경영팀 점검") {
-        await sendEmailAfterCreate(payload);
+      if (shouldEmail && variables.inspectionType === "현장경영팀 점검") {
+        toast({ title: "점검 등록 완료 — 이메일 발송 중..." });
+        await sendEmailAfterCreate({
+          inspectionDate: variables.inspectionDate,
+          department,
+          inspector: variables.inspector || "",
+          workerName: variables.workerName || "",
+          location: variables.location || "",
+          workContent,
+          checklist: variables.checklist,
+          notes: variables.notes || "",
+          images: variables.images,
+          subType: variables.inspectionType,
+        });
+      } else {
+        toast({ title: "점검 등록 완료" });
       }
     },
     onError: () => toast({ variant: "destructive", title: "점검 등록 실패" }),
@@ -375,13 +379,9 @@ export default function OtherSafetyInspections() {
     }));
   };
 
-  const handleSubmit = () => {
-    if (!department) {
-      toast({ variant: "destructive", title: "부서명을 선택하세요" });
-      return;
-    }
+  const buildPayload = () => {
     const title = workContent ? `${department} - ${workContent}` : department;
-    const payload = {
+    return {
       inspectionType: subType,
       title,
       location: location || undefined,
@@ -392,11 +392,19 @@ export default function OtherSafetyInspections() {
       notes: notes || undefined,
       images,
     };
-    if (editingId !== null) {
-      updateMutation.mutate({ id: editingId, data: payload });
-    } else {
-      createMutation.mutate(payload);
-    }
+  };
+
+  const handleSubmitOnly = () => {
+    if (!department) { toast({ variant: "destructive", title: "부서명을 선택하세요" }); return; }
+    pendingSendEmail.current = false;
+    if (editingId !== null) updateMutation.mutate({ id: editingId, data: buildPayload() });
+    else createMutation.mutate(buildPayload());
+  };
+
+  const handleSubmitAndEmail = () => {
+    if (!department) { toast({ variant: "destructive", title: "부서명을 선택하세요" }); return; }
+    pendingSendEmail.current = true;
+    createMutation.mutate(buildPayload());
   };
 
   const handleEdit = (inspection: any) => {
@@ -856,26 +864,60 @@ export default function OtherSafetyInspections() {
                   </div>
                 </div>
 
-                <div className="flex justify-end gap-2">
+                <div className="flex justify-end gap-2 flex-wrap">
                   <Button variant="outline" onClick={resetForm} data-testid="button-cancel">
                     취소
                   </Button>
-                  <Button
-                    onClick={handleSubmit}
-                    disabled={createMutation.isPending || updateMutation.isPending || !department}
-                    className="bg-orange-600 hover:bg-orange-700 text-white gap-2"
-                    data-testid="button-submit-inspection"
-                  >
-                    {(createMutation.isPending || updateMutation.isPending) ? (
-                      <><Loader2 className="w-4 h-4 animate-spin" />처리 중...</>
-                    ) : editingId !== null ? (
-                      "수정 완료"
-                    ) : subType === "현장경영팀 점검" ? (
-                      <><Mail className="w-4 h-4" />등록 + 이메일 발송</>
-                    ) : (
-                      "등록"
-                    )}
-                  </Button>
+                  {editingId !== null ? (
+                    /* 수정 모드 — 단일 버튼 */
+                    <Button
+                      onClick={handleSubmitOnly}
+                      disabled={updateMutation.isPending || !department}
+                      className="bg-orange-600 hover:bg-orange-700 text-white gap-2"
+                      data-testid="button-submit-inspection"
+                    >
+                      {updateMutation.isPending
+                        ? <><Loader2 className="w-4 h-4 animate-spin" />처리 중...</>
+                        : "수정 완료"}
+                    </Button>
+                  ) : subType === "현장경영팀 점검" ? (
+                    /* 신규 등록 — 두 버튼 */
+                    <>
+                      <Button
+                        onClick={handleSubmitOnly}
+                        disabled={createMutation.isPending || isSendingEmail || !department}
+                        variant="outline"
+                        className="gap-2 border-orange-400 text-orange-700 hover:bg-orange-50"
+                        data-testid="button-submit-only"
+                      >
+                        {createMutation.isPending && !pendingSendEmail.current
+                          ? <><Loader2 className="w-4 h-4 animate-spin" />등록 중...</>
+                          : "등록만"}
+                      </Button>
+                      <Button
+                        onClick={handleSubmitAndEmail}
+                        disabled={createMutation.isPending || isSendingEmail || !department}
+                        className="bg-orange-600 hover:bg-orange-700 text-white gap-2"
+                        data-testid="button-submit-and-email"
+                      >
+                        {(createMutation.isPending && pendingSendEmail.current) || isSendingEmail
+                          ? <><Loader2 className="w-4 h-4 animate-spin" />발송 중...</>
+                          : <><Mail className="w-4 h-4" />등록 + 메일 발송</>}
+                      </Button>
+                    </>
+                  ) : (
+                    /* 기타 점검 유형 — 단일 버튼 */
+                    <Button
+                      onClick={handleSubmitOnly}
+                      disabled={createMutation.isPending || !department}
+                      className="bg-orange-600 hover:bg-orange-700 text-white gap-2"
+                      data-testid="button-submit-inspection"
+                    >
+                      {createMutation.isPending
+                        ? <><Loader2 className="w-4 h-4 animate-spin" />처리 중...</>
+                        : "등록"}
+                    </Button>
+                  )}
                 </div>
               </CardContent>
             </Card>
