@@ -1598,50 +1598,47 @@ export async function registerRoutes(
       const poorCount  = checklistArr.filter(c => c.status === "미흡").length;
       const overallResult = poorCount > 0 ? "미흡" : "양호";
 
-      // ── 항목명 단축 (Gmail에서 표시될 최소 텍스트) ─────────────────
-      const ITEM_SHORT: Record<string, string> = {
-        "검전기 사용":                 "검전기",
-        "안전모 착용":                 "안전모",
-        "안전화 착용":                 "안전화",
-        "안전대 착용방법":             "안전대",
-        "이동식사다리 작업지침 준수":  "이동식사다리",
-        "고임목 사용":                 "경사로",
+      // ── 항목명 (참고 메일 초안과 동일한 원문 표현) ──────────────────
+      const ITEM_LABEL: Record<string, string> = {
+        "검전기 사용":                 "누전확인<br>(검전기)",
+        "안전모 착용":                 "안전모<br>착용",
+        "안전화 착용":                 "안전화<br>착용",
+        "안전대 착용방법":             "안전대착용<br>(작업지침)",
+        "이동식사다리 작업지침 준수":  "이동식사다리<br>안전작업",
+        "고임목 사용":                 "경사로<br>주차방법",
         "2인1조 준수":                 "2인1조",
-        "작업(절연)장갑 착용":         "절연장갑",
-        "라바콘설치":                  "라바콘",
-        "유해위험요인 확인":           "위험요인",
-        "관계수급인 고위험 작업 입회": "고위험입회",
-        "입회 임무 준수":              "입회여부",
-        "고위험 작업절차 준수":        "작업절차",
+        "작업(절연)장갑 착용":         "작업장갑<br>또는<br>절연장갑",
+        "라바콘설치":                  "도로주차<br>작업표시<br>(라바콘)",
+        "유해위험요인 확인":           "유해&#8226;위험<br>요인제거",
+        "관계수급인 고위험 작업 입회": "고위험작업<br>입회<br>(수급사)",
+        "입회 임무 준수":              "위험작업<br>입회여부<br>(수급사)",
+        "고위험 작업절차 준수":        "입회자<br>업무준수<br>(수급사)",
       };
 
-      // ── Gmail 호환 체크리스트 표 (HTML width 속성 사용, CSS min-width 병행) ──
-      // 구분 열 80px + 항목 열 50px × 13 = 730px
-      const CW = 50; // 항목 열 너비(px)
-      const GW = 80; // 구분 열 너비(px)
-      const thG  = `style="border:1px solid #999;padding:6px 4px;background:#e2efda;font-size:11px;font-weight:bold;text-align:center;vertical-align:middle;width:${GW}px;"`;
-      const thH  = `style="border:1px solid #999;padding:6px 3px;background:#dce6f1;font-size:10px;font-weight:bold;text-align:center;vertical-align:middle;word-break:keep-all;line-height:1.3;width:${CW}px;"`;
+      // ── Gmail 호환 체크리스트 표 (HTML width 속성) ──────────────────
+      const CW = 62;  // 항목 열 너비
+      const GW = 90;  // 구분 열 너비
+      const thStyle = `border:1px solid #aaa;padding:5px 4px;background:#dce6f1;font-size:10.5px;font-weight:bold;text-align:center;vertical-align:middle;line-height:1.4;`;
+      const thGStyle = `border:1px solid #aaa;padding:5px 6px;background:#e2efda;font-size:11px;font-weight:bold;text-align:center;vertical-align:middle;`;
 
       const headerCells = checklistArr.map(c =>
-        `<th width="${CW}" ${thH}>${ITEM_SHORT[c.item] ?? c.item}</th>`
-      ).join("\n");
+        `<th width="${CW}" style="${thStyle}">${ITEM_LABEL[c.item] ?? c.item}</th>`
+      ).join("");
 
       const resultCells = checklistArr.map(c => {
         const display = c.status === "양호" ? "준수" : c.status === "미점검" ? "해당없음" : "미흡";
-        const bg    = c.status === "양호" ? "#e8f5e9" : c.status === "미흡" ? "#fce4ec" : "#f5f5f5";
-        const color = c.status === "양호" ? "#1a6e2e" : c.status === "미흡" ? "#c0392b" : "#777";
-        return `<td width="${CW}" style="border:1px solid #999;padding:7px 3px;background:${bg};color:${color};font-size:12px;font-weight:bold;text-align:center;vertical-align:middle;">${display}</td>`;
-      }).join("\n");
+        const color   = c.status === "미흡" ? "color:#c0392b;font-weight:bold;" : "";
+        return `<td width="${CW}" style="border:1px solid #aaa;padding:6px 3px;font-size:11px;text-align:center;vertical-align:middle;${color}">${display}</td>`;
+      }).join("");
 
+      const tableWidth = GW + CW * checklistArr.length;
       const checklistTable = `
-<table width="${GW + CW * checklistArr.length}" border="0" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:10px 0 14px;font-family:맑은고딕,Arial,sans-serif;">
+<table width="${tableWidth}" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:8px 0 12px;font-family:맑은고딕,Arial,sans-serif;">
   <tr>
-    <th width="${GW}" ${thG}>구분</th>
-    ${headerCells}
+    <th width="${GW}" style="${thGStyle}">구분</th>${headerCells}
   </tr>
   <tr>
-    <td width="${GW}" style="border:1px solid #999;padding:6px 4px;background:#e2efda;font-size:11px;font-weight:bold;text-align:center;vertical-align:middle;">${department}<br>점검결과</td>
-    ${resultCells}
+    <td width="${GW}" style="${thGStyle}">점검결과</td>${resultCells}
   </tr>
 </table>`;
 
@@ -1677,10 +1674,8 @@ export async function registerRoutes(
       }
 
       const photosSection = photoImgTags.length > 0
-        ? `<p style="margin:12px 0 4px;font-family:맑은고딕,Arial,sans-serif;font-size:12pt;font-weight:bold;">■ ${department} 점검사진</p>
-           <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start;margin:6px 0 14px;">
-             ${photoImgTags.join("\n")}
-           </div>`
+        ? `<p style="margin:12px 0 6px;font-family:맑은고딕,Arial,sans-serif;font-size:11pt;font-weight:bold;">■ ${department} 점검사진</p>
+           <table cellpadding="4" cellspacing="0" style="border:none;"><tr>${photoImgTags.map(t => `<td style="vertical-align:top;border:none;">${t}</td>`).join("")}</tr></table>`
         : "";
 
       // ── 3진 아웃제 표 ──────────────────────────────────────────────
@@ -1722,56 +1717,54 @@ export async function registerRoutes(
 </table>
 </div>`;
 
-      // ── HTML 본문 조립 ─────────────────────────────────────────────
-      const p = (text: string, s?: string) =>
-        `<p style="margin:3px 0;font-family:맑은고딕,Arial,sans-serif;font-size:12pt;line-height:1.7;${s ?? ""}">${text}</p>`;
+      // ── HTML 본문 조립 (참고 메일 초안과 동일한 형식) ──────────────
+      const L = (text: string) =>
+        `<p style="margin:1px 0;font-family:맑은고딕,Arial,sans-serif;font-size:11pt;line-height:1.7;">${text}</p>`;
 
-      const resultColor = overallResult === "양호"
-        ? `<span style="color:#1a6e2e;font-weight:bold;">양호</span>`
-        : `<span style="color:#c0392b;font-weight:bold;">미흡</span>`;
+      const mm = m < 10 ? "0" + m : String(m);
+      const dd = d < 10 ? "0" + d : String(d);
 
       const htmlBody = `
-<div style="font-family:맑은고딕,Arial,sans-serif;font-size:12pt;line-height:1.8;color:#111;max-width:820px;">
-${p("안녕하십니까? <strong>현장경영팀</strong> 입니다.")}
+<div style="font-family:맑은고딕,Arial,sans-serif;font-size:11pt;line-height:1.7;color:#000;">
+${L("안녕하십니까? 현장경영팀 입니다.")}
 <br>
-${p("kt안전보건실 및 본사 안전관리팀에서 <span style='color:#1155cc;font-weight:bold;'>현장 안전점검이 강화</span>되어 시행되고 있습니다.")}
-${p("<span style='color:#c0392b;font-weight:bold;'>현장 안전점검 100% 준수</span> 될수 있도록 실천해주세요.")}
-${p('대구본부 전직원 모두 <span style="color:#e67e00;font-weight:bold;">&ldquo;안전분야 STAR&rdquo;</span>가 되어주세요.')}
-
-<p style="margin:12px 0;font-family:맑은고딕,Arial,sans-serif;font-size:11pt;color:#555;">==========================================================</p>
-
-${p(`<strong>${m}월 ${d}일</strong> 현장경영팀에서 진행한 현장 안전점검 결과에 대해서`)}
-${p("아래와 같이 공유하여 드리오니 작업 시 <span style='color:#c0392b;font-weight:bold;'>보호구 착용</span>과 <span style='color:#1155cc;font-weight:bold;'>안전수칙 준수</span>를 생활화하여 주시기 바랍니다.")}
+${L("kt안전보건실 및 본사 안전관리팀에서 현장 안전점검이 강화되어 시행되고 있습니다.")}
+${L("현장 안전점검 100% 준수 될수 있도록 실천해주세요.")}
 <br>
-${p(`■ 점검일자 : <strong>${m < 10 ? "0" + m : m}.${d < 10 ? "0" + d : d}(${dayKr})</strong>`)}
-${p(`■ 점검지역 : <strong>${department}</strong>`)}
-${p(`■ 점검결과 : ${resultColor}`)}
-${workerName ? p(`&nbsp;&nbsp;• 작업인원 : ${workerName}`) : ""}
-${location    ? p(`■ 점검국소 : ${location}`) : ""}
-${inspector   ? p(`■ 점검자 : ${inspector}`) : ""}
-${workContent ? p(`■ 작업내용 : ${workContent}`) : ""}
-${notes       ? p(`■ 비고 : ${notes}`) : ""}
-
-${p(`■ 점검내역(현장점검 체크리스트 <strong>${checklistArr.length}개 항목</strong> 점검)`, "margin-top:12px;font-weight:bold;")}
+${L('대구본부 전직원 모두 &ldquo;안전분야 STAR&rdquo;가 되어주세요.')}
+<br>
+${L("==========================================================")}
+<br>
+${L(`${m}월 ${d}일 현장경영팀에서 진행한 현장 안전점검 결과에 대해서`)}
+${L("아래와 같이 공유하여 드리오니 작업 시 보호구 착용과 안전수칙 준수를 생활화하여 주시기 바랍니다.")}
+<br>
+${L(`■ 점검일자 : ${mm}.${dd}(${dayKr})`)}
+${L(`■ 점검지역 : ${department}`)}
+${L(`■ 점검결과 : ${overallResult}`)}
+${workerName ? L(`&nbsp;&nbsp;• 작업인원 : ${workerName}`) : ""}
+${location    ? L(`■ 점검국소 : ${location}`) : ""}
+${inspector   ? L(`■ 점검자 : ${inspector}`) : ""}
+${workContent ? L(`■ 작업내용 : ${workContent}`) : ""}
+${notes       ? L(`■ 비고 : ${notes}`) : ""}
+${L(`■ 점검내역(현장점검 체크리스트 ${checklistArr.length}개 항목 점검)`)}
 ${checklistTable}
-
 ${photosSection}
-
-<p style="margin:16px 0 4px;font-family:맑은고딕,Arial,sans-serif;font-size:12pt;font-weight:bold;color:#c0392b;">■ 안전관리위반시 페널티 부여안내</p>
-<p style="margin:2px 0 6px;font-family:맑은고딕,Arial,sans-serif;font-size:11pt;">&#8251; <strong>&lsquo;3진 아웃제&rsquo;</strong> 운영(발생 시)</p>
+<br>
+${L("■ 안전관리위반시 페널티 부여안내")}
+${L("&#8251; '3진 아웃제' 운영(발생 시)")}
 ${penaltyTable}
-
-<p style="margin:3px 0;font-family:맑은고딕,Arial,sans-serif;font-size:11px;color:#444;">&#8251; 미준수 사례 발생 시 &lsquo;시정조치요구서&rsquo; 발행 (본사 → 본부 또는 본부 → 운용팀)</p>
-<p style="margin:3px 0;font-family:맑은고딕,Arial,sans-serif;font-size:11px;color:#444;">&#8251; 본부 내 &lsquo;3진 아웃&rsquo; 발생 시 KPI(안전점검 항목) <strong>2.2점 부여</strong>, 2회 이상 발생 시에는 <strong>0점 부여</strong></p>
-<p style="margin:3px 0 12px;font-family:맑은고딕,Arial,sans-serif;font-size:11px;color:#444;">&#8251; 팀장에 대한 &lsquo;3진 아웃&rsquo;은 소속팀 누적 3회 적발 시 해당(인원에 상관없이 팀 적발 횟수)</p>
-
+${L("&#8251; 미준수 사례 발생 시 '시정조치요구서' 발행 (본사 → 본부 또는 본부 → 운용팀)")}
+${L("&#8251; 본부 내 '3진 아웃' 발생 시 KPI(안전점검 항목) 2.2점 부여, 2회 이상 발생 시에는 0점 부여")}
+${L("&#8251; 팀장에 대한 '3진 아웃'은 소속팀 누적 3회 적발 시 해당(인원에 상관없이 팀 적발 횟수)")}
 <br>
-${p("현장안전점검 목적은 <span style='color:#555;'>안전한 직장에서 사고없이 업무를 하기 위함</span>으로 <strong>적발이 목적은 아닙니다.</strong>", "font-size:11pt;")}
-${p("다만 본사에서 기공지한 상벌제도에 의해 위와같이 페널티가 부여되면 불이익이 생길 수 있음을 인지하시고", "font-size:11pt;color:#555;")}
-${p("<span style='color:#c0392b;font-weight:bold;'>안전보호구 착용, 안전수칙 준수</span>는 100% 준수 될수 있도록 <strong>습관적으로 실천</strong>해주십시요.", "font-size:11pt;")}
-${p("오늘도 안전한 대구본부 함께 만들어갑시다.", "font-size:11pt;font-weight:bold;")}
+${L("현장안전점검 목적은 안전한 직장에서 사고없이 업무를 하기 위함으로 적발이 목적은 아닙니다.")}
 <br>
-${p("감사합니다.")}
+${L("다만 본사에서 기공지한 상벌제도에 의해 위와같이 페널티가 부여되면 불이익이 생길 수 있음을 인지하시고")}
+<br>
+${L("안전보호구 착용, 안전수칙 준수는 100% 준수 될수 있도록 습관적으로 실천해주십시요.")}
+${L("오늘도 안전한 대구본부 함께 만들어갑시다.")}
+<br>
+${L("감사합니다.")}
 </div>`;
 
       const fullHtml = `<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"></head><body style="margin:20px;padding:0;">${htmlBody}</body></html>`;
