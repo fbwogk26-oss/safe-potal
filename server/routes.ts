@@ -1673,9 +1673,9 @@ export async function registerRoutes(
   function buildPenaltyTable(): string {
     const pTh  = `border:1px solid #aaa;padding:6px 10px;background:#1e3a5f;color:#fff;font-size:11px;font-weight:bold;text-align:center;vertical-align:middle;`;
     const pTdL = `border:1px solid #aaa;padding:6px 10px;font-size:11px;vertical-align:middle;background:#fafafa;`;
-    const pTdC = `border:1px solid #aaa;padding:6px 10px;font-size:11px;text-align:center;vertical-align:middle;`;
-    const r1 = `<b style="color:#e67e22;">『1회』</b> → 서면경고`;
-    const r2 = `<b style="color:#d35400;">『2회』</b> → 서면경고`;
+    const pTdC = `border:1px solid #aaa;padding:6px 10px;font-size:11px;text-align:left;vertical-align:middle;`;
+    const r1  = `<b style="color:#c0392b;">『1회』</b> → 서면경고`;
+    const r2  = `<b style="color:#c0392b;">『2회』</b> → 서면경고`;
     const r3a = `<b style="color:#c0392b;">『3회』</b> → <b style="color:#c0392b;">서면경고 및 인사위원회</b>`;
     const r3b = `<b style="color:#c0392b;">『3회』</b> → <b style="color:#c0392b;">KPI(안전점검) 최하점(1.2점) 부여</b>`;
     return `
@@ -1801,11 +1801,11 @@ ${L(`<b style="color:#154360;">안녕하십니까? 현장경영팀 입니다.</b
 ${L(`kt안전보건실 및 본사 안전관리팀에서 현장 안전점검이 <b>강화</b>되어 시행되고 있습니다.`)}
 ${L(`현장 안전점검 <b style="color:#1a6d1a;">100% 준수</b> 될수 있도록 실천해주세요.`)}
 <br>
-${L(`대구본부 전직원 모두 &ldquo;<b style="color:#1a56db;">안전분야 STAR</b>&rdquo;가 되어주세요.`)}
+${L(`대구본부 전직원 모두 &ldquo;<b style="color:#c0392b;">안전분야 STAR</b>&rdquo;가 되어주세요.`)}
 <br>
 ${L(`<span style="color:#888;">══════════════════════════════════════════</span>`)}
 <br>
-${L(`${m}월 ${d}일 현장경영팀에서 진행한 현장 안전점검 결과에 대해서`)}
+${L(`${m}월 ${d}일 현장경영팀에서 진행한 <b style="color:#c0392b;">현장 안전점검 결과</b>에 대해서`)}
 ${L(`아래와 같이 공유하여 드리오니 작업 시 <b>보호구 착용</b>과 <b>안전수칙 준수</b>를 생활화하여 주시기 바랍니다.`)}
 <br>
 ${L(`<b>■ 점검일자 : ${mm}.${dd}(${dayKr}) / 점검지역 : ${department}${workerPart}</b>`)}
@@ -1930,11 +1930,11 @@ ${L(`<b style="color:#154360;">안녕하십니까? 현장경영팀 입니다.</b
 ${L(`kt안전보건실 및 본사 안전관리팀에서 현장 안전점검이 <b>강화</b>되어 시행되고 있습니다.`)}
 ${L(`현장 안전점검 <b style="color:#1a6d1a;">100% 준수</b> 될수 있도록 실천해주세요.`)}
 <br>
-${L(`대구본부 전직원 모두 &ldquo;<b style="color:#1a56db;">안전분야 STAR</b>&rdquo;가 되어주세요.`)}
+${L(`대구본부 전직원 모두 &ldquo;<b style="color:#c0392b;">안전분야 STAR</b>&rdquo;가 되어주세요.`)}
 <br>
 ${L(`<span style="color:#888;">══════════════════════════════════════════</span>`)}
 <br>
-${L(`${introDate} 현장경영팀에서 진행한 현장 안전점검 결과에 대해서`)}
+${L(`${introDate} 현장경영팀에서 진행한 <b style="color:#c0392b;">현장 안전점검 결과</b>에 대해서`)}
 ${L(`아래와 같이 공유하여 드리오니 작업 시 <b>보호구 착용</b>과 <b>안전수칙 준수</b>를 생활화하여 주시기 바랍니다.`)}
 <br>
 ${L(`<b>■ 점검일자 : ${dateLabels.join(" / ")}</b>`)}
