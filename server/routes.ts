@@ -8076,8 +8076,203 @@ ${htmlDraft}
     }
   });
 
+  // ─── 음주운전 카드뉴스 API ────────────────────────────────────────────
+  app.get('/api/card-news/fetch', requireAdmin, async (_req, res) => {
+    try {
+      const articles = await fetchDrunkDrivingNews();
+      res.json({ articles, fetchedAt: new Date().toISOString() });
+    } catch (e: any) {
+      res.status(500).json({ message: '뉴스 수집에 실패했습니다', error: e.message });
+    }
+  });
+
+  app.get('/api/card-news/config', requireAdmin, async (_req, res) => {
+    try {
+      const raw = await storage.getSetting('card_news_config');
+      const config = raw ? JSON.parse(raw) : {
+        enabled: false,
+        days: ['mon', 'tue', 'wed', 'thu', 'fri'],
+        time: '09:00',
+        recipients: ['fbwogk26@gmail.com'],
+      };
+      const lastSent = await storage.getSetting('card_news_last_sent').catch(() => null);
+      res.json({ ...config, lastSent });
+    } catch (e) {
+      res.status(500).json({ message: '설정 조회 실패' });
+    }
+  });
+
+  app.put('/api/card-news/config', requireAdmin, async (req, res) => {
+    try {
+      const config = req.body;
+      await storage.setSetting('card_news_config', JSON.stringify(config));
+      await setupCardNewsScheduler();
+      const lastSent = await storage.getSetting('card_news_last_sent').catch(() => null);
+      res.json({ ...config, lastSent });
+    } catch (e) {
+      res.status(500).json({ message: '설정 저장 실패' });
+    }
+  });
+
+  app.post('/api/card-news/send-email', requireAdmin, async (_req, res) => {
+    try {
+      await sendCardNewsEmail();
+      res.json({ message: '카드뉴스 이메일이 발송되었습니다', sentAt: new Date().toISOString() });
+    } catch (e: any) {
+      res.status(500).json({ message: '이메일 발송 실패: ' + e.message });
+    }
+  });
+
   return httpServer;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 음주운전 카드뉴스 기능
+// ═══════════════════════════════════════════════════════════════════════════
+
+let cardNewsTimer: ReturnType<typeof setInterval> | null = null;
+
+async function fetchDrunkDrivingNews(): Promise<any[]> {
+  const fetch = (await import("node-fetch")).default;
+  const url = "https://news.google.com/rss/search?q=%EC%9D%8C%EC%A3%BC%EC%9A%B4%EC%A0%84&hl=ko&gl=KR&ceid=KR:ko";
+  const res = await fetch(url, {
+    headers: { "User-Agent": "Mozilla/5.0 (compatible; SafeBoard/1.0)" },
+  }) as any;
+  const xml = await res.text();
+  const items: any[] = [];
+  const itemRegex = /<item>([\s\S]*?)<\/item>/g;
+  let match;
+  while ((match = itemRegex.exec(xml)) !== null) {
+    const item = match[1];
+    const getTag = (tag: string) => {
+      const m = item.match(new RegExp(`<${tag}[^>]*>(?:<!\\[CDATA\\[)?([\\s\\S]*?)(?:\\]\\]>)?</${tag}>`, 's'));
+      return m ? m[1].replace(/<[^>]*>/g, '').trim() : '';
+    };
+    const title = getTag('title');
+    const link = (item.match(/<link>([\s\S]*?)<\/link>/)?.[1] || '').trim();
+    const pubDate = getTag('pubDate');
+    const source = getTag('source');
+    const description = getTag('description');
+    if (title) items.push({ title, link, pubDate, source, description });
+    if (items.length >= 6) break;
+  }
+  return items;
+}
+
+async function buildCardNewsCards(articles: any[]): Promise<any[]> {
+  const OpenAI = (await import("openai")).default;
+  const openai = new OpenAI();
+  return Promise.all(articles.map(async (article) => {
+    try {
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [{
+          role: "system",
+          content: '음주운전 뉴스를 직원 경각심 카드뉴스로 요약하세요. JSON: {"제목":"(20자 이내)","핵심내용":"(50자 이내, 2줄)","경각심문구":"(20자 이내 강렬한 문구)"}'
+        }, {
+          role: "user",
+          content: `제목: ${article.title}\n내용: ${article.description.slice(0, 300)}`
+        }],
+        response_format: { type: "json_object" },
+        max_tokens: 150,
+      });
+      const data = JSON.parse(completion.choices[0].message.content || '{}');
+      return { ...article, ...data };
+    } catch {
+      return { ...article, 제목: article.title.slice(0, 40), 핵심내용: article.description.slice(0, 100), 경각심문구: '음주운전은 살인입니다' };
+    }
+  }));
+}
+
+function buildCardNewsEmailHtml(cards: any[]): string {
+  const today = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
+  const cardHtml = cards.map((card, i) => `
+    <div style="margin:12px 0;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.12);">
+      <div style="background:linear-gradient(135deg,#991b1b,#b91c1c);padding:12px 18px;">
+        <div style="color:#fca5a5;font-size:11px;font-weight:600;margin-bottom:4px;">📰 뉴스 ${i + 1} · ${card.source || '뉴스'}</div>
+        <div style="color:#fff;font-size:15px;font-weight:700;line-height:1.4;">${card.제목 || card.title}</div>
+      </div>
+      <div style="background:#fff;padding:14px 18px;">
+        <p style="color:#374151;font-size:13px;line-height:1.7;margin:0 0 10px;">${card.핵심내용 || card.description.slice(0, 120)}</p>
+        <div style="background:#fef2f2;border-left:4px solid #dc2626;padding:8px 12px;border-radius:0 6px 6px 0;">
+          <span style="color:#dc2626;font-weight:700;font-size:13px;">⚠️ ${card.경각심문구 || '음주운전은 절대 안됩니다'}</span>
+        </div>
+        ${card.link ? `<div style="margin-top:8px;"><a href="${card.link}" style="color:#6b7280;font-size:11px;">기사 원문 보기 →</a></div>` : ''}
+      </div>
+    </div>`).join('');
+
+  return `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:'Malgun Gothic',sans-serif;">
+<div style="max-width:600px;margin:0 auto;padding:16px;">
+  <div style="background:linear-gradient(135deg,#7f1d1d,#b91c1c);border-radius:14px 14px 0 0;padding:28px 24px 20px;text-align:center;">
+    <div style="font-size:44px;margin-bottom:8px;">🚨</div>
+    <h1 style="color:#fff;margin:0;font-size:22px;font-weight:800;">음주운전 경각심 카드뉴스</h1>
+    <p style="color:#fca5a5;margin:6px 0 0;font-size:13px;">KT MOS 남부 안전관리팀 · ${today}</p>
+  </div>
+  <div style="background:#dc2626;padding:10px 20px;text-align:center;">
+    <p style="color:#fff;margin:0;font-size:13px;font-weight:700;">🔴 음주운전은 살인입니다 — 단 한 번의 선택이 모든 것을 바꿉니다</p>
+  </div>
+  <div style="background:#f9fafb;padding:16px;">${cardHtml}</div>
+  <div style="background:#1f2937;border-radius:0 0 14px 14px;padding:16px 20px;text-align:center;">
+    <p style="color:#9ca3af;margin:0;font-size:12px;">KT MOS 남부 대구본부 · 종합안전포털시스템 자동 발송</p>
+    <p style="color:#6b7280;margin:4px 0 0;font-size:11px;">본 메일은 음주운전 예방 경각심 제고를 위해 자동 발송됩니다.</p>
+  </div>
+</div>
+</body></html>`;
+}
+
+async function sendCardNewsEmail() {
+  const articles = await fetchDrunkDrivingNews();
+  if (articles.length === 0) throw new Error('뉴스를 수집할 수 없습니다');
+  const cards = await buildCardNewsCards(articles.slice(0, 5));
+  const html = buildCardNewsEmailHtml(cards);
+  const raw = await storage.getSetting('card_news_config').catch(() => null);
+  const config = raw ? JSON.parse(raw) : {};
+  const recipients: string[] = config.recipients?.filter((r: string) => r.trim()) || ['fbwogk26@gmail.com'];
+  const nodemailer = (await import("nodemailer")).default;
+  const transporter = nodemailer.createTransport({
+    host: "smtp.gmail.com", port: 587, secure: false,
+    auth: { user: "fbwogk26@gmail.com", pass: process.env.GMAIL_APP_PASSWORD },
+    tls: { rejectUnauthorized: false },
+  });
+  const today = new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' });
+  await transporter.sendMail({
+    from: '"KT MOS 안전관리팀" <fbwogk26@gmail.com>',
+    to: recipients.join(', '),
+    subject: `🚨 [음주운전 경각심] ${today} 카드뉴스`,
+    html,
+  });
+  await storage.setSetting('card_news_last_sent', new Date().toISOString());
+  console.log('[카드뉴스] 이메일 발송 완료 →', recipients.join(', '));
+}
+
+async function setupCardNewsScheduler() {
+  if (cardNewsTimer) { clearInterval(cardNewsTimer); cardNewsTimer = null; }
+  try {
+    const raw = await storage.getSetting('card_news_config');
+    if (!raw) return;
+    const config = JSON.parse(raw);
+    if (!config.enabled) return;
+    const [hour, minute] = (config.time || '09:00').split(':').map(Number);
+    const days: string[] = config.days || [];
+    const dayNames = ['sun','mon','tue','wed','thu','fri','sat'];
+    cardNewsTimer = setInterval(async () => {
+      const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+      const dayName = dayNames[now.getDay()];
+      if (days.includes(dayName) && now.getHours() === hour && now.getMinutes() === minute) {
+        console.log('[카드뉴스] 자동 발송 시작');
+        sendCardNewsEmail().catch(e => console.error('[카드뉴스] 자동 발송 오류', e));
+      }
+    }, 60 * 1000);
+    console.log(`[카드뉴스] 스케줄러 시작 — ${days.join(',')} ${config.time}`);
+  } catch (e) {
+    console.error('[카드뉴스] 스케줄러 설정 오류', e);
+  }
+}
+
+// 서버 시작 시 카드뉴스 스케줄러 초기화
+setTimeout(() => setupCardNewsScheduler(), 5000);
 
 async function seedDatabase() {
   const teams = await storage.getTeams(2025);
