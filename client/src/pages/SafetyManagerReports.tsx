@@ -17,14 +17,13 @@ import { FileViewer } from "@/components/FileViewer";
 import { extractDateFromPdf } from "@/lib/extractPdfDate";
 import type { SafetyManagerReport } from "@shared/schema";
 
-const DAEGU_TEAMS = ["동대구운용팀", "서대구운용팀", "남대구운용팀", "공공망관제팀"];
-const ALL_TEAMS = [...DAEGU_TEAMS, "구미운용팀", "포항운용팀", "안동운용팀", "문경운용팀"];
+const DAEGU_TEAMS = ["동대구운용팀", "서대구운용팀", "남대구운용팀"];
+const ALL_TEAMS = [...DAEGU_TEAMS, "포항운용팀", "안동운용팀", "구미운용팀", "문경운용팀"];
 
 const TEAM_COLOR: Record<string, string> = {
   "동대구운용팀": "bg-orange-500 text-white",
   "서대구운용팀": "bg-orange-400 text-white",
   "남대구운용팀": "bg-amber-500 text-white",
-  "공공망관제팀": "bg-yellow-500 text-white",
   "구미운용팀":   "bg-blue-500 text-white",
   "포항운용팀":   "bg-green-500 text-white",
   "안동운용팀":   "bg-purple-500 text-white",

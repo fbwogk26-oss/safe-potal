@@ -28,7 +28,7 @@ import {
 const ACCIDENT_TYPES = ["추락", "전도", "충돌", "협착", "감전", "화재/폭발", "교통사고", "기타"];
 const CAUSES = ["전방주시 태만", "안전거리 미확보", "개인 부주의", "불안전한 행동", "불안전한 상태", "관리적 요인", "환경적 요인", "기타"];
 const SEVERITIES = ["경미", "보통", "중대", "사망"];
-const DEPARTMENTS = ["동대구운용팀", "서대구운용팀", "남대구운용팀", "포항운용팀", "안동운용팀", "구미운용팀", "문경운용팀", "운용지원팀", "운용계획팀", "사업지원팀", "현장경영팀", "공공망관제팀"];
+const DEPARTMENTS = ["동대구운용팀", "포항운용팀", "안동운용팀", "서대구운용팀", "남대구운용팀", "구미운용팀", "문경운용팀", "운용계획팀", "사업지원팀", "현장경영팀"];
 
 const SEVERITY_COLORS: Record<string, string> = {
   "경미": "bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400",

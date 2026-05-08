@@ -16,7 +16,7 @@ import { motion } from "framer-motion";
 import { Link } from "wouter";
 import { usePermissions } from "@/hooks/use-permissions";
 
-const TEAMS = ["동대구운용팀", "서대구운용팀", "남대구운용팀", "포항운용팀", "안동운용팀", "구미운용팀", "문경운용팀", "운용지원팀", "운용계획팀", "사업지원팀", "현장경영팀", "공공망관제팀"];
+const TEAMS = ["동대구운용팀", "포항운용팀", "안동운용팀", "서대구운용팀", "남대구운용팀", "구미운용팀", "문경운용팀", "운용계획팀", "사업지원팀", "현장경영팀"];
 
 const CATEGORIES = [
   { id: "보호구", label: "보호구", icon: HardHat },

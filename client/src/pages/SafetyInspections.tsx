@@ -46,7 +46,6 @@ const DEFAULT_CHECKLIST: ChecklistItem[] = [
 const MAX_IMAGES = 10;
 
 const EXTRA_DEPARTMENTS = [
-  "운용지원팀",
   "운용계획팀",
   "사업지원팀",
   "현장경영팀",
