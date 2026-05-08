@@ -1692,15 +1692,13 @@ export async function registerRoutes(
       &nbsp;- 점검 항목 <b>1개 이상 적발 시</b>
     </td>
     <td style="${pTdC}">${r1}</td>
-    <td style="${pTdC}">팀장</td>
+    <td style="${pTdC}" rowspan="3">팀장<br>미준수자</td>
   </tr>
   <tr>
     <td style="${pTdC}">${r2}</td>
-    <td style="${pTdC}">미준수자</td>
   </tr>
   <tr>
     <td style="${pTdC}">${r3a}</td>
-    <td style="${pTdC}">미준수자</td>
   </tr>
   <tr>
     <td style="${pTdC}">${r3b}</td>
