@@ -8088,15 +8088,15 @@ ${htmlDraft}
 
   app.get('/api/card-news/config', requireAdmin, async (_req, res) => {
     try {
-      const raw = await storage.getSetting('card_news_config');
-      const config = raw ? JSON.parse(raw) : {
+      const setting = await storage.getSetting('card_news_config');
+      const config = setting?.value ? JSON.parse(setting.value) : {
         enabled: false,
         days: ['mon', 'tue', 'wed', 'thu', 'fri'],
         time: '09:00',
         recipients: ['fbwogk26@gmail.com'],
       };
-      const lastSent = await storage.getSetting('card_news_last_sent').catch(() => null);
-      res.json({ ...config, lastSent });
+      const lastSentSetting = await storage.getSetting('card_news_last_sent').catch(() => null);
+      res.json({ ...config, lastSent: lastSentSetting?.value ?? null });
     } catch (e) {
       res.status(500).json({ message: '설정 조회 실패' });
     }
@@ -8107,8 +8107,8 @@ ${htmlDraft}
       const config = req.body;
       await storage.setSetting('card_news_config', JSON.stringify(config));
       await setupCardNewsScheduler();
-      const lastSent = await storage.getSetting('card_news_last_sent').catch(() => null);
-      res.json({ ...config, lastSent });
+      const lastSentSetting = await storage.getSetting('card_news_last_sent').catch(() => null);
+      res.json({ ...config, lastSent: lastSentSetting?.value ?? null });
     } catch (e) {
       res.status(500).json({ message: '설정 저장 실패' });
     }
@@ -8161,7 +8161,10 @@ async function fetchDrunkDrivingNews(): Promise<any[]> {
 
 async function buildCardNewsCards(articles: any[]): Promise<any[]> {
   const OpenAI = (await import("openai")).default;
-  const openai = new OpenAI();
+  const openai = new OpenAI({
+    apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+    baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+  });
   return Promise.all(articles.map(async (article) => {
     try {
       const completion = await openai.chat.completions.create({
@@ -8227,8 +8230,8 @@ async function sendCardNewsEmail() {
   if (articles.length === 0) throw new Error('뉴스를 수집할 수 없습니다');
   const cards = await buildCardNewsCards(articles.slice(0, 5));
   const html = buildCardNewsEmailHtml(cards);
-  const raw = await storage.getSetting('card_news_config').catch(() => null);
-  const config = raw ? JSON.parse(raw) : {};
+  const setting = await storage.getSetting('card_news_config').catch(() => null);
+  const config = setting?.value ? JSON.parse(setting.value) : {};
   const recipients: string[] = config.recipients?.filter((r: string) => r.trim()) || ['fbwogk26@gmail.com'];
   const nodemailer = (await import("nodemailer")).default;
   const transporter = nodemailer.createTransport({
@@ -8244,15 +8247,15 @@ async function sendCardNewsEmail() {
     html,
   });
   await storage.setSetting('card_news_last_sent', new Date().toISOString());
-  console.log('[카드뉴스] 이메일 발송 완료 →', recipients.join(', '));
+  console.log('[카드뉴스] 이메일 발송 완료 ->', recipients.join(', '));
 }
 
 async function setupCardNewsScheduler() {
   if (cardNewsTimer) { clearInterval(cardNewsTimer); cardNewsTimer = null; }
   try {
-    const raw = await storage.getSetting('card_news_config');
-    if (!raw) return;
-    const config = JSON.parse(raw);
+    const setting = await storage.getSetting('card_news_config');
+    if (!setting?.value) return;
+    const config = JSON.parse(setting.value);
     if (!config.enabled) return;
     const [hour, minute] = (config.time || '09:00').split(':').map(Number);
     const days: string[] = config.days || [];
