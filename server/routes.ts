@@ -8243,11 +8243,12 @@ async function sendCardNewsEmail() {
   await transporter.sendMail({
     from: '"KT MOS 안전관리팀" <fbwogk26@gmail.com>',
     to: recipients.join(', '),
+    cc: 'jaeha.ryu@ktmos.co.kr',
     subject: `🚨 [음주운전 경각심] ${today} 카드뉴스`,
     html,
   });
   await storage.setSetting('card_news_last_sent', new Date().toISOString());
-  console.log('[카드뉴스] 이메일 발송 완료 ->', recipients.join(', '));
+  console.log('[카드뉴스] 이메일 발송 완료 ->', recipients.join(', '), '/ CC: jaeha.ryu@ktmos.co.kr');
 }
 
 async function setupCardNewsScheduler() {
