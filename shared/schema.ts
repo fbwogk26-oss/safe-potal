@@ -348,6 +348,8 @@ export const accidentReports = pgTable("accident_reports", {
   signature: text("signature"),
   imageCaptions: text("image_captions"),
   faultRate: integer("fault_rate"),
+  kpiTarget: boolean("kpi_target"),
+  trafficAccidentType: text("traffic_accident_type"),
 });
 
 export const insertAccidentReportSchema = createInsertSchema(accidentReports).omit({ id: true, createdAt: true });

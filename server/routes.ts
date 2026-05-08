@@ -201,7 +201,7 @@ async function syncAccidentToTeamScore(department: string | null | undefined, oc
     const allAccidents = await db.select().from(accidentReports).where(
       and(eq(accidentReports.department, department), eq(accidentReports.accidentType, "교통사고"))
     );
-    const yearAccidents = allAccidents.filter(a => a.occurredAt?.startsWith(String(year)));
+    const yearAccidents = allAccidents.filter(a => a.occurredAt?.startsWith(String(year)) && (a as any).kpiTarget === true);
     const vehicleAccidents: Record<string, number> = { p50_59: 0, p60_69: 0, p70_79: 0, p80_89: 0, p90_99: 0, p100: 0 };
     for (const acc of yearAccidents) {
       const rate = (acc as any).faultRate;

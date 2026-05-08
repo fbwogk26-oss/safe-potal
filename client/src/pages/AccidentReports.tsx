@@ -28,6 +28,7 @@ import {
 const ACCIDENT_TYPES = ["추락", "전도", "충돌", "협착", "감전", "화재/폭발", "교통사고", "기타"];
 const CAUSES = ["전방주시 태만", "안전거리 미확보", "개인 부주의", "불안전한 행동", "불안전한 상태", "관리적 요인", "환경적 요인", "기타"];
 const SEVERITIES = ["경미", "보통", "중대", "사망"];
+const TRAFFIC_ACCIDENT_TYPES = ["대인접수", "전손처리"];
 const DEPARTMENTS = ["동대구운용팀", "포항운용팀", "안동운용팀", "서대구운용팀", "남대구운용팀", "구미운용팀", "문경운용팀", "운용계획팀", "사업지원팀", "현장경영팀"];
 
 const SEVERITY_COLORS: Record<string, string> = {
@@ -35,6 +36,7 @@ const SEVERITY_COLORS: Record<string, string> = {
   "보통": "bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400",
   "중대": "bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-900/30 dark:text-orange-400",
   "사망": "bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400",
+  "대물접수진행": "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400",
 };
 
 const CHART_COLORS = ["#6366f1", "#ec4899", "#f59e0b", "#10b981", "#8b5cf6", "#06b6d4", "#f97316", "#14b8a6"];
@@ -68,6 +70,8 @@ const emptyForm = {
   imageCaptions: [] as string[],
   progressDetails: "[]",
   faultRate: undefined as number | undefined,
+  kpiTarget: undefined as boolean | undefined,
+  trafficAccidentType: "",
 };
 
 
@@ -251,17 +255,36 @@ export default function AccidentReports() {
       imageCaptions: (report as any).imageCaptions ? JSON.parse((report as any).imageCaptions) : (report.images || []).map((_: any, i: number) => `사진 ${i + 1}`),
       progressDetails: report.progressDetails || "[]",
       faultRate: (report as any).faultRate ?? undefined,
+      kpiTarget: (report as any).kpiTarget ?? undefined,
+      trafficAccidentType: (report as any).trafficAccidentType || "",
     });
     setDialogOpen(true);
   };
 
   const handleSubmit = () => {
-    if (!form.title || !form.occurredAt || !form.accidentType || !form.cause || !form.severity || !form.department) {
+    if (!form.title || !form.occurredAt || !form.accidentType || !form.cause || !form.department) {
       toast({ variant: "destructive", title: "필수 항목을 모두 입력해주세요." });
       return;
     }
+    if (form.accidentType === "교통사고") {
+      if (form.kpiTarget === undefined) {
+        toast({ variant: "destructive", title: "KPI 평가 대상 여부를 선택해주세요." });
+        return;
+      }
+      if (form.kpiTarget === true && !form.trafficAccidentType) {
+        toast({ variant: "destructive", title: "접수 유형(대인접수/전손처리)을 선택해주세요." });
+        return;
+      }
+    } else if (!form.severity) {
+      toast({ variant: "destructive", title: "심각도를 선택해주세요." });
+      return;
+    }
+    const effectiveSeverity = form.accidentType === "교통사고" && form.kpiTarget === false
+      ? "대물접수진행"
+      : form.severity;
     const submitData = {
       ...form,
+      severity: effectiveSeverity,
       description: form.accidentOverview || form.description || "",
       status: "접수",
       progressDetails: JSON.stringify(progressItems.filter(p => p.time || p.content)),
@@ -375,6 +398,11 @@ export default function AccidentReports() {
   const bySeverity2026 = reports2026.reduce((acc, r) => { acc[r.severity] = (acc[r.severity] || 0) + 1; return acc; }, {} as Record<string, number>);
   const currentYearTotal = reports2026.length;
   const currentYearSeverity = bySeverity2026;
+  const trafficAccidents2026 = reports2026.filter(r => r.accidentType === "교통사고");
+  const kpiTargetCount = trafficAccidents2026.filter(r => (r as any).kpiTarget === true).length;
+  const kpiNonTargetCount = trafficAccidents2026.filter(r => (r as any).kpiTarget === false).length;
+  const kpiDaeinCount = trafficAccidents2026.filter(r => (r as any).kpiTarget === true && (r as any).trafficAccidentType === "대인접수").length;
+  const kpiJeonsonCount = trafficAccidents2026.filter(r => (r as any).kpiTarget === true && (r as any).trafficAccidentType === "전손처리").length;
 
   const byYearCount = reports.reduce((acc, r) => {
     const yr = r.occurredAt?.substring(0, 4) || "unknown";
@@ -708,6 +736,58 @@ export default function AccidentReports() {
                   ))}
                 </div>
               </div>
+
+              {/* ── Section 1-B: KPI 교통사고 현황 ─────────────────────────────── */}
+              {trafficAccidents2026.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-1 h-5 rounded-full bg-amber-500" />
+                    <span className="text-sm font-bold text-foreground">{CURRENT_YEAR}년 교통사고 KPI 평가 현황</span>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <Card data-testid="card-kpi-target" className="border-0 shadow-sm bg-gradient-to-br from-red-50 to-red-100/60 dark:from-red-950/40 dark:to-red-900/20">
+                      <CardContent className="p-4">
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <span className="w-2 h-2 rounded-full bg-red-500" />
+                          <p className="text-xs font-semibold text-red-600 dark:text-red-400">KPI 평가 대상</p>
+                        </div>
+                        <p className="text-3xl font-black text-red-700 dark:text-red-300">{kpiTargetCount}</p>
+                        <p className="text-xs mt-0.5 text-red-600 dark:text-red-400 opacity-70">건</p>
+                      </CardContent>
+                    </Card>
+                    <Card data-testid="card-kpi-daein" className="border-0 shadow-sm bg-gradient-to-br from-orange-50 to-orange-100/60 dark:from-orange-950/40 dark:to-orange-900/20">
+                      <CardContent className="p-4">
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <span className="w-2 h-2 rounded-full bg-orange-400" />
+                          <p className="text-xs font-semibold text-orange-600 dark:text-orange-400">대인접수</p>
+                        </div>
+                        <p className="text-3xl font-black text-orange-700 dark:text-orange-300">{kpiDaeinCount}</p>
+                        <p className="text-xs mt-0.5 text-orange-600 dark:text-orange-400 opacity-70">건</p>
+                      </CardContent>
+                    </Card>
+                    <Card data-testid="card-kpi-jeonson" className="border-0 shadow-sm bg-gradient-to-br from-purple-50 to-purple-100/60 dark:from-purple-950/40 dark:to-purple-900/20">
+                      <CardContent className="p-4">
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <span className="w-2 h-2 rounded-full bg-purple-400" />
+                          <p className="text-xs font-semibold text-purple-600 dark:text-purple-400">전손처리</p>
+                        </div>
+                        <p className="text-3xl font-black text-purple-700 dark:text-purple-300">{kpiJeonsonCount}</p>
+                        <p className="text-xs mt-0.5 text-purple-600 dark:text-purple-400 opacity-70">건</p>
+                      </CardContent>
+                    </Card>
+                    <Card data-testid="card-kpi-non-target" className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/60 dark:from-blue-950/40 dark:to-blue-900/20">
+                      <CardContent className="p-4">
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <span className="w-2 h-2 rounded-full bg-blue-400" />
+                          <p className="text-xs font-semibold text-blue-600 dark:text-blue-400">KPI 평가 미대상</p>
+                        </div>
+                        <p className="text-3xl font-black text-blue-700 dark:text-blue-300">{kpiNonTargetCount}</p>
+                        <p className="text-xs mt-0.5 text-blue-600 dark:text-blue-400 opacity-70">건 (대물접수진행)</p>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </div>
+              )}
 
               {/* ── Section 2: 연도별 비교 ──────────────────────────────────── */}
               <div>
@@ -1199,30 +1279,88 @@ export default function AccidentReports() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label>심각도 *</Label>
-                <Select value={form.severity} onValueChange={(v) => setField("severity", v)}>
-                  <SelectTrigger data-testid="select-severity"><SelectValue placeholder="선택" /></SelectTrigger>
-                  <SelectContent>
-                    {SEVERITIES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
+              {form.accidentType !== "교통사고" && (
+                <div className="space-y-2">
+                  <Label>심각도 *</Label>
+                  <Select value={form.severity} onValueChange={(v) => setField("severity", v)}>
+                    <SelectTrigger data-testid="select-severity"><SelectValue placeholder="선택" /></SelectTrigger>
+                    <SelectContent>
+                      {SEVERITIES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
             {form.accidentType === "교통사고" && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label>과실율 (%) <span className="text-xs text-muted-foreground">교통사고 시 입력 (50~100)</span></Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    max={100}
-                    value={form.faultRate ?? ""}
-                    onChange={(e) => setField("faultRate", e.target.value === "" ? undefined : Number(e.target.value))}
-                    placeholder="예: 100"
-                    data-testid="input-fault-rate"
-                  />
+              <div className="space-y-3">
+                <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 p-4 space-y-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="w-2 h-2 rounded-full bg-amber-500" />
+                    <span className="text-sm font-semibold text-amber-700 dark:text-amber-400">KPI 평가 대상 여부 *</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => { setField("kpiTarget", true); setField("severity", ""); }}
+                      className={`rounded-lg border-2 px-4 py-3 text-sm font-semibold transition-all ${form.kpiTarget === true ? "border-red-500 bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-400" : "border-muted bg-background text-muted-foreground hover:border-red-300"}`}
+                      data-testid="button-kpi-target-yes"
+                    >
+                      ⚠️ KPI 평가 대상
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setField("kpiTarget", false); setField("trafficAccidentType", ""); setField("faultRate", undefined); setField("severity", "대물접수진행"); }}
+                      className={`rounded-lg border-2 px-4 py-3 text-sm font-semibold transition-all ${form.kpiTarget === false ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400" : "border-muted bg-background text-muted-foreground hover:border-blue-300"}`}
+                      data-testid="button-kpi-target-no"
+                    >
+                      🔵 KPI 평가 미대상<br/><span className="text-xs font-normal">(대물접수진행)</span>
+                    </button>
+                  </div>
+
+                  {form.kpiTarget === true && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                      <div className="space-y-2">
+                        <Label className="text-xs font-semibold text-red-700 dark:text-red-400">접수 유형 * <span className="text-muted-foreground font-normal">(대인접수/전손처리)</span></Label>
+                        <Select value={form.trafficAccidentType} onValueChange={(v) => setField("trafficAccidentType", v)}>
+                          <SelectTrigger data-testid="select-traffic-accident-type"><SelectValue placeholder="선택" /></SelectTrigger>
+                          <SelectContent>
+                            {TRAFFIC_ACCIDENT_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs font-semibold text-red-700 dark:text-red-400">과실율 (%) <span className="text-muted-foreground font-normal">대인접수 시 50% 이상</span></Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={form.faultRate ?? ""}
+                          onChange={(e) => setField("faultRate", e.target.value === "" ? undefined : Number(e.target.value))}
+                          placeholder="예: 70"
+                          data-testid="input-fault-rate"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {form.kpiTarget === false && (
+                    <div className="flex items-center gap-2 p-2 rounded-md bg-blue-100 dark:bg-blue-950/50">
+                      <span className="text-blue-600 dark:text-blue-400 text-xs">ℹ️ 대물접수진행으로 등록됩니다. 심각도는 자동 설정됩니다.</span>
+                    </div>
+                  )}
                 </div>
+
+                {form.kpiTarget === true && (
+                  <div className="space-y-2">
+                    <Label>심각도 *</Label>
+                    <Select value={form.severity} onValueChange={(v) => setField("severity", v)}>
+                      <SelectTrigger data-testid="select-severity-traffic"><SelectValue placeholder="선택" /></SelectTrigger>
+                      <SelectContent>
+                        {SEVERITIES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
             )}
 
