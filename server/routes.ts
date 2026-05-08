@@ -8199,39 +8199,56 @@ async function buildCardNewsCards(articles: any[]): Promise<any[]> {
 }
 
 function buildCardNewsEmailHtml(cards: any[]): string {
-  const today = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
+  const today = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
   const cardHtml = cards.map((card, i) => `
-    <div style="margin:12px 0;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.12);">
-      <div style="background:linear-gradient(135deg,#991b1b,#b91c1c);padding:12px 18px;">
-        <div style="color:#fca5a5;font-size:11px;font-weight:600;margin-bottom:4px;">📰 뉴스 ${i + 1} · ${card.source || '뉴스'}</div>
-        <div style="color:#fff;font-size:15px;font-weight:700;line-height:1.4;">${card.제목 || card.title}</div>
+    <div style="background:#ffffff;border-radius:12px;margin:0 0 16px;overflow:hidden;border:1px solid #f0f0f0;box-shadow:0 1px 4px rgba(0,0,0,0.06);">
+      <div style="padding:20px 24px 16px;">
+        <div style="display:inline-block;background:#fff1f2;color:#e11d48;font-size:10px;font-weight:700;letter-spacing:0.08em;padding:3px 10px;border-radius:20px;margin-bottom:12px;text-transform:uppercase;">${card.source || 'NEWS'} &nbsp;·&nbsp; ${String(i + 1).padStart(2, '0')}</div>
+        <h3 style="margin:0 0 10px;font-size:15px;font-weight:700;color:#111827;line-height:1.5;">${card.제목 || card.title}</h3>
+        <p style="margin:0;font-size:13px;color:#6b7280;line-height:1.75;">${card.핵심내용 || (card.description || '').slice(0, 130)}</p>
       </div>
-      <div style="background:#fff;padding:14px 18px;">
-        <p style="color:#374151;font-size:13px;line-height:1.7;margin:0 0 10px;">${card.핵심내용 || card.description.slice(0, 120)}</p>
-        <div style="background:#fef2f2;border-left:4px solid #dc2626;padding:8px 12px;border-radius:0 6px 6px 0;">
-          <span style="color:#dc2626;font-weight:700;font-size:13px;">⚠️ ${card.경각심문구 || '음주운전은 절대 안됩니다'}</span>
-        </div>
-        ${card.link ? `<div style="margin-top:8px;"><a href="${card.link}" style="color:#6b7280;font-size:11px;">기사 원문 보기 →</a></div>` : ''}
+      <div style="margin:0 24px 20px;padding:12px 16px;background:#fafafa;border-radius:8px;border:1px solid #f3f4f6;">
+        <span style="font-size:12px;color:#e11d48;font-weight:600;">💡 &nbsp;${card.경각심문구 || '음주운전은 절대 안됩니다'}</span>
       </div>
+      ${card.link ? `<div style="padding:0 24px 16px;"><a href="${card.link}" style="font-size:12px;color:#9ca3af;text-decoration:none;">원문 보기 →</a></div>` : ''}
     </div>`).join('');
 
   return `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
-<body style="margin:0;padding:0;background:#f3f4f6;font-family:'Malgun Gothic',sans-serif;">
-<div style="max-width:600px;margin:0 auto;padding:16px;">
-  <div style="background:linear-gradient(135deg,#7f1d1d,#b91c1c);border-radius:14px 14px 0 0;padding:28px 24px 20px;text-align:center;">
-    <div style="font-size:44px;margin-bottom:8px;">🚨</div>
-    <h1 style="color:#fff;margin:0;font-size:22px;font-weight:800;">음주운전 경각심 카드뉴스</h1>
-    <p style="color:#fca5a5;margin:6px 0 0;font-size:13px;">KT MOS 대구현장경영팀 · ${today}</p>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>음주운전 경각심 카드뉴스</title></head>
+<body style="margin:0;padding:0;background:#f4f5f7;font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;">
+<div style="max-width:600px;margin:0 auto;padding:32px 16px;">
+
+  <!-- 헤더 -->
+  <div style="background:#ffffff;border-radius:16px 16px 0 0;padding:36px 32px 28px;border-bottom:1px solid #f0f0f0;">
+    <div style="display:flex;align-items:center;margin-bottom:20px;">
+      <div style="width:40px;height:40px;background:#fff1f2;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;margin-right:14px;">🚗</div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:#e11d48;letter-spacing:0.1em;text-transform:uppercase;">KT MOS 대구현장경영팀</div>
+        <div style="font-size:12px;color:#9ca3af;margin-top:1px;">${today}</div>
+      </div>
+    </div>
+    <h1 style="margin:0 0 8px;font-size:24px;font-weight:800;color:#111827;letter-spacing:-0.02em;">음주운전 경각심 카드뉴스</h1>
+    <p style="margin:0;font-size:14px;color:#6b7280;line-height:1.6;">오늘의 음주운전 관련 주요 뉴스를 전달드립니다.<br>안전한 귀가 습관이 동료와 가족을 지킵니다.</p>
   </div>
-  <div style="background:#dc2626;padding:10px 20px;text-align:center;">
-    <p style="color:#fff;margin:0;font-size:13px;font-weight:700;">🔴 음주운전은 살인입니다 — 단 한 번의 선택이 모든 것을 바꿉니다</p>
+
+  <!-- 경고 배너 -->
+  <div style="background:#e11d48;padding:14px 32px;display:flex;align-items:center;">
+    <span style="color:#fecdd3;font-size:16px;margin-right:10px;">⚠️</span>
+    <span style="color:#ffffff;font-size:13px;font-weight:600;letter-spacing:0.01em;">음주운전은 범죄입니다 — 운전대를 잡기 전, 한 번 더 생각하세요</span>
   </div>
-  <div style="background:#f9fafb;padding:16px;">${cardHtml}</div>
-  <div style="background:#1f2937;border-radius:0 0 14px 14px;padding:16px 20px;text-align:center;">
-    <p style="color:#9ca3af;margin:0;font-size:12px;">KT MOS 남부 대구본부 · 종합안전포털시스템 자동 발송</p>
-    <p style="color:#6b7280;margin:4px 0 0;font-size:11px;">본 메일은 음주운전 예방 경각심 제고를 위해 자동 발송됩니다.</p>
+
+  <!-- 카드 목록 -->
+  <div style="background:#f4f5f7;padding:20px 16px;">
+    ${cardHtml}
   </div>
+
+  <!-- 푸터 -->
+  <div style="background:#ffffff;border-radius:0 0 16px 16px;padding:20px 32px;border-top:1px solid #f0f0f0;text-align:center;">
+    <p style="margin:0 0 4px;font-size:12px;font-weight:600;color:#374151;">KT MOS 남부 대구본부</p>
+    <p style="margin:0;font-size:11px;color:#9ca3af;line-height:1.6;">본 메일은 종합안전포털시스템에서 자동 발송됩니다.<br>음주운전 예방을 위한 경각심 제고 목적으로 발송되는 안전 정보입니다.</p>
+  </div>
+
 </div>
 </body></html>`;
 }
