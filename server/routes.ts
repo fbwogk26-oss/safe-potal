@@ -1742,8 +1742,6 @@ ${L(`■ 점검일자 : ${mm}.${dd}(${dayKr})`)}
 ${L(`■ 점검지역 : ${department}`)}
 ${L(`■ 점검결과 : ${overallResult}`)}
 ${workerName ? L(`&nbsp;&nbsp;• 작업인원 : ${workerName}`) : ""}
-${location    ? L(`■ 점검국소 : ${location}`) : ""}
-${inspector   ? L(`■ 점검자 : ${inspector}`) : ""}
 ${workContent ? L(`■ 작업내용 : ${workContent}`) : ""}
 ${notes       ? L(`■ 비고 : ${notes}`) : ""}
 ${L(`■ 점검내역(현장점검 체크리스트 ${checklistArr.length}개 항목 점검)`)}
