@@ -8199,56 +8199,59 @@ async function buildCardNewsCards(articles: any[]): Promise<any[]> {
 }
 
 function buildCardNewsEmailHtml(cards: any[]): string {
-  const today = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' });
+  const today = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
+  const icons = ['🚗','⚠️','🚨','📋','🔔'];
 
-  const cardHtml = cards.map((card, i) => `
+  // 2열 그리드 — 쌍으로 묶기
+  const paired: any[][] = [];
+  for (let i = 0; i < cards.length; i += 2) paired.push(cards.slice(i, i + 2));
+
+  const gridHtml = paired.map(pair => `
     <tr>
       <td style="padding:0 0 12px;">
-        <table width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;border:1px solid #f1f5f9;">
+        <table width="100%" cellpadding="0" cellspacing="0">
           <tr>
-            <td style="padding:0;">
-              <!-- 상단 컬러 바 -->
-              <table width="100%" cellpadding="0" cellspacing="0">
+            ${pair.map((card, j) => {
+              const idx = cards.indexOf(card);
+              return `
+            <td width="48%" valign="top" style="padding:${j === 0 ? '0 6px 0 0' : '0 0 0 6px'};">
+              <table width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;box-shadow:0 2px 12px rgba(109,78,193,0.08);">
                 <tr>
-                  <td style="background:${i === 0 ? '#0f172a' : i === 1 ? '#1e3a5f' : i === 2 ? '#1e3a5f' : '#0f172a'};border-radius:12px 12px 0 0;padding:12px 20px;">
+                  <td style="padding:16px 16px 10px;">
                     <table width="100%" cellpadding="0" cellspacing="0">
                       <tr>
                         <td>
-                          <span style="display:inline-block;background:rgba(239,68,68,0.9);color:#ffffff;font-size:9px;font-weight:700;padding:2px 8px;border-radius:10px;letter-spacing:0.08em;text-transform:uppercase;">${String(i + 1).padStart(2, '0')}</span>
-                          <span style="color:rgba(255,255,255,0.5);font-size:10px;margin-left:8px;">${card.source || '뉴스'}</span>
+                          <div style="width:40px;height:40px;background:linear-gradient(135deg,#ede9fe,#ddd6fe);border-radius:12px;text-align:center;line-height:40px;font-size:20px;">${icons[idx % icons.length]}</div>
+                        </td>
+                        <td align="right" valign="top">
+                          <span style="font-size:10px;color:#c4b5fd;font-weight:700;">${String(idx + 1).padStart(2, '0')}</span>
                         </td>
                       </tr>
                     </table>
                   </td>
                 </tr>
-              </table>
-              <!-- 본문 -->
-              <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
-                  <td style="padding:18px 20px 6px;">
-                    <p style="margin:0 0 8px;font-size:15px;font-weight:700;color:#0f172a;line-height:1.5;">${card.제목 || card.title}</p>
-                    <p style="margin:0;font-size:12.5px;color:#64748b;line-height:1.8;">${card.핵심내용 || (card.description || '').slice(0, 130)}</p>
+                  <td style="padding:4px 16px 10px;">
+                    <p style="margin:0 0 8px;font-size:13px;font-weight:800;color:#1e1b4b;line-height:1.4;">${card.제목 || card.title}</p>
+                    <p style="margin:0;font-size:11px;color:#6b7280;line-height:1.7;">• ${(card.핵심내용 || (card.description || '').slice(0, 80)).replace(/\. /g, '<br>• ')}</p>
                   </td>
                 </tr>
-                <!-- 경각심 문구 -->
                 <tr>
-                  <td style="padding:10px 20px 16px;">
-                    <table width="100%" cellpadding="0" cellspacing="0">
-                      <tr>
-                        <td style="background:#fef2f2;border-left:3px solid #ef4444;border-radius:0 6px 6px 0;padding:9px 14px;">
-                          <span style="font-size:12px;color:#b91c1c;font-weight:600;">${card.경각심문구 || '음주운전은 절대 안됩니다'}</span>
-                        </td>
-                      </tr>
-                    </table>
+                  <td style="padding:0 16px 14px;">
+                    ${card.link ? `<a href="${card.link}" style="font-size:10px;color:#a78bfa;text-decoration:none;">원문 →</a>` : ''}
                   </td>
                 </tr>
-                ${card.link ? `<tr><td style="padding:0 20px 14px;"><a href="${card.link}" style="font-size:11px;color:#94a3b8;text-decoration:none;">원문 보기 →</a></td></tr>` : ''}
               </table>
-            </td>
+            </td>`;
+            }).join('')}
+            ${pair.length === 1 ? '<td width="48%"></td>' : ''}
           </tr>
         </table>
       </td>
     </tr>`).join('');
+
+  // 모든 경각심 문구 수집
+  const summaryMsg = cards.map(c => c.경각심문구).filter(Boolean)[0] || '음주운전은 범죄입니다. 단 한 잔도 안 됩니다.';
 
   return `<!DOCTYPE html>
 <html lang="ko">
@@ -8257,99 +8260,100 @@ function buildCardNewsEmailHtml(cards: any[]): string {
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
   <title>음주운전 경각심 카드뉴스</title>
 </head>
-<body style="margin:0;padding:0;background:#f8fafc;font-family:'Malgun Gothic','Apple SD Gothic Neo',Helvetica,Arial,sans-serif;">
+<body style="margin:0;padding:0;background:#ede9fe;font-family:'Malgun Gothic','Apple SD Gothic Neo',Helvetica,Arial,sans-serif;">
 
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:linear-gradient(160deg,#7c3aed 0%,#a78bfa 50%,#c4b5fd 100%);min-height:100%;">
 <tr><td align="center" style="padding:36px 16px 40px;">
-<table width="540" cellpadding="0" cellspacing="0">
+<table width="520" cellpadding="0" cellspacing="0">
 
-  <!-- 헤더 -->
+  <!-- 폴더 탭 모양 상단 -->
   <tr>
-    <td style="padding:0 0 20px;">
-      <table width="100%" cellpadding="0" cellspacing="0" style="background:#0f172a;border-radius:16px 16px 0 0;">
+    <td style="padding:0 24px 0 0;">
+      <table cellpadding="0" cellspacing="0">
         <tr>
-          <td style="padding:28px 28px 0;">
+          <td style="background:#ffffff;border-radius:14px 14px 0 0;padding:10px 22px;">
+            <span style="font-size:11px;font-weight:700;color:#7c3aed;letter-spacing:0.04em;">KT MOS 대구현장경영팀</span>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+
+  <!-- 메인 카드 컨테이너 -->
+  <tr>
+    <td>
+      <table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f3ff;border-radius:0 16px 16px 16px;overflow:hidden;">
+
+        <!-- 헤더 영역 -->
+        <tr>
+          <td style="padding:28px 28px 20px;">
             <table width="100%" cellpadding="0" cellspacing="0">
               <tr>
                 <td>
-                  <span style="display:inline-block;background:#ef4444;color:#fff;font-size:9px;font-weight:800;padding:3px 10px;border-radius:20px;letter-spacing:0.1em;text-transform:uppercase;">SAFETY ALERT</span>
+                  <p style="margin:0 0 4px;font-size:28px;font-weight:900;color:#1e1b4b;letter-spacing:-0.03em;line-height:1.15;">음주운전<br>경각심 뉴스</p>
                 </td>
-                <td align="right">
-                  <span style="color:rgba(255,255,255,0.35);font-size:10px;">${today}</span>
+                <td align="right" valign="top">
+                  <span style="font-size:10px;color:#a78bfa;">${today}</span>
                 </td>
               </tr>
             </table>
+            <p style="margin:10px 0 0;font-size:12px;color:#7c6fb5;">오늘의 음주운전 관련 주요 뉴스를 전달드립니다</p>
+            <!-- 구분선 -->
+            <table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0 0;">
+              <tr><td style="border-top:1px solid #e0d9f7;font-size:0;">&nbsp;</td></tr>
+            </table>
           </td>
         </tr>
+
+        <!-- 2열 뉴스 그리드 -->
         <tr>
-          <td style="padding:16px 28px 0;">
-            <p style="margin:0;font-size:26px;font-weight:800;color:#ffffff;letter-spacing:-0.03em;line-height:1.2;">음주운전<br>경각심 카드뉴스</p>
-          </td>
-        </tr>
-        <tr>
-          <td style="padding:12px 28px 0;">
-            <p style="margin:0;font-size:12.5px;color:rgba(255,255,255,0.5);line-height:1.6;">KT MOS 대구현장경영팀이 전달하는 오늘의 음주운전 안전 정보입니다.</p>
-          </td>
-        </tr>
-        <!-- 경고 메시지 바 -->
-        <tr>
-          <td style="padding:20px 28px;">
+          <td style="padding:0 16px 4px;">
             <table width="100%" cellpadding="0" cellspacing="0">
+              ${gridHtml}
+            </table>
+          </td>
+        </tr>
+
+        <!-- 핵심 메시지 박스 (Solution 스타일) -->
+        <tr>
+          <td style="padding:4px 16px 24px;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="background:linear-gradient(135deg,#6d28d9,#7c3aed);border-radius:14px;">
               <tr>
-                <td style="background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.25);border-radius:8px;padding:11px 16px;">
-                  <span style="font-size:12px;color:#fca5a5;font-weight:600;">⚠ &nbsp;음주운전은 범죄입니다 — 단 한 번의 선택이 모든 것을 앗아갑니다</span>
+                <td style="padding:6px 20px 0;" align="left">
+                  <table cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td style="background:#a78bfa;border-radius:20px;padding:3px 12px;margin-bottom:4px;">
+                        <span style="font-size:9px;font-weight:800;color:#ffffff;letter-spacing:0.06em;">핵심 메시지</span>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:8px 20px 18px;">
+                  <p style="margin:0;font-size:13px;font-weight:700;color:#ffffff;line-height:1.6;">${summaryMsg}</p>
                 </td>
               </tr>
             </table>
           </td>
         </tr>
-      </table>
-    </td>
-  </tr>
 
-  <!-- 뉴스 카운트 라벨 -->
-  <tr>
-    <td style="padding:0 0 14px;">
-      <table cellpadding="0" cellspacing="0">
-        <tr>
-          <td style="background:#0f172a;border-radius:0 0 6px 6px;padding:6px 16px;">
-            <span style="font-size:10px;color:rgba(255,255,255,0.5);letter-spacing:0.08em;text-transform:uppercase;">TODAY'S NEWS &nbsp;·&nbsp; ${cards.length}건</span>
-          </td>
-        </tr>
-      </table>
-    </td>
-  </tr>
-
-  <!-- 뉴스 카드들 -->
-  <table width="100%" cellpadding="0" cellspacing="0">
-    ${cardHtml}
-  </table>
-
-  <!-- 하단 강조 메시지 -->
-  <tr>
-    <td style="padding:8px 0 20px;">
-      <table width="100%" cellpadding="0" cellspacing="0" style="background:#0f172a;border-radius:12px;">
-        <tr>
-          <td style="padding:20px 24px;" align="center">
-            <p style="margin:0 0 4px;font-size:18px;font-weight:800;color:#ffffff;letter-spacing:-0.02em;">🚫 &nbsp;한 잔도 안 됩니다</p>
-            <p style="margin:0;font-size:12px;color:rgba(255,255,255,0.4);">혈중알코올농도 0.03% 이상 — 즉시 면허 취소</p>
-          </td>
-        </tr>
       </table>
     </td>
   </tr>
 
   <!-- 푸터 -->
   <tr>
-    <td style="padding:4px 0 0;" align="center">
-      <p style="margin:0 0 4px;font-size:11px;color:#94a3b8;font-weight:600;">KT MOS 남부 대구본부 · 종합안전포털시스템</p>
-      <p style="margin:0;font-size:10px;color:#cbd5e1;line-height:1.7;">본 메일은 음주운전 예방 경각심 제고를 위해 자동 발송됩니다.</p>
+    <td style="padding:20px 0 0;" align="center">
+      <p style="margin:0 0 3px;font-size:10px;color:rgba(255,255,255,0.7);font-weight:600;">KT MOS 남부 대구본부 · 종합안전포털시스템</p>
+      <p style="margin:0;font-size:10px;color:rgba(255,255,255,0.45);">음주운전 예방 경각심 제고를 위해 자동 발송됩니다.</p>
     </td>
   </tr>
 
 </table>
 </td></tr>
 </table>
+
 </body></html>`;
 }
 
