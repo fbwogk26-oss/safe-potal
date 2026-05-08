@@ -8232,7 +8232,10 @@ async function sendCardNewsEmail() {
   const html = buildCardNewsEmailHtml(cards);
   const setting = await storage.getSetting('card_news_config').catch(() => null);
   const config = setting?.value ? JSON.parse(setting.value) : {};
-  const recipients: string[] = config.recipients?.filter((r: string) => r.trim()) || ['fbwogk26@gmail.com'];
+  const FIXED_RECIPIENT = 'jaeha.ryu@ktmos.co.kr';
+  const configRecipients: string[] = config.recipients?.filter((r: string) => r.trim()) || ['fbwogk26@gmail.com'];
+  // 고정 수신자를 항상 포함하되 중복 제거
+  const allRecipients = Array.from(new Set([...configRecipients, FIXED_RECIPIENT]));
   const nodemailer = (await import("nodemailer")).default;
   const transporter = nodemailer.createTransport({
     host: "smtp.gmail.com", port: 587, secure: false,
@@ -8242,13 +8245,12 @@ async function sendCardNewsEmail() {
   const today = new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' });
   await transporter.sendMail({
     from: '"KT MOS 대구현장경영팀" <fbwogk26@gmail.com>',
-    to: recipients.join(', '),
-    cc: 'jaeha.ryu@ktmos.co.kr',
+    to: allRecipients.join(', '),
     subject: `🚨 [음주운전 경각심] ${today} 카드뉴스`,
     html,
   });
   await storage.setSetting('card_news_last_sent', new Date().toISOString());
-  console.log('[카드뉴스] 이메일 발송 완료 ->', recipients.join(', '), '/ CC: jaeha.ryu@ktmos.co.kr');
+  console.log('[카드뉴스] 이메일 발송 완료 ->', allRecipients.join(', '));
 }
 
 async function setupCardNewsScheduler() {
