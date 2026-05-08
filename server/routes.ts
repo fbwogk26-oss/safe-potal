@@ -1668,10 +1668,25 @@ export async function registerRoutes(
       const subject = `[공유] 대구본부 ${subTypeLabel} 결과(\`${yy}.${m}.${d})_현장경영팀`;
 
       const nodemailer = (await import("nodemailer")).default;
+
+      // Gmail SMTP explicit config (포트 587 STARTTLS) — service:"gmail" 단축키 대신 명시적 설정
       const transporter = nodemailer.createTransport({
-        service: "gmail",
+        host: "smtp.gmail.com",
+        port: 587,
+        secure: false,
         auth: { user: GMAIL_USER, pass: appPassword },
+        tls: { rejectUnauthorized: false },
+        connectionTimeout: 15000,
+        greetingTimeout: 10000,
+        socketTimeout: 20000,
       });
+
+      try {
+        await transporter.verify();
+      } catch (verifyErr: any) {
+        console.error("[OtherInspectionEmail] SMTP 연결 실패:", verifyErr.message);
+        return res.status(500).json({ message: `이메일 서버 연결 실패: ${verifyErr.message}` });
+      }
 
       await transporter.sendMail({
         from: `"현장경영팀" <${GMAIL_USER}>`,
@@ -1683,7 +1698,7 @@ export async function registerRoutes(
       console.log(`[OtherInspectionEmail] 발송 완료 → ${GMAIL_USER} | 제목: ${subject}`);
       res.json({ success: true, message: `이메일이 ${GMAIL_USER}으로 발송되었습니다.` });
     } catch (e: any) {
-      console.error("[OtherInspectionEmail] 발송 오류:", e.message);
+      console.error("[OtherInspectionEmail] 발송 오류:", e.message, e.code || "");
       res.status(500).json({ message: `이메일 발송 실패: ${e.message}` });
     }
   });

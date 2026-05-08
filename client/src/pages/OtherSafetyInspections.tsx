@@ -8,10 +8,10 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
   ClipboardList, Plus, Trash2, ImagePlus, X, Calendar, MapPin, User,
-  ChevronDown, ChevronUp, Check, AlertCircle, Pencil, CheckSquare, Mail, Loader2, FileText
+  ChevronDown, ChevronUp, Check, AlertCircle, Pencil, CheckSquare, Mail, Loader2, FileText, BarChart3
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
@@ -19,6 +19,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { SafetyInspection, Team } from "@shared/schema";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useAuth } from "@/hooks/use-auth";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LabelList } from "recharts";
 
 type ChecklistStatus = '양호' | '미흡' | '미점검';
 
@@ -92,8 +93,50 @@ export default function OtherSafetyInspections() {
   const [showForm, setShowForm] = useState(false);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [isPdfParsing, setIsPdfParsing] = useState(false);
+  const [dashboardPeriod, setDashboardPeriod] = useState<"month" | "year">("month");
+  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
+  const [showDashboard, setShowDashboard] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pdfFileInputRef = useRef<HTMLInputElement>(null);
+
+  const inspectionStats = useMemo(() => {
+    if (!inspections || inspections.length === 0 || !teams) return null;
+    const now = new Date();
+    const currentYear = format(now, "yyyy");
+    const monthStr = String(selectedMonth).padStart(2, "0");
+    const targetMonth = `${currentYear}-${monthStr}`;
+
+    const filtered = inspections.filter(insp => {
+      if (dashboardPeriod === "month") return insp.inspectionDate.startsWith(targetMonth);
+      return insp.inspectionDate.startsWith(currentYear);
+    });
+
+    const allDepts = teams.map(t => t.name);
+
+    const byType = {
+      "KT 점검": filtered.filter(i => i.inspectionType === "KT 점검").length,
+      "본사 점검": filtered.filter(i => i.inspectionType === "본사 점검").length,
+      "현장경영팀 점검": filtered.filter(i => i.inspectionType === "현장경영팀 점검").length,
+    };
+
+    const chartData = allDepts.map(dept => {
+      const di = filtered.filter(i => i.title.startsWith(dept));
+      const shortName = dept.replace("운용팀", "").replace("팀", "");
+      return {
+        name: shortName,
+        "KT": di.filter(i => i.inspectionType === "KT 점검").length,
+        "본사": di.filter(i => i.inspectionType === "본사 점검").length,
+        "현장경영팀": di.filter(i => i.inspectionType === "현장경영팀 점검").length,
+      };
+    });
+
+    return {
+      total: filtered.length,
+      byType,
+      chartData,
+      periodLabel: dashboardPeriod === "month" ? `${selectedMonth}월` : `${now.getFullYear()}년`,
+    };
+  }, [inspections, teams, dashboardPeriod, selectedMonth]);
 
   const resetForm = () => {
     setSubType("현장경영팀 점검");
@@ -389,6 +432,146 @@ export default function OtherSafetyInspections() {
           )}
         </div>
       </div>
+
+      {/* 점검 현황 차트 */}
+      {inspectionStats && (
+        <Card>
+          <CardHeader
+            className="bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20 border-b p-3 sm:p-4 cursor-pointer"
+            onClick={() => setShowDashboard(!showDashboard)}
+            data-testid="button-toggle-dashboard"
+          >
+            <CardTitle className="text-sm sm:text-base flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <BarChart3 className="w-4 h-4 text-orange-600" />
+                기타 안전점검 현황
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary" className="text-xs">{inspectionStats.periodLabel} 현황</Badge>
+                {showDashboard ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+              </div>
+            </CardTitle>
+          </CardHeader>
+          <AnimatePresence>
+            {showDashboard && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="overflow-hidden"
+              >
+                <CardContent className="p-3 sm:p-4 space-y-4">
+                  {/* 기간 토글 */}
+                  <div className="flex items-center gap-1 flex-wrap">
+                    <Button
+                      variant={dashboardPeriod === "month" ? "default" : "outline"}
+                      size="sm"
+                      onClick={(e) => { e.stopPropagation(); setDashboardPeriod("month"); }}
+                      data-testid="button-period-month"
+                    >월별</Button>
+                    <Button
+                      variant={dashboardPeriod === "year" ? "default" : "outline"}
+                      size="sm"
+                      onClick={(e) => { e.stopPropagation(); setDashboardPeriod("year"); }}
+                      data-testid="button-period-year"
+                    >연간</Button>
+                    {dashboardPeriod === "month" && (
+                      <Select value={String(selectedMonth)} onValueChange={(v) => setSelectedMonth(Number(v))}>
+                        <SelectTrigger className="w-[80px] h-8" data-testid="select-dashboard-month" onClick={(e) => e.stopPropagation()}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                            <SelectItem key={m} value={String(m)}>{m}월</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
+
+                  {/* 요약 카드 3개 */}
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="rounded-xl p-3 bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-950/40 dark:to-amber-950/20 border border-orange-100 dark:border-orange-900/30">
+                      <p className="text-[11px] font-semibold text-orange-600 dark:text-orange-400 mb-1">📋 총 점검</p>
+                      <p className="text-2xl font-black text-orange-700 dark:text-orange-300">
+                        {inspectionStats.total}<span className="text-xs font-normal ml-0.5">건</span>
+                      </p>
+                    </div>
+                    <div className="rounded-xl p-3 bg-gradient-to-br from-blue-50 to-sky-50 dark:from-blue-950/40 dark:to-sky-950/20 border border-blue-100 dark:border-blue-900/30">
+                      <p className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 mb-1">🔵 KT 점검</p>
+                      <p className="text-2xl font-black text-blue-700 dark:text-blue-300">
+                        {inspectionStats.byType["KT 점검"]}<span className="text-xs font-normal ml-0.5">건</span>
+                      </p>
+                    </div>
+                    <div className="rounded-xl p-3 bg-gradient-to-br from-purple-50 to-violet-50 dark:from-purple-950/40 dark:to-violet-950/20 border border-purple-100 dark:border-purple-900/30">
+                      <p className="text-[11px] font-semibold text-purple-600 dark:text-purple-400 mb-1">🟣 본사 점검</p>
+                      <p className="text-2xl font-black text-purple-700 dark:text-purple-300">
+                        {inspectionStats.byType["본사 점검"]}<span className="text-xs font-normal ml-0.5">건</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* 바 차트 */}
+                  {inspectionStats.total > 0 ? (
+                    <div className="w-full overflow-x-auto">
+                      <div style={{ minWidth: Math.max(500, (inspectionStats.chartData.length * 52) + 60), height: 260 }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart
+                            data={inspectionStats.chartData}
+                            margin={{ top: 20, right: 10, left: -10, bottom: 5 }}
+                            barCategoryGap="30%"
+                            barGap={2}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.5} />
+                            <XAxis
+                              dataKey="name"
+                              tick={{ fontSize: 11, fontWeight: 500, fill: "hsl(var(--muted-foreground))" }}
+                              axisLine={false}
+                              tickLine={false}
+                              interval={0}
+                            />
+                            <YAxis
+                              tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                              axisLine={false}
+                              tickLine={false}
+                              allowDecimals={false}
+                              width={28}
+                            />
+                            <Tooltip
+                              contentStyle={{
+                                borderRadius: "8px",
+                                border: "1px solid hsl(var(--border))",
+                                background: "hsl(var(--popover))",
+                                color: "hsl(var(--popover-foreground))",
+                                fontSize: 12,
+                                boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                              }}
+                              cursor={{ fill: "hsl(var(--muted))", opacity: 0.4 }}
+                            />
+                            <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} iconType="circle" iconSize={8} />
+                            <Bar dataKey="KT" stackId="a" fill="#3b82f6" radius={[0, 0, 0, 0]}>
+                              <LabelList dataKey="KT" position="inside" style={{ fontSize: 10, fontWeight: 700, fill: "#fff" }} formatter={(v: number) => v > 0 ? v : ""} />
+                            </Bar>
+                            <Bar dataKey="본사" stackId="a" fill="#8b5cf6" radius={[0, 0, 0, 0]}>
+                              <LabelList dataKey="본사" position="inside" style={{ fontSize: 10, fontWeight: 700, fill: "#fff" }} formatter={(v: number) => v > 0 ? v : ""} />
+                            </Bar>
+                            <Bar dataKey="현장경영팀" stackId="a" fill="#f97316" radius={[4, 4, 0, 0]}>
+                              <LabelList dataKey="현장경영팀" position="inside" style={{ fontSize: 10, fontWeight: 700, fill: "#fff" }} formatter={(v: number) => v > 0 ? v : ""} />
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-4">해당 기간 점검 내역이 없습니다.</p>
+                  )}
+                </CardContent>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </Card>
+      )}
 
       {/* 안내 카드 */}
       <Card className="border-orange-200 dark:border-orange-900/30 bg-orange-50/50 dark:bg-orange-950/10">
