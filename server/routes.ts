@@ -1596,66 +1596,54 @@ export async function registerRoutes(
 
       const checklistArr: Array<{ item: string; status: string }> = Array.isArray(checklist) ? checklist : [];
       const poorCount  = checklistArr.filter(c => c.status === "미흡").length;
-      // 점검결과: 양호 / 미흡 만 표시 (건수 없음)
       const overallResult = poorCount > 0 ? "미흡" : "양호";
 
-      // ── 체크리스트 항목명 초단축 (1~2줄, 최대 6자) ───────────────
+      // ── 항목명 단축 (Gmail에서 표시될 최소 텍스트) ─────────────────
       const ITEM_SHORT: Record<string, string> = {
         "검전기 사용":                 "검전기",
         "안전모 착용":                 "안전모",
         "안전화 착용":                 "안전화",
         "안전대 착용방법":             "안전대",
-        "이동식사다리 작업지침 준수":  "이동식<br>사다리",
-        "고임목 사용":                 "고임목<br>(경사로)",
+        "이동식사다리 작업지침 준수":  "이동식사다리",
+        "고임목 사용":                 "경사로",
         "2인1조 준수":                 "2인1조",
         "작업(절연)장갑 착용":         "절연장갑",
         "라바콘설치":                  "라바콘",
         "유해위험요인 확인":           "위험요인",
-        "관계수급인 고위험 작업 입회": "고위험<br>입회",
+        "관계수급인 고위험 작업 입회": "고위험입회",
         "입회 임무 준수":              "입회여부",
         "고위험 작업절차 준수":        "작업절차",
       };
 
-      // ── 체크리스트 표 스타일 ────────────────────────────────────────
-      // 구분 열: 90px 고정, 항목 열: 각 62px 고정 → 총 ~900px
-      const colW      = 62;
-      const thBase    = `border:1px solid #bbb;padding:7px 4px;font-size:12px;text-align:center;vertical-align:middle;line-height:1.4;white-space:normal;`;
-      const thHdr     = `${thBase}background:#dce6f1;font-weight:bold;width:${colW}px;`;
-      const thSection = `${thBase}background:#e2efda;font-weight:bold;width:90px;`;
-      const tdResult  = `${thBase}font-size:13px;font-weight:bold;`;
+      // ── Gmail 호환 체크리스트 표 (HTML width 속성 사용, CSS min-width 병행) ──
+      // 구분 열 80px + 항목 열 50px × 13 = 730px
+      const CW = 50; // 항목 열 너비(px)
+      const GW = 80; // 구분 열 너비(px)
+      const thG  = `style="border:1px solid #999;padding:6px 4px;background:#e2efda;font-size:11px;font-weight:bold;text-align:center;vertical-align:middle;width:${GW}px;"`;
+      const thH  = `style="border:1px solid #999;padding:6px 3px;background:#dce6f1;font-size:10px;font-weight:bold;text-align:center;vertical-align:middle;word-break:keep-all;line-height:1.3;width:${CW}px;"`;
 
       const headerCells = checklistArr.map(c =>
-        `<th style="${thHdr}">${ITEM_SHORT[c.item] ?? c.item}</th>`
-      ).join("");
+        `<th width="${CW}" ${thH}>${ITEM_SHORT[c.item] ?? c.item}</th>`
+      ).join("\n");
 
       const resultCells = checklistArr.map(c => {
         const display = c.status === "양호" ? "준수" : c.status === "미점검" ? "해당없음" : "미흡";
-        const bg      = c.status === "양호" ? "#e8f5e9" : c.status === "미흡" ? "#fce4ec" : "#f0f0f0";
-        const color   = c.status === "양호" ? "#1a6e2e" : c.status === "미흡" ? "#c0392b" : "#888888";
-        return `<td style="${tdResult}background:${bg};color:${color};">${display}</td>`;
-      }).join("");
+        const bg    = c.status === "양호" ? "#e8f5e9" : c.status === "미흡" ? "#fce4ec" : "#f5f5f5";
+        const color = c.status === "양호" ? "#1a6e2e" : c.status === "미흡" ? "#c0392b" : "#777";
+        return `<td width="${CW}" style="border:1px solid #999;padding:7px 3px;background:${bg};color:${color};font-size:12px;font-weight:bold;text-align:center;vertical-align:middle;">${display}</td>`;
+      }).join("\n");
 
       const checklistTable = `
-<div style="overflow-x:auto;margin:10px 0 14px;">
-<table style="border-collapse:collapse;table-layout:fixed;min-width:900px;font-family:맑은고딕,Arial,sans-serif;">
-  <colgroup>
-    <col style="width:90px;">
-    ${checklistArr.map(() => `<col style="width:${colW}px;">`).join("")}
-  </colgroup>
-  <thead>
-    <tr>
-      <th style="${thSection}">구분</th>
-      ${headerCells}
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td style="${thSection}">${department}<br>점검결과</td>
-      ${resultCells}
-    </tr>
-  </tbody>
-</table>
-</div>`;
+<table width="${GW + CW * checklistArr.length}" border="0" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:10px 0 14px;font-family:맑은고딕,Arial,sans-serif;">
+  <tr>
+    <th width="${GW}" ${thG}>구분</th>
+    ${headerCells}
+  </tr>
+  <tr>
+    <td width="${GW}" style="border:1px solid #999;padding:6px 4px;background:#e2efda;font-size:11px;font-weight:bold;text-align:center;vertical-align:middle;">${department}<br>점검결과</td>
+    ${resultCells}
+  </tr>
+</table>`;
 
       // ── 사진 인라인 임베드 (CID) ───────────────────────────────────
       const imagesArr: string[] = Array.isArray(images) ? images : [];
