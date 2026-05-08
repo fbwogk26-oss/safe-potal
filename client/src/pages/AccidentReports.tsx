@@ -740,47 +740,50 @@ export default function AccidentReports() {
               {/* ── Section 1-B: KPI 평가 현황 ─────────────────────────────── */}
               <div>
                 <div className="flex items-center gap-2 mb-3">
-                  <div className="w-1 h-5 rounded-full bg-red-500" />
+                  <div className="w-1 h-5 rounded-full bg-amber-500" />
                   <span className="text-sm font-bold text-foreground">2026년 KPI 평가 현황</span>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                  {/* 히어로 카드 — KPI 평가 대상 */}
-                  <Card data-testid="card-kpi-target" className="col-span-2 md:col-span-2 border-0 shadow-sm bg-gradient-to-br from-red-500 to-rose-600">
-                    <CardContent className="p-5 flex items-center gap-5">
-                      <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center shrink-0">
-                        <BarChart3 className="w-7 h-7 text-white" />
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <Card data-testid="card-kpi-target" className="border-0 shadow-sm bg-gradient-to-br from-red-50 to-red-100/60 dark:from-red-950/40 dark:to-red-900/20">
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <span className="w-2 h-2 rounded-full bg-red-500" />
+                        <p className="text-xs font-semibold text-red-600 dark:text-red-400">KPI 평가 대상</p>
                       </div>
-                      <div>
-                        <p className="text-white/80 text-xs font-semibold">KPI 평가 대상</p>
-                        <p className="text-5xl font-black text-white leading-tight">{kpiTargetCount}</p>
-                        <p className="text-white/60 text-xs mt-0.5">건</p>
-                      </div>
-                      <div className="ml-auto text-right hidden sm:block">
-                        <p className="text-white/60 text-[11px]">대인접수</p>
-                        <p className="text-2xl font-black text-white">{kpiDaeinCount}</p>
-                        <p className="text-white/60 text-[11px] mt-2">전손처리</p>
-                        <p className="text-2xl font-black text-white">{kpiJeonsonCount}</p>
-                      </div>
+                      <p className="text-3xl font-black text-red-700 dark:text-red-300">{kpiTargetCount}</p>
+                      <p className="text-xs mt-0.5 text-red-600 dark:text-red-400 opacity-70">건</p>
                     </CardContent>
                   </Card>
-
-                  {/* 소카드 3개 */}
-                  {[
-                    { label: "대인접수", value: kpiDaeinCount, sub: "", from: "from-orange-50", to: "to-orange-100/60", text: "text-orange-600", num: "text-orange-700", darkFrom: "dark:from-orange-950/40", darkTo: "dark:to-orange-900/20", darkText: "dark:text-orange-400", darkNum: "dark:text-orange-300", dot: "bg-orange-400", testId: "card-kpi-daein" },
-                    { label: "전손처리", value: kpiJeonsonCount, sub: "", from: "from-purple-50", to: "to-purple-100/60", text: "text-purple-600", num: "text-purple-700", darkFrom: "dark:from-purple-950/40", darkTo: "dark:to-purple-900/20", darkText: "dark:text-purple-400", darkNum: "dark:text-purple-300", dot: "bg-purple-400", testId: "card-kpi-jeonson" },
-                    { label: "KPI 평가 미대상", value: kpiNonTargetCount, sub: "대물접수진행", from: "from-blue-50", to: "to-blue-100/60", text: "text-blue-600", num: "text-blue-700", darkFrom: "dark:from-blue-950/40", darkTo: "dark:to-blue-900/20", darkText: "dark:text-blue-400", darkNum: "dark:text-blue-300", dot: "bg-blue-400", testId: "card-kpi-non-target" },
-                  ].map(({ label, value, sub, from, to, text, num, darkFrom, darkTo, darkText, darkNum, dot, testId }) => (
-                    <Card key={label} data-testid={testId} className={`border-0 shadow-sm bg-gradient-to-br ${from} ${to} ${darkFrom} ${darkTo}`}>
-                      <CardContent className="p-4">
-                        <div className="flex items-center gap-1.5 mb-2">
-                          <span className={`w-2 h-2 rounded-full ${dot}`} />
-                          <p className={`text-xs font-semibold ${text} ${darkText}`}>{label}</p>
-                        </div>
-                        <p className={`text-3xl font-black ${num} ${darkNum}`}>{value}</p>
-                        <p className={`text-xs mt-0.5 ${text} ${darkText} opacity-70`}>건{sub ? ` (${sub})` : ""}</p>
-                      </CardContent>
-                    </Card>
-                  ))}
+                  <Card data-testid="card-kpi-daein" className="border-0 shadow-sm bg-gradient-to-br from-orange-50 to-orange-100/60 dark:from-orange-950/40 dark:to-orange-900/20">
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <span className="w-2 h-2 rounded-full bg-orange-400" />
+                        <p className="text-xs font-semibold text-orange-600 dark:text-orange-400">대인접수</p>
+                      </div>
+                      <p className="text-3xl font-black text-orange-700 dark:text-orange-300">{kpiDaeinCount}</p>
+                      <p className="text-xs mt-0.5 text-orange-600 dark:text-orange-400 opacity-70">건</p>
+                    </CardContent>
+                  </Card>
+                  <Card data-testid="card-kpi-jeonson" className="border-0 shadow-sm bg-gradient-to-br from-purple-50 to-purple-100/60 dark:from-purple-950/40 dark:to-purple-900/20">
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <span className="w-2 h-2 rounded-full bg-purple-400" />
+                        <p className="text-xs font-semibold text-purple-600 dark:text-purple-400">전손처리</p>
+                      </div>
+                      <p className="text-3xl font-black text-purple-700 dark:text-purple-300">{kpiJeonsonCount}</p>
+                      <p className="text-xs mt-0.5 text-purple-600 dark:text-purple-400 opacity-70">건</p>
+                    </CardContent>
+                  </Card>
+                  <Card data-testid="card-kpi-non-target" className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/60 dark:from-blue-950/40 dark:to-blue-900/20">
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <span className="w-2 h-2 rounded-full bg-blue-400" />
+                        <p className="text-xs font-semibold text-blue-600 dark:text-blue-400">KPI 평가 미대상</p>
+                      </div>
+                      <p className="text-3xl font-black text-blue-700 dark:text-blue-300">{kpiNonTargetCount}</p>
+                      <p className="text-xs mt-0.5 text-blue-600 dark:text-blue-400 opacity-70">건 (대물접수진행)</p>
+                    </CardContent>
+                  </Card>
                 </div>
               </div>
 
