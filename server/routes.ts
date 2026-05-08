@@ -8212,19 +8212,19 @@ function buildCardNewsEmailHtml(cards: any[]): string {
       const icon = icons[idx % icons.length];
       const content = card.핵심내용 || (card.description || '').slice(0, 100);
       const bullets = content.split(/(?<=\.) /).slice(0, 2).join('<br>&#8226; ');
-      return `<td width="47%" valign="top" bgcolor="#ffffff" style="background:#ffffff;border-radius:14px;padding:18px 16px;${j === 0 ? 'margin-right:12px;' : ''}">
+      return `<td width="47%" valign="top" bgcolor="#ffffff" style="background:#ffffff;border-radius:14px;padding:20px 18px;${j === 0 ? 'margin-right:12px;' : ''}">
   <table width="100%" cellpadding="0" cellspacing="0">
     <tr>
-      <td bgcolor="#ede9fe" style="background:#ede9fe;border-radius:10px;width:42px;height:42px;text-align:center;vertical-align:middle;font-size:22px;" width="42" height="42">${icon}</td>
+      <td bgcolor="#ede9fe" style="background:#ede9fe;border-radius:12px;width:54px;height:54px;text-align:center;vertical-align:middle;font-size:30px;" width="54" height="54">${icon}</td>
       <td align="right" valign="top" style="padding-left:8px;">
-        <span style="font-size:11px;font-weight:800;color:#8b5cf6;">${String(idx + 1).padStart(2, '0')}</span>
+        <span style="font-size:13px;font-weight:800;color:#8b5cf6;">${String(idx + 1).padStart(2, '0')}</span>
       </td>
     </tr>
-    <tr><td colspan="2" style="padding-top:12px;">
-      <p style="margin:0 0 8px;font-size:13px;font-weight:800;color:#1e1b4b;line-height:1.45;">${card.제목 || card.title}</p>
-      <p style="margin:0;font-size:11.5px;color:#6b7280;line-height:1.75;">&#8226; ${bullets}</p>
+    <tr><td colspan="2" style="padding-top:14px;">
+      <p style="margin:0 0 10px;font-size:15px;font-weight:800;color:#1e1b4b;line-height:1.45;">${card.제목 || card.title}</p>
+      <p style="margin:0;font-size:13px;color:#6b7280;line-height:1.8;">&#8226; ${bullets}</p>
     </td></tr>
-    ${card.link ? `<tr><td colspan="2" style="padding-top:10px;"><a href="${card.link}" style="font-size:10.5px;color:#8b5cf6;text-decoration:none;font-weight:600;">원문 보기 →</a></td></tr>` : ''}
+    ${card.link ? `<tr><td colspan="2" style="padding-top:12px;"><a href="${card.link}" style="font-size:12px;color:#8b5cf6;text-decoration:none;font-weight:600;">원문 보기 →</a></td></tr>` : ''}
   </table>
 </td>`;
     });
@@ -8254,8 +8254,8 @@ function buildCardNewsEmailHtml(cards: any[]): string {
     <td style="padding:0 0 0 2px;">
       <table cellpadding="0" cellspacing="0">
         <tr>
-          <td bgcolor="#f5f3ff" style="background-color:#f5f3ff;border-radius:12px 12px 0 0;padding:9px 20px;">
-            <span style="font-size:11px;font-weight:700;color:#6d28d9;letter-spacing:0.03em;">KT MOS 대구현장경영팀</span>
+          <td bgcolor="#f5f3ff" style="background-color:#f5f3ff;border-radius:12px 12px 0 0;padding:10px 22px;">
+            <span style="font-size:13px;font-weight:700;color:#6d28d9;letter-spacing:0.03em;">KT MOS 대구현장경영팀</span>
           </td>
         </tr>
       </table>
@@ -8273,10 +8273,10 @@ function buildCardNewsEmailHtml(cards: any[]): string {
             <table width="100%" cellpadding="0" cellspacing="0">
               <tr>
                 <td valign="bottom">
-                  <p style="margin:0;font-size:30px;font-weight:900;color:#1e1b4b;letter-spacing:-0.03em;line-height:1.15;">음주운전<br>경각심 뉴스</p>
+                  <p style="margin:0;font-size:34px;font-weight:900;color:#1e1b4b;letter-spacing:-0.03em;line-height:1.15;">음주운전<br>경각심 뉴스</p>
                 </td>
                 <td align="right" valign="top">
-                  <span style="font-size:10px;color:#a78bfa;white-space:nowrap;">${today}</span>
+                  <span style="font-size:12px;color:#a78bfa;white-space:nowrap;">${today}</span>
                 </td>
               </tr>
             </table>
@@ -8284,7 +8284,7 @@ function buildCardNewsEmailHtml(cards: any[]): string {
         </tr>
         <tr>
           <td style="padding:6px 28px 0;">
-            <p style="margin:0;font-size:12.5px;color:#7c6fb5;">오늘의 음주운전 관련 주요 뉴스를 전달드립니다</p>
+            <p style="margin:0;font-size:14px;color:#7c6fb5;">오늘의 음주운전 관련 주요 뉴스를 전달드립니다</p>
           </td>
         </tr>
         <!-- 구분선 -->
@@ -8311,8 +8311,8 @@ function buildCardNewsEmailHtml(cards: any[]): string {
                 <td style="padding:12px 20px 6px;">
                   <table cellpadding="0" cellspacing="0">
                     <tr>
-                      <td bgcolor="#a78bfa" style="background-color:#a78bfa;border-radius:20px;padding:3px 12px;">
-                        <span style="font-size:9px;font-weight:800;color:#ffffff;letter-spacing:0.07em;">핵심 메시지</span>
+                      <td bgcolor="#a78bfa" style="background-color:#a78bfa;border-radius:20px;padding:4px 14px;">
+                        <span style="font-size:11px;font-weight:800;color:#ffffff;letter-spacing:0.07em;">핵심 메시지</span>
                       </td>
                     </tr>
                   </table>
@@ -8320,7 +8320,7 @@ function buildCardNewsEmailHtml(cards: any[]): string {
               </tr>
               <tr>
                 <td style="padding:8px 20px 18px;">
-                  <p style="margin:0;font-size:13.5px;font-weight:700;color:#ffffff;line-height:1.65;">${summaryMsg}</p>
+                  <p style="margin:0;font-size:16px;font-weight:700;color:#ffffff;line-height:1.65;">${summaryMsg}</p>
                 </td>
               </tr>
             </table>
@@ -8334,8 +8334,8 @@ function buildCardNewsEmailHtml(cards: any[]): string {
   <!-- 푸터 -->
   <tr>
     <td style="padding:20px 0 4px;" align="center">
-      <p style="margin:0 0 3px;font-size:10.5px;color:#ddd6fe;font-weight:600;">KT MOS 남부 대구본부 · 종합안전포털시스템</p>
-      <p style="margin:0;font-size:10px;color:#c4b5fd;">음주운전 예방 경각심 제고를 위해 자동 발송됩니다.</p>
+      <p style="margin:0 0 4px;font-size:12px;color:#ddd6fe;font-weight:600;">KT MOS 남부 대구본부 · 종합안전포털시스템</p>
+      <p style="margin:0;font-size:11px;color:#c4b5fd;">음주운전 예방 경각심 제고를 위해 자동 발송됩니다.</p>
     </td>
   </tr>
 
