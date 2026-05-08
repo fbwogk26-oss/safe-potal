@@ -1700,10 +1700,11 @@ export async function registerRoutes(
   </tr>
   <tr>
     <td style="${pTdC}">${r3a}</td>
-    <td style="${pTdC}" rowspan="2">본부</td>
+    <td style="${pTdC}">미준수자</td>
   </tr>
   <tr>
     <td style="${pTdC}">${r3b}</td>
+    <td style="${pTdC}">본부</td>
   </tr>
 </table>`;
   }
