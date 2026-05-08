@@ -64,14 +64,16 @@ export default function CardNewsAdmin() {
   };
 
   const fetchNewsMutation = useMutation({
-    mutationFn: () => apiRequest("GET", "/api/card-news/fetch"),
-    onSuccess: async (res: any) => {
-      const data = await res.json();
+    mutationFn: async () => {
+      const res = await apiRequest("GET", "/api/card-news/fetch");
+      return res.json() as Promise<{ articles: NewsArticle[]; fetchedAt: string }>;
+    },
+    onSuccess: (data) => {
       setArticles(data.articles || []);
-      setFetchedAt(data.fetchedAt);
+      setFetchedAt(data.fetchedAt || null);
       toast({ title: `${data.articles?.length || 0}건의 음주운전 뉴스를 수집했습니다` });
     },
-    onError: () => toast({ variant: "destructive", title: "뉴스 수집에 실패했습니다" }),
+    onError: (err: any) => toast({ variant: "destructive", title: "뉴스 수집에 실패했습니다", description: String(err?.message || "") }),
   });
 
   const sendEmailMutation = useMutation({
