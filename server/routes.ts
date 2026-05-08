@@ -1613,7 +1613,7 @@ export async function registerRoutes(
       const display = c.status === "양호" ? "준수" : c.status === "미점검" ? "해당없음" : "미흡";
       const bold    = c.status === "미흡"
         ? `color:#c0392b;font-weight:bold;`
-        : c.status === "양호" ? `color:#1a6d1a;` : `color:#555;`;
+        : c.status === "양호" ? `color:#1a56db;font-weight:bold;` : `color:#555;`;
       return `<td width="${CW}" style="border:1px solid #aaa;padding:6px 2px;font-size:11px;text-align:center;vertical-align:middle;${bold}">${display}</td>`;
     }).join("");
 
@@ -1638,11 +1638,19 @@ export async function registerRoutes(
               contentDisposition: "inline",
             });
             imgTags.push(
-              `<img src="cid:${cid}" alt="점검사진" style="max-width:380px;max-height:280px;display:block;border:1px solid #ccc;margin:3px 0;" />`
+              `<td style="padding:4px;vertical-align:top;"><img src="cid:${cid}" alt="점검사진" style="max-width:220px;max-height:200px;border:1px solid #ccc;" /></td>`
             );
           } catch { /* 개별 사진 실패 무시 */ }
         }
-        if (imgTags.length > 0) photoContent = imgTags.join("");
+        if (imgTags.length > 0) {
+          // 3장씩 가로로 배열
+          const rows: string[] = [];
+          for (let i = 0; i < imgTags.length; i += 3) {
+            const rowCells = imgTags.slice(i, i + 3).join("");
+            rows.push(`<tr>${rowCells}</tr>`);
+          }
+          photoContent = `<table cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${rows.join("")}</table>`;
+        }
       } catch { /* ObjectStorage 접근 실패 */ }
     }
 
@@ -1793,7 +1801,7 @@ ${L("아래와 같이 공유하여 드리오니 작업 시 보호구 착용과 �
 <br>
 ${L(`<b>■ 점검일자 : ${mm}.${dd}(${dayKr})</b>`)}
 ${L(`<b>■ 점검지역 : ${department}</b>`)}
-${L(`<b>■ 점검결과 : ${overallResult === "미흡" ? `<span style="color:#c0392b;font-weight:bold;">${overallResult}</span>` : overallResult}</b>`)}
+${L(`<b>■ 점검결과 : ${overallResult === "미흡" ? `<span style="color:#c0392b;font-weight:bold;">미흡</span>` : `<span style="color:#1a6d1a;font-weight:bold;">양호</span>`}</b>`)}
 ${workerName ? L(`&nbsp;&nbsp;• 작업인원 : ${workerName}`) : ""}
 ${workContent ? L(`■ 작업내용 : ${workContent}`) : ""}
 ${notes       ? L(`■ 비고 : ${notes}`) : ""}
@@ -1870,7 +1878,7 @@ ${buildEmailFooter()}
         const poor = clArr.filter((c: any) => c.status === "미흡").length;
         resultLabels.push(poor > 0
           ? `<span style="color:#c0392b;font-weight:bold;">미흡</span>`
-          : "양호");
+          : `<span style="color:#1a6d1a;font-weight:bold;">양호</span>`);
 
         if (insp.workerName) workerLabels.push(`${dept} ${insp.workerName}`);
       }
