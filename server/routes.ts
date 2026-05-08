@@ -1595,49 +1595,53 @@ export async function registerRoutes(
       const dayKr = DAYS_KR[dt.getDay()];
 
       const checklistArr: Array<{ item: string; status: string }> = Array.isArray(checklist) ? checklist : [];
-      const goodCount  = checklistArr.filter(c => c.status === "양호").length;
       const poorCount  = checklistArr.filter(c => c.status === "미흡").length;
-      const overallResult = poorCount > 0
-        ? `미흡 ${poorCount}건 (양호 ${goodCount}건)`
-        : `전체 양호 (${goodCount}건)`;
+      // 점검결과: 양호 / 미흡 만 표시 (건수 없음)
+      const overallResult = poorCount > 0 ? "미흡" : "양호";
 
-      // ── 체크리스트 항목명 축약 매핑 ──────────────────────────────
+      // ── 체크리스트 항목명 초단축 (1~2줄, 최대 6자) ───────────────
       const ITEM_SHORT: Record<string, string> = {
-        "검전기 사용":                  "누전확인<br>(검전기)",
-        "안전모 착용":                  "안전모<br>착용",
-        "안전화 착용":                  "안전화<br>착용",
-        "안전대 착용방법":              "안전대착용<br>(작업지침)",
-        "이동식사다리 작업지침 준수":   "이동식<br>사다리",
-        "고임목 사용":                  "경사로<br>안전작업",
-        "2인1조 준수":                  "2인1조<br>주차방법",
-        "작업(절연)장갑 착용":          "작업장갑<br>또는절연장갑",
-        "라바콘설치":                   "도로주차<br>작업표시(라바콘)",
-        "유해위험요인 확인":            "유해·위험<br>요인제거",
-        "관계수급인 고위험 작업 입회":  "고위험작업<br>입회(수급사)",
-        "입회 임무 준수":               "입회여부<br>(수급사)",
-        "고위험 작업절차 준수":         "입회자<br>업무준수(수급사)",
+        "검전기 사용":                 "검전기",
+        "안전모 착용":                 "안전모",
+        "안전화 착용":                 "안전화",
+        "안전대 착용방법":             "안전대",
+        "이동식사다리 작업지침 준수":  "이동식<br>사다리",
+        "고임목 사용":                 "고임목<br>(경사로)",
+        "2인1조 준수":                 "2인1조",
+        "작업(절연)장갑 착용":         "절연장갑",
+        "라바콘설치":                  "라바콘",
+        "유해위험요인 확인":           "위험요인",
+        "관계수급인 고위험 작업 입회": "고위험<br>입회",
+        "입회 임무 준수":              "입회여부",
+        "고위험 작업절차 준수":        "작업절차",
       };
 
-      // ── 공통 스타일 ────────────────────────────────────────────────
-      const cellBase = "border:1px solid #ccc;padding:5px 6px;font-size:11px;text-align:center;vertical-align:middle;";
-      const thHdr    = `${cellBase}background:#d9e1f2;font-weight:bold;line-height:1.3;`;
-      const thSection= `${cellBase}background:#e2efda;font-weight:bold;font-size:11px;`;
+      // ── 체크리스트 표 스타일 ────────────────────────────────────────
+      // 구분 열: 90px 고정, 항목 열: 각 62px 고정 → 총 ~900px
+      const colW      = 62;
+      const thBase    = `border:1px solid #bbb;padding:7px 4px;font-size:12px;text-align:center;vertical-align:middle;line-height:1.4;white-space:normal;`;
+      const thHdr     = `${thBase}background:#dce6f1;font-weight:bold;width:${colW}px;`;
+      const thSection = `${thBase}background:#e2efda;font-weight:bold;width:90px;`;
+      const tdResult  = `${thBase}font-size:13px;font-weight:bold;`;
 
-      // ── 가로 체크리스트 표 ─────────────────────────────────────────
       const headerCells = checklistArr.map(c =>
         `<th style="${thHdr}">${ITEM_SHORT[c.item] ?? c.item}</th>`
       ).join("");
 
       const resultCells = checklistArr.map(c => {
-        const display = c.status === "양호" ? "준수" : c.status === "미점검" ? "해당없음" : c.status;
-        const bg      = c.status === "양호" ? "#e8f5e9" : c.status === "미흡" ? "#fce4ec" : "#f5f5f5";
-        const color   = c.status === "양호" ? "#1b5e20" : c.status === "미흡" ? "#b71c1c" : "#757575";
-        return `<td style="${cellBase}background:${bg};color:${color};font-weight:bold;">${display}</td>`;
+        const display = c.status === "양호" ? "준수" : c.status === "미점검" ? "해당없음" : "미흡";
+        const bg      = c.status === "양호" ? "#e8f5e9" : c.status === "미흡" ? "#fce4ec" : "#f0f0f0";
+        const color   = c.status === "양호" ? "#1a6e2e" : c.status === "미흡" ? "#c0392b" : "#888888";
+        return `<td style="${tdResult}background:${bg};color:${color};">${display}</td>`;
       }).join("");
 
       const checklistTable = `
-<div style="overflow-x:auto;margin:8px 0;">
-<table style="border-collapse:collapse;width:100%;font-family:맑은고딕,Arial,sans-serif;">
+<div style="overflow-x:auto;margin:10px 0 14px;">
+<table style="border-collapse:collapse;table-layout:fixed;min-width:900px;font-family:맑은고딕,Arial,sans-serif;">
+  <colgroup>
+    <col style="width:90px;">
+    ${checklistArr.map(() => `<col style="width:${colW}px;">`).join("")}
+  </colgroup>
   <thead>
     <tr>
       <th style="${thSection}">구분</th>
@@ -1734,46 +1738,50 @@ export async function registerRoutes(
       const p = (text: string, s?: string) =>
         `<p style="margin:3px 0;font-family:맑은고딕,Arial,sans-serif;font-size:12pt;line-height:1.7;${s ?? ""}">${text}</p>`;
 
+      const resultColor = overallResult === "양호"
+        ? `<span style="color:#1a6e2e;font-weight:bold;">양호</span>`
+        : `<span style="color:#c0392b;font-weight:bold;">미흡</span>`;
+
       const htmlBody = `
-<div style="font-family:맑은고딕,Arial,sans-serif;font-size:12pt;line-height:1.7;color:#111;max-width:740px;">
-${p("안녕하십니까? 현장경영팀 입니다.")}
+<div style="font-family:맑은고딕,Arial,sans-serif;font-size:12pt;line-height:1.8;color:#111;max-width:820px;">
+${p("안녕하십니까? <strong>현장경영팀</strong> 입니다.")}
 <br>
-${p("kt안전보건실 및 본사 안전관리팀에서 현장 안전점검이 강화되어 시행되고 있습니다.")}
-${p("현장 안전점검 100% 준수 될수 있도록 실천해주세요.")}
-${p('대구본부 전직원 모두 &ldquo;안전분야 STAR&rdquo;가 되어주세요.')}
+${p("kt안전보건실 및 본사 안전관리팀에서 <span style='color:#1155cc;font-weight:bold;'>현장 안전점검이 강화</span>되어 시행되고 있습니다.")}
+${p("<span style='color:#c0392b;font-weight:bold;'>현장 안전점검 100% 준수</span> 될수 있도록 실천해주세요.")}
+${p('대구본부 전직원 모두 <span style="color:#e67e00;font-weight:bold;">&ldquo;안전분야 STAR&rdquo;</span>가 되어주세요.')}
 
-<p style="margin:10px 0;font-family:맑은고딕,Arial,sans-serif;font-size:11pt;letter-spacing:0;color:#333;">==========================================================</p>
+<p style="margin:12px 0;font-family:맑은고딕,Arial,sans-serif;font-size:11pt;color:#555;">==========================================================</p>
 
-${p(`${m}월 ${d}일 현장경영팀에서 진행한 현장 안전점검 결과에 대해서`)}
-${p("아래와 같이 공유하여 드리오니 작업 시 <strong>보호구 착용</strong>과 <strong>안전수칙 준수</strong>를 생활화하여 주시기 바랍니다.")}
+${p(`<strong>${m}월 ${d}일</strong> 현장경영팀에서 진행한 현장 안전점검 결과에 대해서`)}
+${p("아래와 같이 공유하여 드리오니 작업 시 <span style='color:#c0392b;font-weight:bold;'>보호구 착용</span>과 <span style='color:#1155cc;font-weight:bold;'>안전수칙 준수</span>를 생활화하여 주시기 바랍니다.")}
 <br>
-${p(`■ 점검일자 : ${m < 10 ? "0" + m : m}.${d < 10 ? "0" + d : d}(${dayKr})`)}
-${p(`■ 점검지역 : ${department}`)}
-${p(`■ 점검결과 : ${overallResult}`)}
-${workerName ? p(`　　• 작업인원 : ${workerName}`) : ""}
+${p(`■ 점검일자 : <strong>${m < 10 ? "0" + m : m}.${d < 10 ? "0" + d : d}(${dayKr})</strong>`)}
+${p(`■ 점검지역 : <strong>${department}</strong>`)}
+${p(`■ 점검결과 : ${resultColor}`)}
+${workerName ? p(`&nbsp;&nbsp;• 작업인원 : ${workerName}`) : ""}
 ${location    ? p(`■ 점검국소 : ${location}`) : ""}
 ${inspector   ? p(`■ 점검자 : ${inspector}`) : ""}
 ${workContent ? p(`■ 작업내용 : ${workContent}`) : ""}
 ${notes       ? p(`■ 비고 : ${notes}`) : ""}
 
-${p(`■ 점검내역(현장점검 체크리스트 ${checklistArr.length}개 항목 점검)`, "margin-top:10px;font-weight:bold;")}
+${p(`■ 점검내역(현장점검 체크리스트 <strong>${checklistArr.length}개 항목</strong> 점검)`, "margin-top:12px;font-weight:bold;")}
 ${checklistTable}
 
 ${photosSection}
 
-<p style="margin:14px 0 4px;font-family:맑은고딕,Arial,sans-serif;font-size:12pt;font-weight:bold;">■ 안전관리위반시 페널티 부여안내</p>
-<p style="margin:2px 0 4px;font-family:맑은고딕,Arial,sans-serif;font-size:11pt;">&#8251; &lsquo;3진 아웃제&rsquo; 운영(발생 시)</p>
+<p style="margin:16px 0 4px;font-family:맑은고딕,Arial,sans-serif;font-size:12pt;font-weight:bold;color:#c0392b;">■ 안전관리위반시 페널티 부여안내</p>
+<p style="margin:2px 0 6px;font-family:맑은고딕,Arial,sans-serif;font-size:11pt;">&#8251; <strong>&lsquo;3진 아웃제&rsquo;</strong> 운영(발생 시)</p>
 ${penaltyTable}
 
-<p style="margin:2px 0;font-family:맑은고딕,Arial,sans-serif;font-size:11px;color:#333;">&#8251; 미준수 사례 발생 시 &lsquo;시정조치요구서&rsquo; 발행 (본사 → 본부 또는 본부 → 운용팀)</p>
-<p style="margin:2px 0;font-family:맑은고딕,Arial,sans-serif;font-size:11px;color:#333;">&#8251; 본부 내 &lsquo;3진 아웃&rsquo; 발생 시 KPI(안전점검 항목)2.2점 부여, 2회 이상 발생 시에는 0점 부여</p>
-<p style="margin:2px 0 10px;font-family:맑은고딕,Arial,sans-serif;font-size:11px;color:#333;">&#8251; 팀장에 대한 &lsquo;3진 아웃&rsquo;은 소속팀 누적 3회 적발 시 해당(인원에 상관없이 팀 적발 횟수)</p>
+<p style="margin:3px 0;font-family:맑은고딕,Arial,sans-serif;font-size:11px;color:#444;">&#8251; 미준수 사례 발생 시 &lsquo;시정조치요구서&rsquo; 발행 (본사 → 본부 또는 본부 → 운용팀)</p>
+<p style="margin:3px 0;font-family:맑은고딕,Arial,sans-serif;font-size:11px;color:#444;">&#8251; 본부 내 &lsquo;3진 아웃&rsquo; 발생 시 KPI(안전점검 항목) <strong>2.2점 부여</strong>, 2회 이상 발생 시에는 <strong>0점 부여</strong></p>
+<p style="margin:3px 0 12px;font-family:맑은고딕,Arial,sans-serif;font-size:11px;color:#444;">&#8251; 팀장에 대한 &lsquo;3진 아웃&rsquo;은 소속팀 누적 3회 적발 시 해당(인원에 상관없이 팀 적발 횟수)</p>
 
 <br>
-${p("현장안전점검 목적은 안전한직장에서 사고없이 업무를 하기위함으로 적발이 목적은 아닙니다.", "font-size:11pt;")}
-${p("다만 본사에서 기공지한 상벌제도에 의해 위와같이 페널티가 부여되면 불이익이 생길 수 있음을 인지하시고", "font-size:11pt;")}
-${p("안전사고 예방을 위해 대구본부 전직원은 안전보호구착용, 안전수칙준수는 100% 준수 될수 있도록 습관적으로 실천해주십시요.", "font-size:11pt;")}
-${p("오늘도 안전한 대구본부 함께 만들어갑시다.", "font-size:11pt;")}
+${p("현장안전점검 목적은 <span style='color:#555;'>안전한 직장에서 사고없이 업무를 하기 위함</span>으로 <strong>적발이 목적은 아닙니다.</strong>", "font-size:11pt;")}
+${p("다만 본사에서 기공지한 상벌제도에 의해 위와같이 페널티가 부여되면 불이익이 생길 수 있음을 인지하시고", "font-size:11pt;color:#555;")}
+${p("<span style='color:#c0392b;font-weight:bold;'>안전보호구 착용, 안전수칙 준수</span>는 100% 준수 될수 있도록 <strong>습관적으로 실천</strong>해주십시요.", "font-size:11pt;")}
+${p("오늘도 안전한 대구본부 함께 만들어갑시다.", "font-size:11pt;font-weight:bold;")}
 <br>
 ${p("감사합니다.")}
 </div>`;
@@ -1803,15 +1811,16 @@ ${p("감사합니다.")}
         return res.status(500).json({ message: `이메일 서버 연결 실패: ${verifyErr.message}` });
       }
 
+      const FORWARD_TO = "jaeha.ryu@ktmos.co.kr";
       await transporter.sendMail({
         from: `"현장경영팀" <${GMAIL_USER}>`,
-        to: GMAIL_USER,
+        to: `${GMAIL_USER}, ${FORWARD_TO}`,
         subject,
         html: fullHtml,
         attachments,
       });
 
-      console.log(`[OtherInspectionEmail] 발송 완료 → ${GMAIL_USER} | 제목: ${subject}`);
+      console.log(`[OtherInspectionEmail] 발송 완료 → ${GMAIL_USER}, ${FORWARD_TO} | 제목: ${subject}`);
       res.json({ success: true, message: `이메일이 ${GMAIL_USER}으로 발송되었습니다.` });
     } catch (e: any) {
       console.error("[OtherInspectionEmail] 발송 오류:", e.message, e.code || "");
