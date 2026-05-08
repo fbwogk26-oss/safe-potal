@@ -8182,7 +8182,7 @@ async function buildCardNewsCards(articles: any[]): Promise<any[]> {
         model: "gpt-4o-mini",
         messages: [{
           role: "system",
-          content: '음주운전 뉴스를 직원 경각심 카드뉴스로 요약하세요. JSON: {"제목":"(20자 이내)","핵심내용":"(60자 이내, 2줄)","경각심문구":"(70자 이내, 이 뉴스에서 얻을 수 있는 구체적인 교훈과 경각심 메시지를 서술형으로 작성)"}'
+          content: '음주운전 뉴스를 직원 경각심 카드뉴스로 요약하세요. JSON: {"제목":"(20자 이내)","핵심내용":"(60자 이내, 2줄)","경각심문구":"(25자 이내 강렬한 한 문장)"}'
         }, {
           role: "user",
           content: `제목: ${article.title}\n내용: ${article.description.slice(0, 300)}`
@@ -8233,9 +8233,9 @@ function buildCardNewsEmailHtml(cards: any[]): string {
     return `<tr>${cells[0]}<td width="6%"></td>${cells[1]}</tr><tr><td colspan="3" height="12"></td></tr>`;
   }).join('');
 
-  const summaryMsgs = cards.map(c => c.경각심문구).filter(Boolean);
+  const summaryMsgs = cards.map(c => c.경각심문구).filter(Boolean).slice(0, 2);
   const summaryMsg = summaryMsgs.length > 0
-    ? summaryMsgs.map(m => `• ${m}`).join('<br><br>')
+    ? summaryMsgs.map(m => `• ${m}`).join('<br>')
     : '• 음주운전은 범죄입니다. 단 한 잔도 안 됩니다.';
 
   return `<!DOCTYPE html>
@@ -8263,7 +8263,6 @@ function buildCardNewsEmailHtml(cards: any[]): string {
             <table width="100%" cellpadding="0" cellspacing="0">
               <tr>
                 <td valign="middle">
-                  <p style="margin:0 0 6px;font-size:11px;font-weight:700;color:#a78bfa;letter-spacing:0.12em;text-transform:uppercase;">KT MOS 대구현장경영팀</p>
                   <p style="margin:0;font-size:36px;font-weight:900;color:#ffffff;letter-spacing:-0.02em;line-height:1.1;white-space:nowrap;">음주운전 경각심 뉴스</p>
                   <p style="margin:8px 0 0;font-size:14px;color:#c4b5fd;">오늘의 음주운전 관련 주요 뉴스를 전달드립니다</p>
                 </td>
