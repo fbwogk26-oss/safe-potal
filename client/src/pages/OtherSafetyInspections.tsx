@@ -78,6 +78,7 @@ export default function OtherSafetyInspections() {
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [isSendingBulkEmail, setIsSendingBulkEmail] = useState(false);
 
   const [subType, setSubType] = useState<OtherInspectionType>("현장경영팀 점검");
   const [department, setDepartment] = useState("");
@@ -158,6 +159,41 @@ export default function OtherSafetyInspections() {
     n.has(id) ? n.delete(id) : n.add(id);
     return n;
   });
+
+  const handleBulkEmail = async () => {
+    const ids = Array.from(selectedIds);
+    const selected = inspections.filter(i => ids.includes(i.id));
+    const eligible = selected.filter(i => i.inspectionType === "현장경영팀 점검");
+    if (eligible.length === 0) {
+      toast({ variant: "destructive", title: "현장경영팀 점검 항목이 없습니다", description: "메일 발송은 현장경영팀 점검만 가능합니다." });
+      return;
+    }
+    if (eligible.length < selected.length) {
+      const skip = selected.length - eligible.length;
+      toast({ title: `${skip}건 제외됨`, description: "현장경영팀 점검만 발송됩니다." });
+    }
+    setIsSendingBulkEmail(true);
+    try {
+      const res = await fetch("/api/other-inspections/send-email-bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ ids: eligible.map(i => i.id) }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast({ title: `이메일 발송 완료 (${eligible.length}건)`, description: "fbwogk26@gmail.com · jaeha.ryu@ktmos.co.kr 로 발송되었습니다." });
+        setSelectedIds(new Set());
+        setSelectionMode(false);
+      } else {
+        toast({ variant: "destructive", title: "발송 실패", description: data.message });
+      }
+    } catch {
+      toast({ variant: "destructive", title: "발송 실패", description: "네트워크 오류가 발생했습니다." });
+    } finally {
+      setIsSendingBulkEmail(false);
+    }
+  };
 
   const sendEmailAfterCreate = async (payload: {
     inspectionDate: string;
@@ -1016,13 +1052,25 @@ export default function OtherSafetyInspections() {
         )}
       </div>
 
-      {/* 플로팅 벌크 삭제 */}
+      {/* 플로팅 벌크 액션 */}
       {selectionMode && selectedIds.size > 0 && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-background border border-border shadow-xl rounded-full px-5 py-3">
-          <span className="text-sm font-semibold text-red-600">{selectedIds.size}건 선택됨</span>
+          <span className="text-sm font-semibold">{selectedIds.size}건 선택됨</span>
           <div className="w-px h-5 bg-border" />
           <Button variant="ghost" size="sm" className="h-8" onClick={() => setSelectedIds(new Set())}>
-            <X className="w-3.5 h-3.5 mr-1" />선택 해제
+            <X className="w-3.5 h-3.5 mr-1" />해제
+          </Button>
+          <Button
+            size="sm"
+            className="h-8 bg-orange-500 hover:bg-orange-600 text-white gap-1"
+            disabled={isSendingBulkEmail}
+            onClick={handleBulkEmail}
+            data-testid="button-bulk-email"
+          >
+            {isSendingBulkEmail
+              ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />발송 중...</>
+              : <><Mail className="w-3.5 h-3.5" />메일 발송</>
+            }
           </Button>
           <Button
             variant="destructive"

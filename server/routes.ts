@@ -1807,6 +1807,216 @@ ${L("감사합니다.")}
     }
   });
 
+  // === 기타 안전점검 복수 선택 이메일 발송 ===
+  app.post("/api/other-inspections/send-email-bulk", isAuthenticated, async (req: any, res) => {
+    try {
+      const { ids } = req.body;
+      if (!Array.isArray(ids) || ids.length === 0) {
+        return res.status(400).json({ message: "ids 배열이 필요합니다." });
+      }
+
+      const GMAIL_USER  = "fbwogk26@gmail.com";
+      const FORWARD_TO  = "jaeha.ryu@ktmos.co.kr";
+      const appPassword = process.env.GMAIL_APP_PASSWORD;
+      if (!appPassword) return res.status(500).json({ message: "이메일 설정이 되어 있지 않습니다." });
+
+      // 점검 데이터 로드 (현장경영팀 점검만)
+      const rows: any[] = [];
+      for (const id of ids) {
+        const insp = await storage.getSafetyInspection(Number(id));
+        if (insp && insp.inspectionType === "현장경영팀 점검") rows.push(insp);
+      }
+      if (rows.length === 0) return res.status(400).json({ message: "현장경영팀 점검 항목이 없습니다." });
+
+      // 날짜 정렬 (오름차순) — 제목용
+      rows.sort((a, b) => a.inspectionDate.localeCompare(b.inspectionDate));
+      const firstDate = rows[0].inspectionDate;
+      const [fy, fm, fd] = firstDate.split("-");
+      const yy2 = fy.slice(2);
+      const m0  = parseInt(fm, 10);
+      const d0  = parseInt(fd, 10);
+
+      // 공통 헬퍼
+      const DAYS_KR = ["일", "월", "화", "수", "목", "금", "토"];
+      const ITEM_LABEL: Record<string, string> = {
+        "검전기 사용":                 "누전확인<br>(검전기)",
+        "안전모 착용":                 "안전모<br>착용",
+        "안전화 착용":                 "안전화<br>착용",
+        "안전대 착용방법":             "안전대착용<br>(작업지침)",
+        "이동식사다리 작업지침 준수":  "이동식사다리<br>안전작업",
+        "고임목 사용":                 "경사로<br>주차방법",
+        "2인1조 준수":                 "2인1조",
+        "작업(절연)장갑 착용":         "작업장갑<br>또는<br>절연장갑",
+        "라바콘설치":                  "도로주차<br>작업표시<br>(라바콘)",
+        "유해위험요인 확인":           "유해&#8226;위험<br>요인제거",
+        "관계수급인 고위험 작업 입회": "고위험작업<br>입회<br>(수급사)",
+        "입회 임무 준수":              "위험작업<br>입회여부<br>(수급사)",
+        "고위험 작업절차 준수":        "입회자<br>업무준수<br>(수급사)",
+      };
+      const CW = 62; const GW = 90;
+      const thStyle  = `border:1px solid #aaa;padding:5px 4px;background:#dce6f1;font-size:10.5px;font-weight:bold;text-align:center;vertical-align:middle;line-height:1.4;`;
+      const thGStyle = `border:1px solid #aaa;padding:5px 6px;background:#e2efda;font-size:11px;font-weight:bold;text-align:center;vertical-align:middle;`;
+      const L = (text: string) =>
+        `<p style="margin:1px 0;font-family:맑은고딕,Arial,sans-serif;font-size:11pt;line-height:1.7;">${text}</p>`;
+
+      // 공통 페널티 표
+      const penaltyTh  = `border:1px solid #aaa;padding:5px 10px;background:#f2f2f2;font-size:11px;font-weight:bold;text-align:center;vertical-align:middle;`;
+      const penaltyTdL = `border:1px solid #aaa;padding:5px 10px;font-size:11px;vertical-align:middle;`;
+      const penaltyTdC = `border:1px solid #aaa;padding:5px 10px;font-size:11px;text-align:center;vertical-align:middle;`;
+      const penaltyTable = `
+<table width="640" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-family:맑은고딕,Arial,sans-serif;">
+  <tr>
+    <th style="${penaltyTh}">세부내역</th>
+    <th style="${penaltyTh}">벌칙사항</th>
+    <th style="${penaltyTh}">벌칙대상</th>
+  </tr>
+  <tr>
+    <td style="${penaltyTdL}" rowspan="4">13개 체크리스트 항목 중 미준수 사례 적용<br>&nbsp;- 안전관리팀 / 현장경영팀 점검 시 반영<br>&nbsp;- 점검 항목 1개 이상 적발 시</td>
+    <td style="${penaltyTdC}">『1회』→ 서면경고</td><td style="${penaltyTdC}">팀장</td>
+  </tr>
+  <tr><td style="${penaltyTdC}">『2회』→ 서면경고</td><td style="${penaltyTdC}">미준수자</td></tr>
+  <tr><td style="${penaltyTdC}">『3회』→ 서면경고 및 인사위원회</td><td style="${penaltyTdC}" rowspan="2">본부</td></tr>
+  <tr><td style="${penaltyTdC}">『3회』→ KPI(안전점검) 최하점(1.2점) 부여</td></tr>
+</table>`;
+
+      // 이미지 첨부 (CID) 전체
+      const allAttachments: any[] = [];
+      let cidCounter = 0;
+
+      // 각 점검 블록 생성
+      const inspectionBlocks: string[] = [];
+      for (const insp of rows) {
+        const [iy, im, id2] = insp.inspectionDate.split("-");
+        const imN = parseInt(im, 10);
+        const idN = parseInt(id2, 10);
+        const dtI = new Date(parseInt(iy), imN - 1, idN);
+        const dayI = DAYS_KR[dtI.getDay()];
+        const mmI  = im.padStart(2, "0");
+        const ddI  = id2.padStart(2, "0");
+        const dept = insp.title?.split(" - ")[0] || insp.title || "";
+
+        const checklistArr: Array<{ item: string; status: string }> =
+          Array.isArray(insp.checklist) ? insp.checklist : [];
+        const poorCnt   = checklistArr.filter(c => c.status === "미흡").length;
+        const overallR  = poorCnt > 0 ? "미흡" : "양호";
+        const workerN   = insp.workerName || "";
+        const workC     = insp.workContent || "";
+        const notesI    = insp.notes || "";
+
+        const headerCells = checklistArr.map(c =>
+          `<th width="${CW}" style="${thStyle}">${ITEM_LABEL[c.item] ?? c.item}</th>`
+        ).join("");
+        const resultCells = checklistArr.map(c => {
+          const display = c.status === "양호" ? "준수" : c.status === "미점검" ? "해당없음" : "미흡";
+          const colorS  = c.status === "미흡" ? "color:#c0392b;font-weight:bold;" : "";
+          return `<td width="${CW}" style="border:1px solid #aaa;padding:6px 3px;font-size:11px;text-align:center;vertical-align:middle;${colorS}">${display}</td>`;
+        }).join("");
+        const tblW = GW + CW * checklistArr.length;
+
+        const checklistTable = `
+<table width="${tblW}" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:8px 0 12px;font-family:맑은고딕,Arial,sans-serif;">
+  <tr><th width="${GW}" style="${thGStyle}">구분</th>${headerCells}</tr>
+  <tr><td width="${GW}" style="${thGStyle}">점검결과</td>${resultCells}</tr>
+</table>`;
+
+        // 사진 임베드
+        const imgsArr: string[] = Array.isArray(insp.images) ? insp.images : [];
+        const photoTags: string[] = [];
+        if (imgsArr.length > 0) {
+          const { ObjectStorageService } = await import("./replit_integrations/object_storage/objectStorage");
+          const objSvc = new ObjectStorageService();
+          for (const imgPath of imgsArr) {
+            try {
+              const gcsFile = await objSvc.getObjectEntityFile(imgPath);
+              const [buf] = await (gcsFile as any).download();
+              const cid = `photo_${cidCounter++}@inspection`;
+              const ext = imgPath.toLowerCase().includes(".png") ? "png" : "jpeg";
+              allAttachments.push({ filename: `photo_${cidCounter}.${ext}`, content: buf as Buffer, cid, contentType: `image/${ext}`, contentDisposition: "inline" });
+              photoTags.push(`<img src="cid:${cid}" alt="점검사진" style="max-width:400px;max-height:300px;display:block;border:1px solid #ccc;margin:4px 0;" />`);
+            } catch { /* 사진 로드 실패 무시 */ }
+          }
+        }
+        const photoSection = photoTags.length > 0
+          ? `${L(`■ ${dept} 점검사진`)}<table cellpadding="4" cellspacing="0" style="border:none;"><tr>${photoTags.map(t => `<td style="vertical-align:top;border:none;">${t}</td>`).join("")}</tr></table>`
+          : "";
+
+        inspectionBlocks.push(`
+${L(`■ 점검일자 : ${mmI}.${ddI}(${dayI})`)}
+${L(`■ 점검지역 : ${dept}`)}
+${L(`■ 점검결과 : ${overallR}`)}
+${workerN ? L(`&nbsp;&nbsp;• 작업인원 : ${workerN}`) : ""}
+${workC   ? L(`■ 작업내용 : ${workC}`) : ""}
+${notesI  ? L(`■ 비고 : ${notesI}`) : ""}
+${L(`■ 점검내역(현장점검 체크리스트 ${checklistArr.length}개 항목 점검)`)}
+${checklistTable}
+${photoSection}
+<br>`);
+      }
+
+      // 여러 날짜인 경우 제목 처리
+      const lastDate = rows[rows.length - 1].inspectionDate;
+      const [ly, lm, ld] = lastDate.split("-");
+      const sameDaySubject = firstDate === lastDate
+        ? `[공유] 대구본부 현장 안전점검 결과(\`${yy2}.${m0}.${d0})_현장경영팀`
+        : `[공유] 대구본부 현장 안전점검 결과(\`${yy2}.${m0}.${d0}~${parseInt(lm, 10)}.${parseInt(ld, 10)})_현장경영팀`;
+
+      const htmlBody = `
+<div style="font-family:맑은고딕,Arial,sans-serif;font-size:11pt;line-height:1.7;color:#000;">
+${L("안녕하십니까? 현장경영팀 입니다.")}
+<br>
+${L("kt안전보건실 및 본사 안전관리팀에서 현장 안전점검이 강화되어 시행되고 있습니다.")}
+${L("현장 안전점검 100% 준수 될수 있도록 실천해주세요.")}
+<br>
+${L('대구본부 전직원 모두 &ldquo;안전분야 STAR&rdquo;가 되어주세요.')}
+<br>
+${L("==========================================================")}
+<br>
+${L("현장경영팀에서 진행한 현장 안전점검 결과에 대해서")}
+${L("아래와 같이 공유하여 드리오니 작업 시 보호구 착용과 안전수칙 준수를 생활화하여 주시기 바랍니다.")}
+<br>
+${inspectionBlocks.join("")}
+${L("■ 안전관리위반시 페널티 부여안내")}
+${L("&#8251; '3진 아웃제' 운영(발생 시)")}
+${penaltyTable}
+${L("&#8251; 미준수 사례 발생 시 '시정조치요구서' 발행 (본사 → 본부 또는 본부 → 운용팀)")}
+${L("&#8251; 본부 내 '3진 아웃' 발생 시 KPI(안전점검 항목) 2.2점 부여, 2회 이상 발생 시에는 0점 부여")}
+${L("&#8251; 팀장에 대한 '3진 아웃'은 소속팀 누적 3회 적발 시 해당(인원에 상관없이 팀 적발 횟수)")}
+<br>
+${L("현장안전점검 목적은 안전한 직장에서 사고없이 업무를 하기 위함으로 적발이 목적은 아닙니다.")}
+<br>
+${L("다만 본사에서 기공지한 상벌제도에 의해 위와같이 페널티가 부여되면 불이익이 생길 수 있음을 인지하시고")}
+<br>
+${L("안전보호구 착용, 안전수칙 준수는 100% 준수 될수 있도록 습관적으로 실천해주십시요.")}
+${L("오늘도 안전한 대구본부 함께 만들어갑시다.")}
+<br>
+${L("감사합니다.")}
+</div>`;
+
+      const fullHtml = `<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"></head><body style="margin:20px;padding:0;">${htmlBody}</body></html>`;
+
+      const nodemailer = (await import("nodemailer")).default;
+      const transporter = nodemailer.createTransport({
+        host: "smtp.gmail.com", port: 587, secure: false,
+        auth: { user: GMAIL_USER, pass: appPassword },
+        tls: { rejectUnauthorized: false },
+        connectionTimeout: 15000, greetingTimeout: 10000, socketTimeout: 30000,
+      });
+      await transporter.verify();
+      await transporter.sendMail({
+        from: `"현장경영팀" <${GMAIL_USER}>`,
+        to: `${GMAIL_USER}, ${FORWARD_TO}`,
+        subject: sameDaySubject,
+        html: fullHtml,
+        attachments: allAttachments,
+      });
+      console.log(`[BulkEmail] 발송 완료 ${rows.length}건 → ${GMAIL_USER}, ${FORWARD_TO}`);
+      res.json({ success: true, message: `${rows.length}건 이메일 발송 완료` });
+    } catch (e: any) {
+      console.error("[BulkEmail] 오류:", e.message);
+      res.status(500).json({ message: `이메일 발송 실패: ${e.message}` });
+    }
+  });
+
   // Seed Data
   await seedDatabase();
 
