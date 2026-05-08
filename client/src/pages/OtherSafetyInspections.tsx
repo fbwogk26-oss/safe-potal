@@ -47,7 +47,14 @@ const MAX_IMAGES = 10;
 
 const EXTRA_DEPARTMENTS = ["운용계획팀", "사업지원팀", "현장경영팀"];
 
-const INSPECTION_TYPE = "기타안전점검";
+const OTHER_INSPECTION_TYPES = ["KT 점검", "본사 점검", "현장경영팀 점검"] as const;
+type OtherInspectionType = typeof OTHER_INSPECTION_TYPES[number];
+
+const SUBTYPE_COLORS: Record<OtherInspectionType, string> = {
+  "KT 점검":     "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 border-blue-200 dark:border-blue-800",
+  "본사 점검":   "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 border-purple-200 dark:border-purple-800",
+  "현장경영팀 점검": "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300 border-orange-200 dark:border-orange-800",
+};
 
 export default function OtherSafetyInspections() {
   const { canEditInspections, canUploadInspectionPhotos } = usePermissions();
@@ -58,7 +65,9 @@ export default function OtherSafetyInspections() {
     queryKey: ["/api/safety-inspections"],
   });
 
-  const inspections = allInspections?.filter(i => i.inspectionType === INSPECTION_TYPE) ?? [];
+  const inspections = allInspections?.filter(i =>
+    (OTHER_INSPECTION_TYPES as readonly string[]).includes(i.inspectionType ?? "")
+  ) ?? [];
 
   const { data: teams } = useQuery<Team[]>({
     queryKey: ["/api/teams"],
@@ -69,6 +78,7 @@ export default function OtherSafetyInspections() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [isSendingEmail, setIsSendingEmail] = useState(false);
 
+  const [subType, setSubType] = useState<OtherInspectionType>("현장경영팀 점검");
   const [department, setDepartment] = useState("");
   const [workContent, setWorkContent] = useState("");
   const [location, setLocation] = useState("");
@@ -86,6 +96,7 @@ export default function OtherSafetyInspections() {
   const pdfFileInputRef = useRef<HTMLInputElement>(null);
 
   const resetForm = () => {
+    setSubType("현장경영팀 점검");
     setDepartment("");
     setWorkContent("");
     setLocation("");
@@ -115,6 +126,7 @@ export default function OtherSafetyInspections() {
     checklist: ChecklistItem[];
     notes: string;
     images: string[];
+    subType: string;
   }) => {
     setIsSendingEmail(true);
     try {
@@ -172,6 +184,7 @@ export default function OtherSafetyInspections() {
         checklist: variables.checklist,
         notes: variables.notes || "",
         images: variables.images,
+        subType: variables.inspectionType,
       };
       resetForm();
       toast({ title: "점검 등록 완료" });
@@ -287,7 +300,7 @@ export default function OtherSafetyInspections() {
     }
     const title = workContent ? `${department} - ${workContent}` : department;
     const payload = {
-      inspectionType: INSPECTION_TYPE,
+      inspectionType: subType,
       title,
       location: location || undefined,
       inspector: inspector || undefined,
@@ -305,6 +318,8 @@ export default function OtherSafetyInspections() {
   };
 
   const handleEdit = (inspection: any) => {
+    const knownSubType = OTHER_INSPECTION_TYPES.find(t => t === inspection.inspectionType);
+    setSubType(knownSubType ?? "현장경영팀 점검");
     const parts = inspection.title?.split(" - ") || [];
     setDepartment(inspection.department || parts[0] || "");
     setWorkContent(inspection.workContent || parts.slice(1).join(" - ") || "");
@@ -433,9 +448,16 @@ export default function OtherSafetyInspections() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>점검 유형</Label>
-                    <div className="flex items-center h-10 px-3 rounded-md border bg-muted/30 text-sm text-muted-foreground">
-                      기타 안전점검
-                    </div>
+                    <Select value={subType} onValueChange={v => setSubType(v as OtherInspectionType)}>
+                      <SelectTrigger data-testid="select-sub-type">
+                        <SelectValue placeholder="점검 유형 선택" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {OTHER_INSPECTION_TYPES.map(t => (
+                          <SelectItem key={t} value={t}>{t}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-2">
                     <Label>점검일</Label>
@@ -690,9 +712,15 @@ export default function OtherSafetyInspections() {
                           data-testid={`checkbox-inspection-${inspection.id}`}
                         />
                       )}
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 shrink-0 font-bold border border-orange-200 dark:border-orange-800">
-                        기타
-                      </span>
+                      {(() => {
+                        const st = inspection.inspectionType as OtherInspectionType;
+                        const colorCls = SUBTYPE_COLORS[st] ?? SUBTYPE_COLORS["현장경영팀 점검"];
+                        return (
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 font-bold border ${colorCls}`}>
+                            {inspection.inspectionType}
+                          </span>
+                        );
+                      })()}
                       <span className="text-xs text-muted-foreground shrink-0 w-[72px]">{inspection.inspectionDate}</span>
                       <span className="text-sm font-medium truncate flex-1 min-w-0">{inspection.title}</span>
                       {inspection.inspector && (

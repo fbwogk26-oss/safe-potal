@@ -1573,7 +1573,7 @@ export async function registerRoutes(
     try {
       const {
         inspectionDate, department, inspector, workerName,
-        location, workContent, checklist, notes, images,
+        location, workContent, checklist, notes, images, subType,
       } = req.body;
 
       if (!inspectionDate || !department) {
@@ -1664,7 +1664,8 @@ export async function registerRoutes(
 
       const fullHtml = `<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:20px;padding:0;">${htmlBody}</body></html>`;
 
-      const subject = `[공유] 대구본부 현장 안전점검 결과(\`${yy}.${m}.${d})_현장경영팀`;
+      const subTypeLabel = subType || "기타 안전점검";
+      const subject = `[공유] 대구본부 ${subTypeLabel} 결과(\`${yy}.${m}.${d})_현장경영팀`;
 
       const nodemailer = (await import("nodemailer")).default;
       const transporter = nodemailer.createTransport({
