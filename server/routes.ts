@@ -1638,7 +1638,7 @@ export async function registerRoutes(
               contentDisposition: "inline",
             });
             imgTags.push(
-              `<td style="padding:2px;"><img src="cid:${cid}" alt="점검사진" style="width:200px;height:150px;object-fit:cover;display:block;border:1px solid #ccc;" /></td>`
+              `<td style="padding:1px;"><img src="cid:${cid}" alt="점검사진" style="width:280px;height:210px;object-fit:cover;display:block;border:1px solid #ccc;" /></td>`
             );
           } catch { /* 개별 사진 실패 무시 */ }
         }
