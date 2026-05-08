@@ -13,6 +13,27 @@ import { Loader2, Newspaper, Send, RefreshCw, Settings, Clock, Mail, AlertTriang
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 
+function safeFormat(dateStr: string | null | undefined, fmt: string, opts?: object): string {
+  if (!dateStr) return "";
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return "";
+    return format(d, fmt, opts);
+  } catch {
+    return "";
+  }
+}
+
+function safePubDate(pubDate: string): string {
+  try {
+    const d = new Date(pubDate);
+    if (isNaN(d.getTime())) return pubDate.substring(0, 10);
+    return d.toLocaleDateString("ko-KR");
+  } catch {
+    return "";
+  }
+}
+
 const DAY_OPTIONS = [
   { key: "mon", label: "월" },
   { key: "tue", label: "화" },
@@ -145,7 +166,7 @@ export default function CardNewsAdmin() {
         {config?.lastSent && (
           <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-full">
             <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
-            마지막 발송: {format(new Date(config.lastSent), "M월 d일 HH:mm", { locale: ko })}
+            마지막 발송: {safeFormat(config.lastSent, "M월 d일 HH:mm", { locale: ko })}
           </div>
         )}
       </div>
@@ -195,7 +216,7 @@ export default function CardNewsAdmin() {
               </div>
               {fetchedAt && (
                 <p className="text-xs text-muted-foreground mt-2">
-                  수집 시각: {format(new Date(fetchedAt), "M월 d일 HH:mm:ss", { locale: ko })}
+                  수집 시각: {safeFormat(fetchedAt, "M월 d일 HH:mm:ss", { locale: ko })}
                 </p>
               )}
             </CardContent>
@@ -237,7 +258,7 @@ export default function CardNewsAdmin() {
                             )}
                             {article.pubDate && (
                               <span className="text-[10px] text-muted-foreground">
-                                {new Date(article.pubDate).toLocaleDateString('ko-KR')}
+                                {safePubDate(article.pubDate)}
                               </span>
                             )}
                           </div>
@@ -446,7 +467,7 @@ export default function CardNewsAdmin() {
                   </div>
                   {config?.lastSent && (
                     <p className="text-xs text-muted-foreground text-center mt-3 pt-3 border-t">
-                      마지막 발송: {format(new Date(config.lastSent), "yyyy년 M월 d일 HH:mm", { locale: ko })}
+                      마지막 발송: {safeFormat(config.lastSent, "yyyy년 M월 d일 HH:mm", { locale: ko })}
                     </p>
                   )}
                 </CardContent>
