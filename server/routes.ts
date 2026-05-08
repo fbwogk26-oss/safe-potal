@@ -8211,7 +8211,7 @@ function buildCardNewsEmailHtml(cards: any[]): string {
   <div style="background:linear-gradient(135deg,#7f1d1d,#b91c1c);border-radius:14px 14px 0 0;padding:28px 24px 20px;text-align:center;">
     <div style="font-size:44px;margin-bottom:8px;">🚨</div>
     <h1 style="color:#fff;margin:0;font-size:22px;font-weight:800;">음주운전 경각심 카드뉴스</h1>
-    <p style="color:#fca5a5;margin:6px 0 0;font-size:13px;">KT MOS 남부 안전관리팀 · ${today}</p>
+    <p style="color:#fca5a5;margin:6px 0 0;font-size:13px;">KT MOS 대구현장경영팀 · ${today}</p>
   </div>
   <div style="background:#dc2626;padding:10px 20px;text-align:center;">
     <p style="color:#fff;margin:0;font-size:13px;font-weight:700;">🔴 음주운전은 살인입니다 — 단 한 번의 선택이 모든 것을 바꿉니다</p>
@@ -8241,7 +8241,7 @@ async function sendCardNewsEmail() {
   });
   const today = new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' });
   await transporter.sendMail({
-    from: '"KT MOS 안전관리팀" <fbwogk26@gmail.com>',
+    from: '"KT MOS 대구현장경영팀" <fbwogk26@gmail.com>',
     to: recipients.join(', '),
     cc: 'jaeha.ryu@ktmos.co.kr',
     subject: `🚨 [음주운전 경각심] ${today} 카드뉴스`,
