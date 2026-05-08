@@ -1629,7 +1629,7 @@ export async function registerRoutes(
       ).join("");
 
       const resultCells = checklistArr.map(c => {
-        const display = c.status === "미점검" ? "해당없음" : c.status;
+        const display = c.status === "양호" ? "준수" : c.status === "미점검" ? "해당없음" : c.status;
         const bg      = c.status === "양호" ? "#e8f5e9" : c.status === "미흡" ? "#fce4ec" : "#f5f5f5";
         const color   = c.status === "양호" ? "#1b5e20" : c.status === "미흡" ? "#b71c1c" : "#757575";
         return `<td style="${cellBase}background:${bg};color:${color};font-weight:bold;">${display}</td>`;
@@ -1692,9 +1692,9 @@ export async function registerRoutes(
         : "";
 
       // ── 3진 아웃제 표 ──────────────────────────────────────────────
-      const penaltyTh  = `border:1px solid #aaa;padding:5px 10px;background:#fce4e4;font-size:11px;font-weight:bold;text-align:center;`;
-      const penaltyTd  = `border:1px solid #aaa;padding:5px 10px;font-size:11px;`;
-      const penaltyTdc = `border:1px solid #aaa;padding:5px 10px;font-size:11px;text-align:center;`;
+      const penaltyTh  = `border:1px solid #aaa;padding:5px 10px;background:#f2f2f2;font-size:11px;font-weight:bold;text-align:center;vertical-align:middle;`;
+      const penaltyTdL = `border:1px solid #aaa;padding:5px 10px;font-size:11px;vertical-align:middle;`;
+      const penaltyTdC = `border:1px solid #aaa;padding:5px 10px;font-size:11px;text-align:center;vertical-align:middle;`;
       const penaltyTable = `
 <div style="overflow-x:auto;margin:6px 0 10px;">
 <table style="border-collapse:collapse;font-family:맑은고딕,Arial,sans-serif;width:100%;max-width:680px;">
@@ -1707,22 +1707,24 @@ export async function registerRoutes(
   </thead>
   <tbody>
     <tr>
-      <td style="${penaltyTd}">점검 항목 1개 이상 적발 시</td>
-      <td style="${penaltyTdc}">
-        『3회』→ 서면경고 및 인사위원회<br>
-        『3회』→ KPI(안전점검) 최하점(1.2점) 부여
+      <td style="${penaltyTdL}" rowspan="4">
+        13개 체크리스트 항목 중 미준수 사례 적용<br>
+        &nbsp;- 안전관리팀 / 현장경영팀 점검 시 반영<br>
+        &nbsp;- 점검 항목 1개 이상 적발 시
       </td>
-      <td style="${penaltyTdc}">미준수자</td>
+      <td style="${penaltyTdC}">『1회』→ 서면경고</td>
+      <td style="${penaltyTdC}">팀장</td>
     </tr>
     <tr>
-      <td style="${penaltyTd}">미준수 사례 발생 시<br>'시정조치요구서' 발행</td>
-      <td style="${penaltyTdc}">본사 → 본부 또는 본부 → 운용팀</td>
-      <td style="${penaltyTdc}">본부</td>
+      <td style="${penaltyTdC}">『2회』→ 서면경고</td>
+      <td style="${penaltyTdC}">미준수자</td>
     </tr>
     <tr>
-      <td style="${penaltyTd}">본부 내 '3진 아웃' 발생 시</td>
-      <td style="${penaltyTdc}">KPI(안전점검 항목) 2.2점 부여<br>2회 이상 발생 시 0점 부여</td>
-      <td style="${penaltyTdc}">본부</td>
+      <td style="${penaltyTdC}">『3회』→ 서면경고 및 인사위원회</td>
+      <td style="${penaltyTdC}" rowspan="2">본부</td>
+    </tr>
+    <tr>
+      <td style="${penaltyTdC}">『3회』→ KPI(안전점검) 최하점(1.2점) 부여</td>
     </tr>
   </tbody>
 </table>
@@ -1740,7 +1742,7 @@ ${p("kt안전보건실 및 본사 안전관리팀에서 현장 안전점검이 �
 ${p("현장 안전점검 100% 준수 될수 있도록 실천해주세요.")}
 ${p('대구본부 전직원 모두 &ldquo;안전분야 STAR&rdquo;가 되어주세요.')}
 
-<p style="margin:10px 0;border-top:2px solid #555;"></p>
+<p style="margin:10px 0;font-family:맑은고딕,Arial,sans-serif;font-size:11pt;letter-spacing:0;color:#333;">==========================================================</p>
 
 ${p(`${m}월 ${d}일 현장경영팀에서 진행한 현장 안전점검 결과에 대해서`)}
 ${p("아래와 같이 공유하여 드리오니 작업 시 <strong>보호구 착용</strong>과 <strong>안전수칙 준수</strong>를 생활화하여 주시기 바랍니다.")}
