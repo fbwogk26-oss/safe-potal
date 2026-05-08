@@ -8116,8 +8116,19 @@ ${htmlDraft}
 
   app.post('/api/card-news/send-email', requireAdmin, async (_req, res) => {
     try {
-      await sendCardNewsEmail();
-      res.json({ message: '카드뉴스 이메일이 발송되었습니다', sentAt: new Date().toISOString() });
+      const results = await sendCardNewsEmail();
+      const sentAt = new Date().toISOString();
+      const failed = results.filter((r: any) => !r.ok);
+      if (failed.length > 0) {
+        res.json({
+          message: `발송 완료 (${results.length - failed.length}/${results.length}건 성공)`,
+          sentAt,
+          results,
+          warning: `실패: ${failed.map((f: any) => f.email).join(', ')}`,
+        });
+      } else {
+        res.json({ message: `카드뉴스 이메일이 발송되었습니다 (${results.length}건)`, sentAt, results });
+      }
     } catch (e: any) {
       res.status(500).json({ message: '이메일 발송 실패: ' + e.message });
     }
@@ -8242,15 +8253,39 @@ async function sendCardNewsEmail() {
     auth: { user: "fbwogk26@gmail.com", pass: process.env.GMAIL_APP_PASSWORD },
     tls: { rejectUnauthorized: false },
   });
+  // SMTP 연결 확인
+  await transporter.verify();
   const today = new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' });
-  await transporter.sendMail({
-    from: '"KT MOS 대구현장경영팀" <fbwogk26@gmail.com>',
-    to: allRecipients.join(', '),
-    subject: `🚨 [음주운전 경각심] ${today} 카드뉴스`,
-    html,
-  });
+  const subject = `🚨 [음주운전 경각심] ${today} 카드뉴스`;
+  // 수신자별 개별 발송 (기업 메일 서버 거절 감지)
+  const results: { email: string; ok: boolean; detail: string }[] = [];
+  for (const recipient of allRecipients) {
+    try {
+      const info: any = await transporter.sendMail({
+        from: '"KT MOS 대구현장경영팀" <fbwogk26@gmail.com>',
+        to: recipient,
+        subject,
+        html,
+      });
+      const rejected: string[] = info.rejected || [];
+      if (rejected.includes(recipient)) {
+        results.push({ email: recipient, ok: false, detail: `SMTP 거절: ${info.response}` });
+        console.error(`[카드뉴스] 발송 거절 - ${recipient} | ${info.response}`);
+      } else {
+        results.push({ email: recipient, ok: true, detail: info.response });
+        console.log(`[카드뉴스] 발송 성공 - ${recipient} | ${info.response}`);
+      }
+    } catch (err: any) {
+      results.push({ email: recipient, ok: false, detail: err.message });
+      console.error(`[카드뉴스] 발송 오류 - ${recipient} |`, err.message);
+    }
+  }
   await storage.setSetting('card_news_last_sent', new Date().toISOString());
-  console.log('[카드뉴스] 이메일 발송 완료 ->', allRecipients.join(', '));
+  const failed = results.filter(r => !r.ok);
+  if (failed.length > 0) {
+    console.error('[카드뉴스] 일부 실패:', JSON.stringify(failed));
+  }
+  return results;
 }
 
 async function setupCardNewsScheduler() {
