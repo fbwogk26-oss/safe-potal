@@ -1658,14 +1658,14 @@ export async function registerRoutes(
             const cid   = `photo_${pi}@inspection`;
             const ext   = imgPath.toLowerCase().includes(".png") ? "png" : "jpeg";
             attachments.push({
-              filename:    `photo_${pi + 1}.${ext}`,
-              content:     buf,
+              filename:        `photo_${pi + 1}.${ext}`,
+              content:         buf as Buffer,
               cid,
-              encoding:    "base64",
-              contentType: `image/${ext}`,
+              contentType:     `image/${ext}`,
+              contentDisposition: "inline",
             });
             photoImgTags.push(
-              `<img src="cid:${cid}" alt="점검사진 ${pi + 1}" style="max-width:320px;max-height:240px;border:1px solid #ddd;border-radius:4px;" />`
+              `<img src="cid:${cid}" alt="점검사진 ${pi + 1}" style="max-width:400px;max-height:300px;display:block;border:1px solid #ccc;margin:4px 0;" />`
             );
           } catch {
             photoImgTags.push(`<span style="font-size:11px;color:#888;">[사진 ${pi + 1} 로드 실패]</span>`);
