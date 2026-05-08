@@ -8182,13 +8182,13 @@ async function buildCardNewsCards(articles: any[]): Promise<any[]> {
         model: "gpt-4o-mini",
         messages: [{
           role: "system",
-          content: '음주운전 뉴스를 직원 경각심 카드뉴스로 요약하세요. JSON: {"제목":"(20자 이내)","핵심내용":"(50자 이내, 2줄)","경각심문구":"(20자 이내 강렬한 문구)"}'
+          content: '음주운전 뉴스를 직원 경각심 카드뉴스로 요약하세요. JSON: {"제목":"(20자 이내)","핵심내용":"(60자 이내, 2줄)","경각심문구":"(70자 이내, 이 뉴스에서 얻을 수 있는 구체적인 교훈과 경각심 메시지를 서술형으로 작성)"}'
         }, {
           role: "user",
           content: `제목: ${article.title}\n내용: ${article.description.slice(0, 300)}`
         }],
         response_format: { type: "json_object" },
-        max_tokens: 150,
+        max_tokens: 300,
       });
       const data = JSON.parse(completion.choices[0].message.content || '{}');
       return { ...article, ...data };
@@ -8233,7 +8233,10 @@ function buildCardNewsEmailHtml(cards: any[]): string {
     return `<tr>${cells[0]}<td width="6%"></td>${cells[1]}</tr><tr><td colspan="3" height="12"></td></tr>`;
   }).join('');
 
-  const summaryMsg = cards.map(c => c.경각심문구).filter(Boolean)[0] || '음주운전은 범죄입니다. 단 한 잔도 안 됩니다.';
+  const summaryMsgs = cards.map(c => c.경각심문구).filter(Boolean);
+  const summaryMsg = summaryMsgs.length > 0
+    ? summaryMsgs.map(m => `• ${m}`).join('<br><br>')
+    : '• 음주운전은 범죄입니다. 단 한 잔도 안 됩니다.';
 
   return `<!DOCTYPE html>
 <html lang="ko">
@@ -8249,80 +8252,58 @@ function buildCardNewsEmailHtml(cards: any[]): string {
 <tr><td align="center" style="padding:32px 16px 40px;">
 <table width="520" cellpadding="0" cellspacing="0">
 
-  <!-- ① 탭 라벨 -->
-  <tr>
-    <td style="padding:0 0 0 2px;">
-      <table cellpadding="0" cellspacing="0">
-        <tr>
-          <td bgcolor="#f5f3ff" style="background-color:#f5f3ff;border-radius:12px 12px 0 0;padding:10px 22px;">
-            <span style="font-size:13px;font-weight:700;color:#6d28d9;letter-spacing:0.03em;">KT MOS 대구현장경영팀</span>
-          </td>
-        </tr>
-      </table>
-    </td>
-  </tr>
-
-  <!-- ② 메인 컨테이너 (흰/연보라 배경) -->
+  <!-- ① 메인 컨테이너 -->
   <tr>
     <td>
-      <table width="100%" cellpadding="0" cellspacing="0" bgcolor="#f5f3ff" style="background-color:#f5f3ff;border-radius:0 14px 0 0;">
+      <table width="100%" cellpadding="0" cellspacing="0" bgcolor="#f5f3ff" style="background-color:#f5f3ff;border-radius:14px;">
 
-        <!-- 헤더 타이틀 -->
+        <!-- 헤더 타이틀 (다크 퍼플 배경으로 강조) -->
         <tr>
-          <td style="padding:28px 28px 6px;">
+          <td bgcolor="#1e1b4b" style="background-color:#1e1b4b;border-radius:14px 14px 0 0;padding:28px 28px 20px;">
             <table width="100%" cellpadding="0" cellspacing="0">
               <tr>
-                <td valign="bottom">
-                  <p style="margin:0;font-size:34px;font-weight:900;color:#1e1b4b;letter-spacing:-0.03em;line-height:1.15;">음주운전<br>경각심 뉴스</p>
+                <td valign="middle">
+                  <p style="margin:0 0 6px;font-size:11px;font-weight:700;color:#a78bfa;letter-spacing:0.12em;text-transform:uppercase;">KT MOS 대구현장경영팀</p>
+                  <p style="margin:0;font-size:36px;font-weight:900;color:#ffffff;letter-spacing:-0.02em;line-height:1.1;white-space:nowrap;">음주운전 경각심 뉴스</p>
+                  <p style="margin:8px 0 0;font-size:14px;color:#c4b5fd;">오늘의 음주운전 관련 주요 뉴스를 전달드립니다</p>
                 </td>
-                <td align="right" valign="top">
-                  <span style="font-size:12px;color:#a78bfa;white-space:nowrap;">${today}</span>
+                <td align="right" valign="top" style="white-space:nowrap;padding-left:12px;">
+                  <span style="font-size:12px;color:#a78bfa;">${today}</span>
                 </td>
               </tr>
             </table>
           </td>
         </tr>
-        <tr>
-          <td style="padding:6px 28px 0;">
-            <p style="margin:0;font-size:14px;color:#7c6fb5;">오늘의 음주운전 관련 주요 뉴스를 전달드립니다</p>
-          </td>
-        </tr>
-        <!-- 구분선 -->
-        <tr>
-          <td style="padding:16px 28px 0;">
-            <table width="100%" cellpadding="0" cellspacing="0"><tr><td bgcolor="#ddd6fe" style="background-color:#ddd6fe;height:1px;font-size:0;line-height:0;">&nbsp;</td></tr></table>
-          </td>
-        </tr>
 
-        <!-- ③ 2열 카드 그리드 -->
+        <!-- ② 핵심 메시지 박스 (카드 그리드 위) -->
         <tr>
-          <td style="padding:20px 20px 8px;">
-            <table width="100%" cellpadding="0" cellspacing="0">
-              ${gridRows}
-            </table>
-          </td>
-        </tr>
-
-        <!-- ④ 핵심 메시지 박스 -->
-        <tr>
-          <td style="padding:4px 20px 24px;">
+          <td style="padding:20px 20px 4px;">
             <table width="100%" cellpadding="0" cellspacing="0" bgcolor="#6d28d9" style="background-color:#6d28d9;border-radius:12px;">
               <tr>
-                <td style="padding:12px 20px 6px;">
+                <td style="padding:14px 22px 8px;">
                   <table cellpadding="0" cellspacing="0">
                     <tr>
                       <td bgcolor="#a78bfa" style="background-color:#a78bfa;border-radius:20px;padding:4px 14px;">
-                        <span style="font-size:11px;font-weight:800;color:#ffffff;letter-spacing:0.07em;">핵심 메시지</span>
+                        <span style="font-size:11px;font-weight:800;color:#ffffff;letter-spacing:0.07em;">📌 오늘의 핵심 메시지</span>
                       </td>
                     </tr>
                   </table>
                 </td>
               </tr>
               <tr>
-                <td style="padding:8px 20px 18px;">
-                  <p style="margin:0;font-size:16px;font-weight:700;color:#ffffff;line-height:1.65;">${summaryMsg}</p>
+                <td style="padding:6px 22px 18px;">
+                  <p style="margin:0;font-size:14px;font-weight:600;color:#ffffff;line-height:1.9;">${summaryMsg}</p>
                 </td>
               </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- ③ 2열 카드 그리드 -->
+        <tr>
+          <td style="padding:16px 20px 20px;">
+            <table width="100%" cellpadding="0" cellspacing="0">
+              ${gridRows}
             </table>
           </td>
         </tr>
