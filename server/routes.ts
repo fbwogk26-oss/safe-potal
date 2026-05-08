@@ -1671,9 +1671,13 @@ export async function registerRoutes(
 
   /** 페널티 표 HTML */
   function buildPenaltyTable(): string {
-    const pTh  = `border:1px solid #aaa;padding:5px 10px;background:#f2f2f2;font-size:11px;font-weight:bold;text-align:center;vertical-align:middle;`;
-    const pTdL = `border:1px solid #aaa;padding:5px 10px;font-size:11px;vertical-align:middle;`;
-    const pTdC = `border:1px solid #aaa;padding:5px 10px;font-size:11px;text-align:center;vertical-align:middle;`;
+    const pTh  = `border:1px solid #aaa;padding:6px 10px;background:#1e3a5f;color:#fff;font-size:11px;font-weight:bold;text-align:center;vertical-align:middle;`;
+    const pTdL = `border:1px solid #aaa;padding:6px 10px;font-size:11px;vertical-align:middle;background:#fafafa;`;
+    const pTdC = `border:1px solid #aaa;padding:6px 10px;font-size:11px;text-align:center;vertical-align:middle;`;
+    const r1 = `<b style="color:#e67e22;">『1회』</b> → 서면경고`;
+    const r2 = `<b style="color:#d35400;">『2회』</b> → 서면경고`;
+    const r3a = `<b style="color:#c0392b;">『3회』</b> → <b style="color:#c0392b;">서면경고 및 인사위원회</b>`;
+    const r3b = `<b style="color:#c0392b;">『3회』</b> → <b style="color:#c0392b;">KPI(안전점검) 최하점(1.2점) 부여</b>`;
     return `
 <table cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-family:맑은고딕,Arial,sans-serif;width:100%;max-width:700px;">
   <tr>
@@ -1683,44 +1687,44 @@ export async function registerRoutes(
   </tr>
   <tr>
     <td style="${pTdL}" rowspan="4">
-      13개 체크리스트 항목 중 미준수 사례 적용<br>
+      13개 체크리스트 항목 중 <b>미준수 사례 적용</b><br>
       &nbsp;- 안전관리팀 / 현장경영팀 점검 시 반영<br>
-      &nbsp;- 점검 항목 1개 이상 적발 시
+      &nbsp;- 점검 항목 <b>1개 이상 적발 시</b>
     </td>
-    <td style="${pTdC}">『1회』→ 서면경고</td>
+    <td style="${pTdC}">${r1}</td>
     <td style="${pTdC}">팀장</td>
   </tr>
   <tr>
-    <td style="${pTdC}">『2회』→ 서면경고</td>
+    <td style="${pTdC}">${r2}</td>
     <td style="${pTdC}">미준수자</td>
   </tr>
   <tr>
-    <td style="${pTdC}">『3회』→ 서면경고 및 인사위원회</td>
+    <td style="${pTdC}">${r3a}</td>
     <td style="${pTdC}" rowspan="2">본부</td>
   </tr>
   <tr>
-    <td style="${pTdC}">『3회』→ KPI(안전점검) 최하점(1.2점) 부여</td>
+    <td style="${pTdC}">${r3b}</td>
   </tr>
 </table>`;
   }
 
   /** 공통 이메일 footer HTML */
   function buildEmailFooter(): string {
-    const L = (t: string) => `<p style="margin:1px 0;font-family:맑은고딕,Arial,sans-serif;font-size:11pt;line-height:1.7;">${t}</p>`;
+    const L = (t: string) => `<p style="margin:2px 0;font-family:맑은고딕,Arial,sans-serif;font-size:11pt;line-height:1.7;">${t}</p>`;
     return `
-${L("■ 안전관리위반시 페널티 부여안내")}
-${L("&#8251; '3진 아웃제' 운영(발생 시)")}
+${L(`<b style="color:#c0392b;">■ 안전관리위반시 페널티 부여안내</b>`)}
+${L(`&#8251; <b style="color:#c0392b;">'3진 아웃제'</b> 운영(발생 시)`)}
 ${buildPenaltyTable()}
-${L("&#8251; 미준수 사례 발생 시 '시정조치요구서' 발행 (본사 → 본부 또는 본부 → 운용팀)")}
-${L("&#8251; 본부 내 '3진 아웃' 발생 시 KPI(안전점검 항목) 2.2점 부여, 2회 이상 발생 시에는 0점 부여")}
-${L("&#8251; 팀장에 대한 '3진 아웃'은 소속팀 누적 3회 적발 시 해당(인원에 상관없이 팀 적발 횟수)")}
+${L(`&#8251; 미준수 사례 발생 시 <b style="color:#c0392b;">'시정조치요구서'</b> 발행 (본사 → 본부 또는 본부 → 운용팀)`)}
+${L(`&#8251; 본부 내 <b style="color:#c0392b;">'3진 아웃'</b> 발생 시 <b>KPI(안전점검 항목) 2.2점</b> 부여, 2회 이상 발생 시에는 <b style="color:#c0392b;">0점</b> 부여`)}
+${L(`&#8251; 팀장에 대한 <b style="color:#c0392b;">'3진 아웃'</b>은 소속팀 누적 3회 적발 시 해당(인원에 상관없이 팀 적발 횟수)`)}
 <br>
-${L("현장안전점검 목적은 안전한 직장에서 사고없이 업무를 하기 위함으로 적발이 목적은 아닙니다.")}
+${L("현장안전점검 목적은 안전한 직장에서 사고없이 업무를 하기 위함으로 <b>적발이 목적은 아닙니다.</b>")}
 <br>
-${L("다만 본사에서 기공지한 상벌제도에 의해 위와같이 페널티가 부여되면 불이익이 생길 수 있음을 인지하시고")}
+${L("다만 본사에서 기공지한 상벌제도에 의해 위와같이 페널티가 부여되면 <b>불이익이 생길 수 있음</b>을 인지하시고")}
 <br>
-${L("안전보호구 착용, 안전수칙 준수는 100% 준수 될수 있도록 습관적으로 실천해주십시요.")}
-${L("오늘도 안전한 대구본부 함께 만들어갑시다.")}
+${L(`<b style="color:#1a6d1a;">안전보호구 착용, 안전수칙 준수는 100% 준수 될수 있도록 습관적으로 실천해주십시요.</b>`)}
+${L(`<b>오늘도 안전한 대구본부 함께 만들어갑시다.</b>`)}
 <br>
 ${L("감사합니다.")}`;
   }
@@ -1785,24 +1789,27 @@ ${L("감사합니다.")}`;
       const L = (t: string) =>
         `<p style="margin:1px 0;font-family:맑은고딕,Arial,sans-serif;font-size:11pt;line-height:1.7;">${t}</p>`;
 
+      const workerPart = workerName ? ` / 작업인원 : ${workerName}` : "";
+      const resultHtml = overallResult === "미흡"
+        ? `<span style="color:#c0392b;font-weight:bold;">미흡</span>`
+        : `<span style="color:#1a6d1a;font-weight:bold;">양호</span>`;
+
       const htmlBody = `
 <div style="font-family:맑은고딕,Arial,sans-serif;font-size:11pt;line-height:1.7;color:#000;">
-${L("안녕하십니까? 현장경영팀 입니다.")}
+${L(`<b style="color:#154360;">안녕하십니까? 현장경영팀 입니다.</b>`)}
 <br>
-${L("kt안전보건실 및 본사 안전관리팀에서 현장 안전점검이 강화되어 시행되고 있습니다.")}
-${L("현장 안전점검 100% 준수 될수 있도록 실천해주세요.")}
+${L(`kt안전보건실 및 본사 안전관리팀에서 현장 안전점검이 <b>강화</b>되어 시행되고 있습니다.`)}
+${L(`현장 안전점검 <b style="color:#1a6d1a;">100% 준수</b> 될수 있도록 실천해주세요.`)}
 <br>
-${L('대구본부 전직원 모두 &ldquo;안전분야 STAR&rdquo;가 되어주세요.')}
+${L(`대구본부 전직원 모두 &ldquo;<b style="color:#1a56db;">안전분야 STAR</b>&rdquo;가 되어주세요.`)}
 <br>
-${L("==========================================================")}
+${L(`<span style="color:#888;">══════════════════════════════════════════</span>`)}
 <br>
 ${L(`${m}월 ${d}일 현장경영팀에서 진행한 현장 안전점검 결과에 대해서`)}
-${L("아래와 같이 공유하여 드리오니 작업 시 보호구 착용과 안전수칙 준수를 생활화하여 주시기 바랍니다.")}
+${L(`아래와 같이 공유하여 드리오니 작업 시 <b>보호구 착용</b>과 <b>안전수칙 준수</b>를 생활화하여 주시기 바랍니다.`)}
 <br>
-${L(`<b>■ 점검일자 : ${mm}.${dd}(${dayKr})</b>`)}
-${L(`<b>■ 점검지역 : ${department}</b>`)}
-${L(`<b>■ 점검결과 : ${overallResult === "미흡" ? `<span style="color:#c0392b;font-weight:bold;">미흡</span>` : `<span style="color:#1a6d1a;font-weight:bold;">양호</span>`}</b>`)}
-${workerName ? L(`&nbsp;&nbsp;• 작업인원 : ${workerName}`) : ""}
+${L(`<b>■ 점검일자 : ${mm}.${dd}(${dayKr}) / 점검지역 : ${department}${workerPart}</b>`)}
+${L(`<b>■ 점검결과 : ${resultHtml}</b>`)}
 ${workContent ? L(`■ 작업내용 : ${workContent}`) : ""}
 ${notes       ? L(`■ 비고 : ${notes}`) : ""}
 ${L(`<b>■ 점검내역(현장점검 체크리스트 ${checklistArr.length}개 항목 점검)</b>`)}
@@ -1918,17 +1925,17 @@ ${buildEmailFooter()}
 
       const htmlBody = `
 <div style="font-family:맑은고딕,Arial,sans-serif;font-size:11pt;line-height:1.7;color:#000;">
-${L("안녕하십니까? 현장경영팀 입니다.")}
+${L(`<b style="color:#154360;">안녕하십니까? 현장경영팀 입니다.</b>`)}
 <br>
-${L("kt안전보건실 및 본사 안전관리팀에서 현장 안전점검이 강화되어 시행되고 있습니다.")}
-${L("현장 안전점검 100% 준수 될수 있도록 실천해주세요.")}
+${L(`kt안전보건실 및 본사 안전관리팀에서 현장 안전점검이 <b>강화</b>되어 시행되고 있습니다.`)}
+${L(`현장 안전점검 <b style="color:#1a6d1a;">100% 준수</b> 될수 있도록 실천해주세요.`)}
 <br>
-${L('대구본부 전직원 모두 &ldquo;안전분야 STAR&rdquo;가 되어주세요.')}
+${L(`대구본부 전직원 모두 &ldquo;<b style="color:#1a56db;">안전분야 STAR</b>&rdquo;가 되어주세요.`)}
 <br>
-${L("==========================================================")}
+${L(`<span style="color:#888;">══════════════════════════════════════════</span>`)}
 <br>
 ${L(`${introDate} 현장경영팀에서 진행한 현장 안전점검 결과에 대해서`)}
-${L("아래와 같이 공유하여 드리오니 작업 시 보호구 착용과 안전수칙 준수를 생활화하여 주시기 바랍니다.")}
+${L(`아래와 같이 공유하여 드리오니 작업 시 <b>보호구 착용</b>과 <b>안전수칙 준수</b>를 생활화하여 주시기 바랍니다.`)}
 <br>
 ${L(`<b>■ 점검일자 : ${dateLabels.join(" / ")}</b>`)}
 ${L(`<b>■ 점검지역 : ${regionLabels.join(" / ")}</b>`)}
