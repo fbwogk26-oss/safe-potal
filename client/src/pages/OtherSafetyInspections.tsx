@@ -231,7 +231,10 @@ export default function OtherSafetyInspections() {
       };
       resetForm();
       toast({ title: "점검 등록 완료" });
-      await sendEmailAfterCreate(payload);
+      // 현장경영팀 점검만 이메일 자동 발송
+      if (variables.inspectionType === "현장경영팀 점검") {
+        await sendEmailAfterCreate(payload);
+      }
     },
     onError: () => toast({ variant: "destructive", title: "점검 등록 실패" }),
   });
@@ -580,8 +583,9 @@ export default function OtherSafetyInspections() {
           <div className="text-sm text-orange-800 dark:text-orange-300">
             <p className="font-semibold">이메일 자동 발송 안내</p>
             <p className="text-xs mt-1 text-orange-700 dark:text-orange-400">
-              점검을 등록하면 안전점검 결과 이메일이 <strong>fbwogk26@gmail.com</strong>으로 자동 발송됩니다.
+              <strong>현장경영팀 점검</strong> 등록 시에만 안전점검 결과 이메일이 <strong>fbwogk26@gmail.com</strong>으로 자동 발송됩니다.
               Gmail에서 해당 이메일을 <strong>jaeha.ryu@ktmos.com</strong>으로 전달하세요.
+              <br /><span className="text-muted-foreground">※ KT 점검 · 본사 점검은 이메일 발송 없이 등록만 됩니다.</span>
             </p>
           </div>
         </CardContent>
@@ -830,8 +834,10 @@ export default function OtherSafetyInspections() {
                       <><Loader2 className="w-4 h-4 animate-spin" />처리 중...</>
                     ) : editingId !== null ? (
                       "수정 완료"
-                    ) : (
+                    ) : subType === "현장경영팀 점검" ? (
                       <><Mail className="w-4 h-4" />등록 + 이메일 발송</>
+                    ) : (
+                      "등록"
                     )}
                   </Button>
                 </div>

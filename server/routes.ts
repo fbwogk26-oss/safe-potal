@@ -1595,81 +1595,194 @@ export async function registerRoutes(
       const dayKr = DAYS_KR[dt.getDay()];
 
       const checklistArr: Array<{ item: string; status: string }> = Array.isArray(checklist) ? checklist : [];
-      const goodCount = checklistArr.filter(c => c.status === "양호").length;
-      const poorCount = checklistArr.filter(c => c.status === "미흡").length;
+      const goodCount  = checklistArr.filter(c => c.status === "양호").length;
+      const poorCount  = checklistArr.filter(c => c.status === "미흡").length;
       const overallResult = poorCount > 0
         ? `미흡 ${poorCount}건 (양호 ${goodCount}건)`
         : `전체 양호 (${goodCount}건)`;
 
-      const thStyle = `border:1px solid #ccc;padding:7px 12px;background:#e8f0fe;font-size:12px;text-align:center;font-weight:bold;`;
-      const tdStyle = `border:1px solid #ccc;padding:7px 12px;font-size:12px;`;
-      const tdcStyle = `border:1px solid #ccc;padding:7px 12px;font-size:12px;text-align:center;`;
+      // ── 체크리스트 항목명 축약 매핑 ──────────────────────────────
+      const ITEM_SHORT: Record<string, string> = {
+        "검전기 사용":                  "누전확인<br>(검전기)",
+        "안전모 착용":                  "안전모<br>착용",
+        "안전화 착용":                  "안전화<br>착용",
+        "안전대 착용방법":              "안전대착용<br>(작업지침)",
+        "이동식사다리 작업지침 준수":   "이동식<br>사다리",
+        "고임목 사용":                  "경사로<br>안전작업",
+        "2인1조 준수":                  "2인1조<br>주차방법",
+        "작업(절연)장갑 착용":          "작업장갑<br>또는절연장갑",
+        "라바콘설치":                   "도로주차<br>작업표시(라바콘)",
+        "유해위험요인 확인":            "유해·위험<br>요인제거",
+        "관계수급인 고위험 작업 입회":  "고위험작업<br>입회(수급사)",
+        "입회 임무 준수":               "입회여부<br>(수급사)",
+        "고위험 작업절차 준수":         "입회자<br>업무준수(수급사)",
+      };
 
-      const checklistRows = checklistArr.map((item, i) => {
-        const statusColor = item.status === "양호" ? "#008000" : item.status === "미흡" ? "#cc0000" : "#888";
-        const statusBg = item.status === "양호" ? "#e8f5e9" : item.status === "미흡" ? "#fce4ec" : "#f5f5f5";
-        return `<tr>
-          <td style="${tdcStyle}">${i + 1}</td>
-          <td style="${tdStyle}">${item.item}</td>
-          <td style="${tdcStyle};color:${statusColor};background:${statusBg};font-weight:bold;">${item.status}</td>
-        </tr>`;
+      // ── 공통 스타일 ────────────────────────────────────────────────
+      const cellBase = "border:1px solid #ccc;padding:5px 6px;font-size:11px;text-align:center;vertical-align:middle;";
+      const thHdr    = `${cellBase}background:#d9e1f2;font-weight:bold;line-height:1.3;`;
+      const thSection= `${cellBase}background:#e2efda;font-weight:bold;font-size:11px;`;
+
+      // ── 가로 체크리스트 표 ─────────────────────────────────────────
+      const headerCells = checklistArr.map(c =>
+        `<th style="${thHdr}">${ITEM_SHORT[c.item] ?? c.item}</th>`
+      ).join("");
+
+      const resultCells = checklistArr.map(c => {
+        const display = c.status === "미점검" ? "해당없음" : c.status;
+        const bg      = c.status === "양호" ? "#e8f5e9" : c.status === "미흡" ? "#fce4ec" : "#f5f5f5";
+        const color   = c.status === "양호" ? "#1b5e20" : c.status === "미흡" ? "#b71c1c" : "#757575";
+        return `<td style="${cellBase}background:${bg};color:${color};font-weight:bold;">${display}</td>`;
       }).join("");
 
+      const checklistTable = `
+<div style="overflow-x:auto;margin:8px 0;">
+<table style="border-collapse:collapse;width:100%;font-family:맑은고딕,Arial,sans-serif;">
+  <thead>
+    <tr>
+      <th style="${thSection}">구분</th>
+      ${headerCells}
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="${thSection}">${department}<br>점검결과</td>
+      ${resultCells}
+    </tr>
+  </tbody>
+</table>
+</div>`;
+
+      // ── 사진 인라인 임베드 (CID) ───────────────────────────────────
       const imagesArr: string[] = Array.isArray(images) ? images : [];
-      const origin = `${req.protocol}://${req.get("host")}`;
-      const photosHtml = imagesArr.length > 0
-        ? `<p style="margin:10px 0 4px;font-weight:bold;">■ 점검 사진 (${imagesArr.length}장)</p>
-           <p style="margin:0 0 6px;font-size:11px;color:#888;">※ 사진은 종합안전포털시스템 로그인 후 확인하세요.</p>
-           <div style="display:flex;flex-wrap:wrap;gap:6px;">${imagesArr.map((_, i) => `<span style="font-size:12px;color:#1a73e8;">[사진 ${i + 1}]</span>`).join(" ")}</div>`
+      const attachments: any[] = [];
+      const photoImgTags: string[] = [];
+
+      if (imagesArr.length > 0) {
+        const { ObjectStorageService } = await import("./replit_integrations/object_storage/objectStorage");
+        const objSvc = new ObjectStorageService();
+        for (let pi = 0; pi < imagesArr.length; pi++) {
+          const imgPath = imagesArr[pi];
+          try {
+            const gcsFile = await objSvc.getObjectEntityFile(imgPath);
+            const [buf] = await (gcsFile as any).download();
+            const cid   = `photo_${pi}@inspection`;
+            const ext   = imgPath.toLowerCase().includes(".png") ? "png" : "jpeg";
+            attachments.push({
+              filename:    `photo_${pi + 1}.${ext}`,
+              content:     buf,
+              cid,
+              encoding:    "base64",
+              contentType: `image/${ext}`,
+            });
+            photoImgTags.push(
+              `<img src="cid:${cid}" alt="점검사진 ${pi + 1}" style="max-width:320px;max-height:240px;border:1px solid #ddd;border-radius:4px;" />`
+            );
+          } catch {
+            photoImgTags.push(`<span style="font-size:11px;color:#888;">[사진 ${pi + 1} 로드 실패]</span>`);
+          }
+        }
+      }
+
+      const photosSection = photoImgTags.length > 0
+        ? `<p style="margin:12px 0 4px;font-family:맑은고딕,Arial,sans-serif;font-size:12pt;font-weight:bold;">■ ${department} 점검사진</p>
+           <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start;margin:6px 0 14px;">
+             ${photoImgTags.join("\n")}
+           </div>`
         : "";
 
-      const p = (text: string, style?: string) =>
-        `<p style="margin:4px 0;font-family:맑은고딕,Arial,sans-serif;font-size:12pt;line-height:1.6;${style || ""}">${text}</p>`;
+      // ── 3진 아웃제 표 ──────────────────────────────────────────────
+      const penaltyTh  = `border:1px solid #aaa;padding:5px 10px;background:#fce4e4;font-size:11px;font-weight:bold;text-align:center;`;
+      const penaltyTd  = `border:1px solid #aaa;padding:5px 10px;font-size:11px;`;
+      const penaltyTdc = `border:1px solid #aaa;padding:5px 10px;font-size:11px;text-align:center;`;
+      const penaltyTable = `
+<div style="overflow-x:auto;margin:6px 0 10px;">
+<table style="border-collapse:collapse;font-family:맑은고딕,Arial,sans-serif;width:100%;max-width:680px;">
+  <thead>
+    <tr>
+      <th style="${penaltyTh}">세부내역</th>
+      <th style="${penaltyTh}">벌칙사항</th>
+      <th style="${penaltyTh}">벌칙대상</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="${penaltyTd}">점검 항목 1개 이상 적발 시</td>
+      <td style="${penaltyTdc}">
+        『3회』→ 서면경고 및 인사위원회<br>
+        『3회』→ KPI(안전점검) 최하점(1.2점) 부여
+      </td>
+      <td style="${penaltyTdc}">미준수자</td>
+    </tr>
+    <tr>
+      <td style="${penaltyTd}">미준수 사례 발생 시<br>'시정조치요구서' 발행</td>
+      <td style="${penaltyTdc}">본사 → 본부 또는 본부 → 운용팀</td>
+      <td style="${penaltyTdc}">본부</td>
+    </tr>
+    <tr>
+      <td style="${penaltyTd}">본부 내 '3진 아웃' 발생 시</td>
+      <td style="${penaltyTdc}">KPI(안전점검 항목) 2.2점 부여<br>2회 이상 발생 시 0점 부여</td>
+      <td style="${penaltyTdc}">본부</td>
+    </tr>
+  </tbody>
+</table>
+</div>`;
 
-      const htmlBody = [
-        `<div style="font-family:맑은고딕,Arial,sans-serif;font-size:12pt;line-height:1.6;color:#111;max-width:700px;">`,
-        p("안녕하십니까? 현장경영팀 입니다."),
-        `<p style="margin:8px 0;"></p>`,
-        p("kt안전보건실 및 본사 안전관리팀에서 현장 안전점검이 강화되어 시행되고 있습니다."),
-        p("현장 안전점검 100% 준수 될 수 있도록 실천해주세요."),
-        p('대구본부 전직원 모두 <strong>"안전분야 STAR"</strong>가 되어주세요.'),
-        `<p style="margin:14px 0;border-top:2px solid #ddd;"></p>`,
-        p(`<strong>\`${yy}.${m}.${d}(${dayKr})</strong> 현장경영팀에서 진행한 현장 안전점검 결과를 아래와 같이 공유드립니다.`),
-        p("작업 시 <strong>보호구 착용</strong>과 <strong>안전수칙 준수</strong>를 생활화하여 주시기 바랍니다."),
-        `<p style="margin:12px 0;"></p>`,
-        p(`■ 점검일자 : ${inspectionDate}(${dayKr})`),
-        p(`■ 점검지역 : ${department}`),
-        p(`■ 점검결과 : ${overallResult}`),
-        workerName ? p(`　　• 작업인원 : ${workerName}`) : "",
-        inspector ? p(`■ 점검자 : ${inspector}`) : "",
-        location ? p(`■ 점검국소 : ${location}`) : "",
-        workContent ? p(`■ 작업내용 : ${workContent}`) : "",
-        notes ? p(`■ 비고 : ${notes}`) : "",
-        `<p style="margin:12px 0;"></p>`,
-        `<p style="margin:0 0 6px;font-family:맑은고딕,Arial,sans-serif;font-size:12pt;font-weight:bold;">■ 점검내역 (체크리스트 ${checklistArr.length}개 항목)</p>`,
-        `<div style="overflow-x:auto;">`,
-        `<table style="border-collapse:collapse;width:100%;max-width:600px;">`,
-        `<thead><tr><th style="${thStyle}">No</th><th style="${thStyle}">점검 항목</th><th style="${thStyle}">결과</th></tr></thead>`,
-        `<tbody>${checklistRows}</tbody>`,
-        `</table></div>`,
-        photosHtml ? `<p style="margin:14px 0;"></p>${photosHtml}` : "",
-        `<p style="margin:16px 0;border-top:1px solid #eee;"></p>`,
-        p("■ 현장 안전점검은 안전한 직장에서 사고 없이 업무를 하기 위함으로, 적발이 목적이 아닙니다.", "font-size:11pt;color:#555;"),
-        p("안전수칙 위반 시 <strong>3진 아웃제</strong>로 패널티가 부과되오니 현장에서 반드시 안전수칙을 준수하여 주시기 바랍니다.", "font-size:11pt;color:#c00;"),
-        `<p style="margin:16px 0;"></p>`,
-        p("감사합니다."),
-        `<p style="margin:4px 0;font-family:맑은고딕,Arial,sans-serif;font-size:11pt;color:#555;">현장경영팀 드림</p>`,
-        `</div>`,
-      ].join("\n");
+      // ── HTML 본문 조립 ─────────────────────────────────────────────
+      const p = (text: string, s?: string) =>
+        `<p style="margin:3px 0;font-family:맑은고딕,Arial,sans-serif;font-size:12pt;line-height:1.7;${s ?? ""}">${text}</p>`;
 
-      const fullHtml = `<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:20px;padding:0;">${htmlBody}</body></html>`;
+      const htmlBody = `
+<div style="font-family:맑은고딕,Arial,sans-serif;font-size:12pt;line-height:1.7;color:#111;max-width:740px;">
+${p("안녕하십니까? 현장경영팀 입니다.")}
+<br>
+${p("kt안전보건실 및 본사 안전관리팀에서 현장 안전점검이 강화되어 시행되고 있습니다.")}
+${p("현장 안전점검 100% 준수 될수 있도록 실천해주세요.")}
+${p('대구본부 전직원 모두 &ldquo;안전분야 STAR&rdquo;가 되어주세요.')}
 
-      const subTypeLabel = subType || "기타 안전점검";
-      const subject = `[공유] 대구본부 ${subTypeLabel} 결과(\`${yy}.${m}.${d})_현장경영팀`;
+<p style="margin:10px 0;border-top:2px solid #555;"></p>
+
+${p(`${m}월 ${d}일 현장경영팀에서 진행한 현장 안전점검 결과에 대해서`)}
+${p("아래와 같이 공유하여 드리오니 작업 시 <strong>보호구 착용</strong>과 <strong>안전수칙 준수</strong>를 생활화하여 주시기 바랍니다.")}
+<br>
+${p(`■ 점검일자 : ${m < 10 ? "0" + m : m}.${d < 10 ? "0" + d : d}(${dayKr})`)}
+${p(`■ 점검지역 : ${department}`)}
+${p(`■ 점검결과 : ${overallResult}`)}
+${workerName ? p(`　　• 작업인원 : ${workerName}`) : ""}
+${location    ? p(`■ 점검국소 : ${location}`) : ""}
+${inspector   ? p(`■ 점검자 : ${inspector}`) : ""}
+${workContent ? p(`■ 작업내용 : ${workContent}`) : ""}
+${notes       ? p(`■ 비고 : ${notes}`) : ""}
+
+${p(`■ 점검내역(현장점검 체크리스트 ${checklistArr.length}개 항목 점검)`, "margin-top:10px;font-weight:bold;")}
+${checklistTable}
+
+${photosSection}
+
+<p style="margin:14px 0 4px;font-family:맑은고딕,Arial,sans-serif;font-size:12pt;font-weight:bold;">■ 안전관리위반시 페널티 부여안내</p>
+<p style="margin:2px 0 4px;font-family:맑은고딕,Arial,sans-serif;font-size:11pt;">&#8251; &lsquo;3진 아웃제&rsquo; 운영(발생 시)</p>
+${penaltyTable}
+
+<p style="margin:2px 0;font-family:맑은고딕,Arial,sans-serif;font-size:11px;color:#333;">&#8251; 미준수 사례 발생 시 &lsquo;시정조치요구서&rsquo; 발행 (본사 → 본부 또는 본부 → 운용팀)</p>
+<p style="margin:2px 0;font-family:맑은고딕,Arial,sans-serif;font-size:11px;color:#333;">&#8251; 본부 내 &lsquo;3진 아웃&rsquo; 발생 시 KPI(안전점검 항목)2.2점 부여, 2회 이상 발생 시에는 0점 부여</p>
+<p style="margin:2px 0 10px;font-family:맑은고딕,Arial,sans-serif;font-size:11px;color:#333;">&#8251; 팀장에 대한 &lsquo;3진 아웃&rsquo;은 소속팀 누적 3회 적발 시 해당(인원에 상관없이 팀 적발 횟수)</p>
+
+<br>
+${p("현장안전점검 목적은 안전한직장에서 사고없이 업무를 하기위함으로 적발이 목적은 아닙니다.", "font-size:11pt;")}
+${p("다만 본사에서 기공지한 상벌제도에 의해 위와같이 페널티가 부여되면 불이익이 생길 수 있음을 인지하시고", "font-size:11pt;")}
+${p("안전사고 예방을 위해 대구본부 전직원은 안전보호구착용, 안전수칙준수는 100% 준수 될수 있도록 습관적으로 실천해주십시요.", "font-size:11pt;")}
+${p("오늘도 안전한 대구본부 함께 만들어갑시다.", "font-size:11pt;")}
+<br>
+${p("감사합니다.")}
+</div>`;
+
+      const fullHtml = `<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"></head><body style="margin:20px;padding:0;">${htmlBody}</body></html>`;
+
+      const subTypeLabel = subType || "현장 안전점검";
+      const subject = `[공유] 대구본부 현장 안전점검 결과(\`${yy}.${m}.${d})_현장경영팀`;
 
       const nodemailer = (await import("nodemailer")).default;
 
-      // Gmail SMTP explicit config (포트 587 STARTTLS) — service:"gmail" 단축키 대신 명시적 설정
       const transporter = nodemailer.createTransport({
         host: "smtp.gmail.com",
         port: 587,
@@ -1693,6 +1806,7 @@ export async function registerRoutes(
         to: GMAIL_USER,
         subject,
         html: fullHtml,
+        attachments,
       });
 
       console.log(`[OtherInspectionEmail] 발송 완료 → ${GMAIL_USER} | 제목: ${subject}`);
