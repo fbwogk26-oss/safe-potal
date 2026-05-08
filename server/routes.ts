@@ -1568,6 +1568,125 @@ export async function registerRoutes(
     res.json({ deleted });
   });
 
+  // === 기타 안전점검 이메일 발송 ===
+  app.post("/api/other-inspections/send-email", isAuthenticated, async (req: any, res) => {
+    try {
+      const {
+        inspectionDate, department, inspector, workerName,
+        location, workContent, checklist, notes, images,
+      } = req.body;
+
+      if (!inspectionDate || !department) {
+        return res.status(400).json({ message: "점검일자와 부서명은 필수입니다." });
+      }
+
+      const GMAIL_USER = "fbwogk26@gmail.com";
+      const appPassword = process.env.GMAIL_APP_PASSWORD;
+      if (!appPassword) {
+        return res.status(500).json({ message: "이메일 설정이 되어 있지 않습니다." });
+      }
+
+      const [year, month, day] = (inspectionDate as string).split("-");
+      const yy = year.slice(2);
+      const m = parseInt(month, 10);
+      const d = parseInt(day, 10);
+      const DAYS_KR = ["일", "월", "화", "수", "목", "금", "토"];
+      const dt = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+      const dayKr = DAYS_KR[dt.getDay()];
+
+      const checklistArr: Array<{ item: string; status: string }> = Array.isArray(checklist) ? checklist : [];
+      const goodCount = checklistArr.filter(c => c.status === "양호").length;
+      const poorCount = checklistArr.filter(c => c.status === "미흡").length;
+      const overallResult = poorCount > 0
+        ? `미흡 ${poorCount}건 (양호 ${goodCount}건)`
+        : `전체 양호 (${goodCount}건)`;
+
+      const thStyle = `border:1px solid #ccc;padding:7px 12px;background:#e8f0fe;font-size:12px;text-align:center;font-weight:bold;`;
+      const tdStyle = `border:1px solid #ccc;padding:7px 12px;font-size:12px;`;
+      const tdcStyle = `border:1px solid #ccc;padding:7px 12px;font-size:12px;text-align:center;`;
+
+      const checklistRows = checklistArr.map((item, i) => {
+        const statusColor = item.status === "양호" ? "#008000" : item.status === "미흡" ? "#cc0000" : "#888";
+        const statusBg = item.status === "양호" ? "#e8f5e9" : item.status === "미흡" ? "#fce4ec" : "#f5f5f5";
+        return `<tr>
+          <td style="${tdcStyle}">${i + 1}</td>
+          <td style="${tdStyle}">${item.item}</td>
+          <td style="${tdcStyle};color:${statusColor};background:${statusBg};font-weight:bold;">${item.status}</td>
+        </tr>`;
+      }).join("");
+
+      const imagesArr: string[] = Array.isArray(images) ? images : [];
+      const origin = `${req.protocol}://${req.get("host")}`;
+      const photosHtml = imagesArr.length > 0
+        ? `<p style="margin:10px 0 4px;font-weight:bold;">■ 점검 사진 (${imagesArr.length}장)</p>
+           <p style="margin:0 0 6px;font-size:11px;color:#888;">※ 사진은 종합안전포털시스템 로그인 후 확인하세요.</p>
+           <div style="display:flex;flex-wrap:wrap;gap:6px;">${imagesArr.map((_, i) => `<span style="font-size:12px;color:#1a73e8;">[사진 ${i + 1}]</span>`).join(" ")}</div>`
+        : "";
+
+      const p = (text: string, style?: string) =>
+        `<p style="margin:4px 0;font-family:맑은고딕,Arial,sans-serif;font-size:12pt;line-height:1.6;${style || ""}">${text}</p>`;
+
+      const htmlBody = [
+        `<div style="font-family:맑은고딕,Arial,sans-serif;font-size:12pt;line-height:1.6;color:#111;max-width:700px;">`,
+        p("안녕하십니까? 현장경영팀 입니다."),
+        `<p style="margin:8px 0;"></p>`,
+        p("kt안전보건실 및 본사 안전관리팀에서 현장 안전점검이 강화되어 시행되고 있습니다."),
+        p("현장 안전점검 100% 준수 될 수 있도록 실천해주세요."),
+        p('대구본부 전직원 모두 <strong>"안전분야 STAR"</strong>가 되어주세요.'),
+        `<p style="margin:14px 0;border-top:2px solid #ddd;"></p>`,
+        p(`<strong>\`${yy}.${m}.${d}(${dayKr})</strong> 현장경영팀에서 진행한 현장 안전점검 결과를 아래와 같이 공유드립니다.`),
+        p("작업 시 <strong>보호구 착용</strong>과 <strong>안전수칙 준수</strong>를 생활화하여 주시기 바랍니다."),
+        `<p style="margin:12px 0;"></p>`,
+        p(`■ 점검일자 : ${inspectionDate}(${dayKr})`),
+        p(`■ 점검지역 : ${department}`),
+        p(`■ 점검결과 : ${overallResult}`),
+        workerName ? p(`　　• 작업인원 : ${workerName}`) : "",
+        inspector ? p(`■ 점검자 : ${inspector}`) : "",
+        location ? p(`■ 점검국소 : ${location}`) : "",
+        workContent ? p(`■ 작업내용 : ${workContent}`) : "",
+        notes ? p(`■ 비고 : ${notes}`) : "",
+        `<p style="margin:12px 0;"></p>`,
+        `<p style="margin:0 0 6px;font-family:맑은고딕,Arial,sans-serif;font-size:12pt;font-weight:bold;">■ 점검내역 (체크리스트 ${checklistArr.length}개 항목)</p>`,
+        `<div style="overflow-x:auto;">`,
+        `<table style="border-collapse:collapse;width:100%;max-width:600px;">`,
+        `<thead><tr><th style="${thStyle}">No</th><th style="${thStyle}">점검 항목</th><th style="${thStyle}">결과</th></tr></thead>`,
+        `<tbody>${checklistRows}</tbody>`,
+        `</table></div>`,
+        photosHtml ? `<p style="margin:14px 0;"></p>${photosHtml}` : "",
+        `<p style="margin:16px 0;border-top:1px solid #eee;"></p>`,
+        p("■ 현장 안전점검은 안전한 직장에서 사고 없이 업무를 하기 위함으로, 적발이 목적이 아닙니다.", "font-size:11pt;color:#555;"),
+        p("안전수칙 위반 시 <strong>3진 아웃제</strong>로 패널티가 부과되오니 현장에서 반드시 안전수칙을 준수하여 주시기 바랍니다.", "font-size:11pt;color:#c00;"),
+        `<p style="margin:16px 0;"></p>`,
+        p("감사합니다."),
+        `<p style="margin:4px 0;font-family:맑은고딕,Arial,sans-serif;font-size:11pt;color:#555;">현장경영팀 드림</p>`,
+        `</div>`,
+      ].join("\n");
+
+      const fullHtml = `<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:20px;padding:0;">${htmlBody}</body></html>`;
+
+      const subject = `[공유] 대구본부 현장 안전점검 결과(\`${yy}.${m}.${d})_현장경영팀`;
+
+      const nodemailer = (await import("nodemailer")).default;
+      const transporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: { user: GMAIL_USER, pass: appPassword },
+      });
+
+      await transporter.sendMail({
+        from: `"현장경영팀" <${GMAIL_USER}>`,
+        to: GMAIL_USER,
+        subject,
+        html: fullHtml,
+      });
+
+      console.log(`[OtherInspectionEmail] 발송 완료 → ${GMAIL_USER} | 제목: ${subject}`);
+      res.json({ success: true, message: `이메일이 ${GMAIL_USER}으로 발송되었습니다.` });
+    } catch (e: any) {
+      console.error("[OtherInspectionEmail] 발송 오류:", e.message);
+      res.status(500).json({ message: `이메일 발송 실패: ${e.message}` });
+    }
+  });
+
   // Seed Data
   await seedDatabase();
 

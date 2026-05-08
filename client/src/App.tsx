@@ -22,6 +22,7 @@ import EquipmentRequest from "@/pages/EquipmentRequest";
 import AccessRequest from "@/pages/AccessRequest";
 import DigitalBoard from "@/pages/DigitalBoard";
 import SafetyInspections from "@/pages/SafetyInspections";
+import OtherSafetyInspections from "@/pages/OtherSafetyInspections";
 import AdminUsers from "@/pages/AdminUsers";
 import SecurityLogs from "@/pages/SecurityLogs";
 import SignatureAdmin from "@/pages/SignatureAdmin";
@@ -104,6 +105,7 @@ function RouterContent() {
       <Route path="/notices">{() => <G canAccess={canViewNotices} component={Notices} />}</Route>
       <Route path="/education">{() => <G canAccess={canViewEducationOrLogs} component={EducationLogs} />}</Route>
       <Route path="/inspections">{() => <G canAccess={canViewInspections} component={SafetyInspections} />}</Route>
+      <Route path="/inspections/other">{() => <G canAccess={canViewInspections} component={OtherSafetyInspections} />}</Route>
       <Route path="/equipment">{() => <G canAccess={canViewEquipment} component={SafetyEquipment} />}</Route>
       <Route path="/equipment/status">{() => <G canAccess={canViewEquipmentStatus} component={EquipmentStatus} />}</Route>
       <Route path="/equipment/request">{() => <G canAccess={canViewEquipment} component={EquipmentRequest} />}</Route>

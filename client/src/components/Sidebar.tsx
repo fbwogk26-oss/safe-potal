@@ -49,7 +49,7 @@ type NavItem = {
 type NavGroup = {
   label: string;
   icon: any;
-  children: NavItem[];
+  children: (NavItem | NavGroup)[];
   adminOnly?: boolean;
 };
 
@@ -83,7 +83,14 @@ const NAV_SECTIONS: NavSection[] = [
           { label: "사고보고/통계", href: "/accidents", icon: AlertTriangle, permissionKey: "canViewAccidents" },
           { label: "아차사고 관리", href: "/near-miss", icon: AlertTriangle, permissionKey: "canViewAccidents" },
           { label: "위험성평가", href: "/risk-assessment", icon: ShieldAlert, permissionKey: "canViewRiskAssessment" },
-          { label: "안전점검", href: "/inspections", icon: ClipboardCheck, permissionKey: "canViewInspections" },
+          {
+            label: "안전점검",
+            icon: ClipboardCheck,
+            children: [
+              { label: "자체 안전점검", href: "/inspections", icon: ClipboardCheck, permissionKey: "canViewInspections" as const },
+              { label: "기타 안전점검", href: "/inspections/other", icon: ClipboardList, permissionKey: "canViewInspections" as const },
+            ],
+          },
           { label: "교육업무 관리", href: "/education-management", icon: ClipboardList, permissionKey: "canViewEducationOrLogs" },
           { label: "보호구 현황", href: "/equipment/status", icon: ShieldCheck, permissionKey: "canViewEquipmentStatus" },
           { label: "안전용품 신청", href: "/equipment", icon: ShoppingCart, permissionKey: "canViewEquipment" },
@@ -179,11 +186,23 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
     return !!permissions[item.permissionKey];
   };
 
+  const filterChildren = (children: (NavItem | NavGroup)[]): (NavItem | NavGroup)[] => {
+    return children.reduce<(NavItem | NavGroup)[]>((acc, child) => {
+      if (isGroup(child)) {
+        const visibleGrand = filterChildren(child.children);
+        if (visibleGrand.length > 0) acc.push({ ...child, children: visibleGrand });
+      } else {
+        if (hasItemPermission(child)) acc.push(child);
+      }
+      return acc;
+    }, []);
+  };
+
   const filterEntries = (entries: NavEntry[]): NavEntry[] => {
     return entries.reduce<NavEntry[]>((acc, entry) => {
       if (entry.adminOnly && !isAdmin) return acc;
       if (isGroup(entry)) {
-        const visibleChildren = entry.children.filter(hasItemPermission);
+        const visibleChildren = filterChildren(entry.children);
         if (visibleChildren.length > 0) {
           acc.push({ ...entry, children: visibleChildren });
         }
@@ -200,8 +219,10 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
     setOpenGroups((prev) => ({ ...prev, [label]: !prev[label] }));
   };
 
-  const isChildActive = (group: NavGroup) =>
-    group.children.some((child) => location === child.href);
+  const isChildActive = (group: NavGroup): boolean =>
+    group.children.some((child) =>
+      isGroup(child) ? isChildActive(child) : location === child.href
+    );
 
   const isGroupOpen = (group: NavGroup) => {
     if (openGroups[group.label] !== undefined) return openGroups[group.label];
@@ -248,12 +269,63 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
               isMobile ? "ml-4 pl-3" : "ml-2 md:ml-4 pl-2 md:pl-3"
             )}>
               {entry.children.map((child) => {
-                const isActive = location === child.href;
+                if (isGroup(child)) {
+                  const subOpen = isGroupOpen(child);
+                  const subActive = isChildActive(child);
+                  return (
+                    <div key={child.label}>
+                      <button
+                        onClick={() => toggleGroup(child.label)}
+                        className={cn(
+                          "flex items-center gap-2 rounded-md transition-all duration-150 font-medium w-full",
+                          isMobile ? "px-3 py-3 text-sm" : "px-2 py-1.5 text-[13px]",
+                          subActive
+                            ? "bg-primary/[0.08] dark:bg-blue-500/15 text-primary dark:text-blue-400"
+                            : "text-slate-500 dark:text-gray-400 hover:bg-slate-50 dark:hover:bg-gray-800/70 hover:text-slate-700 dark:hover:text-gray-200"
+                        )}
+                        data-testid={`button-nav-subgroup-${child.label}`}
+                      >
+                        <child.icon className={cn("shrink-0", isMobile ? "w-4 h-4" : "w-3.5 h-3.5", subActive ? "text-primary dark:text-blue-400" : "text-slate-400 dark:text-gray-500")} />
+                        <span className={cn("flex-1 text-left", isMobile ? "block" : "hidden md:inline")}>{child.label}</span>
+                        <ChevronDown className={cn("transition-transform duration-200", isMobile ? "w-3 h-3 block" : "w-3 h-3 hidden md:block", subActive ? "text-primary/50 dark:text-blue-400/50" : "text-slate-300 dark:text-gray-600", subOpen && "rotate-180")} />
+                      </button>
+                      <div className={cn("overflow-hidden transition-all duration-200", subOpen ? "max-h-[300px] opacity-100" : "max-h-0 opacity-0")}>
+                        <div className={cn("border-l-2 border-slate-100 dark:border-gray-700/60 flex flex-col gap-0.5 mt-0.5", isMobile ? "ml-3 pl-3" : "ml-2 pl-2")}>
+                          {child.children.map((grandchild) => {
+                            const gc = grandchild as NavItem;
+                            const gcActive = location === gc.href;
+                            return (
+                              <Link
+                                key={gc.href}
+                                href={gc.href}
+                                title={gc.label}
+                                className={cn(
+                                  "flex items-center gap-2 rounded-md transition-all duration-150 font-medium",
+                                  isMobile ? "px-3 py-2.5 text-sm" : "px-2 py-1.5 text-[12px]",
+                                  gcActive
+                                    ? "bg-primary/[0.08] dark:bg-blue-500/15 text-primary dark:text-blue-400 font-semibold"
+                                    : "text-slate-500 dark:text-gray-400 hover:bg-slate-50 dark:hover:bg-gray-800/70 hover:text-slate-700 dark:hover:text-gray-200"
+                                )}
+                                data-testid={`link-nav-${gc.href.replace(/\//g, "-").replace(/^-/, "")}`}
+                              >
+                                <gc.icon className={cn("shrink-0", isMobile ? "w-3.5 h-3.5" : "w-3 h-3", gcActive ? "text-primary dark:text-blue-400" : "text-slate-400 dark:text-gray-500")} />
+                                <span className={cn(isMobile ? "block" : "hidden md:inline")}>{gc.label}</span>
+                                {gcActive && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-primary/80 dark:bg-blue-400/80" />}
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+                const item = child as NavItem;
+                const isActive = location === item.href;
                 return (
                   <Link
-                    key={child.href}
-                    href={child.href}
-                    title={child.label}
+                    key={item.href}
+                    href={item.href}
+                    title={item.label}
                     className={cn(
                       "flex items-center gap-2 rounded-md transition-all duration-150 font-medium",
                       isMobile ? "px-3 py-3 text-sm" : "px-2 py-1.5 text-[13px]",
@@ -261,10 +333,10 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
                         ? "bg-primary/[0.08] dark:bg-blue-500/15 text-primary dark:text-blue-400 font-semibold"
                         : "text-slate-500 dark:text-gray-400 hover:bg-slate-50 dark:hover:bg-gray-800/70 hover:text-slate-700 dark:hover:text-gray-200"
                     )}
-                    data-testid={`link-nav-${child.href.replace("/", "")}`}
+                    data-testid={`link-nav-${item.href.replace("/", "")}`}
                   >
-                    <child.icon className={cn("shrink-0", isMobile ? "w-4 h-4" : "w-3.5 h-3.5", isActive ? "text-primary dark:text-blue-400" : "text-slate-400 dark:text-gray-500")} />
-                    <span className={cn(isMobile ? "block" : "hidden md:inline")}>{child.label}</span>
+                    <item.icon className={cn("shrink-0", isMobile ? "w-4 h-4" : "w-3.5 h-3.5", isActive ? "text-primary dark:text-blue-400" : "text-slate-400 dark:text-gray-500")} />
+                    <span className={cn(isMobile ? "block" : "hidden md:inline")}>{item.label}</span>
                     {isActive && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-primary/80 dark:bg-blue-400/80" />}
                   </Link>
                 );
