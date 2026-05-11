@@ -7963,6 +7963,239 @@ ${htmlDraft}
     }
   });
 
+  // ─── 사용내역 양식 다운로드 (템플릿 기반) ─────────────────────────────
+  app.get('/api/safety-cost-records/export-template', isAuthenticated, async (req: any, res) => {
+    try {
+      const year = req.query.year ? Number(req.query.year) : new Date().getFullYear();
+      const records = await storage.getSafetyCostRecords(year);
+      const ExcelJS = (await import("exceljs")).default;
+
+      const templatePath = path.join(process.cwd(), 'server/assets/safety_cost_template.xlsx');
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.readFile(templatePath);
+
+      // ── 공통 헬퍼 ──────────────────────────────────────────────────
+      function numVal(v: any): number { return v ? parseFloat(v.toString()) || 0 : 0; }
+      function colLetter(n: number): string {
+        let s = '';
+        while (n > 0) { const r = (n - 1) % 26; s = String.fromCharCode(65 + r) + s; n = Math.floor((n - 1) / 26); }
+        return s;
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // Sheet 2: 1.~8.항목별 사용 세부내역
+      // Col 구조: A=구분, B=세부항목, C=합계(수식), D=1월금액, E=1월일자, F=2월금액, ...
+      // m월: 금액 col = 2+2m, 일자 col = 3+2m
+      // ═══════════════════════════════════════════════════════════════
+      const ws2 = wb.getWorksheet('1.~8.항목별 사용 세부내역');
+      if (ws2) {
+        // 기존 데이터 행 범위 파악 (행4부터 빈 행 전까지)
+        const dataRows2: { row: number; category: string; subItem: string }[] = [];
+        for (let r = 4; r <= ws2.rowCount; r++) {
+          const catVal = ws2.getCell(r, 1).value;
+          const subVal = ws2.getCell(r, 2).value;
+          const catStr = catVal ? catVal.toString() : '';
+          const subStr = subVal ? subVal.toString() : '';
+          if (!catStr && !subStr) continue;
+          dataRows2.push({ row: r, category: catStr, subItem: subStr });
+        }
+
+        // 월별금액/일자 컬럼 초기화 (D~AA = col 4~27)
+        for (const dr of dataRows2) {
+          for (let c = 4; c <= 27; c++) {
+            const cell = ws2.getCell(dr.row, c);
+            if (typeof cell.value !== 'object' || cell.value === null) {
+              cell.value = null;
+            } else if (cell.value && (cell.value as any).formula) {
+              // 수식 셀은 건드리지 않음
+            } else {
+              cell.value = null;
+            }
+          }
+        }
+
+        // 카테고리 1,2,4~8 레코드를 해당 행에 채워넣기
+        const cat18 = records.filter(r => {
+          const n = parseInt((r.category || '').split('.')[0]);
+          return n >= 1 && n <= 8;
+        });
+
+        for (const rec of cat18) {
+          const amtCol = 2 + 2 * rec.month;   // 1월=4, 2월=6, ...
+          const dateCol = 3 + 2 * rec.month;   // 1월=5, 2월=7, ...
+          const recAmt = numVal(rec.supplyAmount) || numVal(rec.totalAmount);
+          const recDate = rec.purchaseDate || '';
+
+          // 세부항목 매칭: subCategory > itemName 순으로 유사 매칭
+          const searchStr = (rec.subCategory || rec.itemName || '').trim();
+          let targetRow = -1;
+
+          // 1차: 완전 포함 매칭
+          for (const dr of dataRows2) {
+            if (!searchStr) break;
+            if (dr.subItem.includes(searchStr) || searchStr.includes(dr.subItem)) {
+              targetRow = dr.row;
+              break;
+            }
+          }
+          // 2차: 카테고리 번호만 같고 세부항목 빈 행 사용
+          if (targetRow === -1) {
+            const catNum = (rec.category || '').split('.')[0].trim();
+            for (const dr of dataRows2) {
+              const drCatNum = (dr.category || '').split('.')[0].trim();
+              if (drCatNum === catNum && !dr.subItem) {
+                targetRow = dr.row;
+                break;
+              }
+            }
+          }
+          // 3차: 같은 카테고리 첫 번째 행
+          if (targetRow === -1) {
+            const catNum = (rec.category || '').split('.')[0].trim();
+            for (const dr of dataRows2) {
+              const drCatNum = (dr.category || '').split('.')[0].trim();
+              if (drCatNum === catNum) { targetRow = dr.row; break; }
+            }
+          }
+          if (targetRow === -1) continue;
+
+          // 금액 누산
+          const curAmt = ws2.getCell(targetRow, amtCol).value;
+          ws2.getCell(targetRow, amtCol).value = (numVal(curAmt) || 0) + recAmt;
+          // 일자: 첫 번째 기재된 날짜 사용
+          if (recDate && !ws2.getCell(targetRow, dateCol).value) {
+            ws2.getCell(targetRow, dateCol).value = recDate;
+          }
+        }
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // Sheet 3: 3. 개인보호구 및 용품구매 세부내역
+      // 카테고리 3, 9 레코드 처리
+      // 구매일자별 동적 컬럼 생성: qty=5+2i, amt=6+2i (i=0부터)
+      // ═══════════════════════════════════════════════════════════════
+      const ws3 = wb.getWorksheet('3. 개인보호구 및 용품구매 세부내역');
+      if (ws3) {
+        const cat39 = records.filter(r => {
+          const n = parseInt((r.category || '').split('.')[0]);
+          return n === 3 || n === 9;
+        });
+
+        // 고유 구매일자 (정렬)
+        const uniqueDates = [...new Set(
+          cat39.map(r => r.purchaseDate || '').filter(Boolean)
+        )].sort();
+
+        // 기존 데이터 행 목록 (행5~58, col B = 품목명)
+        const itemRows3: { row: number; name: string; category: string }[] = [];
+        for (let r = 5; r <= 58; r++) {
+          const cat3val = ws3.getCell(r, 1).value;
+          const nameVal = ws3.getCell(r, 2).value;
+          const nameStr = nameVal ? nameVal.toString().trim() : '';
+          const catStr = cat3val ? cat3val.toString().trim() : '';
+          itemRows3.push({ row: r, name: nameStr, category: catStr });
+        }
+
+        // 최대 사용할 컬럼 수
+        const maxDateCols = Math.max(uniqueDates.length, 1);
+        const lastDataCol = 4 + maxDateCols * 2; // 마지막 amt col
+
+        // 날짜별 헤더 행(2,3,4) 업데이트
+        // 기존 헤더 초기화
+        for (let c = 5; c <= lastDataCol + 4; c++) {
+          ws3.getCell(2, c).value = null;
+          ws3.getCell(3, c).value = null;
+          ws3.getCell(4, c).value = null;
+        }
+
+        uniqueDates.forEach((dateStr, i) => {
+          const qtyCol = 5 + i * 2;
+          const amtCol = 6 + i * 2;
+          // 날짜에서 월 추출
+          const m = dateStr ? new Date(dateStr.replace(/\./g, '-')).getMonth() + 1 : '';
+          const monthLabel = m ? `${m}월` : dateStr;
+          ws3.getCell(2, qtyCol).value = monthLabel;
+          ws3.getCell(2, amtCol).value = monthLabel;
+          ws3.getCell(3, qtyCol).value = dateStr;
+          ws3.getCell(3, amtCol).value = dateStr;
+          ws3.getCell(4, qtyCol).value = '수량';
+          ws3.getCell(4, amtCol).value = '비용';
+        });
+
+        // 데이터 행 초기화 (col 3,4 = 합계수량/합계비용, col 5+ = 날짜별)
+        for (let r = 5; r <= 58; r++) {
+          ws3.getCell(r, 3).value = null;
+          ws3.getCell(r, 4).value = null;
+          for (let c = 5; c <= lastDataCol + 4; c++) {
+            ws3.getCell(r, c).value = null;
+          }
+        }
+
+        // 데이터 채우기
+        for (const rec of cat39) {
+          const recDate = rec.purchaseDate || '';
+          const dateIdx = uniqueDates.indexOf(recDate);
+          if (dateIdx === -1) continue;
+          const qtyCol = 5 + dateIdx * 2;
+          const amtCol = 6 + dateIdx * 2;
+
+          // 품목명 매칭
+          const recName = (rec.itemName || '').trim();
+          let targetRow = -1;
+          for (const ir of itemRows3) {
+            if (!ir.name) continue;
+            if (ir.name === recName || ir.name.includes(recName) || recName.includes(ir.name)) {
+              targetRow = ir.row; break;
+            }
+          }
+          // 매칭 안 되면 빈 행 찾기
+          if (targetRow === -1) {
+            for (const ir of itemRows3) {
+              if (!ir.name) { targetRow = ir.row; break; }
+            }
+          }
+          if (targetRow === -1) continue;
+
+          const curQty = ws3.getCell(targetRow, qtyCol).value;
+          const curAmt = ws3.getCell(targetRow, amtCol).value;
+          ws3.getCell(targetRow, qtyCol).value = (numVal(curQty) || 0) + numVal(rec.quantity);
+          ws3.getCell(targetRow, amtCol).value = (numVal(curAmt) || 0) + numVal(rec.supplyAmount || rec.totalAmount);
+        }
+
+        // 합계 수식 업데이트 (C열=수량합계, D열=금액합계)
+        if (uniqueDates.length > 0) {
+          const qtyCols: string[] = [];
+          const amtCols: string[] = [];
+          uniqueDates.forEach((_, i) => {
+            qtyCols.push(colLetter(5 + i * 2));
+            amtCols.push(colLetter(6 + i * 2));
+          });
+          for (let r = 5; r <= 58; r++) {
+            ws3.getCell(r, 3).value = { formula: qtyCols.map(c => `${c}${r}`).join('+') };
+            ws3.getCell(r, 4).value = { formula: amtCols.map(c => `${c}${r}`).join('+') };
+          }
+          // 59행 합계
+          ws3.getCell(59, 4).value = { formula: `SUM(D5:D58)` };
+          uniqueDates.forEach((_, i) => {
+            const qc = 5 + i * 2;
+            const ac = 6 + i * 2;
+            ws3.getCell(59, qc).value = { formula: `SUM(${colLetter(qc)}5:${colLetter(qc)}58)` };
+            ws3.getCell(59, ac).value = { formula: `SUM(${colLetter(ac)}5:${colLetter(ac)}58)` };
+          });
+        }
+      }
+
+      // ─── 응답 ───────────────────────────────────────────────────────
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(`${year}년_산업안전보건관리비_사용내역.xlsx`)}`);
+      const buffer = await wb.xlsx.writeBuffer();
+      res.send(Buffer.from(buffer as ArrayBuffer));
+    } catch (e: any) {
+      console.error("Safety cost template export error:", e.message);
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   // AI 자동 추출 — 견적서/거래명세서 이미지 업로드 → GPT-4o Vision
   const safetyCostUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
   app.post('/api/safety-cost-records/extract', requireEditor, safetyCostUpload.single('file'), async (req: any, res) => {

@@ -135,6 +135,7 @@ export default function SafetyCostBudget() {
   const [preview, setPreview] = useState<{ url: string; title: string } | null>(null);
   const [delConfirm, setDelConfirm] = useState<{ type: "record"|"tax"; id: number } | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false);
 
   const quoteRef = useRef<HTMLInputElement>(null);
   const transRef = useRef<HTMLInputElement>(null);
@@ -407,6 +408,21 @@ export default function SafetyCostBudget() {
     finally { setDownloading(false); }
   }
 
+  async function handleDownloadTemplate() {
+    setDownloadingTemplate(true);
+    try {
+      const r = await fetch(`/api/safety-cost-records/export-template?year=${year}`, { credentials: "include" });
+      if (!r.ok) throw new Error("다운로드 실패");
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a"); a.href = url;
+      a.download = `${year}년_산업안전보건관리비_사용내역.xlsx`; a.click();
+      URL.revokeObjectURL(url);
+      toast({ title: "다운로드 완료" });
+    } catch (e: any) { toast({ title: "다운로드 실패", description: e.message, variant: "destructive" }); }
+    finally { setDownloadingTemplate(false); }
+  }
+
   // ── 계산 ─────────────────────────────────────────────────────────
   const filtered = records.filter(r =>
     (filterCat==="all" || r.category===filterCat) &&
@@ -445,6 +461,10 @@ export default function SafetyCostBudget() {
               ))}
             </SelectContent>
           </Select>
+          <Button variant="outline" onClick={handleDownloadTemplate} disabled={downloadingTemplate} data-testid="button-download-template">
+            {downloadingTemplate ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Download className="w-4 h-4 mr-1" />}
+            사용내역 다운로드
+          </Button>
           <Button variant="outline" onClick={handleDownload} disabled={downloading} data-testid="button-download">
             {downloading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Download className="w-4 h-4 mr-1" />}
             법정경비 다운로드
