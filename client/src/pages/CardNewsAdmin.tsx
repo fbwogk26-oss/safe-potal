@@ -200,8 +200,10 @@ export default function CardNewsAdmin() {
             <CardContent className="p-4">
               <div className="flex items-center justify-between gap-4 flex-wrap">
                 <div>
-                  <p className="text-sm font-semibold">Google뉴스 · 연합뉴스 · MBC · 한국경제에서 실시간 음주운전 뉴스 수집</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">수집 후 AI가 경각심 카드뉴스로 요약하여 이메일 발송 · 순서대로 시도 후 수집된 소스 사용</p>
+                  <p className="text-sm font-semibold">Google뉴스 · 연합뉴스 · MBC · 한국경제에서 음주운전 뉴스 수집</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    최근 <span className="font-semibold text-red-600">3일</span> 이내 기사만 수집 ({(() => { const d = new Date(); d.setDate(d.getDate()-3); return `${d.getMonth()+1}/${d.getDate()}`; })()} ~ 어제) · AI 요약 후 이메일 발송
+                  </p>
                 </div>
                 <div className="flex gap-2">
                   <Button

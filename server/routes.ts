@@ -8143,7 +8143,7 @@ ${htmlDraft}
 
 let cardNewsTimer: ReturnType<typeof setInterval> | null = null;
 
-function parseRssItems(xml: string, keywordFilter?: string, maxItems = 6): any[] {
+function parseRssItems(xml: string, keywordFilter?: string, maxItems = 6, sinceMs?: number): any[] {
   const items: any[] = [];
   const itemRegex = /<item>([\s\S]*?)<\/item>/g;
   let match;
@@ -8160,6 +8160,11 @@ function parseRssItems(xml: string, keywordFilter?: string, maxItems = 6): any[]
     const description = getTag('description');
     if (!title) continue;
     if (keywordFilter && !title.includes(keywordFilter) && !description.includes(keywordFilter)) continue;
+    // 날짜 필터: sinceMs 이후 기사만 수집
+    if (sinceMs && pubDate) {
+      const articleMs = new Date(pubDate).getTime();
+      if (!isNaN(articleMs) && articleMs < sinceMs) continue;
+    }
     items.push({ title, link, pubDate, source, description });
     if (items.length >= maxItems) break;
   }
@@ -8174,10 +8179,23 @@ async function fetchDrunkDrivingNews(): Promise<any[]> {
   };
   const TIMEOUT_MS = 10_000;
 
+  // 최근 3일 기간 계산 (오늘 제외 — 어제~3일 전)
+  const now = new Date();
+  const sinceDate = new Date(now);
+  sinceDate.setDate(now.getDate() - 3);
+  sinceDate.setHours(0, 0, 0, 0);
+  const sinceMs = sinceDate.getTime();
+
+  // Google News: after: 연산자로 날짜 제한
+  const afterParam = `${sinceDate.getFullYear()}-${String(sinceDate.getMonth() + 1).padStart(2, '0')}-${String(sinceDate.getDate()).padStart(2, '0')}`;
+  const googleQuery = encodeURIComponent(`음주운전 after:${afterParam}`);
+
+  console.log(`[카드뉴스] ${afterParam} 이후 음주운전 뉴스 수집 시작`);
+
   const sources = [
     {
       name: "Google News",
-      url: "https://news.google.com/rss/search?q=%EC%9D%8C%EC%A3%BC%EC%9A%B4%EC%A0%84&hl=ko&gl=KR&ceid=KR:ko",
+      url: `https://news.google.com/rss/search?q=${googleQuery}&hl=ko&gl=KR&ceid=KR:ko`,
       keyword: undefined as string | undefined,
     },
     {
@@ -8213,12 +8231,12 @@ async function fetchDrunkDrivingNews(): Promise<any[]> {
         continue;
       }
       const xml = await res.text();
-      const items = parseRssItems(xml, src.keyword, 6);
+      const items = parseRssItems(xml, src.keyword, 6, sinceMs);
       if (items.length > 0) {
-        console.log(`[카드뉴스] ${src.name}에서 ${items.length}건 수집`);
+        console.log(`[카드뉴스] ${src.name}에서 ${items.length}건 수집 (${afterParam} 이후)`);
         return items;
       }
-      console.warn(`[카드뉴스] ${src.name} — 음주운전 기사 없음`);
+      console.warn(`[카드뉴스] ${src.name} — ${afterParam} 이후 음주운전 기사 없음`);
     } catch (e: any) {
       console.warn(`[카드뉴스] ${src.name} 오류: ${e.message}`);
     }
