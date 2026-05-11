@@ -84,6 +84,8 @@ export default function CardNewsAdmin() {
     lastSent: null,
   };
 
+  const [hasFetched, setHasFetched] = useState(false);
+
   const fetchNewsMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest("GET", "/api/card-news/fetch");
@@ -92,9 +94,18 @@ export default function CardNewsAdmin() {
     onSuccess: (data) => {
       setArticles(data.articles || []);
       setFetchedAt(data.fetchedAt || null);
-      toast({ title: `${data.articles?.length || 0}건의 음주운전 뉴스를 수집했습니다` });
+      setHasFetched(true);
+      const count = data.articles?.length || 0;
+      if (count === 0) {
+        toast({ title: "수집된 뉴스가 없습니다", description: "현재 수집 가능한 음주운전 뉴스가 없습니다. 잠시 후 다시 시도해 주세요." });
+      } else {
+        toast({ title: `${count}건의 음주운전 뉴스를 수집했습니다` });
+      }
     },
-    onError: (err: any) => toast({ variant: "destructive", title: "뉴스 수집에 실패했습니다", description: String(err?.message || "") }),
+    onError: (err: any) => {
+      setHasFetched(true);
+      toast({ variant: "destructive", title: "뉴스 수집에 실패했습니다", description: String(err?.message || "") });
+    },
   });
 
   const sendEmailMutation = useMutation({
@@ -189,8 +200,8 @@ export default function CardNewsAdmin() {
             <CardContent className="p-4">
               <div className="flex items-center justify-between gap-4 flex-wrap">
                 <div>
-                  <p className="text-sm font-semibold">Google 뉴스에서 실시간 음주운전 뉴스를 수집합니다</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">수집 후 AI가 경각심 카드뉴스로 요약하여 이메일 발송</p>
+                  <p className="text-sm font-semibold">Google뉴스 · 연합뉴스 · MBC · 한국경제에서 실시간 음주운전 뉴스 수집</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">수집 후 AI가 경각심 카드뉴스로 요약하여 이메일 발송 · 순서대로 시도 후 수집된 소스 사용</p>
                 </div>
                 <div className="flex gap-2">
                   <Button
@@ -229,10 +240,20 @@ export default function CardNewsAdmin() {
             </div>
           )}
 
-          {articles.length === 0 && !fetchNewsMutation.isPending && (
+          {articles.length === 0 && !fetchNewsMutation.isPending && !hasFetched && (
             <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground border-2 border-dashed rounded-xl">
               <Newspaper className="w-12 h-12 opacity-30" />
               <p className="text-sm">위 "뉴스 수집" 버튼을 눌러 최신 뉴스를 불러오세요</p>
+              <p className="text-xs opacity-60">Google뉴스 · 연합뉴스 · MBC · 한국경제에서 음주운전 뉴스를 수집합니다</p>
+            </div>
+          )}
+
+          {articles.length === 0 && !fetchNewsMutation.isPending && hasFetched && (
+            <div className="flex flex-col items-center justify-center py-16 gap-3 border-2 border-dashed border-amber-200 dark:border-amber-800 rounded-xl bg-amber-50/50 dark:bg-amber-950/20">
+              <AlertTriangle className="w-12 h-12 text-amber-400 opacity-60" />
+              <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">현재 수집 가능한 음주운전 뉴스가 없습니다</p>
+              <p className="text-xs text-amber-600 dark:text-amber-500 opacity-80">모든 뉴스 소스(Google뉴스 · 연합뉴스 · MBC · 한국경제)에서 기사를 찾지 못했습니다.</p>
+              <p className="text-xs text-muted-foreground">잠시 후 다시 수집을 시도해 주세요.</p>
             </div>
           )}
 

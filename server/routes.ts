@@ -8143,13 +8143,7 @@ ${htmlDraft}
 
 let cardNewsTimer: ReturnType<typeof setInterval> | null = null;
 
-async function fetchDrunkDrivingNews(): Promise<any[]> {
-  const fetch = (await import("node-fetch")).default;
-  const url = "https://news.google.com/rss/search?q=%EC%9D%8C%EC%A3%BC%EC%9A%B4%EC%A0%84&hl=ko&gl=KR&ceid=KR:ko";
-  const res = await fetch(url, {
-    headers: { "User-Agent": "Mozilla/5.0 (compatible; SafeBoard/1.0)" },
-  }) as any;
-  const xml = await res.text();
+function parseRssItems(xml: string, keywordFilter?: string, maxItems = 6): any[] {
   const items: any[] = [];
   const itemRegex = /<item>([\s\S]*?)<\/item>/g;
   let match;
@@ -8164,10 +8158,73 @@ async function fetchDrunkDrivingNews(): Promise<any[]> {
     const pubDate = getTag('pubDate');
     const source = getTag('source');
     const description = getTag('description');
-    if (title) items.push({ title, link, pubDate, source, description });
-    if (items.length >= 6) break;
+    if (!title) continue;
+    if (keywordFilter && !title.includes(keywordFilter) && !description.includes(keywordFilter)) continue;
+    items.push({ title, link, pubDate, source, description });
+    if (items.length >= maxItems) break;
   }
   return items;
+}
+
+async function fetchDrunkDrivingNews(): Promise<any[]> {
+  const { default: fetch } = await import("node-fetch");
+  const HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+    "Accept": "application/rss+xml, application/xml, text/xml, */*",
+  };
+  const TIMEOUT_MS = 10_000;
+
+  const sources = [
+    {
+      name: "Google News",
+      url: "https://news.google.com/rss/search?q=%EC%9D%8C%EC%A3%BC%EC%9A%B4%EC%A0%84&hl=ko&gl=KR&ceid=KR:ko",
+      keyword: undefined as string | undefined,
+    },
+    {
+      name: "연합뉴스",
+      url: "https://www.yonhapnews.co.kr/rss/all.xml",
+      keyword: "음주운전",
+    },
+    {
+      name: "연합뉴스(사회)",
+      url: "https://www.yonhapnews.co.kr/rss/socialAll.xml",
+      keyword: "음주운전",
+    },
+    {
+      name: "MBC뉴스",
+      url: "https://imnews.imbc.com/rss/news/news_00.xml",
+      keyword: "음주운전",
+    },
+    {
+      name: "한국경제",
+      url: "https://www.hankyung.com/feed/all-news",
+      keyword: "음주운전",
+    },
+  ];
+
+  for (const src of sources) {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+      const res = await fetch(src.url, { headers: HEADERS, signal: controller.signal as any }) as any;
+      clearTimeout(timer);
+      if (!res.ok) {
+        console.warn(`[카드뉴스] ${src.name} HTTP ${res.status}`);
+        continue;
+      }
+      const xml = await res.text();
+      const items = parseRssItems(xml, src.keyword, 6);
+      if (items.length > 0) {
+        console.log(`[카드뉴스] ${src.name}에서 ${items.length}건 수집`);
+        return items;
+      }
+      console.warn(`[카드뉴스] ${src.name} — 음주운전 기사 없음`);
+    } catch (e: any) {
+      console.warn(`[카드뉴스] ${src.name} 오류: ${e.message}`);
+    }
+  }
+  console.warn('[카드뉴스] 모든 뉴스 소스에서 수집 실패');
+  return [];
 }
 
 async function buildCardNewsCards(articles: any[]): Promise<any[]> {

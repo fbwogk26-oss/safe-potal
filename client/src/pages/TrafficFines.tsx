@@ -465,14 +465,14 @@ export default function TrafficFines() {
 
       {/* 통계 카드 */}
       {(() => {
+        const totalCnt = stats?.total ?? 0;
         const speedCnt = stats?.byViolationType?.["속도위반"] ?? 0;
         const signalCnt = stats?.byViolationType?.["신호위반"] ?? 0;
         const laneCnt = stats?.byViolationType?.["법규위반"] ?? 0;
-        const filteredTotal = speedCnt + signalCnt + laneCnt;
         const cards = [
           {
-            label: "총 건수",
-            value: filteredTotal,
+            label: "전체 건수",
+            value: totalCnt,
             icon: <ReceiptText className="h-6 w-6" />,
             color: "text-blue-600",
             bg: "bg-blue-50 dark:bg-blue-950/40",
