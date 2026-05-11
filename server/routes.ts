@@ -4406,7 +4406,6 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
   app.get('/api/near-miss/export/excel', isAuthenticated, async (req: any, res) => {
     try {
       const reports = await storage.getNearMissReports();
-      const ExcelJS = (await import('exceljs')).default;
       const wb = new ExcelJS.Workbook();
       const ws = wb.addWorksheet('아차사고 목록');
       ws.columns = [
@@ -7742,7 +7741,6 @@ ${htmlDraft}
       const taxInvoices = await storage.getSafetyCostTaxInvoices(year);
       console.log(`[export] DB 로드 완료: records=${records.length}, taxInvoices=${taxInvoices.length}`);
 
-      const ExcelJS = (await import("exceljs")).default;
       const wb = new ExcelJS.Workbook();
       wb.creator = "안전포털시스템";
       wb.created = new Date();
@@ -7973,7 +7971,6 @@ ${htmlDraft}
       const yearRaw = Number(req.query.year);
       const year = (!isNaN(yearRaw) && yearRaw > 2000) ? yearRaw : new Date().getFullYear();
       const records = await storage.getSafetyCostRecords(year);
-      const ExcelJS = (await import("exceljs")).default;
 
       const templatePath = path.join(process.cwd(), 'server/assets/safety_cost_template.xlsx');
       const wb = new ExcelJS.Workbook();
