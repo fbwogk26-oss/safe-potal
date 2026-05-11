@@ -7736,8 +7736,10 @@ ${htmlDraft}
   app.get('/api/safety-cost-records/export', isAuthenticated, async (req: any, res) => {
     try {
       const year = req.query.year ? Number(req.query.year) : new Date().getFullYear();
+      console.log(`[export] 법정경비 다운로드 요청: year=${year}`);
       const records = await storage.getSafetyCostRecords(year);
       const taxInvoices = await storage.getSafetyCostTaxInvoices(year);
+      console.log(`[export] DB 로드 완료: records=${records.length}, taxInvoices=${taxInvoices.length}`);
 
       const ExcelJS = (await import("exceljs")).default;
       const wb = new ExcelJS.Workbook();
@@ -7952,14 +7954,15 @@ ${htmlDraft}
         taxRowIdx++;
       }
 
-      const today = new Date().toISOString().slice(0, 10);
+      console.log(`[export] writeBuffer 시작 (records=${records.length}, taxInvoices=${taxInvoices.length})`);
       const buf = await wb.xlsx.writeBuffer();
+      console.log(`[export] writeBuffer 완료, size=${Buffer.isBuffer(buf) ? buf.length : (buf as any).byteLength}`);
       res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
       res.setHeader("Content-Disposition", `attachment; filename*=UTF-8''${encodeURIComponent(`${year}년_산업안전보건관리비_법정경비.xlsx`)}`);
-      res.send(buf);
+      res.send(Buffer.isBuffer(buf) ? buf : Buffer.from(buf as ArrayBuffer));
     } catch (e: any) {
-      console.error("Safety cost export error:", e.message);
-      res.status(500).json({ message: e.message });
+      console.error("[export] 법정경비 export 오류:", e.message, e.stack?.split('\n').slice(0,3).join(' | '));
+      res.status(500).json({ message: "내보내기 실패: " + e.message });
     }
   });
 
@@ -8186,13 +8189,15 @@ ${htmlDraft}
       }
 
       // ─── 응답 ───────────────────────────────────────────────────────
+      console.log(`[export-template] writeBuffer 시작 (records=${records.length})`);
+      const buffer = await wb.xlsx.writeBuffer();
+      console.log(`[export-template] writeBuffer 완료, size=${Buffer.isBuffer(buffer) ? buffer.length : (buffer as any).byteLength}`);
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(`${year}년_산업안전보건관리비_사용내역.xlsx`)}`);
-      const buffer = await wb.xlsx.writeBuffer();
-      res.send(Buffer.from(buffer as ArrayBuffer));
+      res.send(Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer as ArrayBuffer));
     } catch (e: any) {
-      console.error("Safety cost template export error:", e.message);
-      res.status(500).json({ message: e.message });
+      console.error("[export-template] 사용내역 export 오류:", e.message, e.stack?.split('\n').slice(0,3).join(' | '));
+      res.status(500).json({ message: "내보내기 실패: " + e.message });
     }
   });
 

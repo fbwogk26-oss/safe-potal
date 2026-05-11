@@ -4,11 +4,26 @@ import connectPg from "connect-pg-simple";
 import { authStorage } from "./storage";
 import { logSecurityEvent, MAX_LOGIN_ATTEMPTS, LOCK_DURATION_MINUTES, generateSessionSecret } from "../../security";
 import crypto from "crypto";
+import { db } from "../../db";
+import { settings } from "@shared/schema";
+import { eq } from "drizzle-orm";
 
-const SESSION_SECRET = process.env.SESSION_SECRET || generateSessionSecret();
+async function loadOrCreateSessionSecret(): Promise<string> {
+  if (process.env.SESSION_SECRET) return process.env.SESSION_SECRET;
+  try {
+    const rows = await db.select().from(settings).where(eq(settings.key, "session_secret"));
+    if (rows.length > 0 && rows[0].value) return rows[0].value;
+    const secret = generateSessionSecret();
+    await db.insert(settings).values({ key: "session_secret", value: secret }).onConflictDoNothing();
+    return secret;
+  } catch (e: any) {
+    console.error("[session] secret 로드 실패, 임시 secret 사용:", e.message);
+    return generateSessionSecret();
+  }
+}
 
-export function getSession() {
-  const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 7 days
+function buildSession(secret: string) {
+  const sessionTtl = 7 * 24 * 60 * 60 * 1000;
   const pgStore = connectPg(session);
   const sessionStore = new pgStore({
     conString: process.env.DATABASE_URL,
@@ -18,7 +33,7 @@ export function getSession() {
   });
   const isProduction = process.env.NODE_ENV === "production";
   return session({
-    secret: SESSION_SECRET,
+    secret,
     store: sessionStore,
     resave: false,
     saveUninitialized: false,
@@ -33,9 +48,14 @@ export function getSession() {
   });
 }
 
+export function getSession() {
+  return buildSession(generateSessionSecret());
+}
+
 export async function setupAuth(app: Express) {
+  const secret = await loadOrCreateSessionSecret();
   app.set("trust proxy", 1);
-  app.use(getSession());
+  app.use(buildSession(secret));
 
   app.post("/api/login", async (req, res) => {
     try {
@@ -147,7 +167,6 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
     return res.status(401).json({ message: "로그인이 필요합니다" });
   }
 
-  // Attach user to request
   (req as any).user = session.user;
   next();
 };
