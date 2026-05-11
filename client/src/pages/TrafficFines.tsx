@@ -469,10 +469,12 @@ export default function TrafficFines() {
         const speedCnt = stats?.byViolationType?.["속도위반"] ?? 0;
         const signalCnt = stats?.byViolationType?.["신호위반"] ?? 0;
         const laneCnt = stats?.byViolationType?.["법규위반"] ?? 0;
+        const kpiCnt = speedCnt + signalCnt + laneCnt;
         const cards = [
           {
             label: "전체 건수",
             value: totalCnt,
+            sub: "모든 위반 유형",
             icon: <ReceiptText className="h-6 w-6" />,
             color: "text-blue-600",
             bg: "bg-blue-50 dark:bg-blue-950/40",
@@ -480,8 +482,19 @@ export default function TrafficFines() {
             testId: "stat-total",
           },
           {
+            label: "총 건수",
+            value: kpiCnt,
+            sub: "속도·신호·법규",
+            icon: <AlertCircle className="h-6 w-6" />,
+            color: "text-purple-600",
+            bg: "bg-purple-50 dark:bg-purple-950/40",
+            border: "border-purple-200 dark:border-purple-800",
+            testId: "stat-kpi",
+          },
+          {
             label: "속도위반",
             value: speedCnt,
+            sub: "",
             icon: <Zap className="h-6 w-6" />,
             color: "text-red-600",
             bg: "bg-red-50 dark:bg-red-950/40",
@@ -491,6 +504,7 @@ export default function TrafficFines() {
           {
             label: "신호위반",
             value: signalCnt,
+            sub: "",
             icon: <AlertTriangle className="h-6 w-6" />,
             color: "text-amber-600",
             bg: "bg-amber-50 dark:bg-amber-950/40",
@@ -500,7 +514,8 @@ export default function TrafficFines() {
           {
             label: "법규위반",
             value: laneCnt,
-            icon: <AlertCircle className="h-6 w-6" />,
+            sub: "",
+            icon: <Car className="h-6 w-6" />,
             color: "text-orange-600",
             bg: "bg-orange-50 dark:bg-orange-950/40",
             border: "border-orange-200 dark:border-orange-800",
@@ -508,13 +523,16 @@ export default function TrafficFines() {
           },
         ];
         return (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             {cards.map((c) => (
               <Card key={c.label} className={`border ${c.border} ${c.bg} shadow-sm`}>
                 <CardContent className="p-0">
                   <div className={`flex items-center justify-center gap-2 py-3 px-4 ${c.color}`}>
                     {c.icon}
-                    <span className="text-sm font-semibold tracking-wide">{c.label}</span>
+                    <div className="text-center">
+                      <span className="text-sm font-semibold tracking-wide block">{c.label}</span>
+                      {c.sub && <span className="text-[10px] opacity-70">{c.sub}</span>}
+                    </div>
                   </div>
                   <div className={`border-t ${c.border}`} />
                   <div className="flex items-center justify-center py-5">
