@@ -8143,7 +8143,7 @@ ${htmlDraft}
 
 let cardNewsTimer: ReturnType<typeof setInterval> | null = null;
 
-function parseRssItems(xml: string, keywordFilter?: string, maxItems = 5, sinceMs?: number): any[] {
+function parseRssItems(xml: string, keywordFilter?: string, maxItems = 6, sinceMs?: number): any[] {
   const items: any[] = [];
   const itemRegex = /<item>([\s\S]*?)<\/item>/g;
   let match;
@@ -8407,7 +8407,7 @@ function buildCardNewsEmailHtml(cards: any[]): string {
 async function sendCardNewsEmail() {
   const articles = await fetchDrunkDrivingNews();
   if (articles.length === 0) throw new Error('뉴스를 수집할 수 없습니다');
-  const cards = await buildCardNewsCards(articles.slice(0, 5));
+  const cards = await buildCardNewsCards(articles.slice(0, 6));
   const html = buildCardNewsEmailHtml(cards);
   const setting = await storage.getSetting('card_news_config').catch(() => null);
   const config = setting?.value ? JSON.parse(setting.value) : {};
