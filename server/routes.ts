@@ -7735,7 +7735,8 @@ ${htmlDraft}
   // === 법정경비 Excel 다운로드 (첨부파일 이미지 포함) ===
   app.get('/api/safety-cost-records/export', isAuthenticated, async (req: any, res) => {
     try {
-      const year = req.query.year ? Number(req.query.year) : new Date().getFullYear();
+      const yearRaw = Number(req.query.year);
+      const year = (!isNaN(yearRaw) && yearRaw > 2000) ? yearRaw : new Date().getFullYear();
       console.log(`[export] 법정경비 다운로드 요청: year=${year}`);
       const records = await storage.getSafetyCostRecords(year);
       const taxInvoices = await storage.getSafetyCostTaxInvoices(year);
@@ -7969,7 +7970,8 @@ ${htmlDraft}
   // ─── 사용내역 양식 다운로드 (템플릿 기반) ─────────────────────────────
   app.get('/api/safety-cost-records/export-template', isAuthenticated, async (req: any, res) => {
     try {
-      const year = req.query.year ? Number(req.query.year) : new Date().getFullYear();
+      const yearRaw = Number(req.query.year);
+      const year = (!isNaN(yearRaw) && yearRaw > 2000) ? yearRaw : new Date().getFullYear();
       const records = await storage.getSafetyCostRecords(year);
       const ExcelJS = (await import("exceljs")).default;
 
