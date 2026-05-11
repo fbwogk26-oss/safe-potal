@@ -7982,6 +7982,11 @@ ${htmlDraft}
       const systemPrompt = `당신은 한국 기업의 구매 서류(견적서, 거래명세서)를 분석하는 전문가입니다.
 문서에서 다음 정보를 추출하여 JSON 형식으로만 반환하세요 (코드블록 없이).
 여러 품목이 있는 경우 items 배열에 모두 포함하세요.
+
+【중요】 거래명세서에서 배송지(납품처)가 달라 동일 품목이 여러 행으로 분리된 경우,
+같은 품명·규격·단가의 항목은 수량을 합산하여 하나의 항목으로 통합하세요.
+예) "안전모 / 1개 / 5,000원" 2행 → "안전모 / 2개 / 5,000원" 1행
+
 {
   "vendorName": "공급업체명",
   "documentDate": "YYYY-MM-DD 형식의 날짜",
@@ -8053,6 +8058,34 @@ ${htmlDraft}
         if (jsonMatch) {
           try { parsed = JSON.parse(jsonMatch[0]); } catch { parsed = {}; }
         }
+      }
+
+      // 동일 품명·규격·단가 항목 수량 합산 (GPT가 분리하는 경우 서버에서 통합)
+      if (Array.isArray(parsed.items) && parsed.items.length > 1) {
+        const mergedMap = new Map<string, any>();
+        for (const item of parsed.items) {
+          const key = `${(item.itemName || '').trim()}||${(item.specification || '').trim()}||${item.unitPrice ?? ''}`;
+          if (mergedMap.has(key)) {
+            const existing = mergedMap.get(key);
+            const addQty = Number(item.quantity) || 0;
+            existing.quantity = (Number(existing.quantity) || 0) + addQty;
+            // 단가 기반 재계산
+            if (existing.unitPrice) {
+              const supplyAmt = Math.round(existing.quantity * Number(existing.unitPrice));
+              const vatAmt = Math.round(supplyAmt * 0.1);
+              existing.supplyAmount = supplyAmt;
+              existing.vatAmount = vatAmt;
+              existing.totalAmount = supplyAmt + vatAmt;
+            } else {
+              existing.supplyAmount = (Number(existing.supplyAmount) || 0) + (Number(item.supplyAmount) || 0);
+              existing.vatAmount = (Number(existing.vatAmount) || 0) + (Number(item.vatAmount) || 0);
+              existing.totalAmount = (Number(existing.totalAmount) || 0) + (Number(item.totalAmount) || 0);
+            }
+          } else {
+            mergedMap.set(key, { ...item });
+          }
+        }
+        parsed.items = Array.from(mergedMap.values());
       }
 
       // 파일을 스토리지에 업로드하고 URL도 함께 반환 (프론트 2차 업로드 불필요)
