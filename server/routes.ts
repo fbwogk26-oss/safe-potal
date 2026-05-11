@@ -8143,7 +8143,7 @@ ${htmlDraft}
 
 let cardNewsTimer: ReturnType<typeof setInterval> | null = null;
 
-function parseRssItems(xml: string, keywordFilter?: string, maxItems = 6, sinceMs?: number): any[] {
+function parseRssItems(xml: string, keywordFilter?: string, maxItems = 5, sinceMs?: number): any[] {
   const items: any[] = [];
   const itemRegex = /<item>([\s\S]*?)<\/item>/g;
   let match;
@@ -8159,7 +8159,8 @@ function parseRssItems(xml: string, keywordFilter?: string, maxItems = 6, sinceM
     const source = getTag('source');
     const description = getTag('description');
     if (!title) continue;
-    if (keywordFilter && !title.includes(keywordFilter) && !description.includes(keywordFilter)) continue;
+    // 키워드 필터: 제목에 반드시 포함되어야 함 (설명은 보조 조건)
+    if (keywordFilter && !title.includes(keywordFilter)) continue;
     // 날짜 필터: sinceMs 이후 기사만 수집
     if (sinceMs && pubDate) {
       const articleMs = new Date(pubDate).getTime();
@@ -8196,7 +8197,7 @@ async function fetchDrunkDrivingNews(): Promise<any[]> {
     {
       name: "Google News",
       url: `https://news.google.com/rss/search?q=${googleQuery}&hl=ko&gl=KR&ceid=KR:ko`,
-      keyword: undefined as string | undefined,
+      keyword: "음주운전",
     },
     {
       name: "연합뉴스",
@@ -8303,8 +8304,11 @@ function buildCardNewsEmailHtml(cards: any[]): string {
   </table>
 </td>`;
     });
-    // 홀수일 때 빈 칸 채우기
-    if (cells.length === 1) cells.push(`<td width="47%" valign="top"></td>`);
+    // 홀수(마지막 1개)일 때 — 전체 너비로 가운데 표시
+    if (cells.length === 1) {
+      const fullWidthCell = cells[0].replace('width="47%"', 'width="100%"').replace('colspan="2"', 'colspan="2"');
+      return `<tr><td colspan="3">${fullWidthCell.replace(/^<td[^>]*>/, '<td width="100%" valign="top" bgcolor="#ffffff" style="background:#ffffff;border-radius:14px;padding:20px 18px;">').slice(0, -5)}</td></tr><tr><td colspan="3" height="12"></td></tr>`;
+    }
     return `<tr>${cells[0]}<td width="6%"></td>${cells[1]}</tr><tr><td colspan="3" height="12"></td></tr>`;
   }).join('');
 
@@ -8403,7 +8407,7 @@ function buildCardNewsEmailHtml(cards: any[]): string {
 async function sendCardNewsEmail() {
   const articles = await fetchDrunkDrivingNews();
   if (articles.length === 0) throw new Error('뉴스를 수집할 수 없습니다');
-  const cards = await buildCardNewsCards(articles.slice(0, 6));
+  const cards = await buildCardNewsCards(articles.slice(0, 5));
   const html = buildCardNewsEmailHtml(cards);
   const setting = await storage.getSetting('card_news_config').catch(() => null);
   const config = setting?.value ? JSON.parse(setting.value) : {};
