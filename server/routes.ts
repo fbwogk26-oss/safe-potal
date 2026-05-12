@@ -8529,7 +8529,7 @@ ${htmlDraft}
 
 let cardNewsTimer: ReturnType<typeof setInterval> | null = null;
 
-function parseRssItems(xml: string, keywordFilter?: string, maxItems = 6, sinceMs?: number): any[] {
+function parseRssItems(xml: string, keywordFilter?: string, maxItems = 20, sinceMs?: number): any[] {
   const items: any[] = [];
   const itemRegex = /<item>([\s\S]*?)<\/item>/g;
   let match;
@@ -8545,9 +8545,7 @@ function parseRssItems(xml: string, keywordFilter?: string, maxItems = 6, sinceM
     const source = getTag('source');
     const description = getTag('description');
     if (!title) continue;
-    // 키워드 필터: 제목에 반드시 포함되어야 함 (설명은 보조 조건)
     if (keywordFilter && !title.includes(keywordFilter)) continue;
-    // 날짜 필터: sinceMs 이후 기사만 수집
     if (sinceMs && pubDate) {
       const articleMs = new Date(pubDate).getTime();
       if (!isNaN(articleMs) && articleMs < sinceMs) continue;
@@ -8558,77 +8556,94 @@ function parseRssItems(xml: string, keywordFilter?: string, maxItems = 6, sinceM
   return items;
 }
 
+// 제목 유사도 비교: 핵심 한글 단어 60% 이상 겹치면 중복 판정
+function titlesAreSimilar(a: string, b: string): boolean {
+  const normalize = (t: string) =>
+    t.replace(/[-|:·\/\\].*?(뉴스|일보|방송|신문|경제|뉴시스|연합|조선|중앙|동아|한겨레|헤럴드|세계|문화|국민|머니|news)$/i, '')
+      .replace(/[^\uAC00-\uD7A3]/g, ' ')
+      .trim();
+  const na = normalize(a);
+  const nb = normalize(b);
+  if (!na || !nb) return false;
+  // 앞 10자 완전 일치 → 중복
+  const pre = Math.min(10, Math.min(na.length, nb.length));
+  if (na.substring(0, pre) === nb.substring(0, pre) && pre >= 6) return true;
+  // 핵심 단어 Jaccard 유사도
+  const words = (s: string) => new Set((s.match(/[\uAC00-\uD7A3]{2,}/g) || []));
+  const wa = words(na); const wb = words(nb);
+  if (wa.size === 0 || wb.size === 0) return false;
+  let overlap = 0;
+  for (const w of wa) if (wb.has(w)) overlap++;
+  const union = new Set([...wa, ...wb]).size;
+  return overlap / union >= 0.6;
+}
+
+// 중복 제거: 유사 제목 기사 중 첫 번째만 유지
+function deduplicateArticles(articles: any[]): any[] {
+  const unique: any[] = [];
+  for (const article of articles) {
+    const isDup = unique.some(u => titlesAreSimilar(u.title, article.title));
+    if (!isDup) unique.push(article);
+  }
+  return unique;
+}
+
 async function fetchDrunkDrivingNews(): Promise<any[]> {
   const HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
     "Accept": "application/rss+xml, application/xml, text/xml, */*",
   };
   const TIMEOUT_MS = 10_000;
+  const MAX_RESULTS = 6;
 
-  // 최근 3일 기간 계산 (오늘 제외 — 어제~3일 전)
   const now = new Date();
   const sinceDate = new Date(now);
   sinceDate.setDate(now.getDate() - 3);
   sinceDate.setHours(0, 0, 0, 0);
   const sinceMs = sinceDate.getTime();
 
-  // Google News: after: 연산자로 날짜 제한
   const afterParam = `${sinceDate.getFullYear()}-${String(sinceDate.getMonth() + 1).padStart(2, '0')}-${String(sinceDate.getDate()).padStart(2, '0')}`;
   const googleQuery = encodeURIComponent(`음주운전 after:${afterParam}`);
 
-  console.log(`[카드뉴스] ${afterParam} 이후 음주운전 뉴스 수집 시작`);
+  console.log(`[카드뉴스] ${afterParam} 이후 음주운전 뉴스 수집 시작 (전체 소스 병렬)`);
 
   const sources = [
-    {
-      name: "Google News",
-      url: `https://news.google.com/rss/search?q=${googleQuery}&hl=ko&gl=KR&ceid=KR:ko`,
-      keyword: "음주운전",
-    },
-    {
-      name: "연합뉴스",
-      url: "https://www.yonhapnews.co.kr/rss/all.xml",
-      keyword: "음주운전",
-    },
-    {
-      name: "연합뉴스(사회)",
-      url: "https://www.yonhapnews.co.kr/rss/socialAll.xml",
-      keyword: "음주운전",
-    },
-    {
-      name: "MBC뉴스",
-      url: "https://imnews.imbc.com/rss/news/news_00.xml",
-      keyword: "음주운전",
-    },
-    {
-      name: "한국경제",
-      url: "https://www.hankyung.com/feed/all-news",
-      keyword: "음주운전",
-    },
+    { name: "Google News", url: `https://news.google.com/rss/search?q=${googleQuery}&hl=ko&gl=KR&ceid=KR:ko`, keyword: "음주운전" },
+    { name: "연합뉴스", url: "https://www.yonhapnews.co.kr/rss/all.xml", keyword: "음주운전" },
+    { name: "연합뉴스(사회)", url: "https://www.yonhapnews.co.kr/rss/socialAll.xml", keyword: "음주운전" },
+    { name: "MBC뉴스", url: "https://imnews.imbc.com/rss/news/news_00.xml", keyword: "음주운전" },
+    { name: "한국경제", url: "https://www.hankyung.com/feed/all-news", keyword: "음주운전" },
   ];
 
-  for (const src of sources) {
+  // 모든 소스 병렬 수집
+  const fetchSource = async (src: typeof sources[0]) => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
     try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
       const res = await fetch(src.url, { headers: HEADERS, signal: controller.signal as any }) as any;
       clearTimeout(timer);
-      if (!res.ok) {
-        console.warn(`[카드뉴스] ${src.name} HTTP ${res.status}`);
-        continue;
-      }
+      if (!res.ok) { console.warn(`[카드뉴스] ${src.name} HTTP ${res.status}`); return []; }
       const xml = await res.text();
-      const items = parseRssItems(xml, src.keyword, 6, sinceMs);
-      if (items.length > 0) {
-        console.log(`[카드뉴스] ${src.name}에서 ${items.length}건 수집 (${afterParam} 이후)`);
-        return items;
-      }
-      console.warn(`[카드뉴스] ${src.name} — ${afterParam} 이후 음주운전 기사 없음`);
+      const items = parseRssItems(xml, src.keyword, 20, sinceMs);
+      console.log(`[카드뉴스] ${src.name} — ${items.length}건`);
+      return items;
     } catch (e: any) {
+      clearTimeout(timer);
       console.warn(`[카드뉴스] ${src.name} 오류: ${e.message}`);
+      return [];
     }
+  };
+
+  const results = await Promise.allSettled(sources.map(fetchSource));
+  const allArticles: any[] = [];
+  for (const r of results) {
+    if (r.status === 'fulfilled') allArticles.push(...r.value);
   }
-  console.warn('[카드뉴스] 모든 뉴스 소스에서 수집 실패');
-  return [];
+
+  // 중복 제거 후 최대 6개 반환 (부족해도 OK)
+  const unique = deduplicateArticles(allArticles).slice(0, MAX_RESULTS);
+  console.log(`[카드뉴스] 전체 ${allArticles.length}건 수집 → 중복 제거 후 ${unique.length}건`);
+  return unique;
 }
 
 async function buildCardNewsCards(articles: any[]): Promise<any[]> {
