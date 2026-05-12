@@ -595,6 +595,7 @@ export const safetyCostRecords = pgTable("safety_cost_records", {
   notes: text("notes"),
   quoteFileUrl: text("quote_file_url"),
   transactionFileUrl: text("transaction_file_url"),
+  certificateFileUrl: text("certificate_file_url"),
   createdAt: timestamp("created_at").defaultNow(),
   createdBy: text("created_by"),
 });

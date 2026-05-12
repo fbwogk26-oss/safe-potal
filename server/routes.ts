@@ -7764,8 +7764,7 @@ ${htmlDraft}
             const localPath = path.join(uploadDir, filename);
             if (fs.existsSync(localPath)) return fs.readFileSync(localPath);
           } else if (url.startsWith("http")) {
-            const { default: nodeFetch } = await import("node-fetch");
-            const r = await nodeFetch(url);
+            const r = await fetch(url);
             if (!r.ok) return null;
             return Buffer.from(await r.arrayBuffer());
           }
@@ -7972,7 +7971,14 @@ ${htmlDraft}
       const year = (!isNaN(yearRaw) && yearRaw > 2000) ? yearRaw : new Date().getFullYear();
       const records = await storage.getSafetyCostRecords(year);
 
-      const templatePath = path.join(process.cwd(), 'server/assets/safety_cost_template.xlsx');
+      const templatePath = [
+        path.join(process.cwd(), 'server/assets/safety_cost_template.xlsx'),
+        path.join(process.cwd(), 'dist/server/assets/safety_cost_template.xlsx'),
+        path.join(__dirname, '../server/assets/safety_cost_template.xlsx'),
+        path.join(__dirname, 'assets/safety_cost_template.xlsx'),
+      ].find(p => fs.existsSync(p));
+      if (!templatePath) throw new Error("양식 파일(safety_cost_template.xlsx)을 찾을 수 없습니다");
+      console.log(`[export-template] templatePath=${templatePath}`);
       const wb = new ExcelJS.Workbook();
       await wb.xlsx.readFile(templatePath);
 
@@ -8443,7 +8449,6 @@ function parseRssItems(xml: string, keywordFilter?: string, maxItems = 6, sinceM
 }
 
 async function fetchDrunkDrivingNews(): Promise<any[]> {
-  const { default: fetch } = await import("node-fetch");
   const HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
     "Accept": "application/rss+xml, application/xml, text/xml, */*",

@@ -72,7 +72,7 @@ const emptyForm = {
   category: "", subCategory: "", itemName: "", specification: "",
   unit: "EA", quantity: "", unitPrice: "", supplyAmount: "", vatAmount: "",
   totalAmount: "", purchaseDate: "", vendorName: "", notes: "",
-  quoteFileUrl: "", transactionFileUrl: "",
+  quoteFileUrl: "", transactionFileUrl: "", certificateFileUrl: "",
 };
 const emptyTaxForm = {
   year: currentYear, month: new Date().getMonth() + 1,
@@ -136,10 +136,12 @@ export default function SafetyCostBudget() {
   const [delConfirm, setDelConfirm] = useState<{ type: "record"|"tax"; id: number } | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
+  const [certUploading, setCertUploading] = useState(false);
 
   const quoteRef = useRef<HTMLInputElement>(null);
   const transRef = useRef<HTMLInputElement>(null);
   const taxFileRef = useRef<HTMLInputElement>(null);
+  const certRef = useRef<HTMLInputElement>(null);
 
   // ── Queries ──────────────────────────────────────────────────────
   const { data: records = [], isLoading } = useQuery<SafetyCostRecord[]>({
@@ -189,7 +191,8 @@ export default function SafetyCostBudget() {
       unitPrice: r.unitPrice?.toString()||"", supplyAmount: r.supplyAmount?.toString()||"",
       vatAmount: r.vatAmount?.toString()||"", totalAmount: r.totalAmount?.toString()||"",
       purchaseDate: r.purchaseDate||"", vendorName: r.vendorName||"", notes: r.notes||"",
-      quoteFileUrl: r.quoteFileUrl||"", transactionFileUrl: r.transactionFileUrl||"" });
+      quoteFileUrl: r.quoteFileUrl||"", transactionFileUrl: r.transactionFileUrl||"",
+      certificateFileUrl: r.certificateFileUrl||"" });
     setExtractedItems([]); setDlgOpen(true);
   }
   function closeDlg() { setDlgOpen(false); setEditRec(null); setExtractedItems([]); }
@@ -286,8 +289,27 @@ export default function SafetyCostBudget() {
     }
   }
 
+  // ── 수료증 업로드 ─────────────────────────────────────────────────
+  async function handleCertUpload(file: File) {
+    setCertUploading(true);
+    try {
+      const fd = new FormData(); fd.append("file", file);
+      const r = await fetch("/api/upload/general", { method: "POST", body: fd, credentials: "include" });
+      if (!r.ok) throw new Error("업로드 실패");
+      const d = await r.json();
+      const url = d.url || d.fileUrl || d.imageUrl || "";
+      setF("certificateFileUrl", url);
+      toast({ title: "수료증 업로드 완료" });
+    } catch (e: any) {
+      toast({ title: "업로드 실패", description: e.message, variant: "destructive" });
+    } finally { setCertUploading(false); }
+  }
+
   // ── 세금계산서 헬퍼 ───────────────────────────────────────────────
   function openAddTax() { setEditTax(null); setTaxForm({ ...emptyTaxForm, year }); setTaxFile(null); setTaxDlgOpen(true); }
+  function openAddTaxForMonth(month: number) {
+    setEditTax(null); setTaxForm({ ...emptyTaxForm, year, month }); setTaxFile(null); setTaxDlgOpen(true);
+  }
   function openEditTax(t: SafetyCostTaxInvoice) {
     setEditTax(t);
     setTaxForm({ year: t.year, month: t.month, vendorName: t.vendorName||"",
@@ -377,6 +399,7 @@ export default function SafetyCostBudget() {
       totalAmount: form.totalAmount, purchaseDate: form.purchaseDate||null,
       vendorName: form.vendorName||null, notes: form.notes||null,
       quoteFileUrl: form.quoteFileUrl||null, transactionFileUrl: form.transactionFileUrl||null,
+      certificateFileUrl: form.certificateFileUrl||null,
     };
     if (editRec) updateMut.mutate({ id: editRec.id, d: payload }); else createMut.mutate(payload);
   }
@@ -439,6 +462,9 @@ export default function SafetyCostBudget() {
   const monthlyTotals = MONTHS.map((_,i) => records.filter(r=>r.month===i+1).reduce((s,r)=>s+toNum(r.totalAmount),0));
   const taxGrandTotal = taxInvoices.reduce((s,t) => s+toNum(t.totalAmount), 0);
   const catIdx = (cat: string) => CATEGORIES.indexOf(cat);
+  // 월별 세금계산서 map (month → invoice)
+  const monthTaxMap: Record<number, SafetyCostTaxInvoice> = {};
+  taxInvoices.forEach(t => { if (!monthTaxMap[t.month]) monthTaxMap[t.month] = t; });
 
   const bulkSelectedTotal = bulkItems.filter(it => it.checked).reduce((s, it) => s + toNum(it.totalAmount), 0);
   const bulkSelectedCount = bulkItems.filter(it => it.checked).length;
@@ -561,7 +587,7 @@ export default function SafetyCostBudget() {
                     <TableHead className="text-right">공급가액</TableHead>
                     <TableHead className="text-right">세액</TableHead>
                     <TableHead className="text-right font-semibold">합계</TableHead>
-                    <TableHead className="w-16 text-center">첨부</TableHead>
+                    <TableHead className="w-24 text-center">첨부/세금계산서</TableHead>
                     <TableHead className="w-14 text-center">관리</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -587,7 +613,7 @@ export default function SafetyCostBudget() {
                         <TableCell className="text-right text-sm">{rec.vatAmount ? fmt(rec.vatAmount) : "-"}</TableCell>
                         <TableCell className="text-right font-bold text-sm">{fmt(rec.totalAmount)}</TableCell>
                         <TableCell className="text-center">
-                          <div className="flex gap-1 justify-center">
+                          <div className="flex gap-1 justify-center flex-wrap">
                             {rec.quoteFileUrl && (
                               <button onClick={() => setPreview({ url: rec.quoteFileUrl!, title: "견적서" })}
                                 className="text-blue-500 hover:text-blue-700 transition-colors" title="견적서" data-testid={`btn-quote-${rec.id}`}>
@@ -598,6 +624,30 @@ export default function SafetyCostBudget() {
                               <button onClick={() => setPreview({ url: rec.transactionFileUrl!, title: "거래명세서" })}
                                 className="text-emerald-500 hover:text-emerald-700 transition-colors" title="거래명세서" data-testid={`btn-trans-${rec.id}`}>
                                 <FileText className="w-4 h-4" />
+                              </button>
+                            )}
+                            {rec.certificateFileUrl && (
+                              <button onClick={() => setPreview({ url: rec.certificateFileUrl!, title: "수료증" })}
+                                className="text-orange-500 hover:text-orange-700 transition-colors" title="수료증/이수증" data-testid={`btn-cert-${rec.id}`}>
+                                <FileCheck className="w-4 h-4" />
+                              </button>
+                            )}
+                            {/* 월별 세금계산서 */}
+                            {monthTaxMap[rec.month] ? (
+                              <button
+                                onClick={() => monthTaxMap[rec.month].fileUrl
+                                  ? setPreview({ url: monthTaxMap[rec.month].fileUrl!, title: `${rec.month}월 세금계산서` })
+                                  : openEditTax(monthTaxMap[rec.month])
+                                }
+                                className="text-violet-500 hover:text-violet-700 transition-colors" title={`${rec.month}월 세금계산서`}
+                                data-testid={`btn-tax-month-${rec.id}`}>
+                                <Receipt className="w-4 h-4" />
+                              </button>
+                            ) : (
+                              <button onClick={() => openAddTaxForMonth(rec.month)}
+                                className="text-muted-foreground/30 hover:text-violet-400 transition-colors" title={`${rec.month}월 세금계산서 등록`}
+                                data-testid={`btn-tax-add-month-${rec.id}`}>
+                                <Receipt className="w-4 h-4" />
                               </button>
                             )}
                           </div>
@@ -794,6 +844,28 @@ export default function SafetyCostBudget() {
                 {form.transactionFileUrl && <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1"><FileText className="w-3 h-3" />거래명세서 업로드됨</p>}
               </div>
             </div>
+
+            {/* 수료증/이수증 — 안전교육비(5항) 선택 시 표시 */}
+            {form.category === CATEGORIES[4] && (
+              <div className="border-t pt-2 mt-1">
+                <div className="text-xs font-semibold text-orange-600 flex items-center gap-1 mb-1.5">
+                  <FileCheck className="w-3.5 h-3.5" /> 수료증 / 이수증 첨부 (5항 교육비)
+                </div>
+                <input ref={certRef} type="file" accept="image/*,application/pdf" className="hidden"
+                  onChange={e => { if (e.target.files?.[0]) handleCertUpload(e.target.files[0]); e.target.value=""; }} />
+                <Button variant="outline" size="sm" className="w-full border-orange-200 hover:border-orange-400" disabled={certUploading}
+                  onClick={() => certRef.current?.click()} data-testid="btn-upload-cert">
+                  {certUploading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Upload className="w-4 h-4 mr-1" />}
+                  {form.certificateFileUrl ? "수료증 교체" : "수료증/이수증 첨부 (이미지/PDF)"}
+                </Button>
+                {form.certificateFileUrl && (
+                  <button onClick={() => setPreview({ url: form.certificateFileUrl, title: "수료증" })}
+                    className="text-xs text-orange-600 mt-1 flex items-center gap-1 hover:underline">
+                    <FileCheck className="w-3 h-3" />첨부된 수료증 보기
+                  </button>
+                )}
+              </div>
+            )}
 
             {/* 다중 품목 감지 시 일괄 등록 안내 */}
             {extractedItems.length >= 2 && (
