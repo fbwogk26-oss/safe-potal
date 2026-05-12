@@ -8075,6 +8075,15 @@ ${htmlDraft}
             ws2.getCell(targetRow, dateCol).value = recDate;
           }
         }
+
+        // C열(합계) 수식 재설정 — D,F,H,...,Z (짝수 컬럼) 합산
+        const amtLetters = [4,6,8,10,12,14,16,18,20,22,24,26].map(c => colLetter(c));
+        for (const dr of dataRows2) {
+          ws2.getCell(dr.row, 3).value = {
+            formula: amtLetters.map(l => `${l}${dr.row}`).join('+'),
+          };
+          ws2.getCell(dr.row, 3).numFmt = '#,##0';
+        }
       }
 
       // ═══════════════════════════════════════════════════════════════
@@ -8191,6 +8200,49 @@ ${htmlDraft}
             ws3.getCell(59, ac).value = { formula: `SUM(${colLetter(ac)}5:${colLetter(ac)}58)` };
           });
         }
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // Sheet 1: 월별현황
+      // Row 3~11: 카테고리1~9, Col D~O (4~15): 1월~12월
+      // Row 12: 합계행, Col C: SUM(D:O)
+      // ═══════════════════════════════════════════════════════════════
+      const ws1 = wb.getWorksheet('월별현황');
+      if (ws1) {
+        // 카테고리별(1~9) × 월별(1~12) 합계 계산
+        const catMonthTotals: number[][] = Array.from({ length: 9 }, () => Array(12).fill(0));
+        for (const rec of records) {
+          const catNum = parseInt((rec.category || '').split('.')[0]) - 1; // 0-indexed
+          const monthIdx = (rec.month || 1) - 1; // 0-indexed
+          if (catNum >= 0 && catNum < 9 && monthIdx >= 0 && monthIdx < 12) {
+            catMonthTotals[catNum][monthIdx] += numVal(rec.totalAmount);
+          }
+        }
+        // 각 카테고리 행(3~11)에 월별 금액 입력
+        for (let ci = 0; ci < 9; ci++) {
+          const rowNum = 3 + ci;
+          for (let m = 0; m < 12; m++) {
+            const colNum = 4 + m; // D=4(1월) ~ O=15(12월)
+            const amt = catMonthTotals[ci][m];
+            const cell = ws1.getCell(rowNum, colNum);
+            cell.value = amt > 0 ? amt : null;
+            if (amt > 0) cell.numFmt = '#,##0';
+          }
+          // C열: 합계 수식
+          const cCell = ws1.getCell(rowNum, 3);
+          cCell.value = { formula: `SUM(D${rowNum}:O${rowNum})` };
+          cCell.numFmt = '#,##0';
+        }
+        // Row 12: 합계행 수식
+        for (let m = 0; m < 12; m++) {
+          const colNum = 4 + m;
+          const ltr = colLetter(colNum);
+          const cell = ws1.getCell(12, colNum);
+          cell.value = { formula: `SUM(${ltr}3:${ltr}11)` };
+          cell.numFmt = '#,##0';
+        }
+        ws1.getCell(12, 3).value = { formula: 'SUM(D12:O12)' };
+        ws1.getCell(12, 3).numFmt = '#,##0';
       }
 
       // ─── 응답 ───────────────────────────────────────────────────────

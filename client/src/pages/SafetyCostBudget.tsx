@@ -103,7 +103,7 @@ export default function SafetyCostBudget() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [year, setYear] = useState(currentYear);
-  const [activeTab, setActiveTab] = useState<"list" | "summary" | "tax">("list");
+  const [activeTab, setActiveTab] = useState<"list" | "summary">("list");
   const [filterCat, setFilterCat] = useState("all");
   const [filterMonth, setFilterMonth] = useState("all");
 
@@ -533,7 +533,6 @@ export default function SafetyCostBudget() {
         <TabsList>
           <TabsTrigger value="list" data-testid="tab-list"><List className="w-4 h-4 mr-1 hidden sm:inline" />사용내역</TabsTrigger>
           <TabsTrigger value="summary" data-testid="tab-summary"><BarChart3 className="w-4 h-4 mr-1 hidden sm:inline" />항목별 요약</TabsTrigger>
-          <TabsTrigger value="tax" data-testid="tab-tax"><FileCheck className="w-4 h-4 mr-1 hidden sm:inline" />세금계산서</TabsTrigger>
         </TabsList>
 
         {/* ══ 사용내역 탭 ══ */}
@@ -737,76 +736,6 @@ export default function SafetyCostBudget() {
           </div>
         </TabsContent>
 
-        {/* ══ 세금계산서 탭 ══ */}
-        <TabsContent value="tax" className="mt-3 space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-muted-foreground">월별 세금계산서 현황 · 총 {fmt(taxGrandTotal)}</div>
-            <Button onClick={openAddTax} size="sm" data-testid="button-add-tax">
-              <Plus className="w-4 h-4 mr-1" /> 세금계산서 등록
-            </Button>
-          </div>
-          {taxInvoices.length === 0 ? (
-            <div className="text-center py-16 text-muted-foreground border rounded-xl">
-              <Receipt className="w-10 h-10 mx-auto mb-2 opacity-30" />
-              <p className="text-sm">등록된 세금계산서가 없습니다.</p>
-              <Button variant="outline" size="sm" className="mt-3" onClick={openAddTax}>첫 세금계산서 등록</Button>
-            </div>
-          ) : (
-            <div className="rounded-lg border overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/40">
-                    <TableHead className="w-12 text-center">월</TableHead>
-                    <TableHead>업체명</TableHead>
-                    <TableHead className="text-right">공급가액</TableHead>
-                    <TableHead className="text-right">세액</TableHead>
-                    <TableHead className="text-right font-semibold">합계</TableHead>
-                    <TableHead>비고</TableHead>
-                    <TableHead className="w-14 text-center">파일</TableHead>
-                    <TableHead className="w-14 text-center">관리</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {taxInvoices.map(t => (
-                    <TableRow key={t.id} data-testid={`row-tax-${t.id}`}>
-                      <TableCell className="text-center font-medium">{t.month}월</TableCell>
-                      <TableCell>{t.vendorName||"-"}</TableCell>
-                      <TableCell className="text-right text-sm">{t.supplyAmount ? fmt(t.supplyAmount) : "-"}</TableCell>
-                      <TableCell className="text-right text-sm">{t.vatAmount ? fmt(t.vatAmount) : "-"}</TableCell>
-                      <TableCell className="text-right font-bold">{fmt(t.totalAmount)}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{t.notes||"-"}</TableCell>
-                      <TableCell className="text-center">
-                        {t.fileUrl ? (
-                          <button onClick={() => setPreview({ url: t.fileUrl!, title: `${t.month}월 세금계산서` })}
-                            className="text-violet-500 hover:text-violet-700" data-testid={`btn-taxfile-${t.id}`}>
-                            <FileCheck className="w-4 h-4" />
-                          </button>
-                        ) : <span className="text-muted-foreground/30 text-xs">-</span>}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <div className="flex gap-1 justify-center">
-                          <button onClick={() => openEditTax(t)} className="text-muted-foreground hover:text-foreground" data-testid={`btn-tax-edit-${t.id}`}>
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
-                          <button onClick={() => setDelConfirm({ type:"tax", id:t.id })} className="text-muted-foreground hover:text-red-500" data-testid={`btn-tax-del-${t.id}`}>
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  <TableRow className="bg-muted/40 font-bold">
-                    <TableCell colSpan={2} className="text-center">합계</TableCell>
-                    <TableCell className="text-right">{fmt(taxInvoices.reduce((s,t)=>s+toNum(t.supplyAmount),0))}</TableCell>
-                    <TableCell className="text-right">{fmt(taxInvoices.reduce((s,t)=>s+toNum(t.vatAmount),0))}</TableCell>
-                    <TableCell className="text-right text-primary">{fmt(taxGrandTotal)}</TableCell>
-                    <TableCell colSpan={3} />
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </TabsContent>
       </Tabs>
 
       {/* ══ 지출 등록/수정 다이얼로그 ══ */}
