@@ -7641,9 +7641,11 @@ ${htmlDraft}
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  app.get('/api/safety-cost-records/:id', isAuthenticated, async (req, res) => {
+  app.get('/api/safety-cost-records/:id', isAuthenticated, async (req: any, res, next) => {
+    const id = Number(req.params.id);
+    if (isNaN(id)) return next(); // export, export-template 등 문자열 경로는 다음 라우터로 넘김
     try {
-      const record = await storage.getSafetyCostRecord(Number(req.params.id));
+      const record = await storage.getSafetyCostRecord(id);
       if (!record) return res.status(404).json({ message: "Not found" });
       res.json(record);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
