@@ -7983,6 +7983,8 @@ ${htmlDraft}
       console.log(`[export-template] templatePath=${templatePath}`);
       const wb = new ExcelJS.Workbook();
       await wb.xlsx.readFile(templatePath);
+      // 파일 열 때 모든 수식 자동 재계산 강제
+      (wb as any).calcProperties = { fullCalcOnLoad: true };
 
       // ── 공통 헬퍼 ──────────────────────────────────────────────────
       function numVal(v: any): number { return v ? parseFloat(v.toString()) || 0 : 0; }
@@ -8092,6 +8094,7 @@ ${htmlDraft}
       // Sheet 3: 3. 개인보호구 및 용품구매 세부내역
       // 카테고리 3, 9 레코드 처리
       // 구매일자별 동적 컬럼 생성: qty=5+2i, amt=6+2i (i=0부터)
+      // 품목 매칭 실패 시 빈 행 할당, 빈 행 없으면 합계행 위에 자동 삽입
       // ═══════════════════════════════════════════════════════════════
       const ws3 = wb.getWorksheet('3. 개인보호구 및 용품구매 세부내역');
       if (ws3) {
@@ -8105,32 +8108,75 @@ ${htmlDraft}
           cat39.map(r => r.purchaseDate || '').filter(Boolean)
         )].sort();
 
-        // 기존 데이터 행 목록 (행5~58, col B = 품목명)
-        const itemRows3: { row: number; name: string; category: string }[] = [];
-        for (let r = 5; r <= 58; r++) {
-          const cat3val = ws3.getCell(r, 1).value;
+        // 합계행 동적 탐색 (col A 또는 col B에 '합계' 포함하는 첫 번째 행)
+        let totalRow3 = -1;
+        for (let r = 5; r <= ws3.rowCount + 5; r++) {
+          const va = ws3.getCell(r, 1).value;
+          const vb = ws3.getCell(r, 2).value;
+          const sa = va ? va.toString() : '';
+          const sb = vb ? vb.toString() : '';
+          if (sa.includes('합계') || sb.includes('합계')) { totalRow3 = r; break; }
+        }
+        if (totalRow3 === -1) totalRow3 = 59; // fallback
+
+        // 데이터 행 목록 (5 ~ totalRow3-1)
+        const itemRows3: { row: number; name: string }[] = [];
+        for (let r = 5; r < totalRow3; r++) {
           const nameVal = ws3.getCell(r, 2).value;
-          const nameStr = nameVal ? nameVal.toString().trim() : '';
-          const catStr = cat3val ? cat3val.toString().trim() : '';
-          itemRows3.push({ row: r, name: nameStr, category: catStr });
+          itemRows3.push({ row: r, name: nameVal ? nameVal.toString().trim() : '' });
+        }
+
+        // DB 레코드의 고유 품목명 수집
+        const neededItems: string[] = [];
+        for (const rec of cat39) {
+          const n = (rec.itemName || '').trim();
+          if (n && !neededItems.includes(n)) neededItems.push(n);
+        }
+
+        // 품목명 → 행번호 매핑 (insertRow 금지: shared formula 파괴 방지)
+        // 전략: 1차 이름 매칭 → 2차 미사용 행 재사용(품목명 덮어쓰기)
+        const itemRowMap = new Map<string, number>();
+        const usedRows3 = new Set<number>();
+
+        // 1차: 템플릿 기존 이름과 매칭
+        for (const itemName of neededItems) {
+          for (const ir of itemRows3) {
+            if (usedRows3.has(ir.row)) continue;
+            if (!ir.name) continue;
+            if (ir.name === itemName || ir.name.includes(itemName) || itemName.includes(ir.name)) {
+              itemRowMap.set(itemName, ir.row);
+              usedRows3.add(ir.row);
+              break;
+            }
+          }
+        }
+
+        // 2차: 매칭 안 된 항목 → 미사용 행에 품목명 덮어쓰기 (행 삽입 없음)
+        for (const itemName of neededItems) {
+          if (itemRowMap.has(itemName)) continue;
+          const availRow = itemRows3.find(ir => !usedRows3.has(ir.row));
+          if (availRow) {
+            ws3.getCell(availRow.row, 2).value = itemName; // 품목명 기재
+            availRow.name = itemName;
+            itemRowMap.set(itemName, availRow.row);
+            usedRows3.add(availRow.row);
+          }
+          // 54행 모두 소진 시 skip (현실적으로 발생 안 함)
         }
 
         // 최대 사용할 컬럼 수
         const maxDateCols = Math.max(uniqueDates.length, 1);
-        const lastDataCol = 4 + maxDateCols * 2; // 마지막 amt col
+        const lastDataCol = 4 + maxDateCols * 2;
 
-        // 날짜별 헤더 행(2,3,4) 업데이트
-        // 기존 헤더 초기화
+        // 날짜별 헤더 행(2,3,4) 초기화 후 업데이트
         for (let c = 5; c <= lastDataCol + 4; c++) {
           ws3.getCell(2, c).value = null;
           ws3.getCell(3, c).value = null;
           ws3.getCell(4, c).value = null;
         }
-
         uniqueDates.forEach((dateStr, i) => {
           const qtyCol = 5 + i * 2;
           const amtCol = 6 + i * 2;
-          // 날짜에서 월 추출
           const m = dateStr ? new Date(dateStr.replace(/\./g, '-')).getMonth() + 1 : '';
           const monthLabel = m ? `${m}월` : dateStr;
           ws3.getCell(2, qtyCol).value = monthLabel;
@@ -8141,8 +8187,8 @@ ${htmlDraft}
           ws3.getCell(4, amtCol).value = '비용';
         });
 
-        // 데이터 행 초기화 (col 3,4 = 합계수량/합계비용, col 5+ = 날짜별)
-        for (let r = 5; r <= 58; r++) {
+        // 데이터 행 숫자 초기화 (col 3,4,5+)
+        for (let r = 5; r < totalRow3; r++) {
           ws3.getCell(r, 3).value = null;
           ws3.getCell(r, 4).value = null;
           for (let c = 5; c <= lastDataCol + 4; c++) {
@@ -8157,51 +8203,44 @@ ${htmlDraft}
           if (dateIdx === -1) continue;
           const qtyCol = 5 + dateIdx * 2;
           const amtCol = 6 + dateIdx * 2;
-
-          // 품목명 매칭
           const recName = (rec.itemName || '').trim();
-          let targetRow = -1;
-          for (const ir of itemRows3) {
-            if (!ir.name) continue;
-            if (ir.name === recName || ir.name.includes(recName) || recName.includes(ir.name)) {
-              targetRow = ir.row; break;
-            }
-          }
-          // 매칭 안 되면 빈 행 찾기
-          if (targetRow === -1) {
-            for (const ir of itemRows3) {
-              if (!ir.name) { targetRow = ir.row; break; }
-            }
-          }
+          const targetRow = itemRowMap.get(recName) ?? -1;
           if (targetRow === -1) continue;
-
           const curQty = ws3.getCell(targetRow, qtyCol).value;
           const curAmt = ws3.getCell(targetRow, amtCol).value;
           ws3.getCell(targetRow, qtyCol).value = (numVal(curQty) || 0) + numVal(rec.quantity);
           ws3.getCell(targetRow, amtCol).value = (numVal(curAmt) || 0) + numVal(rec.supplyAmount || rec.totalAmount);
         }
 
-        // 합계 수식 업데이트 (C열=수량합계, D열=금액합계)
-        if (uniqueDates.length > 0) {
-          const qtyCols: string[] = [];
-          const amtCols: string[] = [];
-          uniqueDates.forEach((_, i) => {
-            qtyCols.push(colLetter(5 + i * 2));
-            amtCols.push(colLetter(6 + i * 2));
-          });
-          for (let r = 5; r <= 58; r++) {
-            ws3.getCell(r, 3).value = { formula: qtyCols.map(c => `${c}${r}`).join('+') };
-            ws3.getCell(r, 4).value = { formula: amtCols.map(c => `${c}${r}`).join('+') };
+        // 합계 수식 업데이트 (C열=수량합, D열=금액합)
+        const qtyCols3: string[] = [];
+        const amtCols3: string[] = [];
+        uniqueDates.forEach((_, i) => {
+          qtyCols3.push(colLetter(5 + i * 2));
+          amtCols3.push(colLetter(6 + i * 2));
+        });
+        const dataEnd = totalRow3 - 1;
+        for (let r = 5; r <= dataEnd; r++) {
+          if (uniqueDates.length > 0) {
+            ws3.getCell(r, 3).value = { formula: qtyCols3.map(c => `${c}${r}`).join('+') };
+            ws3.getCell(r, 4).value = { formula: amtCols3.map(c => `${c}${r}`).join('+') };
           }
-          // 59행 합계
-          ws3.getCell(59, 4).value = { formula: `SUM(D5:D58)` };
-          uniqueDates.forEach((_, i) => {
-            const qc = 5 + i * 2;
-            const ac = 6 + i * 2;
-            ws3.getCell(59, qc).value = { formula: `SUM(${colLetter(qc)}5:${colLetter(qc)}58)` };
-            ws3.getCell(59, ac).value = { formula: `SUM(${colLetter(ac)}5:${colLetter(ac)}58)` };
-          });
+          ws3.getCell(r, 3).numFmt = '#,##0';
+          ws3.getCell(r, 4).numFmt = '#,##0';
         }
+        // 합계행 수식 (totalRow3)
+        ws3.getCell(totalRow3, 3).value = { formula: `SUM(C5:C${dataEnd})` };
+        ws3.getCell(totalRow3, 4).value = { formula: `SUM(D5:D${dataEnd})` };
+        ws3.getCell(totalRow3, 3).numFmt = '#,##0';
+        ws3.getCell(totalRow3, 4).numFmt = '#,##0';
+        uniqueDates.forEach((_, i) => {
+          const qc = 5 + i * 2;
+          const ac = 6 + i * 2;
+          ws3.getCell(totalRow3, qc).value = { formula: `SUM(${colLetter(qc)}5:${colLetter(qc)}${dataEnd})` };
+          ws3.getCell(totalRow3, ac).value = { formula: `SUM(${colLetter(ac)}5:${colLetter(ac)}${dataEnd})` };
+          ws3.getCell(totalRow3, qc).numFmt = '#,##0';
+          ws3.getCell(totalRow3, ac).numFmt = '#,##0';
+        });
       }
 
       // ═══════════════════════════════════════════════════════════════
