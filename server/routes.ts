@@ -7976,8 +7976,8 @@ ${htmlDraft}
       const templatePath = [
         path.join(process.cwd(), 'server/assets/safety_cost_template.xlsx'),
         path.join(process.cwd(), 'dist/server/assets/safety_cost_template.xlsx'),
-        path.join(__dirname, '../server/assets/safety_cost_template.xlsx'),
-        path.join(__dirname, 'assets/safety_cost_template.xlsx'),
+        path.resolve('server/assets/safety_cost_template.xlsx'),
+        path.resolve('dist/server/assets/safety_cost_template.xlsx'),
       ].find(p => fs.existsSync(p));
       if (!templatePath) throw new Error("양식 파일(safety_cost_template.xlsx)을 찾을 수 없습니다");
       console.log(`[export-template] templatePath=${templatePath}`);
