@@ -8026,10 +8026,10 @@ ${htmlDraft}
           }
         }
 
-        // 카테고리 1,2,4~8 레코드를 해당 행에 채워넣기
+        // 카테고리 1,2,4~8 레코드만 처리 (3,9는 Sheet3 전용)
         const cat18 = records.filter(r => {
           const n = parseInt((r.category || '').split('.')[0]);
-          return n >= 1 && n <= 8;
+          return [1, 2, 4, 5, 6, 7, 8].includes(n);
         });
 
         for (const rec of cat18) {
@@ -8042,15 +8042,17 @@ ${htmlDraft}
           const searchStr = (rec.subCategory || rec.itemName || '').trim();
           let targetRow = -1;
 
-          // 1차: 완전 포함 매칭
-          for (const dr of dataRows2) {
-            if (!searchStr) break;
-            if (dr.subItem.includes(searchStr) || searchStr.includes(dr.subItem)) {
-              targetRow = dr.row;
-              break;
+          // 1차: 포함 매칭 — 양쪽 모두 비어있지 않아야 함 (빈 문자열 오매칭 방지)
+          if (searchStr) {
+            for (const dr of dataRows2) {
+              if (!dr.subItem) continue; // subItem 비어있으면 건너뜀
+              if (dr.subItem.includes(searchStr) || searchStr.includes(dr.subItem)) {
+                targetRow = dr.row;
+                break;
+              }
             }
           }
-          // 2차: 카테고리 번호만 같고 세부항목 빈 행 사용
+          // 2차: 같은 카테고리 번호이고 subItem이 빈 행
           if (targetRow === -1) {
             const catNum = (rec.category || '').split('.')[0].trim();
             for (const dr of dataRows2) {
@@ -8093,8 +8095,9 @@ ${htmlDraft}
       // ═══════════════════════════════════════════════════════════════
       // Sheet 3: 3. 개인보호구 및 용품구매 세부내역
       // 카테고리 3, 9 레코드 처리
-      // 구매일자별 동적 컬럼 생성: qty=5+2i, amt=6+2i (i=0부터)
-      // 품목 매칭 실패 시 빈 행 할당, 빈 행 없으면 합계행 위에 자동 삽입
+      // - 모든 데이터 행 초기화 후 DB 품목만 작성
+      // - 구매일자별 동적 컬럼: qty=5+2i, amt=6+2i (i=0부터)
+      // - 품목 매칭: 1차 이름 → 2차 미사용 행 순서대로 배정
       // ═══════════════════════════════════════════════════════════════
       const ws3 = wb.getWorksheet('3. 개인보호구 및 용품구매 세부내역');
       if (ws3) {
@@ -8108,7 +8111,7 @@ ${htmlDraft}
           cat39.map(r => r.purchaseDate || '').filter(Boolean)
         )].sort();
 
-        // 합계행 동적 탐색 (col A 또는 col B에 '합계' 포함하는 첫 번째 행)
+        // 합계행 동적 탐색
         let totalRow3 = -1;
         for (let r = 5; r <= ws3.rowCount + 5; r++) {
           const va = ws3.getCell(r, 1).value;
@@ -8117,67 +8120,74 @@ ${htmlDraft}
           const sb = vb ? vb.toString() : '';
           if (sa.includes('합계') || sb.includes('합계')) { totalRow3 = r; break; }
         }
-        if (totalRow3 === -1) totalRow3 = 59; // fallback
+        if (totalRow3 === -1) totalRow3 = 59;
 
-        // 데이터 행 목록 (5 ~ totalRow3-1)
-        const itemRows3: { row: number; name: string }[] = [];
+        // 템플릿 행 목록 (카테고리+품목명 저장)
+        const templateItems: { row: number; category: string; name: string }[] = [];
         for (let r = 5; r < totalRow3; r++) {
+          const catVal = ws3.getCell(r, 1).value;
           const nameVal = ws3.getCell(r, 2).value;
-          itemRows3.push({ row: r, name: nameVal ? nameVal.toString().trim() : '' });
+          templateItems.push({
+            row: r,
+            category: catVal ? catVal.toString().trim() : '',
+            name: nameVal ? nameVal.toString().trim() : '',
+          });
         }
 
-        // DB 레코드의 고유 품목명 수집
+        // DB 고유 품목명 수집 (등록 순서 유지)
         const neededItems: string[] = [];
         for (const rec of cat39) {
           const n = (rec.itemName || '').trim();
           if (n && !neededItems.includes(n)) neededItems.push(n);
         }
 
-        // 품목명 → 행번호 매핑 (insertRow 금지: shared formula 파괴 방지)
-        // 전략: 1차 이름 매칭 → 2차 미사용 행 재사용(품목명 덮어쓰기)
+        // 품목명 → {row, category} 매핑
         const itemRowMap = new Map<string, number>();
-        const usedRows3 = new Set<number>();
+        const itemCatMap = new Map<string, string>();
+        const usedTemplateRows = new Set<number>();
 
-        // 1차: 템플릿 기존 이름과 매칭
+        // 1차: 템플릿 이름 매칭 (카테고리 보존)
         for (const itemName of neededItems) {
-          for (const ir of itemRows3) {
-            if (usedRows3.has(ir.row)) continue;
-            if (!ir.name) continue;
-            if (ir.name === itemName || ir.name.includes(itemName) || itemName.includes(ir.name)) {
-              itemRowMap.set(itemName, ir.row);
-              usedRows3.add(ir.row);
+          for (const ti of templateItems) {
+            if (usedTemplateRows.has(ti.row) || !ti.name) continue;
+            if (ti.name === itemName || ti.name.includes(itemName) || itemName.includes(ti.name)) {
+              itemRowMap.set(itemName, ti.row);
+              itemCatMap.set(itemName, ti.category);
+              usedTemplateRows.add(ti.row);
               break;
             }
           }
         }
 
-        // 2차: 매칭 안 된 항목 → 미사용 행에 품목명 덮어쓰기 (행 삽입 없음)
+        // 2차: 미매칭 품목 → 미사용 행 순서대로 배정
+        let freeIdx = 0;
         for (const itemName of neededItems) {
           if (itemRowMap.has(itemName)) continue;
-          const availRow = itemRows3.find(ir => !usedRows3.has(ir.row));
-          if (availRow) {
-            ws3.getCell(availRow.row, 2).value = itemName; // 품목명 기재
-            availRow.name = itemName;
-            itemRowMap.set(itemName, availRow.row);
-            usedRows3.add(availRow.row);
+          while (freeIdx < templateItems.length && usedTemplateRows.has(templateItems[freeIdx].row)) freeIdx++;
+          if (freeIdx < templateItems.length) {
+            const ti = templateItems[freeIdx];
+            itemRowMap.set(itemName, ti.row);
+            itemCatMap.set(itemName, '기타');
+            usedTemplateRows.add(ti.row);
+            freeIdx++;
           }
-          // 54행 모두 소진 시 skip (현실적으로 발생 안 함)
         }
 
-        // 최대 사용할 컬럼 수
-        const maxDateCols = Math.max(uniqueDates.length, 1);
-        const lastDataCol = 4 + maxDateCols * 2;
-
-        // 날짜별 헤더 행(2,3,4) 초기화 후 업데이트
-        for (let c = 5; c <= lastDataCol + 4; c++) {
+        // ─── 헤더 행(2,3,4) 날짜 컬럼 초기화 (기존 연도 데이터 제거) ───
+        const clearUntilCol = 5 + Math.max(uniqueDates.length, 8) * 2; // 여유 있게 초기화
+        for (let c = 3; c <= clearUntilCol; c++) {
           ws3.getCell(2, c).value = null;
           ws3.getCell(3, c).value = null;
           ws3.getCell(4, c).value = null;
         }
+        // 합계 헤더 고정
+        ws3.getCell(2, 3).value = '합계'; ws3.getCell(3, 3).value = '합계'; ws3.getCell(4, 3).value = '구매수량';
+        ws3.getCell(2, 4).value = '합계'; ws3.getCell(3, 4).value = '합계'; ws3.getCell(4, 4).value = '구매금액';
+        // 날짜별 컬럼 헤더
         uniqueDates.forEach((dateStr, i) => {
           const qtyCol = 5 + i * 2;
           const amtCol = 6 + i * 2;
-          const m = dateStr ? new Date(dateStr.replace(/\./g, '-')).getMonth() + 1 : '';
+          const m = dateStr ? new Date(dateStr.replace(/\./g, '-')).getMonth() + 1 : 0;
           const monthLabel = m ? `${m}월` : dateStr;
           ws3.getCell(2, qtyCol).value = monthLabel;
           ws3.getCell(2, amtCol).value = monthLabel;
@@ -8187,16 +8197,23 @@ ${htmlDraft}
           ws3.getCell(4, amtCol).value = '비용';
         });
 
-        // 데이터 행 숫자 초기화 (col 3,4,5+)
+        // ─── 데이터 행 전체 초기화 (col A~Z+) ───
+        const lastDataCol = 4 + Math.max(uniqueDates.length, 1) * 2;
         for (let r = 5; r < totalRow3; r++) {
-          ws3.getCell(r, 3).value = null;
-          ws3.getCell(r, 4).value = null;
-          for (let c = 5; c <= lastDataCol + 4; c++) {
+          ws3.getCell(r, 1).value = null; // 구분
+          ws3.getCell(r, 2).value = null; // 품목명
+          for (let c = 3; c <= lastDataCol + 4; c++) {
             ws3.getCell(r, c).value = null;
           }
         }
 
-        // 데이터 채우기
+        // ─── DB 품목 기재 (카테고리+이름) ───
+        for (const [itemName, row] of itemRowMap) {
+          ws3.getCell(row, 1).value = itemCatMap.get(itemName) || '기타';
+          ws3.getCell(row, 2).value = itemName;
+        }
+
+        // ─── 데이터 채우기 ───
         for (const rec of cat39) {
           const recDate = rec.purchaseDate || '';
           const dateIdx = uniqueDates.indexOf(recDate);
@@ -8212,35 +8229,36 @@ ${htmlDraft}
           ws3.getCell(targetRow, amtCol).value = (numVal(curAmt) || 0) + numVal(rec.supplyAmount || rec.totalAmount);
         }
 
-        // 합계 수식 업데이트 (C열=수량합, D열=금액합)
-        const qtyCols3: string[] = [];
-        const amtCols3: string[] = [];
-        uniqueDates.forEach((_, i) => {
-          qtyCols3.push(colLetter(5 + i * 2));
-          amtCols3.push(colLetter(6 + i * 2));
-        });
-        const dataEnd = totalRow3 - 1;
-        for (let r = 5; r <= dataEnd; r++) {
+        // ─── 사용된 행에만 합계 수식 ───
+        const qtyCols3 = uniqueDates.map((_, i) => colLetter(5 + i * 2));
+        const amtCols3 = uniqueDates.map((_, i) => colLetter(6 + i * 2));
+        for (const [, row] of itemRowMap) {
           if (uniqueDates.length > 0) {
-            ws3.getCell(r, 3).value = { formula: qtyCols3.map(c => `${c}${r}`).join('+') };
-            ws3.getCell(r, 4).value = { formula: amtCols3.map(c => `${c}${r}`).join('+') };
+            ws3.getCell(row, 3).value = { formula: qtyCols3.map(c => `${c}${row}`).join('+') };
+            ws3.getCell(row, 4).value = { formula: amtCols3.map(c => `${c}${row}`).join('+') };
           }
-          ws3.getCell(r, 3).numFmt = '#,##0';
-          ws3.getCell(r, 4).numFmt = '#,##0';
+          ws3.getCell(row, 3).numFmt = '#,##0';
+          ws3.getCell(row, 4).numFmt = '#,##0';
         }
-        // 합계행 수식 (totalRow3)
-        ws3.getCell(totalRow3, 3).value = { formula: `SUM(C5:C${dataEnd})` };
-        ws3.getCell(totalRow3, 4).value = { formula: `SUM(D5:D${dataEnd})` };
-        ws3.getCell(totalRow3, 3).numFmt = '#,##0';
-        ws3.getCell(totalRow3, 4).numFmt = '#,##0';
-        uniqueDates.forEach((_, i) => {
-          const qc = 5 + i * 2;
-          const ac = 6 + i * 2;
-          ws3.getCell(totalRow3, qc).value = { formula: `SUM(${colLetter(qc)}5:${colLetter(qc)}${dataEnd})` };
-          ws3.getCell(totalRow3, ac).value = { formula: `SUM(${colLetter(ac)}5:${colLetter(ac)}${dataEnd})` };
-          ws3.getCell(totalRow3, qc).numFmt = '#,##0';
-          ws3.getCell(totalRow3, ac).numFmt = '#,##0';
-        });
+
+        // ─── 합계행 수식 ───
+        const usedRowsList = [...itemRowMap.values()].sort((a, b) => a - b);
+        if (usedRowsList.length > 0) {
+          const fr = usedRowsList[0];
+          const lr = usedRowsList[usedRowsList.length - 1];
+          ws3.getCell(totalRow3, 3).value = { formula: `SUM(C${fr}:C${lr})` };
+          ws3.getCell(totalRow3, 4).value = { formula: `SUM(D${fr}:D${lr})` };
+          ws3.getCell(totalRow3, 3).numFmt = '#,##0';
+          ws3.getCell(totalRow3, 4).numFmt = '#,##0';
+          uniqueDates.forEach((_, i) => {
+            const qc = 5 + i * 2;
+            const ac = 6 + i * 2;
+            ws3.getCell(totalRow3, qc).value = { formula: `SUM(${colLetter(qc)}${fr}:${colLetter(qc)}${lr})` };
+            ws3.getCell(totalRow3, ac).value = { formula: `SUM(${colLetter(ac)}${fr}:${colLetter(ac)}${lr})` };
+            ws3.getCell(totalRow3, qc).numFmt = '#,##0';
+            ws3.getCell(totalRow3, ac).numFmt = '#,##0';
+          });
+        }
       }
 
       // ═══════════════════════════════════════════════════════════════
