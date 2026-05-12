@@ -8173,8 +8173,11 @@ ${htmlDraft}
           }
         }
 
-        // ─── 헤더 행(2,3,4) 날짜 컬럼 초기화 (기존 연도 데이터 제거) ───
-        const clearUntilCol = 5 + Math.max(uniqueDates.length, 8) * 2; // 여유 있게 초기화
+        // 비고 칸 위치: 날짜 컬럼 모두 뒤 (5 + numDates*2)
+        const bigoCol = 5 + uniqueDates.length * 2;
+
+        // ─── 헤더 행(2,3,4) 전체 초기화 (기존 연도 데이터 + 비고 위치 제거) ───
+        const clearUntilCol = bigoCol + 6; // 여유 있게 초기화
         for (let c = 3; c <= clearUntilCol; c++) {
           ws3.getCell(2, c).value = null;
           ws3.getCell(3, c).value = null;
@@ -8183,7 +8186,7 @@ ${htmlDraft}
         // 합계 헤더 고정
         ws3.getCell(2, 3).value = '합계'; ws3.getCell(3, 3).value = '합계'; ws3.getCell(4, 3).value = '구매수량';
         ws3.getCell(2, 4).value = '합계'; ws3.getCell(3, 4).value = '합계'; ws3.getCell(4, 4).value = '구매금액';
-        // 날짜별 컬럼 헤더
+        // 날짜별 컬럼 헤더 (비고 칸 앞에 구매일자별 수량+비용 삽입)
         uniqueDates.forEach((dateStr, i) => {
           const qtyCol = 5 + i * 2;
           const amtCol = 6 + i * 2;
@@ -8196,6 +8199,10 @@ ${htmlDraft}
           ws3.getCell(4, qtyCol).value = '수량';
           ws3.getCell(4, amtCol).value = '비용';
         });
+        // 비고 칸 헤더 (날짜 컬럼 맨 오른쪽)
+        ws3.getCell(2, bigoCol).value = '비고';
+        ws3.getCell(3, bigoCol).value = '비고';
+        ws3.getCell(4, bigoCol).value = '비고';
 
         // ─── 데이터 행 전체 초기화 (col A~Z+) ───
         const lastDataCol = 4 + Math.max(uniqueDates.length, 1) * 2;
