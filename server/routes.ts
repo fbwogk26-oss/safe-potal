@@ -8558,15 +8558,16 @@ function parseRssItems(xml: string, keywords: string | string[], maxItems = 20, 
   return items;
 }
 
-// 제목에서 비교용 단어 집합 추출 (숫자 포함, 언론사명만 제거)
+// 검색 키워드 자체(모든 기사 공통)는 제외, 사건 구분자(나이/장소/행위)는 유지
+const DEDUP_STOPWORDS = new Set(['음주운전','음주','운전','경찰','단속','조사','혐의','뉴스','기자']);
+const MEDIA_NAME_RE = /[\s\-\|:·\[（(]\s*(조선|중앙|동아|한겨레|한국|연합|뉴시스|뉴스1|경향|국민|세계|문화|서울|부산|매일|영남|오마이|프레시안|머니|한경|서울경제|아시아|헤럴드|파이낸셜|이데일리|데일리|스포츠|jtbc|kbs|mbc|sbs|ytn|cbs|tbs)(뉴스|일보|신문|경제|tv|방송|미디어)?[\s\]\）)]*$/gi;
+
 function extractTitleTokens(title: string): Set<string> {
   const cleaned = title
-    // 언론사명 suffix 제거 — 끝부분 " - 조선일보", "[한경]", "(연합뉴스)" 등
-    .replace(/[\s\-\|:·\[（(\[]\s*(조선|중앙|동아|한겨레|한국|연합|뉴시스|뉴스1|경향|국민|세계|문화|서울|부산|매일|영남|오마이|프레시안|머니|한경|서울경제|아시아|헤럴드|파이낸셜|이데일리|데일리|스포츠|스포|jtbc|kbs|mbc|sbs|ytn|cbs|tbs|연합뉴스|뉴스위크|시사|주간|월간)(뉴스|일보|신문|경제|tv|방송|미디어)?[\s\]\）)\]]*$/gi, '')
-    // 나머지 특수문자 → 공백
-    .replace(/[^\uAC00-\uD7A3\d\s]/g, ' ');
-  // 한글 2글자 이상 OR 숫자 2자리 이상
-  return new Set((cleaned.match(/[\uAC00-\uD7A3]{2,}|\d{2,}/g) || []));
+    .replace(MEDIA_NAME_RE, '')          // 언론사명 제거
+    .replace(/[^\uAC00-\uD7A3\d\s]/g, ' ');  // 특수문자 → 공백
+  // 한글 2글자 이상 OR 숫자 2자리 이상, 검색어 불용어 제외
+  return new Set((cleaned.match(/[\uAC00-\uD7A3]{2,}|\d{2,}/g) || []).filter(w => !DEDUP_STOPWORDS.has(w)));
 }
 
 function titlesAreSimilar(a: string, b: string): boolean {
@@ -8583,12 +8584,12 @@ function titlesAreSimilar(a: string, b: string): boolean {
   for (const w of wa) if (wb.has(w)) overlap++;
   const union = new Set([...wa, ...wb]).size;
 
-  // 2) Jaccard 0.30 — 30% 이상 겹치면 중복 (공격적 기준)
-  if (overlap / union >= 0.30) return true;
+  // 2) Jaccard 0.40 — 사건 구분 단어 40% 이상 겹치면 중복
+  if (overlap / union >= 0.40) return true;
 
-  // 3) 짧은 쪽 토큰의 55% 이상이 긴 쪽에 포함 → 제목 줄임 케이스
+  // 3) 짧은 쪽 토큰의 60% 이상이 긴 쪽에 포함 → 제목 줄임 케이스
   const minSize = Math.min(wa.size, wb.size);
-  if (minSize >= 2 && overlap / minSize >= 0.55) return true;
+  if (minSize >= 2 && overlap / minSize >= 0.60) return true;
 
   return false;
 }
