@@ -8529,7 +8529,8 @@ ${htmlDraft}
 
 let cardNewsTimer: ReturnType<typeof setInterval> | null = null;
 
-function parseRssItems(xml: string, keywordFilter?: string, maxItems = 20, sinceMs?: number): any[] {
+function parseRssItems(xml: string, keywords: string | string[], maxItems = 20, sinceMs?: number): any[] {
+  const kwList: string[] = Array.isArray(keywords) ? keywords : (keywords ? [keywords] : []);
   const items: any[] = [];
   const itemRegex = /<item>([\s\S]*?)<\/item>/g;
   let match;
@@ -8545,7 +8546,8 @@ function parseRssItems(xml: string, keywordFilter?: string, maxItems = 20, since
     const source = getTag('source');
     const description = getTag('description');
     if (!title) continue;
-    if (keywordFilter && !title.includes(keywordFilter)) continue;
+    // 키워드 중 하나라도 제목 또는 설명에 포함되면 통과
+    if (kwList.length > 0 && !kwList.some(k => title.includes(k) || description.includes(k))) continue;
     if (sinceMs && pubDate) {
       const articleMs = new Date(pubDate).getTime();
       if (!isNaN(articleMs) && articleMs < sinceMs) continue;
@@ -8592,41 +8594,68 @@ async function fetchDrunkDrivingNews(): Promise<any[]> {
   const HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
     "Accept": "application/rss+xml, application/xml, text/xml, */*",
+    "Accept-Language": "ko-KR,ko;q=0.9",
   };
-  const TIMEOUT_MS = 10_000;
+  const TIMEOUT_MS = 12_000;
   const MAX_RESULTS = 6;
 
+  // 최근 7일 (3일에서 확대 — 조용한 기간 대비)
   const now = new Date();
   const sinceDate = new Date(now);
-  sinceDate.setDate(now.getDate() - 3);
+  sinceDate.setDate(now.getDate() - 7);
   sinceDate.setHours(0, 0, 0, 0);
   const sinceMs = sinceDate.getTime();
 
-  const afterParam = `${sinceDate.getFullYear()}-${String(sinceDate.getMonth() + 1).padStart(2, '0')}-${String(sinceDate.getDate()).padStart(2, '0')}`;
-  const googleQuery = encodeURIComponent(`음주운전 after:${afterParam}`);
+  const fmtDate = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const afterParam = fmtDate(sinceDate);
 
-  console.log(`[카드뉴스] ${afterParam} 이후 음주운전 뉴스 수집 시작 (전체 소스 병렬)`);
+  // 음주운전 관련 키워드 변형 모두 포함 (띄어쓰기, 동의어 등)
+  const DUI_KEYWORDS = ['음주운전', '음주 운전', '만취운전', '만취 운전', '음주운전자', '음주사고', '음주단속'];
 
-  const sources = [
-    { name: "Google News", url: `https://news.google.com/rss/search?q=${googleQuery}&hl=ko&gl=KR&ceid=KR:ko`, keyword: "음주운전" },
-    { name: "연합뉴스", url: "https://www.yonhapnews.co.kr/rss/all.xml", keyword: "음주운전" },
-    { name: "연합뉴스(사회)", url: "https://www.yonhapnews.co.kr/rss/socialAll.xml", keyword: "음주운전" },
-    { name: "MBC뉴스", url: "https://imnews.imbc.com/rss/news/news_00.xml", keyword: "음주운전" },
-    { name: "한국경제", url: "https://www.hankyung.com/feed/all-news", keyword: "음주운전" },
+  console.log(`[카드뉴스] ${afterParam} 이후 음주운전 뉴스 수집 시작`);
+
+  // Google News — 키워드별 복수 쿼리로 수집률 극대화
+  const googleQueries = [
+    `음주운전 after:${afterParam}`,
+    `만취운전 OR 음주사고 after:${afterParam}`,
+  ].map(q => ({
+    name: `Google News(${q.split(' ')[0]})`,
+    url: `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=ko&gl=KR&ceid=KR:ko`,
+    keywords: DUI_KEYWORDS,
+  }));
+
+  // 일반 RSS 피드 — 다양한 언론사 (날짜필터 + 키워드 필터 적용)
+  const rssSources = [
+    { name: "연합뉴스(사회)", url: "https://www.yonhapnews.co.kr/rss/socialAll.xml", keywords: DUI_KEYWORDS },
+    { name: "연합뉴스(전체)", url: "https://www.yonhapnews.co.kr/rss/all.xml", keywords: DUI_KEYWORDS },
+    { name: "KBS뉴스(사회)", url: "https://news.kbs.co.kr/rss/rss.do?cId=31", keywords: DUI_KEYWORDS },
+    { name: "SBS뉴스(사회)", url: "https://news.sbs.co.kr/news/SectionRssFeed.do?sectionType=02&plink=RSSREADER", keywords: DUI_KEYWORDS },
+    { name: "JTBC뉴스", url: "https://fs.jtbc.co.kr/RSS/newsflash.xml", keywords: DUI_KEYWORDS },
+    { name: "MBC뉴스", url: "https://imnews.imbc.com/rss/news/news_00.xml", keywords: DUI_KEYWORDS },
+    { name: "노컷뉴스", url: "https://www.nocutnews.co.kr/rss/allnews.xml", keywords: DUI_KEYWORDS },
+    { name: "경향신문", url: "https://www.khan.co.kr/rss/rssdata/social_news.xml", keywords: DUI_KEYWORDS },
+    { name: "한국경제", url: "https://www.hankyung.com/feed/all-news", keywords: DUI_KEYWORDS },
+    { name: "뉴시스", url: "https://newsis.com/RSS/rss.html", keywords: DUI_KEYWORDS },
   ];
 
-  // 모든 소스 병렬 수집
-  const fetchSource = async (src: typeof sources[0]) => {
+  const allSources = [...googleQueries, ...rssSources];
+
+  const fetchSource = async (src: { name: string; url: string; keywords: string[] }) => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
     try {
       const res = await fetch(src.url, { headers: HEADERS, signal: controller.signal as any }) as any;
       clearTimeout(timer);
-      if (!res.ok) { console.warn(`[카드뉴스] ${src.name} HTTP ${res.status}`); return []; }
+      if (!res.ok) {
+        console.warn(`[카드뉴스] ${src.name} HTTP ${res.status}`);
+        return [];
+      }
       const xml = await res.text();
-      const items = parseRssItems(xml, src.keyword, 20, sinceMs);
-      console.log(`[카드뉴스] ${src.name} — ${items.length}건`);
-      return items;
+      const items = parseRssItems(xml, src.keywords, 20, sinceMs);
+      if (items.length > 0) console.log(`[카드뉴스] ${src.name} — ${items.length}건 수집`);
+      else console.log(`[카드뉴스] ${src.name} — 해당 기간 기사 없음`);
+      return items.map((it: any) => ({ ...it, source: it.source || src.name }));
     } catch (e: any) {
       clearTimeout(timer);
       console.warn(`[카드뉴스] ${src.name} 오류: ${e.message}`);
@@ -8634,15 +8663,38 @@ async function fetchDrunkDrivingNews(): Promise<any[]> {
     }
   };
 
-  const results = await Promise.allSettled(sources.map(fetchSource));
+  const results = await Promise.allSettled(allSources.map(fetchSource));
   const allArticles: any[] = [];
   for (const r of results) {
     if (r.status === 'fulfilled') allArticles.push(...r.value);
   }
 
-  // 중복 제거 후 최대 6개 반환 (부족해도 OK)
   const unique = deduplicateArticles(allArticles).slice(0, MAX_RESULTS);
-  console.log(`[카드뉴스] 전체 ${allArticles.length}건 수집 → 중복 제거 후 ${unique.length}건`);
+  console.log(`[카드뉴스] 전체 ${allArticles.length}건 → 중복 제거 후 ${unique.length}건 반환`);
+
+  // 7일 범위에서도 없으면 날짜 제한 해제 후 재시도 (최근 30일)
+  if (unique.length === 0) {
+    console.warn('[카드뉴스] 7일 내 기사 없음 — 30일로 범위 확대 재시도');
+    const results2 = await Promise.allSettled(allSources.map(async src => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+      try {
+        const res = await fetch(src.url, { headers: HEADERS, signal: controller.signal as any }) as any;
+        clearTimeout(timer);
+        if (!res.ok) return [];
+        const xml = await res.text();
+        return parseRssItems(xml, src.keywords, 20).map((it: any) => ({ ...it, source: it.source || src.name }));
+      } catch { clearTimeout(timer); return []; }
+    }));
+    const allArticles2: any[] = [];
+    for (const r of results2) {
+      if (r.status === 'fulfilled') allArticles2.push(...r.value);
+    }
+    const unique2 = deduplicateArticles(allArticles2).slice(0, MAX_RESULTS);
+    console.log(`[카드뉴스] 30일 범위 재시도 — ${unique2.length}건 반환`);
+    return unique2;
+  }
+
   return unique;
 }
 
