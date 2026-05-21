@@ -8558,34 +8558,64 @@ function parseRssItems(xml: string, keywords: string | string[], maxItems = 20, 
   return items;
 }
 
-// 제목 유사도 비교: 핵심 한글 단어 60% 이상 겹치면 중복 판정
+// 언론사명 등 노이즈 제거 후 핵심 한글 단어 집합 추출
+function extractKeywords(title: string): Set<string> {
+  const cleaned = title
+    // 언론사 suffix 제거 (다양한 구분자 포함)
+    .replace(/[\s\-\|:·\[（(]\s*(조선|중앙|동아|한겨레|한국|연합|뉴시스|뉴스1|경향|국민|세계|문화|서울|부산|매일|영남|오마이|프레시안|머니|한경|서울경제|아시아|헤럴드|파이낸셜|이데일리|데일리|스포츠|스포|jtbc|kbs|mbc|sbs|ytn|뉴시스|cbs|tbs|tbs|연합뉴스|뉴스위크|시사|주간|월간)(뉴스|일보|신문|경제|tv|방송|미디어)?[\s\]\）)]*$/gi, '')
+    // 날짜·숫자 제거
+    .replace(/\d+/g, '')
+    // 특수문자 제거
+    .replace(/[^\uAC00-\uD7A3\s]/g, ' ');
+  // 2글자 이상 한글 단어만 추출
+  return new Set((cleaned.match(/[\uAC00-\uD7A3]{2,}/g) || []).filter(w =>
+    // 불용어 제거 (기사에서 거의 모든 기사에 공통으로 나오는 단어)
+    !['음주운전', '음주', '운전', '사고', '경찰', '조사', '혐의', '적발', '입건', '기소'].includes(w)
+  ));
+}
+
 function titlesAreSimilar(a: string, b: string): boolean {
-  const normalize = (t: string) =>
-    t.replace(/[-|:·\/\\].*?(뉴스|일보|방송|신문|경제|뉴시스|연합|조선|중앙|동아|한겨레|헤럴드|세계|문화|국민|머니|news)$/i, '')
-      .replace(/[^\uAC00-\uD7A3]/g, ' ')
-      .trim();
-  const na = normalize(a);
-  const nb = normalize(b);
-  if (!na || !nb) return false;
-  // 앞 10자 완전 일치 → 중복
-  const pre = Math.min(10, Math.min(na.length, nb.length));
-  if (na.substring(0, pre) === nb.substring(0, pre) && pre >= 6) return true;
-  // 핵심 단어 Jaccard 유사도
-  const words = (s: string) => new Set((s.match(/[\uAC00-\uD7A3]{2,}/g) || []));
-  const wa = words(na); const wb = words(nb);
+  // 1) 앞 12글자(한글) 일치 → 거의 확실히 동일 기사
+  const hanA = (a.match(/[\uAC00-\uD7A3]/g) || []).slice(0, 12).join('');
+  const hanB = (b.match(/[\uAC00-\uD7A3]/g) || []).slice(0, 12).join('');
+  if (hanA.length >= 8 && hanA === hanB) return true;
+
+  // 2) Jaccard 유사도 — 불용어 제거 핵심 단어 기준, 임계값 0.45
+  const wa = extractKeywords(a);
+  const wb = extractKeywords(b);
   if (wa.size === 0 || wb.size === 0) return false;
   let overlap = 0;
   for (const w of wa) if (wb.has(w)) overlap++;
   const union = new Set([...wa, ...wb]).size;
-  return overlap / union >= 0.6;
+  if (overlap / union >= 0.45) return true;
+
+  // 3) 한쪽이 다른 쪽의 부분집합(70% 이상) — 제목 줄임·확장 케이스
+  const minSize = Math.min(wa.size, wb.size);
+  if (minSize > 0 && overlap / minSize >= 0.7) return true;
+
+  return false;
 }
 
-// 중복 제거: 유사 제목 기사 중 첫 번째만 유지
+// URL에서 도메인+경로 핵심 부분 추출 (파라미터 제거)
+function normalizeUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    return u.hostname + u.pathname.replace(/\/$/, '');
+  } catch { return url; }
+}
+
+// 중복 제거: URL 동일 + 제목 유사 모두 체크
 function deduplicateArticles(articles: any[]): any[] {
   const unique: any[] = [];
+  const seenUrls = new Set<string>();
   for (const article of articles) {
+    const urlKey = article.link ? normalizeUrl(article.link) : '';
+    if (urlKey && seenUrls.has(urlKey)) continue;
     const isDup = unique.some(u => titlesAreSimilar(u.title, article.title));
-    if (!isDup) unique.push(article);
+    if (!isDup) {
+      unique.push(article);
+      if (urlKey) seenUrls.add(urlKey);
+    }
   }
   return unique;
 }
