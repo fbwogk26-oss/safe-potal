@@ -8684,9 +8684,9 @@ async function fetchDrunkDrivingNews(): Promise<any[]> {
 
   const allSources = [...bingQueries, ...rssSources];
 
-  const fetchRss = async (src: { name: string; url: string; keywords: string[] }) => {
+  const fetchRss = async (src: { name: string; url: string; keywords: string[] }, timeoutMs = TIMEOUT_MS) => {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const res = await fetch(src.url, { headers: RSS_HEADERS, signal: controller.signal as any }) as any;
       clearTimeout(timer);
@@ -8702,14 +8702,29 @@ async function fetchDrunkDrivingNews(): Promise<any[]> {
     }
   };
 
-  const results = await Promise.allSettled(allSources.map(fetchRss));
+  // Bing은 타임아웃이 잦으므로 25초로 별도 실행, 나머지는 병렬
+  const [bingResults, rssResults] = await Promise.all([
+    Promise.allSettled(bingQueries.map(src => fetchRss(src, 25_000))),
+    Promise.allSettled(rssSources.map(src => fetchRss(src, TIMEOUT_MS))),
+  ]);
+
   const allArticles: any[] = [];
-  for (const r of results) {
+  for (const r of [...bingResults, ...rssResults]) {
     if (r.status === 'fulfilled') allArticles.push(...r.value);
   }
 
+  // Bing 모두 실패했으면 한 번 더 재시도
+  const bingGotResults = bingResults.some(r => r.status === 'fulfilled' && (r.value as any[]).length > 0);
+  if (!bingGotResults) {
+    console.warn('[카드뉴스] Bing 첫 시도 실패 — 30초로 재시도');
+    const bingRetry = await Promise.allSettled(bingQueries.map(src => fetchRss(src, 30_000)));
+    for (const r of bingRetry) {
+      if (r.status === 'fulfilled') allArticles.push(...r.value);
+    }
+  }
+
   const unique = deduplicateArticles(allArticles).slice(0, MAX_RESULTS);
-  console.log(`[카드뉴스] RSS 전체 ${allArticles.length}건 → 중복제거 ${unique.length}건`);
+  console.log(`[카드뉴스] 전체 ${allArticles.length}건 → 중복제거 ${unique.length}건`);
 
   // 날짜 제한 해제 재시도 (7일 내 없으면)
   if (unique.length === 0) {
