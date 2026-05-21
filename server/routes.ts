@@ -8558,40 +8558,37 @@ function parseRssItems(xml: string, keywords: string | string[], maxItems = 20, 
   return items;
 }
 
-// 언론사명 등 노이즈 제거 후 핵심 한글 단어 집합 추출
-function extractKeywords(title: string): Set<string> {
+// 제목에서 비교용 단어 집합 추출 (숫자 포함, 언론사명만 제거)
+function extractTitleTokens(title: string): Set<string> {
   const cleaned = title
-    // 언론사 suffix 제거 (다양한 구분자 포함)
-    .replace(/[\s\-\|:·\[（(]\s*(조선|중앙|동아|한겨레|한국|연합|뉴시스|뉴스1|경향|국민|세계|문화|서울|부산|매일|영남|오마이|프레시안|머니|한경|서울경제|아시아|헤럴드|파이낸셜|이데일리|데일리|스포츠|스포|jtbc|kbs|mbc|sbs|ytn|뉴시스|cbs|tbs|tbs|연합뉴스|뉴스위크|시사|주간|월간)(뉴스|일보|신문|경제|tv|방송|미디어)?[\s\]\）)]*$/gi, '')
-    // 날짜·숫자 제거
-    .replace(/\d+/g, '')
-    // 특수문자 제거
-    .replace(/[^\uAC00-\uD7A3\s]/g, ' ');
-  // 2글자 이상 한글 단어만 추출
-  return new Set((cleaned.match(/[\uAC00-\uD7A3]{2,}/g) || []).filter(w =>
-    // 불용어 제거 (기사에서 거의 모든 기사에 공통으로 나오는 단어)
-    !['음주운전', '음주', '운전', '사고', '경찰', '조사', '혐의', '적발', '입건', '기소'].includes(w)
-  ));
+    // 언론사명 suffix 제거 — 끝부분 " - 조선일보", "[한경]", "(연합뉴스)" 등
+    .replace(/[\s\-\|:·\[（(\[]\s*(조선|중앙|동아|한겨레|한국|연합|뉴시스|뉴스1|경향|국민|세계|문화|서울|부산|매일|영남|오마이|프레시안|머니|한경|서울경제|아시아|헤럴드|파이낸셜|이데일리|데일리|스포츠|스포|jtbc|kbs|mbc|sbs|ytn|cbs|tbs|연합뉴스|뉴스위크|시사|주간|월간)(뉴스|일보|신문|경제|tv|방송|미디어)?[\s\]\）)\]]*$/gi, '')
+    // 나머지 특수문자 → 공백
+    .replace(/[^\uAC00-\uD7A3\d\s]/g, ' ');
+  // 한글 2글자 이상 OR 숫자 2자리 이상
+  return new Set((cleaned.match(/[\uAC00-\uD7A3]{2,}|\d{2,}/g) || []));
 }
 
 function titlesAreSimilar(a: string, b: string): boolean {
-  // 1) 앞 12글자(한글) 일치 → 거의 확실히 동일 기사
-  const hanA = (a.match(/[\uAC00-\uD7A3]/g) || []).slice(0, 12).join('');
-  const hanB = (b.match(/[\uAC00-\uD7A3]/g) || []).slice(0, 12).join('');
-  if (hanA.length >= 8 && hanA === hanB) return true;
+  // 1) 한글 앞 10자 일치 → 확실한 동일 기사
+  const hanA = (a.match(/[\uAC00-\uD7A3]/g) || []).slice(0, 10).join('');
+  const hanB = (b.match(/[\uAC00-\uD7A3]/g) || []).slice(0, 10).join('');
+  if (hanA.length >= 7 && hanA === hanB) return true;
 
-  // 2) Jaccard 유사도 — 불용어 제거 핵심 단어 기준, 임계값 0.45
-  const wa = extractKeywords(a);
-  const wb = extractKeywords(b);
+  const wa = extractTitleTokens(a);
+  const wb = extractTitleTokens(b);
   if (wa.size === 0 || wb.size === 0) return false;
+
   let overlap = 0;
   for (const w of wa) if (wb.has(w)) overlap++;
   const union = new Set([...wa, ...wb]).size;
-  if (overlap / union >= 0.45) return true;
 
-  // 3) 한쪽이 다른 쪽의 부분집합(70% 이상) — 제목 줄임·확장 케이스
+  // 2) Jaccard 0.30 — 30% 이상 겹치면 중복 (공격적 기준)
+  if (overlap / union >= 0.30) return true;
+
+  // 3) 짧은 쪽 토큰의 55% 이상이 긴 쪽에 포함 → 제목 줄임 케이스
   const minSize = Math.min(wa.size, wb.size);
-  if (minSize > 0 && overlap / minSize >= 0.7) return true;
+  if (minSize >= 2 && overlap / minSize >= 0.55) return true;
 
   return false;
 }
