@@ -63,6 +63,8 @@ export interface UserPermissions {
   viewAccess: boolean;
   viewSubcontract: boolean;
   editSubcontract: boolean;
+  viewAttendance: boolean;
+  editAttendance: boolean;
 }
 
 export const DEFAULT_PERMISSIONS: UserPermissions = {
@@ -117,6 +119,8 @@ export const DEFAULT_PERMISSIONS: UserPermissions = {
   viewAccess: true,
   viewSubcontract: true,
   editSubcontract: false,
+  viewAttendance: true,
+  editAttendance: false,
 };
 
 export const ALL_PERMISSIONS: UserPermissions = {
@@ -171,6 +175,8 @@ export const ALL_PERMISSIONS: UserPermissions = {
   viewAccess: true,
   viewSubcontract: true,
   editSubcontract: true,
+  viewAttendance: true,
+  editAttendance: true,
 };
 
 export const users = pgTable("users", {

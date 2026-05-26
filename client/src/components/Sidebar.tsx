@@ -33,6 +33,7 @@ import {
   ClipboardList,
   Receipt,
   Newspaper,
+  UserCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
@@ -121,6 +122,7 @@ const NAV_SECTIONS: NavSection[] = [
         icon: Briefcase,
         children: [
           { label: "작업계획", href: "/work-plan", icon: CalendarCheck },
+          { label: "입회 관리", href: "/attendance", icon: UserCheck, permissionKey: "canViewAttendance" },
         ],
       },
     ],

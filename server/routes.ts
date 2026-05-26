@@ -5983,6 +5983,162 @@ ${htmlDraft}
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
+  // ===== 입회 관리 =====
+  const attendanceUploadMiddleware = multer({ dest: "uploads/" });
+
+  app.get('/api/attendance/records', isAuthenticated, async (req: any, res) => {
+    try {
+      const records = await storage.getAttendanceRecords();
+      res.json(records);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.get('/api/attendance/uploads', isAuthenticated, async (req: any, res) => {
+    try {
+      const uploads = await storage.getAttendanceUploads();
+      res.json(uploads);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.post('/api/attendance/upload', isAuthenticated, attendanceUploadMiddleware.single("file"), async (req: any, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: "파일이 없습니다" });
+
+      const isCsv = req.file.originalname.toLowerCase().endsWith(".csv");
+      let tableRows: string[][] = [];
+
+      if (isCsv) {
+        const rawText = fs.readFileSync(req.file.path, "utf-8");
+        const lines = rawText.split(/\r?\n/).filter(l => l.trim());
+        tableRows = lines.map(line => {
+          const cells: string[] = [];
+          let cur = "", inQ = false;
+          for (let i = 0; i < line.length; i++) {
+            const ch = line[i];
+            if (ch === '"') { inQ = !inQ; continue; }
+            if (ch === ',' && !inQ) { cells.push(cur.trim()); cur = ""; continue; }
+            cur += ch;
+          }
+          cells.push(cur.trim());
+          return cells;
+        });
+      } else {
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.readFile(req.file.path);
+        const sheet = workbook.worksheets[0];
+        if (!sheet) return res.status(400).json({ message: "시트를 찾을 수 없습니다" });
+        sheet.eachRow((row) => {
+          const cells: string[] = [];
+          row.eachCell({ includeEmpty: true }, (cell) => {
+            let val = "";
+            if (cell.value instanceof Date) {
+              val = cell.value.toISOString().split("T")[0];
+            } else if (cell.value !== null && cell.value !== undefined) {
+              val = String(cell.value);
+            }
+            cells.push(val);
+          });
+          tableRows.push(cells);
+        });
+      }
+
+      if (tableRows.length < 2) return res.status(400).json({ message: "데이터가 없습니다" });
+
+      // 헤더 컬럼 매핑
+      const headerRow = tableRows[0].map(h => h.trim().toLowerCase());
+      const findCol = (keywords: string[]) => headerRow.findIndex(h => keywords.some(k => h.includes(k)));
+
+      const dateCol   = findCol(["날짜", "date", "일자", "입회일"]);
+      const nameCol   = findCol(["이름", "성명", "name", "입회자"]);
+      const companyCol = findCol(["소속", "업체", "회사", "company", "기업"]);
+      const deptCol   = findCol(["부서", "dept", "팀", "department"]);
+      const typeCol   = findCol(["유형", "종류", "type", "구분", "입회유형", "입회종류"]);
+
+      if (nameCol === -1) return res.status(400).json({ message: "이름/성명 컬럼을 찾을 수 없습니다. 헤더에 '이름', '성명', '입회자' 중 하나가 있어야 합니다." });
+
+      // ISO 주차 계산
+      function getISOWeek(date: Date): number {
+        const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+        const dayNum = d.getUTCDay() || 7;
+        d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+        const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+        return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+      }
+
+      // 날짜 파싱
+      function parseDate(val: string): Date | null {
+        if (!val) return null;
+        // YYYY-MM-DD
+        let m = val.match(/^(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})/);
+        if (m) return new Date(parseInt(m[1]), parseInt(m[2]) - 1, parseInt(m[3]));
+        // 엑셀 숫자 날짜 (44000 형식)
+        const num = parseInt(val);
+        if (!isNaN(num) && num > 40000 && num < 60000) {
+          const excelEpoch = new Date(1899, 11, 30);
+          const d = new Date(excelEpoch.getTime() + num * 86400000);
+          return d;
+        }
+        return null;
+      }
+
+      const dataRows = tableRows.slice(1).filter(r => r.some(c => c.trim()));
+
+      // 업로드 배치 생성
+      const upload = await storage.createAttendanceUpload({
+        fileName: req.file.originalname,
+        totalCount: dataRows.length,
+        createdBy: req.user?.username,
+      });
+
+      let insertedCount = 0;
+      for (const row of dataRows) {
+        const name = nameCol >= 0 ? (row[nameCol] || "").trim() : "";
+        if (!name) continue;
+
+        const rawDate = dateCol >= 0 ? (row[dateCol] || "").trim() : "";
+        const parsedDate = parseDate(rawDate);
+        const dateStr = parsedDate
+          ? `${parsedDate.getFullYear()}-${String(parsedDate.getMonth() + 1).padStart(2, "0")}-${String(parsedDate.getDate()).padStart(2, "0")}`
+          : rawDate || new Date().toISOString().split("T")[0];
+
+        const d = parsedDate || new Date();
+        const weekNum = getISOWeek(d);
+        const month = d.getMonth() + 1;
+        const year = d.getFullYear();
+
+        await storage.createAttendanceRecord({
+          uploadId: upload.id,
+          attendanceDate: dateStr,
+          name,
+          company: companyCol >= 0 ? (row[companyCol] || "").trim() || null : null,
+          department: deptCol >= 0 ? (row[deptCol] || "").trim() || null : null,
+          attendanceType: typeCol >= 0 ? (row[typeCol] || "").trim() || null : null,
+          weekNum,
+          month,
+          year,
+          createdBy: req.user?.username,
+        });
+        insertedCount++;
+      }
+
+      // 실제 삽입된 건수로 업데이트
+      fs.unlink(req.file.path, () => {});
+      res.json({ message: "업로드 완료", count: insertedCount, uploadId: upload.id });
+    } catch (e: any) {
+      console.error("[AttendanceUpload error]", e);
+      res.status(500).json({ message: e.message || "업로드에 실패했습니다" });
+    }
+  });
+
+  app.delete('/api/attendance/uploads/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteAttendanceRecordsByUpload(id);
+      await storage.deleteAttendanceUpload(id);
+      res.json({ message: "삭제되었습니다" });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
   // 서버 시작 시 PM10 API 연결 테스트 (비동기, 블로킹 없음)
   setTimeout(() => {
     fetchWeather("대구").then(w => {

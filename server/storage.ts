@@ -36,6 +36,10 @@ import {
   type SafetyCostRecord, type InsertSafetyCostRecord,
   safetyCostTaxInvoices,
   type SafetyCostTaxInvoice, type InsertSafetyCostTaxInvoice,
+  attendanceUploads,
+  type AttendanceUpload, type InsertAttendanceUpload,
+  attendanceRecords,
+  type AttendanceRecord, type InsertAttendanceRecord,
 } from "@shared/schema";
 import { eq, desc, asc, and, ilike, or, sql, inArray } from "drizzle-orm";
 
@@ -152,6 +156,14 @@ export interface IStorage {
   getWorkPlan(id: number): Promise<WorkPlan | undefined>;
   createWorkPlan(data: InsertWorkPlan): Promise<WorkPlan>;
   deleteWorkPlan(id: number): Promise<void>;
+
+  // Attendance
+  getAttendanceUploads(): Promise<AttendanceUpload[]>;
+  createAttendanceUpload(data: InsertAttendanceUpload): Promise<AttendanceUpload>;
+  deleteAttendanceUpload(id: number): Promise<void>;
+  getAttendanceRecords(filters?: { year?: number; month?: number; weekNum?: number; uploadId?: number }): Promise<AttendanceRecord[]>;
+  createAttendanceRecord(data: InsertAttendanceRecord): Promise<AttendanceRecord>;
+  deleteAttendanceRecordsByUpload(uploadId: number): Promise<void>;
 
   // Music Files
   getMusicFiles(): Promise<MusicFile[]>;
@@ -642,6 +654,36 @@ export class DatabaseStorage implements IStorage {
 
   async deleteWorkPlan(id: number): Promise<void> {
     await db.delete(workPlans).where(eq(workPlans.id, id));
+  }
+
+  // === ATTENDANCE ===
+  async getAttendanceUploads(): Promise<AttendanceUpload[]> {
+    return await db.select().from(attendanceUploads).orderBy(desc(attendanceUploads.createdAt));
+  }
+  async createAttendanceUpload(data: InsertAttendanceUpload): Promise<AttendanceUpload> {
+    const [row] = await db.insert(attendanceUploads).values(data).returning();
+    return row;
+  }
+  async deleteAttendanceUpload(id: number): Promise<void> {
+    await db.delete(attendanceUploads).where(eq(attendanceUploads.id, id));
+  }
+  async getAttendanceRecords(filters?: { year?: number; month?: number; weekNum?: number; uploadId?: number }): Promise<AttendanceRecord[]> {
+    const conditions = [];
+    if (filters?.year) conditions.push(eq(attendanceRecords.year, filters.year));
+    if (filters?.month) conditions.push(eq(attendanceRecords.month, filters.month));
+    if (filters?.weekNum) conditions.push(eq(attendanceRecords.weekNum, filters.weekNum));
+    if (filters?.uploadId) conditions.push(eq(attendanceRecords.uploadId, filters.uploadId));
+    const query = conditions.length > 0
+      ? db.select().from(attendanceRecords).where(and(...conditions))
+      : db.select().from(attendanceRecords);
+    return await query.orderBy(desc(attendanceRecords.attendanceDate));
+  }
+  async createAttendanceRecord(data: InsertAttendanceRecord): Promise<AttendanceRecord> {
+    const [row] = await db.insert(attendanceRecords).values(data).returning();
+    return row;
+  }
+  async deleteAttendanceRecordsByUpload(uploadId: number): Promise<void> {
+    await db.delete(attendanceRecords).where(eq(attendanceRecords.uploadId, uploadId));
   }
 
   // === MUSIC FILES ===

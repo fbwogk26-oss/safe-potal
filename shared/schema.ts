@@ -623,6 +623,38 @@ export const insertSafetyCostTaxInvoiceSchema = createInsertSchema(safetyCostTax
 export type SafetyCostTaxInvoice = typeof safetyCostTaxInvoices.$inferSelect;
 export type InsertSafetyCostTaxInvoice = z.infer<typeof insertSafetyCostTaxInvoiceSchema>;
 
+// === 입회 관리 ===
+export const attendanceUploads = pgTable("attendance_uploads", {
+  id: serial("id").primaryKey(),
+  fileName: text("file_name").notNull(),
+  totalCount: integer("total_count").notNull().default(0),
+  createdBy: text("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertAttendanceUploadSchema = createInsertSchema(attendanceUploads).omit({ id: true, createdAt: true });
+export type AttendanceUpload = typeof attendanceUploads.$inferSelect;
+export type InsertAttendanceUpload = z.infer<typeof insertAttendanceUploadSchema>;
+
+export const attendanceRecords = pgTable("attendance_records", {
+  id: serial("id").primaryKey(),
+  uploadId: integer("upload_id"),
+  attendanceDate: text("attendance_date").notNull(),
+  name: text("name").notNull(),
+  company: text("company"),
+  department: text("department"),
+  attendanceType: text("attendance_type"),
+  weekNum: integer("week_num"),
+  month: integer("month"),
+  year: integer("year"),
+  createdBy: text("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertAttendanceRecordSchema = createInsertSchema(attendanceRecords).omit({ id: true, createdAt: true });
+export type AttendanceRecord = typeof attendanceRecords.$inferSelect;
+export type InsertAttendanceRecord = z.infer<typeof insertAttendanceRecordSchema>;
+
 // Export auth schema
 export * from "./models/auth";
 
