@@ -8790,13 +8790,19 @@ async function fetchNaverNews(query: string, display = 20): Promise<any[]> {
     }) as any;
     if (!res.ok) { console.warn(`[카드뉴스] 네이버 API HTTP ${res.status}`); return []; }
     const data = await res.json();
-    return (data.items || []).map((it: any) => ({
-      title: it.title.replace(/<[^>]*>/g, ''),
-      link: it.originallink || it.link,
-      pubDate: it.pubDate,
-      source: '네이버뉴스',
-      description: it.description.replace(/<[^>]*>/g, ''),
-    }));
+    return (data.items || []).map((it: any) => {
+      // news.naver.com URL을 우선 사용 (항상 접근 가능)
+      // originallink는 Bizbox·사내망 등 외부 접근 불가한 경우가 있어 폴백으로만 사용
+      const naverLink = (it.link || '').includes('news.naver.com') ? it.link : null;
+      const link = naverLink || it.link || it.originallink || '';
+      return {
+        title: it.title.replace(/<[^>]*>/g, ''),
+        link,
+        pubDate: it.pubDate,
+        source: '네이버뉴스',
+        description: it.description.replace(/<[^>]*>/g, ''),
+      };
+    });
   } catch (e: any) {
     console.warn(`[카드뉴스] 네이버 API 오류: ${e.message}`);
     return [];
