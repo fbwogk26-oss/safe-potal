@@ -203,17 +203,52 @@ export default function Dashboard() {
         logging: false,
         width: fullW,
         height: fullH,
-        windowWidth: document.documentElement.clientWidth,
+        // 1440px로 고정해야 sm:/md: Tailwind 반응형 클래스가 올바르게 적용됨
+        windowWidth: 1440,
+        windowHeight: fullH,
         ignoreElements: (el) => el.hasAttribute("data-copy-ignore"),
         onclone: (_doc, el) => {
+          // backdropFilter 제거 (렌더링 오류 방지)
           el.querySelectorAll<HTMLElement>("*").forEach(node => {
             node.style.backdropFilter = "none";
             node.style.webkitBackdropFilter = "none";
           });
-          // Only fix overflow, keep natural width so chart and table stay the same full width
+
+          // overflow 해제 (차트/테이블 잘림 방지)
           el.querySelectorAll<HTMLElement>(".overflow-x-auto, .overflow-x-scroll").forEach(node => {
             node.style.overflowX = "visible";
             node.scrollLeft = 0;
+          });
+
+          // 컨테이너 너비 고정 (캡처 기준 너비로)
+          el.style.width = fullW + "px";
+
+          // Tailwind grid 반응형 클래스가 클론 환경에서 적용 안 될 수 있으므로 인라인 스타일로 강제
+          el.querySelectorAll<HTMLElement>(".grid").forEach(node => {
+            const cls = node.className || "";
+            if (cls.includes("sm:grid-cols-4") || cls.includes("grid-cols-4")) {
+              node.style.gridTemplateColumns = "repeat(4, minmax(0, 1fr))";
+              node.style.display = "grid";
+            } else if (cls.includes("sm:grid-cols-3") || cls.includes("grid-cols-3")) {
+              node.style.gridTemplateColumns = "repeat(3, minmax(0, 1fr))";
+              node.style.display = "grid";
+            } else if (cls.includes("sm:grid-cols-2") || cls.includes("grid-cols-2")) {
+              node.style.gridTemplateColumns = "repeat(2, minmax(0, 1fr))";
+              node.style.display = "grid";
+            }
+          });
+
+          // flex 레이아웃 강제 (숨겨진 sm:flex 등)
+          el.querySelectorAll<HTMLElement>(".flex").forEach(node => {
+            if (!node.style.display) node.style.display = "flex";
+          });
+
+          // SVG linearGradient url() 참조가 클론 시 깨지는 문제 → 직접 색상으로 대체
+          el.querySelectorAll<Element>("[fill]").forEach(node => {
+            const fill = node.getAttribute("fill") || "";
+            if (fill.includes("gradGreen")) node.setAttribute("fill", "#059669");
+            else if (fill.includes("gradYellow")) node.setAttribute("fill", "#d97706");
+            else if (fill.includes("gradRed")) node.setAttribute("fill", "#dc2626");
           });
         },
       });
