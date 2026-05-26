@@ -54,6 +54,21 @@ function getISOWeek(date: Date): number {
   return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
 }
 
+/** ISO 주차 번호로부터 해당 주의 월요일 날짜를 반환 */
+function getMondayOfISOWeek(year: number, isoWeek: number): Date {
+  const jan4 = new Date(Date.UTC(year, 0, 4));
+  const dow = jan4.getUTCDay() || 7;
+  return new Date(Date.UTC(year, 0, 4 - (dow - 1) + (isoWeek - 1) * 7));
+}
+
+/** ISO 주차를 "M월 N주차" 형식으로 변환 */
+function getWeekLabel(year: number, isoWeek: number): string {
+  const monday = getMondayOfISOWeek(year, isoWeek);
+  const month = monday.getUTCMonth() + 1;
+  const weekOfMonth = Math.ceil(monday.getUTCDate() / 7);
+  return `${month}월 ${weekOfMonth}주차`;
+}
+
 export default function AttendanceManagement() {
   const { canEditAttendance } = usePermissions();
   const { toast } = useToast();
@@ -205,8 +220,8 @@ export default function AttendanceManagement() {
             </Select>
             {viewMode === "weekly" ? (
               <Select value={String(selectedWeek)} onValueChange={v => setSelectedWeek(Number(v))}>
-                <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
-                <SelectContent>{weekNums.map(w => <SelectItem key={w} value={String(w)}>{w}주차</SelectItem>)}</SelectContent>
+                <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+                <SelectContent>{weekNums.map(w => <SelectItem key={w} value={String(w)}>{getWeekLabel(selectedYear, w)}</SelectItem>)}</SelectContent>
               </Select>
             ) : (
               <Select value={String(selectedMonth)} onValueChange={v => setSelectedMonth(Number(v))}>
@@ -218,7 +233,7 @@ export default function AttendanceManagement() {
         </div>
 
         <TabsContent value="weekly" className="mt-4 space-y-4">
-          <PeriodContent records={filtered} allStats={stats} viewMode="weekly" label={`${selectedYear}년 ${selectedWeek}주차`} />
+          <PeriodContent records={filtered} allStats={stats} viewMode="weekly" label={`${selectedYear}년 ${getWeekLabel(selectedYear, selectedWeek)}`} />
         </TabsContent>
         <TabsContent value="monthly" className="mt-4 space-y-4">
           <PeriodContent records={filtered} allStats={stats} viewMode="monthly" label={`${selectedYear}년 ${selectedMonth}월`} />
@@ -425,7 +440,7 @@ function computeStats(records: AttendanceRecord[], year: number, month: number, 
   for (const r of records.filter(r => r.year === year)) {
     if (r.weekNum) weekMap.set(r.weekNum, (weekMap.get(r.weekNum) || 0) + 1);
   }
-  const byWeek = [...weekMap.entries()].sort(([a], [b]) => a - b).map(([w, c]) => ({ label: `${w}주차`, count: c, weekNum: w, year }));
+  const byWeek = [...weekMap.entries()].sort(([a], [b]) => a - b).map(([w, c]) => ({ label: getWeekLabel(year, w), count: c, weekNum: w, year }));
 
   // 월별 집계 (현재 연도)
   const monthMap = new Map<number, number>();
