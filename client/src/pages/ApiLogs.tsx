@@ -69,6 +69,57 @@ const ROUTE_LABELS: Record<string, string> = {
   "/work-plan":               "하도급 작업계획",
 };
 
+// API 경로 → 한국어 설명 (접두어 매핑, 긴 것 우선)
+const API_PATH_LABELS: Array<[string, string]> = [
+  ["/api/admin/api-logs",                 "API 호출 내역"],
+  ["/api/admin/signatures",               "서명 관리"],
+  ["/api/admin/backup",                   "데이터 백업"],
+  ["/api/admin/card-news",                "음주운전 카드뉴스"],
+  ["/api/admin/fuel-costs",               "유류비 관리"],
+  ["/api/auto-email",                     "자동 이메일"],
+  ["/api/auth/permissions",               "권한 확인"],
+  ["/api/auth/user-role",                 "역할 확인"],
+  ["/api/auth/user",                      "사용자 인증"],
+  ["/api/auth",                           "인증"],
+  ["/api/accident-reports",               "사고경위서"],
+  ["/api/accidents/stats",                "사고 통계"],
+  ["/api/accidents",                      "사고 현황"],
+  ["/api/attendance",                     "입회 관리"],
+  ["/api/access",                         "출입신청"],
+  ["/api/chatbot",                        "AI 챗봇"],
+  ["/api/chemicals",                      "MSDS"],
+  ["/api/education-sessions",             "교육일지"],
+  ["/api/education-signatures",           "교육 서명"],
+  ["/api/lock-status",                    "잠금 상태"],
+  ["/api/musculoskeletal-assessments",    "근골격계"],
+  ["/api/music/schedule",                 "음악 스케줄"],
+  ["/api/music",                          "음악 관리"],
+  ["/api/new-equipment-requests",         "새 장비 요청"],
+  ["/api/notices",                        "공지사항"],
+  ["/api/risk-assessments",               "위험성평가"],
+  ["/api/safety-cost-records",            "산업안전보건관리비"],
+  ["/api/safety-cost-tax-invoices",       "세금계산서"],
+  ["/api/security-logs",                  "보안 감사 로그"],
+  ["/api/settings/pinned-notice",         "고정 공지 설정"],
+  ["/api/settings/role-presets",          "역할 프리셋"],
+  ["/api/settings/lock",                  "잠금 설정"],
+  ["/api/settings",                       "설정"],
+  ["/api/teams",                          "팀 안전점수"],
+  ["/api/traffic-fines",                  "교통 과태료"],
+  ["/api/users",                          "사용자 관리"],
+  ["/api/vehicle-logs",                   "차량 일지"],
+  ["/api/vehicles",                       "차량 관리"],
+  ["/api/weather",                        "날씨 정보"],
+  ["/api/work-plans",                     "하도급 작업계획"],
+];
+
+function getApiLabel(apiPath: string): string | null {
+  // 쿼리스트링 제거
+  const base = apiPath.split("?")[0];
+  const match = API_PATH_LABELS.find(([prefix]) => base === prefix || base.startsWith(prefix + "/"));
+  return match ? match[1] : null;
+}
+
 function getRouteLabel(referer: string | null): string | null {
   if (!referer) return null;
   // 정확 매핑 우선, 그 다음 접두어 매핑
@@ -322,8 +373,18 @@ export default function ApiLogs() {
                           <span className="text-[9px] text-muted-foreground/60 font-mono pl-0.5">{log.method}</span>
                         </div>
                       </TableCell>
-                      <TableCell className="font-mono text-[11px] max-w-[260px] truncate" title={log.path}>
-                        {log.path}
+                      <TableCell className="text-[11px] max-w-[260px]">
+                        {(() => {
+                          const label = getApiLabel(log.path);
+                          return (
+                            <div className="flex flex-col gap-0.5" title={log.path}>
+                              {label && (
+                                <span className="font-medium text-slate-700 dark:text-slate-300">{label}</span>
+                              )}
+                              <span className="font-mono text-[10px] text-muted-foreground/70 truncate">{log.path}</span>
+                            </div>
+                          );
+                        })()}
                       </TableCell>
                       <TableCell className="text-[11px] max-w-[160px]">
                         {log.referer ? (() => {
