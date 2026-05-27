@@ -34,6 +34,7 @@ import {
   Receipt,
   Newspaper,
   UserCheck,
+  Activity,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
@@ -147,6 +148,7 @@ const NAV_SECTIONS: NavSection[] = [
         children: [
           { label: "사용자 관리", href: "/admin/users", icon: Users, adminOnly: true },
           { label: "보안 감사 로그", href: "/admin/security", icon: ScrollText, adminOnly: true },
+          { label: "API 호출 내역", href: "/admin/api-logs", icon: Activity, adminOnly: true },
           { label: "음악 관리", href: "/admin/music", icon: Music2, adminOnly: true },
           { label: "서명 관리 로그", href: "/admin/signatures", icon: FileSignature, adminOnly: true },
           { label: "출입신청", href: "/access", icon: DoorOpen, permissionKey: "canViewAccess" },

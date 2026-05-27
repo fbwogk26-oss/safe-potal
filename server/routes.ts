@@ -25,6 +25,32 @@ if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
+// ── API 요청 로그 링버퍼 (최근 1000건 메모리 보관) ──────────────────────
+export interface ApiLogEntry {
+  id: number;
+  method: string;
+  path: string;
+  status: number;
+  duration: number;
+  username: string | null;
+  ip: string | null;
+  timestamp: string;
+}
+const API_LOG_MAX = 1000;
+const apiLogBuffer: ApiLogEntry[] = [];
+let apiLogSeq = 0;
+// 폴링 엔드포인트 등 잡음이 많은 경로 제외
+const API_LOG_SKIP = [
+  '/api/new-equipment-requests/unread-count',
+  '/api/auth/user',
+  '/api/lock-status',
+  '/api/settings/lock',
+];
+function pushApiLog(entry: Omit<ApiLogEntry, 'id'>) {
+  apiLogBuffer.push({ id: ++apiLogSeq, ...entry });
+  if (apiLogBuffer.length > API_LOG_MAX) apiLogBuffer.shift();
+}
+
 // 파일 확장자 안전 추출 (경로 주입·이중 확장자 방지)
 function safeExt(originalname: string, allowed: string[]): string {
   // null byte 제거
@@ -335,6 +361,33 @@ export async function registerRoutes(
   // Setup authentication (must be before other routes)
   await setupAuth(app);
   registerAuthRoutes(app);
+
+  // ── API 요청 로그 수집 미들웨어 (인증 이후 등록 → req.user 사용 가능) ──
+  app.use((req: any, res, next) => {
+    const start = Date.now();
+    res.on('finish', () => {
+      const p = req.path;
+      if (!p.startsWith('/api')) return;
+      if (API_LOG_SKIP.some(skip => p.startsWith(skip))) return;
+      pushApiLog({
+        method: req.method,
+        path: req.originalUrl || p,
+        status: res.statusCode,
+        duration: Date.now() - start,
+        username: req.user?.username || null,
+        ip: (req.headers['x-forwarded-for'] as string || req.ip || '').split(',')[0].trim() || null,
+        timestamp: new Date().toISOString(),
+      });
+    });
+    next();
+  });
+
+  // ── GET /api/admin/api-logs ────────────────────────────────────────────
+  app.get('/api/admin/api-logs', isAuthenticated, (req: any, res) => {
+    if (req.user?.role !== 'admin') return res.status(403).json({ message: '관리자 전용' });
+    const limit = Math.min(parseInt(req.query.limit as string || '200', 10), 1000);
+    res.json([...apiLogBuffer].reverse().slice(0, limit));
+  });
 
   // 소유권 체크: 관리자이거나, createdBy가 없거나, 본인이 작성한 경우
   const isOwnerOrAdmin = (req: any, createdBy: string | null | undefined): boolean => {

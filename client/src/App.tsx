@@ -25,6 +25,7 @@ import SafetyInspections from "@/pages/SafetyInspections";
 import OtherSafetyInspections from "@/pages/OtherSafetyInspections";
 import AdminUsers from "@/pages/AdminUsers";
 import SecurityLogs from "@/pages/SecurityLogs";
+import ApiLogs from "@/pages/ApiLogs";
 import SignatureAdmin from "@/pages/SignatureAdmin";
 import AdminBackup from "@/pages/AdminBackup";
 import CardNewsAdmin from "@/pages/CardNewsAdmin";
@@ -125,6 +126,7 @@ function RouterContent() {
       <Route path="/digital-board">{() => <G canAccess={canViewDigitalBoard} component={DigitalBoard} />}</Route>
       <Route path="/admin/users">{() => <G canAccess={canManageUsers} component={AdminUsers} />}</Route>
       <Route path="/admin/security">{() => <G canAccess={canManageUsers} component={SecurityLogs} />}</Route>
+      <Route path="/admin/api-logs">{() => <G canAccess={isAdmin} component={ApiLogs} />}</Route>
       <Route path="/admin/music">{() => <G canAccess={isAdmin} component={MusicManager} />}</Route>
       <Route path="/admin/fuel-costs">{() => <G canAccess={isAdmin} component={FuelCosts} />}</Route>
       <Route path="/admin/signatures">{() => <G canAccess={isAdmin} component={SignatureAdmin} />}</Route>
