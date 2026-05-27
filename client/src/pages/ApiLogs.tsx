@@ -36,6 +36,49 @@ const METHOD_KO: Record<string, string> = {
   DELETE: "삭제",
 };
 
+// URL 경로 → 메뉴 한국어 이름
+const ROUTE_LABELS: Record<string, string> = {
+  "/":                        "대시보드",
+  "/dashboard":               "대시보드",
+  "/notices":                 "공지사항",
+  "/digital-board":           "디지털 보드",
+  "/rules":                   "안전 규정",
+  "/accidents":               "사고 현황",
+  "/equipment-status":        "장비 현황",
+  "/equipment":               "안전 장비",
+  "/education":               "교육 자료",
+  "/education-logs":          "교육일지",
+  "/education-management":    "교육 업무 관리",
+  "/inspections":             "점검 일지",
+  "/risk-assessment":         "위험성평가",
+  "/msds":                    "MSDS",
+  "/musculoskeletal":         "근골격계",
+  "/vehicles":                "차량 관리",
+  "/vehicle-logs":            "차량 일지",
+  "/access":                  "출입신청",
+  "/attendance":              "입회 관리",
+  "/safety-cost-budget":      "산업안전보건관리비",
+  "/admin/users":             "사용자 관리",
+  "/admin/security":          "보안 감사 로그",
+  "/admin/api-logs":          "API 호출 내역",
+  "/admin/music":             "음악 관리",
+  "/admin/signatures":        "서명 관리 로그",
+  "/admin/backup":            "데이터 백업",
+  "/admin/card-news":         "음주운전 카드뉴스",
+  "/admin/fuel-costs":        "유류비 관리",
+  "/work-plan":               "하도급 작업계획",
+};
+
+function getRouteLabel(referer: string | null): string | null {
+  if (!referer) return null;
+  // 정확 매핑 우선, 그 다음 접두어 매핑
+  if (ROUTE_LABELS[referer]) return ROUTE_LABELS[referer];
+  const match = Object.keys(ROUTE_LABELS)
+    .filter(k => k !== "/" && referer.startsWith(k))
+    .sort((a, b) => b.length - a.length)[0];
+  return match ? ROUTE_LABELS[match] : null;
+}
+
 function statusColor(status: number) {
   if (status < 300) return "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300";
   if (status < 400) return "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300";
@@ -283,13 +326,21 @@ export default function ApiLogs() {
                         {log.path}
                       </TableCell>
                       <TableCell className="text-[11px] max-w-[160px]">
-                        {log.referer ? (
-                          <div className="flex items-center gap-1 text-muted-foreground" title={log.referer}>
-                            <Globe className="h-3 w-3 shrink-0" />
-                            <span className="truncate">{log.referer}</span>
-                          </div>
-                        ) : (
-                          <span className="text-muted-foreground/50">-</span>
+                        {log.referer ? (() => {
+                          const label = getRouteLabel(log.referer);
+                          return (
+                            <div className="flex flex-col gap-0.5" title={log.referer}>
+                              {label ? (
+                                <span className="font-medium text-slate-700 dark:text-slate-300">{label}</span>
+                              ) : null}
+                              <div className="flex items-center gap-1 text-muted-foreground/70">
+                                <Globe className="h-2.5 w-2.5 shrink-0" />
+                                <span className="truncate font-mono text-[10px]">{log.referer}</span>
+                              </div>
+                            </div>
+                          );
+                        })() : (
+                          <span className="text-muted-foreground/40">-</span>
                         )}
                       </TableCell>
                       <TableCell className="text-center">
