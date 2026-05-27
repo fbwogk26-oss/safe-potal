@@ -34,6 +34,7 @@ export interface ApiLogEntry {
   duration: number;
   username: string | null;
   ip: string | null;
+  referer: string | null;
   timestamp: string;
 }
 const API_LOG_MAX = 1000;
@@ -369,6 +370,11 @@ export async function registerRoutes(
       const p = req.path;
       if (!p.startsWith('/api')) return;
       if (API_LOG_SKIP.some(skip => p.startsWith(skip))) return;
+      const rawRef = (req.headers['referer'] || req.headers['referrer'] || '') as string;
+      let referer: string | null = null;
+      if (rawRef) {
+        try { referer = new URL(rawRef).pathname; } catch { referer = rawRef; }
+      }
       pushApiLog({
         method: req.method,
         path: req.originalUrl || p,
@@ -376,6 +382,7 @@ export async function registerRoutes(
         duration: Date.now() - start,
         username: req.user?.username || null,
         ip: (req.headers['x-forwarded-for'] as string || req.ip || '').split(',')[0].trim() || null,
+        referer,
         timestamp: new Date().toISOString(),
       });
     });

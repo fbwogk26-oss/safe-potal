@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Activity, RefreshCw, Search, Clock, User, Server, Filter } from "lucide-react";
+import { Activity, RefreshCw, Search, Clock, User, Server, Filter, Globe } from "lucide-react";
 
 interface ApiLogEntry {
   id: number;
@@ -16,6 +16,7 @@ interface ApiLogEntry {
   duration: number;
   username: string | null;
   ip: string | null;
+  referer: string | null;
   timestamp: string;
 }
 
@@ -247,7 +248,8 @@ export default function ApiLogs() {
                   <TableRow className="hover:bg-transparent">
                     <TableHead className="w-28 text-xs">시간</TableHead>
                     <TableHead className="w-16 text-xs">메서드</TableHead>
-                    <TableHead className="text-xs">경로</TableHead>
+                    <TableHead className="text-xs">API 경로</TableHead>
+                    <TableHead className="w-40 text-xs">호출 페이지</TableHead>
                     <TableHead className="w-16 text-center text-xs">상태</TableHead>
                     <TableHead className="w-24 text-right text-xs">응답시간</TableHead>
                     <TableHead className="w-24 text-xs">사용자</TableHead>
@@ -266,8 +268,18 @@ export default function ApiLogs() {
                           {log.method}
                         </Badge>
                       </TableCell>
-                      <TableCell className="font-mono text-[11px] max-w-[300px] truncate" title={log.path}>
+                      <TableCell className="font-mono text-[11px] max-w-[260px] truncate" title={log.path}>
                         {log.path}
+                      </TableCell>
+                      <TableCell className="text-[11px] max-w-[160px]">
+                        {log.referer ? (
+                          <div className="flex items-center gap-1 text-muted-foreground" title={log.referer}>
+                            <Globe className="h-3 w-3 shrink-0" />
+                            <span className="truncate">{log.referer}</span>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground/50">-</span>
+                        )}
                       </TableCell>
                       <TableCell className="text-center">
                         <Badge className={`${statusColor(log.status)} text-[10px] font-bold px-1.5 py-0`}>
