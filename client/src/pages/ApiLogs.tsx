@@ -28,6 +28,14 @@ const METHOD_COLORS: Record<string, string> = {
   DELETE: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
 };
 
+const METHOD_KO: Record<string, string> = {
+  GET:    "조회",
+  POST:   "등록",
+  PUT:    "수정",
+  PATCH:  "수정",
+  DELETE: "삭제",
+};
+
 function statusColor(status: number) {
   if (status < 300) return "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300";
   if (status < 400) return "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300";
@@ -163,7 +171,7 @@ export default function ApiLogs() {
         <div className="flex flex-wrap gap-2">
           {Object.entries(methodCounts).sort(([,a],[,b]) => b-a).map(([method, count]) => (
             <Badge key={method} className={`${METHOD_COLORS[method] || "bg-gray-100 text-gray-700"} gap-1.5 text-xs font-semibold`}>
-              {method} <span className="opacity-70">{count}건</span>
+              {METHOD_KO[method] || method}({method}) <span className="opacity-70">{count}건</span>
             </Badge>
           ))}
         </div>
@@ -190,11 +198,11 @@ export default function ApiLogs() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">전체 메서드</SelectItem>
-                <SelectItem value="GET">GET</SelectItem>
-                <SelectItem value="POST">POST</SelectItem>
-                <SelectItem value="PUT">PUT</SelectItem>
-                <SelectItem value="PATCH">PATCH</SelectItem>
-                <SelectItem value="DELETE">DELETE</SelectItem>
+                <SelectItem value="GET">조회 (GET)</SelectItem>
+                <SelectItem value="POST">등록 (POST)</SelectItem>
+                <SelectItem value="PUT">수정 (PUT)</SelectItem>
+                <SelectItem value="PATCH">수정 (PATCH)</SelectItem>
+                <SelectItem value="DELETE">삭제 (DELETE)</SelectItem>
               </SelectContent>
             </Select>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -264,9 +272,12 @@ export default function ApiLogs() {
                         <div>{formatTime(log.timestamp)}</div>
                       </TableCell>
                       <TableCell>
-                        <Badge className={`${METHOD_COLORS[log.method] || "bg-gray-100 text-gray-700"} text-[10px] font-bold px-1.5 py-0`}>
-                          {log.method}
-                        </Badge>
+                        <div className="flex flex-col items-start gap-0.5">
+                          <Badge className={`${METHOD_COLORS[log.method] || "bg-gray-100 text-gray-700"} text-[10px] font-bold px-1.5 py-0`}>
+                            {METHOD_KO[log.method] || log.method}
+                          </Badge>
+                          <span className="text-[9px] text-muted-foreground/60 font-mono pl-0.5">{log.method}</span>
+                        </div>
                       </TableCell>
                       <TableCell className="font-mono text-[11px] max-w-[260px] truncate" title={log.path}>
                         {log.path}
