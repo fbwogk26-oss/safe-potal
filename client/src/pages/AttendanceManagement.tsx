@@ -774,11 +774,11 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
                     <span className="text-[11px] text-muted-foreground">전체 합계</span>
                     <span className="text-sm font-bold text-purple-600">{deptHeadTrendData.reduce((s, d) => s + (Number(d._total) || 0), 0)}건</span>
                   </div>
-                  <ResponsiveContainer width="100%" height={268}>
-                    <BarChart data={deptHeadTrendData} margin={{ top: 24, right: 12, left: -4, bottom: 4 }} barCategoryGap="30%">
+                  <ResponsiveContainer width="100%" height={420}>
+                    <BarChart data={deptHeadTrendData} margin={{ top: 28, right: 12, left: -4, bottom: 8 }} barCategoryGap="30%">
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" vertical={false} />
-                      <XAxis dataKey="period" tick={{ fontSize: 12, fill: "#6B7280", fontWeight: 500 }} axisLine={{ stroke: "#E5E7EB" }} tickLine={false} />
-                      <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "#9CA3AF" }} axisLine={false} tickLine={false} width={24} />
+                      <XAxis dataKey="period" tick={{ fontSize: 14, fill: "#4B5563", fontWeight: 600 }} axisLine={{ stroke: "#E5E7EB" }} tickLine={false} />
+                      <YAxis allowDecimals={false} tick={{ fontSize: 13, fill: "#6B7280" }} axisLine={false} tickLine={false} width={28} />
                       <Tooltip
                         cursor={{ fill: "rgba(147,51,234,0.05)" }}
                         content={({ active, payload, label }) => {
@@ -1067,17 +1067,7 @@ function TrendContent({ records, viewMode, setViewMode, selectedYear, setSelecte
         const pm = new Map<string, number>();
         filtered.forEach(r => pm.set(r.name, (pm.get(r.name) || 0) + 1));
         const pData = [...pm.entries()].sort(([, a], [, b]) => b - a).map(([name, count]) => ({ name, count }));
-        const isWeekly = viewMode === "weekly";
-        const rowH = isWeekly ? 64 : 54;
-        const minH = isWeekly ? 420 : 300;
-        const maxH = isWeekly ? 700 : 520;
-        const chartH = Math.min(maxH, Math.max(minH, pData.length * rowH));
-        const tickFontSize = isWeekly ? 14 : 12;
-        const axisFontSize = isWeekly ? 13 : 11;
-        const labelFontSize = isWeekly ? 13 : 11;
-        const yAxisW = isWeekly ? 112 : 100;
-        const maxBar = isWeekly ? 38 : 30;
-        const maxBarTrend = isWeekly ? 56 : 44;
+        const chartH = Math.min(520, Math.max(300, pData.length * 54));
         return (
           <div className="grid lg:grid-cols-2 gap-4">
             {/* 기간별 담당자 건수 차트 */}
@@ -1096,22 +1086,22 @@ function TrendContent({ records, viewMode, setViewMode, selectedYear, setSelecte
                   <div className="flex items-center justify-center text-sm text-muted-foreground" style={{ height: chartH }}>해당 기간 기록 없음</div>
                 ) : (
                   <ResponsiveContainer width="100%" height={chartH}>
-                    <BarChart data={pData} layout="vertical" margin={{ left: 4, right: 52, top: 4, bottom: 4 }}>
+                    <BarChart data={pData} layout="vertical" margin={{ left: 4, right: 44, top: 4, bottom: 4 }}>
                       <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
-                      <XAxis type="number" allowDecimals={false} tick={{ fontSize: axisFontSize, fill: "#64748b" }} axisLine={false} tickLine={false} />
-                      <YAxis type="category" dataKey="name" width={yAxisW} axisLine={false} tickLine={false}
+                      <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} />
+                      <YAxis type="category" dataKey="name" width={100} axisLine={false} tickLine={false}
                         tick={({ x, y, payload }: any) => (
-                          <text x={x} y={y} dy={4} textAnchor="end" fontSize={tickFontSize}
+                          <text x={x} y={y} dy={4} textAnchor="end" fontSize={12}
                             fontWeight={getDeptHead(payload.value) !== null ? 700 : 500}
                             fill={getDeptHead(payload.value) !== null ? "#2563EB" : "#334155"}>
                             {payload.value}
                           </text>
                         )}
                       />
-                      <Tooltip contentStyle={{ borderRadius: 8, fontSize: 13, border: "1px solid #e2e8f0", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }} formatter={(v: any) => [`${v}건`, "건수"]} />
-                      <Bar dataKey="count" radius={[0, 6, 6, 0]} maxBarSize={maxBar}>
+                      <Tooltip contentStyle={{ borderRadius: 8, fontSize: 12, border: "1px solid #e2e8f0", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }} formatter={(v: any) => [`${v}건`, "건수"]} />
+                      <Bar dataKey="count" radius={[0, 6, 6, 0]} maxBarSize={30}>
                         {pData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                        <LabelList dataKey="count" position="right" style={{ fontSize: labelFontSize, fontWeight: 700, fill: "#475569" }} formatter={(v: any) => `${v}건`} />
+                        <LabelList dataKey="count" position="right" style={{ fontSize: 11, fontWeight: 700, fill: "#475569" }} formatter={(v: any) => `${v}건`} />
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
@@ -1125,7 +1115,7 @@ function TrendContent({ records, viewMode, setViewMode, selectedYear, setSelecte
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-sm font-semibold text-sky-900 dark:text-sky-200 flex items-center gap-2">
                     <span className="inline-block w-2 h-2 rounded-full bg-sky-500" />
-                    {isWeekly ? "주별" : "월별"} 전체 추이
+                    {viewMode === "weekly" ? "주별" : "월별"} 전체 추이
                   </CardTitle>
                   <div className="flex items-center gap-2">
                     <Badge className="bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-300 text-xs border-0">{trendData.length}개 구간</Badge>
@@ -1138,17 +1128,17 @@ function TrendContent({ records, viewMode, setViewMode, selectedYear, setSelecte
                   <div className="flex items-center justify-center text-sm text-muted-foreground" style={{ height: chartH }}>데이터 없음</div>
                 ) : (
                   <ResponsiveContainer width="100%" height={chartH}>
-                    <BarChart data={trendData} margin={{ left: 0, right: 8, top: 20, bottom: isWeekly ? 32 : 4 }}>
+                    <BarChart data={trendData} margin={{ left: 0, right: 8, top: 16, bottom: 4 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                      <XAxis dataKey="label" tick={{ fontSize: axisFontSize, fill: "#64748b" }} axisLine={false} tickLine={false} angle={isWeekly ? -30 : 0} textAnchor={isWeekly ? "end" : "middle"} interval={0} />
-                      <YAxis allowDecimals={false} tick={{ fontSize: axisFontSize, fill: "#64748b" }} axisLine={false} tickLine={false} width={32} />
-                      <Tooltip contentStyle={{ borderRadius: 8, fontSize: 13, border: "1px solid #e2e8f0", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }} formatter={(v: any) => [`${v}건`, "건수"]} />
-                      <Bar dataKey="count" radius={[6, 6, 0, 0]} maxBarSize={maxBarTrend}>
+                      <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} />
+                      <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} width={28} />
+                      <Tooltip contentStyle={{ borderRadius: 8, fontSize: 12, border: "1px solid #e2e8f0", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }} formatter={(v: any) => [`${v}건`, "건수"]} />
+                      <Bar dataKey="count" radius={[6, 6, 0, 0]} maxBarSize={44}>
                         {trendData.map((d, i) => {
                           const maxC = Math.max(...trendData.map(x => x.count));
                           return <Cell key={i} fill={d.count === maxC ? "#0EA5E9" : "#BAE6FD"} />;
                         })}
-                        <LabelList dataKey="count" position="top" style={{ fontSize: isWeekly ? 12 : 10, fontWeight: 700, fill: "#0369a1" }} formatter={(v: any) => v > 0 ? `${v}` : ""} />
+                        <LabelList dataKey="count" position="top" style={{ fontSize: 10, fontWeight: 700, fill: "#0369a1" }} formatter={(v: any) => v > 0 ? `${v}` : ""} />
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
