@@ -643,6 +643,7 @@ export const attendanceRecords = pgTable("attendance_records", {
   name: text("name").notNull(),
   company: text("company"),
   department: text("department"),
+  stationName: text("station_name"),
   attendanceType: text("attendance_type"),
   weekNum: integer("week_num"),
   month: integer("month"),

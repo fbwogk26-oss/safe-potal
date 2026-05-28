@@ -24,6 +24,7 @@ interface AttendanceRecord {
   weekNum: number | null;
   month: number | null;
   year: number | null;
+  stationName: string | null;
   absenceReason: string | null;
 }
 
@@ -764,7 +765,7 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
                         <TableCell className="text-xs text-muted-foreground whitespace-nowrap py-2">{r.attendanceDate}</TableCell>
                         <TableCell className="text-xs font-medium py-2">{r.name}</TableCell>
                         <TableCell className="text-xs font-medium py-2 whitespace-nowrap">
-                          {r.department?.split("/")[1] || "-"}
+                          {r.stationName || "-"}
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground py-2 max-w-[180px]">
                           <span className="truncate block" title={r.department || ""}>{r.department || "-"}</span>

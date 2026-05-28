@@ -6132,7 +6132,7 @@ ${htmlDraft}
         h.replace(/[\uFEFF\u200B]/g, "").includes("공사작업번호")
       );
 
-      let dateCol: number, nameCol: number, companyCol: number, deptCol: number, typeCol: number;
+      let dateCol: number, nameCol: number, companyCol: number, deptCol: number, typeCol: number, stationCol: number;
 
       if (isInspectionFormat) {
         // 점검대상 관리 형식: 순회점검대상자=입회자, 작업자=소속, 공사내용=부서, 순회점검단계=유형
@@ -6141,6 +6141,7 @@ ${htmlDraft}
         companyCol  = headerRowRaw.findIndex(h => h === "작업자");
         deptCol     = headerRowRaw.findIndex(h => h.includes("공사내용"));
         typeCol     = headerRowRaw.findIndex(h => h.includes("순회점검단계"));
+        stationCol  = headerRowRaw.findIndex(h => h.includes("국사명") || h.includes("국사"));
         if (nameCol === -1) nameCol = headerRowRaw.findIndex(h => h.includes("합동점검담당자"));
         if (nameCol === -1) nameCol = headerRowRaw.findIndex(h => h.includes("공사작업번호"));
       } else {
@@ -6149,6 +6150,7 @@ ${htmlDraft}
         companyCol = findCol(["소속", "업체", "회사", "company", "기업"]);
         deptCol    = findCol(["부서", "dept", "팀", "department"]);
         typeCol    = findCol(["유형", "종류", "type", "구분", "입회유형", "입회종류"]);
+        stationCol = findCol(["국사명", "국사", "station"]);
         if (nameCol === -1) return res.status(400).json({ message: "이름/성명 컬럼을 찾을 수 없습니다. 헤더에 '이름', '성명', '입회자' 중 하나가 있어야 합니다." });
       }
 
@@ -6226,6 +6228,7 @@ ${htmlDraft}
           name,
           company: companyCol >= 0 ? (row[companyCol] || "").trim() || null : null,
           department: deptCol >= 0 ? (row[deptCol] || "").trim() || null : null,
+          stationName: stationCol >= 0 ? (row[stationCol] || "").trim() || null : null,
           attendanceType: typeCol >= 0 ? (row[typeCol] || "").trim() || null : null,
           weekNum,
           month,
