@@ -126,7 +126,8 @@ export default function AttendanceManagement() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/attendance/records"] });
       queryClient.invalidateQueries({ queryKey: ["/api/attendance/uploads"] });
-      toast({ title: `${data.count}건 점검 기록 등록 완료` });
+      const excludedMsg = data.excludedCount > 0 ? ` (직영작업 ${data.excludedCount}건 제외)` : "";
+      toast({ title: `${data.count}건 점검 기록 등록 완료${excludedMsg}` });
       if (data.isInspectionFormat) setActiveTab("inspection");
       if (fileRef.current) fileRef.current.value = "";
     },

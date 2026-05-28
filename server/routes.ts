@@ -6177,7 +6177,20 @@ ${htmlDraft}
         return null;
       }
 
-      const dataRows = tableRows.slice(1).filter(r => r.some(c => c.trim()));
+      // 직영작업 제외 (점검대상 형식일 때만)
+      const workTypeCol = isInspectionFormat
+        ? headerRowRaw.findIndex(h => h.includes("공사구분"))
+        : -1;
+
+      const allDataRows = tableRows.slice(1).filter(r => r.some(c => c.trim()));
+      const dataRows = allDataRows.filter(r => {
+        if (workTypeCol >= 0) {
+          const workType = (r[workTypeCol] || "").trim();
+          if (workType === "직영작업") return false;
+        }
+        return true;
+      });
+      const excludedCount = allDataRows.length - dataRows.length;
 
       // 업로드 배치 생성
       const upload = await storage.createAttendanceUpload({
@@ -6224,7 +6237,7 @@ ${htmlDraft}
 
       // 실제 삽입된 건수로 업데이트
       fs.unlink(req.file.path, () => {});
-      res.json({ message: "업로드 완료", count: insertedCount, uploadId: upload.id, isInspectionFormat });
+      res.json({ message: "업로드 완료", count: insertedCount, excludedCount, uploadId: upload.id, isInspectionFormat });
     } catch (e: any) {
       console.error("[AttendanceUpload error]", e);
       res.status(500).json({ message: e.message || "업로드에 실패했습니다" });
