@@ -615,8 +615,11 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
                               <TableCell className="py-1.5" />
                               <TableCell className="text-[10px] text-muted-foreground whitespace-nowrap pl-3 py-1.5">{r.attendanceDate}</TableCell>
                               <TableCell className="text-[10px] font-medium py-1.5">{r.name}</TableCell>
-                              <TableCell className="text-[10px] text-purple-700 dark:text-purple-300 font-medium py-1.5 max-w-[120px]">
-                                <span className="truncate block" title={r.stationName || ""}>{r.stationName || "-"}</span>
+                              <TableCell className="py-1.5 max-w-[130px]">
+                                <div className="flex flex-col gap-0.5">
+                                  <span className="truncate text-[10px] text-purple-700 dark:text-purple-300 font-medium" title={r.stationName || ""}>{r.stationName || "-"}</span>
+                                  {r.department && <span className="truncate text-[9px] text-muted-foreground" title={r.department}>{r.department}</span>}
+                                </div>
                               </TableCell>
                               <TableCell className="py-1.5">
                                 <div className="flex items-center gap-1 flex-wrap">
@@ -648,19 +651,10 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
                 </div>
               ) : (
                 <>
-                  {/* 범례 (커스텀) */}
-                  <div className="flex flex-wrap gap-x-3 gap-y-1 px-1">
-                    {DEPT_HEADS.map(d => (
-                      <div key={d.team} className="flex items-center gap-1">
-                        <span className="inline-block w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: DEPT_HEAD_COLORS[d.team] ?? "#9CA3AF" }} />
-                        <span className="text-[11px] text-muted-foreground">{d.team}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <ResponsiveContainer width="100%" height={248}>
+                  <ResponsiveContainer width="100%" height={268}>
                     <BarChart
                       data={deptHeadTrendData}
-                      margin={{ top: 20, right: 12, left: -4, bottom: 4 }}
+                      margin={{ top: 24, right: 12, left: -4, bottom: 4 }}
                       barCategoryGap="30%"
                     >
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" vertical={false} />
@@ -700,16 +694,44 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
                           );
                         }}
                       />
-                      {DEPT_HEADS.map((d, i) => (
-                        <Bar
-                          key={d.team}
-                          dataKey={d.team}
-                          stackId="a"
-                          fill={DEPT_HEAD_COLORS[d.team] ?? COLORS[i % COLORS.length]}
-                          name={d.team}
-                          radius={i === DEPT_HEADS.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
-                        />
-                      ))}
+                      {DEPT_HEADS.map((d, i) => {
+                        const teamShort = d.team.replace("운용팀", "");
+                        const color = DEPT_HEAD_COLORS[d.team] ?? COLORS[i % COLORS.length];
+                        return (
+                          <Bar
+                            key={d.team}
+                            dataKey={d.team}
+                            stackId="a"
+                            fill={color}
+                            name={d.team}
+                            radius={i === DEPT_HEADS.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                          >
+                            <LabelList
+                              dataKey={d.team}
+                              content={(props: any) => {
+                                const { x, y, width, height, value } = props;
+                                if (!value || Number(value) < 1 || Number(height) < 18) return null;
+                                const cx = Number(x) + Number(width) / 2;
+                                const cy = Number(y) + Number(height) / 2;
+                                return (
+                                  <text
+                                    x={cx} y={cy}
+                                    fill="white"
+                                    fontSize={9}
+                                    fontWeight={600}
+                                    textAnchor="middle"
+                                    dominantBaseline="middle"
+                                    transform={`rotate(-90,${cx},${cy})`}
+                                    style={{ pointerEvents: "none" }}
+                                  >
+                                    {teamShort}
+                                  </text>
+                                );
+                              }}
+                            />
+                          </Bar>
+                        );
+                      })}
                       {/* 합계 라벨용 투명 bar */}
                       <Bar dataKey="_total" stackId="b" fill="transparent" legendType="none" isAnimationActive={false}>
                         <LabelList
