@@ -774,11 +774,11 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
                     <span className="text-[11px] text-muted-foreground">전체 합계</span>
                     <span className="text-sm font-bold text-purple-600">{deptHeadTrendData.reduce((s, d) => s + (Number(d._total) || 0), 0)}건</span>
                   </div>
-                  <ResponsiveContainer width="100%" height={420}>
-                    <BarChart data={deptHeadTrendData} margin={{ top: 28, right: 12, left: -4, bottom: 8 }} barCategoryGap="30%">
+                  <ResponsiveContainer width="100%" height={268}>
+                    <BarChart data={deptHeadTrendData} margin={{ top: 24, right: 12, left: -4, bottom: 4 }} barCategoryGap="30%">
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" vertical={false} />
-                      <XAxis dataKey="period" tick={{ fontSize: 14, fill: "#4B5563", fontWeight: 600 }} axisLine={{ stroke: "#E5E7EB" }} tickLine={false} />
-                      <YAxis allowDecimals={false} tick={{ fontSize: 13, fill: "#6B7280" }} axisLine={false} tickLine={false} width={28} />
+                      <XAxis dataKey="period" tick={{ fontSize: 12, fill: "#6B7280", fontWeight: 500 }} axisLine={{ stroke: "#E5E7EB" }} tickLine={false} />
+                      <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "#9CA3AF" }} axisLine={false} tickLine={false} width={24} />
                       <Tooltip
                         cursor={{ fill: "rgba(147,51,234,0.05)" }}
                         content={({ active, payload, label }) => {
