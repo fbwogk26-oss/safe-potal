@@ -728,23 +728,29 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
                             );
                           }}
                         />
-                        {months.map((m, i) => (
-                          <Bar key={m} dataKey={m} fill={MONTH_COLORS[i % MONTH_COLORS.length]} name={m} radius={[4, 4, 0, 0]} maxBarSize={32}>
-                            <LabelList
-                              dataKey={m}
-                              content={(props: any) => {
-                                const { x, y, width, value } = props;
-                                if (!value || Number(value) < 1) return null;
-                                const cx = Number(x) + Number(width) / 2;
-                                return (
-                                  <text x={cx} y={Number(y) - 5} fill="#374151" fontSize={10} fontWeight={700} textAnchor="middle" dominantBaseline="middle" style={{ pointerEvents: "none" }}>
-                                    {value}
-                                  </text>
-                                );
-                              }}
-                            />
-                          </Bar>
-                        ))}
+                        {months.map((m, i) => {
+                          const barColor = MONTH_COLORS[i % MONTH_COLORS.length];
+                          return (
+                            <Bar key={m} dataKey={m} fill={barColor} name={m} radius={[4, 4, 0, 0]} maxBarSize={32}>
+                              <LabelList
+                                dataKey={m}
+                                content={(props: any) => {
+                                  const { x, y, width, value } = props;
+                                  if (!value || Number(value) < 1) return null;
+                                  const cx = Number(x) + Number(width) / 2;
+                                  return (
+                                    <g style={{ pointerEvents: "none" }}>
+                                      <rect x={cx - 12} y={Number(y) - 17} width={24} height={14} rx={3} fill={barColor} opacity={0.15} />
+                                      <text x={cx} y={Number(y) - 10} fill={barColor} fontSize={10} fontWeight={800} textAnchor="middle" dominantBaseline="middle">
+                                        {value}건
+                                      </text>
+                                    </g>
+                                  );
+                                }}
+                              />
+                            </Bar>
+                          );
+                        })}
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
@@ -793,13 +799,14 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
                               dataKey={d.team}
                               content={(props: any) => {
                                 const { x, y, width, height, value } = props;
-                                if (!value || Number(value) < 1 || Number(height) < 26 || Number(width) < 28) return null;
+                                if (!value || Number(value) < 1 || Number(height) < 18 || Number(width) < 22) return null;
                                 const cx = Number(x) + Number(width) / 2;
                                 const cy = Number(y) + Number(height) / 2;
+                                const showTeam = Number(height) >= 26;
                                 return (
                                   <g style={{ pointerEvents: "none" }}>
-                                    <text x={cx} y={cy - 6} fill="white" fontSize={9} fontWeight={700} textAnchor="middle" dominantBaseline="middle">{teamShort}</text>
-                                    <text x={cx} y={cy + 7} fill="rgba(255,255,255,0.85)" fontSize={8} textAnchor="middle" dominantBaseline="middle">{value}건</text>
+                                    {showTeam && <text x={cx} y={cy - 6} fill="white" fontSize={9} fontWeight={700} textAnchor="middle" dominantBaseline="middle">{teamShort}</text>}
+                                    <text x={cx} y={showTeam ? cy + 6 : cy} fill="rgba(255,255,255,0.92)" fontSize={showTeam ? 8 : 9} fontWeight={700} textAnchor="middle" dominantBaseline="middle">{value}건</text>
                                   </g>
                                 );
                               }}
@@ -808,7 +815,22 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
                         );
                       })}
                       <Bar dataKey="_total" stackId="b" fill="transparent" legendType="none" isAnimationActive={false}>
-                        <LabelList dataKey="_total" position="top" formatter={(v: number) => (v > 0 ? `${v}건` : "")} style={{ fontSize: 12, fontWeight: 700, fill: "#4B5563" }} />
+                        <LabelList
+                          dataKey="_total"
+                          content={(props: any) => {
+                            const { x, y, width, value } = props;
+                            if (!value || Number(value) < 1) return null;
+                            const cx = Number(x) + Number(width) / 2;
+                            return (
+                              <g style={{ pointerEvents: "none" }}>
+                                <rect x={cx - 16} y={Number(y) - 18} width={32} height={15} rx={3} fill="#7C3AED" opacity={0.12} />
+                                <text x={cx} y={Number(y) - 11} fill="#5B21B6" fontSize={11} fontWeight={800} textAnchor="middle" dominantBaseline="middle">
+                                  {value}건
+                                </text>
+                              </g>
+                            );
+                          }}
+                        />
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
