@@ -455,27 +455,27 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
         </Card>
       </div>
 
-      {/* 단계별 + 안전등급별 차트 */}
-      <div className="grid lg:grid-cols-2 gap-4">
+      {/* 단계별 + 안전등급별 + 날짜별 차트 — 한 줄 3열 */}
+      <div className="grid lg:grid-cols-3 gap-4">
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2">
+          <CardHeader className="pb-1.5 pt-4 px-4">
+            <CardTitle className="text-xs flex items-center gap-1.5">
               <span>순회점검 단계별 현황</span>
-              <Badge variant="secondary">{stageData.length}단계</Badge>
+              <Badge variant="secondary" className="text-[10px] h-4 px-1.5">{stageData.length}단계</Badge>
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-4 pb-4">
             {stageData.length === 0 ? (
-              <div className="h-48 flex items-center justify-center text-sm text-muted-foreground">데이터 없음</div>
+              <div className="h-36 flex items-center justify-center text-xs text-muted-foreground">데이터 없음</div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {stageData.map(({ stage, count, color }) => (
-                  <div key={stage} className="space-y-1">
-                    <div className="flex justify-between text-sm">
-                      <span className="font-medium">{stage}</span>
-                      <span className="text-muted-foreground">{count}건 ({((count/total)*100).toFixed(1)}%)</span>
+                  <div key={stage} className="space-y-0.5">
+                    <div className="flex justify-between text-xs">
+                      <span className="font-medium truncate max-w-[120px]" title={stage}>{stage}</span>
+                      <span className="text-muted-foreground ml-1 shrink-0">{count}건 ({((count/total)*100).toFixed(0)}%)</span>
                     </div>
-                    <div className="h-2 bg-muted rounded-full overflow-hidden">
+                    <div className="h-1.5 bg-muted rounded-full overflow-hidden">
                       <div className="h-full rounded-full transition-all" style={{ width: `${(count/total)*100}%`, backgroundColor: color }} />
                     </div>
                   </div>
@@ -486,28 +486,28 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
         </Card>
 
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">안전등급별 현황</CardTitle>
+          <CardHeader className="pb-1.5 pt-4 px-4">
+            <CardTitle className="text-xs">안전등급별 현황</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-4 pb-4">
             {gradeData.length === 0 ? (
-              <div className="h-48 flex items-center justify-center text-sm text-muted-foreground">데이터 없음</div>
+              <div className="h-36 flex items-center justify-center text-xs text-muted-foreground">데이터 없음</div>
             ) : (
-              <div className="flex items-center gap-4">
-                <ResponsiveContainer width="55%" height={160}>
+              <div className="flex items-center gap-3">
+                <ResponsiveContainer width="50%" height={130}>
                   <PieChart>
-                    <Pie data={gradeData} dataKey="count" nameKey="grade" cx="50%" cy="50%" outerRadius={68} innerRadius={36}>
+                    <Pie data={gradeData} dataKey="count" nameKey="grade" cx="50%" cy="50%" outerRadius={54} innerRadius={28}>
                       {gradeData.map(({ color }, i) => <Cell key={i} fill={color} />)}
                     </Pie>
                     <Tooltip formatter={(v: any, name: any) => [`${v}건`, name]} />
                   </PieChart>
                 </ResponsiveContainer>
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   {gradeData.map(({ grade, count, color }) => (
-                    <div key={grade} className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
-                      <span className="text-sm font-medium">{grade}</span>
-                      <span className="text-sm text-muted-foreground ml-auto">{count}건</span>
+                    <div key={grade} className="flex items-center gap-1.5">
+                      <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+                      <span className="text-xs font-medium">{grade}</span>
+                      <span className="text-xs text-muted-foreground ml-auto pl-2">{count}건</span>
                     </div>
                   ))}
                 </div>
@@ -515,29 +515,28 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
             )}
           </CardContent>
         </Card>
-      </div>
 
-      {/* 날짜별 건수 차트 */}
-      {dateData.length > 0 && (
+        {dateData.length > 0 && (
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">날짜별 작업 건수</CardTitle>
+          <CardHeader className="pb-1.5 pt-4 px-4">
+            <CardTitle className="text-xs">날짜별 작업 건수</CardTitle>
           </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={190}>
-              <BarChart data={dateData} margin={{ top: 20, right: 10, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-                <Tooltip formatter={(v: any) => [`${v}건`, "건수"]} />
-                <Bar dataKey="count" fill="#3B82F6" radius={[4, 4, 0, 0]}>
-                  <LabelList dataKey="count" position="top" style={{ fontSize: 11, fontWeight: 600, fill: "#374151" }} formatter={(v: any) => `${v}건`} />
+          <CardContent className="px-2 pb-4">
+            <ResponsiveContainer width="100%" height={150}>
+              <BarChart data={dateData} margin={{ top: 16, right: 8, left: -8, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" vertical={false} />
+                <XAxis dataKey="date" tick={{ fontSize: 10 }} axisLine={{ stroke: "#E5E7EB" }} tickLine={false} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={20} />
+                <Tooltip formatter={(v: any) => [`${v}건`, "건수"]} contentStyle={{ fontSize: 11, borderRadius: 8 }} />
+                <Bar dataKey="count" fill="#3B82F6" radius={[3, 3, 0, 0]}>
+                  <LabelList dataKey="count" position="top" style={{ fontSize: 10, fontWeight: 600, fill: "#374151" }} formatter={(v: any) => `${v}`} />
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
-      )}
+        )}
+      </div>
 
       {/* 부서장 입회 현황 + 추이 (통합 카드) */}
       {records.length > 0 && (
