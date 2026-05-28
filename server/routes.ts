@@ -6068,20 +6068,34 @@ ${htmlDraft}
       let tableRows: string[][] = [];
 
       if (isCsv) {
-        const rawText = fs.readFileSync(req.file.path, "utf-8");
-        const lines = rawText.split(/\r?\n/).filter(l => l.trim());
-        tableRows = lines.map(line => {
-          const cells: string[] = [];
-          let cur = "", inQ = false;
-          for (let i = 0; i < line.length; i++) {
-            const ch = line[i];
-            if (ch === '"') { inQ = !inQ; continue; }
-            if (ch === ',' && !inQ) { cells.push(cur.trim()); cur = ""; continue; }
-            cur += ch;
+        // BOM 제거 + 멀티라인 quoted 필드 지원 CSV 파서
+        const rawText = fs.readFileSync(req.file.path, "utf-8").replace(/^\uFEFF/, "");
+        const rows: string[][] = [];
+        let row: string[] = [];
+        let field = "";
+        let inQuotes = false;
+        for (let i = 0; i < rawText.length; i++) {
+          const ch = rawText[i];
+          const next = rawText[i + 1];
+          if (ch === '"') {
+            if (inQuotes && next === '"') { field += '"'; i++; }
+            else inQuotes = !inQuotes;
+          } else if (ch === ',' && !inQuotes) {
+            row.push(field.trim()); field = "";
+          } else if ((ch === '\r' || ch === '\n') && !inQuotes) {
+            if (ch === '\r' && next === '\n') i++;
+            row.push(field.trim());
+            if (row.some(c => c)) rows.push(row);
+            row = []; field = "";
+          } else if (inQuotes && (ch === '\r' || ch === '\n')) {
+            if (ch === '\r' && next === '\n') i++;
+            field += ' ';
+          } else {
+            field += ch;
           }
-          cells.push(cur.trim());
-          return cells;
-        });
+        }
+        if (field || row.length > 0) { row.push(field.trim()); if (row.some(c => c)) rows.push(row); }
+        tableRows = rows;
       } else {
         const workbook = new ExcelJS.Workbook();
         await workbook.xlsx.readFile(req.file.path);
@@ -6105,16 +6119,32 @@ ${htmlDraft}
       if (tableRows.length < 2) return res.status(400).json({ message: "데이터가 없습니다" });
 
       // 헤더 컬럼 매핑
-      const headerRow = tableRows[0].map(h => h.trim().toLowerCase());
+      const headerRowRaw = tableRows[0].map(h => h.trim());
+      const headerRow = headerRowRaw.map(h => h.toLowerCase());
       const findCol = (keywords: string[]) => headerRow.findIndex(h => keywords.some(k => h.includes(k)));
 
-      const dateCol   = findCol(["날짜", "date", "일자", "입회일"]);
-      const nameCol   = findCol(["이름", "성명", "name", "입회자"]);
-      const companyCol = findCol(["소속", "업체", "회사", "company", "기업"]);
-      const deptCol   = findCol(["부서", "dept", "팀", "department"]);
-      const typeCol   = findCol(["유형", "종류", "type", "구분", "입회유형", "입회종류"]);
+      // 점검대상 관리 CSV 형식 감지 (공사작업번호 / 순회점검단계 컬럼 존재)
+      const isInspectionFormat = headerRowRaw.some(h => h.includes("공사작업번호") || h.includes("순회점검단계"));
 
-      if (nameCol === -1) return res.status(400).json({ message: "이름/성명 컬럼을 찾을 수 없습니다. 헤더에 '이름', '성명', '입회자' 중 하나가 있어야 합니다." });
+      let dateCol: number, nameCol: number, companyCol: number, deptCol: number, typeCol: number;
+
+      if (isInspectionFormat) {
+        // 점검대상 관리 형식: 순회점검대상자=입회자, 작업자=소속, 공사내용=부서, 순회점검단계=유형
+        dateCol     = headerRowRaw.findIndex(h => h.includes("공사/작업시작일"));
+        nameCol     = headerRowRaw.findIndex(h => h.includes("순회점검대상자"));
+        companyCol  = headerRowRaw.findIndex(h => h === "작업자");
+        deptCol     = headerRowRaw.findIndex(h => h.includes("공사내용"));
+        typeCol     = headerRowRaw.findIndex(h => h.includes("순회점검단계"));
+        if (nameCol === -1) nameCol = headerRowRaw.findIndex(h => h.includes("합동점검담당자"));
+        if (nameCol === -1) nameCol = headerRowRaw.findIndex(h => h.includes("공사작업번호"));
+      } else {
+        dateCol    = findCol(["날짜", "date", "일자", "입회일"]);
+        nameCol    = findCol(["이름", "성명", "name", "입회자"]);
+        companyCol = findCol(["소속", "업체", "회사", "company", "기업"]);
+        deptCol    = findCol(["부서", "dept", "팀", "department"]);
+        typeCol    = findCol(["유형", "종류", "type", "구분", "입회유형", "입회종류"]);
+        if (nameCol === -1) return res.status(400).json({ message: "이름/성명 컬럼을 찾을 수 없습니다. 헤더에 '이름', '성명', '입회자' 중 하나가 있어야 합니다." });
+      }
 
       // ISO 주차 계산
       function getISOWeek(date: Date): number {
@@ -6152,7 +6182,12 @@ ${htmlDraft}
 
       let insertedCount = 0;
       for (const row of dataRows) {
-        const name = nameCol >= 0 ? (row[nameCol] || "").trim() : "";
+        let name = nameCol >= 0 ? (row[nameCol] || "").trim() : "";
+        // 점검 형식: 이름이 없으면 공사작업번호를 식별자로 사용
+        if (!name && isInspectionFormat) {
+          const jobNoCol = headerRowRaw.findIndex(h => h.includes("공사작업번호"));
+          name = jobNoCol >= 0 ? (row[jobNoCol] || "").trim() : "";
+        }
         if (!name) continue;
 
         const rawDate = dateCol >= 0 ? (row[dateCol] || "").trim() : "";
@@ -6183,7 +6218,7 @@ ${htmlDraft}
 
       // 실제 삽입된 건수로 업데이트
       fs.unlink(req.file.path, () => {});
-      res.json({ message: "업로드 완료", count: insertedCount, uploadId: upload.id });
+      res.json({ message: "업로드 완료", count: insertedCount, uploadId: upload.id, isInspectionFormat });
     } catch (e: any) {
       console.error("[AttendanceUpload error]", e);
       res.status(500).json({ message: e.message || "업로드에 실패했습니다" });
@@ -6197,6 +6232,131 @@ ${htmlDraft}
       await storage.deleteAttendanceUpload(id);
       res.json({ message: "삭제되었습니다" });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // 입회/점검 기록 엑셀 다운로드
+  app.get('/api/attendance/export', isAuthenticated, async (req: any, res) => {
+    try {
+      const uploadId = req.query.uploadId ? parseInt(req.query.uploadId as string) : undefined;
+      const records = await storage.getAttendanceRecords(uploadId ? { uploadId } : undefined);
+
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = "SafeBoard";
+
+      // ── 1. 상세 데이터 시트 ──
+      const detail = workbook.addWorksheet("순회점검 현황");
+      const headerStyle: Partial<ExcelJS.Style> = {
+        fill: { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E40AF" } },
+        font: { color: { argb: "FFFFFFFF" }, bold: true, size: 11 },
+        alignment: { vertical: "middle", horizontal: "center", wrapText: true },
+        border: {
+          top: { style: "thin" }, bottom: { style: "thin" },
+          left: { style: "thin" }, right: { style: "thin" }
+        }
+      };
+      const dataBorder: Partial<ExcelJS.Style> = {
+        border: {
+          top: { style: "thin", color: { argb: "FFD1D5DB" } },
+          bottom: { style: "thin", color: { argb: "FFD1D5DB" } },
+          left: { style: "thin", color: { argb: "FFD1D5DB" } },
+          right: { style: "thin", color: { argb: "FFD1D5DB" } }
+        },
+        alignment: { vertical: "middle", wrapText: false }
+      };
+      const headers = ["No.", "작업일자", "순회점검대상자", "작업자(소속)", "공사내용(안전등급)", "순회점검단계"];
+      const colWidths = [6, 14, 16, 40, 44, 16];
+      detail.addRow(headers);
+      detail.getRow(1).height = 22;
+      detail.getRow(1).eachCell((cell) => Object.assign(cell, headerStyle));
+      detail.columns = colWidths.map(w => ({ width: w }));
+
+      records.forEach((r, idx) => {
+        const row = detail.addRow([
+          idx + 1,
+          r.attendanceDate,
+          r.name,
+          r.company || "",
+          r.department || "",
+          r.attendanceType || "",
+        ]);
+        row.height = 18;
+        row.eachCell((cell) => {
+          cell.border = dataBorder.border;
+          cell.alignment = dataBorder.alignment;
+          if (idx % 2 === 1) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF8FAFF" } };
+        });
+      });
+
+      // ── 2. 요약 시트 ──
+      const summary = workbook.addWorksheet("요약");
+      const addSummaryHeader = (ws: ExcelJS.Worksheet, title: string, row: number) => {
+        const cell = ws.getCell(row, 1);
+        cell.value = title;
+        cell.font = { bold: true, size: 12, color: { argb: "FF1E40AF" } };
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE0E7FF" } };
+        ws.mergeCells(row, 1, row, 3);
+        cell.alignment = { horizontal: "center", vertical: "middle" };
+        ws.getRow(row).height = 20;
+      };
+      summary.columns = [{ width: 22 }, { width: 14 }, { width: 14 }];
+
+      // 단계별 현황
+      addSummaryHeader(summary, "◆ 순회점검 단계별 현황", 1);
+      summary.addRow(["단계", "건수", "비율"]);
+      summary.getRow(2).eachCell(c => Object.assign(c, headerStyle));
+      const stageMap = new Map<string, number>();
+      records.forEach(r => { const k = r.attendanceType || "미확인"; stageMap.set(k, (stageMap.get(k) || 0) + 1); });
+      let sRow = 3;
+      stageMap.forEach((cnt, stage) => {
+        const pct = records.length ? ((cnt / records.length) * 100).toFixed(1) + "%" : "0%";
+        summary.addRow([stage, cnt, pct]);
+        summary.getRow(sRow).eachCell(c => Object.assign(c, dataBorder));
+        sRow++;
+      });
+
+      // 안전등급별 현황
+      const gradeStart = sRow + 1;
+      addSummaryHeader(summary, "◆ 안전등급별 현황", gradeStart);
+      summary.addRow(["안전등급", "건수", "비율"]);
+      summary.getRow(gradeStart + 1).eachCell(c => Object.assign(c, headerStyle));
+      const gradeMap = new Map<string, number>();
+      records.forEach(r => {
+        const m = (r.department || "").match(/^(\d+등급)/);
+        const g = m ? m[1] : "미분류";
+        gradeMap.set(g, (gradeMap.get(g) || 0) + 1);
+      });
+      let gRow = gradeStart + 2;
+      [...gradeMap.entries()].sort(([a], [b]) => a.localeCompare(b)).forEach(([g, cnt]) => {
+        const pct = records.length ? ((cnt / records.length) * 100).toFixed(1) + "%" : "0%";
+        summary.addRow([g, cnt, pct]);
+        summary.getRow(gRow).eachCell(c => Object.assign(c, dataBorder));
+        gRow++;
+      });
+
+      // 담당자별 현황
+      const inspStart = gRow + 1;
+      addSummaryHeader(summary, "◆ 순회점검 담당자별 현황", inspStart);
+      summary.addRow(["담당자", "담당 건수", "비율"]);
+      summary.getRow(inspStart + 1).eachCell(c => Object.assign(c, headerStyle));
+      const inspMap = new Map<string, number>();
+      records.forEach(r => { inspMap.set(r.name, (inspMap.get(r.name) || 0) + 1); });
+      let iRow = inspStart + 2;
+      [...inspMap.entries()].sort(([, a], [, b]) => b - a).forEach(([name, cnt]) => {
+        const pct = records.length ? ((cnt / records.length) * 100).toFixed(1) + "%" : "0%";
+        summary.addRow([name, cnt, pct]);
+        summary.getRow(iRow).eachCell(c => Object.assign(c, dataBorder));
+        iRow++;
+      });
+
+      const now = new Date();
+      const fname = `순회점검현황_${now.getFullYear()}${String(now.getMonth()+1).padStart(2,"0")}${String(now.getDate()).padStart(2,"0")}.xlsx`;
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader("Content-Disposition", `attachment; filename*=UTF-8''${encodeURIComponent(fname)}`);
+      await workbook.xlsx.write(res);
+    } catch (e: any) {
+      console.error("[AttendanceExport error]", e);
+      res.status(500).json({ message: e.message });
+    }
   });
 
   // 서버 시작 시 PM10 API 연결 테스트 (비동기, 블로킹 없음)
