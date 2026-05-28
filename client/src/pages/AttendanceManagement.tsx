@@ -457,9 +457,9 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
         </Card>
       </div>
 
-      {/* 단계별 + 안전등급별 + 날짜별 차트 — 한 줄 3열 */}
-      <div className="grid lg:grid-cols-3 gap-4">
-        <Card>
+      {/* 단계별 + 안전등급별 + 날짜별 차트 — 한 줄 5분할 */}
+      <div className="grid lg:grid-cols-5 gap-4">
+        <Card className="lg:col-span-1">
           <CardHeader className="pb-1.5 pt-4 px-4">
             <CardTitle className="text-xs flex items-center gap-1.5">
               <span>순회점검 단계별 현황</span>
@@ -487,7 +487,7 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="lg:col-span-1">
           <CardHeader className="pb-1.5 pt-4 px-4">
             <CardTitle className="text-xs">안전등급별 현황</CardTitle>
           </CardHeader>
@@ -519,7 +519,7 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
         </Card>
 
         {dateData.length > 0 && (
-        <Card>
+        <Card className="lg:col-span-3">
           <CardHeader className="pb-1.5 pt-4 px-4">
             <CardTitle className="text-xs">날짜별 작업 건수</CardTitle>
           </CardHeader>
