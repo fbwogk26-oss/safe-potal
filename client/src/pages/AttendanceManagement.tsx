@@ -37,6 +37,17 @@ interface AttendanceUpload {
 
 const COLORS = ["#3B82F6","#10B981","#F59E0B","#EF4444","#8B5CF6","#06B6D4","#EC4899","#84CC16","#F97316","#6366F1"];
 
+// 7팀 고정 색상 (구분이 잘 되는 팔레트)
+const DEPT_HEAD_COLORS: Record<string, string> = {
+  "구미운용팀":   "#3B82F6",
+  "문경운용팀":   "#10B981",
+  "포항운용팀":   "#F59E0B",
+  "안동운용팀":   "#EF4444",
+  "동대구운용팀": "#8B5CF6",
+  "서대구운용팀": "#06B6D4",
+  "남대구운용팀": "#EC4899",
+};
+
 const STAGE_COLORS: Record<string, string> = {
   "점검전": "#EF4444",
   "1차결재대기": "#F59E0B",
@@ -360,9 +371,13 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
     deptHeadRecords.forEach(r => { if (r.weekNum) weekSet.add(r.weekNum); });
     return [...weekSet].sort((a, b) => a - b).map(w => {
       const entry: Record<string, any> = { period: `${w}주` };
+      let total = 0;
       DEPT_HEADS.forEach(d => {
-        entry[d.team] = deptHeadRecords.filter(r => r.weekNum === w && getDeptHead(r.name)?.prefix === d.prefix).length;
+        const cnt = deptHeadRecords.filter(r => r.weekNum === w && getDeptHead(r.name)?.prefix === d.prefix).length;
+        entry[d.team] = cnt;
+        total += cnt;
       });
+      entry._total = total;
       return entry;
     });
   })();
@@ -372,9 +387,13 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
     deptHeadRecords.forEach(r => { if (r.month) monthSet.add(r.month); });
     return [...monthSet].sort((a, b) => a - b).map(m => {
       const entry: Record<string, any> = { period: `${m}월` };
+      let total = 0;
       DEPT_HEADS.forEach(d => {
-        entry[d.team] = deptHeadRecords.filter(r => r.month === m && getDeptHead(r.name)?.prefix === d.prefix).length;
+        const cnt = deptHeadRecords.filter(r => r.month === m && getDeptHead(r.name)?.prefix === d.prefix).length;
+        entry[d.team] = cnt;
+        total += cnt;
       });
+      entry._total = total;
       return entry;
     });
   })();
@@ -617,25 +636,88 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
             </div>
 
             {/* 오른쪽: 추이 차트 */}
-            <div className="p-4">
+            <div className="p-4 flex flex-col gap-2">
               {deptHeadTrendData.length === 0 ? (
-                <div className="h-full min-h-[180px] flex flex-col items-center justify-center text-sm text-muted-foreground gap-2">
+                <div className="h-full min-h-[200px] flex flex-col items-center justify-center text-sm text-muted-foreground gap-2">
                   <TrendingUp className="h-8 w-8 text-muted-foreground/30" />
                   <span>추이 데이터 없음</span>
                 </div>
               ) : (
-                <ResponsiveContainer width="100%" height={230}>
-                  <BarChart data={deptHeadTrendData} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(147,51,234,0.1)" />
-                    <XAxis dataKey="period" tick={{ fontSize: 10 }} />
-                    <YAxis allowDecimals={false} tick={{ fontSize: 10 }} />
-                    <Tooltip contentStyle={{ fontSize: 11, borderRadius: 8 }} />
-                    <Legend wrapperStyle={{ fontSize: 10 }} iconSize={8} />
-                    {DEPT_HEADS.map((d, i) => (
-                      <Bar key={d.team} dataKey={d.team} stackId="a" fill={COLORS[i % COLORS.length]} name={`${d.team}`} radius={i === DEPT_HEADS.length - 1 ? [3, 3, 0, 0] : [0, 0, 0, 0]} />
+                <>
+                  {/* 범례 (커스텀) */}
+                  <div className="flex flex-wrap gap-x-3 gap-y-1 px-1">
+                    {DEPT_HEADS.map(d => (
+                      <div key={d.team} className="flex items-center gap-1">
+                        <span className="inline-block w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: DEPT_HEAD_COLORS[d.team] ?? "#9CA3AF" }} />
+                        <span className="text-[11px] text-muted-foreground">{d.team}</span>
+                      </div>
                     ))}
-                  </BarChart>
-                </ResponsiveContainer>
+                  </div>
+                  <ResponsiveContainer width="100%" height={248}>
+                    <BarChart
+                      data={deptHeadTrendData}
+                      margin={{ top: 20, right: 12, left: -4, bottom: 4 }}
+                      barCategoryGap="30%"
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" vertical={false} />
+                      <XAxis
+                        dataKey="period"
+                        tick={{ fontSize: 12, fill: "#6B7280", fontWeight: 500 }}
+                        axisLine={{ stroke: "#E5E7EB" }}
+                        tickLine={false}
+                      />
+                      <YAxis
+                        allowDecimals={false}
+                        tick={{ fontSize: 11, fill: "#9CA3AF" }}
+                        axisLine={false}
+                        tickLine={false}
+                        width={24}
+                      />
+                      <Tooltip
+                        cursor={{ fill: "rgba(147,51,234,0.05)" }}
+                        content={({ active, payload, label }) => {
+                          if (!active || !payload?.length) return null;
+                          const total = payload.reduce((s, p) => s + (Number(p.value) || 0), 0);
+                          return (
+                            <div className="bg-white dark:bg-zinc-800 border border-border rounded-xl shadow-lg p-3 min-w-[160px]">
+                              <p className="text-xs font-semibold text-foreground mb-2 pb-1.5 border-b border-border">{label} · 합계 <span className="text-purple-600">{total}건</span></p>
+                              <div className="space-y-1">
+                                {[...payload].reverse().map(p => Number(p.value) > 0 && (
+                                  <div key={p.dataKey as string} className="flex items-center justify-between gap-3">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="inline-block w-2 h-2 rounded-sm" style={{ backgroundColor: p.fill as string }} />
+                                      <span className="text-[11px] text-muted-foreground">{p.dataKey}</span>
+                                    </div>
+                                    <span className="text-[11px] font-medium tabular-nums">{p.value}건</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        }}
+                      />
+                      {DEPT_HEADS.map((d, i) => (
+                        <Bar
+                          key={d.team}
+                          dataKey={d.team}
+                          stackId="a"
+                          fill={DEPT_HEAD_COLORS[d.team] ?? COLORS[i % COLORS.length]}
+                          name={d.team}
+                          radius={i === DEPT_HEADS.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                        />
+                      ))}
+                      {/* 합계 라벨용 투명 bar */}
+                      <Bar dataKey="_total" stackId="b" fill="transparent" legendType="none" isAnimationActive={false}>
+                        <LabelList
+                          dataKey="_total"
+                          position="top"
+                          formatter={(v: number) => (v > 0 ? `${v}건` : "")}
+                          style={{ fontSize: 12, fontWeight: 700, fill: "#4B5563" }}
+                        />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </>
               )}
             </div>
           </div>
