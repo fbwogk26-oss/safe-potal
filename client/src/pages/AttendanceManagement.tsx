@@ -649,7 +649,7 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
             </div>
 
             {/* 오른쪽: 추이 차트 */}
-            <div className="p-4 flex flex-col gap-2">
+            <div className="p-4 flex flex-col gap-1">
               {deptHeadTrendData.length === 0 ? (
                 <div className="h-full min-h-[200px] flex flex-col items-center justify-center text-sm text-muted-foreground gap-2">
                   <TrendingUp className="h-8 w-8 text-muted-foreground/30" />
@@ -657,25 +657,35 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
                 </div>
               ) : (
                 <>
-                  <ResponsiveContainer width="100%" height={268}>
+                  {/* 주별: 전체 합계 표시 */}
+                  {trendView === "weekly" && (() => {
+                    const grandTotal = deptHeadTrendData.reduce((s, d) => s + (Number(d._total) || 0), 0);
+                    return (
+                      <div className="flex items-center justify-end gap-1 px-1 pb-0.5">
+                        <span className="text-[11px] text-muted-foreground">전체 합계</span>
+                        <span className="text-sm font-bold text-purple-600">{grandTotal}건</span>
+                      </div>
+                    );
+                  })()}
+                  <ResponsiveContainer width="100%" height={trendView === "monthly" ? 290 : 268}>
                     <BarChart
                       data={deptHeadTrendData}
                       margin={{ top: 24, right: 12, left: -4, bottom: 4 }}
-                      barCategoryGap="30%"
+                      barCategoryGap={trendView === "monthly" ? "18%" : "30%"}
                     >
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" vertical={false} />
                       <XAxis
                         dataKey="period"
-                        tick={{ fontSize: 12, fill: "#6B7280", fontWeight: 500 }}
+                        tick={{ fontSize: trendView === "monthly" ? 13 : 12, fill: "#6B7280", fontWeight: 500 }}
                         axisLine={{ stroke: "#E5E7EB" }}
                         tickLine={false}
                       />
                       <YAxis
                         allowDecimals={false}
-                        tick={{ fontSize: 11, fill: "#9CA3AF" }}
+                        tick={{ fontSize: trendView === "monthly" ? 12 : 11, fill: "#9CA3AF" }}
                         axisLine={false}
                         tickLine={false}
-                        width={24}
+                        width={28}
                       />
                       <Tooltip
                         cursor={{ fill: "rgba(147,51,234,0.05)" }}
@@ -703,6 +713,7 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
                       {DEPT_HEADS.map((d, i) => {
                         const teamShort = d.team.replace("운용팀", "");
                         const color = DEPT_HEAD_COLORS[d.team] ?? COLORS[i % COLORS.length];
+                        const isMonthly = trendView === "monthly";
                         return (
                           <Bar
                             key={d.team}
@@ -716,15 +727,19 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
                               dataKey={d.team}
                               content={(props: any) => {
                                 const { x, y, width, height, value } = props;
-                                if (!value || Number(value) < 1 || Number(height) < 26 || Number(width) < 28) return null;
+                                const minH = isMonthly ? 30 : 26;
+                                const minW = isMonthly ? 32 : 28;
+                                if (!value || Number(value) < 1 || Number(height) < minH || Number(width) < minW) return null;
                                 const cx = Number(x) + Number(width) / 2;
                                 const cy = Number(y) + Number(height) / 2;
+                                const fs1 = isMonthly ? 11 : 9;
+                                const fs2 = isMonthly ? 10 : 8;
                                 return (
                                   <g style={{ pointerEvents: "none" }}>
-                                    <text x={cx} y={cy - 6} fill="white" fontSize={9} fontWeight={700} textAnchor="middle" dominantBaseline="middle">
+                                    <text x={cx} y={cy - 7} fill="white" fontSize={fs1} fontWeight={700} textAnchor="middle" dominantBaseline="middle">
                                       {teamShort}
                                     </text>
-                                    <text x={cx} y={cy + 7} fill="rgba(255,255,255,0.85)" fontSize={8} textAnchor="middle" dominantBaseline="middle">
+                                    <text x={cx} y={cy + 8} fill="rgba(255,255,255,0.85)" fontSize={fs2} textAnchor="middle" dominantBaseline="middle">
                                       {value}건
                                     </text>
                                   </g>
@@ -740,7 +755,7 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
                           dataKey="_total"
                           position="top"
                           formatter={(v: number) => (v > 0 ? `${v}건` : "")}
-                          style={{ fontSize: 12, fontWeight: 700, fill: "#4B5563" }}
+                          style={{ fontSize: trendView === "monthly" ? 13 : 12, fontWeight: 700, fill: "#4B5563" }}
                         />
                       </Bar>
                     </BarChart>
