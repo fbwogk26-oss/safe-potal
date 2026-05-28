@@ -569,14 +569,15 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
             <CardTitle className="text-sm">순회점검 담당자별 현황</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={Math.max(120, Math.min(10, inspData.length) * 26)}>
-              <BarChart data={inspData.slice(0, 10)} layout="vertical" margin={{ left: 8, right: 20 }}>
+            <ResponsiveContainer width="100%" height={Math.max(200, Math.min(10, inspData.length) * 40)}>
+              <BarChart data={inspData.slice(0, 10)} layout="vertical" margin={{ left: 8, right: 36 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                 <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
-                <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={60} />
+                <YAxis type="category" dataKey="name" tick={{ fontSize: 12 }} width={68} />
                 <Tooltip formatter={(v: any) => [`${v}건`, "담당 건수"]} />
                 <Bar dataKey="count" radius={[0, 4, 4, 0]}>
                   {inspData.slice(0, 10).map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                  <LabelList dataKey="count" position="insideRight" style={{ fontSize: 11, fontWeight: 700, fill: "#fff" }} formatter={(v: any) => `${v}건`} />
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
