@@ -655,38 +655,103 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
                   <TrendingUp className="h-8 w-8 text-muted-foreground/30" />
                   <span>추이 데이터 없음</span>
                 </div>
-              ) : (
-                <>
-                  {/* 주별: 전체 합계 표시 */}
-                  {trendView === "weekly" && (() => {
-                    const grandTotal = deptHeadTrendData.reduce((s, d) => s + (Number(d._total) || 0), 0);
-                    return (
-                      <div className="flex items-center justify-end gap-1 px-1 pb-0.5">
+              ) : trendView === "monthly" ? (() => {
+                /* ── 월별: 팀별 그룹 세로 막대 ── */
+                const grandTotal = deptHeadTrendData.reduce((s, d) => s + (Number(d._total) || 0), 0);
+                const teamTotals = DEPT_HEADS.map(d => ({
+                  team: d.team,
+                  short: d.team.replace("운용팀", ""),
+                  color: DEPT_HEAD_COLORS[d.team] ?? "#9CA3AF",
+                  total: deptHeadTrendData.reduce((s, row) => s + (Number(row[d.team]) || 0), 0),
+                })).filter(t => t.total > 0);
+                return (
+                  <div className="flex flex-col gap-2 h-full">
+                    {/* 총 건수 + 팀별 칩 */}
+                    <div className="flex flex-col gap-1.5 px-1">
+                      <div className="flex items-center gap-2">
                         <span className="text-[11px] text-muted-foreground">전체 합계</span>
-                        <span className="text-sm font-bold text-purple-600">{grandTotal}건</span>
+                        <span className="text-base font-bold text-purple-600">{grandTotal}건</span>
                       </div>
-                    );
-                  })()}
-                  <ResponsiveContainer width="100%" height={trendView === "monthly" ? 290 : 268}>
-                    <BarChart
-                      data={deptHeadTrendData}
-                      margin={{ top: 24, right: 12, left: -4, bottom: 4 }}
-                      barCategoryGap={trendView === "monthly" ? "18%" : "30%"}
-                    >
+                      <div className="flex flex-wrap gap-1.5">
+                        {teamTotals.map(t => (
+                          <span key={t.team} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-white text-[10px] font-semibold" style={{ backgroundColor: t.color }}>
+                            {t.short} · {t.total}건
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    {/* 그룹 세로 막대 */}
+                    <ResponsiveContainer width="100%" height={248}>
+                      <BarChart
+                        data={deptHeadTrendData}
+                        margin={{ top: 22, right: 8, left: -8, bottom: 4 }}
+                        barCategoryGap="20%"
+                        barGap={2}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" vertical={false} />
+                        <XAxis dataKey="period" tick={{ fontSize: 13, fill: "#6B7280", fontWeight: 600 }} axisLine={{ stroke: "#E5E7EB" }} tickLine={false} />
+                        <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "#9CA3AF" }} axisLine={false} tickLine={false} width={24} />
+                        <Tooltip
+                          cursor={{ fill: "rgba(147,51,234,0.04)" }}
+                          content={({ active, payload, label }) => {
+                            if (!active || !payload?.length) return null;
+                            const tot = payload.reduce((s, p) => s + (Number(p.value) || 0), 0);
+                            return (
+                              <div className="bg-white dark:bg-zinc-800 border border-border rounded-xl shadow-lg p-3 min-w-[150px]">
+                                <p className="text-xs font-semibold mb-2 pb-1.5 border-b border-border">{label} · 합계 <span className="text-purple-600">{tot}건</span></p>
+                                <div className="space-y-1">
+                                  {payload.filter(p => Number(p.value) > 0).map(p => (
+                                    <div key={p.dataKey as string} className="flex items-center justify-between gap-3">
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="inline-block w-2 h-2 rounded-sm" style={{ backgroundColor: p.fill as string }} />
+                                        <span className="text-[11px] text-muted-foreground">{(p.dataKey as string).replace("운용팀", "")}</span>
+                                      </div>
+                                      <span className="text-[11px] font-medium tabular-nums">{p.value}건</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          }}
+                        />
+                        {DEPT_HEADS.map((d, i) => {
+                          const color = DEPT_HEAD_COLORS[d.team] ?? COLORS[i % COLORS.length];
+                          const short = d.team.replace("운용팀", "");
+                          return (
+                            <Bar key={d.team} dataKey={d.team} fill={color} name={d.team} radius={[4, 4, 0, 0]} maxBarSize={28}>
+                              <LabelList
+                                dataKey={d.team}
+                                content={(props: any) => {
+                                  const { x, y, width, value } = props;
+                                  if (!value || Number(value) < 1) return null;
+                                  const cx = Number(x) + Number(width) / 2;
+                                  return (
+                                    <g style={{ pointerEvents: "none" }}>
+                                      <text x={cx} y={Number(y) - 14} fill={color} fontSize={9} fontWeight={700} textAnchor="middle" dominantBaseline="middle">{short}</text>
+                                      <text x={cx} y={Number(y) - 4} fill="#374151" fontSize={10} fontWeight={700} textAnchor="middle" dominantBaseline="middle">{value}건</text>
+                                    </g>
+                                  );
+                                }}
+                              />
+                            </Bar>
+                          );
+                        })}
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                );
+              })() : (
+                /* ── 주별: 누적 막대 ── */
+                <>
+                  <div className="flex items-center justify-end gap-1 px-1 pb-0.5">
+                    <span className="text-[11px] text-muted-foreground">전체 합계</span>
+                    <span className="text-sm font-bold text-purple-600">{deptHeadTrendData.reduce((s, d) => s + (Number(d._total) || 0), 0)}건</span>
+                  </div>
+                  <ResponsiveContainer width="100%" height={268}>
+                    <BarChart data={deptHeadTrendData} margin={{ top: 24, right: 12, left: -4, bottom: 4 }} barCategoryGap="30%">
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" vertical={false} />
-                      <XAxis
-                        dataKey="period"
-                        tick={{ fontSize: trendView === "monthly" ? 13 : 12, fill: "#6B7280", fontWeight: 500 }}
-                        axisLine={{ stroke: "#E5E7EB" }}
-                        tickLine={false}
-                      />
-                      <YAxis
-                        allowDecimals={false}
-                        tick={{ fontSize: trendView === "monthly" ? 12 : 11, fill: "#9CA3AF" }}
-                        axisLine={false}
-                        tickLine={false}
-                        width={28}
-                      />
+                      <XAxis dataKey="period" tick={{ fontSize: 12, fill: "#6B7280", fontWeight: 500 }} axisLine={{ stroke: "#E5E7EB" }} tickLine={false} />
+                      <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "#9CA3AF" }} axisLine={false} tickLine={false} width={24} />
                       <Tooltip
                         cursor={{ fill: "rgba(147,51,234,0.05)" }}
                         content={({ active, payload, label }) => {
@@ -713,35 +778,19 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
                       {DEPT_HEADS.map((d, i) => {
                         const teamShort = d.team.replace("운용팀", "");
                         const color = DEPT_HEAD_COLORS[d.team] ?? COLORS[i % COLORS.length];
-                        const isMonthly = trendView === "monthly";
                         return (
-                          <Bar
-                            key={d.team}
-                            dataKey={d.team}
-                            stackId="a"
-                            fill={color}
-                            name={d.team}
-                            radius={i === DEPT_HEADS.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
-                          >
+                          <Bar key={d.team} dataKey={d.team} stackId="a" fill={color} name={d.team} radius={i === DEPT_HEADS.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}>
                             <LabelList
                               dataKey={d.team}
                               content={(props: any) => {
                                 const { x, y, width, height, value } = props;
-                                const minH = isMonthly ? 30 : 26;
-                                const minW = isMonthly ? 32 : 28;
-                                if (!value || Number(value) < 1 || Number(height) < minH || Number(width) < minW) return null;
+                                if (!value || Number(value) < 1 || Number(height) < 26 || Number(width) < 28) return null;
                                 const cx = Number(x) + Number(width) / 2;
                                 const cy = Number(y) + Number(height) / 2;
-                                const fs1 = isMonthly ? 11 : 9;
-                                const fs2 = isMonthly ? 10 : 8;
                                 return (
                                   <g style={{ pointerEvents: "none" }}>
-                                    <text x={cx} y={cy - 7} fill="white" fontSize={fs1} fontWeight={700} textAnchor="middle" dominantBaseline="middle">
-                                      {teamShort}
-                                    </text>
-                                    <text x={cx} y={cy + 8} fill="rgba(255,255,255,0.85)" fontSize={fs2} textAnchor="middle" dominantBaseline="middle">
-                                      {value}건
-                                    </text>
+                                    <text x={cx} y={cy - 6} fill="white" fontSize={9} fontWeight={700} textAnchor="middle" dominantBaseline="middle">{teamShort}</text>
+                                    <text x={cx} y={cy + 7} fill="rgba(255,255,255,0.85)" fontSize={8} textAnchor="middle" dominantBaseline="middle">{value}건</text>
                                   </g>
                                 );
                               }}
@@ -749,14 +798,8 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
                           </Bar>
                         );
                       })}
-                      {/* 합계 라벨용 투명 bar */}
                       <Bar dataKey="_total" stackId="b" fill="transparent" legendType="none" isAnimationActive={false}>
-                        <LabelList
-                          dataKey="_total"
-                          position="top"
-                          formatter={(v: number) => (v > 0 ? `${v}건` : "")}
-                          style={{ fontSize: trendView === "monthly" ? 13 : 12, fontWeight: 700, fill: "#4B5563" }}
-                        />
+                        <LabelList dataKey="_total" position="top" formatter={(v: number) => (v > 0 ? `${v}건` : "")} style={{ fontSize: 12, fontWeight: 700, fill: "#4B5563" }} />
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
