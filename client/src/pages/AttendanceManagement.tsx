@@ -460,25 +460,25 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
       {/* 단계별 + 안전등급별 + 날짜별 차트 — 한 줄 5분할 */}
       <div className="grid lg:grid-cols-5 gap-4">
         <Card className="lg:col-span-1">
-          <CardHeader className="pb-1.5 pt-4 px-4">
-            <CardTitle className="text-xs flex items-center gap-1.5">
-              <span>순회점검 단계별 현황</span>
-              <Badge variant="secondary" className="text-[10px] h-4 px-1.5">{stageData.length}단계</Badge>
-            </CardTitle>
+          <CardHeader className="pb-2 pt-3 px-4 border-b">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-xs font-semibold">순회점검 단계별 현황</CardTitle>
+              <span className="text-[11px] font-bold text-foreground">총 <span className="text-blue-600">{total}</span>건</span>
+            </div>
           </CardHeader>
-          <CardContent className="px-4 pb-4">
+          <CardContent className="px-4 pt-3 pb-4">
             {stageData.length === 0 ? (
-              <div className="h-36 flex items-center justify-center text-xs text-muted-foreground">데이터 없음</div>
+              <div className="h-28 flex items-center justify-center text-xs text-muted-foreground">데이터 없음</div>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-2.5">
                 {stageData.map(({ stage, count, color }) => (
-                  <div key={stage} className="space-y-0.5">
-                    <div className="flex justify-between text-xs">
-                      <span className="font-medium truncate max-w-[120px]" title={stage}>{stage}</span>
-                      <span className="text-muted-foreground ml-1 shrink-0">{count}건 ({((count/total)*100).toFixed(0)}%)</span>
+                  <div key={stage} className="space-y-1">
+                    <div className="flex justify-between text-[11px]">
+                      <span className="font-medium truncate max-w-[110px]" title={stage}>{stage}</span>
+                      <span className="text-muted-foreground shrink-0 tabular-nums">{count}건 <span className="text-[10px]">({((count/total)*100).toFixed(0)}%)</span></span>
                     </div>
-                    <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                      <div className="h-full rounded-full transition-all" style={{ width: `${(count/total)*100}%`, backgroundColor: color }} />
+                    <div className="h-2 bg-muted rounded-full overflow-hidden">
+                      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${(count/total)*100}%`, backgroundColor: color }} />
                     </div>
                   </div>
                 ))}
@@ -488,28 +488,31 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
         </Card>
 
         <Card className="lg:col-span-1">
-          <CardHeader className="pb-1.5 pt-4 px-4">
-            <CardTitle className="text-xs">안전등급별 현황</CardTitle>
+          <CardHeader className="pb-2 pt-3 px-4 border-b">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-xs font-semibold">안전등급별 현황</CardTitle>
+              <span className="text-[11px] font-bold text-foreground">총 <span className="text-emerald-600">{gradeData.reduce((s, g) => s + g.count, 0)}</span>건</span>
+            </div>
           </CardHeader>
-          <CardContent className="px-4 pb-4">
+          <CardContent className="px-3 pt-2 pb-3">
             {gradeData.length === 0 ? (
-              <div className="h-36 flex items-center justify-center text-xs text-muted-foreground">데이터 없음</div>
+              <div className="h-28 flex items-center justify-center text-xs text-muted-foreground">데이터 없음</div>
             ) : (
-              <div className="flex items-center gap-3">
-                <ResponsiveContainer width="50%" height={130}>
+              <div className="flex items-center gap-2">
+                <ResponsiveContainer width="52%" height={110}>
                   <PieChart>
-                    <Pie data={gradeData} dataKey="count" nameKey="grade" cx="50%" cy="50%" outerRadius={54} innerRadius={28}>
+                    <Pie data={gradeData} dataKey="count" nameKey="grade" cx="50%" cy="50%" outerRadius={48} innerRadius={24}>
                       {gradeData.map(({ color }, i) => <Cell key={i} fill={color} />)}
                     </Pie>
                     <Tooltip formatter={(v: any, name: any) => [`${v}건`, name]} />
                   </PieChart>
                 </ResponsiveContainer>
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 flex-1">
                   {gradeData.map(({ grade, count, color }) => (
                     <div key={grade} className="flex items-center gap-1.5">
-                      <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
-                      <span className="text-xs font-medium">{grade}</span>
-                      <span className="text-xs text-muted-foreground ml-auto pl-2">{count}건</span>
+                      <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+                      <span className="text-[11px] font-medium flex-1">{grade}</span>
+                      <span className="text-[11px] text-muted-foreground tabular-nums">{count}건</span>
                     </div>
                   ))}
                 </div>
@@ -520,18 +523,21 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
 
         {dateData.length > 0 && (
         <Card className="lg:col-span-3">
-          <CardHeader className="pb-1.5 pt-4 px-4">
-            <CardTitle className="text-xs">날짜별 작업 건수</CardTitle>
+          <CardHeader className="pb-2 pt-3 px-4 border-b">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-xs font-semibold">날짜별 작업 건수</CardTitle>
+              <span className="text-[11px] font-bold text-foreground">총 <span className="text-violet-600">{dateData.reduce((s, d) => s + d.count, 0)}</span>건 · <span className="text-muted-foreground font-normal">{dateData.length}일</span></span>
+            </div>
           </CardHeader>
-          <CardContent className="px-2 pb-4">
-            <ResponsiveContainer width="100%" height={150}>
-              <BarChart data={dateData} margin={{ top: 16, right: 8, left: -8, bottom: 0 }}>
+          <CardContent className="px-2 pt-1 pb-3">
+            <ResponsiveContainer width="100%" height={148}>
+              <BarChart data={dateData} margin={{ top: 18, right: 8, left: -8, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" vertical={false} />
                 <XAxis dataKey="date" tick={{ fontSize: 10 }} axisLine={{ stroke: "#E5E7EB" }} tickLine={false} />
                 <YAxis allowDecimals={false} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={20} />
                 <Tooltip formatter={(v: any) => [`${v}건`, "건수"]} contentStyle={{ fontSize: 11, borderRadius: 8 }} />
-                <Bar dataKey="count" fill="#3B82F6" radius={[3, 3, 0, 0]}>
-                  <LabelList dataKey="count" position="top" style={{ fontSize: 10, fontWeight: 600, fill: "#374151" }} formatter={(v: any) => `${v}`} />
+                <Bar dataKey="count" fill="#7C3AED" radius={[3, 3, 0, 0]}>
+                  <LabelList dataKey="count" position="top" style={{ fontSize: 10, fontWeight: 700, fill: "#4B5563" }} formatter={(v: any) => `${v}`} />
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -710,22 +716,18 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
                               dataKey={d.team}
                               content={(props: any) => {
                                 const { x, y, width, height, value } = props;
-                                if (!value || Number(value) < 1 || Number(height) < 18) return null;
+                                if (!value || Number(value) < 1 || Number(height) < 26 || Number(width) < 28) return null;
                                 const cx = Number(x) + Number(width) / 2;
                                 const cy = Number(y) + Number(height) / 2;
                                 return (
-                                  <text
-                                    x={cx} y={cy}
-                                    fill="white"
-                                    fontSize={9}
-                                    fontWeight={600}
-                                    textAnchor="middle"
-                                    dominantBaseline="middle"
-                                    transform={`rotate(-90,${cx},${cy})`}
-                                    style={{ pointerEvents: "none" }}
-                                  >
-                                    {teamShort}
-                                  </text>
+                                  <g style={{ pointerEvents: "none" }}>
+                                    <text x={cx} y={cy - 6} fill="white" fontSize={9} fontWeight={700} textAnchor="middle" dominantBaseline="middle">
+                                      {teamShort}
+                                    </text>
+                                    <text x={cx} y={cy + 7} fill="rgba(255,255,255,0.85)" fontSize={8} textAnchor="middle" dominantBaseline="middle">
+                                      {value}건
+                                    </text>
+                                  </g>
                                 );
                               }}
                             />
