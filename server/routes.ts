@@ -6186,7 +6186,7 @@ ${htmlDraft}
       const dataRows = allDataRows.filter(r => {
         if (workTypeCol >= 0) {
           const workType = (r[workTypeCol] || "").trim();
-          if (workType === "직영작업") return false;
+          if (workType.includes("직영")) return false;
         }
         return true;
       });
