@@ -548,24 +548,14 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
 
       {/* 부서장 입회 현황 + 추이 (통합 카드) */}
       {records.length > 0 && (
-        <Card className="overflow-hidden border-purple-200/60 dark:border-purple-800/40">
-          <CardHeader className="pb-3 bg-gradient-to-r from-purple-50 to-violet-50 dark:from-purple-950/30 dark:to-violet-950/20 border-b border-purple-100 dark:border-purple-800/30">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <div className="p-1.5 bg-purple-100 dark:bg-purple-900/40 rounded-md">
-                  <UserCheck className="h-4 w-4 text-purple-600" />
-                </div>
-                <span>부서장 입회 현황</span>
-                <Badge className="bg-purple-600 hover:bg-purple-600 text-white text-xs">{deptHeadRecords.length}건</Badge>
-              </CardTitle>
-              <div className="flex items-center gap-1.5">
-                <TrendingUp className="h-3.5 w-3.5 text-purple-400" />
-                <span className="text-xs text-muted-foreground mr-1">추이</span>
-                <div className="flex gap-0.5 bg-muted/60 rounded-md p-0.5">
-                  <Button size="sm" variant={trendView === "weekly" ? "secondary" : "ghost"} className={`h-6 text-xs px-2.5 ${trendView === "weekly" ? "bg-white dark:bg-zinc-700 shadow-sm" : ""}`} onClick={() => setTrendView("weekly")}>주별</Button>
-                  <Button size="sm" variant={trendView === "monthly" ? "secondary" : "ghost"} className={`h-6 text-xs px-2.5 ${trendView === "monthly" ? "bg-white dark:bg-zinc-700 shadow-sm" : ""}`} onClick={() => setTrendView("monthly")}>월별</Button>
-                </div>
+        <Card className="overflow-hidden border-purple-200/60 dark:border-purple-800/40 shadow-sm">
+          <CardHeader className="py-2.5 px-4 bg-gradient-to-r from-purple-50 to-violet-50 dark:from-purple-950/30 dark:to-violet-950/20 border-b border-purple-100 dark:border-purple-800/30">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 bg-purple-100 dark:bg-purple-900/40 rounded-md">
+                <UserCheck className="h-4 w-4 text-purple-600" />
               </div>
+              <CardTitle className="text-sm font-semibold">부서장 입회 현황</CardTitle>
+              <Badge className="bg-purple-600 hover:bg-purple-600 text-white text-xs">{deptHeadRecords.length}건</Badge>
             </div>
           </CardHeader>
           <div className="grid lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-purple-100/60 dark:divide-purple-800/30">
@@ -617,23 +607,28 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
                           const gradeColor = GRADE_COLORS[grade] || "#9CA3AF";
                           const stageColor = STAGE_COLORS[r.attendanceType || ""] || "#9CA3AF";
                           return (
-                            <TableRow key={r.id} className="bg-purple-50/70 dark:bg-purple-950/25">
-                              <TableCell className="py-1.5" />
-                              <TableCell className="text-[10px] text-muted-foreground whitespace-nowrap pl-3 py-1.5">{r.attendanceDate}</TableCell>
-                              <TableCell className="text-[10px] font-medium py-1.5">{r.name}</TableCell>
-                              <TableCell className="py-1.5 max-w-[130px]">
+                            <TableRow key={r.id} className="bg-purple-50/60 dark:bg-purple-950/20 hover:bg-purple-50 dark:hover:bg-purple-950/30">
+                              <TableCell className="py-2" />
+                              <TableCell className="text-[10px] text-muted-foreground whitespace-nowrap pl-3 py-2">{r.attendanceDate}</TableCell>
+                              <TableCell className="py-2">
+                                <div className="flex flex-col gap-0.5">
+                                  <span className="text-[10px] font-semibold text-foreground">{r.name}</span>
+                                  {r.company && <span className="text-[9px] text-muted-foreground truncate max-w-[100px]" title={r.company}>{r.company}</span>}
+                                </div>
+                              </TableCell>
+                              <TableCell className="py-2 max-w-[130px]">
                                 <div className="flex flex-col gap-0.5">
                                   <span className="truncate text-[10px] text-purple-700 dark:text-purple-300 font-medium" title={r.stationName || ""}>{r.stationName || "-"}</span>
                                   {r.department && <span className="truncate text-[9px] text-muted-foreground" title={r.department}>{r.department}</span>}
                                 </div>
                               </TableCell>
-                              <TableCell className="py-1.5">
-                                <div className="flex items-center gap-1 flex-wrap">
+                              <TableCell className="py-2">
+                                <div className="flex flex-col gap-0.5">
                                   <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
                                     <span className="inline-block w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: gradeColor }} />
                                     {grade}
                                   </span>
-                                  <Badge style={{ backgroundColor: stageColor + "22", color: stageColor, borderColor: stageColor + "55" }} variant="outline" className="text-[10px] h-4 px-1 py-0">
+                                  <Badge style={{ backgroundColor: stageColor + "22", color: stageColor, borderColor: stageColor + "55" }} variant="outline" className="text-[10px] h-4 px-1 py-0 w-fit">
                                     {r.attendanceType || "-"}
                                   </Badge>
                                 </div>
@@ -648,8 +643,26 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
               </Table>
             </div>
 
-            {/* 오른쪽: 추이 차트 */}
-            <div className="p-4 flex flex-col gap-1">
+            {/* 오른쪽: 기간별 추이 차트 */}
+            <div className="flex flex-col bg-gradient-to-br from-slate-50 to-purple-50/30 dark:from-slate-900/40 dark:to-purple-950/10">
+              {/* 패널 헤더 */}
+              <div className="flex items-center justify-between px-4 pt-3 pb-2 border-b border-purple-100/60 dark:border-purple-800/20">
+                <div className="flex items-center gap-1.5">
+                  <TrendingUp className="h-3.5 w-3.5 text-purple-500" />
+                  <span className="text-xs font-semibold text-purple-700 dark:text-purple-300">기간별 추이</span>
+                </div>
+                <div className="flex gap-0.5 bg-white/70 dark:bg-zinc-800/70 border border-purple-100 dark:border-purple-800/40 rounded-lg p-0.5 shadow-sm">
+                  <button
+                    onClick={() => setTrendView("weekly")}
+                    className={`h-6 px-3 text-[11px] font-medium rounded-md transition-all ${trendView === "weekly" ? "bg-purple-600 text-white shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                  >주별</button>
+                  <button
+                    onClick={() => setTrendView("monthly")}
+                    className={`h-6 px-3 text-[11px] font-medium rounded-md transition-all ${trendView === "monthly" ? "bg-purple-600 text-white shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                  >월별</button>
+                </div>
+              </div>
+              <div className="p-3 flex flex-col gap-1 flex-1">
               {deptHeadTrendData.length === 0 ? (
                 <div className="h-full min-h-[200px] flex flex-col items-center justify-center text-sm text-muted-foreground gap-2">
                   <TrendingUp className="h-8 w-8 text-muted-foreground/30" />
@@ -801,6 +814,7 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
                   </ResponsiveContainer>
                 </>
               )}
+              </div>
             </div>
           </div>
         </Card>
