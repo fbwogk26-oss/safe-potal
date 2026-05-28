@@ -1094,7 +1094,15 @@ function TrendContent({ records, viewMode, setViewMode, selectedYear, setSelecte
                   <BarChart data={pData} layout="vertical" margin={{ left: 4, right: 40, top: 2, bottom: 2 }}>
                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
                     <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} />
-                    <YAxis type="category" dataKey="name" tick={{ fontSize: 12, fill: "#334155", fontWeight: 500 }} width={70} axisLine={false} tickLine={false} />
+                    <YAxis type="category" dataKey="name" width={70} axisLine={false} tickLine={false}
+                      tick={({ x, y, payload }: any) => (
+                        <text x={x} y={y} dy={4} textAnchor="end" fontSize={12}
+                          fontWeight={getDeptHead(payload.value) !== null ? 700 : 500}
+                          fill={getDeptHead(payload.value) !== null ? "#2563EB" : "#334155"}>
+                          {payload.value}
+                        </text>
+                      )}
+                    />
                     <Tooltip
                       contentStyle={{ borderRadius: 8, fontSize: 12, border: "1px solid #e2e8f0", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}
                       formatter={(v: any) => [`${v}건`, "건수"]}
@@ -1187,7 +1195,7 @@ function TrendContent({ records, viewMode, setViewMode, selectedYear, setSelecte
                         {/* 이름 + 바 + 건수·비율 */}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between mb-1">
-                            <span className="text-xs font-semibold text-foreground truncate">{p.name}</span>
+                            <span className="text-xs font-semibold truncate" style={getDeptHead(p.name) !== null ? { color: "#2563EB", fontWeight: 700 } : undefined}>{p.name}</span>
                             <div className="flex items-center gap-1 ml-2 shrink-0">
                               <span className="text-[11px] font-bold" style={{ color }}>{p.count}건</span>
                               <span className="text-[10px] text-muted-foreground">·</span>
