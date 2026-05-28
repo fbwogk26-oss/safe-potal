@@ -703,7 +703,7 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
                     <ResponsiveContainer width="100%" height={258}>
                       <BarChart data={teamBasedData} margin={{ top: 22, right: 8, left: -8, bottom: 4 }} barCategoryGap="20%" barGap={3}>
                         <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" vertical={false} />
-                        <XAxis dataKey="team" tick={{ fontSize: 11, fill: "#6B7280", fontWeight: 600 }} axisLine={{ stroke: "#E5E7EB" }} tickLine={false} />
+                        <XAxis dataKey="team" tick={{ fontSize: 11, fill: "#2563EB", fontWeight: 700 }} axisLine={{ stroke: "#E5E7EB" }} tickLine={false} />
                         <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "#9CA3AF" }} axisLine={false} tickLine={false} width={24} />
                         <Tooltip
                           cursor={{ fill: "rgba(147,51,234,0.04)" }}
@@ -805,7 +805,7 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
                                 const showTeam = Number(height) >= 26;
                                 return (
                                   <g style={{ pointerEvents: "none" }}>
-                                    {showTeam && <text x={cx} y={cy - 6} fill="white" fontSize={9} fontWeight={700} textAnchor="middle" dominantBaseline="middle">{teamShort}</text>}
+                                    {showTeam && <text x={cx} y={cy - 6} fill="#BFDBFE" fontSize={9} fontWeight={700} textAnchor="middle" dominantBaseline="middle">{teamShort}</text>}
                                     <text x={cx} y={showTeam ? cy + 6 : cy} fill="rgba(255,255,255,0.92)" fontSize={showTeam ? 8 : 9} fontWeight={700} textAnchor="middle" dominantBaseline="middle">{value}건</text>
                                   </g>
                                 );
