@@ -366,6 +366,11 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
   });
   const deptHeadData = [...deptHeadMap.entries()].map(([team, { count, name, items }]) => ({ team, count, name, items }));
 
+  // 1등급 중 부서장 입회 비율
+  const grade1Records = records.filter(r => extractGrade(r.department) === "1등급");
+  const grade1WithDeptHead = grade1Records.filter(r => getDeptHead(r.name) !== null);
+  const grade1DeptHeadRatio = grade1Records.length > 0 ? (grade1WithDeptHead.length / grade1Records.length) * 100 : 0;
+
   // 부서장 주별/월별 추이
   const deptHeadWeeklyData = (() => {
     const weekSet = new Set<number>();
@@ -550,12 +555,29 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
       {records.length > 0 && (
         <Card className="overflow-hidden border-purple-200/60 dark:border-purple-800/40 shadow-sm">
           <CardHeader className="py-2.5 px-4 bg-gradient-to-r from-purple-50 to-violet-50 dark:from-purple-950/30 dark:to-violet-950/20 border-b border-purple-100 dark:border-purple-800/30">
-            <div className="flex items-center gap-2">
-              <div className="p-1.5 bg-purple-100 dark:bg-purple-900/40 rounded-md">
-                <UserCheck className="h-4 w-4 text-purple-600" />
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 bg-purple-100 dark:bg-purple-900/40 rounded-md">
+                  <UserCheck className="h-4 w-4 text-purple-600" />
+                </div>
+                <CardTitle className="text-sm font-semibold">부서장 입회 현황</CardTitle>
+                <Badge className="bg-purple-600 hover:bg-purple-600 text-white text-xs">{deptHeadRecords.length}건</Badge>
               </div>
-              <CardTitle className="text-sm font-semibold">부서장 입회 현황</CardTitle>
-              <Badge className="bg-purple-600 hover:bg-purple-600 text-white text-xs">{deptHeadRecords.length}건</Badge>
+              {grade1Records.length > 0 && (
+                <div className="flex items-center gap-1.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 rounded-lg px-2.5 py-1">
+                  <span className="text-[11px] text-amber-700 dark:text-amber-300 font-medium">1등급 입회율</span>
+                  <span className="text-[11px] font-bold text-amber-800 dark:text-amber-200">
+                    {grade1WithDeptHead.length}/{grade1Records.length}건
+                  </span>
+                  <span className="inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-[11px] font-bold"
+                    style={{
+                      backgroundColor: grade1DeptHeadRatio >= 80 ? "#22c55e22" : grade1DeptHeadRatio >= 50 ? "#f59e0b22" : "#ef444422",
+                      color: grade1DeptHeadRatio >= 80 ? "#16a34a" : grade1DeptHeadRatio >= 50 ? "#d97706" : "#dc2626",
+                    }}>
+                    {grade1DeptHeadRatio.toFixed(1)}%
+                  </span>
+                </div>
+              )}
             </div>
           </CardHeader>
           <div className="grid lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-purple-100/60 dark:divide-purple-800/30">
