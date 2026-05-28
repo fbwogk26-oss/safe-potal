@@ -747,6 +747,7 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
                   <TableRow className="bg-muted/30 hover:bg-muted/30">
                     <TableHead className="py-2 text-xs">날짜</TableHead>
                     <TableHead className="py-2 text-xs">점검자</TableHead>
+                    <TableHead className="py-2 text-xs">국사명</TableHead>
                     <TableHead className="py-2 text-xs max-w-[200px]">부서/등급</TableHead>
                     <TableHead className="py-2 text-xs">미입회 사유</TableHead>
                     <TableHead className="py-2 text-xs w-16"></TableHead>
@@ -762,6 +763,9 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
                       <TableRow key={r.id} className={savedReason ? "bg-green-50/30 dark:bg-green-950/10" : "bg-red-50/30 dark:bg-red-950/10"}>
                         <TableCell className="text-xs text-muted-foreground whitespace-nowrap py-2">{r.attendanceDate}</TableCell>
                         <TableCell className="text-xs font-medium py-2">{r.name}</TableCell>
+                        <TableCell className="text-xs font-medium py-2 whitespace-nowrap">
+                          {r.department?.split("/")[1] || "-"}
+                        </TableCell>
                         <TableCell className="text-xs text-muted-foreground py-2 max-w-[180px]">
                           <span className="truncate block" title={r.department || ""}>{r.department || "-"}</span>
                         </TableCell>
