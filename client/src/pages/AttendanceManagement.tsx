@@ -1047,11 +1047,20 @@ function TrendContent({ records, viewMode, setViewMode, selectedYear, setSelecte
       </div>
 
       <div className="grid lg:grid-cols-2 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">{label} 담당자별 건수</CardTitle>
+        {/* 기간별 담당자 건수 차트 */}
+        <Card className="overflow-hidden border-violet-200/60 dark:border-violet-800/40 shadow-sm">
+          <CardHeader className="py-2.5 px-4 bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-950/30 dark:to-purple-950/20 border-b border-violet-100 dark:border-violet-800/30">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-semibold text-violet-900 dark:text-violet-200 flex items-center gap-2">
+                <span className="inline-block w-2 h-2 rounded-full bg-violet-500" />
+                {label} 담당자별 건수
+              </CardTitle>
+              <Badge className="bg-violet-100 text-violet-700 dark:bg-violet-900/50 dark:text-violet-300 text-xs border-0">
+                {filtered.length}건
+              </Badge>
+            </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4">
             {filtered.length === 0 ? (
               <div className="h-48 flex items-center justify-center text-sm text-muted-foreground">해당 기간 기록 없음</div>
             ) : (() => {
@@ -1059,14 +1068,18 @@ function TrendContent({ records, viewMode, setViewMode, selectedYear, setSelecte
               filtered.forEach(r => pm.set(r.name, (pm.get(r.name) || 0) + 1));
               const pData = [...pm.entries()].sort(([, a], [, b]) => b - a).map(([name, count]) => ({ name, count }));
               return (
-                <ResponsiveContainer width="100%" height={Math.max(180, pData.length * 36)}>
-                  <BarChart data={pData} layout="vertical" margin={{ left: 8, right: 16 }}>
-                    <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                    <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
-                    <YAxis type="category" dataKey="name" tick={{ fontSize: 12 }} width={64} />
-                    <Tooltip formatter={(v: any) => [`${v}건`, "건수"]} />
-                    <Bar dataKey="count" radius={[0, 4, 4, 0]}>
+                <ResponsiveContainer width="100%" height={Math.max(180, pData.length * 38)}>
+                  <BarChart data={pData} layout="vertical" margin={{ left: 4, right: 40, top: 2, bottom: 2 }}>
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
+                    <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} />
+                    <YAxis type="category" dataKey="name" tick={{ fontSize: 12, fill: "#334155", fontWeight: 500 }} width={70} axisLine={false} tickLine={false} />
+                    <Tooltip
+                      contentStyle={{ borderRadius: 8, fontSize: 12, border: "1px solid #e2e8f0", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}
+                      formatter={(v: any) => [`${v}건`, "건수"]}
+                    />
+                    <Bar dataKey="count" radius={[0, 6, 6, 0]} maxBarSize={26}>
                       {pData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                      <LabelList dataKey="count" position="right" style={{ fontSize: 11, fontWeight: 700, fill: "#475569" }} formatter={(v: any) => `${v}건`} />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
@@ -1075,21 +1088,35 @@ function TrendContent({ records, viewMode, setViewMode, selectedYear, setSelecte
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">{viewMode === "weekly" ? "주별" : "월별"} 전체 추이</CardTitle>
+        {/* 전체 추이 차트 */}
+        <Card className="overflow-hidden border-sky-200/60 dark:border-sky-800/40 shadow-sm">
+          <CardHeader className="py-2.5 px-4 bg-gradient-to-r from-sky-50 to-blue-50 dark:from-sky-950/30 dark:to-blue-950/20 border-b border-sky-100 dark:border-sky-800/30">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-semibold text-sky-900 dark:text-sky-200 flex items-center gap-2">
+                <span className="inline-block w-2 h-2 rounded-full bg-sky-500" />
+                {viewMode === "weekly" ? "주별" : "월별"} 전체 추이
+              </CardTitle>
+              <Badge className="bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-300 text-xs border-0">
+                {trendData.length}개 구간
+              </Badge>
+            </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4">
             {trendData.length === 0 ? (
               <div className="h-48 flex items-center justify-center text-sm text-muted-foreground">데이터 없음</div>
             ) : (
               <ResponsiveContainer width="100%" height={180}>
-                <BarChart data={trendData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-                  <Tooltip formatter={(v: any) => [`${v}건`, "건수"]} />
-                  <Bar dataKey="count" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+                <BarChart data={trendData} margin={{ left: 0, right: 8, top: 4, bottom: 4 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                  <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} />
+                  <Tooltip
+                    contentStyle={{ borderRadius: 8, fontSize: 12, border: "1px solid #e2e8f0", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}
+                    formatter={(v: any) => [`${v}건`, "건수"]}
+                  />
+                  <Bar dataKey="count" fill="#38BDF8" radius={[6, 6, 0, 0]} maxBarSize={40}>
+                    <LabelList dataKey="count" position="top" style={{ fontSize: 10, fontWeight: 700, fill: "#0369a1" }} formatter={(v: any) => v > 0 ? `${v}` : ""} />
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             )}
