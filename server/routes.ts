@@ -6266,122 +6266,286 @@ ${htmlDraft}
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  // 입회/점검 기록 엑셀 다운로드
+  // 입회/점검 기록 엑셀 다운로드 (보고용)
   app.get('/api/attendance/export', isAuthenticated, async (req: any, res) => {
     try {
       const uploadId = req.query.uploadId ? parseInt(req.query.uploadId as string) : undefined;
       const records = await storage.getAttendanceRecords(uploadId ? { uploadId } : undefined);
 
+      // ── 부서장 정의 (프론트와 동일) ──
+      const DEPT_HEADS_SRV = [
+        { team: "구미운용팀",   prefix: "홍성" },
+        { team: "문경운용팀",   prefix: "곽영" },
+        { team: "포항운용팀",   prefix: "윤수" },
+        { team: "안동운용팀",   prefix: "편광" },
+        { team: "동대구운용팀", prefix: "맹찬" },
+        { team: "서대구운용팀", prefix: "김철" },
+        { team: "남대구운용팀", prefix: "김홍" },
+      ];
+      const getDH = (name: string) => DEPT_HEADS_SRV.find(d => name.startsWith(d.prefix)) ?? null;
+
+      // ── 데이터 집계 ──
+      const gradeMap = new Map<string, number>();
+      records.forEach(r => {
+        const m = (r.department || "").match(/^(\d+등급)/);
+        gradeMap.set(m ? m[1] : "미분류", (gradeMap.get(m ? m[1] : "미분류") || 0) + 1);
+      });
+      const stageMap = new Map<string, number>();
+      records.forEach(r => { const k = r.attendanceType || "미확인"; stageMap.set(k, (stageMap.get(k) || 0) + 1); });
+      const inspMap = new Map<string, number>();
+      records.forEach(r => { inspMap.set(r.name, (inspMap.get(r.name) || 0) + 1); });
+
+      const deptHeadRecords = records.filter(r => getDH(r.name) !== null);
+      const grade1Records = records.filter(r => (r.department || "").startsWith("1등급"));
+      const grade1DH = grade1Records.filter(r => getDH(r.name) !== null);
+      const dhRatio = grade1Records.length > 0 ? grade1DH.length / grade1Records.length * 100 : 0;
+
+      const deptHeadSummary = DEPT_HEADS_SRV.map(d => ({
+        team: d.team, prefix: d.prefix,
+        count: deptHeadRecords.filter(r => r.name.startsWith(d.prefix)).length
+      }));
+
+      const inspList = [...inspMap.entries()].sort(([, a], [, b]) => b - a).slice(0, 15);
+      const gradeSorted = [...gradeMap.entries()].sort(([a], [b]) => a.localeCompare(b));
+      const stageSorted = [...stageMap.entries()].sort(([, a], [, b]) => b - a);
+
+      // ── QuickChart.io 차트 이미지 생성 ──
+      const CHART_COLORS = ["#7C3AED","#2563EB","#059669","#D97706","#DC2626","#0891B2","#9333EA","#16A34A","#EA580C","#4F46E5"];
+      const GRADE_C = ["#EF4444","#F59E0B","#10B981","#3B82F6","#9CA3AF"];
+
+      const fetchChart = async (cfg: object, w = 520, h = 280): Promise<Buffer | null> => {
+        try {
+          const r = await fetch("https://quickchart.io/chart", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ backgroundColor: "white", width: w, height: h, chart: cfg }),
+            signal: AbortSignal.timeout(10000)
+          });
+          if (!r.ok) return null;
+          return Buffer.from(await r.arrayBuffer());
+        } catch { return null; }
+      };
+
+      const [gradeBuf, stageBuf, inspBuf, deptBuf] = await Promise.all([
+        // 1) 안전등급 도넛
+        fetchChart({
+          type: "doughnut",
+          data: {
+            labels: gradeSorted.map(([g]) => g),
+            datasets: [{ data: gradeSorted.map(([, c]) => c), backgroundColor: gradeSorted.map((_, i) => GRADE_C[i % GRADE_C.length]), borderWidth: 2, borderColor: "#fff" }]
+          },
+          options: {
+            legend: { position: "right", labels: { fontSize: 13, fontStyle: "bold" } },
+            plugins: { datalabels: { formatter: (val: number, ctx: any) => { const t = ctx.dataset.data.reduce((s: number, v: number) => s + v, 0); return val > 0 ? `${val}건\n(${(val/t*100).toFixed(1)}%)` : ""; }, color: "#fff", font: { weight: "bold", size: 11 } } }
+          }
+        }, 520, 260),
+        // 2) 단계별 막대
+        fetchChart({
+          type: "bar",
+          data: {
+            labels: stageSorted.map(([s]) => s),
+            datasets: [{ label: "건수", data: stageSorted.map(([, c]) => c), backgroundColor: stageSorted.map((_, i) => CHART_COLORS[i % CHART_COLORS.length]) }]
+          },
+          options: {
+            legend: { display: false },
+            plugins: { datalabels: { anchor: "end", align: "top", font: { weight: "bold", size: 12 }, color: "#1F2937", formatter: (v: number) => `${v}건` } },
+            scales: { yAxes: [{ ticks: { beginAtZero: true, stepSize: 1 } }], xAxes: [{ ticks: { fontSize: 12 } }] }
+          }
+        }, 520, 260),
+        // 3) 담당자별 가로 막대 (상위 15)
+        fetchChart({
+          type: "horizontalBar",
+          data: {
+            labels: inspList.map(([n]) => n),
+            datasets: [{ label: "건수", data: inspList.map(([, c]) => c), backgroundColor: inspList.map((_, i) => getDH(inspList[i][0]) ? "#2563EB" : CHART_COLORS[i % CHART_COLORS.length]) }]
+          },
+          options: {
+            legend: { display: false },
+            plugins: { datalabels: { anchor: "end", align: "right", font: { weight: "bold", size: 11 }, color: "#1F2937", formatter: (v: number) => `${v}건` } },
+            scales: { xAxes: [{ ticks: { beginAtZero: true, stepSize: 1 } }], yAxes: [{ ticks: { fontSize: 12 } }] }
+          }
+        }, 520, Math.max(280, inspList.length * 26 + 60)),
+        // 4) 부서장별 막대
+        fetchChart({
+          type: "bar",
+          data: {
+            labels: DEPT_HEADS_SRV.map(d => d.team.replace("운용팀", "")),
+            datasets: [{ label: "입회건수", data: DEPT_HEADS_SRV.map(d => deptHeadSummary.find(x => x.team === d.team)?.count ?? 0), backgroundColor: ["#7C3AED","#2563EB","#059669","#D97706","#DC2626","#0891B2","#9333EA"] }]
+          },
+          options: {
+            legend: { display: false },
+            plugins: { datalabels: { anchor: "end", align: "top", font: { weight: "bold", size: 13 }, color: "#1E40AF", formatter: (v: number) => v > 0 ? `${v}건` : "" } },
+            scales: { yAxes: [{ ticks: { beginAtZero: true, stepSize: 1 } }], xAxes: [{ ticks: { fontSize: 13, fontStyle: "bold" } }] }
+          }
+        }, 520, 260),
+      ]);
+
+      // ── 엑셀 생성 ──
       const workbook = new ExcelJS.Workbook();
       workbook.creator = "SafeBoard";
 
-      // ── 1. 상세 데이터 시트 ──
-      const detail = workbook.addWorksheet("순회점검 현황");
-      const headerStyle: Partial<ExcelJS.Style> = {
+      const hStyle = (fgArgb: string): Partial<ExcelJS.Style> => ({
+        fill: { type: "pattern", pattern: "solid", fgColor: { argb: fgArgb } },
+        alignment: { horizontal: "center", vertical: "middle" },
+        border: { top: { style: "thin", color: { argb: "FFE5E7EB" } }, bottom: { style: "thin", color: { argb: "FFE5E7EB" } }, left: { style: "thin", color: { argb: "FFE5E7EB" } }, right: { style: "thin", color: { argb: "FFE5E7EB" } } }
+      });
+      const dStyle = (even: boolean): Partial<ExcelJS.Style> => ({
+        fill: even ? { type: "pattern", pattern: "solid", fgColor: { argb: "FFF8FAFF" } } : undefined as any,
+        border: { top: { style: "thin", color: { argb: "FFE5E7EB" } }, bottom: { style: "thin", color: { argb: "FFE5E7EB" } }, left: { style: "thin", color: { argb: "FFE5E7EB" } }, right: { style: "thin", color: { argb: "FFE5E7EB" } } },
+        alignment: { vertical: "middle" }
+      });
+
+      // ═══════════════════════════════════════
+      // Sheet 1: 보고서
+      // ═══════════════════════════════════════
+      const rpt = workbook.addWorksheet("보고서");
+      rpt.columns = [
+        { width: 16 }, { width: 11 }, { width: 11 }, { width: 11 },
+        { width: 11 }, { width: 11 }, { width: 11 }, { width: 11 }, { width: 11 }
+      ];
+
+      // 제목
+      rpt.mergeCells("A1:I2");
+      const tc = rpt.getCell("A1");
+      tc.value = "순회점검 입회 현황 보고서";
+      tc.font = { bold: true, size: 22, color: { argb: "FFFFFFFF" } };
+      tc.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E3A8A" } };
+      tc.alignment = { horizontal: "center", vertical: "middle" };
+      rpt.getRow(1).height = 22; rpt.getRow(2).height = 22;
+
+      // 부제
+      const nowD = new Date();
+      rpt.mergeCells("A3:I3");
+      const sc = rpt.getCell("A3");
+      sc.value = `작성일: ${nowD.getFullYear()}-${String(nowD.getMonth()+1).padStart(2,"0")}-${String(nowD.getDate()).padStart(2,"0")}   |   총 ${records.length}건   |   부서장 입회: ${deptHeadRecords.length}건   |   1등급 부서장입회율: ${dhRatio.toFixed(1)}%`;
+      sc.font = { size: 11, color: { argb: "FF1E3A8A" } };
+      sc.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDBEAFE" } };
+      sc.alignment = { horizontal: "center", vertical: "middle" };
+      rpt.getRow(3).height = 20;
+      rpt.getRow(4).height = 10;
+
+      // KPI 박스 (행 5-7)
+      const kpis = [
+        { label: "총 점검 건수", val: `${records.length}건`, bg: "FFDBEAFE", fg: "FF1E40AF" },
+        { label: "1등급 점검",   val: `${grade1Records.length}건`, bg: "FFFEE2E2", fg: "FFB91C1C" },
+        { label: "부서장 입회",  val: `${deptHeadRecords.length}건`, bg: "FFD1FAE5", fg: "FF065F46" },
+        { label: "1등급 입회율", val: `${dhRatio.toFixed(1)}%`, bg: "FFFEF3C7", fg: "FF92400E" },
+      ];
+      const kpiCols = [["A","B"],["C","D"],["E","F"],["G","H"]];
+      kpis.forEach(({ label, val, bg, fg }, i) => {
+        const [c1, c2] = kpiCols[i];
+        rpt.mergeCells(`${c1}5:${c2}5`); rpt.mergeCells(`${c1}6:${c2}6`); rpt.mergeCells(`${c1}7:${c2}7`);
+        const lc = rpt.getCell(`${c1}5`);
+        lc.value = label; lc.font = { size: 10, color: { argb: fg } };
+        lc.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bg } }; lc.alignment = { horizontal: "center", vertical: "middle" };
+        const vc = rpt.getCell(`${c1}6`);
+        vc.value = val; vc.font = { size: 20, bold: true, color: { argb: fg } };
+        vc.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bg } }; vc.alignment = { horizontal: "center", vertical: "middle" };
+        const bc = rpt.getCell(`${c1}7`);
+        bc.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bg } };
+      });
+      rpt.getRow(5).height = 16; rpt.getRow(6).height = 38; rpt.getRow(7).height = 10;
+      rpt.getRow(8).height = 10;
+
+      // ── 섹션 헬퍼 ──
+      let cr = 9;
+      const secHdr = (title: string) => {
+        rpt.mergeCells(`A${cr}:E${cr}`);
+        const c = rpt.getCell(`A${cr}`);
+        c.value = title; c.font = { bold: true, size: 12, color: { argb: "FF1E3A8A" } };
+        c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE0E7FF" } };
+        c.alignment = { horizontal: "left", vertical: "middle" };
+        c.border = { left: { style: "thick", color: { argb: "FF1E40AF" } }, bottom: { style: "thin", color: { argb: "FFE0E7FF" } } };
+        rpt.getRow(cr).height = 22; cr++;
+      };
+      const tblHdr = (cols: string[]) => {
+        const row = rpt.getRow(cr); row.height = 18;
+        cols.forEach((h, i) => {
+          const cell = row.getCell(i + 1);
+          cell.value = h; cell.font = { bold: true, size: 10, color: { argb: "FFFFFFFF" } };
+          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF3B82F6" } };
+          cell.alignment = { horizontal: "center", vertical: "middle" };
+          cell.border = { top: { style: "thin", color: { argb: "FFE5E7EB" } }, bottom: { style: "thin", color: { argb: "FFE5E7EB" } }, left: { style: "thin", color: { argb: "FFE5E7EB" } }, right: { style: "thin", color: { argb: "FFE5E7EB" } } };
+        }); cr++;
+      };
+      const tblRow = (vals: (string|number)[], even: boolean, boldBlue = false) => {
+        const row = rpt.getRow(cr); row.height = 17;
+        vals.forEach((v, i) => {
+          const cell = row.getCell(i + 1);
+          cell.value = v;
+          cell.font = { size: 10, bold: boldBlue, color: boldBlue ? { argb: "FF1D4ED8" } : undefined };
+          if (even) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF8FAFF" } };
+          cell.border = { top: { style: "thin", color: { argb: "FFE5E7EB" } }, bottom: { style: "thin", color: { argb: "FFE5E7EB" } }, left: { style: "thin", color: { argb: "FFE5E7EB" } }, right: { style: "thin", color: { argb: "FFE5E7EB" } } };
+          cell.alignment = { vertical: "middle", horizontal: i === 0 ? "left" : "center" };
+        }); cr++;
+      };
+      const embedChart = (buf: Buffer | null, startRow: number, endRow: number) => {
+        if (!buf) return;
+        const id = workbook.addImage({ buffer: buf, extension: "png" });
+        rpt.addImage(id, { tl: { col: 5, row: startRow - 1 }, br: { col: 9, row: Math.max(endRow, startRow + 8) } });
+      };
+
+      // ── 1. 안전등급별 현황 ──
+      const gs = cr;
+      secHdr("▶ 안전등급별 현황");
+      tblHdr(["안전등급", "건수", "비율"]);
+      gradeSorted.forEach(([g, c], i) => tblRow([g, c, records.length ? ((c/records.length)*100).toFixed(1)+"%" : "0%"], i%2===1));
+      embedChart(gradeBuf, gs, cr);
+      rpt.getRow(cr).height = 10; cr++;
+
+      // ── 2. 단계별 현황 ──
+      const ss = cr;
+      secHdr("▶ 점검 단계별 현황");
+      tblHdr(["점검 단계", "건수", "비율"]);
+      stageSorted.forEach(([s, c], i) => tblRow([s, c, records.length ? ((c/records.length)*100).toFixed(1)+"%" : "0%"], i%2===1));
+      embedChart(stageBuf, ss, cr);
+      rpt.getRow(cr).height = 10; cr++;
+
+      // ── 3. 부서장별 입회 ──
+      const ds = cr;
+      secHdr("▶ 부서장별 입회 현황");
+      tblHdr(["팀", "부서장", "입회 건수"]);
+      deptHeadSummary.forEach(({ team, prefix, count: c }, i) => tblRow([team, `${prefix}*`, c], i%2===1));
+      embedChart(deptBuf, ds, cr);
+      rpt.getRow(cr).height = 10; cr++;
+
+      // ── 4. 담당자별 건수 (상위 15) ──
+      const is = cr;
+      secHdr(`▶ 담당자별 건수 (상위 ${inspList.length}명, 파란색=부서장)`);
+      tblHdr(["담당자", "건수", "비율"]);
+      inspList.forEach(([name, c], i) => tblRow([name, c, records.length ? ((c/records.length)*100).toFixed(1)+"%" : "0%"], i%2===1, getDH(name) !== null));
+      embedChart(inspBuf, is, cr);
+
+      // ═══════════════════════════════════════
+      // Sheet 2: 상세데이터
+      // ═══════════════════════════════════════
+      const detail = workbook.addWorksheet("상세데이터");
+      const hSt: Partial<ExcelJS.Style> = {
         fill: { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E40AF" } },
         font: { color: { argb: "FFFFFFFF" }, bold: true, size: 11 },
         alignment: { vertical: "middle", horizontal: "center", wrapText: true },
-        border: {
-          top: { style: "thin" }, bottom: { style: "thin" },
-          left: { style: "thin" }, right: { style: "thin" }
-        }
+        border: { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } }
       };
-      const dataBorder: Partial<ExcelJS.Style> = {
-        border: {
-          top: { style: "thin", color: { argb: "FFD1D5DB" } },
-          bottom: { style: "thin", color: { argb: "FFD1D5DB" } },
-          left: { style: "thin", color: { argb: "FFD1D5DB" } },
-          right: { style: "thin", color: { argb: "FFD1D5DB" } }
-        },
+      const dSt: Partial<ExcelJS.Style> = {
+        border: { top: { style: "thin", color: { argb: "FFD1D5DB" } }, bottom: { style: "thin", color: { argb: "FFD1D5DB" } }, left: { style: "thin", color: { argb: "FFD1D5DB" } }, right: { style: "thin", color: { argb: "FFD1D5DB" } } },
         alignment: { vertical: "middle", wrapText: false }
       };
-      const headers = ["No.", "작업일자", "순회점검대상자", "작업자(소속)", "공사내용(안전등급)", "순회점검단계"];
-      const colWidths = [6, 14, 16, 40, 44, 16];
-      detail.addRow(headers);
+      detail.columns = [6, 14, 16, 40, 44, 16].map(w => ({ width: w }));
+      detail.addRow(["No.", "작업일자", "순회점검대상자", "작업자(소속)", "공사내용(안전등급)", "순회점검단계"]);
       detail.getRow(1).height = 22;
-      detail.getRow(1).eachCell((cell) => Object.assign(cell, headerStyle));
-      detail.columns = colWidths.map(w => ({ width: w }));
-
+      detail.getRow(1).eachCell(cell => Object.assign(cell, hSt));
       records.forEach((r, idx) => {
-        const row = detail.addRow([
-          idx + 1,
-          r.attendanceDate,
-          r.name,
-          r.company || "",
-          r.department || "",
-          r.attendanceType || "",
-        ]);
+        const row = detail.addRow([idx + 1, r.attendanceDate, r.name, r.company || "", r.department || "", r.attendanceType || ""]);
         row.height = 18;
-        row.eachCell((cell) => {
-          cell.border = dataBorder.border;
-          cell.alignment = dataBorder.alignment;
+        row.eachCell(cell => {
+          cell.border = dSt.border; cell.alignment = dSt.alignment;
           if (idx % 2 === 1) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF8FAFF" } };
         });
       });
 
-      // ── 2. 요약 시트 ──
-      const summary = workbook.addWorksheet("요약");
-      const addSummaryHeader = (ws: ExcelJS.Worksheet, title: string, row: number) => {
-        const cell = ws.getCell(row, 1);
-        cell.value = title;
-        cell.font = { bold: true, size: 12, color: { argb: "FF1E40AF" } };
-        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE0E7FF" } };
-        ws.mergeCells(row, 1, row, 3);
-        cell.alignment = { horizontal: "center", vertical: "middle" };
-        ws.getRow(row).height = 20;
-      };
-      summary.columns = [{ width: 22 }, { width: 14 }, { width: 14 }];
-
-      // 단계별 현황
-      addSummaryHeader(summary, "◆ 순회점검 단계별 현황", 1);
-      summary.addRow(["단계", "건수", "비율"]);
-      summary.getRow(2).eachCell(c => Object.assign(c, headerStyle));
-      const stageMap = new Map<string, number>();
-      records.forEach(r => { const k = r.attendanceType || "미확인"; stageMap.set(k, (stageMap.get(k) || 0) + 1); });
-      let sRow = 3;
-      stageMap.forEach((cnt, stage) => {
-        const pct = records.length ? ((cnt / records.length) * 100).toFixed(1) + "%" : "0%";
-        summary.addRow([stage, cnt, pct]);
-        summary.getRow(sRow).eachCell(c => Object.assign(c, dataBorder));
-        sRow++;
-      });
-
-      // 안전등급별 현황
-      const gradeStart = sRow + 1;
-      addSummaryHeader(summary, "◆ 안전등급별 현황", gradeStart);
-      summary.addRow(["안전등급", "건수", "비율"]);
-      summary.getRow(gradeStart + 1).eachCell(c => Object.assign(c, headerStyle));
-      const gradeMap = new Map<string, number>();
-      records.forEach(r => {
-        const m = (r.department || "").match(/^(\d+등급)/);
-        const g = m ? m[1] : "미분류";
-        gradeMap.set(g, (gradeMap.get(g) || 0) + 1);
-      });
-      let gRow = gradeStart + 2;
-      [...gradeMap.entries()].sort(([a], [b]) => a.localeCompare(b)).forEach(([g, cnt]) => {
-        const pct = records.length ? ((cnt / records.length) * 100).toFixed(1) + "%" : "0%";
-        summary.addRow([g, cnt, pct]);
-        summary.getRow(gRow).eachCell(c => Object.assign(c, dataBorder));
-        gRow++;
-      });
-
-      // 담당자별 현황
-      const inspStart = gRow + 1;
-      addSummaryHeader(summary, "◆ 순회점검 담당자별 현황", inspStart);
-      summary.addRow(["담당자", "담당 건수", "비율"]);
-      summary.getRow(inspStart + 1).eachCell(c => Object.assign(c, headerStyle));
-      const inspMap = new Map<string, number>();
-      records.forEach(r => { inspMap.set(r.name, (inspMap.get(r.name) || 0) + 1); });
-      let iRow = inspStart + 2;
-      [...inspMap.entries()].sort(([, a], [, b]) => b - a).forEach(([name, cnt]) => {
-        const pct = records.length ? ((cnt / records.length) * 100).toFixed(1) + "%" : "0%";
-        summary.addRow([name, cnt, pct]);
-        summary.getRow(iRow).eachCell(c => Object.assign(c, dataBorder));
-        iRow++;
-      });
-
-      const now = new Date();
-      const fname = `순회점검현황_${now.getFullYear()}${String(now.getMonth()+1).padStart(2,"0")}${String(now.getDate()).padStart(2,"0")}.xlsx`;
+      // ── 전송 ──
+      const now2 = new Date();
+      const fname = `순회점검보고서_${now2.getFullYear()}${String(now2.getMonth()+1).padStart(2,"0")}${String(now2.getDate()).padStart(2,"0")}.xlsx`;
       res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
       res.setHeader("Content-Disposition", `attachment; filename*=UTF-8''${encodeURIComponent(fname)}`);
       await workbook.xlsx.write(res);
