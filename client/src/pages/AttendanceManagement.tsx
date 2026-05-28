@@ -1079,17 +1079,18 @@ function TrendContent({ records, viewMode, setViewMode, selectedYear, setSelecte
           </CardHeader>
           <CardContent className="p-4">
             {filtered.length === 0 ? (
-              <div className="h-48 flex items-center justify-center text-sm text-muted-foreground">해당 기간 기록 없음</div>
+              <div className="h-[260px] flex items-center justify-center text-sm text-muted-foreground">해당 기간 기록 없음</div>
             ) : (() => {
               const pm = new Map<string, number>();
               filtered.forEach(r => pm.set(r.name, (pm.get(r.name) || 0) + 1));
               const pData = [...pm.entries()].sort(([, a], [, b]) => b - a).map(([name, count]) => ({ name, count }));
+              const chartH = Math.min(360, Math.max(260, pData.length * 46));
               return (
-                <ResponsiveContainer width="100%" height={220}>
-                  <BarChart data={pData} layout="vertical" margin={{ left: 4, right: 40, top: 2, bottom: 2 }}>
+                <ResponsiveContainer width="100%" height={chartH}>
+                  <BarChart data={pData} layout="vertical" margin={{ left: 4, right: 44, top: 4, bottom: 4 }}>
                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
                     <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} />
-                    <YAxis type="category" dataKey="name" width={70} axisLine={false} tickLine={false}
+                    <YAxis type="category" dataKey="name" width={84} axisLine={false} tickLine={false}
                       tick={({ x, y, payload }: any) => (
                         <text x={x} y={y} dy={4} textAnchor="end" fontSize={12}
                           fontWeight={getDeptHead(payload.value) !== null ? 700 : 500}
@@ -1102,7 +1103,7 @@ function TrendContent({ records, viewMode, setViewMode, selectedYear, setSelecte
                       contentStyle={{ borderRadius: 8, fontSize: 12, border: "1px solid #e2e8f0", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}
                       formatter={(v: any) => [`${v}건`, "건수"]}
                     />
-                    <Bar dataKey="count" radius={[0, 6, 6, 0]} maxBarSize={26}>
+                    <Bar dataKey="count" radius={[0, 6, 6, 0]} maxBarSize={28}>
                       {pData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                       <LabelList dataKey="count" position="right" style={{ fontSize: 11, fontWeight: 700, fill: "#475569" }} formatter={(v: any) => `${v}건`} />
                     </Bar>
@@ -1121,29 +1122,59 @@ function TrendContent({ records, viewMode, setViewMode, selectedYear, setSelecte
                 <span className="inline-block w-2 h-2 rounded-full bg-sky-500" />
                 {viewMode === "weekly" ? "주별" : "월별"} 전체 추이
               </CardTitle>
-              <Badge className="bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-300 text-xs border-0">
-                {trendData.length}개 구간
-              </Badge>
+              <div className="flex items-center gap-2">
+                <Badge className="bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-300 text-xs border-0">{trendData.length}개 구간</Badge>
+                <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 text-xs border-0">
+                  총 {trendData.reduce((s, d) => s + d.count, 0)}건
+                </Badge>
+              </div>
             </div>
           </CardHeader>
-          <CardContent className="p-4">
+          <CardContent className="p-4 flex flex-col gap-3">
             {trendData.length === 0 ? (
-              <div className="h-48 flex items-center justify-center text-sm text-muted-foreground">데이터 없음</div>
+              <div className="h-[260px] flex items-center justify-center text-sm text-muted-foreground">데이터 없음</div>
             ) : (
-              <ResponsiveContainer width="100%" height={180}>
-                <BarChart data={trendData} margin={{ left: 0, right: 8, top: 4, bottom: 4 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                  <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} />
-                  <Tooltip
-                    contentStyle={{ borderRadius: 8, fontSize: 12, border: "1px solid #e2e8f0", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}
-                    formatter={(v: any) => [`${v}건`, "건수"]}
-                  />
-                  <Bar dataKey="count" fill="#38BDF8" radius={[6, 6, 0, 0]} maxBarSize={40}>
-                    <LabelList dataKey="count" position="top" style={{ fontSize: 10, fontWeight: 700, fill: "#0369a1" }} formatter={(v: any) => v > 0 ? `${v}` : ""} />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+              <>
+                {/* 최고/최저 미니 스탯 */}
+                {(() => {
+                  const maxItem = trendData.reduce((a, b) => a.count >= b.count ? a : b);
+                  const minItem = trendData.reduce((a, b) => a.count <= b.count ? a : b);
+                  const avg = Math.round(trendData.reduce((s, d) => s + d.count, 0) / trendData.length);
+                  return (
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      {[
+                        { label: "최다", value: `${maxItem.count}건`, sub: maxItem.label, color: "#0EA5E9" },
+                        { label: "평균", value: `${avg}건`, sub: "구간 평균", color: "#6366F1" },
+                        { label: "최소", value: `${minItem.count}건`, sub: minItem.label, color: "#94A3B8" },
+                      ].map(({ label, value, sub, color }) => (
+                        <div key={label} className="rounded-lg bg-slate-50 dark:bg-slate-800/50 px-2 py-1.5">
+                          <div className="text-[10px] text-muted-foreground mb-0.5">{label}</div>
+                          <div className="text-sm font-bold" style={{ color }}>{value}</div>
+                          <div className="text-[10px] text-muted-foreground truncate">{sub}</div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart data={trendData} margin={{ left: 0, right: 8, top: 16, bottom: 4 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                    <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} width={28} />
+                    <Tooltip
+                      contentStyle={{ borderRadius: 8, fontSize: 12, border: "1px solid #e2e8f0", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}
+                      formatter={(v: any) => [`${v}건`, "건수"]}
+                    />
+                    <Bar dataKey="count" radius={[6, 6, 0, 0]} maxBarSize={44}>
+                      {trendData.map((d, i) => {
+                        const maxC = Math.max(...trendData.map(x => x.count));
+                        return <Cell key={i} fill={d.count === maxC ? "#0EA5E9" : "#BAE6FD"} />;
+                      })}
+                      <LabelList dataKey="count" position="top" style={{ fontSize: 10, fontWeight: 700, fill: "#0369a1" }} formatter={(v: any) => v > 0 ? `${v}` : ""} />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </>
             )}
           </CardContent>
         </Card>
@@ -1164,49 +1195,65 @@ function TrendContent({ records, viewMode, setViewMode, selectedYear, setSelecte
               </div>
             </div>
           </CardHeader>
-          <CardContent className="p-4">
+          <CardContent className="p-5">
             {(() => {
               const top = allInspData.slice(0, 10);
               const maxCount = top[0]?.count || 1;
               const medalColors = ["#F59E0B", "#94A3B8", "#CD7F32"];
+              const medalLabels = ["🥇", "🥈", "🥉"];
               return (
-                <div className="grid sm:grid-cols-2 gap-x-6 gap-y-3">
-                  {top.map((p, i) => {
-                    const pct = allTotal > 0 ? (p.count / allTotal) * 100 : 0;
-                    const barWidth = (p.count / maxCount) * 100;
-                    const isMedal = i < 3;
-                    const color = COLORS[i % COLORS.length];
-                    return (
-                      <div key={i} className="flex items-center gap-2.5">
-                        {/* 순위 배지 */}
-                        <div
-                          className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
-                          style={isMedal
-                            ? { backgroundColor: medalColors[i] + "22", color: medalColors[i], border: `1px solid ${medalColors[i]}55` }
-                            : { backgroundColor: "#f1f5f9", color: "#94a3b8", border: "1px solid #e2e8f0" }}
-                        >
-                          {i + 1}
+                <div className="space-y-1.5">
+                  {/* TOP 3 하이라이트 */}
+                  <div className="grid grid-cols-3 gap-3 mb-4">
+                    {top.slice(0, 3).map((p, i) => {
+                      const pct = allTotal > 0 ? (p.count / allTotal) * 100 : 0;
+                      return (
+                        <div key={i} className="rounded-xl border p-3 text-center"
+                          style={{ borderColor: medalColors[i] + "44", backgroundColor: medalColors[i] + "0a" }}>
+                          <div className="text-lg mb-0.5">{medalLabels[i]}</div>
+                          <div className="text-xs font-bold truncate"
+                            style={getDeptHead(p.name) !== null ? { color: "#2563EB" } : { color: medalColors[i] }}>
+                            {p.name}
+                          </div>
+                          <div className="text-sm font-extrabold mt-1" style={{ color: medalColors[i] }}>{p.count}건</div>
+                          <div className="text-[10px] text-muted-foreground">{pct.toFixed(1)}%</div>
                         </div>
-                        {/* 이름 + 바 + 건수·비율 */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-xs font-semibold truncate" style={getDeptHead(p.name) !== null ? { color: "#2563EB", fontWeight: 700 } : undefined}>{p.name}</span>
-                            <div className="flex items-center gap-1 ml-2 shrink-0">
-                              <span className="text-[11px] font-bold" style={{ color }}>{p.count}건</span>
-                              <span className="text-[10px] text-muted-foreground">·</span>
-                              <span className="text-[10px] text-muted-foreground">{pct.toFixed(1)}%</span>
+                      );
+                    })}
+                  </div>
+                  {/* 4위 이하 */}
+                  <div className="grid sm:grid-cols-2 gap-x-6 gap-y-2.5">
+                    {top.slice(3).map((p, ii) => {
+                      const i = ii + 3;
+                      const pct = allTotal > 0 ? (p.count / allTotal) * 100 : 0;
+                      const barWidth = (p.count / maxCount) * 100;
+                      const color = COLORS[i % COLORS.length];
+                      return (
+                        <div key={i} className="flex items-center gap-2.5">
+                          <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
+                            style={{ backgroundColor: "#f1f5f9", color: "#94a3b8", border: "1px solid #e2e8f0" }}>
+                            {i + 1}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs font-semibold truncate"
+                                style={getDeptHead(p.name) !== null ? { color: "#2563EB", fontWeight: 700 } : undefined}>
+                                {p.name}
+                              </span>
+                              <div className="flex items-center gap-1 ml-2 shrink-0">
+                                <span className="text-[11px] font-bold" style={{ color }}>{p.count}건</span>
+                                <span className="text-[10px] text-muted-foreground">· {pct.toFixed(1)}%</span>
+                              </div>
+                            </div>
+                            <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                              <div className="h-full rounded-full transition-all duration-500"
+                                style={{ width: `${barWidth}%`, backgroundColor: color }} />
                             </div>
                           </div>
-                          <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                            <div
-                              className="h-full rounded-full transition-all duration-500"
-                              style={{ width: `${barWidth}%`, backgroundColor: color }}
-                            />
-                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
               );
             })()}
