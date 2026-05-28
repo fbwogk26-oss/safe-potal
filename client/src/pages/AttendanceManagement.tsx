@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend, LabelList } from "recharts";
 import { Upload, Trash2, Users, Calendar, TrendingUp, FileSpreadsheet, UserCheck, Download, ClipboardList, ShieldCheck, AlertCircle } from "lucide-react";
 
 interface AttendanceRecord {
@@ -42,6 +42,20 @@ const STAGE_COLORS: Record<string, string> = {
   "승인완료": "#10B981",
   "자동종결": "#8B5CF6",
 };
+
+const DEPT_HEADS: { team: string; prefix: string }[] = [
+  { team: "구미운용팀",    prefix: "홍성" },
+  { team: "문경운용팀",    prefix: "곽영" },
+  { team: "포항운용팀",    prefix: "윤수" },
+  { team: "안동운용팀",    prefix: "편광" },
+  { team: "동대구운용팀",  prefix: "맹찬" },
+  { team: "서대구운용팀",  prefix: "김철" },
+  { team: "남대구운용팀",  prefix: "김홍" },
+];
+
+function getDeptHead(name: string) {
+  return DEPT_HEADS.find(d => name.startsWith(d.prefix)) ?? null;
+}
 
 const GRADE_COLORS: Record<string, string> = {
   "1등급": "#EF4444",
@@ -312,6 +326,16 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
   records.forEach(r => { dateMap.set(r.attendanceDate, (dateMap.get(r.attendanceDate) || 0) + 1); });
   const dateData = [...dateMap.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, count]) => ({ date: date.slice(5), count }));
 
+  // 부서장 입회 집계
+  const deptHeadRecords = records.filter(r => getDeptHead(r.name) !== null);
+  const deptHeadMap = new Map<string, { count: number; name: string }>();
+  DEPT_HEADS.forEach(d => deptHeadMap.set(d.team, { count: 0, name: d.prefix + "*" }));
+  deptHeadRecords.forEach(r => {
+    const dh = getDeptHead(r.name);
+    if (dh) deptHeadMap.set(dh.team, { count: (deptHeadMap.get(dh.team)?.count || 0) + 1, name: r.name });
+  });
+  const deptHeadData = [...deptHeadMap.entries()].map(([team, { count, name }]) => ({ team, count, name }));
+
   const beforeInspection = stageMap.get("점검전") || 0;
   const waitApproval = [...stageMap.entries()].filter(([k]) => k.includes("결재대기")).reduce((s, [, v]) => s + v, 0);
   const completed = (stageMap.get("승인완료") || 0) + (stageMap.get("자동종결") || 0);
@@ -436,15 +460,63 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
             <CardTitle className="text-sm">날짜별 작업 건수</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={160}>
-              <BarChart data={dateData}>
+            <ResponsiveContainer width="100%" height={190}>
+              <BarChart data={dateData} margin={{ top: 20, right: 10, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="date" tick={{ fontSize: 11 }} />
                 <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
                 <Tooltip formatter={(v: any) => [`${v}건`, "건수"]} />
-                <Bar dataKey="count" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="count" fill="#3B82F6" radius={[4, 4, 0, 0]}>
+                  <LabelList dataKey="count" position="top" style={{ fontSize: 11, fontWeight: 600, fill: "#374151" }} formatter={(v: any) => `${v}건`} />
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 부서장 입회 현황 */}
+      {records.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <UserCheck className="h-4 w-4 text-purple-600" />
+              <span>부서장 입회 현황</span>
+              <Badge variant="secondary" className="bg-purple-100 text-purple-700">{deptHeadRecords.length}건</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-36">팀</TableHead>
+                  <TableHead>부서장</TableHead>
+                  <TableHead className="text-right">입회 건수</TableHead>
+                  <TableHead className="text-right">비율</TableHead>
+                  <TableHead className="w-48">진행 바</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {deptHeadData.map(({ team, count, name }) => {
+                  const pct = total > 0 ? (count / total) * 100 : 0;
+                  return (
+                    <TableRow key={team}>
+                      <TableCell className="font-medium text-sm">{team}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{name}</TableCell>
+                      <TableCell className="text-right">
+                        <Badge variant={count > 0 ? "default" : "outline"} className={count > 0 ? "bg-purple-600" : ""}>{count}건</Badge>
+                      </TableCell>
+                      <TableCell className="text-right text-sm text-muted-foreground">{pct.toFixed(1)}%</TableCell>
+                      <TableCell>
+                        <div className="h-2 bg-muted rounded-full overflow-hidden w-full">
+                          <div className="h-full rounded-full bg-purple-500 transition-all" style={{ width: `${pct}%` }} />
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
           </CardContent>
         </Card>
       )}
