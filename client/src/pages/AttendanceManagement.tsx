@@ -610,12 +610,7 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
                             <TableRow key={r.id} className="bg-purple-50/60 dark:bg-purple-950/20 hover:bg-purple-50 dark:hover:bg-purple-950/30">
                               <TableCell className="py-2" />
                               <TableCell className="text-[10px] text-muted-foreground whitespace-nowrap pl-3 py-2">{r.attendanceDate}</TableCell>
-                              <TableCell className="py-2">
-                                <div className="flex flex-col gap-0.5">
-                                  <span className="text-[10px] font-semibold text-foreground">{r.name}</span>
-                                  {r.company && <span className="text-[9px] text-muted-foreground truncate max-w-[100px]" title={r.company}>{r.company}</span>}
-                                </div>
-                              </TableCell>
+                              <TableCell className="py-2 text-[10px] font-semibold text-foreground">{r.name}</TableCell>
                               <TableCell className="py-2 max-w-[130px]">
                                 <div className="flex flex-col gap-0.5">
                                   <span className="truncate text-[10px] text-purple-700 dark:text-purple-300 font-medium" title={r.stationName || ""}>{r.stationName || "-"}</span>
