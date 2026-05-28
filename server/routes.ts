@@ -6123,8 +6123,14 @@ ${htmlDraft}
       const headerRow = headerRowRaw.map(h => h.toLowerCase());
       const findCol = (keywords: string[]) => headerRow.findIndex(h => keywords.some(k => h.includes(k)));
 
+      console.log("[AttendanceUpload] headerRowRaw:", JSON.stringify(headerRowRaw.slice(0, 5)));
+
       // 점검대상 관리 CSV 형식 감지 (공사작업번호 / 순회점검단계 컬럼 존재)
-      const isInspectionFormat = headerRowRaw.some(h => h.includes("공사작업번호") || h.includes("순회점검단계"));
+      // toLowerCase 비교도 병행 (BOM/인코딩 이슈 방지)
+      const isInspectionFormat = headerRowRaw.some(h =>
+        h.includes("공사작업번호") || h.includes("순회점검단계") ||
+        h.replace(/[\uFEFF\u200B]/g, "").includes("공사작업번호")
+      );
 
       let dateCol: number, nameCol: number, companyCol: number, deptCol: number, typeCol: number;
 
