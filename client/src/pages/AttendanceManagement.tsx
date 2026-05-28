@@ -1237,7 +1237,7 @@ function TrendContent({ records, viewMode, setViewMode, selectedYear, setSelecte
                   {filtered.map(r => (
                     <TableRow key={r.id}>
                       <TableCell className="text-sm">{r.attendanceDate}</TableCell>
-                      <TableCell className="font-medium">{r.name}</TableCell>
+                      <TableCell className="font-medium" style={getDeptHead(r.name) !== null ? { color: "#2563EB", fontWeight: 700 } : undefined}>{r.name}</TableCell>
                       <TableCell className="text-xs text-muted-foreground max-w-[160px] truncate">{r.company || "-"}</TableCell>
                       <TableCell>
                         {(() => {
