@@ -293,11 +293,15 @@ export default function AttendanceManagement() {
 // ─── 점검 분석 탭 ────────────────────────────────────────────
 function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
-  const total = records.length;
+  const [trendView, setTrendView] = useState<"weekly" | "monthly">("weekly");
+
+  // 미분류 제외
+  const filteredRecords = records.filter(r => extractGrade(r.department) !== "미분류");
+  const total = filteredRecords.length;
 
   // 단계별 집계
   const stageMap = new Map<string, number>();
-  records.forEach(r => {
+  filteredRecords.forEach(r => {
     const k = r.attendanceType || "미확인";
     stageMap.set(k, (stageMap.get(k) || 0) + 1);
   });
@@ -307,7 +311,7 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
 
   // 안전등급별 집계
   const gradeMap = new Map<string, number>();
-  records.forEach(r => {
+  filteredRecords.forEach(r => {
     const g = extractGrade(r.department);
     gradeMap.set(g, (gradeMap.get(g) || 0) + 1);
   });
@@ -317,17 +321,17 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
 
   // 담당자별 집계 (순회점검대상자)
   const inspMap = new Map<string, number>();
-  records.forEach(r => { inspMap.set(r.name, (inspMap.get(r.name) || 0) + 1); });
+  filteredRecords.forEach(r => { inspMap.set(r.name, (inspMap.get(r.name) || 0) + 1); });
   const inspData = [...inspMap.entries()]
     .sort(([, a], [, b]) => b - a)
     .map(([name, count]) => ({ name, count }));
 
   // 날짜별 집계
   const dateMap = new Map<string, number>();
-  records.forEach(r => { dateMap.set(r.attendanceDate, (dateMap.get(r.attendanceDate) || 0) + 1); });
+  filteredRecords.forEach(r => { dateMap.set(r.attendanceDate, (dateMap.get(r.attendanceDate) || 0) + 1); });
   const dateData = [...dateMap.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, count]) => ({ date: date.slice(5), count }));
 
-  // 부서장 입회 집계
+  // 부서장 입회 집계 (미분류 포함 원본 records 기준)
   const deptHeadRecords = records.filter(r => getDeptHead(r.name) !== null);
   const deptHeadMap = new Map<string, { count: number; name: string; items: AttendanceRecord[] }>();
   DEPT_HEADS.forEach(d => deptHeadMap.set(d.team, { count: 0, name: d.prefix + "*", items: [] }));
@@ -339,6 +343,33 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
     }
   });
   const deptHeadData = [...deptHeadMap.entries()].map(([team, { count, name, items }]) => ({ team, count, name, items }));
+
+  // 부서장 주별/월별 추이
+  const deptHeadWeeklyData = (() => {
+    const weekSet = new Set<number>();
+    deptHeadRecords.forEach(r => { if (r.weekNum) weekSet.add(r.weekNum); });
+    return [...weekSet].sort((a, b) => a - b).map(w => {
+      const entry: Record<string, any> = { period: `${w}주` };
+      DEPT_HEADS.forEach(d => {
+        entry[d.team] = deptHeadRecords.filter(r => r.weekNum === w && getDeptHead(r.name)?.prefix === d.prefix).length;
+      });
+      return entry;
+    });
+  })();
+
+  const deptHeadMonthlyData = (() => {
+    const monthSet = new Set<number>();
+    deptHeadRecords.forEach(r => { if (r.month) monthSet.add(r.month); });
+    return [...monthSet].sort((a, b) => a - b).map(m => {
+      const entry: Record<string, any> = { period: `${m}월` };
+      DEPT_HEADS.forEach(d => {
+        entry[d.team] = deptHeadRecords.filter(r => r.month === m && getDeptHead(r.name)?.prefix === d.prefix).length;
+      });
+      return entry;
+    });
+  })();
+
+  const deptHeadTrendData = trendView === "weekly" ? deptHeadWeeklyData : deptHeadMonthlyData;
 
   const beforeInspection = stageMap.get("점검전") || 0;
   const waitApproval = [...stageMap.entries()].filter(([k]) => k.includes("결재대기")).reduce((s, [, v]) => s + v, 0);
@@ -558,6 +589,42 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
                 })}
               </TableBody>
             </Table>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 부서장 주별/월별 추이 */}
+      {deptHeadRecords.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-purple-600" />
+                부서장 입회 추이
+              </span>
+              <div className="flex gap-1">
+                <Button size="sm" variant={trendView === "weekly" ? "default" : "outline"} className="h-7 text-xs px-3" onClick={() => setTrendView("weekly")}>주별</Button>
+                <Button size="sm" variant={trendView === "monthly" ? "default" : "outline"} className="h-7 text-xs px-3" onClick={() => setTrendView("monthly")}>월별</Button>
+              </div>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {deptHeadTrendData.length === 0 ? (
+              <div className="h-40 flex items-center justify-center text-sm text-muted-foreground">데이터 없음</div>
+            ) : (
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={deptHeadTrendData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="period" tick={{ fontSize: 11 }} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                  <Tooltip />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  {DEPT_HEADS.map((d, i) => (
+                    <Bar key={d.team} dataKey={d.team} stackId="a" fill={COLORS[i % COLORS.length]} name={`${d.team}(${d.prefix}*)`} />
+                  ))}
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </CardContent>
         </Card>
       )}
