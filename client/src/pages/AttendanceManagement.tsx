@@ -656,40 +656,41 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
                   <span>추이 데이터 없음</span>
                 </div>
               ) : trendView === "monthly" ? (() => {
-                /* ── 월별: 팀별 그룹 세로 막대 ── */
+                /* ── 월별: 팀 X축, 월은 우상단 ── */
+                const months = deptHeadTrendData.map(d => d.period as string);
                 const grandTotal = deptHeadTrendData.reduce((s, d) => s + (Number(d._total) || 0), 0);
-                const teamTotals = DEPT_HEADS.map(d => ({
-                  team: d.team,
-                  short: d.team.replace("운용팀", ""),
-                  color: DEPT_HEAD_COLORS[d.team] ?? "#9CA3AF",
-                  total: deptHeadTrendData.reduce((s, row) => s + (Number(row[d.team]) || 0), 0),
-                })).filter(t => t.total > 0);
+                // 팀 기준 데이터 변환: { team: "구미", "5월": 3, ... }
+                const teamBasedData = DEPT_HEADS.map(d => {
+                  const entry: Record<string, any> = { team: d.team.replace("운용팀", ""), fullTeam: d.team };
+                  months.forEach(m => {
+                    const row = deptHeadTrendData.find(r => r.period === m);
+                    entry[m] = row ? (row[d.team] || 0) : 0;
+                  });
+                  entry._total = months.reduce((s, m) => s + (entry[m] || 0), 0);
+                  return entry;
+                }).filter(e => e._total > 0);
+                const MONTH_COLORS = ["#7C3AED", "#2563EB", "#059669", "#D97706", "#DC2626"];
                 return (
-                  <div className="flex flex-col gap-2 h-full">
-                    {/* 총 건수 + 팀별 칩 */}
-                    <div className="flex flex-col gap-1.5 px-1">
-                      <div className="flex items-center gap-2">
+                  <div className="flex flex-col gap-1 h-full">
+                    {/* 헤더: 합계(좌) + 월(우) */}
+                    <div className="flex items-center justify-between px-1">
+                      <div className="flex items-center gap-1.5">
                         <span className="text-[11px] text-muted-foreground">전체 합계</span>
                         <span className="text-base font-bold text-purple-600">{grandTotal}건</span>
                       </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {teamTotals.map(t => (
-                          <span key={t.team} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-white text-[10px] font-semibold" style={{ backgroundColor: t.color }}>
-                            {t.short} · {t.total}건
+                      <div className="flex items-center gap-1">
+                        {months.map((m, i) => (
+                          <span key={m} className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-white text-[10px] font-semibold" style={{ backgroundColor: MONTH_COLORS[i % MONTH_COLORS.length] }}>
+                            {m}
                           </span>
                         ))}
                       </div>
                     </div>
-                    {/* 그룹 세로 막대 */}
-                    <ResponsiveContainer width="100%" height={248}>
-                      <BarChart
-                        data={deptHeadTrendData}
-                        margin={{ top: 22, right: 8, left: -8, bottom: 4 }}
-                        barCategoryGap="20%"
-                        barGap={2}
-                      >
+                    {/* 그룹 세로 막대 — X축: 부서명 */}
+                    <ResponsiveContainer width="100%" height={258}>
+                      <BarChart data={teamBasedData} margin={{ top: 22, right: 8, left: -8, bottom: 4 }} barCategoryGap="20%" barGap={3}>
                         <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" vertical={false} />
-                        <XAxis dataKey="period" tick={{ fontSize: 13, fill: "#6B7280", fontWeight: 600 }} axisLine={{ stroke: "#E5E7EB" }} tickLine={false} />
+                        <XAxis dataKey="team" tick={{ fontSize: 11, fill: "#6B7280", fontWeight: 600 }} axisLine={{ stroke: "#E5E7EB" }} tickLine={false} />
                         <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "#9CA3AF" }} axisLine={false} tickLine={false} width={24} />
                         <Tooltip
                           cursor={{ fill: "rgba(147,51,234,0.04)" }}
@@ -697,14 +698,14 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
                             if (!active || !payload?.length) return null;
                             const tot = payload.reduce((s, p) => s + (Number(p.value) || 0), 0);
                             return (
-                              <div className="bg-white dark:bg-zinc-800 border border-border rounded-xl shadow-lg p-3 min-w-[150px]">
-                                <p className="text-xs font-semibold mb-2 pb-1.5 border-b border-border">{label} · 합계 <span className="text-purple-600">{tot}건</span></p>
+                              <div className="bg-white dark:bg-zinc-800 border border-border rounded-xl shadow-lg p-3 min-w-[130px]">
+                                <p className="text-xs font-semibold mb-2 pb-1.5 border-b border-border">{label}운용팀 · 합계 <span className="text-purple-600">{tot}건</span></p>
                                 <div className="space-y-1">
                                   {payload.filter(p => Number(p.value) > 0).map(p => (
                                     <div key={p.dataKey as string} className="flex items-center justify-between gap-3">
                                       <div className="flex items-center gap-1.5">
                                         <span className="inline-block w-2 h-2 rounded-sm" style={{ backgroundColor: p.fill as string }} />
-                                        <span className="text-[11px] text-muted-foreground">{(p.dataKey as string).replace("운용팀", "")}</span>
+                                        <span className="text-[11px] text-muted-foreground">{p.dataKey as string}</span>
                                       </div>
                                       <span className="text-[11px] font-medium tabular-nums">{p.value}건</span>
                                     </div>
@@ -714,28 +715,23 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
                             );
                           }}
                         />
-                        {DEPT_HEADS.map((d, i) => {
-                          const color = DEPT_HEAD_COLORS[d.team] ?? COLORS[i % COLORS.length];
-                          const short = d.team.replace("운용팀", "");
-                          return (
-                            <Bar key={d.team} dataKey={d.team} fill={color} name={d.team} radius={[4, 4, 0, 0]} maxBarSize={28}>
-                              <LabelList
-                                dataKey={d.team}
-                                content={(props: any) => {
-                                  const { x, y, width, value } = props;
-                                  if (!value || Number(value) < 1) return null;
-                                  const cx = Number(x) + Number(width) / 2;
-                                  return (
-                                    <g style={{ pointerEvents: "none" }}>
-                                      <text x={cx} y={Number(y) - 14} fill={color} fontSize={9} fontWeight={700} textAnchor="middle" dominantBaseline="middle">{short}</text>
-                                      <text x={cx} y={Number(y) - 4} fill="#374151" fontSize={10} fontWeight={700} textAnchor="middle" dominantBaseline="middle">{value}건</text>
-                                    </g>
-                                  );
-                                }}
-                              />
-                            </Bar>
-                          );
-                        })}
+                        {months.map((m, i) => (
+                          <Bar key={m} dataKey={m} fill={MONTH_COLORS[i % MONTH_COLORS.length]} name={m} radius={[4, 4, 0, 0]} maxBarSize={32}>
+                            <LabelList
+                              dataKey={m}
+                              content={(props: any) => {
+                                const { x, y, width, value } = props;
+                                if (!value || Number(value) < 1) return null;
+                                const cx = Number(x) + Number(width) / 2;
+                                return (
+                                  <text x={cx} y={Number(y) - 5} fill="#374151" fontSize={10} fontWeight={700} textAnchor="middle" dominantBaseline="middle" style={{ pointerEvents: "none" }}>
+                                    {value}
+                                  </text>
+                                );
+                              }}
+                            />
+                          </Bar>
+                        ))}
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
