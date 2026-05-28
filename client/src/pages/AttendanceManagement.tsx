@@ -99,7 +99,7 @@ function getWeekLabel(year: number, isoWeek: number): string {
   const monday = getMondayOfISOWeek(year, isoWeek);
   const month = monday.getUTCMonth() + 1;
   const weekOfMonth = Math.ceil(monday.getUTCDate() / 7);
-  return `${month}월 ${weekOfMonth}주차`;
+  return `${month}월 ${weekOfMonth}주`;
 }
 
 function extractGrade(dept: string | null): string {
@@ -369,8 +369,9 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
   const deptHeadWeeklyData = (() => {
     const weekSet = new Set<number>();
     deptHeadRecords.forEach(r => { if (r.weekNum) weekSet.add(r.weekNum); });
+    const year = deptHeadRecords.find(r => r.weekNum !== null)?.year ?? new Date().getFullYear();
     return [...weekSet].sort((a, b) => a - b).map(w => {
-      const entry: Record<string, any> = { period: `${w}주` };
+      const entry: Record<string, any> = { period: getWeekLabel(year, w) };
       let total = 0;
       DEPT_HEADS.forEach(d => {
         const cnt = deptHeadRecords.filter(r => r.weekNum === w && getDeptHead(r.name)?.prefix === d.prefix).length;
