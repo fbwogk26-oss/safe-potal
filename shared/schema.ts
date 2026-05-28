@@ -647,6 +647,7 @@ export const attendanceRecords = pgTable("attendance_records", {
   weekNum: integer("week_num"),
   month: integer("month"),
   year: integer("year"),
+  absenceReason: text("absence_reason"),
   createdBy: text("created_by"),
   createdAt: timestamp("created_at").defaultNow(),
 });

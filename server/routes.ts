@@ -6253,6 +6253,16 @@ ${htmlDraft}
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
+  // 입회 기록 미입회 사유 저장
+  app.put('/api/attendance/records/:id/reason', isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { absenceReason } = req.body;
+      await storage.updateAttendanceRecordReason(id, absenceReason ?? "");
+      res.json({ message: "저장되었습니다" });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
   // 입회/점검 기록 엑셀 다운로드
   app.get('/api/attendance/export', isAuthenticated, async (req: any, res) => {
     try {

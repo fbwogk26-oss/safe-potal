@@ -164,6 +164,7 @@ export interface IStorage {
   getAttendanceRecords(filters?: { year?: number; month?: number; weekNum?: number; uploadId?: number }): Promise<AttendanceRecord[]>;
   createAttendanceRecord(data: InsertAttendanceRecord): Promise<AttendanceRecord>;
   deleteAttendanceRecordsByUpload(uploadId: number): Promise<void>;
+  updateAttendanceRecordReason(id: number, absenceReason: string): Promise<void>;
 
   // Music Files
   getMusicFiles(): Promise<MusicFile[]>;
@@ -684,6 +685,9 @@ export class DatabaseStorage implements IStorage {
   }
   async deleteAttendanceRecordsByUpload(uploadId: number): Promise<void> {
     await db.delete(attendanceRecords).where(eq(attendanceRecords.uploadId, uploadId));
+  }
+  async updateAttendanceRecordReason(id: number, absenceReason: string): Promise<void> {
+    await db.update(attendanceRecords).set({ absenceReason }).where(eq(attendanceRecords.id, id));
   }
 
   // === MUSIC FILES ===

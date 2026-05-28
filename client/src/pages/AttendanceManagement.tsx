@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend, LabelList } from "recharts";
 import { Upload, Trash2, Users, Calendar, TrendingUp, FileSpreadsheet, UserCheck, Download, ClipboardList, ShieldCheck, AlertCircle, ChevronDown, ChevronRight } from "lucide-react";
@@ -23,6 +24,7 @@ interface AttendanceRecord {
   weekNum: number | null;
   month: number | null;
   year: number | null;
+  absenceReason: string | null;
 }
 
 interface AttendanceUpload {
@@ -294,6 +296,14 @@ export default function AttendanceManagement() {
 function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
   const [trendView, setTrendView] = useState<"weekly" | "monthly">("weekly");
+  const [reasonDraft, setReasonDraft] = useState<Record<number, string>>({});
+  const [reasonSaving, setReasonSaving] = useState<Record<number, boolean>>({});
+
+  const saveReasonMutation = useMutation({
+    mutationFn: ({ id, absenceReason }: { id: number; absenceReason: string }) =>
+      apiRequest("PUT", `/api/attendance/records/${id}/reason`, { absenceReason }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/attendance/records"] }); },
+  });
 
   // 미분류 제외
   const filteredRecords = records.filter(r => extractGrade(r.department) !== "미분류");
@@ -510,124 +520,209 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
         </Card>
       )}
 
-      {/* 부서장 입회 현황 */}
+      {/* 부서장 입회 현황 + 추이 (통합 카드) */}
       {records.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <UserCheck className="h-4 w-4 text-purple-600" />
-              <span>부서장 입회 현황</span>
-              <Badge variant="secondary" className="bg-purple-100 text-purple-700">{deptHeadRecords.length}건</Badge>
-            </CardTitle>
+        <Card className="overflow-hidden border-purple-200/60 dark:border-purple-800/40">
+          <CardHeader className="pb-3 bg-gradient-to-r from-purple-50 to-violet-50 dark:from-purple-950/30 dark:to-violet-950/20 border-b border-purple-100 dark:border-purple-800/30">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <div className="p-1.5 bg-purple-100 dark:bg-purple-900/40 rounded-md">
+                  <UserCheck className="h-4 w-4 text-purple-600" />
+                </div>
+                <span>부서장 입회 현황</span>
+                <Badge className="bg-purple-600 hover:bg-purple-600 text-white text-xs">{deptHeadRecords.length}건</Badge>
+              </CardTitle>
+              <div className="flex items-center gap-1.5">
+                <TrendingUp className="h-3.5 w-3.5 text-purple-400" />
+                <span className="text-xs text-muted-foreground mr-1">추이</span>
+                <div className="flex gap-0.5 bg-muted/60 rounded-md p-0.5">
+                  <Button size="sm" variant={trendView === "weekly" ? "secondary" : "ghost"} className={`h-6 text-xs px-2.5 ${trendView === "weekly" ? "bg-white dark:bg-zinc-700 shadow-sm" : ""}`} onClick={() => setTrendView("weekly")}>주별</Button>
+                  <Button size="sm" variant={trendView === "monthly" ? "secondary" : "ghost"} className={`h-6 text-xs px-2.5 ${trendView === "monthly" ? "bg-white dark:bg-zinc-700 shadow-sm" : ""}`} onClick={() => setTrendView("monthly")}>월별</Button>
+                </div>
+              </div>
+            </div>
           </CardHeader>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-8"></TableHead>
-                  <TableHead className="w-36">팀</TableHead>
-                  <TableHead>부서장</TableHead>
-                  <TableHead className="text-right">입회 건수</TableHead>
-                  <TableHead className="text-right">비율</TableHead>
-                  <TableHead className="w-48">진행 바</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {deptHeadData.map(({ team, count, name, items }) => {
-                  const pct = total > 0 ? (count / total) * 100 : 0;
-                  const isExpanded = expandedTeam === team;
-                  return (
-                    <Fragment key={team}>
-                      <TableRow
-                        className={count > 0 ? "cursor-pointer hover:bg-muted/50" : ""}
-                        onClick={() => count > 0 && setExpandedTeam(isExpanded ? null : team)}
-                      >
-                        <TableCell className="pr-0">
-                          {count > 0 ? (
-                            isExpanded
-                              ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                              : <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                          ) : null}
-                        </TableCell>
-                        <TableCell className="font-medium text-sm">{team}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{name}</TableCell>
-                        <TableCell className="text-right">
-                          <Badge variant={count > 0 ? "default" : "outline"} className={count > 0 ? "bg-purple-600" : ""}>{count}건</Badge>
-                        </TableCell>
-                        <TableCell className="text-right text-sm text-muted-foreground">{pct.toFixed(1)}%</TableCell>
-                        <TableCell>
-                          <div className="h-2 bg-muted rounded-full overflow-hidden w-full">
-                            <div className="h-full rounded-full bg-purple-500 transition-all" style={{ width: `${pct}%` }} />
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                      {isExpanded && items.map(r => {
-                        const grade = extractGrade(r.department);
-                        const gradeColor = GRADE_COLORS[grade] || "#9CA3AF";
-                        const stageColor = STAGE_COLORS[r.attendanceType || ""] || "#9CA3AF";
-                        return (
-                          <TableRow key={r.id} className="bg-purple-50/60 dark:bg-purple-950/20">
-                            <TableCell />
-                            <TableCell className="text-xs text-muted-foreground whitespace-nowrap pl-4">{r.attendanceDate}</TableCell>
-                            <TableCell className="text-xs font-medium" colSpan={1}>{r.name}</TableCell>
-                            <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate" title={r.department || ""} colSpan={2}>
-                              <span className="inline-flex items-center gap-1">
-                                <span className="inline-block w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: gradeColor }} />
-                                {r.department || "-"}
-                              </span>
-                            </TableCell>
-                            <TableCell>
-                              <Badge style={{ backgroundColor: stageColor + "22", color: stageColor, borderColor: stageColor + "66" }} variant="outline" className="text-xs whitespace-nowrap">
-                                {r.attendanceType || "-"}
-                              </Badge>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </Fragment>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </CardContent>
+          <div className="grid lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-purple-100/60 dark:divide-purple-800/30">
+            {/* 왼쪽: 팀별 현황 테이블 */}
+            <div className="overflow-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/30 hover:bg-muted/30">
+                    <TableHead className="w-8 py-2"></TableHead>
+                    <TableHead className="py-2 text-xs w-28">팀</TableHead>
+                    <TableHead className="py-2 text-xs">부서장</TableHead>
+                    <TableHead className="py-2 text-xs text-right">건수</TableHead>
+                    <TableHead className="py-2 text-xs w-40">비율</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {deptHeadData.map(({ team, count, name, items }) => {
+                    const pct = deptHeadRecords.length > 0 ? (count / deptHeadRecords.length) * 100 : 0;
+                    const isExpanded = expandedTeam === team;
+                    return (
+                      <Fragment key={team}>
+                        <TableRow
+                          className={count > 0 ? "cursor-pointer hover:bg-purple-50/50 dark:hover:bg-purple-950/20" : "opacity-50"}
+                          onClick={() => count > 0 && setExpandedTeam(isExpanded ? null : team)}
+                        >
+                          <TableCell className="pr-0 py-2">
+                            {count > 0 ? (
+                              isExpanded
+                                ? <ChevronDown className="h-3.5 w-3.5 text-purple-400" />
+                                : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                            ) : null}
+                          </TableCell>
+                          <TableCell className="font-medium text-xs py-2">{team}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground py-2">{name}</TableCell>
+                          <TableCell className="text-right py-2">
+                            <Badge variant={count > 0 ? "default" : "outline"} className={`text-xs ${count > 0 ? "bg-purple-600 hover:bg-purple-600" : ""}`}>{count}</Badge>
+                          </TableCell>
+                          <TableCell className="py-2">
+                            <div className="flex items-center gap-1.5">
+                              <div className="h-1.5 bg-muted rounded-full overflow-hidden flex-1">
+                                <div className="h-full rounded-full bg-purple-500 transition-all duration-500" style={{ width: `${pct}%` }} />
+                              </div>
+                              <span className="text-[10px] text-muted-foreground w-8 text-right">{pct.toFixed(0)}%</span>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                        {isExpanded && items.map(r => {
+                          const grade = extractGrade(r.department);
+                          const gradeColor = GRADE_COLORS[grade] || "#9CA3AF";
+                          const stageColor = STAGE_COLORS[r.attendanceType || ""] || "#9CA3AF";
+                          return (
+                            <TableRow key={r.id} className="bg-purple-50/70 dark:bg-purple-950/25">
+                              <TableCell className="py-1.5" />
+                              <TableCell className="text-[10px] text-muted-foreground whitespace-nowrap pl-3 py-1.5">{r.attendanceDate}</TableCell>
+                              <TableCell className="text-[10px] font-medium py-1.5">{r.name}</TableCell>
+                              <TableCell className="py-1.5" colSpan={2}>
+                                <div className="flex items-center gap-1 flex-wrap">
+                                  <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+                                    <span className="inline-block w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: gradeColor }} />
+                                    {grade}
+                                  </span>
+                                  <Badge style={{ backgroundColor: stageColor + "22", color: stageColor, borderColor: stageColor + "55" }} variant="outline" className="text-[10px] h-4 px-1 py-0">
+                                    {r.attendanceType || "-"}
+                                  </Badge>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </Fragment>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* 오른쪽: 추이 차트 */}
+            <div className="p-4">
+              {deptHeadTrendData.length === 0 ? (
+                <div className="h-full min-h-[180px] flex flex-col items-center justify-center text-sm text-muted-foreground gap-2">
+                  <TrendingUp className="h-8 w-8 text-muted-foreground/30" />
+                  <span>추이 데이터 없음</span>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={230}>
+                  <BarChart data={deptHeadTrendData} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(147,51,234,0.1)" />
+                    <XAxis dataKey="period" tick={{ fontSize: 10 }} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 10 }} />
+                    <Tooltip contentStyle={{ fontSize: 11, borderRadius: 8 }} />
+                    <Legend wrapperStyle={{ fontSize: 10 }} iconSize={8} />
+                    {DEPT_HEADS.map((d, i) => (
+                      <Bar key={d.team} dataKey={d.team} stackId="a" fill={COLORS[i % COLORS.length]} name={`${d.team}`} radius={i === DEPT_HEADS.length - 1 ? [3, 3, 0, 0] : [0, 0, 0, 0]} />
+                    ))}
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </div>
         </Card>
       )}
 
-      {/* 부서장 주별/월별 추이 */}
-      {deptHeadRecords.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center justify-between">
-              <span className="flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-purple-600" />
-                부서장 입회 추이
-              </span>
-              <div className="flex gap-1">
-                <Button size="sm" variant={trendView === "weekly" ? "default" : "outline"} className="h-7 text-xs px-3" onClick={() => setTrendView("weekly")}>주별</Button>
-                <Button size="sm" variant={trendView === "monthly" ? "default" : "outline"} className="h-7 text-xs px-3" onClick={() => setTrendView("monthly")}>월별</Button>
-              </div>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {deptHeadTrendData.length === 0 ? (
-              <div className="h-40 flex items-center justify-center text-sm text-muted-foreground">데이터 없음</div>
-            ) : (
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={deptHeadTrendData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="period" tick={{ fontSize: 11 }} />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-                  <Tooltip />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
-                  {DEPT_HEADS.map((d, i) => (
-                    <Bar key={d.team} dataKey={d.team} stackId="a" fill={COLORS[i % COLORS.length]} name={`${d.team}(${d.prefix}*)`} />
-                  ))}
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
-      )}
+      {/* 1등급 미입회 사유 관리 */}
+      {(() => {
+        const grade1NoHead = filteredRecords.filter(r =>
+          extractGrade(r.department) === "1등급" && getDeptHead(r.name) === null
+        );
+        if (grade1NoHead.length === 0) return null;
+        return (
+          <Card className="overflow-hidden border-red-200/60 dark:border-red-800/40">
+            <CardHeader className="pb-3 bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-950/30 dark:to-orange-950/20 border-b border-red-100 dark:border-red-800/30">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <div className="p-1.5 bg-red-100 dark:bg-red-900/40 rounded-md">
+                  <AlertCircle className="h-4 w-4 text-red-600" />
+                </div>
+                <span>1등급 부서장 미입회 사유</span>
+                <Badge className="bg-red-500 hover:bg-red-500 text-white text-xs">{grade1NoHead.length}건</Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/30 hover:bg-muted/30">
+                    <TableHead className="py-2 text-xs">날짜</TableHead>
+                    <TableHead className="py-2 text-xs">점검자</TableHead>
+                    <TableHead className="py-2 text-xs max-w-[200px]">부서/등급</TableHead>
+                    <TableHead className="py-2 text-xs">미입회 사유</TableHead>
+                    <TableHead className="py-2 text-xs w-16"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {grade1NoHead.map(r => {
+                    const savedReason = r.absenceReason || "";
+                    const draft = reasonDraft[r.id] ?? savedReason;
+                    const isDirty = draft !== savedReason;
+                    const isSaving = reasonSaving[r.id];
+                    return (
+                      <TableRow key={r.id} className={savedReason ? "bg-green-50/30 dark:bg-green-950/10" : "bg-red-50/30 dark:bg-red-950/10"}>
+                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap py-2">{r.attendanceDate}</TableCell>
+                        <TableCell className="text-xs font-medium py-2">{r.name}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground py-2 max-w-[180px]">
+                          <span className="truncate block" title={r.department || ""}>{r.department || "-"}</span>
+                        </TableCell>
+                        <TableCell className="py-1.5 min-w-[220px]">
+                          <Textarea
+                            className="text-xs min-h-[36px] h-9 resize-none py-1.5 px-2 leading-tight"
+                            placeholder="미입회 사유를 입력하세요..."
+                            value={draft}
+                            onChange={e => setReasonDraft(prev => ({ ...prev, [r.id]: e.target.value }))}
+                            rows={1}
+                          />
+                        </TableCell>
+                        <TableCell className="py-1.5 text-right">
+                          {savedReason && !isDirty ? (
+                            <span className="text-[10px] text-green-600 font-medium">저장됨</span>
+                          ) : (
+                            <Button
+                              size="sm"
+                              className="h-7 text-xs px-2.5"
+                              disabled={!isDirty || isSaving}
+                              onClick={async () => {
+                                setReasonSaving(prev => ({ ...prev, [r.id]: true }));
+                                try {
+                                  await saveReasonMutation.mutateAsync({ id: r.id, absenceReason: draft });
+                                  setReasonDraft(prev => { const n = { ...prev }; delete n[r.id]; return n; });
+                                } finally {
+                                  setReasonSaving(prev => ({ ...prev, [r.id]: false }));
+                                }
+                              }}
+                            >
+                              {isSaving ? "저장중..." : "저장"}
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       {/* 담당자별 현황 */}
       <div className="grid lg:grid-cols-2 gap-4">
