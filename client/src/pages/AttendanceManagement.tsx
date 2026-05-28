@@ -546,68 +546,6 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
         )}
       </div>
 
-      {/* 담당자별 현황 */}
-      <div className="grid lg:grid-cols-2 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">순회점검 담당자별 현황</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={Math.max(200, Math.min(10, inspData.length) * 40)}>
-              <BarChart data={inspData.slice(0, 10)} layout="vertical" margin={{ left: 8, right: 36 }}>
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
-                <YAxis type="category" dataKey="name" tick={{ fontSize: 12 }} width={68} />
-                <Tooltip formatter={(v: any) => [`${v}건`, "담당 건수"]} />
-                <Bar dataKey="count" radius={[0, 4, 4, 0]}>
-                  {inspData.slice(0, 10).map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                  <LabelList dataKey="count" position="insideRight" style={{ fontSize: 11, fontWeight: 700, fill: "#fff" }} formatter={(v: any) => `${v}건`} />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        {/* 담당자별 요약 테이블 */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center justify-between">
-              <span>담당자별 요약</span>
-              <Badge variant="secondary">{inspData.length}명</Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-10">순위</TableHead>
-                    <TableHead>담당자</TableHead>
-                    <TableHead className="text-right">담당 건수</TableHead>
-                    <TableHead className="text-right">비율</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {inspData.slice(0, 10).map((p, i) => (
-                    <TableRow key={i}>
-                      <TableCell>
-                        <Badge variant={i === 0 ? "default" : i < 3 ? "secondary" : "outline"}
-                          className="w-6 h-6 rounded-full flex items-center justify-center p-0 text-xs">
-                          {i + 1}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="font-medium">{p.name}</TableCell>
-                      <TableCell className="text-right"><Badge variant="secondary">{p.count}건</Badge></TableCell>
-                      <TableCell className="text-right text-sm text-muted-foreground">{((p.count / total) * 100).toFixed(1)}%</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
       {/* 부서장 입회 현황 + 추이 (통합 카드) */}
       {records.length > 0 && (
         <Card className="overflow-hidden border-purple-200/60 dark:border-purple-800/40 shadow-sm">
@@ -1079,8 +1017,69 @@ function TrendContent({ records, viewMode, setViewMode, selectedYear, setSelecte
     ? `${selectedYear}년 ${getWeekLabel(selectedYear, selectedWeek)}`
     : `${selectedYear}년 ${selectedMonth}월`;
 
+  // 전체 담당자별 집계
+  const allInspMap = new Map<string, number>();
+  records.forEach(r => { allInspMap.set(r.name, (allInspMap.get(r.name) || 0) + 1); });
+  const allInspData = [...allInspMap.entries()].sort(([, a], [, b]) => b - a).map(([name, count]) => ({ name, count }));
+  const allTotal = records.length;
+
   return (
     <div className="space-y-4">
+      {/* 담당자별 현황 + 요약 */}
+      <div className="grid lg:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">순회점검 담당자별 현황</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={Math.max(200, Math.min(10, allInspData.length) * 40)}>
+              <BarChart data={allInspData.slice(0, 10)} layout="vertical" margin={{ left: 8, right: 36 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
+                <YAxis type="category" dataKey="name" tick={{ fontSize: 12 }} width={68} />
+                <Tooltip formatter={(v: any) => [`${v}건`, "담당 건수"]} />
+                <Bar dataKey="count" radius={[0, 4, 4, 0]}>
+                  {allInspData.slice(0, 10).map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                  <LabelList dataKey="count" position="insideRight" style={{ fontSize: 11, fontWeight: 700, fill: "#fff" }} formatter={(v: any) => `${v}건`} />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center justify-between">
+              <span>담당자별 요약</span>
+              <Badge variant="secondary">{allInspData.length}명</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-10">순위</TableHead>
+                  <TableHead>담당자</TableHead>
+                  <TableHead className="text-right">담당 건수</TableHead>
+                  <TableHead className="text-right">비율</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {allInspData.slice(0, 10).map((p, i) => (
+                  <TableRow key={i}>
+                    <TableCell>
+                      <Badge variant={i === 0 ? "default" : i < 3 ? "secondary" : "outline"} className="w-6 h-6 rounded-full flex items-center justify-center p-0 text-xs">{i + 1}</Badge>
+                    </TableCell>
+                    <TableCell className="font-medium">{p.name}</TableCell>
+                    <TableCell className="text-right"><Badge variant="secondary">{p.count}건</Badge></TableCell>
+                    <TableCell className="text-right text-sm text-muted-foreground">{allTotal > 0 ? ((p.count / allTotal) * 100).toFixed(1) : 0}%</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
+
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
         <Tabs value={viewMode} onValueChange={v => setViewMode(v as any)}>
           <TabsList>
