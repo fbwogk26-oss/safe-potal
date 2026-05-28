@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, Fragment } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -506,9 +506,8 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
                   const pct = total > 0 ? (count / total) * 100 : 0;
                   const isExpanded = expandedTeam === team;
                   return (
-                    <>
+                    <Fragment key={team}>
                       <TableRow
-                        key={team}
                         className={count > 0 ? "cursor-pointer hover:bg-muted/50" : ""}
                         onClick={() => count > 0 && setExpandedTeam(isExpanded ? null : team)}
                       >
@@ -554,7 +553,7 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
                           </TableRow>
                         );
                       })}
-                    </>
+                    </Fragment>
                   );
                 })}
               </TableBody>
@@ -570,14 +569,14 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
             <CardTitle className="text-sm">순회점검 담당자별 현황</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={Math.max(180, inspData.length * 34)}>
-              <BarChart data={inspData.slice(0, 15)} layout="vertical" margin={{ left: 8, right: 20 }}>
+            <ResponsiveContainer width="100%" height={Math.max(120, Math.min(10, inspData.length) * 26)}>
+              <BarChart data={inspData.slice(0, 10)} layout="vertical" margin={{ left: 8, right: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                 <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
-                <YAxis type="category" dataKey="name" tick={{ fontSize: 12 }} width={64} />
+                <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={60} />
                 <Tooltip formatter={(v: any) => [`${v}건`, "담당 건수"]} />
                 <Bar dataKey="count" radius={[0, 4, 4, 0]}>
-                  {inspData.slice(0, 15).map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                  {inspData.slice(0, 10).map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -604,7 +603,7 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {inspData.map((p, i) => (
+                  {inspData.slice(0, 10).map((p, i) => (
                     <TableRow key={i}>
                       <TableCell>
                         <Badge variant={i === 0 ? "default" : i < 3 ? "secondary" : "outline"}
