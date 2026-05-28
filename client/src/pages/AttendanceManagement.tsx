@@ -1161,37 +1161,21 @@ function TrendContent({ records, viewMode, setViewMode, selectedYear, setSelecte
               </div>
             </div>
           </CardHeader>
-          <CardContent className="p-0">
-            <div className="grid lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-border">
-              {/* 왼쪽: 가로 막대 차트 */}
-              <div className="p-4">
-                <p className="text-xs text-muted-foreground mb-3 font-medium">담당 건수 (상위 10명)</p>
-                <ResponsiveContainer width="100%" height={Math.max(180, Math.min(10, allInspData.length) * 38)}>
-                  <BarChart data={allInspData.slice(0, 10)} layout="vertical" margin={{ left: 4, right: 40, top: 2, bottom: 2 }}>
-                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
-                    <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} />
-                    <YAxis type="category" dataKey="name" tick={{ fontSize: 12, fill: "#334155", fontWeight: 500 }} width={70} axisLine={false} tickLine={false} />
-                    <Tooltip
-                      contentStyle={{ borderRadius: 8, fontSize: 12, border: "1px solid #e2e8f0", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}
-                      formatter={(v: any) => [`${v}건`, "담당 건수"]}
-                    />
-                    <Bar dataKey="count" radius={[0, 6, 6, 0]} maxBarSize={26}>
-                      {allInspData.slice(0, 10).map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                      <LabelList dataKey="count" position="right" style={{ fontSize: 11, fontWeight: 700, fill: "#475569" }} formatter={(v: any) => `${v}건`} />
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-              {/* 오른쪽: 순위 테이블 + 진행바 */}
-              <div className="p-4">
-                <p className="text-xs text-muted-foreground mb-3 font-medium">담당자별 비율</p>
-                <div className="space-y-2.5">
-                  {allInspData.slice(0, 8).map((p, i) => {
+          <CardContent className="p-4">
+            {(() => {
+              const top = allInspData.slice(0, 10);
+              const maxCount = top[0]?.count || 1;
+              const medalColors = ["#F59E0B", "#94A3B8", "#CD7F32"];
+              return (
+                <div className="grid sm:grid-cols-2 gap-x-6 gap-y-3">
+                  {top.map((p, i) => {
                     const pct = allTotal > 0 ? (p.count / allTotal) * 100 : 0;
-                    const medalColors = ["#F59E0B", "#94A3B8", "#CD7F32"];
+                    const barWidth = (p.count / maxCount) * 100;
                     const isMedal = i < 3;
+                    const color = COLORS[i % COLORS.length];
                     return (
                       <div key={i} className="flex items-center gap-2.5">
+                        {/* 순위 배지 */}
                         <div
                           className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
                           style={isMedal
@@ -1200,15 +1184,20 @@ function TrendContent({ records, viewMode, setViewMode, selectedYear, setSelecte
                         >
                           {i + 1}
                         </div>
+                        {/* 이름 + 바 + 건수·비율 */}
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between mb-0.5">
-                            <span className="text-xs font-medium text-foreground truncate">{p.name}</span>
-                            <span className="text-xs text-muted-foreground ml-2 shrink-0">{p.count}건 · {pct.toFixed(1)}%</span>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-semibold text-foreground truncate">{p.name}</span>
+                            <div className="flex items-center gap-1 ml-2 shrink-0">
+                              <span className="text-[11px] font-bold" style={{ color }}>{p.count}건</span>
+                              <span className="text-[10px] text-muted-foreground">·</span>
+                              <span className="text-[10px] text-muted-foreground">{pct.toFixed(1)}%</span>
+                            </div>
                           </div>
-                          <div className="h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                          <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                             <div
-                              className="h-full rounded-full transition-all"
-                              style={{ width: `${pct}%`, backgroundColor: COLORS[i % COLORS.length] }}
+                              className="h-full rounded-full transition-all duration-500"
+                              style={{ width: `${barWidth}%`, backgroundColor: color }}
                             />
                           </div>
                         </div>
@@ -1216,8 +1205,8 @@ function TrendContent({ records, viewMode, setViewMode, selectedYear, setSelecte
                     );
                   })}
                 </div>
-              </div>
-            </div>
+              );
+            })()}
           </CardContent>
         </Card>
       )}
