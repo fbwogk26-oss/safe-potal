@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend, LabelList } from "recharts";
-import { Upload, Trash2, Users, Calendar, TrendingUp, FileSpreadsheet, UserCheck, Download, ClipboardList, ShieldCheck, AlertCircle } from "lucide-react";
+import { Upload, Trash2, Users, Calendar, TrendingUp, FileSpreadsheet, UserCheck, Download, ClipboardList, ShieldCheck, AlertCircle, ChevronDown, ChevronRight } from "lucide-react";
 
 interface AttendanceRecord {
   id: number;
@@ -292,6 +292,7 @@ export default function AttendanceManagement() {
 
 // ─── 점검 분석 탭 ────────────────────────────────────────────
 function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
+  const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
   const total = records.length;
 
   // 단계별 집계
@@ -328,13 +329,16 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
 
   // 부서장 입회 집계
   const deptHeadRecords = records.filter(r => getDeptHead(r.name) !== null);
-  const deptHeadMap = new Map<string, { count: number; name: string }>();
-  DEPT_HEADS.forEach(d => deptHeadMap.set(d.team, { count: 0, name: d.prefix + "*" }));
+  const deptHeadMap = new Map<string, { count: number; name: string; items: AttendanceRecord[] }>();
+  DEPT_HEADS.forEach(d => deptHeadMap.set(d.team, { count: 0, name: d.prefix + "*", items: [] }));
   deptHeadRecords.forEach(r => {
     const dh = getDeptHead(r.name);
-    if (dh) deptHeadMap.set(dh.team, { count: (deptHeadMap.get(dh.team)?.count || 0) + 1, name: r.name });
+    if (dh) {
+      const prev = deptHeadMap.get(dh.team)!;
+      deptHeadMap.set(dh.team, { count: prev.count + 1, name: r.name, items: [...prev.items, r] });
+    }
   });
-  const deptHeadData = [...deptHeadMap.entries()].map(([team, { count, name }]) => ({ team, count, name }));
+  const deptHeadData = [...deptHeadMap.entries()].map(([team, { count, name, items }]) => ({ team, count, name, items }));
 
   const beforeInspection = stageMap.get("점검전") || 0;
   const waitApproval = [...stageMap.entries()].filter(([k]) => k.includes("결재대기")).reduce((s, [, v]) => s + v, 0);
@@ -489,6 +493,7 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-8"></TableHead>
                   <TableHead className="w-36">팀</TableHead>
                   <TableHead>부서장</TableHead>
                   <TableHead className="text-right">입회 건수</TableHead>
@@ -497,22 +502,59 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {deptHeadData.map(({ team, count, name }) => {
+                {deptHeadData.map(({ team, count, name, items }) => {
                   const pct = total > 0 ? (count / total) * 100 : 0;
+                  const isExpanded = expandedTeam === team;
                   return (
-                    <TableRow key={team}>
-                      <TableCell className="font-medium text-sm">{team}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{name}</TableCell>
-                      <TableCell className="text-right">
-                        <Badge variant={count > 0 ? "default" : "outline"} className={count > 0 ? "bg-purple-600" : ""}>{count}건</Badge>
-                      </TableCell>
-                      <TableCell className="text-right text-sm text-muted-foreground">{pct.toFixed(1)}%</TableCell>
-                      <TableCell>
-                        <div className="h-2 bg-muted rounded-full overflow-hidden w-full">
-                          <div className="h-full rounded-full bg-purple-500 transition-all" style={{ width: `${pct}%` }} />
-                        </div>
-                      </TableCell>
-                    </TableRow>
+                    <>
+                      <TableRow
+                        key={team}
+                        className={count > 0 ? "cursor-pointer hover:bg-muted/50" : ""}
+                        onClick={() => count > 0 && setExpandedTeam(isExpanded ? null : team)}
+                      >
+                        <TableCell className="pr-0">
+                          {count > 0 ? (
+                            isExpanded
+                              ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                              : <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                          ) : null}
+                        </TableCell>
+                        <TableCell className="font-medium text-sm">{team}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{name}</TableCell>
+                        <TableCell className="text-right">
+                          <Badge variant={count > 0 ? "default" : "outline"} className={count > 0 ? "bg-purple-600" : ""}>{count}건</Badge>
+                        </TableCell>
+                        <TableCell className="text-right text-sm text-muted-foreground">{pct.toFixed(1)}%</TableCell>
+                        <TableCell>
+                          <div className="h-2 bg-muted rounded-full overflow-hidden w-full">
+                            <div className="h-full rounded-full bg-purple-500 transition-all" style={{ width: `${pct}%` }} />
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                      {isExpanded && items.map(r => {
+                        const grade = extractGrade(r.department);
+                        const gradeColor = GRADE_COLORS[grade] || "#9CA3AF";
+                        const stageColor = STAGE_COLORS[r.attendanceType || ""] || "#9CA3AF";
+                        return (
+                          <TableRow key={r.id} className="bg-purple-50/60 dark:bg-purple-950/20">
+                            <TableCell />
+                            <TableCell className="text-xs text-muted-foreground whitespace-nowrap pl-4">{r.attendanceDate}</TableCell>
+                            <TableCell className="text-xs font-medium" colSpan={1}>{r.name}</TableCell>
+                            <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate" title={r.department || ""} colSpan={2}>
+                              <span className="inline-flex items-center gap-1">
+                                <span className="inline-block w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: gradeColor }} />
+                                {r.department || "-"}
+                              </span>
+                            </TableCell>
+                            <TableCell>
+                              <Badge style={{ backgroundColor: stageColor + "22", color: stageColor, borderColor: stageColor + "66" }} variant="outline" className="text-xs whitespace-nowrap">
+                                {r.attendanceType || "-"}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </>
                   );
                 })}
               </TableBody>
