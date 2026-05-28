@@ -1195,64 +1195,48 @@ function TrendContent({ records, viewMode, setViewMode, selectedYear, setSelecte
               </div>
             </div>
           </CardHeader>
-          <CardContent className="p-5">
+          <CardContent className="p-4">
             {(() => {
               const top = allInspData.slice(0, 10);
               const maxCount = top[0]?.count || 1;
-              const medalColors = ["#F59E0B", "#94A3B8", "#CD7F32"];
-              const medalLabels = ["🥇", "🥈", "🥉"];
-              return (
-                <div className="space-y-1.5">
-                  {/* TOP 3 하이라이트 */}
-                  <div className="grid grid-cols-3 gap-3 mb-4">
-                    {top.slice(0, 3).map((p, i) => {
-                      const pct = allTotal > 0 ? (p.count / allTotal) * 100 : 0;
-                      return (
-                        <div key={i} className="rounded-xl border p-3 text-center"
-                          style={{ borderColor: medalColors[i] + "44", backgroundColor: medalColors[i] + "0a" }}>
-                          <div className="text-lg mb-0.5">{medalLabels[i]}</div>
-                          <div className="text-xs font-bold truncate"
-                            style={getDeptHead(p.name) !== null ? { color: "#2563EB" } : { color: medalColors[i] }}>
-                            {p.name}
-                          </div>
-                          <div className="text-sm font-extrabold mt-1" style={{ color: medalColors[i] }}>{p.count}건</div>
-                          <div className="text-[10px] text-muted-foreground">{pct.toFixed(1)}%</div>
+              const left = top.slice(0, 5);
+              const right = top.slice(5, 10);
+              const Row = ({ p, i }: { p: { name: string; count: number }; i: number }) => {
+                const pct = allTotal > 0 ? (p.count / allTotal) * 100 : 0;
+                const barWidth = (p.count / maxCount) * 100;
+                const color = COLORS[i % COLORS.length];
+                return (
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
+                      style={{ backgroundColor: "#f1f5f9", color: "#64748b", border: "1px solid #e2e8f0" }}>
+                      {i + 1}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-semibold truncate"
+                          style={getDeptHead(p.name) !== null ? { color: "#2563EB", fontWeight: 700 } : undefined}>
+                          {p.name}
+                        </span>
+                        <div className="flex items-center gap-1 ml-2 shrink-0">
+                          <span className="text-[11px] font-bold" style={{ color }}>{p.count}건</span>
+                          <span className="text-[10px] text-muted-foreground">· {pct.toFixed(1)}%</span>
                         </div>
-                      );
-                    })}
+                      </div>
+                      <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                        <div className="h-full rounded-full transition-all duration-500"
+                          style={{ width: `${barWidth}%`, backgroundColor: color }} />
+                      </div>
+                    </div>
                   </div>
-                  {/* 4위 이하 */}
-                  <div className="grid sm:grid-cols-2 gap-x-6 gap-y-2.5">
-                    {top.slice(3).map((p, ii) => {
-                      const i = ii + 3;
-                      const pct = allTotal > 0 ? (p.count / allTotal) * 100 : 0;
-                      const barWidth = (p.count / maxCount) * 100;
-                      const color = COLORS[i % COLORS.length];
-                      return (
-                        <div key={i} className="flex items-center gap-2.5">
-                          <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
-                            style={{ backgroundColor: "#f1f5f9", color: "#94a3b8", border: "1px solid #e2e8f0" }}>
-                            {i + 1}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="text-xs font-semibold truncate"
-                                style={getDeptHead(p.name) !== null ? { color: "#2563EB", fontWeight: 700 } : undefined}>
-                                {p.name}
-                              </span>
-                              <div className="flex items-center gap-1 ml-2 shrink-0">
-                                <span className="text-[11px] font-bold" style={{ color }}>{p.count}건</span>
-                                <span className="text-[10px] text-muted-foreground">· {pct.toFixed(1)}%</span>
-                              </div>
-                            </div>
-                            <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                              <div className="h-full rounded-full transition-all duration-500"
-                                style={{ width: `${barWidth}%`, backgroundColor: color }} />
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
+                );
+              };
+              return (
+                <div className="grid sm:grid-cols-2 gap-x-6 gap-y-2.5">
+                  <div className="space-y-2.5">
+                    {left.map((p, i) => <Row key={i} p={p} i={i} />)}
+                  </div>
+                  <div className="space-y-2.5">
+                    {right.map((p, ii) => <Row key={ii + 5} p={p} i={ii + 5} />)}
                   </div>
                 </div>
               );
@@ -1279,6 +1263,7 @@ function TrendContent({ records, viewMode, setViewMode, selectedYear, setSelecte
                     <TableHead>날짜</TableHead>
                     <TableHead>담당자</TableHead>
                     <TableHead>작업자(소속)</TableHead>
+                    <TableHead>공사내용</TableHead>
                     <TableHead>안전등급</TableHead>
                     <TableHead>점검단계</TableHead>
                   </TableRow>
@@ -1288,7 +1273,8 @@ function TrendContent({ records, viewMode, setViewMode, selectedYear, setSelecte
                     <TableRow key={r.id}>
                       <TableCell className="text-sm">{r.attendanceDate}</TableCell>
                       <TableCell className="font-medium" style={getDeptHead(r.name) !== null ? { color: "#2563EB", fontWeight: 700 } : undefined}>{r.name}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground max-w-[160px] truncate">{r.company || "-"}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground max-w-[140px] truncate">{r.company || "-"}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground max-w-[160px] truncate" title={r.department || ""}>{r.department ? r.department.split("/").slice(2).join("/") || r.department : "-"}</TableCell>
                       <TableCell>
                         {(() => {
                           const g = extractGrade(r.department);
