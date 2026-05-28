@@ -615,7 +615,10 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
                               <TableCell className="py-1.5" />
                               <TableCell className="text-[10px] text-muted-foreground whitespace-nowrap pl-3 py-1.5">{r.attendanceDate}</TableCell>
                               <TableCell className="text-[10px] font-medium py-1.5">{r.name}</TableCell>
-                              <TableCell className="py-1.5" colSpan={2}>
+                              <TableCell className="text-[10px] text-purple-700 dark:text-purple-300 font-medium py-1.5 max-w-[120px]">
+                                <span className="truncate block" title={r.stationName || ""}>{r.stationName || "-"}</span>
+                              </TableCell>
+                              <TableCell className="py-1.5">
                                 <div className="flex items-center gap-1 flex-wrap">
                                   <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
                                     <span className="inline-block w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: gradeColor }} />
