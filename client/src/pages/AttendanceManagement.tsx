@@ -555,20 +555,15 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
       {records.length > 0 && (
         <Card className="overflow-hidden border-purple-200/60 dark:border-purple-800/40 shadow-sm">
           <CardHeader className="py-2.5 px-4 bg-gradient-to-r from-purple-50 to-violet-50 dark:from-purple-950/30 dark:to-violet-950/20 border-b border-purple-100 dark:border-purple-800/30">
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-              <div className="flex items-center gap-2">
-                <div className="p-1.5 bg-purple-100 dark:bg-purple-900/40 rounded-md">
-                  <UserCheck className="h-4 w-4 text-purple-600" />
-                </div>
-                <CardTitle className="text-sm font-semibold">부서장 입회 현황</CardTitle>
-                <Badge className="bg-purple-600 hover:bg-purple-600 text-white text-xs">{deptHeadRecords.length}건</Badge>
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="p-1.5 bg-purple-100 dark:bg-purple-900/40 rounded-md">
+                <UserCheck className="h-4 w-4 text-purple-600" />
               </div>
+              <CardTitle className="text-sm font-semibold">부서장 입회 현황</CardTitle>
               {grade1Records.length > 0 && (
                 <div className="flex items-center gap-1.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 rounded-lg px-2.5 py-1">
                   <span className="text-[11px] text-amber-700 dark:text-amber-300 font-medium">1등급 입회율</span>
-                  <span className="text-[11px] font-bold text-amber-800 dark:text-amber-200">
-                    {grade1WithDeptHead.length}/{grade1Records.length}건
-                  </span>
+                  <span className="text-[11px] font-bold text-amber-800 dark:text-amber-200">{grade1WithDeptHead.length}/{grade1Records.length}건</span>
                   <span className="inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-[11px] font-bold"
                     style={{
                       backgroundColor: grade1DeptHeadRatio >= 80 ? "#22c55e22" : grade1DeptHeadRatio >= 50 ? "#f59e0b22" : "#ef444422",
@@ -1090,7 +1085,7 @@ function TrendContent({ records, viewMode, setViewMode, selectedYear, setSelecte
               filtered.forEach(r => pm.set(r.name, (pm.get(r.name) || 0) + 1));
               const pData = [...pm.entries()].sort(([, a], [, b]) => b - a).map(([name, count]) => ({ name, count }));
               return (
-                <ResponsiveContainer width="100%" height={Math.max(180, pData.length * 38)}>
+                <ResponsiveContainer width="100%" height={220}>
                   <BarChart data={pData} layout="vertical" margin={{ left: 4, right: 40, top: 2, bottom: 2 }}>
                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
                     <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} />
