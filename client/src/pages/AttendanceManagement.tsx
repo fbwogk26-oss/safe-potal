@@ -479,7 +479,7 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="max-h-72 overflow-y-auto">
+            <div>
               <Table>
                 <TableHeader>
                   <TableRow>
