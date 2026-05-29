@@ -6266,6 +6266,90 @@ ${htmlDraft}
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
+  // ── 온라인 교육 진도율 ──────────────────────────────────────────
+  const onlineEduUploadMw = multer({ dest: "uploads/" });
+
+  app.get('/api/online-edu/uploads', isAuthenticated, async (_req, res) => {
+    try {
+      const uploads = await storage.getOnlineEduUploads();
+      res.json(uploads);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.post('/api/online-edu/upload', isAuthenticated, onlineEduUploadMw.single("file"), async (req: any, res) => {
+    try {
+      const file = req.file;
+      if (!file) return res.status(400).json({ message: "파일이 없습니다" });
+
+      const XLSX = require('xlsx');
+      const wb = XLSX.readFile(file.path, { type: 'file', cellText: true, cellDates: false });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false });
+
+      // 헤더 2줄 → 데이터는 row 2부터
+      const dataRows = rows.slice(2).filter((r: any[]) => r[22] && String(r[22]).trim());
+      if (dataRows.length === 0) {
+        fs.unlinkSync(file.path);
+        return res.status(400).json({ message: "데이터가 없습니다. 엑셀 형식을 확인해주세요." });
+      }
+
+      const courseName = String(dataRows[0][7] || "").trim();
+      const learningPeriod = String(dataRows[0][9] || "").trim();
+      const completedCount = dataRows.filter((r: any[]) => {
+        const s = String(r[75] || "").trim();
+        return s === "수료";
+      }).length;
+
+      const upload = await storage.createOnlineEduUpload({
+        fileName: Buffer.from(file.originalname, 'latin1').toString('utf8'),
+        courseName,
+        learningPeriod,
+        totalCount: dataRows.length,
+        completedCount,
+        createdBy: req.user?.username,
+      });
+
+      const records = dataRows.map((r: any[]) => ({
+        uploadId: upload.id,
+        name: String(r[22] || "").trim(),
+        department: String(r[18] || "").trim(),
+        courseName: String(r[7] || "").trim(),
+        learningPeriod: String(r[9] || "").trim(),
+        progressRate: String(r[31] || "0").trim(),
+        learningHours: String(r[27] || "").trim(),
+        score: String(r[48] || "").trim(),
+        passScore: String(r[47] || "").trim(),
+        completionStatus: String(r[75] || "").trim(),
+        canComplete: String(r[76] || "").trim(),
+        incompleteReason: String(r[77] || "-").trim(),
+        completionDate: String(r[87] || "").trim(),
+      }));
+
+      await storage.bulkCreateOnlineEduRecords(records);
+      try { fs.unlinkSync(file.path); } catch {}
+      res.json({ upload, count: records.length });
+    } catch (e: any) {
+      console.error("[OnlineEduUpload]", e);
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.get('/api/online-edu/records/:uploadId', isAuthenticated, async (req: any, res) => {
+    try {
+      const uploadId = parseInt(req.params.uploadId);
+      const records = await storage.getOnlineEduRecords(uploadId);
+      res.json(records);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.delete('/api/online-edu/uploads/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      await storage.deleteOnlineEduUpload(parseInt(req.params.id));
+      res.json({ message: "삭제됨" });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+  // ────────────────────────────────────────────────────────────────
+
   // 입회/점검 기록 엑셀 다운로드 (보고용)
   app.get('/api/attendance/export', isAuthenticated, async (req: any, res) => {
     try {

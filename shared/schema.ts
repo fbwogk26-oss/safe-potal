@@ -657,6 +657,44 @@ export const insertAttendanceRecordSchema = createInsertSchema(attendanceRecords
 export type AttendanceRecord = typeof attendanceRecords.$inferSelect;
 export type InsertAttendanceRecord = z.infer<typeof insertAttendanceRecordSchema>;
 
+// === 온라인 교육 진도율 ===
+export const onlineEduUploads = pgTable("online_edu_uploads", {
+  id: serial("id").primaryKey(),
+  fileName: text("file_name").notNull(),
+  courseName: text("course_name"),
+  learningPeriod: text("learning_period"),
+  totalCount: integer("total_count").notNull().default(0),
+  completedCount: integer("completed_count").notNull().default(0),
+  createdBy: text("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertOnlineEduUploadSchema = createInsertSchema(onlineEduUploads).omit({ id: true, createdAt: true });
+export type OnlineEduUpload = typeof onlineEduUploads.$inferSelect;
+export type InsertOnlineEduUpload = z.infer<typeof insertOnlineEduUploadSchema>;
+
+export const onlineEduRecords = pgTable("online_edu_records", {
+  id: serial("id").primaryKey(),
+  uploadId: integer("upload_id"),
+  name: text("name").notNull(),
+  department: text("department"),
+  courseName: text("course_name"),
+  learningPeriod: text("learning_period"),
+  progressRate: text("progress_rate"),
+  learningHours: text("learning_hours"),
+  score: text("score"),
+  passScore: text("pass_score"),
+  completionStatus: text("completion_status"),
+  canComplete: text("can_complete"),
+  incompleteReason: text("incomplete_reason"),
+  completionDate: text("completion_date"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertOnlineEduRecordSchema = createInsertSchema(onlineEduRecords).omit({ id: true, createdAt: true });
+export type OnlineEduRecord = typeof onlineEduRecords.$inferSelect;
+export type InsertOnlineEduRecord = z.infer<typeof insertOnlineEduRecordSchema>;
+
 // Export auth schema
 export * from "./models/auth";
 

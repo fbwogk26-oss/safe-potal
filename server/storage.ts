@@ -40,6 +40,10 @@ import {
   type AttendanceUpload, type InsertAttendanceUpload,
   attendanceRecords,
   type AttendanceRecord, type InsertAttendanceRecord,
+  onlineEduUploads,
+  type OnlineEduUpload, type InsertOnlineEduUpload,
+  onlineEduRecords,
+  type OnlineEduRecord, type InsertOnlineEduRecord,
 } from "@shared/schema";
 import { eq, desc, asc, and, ilike, or, sql, inArray } from "drizzle-orm";
 
@@ -165,6 +169,13 @@ export interface IStorage {
   createAttendanceRecord(data: InsertAttendanceRecord): Promise<AttendanceRecord>;
   deleteAttendanceRecordsByUpload(uploadId: number): Promise<void>;
   updateAttendanceRecordReason(id: number, absenceReason: string): Promise<void>;
+
+  // Online Education Progress
+  getOnlineEduUploads(): Promise<OnlineEduUpload[]>;
+  createOnlineEduUpload(data: InsertOnlineEduUpload): Promise<OnlineEduUpload>;
+  deleteOnlineEduUpload(id: number): Promise<void>;
+  getOnlineEduRecords(uploadId: number): Promise<OnlineEduRecord[]>;
+  bulkCreateOnlineEduRecords(records: InsertOnlineEduRecord[]): Promise<void>;
 
   // Music Files
   getMusicFiles(): Promise<MusicFile[]>;
@@ -897,6 +908,31 @@ export class DatabaseStorage implements IStorage {
   }
   async deleteSafetyCostTaxInvoice(id: number): Promise<void> {
     await db.delete(safetyCostTaxInvoices).where(eq(safetyCostTaxInvoices.id, id));
+  }
+
+  // === 온라인 교육 진도율 ===
+  async getOnlineEduUploads(): Promise<OnlineEduUpload[]> {
+    return await db.select().from(onlineEduUploads).orderBy(desc(onlineEduUploads.createdAt));
+  }
+  async createOnlineEduUpload(data: InsertOnlineEduUpload): Promise<OnlineEduUpload> {
+    const [row] = await db.insert(onlineEduUploads).values(data).returning();
+    return row;
+  }
+  async deleteOnlineEduUpload(id: number): Promise<void> {
+    await db.delete(onlineEduRecords).where(eq(onlineEduRecords.uploadId, id));
+    await db.delete(onlineEduUploads).where(eq(onlineEduUploads.id, id));
+  }
+  async getOnlineEduRecords(uploadId: number): Promise<OnlineEduRecord[]> {
+    return await db.select().from(onlineEduRecords)
+      .where(eq(onlineEduRecords.uploadId, uploadId))
+      .orderBy(asc(onlineEduRecords.name));
+  }
+  async bulkCreateOnlineEduRecords(records: InsertOnlineEduRecord[]): Promise<void> {
+    if (records.length === 0) return;
+    const chunkSize = 200;
+    for (let i = 0; i < records.length; i += chunkSize) {
+      await db.insert(onlineEduRecords).values(records.slice(i, i + chunkSize));
+    }
   }
 }
 
