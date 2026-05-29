@@ -89,8 +89,12 @@ export default function OnlineEduProgress() {
         body: fd,
         credentials: "include",
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "업로드 실패");
+      const text = await res.text();
+      let data: any = {};
+      try { data = JSON.parse(text); } catch {
+        throw new Error(`서버 응답 오류 (${res.status}): ${text.substring(0, 120)}`);
+      }
+      if (!res.ok) throw new Error(data.message || `업로드 실패 (HTTP ${res.status})`);
       return data;
     },
     onSuccess: (data) => {

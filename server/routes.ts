@@ -6276,10 +6276,16 @@ ${htmlDraft}
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  app.post('/api/online-edu/upload', isAuthenticated, onlineEduUploadMw.single("file"), async (req: any, res) => {
+  app.post('/api/online-edu/upload', isAuthenticated, (req: any, res: any, next: any) => {
+    onlineEduUploadMw.single("file")(req, res, async (multerErr: any) => {
+    if (multerErr) {
+      console.error("[OnlineEduUpload] Multer 에러:", multerErr.message);
+      return res.status(400).json({ message: "파일 수신 오류: " + multerErr.message });
+    }
     const filePath = req.file?.path;
     try {
       const file = req.file;
+      console.error("[OnlineEduUpload] req.file:", file ? `있음 (${file.originalname}, ${file.size}bytes)` : "없음");
       if (!file) return res.status(400).json({ message: "파일이 없습니다" });
 
       const XLSX = require('xlsx');
@@ -6376,7 +6382,8 @@ ${htmlDraft}
       try { if (filePath) fs.unlinkSync(filePath); } catch {}
       res.status(500).json({ message: "업로드 처리 중 오류가 발생했습니다: " + e.message });
     }
-  });
+    }); // end multer callback
+  }); // end route handler
 
   app.get('/api/online-edu/records/:uploadId', isAuthenticated, async (req: any, res) => {
     try {
