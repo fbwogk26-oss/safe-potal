@@ -6277,6 +6277,7 @@ ${htmlDraft}
   });
 
   app.post('/api/online-edu/upload', isAuthenticated, onlineEduUploadMw.single("file"), async (req: any, res) => {
+    const filePath = req.file?.path;
     try {
       const file = req.file;
       if (!file) return res.status(400).json({ message: "파일이 없습니다" });
@@ -6286,22 +6287,63 @@ ${htmlDraft}
       const ws = wb.Sheets[wb.SheetNames[0]];
       const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false });
 
-      // 헤더 2줄 → 데이터는 row 2부터
-      const dataRows = rows.slice(2).filter((r: any[]) => r[22] && String(r[22]).trim());
-      if (dataRows.length === 0) {
-        fs.unlinkSync(file.path);
+      if (rows.length < 3) {
+        try { fs.unlinkSync(file.path); } catch {}
         return res.status(400).json({ message: "데이터가 없습니다. 엑셀 형식을 확인해주세요." });
       }
 
-      const courseName = String(dataRows[0][7] || "").trim();
-      const learningPeriod = String(dataRows[0][9] || "").trim();
-      const completedCount = dataRows.filter((r: any[]) => {
-        const s = String(r[75] || "").trim();
-        return s === "수료";
-      }).length;
+      // 헤더에서 컬럼 인덱스 자동 감지 (row 0, row 1 모두 검색)
+      const findCol = (keywords: string[]): number => {
+        for (const kw of keywords) {
+          for (let r = 0; r <= 1; r++) {
+            for (let c = 0; c < (rows[r]?.length || 0); c++) {
+              const cell = String(rows[r]?.[c] || "").replace(/\n/g, "").trim();
+              if (cell.includes(kw)) return c;
+            }
+          }
+        }
+        return -1;
+      };
+
+      const colName   = findCol(["성명"]);
+      const colDept   = findCol(["소속"]);
+      const colCourse = findCol(["과정명"]);
+      const colPeriod = findCol(["학습기간"]);
+      const colProg   = findCol(["총진도율"]);
+      const colHours  = findCol(["총학습시간"]);
+      const colScore  = findCol(["취득점수"]);
+      const colPass   = findCol(["이수기준점수"]);
+      const colStatus = findCol(["수료여부"]);
+      const colCan    = findCol(["수료가능여부"]);
+      const colReason = findCol(["미이수사유"]);
+      const colComp   = findCol(["수료일자"]);
+
+      console.log("[OnlineEduUpload] 컬럼 감지:", { colName, colDept, colCourse, colStatus, colProg });
+
+      if (colName < 0) {
+        try { fs.unlinkSync(file.path); } catch {}
+        return res.status(400).json({ message: "성명 컬럼을 찾을 수 없습니다. 엑셀 형식을 확인해주세요." });
+      }
+
+      // 데이터 row 2부터 (헤더 2줄 제외)
+      const dataRows = rows.slice(2).filter((r: any[]) => r[colName] && String(r[colName]).trim());
+      if (dataRows.length === 0) {
+        try { fs.unlinkSync(file.path); } catch {}
+        return res.status(400).json({ message: "데이터가 없습니다. 엑셀 형식을 확인해주세요." });
+      }
+
+      const get = (r: any[], col: number) => col >= 0 ? String(r[col] || "").trim() : "";
+
+      const courseName = get(dataRows[0], colCourse);
+      const learningPeriod = get(dataRows[0], colPeriod);
+      const completedCount = dataRows.filter((r) => get(r, colStatus) === "수료").length;
+
+      // 파일명: multer originalname을 그대로 사용 (인코딩 변환 없이)
+      let safeFileName = file.originalname;
+      try { safeFileName = decodeURIComponent(escape(file.originalname)); } catch {}
 
       const upload = await storage.createOnlineEduUpload({
-        fileName: Buffer.from(file.originalname, 'latin1').toString('utf8'),
+        fileName: safeFileName,
         courseName,
         learningPeriod,
         totalCount: dataRows.length,
@@ -6311,26 +6353,28 @@ ${htmlDraft}
 
       const records = dataRows.map((r: any[]) => ({
         uploadId: upload.id,
-        name: String(r[22] || "").trim(),
-        department: String(r[18] || "").trim(),
-        courseName: String(r[7] || "").trim(),
-        learningPeriod: String(r[9] || "").trim(),
-        progressRate: String(r[31] || "0").trim(),
-        learningHours: String(r[27] || "").trim(),
-        score: String(r[48] || "").trim(),
-        passScore: String(r[47] || "").trim(),
-        completionStatus: String(r[75] || "").trim(),
-        canComplete: String(r[76] || "").trim(),
-        incompleteReason: String(r[77] || "-").trim(),
-        completionDate: String(r[87] || "").trim(),
+        name: get(r, colName),
+        department: get(r, colDept),
+        courseName: get(r, colCourse),
+        learningPeriod: get(r, colPeriod),
+        progressRate: get(r, colProg) || "0",
+        learningHours: get(r, colHours),
+        score: get(r, colScore),
+        passScore: get(r, colPass),
+        completionStatus: get(r, colStatus),
+        canComplete: get(r, colCan),
+        incompleteReason: get(r, colReason) || "-",
+        completionDate: get(r, colComp),
       }));
 
       await storage.bulkCreateOnlineEduRecords(records);
       try { fs.unlinkSync(file.path); } catch {}
+      console.log(`[OnlineEduUpload] 완료: ${records.length}명, course="${courseName}"`);
       res.json({ upload, count: records.length });
     } catch (e: any) {
-      console.error("[OnlineEduUpload]", e);
-      res.status(500).json({ message: e.message });
+      console.error("[OnlineEduUpload] 에러:", e.message, e.stack?.split('\n')[1]);
+      try { if (filePath) fs.unlinkSync(filePath); } catch {}
+      res.status(500).json({ message: "업로드 처리 중 오류가 발생했습니다: " + e.message });
     }
   });
 
