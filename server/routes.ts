@@ -1087,28 +1087,39 @@ export async function registerRoutes(
               }
             } catch {}
 
-            // 엑셀에서 작업내용 매칭
+            // 엑셀에서 다중 필드 매칭
             let workContent = '';
+            let inspectorFromExcel = '';
+            let locationFromExcel = '';
+            let overallComment = '';
             if (excelData.length > 0) {
               const cols = Object.keys(excelData[0]);
-              const workContentCol = cols.find(c => ['작업내용','작업구분','작업유형','업무내용','내용','작업명','구분'].some(k => c.includes(k))) || '';
-              const teamCol = cols.find(c => ['팀','부서','대상','팀명','점검대상'].some(k => c.includes(k))) || '';
-              if (workContentCol) {
-                const matchedRow = excelData.find(row => {
-                  if (!teamCol) return false;
-                  const rowTeam = String(row[teamCol] || '');
-                  return rowTeam && (rowTeam.includes(team) || team.includes(rowTeam.replace(/\s/g, '')));
-                });
-                if (matchedRow) workContent = String(matchedRow[workContentCol] || '');
+              const workContentCol = cols.find(c => ['작업내용','작업구분','작업유형','업무내용','내용','작업명','구분'].some(k => c.includes(k)));
+              const teamCol = cols.find(c => ['팀','부서','대상','팀명','점검대상'].some(k => c.includes(k)));
+              const inspectorCol = cols.find(c => ['점검자','검사자','담당자','담당'].some(k => c.includes(k)));
+              const locationCol = cols.find(c => ['주소','장소','작업국소','작업장소','현장주소'].some(k => c.includes(k)));
+              const commentCol = cols.find(c => ['총평','종합의견','종합','비고','총의견'].some(k => c.includes(k)));
+              const matchedRow = teamCol ? excelData.find(row => {
+                const rowTeam = String(row[teamCol] || '');
+                return rowTeam && (rowTeam.includes(team) || team.includes(rowTeam.replace(/\s/g, '')));
+              }) : undefined;
+              if (matchedRow) {
+                if (workContentCol) workContent = String(matchedRow[workContentCol] || '');
+                if (inspectorCol) inspectorFromExcel = String(matchedRow[inspectorCol] || '');
+                if (locationCol) locationFromExcel = String(matchedRow[locationCol] || '');
+                if (commentCol) overallComment = String(matchedRow[commentCol] || '');
               }
             }
+            // location 우선순위: PDF 추출 > 엑셀
+            if (!location && locationFromExcel) location = locationFromExcel;
 
-            results.push({ fileName: f.originalname, inspectionDate, team, location, workDateTime, workNo, workContent, inspectionMethod, inspectionResult, defectCount, imageUrls });
+            results.push({ fileName: f.originalname, inspectionDate, team, location, workDateTime, workNo, workContent, inspectionMethod, inspectionResult, defectCount, imageUrls, inspector: inspectorFromExcel, overallComment });
           } catch (e: any) {
             results.push({ fileName: f.originalname, error: e.message, inspectionDate: '', team: '', location: '', workDateTime: '', workNo: '', workContent: '', inspectionMethod: '', inspectionResult: '양호', defectCount: 0, imageUrls: [] });
           }
         }
 
+        results.sort((a, b) => (a.inspectionDate || '').localeCompare(b.inspectionDate || ''));
         res.json({ results, excelData, excelHeaders: excelData.length > 0 ? Object.keys(excelData[0]) : [] });
       } catch (e: any) { res.status(500).json({ message: e.message }); }
     }

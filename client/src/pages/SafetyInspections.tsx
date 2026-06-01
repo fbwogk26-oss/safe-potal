@@ -41,6 +41,8 @@ interface BulkRow {
   inspectionResult: string;
   defectCount: number;
   imageUrls: string[];
+  inspector: string;
+  overallComment: string;
   selected: boolean;
   error?: string;
 }
@@ -110,7 +112,7 @@ export default function SafetyInspections() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
   const bulkDeleteMutation = useMutation({
-    mutationFn: (ids: number[]) => apiRequest("DELETE", "/api/safety-inspections/bulk-delete", { ids }),
+    mutationFn: (ids: number[]) => apiRequest("POST", "/api/safety-inspections/bulk-delete", { ids }),
     onSuccess: async (res) => {
       const data = await (res as any).json();
       queryClient.invalidateQueries({ queryKey: ["/api/safety-inspections"] });
@@ -253,11 +255,12 @@ export default function SafetyInspections() {
         inspectionType: '안전점검',
         title: r.team + (r.workContent ? ' - ' + r.workContent : r.workNo ? ' - ' + r.workNo : ''),
         location: r.location || undefined,
-        inspector: user?.name || user?.username || undefined,
+        inspector: r.inspector || user?.name || user?.username || undefined,
         workerName: r.team || undefined,
         inspectionDate: r.inspectionDate,
         checklist: DEFAULT_CHECKLIST,
         notes: [
+          r.overallComment && `점검총평: ${r.overallComment}`,
           r.inspectionMethod && `점검방법: ${r.inspectionMethod}`,
           r.workDateTime && `작업일시: ${r.workDateTime}`,
         ].filter(Boolean).join('\n') || undefined,
