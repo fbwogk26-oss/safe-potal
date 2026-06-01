@@ -966,12 +966,34 @@ export class DatabaseStorage implements IStorage {
       .orderBy(asc(safetySupplyItems.sortOrder));
   }
   async upsertSafetySupplyItems(surveyId: number, items: Omit<InsertSafetySupplyItem, 'surveyId'>[]): Promise<SafetySupplyItem[]> {
-    await db.delete(safetySupplyItems).where(eq(safetySupplyItems.surveyId, surveyId));
-    if (items.length === 0) return [];
-    const rows = await db.insert(safetySupplyItems)
-      .values(items.map((it, i) => ({ ...it, surveyId, sortOrder: i })))
-      .returning();
-    return rows;
+    // 기존 rows를 sortOrder 순으로 가져와서 index 매칭으로 UPDATE — ID를 유지해야 depts quantities 키가 살아남음
+    const existing = await db.select().from(safetySupplyItems)
+      .where(eq(safetySupplyItems.surveyId, surveyId))
+      .orderBy(asc(safetySupplyItems.sortOrder));
+
+    const result: SafetySupplyItem[] = [];
+
+    for (let i = 0; i < items.length; i++) {
+      if (i < existing.length) {
+        const [updated] = await db.update(safetySupplyItems)
+          .set({ ...items[i], surveyId, sortOrder: i })
+          .where(eq(safetySupplyItems.id, existing[i].id))
+          .returning();
+        result.push(updated);
+      } else {
+        const [inserted] = await db.insert(safetySupplyItems)
+          .values({ ...items[i], surveyId, sortOrder: i })
+          .returning();
+        result.push(inserted);
+      }
+    }
+
+    if (existing.length > items.length) {
+      const idsToDelete = existing.slice(items.length).map(e => e.id);
+      await db.delete(safetySupplyItems).where(inArray(safetySupplyItems.id, idsToDelete));
+    }
+
+    return result;
   }
   async getSafetySupplyDeptEntries(surveyId: number): Promise<SafetySupplyDeptEntry[]> {
     return await db.select().from(safetySupplyDeptEntries)

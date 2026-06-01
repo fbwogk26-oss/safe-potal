@@ -153,8 +153,8 @@ export default function SafetySupplySurvey() {
   const saveItemsMut = useMutation({
     mutationFn: (its: any[]) => apiRequest("PUT", `/api/safety-supply/surveys/${selectedId}/items`, its).then(r => r.json()),
     onSuccess: () => {
+      // dept-entries는 무효화하지 않음 — 수량 데이터 보존 (서버에서 item ID를 유지하므로 OK)
       queryClient.invalidateQueries({ queryKey: ["/api/safety-supply/surveys", selectedId, "items"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/safety-supply/surveys", selectedId, "dept-entries"] });
       setEditingItems(false);
       toast({ title: "물품 목록이 저장됐습니다." });
     },
@@ -304,7 +304,7 @@ export default function SafetySupplySurvey() {
 
   const removeDept = (di: number) => mutateDepts(c => c.filter((_, i) => i !== di));
 
-  // ── 수량 자동계산 ────────────────────────────────────
+  // ── 수량 자동계산 (기존에 값이 있는 셀은 건드리지 않음) ──────
   const autoFillQty = () => {
     const current = getDisplayDepts();
     let filled = 0;
@@ -312,7 +312,8 @@ export default function SafetySupplySurvey() {
       const newQties = { ...dept.quantities };
       items.forEach(it => {
         const autoQty = parseAutoQty(it.supplyStandard, dept.deptCount);
-        if (autoQty !== null) {
+        // 이미 값이 있으면 덮어쓰지 않음 — 0이거나 없는 경우에만 채움
+        if (autoQty !== null && !Number(newQties[it.id])) {
           newQties[it.id] = autoQty;
           filled++;
         }
@@ -322,9 +323,9 @@ export default function SafetySupplySurvey() {
     setLocalDepts(next);
     setDeptsDirty(true);
     if (filled > 0) {
-      toast({ title: "수량 자동계산 완료", description: `${filled}개 항목이 지급기준에 따라 자동 입력됐습니다.` });
+      toast({ title: "수량 자동계산 완료", description: `${filled}개 빈 항목이 지급기준에 따라 자동 입력됐습니다.` });
     } else {
-      toast({ title: "자동계산 대상 없음", description: "'인당 N개', '부서당 N개' 형식의 지급기준이 있는 물품만 자동 계산됩니다.", variant: "destructive" });
+      toast({ title: "자동계산 대상 없음", description: "이미 모든 항목에 수량이 입력돼 있거나 자동계산 가능한 기준이 없습니다." });
     }
   };
 
