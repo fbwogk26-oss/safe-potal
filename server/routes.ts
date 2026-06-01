@@ -6666,10 +6666,10 @@ ${htmlDraft}
         }
 
         await storage.upsertSafetySupplyDeptEntries(surveyId, entries);
-        try { require('fs').unlinkSync(file.path); } catch {}
+        try { fs.unlinkSync(file.path); } catch {}
         res.json({ items: savedItems.length, depts: entries.length });
       } catch (e: any) {
-        try { require('fs').unlinkSync(file.path); } catch {}
+        try { fs.unlinkSync(file.path); } catch {}
         res.status(500).json({ message: '파싱 오류: ' + e.message });
       }
     });
