@@ -923,9 +923,7 @@ export async function registerRoutes(
 
       // ── 1) 텍스트 추출 (pdfjs-dist, 서버 전용) ──
       const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
-      const pathMod = await import('path');
-      const workerSrc = 'file://' + pathMod.default.resolve('./node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs');
-      (pdfjsLib as any).GlobalWorkerOptions.workerSrc = workerSrc;
+      (pdfjsLib as any).GlobalWorkerOptions.workerSrc = false;
       const uint8 = new Uint8Array(pdfBuffer);
       const loadingTask = pdfjsLib.getDocument({ data: uint8 });
       const pdfDoc = await loadingTask.promise;
@@ -1024,9 +1022,7 @@ export async function registerRoutes(
 
         // pdfjs-dist 초기화
         const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
-        const pathMod = await import('path');
-        const workerSrc = 'file://' + pathMod.default.resolve('./node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs');
-        (pdfjsLib as any).GlobalWorkerOptions.workerSrc = workerSrc;
+        (pdfjsLib as any).GlobalWorkerOptions.workerSrc = false;
 
         const results: any[] = [];
         for (const f of pdfFiles) {
@@ -4148,9 +4144,7 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
     try {
       const pdfBuffer: Buffer = req.file.buffer;
       const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
-      const pathMod = await import('path');
-      const workerSrc = 'file://' + pathMod.default.resolve('./node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs');
-      (pdfjsLib as any).GlobalWorkerOptions.workerSrc = workerSrc;
+      (pdfjsLib as any).GlobalWorkerOptions.workerSrc = false;
       const uint8 = new Uint8Array(pdfBuffer);
       const pdfDoc = await pdfjsLib.getDocument({ data: uint8 }).promise;
       let text = '';
@@ -4973,9 +4967,7 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
           let pdfText = "";
           try {
             const pdfjsLib2 = await import('pdfjs-dist/legacy/build/pdf.mjs');
-            const pathMod2 = await import('path');
-            const workerSrc2 = 'file://' + pathMod2.default.resolve('./node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs');
-            (pdfjsLib2 as any).GlobalWorkerOptions.workerSrc = workerSrc2;
+            (pdfjsLib2 as any).GlobalWorkerOptions.workerSrc = false;
             const uint8b = new Uint8Array(pdfBuffer);
             const loadingTask2 = pdfjsLib2.getDocument({ data: uint8b });
             const pdfDoc2 = await loadingTask2.promise;
