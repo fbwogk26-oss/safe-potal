@@ -1092,17 +1092,48 @@ export async function registerRoutes(
             let inspectorFromExcel = '';
             let locationFromExcel = '';
             let overallComment = '';
+            const pdfIndex = files.indexOf(f); // PDF 파일 순서
             if (excelData.length > 0) {
               const cols = Object.keys(excelData[0]);
-              const workContentCol = cols.find(c => ['작업내용','작업구분','작업유형','업무내용','내용','작업명','구분'].some(k => c.includes(k)));
-              const teamCol = cols.find(c => ['팀','부서','대상','팀명','점검대상'].some(k => c.includes(k)));
-              const inspectorCol = cols.find(c => ['점검자','검사자','담당자','담당'].some(k => c.includes(k)));
-              const locationCol = cols.find(c => ['주소','장소','작업국소','작업장소','현장주소'].some(k => c.includes(k)));
-              const commentCol = cols.find(c => ['총평','종합의견','종합','비고','총의견'].some(k => c.includes(k)));
-              const matchedRow = teamCol ? excelData.find(row => {
-                const rowTeam = String(row[teamCol] || '');
-                return rowTeam && (rowTeam.includes(team) || team.includes(rowTeam.replace(/\s/g, '')));
-              }) : undefined;
+              const workContentCol = cols.find(c => ['작업내용','작업구분','작업유형','업무내용','내용','작업명','구분','작업사항','수행내용'].some(k => c.includes(k)));
+              const teamCol = cols.find(c => ['팀','부서','대상','팀명','점검대상','대상팀','소속'].some(k => c.includes(k)));
+              const inspectorCol = cols.find(c => ['점검자','검사자','담당자','담당','확인자','점검원'].some(k => c.includes(k)));
+              const locationCol = cols.find(c => ['주소','장소','작업국소','작업장소','현장주소','작업위치','위치'].some(k => c.includes(k)));
+              const commentCol = cols.find(c => ['총평','종합의견','종합','비고','총의견','결과의견','점검의견'].some(k => c.includes(k)));
+              const dateCol = cols.find(c => ['점검일','날짜','일시','점검일시','작업일','일자'].some(k => c.includes(k)));
+
+              // 팀+날짜 복합 매칭 → 팀만 매칭 → 날짜만 매칭 → 인덱스 기반 순으로 시도
+              const normalize = (s: string) => s.replace(/\s/g, '').toLowerCase();
+              let matchedRow: Record<string, any> | undefined;
+
+              if (teamCol) {
+                matchedRow = excelData.find(row => {
+                  const rowTeam = normalize(String(row[teamCol] || ''));
+                  const normalTeam = normalize(team);
+                  if (!rowTeam) return false;
+                  const teamOk = rowTeam.includes(normalTeam) || normalTeam.includes(rowTeam);
+                  if (!teamOk) return false;
+                  if (dateCol && inspectionDate) {
+                    const rowDate = String(row[dateCol] || '').replace(/[^0-9]/g, '');
+                    const pdfDate = inspectionDate.replace(/[^0-9]/g, '').slice(0, 8);
+                    return rowDate.includes(pdfDate);
+                  }
+                  return true;
+                });
+              }
+              // 팀 매칭 실패 시 날짜만으로 시도
+              if (!matchedRow && dateCol && inspectionDate) {
+                matchedRow = excelData.find(row => {
+                  const rowDate = String(row[dateCol] || '').replace(/[^0-9]/g, '');
+                  const pdfDate = inspectionDate.replace(/[^0-9]/g, '').slice(0, 8);
+                  return rowDate.includes(pdfDate);
+                });
+              }
+              // 날짜 매칭도 실패 시 순서(인덱스)로 폴백
+              if (!matchedRow && pdfIndex < excelData.length) {
+                matchedRow = excelData[pdfIndex];
+              }
+
               if (matchedRow) {
                 if (workContentCol) workContent = String(matchedRow[workContentCol] || '');
                 if (inspectorCol) inspectorFromExcel = String(matchedRow[inspectorCol] || '');
