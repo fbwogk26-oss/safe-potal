@@ -955,8 +955,8 @@ export async function registerRoutes(
         team = parts[parts.length - 1].trim();
       }
 
-      // 작업장소: 작업일시/장소 : <비워있거나날짜> / <날짜T시간> <장소>  ○
-      const locMatch = fullText.match(/작업일시[\/\/]장소\s*[:\uff1a]\s*[^\/]*\/\s*[^\s]+\s+(.+?)\s{2,}○/);
+      // 작업장소: "날짜T시간 / 주소" 패턴 — ○ 또는 줄바꿈 전까지 추출
+      const locMatch = fullText.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}\s*\/\s*([^○\n]+?)(?=\s*○|\s*$)/);
       if (locMatch) location = locMatch[1].trim();
 
       // 작업내용: 직영-무선기지국- 형태
@@ -1063,7 +1063,7 @@ export async function registerRoutes(
             const m_dt = fullText.match(/작업일시[\/\/]장소\s*[:\uff1a]\s*(\d{4}-\d{2}-\d{2}T[\d:]+)/);
             if (m_dt) workDateTime = m_dt[1];
 
-            const m_loc = fullText.match(/작업일시[\/\/]장소\s*[:\uff1a]\s*\S+\s*\/\s*(.+?)(?:\s{3,}|○|$)/);
+            const m_loc = fullText.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}\s*\/\s*([^○\n]+?)(?=\s*○|\s*$)/);
             if (m_loc) location = m_loc[1].trim();
 
             const m_no = fullText.match(/직영\s*\/\s*(무선기지국-[\w-]+|직영-[\w-]+)/);
