@@ -36,6 +36,7 @@ interface BulkRow {
   location: string;
   workDateTime: string;
   workNo: string;
+  workContent: string;
   inspectionMethod: string;
   inspectionResult: string;
   defectCount: number;
@@ -246,16 +247,15 @@ export default function SafetyInspections() {
     try {
       const payload = selected.map(r => ({
         inspectionType: '안전점검',
-        title: r.team + (r.workNo ? ' - ' + r.workNo : ''),
+        title: r.team + (r.workContent ? ' - ' + r.workContent : r.workNo ? ' - ' + r.workNo : ''),
         location: r.location || undefined,
         inspector: user?.name || user?.username || undefined,
-        workerName: undefined,
+        workerName: r.team || undefined,
         inspectionDate: r.inspectionDate,
         checklist: DEFAULT_CHECKLIST,
         notes: [
           r.inspectionMethod && `점검방법: ${r.inspectionMethod}`,
           r.workDateTime && `작업일시: ${r.workDateTime}`,
-          r.inspectionResult === '미흡' && `점검결과: 미흡 (${r.defectCount}건)`,
         ].filter(Boolean).join('\n') || undefined,
         images: r.imageUrls,
       }));
@@ -1665,12 +1665,12 @@ export default function SafetyInspections() {
                     <TableRow className="text-xs">
                       <TableHead className="w-10 text-center">선택</TableHead>
                       <TableHead className="min-w-[90px]">점검일자</TableHead>
-                      <TableHead className="min-w-[110px]">팀명</TableHead>
-                      <TableHead className="min-w-[180px]">작업장소</TableHead>
-                      <TableHead className="min-w-[130px]">작업일시</TableHead>
-                      <TableHead className="min-w-[90px]">점검방법</TableHead>
-                      <TableHead className="min-w-[160px]">작업번호</TableHead>
-                      <TableHead className="min-w-[70px] text-center">결과</TableHead>
+                      <TableHead className="min-w-[100px]">팀명(작업자)</TableHead>
+                      <TableHead className="min-w-[160px]">작업내용</TableHead>
+                      <TableHead className="min-w-[180px]">작업국소(장소)</TableHead>
+                      <TableHead className="min-w-[120px]">작업일시</TableHead>
+                      <TableHead className="min-w-[80px]">점검방법</TableHead>
+                      <TableHead className="min-w-[150px]">작업번호</TableHead>
                       <TableHead className="min-w-[60px] text-center">사진</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -1702,7 +1702,15 @@ export default function SafetyInspections() {
                           <Input
                             value={row.team}
                             onChange={e => setBulkRows(prev => prev.map((r, i) => i === idx ? { ...r, team: e.target.value } : r))}
-                            className="h-7 text-xs min-w-[100px]"
+                            className="h-7 text-xs min-w-[90px]"
+                          />
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          <Input
+                            value={row.workContent}
+                            onChange={e => setBulkRows(prev => prev.map((r, i) => i === idx ? { ...r, workContent: e.target.value } : r))}
+                            className="h-7 text-xs min-w-[150px]"
+                            placeholder="작업내용 입력"
                           />
                         </TableCell>
                         <TableCell className="text-xs">
@@ -1716,36 +1724,22 @@ export default function SafetyInspections() {
                           <Input
                             value={row.workDateTime}
                             onChange={e => setBulkRows(prev => prev.map((r, i) => i === idx ? { ...r, workDateTime: e.target.value } : r))}
-                            className="h-7 text-xs min-w-[120px]"
+                            className="h-7 text-xs min-w-[110px]"
                           />
                         </TableCell>
                         <TableCell className="text-xs">
                           <Input
                             value={row.inspectionMethod}
                             onChange={e => setBulkRows(prev => prev.map((r, i) => i === idx ? { ...r, inspectionMethod: e.target.value } : r))}
-                            className="h-7 text-xs min-w-[80px]"
+                            className="h-7 text-xs min-w-[70px]"
                           />
                         </TableCell>
                         <TableCell className="text-xs">
                           <Input
                             value={row.workNo}
                             onChange={e => setBulkRows(prev => prev.map((r, i) => i === idx ? { ...r, workNo: e.target.value } : r))}
-                            className="h-7 text-xs min-w-[150px]"
+                            className="h-7 text-xs min-w-[140px]"
                           />
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {row.error ? (
-                            <span className="text-red-500 text-xs">{row.error.slice(0, 20)}</span>
-                          ) : (
-                            <Badge
-                              variant="outline"
-                              className={row.inspectionResult === '양호'
-                                ? 'text-green-600 border-green-300 text-xs'
-                                : 'text-red-600 border-red-300 text-xs'}
-                            >
-                              {row.inspectionResult || '양호'}
-                            </Badge>
-                          )}
                         </TableCell>
                         <TableCell className="text-center text-xs text-muted-foreground">
                           {row.imageUrls.length > 0 ? (

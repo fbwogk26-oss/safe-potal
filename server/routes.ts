@@ -1087,9 +1087,25 @@ export async function registerRoutes(
               }
             } catch {}
 
-            results.push({ fileName: f.originalname, inspectionDate, team, location, workDateTime, workNo, inspectionMethod, inspectionResult, defectCount, imageUrls });
+            // 엑셀에서 작업내용 매칭
+            let workContent = '';
+            if (excelData.length > 0) {
+              const cols = Object.keys(excelData[0]);
+              const workContentCol = cols.find(c => ['작업내용','작업구분','작업유형','업무내용','내용','작업명','구분'].some(k => c.includes(k))) || '';
+              const teamCol = cols.find(c => ['팀','부서','대상','팀명','점검대상'].some(k => c.includes(k))) || '';
+              if (workContentCol) {
+                const matchedRow = excelData.find(row => {
+                  if (!teamCol) return false;
+                  const rowTeam = String(row[teamCol] || '');
+                  return rowTeam && (rowTeam.includes(team) || team.includes(rowTeam.replace(/\s/g, '')));
+                });
+                if (matchedRow) workContent = String(matchedRow[workContentCol] || '');
+              }
+            }
+
+            results.push({ fileName: f.originalname, inspectionDate, team, location, workDateTime, workNo, workContent, inspectionMethod, inspectionResult, defectCount, imageUrls });
           } catch (e: any) {
-            results.push({ fileName: f.originalname, error: e.message, inspectionDate: '', team: '', location: '', workDateTime: '', workNo: '', inspectionMethod: '', inspectionResult: '양호', defectCount: 0, imageUrls: [] });
+            results.push({ fileName: f.originalname, error: e.message, inspectionDate: '', team: '', location: '', workDateTime: '', workNo: '', workContent: '', inspectionMethod: '', inspectionResult: '양호', defectCount: 0, imageUrls: [] });
           }
         }
 
