@@ -234,7 +234,7 @@ export default function SafetyInspections() {
       setBulkExcelData(data.excelData || []);
       setBulkRows(
         (data.results || [])
-          .map((r: any) => ({ ...r, selected: !r.error }))
+          .map((r: any) => ({ ...r, workerName: r.workerName || r.team || '', selected: !r.error }))
           .sort((a: any, b: any) => (a.inspectionDate || '').localeCompare(b.inspectionDate || ''))
       );
       toast({ title: `${data.results.length}개 PDF 파싱 완료`, description: '이미지 포함 데이터를 확인 후 등록하세요.' });
@@ -261,13 +261,7 @@ export default function SafetyInspections() {
         workerName: r.workerName || r.team || undefined,
         inspectionDate: r.inspectionDate,
         checklist: DEFAULT_CHECKLIST,
-        notes: [
-          r.overallComment && `점검총평: ${r.overallComment}`,
-          r.inspectionMethod && `점검방법: ${r.inspectionMethod}`,
-          r.workDateTime && `작업일시: ${r.workDateTime}`,
-          r.workType && `작업유형: ${r.workType}`,
-          r.workNo && `작업번호: ${r.workNo}`,
-        ].filter(Boolean).join('\n') || undefined,
+        notes: r.overallComment || undefined,
         images: r.imageUrls,
       }));
       const res = await fetch('/api/safety-inspections/bulk-create', {
@@ -1681,8 +1675,6 @@ export default function SafetyInspections() {
                       <TableHead className="min-w-[80px]">작업자</TableHead>
                       <TableHead className="min-w-[160px]">작업내용</TableHead>
                       <TableHead className="min-w-[180px]">작업국소(장소)</TableHead>
-                      <TableHead className="min-w-[80px]">점검방법</TableHead>
-                      <TableHead className="min-w-[150px]">작업번호</TableHead>
                       <TableHead className="min-w-[60px] text-center">사진</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -1746,20 +1738,6 @@ export default function SafetyInspections() {
                             value={row.location}
                             onChange={e => setBulkRows(prev => prev.map((r, i) => i === idx ? { ...r, location: e.target.value } : r))}
                             className="h-7 text-xs min-w-[170px]"
-                          />
-                        </TableCell>
-                        <TableCell className="text-xs">
-                          <Input
-                            value={row.inspectionMethod}
-                            onChange={e => setBulkRows(prev => prev.map((r, i) => i === idx ? { ...r, inspectionMethod: e.target.value } : r))}
-                            className="h-7 text-xs min-w-[70px]"
-                          />
-                        </TableCell>
-                        <TableCell className="text-xs">
-                          <Input
-                            value={row.workNo}
-                            onChange={e => setBulkRows(prev => prev.map((r, i) => i === idx ? { ...r, workNo: e.target.value } : r))}
-                            className="h-7 text-xs min-w-[140px]"
                           />
                         </TableCell>
                         <TableCell className="text-center text-xs text-muted-foreground">
