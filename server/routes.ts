@@ -6537,87 +6537,89 @@ ${htmlDraft}
 
       const halfLabel = survey.half === 1 ? '상반기' : '하반기';
       const titleStr = `${survey.year}년 ${halfLabel} 필요용품 조사`;
-      const totalCols = 3 + items.length * 4 + 2; // 구분/부서/인원 + N×4 + 총수량/총금액
+      // 물품당 2열(수량+금액)로 구성 — 단가/지급기준은 헤더에 표기
+      const totalCols = 3 + items.length * 2 + 2; // 구분/부서/인원 + N×2 + 총수량/총금액
 
       // ── 스타일 정의 ───────────────────────────────────
       const clr = {
-        title:    'FF1E3A5F', // 진남색
-        itemHdr:  'FFD97706', // 주황
-        itemSub:  'FFFFF8E7', // 연주황
-        hdrGray:  'FF374151', // 짙은 회색
-        hdrGreen: 'FF065F46', // 짙은 초록
-        sumRow:   'FF1B4332', // 합계행 초록
-        altRow:   'FFF0F4F8', // 짝수행 연파랑
-        qtyCell:  'FFE0F2FE', // 수량 연파랑
-        amtCell:  'FFF0FDF4', // 금액 연초록
+        title:    'FF1E3A5F',
+        itemHdr:  'FFB45309', // 진주황
+        itemSub:  'FFFEF3C7', // 연주황
+        hdrGray:  'FF374151',
+        hdrGreen: 'FF065F46',
+        sumRow:   'FF1B4332',
+        altRow:   'FFF8FAFC',
+        qtyCell:  'FFE0F2FE',
+        amtCell:  'FFF0FDF4',
         white:    'FFFFFFFF',
         black:    'FF111827',
       };
-      const thin = { style: 'thin' as const, color: { argb: 'FFCCCCCC' } };
+      const thin   = { style: 'thin'   as const, color: { argb: 'FFDDDDDD' } };
       const medium = { style: 'medium' as const, color: { argb: 'FF888888' } };
       const allBorder = { top: thin, left: thin, bottom: thin, right: thin };
       const medBorder = { top: medium, left: medium, bottom: medium, right: medium };
-      const center: Partial<ExcelJS.Alignment> = { vertical: 'middle', horizontal: 'center', wrapText: true };
-      const centerNoWrap: Partial<ExcelJS.Alignment> = { vertical: 'middle', horizontal: 'center' };
-      const right: Partial<ExcelJS.Alignment> = { vertical: 'middle', horizontal: 'right' };
+      const center: Partial<ExcelJS.Alignment>      = { vertical: 'middle', horizontal: 'center', wrapText: true };
+      const centerNW: Partial<ExcelJS.Alignment>    = { vertical: 'middle', horizontal: 'center' };
+      const right: Partial<ExcelJS.Alignment>       = { vertical: 'middle', horizontal: 'right' };
+      const leftMid: Partial<ExcelJS.Alignment>     = { vertical: 'middle', horizontal: 'left' };
 
-      const fill = (argb: string): ExcelJS.Fill => ({ type: 'pattern', pattern: 'solid', fgColor: { argb } });
-      const font = (bold: boolean, sz: number, argb: string): Partial<ExcelJS.Font> => ({ bold, size: sz, color: { argb }, name: '맑은 고딕' });
+      const fill = (argb: string): ExcelJS.Fill =>
+        ({ type: 'pattern', pattern: 'solid', fgColor: { argb } });
+      const font = (bold: boolean, sz: number, argb: string): Partial<ExcelJS.Font> =>
+        ({ bold, size: sz, color: { argb }, name: '맑은 고딕' });
 
       const wb = new ExcelJS.Workbook();
       const ws = wb.addWorksheet('필요용품조사');
 
       // ── 컬럼 너비 ─────────────────────────────────────
       ws.getColumn(1).width = 6;   // 구분
-      ws.getColumn(2).width = 24;  // 부서
+      ws.getColumn(2).width = 26;  // 부서
       ws.getColumn(3).width = 7;   // 인원
       let col = 4;
       items.forEach(() => {
-        ws.getColumn(col).width = 11;    // 단가
-        ws.getColumn(col + 1).width = 12; // 지급기준
-        ws.getColumn(col + 2).width = 8;  // 수량
-        ws.getColumn(col + 3).width = 13; // 금액
-        col += 4;
+        ws.getColumn(col).width = 9;      // 수량
+        ws.getColumn(col + 1).width = 14; // 금액
+        col += 2;
       });
       ws.getColumn(col).width = 9;      // 총수량
-      ws.getColumn(col + 1).width = 14; // 총금액
+      ws.getColumn(col + 1).width = 15; // 총금액
 
       // ── Row 1: 대제목 ──────────────────────────────────
-      const r1 = ws.addRow([titleStr]);
+      ws.addRow([titleStr]);
       ws.mergeCells(1, 1, 1, totalCols);
+      const r1 = ws.getRow(1);
       r1.height = 28;
       const titleCell = r1.getCell(1);
       titleCell.value = titleStr;
       titleCell.style = { fill: fill(clr.title), font: font(true, 14, clr.white), alignment: center, border: allBorder };
 
-      // ── Row 2: 물품명 헤더 ────────────────────────────
-      const r2 = ws.addRow([]);
-      r2.height = 26;
-      // 구분/부서/인원 (Row2~3 병합 — r3 생성 후 병합 처리)
+      // ── Row 2: 물품명 헤더 (물품당 2열 병합, 단가·기준 표기) ──────
+      ws.addRow([]);
+      const r2 = ws.getRow(2);
+      r2.height = 32;
       ['구분', '부서', '인원'].forEach((lbl, i) => {
         const c = r2.getCell(i + 1);
         c.value = lbl;
         c.style = { fill: fill(clr.hdrGray), font: font(true, 10, clr.white), alignment: center, border: allBorder };
       });
-      // 물품명 (Row2에서만 4열 병합)
       let hc = 4;
       items.forEach(it => {
         const c = r2.getCell(hc);
-        c.value = `${it.itemName}\n${it.unitPrice.toLocaleString('ko-KR')}원`;
+        // 물품명 + 단가 + 지급기준 한 셀에 표기
+        c.value = `${it.itemName}\n${it.unitPrice.toLocaleString('ko-KR')}원  /  ${it.supplyStandard || '—'}`;
         c.style = { fill: fill(clr.itemHdr), font: font(true, 10, clr.white), alignment: center, border: allBorder };
-        ws.mergeCells(2, hc, 2, hc + 3);
-        hc += 4;
+        ws.mergeCells(2, hc, 2, hc + 1);
+        hc += 2;
       });
-      // 총수량/총금액 헤더 (Row2에 값 설정, 병합은 r3 생성 후)
-      const totQtyHdr = r2.getCell(hc);
-      totQtyHdr.value = '총수량';
-      totQtyHdr.style = { fill: fill(clr.hdrGreen), font: font(true, 10, clr.white), alignment: center, border: allBorder };
-      const totAmtHdr = r2.getCell(hc + 1);
-      totAmtHdr.value = '총금액';
-      totAmtHdr.style = { fill: fill(clr.hdrGreen), font: font(true, 10, clr.white), alignment: center, border: allBorder };
+      // 총수량/총금액 (Row2에 값 — 병합은 r3 생성 후)
+      r2.getCell(hc).value = '총수량';
+      r2.getCell(hc).style = { fill: fill(clr.hdrGreen), font: font(true, 10, clr.white), alignment: centerNW, border: allBorder };
+      r2.getCell(hc + 1).value = '총금액';
+      r2.getCell(hc + 1).style = { fill: fill(clr.hdrGreen), font: font(true, 10, clr.white), alignment: centerNW, border: allBorder };
 
-      // ── Row 3: 서브헤더 ───────────────────────────────
-      const r3 = ws.addRow([]);
+      // ── Row 3: 서브헤더 (수량 / 금액) ────────────────────
+      ws.addRow([]);
+      const r3 = ws.getRow(3);
       r3.height = 18;
       // 구분/부서/인원 Row2~3 병합
       ws.mergeCells(2, 1, 3, 1);
@@ -6626,21 +6628,16 @@ ${htmlDraft}
       // 총수량/총금액 Row2~3 병합
       ws.mergeCells(2, hc, 3, hc);
       ws.mergeCells(2, hc + 1, 3, hc + 1);
-      // 물품 서브헤더 (지급기준 포함)
+      // 물품 서브헤더: 수량 | 금액
       let sc = 4;
-      items.forEach(it => {
-        const labels = ['단가', `기준:${it.supplyStandard || '—'}`, '수량', '금액'];
-        labels.forEach((lbl, li) => {
-          const c = r3.getCell(sc + li);
-          c.value = li === 1 ? (it.supplyStandard || '—') : lbl;
-          c.style = {
-            fill: fill(li === 2 ? 'FFDBEAFE' : li === 3 ? 'FFD1FAE5' : clr.itemSub),
-            font: font(true, 8, li === 2 ? 'FF1E40AF' : li === 3 ? 'FF065F46' : 'FF92400E'),
-            alignment: centerNoWrap,
-            border: allBorder,
-          };
-        });
-        sc += 4;
+      items.forEach(() => {
+        const cQ = r3.getCell(sc);
+        cQ.value = '수량';
+        cQ.style = { fill: fill('FFDBEAFE'), font: font(true, 9, 'FF1E40AF'), alignment: centerNW, border: allBorder };
+        const cA = r3.getCell(sc + 1);
+        cA.value = '금액';
+        cA.style = { fill: fill('FFD1FAE5'), font: font(true, 9, 'FF065F46'), alignment: centerNW, border: allBorder };
+        sc += 2;
       });
 
       // ── 데이터 행 ─────────────────────────────────────
@@ -6652,27 +6649,18 @@ ${htmlDraft}
       depts.forEach((dept, di) => {
         const q = (dept.quantities as Record<string, number>) || {};
         let rowTotalQty = 0, rowTotalAmt = 0;
-        const dr = ws.addRow([]);
+        ws.addRow([]);
+        const dr = ws.getRow(4 + di);
         dr.height = 18;
-        const isAlt = di % 2 === 1;
-        const rowBg = isAlt ? clr.altRow : clr.white;
+        const rowBg = di % 2 === 1 ? clr.altRow : clr.white;
 
-        // 구분
-        const c1 = dr.getCell(1);
-        c1.value = di === 0 ? '부서' : '';
-        c1.style = { fill: fill(rowBg), font: font(false, 9, clr.black), alignment: centerNoWrap, border: allBorder };
+        dr.getCell(1).value = '';
+        dr.getCell(1).style = { fill: fill(rowBg), font: font(false, 9, clr.black), alignment: centerNW, border: allBorder };
+        dr.getCell(2).value = dept.deptName;
+        dr.getCell(2).style = { fill: fill(rowBg), font: font(true, 9, clr.black), alignment: leftMid, border: allBorder };
+        dr.getCell(3).value = dept.deptCount;
+        dr.getCell(3).style = { fill: fill('FFE0E7FF'), font: font(true, 9, 'FF3730A3'), alignment: centerNW, border: allBorder, numFmt };
 
-        // 부서명
-        const c2 = dr.getCell(2);
-        c2.value = dept.deptName;
-        c2.style = { fill: fill(rowBg), font: font(true, 9, clr.black), alignment: { vertical: 'middle', horizontal: 'left' }, border: allBorder };
-
-        // 인원
-        const c3 = dr.getCell(3);
-        c3.value = dept.deptCount;
-        c3.style = { fill: fill('FFE0E7FF'), font: font(true, 9, 'FF3730A3'), alignment: centerNoWrap, border: allBorder, numFmt };
-
-        // 물품별
         let dc = 4;
         items.forEach(it => {
           const qty = Number(q[it.id]) || 0;
@@ -6682,72 +6670,49 @@ ${htmlDraft}
           rowTotalQty += qty;
           rowTotalAmt += amt;
 
-          // 단가
-          const cPrice = dr.getCell(dc);
-          cPrice.value = it.unitPrice;
-          cPrice.style = { fill: fill(rowBg), font: font(false, 9, 'FF6B7280'), alignment: right, border: allBorder, numFmt };
+          const cQ = dr.getCell(dc);
+          cQ.value = qty || null;
+          cQ.style = { fill: fill(qty ? clr.qtyCell : rowBg), font: font(qty > 0, 9, qty ? 'FF1E40AF' : 'FFBBBBBB'), alignment: centerNW, border: allBorder, numFmt };
 
-          // 지급기준
-          const cStd = dr.getCell(dc + 1);
-          cStd.value = it.supplyStandard || '';
-          cStd.style = { fill: fill(rowBg), font: font(false, 9, 'FF6B7280'), alignment: centerNoWrap, border: allBorder };
+          const cA = dr.getCell(dc + 1);
+          cA.value = amt || null;
+          cA.style = { fill: fill(amt ? clr.amtCell : rowBg), font: font(amt > 0, 9, amt ? 'FF065F46' : 'FFBBBBBB'), alignment: right, border: allBorder, numFmt };
 
-          // 수량
-          const cQty = dr.getCell(dc + 2);
-          cQty.value = qty || null;
-          cQty.style = { fill: fill(qty ? clr.qtyCell : rowBg), font: font(qty > 0, 9, qty ? 'FF1E40AF' : 'FFCCCCCC'), alignment: centerNoWrap, border: allBorder, numFmt };
-
-          // 금액
-          const cAmt = dr.getCell(dc + 3);
-          cAmt.value = amt || null;
-          cAmt.style = { fill: fill(amt ? clr.amtCell : rowBg), font: font(amt > 0, 9, amt ? 'FF065F46' : 'FFCCCCCC'), alignment: right, border: allBorder, numFmt };
-
-          dc += 4;
+          dc += 2;
         });
 
         totalQtyAll += rowTotalQty;
         totalAmtAll += rowTotalAmt;
 
-        // 총수량
-        const cTQty = dr.getCell(dc);
-        cTQty.value = rowTotalQty || null;
-        cTQty.style = { fill: fill(rowTotalQty ? 'FFD1FAE5' : rowBg), font: font(true, 9, rowTotalQty ? 'FF065F46' : 'FFCCCCCC'), alignment: centerNoWrap, border: allBorder, numFmt };
-
-        // 총금액
-        const cTAmt = dr.getCell(dc + 1);
-        cTAmt.value = rowTotalAmt || null;
-        cTAmt.style = { fill: fill(rowTotalAmt ? 'FFD1FAE5' : rowBg), font: font(true, 9, rowTotalAmt ? 'FF065F46' : 'FFCCCCCC'), alignment: right, border: allBorder, numFmt };
+        dr.getCell(dc).value = rowTotalQty || null;
+        dr.getCell(dc).style = { fill: fill(rowTotalQty ? 'FFD1FAE5' : rowBg), font: font(true, 9, rowTotalQty ? 'FF065F46' : 'FFBBBBBB'), alignment: centerNW, border: allBorder, numFmt };
+        dr.getCell(dc + 1).value = rowTotalAmt || null;
+        dr.getCell(dc + 1).style = { fill: fill(rowTotalAmt ? 'FFD1FAE5' : rowBg), font: font(true, 9, rowTotalAmt ? 'FF065F46' : 'FFBBBBBB'), alignment: right, border: allBorder, numFmt };
       });
 
       // ── 합계 행 ────────────────────────────────────────
-      const sr = ws.addRow([]);
+      ws.addRow([]);
+      const sumRowNum = 4 + depts.length;
+      const sr = ws.getRow(sumRowNum);
       sr.height = 22;
       sr.getCell(1).value = '';
-      sr.getCell(1).style = { fill: fill(clr.sumRow), font: font(true, 10, clr.white), alignment: centerNoWrap, border: medBorder };
+      sr.getCell(1).style = { fill: fill(clr.sumRow), font: font(true, 10, clr.white), alignment: centerNW, border: medBorder };
       sr.getCell(2).value = '합    계';
-      sr.getCell(2).style = { fill: fill(clr.sumRow), font: font(true, 10, clr.white), alignment: center, border: medBorder };
+      sr.getCell(2).style = { fill: fill(clr.sumRow), font: font(true, 11, clr.white), alignment: center, border: medBorder };
       sr.getCell(3).value = depts.reduce((s, d) => s + d.deptCount, 0);
-      sr.getCell(3).style = { fill: fill(clr.sumRow), font: font(true, 10, clr.white), alignment: centerNoWrap, border: medBorder, numFmt };
+      sr.getCell(3).style = { fill: fill(clr.sumRow), font: font(true, 10, clr.white), alignment: centerNW, border: medBorder, numFmt };
 
       let sCol = 4;
       items.forEach(it => {
-        sr.getCell(sCol).value = '';
-        sr.getCell(sCol).style = { fill: fill(clr.sumRow), border: medBorder };
-        sr.getCell(sCol + 1).value = '';
-        sr.getCell(sCol + 1).style = { fill: fill(clr.sumRow), border: medBorder };
-
-        sr.getCell(sCol + 2).value = totals[it.id].qty || null;
-        sr.getCell(sCol + 2).style = { fill: fill('FF34D399'), font: font(true, 10, clr.white), alignment: centerNoWrap, border: medBorder, numFmt };
-
-        sr.getCell(sCol + 3).value = totals[it.id].amt || null;
-        sr.getCell(sCol + 3).style = { fill: fill('FF34D399'), font: font(true, 10, clr.white), alignment: right, border: medBorder, numFmt };
-
-        sCol += 4;
+        sr.getCell(sCol).value = totals[it.id].qty || null;
+        sr.getCell(sCol).style = { fill: fill('FF34D399'), font: font(true, 10, clr.white), alignment: centerNW, border: medBorder, numFmt };
+        sr.getCell(sCol + 1).value = totals[it.id].amt || null;
+        sr.getCell(sCol + 1).style = { fill: fill('FF34D399'), font: font(true, 10, clr.white), alignment: right, border: medBorder, numFmt };
+        sCol += 2;
       });
 
       sr.getCell(sCol).value = totalQtyAll || null;
-      sr.getCell(sCol).style = { fill: fill('FF10B981'), font: font(true, 11, clr.white), alignment: centerNoWrap, border: medBorder, numFmt };
-
+      sr.getCell(sCol).style = { fill: fill('FF10B981'), font: font(true, 11, clr.white), alignment: centerNW, border: medBorder, numFmt };
       sr.getCell(sCol + 1).value = totalAmtAll || null;
       sr.getCell(sCol + 1).style = { fill: fill('FF10B981'), font: font(true, 11, clr.white), alignment: right, border: medBorder, numFmt };
 
