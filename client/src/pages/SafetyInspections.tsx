@@ -228,7 +228,11 @@ export default function SafetyInspections() {
       if (!res.ok) throw new Error((await res.json()).message);
       const data = await res.json();
       setBulkExcelData(data.excelData || []);
-      setBulkRows((data.results || []).map((r: any) => ({ ...r, selected: !r.error })));
+      setBulkRows(
+        (data.results || [])
+          .map((r: any) => ({ ...r, selected: !r.error }))
+          .sort((a: any, b: any) => (a.inspectionDate || '').localeCompare(b.inspectionDate || ''))
+      );
       toast({ title: `${data.results.length}개 PDF 파싱 완료`, description: '이미지 포함 데이터를 확인 후 등록하세요.' });
     } catch (err: any) {
       toast({ variant: 'destructive', title: 'PDF 파싱 실패', description: err.message });
