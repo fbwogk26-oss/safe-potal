@@ -1102,88 +1102,108 @@ export async function registerRoutes(
 
             // 엑셀에서 다중 필드 매칭
             let workContent = '';
+            let workType = '';
             let inspectorFromExcel = '';
+            let workerFromExcel = '';
             let teamFromExcel = '';
             let locationFromExcel = '';
             let overallComment = '';
             let inspectionDateFromExcel = '';
-            const pdfIndex = pdfFiles.indexOf(f); // PDF 파일 순서
+            let workNoFromExcel = '';
+            const pdfIndex = pdfFiles.indexOf(f);
             if (excelData.length > 0) {
               const cols = Object.keys(excelData[0]);
               const normalize = (s: string) => s.replace(/\s/g, '').toLowerCase();
+              const findCol = (keys: string[]) => cols.find(c => keys.some(k => normalize(c) === normalize(k))) ||
+                                                   cols.find(c => keys.some(k => normalize(c).includes(normalize(k))));
 
-              // 컬럼 감지 — 키워드 배열로 유연하게
-              const findCol = (keys: string[]) => cols.find(c => keys.some(k => normalize(c).includes(normalize(k))));
-              const workContentCol = findCol(['작업내용','작업구분','작업유형','업무내용','내용','작업명','구분','작업사항','수행내용']);
-              const teamCol       = findCol(['운용팀','팀명','팀','부서','대상','점검대상','대상팀','소속']);
-              const inspectorCol  = findCol(['점검자','검사자','담당자','담당','확인자','점검원']);
-              const locationCol   = findCol(['주소','작업국소','작업장소','현장주소','작업위치','위치','장소']);
-              const commentCol    = findCol(['총평','점검총평','종합의견','종합','비고','총의견','결과의견','점검의견']);
-              const dateCol       = findCol(['점검일시','점검일','일시','날짜','작업일','일자']);
+              // 컬럼 감지 — 정확한 이름 우선, 포함 매칭 폴백
+              const teamDetailCol  = findCol(['점검대상조직(상세)', '점검수행시점조직', '점검대상조직상세']);
+              const teamCol        = teamDetailCol || findCol(['운용팀','팀명','소속팀','점검대상조직','점검대상']);
+              const inspectorCol   = findCol(['점검자']);
+              const workerCol      = findCol(['작업자']);
+              const workContentCol = findCol(['작업내용']);
+              const workTypeCol    = findCol(['작업유형']);
+              const workNoCol      = findCol(['작업허가서번호', '작업번호', '허가서번호']);
+              const locationCol    = findCol(['작업주소', '작업국소', '작업장소', '현장주소', '주소']);
+              const commentCol     = findCol(['점검총평', '총평', '종합의견', '비고']);
+              const dateCol        = findCol(['점검일시', '점검일', '일시']);
+              const resultCol      = findCol(['점검결과']);
+
+              // 팀명 추출 헬퍼 (조직계층에서 마지막 팀명만)
+              const extractTeam = (val: string) => val.includes('>') ? val.split('>').pop()!.trim() : val.trim();
+              // 시간 추출 헬퍼 HH:MM → "HHMM"
+              const extractTime = (val: string) => { const m = val.match(/(\d{2}):(\d{2})/); return m ? m[1] + m[2] : ''; };
+              // 날짜 8자리 추출
+              const extractDate8 = (val: string) => val.replace(/[^0-9]/g, '').slice(0, 8);
 
               let matchedRow: Record<string, any> | undefined;
+              const pdfDate8 = extractDate8(inspectionDate);
+              const pdfTime  = extractTime(workDateTime);
+              const pdfTeam  = normalize(team);
 
-              // 1순위: 팀명+날짜 복합 매칭
-              if (teamCol && team) {
+              // 1순위: 팀명 + 날짜 + 시간 (가장 정확 — 같은 날 같은 팀 여러 건 구분)
+              if (teamCol && pdfTeam && pdfDate8 && pdfTime && dateCol) {
                 matchedRow = excelData.find(row => {
-                  const rowTeam = normalize(String(row[teamCol] || ''));
-                  const pdfTeam = normalize(team);
-                  if (!rowTeam || !pdfTeam) return false;
-                  const teamOk = rowTeam.includes(pdfTeam) || pdfTeam.includes(rowTeam);
+                  const rowTeam = normalize(extractTeam(String(row[teamCol] || '')));
+                  if (!rowTeam) return false;
+                  const teamOk = rowTeam === pdfTeam || rowTeam.includes(pdfTeam) || pdfTeam.includes(rowTeam);
                   if (!teamOk) return false;
-                  if (dateCol && inspectionDate) {
-                    const rowDate = String(row[dateCol] || '').replace(/[^0-9]/g, '');
-                    const pdfDate = inspectionDate.replace(/[^0-9]/g, '').slice(0, 8);
-                    return rowDate.includes(pdfDate);
-                  }
-                  return true;
+                  const rowDateVal = String(row[dateCol] || '');
+                  return extractDate8(rowDateVal) === pdfDate8 && extractTime(rowDateVal) === pdfTime;
                 });
               }
-              // 2순위: 날짜+작업시간 복합 매칭
-              if (!matchedRow && dateCol && inspectionDate && workDateTime) {
-                const pdfTimeStr = workDateTime.replace('T', '').replace(':', '').slice(0, 12); // 날짜+시간 숫자
+              // 2순위: 팀명 + 날짜
+              if (!matchedRow && teamCol && pdfTeam && pdfDate8 && dateCol) {
                 matchedRow = excelData.find(row => {
-                  const rowDate = String(row[dateCol] || '').replace(/[^0-9]/g, '');
-                  return rowDate.includes(inspectionDate.replace(/[^0-9]/g, '').slice(0, 8));
+                  const rowTeam = normalize(extractTeam(String(row[teamCol] || '')));
+                  if (!rowTeam) return false;
+                  const teamOk = rowTeam === pdfTeam || rowTeam.includes(pdfTeam) || pdfTeam.includes(rowTeam);
+                  if (!teamOk) return false;
+                  return extractDate8(String(row[dateCol] || '')) === pdfDate8;
                 });
               }
-              // 3순위: 날짜만 매칭
-              if (!matchedRow && dateCol && inspectionDate) {
-                const pdfDate = inspectionDate.replace(/[^0-9]/g, '').slice(0, 8);
+              // 3순위: 날짜 + 시간
+              if (!matchedRow && pdfDate8 && pdfTime && dateCol) {
                 matchedRow = excelData.find(row => {
-                  const rowDate = String(row[dateCol] || '').replace(/[^0-9]/g, '');
-                  return rowDate.includes(pdfDate);
+                  const rowDateVal = String(row[dateCol] || '');
+                  return extractDate8(rowDateVal) === pdfDate8 && extractTime(rowDateVal) === pdfTime;
                 });
               }
-              // 4순위: 인덱스 기반 폴백
-              if (!matchedRow && pdfIndex < excelData.length) {
-                matchedRow = excelData[pdfIndex];
+              // 4순위: 날짜만
+              if (!matchedRow && pdfDate8 && dateCol) {
+                matchedRow = excelData.find(row => extractDate8(String(row[dateCol] || '')) === pdfDate8);
               }
+              // 5순위: 인덱스
+              if (!matchedRow && pdfIndex < excelData.length) matchedRow = excelData[pdfIndex];
 
               if (matchedRow) {
-                if (workContentCol) workContent = String(matchedRow[workContentCol] || '');
+                if (workContentCol) workContent        = String(matchedRow[workContentCol] || '');
+                if (workTypeCol)    workType           = String(matchedRow[workTypeCol] || '');
                 if (inspectorCol)   inspectorFromExcel = String(matchedRow[inspectorCol] || '');
-                if (teamCol)        teamFromExcel = String(matchedRow[teamCol] || '');
-                if (locationCol)    locationFromExcel = String(matchedRow[locationCol] || '');
-                if (commentCol)     overallComment = String(matchedRow[commentCol] || '');
+                if (workerCol)      workerFromExcel    = String(matchedRow[workerCol] || '');
+                if (teamCol)        teamFromExcel      = extractTeam(String(matchedRow[teamCol] || ''));
+                if (locationCol)    locationFromExcel  = String(matchedRow[locationCol] || '');
+                if (commentCol)     overallComment     = String(matchedRow[commentCol] || '');
                 if (dateCol)        inspectionDateFromExcel = String(matchedRow[dateCol] || '');
+                if (workNoCol)      workNoFromExcel    = String(matchedRow[workNoCol] || '');
+                if (resultCol)      inspectionResult   = String(matchedRow[resultCol] || '') || inspectionResult;
               }
             }
 
             // 우선순위 병합
-            // 팀명: 엑셀 > PDF
-            if (teamFromExcel) team = teamFromExcel;
-            // 점검일시: PDF > 엑셀 (PDF가 더 정확)
-            if (!inspectionDate && inspectionDateFromExcel) {
+            if (teamFromExcel) team = teamFromExcel;                           // 팀명: 엑셀 > PDF
+            if (!inspectionDate && inspectionDateFromExcel) {                  // 점검일시: PDF > 엑셀
               const m = inspectionDateFromExcel.match(/(\d{4}-\d{2}-\d{2})/);
               if (m) inspectionDate = m[1];
             }
-            // 작업장소: PDF > 엑셀 주소
-            if (!location && locationFromExcel) location = locationFromExcel;
+            if (!location && locationFromExcel) location = locationFromExcel; // 작업장소: PDF > 엑셀
+            if (!workNo && workNoFromExcel) workNo = workNoFromExcel;          // 작업번호: PDF > 엑셀
 
-            results.push({ fileName: f.originalname, inspectionDate, team, location, workDateTime, workNo, workContent, inspectionMethod, inspectionResult, defectCount, imageUrls, inspector: inspectorFromExcel, overallComment });
+            results.push({ fileName: f.originalname, inspectionDate, team, location, workDateTime, workNo, workContent, workType, inspectionMethod, inspectionResult, defectCount, imageUrls, inspector: inspectorFromExcel, workerName: workerFromExcel, overallComment });
           } catch (e: any) {
-            results.push({ fileName: f.originalname, error: e.message, inspectionDate: '', team: '', location: '', workDateTime: '', workNo: '', workContent: '', inspectionMethod: '', inspectionResult: '양호', defectCount: 0, imageUrls: [] });
+            console.error('[bulk-parse] 파일 처리 오류:', f.originalname, e.message);
+            results.push({ fileName: f.originalname, error: e.message, inspectionDate: '', team: '', location: '', workDateTime: '', workNo: '', workContent: '', workType: '', inspectionMethod: '', inspectionResult: '양호', defectCount: 0, imageUrls: [], inspector: '', workerName: '', overallComment: '' });
           }
         }
 
