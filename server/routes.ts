@@ -921,8 +921,8 @@ export async function registerRoutes(
     try {
       const pdfBuffer: Buffer = req.file.buffer;
 
-      // ── 1) 텍스트 추출 (pdf-parse) ──
-      const pdfParse = (await import('pdf-parse')).default;
+      // ── 1) 텍스트 추출 (pdf-parse/lib) ──
+      const pdfParse = (await import('pdf-parse/lib/pdf-parse.js' as any)).default;
       const pdfData = await pdfParse(pdfBuffer);
       const lines = pdfData.text.split('\n').map((l: string) => l.trim()).filter(Boolean);
 
@@ -1011,7 +1011,7 @@ export async function registerRoutes(
           } catch (exErr: any) { console.warn('[bulk-parse] 엑셀 파싱 실패:', exErr.message); }
         }
 
-        const pdfParseBulk = (await import('pdf-parse')).default;
+        const pdfParseBulk = (await import('pdf-parse/lib/pdf-parse.js' as any)).default;
 
         const results: any[] = [];
         for (const f of pdfFiles) {
@@ -4125,7 +4125,7 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
     if (!req.file) return res.status(400).json({ message: "PDF 파일이 필요합니다" });
     try {
       const pdfBuffer: Buffer = req.file.buffer;
-      const pdfParseAcc = (await import('pdf-parse')).default;
+      const pdfParseAcc = (await import('pdf-parse/lib/pdf-parse.js' as any)).default;
       const pdfDataAcc = await pdfParseAcc(pdfBuffer);
       const fullText = pdfDataAcc.text.replace(/\s+/g, ' ');
 
@@ -4940,7 +4940,7 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
           // ── 방법 3: 텍스트 추출만으로 분석 (최후 수단) ──
           let pdfText = "";
           try {
-            const pdfParse3 = (await import('pdf-parse')).default;
+            const pdfParse3 = (await import('pdf-parse/lib/pdf-parse.js' as any)).default;
             const pdfData3 = await pdfParse3(pdfBuffer);
             pdfText = pdfData3.text.trim();
           } catch (_) {}
