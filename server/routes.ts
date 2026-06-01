@@ -6419,6 +6419,35 @@ ${htmlDraft}
     catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
+  // 조사 복사
+  app.post('/api/safety-supply/surveys/:id/copy', isAuthenticated, async (req: any, res) => {
+    try {
+      const srcId = parseInt(req.params.id);
+      const { year, half, title } = req.body;
+      // 새 조사 생성
+      const newSurvey = await storage.createSafetySupplySurvey({ year: Number(year), half: Number(half), title, createdBy: req.user?.username });
+      // 물품 복사
+      const srcItems = await storage.getSafetySupplyItems(srcId);
+      const newItems = srcItems.length > 0
+        ? await storage.upsertSafetySupplyItems(newSurvey.id, srcItems.map(it => ({ itemName: it.itemName, unitPrice: it.unitPrice, supplyStandard: it.supplyStandard, sortOrder: it.sortOrder })))
+        : [];
+      // 부서 복사 (수량은 새 item id로 매핑)
+      const srcDepts = await storage.getSafetySupplyDeptEntries(srcId);
+      const idMap: Record<number, number> = {};
+      srcItems.forEach((src, i) => { if (newItems[i]) idMap[src.id] = newItems[i].id; });
+      const newDepts = srcDepts.map(d => {
+        const newQty: Record<string, number> = {};
+        Object.entries(d.quantities as Record<string, number>).forEach(([k, v]) => {
+          const newId = idMap[Number(k)];
+          if (newId) newQty[newId] = v;
+        });
+        return { deptName: d.deptName, deptCount: d.deptCount, quantities: newQty, sortOrder: d.sortOrder };
+      });
+      if (newDepts.length > 0) await storage.upsertSafetySupplyDeptEntries(newSurvey.id, newDepts);
+      res.json(newSurvey);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
   app.get('/api/safety-supply/surveys/:id/items', isAuthenticated, async (req: any, res) => {
     try { res.json(await storage.getSafetySupplyItems(parseInt(req.params.id))); }
     catch (e: any) { res.status(500).json({ message: e.message }); }
@@ -6455,7 +6484,6 @@ ${htmlDraft}
       const survey = surveys.find(s => s.id === surveyId);
       if (!survey) return res.status(404).json({ message: "조사를 찾을 수 없습니다" });
 
-      const ExcelJS = require('exceljs');
       const wb = new ExcelJS.Workbook();
       const ws = wb.addWorksheet('필요용품조사');
 
@@ -6587,7 +6615,6 @@ ${htmlDraft}
       if (!file) return res.status(400).json({ message: '파일이 없습니다' });
       try {
         const surveyId = parseInt(req.params.id);
-        const ExcelJS = require('exceljs');
         const wb = new ExcelJS.Workbook();
         await wb.xlsx.readFile(file.path);
         const ws = wb.getWorksheet(1);
