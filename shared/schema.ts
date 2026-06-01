@@ -701,6 +701,7 @@ export const safetySupplySurveys = pgTable("safety_supply_surveys", {
   year: integer("year").notNull(),
   half: integer("half").notNull(), // 1=상반기, 2=하반기
   title: text("title").notNull(),
+  budget: integer("budget"), // 예산 (원)
   createdBy: text("created_by"),
   createdAt: timestamp("created_at").defaultNow(),
 });

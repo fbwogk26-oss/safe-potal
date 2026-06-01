@@ -6,13 +6,27 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import {
   Plus, Trash2, Download, Upload, Save, PackageCheck,
   Pencil, X, Check, Copy, ChevronRight, FileSpreadsheet,
+  Wallet, TrendingDown, PiggyBank, ReceiptText,
 } from "lucide-react";
 
-type Survey = { id: number; year: number; half: number; title: string; createdBy: string | null; createdAt: string };
+const CATEGORIES = [
+  "1. 안전관리자 등 인건비 및 각종 업무수당 등",
+  "2. 안전시설비 등",
+  "3. 개인보호구 및 안전장구 구입비 등",
+  "4. 안전진단비 등",
+  "5. 안전보건교육비 및 행사비 등",
+  "6. 근로자 건강관리비 등",
+  "7. 건설재해예방 기술지도비",
+  "8. 본사사용비",
+  "9. 위험성평가 및 산보위 안건 비용",
+];
+
+type Survey = { id: number; year: number; half: number; title: string; budget: number | null; createdBy: string | null; createdAt: string };
 type Item = { id: number; surveyId: number; itemName: string; unitPrice: number; supplyStandard: string; sortOrder: number };
 type DeptEntry = { id: number; surveyId: number; deptName: string; deptCount: number; quantities: Record<string, number>; sortOrder: number };
 
@@ -25,7 +39,7 @@ export default function SafetySupplySurvey() {
   const { toast } = useToast();
   const [selectedId, setSelectedId] = useState<number | null>(null);
 
-  // ── 다이얼로그 상태 ──────────────────────────────────
+  // ── 조사 생성/복사 다이얼로그 ────────────────────────
   const [showDialog, setShowDialog] = useState(false);
   const [createMode, setCreateMode] = useState<CreateMode>("new");
   const [copySrcId, setCopySrcId] = useState<number | null>(null);
@@ -33,7 +47,11 @@ export default function SafetySupplySurvey() {
   const [dlgHalf, setDlgHalf] = useState("1");
   const [dlgTitle, setDlgTitle] = useState("");
 
-  // ── 물품 편집 상태 ───────────────────────────────────
+  // ── 예산 인라인 편집 ─────────────────────────────────
+  const [editingBudget, setEditingBudget] = useState(false);
+  const [budgetInput, setBudgetInput] = useState("");
+
+  // ── 물품 편집 ────────────────────────────────────────
   const [editingItems, setEditingItems] = useState(false);
   const [localItems, setLocalItems] = useState<Omit<Item, "id" | "surveyId" | "sortOrder">[]>([]);
 
@@ -41,7 +59,18 @@ export default function SafetySupplySurvey() {
   const [localDepts, setLocalDepts] = useState<Omit<DeptEntry, "id" | "surveyId" | "sortOrder">[]>([]);
   const [deptsDirty, setDeptsDirty] = useState(false);
 
-  // ── 쿼리 ──────────────────────────────────────────────
+  // ── 지출등록 다이얼로그 ──────────────────────────────
+  const [showRegDlg, setShowRegDlg] = useState(false);
+  const [regDate, setRegDate] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  });
+  const [regCategory, setRegCategory] = useState("3. 개인보호구 및 안전장구 구입비 등");
+  const [regVendor, setRegVendor] = useState("");
+  const [regNotes, setRegNotes] = useState("");
+  const [regItemIds, setRegItemIds] = useState<Set<number>>(new Set());
+
+  // ── 쿼리 ─────────────────────────────────────────────
   const { data: surveys = [] } = useQuery<Survey[]>({ queryKey: ["/api/safety-supply/surveys"] });
   const { data: items = [], isLoading: itemsLoading } = useQuery<Item[]>({
     queryKey: ["/api/safety-supply/surveys", selectedId, "items"],
@@ -56,7 +85,7 @@ export default function SafetySupplySurvey() {
 
   const selected = surveys.find(s => s.id === selectedId) ?? null;
 
-  // ── 뮤테이션 ──────────────────────────────────────────
+  // ── 뮤테이션 ─────────────────────────────────────────
   const createMut = useMutation({
     mutationFn: (body: any) => apiRequest("POST", "/api/safety-supply/surveys", body).then(r => r.json()),
     onSuccess: (data) => {
@@ -75,6 +104,15 @@ export default function SafetySupplySurvey() {
       selectSurvey(data.id);
       closeDialog();
       toast({ title: "조사가 복사됐습니다.", description: "부서·물품·수량 데이터가 모두 복사됐습니다." });
+    },
+  });
+
+  const updateSurveyMut = useMutation({
+    mutationFn: (body: any) => apiRequest("PUT", `/api/safety-supply/surveys/${selectedId}`, body).then(r => r.json()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/safety-supply/surveys"] });
+      setEditingBudget(false);
+      toast({ title: "예산이 저장됐습니다." });
     },
   });
 
@@ -106,11 +144,24 @@ export default function SafetySupplySurvey() {
     },
   });
 
-  // ── 헬퍼 ──────────────────────────────────────────────
+  const registerCostMut = useMutation({
+    mutationFn: (body: any) => apiRequest("POST", `/api/safety-supply/surveys/${selectedId}/register-cost`, body).then(r => r.json()),
+    onSuccess: (data) => {
+      setShowRegDlg(false);
+      toast({
+        title: "지출등록 완료",
+        description: `${data.created}개 항목이 산업안전보건관리비에 등록됐습니다. 견적서·거래명세서는 해당 메뉴에서 첨부하세요.`,
+      });
+    },
+    onError: (e: any) => toast({ title: "등록 실패", description: e.message, variant: "destructive" }),
+  });
+
+  // ── 헬퍼 ─────────────────────────────────────────────
   const selectSurvey = (id: number) => {
     setSelectedId(id);
     setDeptsDirty(false);
     setEditingItems(false);
+    setEditingBudget(false);
   };
 
   const openNewDialog = () => {
@@ -127,7 +178,6 @@ export default function SafetySupplySurvey() {
     setCreateMode("copy");
     setCopySrcId(srcId);
     const src = surveys.find(s => s.id === srcId);
-    // 복사 기본값: 다음 반기
     const nextHalf = src?.half === 1 ? 2 : 1;
     const nextYear = src?.half === 2 ? (src?.year ?? CURRENT_YEAR) + 1 : (src?.year ?? CURRENT_YEAR);
     setDlgYear(String(nextYear));
@@ -148,7 +198,46 @@ export default function SafetySupplySurvey() {
     }
   };
 
-  // ── 물품 편집 ─────────────────────────────────────────
+  // ── 예산 편집 ─────────────────────────────────────────
+  const startEditBudget = () => {
+    setBudgetInput(selected?.budget ? String(selected.budget) : "");
+    setEditingBudget(true);
+  };
+  const saveBudget = () => {
+    const val = parseInt(budgetInput.replace(/,/g, "")) || null;
+    updateSurveyMut.mutate({ budget: val });
+  };
+
+  // ── 지출등록 다이얼로그 열기 ─────────────────────────
+  const openRegDlg = () => {
+    const now = new Date();
+    setRegDate(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`);
+    setRegCategory("3. 개인보호구 및 안전장구 구입비 등");
+    setRegVendor("");
+    setRegNotes("");
+    setRegItemIds(new Set(items.map(it => it.id)));
+    setShowRegDlg(true);
+  };
+  const toggleRegItem = (id: number) => {
+    setRegItemIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+  const handleRegisterCost = () => {
+    if (!regDate) return;
+    const purchaseDate = `${regDate}-01`;
+    registerCostMut.mutate({
+      purchaseDate,
+      category: regCategory,
+      vendorName: regVendor || null,
+      notes: regNotes || null,
+      itemIds: Array.from(regItemIds),
+    });
+  };
+
+  // ── 물품 편집 헬퍼 ───────────────────────────────────
   const startEditItems = () => {
     setLocalItems(items.map(it => ({ itemName: it.itemName, unitPrice: it.unitPrice, supplyStandard: it.supplyStandard })));
     setEditingItems(true);
@@ -190,7 +279,7 @@ export default function SafetySupplySurvey() {
 
   const removeDept = (di: number) => mutateDepts(c => c.filter((_, i) => i !== di));
 
-  // ── 집계 ──────────────────────────────────────────────
+  // ── 집계 ─────────────────────────────────────────────
   const displayDepts = getDisplayDepts();
   const itemTotal = (itemId: number) => displayDepts.reduce((s, d) => s + (Number(d.quantities[itemId]) || 0), 0);
   const itemAmt = (item: Item) => itemTotal(item.id) * item.unitPrice;
@@ -199,6 +288,8 @@ export default function SafetySupplySurvey() {
   const grandQty = displayDepts.reduce((s, d) => s + rowQty(d), 0);
   const grandAmt = displayDepts.reduce((s, d) => s + rowAmt(d), 0);
   const totalHeadcount = displayDepts.reduce((s, d) => s + d.deptCount, 0);
+  const budget = selected?.budget ?? null;
+  const remaining = budget !== null ? budget - grandAmt : null;
 
   // ── 엑셀 다운로드 ─────────────────────────────────────
   const handleExport = async () => {
@@ -276,6 +367,9 @@ export default function SafetySupplySurvey() {
                     </Badge>
                   </div>
                   <div className="text-[11px] text-gray-500 truncate">{s.title}</div>
+                  {s.budget && (
+                    <div className="text-[10px] text-amber-600 font-medium mt-0.5">예산 {fmt(s.budget)}원</div>
+                  )}
                 </div>
                 <div className="flex items-center gap-0.5 shrink-0">
                   <button
@@ -310,7 +404,7 @@ export default function SafetySupplySurvey() {
           </div>
         ) : (
           <>
-            {/* 상단 툴바 */}
+            {/* ── 상단 툴바 ── */}
             <div className="bg-white border-b border-gray-200 px-5 py-2.5 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div>
@@ -328,6 +422,11 @@ export default function SafetySupplySurvey() {
                 {deptsDirty && (
                   <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white gap-1 h-8" onClick={() => saveDeptsMut.mutate(displayDepts)} disabled={saveDeptsMut.isPending} data-testid="button-save-depts">
                     <Save className="w-3.5 h-3.5" /> {saveDeptsMut.isPending ? "저장중..." : "저장"}
+                  </Button>
+                )}
+                {items.length > 0 && grandAmt > 0 && (
+                  <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white gap-1 h-8" onClick={openRegDlg} data-testid="button-register-cost">
+                    <ReceiptText className="w-3.5 h-3.5" /> 지출등록
                   </Button>
                 )}
                 <Button size="sm" variant="outline" className="gap-1 h-8" onClick={() => openCopyDialog(selected.id, { stopPropagation: () => {} } as any)} data-testid="button-copy-this-survey">
@@ -348,7 +447,97 @@ export default function SafetySupplySurvey() {
               </div>
             </div>
 
-            {/* 물품 목록 패널 */}
+            {/* ── 예산 카드 바 ── */}
+            <div className="bg-white border-b border-gray-200 px-5 py-2 flex items-center gap-6">
+              {/* 예산 */}
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-amber-100 flex items-center justify-center shrink-0">
+                  <Wallet className="w-3.5 h-3.5 text-amber-600" />
+                </div>
+                <div>
+                  <div className="text-[10px] text-gray-400 font-medium">예산</div>
+                  {editingBudget ? (
+                    <div className="flex items-center gap-1 mt-0.5">
+                      <Input
+                        className="h-6 text-xs w-28 px-2"
+                        placeholder="금액 입력"
+                        value={budgetInput}
+                        onChange={e => setBudgetInput(e.target.value)}
+                        onKeyDown={e => { if (e.key === "Enter") saveBudget(); if (e.key === "Escape") setEditingBudget(false); }}
+                        autoFocus
+                        data-testid="input-budget"
+                      />
+                      <span className="text-xs text-gray-400">원</span>
+                      <button onClick={saveBudget} className="text-green-600 hover:text-green-700" title="저장"><Check className="w-3.5 h-3.5" /></button>
+                      <button onClick={() => setEditingBudget(false)} className="text-gray-400 hover:text-gray-600" title="취소"><X className="w-3.5 h-3.5" /></button>
+                    </div>
+                  ) : (
+                    <button onClick={startEditBudget} className="flex items-center gap-1 group/budget" data-testid="button-edit-budget">
+                      <span className={`text-sm font-bold ${budget !== null ? "text-amber-700" : "text-gray-300 italic"}`}>
+                        {budget !== null ? fmt(budget) + "원" : "미설정"}
+                      </span>
+                      <Pencil className="w-3 h-3 text-gray-300 group-hover/budget:text-amber-400 transition-colors" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="w-px h-8 bg-gray-200" />
+
+              {/* 사용금액 */}
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
+                  <TrendingDown className="w-3.5 h-3.5 text-red-500" />
+                </div>
+                <div>
+                  <div className="text-[10px] text-gray-400 font-medium">사용금액</div>
+                  <div className={`text-sm font-bold ${grandAmt > 0 ? "text-red-600" : "text-gray-300"}`}>
+                    {grandAmt > 0 ? fmt(grandAmt) + "원" : "—"}
+                  </div>
+                </div>
+              </div>
+
+              <div className="w-px h-8 bg-gray-200" />
+
+              {/* 잔여예산 */}
+              <div className="flex items-center gap-2">
+                <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${remaining !== null ? (remaining >= 0 ? "bg-green-50" : "bg-red-50") : "bg-gray-50"}`}>
+                  <PiggyBank className={`w-3.5 h-3.5 ${remaining !== null ? (remaining >= 0 ? "text-green-600" : "text-red-500") : "text-gray-300"}`} />
+                </div>
+                <div>
+                  <div className="text-[10px] text-gray-400 font-medium">잔여예산</div>
+                  <div className={`text-sm font-bold ${remaining !== null ? (remaining >= 0 ? "text-green-700" : "text-red-600") : "text-gray-300"}`}>
+                    {remaining !== null ? (
+                      <>{remaining >= 0 ? "" : "△ "}{fmt(Math.abs(remaining))}원{remaining < 0 ? " 초과" : ""}</>
+                    ) : "—"}
+                  </div>
+                </div>
+              </div>
+
+              {budget === null && (
+                <button onClick={startEditBudget} className="ml-2 text-xs text-amber-600 hover:text-amber-700 underline underline-offset-2 font-medium">
+                  예산 입력하기
+                </button>
+              )}
+
+              {/* 잔여예산 비율 바 */}
+              {budget !== null && budget > 0 && (
+                <div className="flex-1 ml-4">
+                  <div className="flex justify-between text-[10px] text-gray-400 mb-1">
+                    <span>사용률 {Math.min(Math.round((grandAmt / budget) * 100), 100)}%</span>
+                    {remaining < 0 && <span className="text-red-500 font-medium">예산 초과</span>}
+                  </div>
+                  <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all ${grandAmt > budget ? "bg-red-500" : "bg-amber-400"}`}
+                      style={{ width: `${Math.min((grandAmt / budget) * 100, 100)}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* ── 물품 목록 패널 ── */}
             <div className="bg-white border-b border-gray-200 px-5 py-2.5">
               <div className="flex items-center gap-2 mb-2">
                 <span className="text-sm font-semibold text-gray-700">물품 목록</span>
@@ -416,7 +605,7 @@ export default function SafetySupplySurvey() {
               )}
             </div>
 
-            {/* 조사 그리드 */}
+            {/* ── 조사 그리드 ── */}
             <div className="flex-1 overflow-auto p-4">
               {(itemsLoading || deptsLoading) && (
                 <div className="text-center py-16 text-gray-400 text-sm">불러오는 중...</div>
@@ -449,10 +638,9 @@ export default function SafetySupplySurvey() {
                     </div>
                   </div>
 
-                  <div className="overflow-auto max-h-[calc(100vh-400px)]">
+                  <div className="overflow-auto max-h-[calc(100vh-480px)]">
                     <table className="text-xs border-collapse w-max min-w-full">
                       <thead className="sticky top-0 z-10">
-                        {/* ── 헤더 1행: 물품명 ── */}
                         <tr>
                           <th className="border border-gray-300 bg-gray-700 text-white px-2 py-2 text-center whitespace-nowrap font-semibold" rowSpan={2}>번호</th>
                           <th className="border border-gray-300 bg-gray-700 text-white px-4 py-2 text-center whitespace-nowrap font-semibold min-w-[130px]" rowSpan={2}>부서</th>
@@ -469,7 +657,6 @@ export default function SafetySupplySurvey() {
                           <th className="border border-gray-300 bg-green-700 text-white px-3 py-2 text-center whitespace-nowrap font-semibold" rowSpan={2}>총금액</th>
                           <th className="border border-gray-300 bg-gray-600 text-white w-8" rowSpan={2}></th>
                         </tr>
-                        {/* ── 헤더 2행: 수량/금액 ── */}
                         <tr>
                           {items.map(it => (
                             <th key={`h2-${it.id}`} className="border border-gray-300 bg-amber-50 text-amber-800 px-3 py-1.5 text-center whitespace-nowrap font-semibold" colSpan={2}>
@@ -496,12 +683,11 @@ export default function SafetySupplySurvey() {
                                   data-testid={`input-dept-name-${di}`}
                                 />
                               </td>
-                              <td className="border border-gray-200 px-1 py-1 w-16">
+                              <td className="border border-gray-200 px-1 py-1 bg-blue-50/50">
                                 <Input
-                                  className="h-7 text-xs border-0 focus-visible:ring-1 focus-visible:ring-blue-300 px-1 bg-blue-50/80 text-center text-blue-800 font-medium"
+                                  className="h-7 text-xs border-0 focus-visible:ring-1 focus-visible:ring-blue-300 px-2 bg-transparent text-center text-blue-700 font-semibold w-14"
                                   type="number"
                                   value={dept.deptCount || ""}
-                                  placeholder="0"
                                   onChange={e => setDeptCount(di, e.target.value)}
                                   data-testid={`input-dept-count-${di}`}
                                 />
@@ -511,12 +697,13 @@ export default function SafetySupplySurvey() {
                                 const amt = qty * it.unitPrice;
                                 return (
                                   <>
-                                    <td key={`${di}-${it.id}-qty`} className="border border-gray-200 px-1 py-1 w-16">
+                                    <td key={`${di}-${it.id}-qty`} className="border border-gray-200 px-1 py-1">
                                       <Input
-                                        className="h-7 text-xs border-0 focus-visible:ring-1 focus-visible:ring-amber-300 px-1 bg-transparent text-center text-gray-800 font-medium"
+                                        className="h-7 text-xs border-0 focus-visible:ring-1 focus-visible:ring-amber-300 px-2 bg-transparent text-center w-16"
                                         type="number"
+                                        min={0}
                                         value={qty || ""}
-                                        placeholder="—"
+                                        placeholder="0"
                                         onChange={e => setQty(di, it.id, e.target.value)}
                                         data-testid={`input-qty-${di}-${it.id}`}
                                       />
@@ -546,7 +733,7 @@ export default function SafetySupplySurvey() {
                           );
                         })}
 
-                        {/* ── 합계 행 ── */}
+                        {/* 합계 행 */}
                         <tr className="bg-gray-800 text-white font-bold">
                           <td className="border border-gray-600 px-2 py-2.5 text-center text-gray-300 text-xs">합계</td>
                           <td className="border border-gray-600 px-4 py-2.5 text-center text-sm">합 계</td>
@@ -576,7 +763,7 @@ export default function SafetySupplySurvey() {
         )}
       </div>
 
-      {/* ── 생성/복사 다이얼로그 ──────────────────────── */}
+      {/* ── 조사 생성/복사 다이얼로그 ──────────────────── */}
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent className="sm:max-w-sm" data-testid="dialog-create-survey">
           <DialogHeader>
@@ -644,6 +831,98 @@ export default function SafetySupplySurvey() {
               data-testid="button-confirm-create"
             >
               {isPending ? "처리중..." : createMode === "copy" ? <><Copy className="w-3.5 h-3.5" /> 복사 생성</> : <><Plus className="w-3.5 h-3.5" /> 만들기</>}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── 지출등록 다이얼로그 ─────────────────────────── */}
+      <Dialog open={showRegDlg} onOpenChange={setShowRegDlg}>
+        <DialogContent className="sm:max-w-md" data-testid="dialog-register-cost">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ReceiptText className="w-4 h-4 text-blue-500" />
+              산업안전보건관리비 지출등록
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-1">
+            <div className="flex gap-3">
+              <div className="flex-1">
+                <label className="text-xs text-gray-600 mb-1 block font-medium">구매년월</label>
+                <Input
+                  type="month"
+                  className="h-9"
+                  value={regDate}
+                  onChange={e => setRegDate(e.target.value)}
+                  data-testid="input-reg-date"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs text-gray-600 mb-1 block font-medium">항목 분류</label>
+              <Select value={regCategory} onValueChange={setRegCategory}>
+                <SelectTrigger className="h-9" data-testid="select-reg-category">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="text-xs text-gray-600 mb-1 block font-medium">업체명 (선택)</label>
+              <Input className="h-9" placeholder="납품 업체명" value={regVendor} onChange={e => setRegVendor(e.target.value)} data-testid="input-reg-vendor" />
+            </div>
+
+            <div>
+              <label className="text-xs text-gray-600 mb-1 block font-medium">비고 (선택)</label>
+              <Input className="h-9" placeholder="메모" value={regNotes} onChange={e => setRegNotes(e.target.value)} data-testid="input-reg-notes" />
+            </div>
+
+            {/* 물품 선택 */}
+            <div>
+              <label className="text-xs text-gray-600 mb-1.5 block font-medium">등록할 물품 선택</label>
+              <div className="space-y-1.5 max-h-52 overflow-y-auto rounded-lg border border-gray-200 p-2">
+                {items.map(it => {
+                  const qty = displayDepts.reduce((s, d) => s + (Number(d.quantities[it.id]) || 0), 0);
+                  const amt = qty * it.unitPrice;
+                  const checked = regItemIds.has(it.id);
+                  return (
+                    <div
+                      key={it.id}
+                      className={`flex items-center gap-2.5 rounded-md px-2.5 py-2 cursor-pointer transition-colors ${checked ? "bg-blue-50 border border-blue-200" : "bg-gray-50 border border-transparent hover:bg-gray-100"}`}
+                      onClick={() => toggleRegItem(it.id)}
+                      data-testid={`checkbox-reg-item-${it.id}`}
+                    >
+                      <Checkbox checked={checked} className="pointer-events-none" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-semibold text-gray-800">{it.itemName}</div>
+                        <div className="text-[10px] text-gray-400">{fmt(it.unitPrice)}원 × {qty}개 = {fmt(amt)}원</div>
+                      </div>
+                      {qty === 0 && <span className="text-[10px] text-orange-500 font-medium">수량 0</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-xs text-blue-700">
+              물품별로 각각 지출내역이 등록됩니다. 견적서·거래명세서는 <strong>산업안전보건관리비</strong> 메뉴에서 나중에 첨부할 수 있습니다.
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowRegDlg(false)}>취소</Button>
+            <Button
+              className="bg-blue-600 hover:bg-blue-700 text-white gap-1"
+              disabled={registerCostMut.isPending || regItemIds.size === 0 || !regDate}
+              onClick={handleRegisterCost}
+              data-testid="button-confirm-register-cost"
+            >
+              {registerCostMut.isPending ? "등록중..." : <><ReceiptText className="w-3.5 h-3.5" /> 지출등록</>}
             </Button>
           </DialogFooter>
         </DialogContent>

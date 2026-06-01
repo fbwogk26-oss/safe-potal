@@ -186,6 +186,7 @@ export interface IStorage {
   // Safety Supply Surveys
   getSafetySupplySurveys(): Promise<SafetySupplySurvey[]>;
   createSafetySupplySurvey(data: InsertSafetySupplySurvey): Promise<SafetySupplySurvey>;
+  updateSafetySupplySurvey(id: number, data: Partial<InsertSafetySupplySurvey>): Promise<SafetySupplySurvey>;
   deleteSafetySupplySurvey(id: number): Promise<void>;
   getSafetySupplyItems(surveyId: number): Promise<SafetySupplyItem[]>;
   upsertSafetySupplyItems(surveyId: number, items: Omit<InsertSafetySupplyItem, 'surveyId'>[]): Promise<SafetySupplyItem[]>;
@@ -948,6 +949,10 @@ export class DatabaseStorage implements IStorage {
   }
   async createSafetySupplySurvey(data: InsertSafetySupplySurvey): Promise<SafetySupplySurvey> {
     const [row] = await db.insert(safetySupplySurveys).values(data).returning();
+    return row;
+  }
+  async updateSafetySupplySurvey(id: number, data: Partial<InsertSafetySupplySurvey>): Promise<SafetySupplySurvey> {
+    const [row] = await db.update(safetySupplySurveys).set(data).where(eq(safetySupplySurveys.id, id)).returning();
     return row;
   }
   async deleteSafetySupplySurvey(id: number): Promise<void> {

@@ -6414,9 +6414,60 @@ ${htmlDraft}
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
+  app.put('/api/safety-supply/surveys/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const survey = await storage.updateSafetySupplySurvey(parseInt(req.params.id), req.body);
+      res.json(survey);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
   app.delete('/api/safety-supply/surveys/:id', isAuthenticated, async (req: any, res) => {
     try { await storage.deleteSafetySupplySurvey(parseInt(req.params.id)); res.json({ message: "삭제됨" }); }
     catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // 필요용품 → 산업안전보건관리비 지출 자동 등록
+  app.post('/api/safety-supply/surveys/:id/register-cost', isAuthenticated, async (req: any, res) => {
+    try {
+      const surveyId = parseInt(req.params.id);
+      const { purchaseDate, category, vendorName, notes, itemIds } = req.body;
+      const [year, month] = (purchaseDate as string).split('-').map(Number);
+      const items = await storage.getSafetySupplyItems(surveyId);
+      const depts = await storage.getSafetySupplyDeptEntries(surveyId);
+      const selectedItems = itemIds ? items.filter((it: any) => (itemIds as number[]).includes(it.id)) : items;
+      const created = [];
+      for (const it of selectedItems) {
+        const totalQty = depts.reduce((s: number, d: any) => {
+          const q = (d.quantities as Record<string, number>) || {};
+          return s + (Number(q[it.id]) || 0);
+        }, 0);
+        if (totalQty === 0) continue;
+        const supplyAmt = totalQty * it.unitPrice;
+        const vatAmt = Math.round(supplyAmt * 0.1);
+        const totalAmt = supplyAmt + vatAmt;
+        const record = await storage.createSafetyCostRecord({
+          year, month,
+          category: category || "3. 개인보호구 및 안전장구 구입비 등",
+          itemName: it.itemName,
+          specification: it.supplyStandard || '',
+          unit: '개',
+          quantity: String(totalQty),
+          unitPrice: String(it.unitPrice),
+          supplyAmount: String(supplyAmt),
+          vatAmount: String(vatAmt),
+          totalAmount: String(totalAmt),
+          purchaseDate,
+          vendorName: vendorName || null,
+          notes: notes || null,
+          quoteFileUrl: null,
+          transactionFileUrl: null,
+          certificateFileUrl: null,
+          createdBy: req.user?.username,
+        });
+        created.push(record);
+      }
+      res.json({ created: created.length, records: created });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
   // 조사 복사
