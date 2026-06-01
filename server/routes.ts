@@ -1018,7 +1018,9 @@ export async function registerRoutes(
           try {
             const pdfBuffer: Buffer = f.buffer;
             const pdfDataBulk = await pdfParseBulk(pdfBuffer);
-            const fullText = pdfDataBulk.text.split('\n').map((l: string) => l.trim()).filter(Boolean).join(' ');
+            // lines 배열과 합친 텍스트 모두 준비
+            const lines = pdfDataBulk.text.split('\n').map((l: string) => l.trim()).filter(Boolean);
+            const fullText = lines.join(' ');
 
             let inspectionDate = '';
             let team = '';
@@ -1029,29 +1031,62 @@ export async function registerRoutes(
             let inspectionResult = '양호';
             let defectCount = 0;
 
-            const m_date = fullText.match(/점검일자\s*[:\uff1a]?\s*(\d{4}-\d{2}-\d{2})/);
-            if (m_date) inspectionDate = m_date[1];
+            // 점검일자: "○ 점검일자 : 2026-05-26"
+            const dateLine = lines.find(l => l.includes('점검일자'));
+            if (dateLine) {
+              const m = dateLine.match(/(\d{4}-\d{2}-\d{2})/);
+              if (m) inspectionDate = m[1];
+            }
 
-            const m_method = fullText.match(/점검방법\s*[:\uff1a]\s*(\S+(?:\([^)]+\))?)/);
-            if (m_method) inspectionMethod = m_method[1].trim();
+            // 점검방법: "○ 점검방법 : 비대면" 또는 "코칭(대면)"
+            const methodLine = lines.find(l => l.includes('점검방법'));
+            if (methodLine) {
+              const m = methodLine.match(/점검방법\s*:\s*(.+)/);
+              if (m) inspectionMethod = m[1].trim();
+            }
 
-            const m_team = fullText.match(/점검대상\s*[:\uff1a]\s*(.+?)\s{2,}/);
-            if (m_team) { const parts = m_team[1].split('>'); team = parts[parts.length - 1].trim(); }
+            // 점검대상: "○ 점검대상 : kt MOS 남부>대구본부>동대구운용부>동대구운용팀"
+            const targetLine = lines.find(l => l.includes('점검대상'));
+            if (targetLine) {
+              const m = targetLine.match(/점검대상\s*:\s*(.+)/);
+              if (m) {
+                const parts = m[1].trim().split('>');
+                team = parts[parts.length - 1].trim();
+              }
+            }
 
-            const m_dt = fullText.match(/작업일시[\/\/]장소\s*[:\uff1a]\s*(\d{4}-\d{2}-\d{2}T[\d:]+)/);
-            if (m_dt) workDateTime = m_dt[1];
+            // 작업일시/장소: "○ 작업일시/장소 : 2026-05-26T15:00 / 경상북도 경주시..."
+            const dtLine = lines.find(l => l.includes('작업일시') && l.includes('장소'));
+            if (dtLine) {
+              const mDt = dtLine.match(/(\d{4}-\d{2}-\d{2}T[\d:]+)/);
+              if (mDt) workDateTime = mDt[1];
+              // 슬래시 이후가 장소
+              const mLoc = dtLine.match(/\d{4}-\d{2}-\d{2}T[\d:]+\s*\/\s*(.+)/);
+              if (mLoc) location = mLoc[1].trim();
+            }
 
-            const m_loc = fullText.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}\s*\/\s*([^○\n]+?)(?=\s*○|\s*$)/);
-            if (m_loc) location = m_loc[1].trim();
+            // 작업번호: "○ 무선 (직영 / 무선기지국-20260527-0005)"
+            const noLine = lines.find(l => l.includes('직영') && l.includes('/') && /[\w]+-\d{8}-\d+/.test(l));
+            if (noLine) {
+              const m = noLine.match(/((?:직영-)?(?:무선기지국|전원기지국|선로기지국)-[\w-]+)/);
+              if (m) workNo = m[1].trim();
+            }
 
-            const m_no = fullText.match(/직영\s*\/\s*(무선기지국-[\w-]+|직영-[\w-]+)/);
-            if (m_no) workNo = m_no[1].trim();
-
-            const m_result = fullText.match(/점검결과\s+(양호|미흡)/);
-            if (m_result) inspectionResult = m_result[1];
-
-            const m_defect = fullText.match(/미흡건수\s+(\d+)/);
-            if (m_defect) defectCount = parseInt(m_defect[1]);
+            // 점검결과/미흡건수: 테이블 행에서 추출
+            const resultIdx = lines.findIndex(l => /양호|미흡/.test(l) && /\d+/.test(l));
+            if (resultIdx >= 0) {
+              const rline = lines[resultIdx];
+              const mr = rline.match(/양호|미흡/);
+              if (mr) inspectionResult = mr[0];
+              const md = rline.match(/(\d+)\s*$/);
+              if (md) defectCount = parseInt(md[1]);
+            } else {
+              // 개별 라인에서 찾기
+              const resLine = lines.find(l => l === '양호' || l === '미흡');
+              if (resLine) inspectionResult = resLine;
+              const defLine = lines.find(l => /^(미흡건수\s+)?\d+$/.test(l));
+              if (defLine) defectCount = parseInt(defLine.replace(/\D/g, '')) || 0;
+            }
 
             // JPEG 이미지 추출
             const imageUrls: string[] = [];
@@ -1068,28 +1103,33 @@ export async function registerRoutes(
             // 엑셀에서 다중 필드 매칭
             let workContent = '';
             let inspectorFromExcel = '';
+            let teamFromExcel = '';
             let locationFromExcel = '';
             let overallComment = '';
-            const pdfIndex = files.indexOf(f); // PDF 파일 순서
+            let inspectionDateFromExcel = '';
+            const pdfIndex = pdfFiles.indexOf(f); // PDF 파일 순서
             if (excelData.length > 0) {
               const cols = Object.keys(excelData[0]);
-              const workContentCol = cols.find(c => ['작업내용','작업구분','작업유형','업무내용','내용','작업명','구분','작업사항','수행내용'].some(k => c.includes(k)));
-              const teamCol = cols.find(c => ['팀','부서','대상','팀명','점검대상','대상팀','소속'].some(k => c.includes(k)));
-              const inspectorCol = cols.find(c => ['점검자','검사자','담당자','담당','확인자','점검원'].some(k => c.includes(k)));
-              const locationCol = cols.find(c => ['주소','장소','작업국소','작업장소','현장주소','작업위치','위치'].some(k => c.includes(k)));
-              const commentCol = cols.find(c => ['총평','종합의견','종합','비고','총의견','결과의견','점검의견'].some(k => c.includes(k)));
-              const dateCol = cols.find(c => ['점검일','날짜','일시','점검일시','작업일','일자'].some(k => c.includes(k)));
-
-              // 팀+날짜 복합 매칭 → 팀만 매칭 → 날짜만 매칭 → 인덱스 기반 순으로 시도
               const normalize = (s: string) => s.replace(/\s/g, '').toLowerCase();
+
+              // 컬럼 감지 — 키워드 배열로 유연하게
+              const findCol = (keys: string[]) => cols.find(c => keys.some(k => normalize(c).includes(normalize(k))));
+              const workContentCol = findCol(['작업내용','작업구분','작업유형','업무내용','내용','작업명','구분','작업사항','수행내용']);
+              const teamCol       = findCol(['운용팀','팀명','팀','부서','대상','점검대상','대상팀','소속']);
+              const inspectorCol  = findCol(['점검자','검사자','담당자','담당','확인자','점검원']);
+              const locationCol   = findCol(['주소','작업국소','작업장소','현장주소','작업위치','위치','장소']);
+              const commentCol    = findCol(['총평','점검총평','종합의견','종합','비고','총의견','결과의견','점검의견']);
+              const dateCol       = findCol(['점검일시','점검일','일시','날짜','작업일','일자']);
+
               let matchedRow: Record<string, any> | undefined;
 
-              if (teamCol) {
+              // 1순위: 팀명+날짜 복합 매칭
+              if (teamCol && team) {
                 matchedRow = excelData.find(row => {
                   const rowTeam = normalize(String(row[teamCol] || ''));
-                  const normalTeam = normalize(team);
-                  if (!rowTeam) return false;
-                  const teamOk = rowTeam.includes(normalTeam) || normalTeam.includes(rowTeam);
+                  const pdfTeam = normalize(team);
+                  if (!rowTeam || !pdfTeam) return false;
+                  const teamOk = rowTeam.includes(pdfTeam) || pdfTeam.includes(rowTeam);
                   if (!teamOk) return false;
                   if (dateCol && inspectionDate) {
                     const rowDate = String(row[dateCol] || '').replace(/[^0-9]/g, '');
@@ -1099,27 +1139,46 @@ export async function registerRoutes(
                   return true;
                 });
               }
-              // 팀 매칭 실패 시 날짜만으로 시도
-              if (!matchedRow && dateCol && inspectionDate) {
+              // 2순위: 날짜+작업시간 복합 매칭
+              if (!matchedRow && dateCol && inspectionDate && workDateTime) {
+                const pdfTimeStr = workDateTime.replace('T', '').replace(':', '').slice(0, 12); // 날짜+시간 숫자
                 matchedRow = excelData.find(row => {
                   const rowDate = String(row[dateCol] || '').replace(/[^0-9]/g, '');
-                  const pdfDate = inspectionDate.replace(/[^0-9]/g, '').slice(0, 8);
+                  return rowDate.includes(inspectionDate.replace(/[^0-9]/g, '').slice(0, 8));
+                });
+              }
+              // 3순위: 날짜만 매칭
+              if (!matchedRow && dateCol && inspectionDate) {
+                const pdfDate = inspectionDate.replace(/[^0-9]/g, '').slice(0, 8);
+                matchedRow = excelData.find(row => {
+                  const rowDate = String(row[dateCol] || '').replace(/[^0-9]/g, '');
                   return rowDate.includes(pdfDate);
                 });
               }
-              // 날짜 매칭도 실패 시 순서(인덱스)로 폴백
+              // 4순위: 인덱스 기반 폴백
               if (!matchedRow && pdfIndex < excelData.length) {
                 matchedRow = excelData[pdfIndex];
               }
 
               if (matchedRow) {
                 if (workContentCol) workContent = String(matchedRow[workContentCol] || '');
-                if (inspectorCol) inspectorFromExcel = String(matchedRow[inspectorCol] || '');
-                if (locationCol) locationFromExcel = String(matchedRow[locationCol] || '');
-                if (commentCol) overallComment = String(matchedRow[commentCol] || '');
+                if (inspectorCol)   inspectorFromExcel = String(matchedRow[inspectorCol] || '');
+                if (teamCol)        teamFromExcel = String(matchedRow[teamCol] || '');
+                if (locationCol)    locationFromExcel = String(matchedRow[locationCol] || '');
+                if (commentCol)     overallComment = String(matchedRow[commentCol] || '');
+                if (dateCol)        inspectionDateFromExcel = String(matchedRow[dateCol] || '');
               }
             }
-            // location 우선순위: PDF 추출 > 엑셀
+
+            // 우선순위 병합
+            // 팀명: 엑셀 > PDF
+            if (teamFromExcel) team = teamFromExcel;
+            // 점검일시: PDF > 엑셀 (PDF가 더 정확)
+            if (!inspectionDate && inspectionDateFromExcel) {
+              const m = inspectionDateFromExcel.match(/(\d{4}-\d{2}-\d{2})/);
+              if (m) inspectionDate = m[1];
+            }
+            // 작업장소: PDF > 엑셀 주소
             if (!location && locationFromExcel) location = locationFromExcel;
 
             results.push({ fileName: f.originalname, inspectionDate, team, location, workDateTime, workNo, workContent, inspectionMethod, inspectionResult, defectCount, imageUrls, inspector: inspectorFromExcel, overallComment });
