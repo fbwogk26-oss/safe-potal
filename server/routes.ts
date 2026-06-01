@@ -11,6 +11,10 @@ import { eq, and, count, sql } from "drizzle-orm";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import os from "os";
+import { execFile } from "child_process";
+import { promisify } from "util";
+const execFileAsync = promisify(execFile);
 import ExcelJS from "exceljs";
 import XLSX from "xlsx";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
@@ -322,7 +326,55 @@ const requireEditor: any = async (req: any, res: any, next: any) => {
   }
 };
 
-// PDF 바이너리에서 JPEG 이미지 스트림을 추출하는 함수 (라이브러리 없이)
+// poppler-utils(pdfimages/pdftoppm)를 사용해 PDF에서 이미지를 추출하는 함수
+async function extractImagesWithPoppler(pdfBuffer: Buffer): Promise<Buffer[]> {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pdf-img-'));
+  const pdfPath = path.join(tmpDir, 'input.pdf');
+  const imgPrefix = path.join(tmpDir, 'page');
+  try {
+    fs.writeFileSync(pdfPath, pdfBuffer);
+
+    // 1단계: pdfimages로 임베딩 이미지 추출 (-j: JPEG 유지, 나머지는 PPM)
+    try {
+      await execFileAsync('pdfimages', ['-j', pdfPath, imgPrefix], { timeout: 30000 });
+    } catch {}
+
+    let imgFiles = fs.readdirSync(tmpDir)
+      .filter(f => f !== 'input.pdf' && /\.(jpg|jpeg|ppm|pbm|png)$/i.test(f))
+      .map(f => path.join(tmpDir, f));
+
+    // 2단계: 임베딩 이미지가 없으면 pdftoppm으로 페이지 전체 렌더링
+    if (imgFiles.length === 0) {
+      try {
+        await execFileAsync('pdftoppm', ['-jpeg', '-r', '150', '-f', '1', '-l', '10', pdfPath, imgPrefix], { timeout: 30000 });
+        imgFiles = fs.readdirSync(tmpDir)
+          .filter(f => f !== 'input.pdf' && /\.(jpg|jpeg)$/i.test(f))
+          .map(f => path.join(tmpDir, f));
+      } catch {}
+    }
+
+    const sharp = (await import('sharp')).default;
+    const results: Buffer[] = [];
+    for (const f of imgFiles.slice(0, 10)) {
+      try {
+        const raw = fs.readFileSync(f);
+        if (raw.length < 1000) continue;
+        // JPEG가 아닌 형식(PPM 등)은 sharp로 JPEG 변환
+        if (!/\.(jpg|jpeg)$/i.test(f)) {
+          const converted = await sharp(raw).jpeg({ quality: 85 }).toBuffer();
+          results.push(converted);
+        } else {
+          results.push(raw);
+        }
+      } catch {}
+    }
+    return results;
+  } finally {
+    try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+  }
+}
+
+// PDF 바이너리에서 JPEG 이미지 스트림을 추출하는 함수 (라이브러리 없이, 폴백용)
 function extractJpegsFromBuffer(buf: Buffer): Buffer[] {
   const results: Buffer[] = [];
   let i = 0;
@@ -953,19 +1005,18 @@ export async function registerRoutes(
       const workMatch = fullText.match(/직영[-–]([가-힣A-Za-z0-9]+)[-–]/);
       if (workMatch) workContent = workMatch[1];
 
-      // ── 2) PDF 바이너리에서 JPEG 이미지 추출 ──
+      // ── 2) PDF에서 이미지 추출 (poppler pdfimages → pdftoppm → JPEG 바이너리 스캔 순서)
       const imageUrls: string[] = [];
       try {
-        const jpegBuffers = extractJpegsFromBuffer(pdfBuffer);
-        for (let i = 0; i < Math.min(jpegBuffers.length, 10); i++) {
-          const jpegBuf = jpegBuffers[i];
+        let imgBuffers = await extractImagesWithPoppler(pdfBuffer);
+        if (imgBuffers.length === 0) imgBuffers = extractJpegsFromBuffer(pdfBuffer);
+        for (let i = 0; i < Math.min(imgBuffers.length, 10); i++) {
           const filename = `pdf-img-${Date.now()}-${i}.jpg`;
-          const objUrl = await uploadToObjectStorage(jpegBuf, filename, 'image/jpeg');
+          const objUrl = await uploadToObjectStorage(imgBuffers[i], filename, 'image/jpeg');
           if (objUrl) {
             imageUrls.push(objUrl);
           } else {
-            const localPath = path.join(uploadDir, filename);
-            fs.writeFileSync(localPath, jpegBuf);
+            fs.writeFileSync(path.join(uploadDir, filename), imgBuffers[i]);
             imageUrls.push(`/uploads/${filename}`);
           }
         }
@@ -1089,17 +1140,20 @@ export async function registerRoutes(
               if (defLine) defectCount = parseInt(defLine.replace(/\D/g, '')) || 0;
             }
 
-            // JPEG 이미지 추출
+            // 이미지 추출 (poppler pdfimages → pdftoppm → JPEG 바이너리 스캔 순서)
             const imageUrls: string[] = [];
             try {
-              const jpegBuffers = extractJpegsFromBuffer(pdfBuffer);
-              for (let i = 0; i < Math.min(jpegBuffers.length, 10); i++) {
+              let imgBuffers = await extractImagesWithPoppler(pdfBuffer);
+              if (imgBuffers.length === 0) imgBuffers = extractJpegsFromBuffer(pdfBuffer);
+              for (let i = 0; i < Math.min(imgBuffers.length, 10); i++) {
                 const filename = `pdf-bulk-${Date.now()}-${i}.jpg`;
-                const objUrl = await uploadToObjectStorage(jpegBuffers[i], filename, 'image/jpeg');
+                const objUrl = await uploadToObjectStorage(imgBuffers[i], filename, 'image/jpeg');
                 if (objUrl) imageUrls.push(objUrl);
-                else { fs.writeFileSync(path.join(uploadDir, filename), jpegBuffers[i]); imageUrls.push(`/uploads/${filename}`); }
+                else { fs.writeFileSync(path.join(uploadDir, filename), imgBuffers[i]); imageUrls.push(`/uploads/${filename}`); }
               }
-            } catch {}
+            } catch (e) {
+              console.error('[bulk-parse] 이미지 추출 오류:', e);
+            }
 
             // 엑셀에서 다중 필드 매칭
             let workContent = '';
