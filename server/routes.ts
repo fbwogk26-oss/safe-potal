@@ -6592,48 +6592,56 @@ ${htmlDraft}
 
       // ── Row 2: 물품명 헤더 ────────────────────────────
       const r2 = ws.addRow([]);
-      r2.height = 24;
-      // 구분/부서/인원 (Row2~3 병합 예정)
+      r2.height = 26;
+      // 구분/부서/인원 (Row2~3 병합 — r3 생성 후 병합 처리)
       ['구분', '부서', '인원'].forEach((lbl, i) => {
         const c = r2.getCell(i + 1);
         c.value = lbl;
         c.style = { fill: fill(clr.hdrGray), font: font(true, 10, clr.white), alignment: center, border: allBorder };
       });
-      // 물품명 (4열 병합)
+      // 물품명 (Row2에서만 4열 병합)
       let hc = 4;
       items.forEach(it => {
         const c = r2.getCell(hc);
-        c.value = `${it.itemName}\n${it.unitPrice.toLocaleString('ko-KR')}원 / ${it.supplyStandard || '—'}`;
+        c.value = `${it.itemName}\n${it.unitPrice.toLocaleString('ko-KR')}원`;
         c.style = { fill: fill(clr.itemHdr), font: font(true, 10, clr.white), alignment: center, border: allBorder };
         ws.mergeCells(2, hc, 2, hc + 3);
         hc += 4;
       });
-      // 총합계 (2열 병합)
-      const totC = r2.getCell(hc);
-      totC.value = '총합계';
-      totC.style = { fill: fill(clr.hdrGreen), font: font(true, 10, clr.white), alignment: center, border: allBorder };
-      ws.mergeCells(2, hc, 2, hc + 1);
+      // 총수량/총금액 헤더 (Row2에 값 설정, 병합은 r3 생성 후)
+      const totQtyHdr = r2.getCell(hc);
+      totQtyHdr.value = '총수량';
+      totQtyHdr.style = { fill: fill(clr.hdrGreen), font: font(true, 10, clr.white), alignment: center, border: allBorder };
+      const totAmtHdr = r2.getCell(hc + 1);
+      totAmtHdr.value = '총금액';
+      totAmtHdr.style = { fill: fill(clr.hdrGreen), font: font(true, 10, clr.white), alignment: center, border: allBorder };
 
       // ── Row 3: 서브헤더 ───────────────────────────────
       const r3 = ws.addRow([]);
-      r3.height = 20;
-      // 구분/부서/인원 — Row2와 병합
+      r3.height = 18;
+      // 구분/부서/인원 Row2~3 병합
       ws.mergeCells(2, 1, 3, 1);
       ws.mergeCells(2, 2, 3, 2);
       ws.mergeCells(2, 3, 3, 3);
-      // 물품 서브헤더
+      // 총수량/총금액 Row2~3 병합
+      ws.mergeCells(2, hc, 3, hc);
+      ws.mergeCells(2, hc + 1, 3, hc + 1);
+      // 물품 서브헤더 (지급기준 포함)
       let sc = 4;
-      items.forEach(() => {
-        ['단가', '지급기준', '수량', '금액'].forEach((lbl, li) => {
+      items.forEach(it => {
+        const labels = ['단가', `기준:${it.supplyStandard || '—'}`, '수량', '금액'];
+        labels.forEach((lbl, li) => {
           const c = r3.getCell(sc + li);
-          c.value = lbl;
-          c.style = { fill: fill(clr.itemSub), font: font(true, 9, 'FF92400E'), alignment: centerNoWrap, border: allBorder };
+          c.value = li === 1 ? (it.supplyStandard || '—') : lbl;
+          c.style = {
+            fill: fill(li === 2 ? 'FFDBEAFE' : li === 3 ? 'FFD1FAE5' : clr.itemSub),
+            font: font(true, 8, li === 2 ? 'FF1E40AF' : li === 3 ? 'FF065F46' : 'FF92400E'),
+            alignment: centerNoWrap,
+            border: allBorder,
+          };
         });
         sc += 4;
       });
-      // 총수량/총금액 — Row2와 병합
-      ws.mergeCells(2, hc, 3, hc);
-      ws.mergeCells(2, hc + 1, 3, hc + 1);
 
       // ── 데이터 행 ─────────────────────────────────────
       const totals: Record<number, { qty: number; amt: number }> = {};
