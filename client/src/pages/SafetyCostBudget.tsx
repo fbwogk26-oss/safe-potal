@@ -259,6 +259,7 @@ export default function SafetyCostBudget() {
     }
     setBulkSaving(true);
     let success = 0, fail = 0;
+    const toStr = (v: any) => (v !== null && v !== undefined && v !== "") ? String(v) : null;
     for (const it of selected) {
       try {
         await apiRequest("POST", "/api/safety-cost-records", {
@@ -266,9 +267,9 @@ export default function SafetyCostBudget() {
           category: bulkCommon.category, subCategory: bulkCommon.subCategory || null,
           itemName: it.itemName || "품명 미상",
           specification: it.specification || null, unit: it.unit || null,
-          quantity: it.quantity || null, unitPrice: it.unitPrice || null,
-          supplyAmount: it.supplyAmount || null, vatAmount: it.vatAmount || null,
-          totalAmount: String(it.totalAmount),
+          quantity: toStr(it.quantity), unitPrice: toStr(it.unitPrice),
+          supplyAmount: toStr(it.supplyAmount), vatAmount: toStr(it.vatAmount),
+          totalAmount: toStr(it.totalAmount) ?? "0",
           purchaseDate: bulkCommon.purchaseDate || null,
           vendorName: bulkCommon.vendorName || null,
           notes: null,
@@ -276,7 +277,10 @@ export default function SafetyCostBudget() {
           transactionFileUrl: bulkCommon.transactionFileUrl || null,
         });
         success++;
-      } catch { fail++; }
+      } catch (e: any) {
+        console.error("[bulk-create] 품목 등록 실패:", it.itemName, e);
+        fail++;
+      }
     }
     setBulkSaving(false);
     qc.invalidateQueries({ queryKey: ["/api/safety-cost-records"] });

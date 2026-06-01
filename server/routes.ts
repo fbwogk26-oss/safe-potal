@@ -9054,10 +9054,15 @@ ${htmlDraft}
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  app.post('/api/safety-cost-records', requireEditor, async (req, res) => {
+  app.post('/api/safety-cost-records', requireEditor, async (req: any, res) => {
     try {
       const { insertSafetyCostRecordSchema } = await import("@shared/schema");
-      const data = insertSafetyCostRecordSchema.parse(req.body);
+      const numericFields = ['quantity','unitPrice','supplyAmount','vatAmount','totalAmount'];
+      const body = { ...req.body };
+      for (const f of numericFields) {
+        if (body[f] !== null && body[f] !== undefined && body[f] !== '') body[f] = String(body[f]);
+      }
+      const data = insertSafetyCostRecordSchema.parse({ ...body, createdBy: req.user?.username || null });
       const record = await storage.createSafetyCostRecord(data);
       res.json(record);
     } catch (e: any) { res.status(400).json({ message: e.message }); }
