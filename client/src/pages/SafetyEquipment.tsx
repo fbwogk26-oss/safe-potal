@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { HardHat, ShoppingCart, ArrowRight, FileText, Plus, Trash2, ImagePlus, X, Upload, Download, FileSpreadsheet, PackagePlus, CheckSquare } from "lucide-react";
+import { HardHat, ShoppingCart, ArrowRight, FileText, Plus, Trash2, ImagePlus, X, Upload, Download, FileSpreadsheet, PackagePlus, CheckSquare, PackageCheck } from "lucide-react";
 import { Link } from "wouter";
 import { useNotices, useCreateNotice, useDeleteNotice } from "@/hooks/use-notices";
 import { Input } from "@/components/ui/input";
@@ -32,6 +32,15 @@ const SUBMENU_ITEMS = [
     bgColor: "bg-blue-100 dark:bg-blue-900/30",
     iconColor: "text-blue-600 dark:text-blue-400",
     borderColor: "border-blue-200 dark:border-blue-900/30 hover:border-blue-400"
+  },
+  {
+    title: "필요용품 조사",
+    description: "상/하반기 필요용품 수요조사를 관리합니다.",
+    icon: PackageCheck,
+    href: "/equipment/supply-survey",
+    bgColor: "bg-amber-100 dark:bg-amber-900/30",
+    iconColor: "text-amber-600 dark:text-amber-400",
+    borderColor: "border-amber-200 dark:border-amber-900/30 hover:border-amber-400"
   }
 ];
 

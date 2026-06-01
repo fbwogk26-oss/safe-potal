@@ -695,6 +695,43 @@ export const insertOnlineEduRecordSchema = createInsertSchema(onlineEduRecords).
 export type OnlineEduRecord = typeof onlineEduRecords.$inferSelect;
 export type InsertOnlineEduRecord = z.infer<typeof insertOnlineEduRecordSchema>;
 
+// === 상/하반기 필요용품 조사 ===
+export const safetySupplySurveys = pgTable("safety_supply_surveys", {
+  id: serial("id").primaryKey(),
+  year: integer("year").notNull(),
+  half: integer("half").notNull(), // 1=상반기, 2=하반기
+  title: text("title").notNull(),
+  createdBy: text("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertSafetySupplySurveySchema = createInsertSchema(safetySupplySurveys).omit({ id: true, createdAt: true });
+export type SafetySupplySurvey = typeof safetySupplySurveys.$inferSelect;
+export type InsertSafetySupplySurvey = z.infer<typeof insertSafetySupplySurveySchema>;
+
+export const safetySupplyItems = pgTable("safety_supply_items", {
+  id: serial("id").primaryKey(),
+  surveyId: integer("survey_id").notNull(),
+  itemName: text("item_name").notNull(),
+  unitPrice: integer("unit_price").notNull().default(0),
+  supplyStandard: text("supply_standard").notNull().default(""),
+  sortOrder: integer("sort_order").notNull().default(0),
+});
+export const insertSafetySupplyItemSchema = createInsertSchema(safetySupplyItems).omit({ id: true });
+export type SafetySupplyItem = typeof safetySupplyItems.$inferSelect;
+export type InsertSafetySupplyItem = z.infer<typeof insertSafetySupplyItemSchema>;
+
+export const safetySupplyDeptEntries = pgTable("safety_supply_dept_entries", {
+  id: serial("id").primaryKey(),
+  surveyId: integer("survey_id").notNull(),
+  deptName: text("dept_name").notNull(),
+  deptCount: integer("dept_count").notNull().default(0),
+  quantities: jsonb("quantities").notNull().default({}), // { itemId: quantity }
+  sortOrder: integer("sort_order").notNull().default(0),
+});
+export const insertSafetySupplyDeptEntrySchema = createInsertSchema(safetySupplyDeptEntries).omit({ id: true });
+export type SafetySupplyDeptEntry = typeof safetySupplyDeptEntries.$inferSelect;
+export type InsertSafetySupplyDeptEntry = z.infer<typeof insertSafetySupplyDeptEntrySchema>;
+
 // Export auth schema
 export * from "./models/auth";
 

@@ -44,6 +44,12 @@ import {
   type OnlineEduUpload, type InsertOnlineEduUpload,
   onlineEduRecords,
   type OnlineEduRecord, type InsertOnlineEduRecord,
+  safetySupplySurveys,
+  type SafetySupplySurvey, type InsertSafetySupplySurvey,
+  safetySupplyItems,
+  type SafetySupplyItem, type InsertSafetySupplyItem,
+  safetySupplyDeptEntries,
+  type SafetySupplyDeptEntry, type InsertSafetySupplyDeptEntry,
 } from "@shared/schema";
 import { eq, desc, asc, and, ilike, or, sql, inArray } from "drizzle-orm";
 
@@ -176,6 +182,15 @@ export interface IStorage {
   deleteOnlineEduUpload(id: number): Promise<void>;
   getOnlineEduRecords(uploadId: number): Promise<OnlineEduRecord[]>;
   bulkCreateOnlineEduRecords(records: InsertOnlineEduRecord[]): Promise<void>;
+
+  // Safety Supply Surveys
+  getSafetySupplySurveys(): Promise<SafetySupplySurvey[]>;
+  createSafetySupplySurvey(data: InsertSafetySupplySurvey): Promise<SafetySupplySurvey>;
+  deleteSafetySupplySurvey(id: number): Promise<void>;
+  getSafetySupplyItems(surveyId: number): Promise<SafetySupplyItem[]>;
+  upsertSafetySupplyItems(surveyId: number, items: Omit<InsertSafetySupplyItem, 'surveyId'>[]): Promise<SafetySupplyItem[]>;
+  getSafetySupplyDeptEntries(surveyId: number): Promise<SafetySupplyDeptEntry[]>;
+  upsertSafetySupplyDeptEntries(surveyId: number, entries: Omit<InsertSafetySupplyDeptEntry, 'surveyId'>[]): Promise<SafetySupplyDeptEntry[]>;
 
   // Music Files
   getMusicFiles(): Promise<MusicFile[]>;
@@ -927,6 +942,46 @@ export class DatabaseStorage implements IStorage {
       .where(eq(onlineEduRecords.uploadId, uploadId))
       .orderBy(asc(onlineEduRecords.name));
   }
+  // === 상/하반기 필요용품 조사 ===
+  async getSafetySupplySurveys(): Promise<SafetySupplySurvey[]> {
+    return await db.select().from(safetySupplySurveys).orderBy(desc(safetySupplySurveys.year), desc(safetySupplySurveys.half));
+  }
+  async createSafetySupplySurvey(data: InsertSafetySupplySurvey): Promise<SafetySupplySurvey> {
+    const [row] = await db.insert(safetySupplySurveys).values(data).returning();
+    return row;
+  }
+  async deleteSafetySupplySurvey(id: number): Promise<void> {
+    await db.delete(safetySupplyDeptEntries).where(eq(safetySupplyDeptEntries.surveyId, id));
+    await db.delete(safetySupplyItems).where(eq(safetySupplyItems.surveyId, id));
+    await db.delete(safetySupplySurveys).where(eq(safetySupplySurveys.id, id));
+  }
+  async getSafetySupplyItems(surveyId: number): Promise<SafetySupplyItem[]> {
+    return await db.select().from(safetySupplyItems)
+      .where(eq(safetySupplyItems.surveyId, surveyId))
+      .orderBy(asc(safetySupplyItems.sortOrder));
+  }
+  async upsertSafetySupplyItems(surveyId: number, items: Omit<InsertSafetySupplyItem, 'surveyId'>[]): Promise<SafetySupplyItem[]> {
+    await db.delete(safetySupplyItems).where(eq(safetySupplyItems.surveyId, surveyId));
+    if (items.length === 0) return [];
+    const rows = await db.insert(safetySupplyItems)
+      .values(items.map((it, i) => ({ ...it, surveyId, sortOrder: i })))
+      .returning();
+    return rows;
+  }
+  async getSafetySupplyDeptEntries(surveyId: number): Promise<SafetySupplyDeptEntry[]> {
+    return await db.select().from(safetySupplyDeptEntries)
+      .where(eq(safetySupplyDeptEntries.surveyId, surveyId))
+      .orderBy(asc(safetySupplyDeptEntries.sortOrder));
+  }
+  async upsertSafetySupplyDeptEntries(surveyId: number, entries: Omit<InsertSafetySupplyDeptEntry, 'surveyId'>[]): Promise<SafetySupplyDeptEntry[]> {
+    await db.delete(safetySupplyDeptEntries).where(eq(safetySupplyDeptEntries.surveyId, surveyId));
+    if (entries.length === 0) return [];
+    const rows = await db.insert(safetySupplyDeptEntries)
+      .values(entries.map((e, i) => ({ ...e, surveyId, sortOrder: i })))
+      .returning();
+    return rows;
+  }
+
   async bulkCreateOnlineEduRecords(records: InsertOnlineEduRecord[]): Promise<void> {
     if (records.length === 0) return;
     const chunkSize = 200;

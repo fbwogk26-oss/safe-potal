@@ -6399,6 +6399,254 @@ ${htmlDraft}
       res.json({ message: "삭제됨" });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
+
+  // ── 상/하반기 필요용품 조사 ──────────────────────────────────────
+  app.get('/api/safety-supply/surveys', isAuthenticated, async (_req, res) => {
+    try { res.json(await storage.getSafetySupplySurveys()); }
+    catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.post('/api/safety-supply/surveys', isAuthenticated, async (req: any, res) => {
+    try {
+      const { year, half, title } = req.body;
+      const survey = await storage.createSafetySupplySurvey({ year: Number(year), half: Number(half), title, createdBy: req.user?.username });
+      res.json(survey);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.delete('/api/safety-supply/surveys/:id', isAuthenticated, async (req: any, res) => {
+    try { await storage.deleteSafetySupplySurvey(parseInt(req.params.id)); res.json({ message: "삭제됨" }); }
+    catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.get('/api/safety-supply/surveys/:id/items', isAuthenticated, async (req: any, res) => {
+    try { res.json(await storage.getSafetySupplyItems(parseInt(req.params.id))); }
+    catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.put('/api/safety-supply/surveys/:id/items', isAuthenticated, async (req: any, res) => {
+    try {
+      const items = req.body; // [{itemName, unitPrice, supplyStandard}]
+      res.json(await storage.upsertSafetySupplyItems(parseInt(req.params.id), items));
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.get('/api/safety-supply/surveys/:id/dept-entries', isAuthenticated, async (req: any, res) => {
+    try { res.json(await storage.getSafetySupplyDeptEntries(parseInt(req.params.id))); }
+    catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.put('/api/safety-supply/surveys/:id/dept-entries', isAuthenticated, async (req: any, res) => {
+    try {
+      const entries = req.body; // [{deptName, deptCount, quantities}]
+      res.json(await storage.upsertSafetySupplyDeptEntries(parseInt(req.params.id), entries));
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // 엑셀 다운로드
+  app.get('/api/safety-supply/surveys/:id/export', isAuthenticated, async (req: any, res) => {
+    try {
+      const surveyId = parseInt(req.params.id);
+      const [surveys, items, depts] = await Promise.all([
+        storage.getSafetySupplySurveys(),
+        storage.getSafetySupplyItems(surveyId),
+        storage.getSafetySupplyDeptEntries(surveyId),
+      ]);
+      const survey = surveys.find(s => s.id === surveyId);
+      if (!survey) return res.status(404).json({ message: "조사를 찾을 수 없습니다" });
+
+      const ExcelJS = require('exceljs');
+      const wb = new ExcelJS.Workbook();
+      const ws = wb.addWorksheet('필요용품조사');
+
+      // 헤더 스타일
+      const yellowFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE599' } };
+      const blueFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDCE6F1' } };
+      const greenFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2EFDA' } };
+      const headerFont = { bold: true, size: 10 };
+      const thin = { style: 'thin' as const, color: { argb: 'FF999999' } };
+      const border = { top: thin, left: thin, bottom: thin, right: thin };
+      const center: Partial<ExcelJS.Alignment> = { vertical: 'middle' as const, horizontal: 'center' as const, wrapText: true };
+
+      const halfLabel = survey.half === 1 ? '상반기' : '하반기';
+      const titleStr = `${survey.year}년 ${halfLabel} 필요용품 조사`;
+
+      // Row 1: 타이틀 + 물품명
+      const r1: any[] = [titleStr, '', ''];
+      items.forEach(it => { r1.push(it.itemName); r1.push(''); });
+      const row1 = ws.addRow(r1);
+
+      // Row 2: 구분/부서/인원 + 단가/지급기준 반복
+      const r2: any[] = ['구분', '부서', '인원'];
+      items.forEach(it => { r2.push('단가'); r2.push('지급기준'); r2.push('수량'); r2.push('금액'); });
+      r2.push('총수량'); r2.push('총금액');
+      const row2 = ws.addRow(r2);
+
+      // 데이터 행
+      const totals: Record<number, { qty: number; amt: number }> = {};
+      items.forEach(it => { totals[it.id] = { qty: 0, amt: 0 }; });
+      let totalQtyAll = 0, totalAmtAll = 0;
+
+      depts.forEach((dept, di) => {
+        const q = (dept.quantities as Record<string, number>) || {};
+        let rowTotalQty = 0, rowTotalAmt = 0;
+        const rowData: any[] = [di === 0 ? '부서' : '', dept.deptName, dept.deptCount];
+        items.forEach(it => {
+          const qty = q[it.id] ?? 0;
+          const amt = qty * it.unitPrice;
+          rowData.push(it.unitPrice.toLocaleString());
+          rowData.push(it.supplyStandard);
+          rowData.push(qty || '');
+          rowData.push(amt ? amt.toLocaleString() : '');
+          totals[it.id].qty += qty;
+          totals[it.id].amt += amt;
+          rowTotalQty += qty;
+          rowTotalAmt += amt;
+        });
+        rowData.push(rowTotalQty || '');
+        rowData.push(rowTotalAmt ? rowTotalAmt.toLocaleString() : '');
+        totalQtyAll += rowTotalQty;
+        totalAmtAll += rowTotalAmt;
+        const row = ws.addRow(rowData);
+        row.height = 18;
+        row.eachCell({ includeEmpty: true }, (cell: any) => {
+          cell.border = border;
+          cell.alignment = center;
+          cell.font = { size: 9 };
+        });
+        row.getCell(3).fill = blueFill; // 인원
+      });
+
+      // 합계 행
+      const sumRow: any[] = ['', '합 계', depts.reduce((s, d) => s + d.deptCount, 0)];
+      items.forEach(it => {
+        sumRow.push(''); sumRow.push('');
+        sumRow.push(totals[it.id].qty || '');
+        sumRow.push(totals[it.id].amt ? totals[it.id].amt.toLocaleString() : '');
+      });
+      sumRow.push(totalQtyAll || ''); sumRow.push(totalAmtAll ? totalAmtAll.toLocaleString() : '');
+      const sumRowEl = ws.addRow(sumRow);
+      sumRowEl.height = 20;
+      sumRowEl.eachCell({ includeEmpty: true }, (cell: any) => {
+        cell.border = border; cell.alignment = center;
+        cell.font = { bold: true, size: 10 };
+        cell.fill = greenFill;
+      });
+
+      // 스타일 적용 (헤더)
+      row1.height = 22;
+      row2.height = 30;
+      row1.eachCell({ includeEmpty: true }, (cell: any) => {
+        cell.border = border; cell.alignment = center;
+        cell.font = { ...headerFont };
+        cell.fill = yellowFill;
+      });
+      row2.eachCell({ includeEmpty: true }, (cell: any) => {
+        cell.border = border; cell.alignment = center;
+        cell.font = headerFont; cell.fill = yellowFill;
+      });
+
+      // 컬럼 너비
+      ws.getColumn(1).width = 6;
+      ws.getColumn(2).width = 20;
+      ws.getColumn(3).width = 6;
+      let col = 4;
+      items.forEach(() => {
+        ws.getColumn(col).width = 9;     // 단가
+        ws.getColumn(col + 1).width = 10; // 지급기준
+        ws.getColumn(col + 2).width = 6;  // 수량
+        ws.getColumn(col + 3).width = 10; // 금액
+        col += 4;
+      });
+      ws.getColumn(col).width = 8;
+      ws.getColumn(col + 1).width = 12;
+
+      // 병합: 타이틀
+      ws.mergeCells(1, 1, 1, 3);
+      let mergeCol = 4;
+      items.forEach(() => {
+        ws.mergeCells(1, mergeCol, 1, mergeCol + 3);
+        mergeCol += 4;
+      });
+      ws.mergeCells(1, mergeCol, 1, mergeCol + 1);
+
+      const buf = await wb.xlsx.writeBuffer();
+      const fileName = encodeURIComponent(`${titleStr}.xlsx`);
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${fileName}`);
+      res.send(buf);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // 엑셀 업로드 (템플릿 파싱)
+  const supplyImportMw = multer({ dest: 'uploads/' });
+  app.post('/api/safety-supply/surveys/:id/import', isAuthenticated, (req: any, res: any, _next: any) => {
+    supplyImportMw.single('file')(req, res, async (err: any) => {
+      if (err) return res.status(400).json({ message: '파일 업로드 오류: ' + err.message });
+      const file = req.file;
+      if (!file) return res.status(400).json({ message: '파일이 없습니다' });
+      try {
+        const surveyId = parseInt(req.params.id);
+        const ExcelJS = require('exceljs');
+        const wb = new ExcelJS.Workbook();
+        await wb.xlsx.readFile(file.path);
+        const ws = wb.getWorksheet(1);
+
+        // row2 = 헤더: 구분/부서/인원 + [단가 지급기준 수량 금액]×N + 총수량 총금액
+        // row3+ = 데이터
+        const row2 = ws.getRow(2);
+        const headers: string[] = [];
+        row2.eachCell({ includeEmpty: true }, (cell: any) => { headers.push(String(cell.value ?? '')); });
+
+        // 물품 컬럼 파싱 (row1: 타이틀 행에서 물품명)
+        const row1 = ws.getRow(1);
+        const itemNames: { name: string; col: number }[] = [];
+        let c = 4;
+        while (c <= headers.length) {
+          const r1cell = ws.getCell(1, c);
+          const name = String(r1cell.value ?? '').trim();
+          if (name && name !== '총수량' && name !== '총금액') {
+            itemNames.push({ name, col: c });
+          }
+          c += 4;
+        }
+
+        // 물품 저장
+        const savedItems = await storage.upsertSafetySupplyItems(surveyId,
+          itemNames.map(it => ({
+            itemName: it.name,
+            unitPrice: parseInt(String(ws.getCell(3, it.col).value ?? '0').replace(/[^0-9]/g, '')) || 0,
+            supplyStandard: String(ws.getCell(3, it.col + 1).value ?? ''),
+            sortOrder: 0,
+          }))
+        );
+
+        // 부서 데이터 파싱 (row3 이후, 합계 행 제외)
+        const entries: any[] = [];
+        let rowIdx = 3;
+        while (true) {
+          const r = ws.getRow(rowIdx);
+          const deptName = String(r.getCell(2).value ?? '').trim();
+          if (!deptName || deptName === '합 계' || deptName === '합계') break;
+          const deptCount = parseInt(String(r.getCell(3).value ?? '0')) || 0;
+          const quantities: Record<number, number> = {};
+          savedItems.forEach((it, idx) => {
+            const qtyVal = parseInt(String(r.getCell(itemNames[idx].col + 2).value ?? '0')) || 0;
+            if (qtyVal) quantities[it.id] = qtyVal;
+          });
+          entries.push({ deptName, deptCount, quantities, sortOrder: entries.length });
+          rowIdx++;
+        }
+
+        await storage.upsertSafetySupplyDeptEntries(surveyId, entries);
+        try { require('fs').unlinkSync(file.path); } catch {}
+        res.json({ items: savedItems.length, depts: entries.length });
+      } catch (e: any) {
+        try { require('fs').unlinkSync(file.path); } catch {}
+        res.status(500).json({ message: '파싱 오류: ' + e.message });
+      }
+    });
+  });
   // ────────────────────────────────────────────────────────────────
 
   // 입회/점검 기록 엑셀 다운로드 (보고용)

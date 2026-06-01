@@ -36,6 +36,7 @@ import NearMiss from "@/pages/NearMiss";
 import PublicNearMiss from "@/pages/PublicNearMiss";
 import MusculoskeletalDisease from "@/pages/MusculoskeletalDisease";
 import NewEquipmentRequest from "@/pages/NewEquipmentRequest";
+import SafetySupplySurvey from "@/pages/SafetySupplySurvey";
 import TrafficFines from "@/pages/TrafficFines";
 import WorkPlan from "@/pages/WorkPlan";
 import AttendanceManagement from "@/pages/AttendanceManagement";
@@ -113,6 +114,7 @@ function RouterContent() {
       <Route path="/equipment/status">{() => <G canAccess={canViewEquipmentStatus} component={EquipmentStatus} />}</Route>
       <Route path="/equipment/request">{() => <G canAccess={canViewEquipment} component={EquipmentRequest} />}</Route>
       <Route path="/equipment/new-request">{() => <G canAccess={canViewEquipment} component={NewEquipmentRequest} />}</Route>
+      <Route path="/equipment/supply-survey">{() => <G canAccess={canViewEquipment} component={SafetySupplySurvey} />}</Route>
       <Route path="/access">{() => <G canAccess={canViewAccess} component={AccessRequest} />}</Route>
       <Route path="/msds">{() => <G canAccess={canViewMsds} component={MsdsSearch} />}</Route>
       <Route path="/risk-assessment">{() => <G canAccess={canViewRiskAssessment} component={RiskAssessment} />}</Route>
