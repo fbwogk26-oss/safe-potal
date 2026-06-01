@@ -330,15 +330,15 @@ function extractJpegsFromBuffer(buf: Buffer): Buffer[] {
     // JPEG SOI 마커: FF D8 FF
     if (buf[i] === 0xFF && buf[i + 1] === 0xD8 && buf[i + 2] === 0xFF) {
       const start = i;
-      let j = i + 2;
+      let j = i + 4; // FF D8 FF XX 이후부터 스캔
       let found = false;
-      // EOI 마커 탐색: FF D9
-      while (j < buf.length - 1) {
+      // EOI 마커 탐색: FF D9 (최대 50MB 범위 내)
+      while (j < Math.min(buf.length - 1, start + 50 * 1024 * 1024)) {
         if (buf[j] === 0xFF && buf[j + 1] === 0xD9) {
           const end = j + 2;
           const jpeg = buf.slice(start, end);
-          // 최소 크기(5KB) 이상인 이미지만 수집 (썸네일/아이콘 제외)
-          if (jpeg.length > 5000) {
+          // 최소 크기(1KB) 이상인 이미지만 수집 (썸네일/아이콘 제외)
+          if (jpeg.length > 1000) {
             results.push(jpeg);
           }
           i = end;
@@ -347,7 +347,8 @@ function extractJpegsFromBuffer(buf: Buffer): Buffer[] {
         }
         j++;
       }
-      if (!found) break;
+      // EOI를 못 찾아도 break하지 않고 다음 바이트부터 계속 스캔
+      if (!found) i = start + 1;
     } else {
       i++;
     }
