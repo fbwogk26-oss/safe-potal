@@ -11,8 +11,33 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Plus, Trash2, Download, Upload, Save, PackageCheck,
   Pencil, X, Check, Copy, ChevronRight, FileSpreadsheet,
-  Wallet, TrendingDown, PiggyBank, ReceiptText,
+  Wallet, TrendingDown, PiggyBank, ReceiptText, Zap,
 } from "lucide-react";
+
+// ── 지급기준 파싱 → 자동 수량 계산 ──────────────────────
+// 지원 패턴: "인당 2개", "1인당 1개", "2개/인", "부서당 3개", "팀당 1개", "N개"(고정)
+function parseAutoQty(standard: string, deptCount: number): number | null {
+  const s = standard.trim();
+  if (!s) return null;
+
+  // 인당 N개 / 1인당 N개
+  const perPerson = s.match(/(?:1인당|인당)\s*(\d+(?:\.\d+)?)\s*개/);
+  if (perPerson) return Math.ceil(deptCount * parseFloat(perPerson[1]));
+
+  // N개/인 / N개 /인
+  const perPerson2 = s.match(/(\d+(?:\.\d+)?)\s*개\s*\/\s*인/);
+  if (perPerson2) return Math.ceil(deptCount * parseFloat(perPerson2[1]));
+
+  // 부서당 N개 / 팀당 N개
+  const perDept = s.match(/(?:부서당|팀당)\s*(\d+(?:\.\d+)?)\s*개/);
+  if (perDept) return Math.ceil(parseFloat(perDept[1]));
+
+  // 고정 N개 (앞에 다른 단어 없이 숫자+개 로만 구성)
+  const fixed = s.match(/^(\d+)\s*개$/);
+  if (fixed) return parseInt(fixed[1]);
+
+  return null;
+}
 
 const CATEGORIES = [
   "1. 안전관리자 등 인건비 및 각종 업무수당 등",
@@ -278,6 +303,33 @@ export default function SafetySupplySurvey() {
   };
 
   const removeDept = (di: number) => mutateDepts(c => c.filter((_, i) => i !== di));
+
+  // ── 수량 자동계산 ────────────────────────────────────
+  const autoFillQty = () => {
+    const current = getDisplayDepts();
+    let filled = 0;
+    const next = current.map(dept => {
+      const newQties = { ...dept.quantities };
+      items.forEach(it => {
+        const autoQty = parseAutoQty(it.supplyStandard, dept.deptCount);
+        if (autoQty !== null) {
+          newQties[it.id] = autoQty;
+          filled++;
+        }
+      });
+      return { ...dept, quantities: newQties };
+    });
+    setLocalDepts(next);
+    setDeptsDirty(true);
+    if (filled > 0) {
+      toast({ title: "수량 자동계산 완료", description: `${filled}개 항목이 지급기준에 따라 자동 입력됐습니다.` });
+    } else {
+      toast({ title: "자동계산 대상 없음", description: "'인당 N개', '부서당 N개' 형식의 지급기준이 있는 물품만 자동 계산됩니다.", variant: "destructive" });
+    }
+  };
+
+  // 자동계산 가능한 물품 수
+  const autoFillableCount = items.filter(it => parseAutoQty(it.supplyStandard, 1) !== null).length;
 
   // ── 집계 ─────────────────────────────────────────────
   const displayDepts = getDisplayDepts();
@@ -629,6 +681,21 @@ export default function SafetySupplySurvey() {
                       <Button size="sm" variant="outline" className="gap-1 text-xs h-7 text-amber-700 border-amber-300 hover:bg-amber-50" onClick={addItemAndEdit} data-testid="button-add-item-quick">
                         <Plus className="w-3 h-3" /> 물품 추가
                       </Button>
+                      {displayDepts.length > 0 && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className={`gap-1 text-xs h-7 ${autoFillableCount > 0 ? "text-violet-700 border-violet-300 hover:bg-violet-50" : "text-gray-400 border-gray-200"}`}
+                          onClick={autoFillQty}
+                          title={autoFillableCount > 0 ? `${autoFillableCount}개 물품 자동계산 가능` : "인당/부서당 지급기준이 있는 물품이 없습니다"}
+                          data-testid="button-auto-fill-qty"
+                        >
+                          <Zap className="w-3 h-3" /> 수량 자동계산
+                          {autoFillableCount > 0 && (
+                            <span className="ml-0.5 bg-violet-100 text-violet-700 text-[10px] font-bold px-1 rounded-full">{autoFillableCount}</span>
+                          )}
+                        </Button>
+                      )}
                     </div>
                     <div className="flex items-center gap-4 text-xs text-gray-500">
                       <span>부서 <strong className="text-gray-700">{displayDepts.length}</strong>개</span>
@@ -645,14 +712,20 @@ export default function SafetySupplySurvey() {
                           <th className="border border-gray-300 bg-gray-700 text-white px-2 py-2 text-center whitespace-nowrap font-semibold" rowSpan={2}>번호</th>
                           <th className="border border-gray-300 bg-gray-700 text-white px-4 py-2 text-center whitespace-nowrap font-semibold min-w-[130px]" rowSpan={2}>부서</th>
                           <th className="border border-gray-300 bg-gray-700 text-white px-3 py-2 text-center whitespace-nowrap font-semibold" rowSpan={2}>인원</th>
-                          {items.map(it => (
-                            <th key={it.id} className="border border-gray-300 bg-amber-600 text-white px-2 py-2 text-center whitespace-nowrap font-semibold" colSpan={2}>
-                              <div>{it.itemName}</div>
-                              <div className="font-normal text-amber-100 text-[10px] mt-0.5">
-                                {fmt(it.unitPrice)}원 / {it.supplyStandard || "—"}
-                              </div>
-                            </th>
-                          ))}
+                          {items.map(it => {
+                            const canAuto = parseAutoQty(it.supplyStandard, 1) !== null;
+                            return (
+                              <th key={it.id} className="border border-gray-300 bg-amber-600 text-white px-2 py-2 text-center whitespace-nowrap font-semibold" colSpan={2}>
+                                <div className="flex items-center justify-center gap-1">
+                                  {it.itemName}
+                                  {canAuto && <Zap className="w-3 h-3 text-yellow-300 shrink-0" title="지급기준 자동계산 가능" />}
+                                </div>
+                                <div className="font-normal text-amber-100 text-[10px] mt-0.5">
+                                  {fmt(it.unitPrice)}원 / {it.supplyStandard || "—"}
+                                </div>
+                              </th>
+                            );
+                          })}
                           <th className="border border-gray-300 bg-green-700 text-white px-3 py-2 text-center whitespace-nowrap font-semibold" rowSpan={2}>총수량</th>
                           <th className="border border-gray-300 bg-green-700 text-white px-3 py-2 text-center whitespace-nowrap font-semibold" rowSpan={2}>총금액</th>
                           <th className="border border-gray-300 bg-gray-600 text-white w-8" rowSpan={2}></th>
