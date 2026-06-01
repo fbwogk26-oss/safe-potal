@@ -331,43 +331,56 @@ async function extractImagesWithPoppler(pdfBuffer: Buffer): Promise<Buffer[]> {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pdf-img-'));
   const pdfPath = path.join(tmpDir, 'input.pdf');
   const imgPrefix = path.join(tmpDir, 'page');
+  console.log(`[PDF이미지] tmpDir=${tmpDir} pdfSize=${pdfBuffer.length}`);
   try {
     fs.writeFileSync(pdfPath, pdfBuffer);
 
-    // 1단계: pdfimages로 임베딩 이미지 추출 (-j: JPEG 유지, 나머지는 PPM)
+    // 1단계: pdfimages -png 로 모든 임베딩 이미지를 PNG로 추출 (형식 호환성 최대화)
     try {
-      await execFileAsync('pdfimages', ['-j', pdfPath, imgPrefix], { timeout: 30000 });
-    } catch {}
-
-    let imgFiles = fs.readdirSync(tmpDir)
-      .filter(f => f !== 'input.pdf' && /\.(jpg|jpeg|ppm|pbm|png)$/i.test(f))
-      .map(f => path.join(tmpDir, f));
-
-    // 2단계: 임베딩 이미지가 없으면 pdftoppm으로 페이지 전체 렌더링
-    if (imgFiles.length === 0) {
-      try {
-        await execFileAsync('pdftoppm', ['-jpeg', '-r', '150', '-f', '1', '-l', '10', pdfPath, imgPrefix], { timeout: 30000 });
-        imgFiles = fs.readdirSync(tmpDir)
-          .filter(f => f !== 'input.pdf' && /\.(jpg|jpeg)$/i.test(f))
-          .map(f => path.join(tmpDir, f));
-      } catch {}
+      const r1 = await execFileAsync('pdfimages', ['-png', pdfPath, imgPrefix], { timeout: 30000 });
+      console.log('[PDF이미지] pdfimages -png 완료:', r1.stderr || 'ok');
+    } catch (e1: any) {
+      console.error('[PDF이미지] pdfimages 실패:', e1.message);
     }
 
-    const sharp = (await import('sharp')).default;
+    let imgFiles = fs.readdirSync(tmpDir)
+      .filter(f => f !== 'input.pdf' && /\.(png|jpg|jpeg|ppm|pbm)$/i.test(f))
+      .sort()
+      .map(f => path.join(tmpDir, f));
+    console.log(`[PDF이미지] pdfimages 결과 ${imgFiles.length}개:`, imgFiles.map(f => path.basename(f)));
+
+    // 2단계: 임베딩 이미지가 없으면 pdftoppm으로 페이지 전체 렌더링 (스캔 PDF 대응)
+    if (imgFiles.length === 0) {
+      try {
+        await execFileAsync('pdftoppm', ['-png', '-r', '150', '-f', '1', '-l', '10', pdfPath, imgPrefix], { timeout: 30000 });
+        imgFiles = fs.readdirSync(tmpDir)
+          .filter(f => f !== 'input.pdf' && /\.(png|jpg|jpeg)$/i.test(f))
+          .sort()
+          .map(f => path.join(tmpDir, f));
+        console.log(`[PDF이미지] pdftoppm 결과 ${imgFiles.length}개`);
+      } catch (e2: any) {
+        console.error('[PDF이미지] pdftoppm 실패:', e2.message);
+      }
+    }
+
+    const { default: sharp } = await import('sharp');
     const results: Buffer[] = [];
     for (const f of imgFiles.slice(0, 10)) {
       try {
         const raw = fs.readFileSync(f);
-        if (raw.length < 1000) continue;
-        // JPEG가 아닌 형식(PPM 등)은 sharp로 JPEG 변환
-        if (!/\.(jpg|jpeg)$/i.test(f)) {
-          const converted = await sharp(raw).jpeg({ quality: 85 }).toBuffer();
-          results.push(converted);
-        } else {
-          results.push(raw);
+        if (raw.length < 1000) {
+          console.log(`[PDF이미지] 스킵(너무 작음): ${path.basename(f)} ${raw.length}bytes`);
+          continue;
         }
-      } catch {}
+        // sharp로 JPEG 변환 (PNG, PPM 등 모두 처리)
+        const converted = await sharp(raw).jpeg({ quality: 85 }).toBuffer();
+        results.push(converted);
+        console.log(`[PDF이미지] 변환 성공: ${path.basename(f)} ${raw.length}→${converted.length}bytes`);
+      } catch (e3: any) {
+        console.error(`[PDF이미지] 처리 실패 ${path.basename(f)}:`, e3.message);
+      }
     }
+    console.log(`[PDF이미지] 최종 이미지 수: ${results.length}`);
     return results;
   } finally {
     try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
@@ -1279,6 +1292,7 @@ export async function registerRoutes(
         return res.status(400).json({ message: "등록할 데이터가 없습니다" });
       let created = 0;
       for (const item of items) {
+        console.log(`[bulk-create] title="${item.title}" images=${JSON.stringify(item.images?.length ?? 0)}개`);
         await storage.createSafetyInspection({ ...item, createdBy: req.user?.username || null });
         created++;
       }
