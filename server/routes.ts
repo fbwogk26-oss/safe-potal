@@ -921,19 +921,10 @@ export async function registerRoutes(
     try {
       const pdfBuffer: Buffer = req.file.buffer;
 
-      // ── 1) 텍스트 추출 (pdfjs-dist, 서버 전용) ──
-      const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
-      (pdfjsLib as any).GlobalWorkerOptions.workerSrc = false;
-      const uint8 = new Uint8Array(pdfBuffer);
-      const loadingTask = pdfjsLib.getDocument({ data: uint8 });
-      const pdfDoc = await loadingTask.promise;
-      let text = '';
-      for (let p = 1; p <= pdfDoc.numPages; p++) {
-        const page = await pdfDoc.getPage(p);
-        const tc = await page.getTextContent();
-        text += tc.items.map((it: any) => it.str).join(' ') + '\n';
-      }
-      const lines = text.split('\n').map((l: string) => l.trim()).filter(Boolean);
+      // ── 1) 텍스트 추출 (pdf-parse) ──
+      const pdfParse = (await import('pdf-parse')).default;
+      const pdfData = await pdfParse(pdfBuffer);
+      const lines = pdfData.text.split('\n').map((l: string) => l.trim()).filter(Boolean);
 
       let inspectionDate = '';
       let team = '';
@@ -1020,23 +1011,14 @@ export async function registerRoutes(
           } catch (exErr: any) { console.warn('[bulk-parse] 엑셀 파싱 실패:', exErr.message); }
         }
 
-        // pdfjs-dist 초기화
-        const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
-        (pdfjsLib as any).GlobalWorkerOptions.workerSrc = false;
+        const pdfParseBulk = (await import('pdf-parse')).default;
 
         const results: any[] = [];
         for (const f of pdfFiles) {
           try {
             const pdfBuffer: Buffer = f.buffer;
-            const uint8 = new Uint8Array(pdfBuffer);
-            const pdfDoc = await pdfjsLib.getDocument({ data: uint8 }).promise;
-            let rawText = '';
-            for (let p = 1; p <= pdfDoc.numPages; p++) {
-              const page = await pdfDoc.getPage(p);
-              const tc = await page.getTextContent();
-              rawText += tc.items.map((it: any) => it.str).join(' ') + '\n';
-            }
-            const fullText = rawText.split('\n').map((l: string) => l.trim()).filter(Boolean).join(' ');
+            const pdfDataBulk = await pdfParseBulk(pdfBuffer);
+            const fullText = pdfDataBulk.text.split('\n').map((l: string) => l.trim()).filter(Boolean).join(' ');
 
             let inspectionDate = '';
             let team = '';
@@ -4143,17 +4125,9 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
     if (!req.file) return res.status(400).json({ message: "PDF 파일이 필요합니다" });
     try {
       const pdfBuffer: Buffer = req.file.buffer;
-      const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
-      (pdfjsLib as any).GlobalWorkerOptions.workerSrc = false;
-      const uint8 = new Uint8Array(pdfBuffer);
-      const pdfDoc = await pdfjsLib.getDocument({ data: uint8 }).promise;
-      let text = '';
-      for (let p = 1; p <= pdfDoc.numPages; p++) {
-        const page = await pdfDoc.getPage(p);
-        const tc = await page.getTextContent();
-        text += tc.items.map((it: any) => it.str).join(' ') + '\n';
-      }
-      const fullText = text.replace(/\s+/g, ' ');
+      const pdfParseAcc = (await import('pdf-parse')).default;
+      const pdfDataAcc = await pdfParseAcc(pdfBuffer);
+      const fullText = pdfDataAcc.text.replace(/\s+/g, ' ');
 
       // 제목 (제 목 이후)
       let title = '';
@@ -4966,18 +4940,9 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
           // ── 방법 3: 텍스트 추출만으로 분석 (최후 수단) ──
           let pdfText = "";
           try {
-            const pdfjsLib2 = await import('pdfjs-dist/legacy/build/pdf.mjs');
-            (pdfjsLib2 as any).GlobalWorkerOptions.workerSrc = false;
-            const uint8b = new Uint8Array(pdfBuffer);
-            const loadingTask2 = pdfjsLib2.getDocument({ data: uint8b });
-            const pdfDoc2 = await loadingTask2.promise;
-            let rawText = '';
-            for (let p2 = 1; p2 <= pdfDoc2.numPages; p2++) {
-              const page2 = await pdfDoc2.getPage(p2);
-              const tc2 = await page2.getTextContent();
-              rawText += tc2.items.map((it: any) => it.str).join(' ') + '\n';
-            }
-            pdfText = rawText.trim();
+            const pdfParse3 = (await import('pdf-parse')).default;
+            const pdfData3 = await pdfParse3(pdfBuffer);
+            pdfText = pdfData3.text.trim();
           } catch (_) {}
 
           if (!pdfText || pdfText.length < 10) {
