@@ -268,13 +268,13 @@ export default function SafetySupplySurvey() {
                 <div className="flex items-center gap-0.5 shrink-0">
                   <button
                     onClick={e => openCopyDialog(s.id, e)}
-                    className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-amber-100 text-amber-600 transition-all"
-                    title="이 조사 복사"
+                    className="p-1.5 rounded hover:bg-amber-100 text-amber-500 hover:text-amber-700 transition-colors"
+                    title="이 조사 복사하기"
                     data-testid={`button-copy-survey-${s.id}`}
                   >
-                    <Copy className="w-3 h-3" />
+                    <Copy className="w-3.5 h-3.5" />
                   </button>
-                  {isActive && <ChevronRight className="w-3 h-3 text-amber-500" />}
+                  {isActive && <ChevronRight className="w-3.5 h-3.5 text-amber-500" />}
                 </div>
               </div>
             );
@@ -418,7 +418,21 @@ export default function SafetySupplySurvey() {
 
               {!itemsLoading && !deptsLoading && items.length > 0 && (
                 <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                  <div className="overflow-auto max-h-[calc(100vh-360px)]">
+
+                  {/* 부서 추가 버튼 — 테이블 위 */}
+                  <div className="px-4 py-2 border-b border-gray-100 flex items-center justify-between bg-gray-50">
+                    <Button size="sm" variant="outline" className="gap-1 text-xs h-7" onClick={addDept} data-testid="button-add-dept">
+                      <Plus className="w-3 h-3" /> 부서 추가
+                    </Button>
+                    <div className="flex items-center gap-4 text-xs text-gray-500">
+                      <span>부서 <strong className="text-gray-700">{displayDepts.length}</strong>개</span>
+                      <span>총 인원 <strong className="text-gray-700">{totalHeadcount}</strong>명</span>
+                      <span>총 수량 <strong className="text-green-700">{grandQty}</strong>개</span>
+                      <span>총 금액 <strong className="text-green-700">{fmt(grandAmt)}</strong>원</span>
+                    </div>
+                  </div>
+
+                  <div className="overflow-auto max-h-[calc(100vh-400px)]">
                     <table className="text-xs border-collapse w-max min-w-full">
                       <thead className="sticky top-0 z-10">
                         {/* ── 헤더 1행: 물품명 ── */}
@@ -538,18 +552,6 @@ export default function SafetySupplySurvey() {
                     </table>
                   </div>
 
-                  {/* 부서 추가 + 요약 */}
-                  <div className="px-4 py-2.5 border-t border-gray-100 flex items-center justify-between bg-gray-50">
-                    <Button size="sm" variant="outline" className="gap-1 text-xs h-7" onClick={addDept} data-testid="button-add-dept">
-                      <Plus className="w-3 h-3" /> 부서 추가
-                    </Button>
-                    <div className="flex items-center gap-4 text-xs text-gray-500">
-                      <span>부서 <strong className="text-gray-700">{displayDepts.length}</strong>개</span>
-                      <span>총 인원 <strong className="text-gray-700">{totalHeadcount}</strong>명</span>
-                      <span>총 수량 <strong className="text-green-700">{grandQty}</strong>개</span>
-                      <span>총 금액 <strong className="text-green-700">{fmt(grandAmt)}</strong>원</span>
-                    </div>
-                  </div>
                 </div>
               )}
             </div>

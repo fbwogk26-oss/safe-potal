@@ -6499,9 +6499,10 @@ ${htmlDraft}
       const halfLabel = survey.half === 1 ? '상반기' : '하반기';
       const titleStr = `${survey.year}년 ${halfLabel} 필요용품 조사`;
 
-      // Row 1: 타이틀 + 물품명
+      // Row 1: 타이틀 + 물품명 (물품당 4열 차지)
       const r1: any[] = [titleStr, '', ''];
-      items.forEach(it => { r1.push(it.itemName); r1.push(''); });
+      items.forEach(it => { r1.push(it.itemName); r1.push(''); r1.push(''); r1.push(''); });
+      r1.push('총합계', '');
       const row1 = ws.addRow(r1);
 
       // Row 2: 구분/부서/인원 + 단가/지급기준 반복
@@ -6618,52 +6619,65 @@ ${htmlDraft}
         const wb = new ExcelJS.Workbook();
         await wb.xlsx.readFile(file.path);
         const ws = wb.getWorksheet(1);
+        if (!ws) throw new Error('워크시트를 찾을 수 없습니다. 올바른 Excel 파일인지 확인해주세요.');
 
         // row2 = 헤더: 구분/부서/인원 + [단가 지급기준 수량 금액]×N + 총수량 총금액
+        // row1 = 타이틀 행 (물품명은 4열마다 merge된 마스터 셀에 있음)
         // row3+ = 데이터
         const row2 = ws.getRow(2);
         const headers: string[] = [];
         row2.eachCell({ includeEmpty: true }, (cell: any) => { headers.push(String(cell.value ?? '')); });
+        const totalCols = headers.length;
 
-        // 물품 컬럼 파싱 (row1: 타이틀 행에서 물품명)
-        const row1 = ws.getRow(1);
+        // row1에서 물품명 파싱 (4열 단위: 단가/지급기준/수량/금액)
         const itemNames: { name: string; col: number }[] = [];
         let c = 4;
-        while (c <= headers.length) {
-          const r1cell = ws.getCell(1, c);
-          const name = String(r1cell.value ?? '').trim();
-          if (name && name !== '총수량' && name !== '총금액') {
+        while (c <= totalCols) {
+          // merged cell master value 읽기
+          const cell = ws.getCell(1, c);
+          const rawVal = cell.master ? cell.master.value : cell.value;
+          const name = String(rawVal ?? '').trim();
+          if (name && name !== '총합계' && name !== '총수량' && name !== '총금액' && name !== '합계') {
             itemNames.push({ name, col: c });
           }
           c += 4;
         }
 
-        // 물품 저장
+        if (itemNames.length === 0) throw new Error('물품 헤더를 찾을 수 없습니다. 다운로드한 양식을 사용해주세요.');
+
+        // 물품 저장 (단가/지급기준은 첫 번째 데이터 행에서 파싱)
+        // row3 = 첫 번째 부서 행. col+0=단가, col+1=지급기준
+        const getNum = (r: number, c: number) => parseInt(String(ws.getCell(r, c).value ?? '0').replace(/[^0-9]/g, '')) || 0;
+        const getStr = (r: number, c: number) => String(ws.getCell(r, c).value ?? '').trim();
+
         const savedItems = await storage.upsertSafetySupplyItems(surveyId,
-          itemNames.map(it => ({
+          itemNames.map((it, idx) => ({
             itemName: it.name,
-            unitPrice: parseInt(String(ws.getCell(3, it.col).value ?? '0').replace(/[^0-9]/g, '')) || 0,
-            supplyStandard: String(ws.getCell(3, it.col + 1).value ?? ''),
-            sortOrder: 0,
+            unitPrice: getNum(3, it.col),
+            supplyStandard: getStr(3, it.col + 1),
+            sortOrder: idx,
           }))
         );
 
         // 부서 데이터 파싱 (row3 이후, 합계 행 제외)
         const entries: any[] = [];
         let rowIdx = 3;
-        while (true) {
+        while (rowIdx <= 1000) {
           const r = ws.getRow(rowIdx);
-          const deptName = String(r.getCell(2).value ?? '').trim();
+          const deptName = getStr(rowIdx, 2);
           if (!deptName || deptName === '합 계' || deptName === '합계') break;
           const deptCount = parseInt(String(r.getCell(3).value ?? '0')) || 0;
           const quantities: Record<number, number> = {};
           savedItems.forEach((it, idx) => {
+            // 수량 컬럼: col + 2 (단가 col, 지급기준 col+1, 수량 col+2, 금액 col+3)
             const qtyVal = parseInt(String(r.getCell(itemNames[idx].col + 2).value ?? '0')) || 0;
             if (qtyVal) quantities[it.id] = qtyVal;
           });
           entries.push({ deptName, deptCount, quantities, sortOrder: entries.length });
           rowIdx++;
         }
+
+        if (entries.length === 0) throw new Error('부서 데이터가 없습니다. 파일 형식을 확인해주세요.');
 
         await storage.upsertSafetySupplyDeptEntries(surveyId, entries);
         try { fs.unlinkSync(file.path); } catch {}
