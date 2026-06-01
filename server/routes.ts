@@ -12,6 +12,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import ExcelJS from "exceljs";
+import XLSX from "xlsx";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 import { objectStorageClient } from "./replit_integrations/object_storage/objectStorage";
 import { setObjectAclPolicy } from "./replit_integrations/object_storage/objectAcl";
@@ -6288,7 +6289,6 @@ ${htmlDraft}
       console.error("[OnlineEduUpload] req.file:", file ? `있음 (${file.originalname}, ${file.size}bytes)` : "없음");
       if (!file) return res.status(400).json({ message: "파일이 없습니다" });
 
-      const XLSX = require('xlsx');
       const wb = XLSX.readFile(file.path, { type: 'file', cellText: true, cellDates: false });
       const ws = wb.Sheets[wb.SheetNames[0]];
       const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false });
@@ -6484,34 +6484,25 @@ ${htmlDraft}
       const survey = surveys.find(s => s.id === surveyId);
       if (!survey) return res.status(404).json({ message: "조사를 찾을 수 없습니다" });
 
-      const wb = new ExcelJS.Workbook();
-      const ws = wb.addWorksheet('필요용품조사');
-
-      // 헤더 스타일
-      const yellowFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE599' } };
-      const blueFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDCE6F1' } };
-      const greenFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2EFDA' } };
-      const headerFont = { bold: true, size: 10 };
-      const thin = { style: 'thin' as const, color: { argb: 'FF999999' } };
-      const border = { top: thin, left: thin, bottom: thin, right: thin };
-      const center: Partial<ExcelJS.Alignment> = { vertical: 'middle' as const, horizontal: 'center' as const, wrapText: true };
-
       const halfLabel = survey.half === 1 ? '상반기' : '하반기';
       const titleStr = `${survey.year}년 ${halfLabel} 필요용품 조사`;
 
-      // Row 1: 타이틀 + 물품명 (물품당 4열 차지)
+      // ── SheetJS로 데이터 구성 ──────────────────────────
+      const aoa: any[][] = [];
+
+      // Row 1: 타이틀 + 물품명 (물품당 4열: 단가/지급기준/수량/금액)
       const r1: any[] = [titleStr, '', ''];
-      items.forEach(it => { r1.push(it.itemName); r1.push(''); r1.push(''); r1.push(''); });
+      items.forEach(it => { r1.push(it.itemName, '', '', ''); });
       r1.push('총합계', '');
-      const row1 = ws.addRow(r1);
+      aoa.push(r1);
 
-      // Row 2: 구분/부서/인원 + 단가/지급기준 반복
+      // Row 2: 서브헤더
       const r2: any[] = ['구분', '부서', '인원'];
-      items.forEach(it => { r2.push('단가'); r2.push('지급기준'); r2.push('수량'); r2.push('금액'); });
-      r2.push('총수량'); r2.push('총금액');
-      const row2 = ws.addRow(r2);
+      items.forEach(() => { r2.push('단가', '지급기준', '수량', '금액'); });
+      r2.push('총수량', '총금액');
+      aoa.push(r2);
 
-      // 데이터 행
+      // 데이터 행 + 집계
       const totals: Record<number, { qty: number; amt: number }> = {};
       items.forEach(it => { totals[it.id] = { qty: 0, amt: 0 }; });
       let totalQtyAll = 0, totalAmtAll = 0;
@@ -6519,87 +6510,53 @@ ${htmlDraft}
       depts.forEach((dept, di) => {
         const q = (dept.quantities as Record<string, number>) || {};
         let rowTotalQty = 0, rowTotalAmt = 0;
-        const rowData: any[] = [di === 0 ? '부서' : '', dept.deptName, dept.deptCount];
+        const row: any[] = [di === 0 ? '부서' : '', dept.deptName, dept.deptCount];
         items.forEach(it => {
-          const qty = q[it.id] ?? 0;
+          const qty = Number(q[it.id]) || 0;
           const amt = qty * it.unitPrice;
-          rowData.push(it.unitPrice.toLocaleString());
-          rowData.push(it.supplyStandard);
-          rowData.push(qty || '');
-          rowData.push(amt ? amt.toLocaleString() : '');
+          row.push(it.unitPrice, it.supplyStandard, qty || '', amt || '');
           totals[it.id].qty += qty;
           totals[it.id].amt += amt;
           rowTotalQty += qty;
           rowTotalAmt += amt;
         });
-        rowData.push(rowTotalQty || '');
-        rowData.push(rowTotalAmt ? rowTotalAmt.toLocaleString() : '');
+        row.push(rowTotalQty || '', rowTotalAmt || '');
         totalQtyAll += rowTotalQty;
         totalAmtAll += rowTotalAmt;
-        const row = ws.addRow(rowData);
-        row.height = 18;
-        row.eachCell({ includeEmpty: true }, (cell: any) => {
-          cell.border = border;
-          cell.alignment = center;
-          cell.font = { size: 9 };
-        });
-        row.getCell(3).fill = blueFill; // 인원
+        aoa.push(row);
       });
 
       // 합계 행
       const sumRow: any[] = ['', '합 계', depts.reduce((s, d) => s + d.deptCount, 0)];
       items.forEach(it => {
-        sumRow.push(''); sumRow.push('');
-        sumRow.push(totals[it.id].qty || '');
-        sumRow.push(totals[it.id].amt ? totals[it.id].amt.toLocaleString() : '');
+        sumRow.push('', '', totals[it.id].qty || '', totals[it.id].amt || '');
       });
-      sumRow.push(totalQtyAll || ''); sumRow.push(totalAmtAll ? totalAmtAll.toLocaleString() : '');
-      const sumRowEl = ws.addRow(sumRow);
-      sumRowEl.height = 20;
-      sumRowEl.eachCell({ includeEmpty: true }, (cell: any) => {
-        cell.border = border; cell.alignment = center;
-        cell.font = { bold: true, size: 10 };
-        cell.fill = greenFill;
-      });
+      sumRow.push(totalQtyAll || '', totalAmtAll || '');
+      aoa.push(sumRow);
 
-      // 스타일 적용 (헤더)
-      row1.height = 22;
-      row2.height = 30;
-      row1.eachCell({ includeEmpty: true }, (cell: any) => {
-        cell.border = border; cell.alignment = center;
-        cell.font = { ...headerFont };
-        cell.fill = yellowFill;
-      });
-      row2.eachCell({ includeEmpty: true }, (cell: any) => {
-        cell.border = border; cell.alignment = center;
-        cell.font = headerFont; cell.fill = yellowFill;
-      });
+      // ── 워크시트 생성 ──────────────────────────────────
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+
+      // 셀 병합: 타이틀 (1~3열), 물품명 (4열씩), 총합계 (마지막 2열)
+      const merges: XLSX.Range[] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 2 } }];
+      let mc = 3;
+      items.forEach(() => { merges.push({ s: { r: 0, c: mc }, e: { r: 0, c: mc + 3 } }); mc += 4; });
+      merges.push({ s: { r: 0, c: mc }, e: { r: 0, c: mc + 1 } });
+      ws['!merges'] = merges;
 
       // 컬럼 너비
-      ws.getColumn(1).width = 6;
-      ws.getColumn(2).width = 20;
-      ws.getColumn(3).width = 6;
-      let col = 4;
-      items.forEach(() => {
-        ws.getColumn(col).width = 9;     // 단가
-        ws.getColumn(col + 1).width = 10; // 지급기준
-        ws.getColumn(col + 2).width = 6;  // 수량
-        ws.getColumn(col + 3).width = 10; // 금액
-        col += 4;
-      });
-      ws.getColumn(col).width = 8;
-      ws.getColumn(col + 1).width = 12;
+      const colWidths: { wch: number }[] = [{ wch: 6 }, { wch: 22 }, { wch: 6 }];
+      items.forEach(() => { colWidths.push({ wch: 10 }, { wch: 10 }, { wch: 7 }, { wch: 11 }); });
+      colWidths.push({ wch: 8 }, { wch: 12 });
+      ws['!cols'] = colWidths;
 
-      // 병합: 타이틀
-      ws.mergeCells(1, 1, 1, 3);
-      let mergeCol = 4;
-      items.forEach(() => {
-        ws.mergeCells(1, mergeCol, 1, mergeCol + 3);
-        mergeCol += 4;
-      });
-      ws.mergeCells(1, mergeCol, 1, mergeCol + 1);
+      // 행 높이
+      ws['!rows'] = [{ hpt: 18 }, { hpt: 20 }];
 
-      const buf = await wb.xlsx.writeBuffer();
+      const xlsWb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(xlsWb, ws, '필요용품조사');
+
+      const buf = XLSX.write(xlsWb, { type: 'buffer', bookType: 'xlsx' });
       const fileName = encodeURIComponent(`${titleStr}.xlsx`);
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${fileName}`);

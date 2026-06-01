@@ -176,6 +176,18 @@ export default function SafetySupplySurvey() {
 
   const addDept = () => mutateDepts(c => [...c, { deptName: "새 부서", deptCount: 0, quantities: {} }]);
 
+  const addItemAndEdit = () => {
+    if (!editingItems) {
+      setLocalItems([
+        ...items.map(it => ({ itemName: it.itemName, unitPrice: it.unitPrice, supplyStandard: it.supplyStandard })),
+        { itemName: "", unitPrice: 0, supplyStandard: "" },
+      ]);
+      setEditingItems(true);
+    } else {
+      setLocalItems([...localItems, { itemName: "", unitPrice: 0, supplyStandard: "" }]);
+    }
+  };
+
   const removeDept = (di: number) => mutateDepts(c => c.filter((_, i) => i !== di));
 
   // ── 집계 ──────────────────────────────────────────────
@@ -419,11 +431,16 @@ export default function SafetySupplySurvey() {
               {!itemsLoading && !deptsLoading && items.length > 0 && (
                 <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
 
-                  {/* 부서 추가 버튼 — 테이블 위 */}
+                  {/* 부서/물품 추가 버튼 — 테이블 위 */}
                   <div className="px-4 py-2 border-b border-gray-100 flex items-center justify-between bg-gray-50">
-                    <Button size="sm" variant="outline" className="gap-1 text-xs h-7" onClick={addDept} data-testid="button-add-dept">
-                      <Plus className="w-3 h-3" /> 부서 추가
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button size="sm" variant="outline" className="gap-1 text-xs h-7" onClick={addDept} data-testid="button-add-dept">
+                        <Plus className="w-3 h-3" /> 부서 추가
+                      </Button>
+                      <Button size="sm" variant="outline" className="gap-1 text-xs h-7 text-amber-700 border-amber-300 hover:bg-amber-50" onClick={addItemAndEdit} data-testid="button-add-item-quick">
+                        <Plus className="w-3 h-3" /> 물품 추가
+                      </Button>
+                    </div>
                     <div className="flex items-center gap-4 text-xs text-gray-500">
                       <span>부서 <strong className="text-gray-700">{displayDepts.length}</strong>개</span>
                       <span>총 인원 <strong className="text-gray-700">{totalHeadcount}</strong>명</span>
