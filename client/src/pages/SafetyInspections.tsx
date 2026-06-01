@@ -193,40 +193,46 @@ export default function SafetyInspections() {
   const [bulkExcelData, setBulkExcelData] = useState<Record<string, any>[]>([]);
   const [isBulkParsing, setIsBulkParsing] = useState(false);
   const [isBulkCreating, setIsBulkCreating] = useState(false);
+  const [bulkPdfFiles, setBulkPdfFiles] = useState<File[]>([]);
+  const [bulkExcelFile, setBulkExcelFile] = useState<File | null>(null);
   const bulkPdfInputRef = useRef<HTMLInputElement>(null);
   const bulkExcelInputRef = useRef<HTMLInputElement>(null);
   const [dashboardPeriod, setDashboardPeriod] = useState<"month" | "year">("month");
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
 
-  const handleBulkFileSelect = async (e: React.ChangeEvent<HTMLInputElement>, type: 'pdf' | 'excel') => {
+  const handleBulkFileSelect = (e: React.ChangeEvent<HTMLInputElement>, type: 'pdf' | 'excel') => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
+    if (type === 'pdf') setBulkPdfFiles(files);
+    else setBulkExcelFile(files[0] || null);
+    e.target.value = '';
+  };
 
-    if (type === 'pdf') {
-      setIsBulkParsing(true);
-      setBulkRows([]);
-      try {
-        const formData = new FormData();
-        files.forEach(f => formData.append('pdfs', f));
-        if (bulkExcelInputRef.current?.files?.[0]) {
-          formData.append('excel', bulkExcelInputRef.current.files[0]);
-        }
-        const res = await fetch('/api/safety-inspections/bulk-parse', {
-          method: 'POST',
-          body: formData,
-          credentials: 'include',
-        });
-        if (!res.ok) throw new Error((await res.json()).message);
-        const data = await res.json();
-        setBulkExcelData(data.excelData || []);
-        setBulkRows((data.results || []).map((r: any) => ({ ...r, selected: !r.error })));
-        toast({ title: `${data.results.length}개 PDF 파싱 완료`, description: `이미지 포함 데이터를 확인 후 등록하세요.` });
-      } catch (err: any) {
-        toast({ variant: 'destructive', title: 'PDF 파싱 실패', description: err.message });
-      } finally {
-        setIsBulkParsing(false);
-        if (bulkPdfInputRef.current) bulkPdfInputRef.current.value = '';
-      }
+  const handleBulkParse = async () => {
+    if (bulkPdfFiles.length === 0) {
+      toast({ variant: 'destructive', title: 'PDF 파일을 선택하세요' });
+      return;
+    }
+    setIsBulkParsing(true);
+    setBulkRows([]);
+    try {
+      const formData = new FormData();
+      bulkPdfFiles.forEach(f => formData.append('pdfs', f));
+      if (bulkExcelFile) formData.append('excel', bulkExcelFile);
+      const res = await fetch('/api/safety-inspections/bulk-parse', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error((await res.json()).message);
+      const data = await res.json();
+      setBulkExcelData(data.excelData || []);
+      setBulkRows((data.results || []).map((r: any) => ({ ...r, selected: !r.error })));
+      toast({ title: `${data.results.length}개 PDF 파싱 완료`, description: '이미지 포함 데이터를 확인 후 등록하세요.' });
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'PDF 파싱 실패', description: err.message });
+    } finally {
+      setIsBulkParsing(false);
     }
   };
 
@@ -1534,7 +1540,7 @@ export default function SafetyInspections() {
       </Dialog>
 
       {/* 일괄 가져오기 모달 */}
-      <Dialog open={showBulkImport} onOpenChange={open => { setShowBulkImport(open); if (!open) { setBulkRows([]); setBulkExcelData([]); } }}>
+      <Dialog open={showBulkImport} onOpenChange={open => { setShowBulkImport(open); if (!open) { setBulkRows([]); setBulkExcelData([]); setBulkPdfFiles([]); setBulkExcelFile(null); } }}>
         <DialogContent className="max-w-5xl w-full">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -1545,36 +1551,79 @@ export default function SafetyInspections() {
 
           {/* 파일 선택 영역 */}
           {bulkRows.length === 0 && (
-            <div className="space-y-4">
+            <div className="space-y-3">
+              {/* PDF 선택 */}
               <div
-                className="border-2 border-dashed border-blue-300 dark:border-blue-700 rounded-xl p-8 text-center cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950/20 transition-colors"
+                className={`border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition-colors ${bulkPdfFiles.length > 0 ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/20' : 'border-blue-300 dark:border-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/20'}`}
                 onClick={() => bulkPdfInputRef.current?.click()}
               >
-                {isBulkParsing ? (
-                  <div className="flex flex-col items-center gap-2">
-                    <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
-                    <p className="text-sm text-muted-foreground">PDF 파싱 중... 이미지 추출에 시간이 걸릴 수 있습니다</p>
+                <div className="flex items-center justify-center gap-3">
+                  <FileText className={`w-7 h-7 ${bulkPdfFiles.length > 0 ? 'text-blue-600' : 'text-blue-400'}`} />
+                  <div className="text-left">
+                    <p className="font-medium text-sm text-blue-700 dark:text-blue-400">
+                      PDF 파일 선택 (여러 개 가능) <span className="text-red-500">*</span>
+                    </p>
+                    {bulkPdfFiles.length > 0 ? (
+                      <p className="text-xs text-blue-600 dark:text-blue-300">{bulkPdfFiles.length}개 선택됨: {bulkPdfFiles.slice(0, 2).map(f => f.name).join(', ')}{bulkPdfFiles.length > 2 ? ` 외 ${bulkPdfFiles.length - 2}개` : ''}</p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">현장점검 결과보고 PDF — 클릭하여 선택</p>
+                    )}
                   </div>
-                ) : (
-                  <div className="flex flex-col items-center gap-2">
-                    <FileText className="w-10 h-10 text-blue-400" />
-                    <p className="font-medium text-blue-700 dark:text-blue-400">PDF 파일 선택 (여러 개 가능)</p>
-                    <p className="text-xs text-muted-foreground">현장점검 결과보고 PDF를 한 번에 여러 개 선택하면 자동으로 내용이 추출됩니다</p>
-                  </div>
-                )}
+                  {bulkPdfFiles.length > 0 && (
+                    <Badge className="ml-auto bg-blue-600 text-white">{bulkPdfFiles.length}개</Badge>
+                  )}
+                </div>
               </div>
-              <input
-                ref={bulkPdfInputRef}
-                type="file"
-                accept=".pdf"
-                multiple
-                className="hidden"
-                onChange={e => handleBulkFileSelect(e, 'pdf')}
-                data-testid="input-bulk-pdf"
-              />
+              <input ref={bulkPdfInputRef} type="file" accept=".pdf" multiple className="hidden" onChange={e => handleBulkFileSelect(e, 'pdf')} data-testid="input-bulk-pdf" />
+
+              {/* 엑셀 선택 */}
+              <div
+                className={`border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition-colors ${bulkExcelFile ? 'border-green-500 bg-green-50 dark:bg-green-950/20' : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800/20'}`}
+                onClick={() => bulkExcelInputRef.current?.click()}
+              >
+                <div className="flex items-center justify-center gap-3">
+                  <Download className={`w-7 h-7 ${bulkExcelFile ? 'text-green-600' : 'text-gray-400'}`} />
+                  <div className="text-left">
+                    <p className={`font-medium text-sm ${bulkExcelFile ? 'text-green-700 dark:text-green-400' : 'text-muted-foreground'}`}>
+                      엑셀 파일 선택 <span className="text-xs font-normal">(선택사항)</span>
+                    </p>
+                    {bulkExcelFile ? (
+                      <p className="text-xs text-green-600 dark:text-green-300">{bulkExcelFile.name}</p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">점검결과(그룹사) 엑셀 — 클릭하여 선택</p>
+                    )}
+                  </div>
+                  {bulkExcelFile && (
+                    <Button variant="ghost" size="icon" className="ml-auto h-6 w-6 text-gray-400 hover:text-red-500"
+                      onClick={e => { e.stopPropagation(); setBulkExcelFile(null); }}>
+                      <X className="w-3.5 h-3.5" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+              <input ref={bulkExcelInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={e => handleBulkFileSelect(e, 'excel')} data-testid="input-bulk-excel" />
+
               <p className="text-xs text-muted-foreground text-center">
-                추출 항목: 점검일자, 팀명, 작업장소, 작업일시, 점검방법, 작업번호, 점검결과, 현장사진
+                추출 항목: 점검일자 · 팀명 · 작업장소 · 작업일시 · 점검방법 · 작업번호 · 점검결과 · 현장사진
               </p>
+
+              <div className="flex justify-end gap-2 pt-1">
+                <Button variant="outline" onClick={() => { setShowBulkImport(false); setBulkPdfFiles([]); setBulkExcelFile(null); }}>
+                  취소
+                </Button>
+                <Button
+                  className="bg-blue-600 hover:bg-blue-700 text-white gap-2"
+                  onClick={handleBulkParse}
+                  disabled={isBulkParsing || bulkPdfFiles.length === 0}
+                  data-testid="button-start-parse"
+                >
+                  {isBulkParsing ? (
+                    <><Loader2 className="w-4 h-4 animate-spin" />분석 중... (이미지 추출 포함)</>
+                  ) : (
+                    <><FileText className="w-4 h-4" />{bulkPdfFiles.length > 0 ? `${bulkPdfFiles.length}개 PDF 분석 시작` : 'PDF 파일을 선택하세요'}</>
+                  )}
+                </Button>
+              </div>
             </div>
           )}
 
@@ -1594,7 +1643,7 @@ export default function SafetyInspections() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => { setBulkRows([]); setBulkExcelData([]); }}
+                    onClick={() => { setBulkRows([]); setBulkExcelData([]); setBulkPdfFiles([]); setBulkExcelFile(null); }}
                     className="text-xs"
                   >
                     다시 선택
@@ -1722,7 +1771,7 @@ export default function SafetyInspections() {
               )}
 
               <div className="flex justify-end gap-2 pt-1">
-                <Button variant="outline" onClick={() => { setShowBulkImport(false); setBulkRows([]); setBulkExcelData([]); }}>
+                <Button variant="outline" onClick={() => { setShowBulkImport(false); setBulkRows([]); setBulkExcelData([]); setBulkPdfFiles([]); setBulkExcelFile(null); }}>
                   취소
                 </Button>
                 <Button
