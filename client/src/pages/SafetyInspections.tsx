@@ -7,7 +7,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ClipboardCheck, Plus, Trash2, ImagePlus, X, Calendar, MapPin, User, ChevronDown, ChevronUp, Download, Check, AlertCircle, BarChart3, Settings, FileText, Loader2, Pencil, CheckSquare } from "lucide-react";
+import { ClipboardCheck, Plus, Trash2, ImagePlus, X, Calendar, MapPin, User, ChevronDown, ChevronUp, Download, Check, AlertCircle, BarChart3, Settings, FileText, Loader2, Pencil, CheckSquare, Upload, Eye } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useState, useRef, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -25,6 +27,21 @@ type ChecklistStatus = '양호' | '미흡' | '미점검';
 interface ChecklistItem {
   item: string;
   status: ChecklistStatus;
+}
+
+interface BulkRow {
+  fileName: string;
+  inspectionDate: string;
+  team: string;
+  location: string;
+  workDateTime: string;
+  workNo: string;
+  inspectionMethod: string;
+  inspectionResult: string;
+  defectCount: number;
+  imageUrls: string[];
+  selected: boolean;
+  error?: string;
 }
 
 const DEFAULT_CHECKLIST: ChecklistItem[] = [
@@ -169,8 +186,92 @@ export default function SafetyInspections() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pdfFileInputRef = useRef<HTMLInputElement>(null);
   const [isPdfParsing, setIsPdfParsing] = useState(false);
+
+  // 일괄 가져오기 상태
+  const [showBulkImport, setShowBulkImport] = useState(false);
+  const [bulkRows, setBulkRows] = useState<BulkRow[]>([]);
+  const [bulkExcelData, setBulkExcelData] = useState<Record<string, any>[]>([]);
+  const [isBulkParsing, setIsBulkParsing] = useState(false);
+  const [isBulkCreating, setIsBulkCreating] = useState(false);
+  const bulkPdfInputRef = useRef<HTMLInputElement>(null);
+  const bulkExcelInputRef = useRef<HTMLInputElement>(null);
   const [dashboardPeriod, setDashboardPeriod] = useState<"month" | "year">("month");
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
+
+  const handleBulkFileSelect = async (e: React.ChangeEvent<HTMLInputElement>, type: 'pdf' | 'excel') => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    if (type === 'pdf') {
+      setIsBulkParsing(true);
+      setBulkRows([]);
+      try {
+        const formData = new FormData();
+        files.forEach(f => formData.append('pdfs', f));
+        if (bulkExcelInputRef.current?.files?.[0]) {
+          formData.append('excel', bulkExcelInputRef.current.files[0]);
+        }
+        const res = await fetch('/api/safety-inspections/bulk-parse', {
+          method: 'POST',
+          body: formData,
+          credentials: 'include',
+        });
+        if (!res.ok) throw new Error((await res.json()).message);
+        const data = await res.json();
+        setBulkExcelData(data.excelData || []);
+        setBulkRows((data.results || []).map((r: any) => ({ ...r, selected: !r.error })));
+        toast({ title: `${data.results.length}개 PDF 파싱 완료`, description: `이미지 포함 데이터를 확인 후 등록하세요.` });
+      } catch (err: any) {
+        toast({ variant: 'destructive', title: 'PDF 파싱 실패', description: err.message });
+      } finally {
+        setIsBulkParsing(false);
+        if (bulkPdfInputRef.current) bulkPdfInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleBulkCreate = async () => {
+    const selected = bulkRows.filter(r => r.selected && !r.error);
+    if (selected.length === 0) {
+      toast({ variant: 'destructive', title: '등록할 항목을 선택하세요' });
+      return;
+    }
+    setIsBulkCreating(true);
+    try {
+      const payload = selected.map(r => ({
+        inspectionType: '안전점검',
+        title: r.team + (r.workNo ? ' - ' + r.workNo : ''),
+        location: r.location || undefined,
+        inspector: user?.name || user?.username || undefined,
+        workerName: undefined,
+        inspectionDate: r.inspectionDate,
+        checklist: DEFAULT_CHECKLIST,
+        notes: [
+          r.inspectionMethod && `점검방법: ${r.inspectionMethod}`,
+          r.workDateTime && `작업일시: ${r.workDateTime}`,
+          r.inspectionResult === '미흡' && `점검결과: 미흡 (${r.defectCount}건)`,
+        ].filter(Boolean).join('\n') || undefined,
+        images: r.imageUrls,
+      }));
+      const res = await fetch('/api/safety-inspections/bulk-create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error((await res.json()).message);
+      const data = await res.json();
+      queryClient.invalidateQueries({ queryKey: ['/api/safety-inspections'] });
+      toast({ title: `${data.created}건 일괄 등록 완료` });
+      setShowBulkImport(false);
+      setBulkRows([]);
+      setBulkExcelData([]);
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: '일괄 등록 실패', description: err.message });
+    } finally {
+      setIsBulkCreating(false);
+    }
+  };
 
   const resetForm = () => {
     setInspectionType("안전점검");
@@ -682,6 +783,17 @@ export default function SafetyInspections() {
             >
               <Download className="w-4 h-4" />
               엑셀 다운로드
+            </Button>
+          )}
+          {canEditInspections && (
+            <Button
+              variant="outline"
+              onClick={() => setShowBulkImport(true)}
+              className="gap-2 border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-400 dark:hover:bg-blue-950"
+              data-testid="button-bulk-import"
+            >
+              <Upload className="w-4 h-4" />
+              일괄 가져오기
             </Button>
           )}
           {canEditInspections && (
@@ -1418,6 +1530,216 @@ export default function SafetyInspections() {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 일괄 가져오기 모달 */}
+      <Dialog open={showBulkImport} onOpenChange={open => { setShowBulkImport(open); if (!open) { setBulkRows([]); setBulkExcelData([]); } }}>
+        <DialogContent className="max-w-5xl w-full">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Upload className="w-5 h-5 text-blue-600" />
+              PDF 일괄 가져오기
+            </DialogTitle>
+          </DialogHeader>
+
+          {/* 파일 선택 영역 */}
+          {bulkRows.length === 0 && (
+            <div className="space-y-4">
+              <div
+                className="border-2 border-dashed border-blue-300 dark:border-blue-700 rounded-xl p-8 text-center cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950/20 transition-colors"
+                onClick={() => bulkPdfInputRef.current?.click()}
+              >
+                {isBulkParsing ? (
+                  <div className="flex flex-col items-center gap-2">
+                    <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+                    <p className="text-sm text-muted-foreground">PDF 파싱 중... 이미지 추출에 시간이 걸릴 수 있습니다</p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center gap-2">
+                    <FileText className="w-10 h-10 text-blue-400" />
+                    <p className="font-medium text-blue-700 dark:text-blue-400">PDF 파일 선택 (여러 개 가능)</p>
+                    <p className="text-xs text-muted-foreground">현장점검 결과보고 PDF를 한 번에 여러 개 선택하면 자동으로 내용이 추출됩니다</p>
+                  </div>
+                )}
+              </div>
+              <input
+                ref={bulkPdfInputRef}
+                type="file"
+                accept=".pdf"
+                multiple
+                className="hidden"
+                onChange={e => handleBulkFileSelect(e, 'pdf')}
+                data-testid="input-bulk-pdf"
+              />
+              <p className="text-xs text-muted-foreground text-center">
+                추출 항목: 점검일자, 팀명, 작업장소, 작업일시, 점검방법, 작업번호, 점검결과, 현장사진
+              </p>
+            </div>
+          )}
+
+          {/* 파싱 결과 미리보기 테이블 */}
+          {bulkRows.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="text-blue-600 border-blue-300">
+                    {bulkRows.length}개 파싱됨
+                  </Badge>
+                  <Badge variant="outline" className="text-green-600 border-green-300">
+                    {bulkRows.filter(r => r.selected).length}개 선택됨
+                  </Badge>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => { setBulkRows([]); setBulkExcelData([]); }}
+                    className="text-xs"
+                  >
+                    다시 선택
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setBulkRows(prev => prev.map(r => ({ ...r, selected: !r.error })))}
+                    className="text-xs"
+                  >
+                    전체 선택
+                  </Button>
+                </div>
+              </div>
+
+              <ScrollArea className="h-[380px] rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="text-xs">
+                      <TableHead className="w-10 text-center">선택</TableHead>
+                      <TableHead className="min-w-[90px]">점검일자</TableHead>
+                      <TableHead className="min-w-[110px]">팀명</TableHead>
+                      <TableHead className="min-w-[180px]">작업장소</TableHead>
+                      <TableHead className="min-w-[130px]">작업일시</TableHead>
+                      <TableHead className="min-w-[90px]">점검방법</TableHead>
+                      <TableHead className="min-w-[160px]">작업번호</TableHead>
+                      <TableHead className="min-w-[70px] text-center">결과</TableHead>
+                      <TableHead className="min-w-[60px] text-center">사진</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {bulkRows.map((row, idx) => (
+                      <TableRow
+                        key={idx}
+                        className={row.error ? 'bg-red-50 dark:bg-red-950/20' : row.selected ? '' : 'opacity-50'}
+                      >
+                        <TableCell className="text-center">
+                          {row.error ? (
+                            <AlertCircle className="w-4 h-4 text-red-500 mx-auto" />
+                          ) : (
+                            <Checkbox
+                              checked={row.selected}
+                              onCheckedChange={v => setBulkRows(prev => prev.map((r, i) => i === idx ? { ...r, selected: !!v } : r))}
+                              data-testid={`checkbox-bulk-row-${idx}`}
+                            />
+                          )}
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          <Input
+                            value={row.inspectionDate}
+                            onChange={e => setBulkRows(prev => prev.map((r, i) => i === idx ? { ...r, inspectionDate: e.target.value } : r))}
+                            className="h-7 text-xs min-w-[90px]"
+                          />
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          <Input
+                            value={row.team}
+                            onChange={e => setBulkRows(prev => prev.map((r, i) => i === idx ? { ...r, team: e.target.value } : r))}
+                            className="h-7 text-xs min-w-[100px]"
+                          />
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          <Input
+                            value={row.location}
+                            onChange={e => setBulkRows(prev => prev.map((r, i) => i === idx ? { ...r, location: e.target.value } : r))}
+                            className="h-7 text-xs min-w-[170px]"
+                          />
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          <Input
+                            value={row.workDateTime}
+                            onChange={e => setBulkRows(prev => prev.map((r, i) => i === idx ? { ...r, workDateTime: e.target.value } : r))}
+                            className="h-7 text-xs min-w-[120px]"
+                          />
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          <Input
+                            value={row.inspectionMethod}
+                            onChange={e => setBulkRows(prev => prev.map((r, i) => i === idx ? { ...r, inspectionMethod: e.target.value } : r))}
+                            className="h-7 text-xs min-w-[80px]"
+                          />
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          <Input
+                            value={row.workNo}
+                            onChange={e => setBulkRows(prev => prev.map((r, i) => i === idx ? { ...r, workNo: e.target.value } : r))}
+                            className="h-7 text-xs min-w-[150px]"
+                          />
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {row.error ? (
+                            <span className="text-red-500 text-xs">{row.error.slice(0, 20)}</span>
+                          ) : (
+                            <Badge
+                              variant="outline"
+                              className={row.inspectionResult === '양호'
+                                ? 'text-green-600 border-green-300 text-xs'
+                                : 'text-red-600 border-red-300 text-xs'}
+                            >
+                              {row.inspectionResult || '양호'}
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center text-xs text-muted-foreground">
+                          {row.imageUrls.length > 0 ? (
+                            <span className="flex items-center justify-center gap-1">
+                              <Eye className="w-3 h-3" />
+                              {row.imageUrls.length}장
+                            </span>
+                          ) : '-'}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </ScrollArea>
+
+              {/* 엑셀 데이터 표시 (있는 경우) */}
+              {bulkExcelData.length > 0 && (
+                <div className="p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                  <p className="text-xs text-amber-700 dark:text-amber-400 font-medium">
+                    📊 엑셀 데이터 {bulkExcelData.length}행 로드됨 — 작업번호란에 수동 입력하여 연결하세요
+                  </p>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-1">
+                <Button variant="outline" onClick={() => { setShowBulkImport(false); setBulkRows([]); setBulkExcelData([]); }}>
+                  취소
+                </Button>
+                <Button
+                  className="bg-green-600 hover:bg-green-700 text-white gap-2"
+                  onClick={handleBulkCreate}
+                  disabled={isBulkCreating || bulkRows.filter(r => r.selected && !r.error).length === 0}
+                  data-testid="button-bulk-create"
+                >
+                  {isBulkCreating ? (
+                    <><Loader2 className="w-4 h-4 animate-spin" />등록 중...</>
+                  ) : (
+                    <><Check className="w-4 h-4" />{bulkRows.filter(r => r.selected && !r.error).length}건 일괄 등록</>
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

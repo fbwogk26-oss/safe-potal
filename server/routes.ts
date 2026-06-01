@@ -990,6 +990,129 @@ export async function registerRoutes(
     }
   });
 
+  // ── 일괄 PDF+엑셀 파싱 ─────────────────────────────────
+  const bulkInspUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 50 * 1024 * 1024, files: 55 },
+  });
+
+  app.post('/api/safety-inspections/bulk-parse', isAuthenticated,
+    bulkInspUpload.fields([{ name: 'pdfs', maxCount: 50 }, { name: 'excel', maxCount: 1 }]),
+    async (req: any, res: any) => {
+      try {
+        const pdfFiles: any[] = req.files?.['pdfs'] || [];
+        const excelFile: any = req.files?.['excel']?.[0];
+
+        // 엑셀 파싱 (작업번호/내용 보완용)
+        let excelData: Record<string, any>[] = [];
+        if (excelFile) {
+          try {
+            const wb2 = new ExcelJS.Workbook();
+            await wb2.xlsx.load(excelFile.buffer);
+            const ws2 = wb2.worksheets[0];
+            const hdrs: Record<number, string> = {};
+            ws2.eachRow((row: any, ri: number) => {
+              if (ri === 1) { row.eachCell((c: any, ci: number) => { hdrs[ci] = String(c.value ?? '').trim(); }); }
+              else {
+                const obj: Record<string, any> = {};
+                row.eachCell((c: any, ci: number) => { if (hdrs[ci]) obj[hdrs[ci]] = String(c.value ?? '').trim(); });
+                if (Object.values(obj).some(v => v)) excelData.push(obj);
+              }
+            });
+          } catch (exErr: any) { console.warn('[bulk-parse] 엑셀 파싱 실패:', exErr.message); }
+        }
+
+        // pdfjs-dist 초기화
+        const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
+        const pathMod = await import('path');
+        const workerSrc = 'file://' + pathMod.default.resolve('./node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs');
+        (pdfjsLib as any).GlobalWorkerOptions.workerSrc = workerSrc;
+
+        const results: any[] = [];
+        for (const f of pdfFiles) {
+          try {
+            const pdfBuffer: Buffer = f.buffer;
+            const uint8 = new Uint8Array(pdfBuffer);
+            const pdfDoc = await pdfjsLib.getDocument({ data: uint8 }).promise;
+            let rawText = '';
+            for (let p = 1; p <= pdfDoc.numPages; p++) {
+              const page = await pdfDoc.getPage(p);
+              const tc = await page.getTextContent();
+              rawText += tc.items.map((it: any) => it.str).join(' ') + '\n';
+            }
+            const fullText = rawText.split('\n').map((l: string) => l.trim()).filter(Boolean).join(' ');
+
+            let inspectionDate = '';
+            let team = '';
+            let location = '';
+            let workDateTime = '';
+            let workNo = '';
+            let inspectionMethod = '';
+            let inspectionResult = '양호';
+            let defectCount = 0;
+
+            const m_date = fullText.match(/점검일자\s*[:\uff1a]?\s*(\d{4}-\d{2}-\d{2})/);
+            if (m_date) inspectionDate = m_date[1];
+
+            const m_method = fullText.match(/점검방법\s*[:\uff1a]\s*(\S+(?:\([^)]+\))?)/);
+            if (m_method) inspectionMethod = m_method[1].trim();
+
+            const m_team = fullText.match(/점검대상\s*[:\uff1a]\s*(.+?)\s{2,}/);
+            if (m_team) { const parts = m_team[1].split('>'); team = parts[parts.length - 1].trim(); }
+
+            const m_dt = fullText.match(/작업일시[\/\/]장소\s*[:\uff1a]\s*(\d{4}-\d{2}-\d{2}T[\d:]+)/);
+            if (m_dt) workDateTime = m_dt[1];
+
+            const m_loc = fullText.match(/작업일시[\/\/]장소\s*[:\uff1a]\s*\S+\s*\/\s*(.+?)(?:\s{3,}|○|$)/);
+            if (m_loc) location = m_loc[1].trim();
+
+            const m_no = fullText.match(/직영\s*\/\s*(무선기지국-[\w-]+|직영-[\w-]+)/);
+            if (m_no) workNo = m_no[1].trim();
+
+            const m_result = fullText.match(/점검결과\s+(양호|미흡)/);
+            if (m_result) inspectionResult = m_result[1];
+
+            const m_defect = fullText.match(/미흡건수\s+(\d+)/);
+            if (m_defect) defectCount = parseInt(m_defect[1]);
+
+            // JPEG 이미지 추출
+            const imageUrls: string[] = [];
+            try {
+              const jpegBuffers = extractJpegsFromBuffer(pdfBuffer);
+              for (let i = 0; i < Math.min(jpegBuffers.length, 10); i++) {
+                const filename = `pdf-bulk-${Date.now()}-${i}.jpg`;
+                const objUrl = await uploadToObjectStorage(jpegBuffers[i], filename, 'image/jpeg');
+                if (objUrl) imageUrls.push(objUrl);
+                else { fs.writeFileSync(path.join(uploadDir, filename), jpegBuffers[i]); imageUrls.push(`/uploads/${filename}`); }
+              }
+            } catch {}
+
+            results.push({ fileName: f.originalname, inspectionDate, team, location, workDateTime, workNo, inspectionMethod, inspectionResult, defectCount, imageUrls });
+          } catch (e: any) {
+            results.push({ fileName: f.originalname, error: e.message, inspectionDate: '', team: '', location: '', workDateTime: '', workNo: '', inspectionMethod: '', inspectionResult: '양호', defectCount: 0, imageUrls: [] });
+          }
+        }
+
+        res.json({ results, excelData, excelHeaders: excelData.length > 0 ? Object.keys(excelData[0]) : [] });
+      } catch (e: any) { res.status(500).json({ message: e.message }); }
+    }
+  );
+
+  // 일괄 등록
+  app.post('/api/safety-inspections/bulk-create', requireEditor, async (req: any, res: any) => {
+    try {
+      const items: any[] = req.body;
+      if (!Array.isArray(items) || items.length === 0)
+        return res.status(400).json({ message: "등록할 데이터가 없습니다" });
+      let created = 0;
+      for (const item of items) {
+        await storage.createSafetyInspection({ ...item, createdBy: req.user?.username || null });
+        created++;
+      }
+      res.json({ created });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
   // === FILE UPLOAD (Excel, etc.) ===
   const fileUpload = multer({
     storage: multer.diskStorage({
