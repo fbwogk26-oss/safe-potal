@@ -373,94 +373,123 @@ export default function RiskAssessmentResults() {
             ))}
           </div>
 
-          {/* ── 차트 2개 ── */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* 팀별 등록건수 바차트 */}
-            <Card className="border shadow-sm">
-              <CardHeader className="pb-1 pt-4 px-5">
+          {/* ── 팀별 등록건수 (전체 너비) ── */}
+          <Card className="border shadow-sm">
+            <CardHeader className="pb-1 pt-4 px-5">
+              <div className="flex items-center justify-between">
                 <CardTitle className="text-sm font-semibold flex items-center gap-2">
                   <span className="w-6 h-6 rounded-md bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
                     <Building2 className="h-3.5 w-3.5 text-orange-500" />
                   </span>
                   팀별 등록건수
                 </CardTitle>
+                <span className="text-xs text-muted-foreground">{teamData.length}개 팀 · 총 {totalCount}건</span>
+              </div>
+            </CardHeader>
+            <CardContent className="px-2 pb-3 pt-2">
+              <ResponsiveContainer width="100%" height={210}>
+                <BarChart data={teamData} margin={{ top: 6, right: 16, left: -8, bottom: 32 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.05)" vertical={false} />
+                  <XAxis
+                    dataKey="short"
+                    tick={{ fontSize: 11, fill: "var(--muted-foreground, #888)" }}
+                    axisLine={false}
+                    tickLine={false}
+                    angle={-20}
+                    textAnchor="end"
+                    interval={0}
+                    dy={6}
+                  />
+                  <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} allowDecimals={false} width={28} />
+                  <Tooltip
+                    contentStyle={{ borderRadius: 10, border: "1px solid rgba(0,0,0,0.08)", fontSize: 12, boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}
+                    cursor={{ fill: "rgba(0,0,0,0.04)" }}
+                    formatter={(v) => [`${v}건`, "등록건수"]}
+                    labelFormatter={(l) => teamData.find(d => d.short === l)?.team || l}
+                  />
+                  <Bar dataKey="count" radius={[6, 6, 0, 0]} maxBarSize={44}>
+                    {teamData.map((entry, i) => <Cell key={i} fill={getTeamColor(entry.team)} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          {/* ── 위험성 등급 분포 + 담당업무별 건수 (2열) ── */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* 위험성 등급 분포 */}
+            <Card className="border shadow-sm">
+              <CardHeader className="pb-2 pt-4 px-5">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-md bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                    <TrendingUp className="h-3.5 w-3.5 text-red-500" />
+                  </span>
+                  위험성 등급 분포
+                </CardTitle>
               </CardHeader>
-              <CardContent className="px-2 pb-4 pt-2">
-                <ResponsiveContainer width="100%" height={190}>
-                  <BarChart data={teamData} margin={{ top: 4, right: 12, left: -10, bottom: 4 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.05)" />
-                    <XAxis dataKey="short" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} allowDecimals={false} />
-                    <Tooltip
-                      contentStyle={{ borderRadius: 8, border: "1px solid rgba(0,0,0,0.08)", fontSize: 12 }}
-                      formatter={(v) => [`${v}건`, "등록건수"]}
-                      labelFormatter={(l) => teamData.find(d => d.short === l)?.team || l}
-                    />
-                    <Bar dataKey="count" radius={[5, 5, 0, 0]}>
-                      {teamData.map((entry, i) => <Cell key={i} fill={getTeamColor(entry.team)} />)}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+              <CardContent className="px-5 pb-5 pt-1 space-y-3">
+                {[
+                  { grade: "A", label: "A등급 · 중점관리", count: gradeCount.A, barColor: "#ef4444", textCls: "text-red-600 dark:text-red-400", bgCls: "bg-red-50 dark:bg-red-950/20", border: "border-red-200 dark:border-red-800/40" },
+                  { grade: "B", label: "B등급 · 일상관리", count: gradeCount.B, barColor: "#f97316", textCls: "text-orange-600 dark:text-orange-400", bgCls: "bg-orange-50 dark:bg-orange-950/20", border: "border-orange-200 dark:border-orange-800/40" },
+                  { grade: "C", label: "C등급 · 허용가능", count: gradeCount.C, barColor: "#3b82f6", textCls: "text-blue-600 dark:text-blue-400", bgCls: "bg-blue-50 dark:bg-blue-950/20", border: "border-blue-200 dark:border-blue-800/40" },
+                ].map(g => {
+                  const pct = totalCount ? Math.round((g.count / totalCount) * 100) : 0;
+                  return (
+                    <div key={g.grade} className={`rounded-xl border px-4 py-3 ${g.bgCls} ${g.border}`}>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black text-white`} style={{ background: g.barColor }}>{g.grade}</span>
+                          <span className={`text-xs font-semibold ${g.textCls}`}>{g.label}</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-base font-bold text-foreground">{g.count}</span>
+                          <span className="text-xs text-muted-foreground ml-1">건 ({pct}%)</span>
+                        </div>
+                      </div>
+                      <div className="h-2 bg-white/70 dark:bg-black/10 rounded-full overflow-hidden">
+                        <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: g.barColor }} />
+                      </div>
+                    </div>
+                  );
+                })}
               </CardContent>
             </Card>
 
-            {/* 위험성 등급 + 담당업무 */}
-            <div className="space-y-4">
-              {/* 등급 분포 */}
-              <Card className="border shadow-sm">
-                <CardHeader className="pb-1 pt-4 px-5">
+            {/* 담당업무별 건수 */}
+            <Card className="border shadow-sm">
+              <CardHeader className="pb-2 pt-4 px-5">
+                <div className="flex items-center justify-between">
                   <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                    <span className="w-6 h-6 rounded-md bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-                      <TrendingUp className="h-3.5 w-3.5 text-red-500" />
-                    </span>
-                    위험성 등급 분포
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="px-5 pb-4 pt-2 space-y-2">
-                  {[
-                    { grade: "A", label: "A등급 · 중점관리", count: gradeCount.A, bar: "bg-red-500", text: "text-red-700 dark:text-red-400", bg: "bg-red-50 dark:bg-red-950/20" },
-                    { grade: "B", label: "B등급 · 일상관리", count: gradeCount.B, bar: "bg-orange-400", text: "text-orange-700 dark:text-orange-400", bg: "bg-orange-50 dark:bg-orange-950/20" },
-                    { grade: "C", label: "C등급 · 허용가능", count: gradeCount.C, bar: "bg-blue-400", text: "text-blue-700 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-950/20" },
-                  ].map(g => (
-                    <div key={g.grade} className={`flex items-center gap-3 px-3 py-2 rounded-lg ${g.bg}`}>
-                      <span className={`text-xs font-black w-4 ${g.text}`}>{g.grade}</span>
-                      <div className="flex-1">
-                        <div className="flex justify-between text-[11px] mb-1">
-                          <span className={`${g.text} font-medium`}>{g.label}</span>
-                          <span className="font-bold">{g.count}건</span>
-                        </div>
-                        <div className="h-1.5 bg-white/60 rounded-full overflow-hidden">
-                          <div className={`h-full ${g.bar} rounded-full transition-all`} style={{ width: totalCount ? `${(g.count / totalCount) * 100}%` : "0%" }} />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-
-              {/* 담당업무별 건수 */}
-              <Card className="border shadow-sm">
-                <CardHeader className="pb-1 pt-4 px-5">
-                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                    <span className="w-6 h-6 rounded-md bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                      <BarChart3 className="h-3.5 w-3.5 text-blue-500" />
+                    <span className="w-6 h-6 rounded-md bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
+                      <BarChart3 className="h-3.5 w-3.5 text-indigo-500" />
                     </span>
                     담당업무별 건수
                   </CardTitle>
-                </CardHeader>
-                <CardContent className="px-5 pb-4 pt-2 space-y-1.5">
-                  {taskData.slice(0, 6).map(([task, count]) => (
-                    <div key={task} className="flex items-center gap-2">
-                      <span className="text-[11px] text-muted-foreground w-32 shrink-0 truncate" title={task}>{task}</span>
-                      <div className="flex-1 h-2 bg-muted/60 rounded-full overflow-hidden">
-                        <div className="h-full bg-gradient-to-r from-blue-400 to-indigo-400 rounded-full" style={{ width: totalCount ? `${(count / totalCount) * 100}%` : "0%" }} />
+                  <span className="text-xs text-muted-foreground">{taskData.length}개 업무</span>
+                </div>
+              </CardHeader>
+              <CardContent className="px-5 pb-5 pt-1 space-y-2.5">
+                {taskData.slice(0, 7).map(([task, count], idx) => {
+                  const pct = totalCount ? (count / totalCount) * 100 : 0;
+                  const colors = [
+                    "#6366f1", "#8b5cf6", "#a855f7", "#3b82f6", "#0ea5e9", "#06b6d4", "#10b981"
+                  ];
+                  const color = colors[idx % colors.length];
+                  return (
+                    <div key={task} className="flex items-center gap-3">
+                      <span className="text-[11px] text-muted-foreground w-24 shrink-0 truncate font-medium" title={task}>{task}</span>
+                      <div className="flex-1 h-2.5 bg-muted/40 rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all duration-500"
+                          style={{ width: `${pct}%`, background: color }}
+                        />
                       </div>
-                      <span className="text-[11px] font-bold w-7 text-right text-blue-700">{count}</span>
+                      <span className="text-[11px] font-bold w-8 text-right tabular-nums" style={{ color }}>{count}</span>
                     </div>
-                  ))}
-                </CardContent>
-              </Card>
-            </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
           </div>
 
           {/* ── 등록현황 요약 테이블 ── */}
