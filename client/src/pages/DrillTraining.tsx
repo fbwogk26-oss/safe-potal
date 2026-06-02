@@ -65,9 +65,19 @@ const SCENARIO_STYLE = `
 .scn-body table tr:first-child th,
 .scn-body table thead td,
 .scn-body table thead th {
-  background:#1e40af; color:#fff; font-weight:700;
+  background:#1e40af; color:#fff !important; font-weight:700;
   padding:8px 10px; text-align:center; white-space:nowrap;
   border:1px solid #1d4ed8;
+}
+.scn-body table tr:first-child td p,
+.scn-body table tr:first-child th p,
+.scn-body table thead td p,
+.scn-body table thead th p,
+.scn-body table tr:first-child td strong,
+.scn-body table tr:first-child th strong,
+.scn-body table thead td strong,
+.scn-body table thead th strong {
+  color:#fff !important;
 }
 .scn-body table tr:not(:first-child) td,
 .scn-body table tbody td {
@@ -737,6 +747,7 @@ function PreEduDialog({ assignment, open, onClose, onSaved }: {
     saved.attendees?.length ? saved.attendees : [{ no: "1", name: "" }]
   );
   const [photos, setPhotos] = useState<File[]>([]);
+  const [addCount, setAddCount] = useState<number>(5);
   const [saving, setSaving] = useState(false);
   const existingPhotos: string[] = saved.photos || [];
 
@@ -778,18 +789,23 @@ function PreEduDialog({ assignment, open, onClose, onSaved }: {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label>참석자 명단(부서 전체)</Label>
-              <div className="flex gap-1.5">
+              <div className="flex gap-1.5 items-center">
+                <div className="flex items-center border rounded-md overflow-hidden">
+                  <input
+                    type="number" min={1} max={100}
+                    value={addCount}
+                    onChange={e => setAddCount(Math.max(1, Math.min(100, Number(e.target.value) || 1)))}
+                    className="w-14 text-xs text-center h-8 px-1 border-0 outline-none bg-white dark:bg-slate-900"
+                  />
+                  <span className="text-xs text-slate-500 pr-1.5">명</span>
+                </div>
                 <Button variant="outline" size="sm"
                   onClick={() => setAttendees(p => {
                     const start = p.length;
-                    const batch = Array.from({ length: 20 }, (_, i) => ({ no: String(start + i + 1), name: "" }));
+                    const batch = Array.from({ length: addCount }, (_, i) => ({ no: String(start + i + 1), name: "" }));
                     return [...p, ...batch];
                   })}>
-                  <Plus className="w-3 h-3 mr-1" />20명 추가
-                </Button>
-                <Button variant="outline" size="sm"
-                  onClick={() => setAttendees(p => [...p, { no: String(p.length + 1), name: "" }])}>
-                  <Plus className="w-3 h-3 mr-1" />1명 추가
+                  <Plus className="w-3 h-3 mr-1" />추가
                 </Button>
                 <Button variant="outline" size="sm" className="text-red-500 border-red-200 hover:bg-red-50"
                   onClick={() => setAttendees([{ no: "1", name: "" }])}>
