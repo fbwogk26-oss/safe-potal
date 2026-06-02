@@ -8249,11 +8249,10 @@ ${htmlDraft}
   // ─── PDF 텍스트 추출 공통 함수 (pdf-parse v2 사용 — 배포 환경 호환) ─
   async function extractPdfText(buffer: Buffer): Promise<string> {
     try {
-      const { PDFParse } = await import('pdf-parse');
-      // pdf-parse v2: PDFParse는 클래스 — { data: buffer } 옵션으로 생성 후 getText() 호출
-      const parser = new (PDFParse as any)({ data: buffer });
-      const result = await parser.getText();
-      const text: string = result?.text ?? result?.pages?.map((p: any) => p.text ?? "").join("\n") ?? "";
+      // pdf-parse 기본 import는 test/data 파일을 읽으려 해서 ENOENT 오류 발생 → lib 직접 import
+      const pdfParse = (await import('pdf-parse/lib/pdf-parse.js' as any)).default as (buf: Buffer, opts?: any) => Promise<{ text: string; numpages: number }>;
+      const result = await pdfParse(buffer);
+      const text: string = result?.text ?? "";
       if (!text || text.trim().length < 5) throw new Error("텍스트 없음");
       return text;
     } catch (e: any) {
