@@ -11,8 +11,7 @@ import {
 } from "recharts";
 import {
   Upload, Trash2, FileSpreadsheet, TrendingUp, Users, Building2,
-  CheckCircle2, AlertCircle, BarChart3, Download, ChevronDown, ChevronUp,
-  ShieldAlert,
+  CheckCircle2, AlertCircle, BarChart3, Download, ShieldAlert,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
@@ -82,7 +81,7 @@ const STATUS_STYLES: Record<string, string> = {
   "임시저장": "bg-slate-100 text-slate-600 border-slate-200",
 };
 
-const STATUSES = ["임시저장", "승인대기", "승인완료", "승인요청"] as const;
+const STATUSES = ["승인완료", "승인요청"] as const;
 
 export default function RiskAssessmentResults() {
   const { toast } = useToast();
@@ -92,7 +91,7 @@ export default function RiskAssessmentResults() {
   const [uploading, setUploading] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [openTeams, setOpenTeams] = useState<Set<string>>(new Set());
+  const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
 
   const { data: uploads = [], isLoading } = useQuery<UploadRecord[]>({
     queryKey: ["/api/risk-assessment-results"],
@@ -151,14 +150,6 @@ export default function RiskAssessmentResults() {
     } finally {
       setDownloading(false);
     }
-  }
-
-  function toggleTeam(team: string) {
-    setOpenTeams(prev => {
-      const n = new Set(prev);
-      if (n.has(team)) n.delete(team); else n.add(team);
-      return n;
-    });
   }
 
   const selected = uploads.find(u => u.id === selectedId) ?? uploads[0] ?? null;
@@ -503,8 +494,8 @@ export default function RiskAssessmentResults() {
                       const t = teamSummary[team];
                       const color = getTeamColor(team);
                       return (
-                        <tr key={team} className={`border-b border-border/30 ${ti % 2 === 1 ? "bg-muted/20" : ""} hover:bg-orange-50/50 dark:hover:bg-orange-950/10 transition-colors`}>
-                          <td className="px-4 py-2 sticky left-0 bg-inherit border-r border-border/20 z-10">
+                        <tr key={team} className={`border-b border-border/30 hover:bg-orange-50/50 dark:hover:bg-orange-950/10 transition-colors`}>
+                          <td className={`px-4 py-2 sticky left-0 border-r border-border/20 z-10 ${ti % 2 === 1 ? "bg-slate-50 dark:bg-slate-800/60" : "bg-white dark:bg-slate-900"}`}>
                             <div className="flex items-center gap-2">
                               <div className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
                               <span className="font-medium whitespace-nowrap">{team}</span>
@@ -544,66 +535,66 @@ export default function RiskAssessmentResults() {
             </CardContent>
           </Card>
 
-          {/* ── 부서별 등록건수 (팀별 드롭다운) ── */}
-          <Card className="border shadow-sm">
-            <CardHeader className="pb-2 pt-4 px-5">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                  <span className="w-6 h-6 rounded-md bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
-                    <Users className="h-3.5 w-3.5 text-purple-500" />
-                  </span>
-                  부서별 등록건수
-                  <span className="text-xs font-normal text-muted-foreground ml-1">개인별 담당업무 분야</span>
-                </CardTitle>
-                <div className="flex gap-1.5">
-                  <Button
-                    variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground"
-                    onClick={() => setOpenTeams(new Set(teamGroups.map(g => g.team)))}
-                  >모두 펼치기</Button>
-                  <Button
-                    variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground"
-                    onClick={() => setOpenTeams(new Set())}
-                  >모두 접기</Button>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="px-4 pb-4 space-y-2">
-              {teamGroups.map(grp => {
-                const isOpen = openTeams.has(grp.team);
-                const color = getTeamColor(grp.team);
-                const teamTotal = grp.members.reduce((s, p) => s + p.total, 0);
-                return (
-                  <div key={grp.team} className="rounded-lg border border-border/60 overflow-hidden">
-                    {/* 팀 헤더 (클릭 토글) */}
-                    <button
-                      className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-muted/30 transition-colors text-left"
-                      onClick={() => toggleTeam(grp.team)}
-                      data-testid={`btn-toggle-team-${grp.team}`}
-                    >
-                      <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: color }} />
-                      <span className="font-semibold text-sm flex-1">{grp.team}</span>
-                      <span className="text-xs text-muted-foreground">{grp.members.length}명</span>
-                      <span className="text-xs font-bold px-2 py-0.5 rounded-full text-white ml-1" style={{ background: color }}>{teamTotal}건</span>
-                      {isOpen ? <ChevronUp className="h-4 w-4 text-muted-foreground ml-1" /> : <ChevronDown className="h-4 w-4 text-muted-foreground ml-1" />}
-                    </button>
+          {/* ── 부서별 등록건수 (좌우 탭 패널) ── */}
+          {(() => {
+            const activeGrp = teamGroups.find(g => g.team === selectedTeam) ?? teamGroups[0] ?? null;
+            const activeTeam = activeGrp?.team ?? null;
+            return (
+              <Card className="border shadow-sm">
+                <CardHeader className="pb-2 pt-4 px-5">
+                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-md bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
+                      <Users className="h-3.5 w-3.5 text-purple-500" />
+                    </span>
+                    부서별 등록건수
+                    <span className="text-xs font-normal text-muted-foreground ml-1">개인별 담당업무 분야</span>
+                    <span className="ml-auto text-xs font-normal text-muted-foreground">{totalCount}건 / {personList.length}명</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="px-0 pb-0">
+                  <div className="flex border-t border-border/40" style={{ minHeight: 260 }}>
+                    {/* 왼쪽: 팀 목록 탭 */}
+                    <div className="w-44 shrink-0 border-r border-border/40 overflow-y-auto" style={{ maxHeight: 420 }}>
+                      {teamGroups.map(grp => {
+                        const color = getTeamColor(grp.team);
+                        const teamTotal = grp.members.reduce((s, p) => s + p.total, 0);
+                        const isActive = grp.team === activeTeam;
+                        return (
+                          <button
+                            key={grp.team}
+                            onClick={() => setSelectedTeam(grp.team)}
+                            className={`w-full flex items-center gap-2 px-3 py-2.5 text-left transition-colors border-b border-border/20 ${isActive ? "bg-purple-50 dark:bg-purple-950/20 border-r-2 border-r-purple-400" : "hover:bg-muted/30"}`}
+                            data-testid={`btn-select-team-${grp.team}`}
+                          >
+                            <div className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-xs font-medium truncate ${isActive ? "text-purple-700 dark:text-purple-300" : ""}`}>{grp.team}</p>
+                              <p className="text-[10px] text-muted-foreground">{grp.members.length}명 · {teamTotal}건</p>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
 
-                    {/* 인원별 내용 */}
-                    {isOpen && (
-                      <div className="border-t border-border/40">
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-xs border-collapse" style={{ minWidth: Math.max(400, 120 + allTasks.length * 100 + 70) }}>
-                            <thead>
-                              <tr className="bg-muted/30">
-                                <th className="px-4 py-2 text-left font-semibold border-b border-border/30 whitespace-nowrap">이름</th>
+                    {/* 오른쪽: 선택된 팀 인원 테이블 */}
+                    <div className="flex-1 overflow-auto" style={{ maxHeight: 420 }}>
+                      {activeGrp ? (() => {
+                        const color = getTeamColor(activeGrp.team);
+                        const teamTotal = activeGrp.members.reduce((s, p) => s + p.total, 0);
+                        return (
+                          <table className="w-full text-xs border-collapse" style={{ minWidth: Math.max(320, 110 + allTasks.length * 90 + 60) }}>
+                            <thead className="sticky top-0 z-10">
+                              <tr className="bg-purple-50 dark:bg-purple-950/20">
+                                <th className="px-4 py-2.5 text-left font-semibold border-b border-purple-200 dark:border-purple-800 whitespace-nowrap">이름</th>
                                 {allTasks.map(t => (
-                                  <th key={t} className="px-3 py-2 text-center font-semibold border-b border-border/30 whitespace-nowrap text-blue-700 dark:text-blue-400">{t}</th>
+                                  <th key={t} className="px-3 py-2.5 text-center font-semibold border-b border-purple-200 dark:border-purple-800 whitespace-nowrap text-blue-700 dark:text-blue-400">{t}</th>
                                 ))}
-                                <th className="px-3 py-2 text-center font-bold border-b border-border/30 whitespace-nowrap">합계</th>
+                                <th className="px-3 py-2.5 text-center font-bold border-b border-purple-200 dark:border-purple-800 whitespace-nowrap">합계</th>
                               </tr>
                             </thead>
                             <tbody>
-                              {grp.members.map((p, i) => (
-                                <tr key={p.name} className={`border-b border-border/20 ${i % 2 === 1 ? "bg-muted/10" : ""} hover:bg-blue-50/50 dark:hover:bg-blue-950/10 transition-colors`}>
+                              {activeGrp.members.map((p, i) => (
+                                <tr key={p.name} className={`border-b border-border/20 ${i % 2 === 1 ? "bg-slate-50/60 dark:bg-slate-800/20" : ""} hover:bg-purple-50/40 dark:hover:bg-purple-950/10 transition-colors`}>
                                   <td className="px-4 py-2 font-medium whitespace-nowrap">{p.name}</td>
                                   {allTasks.map(task => (
                                     <td key={task} className="px-3 py-2 text-center">
@@ -611,38 +602,35 @@ export default function RiskAssessmentResults() {
                                         <span className="inline-flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-bold text-white" style={{ background: color }}>
                                           {p.tasks[task]}
                                         </span>
-                                      ) : <span className="text-muted-foreground/30">-</span>}
+                                      ) : <span className="text-muted-foreground/25">-</span>}
                                     </td>
                                   ))}
                                   <td className="px-3 py-2 text-center font-bold">{p.total}</td>
                                 </tr>
                               ))}
-                              {/* 팀 소계 */}
-                              <tr className="bg-muted/40 font-semibold">
-                                <td className="px-4 py-1.5 text-[11px] text-muted-foreground">소계</td>
+                              <tr className="bg-muted/40 font-semibold sticky bottom-0">
+                                <td className="px-4 py-2 text-[11px] text-muted-foreground">소계</td>
                                 {allTasks.map(task => (
-                                  <td key={task} className="px-3 py-1.5 text-center text-[11px]">
-                                    {grp.members.reduce((s, p) => s + (p.tasks[task] || 0), 0) || "-"}
+                                  <td key={task} className="px-3 py-2 text-center text-[11px]">
+                                    {activeGrp.members.reduce((s, p) => s + (p.tasks[task] || 0), 0) || "-"}
                                   </td>
                                 ))}
-                                <td className="px-3 py-1.5 text-center text-[11px] font-bold">{teamTotal}</td>
+                                <td className="px-3 py-2 text-center text-[11px] font-bold">{teamTotal}</td>
                               </tr>
                             </tbody>
                           </table>
+                        );
+                      })() : (
+                        <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+                          왼쪽에서 팀을 선택하세요
                         </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
-                );
-              })}
-
-              {/* 전체 합계 */}
-              <div className="flex items-center justify-between px-4 py-2.5 bg-slate-100 dark:bg-slate-800/40 rounded-lg mt-1">
-                <span className="text-sm font-bold">전체 합계</span>
-                <span className="text-sm font-bold text-orange-600">{totalCount}건 / {personList.length}명</span>
-              </div>
-            </CardContent>
-          </Card>
+                </CardContent>
+              </Card>
+            );
+          })()}
         </>
       )}
     </div>
