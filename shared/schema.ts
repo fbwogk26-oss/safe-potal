@@ -794,6 +794,8 @@ export const drillAssignments = pgTable("drill_assignments", {
   step3Data: jsonb("step3_data"),
   step3SubmittedAt: timestamp("step3_submitted_at"),
   step3SubmittedBy: text("step3_submitted_by"),
+  // 사전교육: 참석자 명단 + 사진 (DB 저장)
+  preEduData: jsonb("pre_edu_data"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

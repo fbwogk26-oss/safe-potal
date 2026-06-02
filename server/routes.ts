@@ -10486,6 +10486,37 @@ ${htmlDraft}
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
+  // 사전교육 참석자 명단 + 사진 저장 (DB 영구 저장)
+  app.put('/api/drill-assignments/:id/pre-edu', isAuthenticated, drillPhotoUpload.array('photos', 20), async (req: any, res) => {
+    try {
+      const id = Number(req.params.id);
+      const assignment = await storage.getDrillAssignment(id);
+      if (!assignment) return res.status(404).json({ message: '없음' });
+
+      const bodyData = typeof req.body.data === 'string' ? JSON.parse(req.body.data) : (req.body.data || {});
+
+      const newPhotoUrls: string[] = [];
+      if (req.files && req.files.length > 0) {
+        for (const file of req.files as Express.Multer.File[]) {
+          const ext = (file.originalname.split('.').pop() || 'jpg').toLowerCase();
+          const filename = `drill_preedu_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+          const url = await uploadToObjectStorage(file.buffer, filename, file.mimetype);
+          if (url) newPhotoUrls.push(url);
+        }
+      }
+
+      const existing = (assignment.preEduData as any) || {};
+      const allPhotos = [...(existing.photos || []), ...newPhotoUrls];
+      const updated = await storage.updateDrillAssignment(id, {
+        preEduData: { ...bodyData, photos: allPhotos },
+      });
+      res.json(updated);
+    } catch (e: any) {
+      console.error('pre-edu save error:', e.message);
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   // 단계별 보고 제출 (사진 업로드 포함)
   app.post('/api/drill-assignments/:id/step/:step', isAuthenticated, drillPhotoUpload.array('photos', 20), async (req: any, res) => {
     try {

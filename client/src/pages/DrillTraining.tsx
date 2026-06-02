@@ -35,19 +35,25 @@ function ScenarioFull({ text, className = "" }: { text: string; className?: stri
   if (isHtml(text)) {
     return (
       <div
-        className={`prose prose-sm max-w-none dark:prose-invert text-sm leading-relaxed ${className}`}
+        className={`prose prose-sm max-w-none dark:prose-invert leading-relaxed ${className}`}
         dangerouslySetInnerHTML={{ __html: text }}
       />
     );
   }
-  // plain text: 빈줄 기준으로 단락 분리
-  const paras = text.split(/\n{2,}/).map(p => p.trim()).filter(Boolean);
-  if (paras.length > 1) {
+  // plain text: 빈줄(\n\n) 기준 단락 분리 → 없으면 단일 \n으로 분리
+  const byDouble = text.split(/\n{2,}/).map(p => p.trim()).filter(Boolean);
+  if (byDouble.length > 1) {
     return (
       <div className={`space-y-2 text-sm leading-relaxed ${className}`}>
-        {paras.map((p, i) => (
-          <p key={i} className="whitespace-pre-wrap">{p}</p>
-        ))}
+        {byDouble.map((p, i) => <p key={i} className="whitespace-pre-wrap">{p}</p>)}
+      </div>
+    );
+  }
+  const bySingle = text.split(/\n/).map(l => l.trim()).filter(Boolean);
+  if (bySingle.length > 3) {
+    return (
+      <div className={`space-y-1 text-sm leading-relaxed ${className}`}>
+        {bySingle.map((l, i) => <p key={i}>{l}</p>)}
       </div>
     );
   }
@@ -114,6 +120,7 @@ type DrillAssignment = {
   step3Data: any;
   step3SubmittedAt: string | null;
   step3SubmittedBy: string | null;
+  preEduData: any; // { attendees: [{no,name}], photos: [url,...] }
 };
 
 const DEPT_LIST = [
@@ -141,16 +148,40 @@ const FIELD_LABELS: Record<string, string> = {
   eduAttendees: "사전 교육 참석자 명단", drillAttendees: "훈련 참석자 명단",
 };
 
-// 시나리오 plain text에서 상황설정/발생/대응 섹션 파싱
+// 시나리오 plain text / HTML에서 상황설정/발생/대응 섹션 파싱
 function parseScenarioSections(scenario: string) {
-  const plain = isHtml(scenario) ? stripHtml(scenario) : scenario;
-  const sMatch = plain.match(/상황\s*설정[:\s]+([\s\S]+?)(?=상황\s*발생|상황\s*대응|$)/);
-  const oMatch = plain.match(/상황\s*발생[:\s]+([\s\S]+?)(?=상황\s*대응|$)/);
-  const rMatch = plain.match(/상황\s*대응[:\s]+([\s\S]+?)$/);
+  // HTML인 경우: 헤딩 태그 기준으로 섹션 분리
+  if (isHtml(scenario)) {
+    const section = (html: string, keyword: string): string | null => {
+      const re = new RegExp(`<h[1-6][^>]*>[^<]*${keyword}[^<]*<\\/h[1-6]>([\\s\\S]*?)(?=<h[1-6]|$)`, 'i');
+      const m = html.match(re);
+      return m ? stripHtml(m[1]).trim() : null;
+    };
+    const situ = section(scenario, '상황.?설정');
+    const occur = section(scenario, '상황.?발생');
+    const resp = section(scenario, '상황.?대응');
+    if (situ !== null || occur !== null || resp !== null) {
+      return { situation: situ ?? "", situationOccur: occur ?? "", response: resp ?? "" };
+    }
+    // 헤딩 없이 plain text로 한번 더 시도
+    const plain2 = stripHtml(scenario);
+    const sm = plain2.match(/상황\s*설정[:\s]*([\s\S]+?)(?=상황\s*발생|상황\s*대응|$)/);
+    const om = plain2.match(/상황\s*발생[:\s]*([\s\S]+?)(?=상황\s*대응|$)/);
+    const rm = plain2.match(/상황\s*대응[:\s]*([\s\S]+?)(?=$)/);
+    if (sm || om || rm) {
+      return { situation: sm?.[1]?.trim() ?? "", situationOccur: om?.[1]?.trim() ?? "", response: rm?.[1]?.trim() ?? "" };
+    }
+    return { situation: stripHtml(scenario).slice(0, 400), situationOccur: "", response: "" };
+  }
+  // plain text
+  const plain = scenario;
+  const sMatch = plain.match(/상황\s*설정[:\s]*([\s\S]+?)(?=상황\s*발생|상황\s*대응|$)/);
+  const oMatch = plain.match(/상황\s*발생[:\s]*([\s\S]+?)(?=상황\s*대응|$)/);
+  const rMatch = plain.match(/상황\s*대응[:\s]*([\s\S]+?)(?=$)/);
   if (sMatch || oMatch || rMatch) {
     return { situation: sMatch?.[1]?.trim() ?? "", situationOccur: oMatch?.[1]?.trim() ?? "", response: rMatch?.[1]?.trim() ?? "" };
   }
-  return { situation: plain.slice(0, 300), situationOccur: "", response: "" };
+  return { situation: plain.slice(0, 400), situationOccur: "", response: "" };
 }
 
 // 다음 우편번호 API로 주소 검색
@@ -367,8 +398,21 @@ function Step2Form({ assignment, onClose }: { assignment: DrillAssignment; onClo
       <div><Label>사고 방지 대책</Label><Textarea value={form.prevention} onChange={set("prevention")} rows={2} placeholder="재발 방지 대책..." /></div>
       <div>
         <Label>첨부사진</Label>
+        {/* 1단계에서 올린 사진 자동 연동 */}
+        {s1?.photos?.length > 0 && (
+          <div className="mb-2">
+            <p className="text-xs text-muted-foreground mb-1">1단계(SNS보고)에서 첨부된 사진</p>
+            <div className="flex flex-wrap gap-2">
+              {(s1.photos as string[]).map((url: string, i: number) => (
+                <a key={i} href={url} target="_blank" rel="noreferrer">
+                  <img src={url} alt={`1단계사진${i+1}`} className="h-16 w-16 object-cover rounded border shadow-sm" />
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
         <Input type="file" accept="image/*" multiple onChange={e => setPhotos(Array.from(e.target.files || []))} className="mt-1" />
-        {photos.length > 0 && <p className="text-xs text-muted-foreground mt-1">{photos.length}개 선택됨</p>}
+        <PhotoPreviews files={photos} />
       </div>
       <DialogFooter>
         <Button variant="outline" onClick={onClose}>취소</Button>
@@ -380,29 +424,36 @@ function Step2Form({ assignment, onClose }: { assignment: DrillAssignment; onClo
 
 // ─── Step 3 Form: 최종 결과보고 ─────────────────────────────────────────────
 function Step3Form({
-  assignment, onClose, preEduAttendees,
+  assignment, onClose, session,
 }: {
   assignment: DrillAssignment;
   onClose: () => void;
-  preEduAttendees: { no: string; name: string }[];
+  session?: DrillSession;
 }) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const s1 = assignment.step1Data as any;
+  const s2 = assignment.step2Data as any;
   const scenarioSections = parseScenarioSections(assignment.scenario);
+  const savedEdu = (assignment.preEduData as any) || {};
+
+  // 훈련일시 우선순위: 세션 drillDate > 1단계 사고일시 > 빈값
+  const defaultDrillDate =
+    session?.drillDate?.slice(0, 10) ??
+    s1?.occurredAt?.slice(0, 10) ??
+    "";
 
   const [form, setForm] = useState({
-    drillDate: s1?.occurredAt?.slice(0, 10) ?? "",
+    drillDate: defaultDrillDate,
     participantCount: "",
     situation: scenarioSections.situation,
-    situationOccur: scenarioSections.situationOccur || (s1?.content ?? ""),
-    response: scenarioSections.response || (s1?.cause ?? ""),
+    situationOccur: scenarioSections.situationOccur || (s2?.overview ?? s1?.content ?? ""),
+    response: scenarioSections.response || (s2?.prevention ?? s1?.cause ?? ""),
     totalComment: "", opinion: "",
-    eduAttendees: preEduAttendees.length > 0 ? preEduAttendees : [{ no: "1", name: "" }],
+    eduAttendees: savedEdu.attendees?.length > 0 ? savedEdu.attendees : [{ no: "1", name: "" }],
     drillAttendees: [{ no: "1", name: s1?.victimName ?? "" }],
   });
   const [drillPhotos, setDrillPhotos] = useState<File[]>([]);
-  const [eduPhotos, setEduPhotos] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const set = (k: string) => (e: any) => setForm(p => ({ ...p, [k]: e.target.value }));
 
@@ -429,7 +480,6 @@ function Step3Form({
       const fd = new FormData();
       fd.append("data", JSON.stringify(form));
       drillPhotos.forEach(f => fd.append("photos", f));
-      eduPhotos.forEach(f => fd.append("eduPhotos", f));
       await fetch(`/api/drill-assignments/${assignment.id}/step/3`, {
         method: "POST", body: fd, credentials: "include",
       });
@@ -457,12 +507,17 @@ function Step3Form({
       <div><Label>훈련결과 총평</Label><Textarea value={form.totalComment} onChange={set("totalComment")} rows={2} /></div>
       <div><Label>참석자 의견 및 개선/보완사항</Label><Textarea value={form.opinion} onChange={set("opinion")} rows={2} /></div>
 
-      {/* 사전교육 참석자 명단 */}
-      <div className="border rounded-lg p-3">
+      {/* 사전교육 참석자 명단 (DB에서 로드) */}
+      <div className="border rounded-lg p-3 bg-amber-50/30 dark:bg-amber-950/10">
         <div className="flex items-center justify-between mb-2">
-          <Label className="flex items-center gap-1"><Users className="w-4 h-4" />사전 교육 참석자 명단</Label>
+          <Label className="flex items-center gap-1 text-amber-700 dark:text-amber-400">
+            <Users className="w-4 h-4" />사전 교육 참석자 명단
+          </Label>
           <Button variant="outline" size="sm" onClick={() => addAttendee("edu")}><Plus className="w-3 h-3 mr-1" />추가</Button>
         </div>
+        {savedEdu.attendees?.length > 0 && (
+          <p className="text-xs text-green-600 dark:text-green-400 mb-1.5">✅ 사전에 저장된 명단이 자동으로 채워졌습니다</p>
+        )}
         <div className="grid grid-cols-2 gap-2">
           {form.eduAttendees.map((row, i) => (
             <div key={i} className="flex gap-2 items-center">
@@ -472,12 +527,19 @@ function Step3Form({
             </div>
           ))}
         </div>
-        <div className="mt-2">
-          <Label>사전교육 사진</Label>
-          <Input type="file" accept="image/*" multiple className="mt-1"
-            onChange={e => setEduPhotos(Array.from(e.target.files || []))} />
-          <PhotoPreviews files={eduPhotos} />
-        </div>
+        {/* 사전교육 사진 (이미 저장된 것 표시) */}
+        {savedEdu.photos?.length > 0 && (
+          <div className="mt-2">
+            <p className="text-xs text-muted-foreground mb-1">저장된 교육 사진 ({savedEdu.photos.length}장)</p>
+            <div className="flex flex-wrap gap-2">
+              {(savedEdu.photos as string[]).map((url: string, i: number) => (
+                <a key={i} href={url} target="_blank" rel="noreferrer">
+                  <img src={url} alt={`교육사진${i+1}`} className="h-16 w-16 object-cover rounded border shadow-sm" />
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 훈련 참석자 명단 */}
@@ -513,16 +575,107 @@ function Step3Form({
   );
 }
 
+// ─── 사전교육 다이얼로그 (참석자 명단 + 사진 DB 저장) ─────────────────────
+function PreEduDialog({ assignment, open, onClose }: {
+  assignment: DrillAssignment; open: boolean; onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const saved = (assignment.preEduData as any) || {};
+  const [attendees, setAttendees] = useState<{ no: string; name: string }[]>(
+    saved.attendees?.length ? saved.attendees : [{ no: "1", name: "" }]
+  );
+  const [photos, setPhotos] = useState<File[]>([]);
+  const [saving, setSaving] = useState(false);
+  const existingPhotos: string[] = saved.photos || [];
+
+  async function save() {
+    setSaving(true);
+    try {
+      const fd = new FormData();
+      fd.append("data", JSON.stringify({ attendees }));
+      photos.forEach(f => fd.append("photos", f));
+      await fetch(`/api/drill-assignments/${assignment.id}/pre-edu`, {
+        method: "PUT", body: fd, credentials: "include",
+      });
+      await qc.invalidateQueries({ queryKey: ["/api/drill-sessions", assignment.sessionId, "assignments"] });
+      toast({ title: "사전교육 내용 저장 완료" });
+      setPhotos([]);
+      onClose();
+    } catch { toast({ title: "저장 오류", variant: "destructive" }); }
+    finally { setSaving(false); }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Users className="w-4 h-4 text-amber-600" />사전교육 참석자 명단 및 사진
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label>참석자 명단</Label>
+              <Button variant="outline" size="sm"
+                onClick={() => setAttendees(p => [...p, { no: String(p.length + 1), name: "" }])}>
+                <Plus className="w-3 h-3 mr-1" />추가
+              </Button>
+            </div>
+            <div className="grid grid-cols-2 gap-1.5 max-h-48 overflow-y-auto pr-1">
+              {attendees.map((row, i) => (
+                <div key={i} className="flex gap-1.5 items-center">
+                  <Input className="w-10 text-xs h-8" placeholder="번호" value={row.no}
+                    onChange={e => setAttendees(p => { const a = [...p]; a[i] = { ...a[i], no: e.target.value }; return a; })} />
+                  <Input className="flex-1 text-xs h-8" placeholder="이름" value={row.name}
+                    onChange={e => setAttendees(p => { const a = [...p]; a[i] = { ...a[i], name: e.target.value }; return a; })} />
+                  {attendees.length > 1 && (
+                    <Button variant="ghost" size="icon" className="h-7 w-7"
+                      onClick={() => setAttendees(p => p.filter((_, j) => j !== i))}>
+                      <X className="w-3 h-3" />
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <Label>교육 사진</Label>
+            {existingPhotos.length > 0 && (
+              <div className="flex flex-wrap gap-2 my-2">
+                {existingPhotos.map((url, i) => (
+                  <a key={i} href={url} target="_blank" rel="noreferrer">
+                    <img src={url} alt={`교육사진${i + 1}`} className="h-16 w-16 object-cover rounded border" />
+                  </a>
+                ))}
+              </div>
+            )}
+            <Input type="file" accept="image/*" multiple className="mt-1"
+              onChange={e => setPhotos(Array.from(e.target.files || []))} />
+            <PhotoPreviews files={photos} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>취소</Button>
+          <Button onClick={save} disabled={saving}>{saving ? "저장 중..." : "저장"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── 상세보기 ─────────────────────────────────────────────────────────────
-function AssignmentDetail({ assignment, sessionId, isAdmin, onClose }: {
-  assignment: DrillAssignment; sessionId: number; isAdmin: boolean; onClose: () => void;
+function AssignmentDetail({ assignment, sessionId, isAdmin, session, onClose }: {
+  assignment: DrillAssignment; sessionId: number; isAdmin: boolean;
+  session?: DrillSession; onClose: () => void;
 }) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [activeStep, setActiveStep] = useState<1 | 2 | 3 | null>(null);
   const [viewStep, setViewStep] = useState<1 | 2 | 3 | null>(null);
-  // 사전교육 참석자 명단 (1단계 전 작성 → 3단계로 전달)
-  const [preEduAttendees, setPreEduAttendees] = useState<{ no: string; name: string }[]>([{ no: "1", name: "" }]);
+  const [preEduOpen, setPreEduOpen] = useState(false);
 
   const resetStep = useMutation({
     mutationFn: (step: number) => apiRequest("DELETE", `/api/drill-assignments/${assignment.id}/step/${step}`),
@@ -600,38 +753,42 @@ function AssignmentDetail({ assignment, sessionId, isAdmin, onClose }: {
         <ScenarioCollapsible text={assignment.scenario} />
       </div>
 
-      {/* ── 사전교육 참석자 명단 (1단계 보고 전 먼저 작성) ── */}
-      {!done1 && (
-        <div className="border-2 border-dashed border-amber-300 dark:border-amber-700 rounded-lg p-3 bg-amber-50/50 dark:bg-amber-950/20">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-sm font-semibold flex items-center gap-1.5">
-              <Users className="w-4 h-4 text-amber-600" />
-              <span>사전교육 참석자 명단</span>
-              <span className="text-xs font-normal text-amber-600 dark:text-amber-400">(1단계 보고 전 먼저 작성)</span>
-            </p>
-            <Button variant="outline" size="sm" className="h-7 text-xs"
-              onClick={() => setPreEduAttendees(p => [...p, { no: String(p.length + 1), name: "" }])}>
-              <Plus className="w-3 h-3 mr-1" />추가
-            </Button>
-          </div>
-          <div className="grid grid-cols-2 gap-1.5">
-            {preEduAttendees.map((row, i) => (
-              <div key={i} className="flex gap-1.5 items-center">
-                <Input className="w-10 text-xs h-8" placeholder="번호" value={row.no}
-                  onChange={e => setPreEduAttendees(p => { const a = [...p]; a[i] = { ...a[i], no: e.target.value }; return a; })} />
-                <Input className="flex-1 text-xs h-8" placeholder="이름" value={row.name}
-                  onChange={e => setPreEduAttendees(p => { const a = [...p]; a[i] = { ...a[i], name: e.target.value }; return a; })} />
-                {preEduAttendees.length > 1 && (
-                  <Button variant="ghost" size="icon" className="h-7 w-7"
-                    onClick={() => setPreEduAttendees(p => p.filter((_, j) => j !== i))}>
-                    <X className="w-3 h-3" />
-                  </Button>
-                )}
-              </div>
-            ))}
-          </div>
+      {/* ── 사전교육 참석자 명단 + 사진 (DB 저장, 항상 표시) ── */}
+      <div className="border-2 border-dashed border-amber-300 dark:border-amber-700 rounded-lg p-3 bg-amber-50/50 dark:bg-amber-950/20">
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-semibold flex items-center gap-1.5">
+            <Users className="w-4 h-4 text-amber-600" />
+            <span>사전교육 참석자 명단 및 사진</span>
+          </p>
+          <Button size="sm" variant="outline" className="h-7 text-xs border-amber-400 text-amber-700 hover:bg-amber-100"
+            onClick={() => setPreEduOpen(true)}>
+            <FileText className="w-3 h-3 mr-1" />작성/수정
+          </Button>
         </div>
-      )}
+        {assignment.preEduData ? (
+          <div className="mt-2 space-y-1.5">
+            {(assignment.preEduData as any).attendees?.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {((assignment.preEduData as any).attendees as {no:string;name:string}[]).map((a, i) => (
+                  <span key={i} className="text-xs bg-white dark:bg-gray-800 border rounded px-2 py-0.5">{a.no}. {a.name}</span>
+                ))}
+              </div>
+            )}
+            {(assignment.preEduData as any).photos?.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-1">
+                {((assignment.preEduData as any).photos as string[]).map((url, i) => (
+                  <a key={i} href={url} target="_blank" rel="noreferrer">
+                    <img src={url} alt={`교육사진${i+1}`} className="h-14 w-14 object-cover rounded border" />
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">아직 작성되지 않았습니다. "작성/수정" 버튼을 눌러 입력하세요.</p>
+        )}
+      </div>
+      <PreEduDialog assignment={assignment} open={preEduOpen} onClose={() => setPreEduOpen(false)} />
 
       {/* 단계별 진행 */}
       <div className="space-y-3">
@@ -695,7 +852,7 @@ function AssignmentDetail({ assignment, sessionId, isAdmin, onClose }: {
       {activeStep === 3 && (
         <div className="border rounded-lg p-4 bg-purple-50/50 dark:bg-purple-950/20">
           <h4 className="font-semibold mb-3 text-sm">최종 결과보고서 작성</h4>
-          <Step3Form assignment={assignment} preEduAttendees={preEduAttendees} onClose={() => { setActiveStep(null); setViewStep(3); }} />
+          <Step3Form assignment={assignment} session={session} onClose={() => { setActiveStep(null); setViewStep(3); }} />
         </div>
       )}
     </div>
@@ -1381,6 +1538,7 @@ export default function DrillTraining() {
               assignment={detailAssignment}
               sessionId={selectedSession!}
               isAdmin={isAdmin}
+              session={currentSession}
               onClose={() => setDetailAssignmentId(null)}
             />
           </DialogContent>
