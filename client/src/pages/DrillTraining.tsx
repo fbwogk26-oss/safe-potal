@@ -84,10 +84,12 @@ function ScenarioCollapsible({ text }: { text: string }) {
   );
 }
 
-// 시나리오 짧은 미리보기 (한 줄)
-function ScenarioPreview({ text, maxLen = 80 }: { text: string; maxLen?: number }) {
-  const plain = isHtml(text) ? stripHtml(text) : text.replace(/\n+/g, " ");
-  return <span className="text-xs text-muted-foreground truncate">{plain.slice(0, maxLen)}{plain.length > maxLen ? "…" : ""}</span>;
+// 시나리오 짧은 미리보기 - 첫 줄(제목 부분)만 표시
+function ScenarioPreview({ text }: { text: string }) {
+  const plain = isHtml(text) ? stripHtml(text) : text;
+  // 첫 줄만 추출 (빈 줄 제거 후 첫 번째 줄)
+  const firstLine = plain.split(/\n/).map(l => l.trim()).find(l => l.length > 0) || plain.slice(0, 60);
+  return <span className="text-xs text-muted-foreground truncate">{firstLine}</span>;
 }
 
 type DrillSession = {
@@ -450,28 +452,24 @@ function Step3Form({
     situationOccur: scenarioSections.situationOccur || (s2?.overview ?? s1?.content ?? ""),
     response: scenarioSections.response || (s2?.prevention ?? s1?.cause ?? ""),
     totalComment: "", opinion: "",
-    eduAttendees: savedEdu.attendees?.length > 0 ? savedEdu.attendees : [{ no: "1", name: "" }],
     drillAttendees: [{ no: "1", name: s1?.victimName ?? "" }],
   });
   const [drillPhotos, setDrillPhotos] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const set = (k: string) => (e: any) => setForm(p => ({ ...p, [k]: e.target.value }));
 
-  function updateAttendee(type: "edu" | "drill", i: number, k: string, v: string) {
-    const key = type === "edu" ? "eduAttendees" : "drillAttendees";
+  function updateAttendee(i: number, k: string, v: string) {
     setForm(p => {
-      const arr = [...(p as any)[key]];
+      const arr = [...p.drillAttendees];
       arr[i] = { ...arr[i], [k]: v };
-      return { ...p, [key]: arr };
+      return { ...p, drillAttendees: arr };
     });
   }
-  function addAttendee(type: "edu" | "drill") {
-    const key = type === "edu" ? "eduAttendees" : "drillAttendees";
-    setForm(p => ({ ...p, [key]: [...(p as any)[key], { no: String((p as any)[key].length + 1), name: "" }] }));
+  function addAttendee() {
+    setForm(p => ({ ...p, drillAttendees: [...p.drillAttendees, { no: String(p.drillAttendees.length + 1), name: "" }] }));
   }
-  function removeAttendee(type: "edu" | "drill", i: number) {
-    const key = type === "edu" ? "eduAttendees" : "drillAttendees";
-    setForm(p => ({ ...p, [key]: (p as any)[key].filter((_: any, idx: number) => idx !== i) }));
+  function removeAttendee(i: number) {
+    setForm(p => ({ ...p, drillAttendees: p.drillAttendees.filter((_: any, idx: number) => idx !== i) }));
   }
 
   async function submit() {
@@ -507,53 +505,18 @@ function Step3Form({
       <div><Label>훈련결과 총평</Label><Textarea value={form.totalComment} onChange={set("totalComment")} rows={2} /></div>
       <div><Label>참석자 의견 및 개선/보완사항</Label><Textarea value={form.opinion} onChange={set("opinion")} rows={2} /></div>
 
-      {/* 사전교육 참석자 명단 (DB에서 로드) */}
-      <div className="border rounded-lg p-3 bg-amber-50/30 dark:bg-amber-950/10">
-        <div className="flex items-center justify-between mb-2">
-          <Label className="flex items-center gap-1 text-amber-700 dark:text-amber-400">
-            <Users className="w-4 h-4" />사전 교육 참석자 명단
-          </Label>
-          <Button variant="outline" size="sm" onClick={() => addAttendee("edu")}><Plus className="w-3 h-3 mr-1" />추가</Button>
-        </div>
-        {savedEdu.attendees?.length > 0 && (
-          <p className="text-xs text-green-600 dark:text-green-400 mb-1.5">✅ 사전에 저장된 명단이 자동으로 채워졌습니다</p>
-        )}
-        <div className="grid grid-cols-2 gap-2">
-          {form.eduAttendees.map((row, i) => (
-            <div key={i} className="flex gap-2 items-center">
-              <Input className="w-12 text-sm" placeholder="번호" value={row.no} onChange={e => updateAttendee("edu", i, "no", e.target.value)} />
-              <Input className="flex-1 text-sm" placeholder="이름" value={row.name} onChange={e => updateAttendee("edu", i, "name", e.target.value)} />
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => removeAttendee("edu", i)}><X className="w-3 h-3" /></Button>
-            </div>
-          ))}
-        </div>
-        {/* 사전교육 사진 (이미 저장된 것 표시) */}
-        {savedEdu.photos?.length > 0 && (
-          <div className="mt-2">
-            <p className="text-xs text-muted-foreground mb-1">저장된 교육 사진 ({savedEdu.photos.length}장)</p>
-            <div className="flex flex-wrap gap-2">
-              {(savedEdu.photos as string[]).map((url: string, i: number) => (
-                <a key={i} href={url} target="_blank" rel="noreferrer">
-                  <img src={url} alt={`교육사진${i+1}`} className="h-16 w-16 object-cover rounded border shadow-sm" />
-                </a>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
       {/* 훈련 참석자 명단 */}
       <div className="border rounded-lg p-3">
         <div className="flex items-center justify-between mb-2">
           <Label className="flex items-center gap-1"><Users className="w-4 h-4" />훈련 참석자 명단</Label>
-          <Button variant="outline" size="sm" onClick={() => addAttendee("drill")}><Plus className="w-3 h-3 mr-1" />추가</Button>
+          <Button variant="outline" size="sm" onClick={() => addAttendee()}><Plus className="w-3 h-3 mr-1" />추가</Button>
         </div>
         <div className="grid grid-cols-2 gap-2">
           {form.drillAttendees.map((row, i) => (
             <div key={i} className="flex gap-2 items-center">
-              <Input className="w-12 text-sm" placeholder="번호" value={row.no} onChange={e => updateAttendee("drill", i, "no", e.target.value)} />
-              <Input className="flex-1 text-sm" placeholder="이름" value={row.name} onChange={e => updateAttendee("drill", i, "name", e.target.value)} />
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => removeAttendee("drill", i)}><X className="w-3 h-3" /></Button>
+              <Input className="w-12 text-sm" placeholder="번호" value={row.no} onChange={e => updateAttendee(i, "no", e.target.value)} />
+              <Input className="flex-1 text-sm" placeholder="이름" value={row.name} onChange={e => updateAttendee(i, "name", e.target.value)} />
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => removeAttendee(i)}><X className="w-3 h-3" /></Button>
             </div>
           ))}
         </div>
@@ -617,25 +580,33 @@ function PreEduDialog({ assignment, open, onClose }: {
         <div className="space-y-4">
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label>참석자 명단</Label>
-              <Button variant="outline" size="sm"
-                onClick={() => setAttendees(p => [...p, { no: String(p.length + 1), name: "" }])}>
-                <Plus className="w-3 h-3 mr-1" />추가
-              </Button>
+              <Label>참석자 명단(부서 전체)</Label>
+              <div className="flex gap-1.5">
+                <Button variant="outline" size="sm"
+                  onClick={() => setAttendees(p => {
+                    const start = p.length;
+                    const batch = Array.from({ length: 20 }, (_, i) => ({ no: String(start + i + 1), name: "" }));
+                    return [...p, ...batch];
+                  })}>
+                  <Plus className="w-3 h-3 mr-1" />20명 추가
+                </Button>
+                <Button variant="outline" size="sm"
+                  onClick={() => setAttendees(p => [...p, { no: String(p.length + 1), name: "" }])}>
+                  <Plus className="w-3 h-3 mr-1" />1명 추가
+                </Button>
+              </div>
             </div>
-            <div className="grid grid-cols-2 gap-1.5 max-h-48 overflow-y-auto pr-1">
+            <div className="grid grid-cols-2 gap-1.5 max-h-64 overflow-y-auto pr-1">
               {attendees.map((row, i) => (
                 <div key={i} className="flex gap-1.5 items-center">
                   <Input className="w-10 text-xs h-8" placeholder="번호" value={row.no}
                     onChange={e => setAttendees(p => { const a = [...p]; a[i] = { ...a[i], no: e.target.value }; return a; })} />
                   <Input className="flex-1 text-xs h-8" placeholder="이름" value={row.name}
                     onChange={e => setAttendees(p => { const a = [...p]; a[i] = { ...a[i], name: e.target.value }; return a; })} />
-                  {attendees.length > 1 && (
-                    <Button variant="ghost" size="icon" className="h-7 w-7"
-                      onClick={() => setAttendees(p => p.filter((_, j) => j !== i))}>
-                      <X className="w-3 h-3" />
-                    </Button>
-                  )}
+                  <Button variant="ghost" size="icon" className="h-7 w-7"
+                    onClick={() => setAttendees(p => p.filter((_, j) => j !== i))}>
+                    <X className="w-3 h-3" />
+                  </Button>
                 </div>
               ))}
             </div>
@@ -1022,7 +993,7 @@ function AssignPreviewTable({ assignments, onBack, onSubmit, isPending, backLabe
                 <tr key={i} className="border-b last:border-0">
                   <td className="p-2 font-medium whitespace-nowrap">{a.department}</td>
                   <td className="p-2"><Badge variant="outline" className="text-xs whitespace-nowrap">{a.accidentType}</Badge></td>
-                  <td className="p-2 text-muted-foreground"><ScenarioPreview text={a.scenario} maxLen={60} /></td>
+                  <td className="p-2 text-muted-foreground"><ScenarioPreview text={a.scenario} /></td>
                 </tr>
               ))}
             </tbody>
@@ -1436,7 +1407,7 @@ export default function DrillTraining() {
                     <span className="font-semibold text-sm">우리 부서 훈련 ({myAssignment.department})</span>
                     <Badge className="ml-auto">{progressCount(myAssignment)}/3 완료</Badge>
                   </div>
-                  <ScenarioPreview text={myAssignment.scenario} maxLen={100} />
+                  <ScenarioPreview text={myAssignment.scenario} />
                   <div className="flex gap-2 flex-wrap">
                     {[
                       { step: 1, label: "1단계: SNS보고", status: myAssignment.step1Status },
@@ -1486,7 +1457,7 @@ export default function DrillTraining() {
                                   : <span className="text-amber-600">{done}/3 완료</span>}
                               </span>
                             </div>
-                            <div className="mt-1"><ScenarioPreview text={a.scenario} maxLen={80} /></div>
+                            <div className="mt-1 overflow-hidden"><ScenarioPreview text={a.scenario} /></div>
                             <div className="flex gap-3 mt-1.5">
                               {[
                                 { label: "SNS", status: a.step1Status },
