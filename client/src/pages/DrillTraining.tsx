@@ -30,37 +30,70 @@ function isHtml(s: string): boolean {
   return s.trimStart().startsWith("<");
 }
 
-// 시나리오 전체 렌더링 (HTML → dangerouslySetInnerHTML, 텍스트 → 단락 분리)
+/* ── 시나리오 HTML 스타일 (scoped) ── */
+const SCENARIO_STYLE = `
+.scn-body { font-size:0.875rem; line-height:1.8; color:#1f2937; }
+.scn-body p { margin:0; padding:2px 0; }
+.scn-body > p:first-child { margin-bottom:10px; }
+.scn-body > p:first-child strong {
+  display:block; font-size:1rem; font-weight:700;
+  color:#1e40af;
+  background:linear-gradient(135deg,#eff6ff 0%,#f0f9ff 100%);
+  padding:10px 16px; border-left:4px solid #3b82f6;
+  border-radius:0 8px 8px 0; letter-spacing:-0.01em;
+}
+.scn-body ul { list-style:none; padding:0; margin:0; }
+.scn-body li { padding:3px 0; }
+.scn-body li > strong:only-child {
+  display:block; font-weight:700; font-size:0.82rem;
+  color:#0f172a; background:#f1f5f9;
+  padding:5px 12px; margin:10px 0 2px;
+  border-left:3px solid #64748b;
+  border-radius:0 6px 6px 0; letter-spacing:0.01em;
+}
+.scn-body li:not(:has(strong:only-child)) {
+  padding:3px 14px; color:#374151;
+  border-bottom:1px solid #f3f4f6;
+  font-size:0.83rem;
+}
+.scn-body li:last-child { border-bottom:none; }
+.dark .scn-body { color:#e2e8f0; }
+.dark .scn-body > p:first-child strong { color:#93c5fd; background:linear-gradient(135deg,#1e3a5f 0%,#1e3a5f 100%); border-color:#3b82f6; }
+.dark .scn-body li > strong:only-child { color:#f1f5f9; background:#1e293b; border-color:#475569; }
+.dark .scn-body li:not(:has(strong:only-child)) { color:#cbd5e1; border-color:#1e293b; }
+`;
+
+// 시나리오 전체 렌더링
 function ScenarioFull({ text, className = "" }: { text: string; className?: string }) {
   if (isHtml(text)) {
     return (
-      <div
-        className={`prose prose-sm max-w-none dark:prose-invert leading-relaxed ${className}`}
-        dangerouslySetInnerHTML={{ __html: text }}
-      />
-    );
-  }
-  // plain text: 빈줄(\n\n) 기준 단락 분리 → 없으면 단일 \n으로 분리
-  const byDouble = text.split(/\n{2,}/).map(p => p.trim()).filter(Boolean);
-  if (byDouble.length > 1) {
-    return (
-      <div className={`space-y-2 text-sm leading-relaxed ${className}`}>
-        {byDouble.map((p, i) => <p key={i} className="whitespace-pre-wrap">{p}</p>)}
+      <div className={className}>
+        <style>{SCENARIO_STYLE}</style>
+        <div className="scn-body" dangerouslySetInnerHTML={{ __html: text }} />
       </div>
     );
   }
-  const bySingle = text.split(/\n/).map(l => l.trim()).filter(Boolean);
-  if (bySingle.length > 3) {
-    return (
-      <div className={`space-y-1 text-sm leading-relaxed ${className}`}>
-        {bySingle.map((l, i) => <p key={i}>{l}</p>)}
-      </div>
-    );
-  }
-  return <p className={`text-sm whitespace-pre-wrap leading-relaxed ${className}`}>{text}</p>;
+  // plain text: 빈줄 기준 단락 분리
+  const lines = text.split(/\n/).map(l => l.trim()).filter(Boolean);
+  const isHeader = (l: string) =>
+    l.length < 30 && (l.endsWith("발생") || l.endsWith("조치") || l.endsWith("보고") || l.endsWith("훈련") || l.endsWith("사항") || l.endsWith("사고") || /^\*/.test(l) || /^[①②③④⑤]/.test(l));
+
+  return (
+    <div className={`text-sm leading-relaxed space-y-0.5 ${className}`}>
+      {lines.map((l, i) => isHeader(l) ? (
+        <div key={i} className="font-semibold text-[0.82rem] text-slate-800 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 mt-3 border-l-[3px] border-slate-400 rounded-r">
+          {l}
+        </div>
+      ) : (
+        <p key={i} className="px-3 py-0.5 text-[0.83rem] text-slate-600 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800 last:border-0">
+          {l}
+        </p>
+      ))}
+    </div>
+  );
 }
 
-// 시나리오 접기/펼치기 래퍼 (상세 다이얼로그용) - PDF/JPG 업로드 파일 우선 표시
+// 시나리오 접기/펼치기 (상세 다이얼로그용)
 function ScenarioCollapsible({ assignment, isAdmin, onFileUploaded }: {
   assignment: DrillAssignment; isAdmin: boolean; onFileUploaded?: (url: string, name: string) => void;
 }) {
@@ -91,47 +124,58 @@ function ScenarioCollapsible({ assignment, isAdmin, onFileUploaded }: {
   }
 
   return (
-    <div className="bg-muted/40 rounded-lg border text-sm">
+    <div className="rounded-xl border border-blue-200 dark:border-blue-800/60 overflow-hidden shadow-sm">
+      {/* 트리거 헤더 */}
       <button
-        className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-muted/60 transition-colors rounded-lg"
+        className="w-full flex items-center gap-2.5 px-4 py-2.5 bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors text-left"
         onClick={() => setOpen(o => !o)}
       >
-        <span className="text-xs text-muted-foreground flex-1 mr-2 line-clamp-1">
+        <ClipboardList className="w-4 h-4 text-blue-500 shrink-0" />
+        <span className="text-xs font-semibold text-blue-700 dark:text-blue-300 whitespace-nowrap">시나리오</span>
+        <span className="flex-1 text-xs text-blue-600/70 dark:text-blue-400/70 truncate min-w-0">
           {hasFile
             ? <span className="flex items-center gap-1"><FileText className="w-3 h-3 inline" />{assignment.scenarioFileName}</span>
-            : <>{plain.slice(0, 100)}{plain.length > 100 ? "…" : ""}</>}
+            : plain.slice(0, 80) + (plain.length > 80 ? "…" : "")}
         </span>
-        <span className="text-xs text-primary whitespace-nowrap">{open ? "접기 ▲" : "시나리오 전체 보기 ▼"}</span>
+        <span className="text-xs text-blue-500 font-medium whitespace-nowrap shrink-0">
+          {open ? "접기 ▲" : "전체 보기 ▼"}
+        </span>
       </button>
+
+      {/* 펼쳐진 본문 */}
       {open && (
-        <div className="px-3 pb-3 border-t mt-0">
+        <div className="border-t border-blue-100 dark:border-blue-800/40 bg-white dark:bg-slate-900/60">
           {hasFile ? (
-            <div className="mt-2">
+            <div className="p-3">
               {(() => {
                 const fn = assignment.scenarioFileName?.toLowerCase() ?? '';
                 if (fn.endsWith('.pdf') || fn.endsWith('.html')) {
-                  return <iframe src={assignment.scenarioFileUrl!} className="w-full h-[480px] rounded border bg-white" title="시나리오" />;
+                  return <iframe src={assignment.scenarioFileUrl!} className="w-full h-[520px] rounded-lg border border-slate-200 dark:border-slate-700 bg-white" title="시나리오" />;
                 }
-                return <img src={assignment.scenarioFileUrl!} alt="시나리오" className="max-w-full rounded border mx-auto" />;
+                return <img src={assignment.scenarioFileUrl!} alt="시나리오" className="max-w-full rounded-lg border mx-auto shadow-sm" />;
               })()}
               <a href={assignment.scenarioFileUrl!} target="_blank" rel="noreferrer"
-                className="text-xs text-primary underline mt-1 block text-center">새 탭에서 열기</a>
+                className="text-xs text-blue-500 hover:underline mt-2 flex items-center justify-center gap-1">
+                <Eye className="w-3 h-3" />새 탭에서 열기
+              </a>
             </div>
           ) : (
-            <div className="max-h-72 overflow-y-auto">
-              <ScenarioFull text={text} className="mt-2" />
+            <div className="max-h-[420px] overflow-y-auto px-1 py-2">
+              <ScenarioFull text={text} />
             </div>
           )}
+
           {isAdmin && (
-            <div className="mt-2 pt-2 border-t flex items-center gap-2">
-              <label className="cursor-pointer">
-                <span className="text-xs text-primary border border-primary/30 rounded px-2 py-1 hover:bg-primary/5">
-                  {uploading ? "변환 중..." : hasFile ? "📎 파일 교체" : "📎 파일 업로드"}
+            <div className="px-4 py-2.5 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 flex items-center gap-3">
+              <label className="cursor-pointer shrink-0">
+                <span className="inline-flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 border border-blue-300 dark:border-blue-700 rounded-md px-2.5 py-1 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors font-medium">
+                  <Upload className="w-3 h-3" />
+                  {uploading ? "변환 중..." : hasFile ? "파일 교체" : "파일 업로드"}
                 </span>
                 <input type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" className="hidden"
                   onChange={uploadFile} disabled={uploading} />
               </label>
-              <span className="text-xs text-muted-foreground">PDF · JPG · Word(.docx) — Word는 자동으로 변환됩니다</span>
+              <span className="text-xs text-muted-foreground">PDF · JPG · Word(.docx) 업로드 — Word는 자동 변환</span>
             </div>
           )}
         </div>
