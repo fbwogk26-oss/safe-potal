@@ -32,44 +32,79 @@ function isHtml(s: string): boolean {
 
 /* ── 시나리오 HTML 스타일 (scoped) ── */
 const SCENARIO_STYLE = `
-.scn-body { font-size:0.875rem; line-height:1.8; color:#1f2937; }
-.scn-body p { margin:0; padding:2px 0; }
-.scn-body > p:first-child { margin-bottom:10px; }
+/* ─ 기본 ─ */
+.scn-body { font-size:0.84rem; line-height:1.75; color:#1f2937; }
+.scn-body p { margin:0 0 4px; }
+
+/* ─ 문서 제목 (첫 번째 p > strong) ─ */
 .scn-body > p:first-child strong {
-  display:block; font-size:1rem; font-weight:700;
-  color:#1e40af;
-  background:linear-gradient(135deg,#eff6ff 0%,#f0f9ff 100%);
+  display:block; font-size:0.95rem; font-weight:700; color:#1e40af;
+  background:linear-gradient(135deg,#eff6ff,#e0f2fe);
   padding:10px 16px; border-left:4px solid #3b82f6;
-  border-radius:0 8px 8px 0; letter-spacing:-0.01em;
+  border-radius:0 8px 8px 0; margin-bottom:12px;
 }
-.scn-body ul { list-style:none; padding:0; margin:0; }
-.scn-body li { padding:3px 0; }
-.scn-body li > strong:only-child {
-  display:block; font-weight:700; font-size:0.82rem;
-  color:#0f172a; background:#f1f5f9;
-  padding:5px 12px; margin:10px 0 2px;
-  border-left:3px solid #64748b;
-  border-radius:0 6px 6px 0; letter-spacing:0.01em;
-}
-.scn-body li:not(:has(strong:only-child)) {
-  padding:3px 14px; color:#374151;
-  border-bottom:1px solid #f3f4f6;
-  font-size:0.83rem;
-}
+
+/* ─ 본문 강조 텍스트 ─ */
+.scn-body strong { font-weight:700; color:#1e293b; }
+
+/* ─ 리스트 ─ */
+.scn-body ul { list-style:none; padding:0; margin:0 0 8px; }
+.scn-body li { padding:3px 0; border-bottom:1px solid #f1f5f9; }
 .scn-body li:last-child { border-bottom:none; }
+.scn-body li > strong:only-child {
+  display:block; font-size:0.81rem; font-weight:700; color:#0f172a;
+  background:#f1f5f9; padding:5px 12px; margin:10px 0 2px;
+  border-left:3px solid #94a3b8; border-radius:0 6px 6px 0;
+}
+.scn-body li:not(:has(> strong:only-child)) { padding:3px 14px; color:#374151; font-size:0.82rem; }
+
+/* ─ 표 (Word에서 변환된 table) ─ */
+.scn-body .scn-tbl-wrap { overflow-x:auto; margin:8px 0; border-radius:8px; border:1px solid #e2e8f0; }
+.scn-body table { border-collapse:collapse; width:100%; font-size:0.81rem; }
+.scn-body table tr:first-child td,
+.scn-body table tr:first-child th,
+.scn-body table thead td,
+.scn-body table thead th {
+  background:#1e40af; color:#fff; font-weight:700;
+  padding:8px 10px; text-align:center; white-space:nowrap;
+  border:1px solid #1d4ed8;
+}
+.scn-body table tr:not(:first-child) td,
+.scn-body table tbody td {
+  padding:7px 10px; border:1px solid #e2e8f0;
+  vertical-align:top; color:#374151; line-height:1.6;
+}
+.scn-body table tr:nth-child(even) td { background:#f8fafc; }
+.scn-body table tr:not(:first-child):hover td { background:#eff6ff; }
+.scn-body table td p { margin:0; }
+.scn-body table td strong { color:#1e40af; }
+
+/* ─ 다크모드 ─ */
 .dark .scn-body { color:#e2e8f0; }
-.dark .scn-body > p:first-child strong { color:#93c5fd; background:linear-gradient(135deg,#1e3a5f 0%,#1e3a5f 100%); border-color:#3b82f6; }
+.dark .scn-body > p:first-child strong { color:#93c5fd; background:linear-gradient(135deg,#1e3a5f,#1e3654); border-color:#3b82f6; }
+.dark .scn-body strong { color:#f1f5f9; }
 .dark .scn-body li > strong:only-child { color:#f1f5f9; background:#1e293b; border-color:#475569; }
-.dark .scn-body li:not(:has(strong:only-child)) { color:#cbd5e1; border-color:#1e293b; }
+.dark .scn-body li:not(:has(> strong:only-child)) { color:#cbd5e1; border-color:#1e293b; }
+.dark .scn-body .scn-tbl-wrap { border-color:#334155; }
+.dark .scn-body table tr:first-child td,
+.dark .scn-body table tr:first-child th { background:#1e3a8a; border-color:#1e40af; }
+.dark .scn-body table tr:not(:first-child) td { border-color:#334155; color:#cbd5e1; }
+.dark .scn-body table tr:nth-child(even) td { background:#1e293b; }
+.dark .scn-body table tr:not(:first-child):hover td { background:#1e3a5f; }
+.dark .scn-body table td strong { color:#93c5fd; }
 `;
 
 // 시나리오 전체 렌더링
 function ScenarioFull({ text, className = "" }: { text: string; className?: string }) {
   if (isHtml(text)) {
+    // table을 scn-tbl-wrap div로 감싸서 overflow-x 스크롤 적용
+    const wrapped = text
+      .replace(/<table/gi, '<div class="scn-tbl-wrap"><table')
+      .replace(/<\/table>/gi, '</table></div>');
     return (
       <div className={className}>
         <style>{SCENARIO_STYLE}</style>
-        <div className="scn-body" dangerouslySetInnerHTML={{ __html: text }} />
+        <div className="scn-body" dangerouslySetInnerHTML={{ __html: wrapped }} />
       </div>
     );
   }
