@@ -739,6 +739,7 @@ export const riskAssessmentResultUploads = pgTable("risk_assessment_result_uploa
   label: text("label").notNull(),
   totalRows: integer("total_rows").notNull().default(0),
   rows: jsonb("rows").notNull().default([]),
+  rawSheet: jsonb("raw_sheet"),
   uploadedBy: text("uploaded_by"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

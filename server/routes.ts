@@ -4144,14 +4144,29 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
         return Number(v) || null;
       }
 
-      const rows: any[] = [];
-      let headerRow: any[] = [];
+      // ── 원본 시트 전체 저장 (rawSheet) ──
+      const rawHeaders: string[] = [];
+      const rawRows: any[][] = [];
       sheet.eachRow((row, ri) => {
-        if (ri === 1) { headerRow = row.values as any[]; return; }
+        const cells: any[] = [];
+        row.eachCell({ includeEmpty: true }, (cell) => {
+          cells.push(getCellText(cell));
+        });
+        if (ri === 1) {
+          rawHeaders.push(...cells);
+        } else {
+          if (cells.some(c => c !== "")) rawRows.push(cells);
+        }
+      });
+
+      // ── 분석용 rows 파싱 ──
+      const rows: any[] = [];
+      sheet.eachRow((row, ri) => {
+        if (ri === 1) return;
         const c = (i: number) => row.getCell(i);
         const team = getCellText(c(4));
         const registrant = getCellText(c(5));
-        if (!team && !registrant) return; // 빈 행 스킵
+        if (!team && !registrant) return;
         rows.push({
           no: getCellNum(c(1)),
           category: getCellText(c(2)),
@@ -4188,6 +4203,7 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
         label,
         totalRows: rows.length,
         rows: rows as any,
+        rawSheet: { headers: rawHeaders, rows: rawRows } as any,
         uploadedBy: req.user?.username || null,
       });
       res.json(upload);
@@ -4433,38 +4449,70 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
       setDataRow(ws2, r2, totalVals2, false, { bold: true, bgArgb: C.total });
 
       // ═══════════════════════════════════════════════
-      // 시트3: 원본 업로드 데이터
+      // ═══════════════════════════════════════════════
+      // 시트3: 원본 데이터 (rawSheet 우선, 없으면 기존 rows)
       // ═══════════════════════════════════════════════
       const ws3 = wb.addWorksheet('📋 원본 데이터');
-      const rawCols = ['팀', '성명', '담당업무', '위험요인', '가능성', '중대성', '위험점수', '위험등급', '승인상태'];
-      ws3.columns = [
-        { width: 18 }, { width: 12 }, { width: 16 }, { width: 36 },
-        { width: 9 }, { width: 9 }, { width: 9 }, { width: 10 }, { width: 12 },
-      ];
-      const s3HdrColors = rawCols.map(() => C.rawHeader);
-      const hdrStart3 = addTitleRow(ws3, autoTitle, rawCols.length, `원본 데이터 · 업로드: ${upload.label}  (${rows.length}건)`);
-      setHeader(ws3, hdrStart3, rawCols, s3HdrColors);
+      const rawSheetData = upload.rawSheet as { headers: string[]; rows: any[][] } | null | undefined;
 
-      let r3 = hdrStart3 + 1;
-      for (const [i, r] of rows.entries()) {
-        const vals: (string|number|null)[] = [
-          r.team || '', r.registrant || '', r.responsibleTask || '',
-          r.hazardFactor || '', r.frequency ?? '', r.severity ?? '',
-          r.riskScore ?? '', r.riskLevel || '', normalizeStatus(r.status),
+      if (rawSheetData?.headers?.length && rawSheetData?.rows?.length) {
+        // ── rawSheet 있음: 원본 그대로 재현 ──
+        const colCount = rawSheetData.headers.length;
+        ws3.columns = rawSheetData.headers.map((h: string) => ({
+          width: Math.min(Math.max((h || '').length * 1.8 + 4, 10), 50),
+        }));
+
+        const hdrStart3 = addTitleRow(ws3, autoTitle, colCount, `원본 데이터 · 업로드: ${upload.label}  (${rawSheetData.rows.length}건)`);
+        // 헤더 행
+        setHeader(ws3, hdrStart3, rawSheetData.headers, rawSheetData.headers.map(() => C.rawHeader));
+
+        let r3 = hdrStart3 + 1;
+        for (const [i, dataRow] of rawSheetData.rows.entries()) {
+          const rowObj = ws3.getRow(r3);
+          const bgArgb = i % 2 === 1 ? C.rawOdd : C.rowEven;
+          for (let ci = 0; ci < colCount; ci++) {
+            const cell = rowObj.getCell(ci + 1);
+            const v = dataRow[ci] ?? '';
+            cell.value = v;
+            cell.fill = fill(bgArgb);
+            cell.font = { name: FONT, size: 10 };
+            cell.border = allBorders;
+            cell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: false };
+          }
+          rowObj.height = 18;
+          rowObj.commit();
+          r3++;
+        }
+      } else {
+        // ── rawSheet 없음(구형 업로드): 기존 방식으로 표시 ──
+        const rawCols = ['팀', '성명', '담당업무', '위험요인', '가능성', '중대성', '위험점수', '위험등급', '승인상태'];
+        ws3.columns = [
+          { width: 18 }, { width: 12 }, { width: 16 }, { width: 36 },
+          { width: 9 }, { width: 9 }, { width: 9 }, { width: 10 }, { width: 12 },
         ];
-        const rowObj = ws3.getRow(r3);
-        const bgArgb = i % 2 === 1 ? C.rawOdd : C.rowEven;
-        vals.forEach((v, ci) => {
-          const cell = rowObj.getCell(ci + 1);
-          cell.value = v ?? '';
-          cell.fill = fill(bgArgb);
-          cell.font = { name: FONT, size: 10 };
-          cell.border = allBorders;
-          cell.alignment = ci <= 2 ? { horizontal: 'center', vertical: 'middle' } : { horizontal: 'left', vertical: 'middle', wrapText: true };
-        });
-        rowObj.height = 18;
-        rowObj.commit();
-        r3++;
+        const hdrStart3 = addTitleRow(ws3, autoTitle, rawCols.length, `원본 데이터 · 업로드: ${upload.label}  (${rows.length}건)`);
+        setHeader(ws3, hdrStart3, rawCols, rawCols.map(() => C.rawHeader));
+        let r3 = hdrStart3 + 1;
+        for (const [i, r] of rows.entries()) {
+          const vals: (string|number|null)[] = [
+            r.team || '', r.registrant || '', r.responsibleTask || '',
+            r.hazardCondition || r.hazardFactor || '', r.frequency ?? '', r.severity ?? '',
+            r.riskScore ?? '', r.riskLevel || '', normalizeStatus(r.status),
+          ];
+          const rowObj = ws3.getRow(r3);
+          const bgArgb = i % 2 === 1 ? C.rawOdd : C.rowEven;
+          vals.forEach((v, ci) => {
+            const cell = rowObj.getCell(ci + 1);
+            cell.value = v ?? '';
+            cell.fill = fill(bgArgb);
+            cell.font = { name: FONT, size: 10 };
+            cell.border = allBorders;
+            cell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
+          });
+          rowObj.height = 18;
+          rowObj.commit();
+          r3++;
+        }
       }
 
       // ═══════════════════════════════════════════════
