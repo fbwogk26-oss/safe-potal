@@ -72,7 +72,7 @@ export default function SafetyManagerReports() {
       // 서버 AI 분석으로 점검일자 추출
       const fd = new FormData();
       fd.append("file", selected);
-      const res = await fetch("/api/safety-manager-reports/analyze-pdf", { method: "POST", body: fd });
+      const res = await fetch("/api/safety-manager-reports/analyze-pdf", { method: "POST", body: fd, credentials: "include" });
       if (res.ok) {
         const { data } = await res.json();
         if (data?.visitDate) {
@@ -96,12 +96,12 @@ export default function SafetyManagerReports() {
 
   const { data: reports = [], isLoading } = useQuery<SafetyManagerReport[]>({
     queryKey: ["/api/safety-manager-reports", yearMonth],
-    queryFn: () => fetch(`/api/safety-manager-reports?yearMonth=${yearMonth}`).then(r => r.json()),
+    queryFn: () => fetch(`/api/safety-manager-reports?yearMonth=${yearMonth}`, { credentials: "include" }).then(r => r.json()),
   });
 
   const { data: annualReports = [] } = useQuery<SafetyManagerReport[]>({
     queryKey: ["/api/safety-manager-reports", "year", String(year)],
-    queryFn: () => fetch(`/api/safety-manager-reports?year=${year}`).then(r => r.json()),
+    queryFn: () => fetch(`/api/safety-manager-reports?year=${year}`, { credentials: "include" }).then(r => r.json()),
   });
 
   const deleteMutation = useMutation({
@@ -138,9 +138,9 @@ export default function SafetyManagerReports() {
       if (file) fd.append("file", file);
       let res: Response;
       if (editing) {
-        res = await fetch(`/api/safety-manager-reports/${editing.id}`, { method: "PATCH", body: fd });
+        res = await fetch(`/api/safety-manager-reports/${editing.id}`, { method: "PATCH", body: fd, credentials: "include" });
       } else {
-        res = await fetch("/api/safety-manager-reports", { method: "POST", body: fd });
+        res = await fetch("/api/safety-manager-reports", { method: "POST", body: fd, credentials: "include" });
       }
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
