@@ -17,6 +17,7 @@ import { promisify } from "util";
 const execFileAsync = promisify(execFile);
 import ExcelJS from "exceljs";
 import XLSX from "xlsx";
+import mammoth from "mammoth";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 import { objectStorageClient } from "./replit_integrations/object_storage/objectStorage";
 import { setObjectAclPolicy } from "./replit_integrations/object_storage/objectAcl";
@@ -10328,18 +10329,20 @@ ${htmlDraft}
   // 워드 파일 파싱 (시나리오 텍스트 추출)
   app.post('/api/drill-docx/parse', requireEditor, drillDocxUpload.array('files', 20), async (req: any, res) => {
     try {
-      const mammoth = await import('mammoth');
       const files = req.files as Express.Multer.File[];
       if (!files || files.length === 0) return res.status(400).json({ message: '파일 없음' });
       const results = await Promise.all(files.map(async (f) => {
         const result = await mammoth.extractRawText({ buffer: f.buffer });
         return {
           fileName: f.originalname.replace(/\.docx?$/i, ''),
-          text: result.value.trim(),
+          text: (result.value ?? '').trim(),
         };
       }));
       res.json(results);
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
+    } catch (e: any) {
+      console.error('[drill-docx/parse error]', e);
+      res.status(500).json({ message: e.message });
+    }
   });
 
   // 부서별 시나리오 일괄 배정
