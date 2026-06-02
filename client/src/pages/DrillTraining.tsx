@@ -60,10 +60,36 @@ function ScenarioFull({ text, className = "" }: { text: string; className?: stri
   return <p className={`text-sm whitespace-pre-wrap leading-relaxed ${className}`}>{text}</p>;
 }
 
-// 시나리오 접기/펼치기 래퍼 (상세 다이얼로그용)
-function ScenarioCollapsible({ text }: { text: string }) {
+// 시나리오 접기/펼치기 래퍼 (상세 다이얼로그용) - PDF/JPG 업로드 파일 우선 표시
+function ScenarioCollapsible({ assignment, isAdmin, onFileUploaded }: {
+  assignment: DrillAssignment; isAdmin: boolean; onFileUploaded?: (url: string, name: string) => void;
+}) {
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const text = assignment.scenario;
   const plain = isHtml(text) ? stripHtml(text) : text.replace(/\n+/g, " ");
+  const hasFile = !!assignment.scenarioFileUrl;
+
+  async function uploadFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch(`/api/drill-assignments/${assignment.id}/scenario-file`, {
+        method: "PUT", body: fd, credentials: "include",
+      });
+      if (!res.ok) throw new Error("업로드 실패");
+      const updated = await res.json();
+      onFileUploaded?.(updated.scenarioFileUrl, updated.scenarioFileName);
+      toast({ title: "시나리오 파일 업로드 완료" });
+      setOpen(true);
+    } catch { toast({ title: "업로드 오류", variant: "destructive" }); }
+    finally { setUploading(false); }
+  }
+
   return (
     <div className="bg-muted/40 rounded-lg border text-sm">
       <button
@@ -71,13 +97,41 @@ function ScenarioCollapsible({ text }: { text: string }) {
         onClick={() => setOpen(o => !o)}
       >
         <span className="text-xs text-muted-foreground flex-1 mr-2 line-clamp-1">
-          {plain.slice(0, 100)}{plain.length > 100 ? "…" : ""}
+          {hasFile
+            ? <span className="flex items-center gap-1"><FileText className="w-3 h-3 inline" />{assignment.scenarioFileName}</span>
+            : <>{plain.slice(0, 100)}{plain.length > 100 ? "…" : ""}</>}
         </span>
         <span className="text-xs text-primary whitespace-nowrap">{open ? "접기 ▲" : "시나리오 전체 보기 ▼"}</span>
       </button>
       {open && (
-        <div className="px-3 pb-3 border-t mt-0 max-h-72 overflow-y-auto">
-          <ScenarioFull text={text} className="mt-2" />
+        <div className="px-3 pb-3 border-t mt-0">
+          {hasFile ? (
+            <div className="mt-2">
+              {assignment.scenarioFileName?.toLowerCase().endsWith('.pdf') ? (
+                <iframe src={assignment.scenarioFileUrl!} className="w-full h-96 rounded border" title="시나리오" />
+              ) : (
+                <img src={assignment.scenarioFileUrl!} alt="시나리오" className="max-w-full rounded border mx-auto" />
+              )}
+              <a href={assignment.scenarioFileUrl!} target="_blank" rel="noreferrer"
+                className="text-xs text-primary underline mt-1 block text-center">새 탭에서 열기</a>
+            </div>
+          ) : (
+            <div className="max-h-72 overflow-y-auto">
+              <ScenarioFull text={text} className="mt-2" />
+            </div>
+          )}
+          {isAdmin && (
+            <div className="mt-2 pt-2 border-t flex items-center gap-2">
+              <label className="cursor-pointer">
+                <span className="text-xs text-primary border border-primary/30 rounded px-2 py-1 hover:bg-primary/5">
+                  {uploading ? "업로드 중..." : hasFile ? "📎 파일 교체 (PDF/JPG)" : "📎 PDF/JPG 파일 업로드"}
+                </span>
+                <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden"
+                  onChange={uploadFile} disabled={uploading} />
+              </label>
+              <span className="text-xs text-muted-foreground">Word 파일을 PDF나 이미지로 변환 후 업로드하세요</span>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -123,6 +177,8 @@ type DrillAssignment = {
   step3SubmittedAt: string | null;
   step3SubmittedBy: string | null;
   preEduData: any; // { attendees: [{no,name}], photos: [url,...] }
+  scenarioFileUrl: string | null;
+  scenarioFileName: string | null;
 };
 
 const DEPT_LIST = [
@@ -454,7 +510,7 @@ function Step3Form({
     totalComment: "", opinion: "",
     drillAttendees: [{ no: "1", name: s1?.victimName ?? "" }],
   });
-  const [drillPhotos, setDrillPhotos] = useState<File[]>([]);
+  const [drillPhotos, setDrillPhotos] = useState<Record<string, File[]>>({});
   const [submitting, setSubmitting] = useState(false);
   const set = (k: string) => (e: any) => setForm(p => ({ ...p, [k]: e.target.value }));
 
@@ -477,7 +533,10 @@ function Step3Form({
     try {
       const fd = new FormData();
       fd.append("data", JSON.stringify(form));
-      drillPhotos.forEach(f => fd.append("photos", f));
+      // 4가지 슬롯별 사진 업로드 (fieldName: slotKey_photos)
+      Object.entries(drillPhotos).forEach(([key, files]) => {
+        files.forEach(f => fd.append(`${key}_photos`, f));
+      });
       await fetch(`/api/drill-assignments/${assignment.id}/step/3`, {
         method: "POST", body: fd, credentials: "include",
       });
@@ -539,13 +598,43 @@ function Step3Form({
         </div>
       </div>
 
-      {/* 훈련 사진 */}
-      <div>
-        <Label>훈련 사진</Label>
-        <Input type="file" accept="image/*" multiple className="mt-1"
-          onChange={e => setDrillPhotos(Array.from(e.target.files || []))} />
-        <PhotoPreviews files={drillPhotos} />
-      </div>
+      {/* 훈련 사진 – 4가지 상황별 */}
+      {(() => {
+        const PHOTO_SLOTS = [
+          { key: "accident", label: "① 사고발생", desc: "사고 직후 현장 사진" },
+          { key: "rescue",   label: "② 구호조치", desc: "응급처치 또는 구호 장면" },
+          { key: "report",   label: "③ 부서장 보고", desc: "부서장에게 보고하는 장면" },
+          { key: "hospital", label: "④ 병원방문", desc: "병원 이송 또는 방문 사진" },
+        ] as const;
+        return (
+          <div className="border rounded-lg p-3 space-y-3">
+            <Label className="flex items-center gap-1 text-sm font-semibold">
+              📷 훈련 사진 <span className="text-xs font-normal text-muted-foreground">(4가지 상황별로 각각 업로드)</span>
+            </Label>
+            <div className="grid grid-cols-2 gap-3">
+              {PHOTO_SLOTS.map(slot => {
+                const files = drillPhotos[slot.key] || [];
+                return (
+                  <div key={slot.key} className="border rounded p-2 bg-muted/30">
+                    <p className="text-xs font-semibold mb-0.5">{slot.label}</p>
+                    <p className="text-xs text-muted-foreground mb-1.5">{slot.desc}</p>
+                    <Input type="file" accept="image/*" multiple className="h-8 text-xs"
+                      onChange={e => setDrillPhotos(p => ({ ...p, [slot.key]: Array.from(e.target.files || []) }))} />
+                    {files.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {files.map((f, i) => (
+                          <img key={i} src={URL.createObjectURL(f)} alt={`${slot.label}-${i+1}`}
+                            className="h-14 w-14 object-cover rounded border" />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
 
       <DialogFooter>
         <Button variant="outline" onClick={onClose}>취소</Button>
@@ -579,14 +668,20 @@ function PreEduDialog({ assignment, open, onClose, onSaved }: {
       const res = await fetch(`/api/drill-assignments/${assignment.id}/pre-edu`, {
         method: "PUT", body: fd, credentials: "include",
       });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: "저장 실패" }));
+        throw new Error(err.message || "저장 실패");
+      }
       const updated = await res.json();
       // 로컬 상태 즉시 반영
-      onSaved?.(updated.preEduData);
+      onSaved?.(updated.preEduData ?? { attendees, photos: existingPhotos });
       await qc.invalidateQueries({ queryKey: ["/api/drill-sessions", assignment.sessionId, "assignments"] });
       toast({ title: "사전교육 내용 저장 완료" });
       setPhotos([]);
       onClose();
-    } catch { toast({ title: "저장 오류", variant: "destructive" }); }
+    } catch (e: any) {
+      toast({ title: "저장 오류", description: e?.message || "다시 시도해주세요.", variant: "destructive" });
+    }
     finally { setSaving(false); }
   }
 
@@ -614,6 +709,10 @@ function PreEduDialog({ assignment, open, onClose, onSaved }: {
                 <Button variant="outline" size="sm"
                   onClick={() => setAttendees(p => [...p, { no: String(p.length + 1), name: "" }])}>
                   <Plus className="w-3 h-3 mr-1" />1명 추가
+                </Button>
+                <Button variant="outline" size="sm" className="text-red-500 border-red-200 hover:bg-red-50"
+                  onClick={() => setAttendees([{ no: "1", name: "" }])}>
+                  <Trash2 className="w-3 h-3 mr-1" />전체 삭제
                 </Button>
               </div>
             </div>
@@ -670,6 +769,7 @@ function AssignmentDetail({ assignment, sessionId, isAdmin, session, onClose }: 
   const [preEduOpen, setPreEduOpen] = useState(false);
   // 저장 즉시 반영을 위한 로컬 상태 (query refetch 기다리지 않음)
   const [preEduData, setPreEduData] = useState<any>(assignment.preEduData);
+  const [localAssignment, setLocalAssignment] = useState<DrillAssignment>(assignment);
 
   const resetStep = useMutation({
     mutationFn: (step: number) => apiRequest("DELETE", `/api/drill-assignments/${assignment.id}/step/${step}`),
@@ -744,7 +844,8 @@ function AssignmentDetail({ assignment, sessionId, isAdmin, session, onClose }: 
           <p className="font-semibold text-sm">{assignment.department}</p>
           {assignment.accidentType && <Badge variant="outline" className="text-xs">{assignment.accidentType}</Badge>}
         </div>
-        <ScenarioCollapsible text={assignment.scenario} />
+        <ScenarioCollapsible assignment={localAssignment} isAdmin={isAdmin}
+          onFileUploaded={(url, name) => setLocalAssignment(p => ({ ...p, scenarioFileUrl: url, scenarioFileName: name }))} />
       </div>
 
       {/* ── 사전교육 참석자 명단 + 사진 (DB 저장, 항상 표시) ── */}

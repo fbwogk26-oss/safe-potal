@@ -796,6 +796,9 @@ export const drillAssignments = pgTable("drill_assignments", {
   step3SubmittedBy: text("step3_submitted_by"),
   // 사전교육: 참석자 명단 + 사진 (DB 저장)
   preEduData: jsonb("pre_edu_data"),
+  // 시나리오 파일 (PDF/JPG 업로드)
+  scenarioFileUrl: text("scenario_file_url"),
+  scenarioFileName: text("scenario_file_name"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
