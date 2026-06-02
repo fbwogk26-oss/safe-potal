@@ -50,6 +50,8 @@ import {
   type SafetySupplyItem, type InsertSafetySupplyItem,
   riskAssessmentResultUploads,
   type RiskAssessmentResultUpload, type InsertRiskAssessmentResultUpload,
+  riskAssessmentDownloadLogs,
+  type RiskAssessmentDownloadLog, type InsertRiskAssessmentDownloadLog,
   safetySupplyDeptEntries,
   type SafetySupplyDeptEntry, type InsertSafetySupplyDeptEntry,
 } from "@shared/schema";
@@ -228,6 +230,9 @@ export interface IStorage {
   getRiskAssessmentResultUpload(id: number): Promise<RiskAssessmentResultUpload | undefined>;
   createRiskAssessmentResultUpload(data: InsertRiskAssessmentResultUpload): Promise<RiskAssessmentResultUpload>;
   deleteRiskAssessmentResultUpload(id: number): Promise<void>;
+  // Risk Assessment Download Logs
+  getRiskAssessmentDownloadLogs(): Promise<RiskAssessmentDownloadLog[]>;
+  addRiskAssessmentDownloadLog(data: InsertRiskAssessmentDownloadLog): Promise<RiskAssessmentDownloadLog>;
 
   // Education Tasks
   getEducationTasks(): Promise<EducationTask[]>;
@@ -1038,6 +1043,13 @@ export class DatabaseStorage implements IStorage {
   }
   async deleteRiskAssessmentResultUpload(id: number): Promise<void> {
     await db.delete(riskAssessmentResultUploads).where(eq(riskAssessmentResultUploads.id, id));
+  }
+  async getRiskAssessmentDownloadLogs(): Promise<RiskAssessmentDownloadLog[]> {
+    return await db.select().from(riskAssessmentDownloadLogs).orderBy(desc(riskAssessmentDownloadLogs.downloadedAt));
+  }
+  async addRiskAssessmentDownloadLog(data: InsertRiskAssessmentDownloadLog): Promise<RiskAssessmentDownloadLog> {
+    const [row] = await db.insert(riskAssessmentDownloadLogs).values(data).returning();
+    return row;
   }
 }
 

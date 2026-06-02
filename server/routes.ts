@@ -4226,119 +4226,189 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
 
       const ExcelJS = (await import('exceljs')).default;
       const wb = new ExcelJS.Workbook();
+      wb.creator = 'SafeBoard';
+      wb.lastModifiedBy = req.user?.name || req.user?.username || 'system';
       const rows: any[] = (upload.rows as any[]) || [];
 
-      // ── 헬퍼 ──
-      const borderThin = { style: 'thin' as const, color: { argb: 'FFB0B0B0' } };
-      const allBorders = { top: borderThin, left: borderThin, bottom: borderThin, right: borderThin };
-      function hdrFill(argb: string) {
+      // ── 자동 제목 생성 (상/하반기) ──
+      const now = new Date();
+      const yy = now.getFullYear() - 2000;
+      const mo = now.getMonth() + 1;
+      const half = mo <= 6 ? '상반기' : '하반기';
+      const autoTitle = `${yy}년 ${half} 정기 위험성평가 결과`;
+
+      // ── 스타일 헬퍼 ──
+      const FONT = '맑은 고딕';
+      const C = {
+        // 팀/고정 헤더: 진한 남색 계열
+        hdrTeam:   'FF1F3864',  // 진한 남색 (텍스트 흰색)
+        hdrTask:   'FF2E75B6',  // 파란색
+        hdrStatus: 'FF375623',  // 진한 녹색
+        hdrGray:   'FF404040',  // 진한 회색
+        // 데이터 행 교대
+        rowEven:   'FFFFFFFF',
+        rowOdd:    'FFF0F4FA',
+        // 소계/합계
+        subtotal:  'FFDCE6F1',
+        total:     'FFD6DCE4',
+        // 다운로드 내역
+        dlHeader:  'FF7030A0',
+        dlEven:    'FFFFFFFF',
+        dlOdd:     'FFF3EDF7',
+        // 원본데이터
+        rawHeader: 'FF833C00',
+        rawOdd:    'FFFFF2CC',
+        // 제목
+        titleBg:   'FF1F3864',
+      };
+
+      function fill(argb: string) {
         return { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb } };
       }
-      function setRow(ws: any, rowNum: number, values: (string|number)[], fills: (string|null)[], bold = false) {
+      const borderThin  = { style: 'thin'   as const, color: { argb: 'FFB0B8C0' } };
+      const borderMed   = { style: 'medium' as const, color: { argb: 'FF8090A0' } };
+      const allBorders  = { top: borderThin, left: borderThin, bottom: borderThin, right: borderThin };
+      const medBorders  = { top: borderMed,  left: borderMed,  bottom: borderMed,  right: borderMed  };
+
+      // 제목 행 추가 (merge, 진한 배경)
+      function addTitleRow(ws: any, title: string, colCount: number, subtitle?: string) {
+        ws.mergeCells(1, 1, 1, colCount);
+        const tc = ws.getCell(1, 1);
+        tc.value = title;
+        tc.fill = fill(C.titleBg);
+        tc.font = { name: FONT, size: 14, bold: true, color: { argb: 'FFFFFFFF' } };
+        tc.alignment = { horizontal: 'center', vertical: 'middle' };
+        tc.border = medBorders;
+        ws.getRow(1).height = 32;
+        if (subtitle) {
+          ws.mergeCells(2, 1, 2, colCount);
+          const sc = ws.getCell(2, 1);
+          sc.value = subtitle;
+          sc.fill = fill('FF2E4057');
+          sc.font = { name: FONT, size: 10, color: { argb: 'FFCDD8E3' } };
+          sc.alignment = { horizontal: 'center', vertical: 'middle' };
+          ws.getRow(2).height = 20;
+          return 3; // 헤더 시작 행
+        }
+        return 2;
+      }
+
+      // 헤더 행 설정
+      function setHeader(ws: any, rowNum: number, cols: string[], bgArgbs: string[]) {
         const row = ws.getRow(rowNum);
-        values.forEach((v, i) => {
+        cols.forEach((v, i) => {
           const cell = row.getCell(i + 1);
           cell.value = v;
-          cell.border = allBorders;
-          cell.font = { name: '맑은 고딕', size: 10, bold };
+          cell.fill = fill(bgArgbs[i] || C.hdrGray);
+          cell.font = { name: FONT, size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
           cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-          if (fills[i]) cell.fill = hdrFill(fills[i]!);
+          cell.border = medBorders;
         });
+        row.height = 22;
         row.commit();
       }
 
-      // ── 공통: 상태값 정규화 (자동종결 → 승인요청) ──
+      // 데이터 행 설정
+      function setDataRow(ws: any, rowNum: number, values: (string|number|null)[], isOdd: boolean, opts?: { bold?: boolean; bgArgb?: string; fontSize?: number }) {
+        const row = ws.getRow(rowNum);
+        const bgArgb = opts?.bgArgb ?? (isOdd ? C.rowOdd : C.rowEven);
+        values.forEach((v, i) => {
+          const cell = row.getCell(i + 1);
+          cell.value = v ?? '';
+          cell.fill = fill(bgArgb);
+          cell.font = { name: FONT, size: opts?.fontSize ?? 10, bold: opts?.bold ?? false };
+          cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+          cell.border = allBorders;
+          if (i === 0) cell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true, indent: 1 };
+        });
+        row.height = 18;
+        row.commit();
+      }
+
+      // 상태값 정규화
       function normalizeStatus(s: string) {
         return s === '자동종결' ? '승인요청' : (s || '기타');
       }
 
-      // 헤더 색상
-      const headerOrange = 'FFFFF2CC';
-      const headerBlue = 'FFDCE6F1';
-      const headerGreen = 'FFE2EFDA';
-      const headerGray = 'FFF2F2F2';
-
-      // 담당업무 목록 (고유값)
+      const statuses = ['승인완료', '승인요청'];
       const taskSet: string[] = [];
       for (const r of rows) {
         const t = r.responsibleTask || "미분류";
         if (!taskSet.includes(t)) taskSet.push(t);
       }
 
-      // 상태 목록
-      const statuses = ['승인완료', '승인요청'];
+      // ═══════════════════════════════════════════════
+      // 시트1: 등록현황 요약
+      // ═══════════════════════════════════════════════
+      const ws1 = wb.addWorksheet('📊 등록현황 요약');
+      const s1Cols = ['팀', ...taskSet, ...statuses, '합계'];
+      ws1.columns = s1Cols.map((_, i) => ({ width: i === 0 ? 20 : 13 }));
 
-      // ═══ 시트1: 등록현황 요약 ═══
-      const ws1 = wb.addWorksheet('등록현황 요약');
+      const s1HdrColors = [
+        C.hdrTeam,
+        ...taskSet.map(() => C.hdrTask),
+        ...statuses.map(() => C.hdrStatus),
+        C.hdrGray,
+      ];
 
-      // 팀별 집계
+      const hdrStart1 = addTitleRow(ws1, autoTitle, s1Cols.length, `등록현황 요약 · 팀별 × 담당업무 × 승인상태`);
+      setHeader(ws1, hdrStart1, s1Cols, s1HdrColors);
+
       const teamMap: Record<string, { tasks: Record<string, number>; statusMap: Record<string, number>; total: number }> = {};
       for (const r of rows) {
         const team = r.team || "기타";
         const task = r.responsibleTask || "미분류";
         const status = normalizeStatus(r.status);
         if (!teamMap[team]) teamMap[team] = { tasks: {}, statusMap: {}, total: 0 };
-        const t = teamMap[team];
-        t.tasks[task] = (t.tasks[task] || 0) + 1;
-        t.statusMap[status] = (t.statusMap[status] || 0) + 1;
-        t.total++;
+        teamMap[team].tasks[task] = (teamMap[team].tasks[task] || 0) + 1;
+        teamMap[team].statusMap[status] = (teamMap[team].statusMap[status] || 0) + 1;
+        teamMap[team].total++;
       }
       const teams = Object.keys(teamMap);
 
-      const fixedCols = ['팀'];
-      const allCols = [...fixedCols, ...taskSet, ...statuses, '합계'];
-      ws1.columns = allCols.map((_, i) => ({ width: i === 0 ? 18 : 12 }));
-
-      const hdrFills = [
-        headerOrange,
-        ...taskSet.map(() => headerBlue),
-        ...statuses.map(() => headerGreen),
-        headerGray,
-      ];
-      setRow(ws1, 1, allCols, hdrFills, true);
-
-      let rowNum = 2;
-      for (const team of teams) {
+      let r1 = hdrStart1 + 1;
+      for (const [ti, team] of teams.entries()) {
         const t = teamMap[team];
-        const vals: (string|number)[] = [
+        const vals: (string|number|null)[] = [
           team,
           ...taskSet.map(tk => t.tasks[tk] || 0),
           ...statuses.map(s => t.statusMap[s] || 0),
           t.total,
         ];
-        setRow(ws1, rowNum++, vals, vals.map(() => null));
+        setDataRow(ws1, r1++, vals, ti % 2 === 1);
       }
-
-      const totalVals: (string|number)[] = [
-        '합계',
+      // 합계 행
+      const totalVals: (string|number|null)[] = [
+        '합 계',
         ...taskSet.map(tk => teams.reduce((s, tm) => s + (teamMap[tm].tasks[tk] || 0), 0)),
         ...statuses.map(s => teams.reduce((s2, tm) => s2 + (teamMap[tm].statusMap[s] || 0), 0)),
         rows.length,
       ];
-      setRow(ws1, rowNum, totalVals, allCols.map(() => headerGray), true);
+      setDataRow(ws1, r1, totalVals, false, { bold: true, bgArgb: C.total });
 
-      // ═══ 시트2: 부서별 등록건수 (인원별 × 담당업무) ═══
-      const ws2 = wb.addWorksheet('부서별 등록건수');
+      // ═══════════════════════════════════════════════
+      // 시트2: 부서별 등록건수
+      // ═══════════════════════════════════════════════
+      const ws2 = wb.addWorksheet('👥 부서별 등록건수');
+      const s2Cols = ['팀', '성명', '합계', ...taskSet];
+      ws2.columns = s2Cols.map((_, i) => ({ width: i === 0 ? 20 : i === 1 ? 14 : i === 2 ? 10 : 13 }));
 
-      // 인원별 집계 (담당업무별)
+      const s2HdrColors = [C.hdrTeam, C.hdrTeam, C.hdrGray, ...taskSet.map(() => C.hdrTask)];
+      const hdrStart2 = addTitleRow(ws2, autoTitle, s2Cols.length, `부서별 등록건수 · 인원별 담당업무 분야`);
+      setHeader(ws2, hdrStart2, s2Cols, s2HdrColors);
+
       const personMap: Record<string, { team: string; name: string; tasks: Record<string, number>; total: number }> = {};
       for (const r of rows) {
         const key = `${r.team}||${r.registrant}`;
         if (!personMap[key]) personMap[key] = { team: r.team || "", name: r.registrant || "", tasks: {}, total: 0 };
-        const p = personMap[key];
         const task = r.responsibleTask || "미분류";
-        p.tasks[task] = (p.tasks[task] || 0) + 1;
-        p.total++;
+        personMap[key].tasks[task] = (personMap[key].tasks[task] || 0) + 1;
+        personMap[key].total++;
       }
       const personList = Object.values(personMap).sort((a, b) => {
         if (a.team !== b.team) return a.team.localeCompare(b.team, 'ko');
         return b.total - a.total;
       });
-
-      const s2Cols = ['팀', '이름', '합계', ...taskSet];
-      ws2.columns = s2Cols.map((_, i) => ({ width: i === 0 ? 18 : i === 1 ? 12 : 12 }));
-      const s2HdrFills = [headerOrange, headerOrange, headerGray, ...taskSet.map(() => headerBlue)];
-      setRow(ws2, 1, s2Cols, s2HdrFills, true);
 
       const teamGroups2: { team: string; persons: typeof personList }[] = [];
       for (const p of personList) {
@@ -4347,19 +4417,98 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
         else last.persons.push(p);
       }
 
-      let pr = 2;
+      let r2 = hdrStart2 + 1;
+      let oddIdx2 = 0;
       for (const grp of teamGroups2) {
         for (const p of grp.persons) {
-          setRow(ws2, pr++, [p.team, p.name, p.total, ...taskSet.map(t => p.tasks[t] || 0)], s2Cols.map(() => null));
+          const vals: (string|number|null)[] = [p.team, p.name, p.total, ...taskSet.map(t => p.tasks[t] || 0)];
+          setDataRow(ws2, r2++, vals, oddIdx2 % 2 === 1);
+          oddIdx2++;
         }
         const teamTotal = grp.persons.reduce((s, p) => s + p.total, 0);
-        setRow(ws2, pr++, [`${grp.team} 소계`, '', teamTotal, ...taskSet.map(t => grp.persons.reduce((s, p) => s + (p.tasks[t] || 0), 0))], s2Cols.map(() => headerGray), true);
+        const subVals: (string|number|null)[] = [`${grp.team} 소계`, '', teamTotal, ...taskSet.map(t => grp.persons.reduce((s, p) => s + (p.tasks[t] || 0), 0))];
+        setDataRow(ws2, r2++, subVals, false, { bold: true, bgArgb: C.subtotal });
       }
-      setRow(ws2, pr, ['합계', '', rows.length, ...taskSet.map(t => rows.filter((r: any) => (r.responsibleTask || '미분류') === t).length)], s2Cols.map(() => headerGray), true);
+      const totalVals2: (string|number|null)[] = ['합 계', '', rows.length, ...taskSet.map(t => rows.filter((r: any) => (r.responsibleTask || '미분류') === t).length)];
+      setDataRow(ws2, r2, totalVals2, false, { bold: true, bgArgb: C.total });
+
+      // ═══════════════════════════════════════════════
+      // 시트3: 원본 업로드 데이터
+      // ═══════════════════════════════════════════════
+      const ws3 = wb.addWorksheet('📋 원본 데이터');
+      const rawCols = ['팀', '성명', '담당업무', '위험요인', '가능성', '중대성', '위험점수', '위험등급', '승인상태'];
+      ws3.columns = [
+        { width: 18 }, { width: 12 }, { width: 16 }, { width: 36 },
+        { width: 9 }, { width: 9 }, { width: 9 }, { width: 10 }, { width: 12 },
+      ];
+      const s3HdrColors = rawCols.map(() => C.rawHeader);
+      const hdrStart3 = addTitleRow(ws3, autoTitle, rawCols.length, `원본 데이터 · 업로드: ${upload.label}  (${rows.length}건)`);
+      setHeader(ws3, hdrStart3, rawCols, s3HdrColors);
+
+      let r3 = hdrStart3 + 1;
+      for (const [i, r] of rows.entries()) {
+        const vals: (string|number|null)[] = [
+          r.team || '', r.registrant || '', r.responsibleTask || '',
+          r.hazardFactor || '', r.frequency ?? '', r.severity ?? '',
+          r.riskScore ?? '', r.riskLevel || '', normalizeStatus(r.status),
+        ];
+        const rowObj = ws3.getRow(r3);
+        const bgArgb = i % 2 === 1 ? C.rawOdd : C.rowEven;
+        vals.forEach((v, ci) => {
+          const cell = rowObj.getCell(ci + 1);
+          cell.value = v ?? '';
+          cell.fill = fill(bgArgb);
+          cell.font = { name: FONT, size: 10 };
+          cell.border = allBorders;
+          cell.alignment = ci <= 2 ? { horizontal: 'center', vertical: 'middle' } : { horizontal: 'left', vertical: 'middle', wrapText: true };
+        });
+        rowObj.height = 18;
+        rowObj.commit();
+        r3++;
+      }
+
+      // ═══════════════════════════════════════════════
+      // 시트4: 다운로드 내역 (누적)
+      // ═══════════════════════════════════════════════
+      // 먼저 현재 내역 DB에 저장
+      await storage.addRiskAssessmentDownloadLog({
+        title: autoTitle,
+        uploadId: upload.id,
+        uploadLabel: upload.label,
+        totalRows: rows.length,
+        downloadedBy: req.user?.name || req.user?.username || '알 수 없음',
+      });
+      // 전체 내역 조회
+      const dlLogs = await storage.getRiskAssessmentDownloadLogs();
+
+      const ws4 = wb.addWorksheet('📥 다운로드 내역');
+      const dlCols = ['번호', '다운로드 제목', '업로드 파일명', '건수', '다운로드 일시', '담당자'];
+      ws4.columns = [
+        { width: 8 }, { width: 32 }, { width: 28 }, { width: 8 }, { width: 22 }, { width: 16 },
+      ];
+      const s4HdrColors = dlCols.map(() => C.dlHeader);
+      const hdrStart4 = addTitleRow(ws4, '위험성평가 결과 다운로드 내역', dlCols.length, '누적 다운로드 이력');
+      setHeader(ws4, hdrStart4, dlCols, s4HdrColors);
+
+      let r4 = hdrStart4 + 1;
+      for (const [i, log] of dlLogs.entries()) {
+        const dt = new Date(log.downloadedAt);
+        const dtStr = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')} ${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`;
+        const vals: (string|number|null)[] = [
+          dlLogs.length - i,
+          log.title,
+          log.uploadLabel || '',
+          log.totalRows ?? 0,
+          dtStr,
+          log.downloadedBy || '',
+        ];
+        setDataRow(ws4, r4++, vals, i % 2 === 1, { bgArgb: i % 2 === 1 ? C.dlOdd : C.dlEven });
+      }
 
       const buf = await wb.xlsx.writeBuffer();
       const safeLabel = (upload.label || '위험성평가결과').replace(/[/\\?*[\]:]/g, '_');
-      res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(safeLabel + '_분석결과.xlsx')}`);
+      const fileName = `${autoTitle}_${safeLabel}.xlsx`;
+      res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`);
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.send(Buffer.from(buf));
     } catch (e: any) {

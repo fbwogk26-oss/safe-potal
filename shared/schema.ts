@@ -745,6 +745,18 @@ export const riskAssessmentResultUploads = pgTable("risk_assessment_result_uploa
 export type RiskAssessmentResultUpload = typeof riskAssessmentResultUploads.$inferSelect;
 export type InsertRiskAssessmentResultUpload = typeof riskAssessmentResultUploads.$inferInsert;
 
+export const riskAssessmentDownloadLogs = pgTable("risk_assessment_download_logs", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  uploadId: integer("upload_id"),
+  uploadLabel: text("upload_label"),
+  totalRows: integer("total_rows").default(0),
+  downloadedBy: text("downloaded_by"),
+  downloadedAt: timestamp("downloaded_at").defaultNow().notNull(),
+});
+export type RiskAssessmentDownloadLog = typeof riskAssessmentDownloadLogs.$inferSelect;
+export type InsertRiskAssessmentDownloadLog = typeof riskAssessmentDownloadLogs.$inferInsert;
+
 // Export auth schema
 export * from "./models/auth";
 
