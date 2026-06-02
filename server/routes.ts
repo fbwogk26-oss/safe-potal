@@ -4219,6 +4219,184 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
+  app.get('/api/risk-assessment-results/:id/export', isAuthenticated, async (req: any, res) => {
+    try {
+      const upload = await storage.getRiskAssessmentResultUpload(parseInt(req.params.id));
+      if (!upload) return res.status(404).json({ message: "없음" });
+
+      const ExcelJS = (await import('exceljs')).default;
+      const wb = new ExcelJS.Workbook();
+      const rows: any[] = (upload.rows as any[]) || [];
+
+      // ── 헬퍼 ──
+      const borderThin = { style: 'thin' as const, color: { argb: 'FFB0B0B0' } };
+      const allBorders = { top: borderThin, left: borderThin, bottom: borderThin, right: borderThin };
+      function hdrFill(argb: string) {
+        return { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb } };
+      }
+      function setRow(ws: any, rowNum: number, values: (string|number)[], fills: (string|null)[], bold = false) {
+        const row = ws.getRow(rowNum);
+        values.forEach((v, i) => {
+          const cell = row.getCell(i + 1);
+          cell.value = v;
+          cell.border = allBorders;
+          cell.font = { name: '맑은 고딕', size: 10, bold };
+          cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+          if (fills[i]) cell.fill = hdrFill(fills[i]!);
+        });
+        row.commit();
+      }
+
+      // ═══ 시트1: 등록현황 요약 ═══
+      const ws1 = wb.addWorksheet('등록현황 요약');
+
+      // 담당업무 목록 (고유값, 순서 유지)
+      const taskSet: string[] = [];
+      for (const r of rows) {
+        const t = r.responsibleTask || "미분류";
+        if (!taskSet.includes(t)) taskSet.push(t);
+      }
+
+      // 팀별 집계
+      const teamMap: Record<string, {
+        supervisor: string;
+        tasks: Record<string, number>;
+        statusMap: Record<string, number>;
+        total: number;
+      }> = {};
+      for (const r of rows) {
+        const team = r.team || "기타";
+        const task = r.responsibleTask || "미분류";
+        const status = r.status || "기타";
+        if (!teamMap[team]) teamMap[team] = { supervisor: r.supervisor || "", tasks: {}, statusMap: {}, total: 0 };
+        const t = teamMap[team];
+        t.tasks[task] = (t.tasks[task] || 0) + 1;
+        t.statusMap[status] = (t.statusMap[status] || 0) + 1;
+        t.total++;
+      }
+      const teams = Object.keys(teamMap);
+
+      // 상태 목록
+      const statuses = ['임시저장', '승인대기', '승인완료', '자동종결'];
+
+      // 헤더
+      const headerOrange = 'FFFFF2CC';
+      const headerBlue = 'FFDCE6F1';
+      const headerGreen = 'FFE2EFDA';
+      const headerGray = 'FFF2F2F2';
+
+      // 열 설정
+      const fixedCols = ['팀', '부서장'];
+      const allCols = [...fixedCols, ...taskSet, ...statuses, '합계'];
+      ws1.columns = allCols.map((_, i) => ({ width: i < 2 ? 16 : 12 }));
+
+      // 헤더 행
+      const hdrFills = [
+        ...fixedCols.map(() => headerOrange),
+        ...taskSet.map(() => headerBlue),
+        ...statuses.map(() => headerGreen),
+        headerGray,
+      ];
+      setRow(ws1, 1, allCols, hdrFills, true);
+
+      // 데이터 행
+      let rowNum = 2;
+      for (const team of teams) {
+        const t = teamMap[team];
+        const vals: (string|number)[] = [
+          team,
+          t.supervisor,
+          ...taskSet.map(tk => t.tasks[tk] || 0),
+          ...statuses.map(s => t.statusMap[s] || 0),
+          t.total,
+        ];
+        const fills: (string|null)[] = [null, null, ...taskSet.map(() => null), ...statuses.map(() => null), null];
+        setRow(ws1, rowNum++, vals, fills);
+      }
+
+      // 합계 행
+      const totalVals: (string|number)[] = [
+        '합계', '',
+        ...taskSet.map(tk => teams.reduce((s, tm) => s + (teamMap[tm].tasks[tk] || 0), 0)),
+        ...statuses.map(s => teams.reduce((s2, tm) => s2 + (teamMap[tm].statusMap[s] || 0), 0)),
+        rows.length,
+      ];
+      setRow(ws1, rowNum, totalVals, allCols.map(() => headerGray), true);
+
+      // ═══ 시트2: 부서별 등록건수 ═══
+      const ws2 = wb.addWorksheet('부서별 등록건수');
+      ws2.columns = [
+        { width: 18 }, { width: 12 }, { width: 10 },
+        { width: 10 }, { width: 10 }, { width: 10 }, { width: 10 },
+      ];
+      const s2Hdr = ['팀', '이름', '등록건수', '임시저장', '승인대기', '승인완료', '자동종결'];
+      setRow(ws2, 1, s2Hdr, s2Hdr.map(() => headerOrange), true);
+
+      // 인원별 집계
+      const personMap: Record<string, { team: string; name: string; statusMap: Record<string, number>; total: number }> = {};
+      for (const r of rows) {
+        const key = `${r.team}||${r.registrant}`;
+        if (!personMap[key]) personMap[key] = { team: r.team || "", name: r.registrant || "", statusMap: {}, total: 0 };
+        const p = personMap[key];
+        const status = r.status || "기타";
+        p.statusMap[status] = (p.statusMap[status] || 0) + 1;
+        p.total++;
+      }
+      // 팀별 정렬 후 이름 정렬
+      const personList = Object.values(personMap).sort((a, b) => {
+        if (a.team !== b.team) return a.team.localeCompare(b.team, 'ko');
+        return b.total - a.total;
+      });
+
+      let pr = 2;
+      // 팀 단위로 그룹핑하여 팀별 소계 행 추가
+      let currentTeam = '';
+      let teamStart = pr;
+      const teamGroups: { team: string; persons: typeof personList; start: number }[] = [];
+      for (const p of personList) {
+        if (p.team !== currentTeam) {
+          if (currentTeam) teamGroups[teamGroups.length - 1].persons.push(...[]);
+          teamGroups.push({ team: p.team, persons: [], start: pr });
+          currentTeam = p.team;
+        }
+        teamGroups[teamGroups.length - 1].persons.push(p);
+      }
+
+      for (const grp of teamGroups) {
+        const teamStart = pr;
+        for (const p of grp.persons) {
+          setRow(ws2, pr++, [
+            p.team, p.name, p.total,
+            p.statusMap['임시저장'] || 0, p.statusMap['승인대기'] || 0,
+            p.statusMap['승인완료'] || 0, p.statusMap['자동종결'] || 0,
+          ], [null, null, null, null, null, null, null]);
+        }
+        // 팀 소계
+        const teamTotal = grp.persons.reduce((s, p) => s + p.total, 0);
+        setRow(ws2, pr++, [
+          `${grp.team} 소계`, '', teamTotal,
+          grp.persons.reduce((s, p) => s + (p.statusMap['임시저장'] || 0), 0),
+          grp.persons.reduce((s, p) => s + (p.statusMap['승인대기'] || 0), 0),
+          grp.persons.reduce((s, p) => s + (p.statusMap['승인완료'] || 0), 0),
+          grp.persons.reduce((s, p) => s + (p.statusMap['자동종결'] || 0), 0),
+        ], Array(7).fill(headerGray), true);
+      }
+      // 총 합계
+      setRow(ws2, pr, ['합계', '', rows.length,
+        ...statuses.map(s => rows.filter((r: any) => (r.status || '기타') === s).length),
+      ], Array(7).fill(headerGray), true);
+
+      const buf = await wb.xlsx.writeBuffer();
+      const safeLabel = (upload.label || '위험성평가결과').replace(/[/\\?*[\]:]/g, '_');
+      res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(safeLabel + '_분석결과.xlsx')}`);
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.send(Buffer.from(buf));
+    } catch (e: any) {
+      console.error('risk-assessment-results export error:', e.message);
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   // === ACCIDENT REPORTS ===
   app.get('/api/accidents', isAuthenticated, async (req: any, res) => {
     try {
