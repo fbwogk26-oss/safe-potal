@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
+import { usePermissions } from "@/hooks/use-permissions";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -622,7 +623,8 @@ function AddAssignmentDialog({ open, sessionId, onClose }: { open: boolean; sess
 
 // ─── 메인 페이지 ──────────────────────────────────────────────────────────
 export default function DrillTraining() {
-  const { isAdmin, user } = useAuth();
+  const { user } = useAuth();
+  const { isAdmin } = usePermissions();
   const { toast } = useToast();
   const qc = useQueryClient();
 
