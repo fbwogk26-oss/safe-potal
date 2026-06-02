@@ -497,7 +497,24 @@ function Step3Form({
       )}
       <div className="grid grid-cols-2 gap-3">
         <div><Label>훈련일시</Label><Input type="date" value={form.drillDate} onChange={set("drillDate")} /></div>
-        <div><Label>참석인원</Label><Input value={form.participantCount} onChange={set("participantCount")} placeholder="예: 12명" /></div>
+        <div>
+          <Label>참석인원</Label>
+          <Input value={form.participantCount}
+            onChange={e => {
+              const val = e.target.value;
+              setForm(p => ({ ...p, participantCount: val }));
+              // 숫자 파싱 → 훈련 참석자 명단 자동 생성
+              const n = parseInt(val.replace(/[^0-9]/g, ""), 10);
+              if (n > 0 && n <= 100) {
+                setForm(p => ({
+                  ...p,
+                  participantCount: val,
+                  drillAttendees: Array.from({ length: n }, (_, i) => ({ no: String(i + 1), name: "" })),
+                }));
+              }
+            }}
+            placeholder="예: 12명 (입력 시 명단 자동 생성)" />
+        </div>
       </div>
       <div><Label>상황설정</Label><Textarea value={form.situation} onChange={set("situation")} rows={3} placeholder="훈련 상황 설정 내용..." /></div>
       <div><Label>상황발생</Label><Textarea value={form.situationOccur} onChange={set("situationOccur")} rows={2} placeholder="사고 발생 내용..." /></div>
@@ -539,8 +556,9 @@ function Step3Form({
 }
 
 // ─── 사전교육 다이얼로그 (참석자 명단 + 사진 DB 저장) ─────────────────────
-function PreEduDialog({ assignment, open, onClose }: {
+function PreEduDialog({ assignment, open, onClose, onSaved }: {
   assignment: DrillAssignment; open: boolean; onClose: () => void;
+  onSaved?: (data: any) => void;
 }) {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -558,9 +576,12 @@ function PreEduDialog({ assignment, open, onClose }: {
       const fd = new FormData();
       fd.append("data", JSON.stringify({ attendees }));
       photos.forEach(f => fd.append("photos", f));
-      await fetch(`/api/drill-assignments/${assignment.id}/pre-edu`, {
+      const res = await fetch(`/api/drill-assignments/${assignment.id}/pre-edu`, {
         method: "PUT", body: fd, credentials: "include",
       });
+      const updated = await res.json();
+      // 로컬 상태 즉시 반영
+      onSaved?.(updated.preEduData);
       await qc.invalidateQueries({ queryKey: ["/api/drill-sessions", assignment.sessionId, "assignments"] });
       toast({ title: "사전교육 내용 저장 완료" });
       setPhotos([]);
@@ -647,6 +668,8 @@ function AssignmentDetail({ assignment, sessionId, isAdmin, session, onClose }: 
   const [activeStep, setActiveStep] = useState<1 | 2 | 3 | null>(null);
   const [viewStep, setViewStep] = useState<1 | 2 | 3 | null>(null);
   const [preEduOpen, setPreEduOpen] = useState(false);
+  // 저장 즉시 반영을 위한 로컬 상태 (query refetch 기다리지 않음)
+  const [preEduData, setPreEduData] = useState<any>(assignment.preEduData);
 
   const resetStep = useMutation({
     mutationFn: (step: number) => apiRequest("DELETE", `/api/drill-assignments/${assignment.id}/step/${step}`),
@@ -725,41 +748,65 @@ function AssignmentDetail({ assignment, sessionId, isAdmin, session, onClose }: 
       </div>
 
       {/* ── 사전교육 참석자 명단 + 사진 (DB 저장, 항상 표시) ── */}
-      <div className="border-2 border-dashed border-amber-300 dark:border-amber-700 rounded-lg p-3 bg-amber-50/50 dark:bg-amber-950/20">
-        <div className="flex items-center justify-between">
-          <p className="text-sm font-semibold flex items-center gap-1.5">
-            <Users className="w-4 h-4 text-amber-600" />
-            <span>사전교육 참석자 명단 및 사진</span>
-          </p>
-          <Button size="sm" variant="outline" className="h-7 text-xs border-amber-400 text-amber-700 hover:bg-amber-100"
-            onClick={() => setPreEduOpen(true)}>
-            <FileText className="w-3 h-3 mr-1" />작성/수정
-          </Button>
-        </div>
-        {assignment.preEduData ? (
-          <div className="mt-2 space-y-1.5">
-            {(assignment.preEduData as any).attendees?.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                {((assignment.preEduData as any).attendees as {no:string;name:string}[]).map((a, i) => (
-                  <span key={i} className="text-xs bg-white dark:bg-gray-800 border rounded px-2 py-0.5">{a.no}. {a.name}</span>
-                ))}
+      {(() => {
+        const edu = preEduData as any;
+        const attendeeCount = edu?.attendees?.length ?? 0;
+        const photoCount = edu?.photos?.length ?? 0;
+        const isRegistered = attendeeCount > 0 || photoCount > 0;
+        return (
+          <div className={`border-2 rounded-lg p-3 ${isRegistered
+            ? "border-green-300 dark:border-green-700 bg-green-50/50 dark:bg-green-950/20"
+            : "border-dashed border-amber-300 dark:border-amber-700 bg-amber-50/50 dark:bg-amber-950/20"}`}>
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold flex items-center gap-1.5">
+                {isRegistered
+                  ? <CheckCircle2 className="w-4 h-4 text-green-500" />
+                  : <Circle className="w-4 h-4 text-amber-500" />}
+                <span>사전교육 참석자 명단 및 사진</span>
+                {isRegistered && (
+                  <span className="text-xs font-normal text-green-600 dark:text-green-400">
+                    ✅ 등록 완료 ({attendeeCount > 0 ? `${attendeeCount}명` : ""}
+                    {attendeeCount > 0 && photoCount > 0 ? " · " : ""}
+                    {photoCount > 0 ? `사진 ${photoCount}장` : ""})
+                  </span>
+                )}
+              </p>
+              <Button size="sm" variant="outline"
+                className={`h-7 text-xs ${isRegistered
+                  ? "border-green-400 text-green-700 hover:bg-green-100"
+                  : "border-amber-400 text-amber-700 hover:bg-amber-100"}`}
+                onClick={() => setPreEduOpen(true)}>
+                <FileText className="w-3 h-3 mr-1" />{isRegistered ? "수정" : "작성"}
+              </Button>
+            </div>
+            {isRegistered ? (
+              <div className="mt-2 space-y-1.5">
+                {attendeeCount > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {(edu.attendees as {no:string;name:string}[]).map((a, i) => (
+                      <span key={i} className="text-xs bg-white dark:bg-gray-800 border rounded px-2 py-0.5">{a.no}. {a.name}</span>
+                    ))}
+                  </div>
+                )}
+                {photoCount > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {(edu.photos as string[]).map((url, i) => (
+                      <a key={i} href={url} target="_blank" rel="noreferrer">
+                        <img src={url} alt={`교육사진${i+1}`} className="h-14 w-14 object-cover rounded border" />
+                      </a>
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
-            {(assignment.preEduData as any).photos?.length > 0 && (
-              <div className="flex flex-wrap gap-2 mt-1">
-                {((assignment.preEduData as any).photos as string[]).map((url, i) => (
-                  <a key={i} href={url} target="_blank" rel="noreferrer">
-                    <img src={url} alt={`교육사진${i+1}`} className="h-14 w-14 object-cover rounded border" />
-                  </a>
-                ))}
-              </div>
+            ) : (
+              <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">아직 작성되지 않았습니다. "작성" 버튼을 눌러 입력하세요.</p>
             )}
           </div>
-        ) : (
-          <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">아직 작성되지 않았습니다. "작성/수정" 버튼을 눌러 입력하세요.</p>
-        )}
-      </div>
-      <PreEduDialog assignment={assignment} open={preEduOpen} onClose={() => setPreEduOpen(false)} />
+        );
+      })()}
+      <PreEduDialog assignment={assignment} open={preEduOpen}
+        onClose={() => setPreEduOpen(false)}
+        onSaved={(data) => setPreEduData(data)} />
 
       {/* 단계별 진행 */}
       <div className="space-y-3">
