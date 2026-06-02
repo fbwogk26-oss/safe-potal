@@ -9966,8 +9966,15 @@ function parseRssItems(xml: string, keywords: string | string[], maxItems = 20, 
   return items;
 }
 
-// 검색 키워드 자체(모든 기사 공통)는 제외, 사건 구분자(나이/장소/행위)는 유지
-const DEDUP_STOPWORDS = new Set(['음주운전','음주','운전','경찰','단속','조사','혐의','뉴스','기자']);
+// 음주운전 뉴스에서 거의 모든 기사에 공통으로 등장하는 단어 → 중복 판단에서 제외
+// 이를 제거해야 실제 사건을 구분하는 토큰(나이/장소/피해규모 등)만 남음
+const DEDUP_STOPWORDS = new Set([
+  '음주운전','음주','운전','경찰','단속','조사','혐의','뉴스','기자',
+  '사고','차량','운전자','혈중','알코올','농도','측정','위반','법규',
+  '검거','적발','입건','구속','불구속','기소','송치','수사','경찰청',
+  '사망','부상','중상','경상','피해자','가해자','피의자','처벌','징역','벌금',
+  '만취','상태','사건','사고자','교통','보행자','신호','중앙선',
+]);
 const MEDIA_NAME_RE = /[\s\-\|:·\[（(]\s*(조선|중앙|동아|한겨레|한국|연합|뉴시스|뉴스1|경향|국민|세계|문화|서울|부산|매일|영남|오마이|프레시안|머니|한경|서울경제|아시아|헤럴드|파이낸셜|이데일리|데일리|스포츠|jtbc|kbs|mbc|sbs|ytn|cbs|tbs)(뉴스|일보|신문|경제|tv|방송|미디어)?[\s\]\）)]*$/gi;
 
 function extractTitleTokens(title: string): Set<string> {
@@ -9992,12 +9999,13 @@ function titlesAreSimilar(a: string, b: string): boolean {
   for (const w of wa) if (wb.has(w)) overlap++;
   const union = new Set([...wa, ...wb]).size;
 
-  // 2) Jaccard 0.40 — 사건 구분 단어 40% 이상 겹치면 중복
-  if (overlap / union >= 0.40) return true;
+  // 2) Jaccard 0.65 — stopwords 제거 후 남은 구분 토큰 65% 이상 겹쳐야 중복
+  // (0.40이면 음주운전 뉴스처럼 패턴이 비슷한 다른 사건도 중복으로 오판)
+  if (overlap / union >= 0.65) return true;
 
-  // 3) 짧은 쪽 토큰의 60% 이상이 긴 쪽에 포함 → 제목 줄임 케이스
+  // 3) 짧은 쪽 토큰의 75% 이상이 긴 쪽에 포함 → 제목 줄임 케이스
   const minSize = Math.min(wa.size, wb.size);
-  if (minSize >= 2 && overlap / minSize >= 0.60) return true;
+  if (minSize >= 3 && overlap / minSize >= 0.75) return true;
 
   return false;
 }
