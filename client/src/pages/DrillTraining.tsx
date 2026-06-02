@@ -955,50 +955,82 @@ function AssignmentDetail({ assignment, sessionId, isAdmin, session, onClose }: 
         onClose={() => setPreEduOpen(false)}
         onSaved={(data) => setPreEduData(data)} />
 
-      {/* 단계별 진행 */}
-      <div className="space-y-3">
-        {steps.map(step => (
-          <div key={step.n} className={`border rounded-lg p-3 ${step.done ? "border-green-200 bg-green-50 dark:bg-green-950/20 dark:border-green-800" : "border-border"}`}>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                {step.done
-                  ? <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0" />
-                  : <Circle className="w-5 h-5 text-muted-foreground flex-shrink-0" />}
-                <div>
-                  <p className="font-medium text-sm">{step.label}</p>
-                  <p className="text-xs text-muted-foreground">{step.desc}</p>
-                  {step.done && step.submittedAt && (
-                    <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">
-                      제출: {format(new Date(step.submittedAt), "MM/dd HH:mm", { locale: ko })}
-                    </p>
-                  )}
+      {/* 단계별 진행 — 타임라인 스타일 */}
+      <div>
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">단계별 보고 진행</p>
+        <div className="relative">
+          {/* 세로 연결선 */}
+          <div className="absolute left-5 top-6 bottom-6 w-0.5 bg-border" />
+
+          <div className="space-y-3">
+            {steps.map((step, idx) => {
+              const STEP_COLORS = [
+                { bg: "bg-blue-600", light: "bg-blue-50 dark:bg-blue-950/30", border: "border-blue-200 dark:border-blue-800", badge: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300" },
+                { bg: "bg-amber-500", light: "bg-amber-50 dark:bg-amber-950/30", border: "border-amber-200 dark:border-amber-800", badge: "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300" },
+                { bg: "bg-purple-600", light: "bg-purple-50 dark:bg-purple-950/30", border: "border-purple-200 dark:border-purple-800", badge: "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300" },
+              ];
+              const c = STEP_COLORS[idx];
+              const STEP_NUMS = ["1", "2", "✓"];
+              return (
+                <div key={step.n} className="relative flex gap-4">
+                  {/* 스텝 번호 원형 뱃지 */}
+                  <div className={`relative z-10 shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white shadow-sm ${step.done ? "bg-green-500" : c.bg}`}>
+                    {step.done ? <CheckCircle2 className="w-5 h-5" /> : STEP_NUMS[idx]}
+                  </div>
+
+                  {/* 카드 */}
+                  <div className={`flex-1 rounded-xl border p-3.5 min-w-0 ${step.done ? "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800" : c.light + " " + c.border}`}>
+                    {/* 헤더 행 */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-semibold text-sm">{step.label}</span>
+                          {step.done
+                            ? <span className="text-[11px] bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 px-1.5 py-0.5 rounded-full font-medium">✅ 제출완료</span>
+                            : <span className={`text-[11px] px-1.5 py-0.5 rounded-full font-medium ${c.badge}`}>대기중</span>}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">{step.desc}</p>
+                        {step.done && step.submittedAt && (
+                          <p className="text-[11px] text-green-600 dark:text-green-400 mt-1">
+                            {format(new Date(step.submittedAt), "yyyy.MM.dd HH:mm", { locale: ko })} 제출
+                          </p>
+                        )}
+                      </div>
+                      {/* 버튼 */}
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {step.done && (
+                          <Button variant="outline" size="sm" className="h-7 text-xs px-2.5"
+                            onClick={() => setViewStep(viewStep === step.n ? null : step.n)}>
+                            <Eye className="w-3 h-3 mr-1" />{viewStep === step.n ? "닫기" : "내용 보기"}
+                          </Button>
+                        )}
+                        {!step.done && (
+                          <Button size="sm" className="h-7 text-xs px-3"
+                            onClick={() => { setActiveStep(step.n); setViewStep(null); }}>
+                            <FileText className="w-3 h-3 mr-1" />작성
+                          </Button>
+                        )}
+                        {step.done && isAdmin && (
+                          <Button variant="ghost" size="sm" className="h-7 text-xs px-2 text-red-400 hover:text-red-600 hover:bg-red-50"
+                            onClick={() => resetStep.mutate(step.n)}>
+                            초기화
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 펼쳐진 제출 내용 */}
+                    {viewStep === step.n && (
+                      <div className="mt-3 pt-3 border-t border-dashed border-muted-foreground/20">
+                        {renderStepData(step.n)}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-              <div className="flex gap-1.5">
-                {step.done && (
-                  <Button variant="outline" size="sm" onClick={() => setViewStep(viewStep === step.n ? null : step.n)}>
-                    <Eye className="w-3 h-3 mr-1" />{viewStep === step.n ? "닫기" : "보기"}
-                  </Button>
-                )}
-                {!step.done && (
-                  <Button size="sm" onClick={() => { setActiveStep(step.n); setViewStep(null); }}>
-                    <FileText className="w-3 h-3 mr-1" />보고 작성
-                  </Button>
-                )}
-                {step.done && isAdmin && (
-                  <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-600" onClick={() => resetStep.mutate(step.n)}>
-                    초기화
-                  </Button>
-                )}
-              </div>
-            </div>
-            {viewStep === step.n && (
-              <div className="mt-3 border-t pt-3">
-                {renderStepData(step.n)}
-              </div>
-            )}
+              );
+            })}
           </div>
-        ))}
+        </div>
       </div>
 
       {/* 인라인 폼 */}
