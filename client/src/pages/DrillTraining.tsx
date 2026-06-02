@@ -1694,13 +1694,14 @@ export default function DrillTraining() {
       {/* 상세 다이얼로그 */}
       {detailAssignment && (
         <Dialog open={!!detailAssignment} onOpenChange={() => setDetailAssignmentId(null)}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
+          <DialogContent className="max-w-3xl w-[95vw] max-h-[96vh] flex flex-col p-0 gap-0">
+            <DialogHeader className="px-6 pt-5 pb-3 shrink-0 border-b">
               <DialogTitle className="flex items-center gap-2">
                 <Siren className="w-4 h-4 text-red-500" />
                 {detailAssignment.department} · 훈련 보고
               </DialogTitle>
             </DialogHeader>
+            <div className="flex-1 overflow-y-auto px-6 py-4">
             <AssignmentDetail
               assignment={detailAssignment}
               sessionId={selectedSession!}
@@ -1708,6 +1709,7 @@ export default function DrillTraining() {
               session={currentSession}
               onClose={() => setDetailAssignmentId(null)}
             />
+            </div>
           </DialogContent>
         </Dialog>
       )}
