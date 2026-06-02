@@ -10326,18 +10326,25 @@ ${htmlDraft}
   const drillPhotoUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
   const drillDocxUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
-  // 워드 파일 파싱 (시나리오 텍스트 추출)
+  // 워드 파일 파싱 (시나리오 HTML 추출)
   app.post('/api/drill-docx/parse', requireEditor, drillDocxUpload.array('files', 20), async (req: any, res) => {
     try {
       const files = req.files as Express.Multer.File[];
       if (!files || files.length === 0) return res.status(400).json({ message: '파일 없음' });
       const results = await Promise.all(files.map(async (f) => {
-        const result = await mammoth.extractRawText({ buffer: f.buffer });
-        // multer가 파일명을 Latin-1로 읽으므로 UTF-8로 변환
+        // HTML로 변환해 서식(단락, 굵기 등) 보존
+        const htmlResult = await (mammoth as any).convertToHtml({ buffer: f.buffer }, {
+          styleMap: [
+            "p[style-name='Heading 1'] => h3:fresh",
+            "p[style-name='Heading 2'] => h4:fresh",
+            "p[style-name='제목 1'] => h3:fresh",
+            "p[style-name='제목 2'] => h4:fresh",
+          ]
+        });
         const decodedName = Buffer.from(f.originalname, 'latin1').toString('utf8');
         return {
           fileName: decodedName.replace(/\.docx?$/i, ''),
-          text: (result.value ?? '').trim(),
+          text: (htmlResult.value ?? '').trim(),
         };
       }));
       res.json(results);

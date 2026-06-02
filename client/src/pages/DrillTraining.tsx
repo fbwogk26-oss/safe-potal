@@ -21,6 +21,33 @@ import {
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 
+// HTML 여부 감지 + 텍스트 미리보기 추출
+function stripHtml(html: string): string {
+  return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+function isHtml(s: string): boolean {
+  return s.trimStart().startsWith("<");
+}
+
+// 시나리오 전체 렌더링 (HTML → dangerouslySetInnerHTML, 텍스트 → pre-wrap)
+function ScenarioFull({ text, className = "" }: { text: string; className?: string }) {
+  if (isHtml(text)) {
+    return (
+      <div
+        className={`prose prose-sm max-w-none dark:prose-invert text-sm leading-relaxed ${className}`}
+        dangerouslySetInnerHTML={{ __html: text }}
+      />
+    );
+  }
+  return <p className={`text-sm whitespace-pre-wrap leading-relaxed ${className}`}>{text}</p>;
+}
+
+// 시나리오 짧은 미리보기 (한 줄)
+function ScenarioPreview({ text, maxLen = 80 }: { text: string; maxLen?: number }) {
+  const plain = isHtml(text) ? stripHtml(text) : text.replace(/\n+/g, " ");
+  return <span className="text-xs text-muted-foreground truncate">{plain.slice(0, maxLen)}{plain.length > maxLen ? "…" : ""}</span>;
+}
+
 type DrillSession = {
   id: number;
   title: string;
@@ -425,9 +452,13 @@ function AssignmentDetail({ assignment, sessionId, isAdmin, onClose }: {
   return (
     <div className="space-y-4">
       <div className="bg-muted/40 rounded-lg p-3">
-        <p className="font-semibold text-sm">{assignment.department}</p>
-        <p className="text-xs text-muted-foreground mt-1">{assignment.scenario}</p>
-        {assignment.accidentType && <Badge variant="outline" className="mt-1 text-xs">{assignment.accidentType}</Badge>}
+        <div className="flex items-center gap-2 mb-1">
+          <p className="font-semibold text-sm">{assignment.department}</p>
+          {assignment.accidentType && <Badge variant="outline" className="text-xs">{assignment.accidentType}</Badge>}
+        </div>
+        <div className="max-h-52 overflow-y-auto border rounded bg-background/60 p-3 mt-1">
+          <ScenarioFull text={assignment.scenario} />
+        </div>
       </div>
 
       <div className="space-y-3">
@@ -661,7 +692,7 @@ function AssignPreviewTable({ assignments, onBack, onSubmit, isPending, backLabe
                 <tr key={i} className="border-b last:border-0">
                   <td className="p-2 font-medium whitespace-nowrap">{a.department}</td>
                   <td className="p-2"><Badge variant="outline" className="text-xs whitespace-nowrap">{a.accidentType}</Badge></td>
-                  <td className="p-2 text-muted-foreground">{a.scenario.slice(0, 60)}{a.scenario.length > 60 ? "…" : ""}</td>
+                  <td className="p-2 text-muted-foreground"><ScenarioPreview text={a.scenario} maxLen={60} /></td>
                 </tr>
               ))}
             </tbody>
@@ -731,7 +762,7 @@ function BulkAssignDialog({ open, sessionId, onClose }: { open: boolean; session
 
   // ── 랜덤 배정 ──
   function detectAccidentType(text: string): string {
-    const t = text.toLowerCase();
+    const t = stripHtml(text).toLowerCase();
     if (t.includes("낙상") || t.includes("빙판")) return "빙판길 낙상사고";
     if (t.includes("추락")) return "추락사고";
     if (t.includes("발목") || t.includes("접지")) return "발목 접지름 사고";
@@ -1072,7 +1103,7 @@ export default function DrillTraining() {
                     <span className="font-semibold text-sm">우리 부서 훈련 ({myAssignment.department})</span>
                     <Badge className="ml-auto">{progressCount(myAssignment)}/3 완료</Badge>
                   </div>
-                  <p className="text-xs text-muted-foreground mb-3">{myAssignment.scenario}</p>
+                  <ScenarioPreview text={myAssignment.scenario} maxLen={100} />
                   <div className="flex gap-2 flex-wrap">
                     {[
                       { step: 1, label: "1단계: SNS보고", status: myAssignment.step1Status },
@@ -1122,7 +1153,7 @@ export default function DrillTraining() {
                                   : <span className="text-amber-600">{done}/3 완료</span>}
                               </span>
                             </div>
-                            <p className="text-xs text-muted-foreground mt-1 truncate">{a.scenario}</p>
+                            <div className="mt-1"><ScenarioPreview text={a.scenario} maxLen={80} /></div>
                             <div className="flex gap-3 mt-1.5">
                               {[
                                 { label: "SNS", status: a.step1Status },
