@@ -10076,63 +10076,13 @@ async function fetchDrunkDrivingNews(): Promise<any[]> {
     "Accept-Language": "ko-KR,ko;q=0.9",
   };
   const TIMEOUT_MS = 12_000;
-  const MAX_RESULTS = 6;
+  const MAX_RESULTS = 4; // 현실적 목표: 연합뉴스 1-3건 + Bing 1건
 
-  const now = new Date();
-  const sinceDate = new Date(now);
-  sinceDate.setDate(now.getDate() - 7);
-  sinceDate.setHours(0, 0, 0, 0);
-  const sinceMs = sinceDate.getTime();
+  const DUI_KEYWORDS = ['음주운전', '음주 운전', '만취운전', '만취 운전', '음주운전자', '음주사고', '음주단속', '음주 사고'];
+  // 키워드가 없으면 모든 기사 허용 (연합뉴스 등 사전 필터된 피드용)
+  const DUI_LOOSE = ['음주', '만취', '혈중알코올'];
 
-  const fmtDate = (d: Date) =>
-    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  const afterParam = fmtDate(sinceDate);
-
-  const DUI_KEYWORDS = ['음주운전', '음주 운전', '만취운전', '만취 운전', '음주운전자', '음주사고', '음주단속'];
-
-  console.log(`[카드뉴스] ${afterParam} 이후 수집 시작 (네이버API: ${process.env.NAVER_CLIENT_ID ? '사용' : '미설정'})`);
-
-  // ── 1순위: 네이버 뉴스 검색 API (키 있을 때만) ──────────────────────────
-  const naverResults = await Promise.all([
-    fetchNaverNews('음주운전', 20),
-    fetchNaverNews('만취운전 OR 음주사고', 20),
-  ]);
-  const naverArticles = naverResults.flat().filter(a => {
-    if (!a.pubDate) return true;
-    const ms = new Date(a.pubDate).getTime();
-    return isNaN(ms) || ms >= sinceMs;
-  });
-  if (naverArticles.length > 0) {
-    const unique = deduplicateArticles(naverArticles).slice(0, MAX_RESULTS);
-    console.log(`[카드뉴스] 네이버 API → ${naverArticles.length}건 → 중복제거 ${unique.length}건`);
-    return unique;
-  }
-
-  // ── 2순위: Bing News RSS (서버 IP 허용, 키워드 검색 가능) ──────────────
-  const bingQueries = [
-    `음주운전 after:${afterParam}`,
-    `만취운전 OR 음주사고`,
-  ].map(q => ({
-    name: `Bing News(${q.split(' ')[0]})`,
-    url: `https://www.bing.com/news/search?q=${encodeURIComponent(q)}&format=RSS&setlang=ko-KR&cc=KR&freshness=Week`,
-    keywords: DUI_KEYWORDS,
-  }));
-
-  // ── 3순위: 일반 언론사 RSS (접근 가능 + 키워드 필터) ─────────────────────
-  const rssSources = [
-    { name: "KBS뉴스(사회)", url: "https://news.kbs.co.kr/rss/rss.do?cId=31", keywords: DUI_KEYWORDS },
-    { name: "SBS뉴스(사회)", url: "https://news.sbs.co.kr/news/SectionRssFeed.do?sectionType=02&plink=RSSREADER", keywords: DUI_KEYWORDS },
-    { name: "JTBC뉴스", url: "https://fs.jtbc.co.kr/RSS/newsflash.xml", keywords: DUI_KEYWORDS },
-    { name: "MBC뉴스", url: "https://imnews.imbc.com/rss/news/news_00.xml", keywords: DUI_KEYWORDS },
-    { name: "노컷뉴스", url: "https://www.nocutnews.co.kr/rss/allnews.xml", keywords: DUI_KEYWORDS },
-    { name: "한국경제", url: "https://www.hankyung.com/feed/all-news", keywords: DUI_KEYWORDS },
-    { name: "뉴시스", url: "https://newsis.com/RSS/rss.html", keywords: DUI_KEYWORDS },
-    { name: "조선일보(사회)", url: "https://rss.chosun.com/site/data/rss/rss.html", keywords: DUI_KEYWORDS },
-    { name: "동아일보(사회)", url: "https://rss.donga.com/national.xml", keywords: DUI_KEYWORDS },
-    { name: "중앙일보", url: "https://rss.joins.com/joins_news_list.xml", keywords: DUI_KEYWORDS },
-  ];
-
-  const allSources = [...bingQueries, ...rssSources];
+  console.log(`[카드뉴스] 수집 시작 (네이버API: ${process.env.NAVER_CLIENT_ID ? '사용' : '미설정'})`);
 
   const fetchRss = async (src: { name: string; url: string; keywords: string[] }, timeoutMs = TIMEOUT_MS) => {
     const controller = new AbortController();
@@ -10142,61 +10092,64 @@ async function fetchDrunkDrivingNews(): Promise<any[]> {
       clearTimeout(timer);
       if (!res.ok) { console.warn(`[카드뉴스] ${src.name} HTTP ${res.status}`); return []; }
       const xml = await res.text();
-      const items = parseRssItems(xml, src.keywords, 30, sinceMs);
-      if (items.length > 0) console.log(`[카드뉴스] ${src.name} — ${items.length}건`);
+      // 날짜 필터 제거 — RSS 피드가 실시간 최신 기사만 제공하므로 날짜 필터 불필요
+      const items = parseRssItems(xml, src.keywords, 100);
+      console.log(`[카드뉴스] ${src.name} — ${items.length}건`);
       return items.map((it: any) => ({ ...it, source: it.source || src.name }));
     } catch (e: any) {
       clearTimeout(timer);
-      console.warn(`[카드뉴스] ${src.name} 오류: ${e.message}`);
+      console.warn(`[카드뉴스] ${src.name} 오류: ${e.message?.slice(0, 80)}`);
       return [];
     }
   };
 
-  // Bing은 타임아웃이 잦으므로 25초로 별도 실행, 나머지는 병렬
+  // ── 1순위: 네이버 뉴스 검색 API (키 있을 때만) ──────────────────────────
+  const naverResults = await Promise.all([
+    fetchNaverNews('음주운전', 20),
+    fetchNaverNews('만취운전 OR 음주사고', 20),
+  ]);
+  const naverArticles = naverResults.flat();
+  if (naverArticles.length > 0) {
+    const unique = deduplicateArticles(naverArticles).slice(0, MAX_RESULTS);
+    console.log(`[카드뉴스] 네이버 API → ${naverArticles.length}건 → 중복제거 ${unique.length}건`);
+    return unique;
+  }
+
+  // ── 2순위: 연합뉴스 RSS (Replit 서버에서 안정적으로 접근 가능) ───────────
+  // 실시간 최신 120개 기사에서 키워드 필터링 — 날짜 필터 제거
+  const ynaSources = [
+    { name: "연합뉴스(사회)", url: "https://www.yna.co.kr/rss/society.xml", keywords: DUI_LOOSE },
+    { name: "연합뉴스(전체)", url: "https://www.yna.co.kr/rss/news.xml", keywords: DUI_LOOSE },
+  ];
+  const ynaResults = await Promise.allSettled(ynaSources.map(src => fetchRss(src, 12_000)));
+  const ynaArticles: any[] = [];
+  for (const r of ynaResults) {
+    if (r.status === 'fulfilled') ynaArticles.push(...r.value);
+  }
+  // ── 3순위: Bing News RSS + 기타 언론사 RSS (병렬 수집) ──────────────────
+  // 연합뉴스 결과와 합쳐서 중복 제거 후 반환
+  const bingQueries = [
+    { name: `Bing News(음주운전)`, url: `https://www.bing.com/news/search?q=${encodeURIComponent('음주운전')}&format=RSS&setlang=ko-KR&cc=KR&freshness=Month`, keywords: DUI_KEYWORDS },
+    { name: `Bing News(음주사고)`, url: `https://www.bing.com/news/search?q=${encodeURIComponent('음주사고 OR 만취운전')}&format=RSS&setlang=ko-KR&cc=KR&freshness=Month`, keywords: DUI_KEYWORDS },
+  ];
+  const rssSources = [
+    { name: "SBS뉴스(사회)", url: "https://news.sbs.co.kr/news/SectionRssFeed.do?sectionType=02&plink=RSSREADER", keywords: DUI_KEYWORDS },
+    { name: "JTBC뉴스", url: "https://fs.jtbc.co.kr/RSS/newsflash.xml", keywords: DUI_KEYWORDS },
+    { name: "동아일보(사회)", url: "https://rss.donga.com/national.xml", keywords: DUI_KEYWORDS },
+  ];
+
   const [bingResults, rssResults] = await Promise.all([
-    Promise.allSettled(bingQueries.map(src => fetchRss(src, 25_000))),
+    Promise.allSettled(bingQueries.map(src => fetchRss(src, 20_000))),
     Promise.allSettled(rssSources.map(src => fetchRss(src, TIMEOUT_MS))),
   ]);
 
-  const allArticles: any[] = [];
+  const allArticles: any[] = [...ynaArticles];
   for (const r of [...bingResults, ...rssResults]) {
     if (r.status === 'fulfilled') allArticles.push(...r.value);
   }
 
-  // Bing 모두 실패했으면 한 번 더 재시도
-  const bingGotResults = bingResults.some(r => r.status === 'fulfilled' && (r.value as any[]).length > 0);
-  if (!bingGotResults) {
-    console.warn('[카드뉴스] Bing 첫 시도 실패 — 30초로 재시도');
-    const bingRetry = await Promise.allSettled(bingQueries.map(src => fetchRss(src, 30_000)));
-    for (const r of bingRetry) {
-      if (r.status === 'fulfilled') allArticles.push(...r.value);
-    }
-  }
-
   const unique = deduplicateArticles(allArticles).slice(0, MAX_RESULTS);
   console.log(`[카드뉴스] 전체 ${allArticles.length}건 → 중복제거 ${unique.length}건`);
-
-  // 날짜 제한 해제 재시도 (7일 내 없으면)
-  if (unique.length === 0) {
-    console.warn('[카드뉴스] 7일 내 기사 없음 — 날짜 제한 해제 재시도');
-    const results2 = await Promise.allSettled(allSources.map(async src => {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-      try {
-        const res = await fetch(src.url, { headers: RSS_HEADERS, signal: controller.signal as any }) as any;
-        clearTimeout(timer);
-        if (!res.ok) return [];
-        const xml = await res.text();
-        return parseRssItems(xml, src.keywords, 30).map((it: any) => ({ ...it, source: it.source || src.name }));
-      } catch { clearTimeout(timer); return []; }
-    }));
-    const all2: any[] = [];
-    for (const r of results2) { if (r.status === 'fulfilled') all2.push(...r.value); }
-    const unique2 = deduplicateArticles(all2).slice(0, MAX_RESULTS);
-    console.log(`[카드뉴스] 날짜제한 해제 재시도 — ${unique2.length}건`);
-    return unique2;
-  }
-
   return unique;
 }
 
