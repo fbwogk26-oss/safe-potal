@@ -10526,12 +10526,58 @@ ${htmlDraft}
       if (!req.file) return res.status(400).json({ message: '파일 없음' });
       const file = req.file as Express.Multer.File;
       const ext = (file.originalname.split('.').pop() || 'pdf').toLowerCase();
-      const filename = `drill_scenario_${Date.now()}.${ext}`;
-      const url = await uploadToObjectStorage(file.buffer, filename, file.mimetype);
+
+      let uploadBuffer = file.buffer;
+      let uploadMime = file.mimetype;
+      let uploadExt = ext;
+      let displayName = file.originalname;
+
+      // DOCX → HTML 자동 변환
+      if (ext === 'docx' || ext === 'doc') {
+        try {
+          const mammoth = require('mammoth');
+          const result = await mammoth.convertToHtml({ buffer: file.buffer }, {
+            styleMap: [
+              "p[style-name='Heading 1'] => h2:fresh",
+              "p[style-name='Heading 2'] => h3:fresh",
+              "b => strong",
+            ]
+          });
+          const htmlContent = `<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  body { font-family: 'Malgun Gothic', sans-serif; font-size: 14px; line-height: 1.8; padding: 24px 32px; color: #222; max-width: 860px; margin: 0 auto; }
+  h1, h2, h3 { color: #1a1a2e; margin-top: 1.5em; }
+  table { border-collapse: collapse; width: 100%; margin: 1em 0; }
+  td, th { border: 1px solid #ccc; padding: 6px 10px; }
+  th { background: #f0f4ff; font-weight: bold; }
+  p { margin: 0.4em 0; }
+  strong { font-weight: 700; }
+</style>
+</head>
+<body>
+${result.value}
+</body>
+</html>`;
+          uploadBuffer = Buffer.from(htmlContent, 'utf-8');
+          uploadMime = 'text/html';
+          uploadExt = 'html';
+          displayName = file.originalname.replace(/\.(docx?)/i, '.html');
+        } catch (convErr: any) {
+          console.error('mammoth conversion error:', convErr.message);
+          // 변환 실패 시 원본 업로드
+        }
+      }
+
+      const filename = `drill_scenario_${Date.now()}.${uploadExt}`;
+      const url = await uploadToObjectStorage(uploadBuffer, filename, uploadMime);
       if (!url) return res.status(500).json({ message: '파일 저장 실패' });
       const updated = await storage.updateDrillAssignment(id, {
         scenarioFileUrl: url,
-        scenarioFileName: file.originalname,
+        scenarioFileName: displayName,
       });
       res.json(updated);
     } catch (e: any) {

@@ -107,11 +107,13 @@ function ScenarioCollapsible({ assignment, isAdmin, onFileUploaded }: {
         <div className="px-3 pb-3 border-t mt-0">
           {hasFile ? (
             <div className="mt-2">
-              {assignment.scenarioFileName?.toLowerCase().endsWith('.pdf') ? (
-                <iframe src={assignment.scenarioFileUrl!} className="w-full h-96 rounded border" title="시나리오" />
-              ) : (
-                <img src={assignment.scenarioFileUrl!} alt="시나리오" className="max-w-full rounded border mx-auto" />
-              )}
+              {(() => {
+                const fn = assignment.scenarioFileName?.toLowerCase() ?? '';
+                if (fn.endsWith('.pdf') || fn.endsWith('.html')) {
+                  return <iframe src={assignment.scenarioFileUrl!} className="w-full h-[480px] rounded border bg-white" title="시나리오" />;
+                }
+                return <img src={assignment.scenarioFileUrl!} alt="시나리오" className="max-w-full rounded border mx-auto" />;
+              })()}
               <a href={assignment.scenarioFileUrl!} target="_blank" rel="noreferrer"
                 className="text-xs text-primary underline mt-1 block text-center">새 탭에서 열기</a>
             </div>
@@ -124,12 +126,12 @@ function ScenarioCollapsible({ assignment, isAdmin, onFileUploaded }: {
             <div className="mt-2 pt-2 border-t flex items-center gap-2">
               <label className="cursor-pointer">
                 <span className="text-xs text-primary border border-primary/30 rounded px-2 py-1 hover:bg-primary/5">
-                  {uploading ? "업로드 중..." : hasFile ? "📎 파일 교체 (PDF/JPG)" : "📎 PDF/JPG 파일 업로드"}
+                  {uploading ? "변환 중..." : hasFile ? "📎 파일 교체" : "📎 파일 업로드"}
                 </span>
-                <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden"
+                <input type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" className="hidden"
                   onChange={uploadFile} disabled={uploading} />
               </label>
-              <span className="text-xs text-muted-foreground">Word 파일을 PDF나 이미지로 변환 후 업로드하세요</span>
+              <span className="text-xs text-muted-foreground">PDF · JPG · Word(.docx) — Word는 자동으로 변환됩니다</span>
             </div>
           )}
         </div>
@@ -1253,13 +1255,14 @@ function BulkAssignDialog({ open, sessionId, onClose }: { open: boolean; session
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="max-w-3xl max-h-[92vh] flex flex-col">
+        <DialogHeader className="shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <Shuffle className="w-4 h-4" />시나리오 일괄 배정
           </DialogTitle>
         </DialogHeader>
 
+        <div className="flex-1 overflow-y-auto min-h-0 pr-1">
         <Tabs value={mode} onValueChange={v => { setMode(v as any); setPlanParsed(false); setRandomParsed(false); }}>
           <TabsList className="w-full mb-4">
             <TabsTrigger value="plan" className="flex-1">📄 계획서 자동 추출</TabsTrigger>
@@ -1380,6 +1383,7 @@ function BulkAssignDialog({ open, sessionId, onClose }: { open: boolean; session
             )}
           </TabsContent>
         </Tabs>
+        </div>
       </DialogContent>
     </Dialog>
   );
