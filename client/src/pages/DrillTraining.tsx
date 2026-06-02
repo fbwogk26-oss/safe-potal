@@ -624,7 +624,8 @@ function AddAssignmentDialog({ open, sessionId, onClose }: { open: boolean; sess
 // ─── 메인 페이지 ──────────────────────────────────────────────────────────
 export default function DrillTraining() {
   const { user } = useAuth();
-  const { isAdmin } = usePermissions();
+  const { isAdmin: isAdminPerm } = usePermissions();
+  const isAdmin = isAdminPerm || user?.role === "admin";
   const { toast } = useToast();
   const qc = useQueryClient();
 
