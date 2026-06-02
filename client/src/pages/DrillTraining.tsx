@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -17,6 +17,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import {
   Plus, Trash2, ChevronRight, CheckCircle2, Circle, AlertTriangle, Upload,
   FileText, ImageIcon, Users, ClipboardList, Eye, X, Siren, Building2, Shuffle,
+  Search, MapPin,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
@@ -92,6 +93,61 @@ const ACCIDENT_TYPES = [
 
 const CURRENT_YEAR = new Date().getFullYear();
 
+// 영어 키 → 한글 레이블 변환
+const FIELD_LABELS: Record<string, string> = {
+  victimName: "사고직원 성명", victimPosition: "직위", victimDept: "소속부서",
+  occurredAt: "발생일시", location: "사고장소", injuryDetail: "재해정도",
+  content: "사고내용", cause: "사고원인", note: "참고사항",
+  companion: "동행자", vehicleInfo: "차량정보",
+  timeline: "경과 및 조치사항", overview: "사고 개요", prevention: "사고 방지 대책",
+  drillDate: "훈련일시", participantCount: "참석인원",
+  situation: "상황설정", situationOccur: "상황발생", response: "상황대응",
+  totalComment: "훈련결과 총평", opinion: "참석자 의견 및 개선사항",
+  eduAttendees: "사전 교육 참석자 명단", drillAttendees: "훈련 참석자 명단",
+};
+
+// 시나리오 plain text에서 상황설정/발생/대응 섹션 파싱
+function parseScenarioSections(scenario: string) {
+  const plain = isHtml(scenario) ? stripHtml(scenario) : scenario;
+  const sMatch = plain.match(/상황\s*설정[:\s]+([\s\S]+?)(?=상황\s*발생|상황\s*대응|$)/);
+  const oMatch = plain.match(/상황\s*발생[:\s]+([\s\S]+?)(?=상황\s*대응|$)/);
+  const rMatch = plain.match(/상황\s*대응[:\s]+([\s\S]+?)$/);
+  if (sMatch || oMatch || rMatch) {
+    return { situation: sMatch?.[1]?.trim() ?? "", situationOccur: oMatch?.[1]?.trim() ?? "", response: rMatch?.[1]?.trim() ?? "" };
+  }
+  return { situation: plain.slice(0, 300), situationOccur: "", response: "" };
+}
+
+// 다음 우편번호 API로 주소 검색
+function openAddressSearch(cb: (addr: string) => void) {
+  function open() {
+    new (window as any).daum.Postcode({ oncomplete: (d: any) => cb(d.roadAddress || d.jibunAddress) }).open();
+  }
+  if ((window as any).daum?.Postcode) { open(); return; }
+  const s = document.createElement("script");
+  s.src = "//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js";
+  s.onload = open;
+  document.head.appendChild(s);
+}
+
+// 사진 미리보기 컴포넌트
+function PhotoPreviews({ files }: { files: File[] }) {
+  const [urls, setUrls] = useState<string[]>([]);
+  useEffect(() => {
+    const u = files.map(f => URL.createObjectURL(f));
+    setUrls(u);
+    return () => u.forEach(URL.revokeObjectURL);
+  }, [files]);
+  if (!urls.length) return null;
+  return (
+    <div className="flex flex-wrap gap-2 mt-2">
+      {urls.map((url, i) => (
+        <img key={i} src={url} alt={`사진${i + 1}`} className="h-20 w-20 object-cover rounded border shadow-sm" />
+      ))}
+    </div>
+  );
+}
+
 function stepBadge(status: string) {
   if (status === "제출완료") return <Badge className="bg-green-100 text-green-700 border-green-200 text-xs">제출완료</Badge>;
   return <Badge variant="outline" className="text-gray-500 text-xs">미제출</Badge>;
@@ -109,10 +165,14 @@ function progressCount(a: DrillAssignment) {
 function Step1Form({ assignment, onClose }: { assignment: DrillAssignment; onClose: () => void }) {
   const { toast } = useToast();
   const qc = useQueryClient();
+  const scenarioPlain = isHtml(assignment.scenario) ? stripHtml(assignment.scenario) : assignment.scenario;
   const [form, setForm] = useState({
-    victimName: "", victimPosition: "", victimDept: "",
-    occurredAt: "", location: "", injuryDetail: "",
-    content: "", cause: "", note: "",
+    victimName: "", victimPosition: "",
+    victimDept: assignment.department,
+    occurredAt: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
+    location: "", injuryDetail: "",
+    content: scenarioPlain.slice(0, 200),
+    cause: "", note: "",
   });
   const [photos, setPhotos] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -128,7 +188,7 @@ function Step1Form({ assignment, onClose }: { assignment: DrillAssignment; onClo
       await fetch(`/api/drill-assignments/${assignment.id}/step/1`, {
         method: "POST", body: fd, credentials: "include",
       });
-      qc.invalidateQueries({ queryKey: ["/api/drill-sessions", assignment.sessionId, "assignments"] });
+      await qc.invalidateQueries({ queryKey: ["/api/drill-sessions", assignment.sessionId, "assignments"] });
       toast({ title: "1단계 SNS보고 제출 완료" });
       onClose();
     } catch { toast({ title: "오류", variant: "destructive" }); }
@@ -138,16 +198,34 @@ function Step1Form({ assignment, onClose }: { assignment: DrillAssignment; onClo
   return (
     <div className="space-y-4">
       <div className="bg-blue-50 dark:bg-blue-950/30 rounded-lg p-3 text-sm text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-        <strong>보고제목 예시:</strong> [대응훈련] OO운용팀 안전사고 1단계 보고
+        <strong>보고제목 예시:</strong> [대응훈련] {assignment.department} 안전사고 1단계 보고
+      </div>
+      <div className="bg-green-50 dark:bg-green-950/30 rounded-lg p-2.5 text-xs text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800">
+        ✅ 소속부서와 사고내용이 배정된 시나리오로 자동 입력되었습니다. 내용을 확인·보완하세요.
       </div>
       <div className="grid grid-cols-3 gap-3">
         <div><Label>사고직원 성명</Label><Input value={form.victimName} onChange={set("victimName")} placeholder="홍길동" /></div>
         <div><Label>직위</Label><Input value={form.victimPosition} onChange={set("victimPosition")} placeholder="대리" /></div>
-        <div><Label>소속부서</Label><Input value={form.victimDept} onChange={set("victimDept")} placeholder="OO운용팀" /></div>
+        <div>
+          <Label>소속부서</Label>
+          <Select value={form.victimDept} onValueChange={v => setForm(p => ({ ...p, victimDept: v }))}>
+            <SelectTrigger><SelectValue placeholder="부서 선택" /></SelectTrigger>
+            <SelectContent>{DEPT_LIST.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div><Label>발생일시</Label><Input type="datetime-local" value={form.occurredAt} onChange={set("occurredAt")} /></div>
-        <div><Label>사고장소</Label><Input value={form.location} onChange={set("location")} placeholder="OO시 OO동 OO번지 OO기지국" /></div>
+        <div>
+          <Label>사고장소</Label>
+          <div className="flex gap-1 mt-1">
+            <Input value={form.location} onChange={set("location")} placeholder="OO시 OO동 OO번지 OO기지국" className="flex-1" />
+            <Button type="button" variant="outline" size="icon" className="shrink-0"
+              onClick={() => openAddressSearch(addr => setForm(p => ({ ...p, location: addr })))}>
+              <MapPin className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
       </div>
       <div><Label>재해정도</Label><Input value={form.injuryDetail} onChange={set("injuryDetail")} placeholder="오른쪽 발목 찰과상, 이동 제한없음" /></div>
       <div><Label>사고내용</Label><Textarea value={form.content} onChange={set("content")} rows={3} placeholder="사고 발생 경위를 상세히 기술..." /></div>
@@ -155,8 +233,9 @@ function Step1Form({ assignment, onClose }: { assignment: DrillAssignment; onClo
       <div><Label>참고사항</Label><Textarea value={form.note} onChange={set("note")} rows={2} placeholder="동행자, 병원 이동 계획 등..." /></div>
       <div>
         <Label>첨부사진 (연출사진·현장사진·위험요소 사진)</Label>
-        <Input type="file" accept="image/*" multiple onChange={e => setPhotos(Array.from(e.target.files || []))} className="mt-1" />
-        {photos.length > 0 && <p className="text-xs text-muted-foreground mt-1">{photos.length}개 선택됨</p>}
+        <Input type="file" accept="image/*" multiple className="mt-1"
+          onChange={e => setPhotos(Array.from(e.target.files || []))} />
+        <PhotoPreviews files={photos} />
       </div>
       <DialogFooter>
         <Button variant="outline" onClick={onClose}>취소</Button>
@@ -265,15 +344,27 @@ function Step2Form({ assignment, onClose }: { assignment: DrillAssignment; onClo
 }
 
 // ─── Step 3 Form: 최종 결과보고 ─────────────────────────────────────────────
-function Step3Form({ assignment, onClose }: { assignment: DrillAssignment; onClose: () => void }) {
+function Step3Form({
+  assignment, onClose, preEduAttendees,
+}: {
+  assignment: DrillAssignment;
+  onClose: () => void;
+  preEduAttendees: { no: string; name: string }[];
+}) {
   const { toast } = useToast();
   const qc = useQueryClient();
+  const s1 = assignment.step1Data as any;
+  const scenarioSections = parseScenarioSections(assignment.scenario);
+
   const [form, setForm] = useState({
-    drillDate: "", participantCount: "",
-    situation: "", situationOccur: "", response: "",
+    drillDate: s1?.occurredAt?.slice(0, 10) ?? "",
+    participantCount: "",
+    situation: scenarioSections.situation,
+    situationOccur: scenarioSections.situationOccur || (s1?.content ?? ""),
+    response: scenarioSections.response || (s1?.cause ?? ""),
     totalComment: "", opinion: "",
-    eduAttendees: [{ no: "", name: "" }],
-    drillAttendees: [{ no: "", name: "" }],
+    eduAttendees: preEduAttendees.length > 0 ? preEduAttendees : [{ no: "1", name: "" }],
+    drillAttendees: [{ no: "1", name: s1?.victimName ?? "" }],
   });
   const [drillPhotos, setDrillPhotos] = useState<File[]>([]);
   const [eduPhotos, setEduPhotos] = useState<File[]>([]);
@@ -303,11 +394,11 @@ function Step3Form({ assignment, onClose }: { assignment: DrillAssignment; onClo
       const fd = new FormData();
       fd.append("data", JSON.stringify(form));
       drillPhotos.forEach(f => fd.append("photos", f));
-      eduPhotos.forEach(f => fd.append("photos", f));
+      eduPhotos.forEach(f => fd.append("eduPhotos", f));
       await fetch(`/api/drill-assignments/${assignment.id}/step/3`, {
         method: "POST", body: fd, credentials: "include",
       });
-      qc.invalidateQueries({ queryKey: ["/api/drill-sessions", assignment.sessionId, "assignments"] });
+      await qc.invalidateQueries({ queryKey: ["/api/drill-sessions", assignment.sessionId, "assignments"] });
       toast({ title: "최종 결과보고 제출 완료" });
       onClose();
     } catch { toast({ title: "오류", variant: "destructive" }); }
@@ -316,11 +407,16 @@ function Step3Form({ assignment, onClose }: { assignment: DrillAssignment; onClo
 
   return (
     <div className="space-y-5">
+      {s1 && (
+        <div className="bg-green-50 dark:bg-green-950/30 rounded-lg p-2.5 text-xs text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800">
+          ✅ 1단계 보고 내용과 시나리오 내용이 자동으로 채워졌습니다. 확인 후 보완해주세요.
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-3">
         <div><Label>훈련일시</Label><Input type="date" value={form.drillDate} onChange={set("drillDate")} /></div>
         <div><Label>참석인원</Label><Input value={form.participantCount} onChange={set("participantCount")} placeholder="예: 12명" /></div>
       </div>
-      <div><Label>상황설정</Label><Textarea value={form.situation} onChange={set("situation")} rows={2} placeholder="훈련 상황 설정 내용..." /></div>
+      <div><Label>상황설정</Label><Textarea value={form.situation} onChange={set("situation")} rows={3} placeholder="훈련 상황 설정 내용..." /></div>
       <div><Label>상황발생</Label><Textarea value={form.situationOccur} onChange={set("situationOccur")} rows={2} placeholder="사고 발생 내용..." /></div>
       <div><Label>상황대응</Label><Textarea value={form.response} onChange={set("response")} rows={3} placeholder="대응 절차 내용..." /></div>
       <div><Label>훈련결과 총평</Label><Textarea value={form.totalComment} onChange={set("totalComment")} rows={2} /></div>
@@ -343,8 +439,9 @@ function Step3Form({ assignment, onClose }: { assignment: DrillAssignment; onClo
         </div>
         <div className="mt-2">
           <Label>사전교육 사진</Label>
-          <Input type="file" accept="image/*" multiple onChange={e => setEduPhotos(Array.from(e.target.files || []))} className="mt-1" />
-          {eduPhotos.length > 0 && <p className="text-xs text-muted-foreground mt-1">{eduPhotos.length}개 선택됨</p>}
+          <Input type="file" accept="image/*" multiple className="mt-1"
+            onChange={e => setEduPhotos(Array.from(e.target.files || []))} />
+          <PhotoPreviews files={eduPhotos} />
         </div>
       </div>
 
@@ -368,8 +465,9 @@ function Step3Form({ assignment, onClose }: { assignment: DrillAssignment; onClo
       {/* 훈련 사진 */}
       <div>
         <Label>훈련 사진</Label>
-        <Input type="file" accept="image/*" multiple onChange={e => setDrillPhotos(Array.from(e.target.files || []))} className="mt-1" />
-        {drillPhotos.length > 0 && <p className="text-xs text-muted-foreground mt-1">{drillPhotos.length}개 선택됨</p>}
+        <Input type="file" accept="image/*" multiple className="mt-1"
+          onChange={e => setDrillPhotos(Array.from(e.target.files || []))} />
+        <PhotoPreviews files={drillPhotos} />
       </div>
 
       <DialogFooter>
@@ -388,6 +486,8 @@ function AssignmentDetail({ assignment, sessionId, isAdmin, onClose }: {
   const qc = useQueryClient();
   const [activeStep, setActiveStep] = useState<1 | 2 | 3 | null>(null);
   const [viewStep, setViewStep] = useState<1 | 2 | 3 | null>(null);
+  // 사전교육 참석자 명단 (1단계 전 작성 → 3단계로 전달)
+  const [preEduAttendees, setPreEduAttendees] = useState<{ no: string; name: string }[]>([{ no: "1", name: "" }]);
 
   const resetStep = useMutation({
     mutationFn: (step: number) => apiRequest("DELETE", `/api/drill-assignments/${assignment.id}/step/${step}`),
@@ -401,20 +501,25 @@ function AssignmentDetail({ assignment, sessionId, isAdmin, onClose }: {
   const done2 = assignment.step2Status === "제출완료";
   const done3 = assignment.step3Status === "제출완료";
 
+  // 영어 키 → 한글, timeline 배열 → 읽기 좋은 표시
   function renderStepData(step: 1 | 2 | 3) {
     const data = step === 1 ? assignment.step1Data : step === 2 ? assignment.step2Data : assignment.step3Data;
     if (!data) return <p className="text-muted-foreground text-sm">데이터 없음</p>;
     const photos: string[] = data.photos || [];
+    const TIMELINE_ITEM_LABELS: Record<string, string> = { time: "시간", content: "내용", no: "번호", name: "이름" };
     return (
       <div className="space-y-3 text-sm">
         {Object.entries(data).filter(([k]) => k !== "photos").map(([k, v]) => {
+          const label = FIELD_LABELS[k] || k;
           if (Array.isArray(v)) {
             return (
               <div key={k}>
-                <p className="font-medium text-xs text-muted-foreground uppercase">{k}</p>
+                <p className="font-medium text-xs text-muted-foreground mb-1">{label}</p>
                 {(v as any[]).map((item, i) => (
                   <div key={i} className="text-xs bg-muted/40 rounded px-2 py-1 mt-1">
-                    {typeof item === "object" ? Object.entries(item).map(([ik, iv]) => `${ik}: ${iv}`).join(" | ") : String(item)}
+                    {typeof item === "object"
+                      ? Object.entries(item).map(([ik, iv]) => `${TIMELINE_ITEM_LABELS[ik] ?? ik}: ${iv}`).join("  |  ")
+                      : String(item)}
                   </div>
                 ))}
               </div>
@@ -422,14 +527,14 @@ function AssignmentDetail({ assignment, sessionId, isAdmin, onClose }: {
           }
           return (
             <div key={k}>
-              <p className="font-medium text-xs text-muted-foreground uppercase">{k}</p>
+              <p className="font-medium text-xs text-muted-foreground">{label}</p>
               <p className="mt-0.5 whitespace-pre-wrap">{String(v)}</p>
             </div>
           );
         })}
         {photos.length > 0 && (
           <div>
-            <p className="font-medium text-xs text-muted-foreground uppercase mb-1">첨부사진 ({photos.length}장)</p>
+            <p className="font-medium text-xs text-muted-foreground mb-1">첨부사진 ({photos.length}장)</p>
             <div className="flex flex-wrap gap-2">
               {photos.map((url, i) => (
                 <a key={i} href={url} target="_blank" rel="noreferrer">
@@ -451,6 +556,7 @@ function AssignmentDetail({ assignment, sessionId, isAdmin, onClose }: {
 
   return (
     <div className="space-y-4">
+      {/* 시나리오 */}
       <div className="bg-muted/40 rounded-lg p-3">
         <div className="flex items-center gap-2 mb-1">
           <p className="font-semibold text-sm">{assignment.department}</p>
@@ -461,6 +567,40 @@ function AssignmentDetail({ assignment, sessionId, isAdmin, onClose }: {
         </div>
       </div>
 
+      {/* ── 사전교육 참석자 명단 (1단계 보고 전 먼저 작성) ── */}
+      {!done1 && (
+        <div className="border-2 border-dashed border-amber-300 dark:border-amber-700 rounded-lg p-3 bg-amber-50/50 dark:bg-amber-950/20">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-sm font-semibold flex items-center gap-1.5">
+              <Users className="w-4 h-4 text-amber-600" />
+              <span>사전교육 참석자 명단</span>
+              <span className="text-xs font-normal text-amber-600 dark:text-amber-400">(1단계 보고 전 먼저 작성)</span>
+            </p>
+            <Button variant="outline" size="sm" className="h-7 text-xs"
+              onClick={() => setPreEduAttendees(p => [...p, { no: String(p.length + 1), name: "" }])}>
+              <Plus className="w-3 h-3 mr-1" />추가
+            </Button>
+          </div>
+          <div className="grid grid-cols-2 gap-1.5">
+            {preEduAttendees.map((row, i) => (
+              <div key={i} className="flex gap-1.5 items-center">
+                <Input className="w-10 text-xs h-8" placeholder="번호" value={row.no}
+                  onChange={e => setPreEduAttendees(p => { const a = [...p]; a[i] = { ...a[i], no: e.target.value }; return a; })} />
+                <Input className="flex-1 text-xs h-8" placeholder="이름" value={row.name}
+                  onChange={e => setPreEduAttendees(p => { const a = [...p]; a[i] = { ...a[i], name: e.target.value }; return a; })} />
+                {preEduAttendees.length > 1 && (
+                  <Button variant="ghost" size="icon" className="h-7 w-7"
+                    onClick={() => setPreEduAttendees(p => p.filter((_, j) => j !== i))}>
+                    <X className="w-3 h-3" />
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 단계별 진행 */}
       <div className="space-y-3">
         {steps.map(step => (
           <div key={step.n} className={`border rounded-lg p-3 ${step.done ? "border-green-200 bg-green-50 dark:bg-green-950/20 dark:border-green-800" : "border-border"}`}>
@@ -486,7 +626,7 @@ function AssignmentDetail({ assignment, sessionId, isAdmin, onClose }: {
                   </Button>
                 )}
                 {!step.done && (
-                  <Button size="sm" onClick={() => setActiveStep(step.n)}>
+                  <Button size="sm" onClick={() => { setActiveStep(step.n); setViewStep(null); }}>
                     <FileText className="w-3 h-3 mr-1" />보고 작성
                   </Button>
                 )}
@@ -510,19 +650,19 @@ function AssignmentDetail({ assignment, sessionId, isAdmin, onClose }: {
       {activeStep === 1 && (
         <div className="border rounded-lg p-4 bg-blue-50/50 dark:bg-blue-950/20">
           <h4 className="font-semibold mb-3 text-sm">1단계: SNS 보고 작성</h4>
-          <Step1Form assignment={assignment} onClose={() => setActiveStep(null)} />
+          <Step1Form assignment={assignment} onClose={() => { setActiveStep(null); setViewStep(1); }} />
         </div>
       )}
       {activeStep === 2 && (
         <div className="border rounded-lg p-4 bg-amber-50/50 dark:bg-amber-950/20">
           <h4 className="font-semibold mb-3 text-sm">2단계: 사고경위서 작성</h4>
-          <Step2Form assignment={assignment} onClose={() => setActiveStep(null)} />
+          <Step2Form assignment={assignment} onClose={() => { setActiveStep(null); setViewStep(2); }} />
         </div>
       )}
       {activeStep === 3 && (
         <div className="border rounded-lg p-4 bg-purple-50/50 dark:bg-purple-950/20">
           <h4 className="font-semibold mb-3 text-sm">최종 결과보고서 작성</h4>
-          <Step3Form assignment={assignment} onClose={() => setActiveStep(null)} />
+          <Step3Form assignment={assignment} preEduAttendees={preEduAttendees} onClose={() => { setActiveStep(null); setViewStep(3); }} />
         </div>
       )}
     </div>
@@ -948,7 +1088,7 @@ export default function DrillTraining() {
   const [createOpen, setCreateOpen] = useState(false);
   const [addAssignOpen, setAddAssignOpen] = useState(false);
   const [bulkAssignOpen, setBulkAssignOpen] = useState(false);
-  const [detailAssignment, setDetailAssignment] = useState<DrillAssignment | null>(null);
+  const [detailAssignmentId, setDetailAssignmentId] = useState<number | null>(null);
 
   const { data: sessions = [], isLoading } = useQuery<DrillSession[]>({
     queryKey: ["/api/drill-sessions"],
@@ -984,6 +1124,9 @@ export default function DrillTraining() {
   const myAssignment = myDept ? assignments.find(a => a.department === myDept) : null;
 
   const totalCompleted = assignments.filter(a => progressCount(a) === 3).length;
+
+  // ID 기반으로 detailAssignment를 실시간 조회 (제출 후 자동 갱신)
+  const detailAssignment = detailAssignmentId ? assignments.find(a => a.id === detailAssignmentId) ?? null : null;
 
   return (
     <div className="space-y-5">
@@ -1119,7 +1262,7 @@ export default function DrillTraining() {
                       </div>
                     ))}
                   </div>
-                  <Button className="mt-3 w-full" size="sm" onClick={() => setDetailAssignment(myAssignment)}>
+                  <Button className="mt-3 w-full" size="sm" onClick={() => setDetailAssignmentId(myAssignment.id)}>
                     훈련 보고 진행하기 <ChevronRight className="w-3 h-3 ml-1" />
                   </Button>
                 </div>
@@ -1140,7 +1283,7 @@ export default function DrillTraining() {
                       <div
                         key={a.id}
                         className="border rounded-lg p-3 hover:border-primary/50 hover:bg-muted/30 cursor-pointer transition-all"
-                        onClick={() => setDetailAssignment(a)}
+                        onClick={() => setDetailAssignmentId(a.id)}
                       >
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex-1 min-w-0">
@@ -1193,7 +1336,7 @@ export default function DrillTraining() {
 
       {/* 상세 다이얼로그 */}
       {detailAssignment && (
-        <Dialog open={!!detailAssignment} onOpenChange={() => setDetailAssignment(null)}>
+        <Dialog open={!!detailAssignment} onOpenChange={() => setDetailAssignmentId(null)}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
@@ -1205,7 +1348,7 @@ export default function DrillTraining() {
               assignment={detailAssignment}
               sessionId={selectedSession!}
               isAdmin={isAdmin}
-              onClose={() => setDetailAssignment(null)}
+              onClose={() => setDetailAssignmentId(null)}
             />
           </DialogContent>
         </Dialog>
