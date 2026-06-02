@@ -14,8 +14,9 @@ import {
   CheckCircle2, Clock, FileDown, Download, CircleCheck, AlertCircle, Users,
   ChevronRight, ChevronDown, MapPin, Save, Sparkles, ScanSearch, Loader2,
   Lightbulb, Zap, TriangleAlert, ChevronUp, CheckSquare,
-  BarChart3, TrendingUp, Search, Filter, Shield,
+  BarChart3, TrendingUp, Search, Filter, Shield, FileSpreadsheet,
 } from "lucide-react";
+import RiskAssessmentResults from "./RiskAssessmentResults";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
@@ -128,7 +129,7 @@ export default function RiskAssessmentPage() {
   const [isDownloading, setIsDownloading] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-  const [activeTab, setActiveTab] = useState<"dashboard" | "list">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "list" | "results">("dashboard");
   const [activeType, setActiveType] = useState("상반기정기평가");
   const [filterDept, setFilterDept] = useState("전체");
   const [filterGrade, setFilterGrade] = useState<string | null>(null);
@@ -646,13 +647,13 @@ export default function RiskAssessmentPage() {
 
       {/* 탭 */}
       <div className="flex items-center gap-1 border-b">
-        {(["dashboard", "list"] as const).map(tab => (
+        {(["dashboard", "list", "results"] as const).map(tab => (
           <button
             key={tab}
             onClick={() => { setActiveTab(tab); setSelectionMode(false); setSelectedIds(new Set()); setSelectedId(null); }}
             className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${activeTab === tab ? "border-orange-500 text-orange-600" : "border-transparent text-muted-foreground hover:text-foreground"}`}
           >
-            {tab === "dashboard" ? "📊 대시보드" : "📋 목록 관리"}
+            {tab === "dashboard" ? "📊 대시보드" : tab === "list" ? "📋 목록 관리" : "📈 평가 결과"}
           </button>
         ))}
         {activeTab === "list" && canEditRiskAssessment && (
@@ -1062,6 +1063,11 @@ export default function RiskAssessmentPage() {
             <Trash2 className="w-3.5 h-3.5 mr-1" />삭제
           </Button>
         </div>
+      )}
+
+      {/* ===== 평가 결과 탭 ===== */}
+      {activeTab === "results" && (
+        <RiskAssessmentResults />
       )}
 
       {/* 등록/수정 다이얼로그 */}

@@ -4113,6 +4113,112 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
     }
   });
 
+  // === 위험성평가 결과 업로드 ===
+  app.post('/api/risk-assessment-results/upload', requireEditor, reportUpload.single('file'), async (req: any, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: "엑셀 파일이 없습니다" });
+      const label = req.body.label || "위험성평가 결과";
+
+      const ExcelJS = (await import('exceljs')).default;
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.load(req.file.buffer);
+
+      // 첫 번째 시트를 메인 데이터로 사용
+      const sheet = wb.worksheets[0];
+      if (!sheet) return res.status(400).json({ message: "시트를 찾을 수 없습니다" });
+
+      function getCellText(cell: any): string {
+        const v = cell?.value;
+        if (v == null) return "";
+        if (typeof v === 'object' && v.richText) return v.richText.map((r: any) => r.text || "").join('');
+        if (v instanceof Date) return v.toISOString().slice(0, 10);
+        if (typeof v === 'object' && v.result !== undefined) return String(v.result ?? "");
+        if (typeof v === 'object' && v.formula) return String(v.result ?? "");
+        return String(v);
+      }
+      function getCellNum(cell: any): number | null {
+        const v = cell?.value;
+        if (v == null) return null;
+        if (typeof v === 'number') return v;
+        if (typeof v === 'object' && v.result !== undefined) return Number(v.result) || null;
+        return Number(v) || null;
+      }
+
+      const rows: any[] = [];
+      let headerRow: any[] = [];
+      sheet.eachRow((row, ri) => {
+        if (ri === 1) { headerRow = row.values as any[]; return; }
+        const c = (i: number) => row.getCell(i);
+        const team = getCellText(c(4));
+        const registrant = getCellText(c(5));
+        if (!team && !registrant) return; // 빈 행 스킵
+        rows.push({
+          no: getCellNum(c(1)),
+          category: getCellText(c(2)),
+          division: getCellText(c(3)),
+          team,
+          registrant,
+          registeredAt: getCellText(c(6)),
+          supervisor: getCellText(c(7)),
+          status: getCellText(c(8)),
+          equipmentId: getCellText(c(9)),
+          equipmentName: getCellText(c(10)),
+          location: getCellText(c(14)),
+          responsibleTask: getCellText(c(15)),
+          process: getCellText(c(16)),
+          hazardCondition: getCellText(c(17)),
+          hazardType: getCellText(c(18)),
+          relatedLaw: getCellText(c(19)),
+          currentControls: getCellText(c(20)),
+          frequency: getCellNum(c(21)),
+          severity: getCellNum(c(22)),
+          riskScore: getCellNum(c(23)),
+          improvementMeasures: getCellText(c(24)),
+          plannedDate: getCellText(c(25)),
+          completionDate: getCellText(c(26)),
+          afterFrequency: getCellNum(c(27)),
+          afterSeverity: getCellNum(c(28)),
+          afterRiskScore: getCellNum(c(29)),
+        });
+      });
+
+      if (rows.length === 0) return res.status(400).json({ message: "데이터가 없습니다" });
+
+      const upload = await storage.createRiskAssessmentResultUpload({
+        label,
+        totalRows: rows.length,
+        rows: rows as any,
+        uploadedBy: req.user?.username || null,
+      });
+      res.json(upload);
+    } catch (e: any) {
+      console.error('risk-assessment-results upload error:', e.message);
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.get('/api/risk-assessment-results', isAuthenticated, async (req: any, res) => {
+    try {
+      const uploads = await storage.getRiskAssessmentResultUploads();
+      res.json(uploads);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.get('/api/risk-assessment-results/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const upload = await storage.getRiskAssessmentResultUpload(parseInt(req.params.id));
+      if (!upload) return res.status(404).json({ message: "없음" });
+      res.json(upload);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.delete('/api/risk-assessment-results/:id', requireEditor, async (req: any, res) => {
+    try {
+      await storage.deleteRiskAssessmentResultUpload(parseInt(req.params.id));
+      res.json({ success: true });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
   // === ACCIDENT REPORTS ===
   app.get('/api/accidents', isAuthenticated, async (req: any, res) => {
     try {

@@ -733,6 +733,18 @@ export const insertSafetySupplyDeptEntrySchema = createInsertSchema(safetySupply
 export type SafetySupplyDeptEntry = typeof safetySupplyDeptEntries.$inferSelect;
 export type InsertSafetySupplyDeptEntry = z.infer<typeof insertSafetySupplyDeptEntrySchema>;
 
+// === 위험성평가 결과 업로드 ===
+export const riskAssessmentResultUploads = pgTable("risk_assessment_result_uploads", {
+  id: serial("id").primaryKey(),
+  label: text("label").notNull(),
+  totalRows: integer("total_rows").notNull().default(0),
+  rows: jsonb("rows").notNull().default([]),
+  uploadedBy: text("uploaded_by"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type RiskAssessmentResultUpload = typeof riskAssessmentResultUploads.$inferSelect;
+export type InsertRiskAssessmentResultUpload = typeof riskAssessmentResultUploads.$inferInsert;
+
 // Export auth schema
 export * from "./models/auth";
 

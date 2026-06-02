@@ -48,6 +48,8 @@ import {
   type SafetySupplySurvey, type InsertSafetySupplySurvey,
   safetySupplyItems,
   type SafetySupplyItem, type InsertSafetySupplyItem,
+  riskAssessmentResultUploads,
+  type RiskAssessmentResultUpload, type InsertRiskAssessmentResultUpload,
   safetySupplyDeptEntries,
   type SafetySupplyDeptEntry, type InsertSafetySupplyDeptEntry,
 } from "@shared/schema";
@@ -220,6 +222,12 @@ export interface IStorage {
   createHealthManagerReport(data: any): Promise<HealthManagerReport>;
   updateHealthManagerReport(id: number, data: any): Promise<HealthManagerReport>;
   deleteHealthManagerReport(id: number): Promise<void>;
+
+  // Risk Assessment Result Uploads
+  getRiskAssessmentResultUploads(): Promise<RiskAssessmentResultUpload[]>;
+  getRiskAssessmentResultUpload(id: number): Promise<RiskAssessmentResultUpload | undefined>;
+  createRiskAssessmentResultUpload(data: InsertRiskAssessmentResultUpload): Promise<RiskAssessmentResultUpload>;
+  deleteRiskAssessmentResultUpload(id: number): Promise<void>;
 
   // Education Tasks
   getEducationTasks(): Promise<EducationTask[]>;
@@ -1015,6 +1023,21 @@ export class DatabaseStorage implements IStorage {
     for (let i = 0; i < records.length; i += chunkSize) {
       await db.insert(onlineEduRecords).values(records.slice(i, i + chunkSize));
     }
+  }
+
+  async getRiskAssessmentResultUploads(): Promise<RiskAssessmentResultUpload[]> {
+    return await db.select().from(riskAssessmentResultUploads).orderBy(desc(riskAssessmentResultUploads.createdAt));
+  }
+  async getRiskAssessmentResultUpload(id: number): Promise<RiskAssessmentResultUpload | undefined> {
+    const [row] = await db.select().from(riskAssessmentResultUploads).where(eq(riskAssessmentResultUploads.id, id));
+    return row;
+  }
+  async createRiskAssessmentResultUpload(data: InsertRiskAssessmentResultUpload): Promise<RiskAssessmentResultUpload> {
+    const [row] = await db.insert(riskAssessmentResultUploads).values(data).returning();
+    return row;
+  }
+  async deleteRiskAssessmentResultUpload(id: number): Promise<void> {
+    await db.delete(riskAssessmentResultUploads).where(eq(riskAssessmentResultUploads.id, id));
   }
 }
 
