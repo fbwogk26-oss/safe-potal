@@ -10333,8 +10333,10 @@ ${htmlDraft}
       if (!files || files.length === 0) return res.status(400).json({ message: '파일 없음' });
       const results = await Promise.all(files.map(async (f) => {
         const result = await mammoth.extractRawText({ buffer: f.buffer });
+        // multer가 파일명을 Latin-1로 읽으므로 UTF-8로 변환
+        const decodedName = Buffer.from(f.originalname, 'latin1').toString('utf8');
         return {
-          fileName: f.originalname.replace(/\.docx?$/i, ''),
+          fileName: decodedName.replace(/\.docx?$/i, ''),
           text: (result.value ?? '').trim(),
         };
       }));

@@ -697,7 +697,12 @@ function BulkAssignDialog({ open, sessionId, onClose }: { open: boolean; session
 
         {step === "upload" && (
           <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">워드(.docx) 시나리오 파일을 업로드하면 내용을 추출하여 부서에 랜덤 배정합니다.</p>
+            <div className="bg-blue-50 dark:bg-blue-950/30 rounded-lg p-3 text-xs text-blue-700 dark:text-blue-300 space-y-1">
+              <p className="font-semibold">💡 파일 업로드 안내</p>
+              <p>• 시나리오 파일 <span className="font-semibold">1개</span> → 전 부서에 동일한 시나리오 배정</p>
+              <p>• 시나리오 파일 <span className="font-semibold">여러 개</span> → 부서마다 다른 시나리오를 랜덤 배정</p>
+              <p>부서별로 다른 시나리오를 주려면 각 시나리오를 <span className="font-semibold">별도 .docx 파일</span>로 준비해서 한번에 올려주세요.</p>
+            </div>
             <div className="border-2 border-dashed rounded-lg p-6 text-center">
               <FileText className="w-8 h-8 mx-auto mb-2 text-muted-foreground opacity-60" />
               <p className="text-sm text-muted-foreground mb-3">시나리오 워드 파일 선택 (여러 개 가능)</p>
