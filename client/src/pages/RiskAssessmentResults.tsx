@@ -161,7 +161,7 @@ export default function RiskAssessmentResults() {
   const teamCount: Record<string, number> = {};
   for (const r of rows) teamCount[r.team || "기타"] = (teamCount[r.team || "기타"] || 0) + 1;
   const teamData = Object.entries(teamCount)
-    .map(([team, count]) => ({ team, short: team.replace("운용팀", "").replace("팀", ""), count }))
+    .map(([team, count]) => ({ team, short: team.replace(/^대구/, "").replace("운용팀", ""), count }))
     .sort((a, b) => b.count - a.count);
 
   const statusCount: Record<string, number> = {};
@@ -392,13 +392,10 @@ export default function RiskAssessmentResults() {
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.05)" vertical={false} />
                   <XAxis
                     dataKey="short"
-                    tick={{ fontSize: 11, fill: "var(--muted-foreground, #888)" }}
+                    tick={{ fontSize: 10, fill: "var(--muted-foreground, #888)" }}
                     axisLine={false}
                     tickLine={false}
-                    angle={-20}
-                    textAnchor="end"
                     interval={0}
-                    dy={6}
                   />
                   <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} allowDecimals={false} width={28} />
                   <Tooltip
@@ -420,35 +417,30 @@ export default function RiskAssessmentResults() {
             {/* 위험성 등급 분포 */}
             <Card className="border shadow-sm">
               <CardHeader className="pb-2 pt-4 px-5">
-                <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                  <span className="w-6 h-6 rounded-md bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-                    <TrendingUp className="h-3.5 w-3.5 text-red-500" />
-                  </span>
-                  위험성 등급 분포
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-md bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                      <TrendingUp className="h-3.5 w-3.5 text-red-500" />
+                    </span>
+                    위험성 등급 분포
+                  </CardTitle>
+                  <span className="text-xs text-muted-foreground">3개 등급</span>
+                </div>
               </CardHeader>
-              <CardContent className="px-5 pb-5 pt-1 space-y-3">
+              <CardContent className="px-5 pb-5 pt-1 space-y-2.5">
                 {[
-                  { grade: "A", label: "A등급 · 중점관리", count: gradeCount.A, barColor: "#ef4444", textCls: "text-red-600 dark:text-red-400", bgCls: "bg-red-50 dark:bg-red-950/20", border: "border-red-200 dark:border-red-800/40" },
-                  { grade: "B", label: "B등급 · 일상관리", count: gradeCount.B, barColor: "#f97316", textCls: "text-orange-600 dark:text-orange-400", bgCls: "bg-orange-50 dark:bg-orange-950/20", border: "border-orange-200 dark:border-orange-800/40" },
-                  { grade: "C", label: "C등급 · 허용가능", count: gradeCount.C, barColor: "#3b82f6", textCls: "text-blue-600 dark:text-blue-400", bgCls: "bg-blue-50 dark:bg-blue-950/20", border: "border-blue-200 dark:border-blue-800/40" },
+                  { label: "A등급 · 중점관리", count: gradeCount.A, color: "#ef4444" },
+                  { label: "B등급 · 일상관리", count: gradeCount.B, color: "#f97316" },
+                  { label: "C등급 · 허용가능", count: gradeCount.C, color: "#3b82f6" },
                 ].map(g => {
-                  const pct = totalCount ? Math.round((g.count / totalCount) * 100) : 0;
+                  const pct = totalCount ? (g.count / totalCount) * 100 : 0;
                   return (
-                    <div key={g.grade} className={`rounded-xl border px-4 py-3 ${g.bgCls} ${g.border}`}>
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black text-white`} style={{ background: g.barColor }}>{g.grade}</span>
-                          <span className={`text-xs font-semibold ${g.textCls}`}>{g.label}</span>
-                        </div>
-                        <div className="text-right">
-                          <span className="text-base font-bold text-foreground">{g.count}</span>
-                          <span className="text-xs text-muted-foreground ml-1">건 ({pct}%)</span>
-                        </div>
+                    <div key={g.label} className="flex items-center gap-3">
+                      <span className="text-[11px] text-muted-foreground w-24 shrink-0 truncate font-medium" title={g.label}>{g.label}</span>
+                      <div className="flex-1 h-2.5 bg-muted/40 rounded-full overflow-hidden">
+                        <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: g.color }} />
                       </div>
-                      <div className="h-2 bg-white/70 dark:bg-black/10 rounded-full overflow-hidden">
-                        <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: g.barColor }} />
-                      </div>
+                      <span className="text-[11px] font-bold w-8 text-right tabular-nums" style={{ color: g.color }}>{g.count}</span>
                     </div>
                   );
                 })}
