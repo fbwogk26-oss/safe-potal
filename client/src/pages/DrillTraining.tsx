@@ -30,7 +30,7 @@ function isHtml(s: string): boolean {
   return s.trimStart().startsWith("<");
 }
 
-// 시나리오 전체 렌더링 (HTML → dangerouslySetInnerHTML, 텍스트 → pre-wrap)
+// 시나리오 전체 렌더링 (HTML → dangerouslySetInnerHTML, 텍스트 → 단락 분리)
 function ScenarioFull({ text, className = "" }: { text: string; className?: string }) {
   if (isHtml(text)) {
     return (
@@ -40,7 +40,42 @@ function ScenarioFull({ text, className = "" }: { text: string; className?: stri
       />
     );
   }
+  // plain text: 빈줄 기준으로 단락 분리
+  const paras = text.split(/\n{2,}/).map(p => p.trim()).filter(Boolean);
+  if (paras.length > 1) {
+    return (
+      <div className={`space-y-2 text-sm leading-relaxed ${className}`}>
+        {paras.map((p, i) => (
+          <p key={i} className="whitespace-pre-wrap">{p}</p>
+        ))}
+      </div>
+    );
+  }
   return <p className={`text-sm whitespace-pre-wrap leading-relaxed ${className}`}>{text}</p>;
+}
+
+// 시나리오 접기/펼치기 래퍼 (상세 다이얼로그용)
+function ScenarioCollapsible({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  const plain = isHtml(text) ? stripHtml(text) : text.replace(/\n+/g, " ");
+  return (
+    <div className="bg-muted/40 rounded-lg border text-sm">
+      <button
+        className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-muted/60 transition-colors rounded-lg"
+        onClick={() => setOpen(o => !o)}
+      >
+        <span className="text-xs text-muted-foreground flex-1 mr-2 line-clamp-1">
+          {plain.slice(0, 100)}{plain.length > 100 ? "…" : ""}
+        </span>
+        <span className="text-xs text-primary whitespace-nowrap">{open ? "접기 ▲" : "시나리오 전체 보기 ▼"}</span>
+      </button>
+      {open && (
+        <div className="px-3 pb-3 border-t mt-0 max-h-72 overflow-y-auto">
+          <ScenarioFull text={text} className="mt-2" />
+        </div>
+      )}
+    </div>
+  );
 }
 
 // 시나리오 짧은 미리보기 (한 줄)
@@ -556,15 +591,13 @@ function AssignmentDetail({ assignment, sessionId, isAdmin, onClose }: {
 
   return (
     <div className="space-y-4">
-      {/* 시나리오 */}
-      <div className="bg-muted/40 rounded-lg p-3">
-        <div className="flex items-center gap-2 mb-1">
+      {/* 시나리오 (접기/펼치기) */}
+      <div className="space-y-1">
+        <div className="flex items-center gap-2">
           <p className="font-semibold text-sm">{assignment.department}</p>
           {assignment.accidentType && <Badge variant="outline" className="text-xs">{assignment.accidentType}</Badge>}
         </div>
-        <div className="max-h-52 overflow-y-auto border rounded bg-background/60 p-3 mt-1">
-          <ScenarioFull text={assignment.scenario} />
-        </div>
+        <ScenarioCollapsible text={assignment.scenario} />
       </div>
 
       {/* ── 사전교육 참석자 명단 (1단계 보고 전 먼저 작성) ── */}
