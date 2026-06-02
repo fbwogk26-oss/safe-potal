@@ -10323,6 +10323,37 @@ ${htmlDraft}
 
   // ─── 안전사고 발생 대응훈련 API ─────────────────────────────────────
   const drillPhotoUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
+  const drillDocxUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+
+  // 워드 파일 파싱 (시나리오 텍스트 추출)
+  app.post('/api/drill-docx/parse', requireEditor, drillDocxUpload.array('files', 20), async (req: any, res) => {
+    try {
+      const mammoth = await import('mammoth');
+      const files = req.files as Express.Multer.File[];
+      if (!files || files.length === 0) return res.status(400).json({ message: '파일 없음' });
+      const results = await Promise.all(files.map(async (f) => {
+        const result = await mammoth.extractRawText({ buffer: f.buffer });
+        return {
+          fileName: f.originalname.replace(/\.docx?$/i, ''),
+          text: result.value.trim(),
+        };
+      }));
+      res.json(results);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // 부서별 시나리오 일괄 배정
+  app.post('/api/drill-sessions/:id/bulk-assign', requireEditor, async (req: any, res) => {
+    try {
+      const sessionId = Number(req.params.id);
+      const { assignments } = req.body as { assignments: { department: string; scenario: string; accidentType: string; scenarioFile?: string }[] };
+      if (!Array.isArray(assignments) || assignments.length === 0) return res.status(400).json({ message: '배정 목록 없음' });
+      const created = await Promise.all(assignments.map(a =>
+        storage.createDrillAssignment({ sessionId, ...a })
+      ));
+      res.json(created);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
 
   // 세션 CRUD
   app.get('/api/drill-sessions', isAuthenticated, async (_req, res) => {
