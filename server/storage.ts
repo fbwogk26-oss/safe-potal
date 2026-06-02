@@ -18,6 +18,9 @@ import {
   type NewEquipmentRequest, type InsertNewEquipmentRequest,
   type MusculoskeletalAssessment, type InsertMusculoskeletalAssessment,
   type TrafficFine, type InsertTrafficFine,
+  drillSessions, drillAssignments,
+  type DrillSession, type InsertDrillSession,
+  type DrillAssignment, type InsertDrillAssignment,
   workPlans,
   type WorkPlan, type InsertWorkPlan,
   musicFiles,
@@ -1050,6 +1053,57 @@ export class DatabaseStorage implements IStorage {
   async addRiskAssessmentDownloadLog(data: InsertRiskAssessmentDownloadLog): Promise<RiskAssessmentDownloadLog> {
     const [row] = await db.insert(riskAssessmentDownloadLogs).values(data).returning();
     return row;
+  }
+
+  // === 대응훈련 세션 ===
+  async getDrillSessions(): Promise<DrillSession[]> {
+    return await db.select().from(drillSessions).orderBy(desc(drillSessions.createdAt));
+  }
+  async getDrillSession(id: number): Promise<DrillSession | undefined> {
+    const [row] = await db.select().from(drillSessions).where(eq(drillSessions.id, id));
+    return row;
+  }
+  async createDrillSession(data: InsertDrillSession): Promise<DrillSession> {
+    const [row] = await db.insert(drillSessions).values(data).returning();
+    return row;
+  }
+  async updateDrillSession(id: number, data: Partial<InsertDrillSession>): Promise<DrillSession | undefined> {
+    const [row] = await db.update(drillSessions).set(data).where(eq(drillSessions.id, id)).returning();
+    return row;
+  }
+  async deleteDrillSession(id: number): Promise<void> {
+    await db.delete(drillAssignments).where(eq(drillAssignments.sessionId, id));
+    await db.delete(drillSessions).where(eq(drillSessions.id, id));
+  }
+
+  // === 대응훈련 부서 할당 ===
+  async getDrillAssignments(sessionId: number): Promise<DrillAssignment[]> {
+    return await db.select().from(drillAssignments)
+      .where(eq(drillAssignments.sessionId, sessionId))
+      .orderBy(asc(drillAssignments.department));
+  }
+  async getDrillAssignment(id: number): Promise<DrillAssignment | undefined> {
+    const [row] = await db.select().from(drillAssignments).where(eq(drillAssignments.id, id));
+    return row;
+  }
+  async getDrillAssignmentByDept(sessionId: number, department: string): Promise<DrillAssignment | undefined> {
+    const [row] = await db.select().from(drillAssignments)
+      .where(and(eq(drillAssignments.sessionId, sessionId), eq(drillAssignments.department, department)));
+    return row;
+  }
+  async createDrillAssignment(data: InsertDrillAssignment): Promise<DrillAssignment> {
+    const [row] = await db.insert(drillAssignments).values(data).returning();
+    return row;
+  }
+  async updateDrillAssignment(id: number, data: Partial<InsertDrillAssignment>): Promise<DrillAssignment | undefined> {
+    const [row] = await db.update(drillAssignments)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(drillAssignments.id, id))
+      .returning();
+    return row;
+  }
+  async deleteDrillAssignment(id: number): Promise<void> {
+    await db.delete(drillAssignments).where(eq(drillAssignments.id, id));
   }
 }
 

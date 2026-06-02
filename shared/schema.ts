@@ -758,6 +758,48 @@ export const riskAssessmentDownloadLogs = pgTable("risk_assessment_download_logs
 export type RiskAssessmentDownloadLog = typeof riskAssessmentDownloadLogs.$inferSelect;
 export type InsertRiskAssessmentDownloadLog = typeof riskAssessmentDownloadLogs.$inferInsert;
 
+// === 안전사고 발생 대응훈련 ===
+export const drillSessions = pgTable("drill_sessions", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  year: integer("year").notNull(),
+  period: text("period").notNull().default("하반기"), // 상반기/하반기
+  drillDate: text("drill_date"),
+  description: text("description"),
+  status: text("status").notNull().default("진행중"), // 진행중/완료
+  createdBy: text("created_by"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type DrillSession = typeof drillSessions.$inferSelect;
+export type InsertDrillSession = typeof drillSessions.$inferInsert;
+
+export const drillAssignments = pgTable("drill_assignments", {
+  id: serial("id").primaryKey(),
+  sessionId: integer("session_id").notNull(),
+  department: text("department").notNull(),
+  scenario: text("scenario").notNull(),
+  accidentType: text("accident_type"),
+  // 1단계: SNS 보고
+  step1Status: text("step1_status").notNull().default("미제출"), // 미제출/제출완료
+  step1Data: jsonb("step1_data"),
+  step1SubmittedAt: timestamp("step1_submitted_at"),
+  step1SubmittedBy: text("step1_submitted_by"),
+  // 2단계: 사고경위서
+  step2Status: text("step2_status").notNull().default("미제출"),
+  step2Data: jsonb("step2_data"),
+  step2SubmittedAt: timestamp("step2_submitted_at"),
+  step2SubmittedBy: text("step2_submitted_by"),
+  // 3단계: 최종 결과보고
+  step3Status: text("step3_status").notNull().default("미제출"),
+  step3Data: jsonb("step3_data"),
+  step3SubmittedAt: timestamp("step3_submitted_at"),
+  step3SubmittedBy: text("step3_submitted_by"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+export type DrillAssignment = typeof drillAssignments.$inferSelect;
+export type InsertDrillAssignment = typeof drillAssignments.$inferInsert;
+
 // Export auth schema
 export * from "./models/auth";
 

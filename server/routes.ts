@@ -10321,6 +10321,118 @@ ${htmlDraft}
     }
   });
 
+  // ─── 안전사고 발생 대응훈련 API ─────────────────────────────────────
+  const drillPhotoUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
+
+  // 세션 CRUD
+  app.get('/api/drill-sessions', isAuthenticated, async (_req, res) => {
+    try { res.json(await storage.getDrillSessions()); } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+  app.get('/api/drill-sessions/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const session = await storage.getDrillSession(Number(req.params.id));
+      if (!session) return res.status(404).json({ message: '없음' });
+      res.json(session);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+  app.post('/api/drill-sessions', requireEditor, async (req: any, res) => {
+    try {
+      const data = { ...req.body, createdBy: req.user?.username };
+      const session = await storage.createDrillSession(data);
+      res.json(session);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+  app.put('/api/drill-sessions/:id', requireEditor, async (req: any, res) => {
+    try {
+      const updated = await storage.updateDrillSession(Number(req.params.id), req.body);
+      res.json(updated);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+  app.delete('/api/drill-sessions/:id', requireEditor, async (req: any, res) => {
+    try {
+      await storage.deleteDrillSession(Number(req.params.id));
+      res.json({ ok: true });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // 부서 할당 CRUD
+  app.get('/api/drill-sessions/:id/assignments', isAuthenticated, async (req: any, res) => {
+    try { res.json(await storage.getDrillAssignments(Number(req.params.id))); } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+  app.post('/api/drill-sessions/:id/assignments', requireEditor, async (req: any, res) => {
+    try {
+      const data = { ...req.body, sessionId: Number(req.params.id) };
+      res.json(await storage.createDrillAssignment(data));
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+  app.put('/api/drill-assignments/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const updated = await storage.updateDrillAssignment(Number(req.params.id), req.body);
+      res.json(updated);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+  app.delete('/api/drill-assignments/:id', requireEditor, async (req: any, res) => {
+    try {
+      await storage.deleteDrillAssignment(Number(req.params.id));
+      res.json({ ok: true });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // 단계별 보고 제출 (사진 업로드 포함)
+  app.post('/api/drill-assignments/:id/step/:step', isAuthenticated, drillPhotoUpload.array('photos', 20), async (req: any, res) => {
+    try {
+      const assignmentId = Number(req.params.id);
+      const step = Number(req.params.step); // 1, 2, 3
+      if (![1, 2, 3].includes(step)) return res.status(400).json({ message: '잘못된 단계' });
+
+      const assignment = await storage.getDrillAssignment(assignmentId);
+      if (!assignment) return res.status(404).json({ message: '없음' });
+
+      // 사진 업로드 처리
+      const photoUrls: string[] = [];
+      if (req.files && req.files.length > 0) {
+        const { ObjectStorageServiceClient } = await import('@replit/object-storage');
+        const client = new ObjectStorageServiceClient();
+        for (const file of req.files as Express.Multer.File[]) {
+          const ext = file.originalname.split('.').pop() || 'jpg';
+          const key = `public/drill_photo_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+          await client.uploadFromBytes(key, file.buffer, { contentType: file.mimetype });
+          photoUrls.push(`/objects/${key}`);
+        }
+      }
+
+      const bodyData = typeof req.body.data === 'string' ? JSON.parse(req.body.data) : (req.body.data || {});
+      const dataWithPhotos = { ...bodyData, photos: [...(bodyData.photos || []), ...photoUrls] };
+
+      const updatePayload: any = {
+        [`step${step}Status`]: '제출완료',
+        [`step${step}Data`]: dataWithPhotos,
+        [`step${step}SubmittedAt`]: new Date(),
+        [`step${step}SubmittedBy`]: req.user?.username,
+      };
+      const updated = await storage.updateDrillAssignment(assignmentId, updatePayload);
+      res.json(updated);
+    } catch (e: any) {
+      console.error('drill step submit error:', e.message);
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // 단계 초기화 (관리자용)
+  app.delete('/api/drill-assignments/:id/step/:step', requireEditor, async (req: any, res) => {
+    try {
+      const step = Number(req.params.step);
+      const updatePayload: any = {
+        [`step${step}Status`]: '미제출',
+        [`step${step}Data`]: null,
+        [`step${step}SubmittedAt`]: null,
+        [`step${step}SubmittedBy`]: null,
+      };
+      const updated = await storage.updateDrillAssignment(Number(req.params.id), updatePayload);
+      res.json(updated);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
   // ─── 음주운전 카드뉴스 API ────────────────────────────────────────────
   app.get('/api/card-news/fetch', requireAdmin, async (_req, res) => {
     try {
