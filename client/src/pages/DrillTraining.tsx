@@ -143,11 +143,17 @@ function Step1Form({ assignment, onClose }: { assignment: DrillAssignment; onClo
 function Step2Form({ assignment, onClose }: { assignment: DrillAssignment; onClose: () => void }) {
   const { toast } = useToast();
   const qc = useQueryClient();
+  const s1 = assignment.step1Data as any;
   const [form, setForm] = useState({
-    occurredAt: "", victimName: "", victimPosition: "", victimDept: "",
+    occurredAt:     s1?.occurredAt     ?? "",
+    victimName:     s1?.victimName     ?? "",
+    victimPosition: s1?.victimPosition ?? "",
+    victimDept:     s1?.victimDept     ?? "",
     companion: "", vehicleInfo: "",
-    timeline: [{ time: "", content: "" }],
-    overview: "", cause: "", prevention: "",
+    timeline: s1?.location ? [{ time: s1?.occurredAt ?? "", content: `장소: ${s1.location}` }] : [{ time: "", content: "" }],
+    overview:  s1?.content  ?? "",
+    cause:     s1?.cause    ?? "",
+    prevention: "",
   });
   const [photos, setPhotos] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -184,6 +190,12 @@ function Step2Form({ assignment, onClose }: { assignment: DrillAssignment; onClo
       <div className="bg-amber-50 dark:bg-amber-950/30 rounded-lg p-3 text-sm text-amber-700 dark:text-amber-300 border border-amber-200">
         <strong>제출시한:</strong> 사고 발생 후 3시간 이내 현장경영팀 이메일 보고
       </div>
+      {s1 && (
+        <div className="bg-green-50 dark:bg-green-950/30 rounded-lg p-2.5 text-xs text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800 flex items-center gap-2">
+          <span>✅</span>
+          <span>1단계 SNS보고 내용이 자동으로 채워졌습니다. 내용을 확인하고 보완해 주세요.</span>
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-3">
         <div><Label>발생일시</Label><Input type="datetime-local" value={form.occurredAt} onChange={set("occurredAt")} /></div>
         <div><Label>차종/차량번호</Label><Input value={form.vehicleInfo} onChange={set("vehicleInfo")} placeholder="스포티지/123가4567" /></div>

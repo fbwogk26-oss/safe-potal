@@ -10492,13 +10492,11 @@ ${htmlDraft}
       // 사진 업로드 처리
       const photoUrls: string[] = [];
       if (req.files && req.files.length > 0) {
-        const { ObjectStorageServiceClient } = await import('@replit/object-storage');
-        const client = new ObjectStorageServiceClient();
         for (const file of req.files as Express.Multer.File[]) {
-          const ext = file.originalname.split('.').pop() || 'jpg';
-          const key = `public/drill_photo_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-          await client.uploadFromBytes(key, file.buffer, { contentType: file.mimetype });
-          photoUrls.push(`/objects/${key}`);
+          const ext = (file.originalname.split('.').pop() || 'jpg').toLowerCase();
+          const filename = `drill_photo_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+          const url = await uploadToObjectStorage(file.buffer, filename, file.mimetype);
+          if (url) photoUrls.push(url);
         }
       }
 
