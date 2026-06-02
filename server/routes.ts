@@ -10347,6 +10347,71 @@ ${htmlDraft}
     }
   });
 
+  // 훈련 계획 문서에서 시나리오 표 자동 파싱
+  app.post('/api/drill-docx/parse-plan', requireEditor, drillDocxUpload.single('file'), async (req: any, res) => {
+    try {
+      const file = req.file as Express.Multer.File | undefined;
+      if (!file) return res.status(400).json({ message: '파일 없음' });
+
+      const TEAM_MAP: Record<string, string> = {
+        '스탭': '스탭', '스태프': '스탭',
+        '남대구t': '남대구운용팀', '남대구': '남대구운용팀',
+        '공공망': '공공망관제팀', '공공망관제': '공공망관제팀',
+        '포항t': '포항운용팀', '포항': '포항운용팀',
+        '동대구t': '동대구운용팀', '동대구': '동대구운용팀',
+        '안동t': '안동운용팀', '안동': '안동운용팀',
+        '문경t': '문경운용팀', '문경': '문경운용팀',
+        '구미t': '구미운용팀', '구미': '구미운용팀',
+        '서대구t': '서대구운용팀', '서대구': '서대구운용팀',
+        '현장경영': '현장경영팀', '현장경영팀': '현장경영팀',
+      };
+
+      const result = await mammoth.extractRawText({ buffer: file.buffer });
+      const text = result.value ?? '';
+
+      // "훈련 시나리오" 섹션 찾기
+      const sectionIdx = text.indexOf('훈련 시나리오');
+      if (sectionIdx < 0) return res.status(422).json({ message: '"훈련 시나리오" 섹션을 찾을 수 없습니다.' });
+
+      const afterSection = text.slice(sectionIdx + '훈련 시나리오'.length);
+      const lines = afterSection.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+
+      const assignments: { team: string; department: string; scenario: string; accidentType: string }[] = [];
+      let currentTeam = '';
+      let currentDept = '';
+
+      for (const line of lines) {
+        // 다른 섹션 시작 시 종료
+        if (/^(작업사고|차량사고|별첨|훈련 진행)/.test(line)) break;
+        // 헤더 행 건너뜀
+        if (line === '팀' || line === '부서별 시나리오') continue;
+
+        const normalized = line.toLowerCase().replace(/\s/g, '');
+        const matched = Object.entries(TEAM_MAP).find(([k]) => normalized === k.toLowerCase());
+
+        if (matched) {
+          currentTeam = line;
+          currentDept = matched[1];
+        } else if (currentDept && line.length > 5) {
+          // 괄호 안 사고유형 추출 (마지막 괄호)
+          const parenMatches = [...line.matchAll(/[（(]([^)）]+)[)）]/g)];
+          const accidentType = parenMatches.length > 0
+            ? parenMatches[parenMatches.length - 1][1].trim()
+            : '기타';
+          assignments.push({ team: currentTeam, department: currentDept, scenario: line, accidentType });
+          currentTeam = '';
+          currentDept = '';
+        }
+      }
+
+      if (assignments.length === 0) return res.status(422).json({ message: '시나리오 표를 파싱할 수 없습니다. 문서 형식을 확인해주세요.' });
+      res.json(assignments);
+    } catch (e: any) {
+      console.error('[parse-plan error]', e);
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   // 부서별 시나리오 일괄 배정
   app.post('/api/drill-sessions/:id/bulk-assign', requireEditor, async (req: any, res) => {
     try {

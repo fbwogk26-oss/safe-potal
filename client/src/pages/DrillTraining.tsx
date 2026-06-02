@@ -621,40 +621,95 @@ function AddAssignmentDialog({ open, sessionId, onClose }: { open: boolean; sess
   );
 }
 
-// ─── 시나리오 랜덤 일괄 배정 다이얼로그 ────────────────────────────────────
+// ─── 시나리오 일괄 배정 다이얼로그 ────────────────────────────────────────
+type PlanAssignment = { team: string; department: string; scenario: string; accidentType: string };
+
+function AssignPreviewTable({ assignments, onBack, onSubmit, isPending, backLabel }: {
+  assignments: PlanAssignment[];
+  onBack: () => void;
+  onSubmit: () => void;
+  isPending: boolean;
+  backLabel: string;
+}) {
+  return (
+    <div className="space-y-4">
+      <div>
+        <h3 className="text-sm font-semibold mb-2">배정 결과 미리보기 ({assignments.length}개 부서)</h3>
+        <div className="border rounded-lg overflow-hidden text-xs max-h-80 overflow-y-auto">
+          <table className="w-full">
+            <thead className="bg-muted/50 sticky top-0">
+              <tr>
+                <th className="text-left p-2 border-b font-medium w-28">부서</th>
+                <th className="text-left p-2 border-b font-medium w-28">사고 유형</th>
+                <th className="text-left p-2 border-b font-medium">시나리오</th>
+              </tr>
+            </thead>
+            <tbody>
+              {assignments.map((a, i) => (
+                <tr key={i} className="border-b last:border-0">
+                  <td className="p-2 font-medium whitespace-nowrap">{a.department}</td>
+                  <td className="p-2"><Badge variant="outline" className="text-xs whitespace-nowrap">{a.accidentType}</Badge></td>
+                  <td className="p-2 text-muted-foreground">{a.scenario.slice(0, 60)}{a.scenario.length > 60 ? "…" : ""}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <DialogFooter>
+        <Button variant="outline" onClick={onBack}>{backLabel}</Button>
+        <Button onClick={onSubmit} disabled={isPending}>
+          {isPending ? "등록 중..." : `일괄 등록 (${assignments.length}개)`}
+        </Button>
+      </DialogFooter>
+    </div>
+  );
+}
+
 function BulkAssignDialog({ open, sessionId, onClose }: { open: boolean; sessionId: number; onClose: () => void }) {
   const { toast } = useToast();
   const qc = useQueryClient();
 
-  const [step, setStep] = useState<"upload" | "assign">("upload");
-  const [files, setFiles] = useState<File[]>([]);
-  const [scenarios, setScenarios] = useState<{ fileName: string; text: string }[]>([]);
+  const [mode, setMode] = useState<"plan" | "random">("plan");
+  // plan mode
+  const [planFile, setPlanFile] = useState<File | null>(null);
+  const [planAssignments, setPlanAssignments] = useState<PlanAssignment[]>([]);
+  const [planParsed, setPlanParsed] = useState(false);
+  // random mode
+  const [randomFiles, setRandomFiles] = useState<File[]>([]);
+  const [randomAssignments, setRandomAssignments] = useState<PlanAssignment[]>([]);
   const [selectedDepts, setSelectedDepts] = useState<string[]>([...DEPT_LIST]);
-  const [assignments, setAssignments] = useState<{ department: string; scenario: string; accidentType: string; scenarioFile: string }[]>([]);
+  const [randomParsed, setRandomParsed] = useState(false);
+
   const [parsing, setParsing] = useState(false);
 
-  function detectAccidentType(text: string, fileName: string): string {
-    const combined = `${fileName} ${text}`.toLowerCase();
-    if (combined.includes("낙상") || combined.includes("빙판")) return "빙판길 낙상사고";
-    if (combined.includes("추락")) return "추락사고";
-    if (combined.includes("발목") || combined.includes("접지")) return "발목 접지름 사고";
-    if (combined.includes("중량물") || combined.includes("낙하")) return "중량물 낙하사고";
-    if (combined.includes("전기") || combined.includes("화상")) return "전기 화상사고";
-    if (combined.includes("차량") || combined.includes("교통")) return "차량사고";
-    return "기타";
-  }
+  // 공통 제출
+  const finalAssignments = mode === "plan" ? planAssignments : randomAssignments;
 
-  async function handleParse() {
-    if (files.length === 0) return;
+  const bulkMut = useMutation({
+    mutationFn: () => apiRequest("POST", `/api/drill-sessions/${sessionId}/bulk-assign`, {
+      assignments: finalAssignments.map(a => ({ department: a.department, scenario: a.scenario, accidentType: a.accidentType })),
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/drill-sessions", sessionId, "assignments"] });
+      toast({ title: `${finalAssignments.length}개 부서 시나리오 배정 완료` });
+      handleClose();
+    },
+    onError: (e: any) => toast({ title: "오류", description: e.message, variant: "destructive" }),
+  });
+
+  // ── 계획서 자동 추출 ──
+  async function handleParsePlan() {
+    if (!planFile) return;
     setParsing(true);
     try {
       const fd = new FormData();
-      files.forEach(f => fd.append("files", f));
-      const res = await fetch("/api/drill-docx/parse", { method: "POST", credentials: "include", body: fd });
-      if (!res.ok) throw new Error(await res.text());
-      const data = await res.json();
-      setScenarios(data);
-      setStep("assign");
+      fd.append("file", planFile);
+      const res = await fetch("/api/drill-docx/parse-plan", { method: "POST", credentials: "include", body: fd });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.message ?? "파싱 오류");
+      setPlanAssignments(body);
+      setPlanParsed(true);
     } catch (e: any) {
       toast({ title: "파싱 오류", description: e.message, variant: "destructive" });
     } finally {
@@ -662,27 +717,45 @@ function BulkAssignDialog({ open, sessionId, onClose }: { open: boolean; session
     }
   }
 
-  function handleRandomAssign() {
-    if (scenarios.length === 0 || selectedDepts.length === 0) return;
-    const shuffled = [...scenarios].sort(() => Math.random() - 0.5);
-    setAssignments(selectedDepts.map((dept, i) => {
-      const sc = shuffled[i % shuffled.length];
-      return { department: dept, scenario: sc.text, accidentType: detectAccidentType(sc.text, sc.fileName), scenarioFile: sc.fileName };
-    }));
+  // ── 랜덤 배정 ──
+  function detectAccidentType(text: string): string {
+    const t = text.toLowerCase();
+    if (t.includes("낙상") || t.includes("빙판")) return "빙판길 낙상사고";
+    if (t.includes("추락")) return "추락사고";
+    if (t.includes("발목") || t.includes("접지")) return "발목 접지름 사고";
+    if (t.includes("중량물") || t.includes("낙하")) return "중량물 낙하사고";
+    if (t.includes("전기") || t.includes("화상")) return "전기 화상사고";
+    if (t.includes("차량") || t.includes("교통")) return "차량사고";
+    if (t.includes("쏘임") || t.includes("벌")) return "쏘임사고";
+    return "기타";
   }
 
-  const bulkMut = useMutation({
-    mutationFn: () => apiRequest("POST", `/api/drill-sessions/${sessionId}/bulk-assign`, { assignments }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["/api/drill-sessions", sessionId, "assignments"] });
-      toast({ title: `${assignments.length}개 부서 시나리오 배정 완료` });
-      handleClose();
-    },
-    onError: (e: any) => toast({ title: "오류", description: e.message, variant: "destructive" }),
-  });
+  async function handleParseRandom() {
+    if (randomFiles.length === 0) return;
+    setParsing(true);
+    try {
+      const fd = new FormData();
+      randomFiles.forEach(f => fd.append("files", f));
+      const res = await fetch("/api/drill-docx/parse", { method: "POST", credentials: "include", body: fd });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.message ?? "파싱 오류");
+      const shuffled = [...body].sort(() => Math.random() - 0.5);
+      setRandomAssignments(selectedDepts.map((dept, i) => {
+        const sc = shuffled[i % shuffled.length];
+        return { team: "", department: dept, scenario: sc.text, accidentType: detectAccidentType(sc.text) };
+      }));
+      setRandomParsed(true);
+    } catch (e: any) {
+      toast({ title: "파싱 오류", description: e.message, variant: "destructive" });
+    } finally {
+      setParsing(false);
+    }
+  }
 
   function handleClose() {
-    setStep("upload"); setFiles([]); setScenarios([]); setAssignments([]); setSelectedDepts([...DEPT_LIST]);
+    setMode("plan"); setPlanFile(null); setPlanAssignments([]); setPlanParsed(false);
+    setRandomFiles([]); setRandomAssignments([]); setRandomParsed(false);
+    setSelectedDepts([...DEPT_LIST]);
     onClose();
   }
 
@@ -691,128 +764,130 @@ function BulkAssignDialog({ open, sessionId, onClose }: { open: boolean; session
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Shuffle className="w-4 h-4" />시나리오 랜덤 일괄 배정
+            <Shuffle className="w-4 h-4" />시나리오 일괄 배정
           </DialogTitle>
         </DialogHeader>
 
-        {step === "upload" && (
-          <div className="space-y-4">
-            <div className="bg-blue-50 dark:bg-blue-950/30 rounded-lg p-3 text-xs text-blue-700 dark:text-blue-300 space-y-1">
-              <p className="font-semibold">💡 파일 업로드 안내</p>
-              <p>• 시나리오 파일 <span className="font-semibold">1개</span> → 전 부서에 동일한 시나리오 배정</p>
-              <p>• 시나리오 파일 <span className="font-semibold">여러 개</span> → 부서마다 다른 시나리오를 랜덤 배정</p>
-              <p>부서별로 다른 시나리오를 주려면 각 시나리오를 <span className="font-semibold">별도 .docx 파일</span>로 준비해서 한번에 올려주세요.</p>
-            </div>
-            <div className="border-2 border-dashed rounded-lg p-6 text-center">
-              <FileText className="w-8 h-8 mx-auto mb-2 text-muted-foreground opacity-60" />
-              <p className="text-sm text-muted-foreground mb-3">시나리오 워드 파일 선택 (여러 개 가능)</p>
-              <input type="file" multiple accept=".doc,.docx" onChange={e => setFiles(Array.from(e.target.files || []))} className="hidden" id="docx-bulk-upload" />
-              <label htmlFor="docx-bulk-upload">
-                <Button variant="outline" size="sm" asChild>
-                  <span className="cursor-pointer"><Upload className="w-4 h-4 mr-2" />파일 선택</span>
-                </Button>
-              </label>
-            </div>
-            {files.length > 0 && (
-              <div className="space-y-1">
-                {files.map((f, i) => (
-                  <div key={i} className="flex items-center gap-2 text-sm bg-muted/40 rounded px-3 py-1.5">
-                    <FileText className="w-3 h-3 text-blue-500 shrink-0" />
-                    <span className="flex-1 truncate">{f.name}</span>
-                    <button onClick={() => setFiles(prev => prev.filter((_, j) => j !== i))} className="text-muted-foreground hover:text-red-500">
-                      <X className="w-3 h-3" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-            <DialogFooter>
-              <Button variant="outline" onClick={handleClose}>취소</Button>
-              <Button onClick={handleParse} disabled={files.length === 0 || parsing}>
-                {parsing ? "추출 중..." : "시나리오 추출"}
-              </Button>
-            </DialogFooter>
-          </div>
-        )}
+        <Tabs value={mode} onValueChange={v => { setMode(v as any); setPlanParsed(false); setRandomParsed(false); }}>
+          <TabsList className="w-full mb-4">
+            <TabsTrigger value="plan" className="flex-1">📄 계획서 자동 추출</TabsTrigger>
+            <TabsTrigger value="random" className="flex-1">🔀 파일 랜덤 배정</TabsTrigger>
+          </TabsList>
 
-        {step === "assign" && (
-          <div className="space-y-4">
-            <div>
-              <h3 className="text-sm font-semibold mb-2">추출된 시나리오 ({scenarios.length}개)</h3>
-              <div className="space-y-1.5 max-h-36 overflow-y-auto">
-                {scenarios.map((sc, i) => (
-                  <div key={i} className="text-xs bg-blue-50 dark:bg-blue-950/30 rounded p-2">
-                    <span className="font-medium text-blue-700 dark:text-blue-400">{sc.fileName}</span>
-                    <p className="text-muted-foreground mt-0.5 line-clamp-2">{sc.text.slice(0, 100)}…</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-sm font-semibold">배정 부서 선택</h3>
-                <div className="flex gap-1">
-                  <Button variant="ghost" size="sm" className="text-xs h-6 px-2" onClick={() => setSelectedDepts([...DEPT_LIST])}>전체</Button>
-                  <Button variant="ghost" size="sm" className="text-xs h-6 px-2" onClick={() => setSelectedDepts([])}>해제</Button>
+          {/* ── 계획서 자동 추출 탭 ── */}
+          <TabsContent value="plan" className="space-y-4 mt-0">
+            {!planParsed ? (
+              <>
+                <div className="bg-blue-50 dark:bg-blue-950/30 rounded-lg p-3 text-xs text-blue-700 dark:text-blue-300 space-y-1">
+                  <p className="font-semibold">대응훈련 계획 문서를 업로드하세요</p>
+                  <p>"훈련 시나리오" 표에 있는 팀별 시나리오를 자동으로 읽어 각 부서에 바로 배정합니다.</p>
                 </div>
-              </div>
-              <div className="grid grid-cols-2 gap-1">
-                {DEPT_LIST.map(dept => (
-                  <label key={dept} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/40 rounded px-2 py-1.5">
-                    <input
-                      type="checkbox"
-                      checked={selectedDepts.includes(dept)}
-                      onChange={e => {
-                        if (e.target.checked) setSelectedDepts(prev => [...prev, dept]);
-                        else setSelectedDepts(prev => prev.filter(d => d !== dept));
-                      }}
-                      className="rounded"
-                    />
-                    {dept}
+                <div className="border-2 border-dashed rounded-lg p-5 text-center">
+                  <FileText className="w-8 h-8 mx-auto mb-2 text-muted-foreground opacity-60" />
+                  {planFile ? (
+                    <div className="flex items-center justify-center gap-2 text-sm">
+                      <FileText className="w-3 h-3 text-blue-500 shrink-0" />
+                      <span className="font-medium truncate max-w-xs">{planFile.name}</span>
+                      <button onClick={() => setPlanFile(null)} className="text-muted-foreground hover:text-red-500 ml-1"><X className="w-3 h-3" /></button>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="text-sm text-muted-foreground mb-3">훈련 계획 워드 파일(.docx) 선택</p>
+                      <input type="file" accept=".doc,.docx" onChange={e => setPlanFile(e.target.files?.[0] ?? null)} className="hidden" id="plan-docx-upload" />
+                      <label htmlFor="plan-docx-upload">
+                        <Button variant="outline" size="sm" asChild>
+                          <span className="cursor-pointer"><Upload className="w-4 h-4 mr-2" />파일 선택</span>
+                        </Button>
+                      </label>
+                    </>
+                  )}
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={handleClose}>취소</Button>
+                  <Button onClick={handleParsePlan} disabled={!planFile || parsing}>
+                    {parsing ? "분석 중..." : "시나리오 자동 추출"}
+                  </Button>
+                </DialogFooter>
+              </>
+            ) : (
+              <AssignPreviewTable
+                assignments={planAssignments}
+                onBack={() => setPlanParsed(false)}
+                onSubmit={() => bulkMut.mutate()}
+                isPending={bulkMut.isPending}
+                backLabel="← 파일 변경"
+              />
+            )}
+          </TabsContent>
+
+          {/* ── 파일 랜덤 배정 탭 ── */}
+          <TabsContent value="random" className="space-y-4 mt-0">
+            {!randomParsed ? (
+              <>
+                <div className="bg-amber-50 dark:bg-amber-950/30 rounded-lg p-3 text-xs text-amber-700 dark:text-amber-300 space-y-1">
+                  <p className="font-semibold">시나리오 파일을 여러 개 올리면 부서마다 다르게 랜덤 배정됩니다</p>
+                  <p>파일 1개 → 전 부서 동일, 파일 여러 개 → 부서별 랜덤</p>
+                </div>
+                <div className="border-2 border-dashed rounded-lg p-5 text-center">
+                  <FileText className="w-8 h-8 mx-auto mb-2 text-muted-foreground opacity-60" />
+                  <p className="text-sm text-muted-foreground mb-3">시나리오 .docx 파일 선택 (여러 개 가능)</p>
+                  <input type="file" multiple accept=".doc,.docx" onChange={e => setRandomFiles(Array.from(e.target.files || []))} className="hidden" id="random-docx-upload" />
+                  <label htmlFor="random-docx-upload">
+                    <Button variant="outline" size="sm" asChild>
+                      <span className="cursor-pointer"><Upload className="w-4 h-4 mr-2" />파일 선택</span>
+                    </Button>
                   </label>
-                ))}
-              </div>
-            </div>
-
-            <Button variant="outline" className="w-full" onClick={handleRandomAssign} disabled={selectedDepts.length === 0}>
-              <Shuffle className="w-4 h-4 mr-2" />랜덤 배정하기 ({selectedDepts.length}개 부서)
-            </Button>
-
-            {assignments.length > 0 && (
-              <div>
-                <h3 className="text-sm font-semibold mb-2">배정 결과 미리보기</h3>
-                <div className="border rounded-lg overflow-hidden text-xs">
-                  <table className="w-full">
-                    <thead className="bg-muted/50">
-                      <tr>
-                        <th className="text-left p-2 border-b font-medium">부서</th>
-                        <th className="text-left p-2 border-b font-medium">사고 유형</th>
-                        <th className="text-left p-2 border-b font-medium">시나리오 파일</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {assignments.map((a, i) => (
-                        <tr key={i} className="border-b last:border-0">
-                          <td className="p-2 font-medium">{a.department}</td>
-                          <td className="p-2"><Badge variant="outline" className="text-xs">{a.accidentType}</Badge></td>
-                          <td className="p-2 text-muted-foreground truncate max-w-[140px]">{a.scenarioFile}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
                 </div>
-              </div>
+                {randomFiles.length > 0 && (
+                  <div className="space-y-1">
+                    {randomFiles.map((f, i) => (
+                      <div key={i} className="flex items-center gap-2 text-sm bg-muted/40 rounded px-3 py-1.5">
+                        <FileText className="w-3 h-3 text-blue-500 shrink-0" />
+                        <span className="flex-1 truncate">{f.name}</span>
+                        <button onClick={() => setRandomFiles(prev => prev.filter((_, j) => j !== i))} className="text-muted-foreground hover:text-red-500"><X className="w-3 h-3" /></button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-sm font-semibold">배정 부서</h3>
+                    <div className="flex gap-1">
+                      <Button variant="ghost" size="sm" className="text-xs h-6 px-2" onClick={() => setSelectedDepts([...DEPT_LIST])}>전체</Button>
+                      <Button variant="ghost" size="sm" className="text-xs h-6 px-2" onClick={() => setSelectedDepts([])}>해제</Button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1">
+                    {DEPT_LIST.map(dept => (
+                      <label key={dept} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/40 rounded px-2 py-1.5">
+                        <input type="checkbox" checked={selectedDepts.includes(dept)}
+                          onChange={e => {
+                            if (e.target.checked) setSelectedDepts(prev => [...prev, dept]);
+                            else setSelectedDepts(prev => prev.filter(d => d !== dept));
+                          }} className="rounded" />
+                        {dept}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={handleClose}>취소</Button>
+                  <Button onClick={handleParseRandom} disabled={randomFiles.length === 0 || selectedDepts.length === 0 || parsing}>
+                    {parsing ? "배정 중..." : `랜덤 배정 (${selectedDepts.length}개 부서)`}
+                  </Button>
+                </DialogFooter>
+              </>
+            ) : (
+              <AssignPreviewTable
+                assignments={randomAssignments}
+                onBack={() => setRandomParsed(false)}
+                onSubmit={() => bulkMut.mutate()}
+                isPending={bulkMut.isPending}
+                backLabel="← 다시 배정"
+              />
             )}
-
-            <DialogFooter>
-              <Button variant="outline" onClick={() => { setStep("upload"); setAssignments([]); }}>← 파일 변경</Button>
-              <Button onClick={() => bulkMut.mutate()} disabled={assignments.length === 0 || bulkMut.isPending}>
-                {bulkMut.isPending ? "등록 중..." : `일괄 등록 (${assignments.length}개)`}
-              </Button>
-            </DialogFooter>
-          </div>
-        )}
+          </TabsContent>
+        </Tabs>
       </DialogContent>
     </Dialog>
   );
