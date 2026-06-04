@@ -72,22 +72,18 @@ function safeExt(originalname: string, allowed: string[]): string {
 async function uploadToObjectStorage(buffer: Buffer, filename: string, contentType: string): Promise<string | null> {
   const privateDir = process.env.PRIVATE_OBJECT_DIR;
   if (!privateDir) return null;
+  const withTimeout = <T>(p: Promise<T>, ms: number, label: string): Promise<T> =>
+    Promise.race([p, new Promise<never>((_, rej) => setTimeout(() => rej(new Error(`타임아웃(${label})`)), ms))]);
   try {
     const fullPath = `${privateDir.replace(/\/$/, "")}/uploads/${filename}`;
     const parts = fullPath.replace(/^\//, "").split("/");
     const bucketName = parts[0];
     const objectName = parts.slice(1).join("/");
     const fileRef = objectStorageClient.bucket(bucketName).file(objectName);
-    const timeout = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("Object storage 업로드 타임아웃(30s)")), 30000)
-    );
-    await Promise.race([
-      fileRef.save(buffer, { contentType, resumable: false }),
-      timeout,
-    ]);
+    await withTimeout(fileRef.save(buffer, { contentType, resumable: false }), 20000, "save");
     // 이미지·문서 파일은 public으로 설정해서 <img> 태그가 인증 없이 접근 가능하게 함
     try {
-      await setObjectAclPolicy(fileRef, { owner: "system", visibility: "public" });
+      await withTimeout(setObjectAclPolicy(fileRef, { owner: "system", visibility: "public" }), 5000, "acl");
     } catch (_) {}
     return `/objects/uploads/${filename}`;
   } catch (e: any) {
@@ -10605,25 +10601,34 @@ ${result.value}
 
   // 단계별 보고 제출 (사진 업로드 포함)
   app.post('/api/drill-assignments/:id/step/:step', isAuthenticated, drillPhotoUpload.any(), async (req: any, res) => {
+    const assignmentId = Number(req.params.id);
+    const step = Number(req.params.step);
+    console.log(`[drill-step] 진입 id=${assignmentId} step=${step} files=${(req.files as any[])?.length ?? 0}`);
     try {
-      const assignmentId = Number(req.params.id);
-      const step = Number(req.params.step); // 1, 2, 3
       if (![1, 2, 3].includes(step)) return res.status(400).json({ message: '잘못된 단계' });
 
       const assignment = await storage.getDrillAssignment(assignmentId);
       if (!assignment) return res.status(404).json({ message: '없음' });
 
-      // 사진 업로드 처리 (슬롯별: accident_photos, rescue_photos, report_photos, hospital_photos)
+      // 사진 업로드 처리 — 모든 파일을 병렬로 업로드
       const PHOTO_SLOTS = ['accident', 'rescue', 'report', 'hospital'];
       const slottedPhotoUrls: Record<string, string[]> = {};
       const legacyPhotoUrls: string[] = [];
       if (req.files && Array.isArray(req.files) && req.files.length > 0) {
-        for (const file of req.files as Express.Multer.File[]) {
-          const ext = (file.originalname.split('.').pop() || 'jpg').toLowerCase();
-          const filename = `drill_photo_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-          const url = await uploadToObjectStorage(file.buffer, filename, file.mimetype);
+        const files = req.files as Express.Multer.File[];
+        console.log(`[drill-step] 파일 업로드 시작 (${files.length}개 병렬)`);
+        const uploadResults = await Promise.all(
+          files.map(async (file) => {
+            const ext = (file.originalname.split('.').pop() || 'jpg').toLowerCase();
+            const filename = `drill_photo_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+            const url = await uploadToObjectStorage(file.buffer, filename, file.mimetype);
+            return { fieldname: file.fieldname, url };
+          })
+        );
+        console.log(`[drill-step] 파일 업로드 완료`);
+        for (const { fieldname, url } of uploadResults) {
           if (!url) continue;
-          const slotKey = PHOTO_SLOTS.find(s => file.fieldname === `${s}_photos`);
+          const slotKey = PHOTO_SLOTS.find(s => fieldname === `${s}_photos`);
           if (slotKey) {
             slottedPhotoUrls[slotKey] = [...(slottedPhotoUrls[slotKey] || []), url];
           } else {
@@ -10646,9 +10651,10 @@ ${result.value}
         [`step${step}SubmittedBy`]: req.user?.username,
       };
       const updated = await storage.updateDrillAssignment(assignmentId, updatePayload);
+      console.log(`[drill-step] 제출 완료 id=${assignmentId} step=${step}`);
       res.json(updated);
     } catch (e: any) {
-      console.error('drill step submit error:', e.message);
+      console.error(`[drill-step] 오류 id=${assignmentId} step=${step}:`, e.message);
       res.status(500).json({ message: e.message });
     }
   });
