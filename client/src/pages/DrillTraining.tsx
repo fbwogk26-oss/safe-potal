@@ -1402,16 +1402,57 @@ function BulkAssignDialog({ open, sessionId, onClose }: { open: boolean; session
         const xmlFile = zip.file("word/document.xml");
         if (!xmlFile) return { fileName: f.name.replace(/\.docx?$/i, ""), text: "" };
         const xmlText = await xmlFile.async("string");
-        // word/document.xml에서 단락(w:p) 단위로 텍스트 추출 → <p> HTML 변환
-        const paraMatches = xmlText.match(/<w:p[ >][\s\S]*?<\/w:p>/g) ?? [];
-        const html = paraMatches.map(para => {
-          const tMatches = para.match(/<w:t[^>]*>([^<]*)<\/w:t>/g) ?? [];
-          const text = tMatches.map(t => t.replace(/<[^>]+>/g, "")).join("").trim();
-          return text ? `<p>${text}</p>` : "";
-        }).filter(Boolean).join("");
+
+        // 텍스트 추출 헬퍼
+        const getParaText = (xml: string) => {
+          const ts = xml.match(/<w:t[^>]*>([^<]*)<\/w:t>/g) ?? [];
+          return ts.map(t => t.replace(/<[^>]+>/g, "")).join("");
+        };
+
+        // w:body 추출 (없으면 전체 사용)
+        const bodyMatch = xmlText.match(/<w:body>([\s\S]*?)<\/w:body>/);
+        const bodyContent = bodyMatch ? bodyMatch[1] : xmlText;
+
+        // w:tbl(표)과 w:p(단락)을 순서대로 처리
+        const htmlParts: string[] = [];
+        const elRegex = /(<w:tbl\b[\s\S]*?<\/w:tbl>|<w:p\b[\s\S]*?<\/w:p>)/g;
+        let elMatch;
+        while ((elMatch = elRegex.exec(bodyContent)) !== null) {
+          const el = elMatch[1];
+          if (el.startsWith("<w:tbl")) {
+            // 표: w:tr → <tr>, w:tc → <td>
+            const rows: string[] = [];
+            const trRe = /<w:tr\b[\s\S]*?<\/w:tr>/g;
+            let trM;
+            while ((trM = trRe.exec(el)) !== null) {
+              const cells: string[] = [];
+              const tcRe = /<w:tc\b[\s\S]*?<\/w:tc>/g;
+              let tcM;
+              while ((tcM = tcRe.exec(trM[0])) !== null) {
+                const gsMatch = tcM[0].match(/<w:gridSpan w:val="(\d+)"/);
+                const spanAttr = gsMatch ? ` colspan="${gsMatch[1]}"` : "";
+                const cellParas: string[] = [];
+                const pRe = /<w:p\b[\s\S]*?<\/w:p>/g;
+                let pM;
+                while ((pM = pRe.exec(tcM[0])) !== null) {
+                  const t = getParaText(pM[0]).trim();
+                  if (t) cellParas.push(t);
+                }
+                cells.push(`<td${spanAttr}>${cellParas.join("<br>")}</td>`);
+              }
+              if (cells.length) rows.push(`<tr>${cells.join("")}</tr>`);
+            }
+            if (rows.length) htmlParts.push(`<table>${rows.join("")}</table>`);
+          } else {
+            // 단락
+            const text = getParaText(el).trim();
+            if (text) htmlParts.push(`<p>${text}</p>`);
+          }
+        }
+
         return {
           fileName: f.name.replace(/\.docx?$/i, ""),
-          text: html.trim(),
+          text: htmlParts.join(""),
         };
       }));
       if (!Array.isArray(body) || body.length === 0) throw new Error("파싱된 시나리오가 없습니다.");
