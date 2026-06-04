@@ -78,7 +78,13 @@ async function uploadToObjectStorage(buffer: Buffer, filename: string, contentTy
     const bucketName = parts[0];
     const objectName = parts.slice(1).join("/");
     const fileRef = objectStorageClient.bucket(bucketName).file(objectName);
-    await fileRef.save(buffer, { contentType, resumable: false });
+    const timeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Object storage 업로드 타임아웃(30s)")), 30000)
+    );
+    await Promise.race([
+      fileRef.save(buffer, { contentType, resumable: false }),
+      timeout,
+    ]);
     // 이미지·문서 파일은 public으로 설정해서 <img> 태그가 인증 없이 접근 가능하게 함
     try {
       await setObjectAclPolicy(fileRef, { owner: "system", visibility: "public" });

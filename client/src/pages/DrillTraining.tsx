@@ -396,18 +396,26 @@ function Step1Form({ assignment, onClose }: { assignment: DrillAssignment; onClo
 
   async function submit() {
     setSubmitting(true);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 90000);
     try {
       const fd = new FormData();
       fd.append("data", JSON.stringify(form));
       photos.forEach(f => fd.append("photos", f));
-      await fetch(`/api/drill-assignments/${assignment.id}/step/1`, {
-        method: "POST", body: fd, credentials: "include",
+      const res = await fetch(`/api/drill-assignments/${assignment.id}/step/1`, {
+        method: "POST", body: fd, credentials: "include", signal: controller.signal,
       });
+      if (!res.ok) throw new Error(`서버 오류 ${res.status}`);
       await qc.invalidateQueries({ queryKey: ["/api/drill-sessions", assignment.sessionId, "assignments"] });
       toast({ title: "1단계 SNS보고 제출 완료" });
       onClose();
-    } catch { toast({ title: "오류", variant: "destructive" }); }
-    finally { setSubmitting(false); }
+    } catch (e: any) {
+      const msg = e?.name === "AbortError" ? "요청 시간이 초과됐습니다. 다시 시도해주세요." : (e?.message || "오류가 발생했습니다.");
+      toast({ title: "제출 실패", description: msg, variant: "destructive" });
+    } finally {
+      clearTimeout(timer);
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -492,18 +500,26 @@ function Step2Form({ assignment, onClose }: { assignment: DrillAssignment; onClo
 
   async function submit() {
     setSubmitting(true);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 90000);
     try {
       const fd = new FormData();
       fd.append("data", JSON.stringify(form));
       photos.forEach(f => fd.append("photos", f));
-      await fetch(`/api/drill-assignments/${assignment.id}/step/2`, {
-        method: "POST", body: fd, credentials: "include",
+      const res = await fetch(`/api/drill-assignments/${assignment.id}/step/2`, {
+        method: "POST", body: fd, credentials: "include", signal: controller.signal,
       });
-      qc.invalidateQueries({ queryKey: ["/api/drill-sessions", assignment.sessionId, "assignments"] });
+      if (!res.ok) throw new Error(`서버 오류 ${res.status}`);
+      await qc.invalidateQueries({ queryKey: ["/api/drill-sessions", assignment.sessionId, "assignments"] });
       toast({ title: "2단계 사고경위서 제출 완료" });
       onClose();
-    } catch { toast({ title: "오류", variant: "destructive" }); }
-    finally { setSubmitting(false); }
+    } catch (e: any) {
+      const msg = e?.name === "AbortError" ? "요청 시간이 초과됐습니다. 다시 시도해주세요." : (e?.message || "오류가 발생했습니다.");
+      toast({ title: "제출 실패", description: msg, variant: "destructive" });
+    } finally {
+      clearTimeout(timer);
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -621,6 +637,8 @@ function Step3Form({
 
   async function submit() {
     setSubmitting(true);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 90000);
     try {
       const fd = new FormData();
       fd.append("data", JSON.stringify(form));
@@ -628,14 +646,20 @@ function Step3Form({
       Object.entries(drillPhotos).forEach(([key, files]) => {
         files.forEach(f => fd.append(`${key}_photos`, f));
       });
-      await fetch(`/api/drill-assignments/${assignment.id}/step/3`, {
-        method: "POST", body: fd, credentials: "include",
+      const res = await fetch(`/api/drill-assignments/${assignment.id}/step/3`, {
+        method: "POST", body: fd, credentials: "include", signal: controller.signal,
       });
+      if (!res.ok) throw new Error(`서버 오류 ${res.status}`);
       await qc.invalidateQueries({ queryKey: ["/api/drill-sessions", assignment.sessionId, "assignments"] });
       toast({ title: "최종 결과보고 제출 완료" });
       onClose();
-    } catch { toast({ title: "오류", variant: "destructive" }); }
-    finally { setSubmitting(false); }
+    } catch (e: any) {
+      const msg = e?.name === "AbortError" ? "요청 시간이 초과됐습니다. 다시 시도해주세요." : (e?.message || "오류가 발생했습니다.");
+      toast({ title: "제출 실패", description: msg, variant: "destructive" });
+    } finally {
+      clearTimeout(timer);
+      setSubmitting(false);
+    }
   }
 
   return (
