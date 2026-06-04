@@ -1378,15 +1378,41 @@ function BulkAssignDialog({ open, sessionId, onClose }: { open: boolean; session
   }
 
   // ── 랜덤 배정 ──
-  function detectAccidentType(text: string): string {
+  function detectAccidentType(text: string, fileName?: string): string {
+    // 1) 괄호 안 사고유형 추출 — 가장 명시적 ("쏘임사고", "전기 화상사고" 등)
+    const parenMatch = stripHtml(text).match(/[（(]([^)）]{2,15})[)）]/g);
+    if (parenMatch) {
+      for (const p of parenMatch) {
+        const inner = p.replace(/[（()）]/g, "").trim();
+        if (inner.includes("쏘임")) return "쏘임사고";
+        if (inner.includes("추락")) return "추락사고";
+        if (inner.includes("중량물") || inner.includes("낙하")) return "중량물 낙하사고";
+        if (inner.includes("전기") || inner.includes("화상")) return "전기 화상사고";
+        if (inner.includes("발목") || inner.includes("접지")) return "발목 접지름 사고";
+        if (inner.includes("낙상") || inner.includes("빙판")) return "빙판길 낙상사고";
+        if (inner.includes("차량") || inner.includes("교통")) return "차량사고";
+      }
+    }
+    // 2) 파일명에서 추출
+    if (fileName) {
+      const fn = fileName.toLowerCase();
+      if (fn.includes("쏘임")) return "쏘임사고";
+      if (fn.includes("추락")) return "추락사고";
+      if (fn.includes("중량물") || fn.includes("낙하")) return "중량물 낙하사고";
+      if (fn.includes("전기") || fn.includes("화상")) return "전기 화상사고";
+      if (fn.includes("발목") || fn.includes("접지")) return "발목 접지름 사고";
+      if (fn.includes("낙상") || fn.includes("빙판")) return "빙판길 낙상사고";
+      if (fn.includes("차량") || fn.includes("교통")) return "차량사고";
+    }
+    // 3) 전문 키워드 매칭 — 구체적(쏘임)을 일반적(차량)보다 먼저
     const t = stripHtml(text).toLowerCase();
+    if (t.includes("쏘임") || t.includes("벌에 쏘") || t.includes("벌침")) return "쏘임사고";
     if (t.includes("낙상") || t.includes("빙판")) return "빙판길 낙상사고";
     if (t.includes("추락")) return "추락사고";
     if (t.includes("발목") || t.includes("접지")) return "발목 접지름 사고";
     if (t.includes("중량물") || t.includes("낙하")) return "중량물 낙하사고";
     if (t.includes("전기") || t.includes("화상")) return "전기 화상사고";
     if (t.includes("차량") || t.includes("교통")) return "차량사고";
-    if (t.includes("쏘임") || t.includes("벌")) return "쏘임사고";
     return "기타";
   }
 
@@ -1480,7 +1506,7 @@ function BulkAssignDialog({ open, sessionId, onClose }: { open: boolean; session
 
       setRandomAssignments(selectedDepts.map((dept, i) => {
         const sc = finalPool[i];
-        return { team: "", department: dept, scenario: sc.text, accidentType: detectAccidentType(sc.text) };
+        return { team: "", department: dept, scenario: sc.text, accidentType: detectAccidentType(sc.text, sc.fileName) };
       }));
       setRandomParsed(true);
     } catch (e: any) {
