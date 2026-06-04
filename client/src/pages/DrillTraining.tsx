@@ -1352,14 +1352,25 @@ function BulkAssignDialog({ open, sessionId, onClose }: { open: boolean; session
   }
 
   async function handleParseRandom() {
+    console.log("[handleParseRandom] 호출됨 - 파일:", randomFiles.length, "부서:", selectedDepts.length);
     if (randomFiles.length === 0) return;
     setParsing(true);
     try {
       const fd = new FormData();
       randomFiles.forEach(f => fd.append("files", f));
-      const res = await fetch("/api/drill-docx/parse", { method: "POST", credentials: "include", body: fd });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.message ?? "파싱 오류");
+      let res: Response;
+      try {
+        res = await fetch("/api/drill-docx/parse", { method: "POST", credentials: "include", body: fd });
+      } catch (netErr: any) {
+        throw new Error(`네트워크 오류: ${netErr?.message ?? String(netErr)}`);
+      }
+      let body: any;
+      try {
+        body = await res.json();
+      } catch {
+        throw new Error(`서버 응답 파싱 실패 (HTTP ${res.status})`);
+      }
+      if (!res.ok) throw new Error(`서버 오류 ${res.status}: ${body?.message ?? "파싱 오류"}`);
       if (!Array.isArray(body) || body.length === 0) throw new Error("파싱된 시나리오가 없습니다.");
 
       const deptCount = selectedDepts.length;
@@ -1389,7 +1400,9 @@ function BulkAssignDialog({ open, sessionId, onClose }: { open: boolean; session
       }));
       setRandomParsed(true);
     } catch (e: any) {
-      toast({ title: "파싱 오류", description: e.message, variant: "destructive" });
+      const msg = e?.message ?? String(e);
+      console.error("[handleParseRandom 에러]", e);
+      toast({ title: "파싱 오류", description: msg || "알 수 없는 오류", variant: "destructive" });
     } finally {
       setParsing(false);
     }

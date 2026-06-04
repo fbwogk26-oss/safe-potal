@@ -10330,6 +10330,7 @@ ${htmlDraft}
   app.post('/api/drill-docx/parse', requireEditor, drillDocxUpload.array('files', 20), async (req: any, res) => {
     try {
       const files = req.files as Express.Multer.File[];
+      console.log('[drill-docx/parse] 요청 수신 - 파일 수:', files?.length ?? 0);
       if (!files || files.length === 0) return res.status(400).json({ message: '파일 없음' });
       const results = await Promise.all(files.map(async (f) => {
         // HTML로 변환해 서식(단락, 굵기 등) 보존
