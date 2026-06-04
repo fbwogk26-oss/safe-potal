@@ -10599,50 +10599,41 @@ ${result.value}
     }
   });
 
-  // 단계별 보고 제출 (사진 업로드 포함)
-  app.post('/api/drill-assignments/:id/step/:step', isAuthenticated, drillPhotoUpload.any(), async (req: any, res) => {
+  // 훈련 사진 전용 업로드 (제출과 분리)
+  app.post('/api/drill-assignments/:id/upload-photos', isAuthenticated, drillPhotoUpload.any(), async (req: any, res) => {
+    const assignmentId = Number(req.params.id);
+    console.log(`[drill-upload] 사진 업로드 시작 id=${assignmentId} files=${(req.files as any[])?.length ?? 0}`);
+    try {
+      const files = (req.files || []) as Express.Multer.File[];
+      const results = await Promise.all(
+        files.map(async (file) => {
+          const ext = (file.originalname.split('.').pop() || 'jpg').toLowerCase();
+          const filename = `drill_photo_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+          const url = await uploadToObjectStorage(file.buffer, filename, file.mimetype);
+          return { fieldname: file.fieldname, url };
+        })
+      );
+      console.log(`[drill-upload] 완료 id=${assignmentId} 성공=${results.filter(r => r.url).length}/${files.length}`);
+      res.json({ results });
+    } catch (e: any) {
+      console.error(`[drill-upload] 오류 id=${assignmentId}:`, e.message);
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // 단계별 보고 제출 (JSON 전용 — 사진은 upload-photos로 먼저 업로드)
+  app.post('/api/drill-assignments/:id/step/:step', isAuthenticated, async (req: any, res) => {
     const assignmentId = Number(req.params.id);
     const step = Number(req.params.step);
-    console.log(`[drill-step] 진입 id=${assignmentId} step=${step} files=${(req.files as any[])?.length ?? 0}`);
+    console.log(`[drill-step] 진입 id=${assignmentId} step=${step}`);
     try {
       if (![1, 2, 3].includes(step)) return res.status(400).json({ message: '잘못된 단계' });
 
       const assignment = await storage.getDrillAssignment(assignmentId);
       if (!assignment) return res.status(404).json({ message: '없음' });
 
-      // 사진 업로드 처리 — 모든 파일을 병렬로 업로드
-      const PHOTO_SLOTS = ['accident', 'rescue', 'report', 'hospital'];
-      const slottedPhotoUrls: Record<string, string[]> = {};
-      const legacyPhotoUrls: string[] = [];
-      if (req.files && Array.isArray(req.files) && req.files.length > 0) {
-        const files = req.files as Express.Multer.File[];
-        console.log(`[drill-step] 파일 업로드 시작 (${files.length}개 병렬)`);
-        const uploadResults = await Promise.all(
-          files.map(async (file) => {
-            const ext = (file.originalname.split('.').pop() || 'jpg').toLowerCase();
-            const filename = `drill_photo_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-            const url = await uploadToObjectStorage(file.buffer, filename, file.mimetype);
-            return { fieldname: file.fieldname, url };
-          })
-        );
-        console.log(`[drill-step] 파일 업로드 완료`);
-        for (const { fieldname, url } of uploadResults) {
-          if (!url) continue;
-          const slotKey = PHOTO_SLOTS.find(s => fieldname === `${s}_photos`);
-          if (slotKey) {
-            slottedPhotoUrls[slotKey] = [...(slottedPhotoUrls[slotKey] || []), url];
-          } else {
-            legacyPhotoUrls.push(url);
-          }
-        }
-      }
-
-      const bodyData = typeof req.body.data === 'string' ? JSON.parse(req.body.data) : (req.body.data || {});
-      // 슬롯 사진이 있으면 slottedPhotos 저장, 없으면 기존 photos 배열
-      const photoData = Object.keys(slottedPhotoUrls).length > 0
-        ? { slottedPhotos: slottedPhotoUrls }
-        : { photos: legacyPhotoUrls };
-      const dataWithPhotos = { ...bodyData, ...photoData };
+      // body는 JSON — photos/slottedPhotos는 이미 업로드된 URL 배열
+      const dataWithPhotos = req.body || {};
 
       const updatePayload: any = {
         [`step${step}Status`]: '제출완료',
