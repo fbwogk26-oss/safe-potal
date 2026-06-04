@@ -1352,25 +1352,29 @@ function BulkAssignDialog({ open, sessionId, onClose }: { open: boolean; session
   }
 
   async function handleParseRandom() {
-    console.log("[handleParseRandom] 호출됨 - 파일:", randomFiles.length, "부서:", selectedDepts.length);
     if (randomFiles.length === 0) return;
     setParsing(true);
     try {
-      const fd = new FormData();
-      randomFiles.forEach(f => fd.append("files", f));
-      let res: Response;
-      try {
-        res = await fetch("/api/drill-docx/parse", { method: "POST", credentials: "include", body: fd });
-      } catch (netErr: any) {
-        throw new Error(`네트워크 오류: ${netErr?.message ?? String(netErr)}`);
-      }
-      let body: any;
-      try {
-        body = await res.json();
-      } catch {
-        throw new Error(`서버 응답 파싱 실패 (HTTP ${res.status})`);
-      }
-      if (!res.ok) throw new Error(`서버 오류 ${res.status}: ${body?.message ?? "파싱 오류"}`);
+      // 클라이언트에서 직접 파싱 (서버 업로드 없음 → Failed to fetch 없음)
+      const JSZip = (await import("jszip")).default;
+      const body = await Promise.all(randomFiles.map(async (f) => {
+        const arrayBuffer = await f.arrayBuffer();
+        const zip = await JSZip.loadAsync(arrayBuffer);
+        const xmlFile = zip.file("word/document.xml");
+        if (!xmlFile) return { fileName: f.name.replace(/\.docx?$/i, ""), text: "" };
+        const xmlText = await xmlFile.async("string");
+        // word/document.xml에서 단락(w:p) 단위로 텍스트 추출 → <p> HTML 변환
+        const paraMatches = xmlText.match(/<w:p[ >][\s\S]*?<\/w:p>/g) ?? [];
+        const html = paraMatches.map(para => {
+          const tMatches = para.match(/<w:t[^>]*>([^<]*)<\/w:t>/g) ?? [];
+          const text = tMatches.map(t => t.replace(/<[^>]+>/g, "")).join("").trim();
+          return text ? `<p>${text}</p>` : "";
+        }).filter(Boolean).join("");
+        return {
+          fileName: f.name.replace(/\.docx?$/i, ""),
+          text: html.trim(),
+        };
+      }));
       if (!Array.isArray(body) || body.length === 0) throw new Error("파싱된 시나리오가 없습니다.");
 
       const deptCount = selectedDepts.length;
