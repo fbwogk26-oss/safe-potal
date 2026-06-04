@@ -390,50 +390,49 @@ function Step1Form({ assignment, onClose }: { assignment: DrillAssignment; onClo
     cause: "", note: "",
   });
   const [photos, setPhotos] = useState<File[]>([]);
+  const [photoUrls, setPhotoUrls] = useState<string[]>([]);
+  const [uploadingPhotos, setUploadingPhotos] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const set = (k: string) => (e: any) => setForm(p => ({ ...p, [k]: e.target.value }));
 
-  const [statusMsg, setStatusMsg] = useState("");
+  async function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files || []);
+    setPhotos(files);
+    setPhotoUrls([]);
+    if (files.length === 0) return;
+    setUploadingPhotos(true);
+    try {
+      const fd = new FormData();
+      files.forEach(f => fd.append("photos", f));
+      const res = await fetch(`/api/drill-assignments/${assignment.id}/upload-photos`, {
+        method: "POST", body: fd, credentials: "include",
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setPhotoUrls((data.results || []).map((r: any) => r.url).filter(Boolean));
+      }
+    } catch {} finally {
+      setUploadingPhotos(false);
+    }
+  }
 
   async function submit() {
     setSubmitting(true);
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 120000);
     try {
-      // 1단계: 사진 먼저 업로드
-      let photoUrls: string[] = [];
-      if (photos.length > 0) {
-        setStatusMsg("사진 업로드 중...");
-        const fd = new FormData();
-        photos.forEach(f => fd.append("photos", f));
-        const upRes = await fetch(`/api/drill-assignments/${assignment.id}/upload-photos`, {
-          method: "POST", body: fd, credentials: "include", signal: controller.signal,
-        });
-        if (upRes.ok) {
-          const data = await upRes.json();
-          photoUrls = (data.results || []).map((r: any) => r.url).filter(Boolean);
-        }
-      }
-      // 2단계: JSON으로 제출
-      setStatusMsg("제출 중...");
       const res = await fetch(`/api/drill-assignments/${assignment.id}/step/1`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...form, photos: photoUrls }),
         credentials: "include",
-        signal: controller.signal,
       });
       if (!res.ok) throw new Error(`서버 오류 ${res.status}`);
       await qc.invalidateQueries({ queryKey: ["/api/drill-sessions", assignment.sessionId, "assignments"] });
       toast({ title: "1단계 SNS보고 제출 완료" });
       onClose();
     } catch (e: any) {
-      const msg = e?.name === "AbortError" ? "요청 시간이 초과됐습니다. 다시 시도해주세요." : (e?.message || "오류가 발생했습니다.");
-      toast({ title: "제출 실패", description: msg, variant: "destructive" });
+      toast({ title: "제출 실패", description: e?.message || "오류가 발생했습니다.", variant: "destructive" });
     } finally {
-      clearTimeout(timer);
-      setStatusMsg("");
       setSubmitting(false);
     }
   }
@@ -477,12 +476,14 @@ function Step1Form({ assignment, onClose }: { assignment: DrillAssignment; onClo
       <div>
         <Label>첨부사진 (연출사진·현장사진·위험요소 사진)</Label>
         <Input type="file" accept="image/*" multiple className="mt-1"
-          onChange={e => setPhotos(Array.from(e.target.files || []))} />
+          onChange={handlePhotoChange} />
+        {uploadingPhotos && <p className="text-xs text-blue-500 mt-1">사진 업로드 중...</p>}
+        {!uploadingPhotos && photoUrls.length > 0 && <p className="text-xs text-green-600 mt-1">✓ 사진 {photoUrls.length}장 업로드 완료</p>}
         <PhotoPreviews files={photos} />
       </div>
       <DialogFooter>
         <Button variant="outline" onClick={onClose}>취소</Button>
-        <Button onClick={submit} disabled={submitting}>{submitting ? (statusMsg || "제출 중...") : "1단계 제출"}</Button>
+        <Button onClick={submit} disabled={submitting || uploadingPhotos}>{submitting ? "제출 중..." : "1단계 제출"}</Button>
       </DialogFooter>
     </div>
   );
@@ -505,9 +506,31 @@ function Step2Form({ assignment, onClose }: { assignment: DrillAssignment; onClo
     prevention: "",
   });
   const [photos, setPhotos] = useState<File[]>([]);
+  const [photoUrls2, setPhotoUrls2] = useState<string[]>([]);
+  const [uploadingPhotos2, setUploadingPhotos2] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [statusMsg2, setStatusMsg2] = useState("");
   const set = (k: string) => (e: any) => setForm(p => ({ ...p, [k]: e.target.value }));
+
+  async function handlePhotoChange2(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files || []);
+    setPhotos(files);
+    setPhotoUrls2([]);
+    if (files.length === 0) return;
+    setUploadingPhotos2(true);
+    try {
+      const fd = new FormData();
+      files.forEach(f => fd.append("photos", f));
+      const res = await fetch(`/api/drill-assignments/${assignment.id}/upload-photos`, {
+        method: "POST", body: fd, credentials: "include",
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setPhotoUrls2((data.results || []).map((r: any) => r.url).filter(Boolean));
+      }
+    } catch {} finally {
+      setUploadingPhotos2(false);
+    }
+  }
 
   function updateTimeline(i: number, k: string, v: string) {
     setForm(p => {
@@ -521,40 +544,20 @@ function Step2Form({ assignment, onClose }: { assignment: DrillAssignment; onClo
 
   async function submit() {
     setSubmitting(true);
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 120000);
     try {
-      let photoUrls: string[] = [];
-      if (photos.length > 0) {
-        setStatusMsg2("사진 업로드 중...");
-        const fd = new FormData();
-        photos.forEach(f => fd.append("photos", f));
-        const upRes = await fetch(`/api/drill-assignments/${assignment.id}/upload-photos`, {
-          method: "POST", body: fd, credentials: "include", signal: controller.signal,
-        });
-        if (upRes.ok) {
-          const data = await upRes.json();
-          photoUrls = (data.results || []).map((r: any) => r.url).filter(Boolean);
-        }
-      }
-      setStatusMsg2("제출 중...");
       const res = await fetch(`/api/drill-assignments/${assignment.id}/step/2`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, photos: photoUrls }),
+        body: JSON.stringify({ ...form, photos: photoUrls2 }),
         credentials: "include",
-        signal: controller.signal,
       });
       if (!res.ok) throw new Error(`서버 오류 ${res.status}`);
       await qc.invalidateQueries({ queryKey: ["/api/drill-sessions", assignment.sessionId, "assignments"] });
       toast({ title: "2단계 사고경위서 제출 완료" });
       onClose();
     } catch (e: any) {
-      const msg = e?.name === "AbortError" ? "요청 시간이 초과됐습니다. 다시 시도해주세요." : (e?.message || "오류가 발생했습니다.");
-      toast({ title: "제출 실패", description: msg, variant: "destructive" });
+      toast({ title: "제출 실패", description: e?.message || "오류가 발생했습니다.", variant: "destructive" });
     } finally {
-      clearTimeout(timer);
-      setStatusMsg2("");
       setSubmitting(false);
     }
   }
@@ -613,12 +616,14 @@ function Step2Form({ assignment, onClose }: { assignment: DrillAssignment; onClo
             </div>
           </div>
         )}
-        <Input type="file" accept="image/*" multiple onChange={e => setPhotos(Array.from(e.target.files || []))} className="mt-1" />
+        <Input type="file" accept="image/*" multiple onChange={handlePhotoChange2} className="mt-1" />
+        {uploadingPhotos2 && <p className="text-xs text-blue-500 mt-1">사진 업로드 중...</p>}
+        {!uploadingPhotos2 && photoUrls2.length > 0 && <p className="text-xs text-green-600 mt-1">✓ 사진 {photoUrls2.length}장 업로드 완료</p>}
         <PhotoPreviews files={photos} />
       </div>
       <DialogFooter>
         <Button variant="outline" onClick={onClose}>취소</Button>
-        <Button onClick={submit} disabled={submitting}>{submitting ? (statusMsg2 || "제출 중...") : "2단계 제출"}</Button>
+        <Button onClick={submit} disabled={submitting || uploadingPhotos2}>{submitting ? "제출 중..." : "2단계 제출"}</Button>
       </DialogFooter>
     </div>
   );
@@ -655,9 +660,31 @@ function Step3Form({
     drillAttendees: [{ no: "1", name: s1?.victimName ?? "" }],
   });
   const [drillPhotos, setDrillPhotos] = useState<Record<string, File[]>>({});
+  const [drillPhotoUrls, setDrillPhotoUrls] = useState<Record<string, string[]>>({});
+  const [uploadingSlots, setUploadingSlots] = useState<Record<string, boolean>>({});
   const [submitting, setSubmitting] = useState(false);
-  const [statusMsg3, setStatusMsg3] = useState("");
   const set = (k: string) => (e: any) => setForm(p => ({ ...p, [k]: e.target.value }));
+
+  async function handleSlotPhotoChange(slotKey: string, e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files || []);
+    setDrillPhotos(p => ({ ...p, [slotKey]: files }));
+    setDrillPhotoUrls(p => ({ ...p, [slotKey]: [] }));
+    if (files.length === 0) return;
+    setUploadingSlots(p => ({ ...p, [slotKey]: true }));
+    try {
+      const fd = new FormData();
+      files.forEach(f => fd.append("photos", f));
+      const res = await fetch(`/api/drill-assignments/${assignment.id}/upload-photos`, {
+        method: "POST", body: fd, credentials: "include",
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setDrillPhotoUrls(p => ({ ...p, [slotKey]: (data.results || []).map((r: any) => r.url).filter(Boolean) }));
+      }
+    } catch {} finally {
+      setUploadingSlots(p => ({ ...p, [slotKey]: false }));
+    }
+  }
 
   function updateAttendee(i: number, k: string, v: string) {
     setForm(p => {
@@ -675,46 +702,20 @@ function Step3Form({
 
   async function submit() {
     setSubmitting(true);
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 120000);
     try {
-      // 슬롯별 사진을 병렬로 업로드
-      const slottedUrls: Record<string, string[]> = {};
-      const slotsWithFiles = Object.entries(drillPhotos).filter(([, files]) => files.length > 0);
-      if (slotsWithFiles.length > 0) {
-        setStatusMsg3("사진 업로드 중...");
-        await Promise.all(
-          slotsWithFiles.map(async ([key, files]) => {
-            const fd = new FormData();
-            files.forEach(f => fd.append(`${key}_photos`, f));
-            const upRes = await fetch(`/api/drill-assignments/${assignment.id}/upload-photos`, {
-              method: "POST", body: fd, credentials: "include", signal: controller.signal,
-            });
-            if (upRes.ok) {
-              const data = await upRes.json();
-              slottedUrls[key] = (data.results || []).map((r: any) => r.url).filter(Boolean);
-            }
-          })
-        );
-      }
-      setStatusMsg3("제출 중...");
       const res = await fetch(`/api/drill-assignments/${assignment.id}/step/3`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, slottedPhotos: slottedUrls }),
+        body: JSON.stringify({ ...form, slottedPhotos: drillPhotoUrls }),
         credentials: "include",
-        signal: controller.signal,
       });
       if (!res.ok) throw new Error(`서버 오류 ${res.status}`);
       await qc.invalidateQueries({ queryKey: ["/api/drill-sessions", assignment.sessionId, "assignments"] });
       toast({ title: "최종 결과보고 제출 완료" });
       onClose();
     } catch (e: any) {
-      const msg = e?.name === "AbortError" ? "요청 시간이 초과됐습니다. 다시 시도해주세요." : (e?.message || "오류가 발생했습니다.");
-      toast({ title: "제출 실패", description: msg, variant: "destructive" });
+      toast({ title: "제출 실패", description: e?.message || "오류가 발생했습니다.", variant: "destructive" });
     } finally {
-      clearTimeout(timer);
-      setStatusMsg3("");
       setSubmitting(false);
     }
   }
@@ -786,12 +787,16 @@ function Step3Form({
             <div className="grid grid-cols-2 gap-3">
               {PHOTO_SLOTS.map(slot => {
                 const files = drillPhotos[slot.key] || [];
+                const urls = drillPhotoUrls[slot.key] || [];
+                const isUploading = uploadingSlots[slot.key] || false;
                 return (
                   <div key={slot.key} className="border rounded p-2 bg-muted/30">
                     <p className="text-xs font-semibold mb-0.5">{slot.label}</p>
                     <p className="text-xs text-muted-foreground mb-1.5">{slot.desc}</p>
                     <Input type="file" accept="image/*" multiple className="h-8 text-xs"
-                      onChange={e => setDrillPhotos(p => ({ ...p, [slot.key]: Array.from(e.target.files || []) }))} />
+                      onChange={e => handleSlotPhotoChange(slot.key, e)} />
+                    {isUploading && <p className="text-xs text-blue-500 mt-1">업로드 중...</p>}
+                    {!isUploading && urls.length > 0 && <p className="text-xs text-green-600 mt-1">✓ {urls.length}장 완료</p>}
                     {files.length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-1.5">
                         {files.map((f, i) => (
@@ -810,7 +815,7 @@ function Step3Form({
 
       <DialogFooter>
         <Button variant="outline" onClick={onClose}>취소</Button>
-        <Button onClick={submit} disabled={submitting}>{submitting ? (statusMsg3 || "제출 중...") : "최종 결과보고 제출"}</Button>
+        <Button onClick={submit} disabled={submitting || Object.values(uploadingSlots).some(Boolean)}>{submitting ? "제출 중..." : "최종 결과보고 제출"}</Button>
       </DialogFooter>
     </div>
   );
