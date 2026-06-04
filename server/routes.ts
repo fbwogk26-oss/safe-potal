@@ -10769,12 +10769,40 @@ const DEDUP_STOPWORDS = new Set([
 ]);
 const MEDIA_NAME_RE = /[\s\-\|:·\[（(]\s*(조선|중앙|동아|한겨레|한국|연합|뉴시스|뉴스1|경향|국민|세계|문화|서울|부산|매일|영남|오마이|프레시안|머니|한경|서울경제|아시아|헤럴드|파이낸셜|이데일리|데일리|스포츠|jtbc|kbs|mbc|sbs|ytn|cbs|tbs)(뉴스|일보|신문|경제|tv|방송|미디어)?[\s\]\）)]*$/gi;
 
+// 한국어 조사/어미 제거 — "커플의"→"커플", "부산에서"→"부산"
+function stripJosa(word: string): string {
+  if (word.length <= 2) return word;
+  const josa2 = ['에서','으로','에게','한테','이나','라도','까지','부터','이라','라고','이고','하고'];
+  for (const j of josa2) {
+    if (word.length > j.length + 1 && word.endsWith(j)) return word.slice(0, -j.length);
+  }
+  const josa1 = new Set(['의','도','만','은','는','이','가','을','를','과','와','에','로','서']);
+  const last = word[word.length - 1];
+  if (josa1.has(last)) return word.slice(0, -1);
+  return word;
+}
+
 function extractTitleTokens(title: string): Set<string> {
   const cleaned = title
     .replace(MEDIA_NAME_RE, '')          // 언론사명 제거
     .replace(/[^\uAC00-\uD7A3\d\s]/g, ' ');  // 특수문자 → 공백
-  // 한글 2글자 이상 OR 숫자 2자리 이상, 검색어 불용어 제외
-  return new Set((cleaned.match(/[\uAC00-\uD7A3]{2,}|\d{2,}/g) || []).filter(w => !DEDUP_STOPWORDS.has(w)));
+  // 한글 2글자 이상 OR 숫자 2자리 이상, 조사 제거 후 불용어 제외
+  const raw = (cleaned.match(/[\uAC00-\uD7A3]{2,}|\d{2,}/g) || []);
+  return new Set(raw.map(stripJosa).filter(w => w.length >= 2 && !DEDUP_STOPWORDS.has(w)));
+}
+
+// 불용어 제거 후 연속 2단어 조합(bigram) 추출 — 둘 다 비불용어인 경우만
+function extractBigrams(title: string): Set<string> {
+  const cleaned = title.replace(MEDIA_NAME_RE, '').replace(/[^\uAC00-\uD7A3\d\s]/g, ' ');
+  const raw = (cleaned.match(/[\uAC00-\uD7A3]{2,}|\d{2,}/g) || []);
+  const tokens = raw.map(stripJosa).filter(w => w.length >= 2);
+  const bigrams = new Set<string>();
+  for (let i = 0; i < tokens.length - 1; i++) {
+    if (!DEDUP_STOPWORDS.has(tokens[i]) && !DEDUP_STOPWORDS.has(tokens[i + 1])) {
+      bigrams.add(`${tokens[i]}|${tokens[i + 1]}`);
+    }
+  }
+  return bigrams;
 }
 
 function titlesAreSimilar(a: string, b: string): boolean {
@@ -10792,12 +10820,18 @@ function titlesAreSimilar(a: string, b: string): boolean {
   const union = new Set([...wa, ...wb]).size;
 
   // 2) Jaccard 0.65 — stopwords 제거 후 남은 구분 토큰 65% 이상 겹쳐야 중복
-  // (0.40이면 음주운전 뉴스처럼 패턴이 비슷한 다른 사건도 중복으로 오판)
   if (overlap / union >= 0.65) return true;
 
   // 3) 짧은 쪽 토큰의 75% 이상이 긴 쪽에 포함 → 제목 줄임 케이스
   const minSize = Math.min(wa.size, wb.size);
   if (minSize >= 3 && overlap / minSize >= 0.75) return true;
+
+  // 4) Bigram 공유 — "부산 커플", "광주 고교" 등 특정 장소·인물 조합이 동일하면 같은 사건
+  const bigramsA = extractBigrams(a);
+  const bigramsB = extractBigrams(b);
+  for (const bg of bigramsA) {
+    if (bigramsB.has(bg)) return true;
+  }
 
   return false;
 }
