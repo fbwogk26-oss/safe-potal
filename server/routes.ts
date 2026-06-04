@@ -10538,7 +10538,10 @@ ${htmlDraft}
       let uploadBuffer = file.buffer;
       let uploadMime = file.mimetype;
       let uploadExt = ext;
-      let displayName = file.originalname;
+      // 한글 파일명 latin1→utf8 디코딩
+      let displayName = (() => {
+        try { return Buffer.from(file.originalname, 'latin1').toString('utf8'); } catch { return file.originalname; }
+      })();
 
       // DOCX → HTML 자동 변환
       if (ext === 'docx' || ext === 'doc') {
