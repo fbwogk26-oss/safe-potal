@@ -11154,7 +11154,7 @@ function buildCardNewsEmailHtml(cards: any[]): string {
 async function sendCardNewsEmail() {
   const articles = await fetchDrunkDrivingNews();
   if (articles.length === 0) throw new Error('뉴스를 수집할 수 없습니다');
-  const cards = await buildCardNewsCards(articles.slice(0, 6));
+  const cards = await buildCardNewsCards(articles.slice(0, 4));
   const html = buildCardNewsEmailHtml(cards);
   const setting = await storage.getSetting('card_news_config').catch(() => null);
   const config = setting?.value ? JSON.parse(setting.value) : {};
