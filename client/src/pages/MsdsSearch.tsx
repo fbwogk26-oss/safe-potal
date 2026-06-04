@@ -113,6 +113,8 @@ export default function MsdsSearch() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isBulkDownloading, setIsBulkDownloading] = useState(false);
+  const [bulkDownloadProgress, setBulkDownloadProgress] = useState<{ done: number; total: number } | null>(null);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -279,30 +281,55 @@ export default function MsdsSearch() {
     }
   };
 
+  const downloadFile = async (pdfUrl: string, pdfFileName: string): Promise<void> => {
+    const res = await fetch(pdfUrl, { credentials: "include" });
+    if (!res.ok) throw new Error("다운로드 실패");
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = blobUrl;
+    a.download = pdfFileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+  };
+
   const handleDownloadPdf = async (pdfUrl: string, pdfFileName: string, e?: React.MouseEvent) => {
     e?.preventDefault();
     e?.stopPropagation();
     if (isDownloading) return;
     setIsDownloading(true);
     try {
-      const res = await fetch(`/api/download?path=${encodeURIComponent(pdfUrl)}`, {
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("다운로드 실패");
-      const { url } = await res.json();
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = pdfFileName;
-      a.target = "_blank";
-      a.rel = "noopener noreferrer";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      await downloadFile(pdfUrl, pdfFileName);
     } catch (err) {
       toast({ variant: "destructive", title: "다운로드 실패", description: "PDF를 다운로드할 수 없습니다." });
     } finally {
       setIsDownloading(false);
     }
+  };
+
+  const handleBulkDownload = async () => {
+    const targets = chemicals?.filter(c => selectedIds.has(c.id) && c.pdfUrl) ?? [];
+    if (targets.length === 0) {
+      toast({ variant: "destructive", title: "다운로드할 PDF가 없습니다", description: "선택한 항목 중 PDF가 등록된 자료가 없습니다." });
+      return;
+    }
+    setIsBulkDownloading(true);
+    setBulkDownloadProgress({ done: 0, total: targets.length });
+    let success = 0;
+    for (let i = 0; i < targets.length; i++) {
+      const c = targets[i];
+      try {
+        await downloadFile(c.pdfUrl!, c.pdfFileName || `${c.name}_MSDS.pdf`);
+        success++;
+      } catch {}
+      setBulkDownloadProgress({ done: i + 1, total: targets.length });
+      if (i < targets.length - 1) await new Promise(r => setTimeout(r, 600));
+    }
+    setIsBulkDownloading(false);
+    setBulkDownloadProgress(null);
+    toast({ title: `${success}/${targets.length}건 다운로드 완료` });
   };
 
   return (
@@ -319,26 +346,28 @@ export default function MsdsSearch() {
             화학물질 안전 정보 검색
           </p>
         </div>
-        {canEdit && (
+        {(canEdit || canDownloadMsdsPdf) && (
           <div className="ml-auto flex items-center gap-2">
             <Button
               variant={selectionMode ? "default" : "outline"}
               size="sm"
-              className={`gap-2 ${selectionMode ? "bg-red-500 hover:bg-red-600 text-white" : ""}`}
+              className={`gap-2 ${selectionMode ? "bg-teal-600 hover:bg-teal-700 text-white" : ""}`}
               onClick={() => { setSelectionMode(v => !v); setSelectedIds(new Set()); }}
               data-testid="button-toggle-selection"
             >
               <CheckSquare className="w-4 h-4" />
               {selectionMode ? "취소" : "선택"}
             </Button>
-            <Button
-              onClick={openCreateDialog}
-              className="gap-2"
-              data-testid="button-add-chemical"
-            >
-              <Plus className="w-4 h-4" />
-              물질 등록
-            </Button>
+            {canEdit && (
+              <Button
+                onClick={openCreateDialog}
+                className="gap-2"
+                data-testid="button-add-chemical"
+              >
+                <Plus className="w-4 h-4" />
+                물질 등록
+              </Button>
+            )}
           </div>
         )}
       </div>
@@ -721,20 +750,48 @@ export default function MsdsSearch() {
 
       {/* 플로팅 벌크 액션 바 */}
       {selectionMode && selectedIds.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-background border border-border shadow-xl rounded-full px-5 py-3">
-          <span className="text-sm font-semibold text-red-600">{selectedIds.size}건 선택됨</span>
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-background border border-border shadow-xl rounded-2xl px-5 py-3">
+          <span className="text-sm font-semibold text-teal-700 dark:text-teal-400">
+            {selectedIds.size}건 선택됨
+          </span>
           <div className="w-px h-5 bg-border" />
-          <Button variant="ghost" size="sm" className="h-8" onClick={() => setSelectedIds(new Set())}>
+          <Button variant="ghost" size="sm" className="h-8"
+            onClick={() => setSelectedIds(new Set())}>
             <X className="w-3.5 h-3.5 mr-1" />선택 해제
           </Button>
-          <Button
-            variant="destructive" size="sm" className="h-8"
-            disabled={bulkDeleteMutation.isPending}
-            onClick={() => { if (confirm(`선택한 ${selectedIds.size}건을 삭제하시겠습니까?`)) bulkDeleteMutation.mutate(Array.from(selectedIds)); }}
-            data-testid="button-bulk-delete"
-          >
-            <Trash2 className="w-3.5 h-3.5 mr-1" />삭제
-          </Button>
+          {canDownloadMsdsPdf && (
+            <Button
+              variant="outline" size="sm" className="h-8 gap-1.5 border-teal-300 text-teal-700 hover:bg-teal-50 dark:border-teal-700 dark:text-teal-400"
+              disabled={isBulkDownloading}
+              onClick={handleBulkDownload}
+              data-testid="button-bulk-download"
+            >
+              {isBulkDownloading ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  {bulkDownloadProgress ? `${bulkDownloadProgress.done}/${bulkDownloadProgress.total}` : "준비 중..."}
+                </>
+              ) : (
+                <>
+                  <Download className="w-3.5 h-3.5" />
+                  PDF 일괄 다운로드
+                </>
+              )}
+            </Button>
+          )}
+          {canEdit && (
+            <>
+              <div className="w-px h-5 bg-border" />
+              <Button
+                variant="destructive" size="sm" className="h-8"
+                disabled={bulkDeleteMutation.isPending}
+                onClick={() => { if (confirm(`선택한 ${selectedIds.size}건을 삭제하시겠습니까?`)) bulkDeleteMutation.mutate(Array.from(selectedIds)); }}
+                data-testid="button-bulk-delete"
+              >
+                <Trash2 className="w-3.5 h-3.5 mr-1" />삭제
+              </Button>
+            </>
+          )}
         </div>
       )}
     </div>
