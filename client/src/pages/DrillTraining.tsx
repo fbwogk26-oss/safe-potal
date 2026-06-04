@@ -1360,9 +1360,31 @@ function BulkAssignDialog({ open, sessionId, onClose }: { open: boolean; session
       const res = await fetch("/api/drill-docx/parse", { method: "POST", credentials: "include", body: fd });
       const body = await res.json();
       if (!res.ok) throw new Error(body.message ?? "파싱 오류");
-      const shuffled = [...body].sort(() => Math.random() - 0.5);
+      if (!Array.isArray(body) || body.length === 0) throw new Error("파싱된 시나리오가 없습니다.");
+
+      const deptCount = selectedDepts.length;
+      const scenarioCount = body.length;
+
+      // 최대 2개 부서까지 같은 시나리오 배정: 이중 풀 생성 후 셔플
+      const maxRepeat = Math.ceil(deptCount / scenarioCount);
+      const pool: typeof body = [];
+      for (let r = 0; r < maxRepeat; r++) {
+        const sliceShuffle = [...body].sort(() => Math.random() - 0.5);
+        pool.push(...sliceShuffle);
+      }
+      // 풀 전체를 다시 셔플해 인접 중복 방지
+      const finalPool = pool.sort(() => Math.random() - 0.5).slice(0, deptCount);
+
+      if (maxRepeat > 2) {
+        toast({
+          title: "⚠️ 시나리오 중복 초과",
+          description: `시나리오 ${scenarioCount}개로 ${deptCount}개 부서 배정 시 일부 시나리오가 3개 이상 부서에 배정됩니다.`,
+          variant: "destructive",
+        });
+      }
+
       setRandomAssignments(selectedDepts.map((dept, i) => {
-        const sc = shuffled[i % shuffled.length];
+        const sc = finalPool[i];
         return { team: "", department: dept, scenario: sc.text, accidentType: detectAccidentType(sc.text) };
       }));
       setRandomParsed(true);

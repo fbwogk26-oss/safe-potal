@@ -10425,10 +10425,17 @@ ${htmlDraft}
       const sessionId = Number(req.params.id);
       const { assignments } = req.body as { assignments: { department: string; scenario: string; accidentType: string; scenarioFile?: string }[] };
       if (!Array.isArray(assignments) || assignments.length === 0) return res.status(400).json({ message: '배정 목록 없음' });
-      const created = await Promise.all(assignments.map(a =>
-        storage.createDrillAssignment({ sessionId, ...a })
-      ));
-      res.json(created);
+      // 기존 배정 조회 → 부서별 upsert (단계 제출 데이터 보존)
+      const existing = await storage.getDrillAssignments(sessionId);
+      const existingMap = new Map(existing.map(a => [a.department, a.id]));
+      const results = await Promise.all(assignments.map(a => {
+        const existId = existingMap.get(a.department);
+        if (existId) {
+          return storage.updateDrillAssignment(existId, { scenario: a.scenario, accidentType: a.accidentType });
+        }
+        return storage.createDrillAssignment({ sessionId, ...a });
+      }));
+      res.json(results);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
