@@ -7,9 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Newspaper, Send, RefreshCw, Settings, Clock, Mail, AlertTriangle, CheckCircle2, X, Plus } from "lucide-react";
+import {
+  Loader2, Newspaper, Send, RefreshCw, Settings, Clock,
+  Mail, AlertTriangle, CheckCircle2, X, Plus, ExternalLink,
+  Calendar, Radio
+} from "lucide-react";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 
@@ -19,28 +22,21 @@ function safeFormat(dateStr: string | null | undefined, fmt: string, opts?: obje
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return "";
     return format(d, fmt, opts);
-  } catch {
-    return "";
-  }
+  } catch { return ""; }
 }
 
 function safePubDate(pubDate: string): string {
   try {
     const d = new Date(pubDate);
     if (isNaN(d.getTime())) return pubDate.substring(0, 10);
-    return d.toLocaleDateString("ko-KR");
-  } catch {
-    return "";
-  }
+    return d.toLocaleDateString("ko-KR", { month: "long", day: "numeric" });
+  } catch { return ""; }
 }
 
 const DAY_OPTIONS = [
-  { key: "mon", label: "월" },
-  { key: "tue", label: "화" },
-  { key: "wed", label: "수" },
-  { key: "thu", label: "목" },
-  { key: "fri", label: "금" },
-  { key: "sat", label: "토" },
+  { key: "mon", label: "월" }, { key: "tue", label: "화" },
+  { key: "wed", label: "수" }, { key: "thu", label: "목" },
+  { key: "fri", label: "금" }, { key: "sat", label: "토" },
   { key: "sun", label: "일" },
 ];
 
@@ -63,12 +59,15 @@ interface CardNewsConfig {
   lastSent?: string | null;
 }
 
+type TabType = "preview" | "settings";
+
 export default function CardNewsAdmin() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-
   const [articles, setArticles] = useState<NewsArticle[]>([]);
   const [fetchedAt, setFetchedAt] = useState<string | null>(null);
+  const [hasFetched, setHasFetched] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabType>("preview");
   const [newRecipient, setNewRecipient] = useState("");
 
   const { data: config, isLoading: configLoading } = useQuery<CardNewsConfig>({
@@ -80,11 +79,9 @@ export default function CardNewsAdmin() {
     enabled: false,
     days: ["mon", "tue", "wed", "thu", "fri"],
     time: "09:00",
-    recipients: ["fbwogk26@gmail.com"],
+    recipients: [],
     lastSent: null,
   };
-
-  const [hasFetched, setHasFetched] = useState(false);
 
   const fetchNewsMutation = useMutation({
     mutationFn: async () => {
@@ -96,22 +93,21 @@ export default function CardNewsAdmin() {
       setFetchedAt(data.fetchedAt || null);
       setHasFetched(true);
       const count = data.articles?.length || 0;
-      if (count === 0) {
-        toast({ title: "수집된 뉴스가 없습니다", description: "현재 수집 가능한 음주운전 뉴스가 없습니다. 잠시 후 다시 시도해 주세요." });
-      } else {
-        toast({ title: `${count}건의 음주운전 뉴스를 수집했습니다` });
-      }
+      toast({
+        title: count > 0 ? `${count}건의 뉴스를 수집했습니다` : "수집된 뉴스가 없습니다",
+        description: count === 0 ? "잠시 후 다시 시도해 주세요." : undefined,
+      });
     },
     onError: (err: any) => {
       setHasFetched(true);
-      toast({ variant: "destructive", title: "뉴스 수집에 실패했습니다", description: String(err?.message || "") });
+      toast({ variant: "destructive", title: "뉴스 수집 실패", description: String(err?.message || "") });
     },
   });
 
   const sendEmailMutation = useMutation({
     mutationFn: () => apiRequest("POST", "/api/card-news/send-email", {}),
     onSuccess: async () => {
-      toast({ title: "카드뉴스 이메일이 발송되었습니다 ✓" });
+      toast({ title: "✅ 카드뉴스 이메일이 발송되었습니다" });
       queryClient.invalidateQueries({ queryKey: ["/api/card-news/config"] });
       setLocalConfig(null);
     },
@@ -122,18 +118,16 @@ export default function CardNewsAdmin() {
 
   const saveConfigMutation = useMutation({
     mutationFn: (cfg: CardNewsConfig) => apiRequest("PUT", "/api/card-news/config", cfg),
-    onSuccess: async (res: any) => {
-      const data = await res.json();
+    onSuccess: () => {
       setLocalConfig(null);
       queryClient.invalidateQueries({ queryKey: ["/api/card-news/config"] });
       toast({ title: "설정이 저장되었습니다" });
     },
-    onError: () => toast({ variant: "destructive", title: "설정 저장에 실패했습니다" }),
+    onError: () => toast({ variant: "destructive", title: "설정 저장 실패" }),
   });
 
-  const updateConfig = (patch: Partial<CardNewsConfig>) => {
+  const updateConfig = (patch: Partial<CardNewsConfig>) =>
     setLocalConfig(prev => ({ ...(prev ?? effectiveConfig), ...patch }));
-  };
 
   const toggleDay = (day: string) => {
     const days = effectiveConfig.days.includes(day)
@@ -156,198 +150,249 @@ export default function CardNewsAdmin() {
     setNewRecipient("");
   };
 
-  const removeRecipient = (email: string) => {
-    updateConfig({ recipients: effectiveConfig.recipients.filter(r => r !== email) });
-  };
-
   const isDirty = localConfig !== null;
+  const today = format(new Date(), "yyyy년 M월 d일", { locale: ko });
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
-      <div className="flex items-center gap-4 flex-wrap">
-        <div className="flex items-center gap-3">
-          <div className="bg-red-100 p-2 rounded-xl text-red-600 dark:bg-red-900/30 dark:text-red-400">
-            <Newspaper className="w-8 h-8" />
+    <div className="max-w-4xl mx-auto space-y-6">
+
+      {/* ── 헤더 ─────────────────────────────────────────────── */}
+      <div className="flex items-start justify-between flex-wrap gap-3">
+        <div>
+          <div className="flex items-center gap-2.5 mb-1">
+            <div className="w-2 h-7 rounded-full bg-red-500" />
+            <h2 className="text-2xl font-bold text-foreground tracking-tight">음주운전 카드뉴스</h2>
           </div>
-          <div>
-            <h2 className="text-2xl md:text-3xl font-display font-bold text-foreground">음주운전 카드뉴스</h2>
-            <p className="text-muted-foreground text-sm mt-1">실시간 음주운전 뉴스를 카드뉴스로 자동 발송</p>
-          </div>
+          <p className="text-sm text-muted-foreground pl-4">
+            실시간 음주운전 뉴스를 카드뉴스로 자동 발송 · {today}
+          </p>
         </div>
         {config?.lastSent && (
-          <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-full">
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 border px-3 py-1.5 rounded-full">
             <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
-            마지막 발송: {safeFormat(config.lastSent, "M월 d일 HH:mm", { locale: ko })}
+            마지막 발송 {safeFormat(config.lastSent, "M월 d일 HH:mm", { locale: ko })}
           </div>
         )}
       </div>
 
-      <Tabs defaultValue="preview" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="preview" className="gap-2">
-            <Newspaper className="w-4 h-4" />
-            뉴스 미리보기
-          </TabsTrigger>
-          <TabsTrigger value="settings" className="gap-2">
-            <Settings className="w-4 h-4" />
-            발송 설정
-          </TabsTrigger>
-        </TabsList>
+      {/* ── 탭 네비게이션 ──────────────────────────────────────── */}
+      <div className="flex border-b">
+        {([
+          { key: "preview", icon: Newspaper, label: "뉴스 미리보기" },
+          { key: "settings", icon: Settings, label: "발송 설정" },
+        ] as { key: TabType; icon: any; label: string }[]).map(({ key, icon: Icon, label }) => (
+          <button
+            key={key}
+            onClick={() => setActiveTab(key)}
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
+              activeTab === key
+                ? "border-red-500 text-red-600 dark:text-red-400"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Icon className="w-4 h-4" />
+            {label}
+          </button>
+        ))}
+      </div>
 
-        {/* ── 뉴스 미리보기 탭 ────────────────────────────────────────── */}
-        <TabsContent value="preview" className="space-y-4">
-          <Card className="border-red-200 dark:border-red-800">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between gap-4 flex-wrap">
-                <div>
-                  <p className="text-sm font-semibold">Google뉴스 · KBS · SBS · MBC · JTBC · 연합뉴스 · 노컷뉴스 · 경향신문 등 12개 소스</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    최근 <span className="font-semibold text-red-600">7일</span> 이내 기사 수집 · 음주운전·만취운전·음주사고 키워드 · AI 요약 후 이메일 발송
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    onClick={() => fetchNewsMutation.mutate()}
-                    disabled={fetchNewsMutation.isPending}
-                    variant="outline"
-                    className="gap-2"
-                    data-testid="button-fetch-news"
-                  >
-                    {fetchNewsMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                    뉴스 수집
-                  </Button>
-                  <Button
-                    onClick={() => sendEmailMutation.mutate()}
-                    disabled={sendEmailMutation.isPending || articles.length === 0}
-                    className="gap-2 bg-red-600 hover:bg-red-700 text-white"
-                    data-testid="button-send-email"
-                  >
-                    {sendEmailMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                    지금 발송
-                  </Button>
-                </div>
-              </div>
-              {fetchedAt && (
-                <p className="text-xs text-muted-foreground mt-2">
-                  수집 시각: {safeFormat(fetchedAt, "M월 d일 HH:mm:ss", { locale: ko })}
-                </p>
-              )}
-            </CardContent>
-          </Card>
+      {/* ══════════════════════════════════════════════════════════
+          탭 1: 뉴스 미리보기
+      ══════════════════════════════════════════════════════════ */}
+      {activeTab === "preview" && (
+        <div className="space-y-5">
 
+          {/* 수집 + 발송 액션 바 */}
+          <div className="flex items-center justify-between gap-3 p-4 bg-muted/30 rounded-xl border">
+            <div className="space-y-0.5">
+              <p className="text-sm font-semibold">Google뉴스 · KBS · SBS · MBC · JTBC · 연합뉴스 등 12개 소스</p>
+              <p className="text-xs text-muted-foreground">
+                최근 7일 · 음주운전·음주사고·음주단속 키워드
+                {fetchedAt && (
+                  <span className="ml-2 text-muted-foreground/70">
+                    · 수집 {safeFormat(fetchedAt, "HH:mm:ss")}
+                  </span>
+                )}
+              </p>
+            </div>
+            <div className="flex gap-2 shrink-0">
+              <Button
+                onClick={() => fetchNewsMutation.mutate()}
+                disabled={fetchNewsMutation.isPending}
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                data-testid="button-fetch-news"
+              >
+                {fetchNewsMutation.isPending
+                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  : <RefreshCw className="w-3.5 h-3.5" />}
+                뉴스 수집
+              </Button>
+              <Button
+                onClick={() => sendEmailMutation.mutate()}
+                disabled={sendEmailMutation.isPending || articles.length === 0}
+                size="sm"
+                className="gap-2 bg-red-600 hover:bg-red-700 text-white"
+                data-testid="button-send-email"
+              >
+                {sendEmailMutation.isPending
+                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  : <Send className="w-3.5 h-3.5" />}
+                지금 발송
+              </Button>
+            </div>
+          </div>
+
+          {/* 로딩 상태 */}
           {fetchNewsMutation.isPending && (
-            <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
-              <Loader2 className="w-8 h-8 animate-spin text-red-500" />
-              <p className="text-sm">뉴스를 수집하고 있습니다...</p>
-            </div>
-          )}
-
-          {articles.length === 0 && !fetchNewsMutation.isPending && !hasFetched && (
-            <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground border-2 border-dashed rounded-xl">
-              <Newspaper className="w-12 h-12 opacity-30" />
-              <p className="text-sm">위 "뉴스 수집" 버튼을 눌러 최신 뉴스를 불러오세요</p>
-              <p className="text-xs opacity-60">Google뉴스 · 연합뉴스 · MBC · 한국경제에서 음주운전 뉴스를 수집합니다</p>
-            </div>
-          )}
-
-          {articles.length === 0 && !fetchNewsMutation.isPending && hasFetched && (
-            <div className="flex flex-col items-center justify-center py-16 gap-3 border-2 border-dashed border-amber-200 dark:border-amber-800 rounded-xl bg-amber-50/50 dark:bg-amber-950/20">
-              <AlertTriangle className="w-12 h-12 text-amber-400 opacity-60" />
-              <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">현재 수집 가능한 음주운전 뉴스가 없습니다</p>
-              <p className="text-xs text-amber-600 dark:text-amber-500 opacity-80">모든 뉴스 소스(Google뉴스 · 연합뉴스 · MBC · 한국경제)에서 기사를 찾지 못했습니다.</p>
-              <p className="text-xs text-muted-foreground">잠시 후 다시 수집을 시도해 주세요.</p>
-            </div>
-          )}
-
-          {articles.length > 0 && (
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <div className="w-1 h-5 rounded-full bg-red-500" />
-                <span className="text-sm font-bold">수집된 뉴스 ({articles.length}건) — 이메일 카드뉴스 미리보기</span>
+            <div className="flex flex-col items-center justify-center py-20 gap-3 text-muted-foreground">
+              <div className="relative">
+                <div className="w-14 h-14 rounded-full bg-red-50 dark:bg-red-950/30 flex items-center justify-center">
+                  <Newspaper className="w-6 h-6 text-red-400" />
+                </div>
+                <Loader2 className="w-5 h-5 animate-spin text-red-500 absolute -top-0.5 -right-0.5" />
               </div>
+              <p className="text-sm">뉴스를 수집하는 중입니다...</p>
+            </div>
+          )}
+
+          {/* 초기 안내 */}
+          {!fetchNewsMutation.isPending && !hasFetched && (
+            <div className="flex flex-col items-center justify-center py-20 gap-3 border-2 border-dashed rounded-xl text-muted-foreground">
+              <Newspaper className="w-10 h-10 opacity-20" />
+              <p className="text-sm font-medium">"뉴스 수집" 버튼을 눌러 최신 뉴스를 불러오세요</p>
+              <p className="text-xs opacity-60">Google뉴스 · 연합뉴스 · MBC · 한국경제에서 수집합니다</p>
+            </div>
+          )}
+
+          {/* 결과 없음 */}
+          {!fetchNewsMutation.isPending && hasFetched && articles.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-20 gap-3 border-2 border-dashed border-amber-200 dark:border-amber-800 rounded-xl bg-amber-50/50 dark:bg-amber-950/20">
+              <AlertTriangle className="w-10 h-10 text-amber-400 opacity-60" />
+              <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">현재 수집 가능한 뉴스가 없습니다</p>
+              <p className="text-xs text-amber-600 dark:text-amber-500">잠시 후 다시 수집을 시도해 주세요.</p>
+            </div>
+          )}
+
+          {/* 뉴스 카드 목록 */}
+          {articles.length > 0 && !fetchNewsMutation.isPending && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-foreground">
+                  수집된 뉴스
+                  <span className="ml-2 text-xs font-normal text-muted-foreground">{articles.length}건</span>
+                </span>
+                <Badge variant="outline" className="text-xs text-green-600 border-green-300 bg-green-50 dark:bg-green-950/30">
+                  <Radio className="w-2.5 h-2.5 mr-1 fill-green-500 text-green-500" />
+                  발송 대기
+                </Badge>
+              </div>
+
               <div className="grid gap-3">
                 {articles.map((article, i) => (
-                  <Card key={i} className="border-0 shadow-sm overflow-hidden" data-testid={`card-news-${i}`}>
-                    <div className="h-1.5 bg-gradient-to-r from-red-600 to-rose-500" />
-                    <CardContent className="p-4">
-                      <div className="flex items-start gap-3">
-                        <div className="shrink-0 w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-red-600 dark:text-red-400 font-black text-sm">
-                          {i + 1}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1 flex-wrap">
-                            {article.source && (
-                              <Badge variant="outline" className="text-[10px] shrink-0">{article.source}</Badge>
-                            )}
-                            {article.pubDate && (
-                              <span className="text-[10px] text-muted-foreground">
-                                {safePubDate(article.pubDate)}
-                              </span>
-                            )}
-                          </div>
-                          <h3 className="font-semibold text-sm leading-snug mb-2 text-foreground">{article.title}</h3>
-                          {article.description && (
-                            <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">{article.description}</p>
-                          )}
-                          <div className="mt-3 flex items-center gap-2 p-2 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800">
-                            <AlertTriangle className="w-3.5 h-3.5 text-red-500 shrink-0" />
-                            <span className="text-xs font-semibold text-red-600 dark:text-red-400">
-                              AI 경각심 문구가 자동 생성되어 이메일에 포함됩니다
-                            </span>
-                          </div>
-                        </div>
+                  <div
+                    key={i}
+                    className="group flex gap-4 p-4 rounded-xl border bg-card hover:shadow-sm transition-shadow"
+                    data-testid={`card-news-${i}`}
+                  >
+                    {/* 번호 */}
+                    <div className="shrink-0 flex flex-col items-center gap-1">
+                      <span className="w-8 h-8 rounded-lg bg-red-600 text-white text-xs font-bold flex items-center justify-center">
+                        {String(i + 1).padStart(2, "0")}
+                      </span>
+                    </div>
+
+                    {/* 본문 */}
+                    <div className="flex-1 min-w-0 space-y-1.5">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {article.source && (
+                          <Badge variant="secondary" className="text-[10px] h-4 px-1.5">
+                            {article.source}
+                          </Badge>
+                        )}
+                        {article.pubDate && (
+                          <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+                            <Calendar className="w-2.5 h-2.5" />
+                            {safePubDate(article.pubDate)}
+                          </span>
+                        )}
                       </div>
-                    </CardContent>
-                  </Card>
+                      <h3 className="text-sm font-semibold leading-snug text-foreground">
+                        {article.title}
+                      </h3>
+                      {article.description && (
+                        <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">
+                          {article.description}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* 링크 */}
+                    {article.link && (
+                      <a
+                        href={article.link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="shrink-0 self-start text-muted-foreground hover:text-foreground transition-colors opacity-0 group-hover:opacity-100"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                      </a>
+                    )}
+                  </div>
                 ))}
               </div>
 
-              <Card className="border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <Send className="w-5 h-5 text-amber-600" />
-                    <div>
-                      <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">발송 준비 완료</p>
-                      <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
-                        AI가 각 뉴스를 요약·편집하여 이메일로 발송합니다. 수신자: {effectiveConfig.recipients.join(', ')}
-                      </p>
-                    </div>
-                    <Button
-                      onClick={() => sendEmailMutation.mutate()}
-                      disabled={sendEmailMutation.isPending}
-                      className="ml-auto shrink-0 gap-2 bg-red-600 hover:bg-red-700 text-white"
-                    >
-                      {sendEmailMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                      지금 발송
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+              {/* 발송 확인 바 */}
+              <div className="flex items-center gap-3 p-4 rounded-xl bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900">
+                <Send className="w-4 h-4 text-red-500 shrink-0" />
+                <p className="text-sm text-red-700 dark:text-red-400 flex-1">
+                  <span className="font-semibold">{articles.length}건</span>의 뉴스가 수집되었습니다.
+                  수신자 <span className="font-semibold">{effectiveConfig.recipients.length}명</span>에게 카드뉴스를 발송합니다.
+                </p>
+                <Button
+                  onClick={() => sendEmailMutation.mutate()}
+                  disabled={sendEmailMutation.isPending}
+                  size="sm"
+                  className="shrink-0 gap-2 bg-red-600 hover:bg-red-700 text-white"
+                >
+                  {sendEmailMutation.isPending
+                    ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    : <Send className="w-3.5 h-3.5" />}
+                  지금 발송
+                </Button>
+              </div>
             </div>
           )}
-        </TabsContent>
+        </div>
+      )}
 
-        {/* ── 발송 설정 탭 ──────────────────────────────────────────────── */}
-        <TabsContent value="settings" className="space-y-4">
+      {/* ══════════════════════════════════════════════════════════
+          탭 2: 발송 설정
+      ══════════════════════════════════════════════════════════ */}
+      {activeTab === "settings" && (
+        <div className="space-y-4">
           {configLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
             </div>
           ) : (
-            <div className="space-y-4">
-              {/* 자동 발송 ON/OFF */}
+            <>
+              {/* 자동 발송 */}
               <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Settings className="w-4 h-4 text-primary" />
-                    자동 발송 설정
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                    <Settings className="w-4 h-4 text-muted-foreground" />
+                    자동 발송
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-5">
-                  <div className="flex items-center justify-between p-3 rounded-lg bg-muted/40">
+                  <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-semibold">자동 발송 활성화</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">설정한 요일과 시간에 자동으로 카드뉴스를 발송합니다</p>
+                      <p className="text-sm font-medium">자동 발송 활성화</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        설정한 요일·시간에 자동으로 카드뉴스를 발송합니다
+                      </p>
                     </div>
                     <Switch
                       checked={effectiveConfig.enabled}
@@ -356,17 +401,17 @@ export default function CardNewsAdmin() {
                     />
                   </div>
 
-                  {/* 발송 요일 */}
+                  {/* 요일 */}
                   <div className="space-y-2">
-                    <Label className="text-sm font-semibold flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5" /> 발송 요일
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+                      <Clock className="w-3 h-3" /> 발송 요일
                     </Label>
-                    <div className="flex gap-2 flex-wrap">
+                    <div className="flex gap-1.5 flex-wrap">
                       {DAY_OPTIONS.map(({ key, label }) => (
                         <button
                           key={key}
                           onClick={() => toggleDay(key)}
-                          className={`w-10 h-10 rounded-full text-sm font-semibold transition-all ${
+                          className={`w-9 h-9 rounded-lg text-sm font-semibold transition-all ${
                             effectiveConfig.days.includes(key)
                               ? "bg-red-600 text-white shadow-sm"
                               : "bg-muted text-muted-foreground hover:bg-muted/80"
@@ -379,28 +424,27 @@ export default function CardNewsAdmin() {
                     </div>
                   </div>
 
-                  {/* 발송 시간 */}
+                  {/* 시간 */}
                   <div className="space-y-2">
-                    <Label htmlFor="send-time" className="text-sm font-semibold flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5" /> 발송 시간
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+                      <Clock className="w-3 h-3" /> 발송 시간
                     </Label>
                     <Input
-                      id="send-time"
                       type="time"
                       value={effectiveConfig.time}
                       onChange={(e) => updateConfig({ time: e.target.value })}
-                      className="w-36"
+                      className="w-32 text-sm"
                       data-testid="input-send-time"
                     />
                   </div>
                 </CardContent>
               </Card>
 
-              {/* 수신자 관리 */}
+              {/* 수신자 */}
               <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Mail className="w-4 h-4 text-primary" />
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                    <Mail className="w-4 h-4 text-muted-foreground" />
                     수신자 관리
                   </CardTitle>
                 </CardHeader>
@@ -411,10 +455,16 @@ export default function CardNewsAdmin() {
                       onChange={(e) => setNewRecipient(e.target.value)}
                       placeholder="이메일 주소 입력"
                       onKeyDown={(e) => e.key === "Enter" && addRecipient()}
-                      className="flex-1"
+                      className="flex-1 text-sm"
                       data-testid="input-new-recipient"
                     />
-                    <Button onClick={addRecipient} variant="outline" size="icon" data-testid="button-add-recipient">
+                    <Button
+                      onClick={addRecipient}
+                      variant="outline"
+                      size="icon"
+                      className="shrink-0"
+                      data-testid="button-add-recipient"
+                    >
                       <Plus className="w-4 h-4" />
                     </Button>
                   </div>
@@ -422,7 +472,7 @@ export default function CardNewsAdmin() {
                     {effectiveConfig.recipients.map((email) => (
                       <div
                         key={email}
-                        className="flex items-center gap-1.5 bg-muted/60 px-3 py-1.5 rounded-full text-sm"
+                        className="flex items-center gap-1.5 bg-muted/60 px-3 py-1.5 rounded-full text-xs"
                         data-testid={`recipient-${email}`}
                       >
                         <Mail className="w-3 h-3 text-muted-foreground" />
@@ -442,63 +492,75 @@ export default function CardNewsAdmin() {
                 </CardContent>
               </Card>
 
-              {/* 저장 버튼 */}
-              <div className="flex items-center justify-between">
+              {/* 현황 요약 */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {[
+                  {
+                    label: "자동 발송",
+                    value: effectiveConfig.enabled ? "활성화" : "비활성화",
+                    color: effectiveConfig.enabled ? "text-green-600" : "text-muted-foreground",
+                  },
+                  {
+                    label: "발송 요일",
+                    value: effectiveConfig.days.length === 0
+                      ? "없음"
+                      : effectiveConfig.days.map(d => DAY_OPTIONS.find(o => o.key === d)?.label).join(" "),
+                    color: "text-foreground",
+                  },
+                  {
+                    label: "발송 시간",
+                    value: effectiveConfig.time,
+                    color: "text-foreground",
+                  },
+                  {
+                    label: "수신자",
+                    value: `${effectiveConfig.recipients.length}명`,
+                    color: "text-foreground",
+                  },
+                ].map(({ label, value, color }) => (
+                  <div key={label} className="p-3 rounded-xl bg-muted/30 border text-center space-y-1">
+                    <p className="text-[11px] text-muted-foreground">{label}</p>
+                    <p className={`text-sm font-semibold ${color}`}>{value}</p>
+                  </div>
+                ))}
+              </div>
+
+              {config?.lastSent && (
+                <p className="text-xs text-muted-foreground text-center">
+                  마지막 발송 · {safeFormat(config.lastSent, "yyyy년 M월 d일 HH:mm", { locale: ko })}
+                </p>
+              )}
+
+              {/* 저장 */}
+              <div className="flex items-center justify-end gap-3 pt-1">
                 {isDirty && (
-                  <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                  <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1 mr-auto">
                     <AlertTriangle className="w-3 h-3" />
-                    변경사항이 있습니다. 저장해주세요.
+                    저장되지 않은 변경사항이 있습니다
                   </p>
                 )}
                 <Button
                   onClick={() => saveConfigMutation.mutate(effectiveConfig)}
                   disabled={saveConfigMutation.isPending || !isDirty}
-                  className={`ml-auto gap-2 ${isDirty ? "bg-red-600 hover:bg-red-700 text-white" : ""}`}
+                  size="sm"
+                  className={isDirty ? "bg-red-600 hover:bg-red-700 text-white" : ""}
+                  variant={isDirty ? "default" : "outline"}
                   data-testid="button-save-config"
                 >
-                  {saveConfigMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                  {saveConfigMutation.isPending
+                    ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                    : <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />}
                   설정 저장
                 </Button>
               </div>
-
-              {/* 현황 요약 */}
-              <Card className="border-0 bg-muted/30">
-                <CardContent className="p-4">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-                    <div>
-                      <p className="text-xs text-muted-foreground mb-1">자동 발송</p>
-                      <Badge className={effectiveConfig.enabled ? "bg-green-500 text-white" : "bg-muted text-muted-foreground"}>
-                        {effectiveConfig.enabled ? "활성화" : "비활성화"}
-                      </Badge>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground mb-1">발송 요일</p>
-                      <p className="text-sm font-semibold">
-                        {effectiveConfig.days.length === 0
-                          ? "없음"
-                          : effectiveConfig.days.map(d => DAY_OPTIONS.find(o => o.key === d)?.label).join(" ")}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground mb-1">발송 시간</p>
-                      <p className="text-sm font-semibold">{effectiveConfig.time}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground mb-1">수신자</p>
-                      <p className="text-sm font-semibold">{effectiveConfig.recipients.length}명</p>
-                    </div>
-                  </div>
-                  {config?.lastSent && (
-                    <p className="text-xs text-muted-foreground text-center mt-3 pt-3 border-t">
-                      마지막 발송: {safeFormat(config.lastSent, "yyyy년 M월 d일 HH:mm", { locale: ko })}
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
+            </>
           )}
-        </TabsContent>
-      </Tabs>
+        </div>
+      )}
     </div>
   );
+
+  function removeRecipient(email: string) {
+    updateConfig({ recipients: effectiveConfig.recipients.filter(r => r !== email) });
+  }
 }
