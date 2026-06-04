@@ -10986,6 +10986,7 @@ async function fetchDrunkDrivingNews(): Promise<any[]> {
 
   const unique = deduplicateArticles(allArticles).slice(0, MAX_RESULTS);
   console.log(`[카드뉴스] 전체 ${allArticles.length}건 → 중복제거 ${unique.length}건`);
+  unique.forEach((a, i) => console.log(`[카드뉴스] 선택[${i+1}] ${a.title}`));
   return unique;
 }
 
