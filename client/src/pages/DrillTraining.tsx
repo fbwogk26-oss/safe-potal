@@ -279,7 +279,7 @@ const DEPT_LIST = [
 
 const ACCIDENT_TYPES = [
   "빙판길 낙상사고", "추락사고", "발목 접지름 사고", "중량물 낙하사고",
-  "전기 화상사고", "차량사고", "기타",
+  "전기 화상사고", "차량사고", "쏘임사고", "기타",
 ];
 
 const CURRENT_YEAR = new Date().getFullYear();
@@ -867,6 +867,19 @@ function AssignmentDetail({ assignment, sessionId, isAdmin, session, onClose }: 
   // 저장 즉시 반영을 위한 로컬 상태 (query refetch 기다리지 않음)
   const [preEduData, setPreEduData] = useState<any>(assignment.preEduData);
   const [localAssignment, setLocalAssignment] = useState<DrillAssignment>(assignment);
+  const [editingType, setEditingType] = useState(false);
+
+  const updateTypeMut = useMutation({
+    mutationFn: (accidentType: string) =>
+      apiRequest("PUT", `/api/drill-assignments/${assignment.id}`, { accidentType }),
+    onSuccess: (updated: any) => {
+      setLocalAssignment(p => ({ ...p, accidentType: updated.accidentType }));
+      qc.invalidateQueries({ queryKey: ["/api/drill-sessions", sessionId, "assignments"] });
+      toast({ title: "사고유형 수정 완료" });
+      setEditingType(false);
+    },
+    onError: () => toast({ title: "수정 실패", variant: "destructive" }),
+  });
 
   const resetStep = useMutation({
     mutationFn: (step: number) => apiRequest("DELETE", `/api/drill-assignments/${assignment.id}/step/${step}`),
@@ -937,9 +950,35 @@ function AssignmentDetail({ assignment, sessionId, isAdmin, session, onClose }: 
     <div className="space-y-4">
       {/* 시나리오 (접기/펼치기) */}
       <div className="space-y-1">
-        <div className="flex items-center gap-2">
-          <p className="font-semibold text-sm">{assignment.department}</p>
-          {assignment.accidentType && <Badge variant="outline" className="text-xs">{assignment.accidentType}</Badge>}
+        <div className="flex items-center gap-2 flex-wrap">
+          <p className="font-semibold text-sm">{localAssignment.department}</p>
+          {editingType && isAdmin ? (
+            <div className="flex items-center gap-1">
+              <Select
+                defaultValue={localAssignment.accidentType ?? ""}
+                onValueChange={val => updateTypeMut.mutate(val)}
+                disabled={updateTypeMut.isPending}
+              >
+                <SelectTrigger className="h-6 text-xs w-36 px-2">
+                  <SelectValue placeholder="유형 선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  {ACCIDENT_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <button onClick={() => setEditingType(false)} className="text-xs text-muted-foreground hover:text-foreground px-1">✕</button>
+            </div>
+          ) : (
+            <Badge
+              variant="outline"
+              className={`text-xs ${isAdmin ? "cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950/40 hover:border-blue-400 transition-colors" : ""}`}
+              onClick={() => isAdmin && setEditingType(true)}
+              title={isAdmin ? "클릭하여 사고유형 수정" : undefined}
+            >
+              {localAssignment.accidentType || "유형 없음"}
+              {isAdmin && <span className="ml-1 opacity-40 text-[10px]">✏</span>}
+            </Badge>
+          )}
         </div>
         <ScenarioCollapsible assignment={localAssignment} isAdmin={isAdmin}
           onFileUploaded={(url, name) => setLocalAssignment(p => ({ ...p, scenarioFileUrl: url, scenarioFileName: name }))} />
