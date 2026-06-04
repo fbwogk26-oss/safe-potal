@@ -10803,9 +10803,18 @@ function titlesAreSimilar(a: string, b: string): boolean {
 }
 
 // URL에서 도메인+경로 핵심 부분 추출 (파라미터 제거)
+// Bing 래핑 URL은 실제 기사 URL을 추출해서 사용
 function normalizeUrl(url: string): string {
   try {
     const u = new URL(url);
+    // Bing news apiclick.aspx 래핑 URL → 실제 URL 추출
+    if (u.hostname.includes('bing.com') && u.searchParams.get('url')) {
+      const real = u.searchParams.get('url')!;
+      try {
+        const ru = new URL(decodeURIComponent(real));
+        return ru.hostname + ru.pathname.replace(/\/$/, '');
+      } catch { return real; }
+    }
     return u.hostname + u.pathname.replace(/\/$/, '');
   } catch { return url; }
 }
@@ -10868,7 +10877,7 @@ async function fetchDrunkDrivingNews(): Promise<any[]> {
     "Accept-Language": "ko-KR,ko;q=0.9",
   };
   const TIMEOUT_MS = 12_000;
-  const MAX_RESULTS = 4; // 현실적 목표: 연합뉴스 1-3건 + Bing 1건
+  const MAX_RESULTS = 6;
 
   const DUI_KEYWORDS = ['음주운전', '음주 운전', '만취운전', '만취 운전', '음주운전자', '음주사고', '음주단속', '음주 사고'];
   // 키워드가 없으면 모든 기사 허용 (연합뉴스 등 사전 필터된 피드용)
@@ -10907,9 +10916,10 @@ async function fetchDrunkDrivingNews(): Promise<any[]> {
     return unique;
   }
 
-  // ── 2순위: 연합뉴스 RSS (Replit 서버에서 안정적으로 접근 가능) ───────────
-  // 실시간 최신 120개 기사에서 키워드 필터링 — 날짜 필터 제거
+  // ── 2순위: 구글 뉴스 RSS (검색어 자체가 필터, 가장 안정적) + 연합뉴스 ───
   const ynaSources = [
+    { name: "구글뉴스(음주운전)", url: "https://news.google.com/rss/search?q=%EC%9D%8C%EC%A3%BC%EC%9A%B4%EC%A0%84&hl=ko&gl=KR&ceid=KR:ko", keywords: [] as string[] },
+    { name: "구글뉴스(음주사고)", url: "https://news.google.com/rss/search?q=%EC%9D%8C%EC%A3%BC%EC%82%AC%EA%B3%A0+%EB%8B%A8%EC%86%8D&hl=ko&gl=KR&ceid=KR:ko", keywords: [] as string[] },
     { name: "연합뉴스(사회)", url: "https://www.yna.co.kr/rss/society.xml", keywords: DUI_LOOSE },
     { name: "연합뉴스(전체)", url: "https://www.yna.co.kr/rss/news.xml", keywords: DUI_LOOSE },
   ];
