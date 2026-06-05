@@ -976,6 +976,71 @@ export async function registerRoutes(
 
   // === PDF INSPECTION PARSE ===
   const inspectionPdfUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
+  const inspectionPhotoUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+
+  // 단건 점검 사진 업로드 + GPT-4o Vision 자동 분석
+  app.post('/api/safety-inspections/analyze-photo', isAuthenticated, inspectionPhotoUpload.single('photo'), async (req: any, res: any) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: "사진이 없습니다" });
+
+      // Object Storage 업로드
+      const ext = path.extname(req.file.originalname) || '.jpg';
+      const filename = `inspection-photo-${Date.now()}${ext}`;
+      let imageUrl = await uploadToObjectStorage(req.file.buffer, filename, req.file.mimetype || 'image/jpeg');
+      if (!imageUrl) {
+        fs.writeFileSync(path.join(uploadDir, filename), req.file.buffer);
+        imageUrl = `/uploads/${filename}`;
+      }
+
+      // GPT-4o Vision 분석
+      const base64Image = req.file.buffer.toString('base64');
+      const mimeType = req.file.mimetype || 'image/jpeg';
+
+      try {
+        const OpenAI = (await import("openai")).default;
+        const aiClient = new OpenAI({
+          apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+          baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+        });
+
+        const response = await aiClient.chat.completions.create({
+          model: "gpt-4o",
+          messages: [
+            {
+              role: "system",
+              content: `당신은 산업안전보건 전문가입니다. 현장 안전점검 사진을 보고 점검 기록 작성에 필요한 정보를 추출합니다.
+다음 JSON 형식으로만 응답하세요 (코드블록 없이):
+{
+  "workContent": "사진에 보이는 작업 종류/내용 (10~30자, 없으면 null)",
+  "location": "장소 특성 (예: 통신 기지국 내부, 도로변 맨홀, 전주 주변 등 10~20자, 없으면 null)",
+  "notes": "사진에서 보이는 안전 위험요인이나 특이사항 (50자 이내, 없으면 null)"
+}`,
+            },
+            {
+              role: "user",
+              content: [
+                { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64Image}`, detail: "low" } },
+                { type: "text", text: "이 안전점검 사진에서 작업내용, 장소, 안전 특이사항을 추출해주세요." },
+              ] as any,
+            },
+          ],
+          max_tokens: 300,
+          temperature: 0.1,
+        });
+
+        const raw = response.choices[0].message.content?.trim() || '{}';
+        let parsed: any = {};
+        try { parsed = JSON.parse(raw); } catch {}
+        return res.json({ imageUrl, workContent: parsed.workContent || null, location: parsed.location || null, notes: parsed.notes || null });
+      } catch (aiErr: any) {
+        console.warn('[InspectionPhotoAnalyze] AI 분석 실패 (URL만 반환):', aiErr.message);
+        return res.json({ imageUrl, workContent: null, location: null, notes: null });
+      }
+    } catch (e: any) {
+      console.error('[InspectionPhotoAnalyze] 오류:', e);
+      res.status(500).json({ message: e.message });
+    }
+  });
 
   app.post('/api/parse-inspection-pdf', isAuthenticated, inspectionPdfUpload.single('pdf'), async (req: any, res: any) => {
     if (!req.file) return res.status(400).json({ message: "PDF 파일이 필요합니다" });

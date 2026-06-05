@@ -310,31 +310,49 @@ export default function SafetyInspections() {
     }
     
     const filesToUpload = Array.from(files).slice(0, remainingSlots);
+    const isFirstPhoto = images.length === 0;
     
     setIsUploading(true);
     
     try {
-      for (const file of filesToUpload) {
-        const urlRes = await fetch('/api/uploads/request-url', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: file.name,
-            size: file.size,
-            contentType: file.type,
-          }),
-        });
-        const { uploadURL, objectPath } = await urlRes.json();
-        
-        await fetch(uploadURL, {
-          method: 'PUT',
-          body: file,
-          headers: { 'Content-Type': file.type },
-        });
-        
-        setImages(prev => [...prev, objectPath]);
+      for (let i = 0; i < filesToUpload.length; i++) {
+        const file = filesToUpload[i];
+
+        // 첫 번째 사진: 서버 경유 업로드 + GPT-4o Vision 자동 분석
+        if (i === 0 && isFirstPhoto) {
+          const fd = new FormData();
+          fd.append("photo", file);
+          const analyzeRes = await fetch('/api/safety-inspections/analyze-photo', {
+            method: 'POST',
+            body: fd,
+            credentials: 'include',
+          });
+          if (!analyzeRes.ok) throw new Error("업로드 실패");
+          const data = await analyzeRes.json();
+          setImages(prev => [...prev, data.imageUrl]);
+          // 빈 필드만 자동 채움
+          if (data.workContent && !workContent) setWorkContent(data.workContent);
+          if (data.location && !location) setLocation(data.location);
+          if (data.notes && !notes) setNotes(data.notes);
+          if (data.workContent || data.location || data.notes) {
+            toast({ title: "사진 분석 완료", description: "AI가 작업내용/장소/특이사항을 자동 입력했습니다." });
+          } else {
+            toast({ title: "이미지 업로드 완료" });
+          }
+        } else {
+          // 추가 사진: 기존 presigned URL 방식으로 직접 업로드
+          const urlRes = await fetch('/api/uploads/request-url', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type }),
+          });
+          const { uploadURL, objectPath } = await urlRes.json();
+          await fetch(uploadURL, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } });
+          setImages(prev => [...prev, objectPath]);
+        }
       }
-      toast({ title: "이미지 업로드 완료" });
+      if (filesToUpload.length > 1) toast({ title: "이미지 업로드 완료" });
     } catch (err) {
       toast({ variant: "destructive", title: "업로드 실패" });
     } finally {
