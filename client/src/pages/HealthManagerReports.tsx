@@ -89,32 +89,47 @@ export default function HealthManagerReports() {
 
     const isPdf = selected.name.toLowerCase().endsWith('.pdf');
 
-    // 파일 업로드와 AI 분석을 병렬로 처리
+    // 1단계: 파일 업로드 먼저 완료 (analyze-pdf와 동시에 보내면 네트워크 경합 발생)
     setUploadingFile(true);
-    if (isPdf) setExtractingDate(true);
-
-    const uploadPromise = (async () => {
+    try {
+      const uploadController = new AbortController();
+      const uploadTimeoutId = setTimeout(() => uploadController.abort(), 30000);
+      const fd = new FormData();
+      fd.append("file", selected);
+      let uploadRes: Response;
       try {
-        const fd = new FormData();
-        fd.append("file", selected);
-        const res = await fetch("/api/health-manager-reports/upload-file", {
-          method: "POST", body: fd, credentials: "include",
+        uploadRes = await fetch("/api/health-manager-reports/upload-file", {
+          method: "POST", body: fd, credentials: "include", signal: uploadController.signal,
         });
-        if (res.ok) {
-          const data = await res.json();
-          setUploadedFileUrl(data.fileUrl);
-          setUploadedFileOriginalName(data.fileOriginalName);
-        } else {
-          toast({ title: "파일 업로드 실패", description: "다시 시도해주세요.", variant: "destructive" });
-        }
-      } catch {
-        toast({ title: "파일 업로드 실패", description: "네트워크 오류가 발생했습니다.", variant: "destructive" });
       } finally {
-        setUploadingFile(false);
+        clearTimeout(uploadTimeoutId);
       }
-    })();
+      if (uploadRes.ok) {
+        const data = await uploadRes.json();
+        setUploadedFileUrl(data.fileUrl);
+        setUploadedFileOriginalName(data.fileOriginalName);
+      } else {
+        const err = await uploadRes.json().catch(() => ({}));
+        toast({ title: "파일 업로드 실패", description: err.message || "다시 시도해주세요.", variant: "destructive" });
+        setFile(null);
+        return;
+      }
+    } catch (e: any) {
+      const isTimeout = e?.name === "AbortError";
+      toast({
+        title: "파일 업로드 실패",
+        description: isTimeout ? "업로드 시간 초과 (30초). 파일 크기를 확인해주세요." : "네트워크 오류가 발생했습니다.",
+        variant: "destructive",
+      });
+      setFile(null);
+      return;
+    } finally {
+      setUploadingFile(false);
+    }
 
+    // 2단계: 업로드 완료 후 PDF AI 분석 (별도 단계)
     if (isPdf) {
+      setExtractingDate(true);
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 30000);
