@@ -171,8 +171,6 @@ export default function HealthManagerReports() {
         setExtractingDate(false);
       }
     }
-    // PDF가 아닌 파일은 업로드만 완료되면 됨
-    await uploadPromise;
   }
 
   const yearMonth = getYearMonth(year, month);
