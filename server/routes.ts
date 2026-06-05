@@ -125,14 +125,7 @@ const reportUpload = multer({
 });
 
 const excelUpload = multer({
-  storage: multer.diskStorage({
-    destination: uploadDir,
-    filename: (req, file, cb) => {
-      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-      const ext = safeExt(file.originalname, ALLOWED_EXCEL_EXTS);
-      cb(null, uniqueSuffix + (ext || ".xlsx"));
-    }
-  }),
+  storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowedExt = /xlsx|xls|csv/;
@@ -547,12 +540,11 @@ export async function registerRoutes(
         return res.status(400).json({ message: "파일이 필요합니다" });
       }
 
-      const filePath = req.file.path;
       const ext = path.extname(req.file.originalname).toLowerCase();
       let users: Array<{ department: string; name: string; username: string; password: string }> = [];
 
       if (ext === ".csv") {
-        const content = fs.readFileSync(filePath, "utf-8");
+        const content = req.file.buffer.toString("utf-8");
         const lines = content.split(/\r?\n/).filter(line => line.trim());
         
         for (let i = 1; i < lines.length; i++) {
@@ -568,7 +560,7 @@ export async function registerRoutes(
         }
       } else {
         const workbook = new ExcelJS.Workbook();
-        await workbook.xlsx.readFile(filePath);
+        await workbook.xlsx.load(req.file.buffer);
         const worksheet = workbook.worksheets[0];
         
         worksheet.eachRow((row, rowNumber) => {
@@ -1305,14 +1297,7 @@ export async function registerRoutes(
 
   // === FILE UPLOAD (Excel, etc.) ===
   const fileUpload = multer({
-    storage: multer.diskStorage({
-      destination: (req, file, cb) => cb(null, uploadDir),
-      filename: (req, file, cb) => {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        const ext = safeExt(file.originalname, ALLOWED_EXCEL_EXTS);
-        cb(null, `file-${uniqueSuffix}${ext || ".xlsx"}`);
-      }
-    }),
+    storage: multer.memoryStorage(),
     limits: { fileSize: 10 * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
       const allowedMimes = [
@@ -1328,12 +1313,22 @@ export async function registerRoutes(
     }
   });
 
-  app.post('/api/upload/file', requireEditor, fileUpload.single('file'), (req: any, res) => {
+  app.post('/api/upload/file', requireEditor, fileUpload.single('file'), async (req: any, res) => {
     if (!req.file) {
       return res.status(400).json({ message: "No file uploaded" });
     }
-    const fileUrl = `/uploads/${req.file.filename}`;
-    res.json({ fileUrl, fileName: req.file.originalname });
+    const cleanName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+    const ext = safeExt(cleanName, ALLOWED_EXCEL_EXTS) || ".xlsx";
+    const filename = `file-${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
+    const objUrl = await uploadToObjectStorage(req.file.buffer, filename, req.file.mimetype);
+    let fileUrl: string;
+    if (objUrl) {
+      fileUrl = objUrl;
+    } else {
+      fs.writeFileSync(path.join(uploadDir, filename), req.file.buffer);
+      fileUrl = `/uploads/${filename}`;
+    }
+    res.json({ fileUrl, fileName: cleanName });
   });
 
   // === NOTICES ===
@@ -5396,13 +5391,7 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
   // === TRAFFIC FINES (과태료 현황) ===
 
   const pdfUpload = multer({
-    storage: multer.diskStorage({
-      destination: (req, file, cb) => cb(null, uploadDir),
-      filename: (req, file, cb) => {
-        const ext = safeExt(file.originalname, ["pdf"]);
-        cb(null, `fine_${Date.now()}${ext || ".pdf"}`);
-      },
-    }),
+    storage: multer.memoryStorage(),
     fileFilter: (req, file, cb) => {
       if (file.mimetype === "application/pdf") cb(null, true);
       else cb(new Error("PDF 파일만 업로드 가능합니다"));
@@ -5415,8 +5404,7 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
     if (req.user?.role !== 'admin') return res.status(403).json({ message: "관리자만 사용할 수 있습니다" });
     if (!req.file) return res.status(400).json({ message: "PDF 파일이 필요합니다" });
 
-    const pdfPath = req.file.path;
-    const pdfBuffer = fs.readFileSync(pdfPath);
+    const pdfBuffer = req.file.buffer;
 
     try {
       const OpenAI = (await import("openai")).default;
@@ -6069,13 +6057,7 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
 
   // ===== 하도급관리 - 작업계획 =====
   const workPlanUpload = multer({
-    storage: multer.diskStorage({
-      destination: (req, file, cb) => cb(null, path.join(process.cwd(), "uploads")),
-      filename: (req, file, cb) => {
-        const ext = safeExt(file.originalname, ALLOWED_EXCEL_EXTS);
-        cb(null, `workplan_${Date.now()}${ext || ".xlsx"}`);
-      },
-    }),
+    storage: multer.memoryStorage(),
     limits: { fileSize: 50 * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
       if (
@@ -6102,9 +6084,7 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
     try {
       if (!req.file) return res.status(400).json({ message: "파일이 없습니다" });
 
-      const originalUrl = `/uploads/${req.file.filename}`;
       const processedFilename = `workplan_processed_${Date.now()}.xlsx`;
-      const processedPath = path.join(process.cwd(), "uploads", processedFilename);
       const isCsv = req.file.originalname.toLowerCase().endsWith(".csv");
 
       // ===== 데이터 파싱 =====
@@ -6112,7 +6092,7 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
 
       if (isCsv) {
         // CSV 파싱
-        const rawText = fs.readFileSync(req.file.path, "utf-8");
+        const rawText = req.file.buffer.toString("utf-8");
         const lines = rawText.split(/\r?\n/).filter(l => l.trim());
         tableRows = lines.map(line => {
           // CSV 셀 파싱 (따옴표 처리)
@@ -6130,7 +6110,7 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
       } else {
         // Excel 파싱
         const workbook = new ExcelJS.Workbook();
-        await workbook.xlsx.readFile(req.file.path);
+        await workbook.xlsx.load(req.file.buffer);
         const sheet = workbook.worksheets[0];
         if (!sheet) return res.status(400).json({ message: "시트를 찾을 수 없습니다" });
         sheet.eachRow((row) => {
@@ -6188,7 +6168,7 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
         col.width = maxLen + 2;
       });
 
-      await wb.xlsx.writeFile(processedPath);
+      const procBuffer = await wb.xlsx.writeBuffer() as Buffer;
 
       // ===== 이메일 초안 생성 (입회작업 요청 포맷) =====
       // 다음 영업일 날짜 사용 (금요일이면 다음주 월요일)
@@ -6228,18 +6208,18 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
 
       const sheetSummary = `총 ${totalRows}건 | 항목: ${headerRow.slice(0, 5).join(", ")}${headerRow.length > 5 ? " 외" : ""}`;
 
-      // 오브젝트 스토리지 업로드 (production) 또는 로컬 디스크 유지 (dev)
-      let finalOriginalUrl = originalUrl;
-      let finalProcessedUrl = `/uploads/${processedFilename}`;
-      try {
-        const origBuffer = fs.readFileSync(req.file.path);
-        const objOrig = await uploadToObjectStorage(origBuffer, req.file.filename, req.file.mimetype || "application/octet-stream");
-        if (objOrig) finalOriginalUrl = objOrig;
-        const procBuffer = fs.readFileSync(processedPath);
-        const objProc = await uploadToObjectStorage(procBuffer, processedFilename, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-        if (objProc) finalProcessedUrl = objProc;
-      } catch (_e: any) {
-        console.warn("작업계획 오브젝트 스토리지 업로드 실패 (로컬 fallback):", _e?.message);
+      // 오브젝트 스토리지 업로드 (항상 buffer 사용)
+      const origMime = req.file.mimetype || "application/octet-stream";
+      const origFilename = `workplan_${Date.now()}_orig${isCsv ? ".csv" : ".xlsx"}`;
+      let finalOriginalUrl = await uploadToObjectStorage(req.file.buffer, origFilename, origMime);
+      if (!finalOriginalUrl) {
+        fs.writeFileSync(path.join(uploadDir, origFilename), req.file.buffer);
+        finalOriginalUrl = `/uploads/${origFilename}`;
+      }
+      let finalProcessedUrl = await uploadToObjectStorage(Buffer.from(procBuffer), processedFilename, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      if (!finalProcessedUrl) {
+        fs.writeFileSync(path.join(uploadDir, processedFilename), procBuffer);
+        finalProcessedUrl = `/uploads/${processedFilename}`;
       }
 
       const plan = await storage.createWorkPlan({
@@ -6789,7 +6769,7 @@ ${htmlDraft}
   });
 
   // ===== 입회 관리 =====
-  const attendanceUploadMiddleware = multer({ dest: "uploads/" });
+  const attendanceUploadMiddleware = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
   app.get('/api/attendance/records', isAuthenticated, async (req: any, res) => {
     try {
@@ -6814,7 +6794,7 @@ ${htmlDraft}
 
       if (isCsv) {
         // BOM 제거 + 멀티라인 quoted 필드 지원 CSV 파서
-        const rawText = fs.readFileSync(req.file.path, "utf-8").replace(/^\uFEFF/, "");
+        const rawText = req.file.buffer.toString("utf-8").replace(/^\uFEFF/, "");
         const rows: string[][] = [];
         let row: string[] = [];
         let field = "";
@@ -6843,7 +6823,7 @@ ${htmlDraft}
         tableRows = rows;
       } else {
         const workbook = new ExcelJS.Workbook();
-        await workbook.xlsx.readFile(req.file.path);
+        await workbook.xlsx.load(req.file.buffer);
         const sheet = workbook.worksheets[0];
         if (!sheet) return res.status(400).json({ message: "시트를 찾을 수 없습니다" });
         sheet.eachRow((row) => {
@@ -6984,7 +6964,6 @@ ${htmlDraft}
       }
 
       // 실제 삽입된 건수로 업데이트
-      fs.unlink(req.file.path, () => {});
       res.json({ message: "업로드 완료", count: insertedCount, excludedCount, uploadId: upload.id, isInspectionFormat });
     } catch (e: any) {
       console.error("[AttendanceUpload error]", e);
@@ -7012,7 +6991,7 @@ ${htmlDraft}
   });
 
   // ── 온라인 교육 진도율 ──────────────────────────────────────────
-  const onlineEduUploadMw = multer({ dest: "uploads/" });
+  const onlineEduUploadMw = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
   app.get('/api/online-edu/uploads', isAuthenticated, async (_req, res) => {
     try {
@@ -7033,12 +7012,11 @@ ${htmlDraft}
       console.error("[OnlineEduUpload] req.file:", file ? `있음 (${file.originalname}, ${file.size}bytes)` : "없음");
       if (!file) return res.status(400).json({ message: "파일이 없습니다" });
 
-      const wb = XLSX.readFile(file.path, { type: 'file', cellText: true, cellDates: false });
+      const wb = XLSX.read(file.buffer, { type: 'buffer', cellText: true, cellDates: false });
       const ws = wb.Sheets[wb.SheetNames[0]];
       const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false });
 
       if (rows.length < 3) {
-        try { fs.unlinkSync(file.path); } catch {}
         return res.status(400).json({ message: "데이터가 없습니다. 엑셀 형식을 확인해주세요." });
       }
 
@@ -7071,14 +7049,12 @@ ${htmlDraft}
       console.log("[OnlineEduUpload] 컬럼 감지:", { colName, colDept, colCourse, colStatus, colProg });
 
       if (colName < 0) {
-        try { fs.unlinkSync(file.path); } catch {}
         return res.status(400).json({ message: "성명 컬럼을 찾을 수 없습니다. 엑셀 형식을 확인해주세요." });
       }
 
       // 데이터 row 2부터 (헤더 2줄 제외)
       const dataRows = rows.slice(2).filter((r: any[]) => r[colName] && String(r[colName]).trim());
       if (dataRows.length === 0) {
-        try { fs.unlinkSync(file.path); } catch {}
         return res.status(400).json({ message: "데이터가 없습니다. 엑셀 형식을 확인해주세요." });
       }
 
@@ -7118,12 +7094,10 @@ ${htmlDraft}
       }));
 
       await storage.bulkCreateOnlineEduRecords(records);
-      try { fs.unlinkSync(file.path); } catch {}
       console.log(`[OnlineEduUpload] 완료: ${records.length}명, course="${courseName}"`);
       res.json({ upload, count: records.length });
     } catch (e: any) {
       console.error("[OnlineEduUpload] 에러:", e.message, e.stack?.split('\n')[1]);
-      try { if (filePath) fs.unlinkSync(filePath); } catch {}
       res.status(500).json({ message: "업로드 처리 중 오류가 발생했습니다: " + e.message });
     }
     }); // end multer callback
@@ -7470,7 +7444,7 @@ ${htmlDraft}
   });
 
   // 엑셀 업로드 (템플릿 파싱)
-  const supplyImportMw = multer({ dest: 'uploads/' });
+  const supplyImportMw = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
   app.post('/api/safety-supply/surveys/:id/import', isAuthenticated, (req: any, res: any, _next: any) => {
     supplyImportMw.single('file')(req, res, async (err: any) => {
       if (err) return res.status(400).json({ message: '파일 업로드 오류: ' + err.message });
@@ -7479,7 +7453,7 @@ ${htmlDraft}
       try {
         const surveyId = parseInt(req.params.id);
         const wb = new ExcelJS.Workbook();
-        await wb.xlsx.readFile(file.path);
+        await wb.xlsx.load(file.buffer);
         const ws = wb.getWorksheet(1);
         if (!ws) throw new Error('워크시트를 찾을 수 없습니다. 올바른 Excel 파일인지 확인해주세요.');
 
@@ -7542,10 +7516,8 @@ ${htmlDraft}
         if (entries.length === 0) throw new Error('부서 데이터가 없습니다. 파일 형식을 확인해주세요.');
 
         await storage.upsertSafetySupplyDeptEntries(surveyId, entries);
-        try { fs.unlinkSync(file.path); } catch {}
         res.json({ items: savedItems.length, depts: entries.length });
       } catch (e: any) {
-        try { fs.unlinkSync(file.path); } catch {}
         res.status(500).json({ message: '파싱 오류: ' + e.message });
       }
     });
