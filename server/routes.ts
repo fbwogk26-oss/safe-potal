@@ -8627,36 +8627,42 @@ ${htmlDraft}
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
+  // 파일만 먼저 업로드 → URL 반환 (등록 시 파일 재전송 불필요)
+  app.post('/api/health-manager-reports/upload-file', requireEditor, reportUpload.single('file'), async (req: any, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: "파일이 없습니다" });
+      const origName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+      const ext = path.extname(origName) || '.bin';
+      const filename = `health-mgr-${Date.now()}${ext}`;
+      const objUrl = await uploadToObjectStorage(req.file.buffer, filename, req.file.mimetype);
+      let fileUrl: string;
+      if (objUrl) {
+        fileUrl = objUrl;
+      } else {
+        fs.writeFileSync(path.join(uploadDir, filename), req.file.buffer);
+        fileUrl = `/uploads/${filename}`;
+      }
+      res.json({ fileUrl, fileOriginalName: origName });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
   app.post('/api/health-manager-reports',
     (req: any, _res: any, next: any) => {
       console.log('[HMR] POST /api/health-manager-reports 수신, sessionUserId:', (req.session as any)?.userId, 'ct:', (req.headers['content-type'] || '').substring(0, 80));
       next();
     },
-    requireEditor, reportUpload.single('file'), async (req: any, res) => {
+    requireEditor, async (req: any, res) => {
     try {
-      const { visitDate, staffType, team } = req.body;
-      console.log('[HMR] POST body:', { visitDate, staffType, team, hasFile: !!req.file });
+      const { visitDate, staffType, team, fileUrl: bodyFileUrl, fileOriginalName: bodyFileOriginalName } = req.body;
+      console.log('[HMR] POST body:', { visitDate, staffType, team, hasFileUrl: !!bodyFileUrl });
       if (!visitDate || !staffType) return res.status(400).json({ message: "필수 항목 누락" });
-      // visitDate 기준으로 yearMonth 자동 계산 (클라이언트 전송값 무시)
       const derivedYearMonth = visitDate.substring(0, 7);
-      let fileUrl: string | null = null;
-      let fileOriginalName: string | null = null;
-      if (req.file) {
-        const origName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
-        const ext = path.extname(origName) || '.bin';
-        const filename = `health-mgr-${Date.now()}${ext}`;
-        const objUrl = await uploadToObjectStorage(req.file.buffer, filename, req.file.mimetype);
-        if (objUrl) { fileUrl = objUrl; } else {
-          fs.writeFileSync(path.join(uploadDir, filename), req.file.buffer);
-          fileUrl = `/uploads/${filename}`;
-        }
-        fileOriginalName = origName;
-      }
       const report = await storage.createHealthManagerReport({
         yearMonth: derivedYearMonth, visitDate, staffType,
         team: team || null,
         staffName: null, reportContent: null,
-        fileUrl, fileOriginalName,
+        fileUrl: bodyFileUrl || null,
+        fileOriginalName: bodyFileOriginalName || null,
         notes: null,
         createdBy: req.user?.id?.toString() || null,
       });
@@ -8664,22 +8670,16 @@ ${htmlDraft}
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  app.patch('/api/health-manager-reports/:id', requireEditor, reportUpload.single('file'), async (req: any, res) => {
+  app.patch('/api/health-manager-reports/:id', requireEditor, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
-      const { visitDate, staffType, team } = req.body;
-      // visitDate 기준으로 yearMonth 자동 계산
+      const { visitDate, staffType, team, fileUrl: bodyFileUrl, fileOriginalName: bodyFileOriginalName } = req.body;
       const derivedYearMonth = visitDate ? visitDate.substring(0, 7) : undefined;
       const updates: any = { visitDate, staffType, team: team || null };
       if (derivedYearMonth) updates.yearMonth = derivedYearMonth;
-      if (req.file) {
-        const origName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
-        const ext = path.extname(origName) || '.bin';
-        const filename = `health-mgr-${Date.now()}${ext}`;
-        const objUrl = await uploadToObjectStorage(req.file.buffer, filename, req.file.mimetype);
-        updates.fileUrl = objUrl ?? `/uploads/${filename}`;
-        updates.fileOriginalName = origName;
-        if (!objUrl) fs.writeFileSync(path.join(uploadDir, filename), req.file.buffer);
+      if (bodyFileUrl) {
+        updates.fileUrl = bodyFileUrl;
+        updates.fileOriginalName = bodyFileOriginalName || null;
       }
       res.json(await storage.updateHealthManagerReport(id, updates));
     } catch (e: any) { res.status(500).json({ message: e.message }); }

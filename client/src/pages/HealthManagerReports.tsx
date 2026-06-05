@@ -72,6 +72,9 @@ export default function HealthManagerReports() {
     team: "",
   });
   const [file, setFile] = useState<File | null>(null);
+  const [uploadedFileUrl, setUploadedFileUrl] = useState<string | null>(null);
+  const [uploadedFileOriginalName, setUploadedFileOriginalName] = useState<string | null>(null);
+  const [uploadingFile, setUploadingFile] = useState(false);
   const [extractingDate, setExtractingDate] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -79,57 +82,82 @@ export default function HealthManagerReports() {
 
   async function handleFileChange(selected: File | null) {
     setFile(selected);
+    setUploadedFileUrl(null);
+    setUploadedFileOriginalName(null);
     setPdfAnalyzed(false);
     if (!selected) return;
-    if (!selected.name.toLowerCase().endsWith('.pdf')) return;
-    setExtractingDate(true);
-    try {
-      // 서버 AI 분석으로 방문일자·직종 추출 (45초 타임아웃)
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 45000);
-      const fd = new FormData();
-      fd.append("file", selected);
-      let res: Response;
+
+    const isPdf = selected.name.toLowerCase().endsWith('.pdf');
+
+    // 파일 업로드와 AI 분석을 병렬로 처리
+    setUploadingFile(true);
+    if (isPdf) setExtractingDate(true);
+
+    const uploadPromise = (async () => {
       try {
-        res = await fetch("/api/health-manager-reports/analyze-pdf", {
-          method: "POST",
-          body: fd,
-          credentials: "include",
-          signal: controller.signal,
+        const fd = new FormData();
+        fd.append("file", selected);
+        const res = await fetch("/api/health-manager-reports/upload-file", {
+          method: "POST", body: fd, credentials: "include",
         });
-      } finally {
-        clearTimeout(timeoutId);
-      }
-      if (res.ok) {
-        const { data } = await res.json();
-        if (data?.visitDate) setForm(f => ({ ...f, visitDate: data.visitDate }));
-        if (data?.staffType && ["간호사", "위생기사", "의사"].includes(data.staffType)) {
-          setForm(f => ({ ...f, staffType: data.staffType as StaffType }));
+        if (res.ok) {
+          const data = await res.json();
+          setUploadedFileUrl(data.fileUrl);
+          setUploadedFileOriginalName(data.fileOriginalName);
         } else {
-          // AI가 직종을 추출하지 못한 경우 사용자에게 알림
-          toast({ title: "직종 자동 인식 실패", description: "직종을 직접 선택해주세요.", variant: "destructive" });
+          toast({ title: "파일 업로드 실패", description: "다시 시도해주세요.", variant: "destructive" });
+        }
+      } catch {
+        toast({ title: "파일 업로드 실패", description: "네트워크 오류가 발생했습니다.", variant: "destructive" });
+      } finally {
+        setUploadingFile(false);
+      }
+    })();
+
+    if (isPdf) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
+        const fd = new FormData();
+        fd.append("file", selected);
+        let res: Response;
+        try {
+          res = await fetch("/api/health-manager-reports/analyze-pdf", {
+            method: "POST", body: fd, credentials: "include", signal: controller.signal,
+          });
+        } finally {
+          clearTimeout(timeoutId);
+        }
+        if (res.ok) {
+          const { data } = await res.json();
+          if (data?.visitDate) setForm(f => ({ ...f, visitDate: data.visitDate }));
+          if (data?.staffType && ["간호사", "위생기사", "의사"].includes(data.staffType)) {
+            setForm(f => ({ ...f, staffType: data.staffType as StaffType }));
+          } else {
+            toast({ title: "직종 자동 인식 실패", description: "직종을 직접 선택해주세요.", variant: "destructive" });
+          }
+        } else {
+          toast({ title: "PDF 자동 분석 실패", description: "직종과 방문일을 직접 입력해주세요.", variant: "destructive" });
+          const date = await extractDateFromPdf(selected);
+          if (date) setForm(f => ({ ...f, visitDate: date }));
         }
         setPdfAnalyzed(true);
-        return;
+      } catch (e: any) {
+        const isTimeout = e?.name === "AbortError";
+        toast({
+          title: "PDF 자동 분석 실패",
+          description: isTimeout ? "분석 시간 초과. 직종과 방문일을 직접 입력해주세요." : "직종과 방문일을 직접 입력해주세요.",
+          variant: "destructive",
+        });
+        const date = await extractDateFromPdf(selected);
+        if (date) setForm(f => ({ ...f, visitDate: date }));
+        setPdfAnalyzed(true);
+      } finally {
+        setExtractingDate(false);
       }
-      // AI 분석 실패: 사용자에게 알림 후 클라이언트 폴백
-      toast({ title: "PDF 자동 분석 실패", description: "직종과 방문일을 직접 입력해주세요.", variant: "destructive" });
-      const date = await extractDateFromPdf(selected);
-      if (date) setForm(f => ({ ...f, visitDate: date }));
-      setPdfAnalyzed(true);
-    } catch (e: any) {
-      const isTimeout = e?.name === "AbortError";
-      toast({
-        title: "PDF 자동 분석 실패",
-        description: isTimeout ? "분석 시간이 초과되었습니다. 직종과 방문일을 직접 입력해주세요." : "직종과 방문일을 직접 입력해주세요.",
-        variant: "destructive",
-      });
-      const date = await extractDateFromPdf(selected);
-      if (date) setForm(f => ({ ...f, visitDate: date }));
-      setPdfAnalyzed(true);
-    } finally {
-      setExtractingDate(false);
     }
+    // PDF가 아닌 파일은 업로드만 완료되면 됨
+    await uploadPromise;
   }
 
   const yearMonth = getYearMonth(year, month);
@@ -157,6 +185,8 @@ export default function HealthManagerReports() {
     setEditing(null);
     setForm({ visitDate: date || format(now, "yyyy-MM-dd"), staffType: "", team: "" });
     setFile(null);
+    setUploadedFileUrl(null);
+    setUploadedFileOriginalName(null);
     setPdfAnalyzed(false);
     setDialogOpen(true);
   }
@@ -165,31 +195,37 @@ export default function HealthManagerReports() {
     setEditing(r);
     setForm({ visitDate: r.visitDate, staffType: r.staffType as StaffType, team: r.team || "" });
     setFile(null);
+    setUploadedFileUrl(null);
+    setUploadedFileOriginalName(null);
     setPdfAnalyzed(false);
     setDialogOpen(true);
   }
 
   async function handleSubmit() {
     if (!form.staffType || !form.visitDate) return toast({ variant: "destructive", title: "직종과 방문일을 입력해주세요" });
+    if (uploadingFile) return toast({ variant: "destructive", title: "파일 업로드 중입니다. 잠시 기다려주세요." });
     setSubmitting(true);
     try {
-      const fd = new FormData();
-      fd.append("visitDate", form.visitDate);
-      fd.append("staffType", form.staffType);
-      if (form.team) fd.append("team", form.team);
-      if (file) fd.append("file", file);
-      let res: Response;
-      const fetchOpts: RequestInit = { method: editing ? "PATCH" : "POST", body: fd, credentials: "include" };
-      if (editing) {
-        res = await fetch(`/api/health-manager-reports/${editing.id}`, fetchOpts);
-      } else {
-        res = await fetch("/api/health-manager-reports", fetchOpts);
+      const body: any = {
+        visitDate: form.visitDate,
+        staffType: form.staffType,
+        team: form.team || undefined,
+      };
+      if (uploadedFileUrl) {
+        body.fileUrl = uploadedFileUrl;
+        body.fileOriginalName = uploadedFileOriginalName;
       }
+      const url = editing ? `/api/health-manager-reports/${editing.id}` : "/api/health-manager-reports";
+      const res = await fetch(url, {
+        method: editing ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        credentials: "include",
+      });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.message || `서버 오류 (${res.status})`);
       }
-      // visitDate 기준으로 올바른 년월 캐시 무효화 + 캘린더 이동
       queryClient.invalidateQueries({ queryKey: ["/api/health-manager-reports"] });
       const [vy, vm] = form.visitDate.substring(0, 7).split("-").map(Number);
       setYear(vy);
@@ -197,13 +233,10 @@ export default function HealthManagerReports() {
       setDialogOpen(false);
       toast({ title: editing ? "수정 완료" : "등록 완료" });
     } catch (e: any) {
-      const isNetworkError = e instanceof TypeError;
       toast({
         variant: "destructive",
         title: "저장 실패",
-        description: isNetworkError
-          ? "네트워크 연결 오류입니다. 잠시 후 다시 시도해주세요."
-          : (e?.message || "알 수 없는 오류"),
+        description: e?.message || "알 수 없는 오류",
       });
     } finally {
       setSubmitting(false);
@@ -494,9 +527,11 @@ export default function HealthManagerReports() {
                     <FileText className="h-5 w-5 text-rose-500 shrink-0" />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{file.name}</p>
-                      {extractingDate && <p className="text-xs text-muted-foreground flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" />날짜 추출 중...</p>}
+                      {uploadingFile && <p className="text-xs text-blue-500 flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" />파일 업로드 중...</p>}
+                      {extractingDate && !uploadingFile && <p className="text-xs text-muted-foreground flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" />PDF 분석 중...</p>}
+                      {!uploadingFile && !extractingDate && uploadedFileUrl && <p className="text-xs text-green-600">✓ 업로드 완료</p>}
                     </div>
-                    <button type="button" onClick={e => { e.stopPropagation(); handleFileChange(null); if (fileRef.current) fileRef.current.value = ""; }} className="p-0.5 rounded hover:bg-muted" data-testid="btn-remove-file">
+                    <button type="button" onClick={e => { e.stopPropagation(); setFile(null); setUploadedFileUrl(null); setUploadedFileOriginalName(null); setPdfAnalyzed(false); if (fileRef.current) fileRef.current.value = ""; }} className="p-0.5 rounded hover:bg-muted" data-testid="btn-remove-file">
                       <X className="h-4 w-4 text-muted-foreground" />
                     </button>
                   </div>
@@ -518,9 +553,9 @@ export default function HealthManagerReports() {
 
             <div className="flex justify-end gap-2 pt-1">
               <Button variant="outline" onClick={() => setDialogOpen(false)}>취소</Button>
-              <Button onClick={handleSubmit} disabled={submitting || extractingDate} className="bg-rose-600 hover:bg-rose-700" data-testid="btn-submit">
-                {(submitting || extractingDate) ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
-                {extractingDate ? "PDF 분석 중..." : editing ? "수정" : "등록"}
+              <Button onClick={handleSubmit} disabled={submitting || uploadingFile || extractingDate} className="bg-rose-600 hover:bg-rose-700" data-testid="btn-submit">
+                {(submitting || uploadingFile || extractingDate) ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                {uploadingFile ? "파일 업로드 중..." : extractingDate ? "PDF 분석 중..." : submitting ? "저장 중..." : editing ? "수정" : "등록"}
               </Button>
             </div>
           </div>
