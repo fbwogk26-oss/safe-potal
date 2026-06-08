@@ -821,6 +821,10 @@ export const safetyCommittees = pgTable("safety_committees", {
   safetyActivities: text("safety_activities"),
   attendees: jsonb("attendees"),
   photos: jsonb("photos"),
+  meetingMaterialUrl: text("meeting_material_url"),
+  meetingMaterialName: text("meeting_material_name"),
+  meetingMinutesUrl: text("meeting_minutes_url"),
+  meetingMinutesName: text("meeting_minutes_name"),
   createdBy: text("created_by"),
   createdAt: timestamp("created_at").defaultNow(),
 });

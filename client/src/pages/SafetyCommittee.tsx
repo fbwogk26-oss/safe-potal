@@ -7,11 +7,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Pencil, Trash2, Users, Camera, X, Calendar, MapPin, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Pencil, Trash2, Users, Camera, X, MapPin, ChevronDown, ChevronUp, Presentation, FileText, Eye, Upload, Loader2 } from "lucide-react";
 import type { SafetyCommittee } from "@shared/schema";
 
 const DEFAULT_AGENDA = `1. 작업의 시작시간
@@ -34,6 +34,10 @@ const emptyForm = () => ({
   safetyActivities: "",
   attendees: [] as Attendee[],
   photos: [] as Photo[],
+  meetingMaterialUrl: "",
+  meetingMaterialName: "",
+  meetingMinutesUrl: "",
+  meetingMinutesName: "",
 });
 
 export default function SafetyCommitteePage() {
@@ -42,7 +46,14 @@ export default function SafetyCommitteePage() {
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState(emptyForm());
   const [uploading, setUploading] = useState(false);
+  const [uploadingMaterial, setUploadingMaterial] = useState(false);
+  const [uploadingMinutes, setUploadingMinutes] = useState(false);
   const [expandedId, setExpandedId] = useState<number | null>(null);
+
+  // 미리보기 모달 상태
+  const [pptPreviewUrl, setPptPreviewUrl] = useState<string | null>(null);
+  const [docPreviewHtml, setDocPreviewHtml] = useState<string | null>(null);
+  const [docPreviewLoading, setDocPreviewLoading] = useState(false);
 
   const { data: committees = [], isLoading } = useQuery<SafetyCommittee[]>({
     queryKey: ["/api/safety-committees"],
@@ -96,6 +107,10 @@ export default function SafetyCommitteePage() {
       safetyActivities: c.safetyActivities ?? "",
       attendees: (c.attendees as Attendee[]) ?? [],
       photos: (c.photos as Photo[]) ?? [],
+      meetingMaterialUrl: c.meetingMaterialUrl ?? "",
+      meetingMaterialName: c.meetingMaterialName ?? "",
+      meetingMinutesUrl: c.meetingMinutesUrl ?? "",
+      meetingMinutesName: c.meetingMinutesName ?? "",
     });
     setDialogOpen(true);
   };
@@ -150,6 +165,68 @@ export default function SafetyCommitteePage() {
     setForm(f => ({ ...f, photos: f.photos.filter((_, i) => i !== idx) }));
   };
 
+  const uploadMaterial = async (file: File) => {
+    setUploadingMaterial(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/safety-committees/upload-material", {
+        method: "POST", body: fd, credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "업로드 실패");
+      }
+      const data = await res.json();
+      setForm(f => ({ ...f, meetingMaterialUrl: data.url, meetingMaterialName: data.name }));
+      toast({ title: "회의자료가 업로드됐습니다" });
+    } catch (e: any) {
+      toast({ title: e.message || "업로드 실패", variant: "destructive" });
+    } finally { setUploadingMaterial(false); }
+  };
+
+  const uploadMinutes = async (file: File) => {
+    setUploadingMinutes(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/safety-committees/upload-minutes", {
+        method: "POST", body: fd, credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "업로드 실패");
+      }
+      const data = await res.json();
+      setForm(f => ({ ...f, meetingMinutesUrl: data.url, meetingMinutesName: data.name }));
+      toast({ title: "회의록이 업로드됐습니다" });
+    } catch (e: any) {
+      toast({ title: e.message || "업로드 실패", variant: "destructive" });
+    } finally { setUploadingMinutes(false); }
+  };
+
+  const openPptPreview = (url: string) => {
+    const fullUrl = `${window.location.origin}${url}`;
+    const viewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(fullUrl)}`;
+    setPptPreviewUrl(viewerUrl);
+  };
+
+  const openDocPreview = async (id: number) => {
+    setDocPreviewLoading(true);
+    setDocPreviewHtml("");
+    try {
+      const res = await fetch(`/api/safety-committees/${id}/preview-minutes`, {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("미리보기 불가");
+      const data = await res.json();
+      setDocPreviewHtml(data.html);
+    } catch {
+      toast({ title: "회의록 미리보기 실패", variant: "destructive" });
+      setDocPreviewHtml(null);
+    } finally { setDocPreviewLoading(false); }
+  };
+
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
@@ -188,6 +265,16 @@ export default function SafetyCommitteePage() {
                     <div className="flex items-center gap-2">
                       <span className="font-semibold">{c.meetingDate}</span>
                       <Badge variant={c.meetingType === "정기" ? "default" : "secondary"}>{c.meetingType}</Badge>
+                      {c.meetingMaterialName && (
+                        <Badge variant="outline" className="text-orange-600 border-orange-300 gap-1">
+                          <Presentation className="w-3 h-3" />회의자료
+                        </Badge>
+                      )}
+                      {c.meetingMinutesName && (
+                        <Badge variant="outline" className="text-blue-600 border-blue-300 gap-1">
+                          <FileText className="w-3 h-3" />회의록
+                        </Badge>
+                      )}
                     </div>
                     <div className="flex items-center gap-3 text-sm text-muted-foreground">
                       <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{c.location}</span>
@@ -196,6 +283,16 @@ export default function SafetyCommitteePage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
+                  {c.meetingMaterialUrl && (
+                    <Button size="sm" variant="outline" className="text-orange-600 border-orange-300 hover:bg-orange-50 gap-1" onClick={(e) => { e.stopPropagation(); openPptPreview(c.meetingMaterialUrl!); }} data-testid={`button-preview-material-${c.id}`}>
+                      <Eye className="w-3 h-3" />PPT
+                    </Button>
+                  )}
+                  {c.meetingMinutesUrl && (
+                    <Button size="sm" variant="outline" className="text-blue-600 border-blue-300 hover:bg-blue-50 gap-1" onClick={(e) => { e.stopPropagation(); openDocPreview(c.id); }} data-testid={`button-preview-minutes-${c.id}`}>
+                      <Eye className="w-3 h-3" />회의록
+                    </Button>
+                  )}
                   <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); openEdit(c); }} data-testid={`button-edit-committee-${c.id}`}>
                     <Pencil className="w-4 h-4" />
                   </Button>
@@ -269,6 +366,7 @@ export default function SafetyCommitteePage() {
         </div>
       )}
 
+      {/* 회의 등록/수정 다이얼로그 */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -316,6 +414,52 @@ export default function SafetyCommitteePage() {
             <div className="space-y-1">
               <Label>산업재해예방조치 실적</Label>
               <Textarea rows={4} placeholder="도급인/수급인별 안전보건 활동 실적을 입력하세요" value={form.safetyActivities} onChange={e => setForm(f => ({ ...f, safetyActivities: e.target.value }))} data-testid="textarea-activities" />
+            </div>
+
+            {/* 회의자료(PPT) 업로드 */}
+            <div className="space-y-2 border rounded-lg p-4 bg-orange-50/50">
+              <Label className="flex items-center gap-2 text-orange-700 font-semibold">
+                <Presentation className="w-4 h-4" />
+                회의자료 (PPT/PPTX)
+              </Label>
+              {form.meetingMaterialName ? (
+                <div className="flex items-center gap-2 bg-white border rounded p-2">
+                  <Presentation className="w-4 h-4 text-orange-500 shrink-0" />
+                  <span className="text-sm flex-1 truncate">{form.meetingMaterialName}</span>
+                  <Button type="button" size="icon" variant="ghost" className="h-6 w-6" onClick={() => setForm(f => ({ ...f, meetingMaterialUrl: "", meetingMaterialName: "" }))}>
+                    <X className="w-3 h-3" />
+                  </Button>
+                </div>
+              ) : (
+                <label className="flex items-center gap-2 border-2 border-dashed border-orange-300 rounded-lg p-3 cursor-pointer hover:bg-orange-50 text-orange-600">
+                  {uploadingMaterial ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                  <span className="text-sm">{uploadingMaterial ? "업로드 중..." : "PPT/PPTX 파일 선택"}</span>
+                  <input type="file" accept=".ppt,.pptx" className="hidden" disabled={uploadingMaterial} onChange={e => { if (e.target.files?.[0]) uploadMaterial(e.target.files[0]); e.target.value = ""; }} data-testid="input-material-file" />
+                </label>
+              )}
+            </div>
+
+            {/* 회의록(Word) 업로드 */}
+            <div className="space-y-2 border rounded-lg p-4 bg-blue-50/50">
+              <Label className="flex items-center gap-2 text-blue-700 font-semibold">
+                <FileText className="w-4 h-4" />
+                회의록 (DOC/DOCX)
+              </Label>
+              {form.meetingMinutesName ? (
+                <div className="flex items-center gap-2 bg-white border rounded p-2">
+                  <FileText className="w-4 h-4 text-blue-500 shrink-0" />
+                  <span className="text-sm flex-1 truncate">{form.meetingMinutesName}</span>
+                  <Button type="button" size="icon" variant="ghost" className="h-6 w-6" onClick={() => setForm(f => ({ ...f, meetingMinutesUrl: "", meetingMinutesName: "" }))}>
+                    <X className="w-3 h-3" />
+                  </Button>
+                </div>
+              ) : (
+                <label className="flex items-center gap-2 border-2 border-dashed border-blue-300 rounded-lg p-3 cursor-pointer hover:bg-blue-50 text-blue-600">
+                  {uploadingMinutes ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                  <span className="text-sm">{uploadingMinutes ? "업로드 중..." : "DOC/DOCX 파일 선택"}</span>
+                  <input type="file" accept=".doc,.docx" className="hidden" disabled={uploadingMinutes} onChange={e => { if (e.target.files?.[0]) uploadMinutes(e.target.files[0]); e.target.value = ""; }} data-testid="input-minutes-file" />
+                </label>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -378,6 +522,52 @@ export default function SafetyCommitteePage() {
               {createMutation.isPending || updateMutation.isPending ? "저장 중..." : (editId ? "수정" : "등록")}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* PPT 미리보기 모달 (Office Online Viewer) */}
+      <Dialog open={!!pptPreviewUrl} onOpenChange={() => setPptPreviewUrl(null)}>
+        <DialogContent className="max-w-5xl w-full h-[85vh] flex flex-col p-0 gap-0">
+          <DialogHeader className="p-4 pb-2 shrink-0">
+            <DialogTitle className="flex items-center gap-2">
+              <Presentation className="w-5 h-5 text-orange-500" />
+              회의자료 미리보기
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-hidden px-4 pb-4">
+            {pptPreviewUrl && (
+              <iframe
+                src={pptPreviewUrl}
+                className="w-full h-full rounded border"
+                title="PPT 미리보기"
+                allowFullScreen
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Word 미리보기 모달 (mammoth HTML) */}
+      <Dialog open={docPreviewHtml !== null} onOpenChange={() => setDocPreviewHtml(null)}>
+        <DialogContent className="max-w-4xl w-full max-h-[85vh] flex flex-col p-0 gap-0">
+          <DialogHeader className="p-4 pb-2 shrink-0">
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="w-5 h-5 text-blue-500" />
+              회의록 미리보기
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto px-6 pb-6">
+            {docPreviewLoading ? (
+              <div className="flex items-center justify-center py-16">
+                <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <div
+                className="prose prose-sm max-w-none"
+                dangerouslySetInnerHTML={{ __html: docPreviewHtml || "" }}
+              />
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>

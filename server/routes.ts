@@ -13,6 +13,7 @@ import path from "path";
 import fs from "fs";
 import os from "os";
 import { execFile } from "child_process";
+import mammoth from "mammoth";
 import { promisify } from "util";
 const execFileAsync = promisify(execFile);
 import ExcelJS from "exceljs";
@@ -29,6 +30,10 @@ import { ALL_PERMISSIONS, type UserPermissions } from "@shared/models/auth";
 const uploadDir = path.join(process.cwd(), "uploads");
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
+}
+const publicUploadsDir = path.join(process.cwd(), "public-uploads");
+if (!fs.existsSync(publicUploadsDir)) {
+  fs.mkdirSync(publicUploadsDir, { recursive: true });
 }
 
 // ── API 요청 로그 링버퍼 (최근 1000건 메모리 보관) ──────────────────────
@@ -906,6 +911,9 @@ export async function registerRoutes(
 
   // 공개 정적 에셋 (이메일 삽입 이미지 등 - 인증 불필요)
   app.use('/public-assets', (await import('express')).default.static(path.join(process.cwd(), 'server', 'assets')));
+
+  // 공개 파일 업로드 (회의자료/회의록 미리보기용 - 인증 불필요, UUID 파일명으로 보안)
+  app.use('/public-uploads', (await import('express')).default.static(publicUploadsDir));
 
   // === IMAGE UPLOAD ===
   app.use('/uploads', isAuthenticated, (await import('express')).default.static(uploadDir));
@@ -6896,6 +6904,65 @@ ${htmlDraft}
       if (!req.file) return res.status(400).json({ message: "파일 없음" });
       const url = `/uploads/${req.file.filename}`;
       res.json({ url, name: req.file.originalname });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // 회의자료(PPT) 업로드 - public-uploads (Office Online Viewer 미리보기용 공개 서빙)
+  const committeeMaterialUpload = multer({
+    storage: multer.diskStorage({
+      destination: (req, file, cb) => cb(null, publicUploadsDir),
+      filename: (req, file, cb) => {
+        const ext = path.extname(file.originalname);
+        const uuid = `committee_mat_${Date.now()}_${Math.random().toString(36).slice(2)}${ext}`;
+        cb(null, uuid);
+      },
+    }),
+    limits: { fileSize: 100 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+      if (/\.(ppt|pptx)$/i.test(file.originalname)) cb(null, true);
+      else cb(new Error('PPT/PPTX 파일만 가능합니다'));
+    },
+  });
+
+  // 회의록(Word) 업로드 - uploads (인증 후 mammoth HTML 변환)
+  const committeeMinutesUpload = multer({
+    storage: multer.diskStorage({
+      destination: (req, file, cb) => cb(null, uploadDir),
+      filename: (req, file, cb) => {
+        const ext = path.extname(file.originalname);
+        cb(null, `committee_min_${Date.now()}_${Math.random().toString(36).slice(2)}${ext}`);
+      },
+    }),
+    limits: { fileSize: 50 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+      if (/\.(doc|docx)$/i.test(file.originalname)) cb(null, true);
+      else cb(new Error('DOC/DOCX 파일만 가능합니다'));
+    },
+  });
+
+  app.post('/api/safety-committees/upload-material', isAuthenticated, committeeMaterialUpload.single('file'), async (req: any, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: "파일 없음" });
+      res.json({ url: `/public-uploads/${req.file.filename}`, name: req.file.originalname });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.post('/api/safety-committees/upload-minutes', isAuthenticated, committeeMinutesUpload.single('file'), async (req: any, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: "파일 없음" });
+      res.json({ url: `/uploads/${req.file.filename}`, name: req.file.originalname });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.get('/api/safety-committees/:id/preview-minutes', isAuthenticated, async (req: any, res) => {
+    try {
+      const row = await storage.getSafetyCommittee(Number(req.params.id));
+      if (!row?.meetingMinutesUrl) return res.status(404).json({ message: "회의록 파일 없음" });
+      const filename = path.basename(row.meetingMinutesUrl);
+      const filePath = path.join(uploadDir, filename);
+      if (!fs.existsSync(filePath)) return res.status(404).json({ message: "파일을 찾을 수 없습니다" });
+      const result = await mammoth.convertToHtml({ path: filePath });
+      res.json({ html: result.value });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
