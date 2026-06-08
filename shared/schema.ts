@@ -808,6 +808,41 @@ export const drillAssignments = pgTable("drill_assignments", {
 export type DrillAssignment = typeof drillAssignments.$inferSelect;
 export type InsertDrillAssignment = typeof drillAssignments.$inferInsert;
 
+// === 산업안전보건협의체 (Safety Committee Meetings) ===
+export const safetyCommittees = pgTable("safety_committees", {
+  id: serial("id").primaryKey(),
+  meetingDate: text("meeting_date").notNull(),
+  location: text("location").notNull(),
+  meetingType: text("meeting_type").notNull().default("정기"),
+  principalCount: integer("principal_count").default(0),
+  subcontractorCount: integer("subcontractor_count").default(0),
+  agendaItems: text("agenda_items"),
+  resolutionItems: text("resolution_items"),
+  safetyActivities: text("safety_activities"),
+  attendees: jsonb("attendees"),
+  photos: jsonb("photos"),
+  createdBy: text("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertSafetyCommitteeSchema = createInsertSchema(safetyCommittees).omit({ id: true, createdAt: true });
+export type SafetyCommittee = typeof safetyCommittees.$inferSelect;
+export type InsertSafetyCommittee = z.infer<typeof insertSafetyCommitteeSchema>;
+
+// === 합동안전보건점검 (Joint Safety Inspections) ===
+export const jointInspections = pgTable("joint_inspections", {
+  id: serial("id").primaryKey(),
+  inspectionDate: text("inspection_date").notNull(),
+  siteName: text("site_name").notNull(),
+  subcontractor: text("subcontractor").notNull(),
+  checkItems: jsonb("check_items"),
+  photos: jsonb("photos"),
+  createdBy: text("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertJointInspectionSchema = createInsertSchema(jointInspections).omit({ id: true, createdAt: true });
+export type JointInspection = typeof jointInspections.$inferSelect;
+export type InsertJointInspection = z.infer<typeof insertJointInspectionSchema>;
+
 // Export auth schema
 export * from "./models/auth";
 

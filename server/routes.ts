@@ -6833,6 +6833,138 @@ ${htmlDraft}
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
+  // ===== 산업안전보건협의체 =====
+  const committeePhotoUpload = multer({
+    storage: multer.diskStorage({
+      destination: (req, file, cb) => cb(null, uploadDir),
+      filename: (req, file, cb) => {
+        const ext = path.extname(file.originalname);
+        cb(null, `committee_${Date.now()}${ext}`);
+      },
+    }),
+    limits: { fileSize: 20 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+      if (file.mimetype.startsWith('image/')) cb(null, true);
+      else cb(new Error('이미지 파일만 가능합니다'));
+    },
+  });
+
+  app.get('/api/safety-committees', isAuthenticated, async (req: any, res) => {
+    try {
+      const rows = await storage.getSafetyCommittees();
+      res.json(rows);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.get('/api/safety-committees/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const row = await storage.getSafetyCommittee(Number(req.params.id));
+      if (!row) return res.status(404).json({ message: "없음" });
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.post('/api/safety-committees', isAuthenticated, async (req: any, res) => {
+    try {
+      const data = { ...req.body, createdBy: req.user?.username };
+      if (typeof data.attendees === 'string') data.attendees = JSON.parse(data.attendees);
+      if (typeof data.photos === 'string') data.photos = JSON.parse(data.photos);
+      const row = await storage.createSafetyCommittee(data);
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.put('/api/safety-committees/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const data = { ...req.body };
+      if (typeof data.attendees === 'string') data.attendees = JSON.parse(data.attendees);
+      if (typeof data.photos === 'string') data.photos = JSON.parse(data.photos);
+      const row = await storage.updateSafetyCommittee(Number(req.params.id), data);
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.delete('/api/safety-committees/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      await storage.deleteSafetyCommittee(Number(req.params.id));
+      res.json({ success: true });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.post('/api/safety-committees/upload-photo', isAuthenticated, committeePhotoUpload.single('photo'), async (req: any, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: "파일 없음" });
+      const url = `/uploads/${req.file.filename}`;
+      res.json({ url, name: req.file.originalname });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // ===== 합동안전보건점검 =====
+  const jointInspectionPhotoUpload = multer({
+    storage: multer.diskStorage({
+      destination: (req, file, cb) => cb(null, uploadDir),
+      filename: (req, file, cb) => {
+        const ext = path.extname(file.originalname);
+        cb(null, `joint_${Date.now()}${ext}`);
+      },
+    }),
+    limits: { fileSize: 20 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+      if (file.mimetype.startsWith('image/')) cb(null, true);
+      else cb(new Error('이미지 파일만 가능합니다'));
+    },
+  });
+
+  app.get('/api/joint-inspections', isAuthenticated, async (req: any, res) => {
+    try {
+      const rows = await storage.getJointInspections();
+      res.json(rows);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.get('/api/joint-inspections/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const row = await storage.getJointInspection(Number(req.params.id));
+      if (!row) return res.status(404).json({ message: "없음" });
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.post('/api/joint-inspections', isAuthenticated, async (req: any, res) => {
+    try {
+      const data = { ...req.body, createdBy: req.user?.username };
+      if (typeof data.checkItems === 'string') data.checkItems = JSON.parse(data.checkItems);
+      if (typeof data.photos === 'string') data.photos = JSON.parse(data.photos);
+      const row = await storage.createJointInspection(data);
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.put('/api/joint-inspections/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const data = { ...req.body };
+      if (typeof data.checkItems === 'string') data.checkItems = JSON.parse(data.checkItems);
+      if (typeof data.photos === 'string') data.photos = JSON.parse(data.photos);
+      const row = await storage.updateJointInspection(Number(req.params.id), data);
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.delete('/api/joint-inspections/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      await storage.deleteJointInspection(Number(req.params.id));
+      res.json({ success: true });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.post('/api/joint-inspections/upload-photo', isAuthenticated, jointInspectionPhotoUpload.single('photo'), async (req: any, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: "파일 없음" });
+      const url = `/uploads/${req.file.filename}`;
+      res.json({ url, name: req.file.originalname });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
   // ===== 입회 관리 =====
   const attendanceUploadMiddleware = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 

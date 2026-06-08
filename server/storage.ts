@@ -23,6 +23,10 @@ import {
   type DrillAssignment, type InsertDrillAssignment,
   workPlans,
   type WorkPlan, type InsertWorkPlan,
+  safetyCommittees,
+  type SafetyCommittee, type InsertSafetyCommittee,
+  jointInspections,
+  type JointInspection, type InsertJointInspection,
   musicFiles,
   type MusicFile, type InsertMusicFile,
   fuelRecords,
@@ -173,6 +177,20 @@ export interface IStorage {
   getWorkPlan(id: number): Promise<WorkPlan | undefined>;
   createWorkPlan(data: InsertWorkPlan): Promise<WorkPlan>;
   deleteWorkPlan(id: number): Promise<void>;
+
+  // Safety Committees (산업안전보건협의체)
+  getSafetyCommittees(): Promise<SafetyCommittee[]>;
+  getSafetyCommittee(id: number): Promise<SafetyCommittee | undefined>;
+  createSafetyCommittee(data: InsertSafetyCommittee): Promise<SafetyCommittee>;
+  updateSafetyCommittee(id: number, data: Partial<InsertSafetyCommittee>): Promise<SafetyCommittee | undefined>;
+  deleteSafetyCommittee(id: number): Promise<void>;
+
+  // Joint Inspections (합동안전보건점검)
+  getJointInspections(): Promise<JointInspection[]>;
+  getJointInspection(id: number): Promise<JointInspection | undefined>;
+  createJointInspection(data: InsertJointInspection): Promise<JointInspection>;
+  updateJointInspection(id: number, data: Partial<InsertJointInspection>): Promise<JointInspection | undefined>;
+  deleteJointInspection(id: number): Promise<void>;
 
   // Attendance
   getAttendanceUploads(): Promise<AttendanceUpload[]>;
@@ -698,6 +716,46 @@ export class DatabaseStorage implements IStorage {
 
   async deleteWorkPlan(id: number): Promise<void> {
     await db.delete(workPlans).where(eq(workPlans.id, id));
+  }
+
+  // === SAFETY COMMITTEES ===
+  async getSafetyCommittees(): Promise<SafetyCommittee[]> {
+    return await db.select().from(safetyCommittees).orderBy(desc(safetyCommittees.createdAt));
+  }
+  async getSafetyCommittee(id: number): Promise<SafetyCommittee | undefined> {
+    const [row] = await db.select().from(safetyCommittees).where(eq(safetyCommittees.id, id));
+    return row;
+  }
+  async createSafetyCommittee(data: InsertSafetyCommittee): Promise<SafetyCommittee> {
+    const [row] = await db.insert(safetyCommittees).values(data).returning();
+    return row;
+  }
+  async updateSafetyCommittee(id: number, data: Partial<InsertSafetyCommittee>): Promise<SafetyCommittee | undefined> {
+    const [row] = await db.update(safetyCommittees).set(data).where(eq(safetyCommittees.id, id)).returning();
+    return row;
+  }
+  async deleteSafetyCommittee(id: number): Promise<void> {
+    await db.delete(safetyCommittees).where(eq(safetyCommittees.id, id));
+  }
+
+  // === JOINT INSPECTIONS ===
+  async getJointInspections(): Promise<JointInspection[]> {
+    return await db.select().from(jointInspections).orderBy(desc(jointInspections.createdAt));
+  }
+  async getJointInspection(id: number): Promise<JointInspection | undefined> {
+    const [row] = await db.select().from(jointInspections).where(eq(jointInspections.id, id));
+    return row;
+  }
+  async createJointInspection(data: InsertJointInspection): Promise<JointInspection> {
+    const [row] = await db.insert(jointInspections).values(data).returning();
+    return row;
+  }
+  async updateJointInspection(id: number, data: Partial<InsertJointInspection>): Promise<JointInspection | undefined> {
+    const [row] = await db.update(jointInspections).set(data).where(eq(jointInspections.id, id)).returning();
+    return row;
+  }
+  async deleteJointInspection(id: number): Promise<void> {
+    await db.delete(jointInspections).where(eq(jointInspections.id, id));
   }
 
   // === ATTENDANCE ===

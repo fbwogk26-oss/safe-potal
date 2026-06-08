@@ -125,6 +125,8 @@ const NAV_SECTIONS: NavSection[] = [
         icon: Briefcase,
         children: [
           { label: "작업계획", href: "/work-plan", icon: CalendarCheck },
+          { label: "산업안전보건협의체", href: "/safety-committee", icon: Users },
+          { label: "합동안전보건점검", href: "/joint-inspection", icon: ClipboardCheck },
           { label: "입회 관리", href: "/attendance", icon: UserCheck, permissionKey: "canViewAttendance" },
         ],
       },

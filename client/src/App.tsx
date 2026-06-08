@@ -39,6 +39,8 @@ import NewEquipmentRequest from "@/pages/NewEquipmentRequest";
 import SafetySupplySurvey from "@/pages/SafetySupplySurvey";
 import TrafficFines from "@/pages/TrafficFines";
 import WorkPlan from "@/pages/WorkPlan";
+import SafetyCommittee from "@/pages/SafetyCommittee";
+import JointInspection from "@/pages/JointInspection";
 import AttendanceManagement from "@/pages/AttendanceManagement";
 import EducationTasksPage from "@/pages/EducationTasksPage";
 import WeatherSafetyMessage from "@/pages/WeatherSafetyMessage";
@@ -124,6 +126,8 @@ function RouterContent() {
       <Route path="/musculoskeletal">{() => <G canAccess={canViewMusculoskeletal} component={MusculoskeletalDisease} />}</Route>
       <Route path="/traffic-fines">{() => <TrafficFines />}</Route>
       <Route path="/work-plan">{() => <WorkPlan />}</Route>
+      <Route path="/safety-committee">{() => <SafetyCommittee />}</Route>
+      <Route path="/joint-inspection">{() => <JointInspection />}</Route>
       <Route path="/attendance">{() => <AttendanceManagement />}</Route>
       <Route path="/education-management">{() => <EducationTasksPage />}</Route>
       <Route path="/digital-board">{() => <G canAccess={canViewDigitalBoard} component={DigitalBoard} />}</Route>
