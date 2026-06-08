@@ -6,7 +6,7 @@ import { z } from "zod";
 import rateLimit from "express-rate-limit";
 import { createHash } from "crypto";
 import { db } from "./db";
-import { teams, trafficFines, accidentReports, educationSignatures, safetyInspections, educationTasks } from "@shared/schema";
+import { teams, trafficFines, accidentReports, educationSignatures, safetyInspections, educationTasks, safetyCostRecords } from "@shared/schema";
 import { eq, and, count, sql, inArray } from "drizzle-orm";
 import multer from "multer";
 import path from "path";
