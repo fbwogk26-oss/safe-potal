@@ -57,63 +57,97 @@ const emptyForm = () => ({
   photos: [] as Photo[],
 });
 
-// ── 날짜 포맷 (2026-04-22 → 2026.04.22) ─────────────────────
+// ── 날짜 포맷 (2026-04-22 → 2026.04.22(요일)) ───────────────
+const DAY_KO = ["일", "월", "화", "수", "목", "금", "토"];
 function fmtDate(d: string) {
-  return d ? d.replace(/-/g, ".") : "";
+  if (!d) return "";
+  const date = new Date(d + "T00:00:00");
+  const ymd = d.replace(/-/g, ".");
+  return `${ymd}(${DAY_KO[date.getDay()]})`;
+}
+
+// ── 사진 URL → base64 (깨짐 방지) ────────────────────────────
+async function loadImageAsBase64(url: string): Promise<string> {
+  try {
+    const res = await fetch(url, { credentials: "include" });
+    if (!res.ok) return "";
+    const blob = await res.blob();
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve((reader.result as string) || "");
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return "";
+  }
 }
 
 // ── PDF용 HTML 생성 ──────────────────────────────────────────
 function buildPrintHtml(
   selectedInspections: JointInspection[],
   allSignatures: Record<number, JoinInspectionSignature[]>,
-  origin: string,
+  photosBase64: Record<number, string[]>,
 ) {
-  const total = selectedInspections.length + 1; // 점검 페이지 + 참석자 명단
+  const total = selectedInspections.length + 1;
 
   const inspectionPages = selectedInspections.map((insp, idx) => {
     const ci = (insp.checkItems as CheckItem[] | null) ?? [];
     const photos = (insp.photos as Photo[] | null) ?? [];
     const pageNum = idx + 1;
-
-    const photoHtml = photos.length > 0 ? `
-      <div class="section-title">점검사진</div>
-      <div class="photos-grid">
-        ${photos.map(p => `<img src="${origin}${p.url}" class="photo-img" onerror="this.style.display='none'" />`).join("")}
-      </div>
-    ` : "";
+    const b64Photos = photosBase64[insp.id] ?? [];
 
     const rows = ci.map(c => `
       <tr>
-        <td class="center">${c.item}</td>
-        <td class="center">${c.issue || "-"}</td>
-        <td class="center">${c.improvement || "-"}</td>
+        <td class="cell-item">${c.item}</td>
+        <td class="cell-mid">${(c.issue || "-").replace(/\n/g, "<br>")}</td>
+        <td class="cell-mid">${(c.improvement || "-").replace(/\n/g, "<br>")}</td>
       </tr>
     `).join("");
 
+    const photoHtml = photos.length > 0 ? `
+      <div class="photo-section-title">점검사진</div>
+      <div class="photos-grid">
+        ${b64Photos.filter(Boolean).map(src => `<img src="${src}" class="photo-img" />`).join("")}
+      </div>
+    ` : `<div class="photo-section-title">점검사진</div><div class="photos-placeholder"></div>`;
+
     return `
       <div class="page">
-        <div class="main-title">도급사업의 합동 안전 · 보건 점검일지(${insp.subcontractor})</div>
-        <div class="info-block">
-          <div class="info-row"><span class="info-label">점검일</span><span class="info-colon">:</span><span>${fmtDate(insp.inspectionDate)}</span></div>
-          <div class="info-row"><span class="info-label">국소명</span><span class="info-colon">:</span><span>${insp.siteName}</span></div>
+        <div class="doc-box">
+          <div class="doc-title">도급사업의 합동 안전 ∙ 보건 점검일지(${insp.subcontractor})</div>
+          <div class="doc-info-area">
+            <div class="doc-info-row">
+              <span class="doc-info-label">점검일</span>
+              <span class="doc-info-sep">:</span>
+              <span class="doc-info-val">${fmtDate(insp.inspectionDate)}</span>
+            </div>
+            <div class="doc-info-row">
+              <span class="doc-info-label">국소명</span>
+              <span class="doc-info-sep">:</span>
+              <span class="doc-info-val">${insp.siteName}</span>
+            </div>
+          </div>
+          <table class="check-table">
+            <thead>
+              <tr>
+                <th class="th-item">점검 항목</th>
+                <th class="th-mid">문제점</th>
+                <th class="th-mid">개선 대책</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+          ${photoHtml}
         </div>
-        <table class="check-table">
-          <thead>
-            <tr>
-              <th class="col-item">점검 항목</th>
-              <th class="col-issue">문제점</th>
-              <th class="col-improve">개선 대책</th>
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
-        ${photoHtml}
-        <div class="footer">대구본부 현장경영팀&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;${pageNum} / ${total}</div>
+        <div class="page-footer">
+          <span class="footer-org">대구본부 현장경영팀</span>
+          <span class="footer-page">${pageNum} / ${total}</span>
+        </div>
       </div>
     `;
   }).join("");
 
-  // 모든 서명 수집 (도급인 먼저, 수급인 다음 순)
+  // 서명 수집 — 도급인 먼저, 중복 제거
   const allSigs: JoinInspectionSignature[] = [];
   const seen = new Set<number>();
   selectedInspections.forEach(insp => {
@@ -121,40 +155,39 @@ function buildPrintHtml(
       if (!seen.has(sig.id)) { seen.add(sig.id); allSigs.push(sig); }
     });
   });
-  // 도급인 → 수급인 순 정렬
-  allSigs.sort((a, b) => {
-    const ra = a.signerRole === "도급인" ? 0 : 1;
-    const rb = b.signerRole === "도급인" ? 0 : 1;
-    return ra - rb;
-  });
+  allSigs.sort((a, b) => (a.signerRole === "도급인" ? 0 : 1) - (b.signerRole === "도급인" ? 0 : 1));
 
   const sigRows = allSigs.length > 0
     ? allSigs.map(sig => `
         <tr>
-          <td class="center role-${sig.signerRole === "도급인" ? "contractor" : "sub"}">${sig.signerRole || ""}</td>
-          <td class="center">${sig.signerDepartment || ""}</td>
-          <td class="center">${sig.signerName}</td>
-          <td class="center"><img src="${sig.signatureData}" class="sig-img" /></td>
+          <td class="sig-cell center ${sig.signerRole === "도급인" ? "role-c" : "role-s"}">${sig.signerRole || ""}</td>
+          <td class="sig-cell center">${sig.signerDepartment || ""}</td>
+          <td class="sig-cell center">${sig.signerName}</td>
+          <td class="sig-cell center"><img src="${sig.signatureData}" class="sig-img" /></td>
         </tr>
       `).join("")
-    : `<tr><td colspan="4" class="center empty-row">서명 없음</td></tr>`;
+    : `<tr><td colspan="4" class="sig-cell center" style="color:#888;padding:24px">서명 없음</td></tr>`;
 
   const attendancePage = `
-    <div class="page attendance-page">
-      <div class="main-title">참 석 자 명 단</div>
-      <div class="attendance-subtitle">합동 안전 · 보건 점검 참석자 서명</div>
-      <table class="sig-table">
-        <thead>
-          <tr>
-            <th class="col-role">구분</th>
-            <th class="col-dept">소속</th>
-            <th class="col-name">성명</th>
-            <th class="col-sig">서명</th>
-          </tr>
-        </thead>
-        <tbody>${sigRows}</tbody>
-      </table>
-      <div class="footer">대구본부 현장경영팀&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;${total} / ${total}</div>
+    <div class="page">
+      <div class="doc-box">
+        <div class="doc-title" style="margin-bottom:6mm">참 석 자 명 단</div>
+        <table class="sig-table">
+          <thead>
+            <tr>
+              <th class="sth" style="width:15%">구분</th>
+              <th class="sth" style="width:27%">소속</th>
+              <th class="sth" style="width:18%">성명</th>
+              <th class="sth" style="width:40%">서명</th>
+            </tr>
+          </thead>
+          <tbody>${sigRows}</tbody>
+        </table>
+      </div>
+      <div class="page-footer">
+        <span class="footer-org">대구본부 현장경영팀</span>
+        <span class="footer-page">${total} / ${total}</span>
+      </div>
     </div>
   `;
 
@@ -162,89 +195,114 @@ function buildPrintHtml(
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>합동안전보건점검일지</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Noto Sans KR', 'Malgun Gothic', '맑은 고딕', sans-serif; background: #fff; color: #111; font-size: 10pt; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Noto Sans KR', 'Malgun Gothic', '맑은 고딕', sans-serif;
+      background: #f0f0f0;
+      color: #000;
+      font-size: 10pt;
+    }
+
+    /* ── 화면 미리보기 ── */
+    .page {
+      width: 210mm;
+      min-height: 297mm;
+      margin: 10mm auto;
+      padding: 18mm 18mm 25mm;
+      background: #fff;
+      position: relative;
+      box-shadow: 0 2px 8px rgba(0,0,0,.18);
+    }
+
+    /* ── 인쇄 ── */
     @media print {
-      @page { size: A4; margin: 15mm 15mm 18mm; }
+      body { background: #fff; }
+      @page { size: A4 portrait; margin: 18mm 18mm 22mm; }
       body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-      .page { page-break-after: always; border: none !important; padding: 0 !important; min-height: 0 !important; }
+      .page {
+        width: 100%; min-height: 0; margin: 0; padding: 0;
+        box-shadow: none;
+        page-break-after: always;
+      }
       .page:last-child { page-break-after: avoid; }
     }
 
-    .page {
-      width: 180mm;
-      min-height: 257mm;
-      margin: 0 auto 20mm;
-      padding: 8mm 0;
-      border: 1px solid #ddd;
-      position: relative;
-      background: #fff;
+    /* ── 문서 외곽 박스 ── */
+    .doc-box {
+      border: 1.5px solid #000;
+      padding: 6mm 6mm 4mm;
     }
 
-    .main-title {
+    /* ── 제목 ── */
+    .doc-title {
       text-align: center;
-      font-size: 14pt;
+      font-size: 15pt;
       font-weight: 700;
-      margin-bottom: 12px;
-      letter-spacing: -0.3px;
-    }
-    .attendance-subtitle {
-      text-align: center;
-      font-size: 10pt;
-      color: #555;
-      margin-bottom: 14px;
+      letter-spacing: -0.5px;
+      padding: 3mm 0 5mm;
+      border-bottom: 1.5px solid #000;
+      margin-bottom: 5mm;
     }
 
-    .info-block { margin-bottom: 10px; padding: 0 4mm; }
-    .info-row { display: flex; align-items: baseline; margin-bottom: 4px; font-size: 11pt; }
-    .info-label { width: 40px; font-weight: 500; }
-    .info-colon { margin: 0 8px; }
+    /* ── 점검일 / 국소명 ── */
+    .doc-info-area { padding: 0 2mm; margin-bottom: 5mm; }
+    .doc-info-row { display: flex; align-items: baseline; margin-bottom: 3mm; font-size: 11pt; }
+    .doc-info-label { width: 44px; font-weight: 500; }
+    .doc-info-sep { margin: 0 6px; }
+    .doc-info-val { flex: 1; }
 
-    .check-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
-    .check-table th, .check-table td { border: 1px solid #333; padding: 7px 6px; font-size: 9.5pt; vertical-align: middle; }
-    .check-table th { background: #e8e8e8; text-align: center; font-weight: 700; }
-    .check-table .col-item { width: 38%; }
-    .check-table .col-issue { width: 31%; }
-    .check-table .col-improve { width: 31%; }
-    .center { text-align: center; }
-
-    .section-title { font-size: 10pt; font-weight: 700; margin: 8px 4mm 6px; }
-    .photos-grid { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 4mm; margin-bottom: 8px; }
-    .photo-img { width: 85mm; height: 60mm; object-fit: cover; border: 1px solid #ccc; }
-
-    .sig-table { width: 100%; border-collapse: collapse; }
-    .sig-table th, .sig-table td { border: 1px solid #333; padding: 8px 6px; font-size: 9.5pt; vertical-align: middle; }
-    .sig-table th { background: #e8e8e8; text-align: center; font-weight: 700; }
-    .col-role { width: 14%; }
-    .col-dept { width: 26%; }
-    .col-name { width: 18%; }
-    .col-sig  { width: 42%; }
-    .sig-img { width: 100%; max-height: 52px; object-fit: contain; display: block; margin: 0 auto; }
-    .role-contractor { color: #1d4ed8; font-weight: 600; }
-    .role-sub { color: #c2410c; font-weight: 600; }
-    .empty-row { color: #888; padding: 20px; }
-
-    .footer {
-      position: absolute;
-      bottom: 6mm;
-      right: 4mm;
+    /* ── 점검 항목 테이블 ── */
+    .check-table { width: 100%; border-collapse: collapse; margin-bottom: 5mm; }
+    .check-table th, .check-table td {
+      border: 1px solid #000;
+      vertical-align: middle;
       font-size: 9.5pt;
-      color: #444;
+      line-height: 1.5;
     }
-    .attendance-page .footer { right: 4mm; }
+    .th-item { width: 36%; text-align: center; padding: 5px 4px; background: #d9d9d9; font-weight: 700; }
+    .th-mid  { width: 32%; text-align: center; padding: 5px 4px; background: #d9d9d9; font-weight: 700; }
+    .cell-item { text-align: center; padding: 11px 6px; }
+    .cell-mid  { text-align: center; padding: 11px 6px; }
+
+    /* ── 점검사진 ── */
+    .photo-section-title { font-size: 10pt; font-weight: 700; margin: 4mm 0 3mm; }
+    .photos-grid { display: flex; flex-wrap: wrap; gap: 6px; min-height: 45mm; align-content: flex-start; }
+    .photos-placeholder { min-height: 45mm; border: 1px dashed #bbb; }
+    .photo-img { width: 82mm; height: 58mm; object-fit: cover; border: 1px solid #888; display: block; }
+
+    /* ── 참석자 명단 테이블 ── */
+    .sig-table { width: 100%; border-collapse: collapse; }
+    .sth { border: 1px solid #000; padding: 7px 4px; text-align: center; background: #d9d9d9; font-weight: 700; font-size: 9.5pt; }
+    .sig-cell { border: 1px solid #000; padding: 6px 4px; font-size: 9.5pt; vertical-align: middle; }
+    .sig-img { width: 100%; max-height: 56px; object-fit: contain; display: block; margin: 0 auto; }
+    .center { text-align: center; }
+    .role-c { color: #1a3c8f; font-weight: 600; }
+    .role-s { color: #923100; font-weight: 600; }
+
+    /* ── 하단 푸터 ── */
+    .page-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      margin-top: 4mm;
+      font-size: 9.5pt;
+      color: #333;
+    }
+    .footer-org { font-weight: 500; }
+    .footer-page { font-weight: 500; }
   </style>
 </head>
 <body>
   ${inspectionPages}
   ${attendancePage}
   <script>
-    window.addEventListener('load', function() {
-      setTimeout(function() { window.print(); }, 800);
+    var fontsReady = document.fonts ? document.fonts.ready : Promise.resolve();
+    fontsReady.then(function() {
+      setTimeout(function() { window.print(); }, 600);
     });
   </script>
 </body>
@@ -476,24 +534,37 @@ export default function JointInspectionPage() {
     setDownloading(true);
     try {
       const selected = inspections.filter(i => selectedIds.has(i.id));
-      // 선택된 점검들의 서명을 병렬로 로드
-      const sigsResults = await Promise.all(
-        selected.map(insp =>
-          fetch(`/api/joint-inspections/${insp.id}/signatures`, { credentials: "include" })
-            .then(r => r.ok ? r.json() : [])
-            .then((sigs: JoinInspectionSignature[]) => ({ id: insp.id, sigs }))
-        )
-      );
+
+      // 서명 + 사진 병렬 로드
+      const [sigsResults, photosResults] = await Promise.all([
+        Promise.all(
+          selected.map(insp =>
+            fetch(`/api/joint-inspections/${insp.id}/signatures`, { credentials: "include" })
+              .then(r => r.ok ? r.json() : [])
+              .then((sigs: JoinInspectionSignature[]) => ({ id: insp.id, sigs }))
+          )
+        ),
+        Promise.all(
+          selected.map(async insp => {
+            const photos = (insp.photos as Photo[] | null) ?? [];
+            const b64 = await Promise.all(photos.map(p => loadImageAsBase64(p.url)));
+            return { id: insp.id, b64 };
+          })
+        ),
+      ]);
+
       const sigsMap: Record<number, JoinInspectionSignature[]> = {};
       sigsResults.forEach(({ id, sigs }) => { sigsMap[id] = sigs; });
 
-      const origin = window.location.origin;
-      const html = buildPrintHtml(selected, sigsMap, origin);
+      const photosMap: Record<number, string[]> = {};
+      photosResults.forEach(({ id, b64 }) => { photosMap[id] = b64; });
+
+      const html = buildPrintHtml(selected, sigsMap, photosMap);
       const w = window.open("", "_blank");
       if (!w) { toast({ title: "팝업이 차단됐습니다. 팝업 허용 후 다시 시도하세요", variant: "destructive" }); return; }
       w.document.write(html);
       w.document.close();
-    } catch (e) {
+    } catch {
       toast({ title: "PDF 생성 실패", variant: "destructive" });
     } finally {
       setDownloading(false);
