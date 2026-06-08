@@ -10007,19 +10007,7 @@ ${htmlDraft}
         for (let c = 2; c <= 13; c++) { row.getCell(c).value = null; }
       }
 
-      // 열 너비 강제 설정 (###### 방지)
-      ws.getColumn(2).width = 8;   // B: 순번
-      ws.getColumn(3).width = 8;   // C: 본부
-      ws.getColumn(4).width = 14;  // D: 지급일자
-      ws.getColumn(5).width = 7;   // E: 월
-      ws.getColumn(6).width = 22;  // F: 항목명
-      ws.getColumn(7).width = 30;  // G: 세부항목/품목명
-      ws.getColumn(8).width = 16;  // H: 금액(원)
-      ws.getColumn(9).width = 10;  // I: 적정여부
-      ws.getColumn(10).width = 14; // J: 위험성평가 반영
-      ws.getColumn(11).width = 20; // K: 의결내용
-      ws.getColumn(12).width = 20; // L: 비고
-      ws.getColumn(13).width = 20; // M: 관련문서번호
+      // 열 너비는 데이터 입력 후 자동 계산 (아래 autoFitCols 함수 호출)
 
       // 정렬: 항목 순 → 지급일자 순
       const sorted = [...records].sort((a, b) => {
@@ -10077,6 +10065,37 @@ ${htmlDraft}
         row.getCell(12).value = rec.notes || null;                          // L: 비고
         row.getCell(13).value = (rec as any).documentNumber || null;        // M: 관련 문서번호(증빙)
       });
+
+      // ── 사용내역 시트 열 너비 자동 조정 ─────────────────────────────────
+      {
+        // 한글은 2자 폭, 영문/숫자는 1자 폭으로 계산
+        const strWidth = (v: any): number => {
+          const s = v === null || v === undefined ? '' :
+            (typeof v === 'object' && 'result' in v) ? String(v.result) :
+            (typeof v === 'object' && v instanceof Date) ? 'YYYY-MM-DD' :
+            String(v);
+          let w = 0;
+          for (const ch of s) { w += /[\u1100-\u11FF\u2E80-\uD7AF\uF900-\uFAFF\uFE30-\uFE4F\uFF01-\uFF60]/.test(ch) ? 2 : 1; }
+          return w;
+        };
+        // 열별 최소 너비 (헤더 기준)
+        const MIN_WIDTHS: Record<number, number> = {
+          2: 6, 3: 7, 4: 13, 5: 5, 6: 22, 7: 28, 8: 14, 9: 10, 10: 14, 11: 16, 12: 16, 13: 18,
+        };
+        const MAX_WIDTH = 50;
+        const colMaxW: Record<number, number> = {};
+        // 헤더(2행) + 데이터(3행~) 모두 스캔
+        ws.eachRow((row, rn) => {
+          if (rn < 2) return;
+          for (let c = 2; c <= 13; c++) {
+            const w = strWidth(row.getCell(c).value) + 2;
+            if (!colMaxW[c] || w > colMaxW[c]) colMaxW[c] = w;
+          }
+        });
+        for (let c = 2; c <= 13; c++) {
+          ws.getColumn(c).width = Math.min(Math.max(colMaxW[c] || 8, MIN_WIDTHS[c] || 8), MAX_WIDTH);
+        }
+      }
 
       // ── 예산 데이터를 나머지 시트(1~3번)에 주입 ─────────────────────────
       try {
