@@ -351,6 +351,16 @@ export default function SafetyCostBudget() {
       if (data.vatAmount && !form.vatAmount) { setF("vatAmount", data.vatAmount.toString()); }
       if (data.totalAmount && !form.totalAmount) { setF("totalAmount", data.totalAmount.toString()); changed.push("합계금액"); }
 
+      // 문서 유형에 따라 항목구분 자동 설정
+      const docType: string = data.documentType || data.documentNumber || "";
+      if (docType.includes("지출결의서")) {
+        setF("category", "1. 안전관리자 등 인건비 및 각종 업무수당 등");
+        changed.push("항목구분(인건비)");
+      } else if (docType.includes("구매결의서") || docType.includes("기안서")) {
+        setF("category", "3. 개인보호구 및 안전장구 구입비 등");
+        changed.push("항목구분(보호구)");
+      }
+
       if (data._fileUrl) setF("resolutionFileUrl", data._fileUrl);
 
       if (data.items && data.items.length > 0) {

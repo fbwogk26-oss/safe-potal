@@ -10165,10 +10165,11 @@ ${htmlDraft}
       const mimeType = req.file.mimetype || 'image/jpeg';
       const isPdf = mimeType === 'application/pdf' || req.file.originalname.toLowerCase().endsWith('.pdf');
 
-      const systemPrompt = `당신은 한국 기업의 구매결의서·지출결의서를 분석하는 전문가입니다.
+      const systemPrompt = `당신은 한국 기업의 구매결의서·지출결의서·기안서를 분석하는 전문가입니다.
 문서에서 다음 정보를 추출하여 JSON 형식으로만 반환하세요 (코드블록 없이).
 
 {
+  "documentType": "문서 유형 — 반드시 지출결의서/구매결의서/기안서 중 하나로만 반환",
   "documentNumber": "품의번호 (예: 구매결의서-대구현장경영팀-26-0022)",
   "paymentRequestDate": "지급요청일자 YYYY-MM-DD (지출결의서에만 있음, 없으면 null)",
   "documentDate": "문서 작성일자 YYYY-MM-DD",
@@ -10191,7 +10192,8 @@ ${htmlDraft}
 }
 숫자는 쉼표 없이 순수 숫자로 반환하세요. 찾을 수 없는 값은 null로 반환하세요.
 품의번호는 문서 상단에 표기된 문서번호/결의번호입니다.
-지급요청일자는 지출결의서의 지급요청일 또는 지급일자입니다.`;
+지급요청일자는 지출결의서의 지급요청일 또는 지급일자입니다.
+documentType 판별: 문서 제목·양식명에 "지출결의서"가 있으면 지출결의서, "구매결의서"가 있으면 구매결의서, "기안서"가 있으면 기안서.`;
 
       let messages: any[];
       if (isPdf) {
