@@ -10156,59 +10156,67 @@ ${htmlDraft}
             monthlyByCat[cn][d.getMonth() + 1] += Number(rec.totalAmount) || 0;
           }
 
-          // ── 1.지출통계 시트 대구본부 행(R44~R52) 직접 주입 ──────────────
+          // 수식/sharedFormula 구조를 유지하면서 cachedValue(result)만 업데이트
+          // 셀 value를 숫자로 바꾸면 O열 shared formula master가 손상되어 오류 발생
+          const setCached = (cell: any, val: number) => {
+            const v = cell.value;
+            if (v && typeof v === 'object') {
+              if ('formula' in v)            cell.value = { formula: v.formula, result: val };
+              else if ('sharedFormula' in v) cell.value = { sharedFormula: v.sharedFormula, result: val };
+            }
+            if (val) cell.numFmt = '#,##0';
+          };
+
+          // ── 1.지출통계 시트 대구본부 행(R44~R52) cachedValue 업데이트 ──────
           const statSheet = wb.getWorksheet('1.지출통계');
           if (statSheet) {
             const DAEGU_STAT: Record<string, number> = {
               '1': 44, '2': 45, '3': 46, '4': 47, '5': 48,
               '6': 49, '7': 50, '8': 51, '9': 52,
             };
-            const subtotals: Record<number, number> = {};
-            for (let m = 1; m <= 12; m++) subtotals[m] = 0;
-            let grandStat = 0;
             for (const [cn, rn] of Object.entries(DAEGU_STAT)) {
               const row = statSheet.getRow(rn);
               let catTotal = 0;
               for (let m = 1; m <= 12; m++) {
                 const val = monthlyByCat[cn]?.[m] || 0;
-                if (val) { row.getCell(m + 2).value = val; row.getCell(m + 2).numFmt = '#,##0'; }
-                subtotals[m] += val;
+                setCached(row.getCell(m + 2), val);  // C(3)~N(14): 1~12월
                 catTotal += val;
               }
-              if (catTotal) { row.getCell(15).value = catTotal; row.getCell(15).numFmt = '#,##0'; }
-              grandStat += catTotal;
+              setCached(row.getCell(15), catTotal);   // O(15): 합계
             }
-            // 대구본부 소계 R53
+            // 소계 R53: 월별 합계 + O열 grand total
             const stRow = statSheet.getRow(53);
+            let grandStat = 0;
             for (let m = 1; m <= 12; m++) {
-              if (subtotals[m]) { stRow.getCell(m + 2).value = subtotals[m]; stRow.getCell(m + 2).numFmt = '#,##0'; }
+              const colTotal = CAT_NUMS.reduce((s, cn) => s + (monthlyByCat[cn]?.[m] || 0), 0);
+              setCached(stRow.getCell(m + 2), colTotal);
+              grandStat += colTotal;
             }
-            if (grandStat) { stRow.getCell(15).value = grandStat; stRow.getCell(15).numFmt = '#,##0'; }
+            setCached(stRow.getCell(15), grandStat);
             console.log('[export-template] 1.지출통계 대구본부 주입 완료');
           }
 
-          // ── 3.예산대비_지출통계 시트 대구본부 행(R45~R53) 직접 주입 ──────
+          // ── 3.예산대비_지출통계 시트 대구본부 행(R45~R53) cachedValue 업데이트 ──
           const cmpSheet = wb.getWorksheet('3.예산대비_지출통계');
           if (cmpSheet) {
             const DAEGU_CMP: Record<string, number> = {
               '1': 45, '2': 46, '3': 47, '4': 48, '5': 49,
               '6': 50, '7': 51, '8': 52, '9': 53,
             };
-            let totalBudgetCmp = 0;
-            let totalSpentCmp = 0;
+            let totalBudgetCmp = 0, totalSpentCmp = 0;
             for (const [cn, rn] of Object.entries(DAEGU_CMP)) {
               const row = cmpSheet.getRow(rn);
               const annual = (Number(h1[cn]) || 0) + (Number(h2[cn]) || 0);
               const spent = Object.values(monthlyByCat[cn] || {}).reduce((s, v) => s + v, 0);
-              if (annual) { row.getCell(3).value = annual; row.getCell(3).numFmt = '#,##0'; }
-              if (spent)  { row.getCell(4).value = spent;  row.getCell(4).numFmt = '#,##0'; }
+              setCached(row.getCell(3), annual);  // C: 연간예산
+              setCached(row.getCell(4), spent);   // D: 누계지출
               totalBudgetCmp += annual;
               totalSpentCmp  += spent;
             }
-            // 대구본부 소계 R54
+            // 소계 R54
             const cmpSub = cmpSheet.getRow(54);
-            if (totalBudgetCmp) { cmpSub.getCell(3).value = totalBudgetCmp; cmpSub.getCell(3).numFmt = '#,##0'; }
-            if (totalSpentCmp)  { cmpSub.getCell(4).value = totalSpentCmp;  cmpSub.getCell(4).numFmt = '#,##0'; }
+            setCached(cmpSub.getCell(3), totalBudgetCmp);
+            setCached(cmpSub.getCell(4), totalSpentCmp);
             console.log('[export-template] 3.예산대비_지출통계 대구본부 주입 완료');
           }
         }

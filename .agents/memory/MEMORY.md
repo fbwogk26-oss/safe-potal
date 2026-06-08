@@ -1,2 +1,3 @@
 - [pdf-parse import 방법](pdf-parse-import.md) — 기본 import는 test/data ENOENT 오류; lib 직접 import 필요
 - [fetch credentials 누락 패턴](fetch-credentials.md) — FormData fetch 요청에 credentials:"include" 필수, 누락 시 401
+- [ExcelJS shared formula 주입 패턴](exceljs-shared-formula.md) — 셀에 숫자 직접 주입 시 shared formula master 손상; setCached로 result만 업데이트해야 함
