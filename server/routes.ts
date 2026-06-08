@@ -6907,16 +6907,9 @@ ${htmlDraft}
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  // 회의자료(PPT) 업로드 - public-uploads (Office Online Viewer 미리보기용 공개 서빙)
+  // 회의자료(PPT/PDF) 업로드 - object storage 우선, fallback → public-uploads
   const committeeMaterialUpload = multer({
-    storage: multer.diskStorage({
-      destination: (req, file, cb) => cb(null, publicUploadsDir),
-      filename: (req, file, cb) => {
-        const ext = path.extname(file.originalname);
-        const uuid = `committee_mat_${Date.now()}_${Math.random().toString(36).slice(2)}${ext}`;
-        cb(null, uuid);
-      },
-    }),
+    storage: multer.memoryStorage(),
     limits: { fileSize: 100 * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
       if (/\.(ppt|pptx|pdf)$/i.test(file.originalname)) cb(null, true);
@@ -6924,18 +6917,9 @@ ${htmlDraft}
     },
   });
 
-  // 회의록(Word/PDF) 업로드 - PDF는 public-uploads, DOCX는 uploads
+  // 회의록(Word/PDF) 업로드 - object storage 우선, fallback → local
   const committeeMinutesUpload = multer({
-    storage: multer.diskStorage({
-      destination: (req, file, cb) => {
-        const isPdf = /\.pdf$/i.test(file.originalname);
-        cb(null, isPdf ? publicUploadsDir : uploadDir);
-      },
-      filename: (req, file, cb) => {
-        const ext = path.extname(file.originalname);
-        cb(null, `committee_min_${Date.now()}_${Math.random().toString(36).slice(2)}${ext}`);
-      },
-    }),
+    storage: multer.memoryStorage(),
     limits: { fileSize: 100 * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
       if (/\.(doc|docx|pdf)$/i.test(file.originalname)) cb(null, true);
@@ -6948,7 +6932,13 @@ ${htmlDraft}
       if (!req.file) return res.status(400).json({ message: "파일 없음" });
       let name = req.file.originalname;
       try { name = Buffer.from(name, 'latin1').toString('utf8'); } catch {}
-      res.json({ url: `/public-uploads/${req.file.filename}`, name });
+      const ext = path.extname(name) || path.extname(req.file.originalname);
+      const filename = `committee_mat_${Date.now()}_${Math.random().toString(36).slice(2)}${ext}`;
+      const objUrl = await uploadToObjectStorage(req.file.buffer, filename, req.file.mimetype || 'application/octet-stream');
+      if (objUrl) return res.json({ url: objUrl, name });
+      // fallback → local public-uploads
+      fs.writeFileSync(path.join(publicUploadsDir, filename), req.file.buffer);
+      res.json({ url: `/public-uploads/${filename}`, name });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
@@ -6957,8 +6947,15 @@ ${htmlDraft}
       if (!req.file) return res.status(400).json({ message: "파일 없음" });
       let name = req.file.originalname;
       try { name = Buffer.from(name, 'latin1').toString('utf8'); } catch {}
-      const isPdf = /\.pdf$/i.test(req.file.originalname);
-      const url = isPdf ? `/public-uploads/${req.file.filename}` : `/uploads/${req.file.filename}`;
+      const ext = path.extname(name) || path.extname(req.file.originalname);
+      const filename = `committee_min_${Date.now()}_${Math.random().toString(36).slice(2)}${ext}`;
+      const objUrl = await uploadToObjectStorage(req.file.buffer, filename, req.file.mimetype || 'application/octet-stream');
+      if (objUrl) return res.json({ url: objUrl, name });
+      // fallback → local
+      const isPdf = /\.pdf$/i.test(name);
+      const destDir = isPdf ? publicUploadsDir : uploadDir;
+      fs.writeFileSync(path.join(destDir, filename), req.file.buffer);
+      const url = isPdf ? `/public-uploads/${filename}` : `/uploads/${filename}`;
       res.json({ url, name });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
@@ -6977,13 +6974,7 @@ ${htmlDraft}
 
   // ===== 합동안전보건점검 =====
   const jointInspectionPhotoUpload = multer({
-    storage: multer.diskStorage({
-      destination: (req, file, cb) => cb(null, uploadDir),
-      filename: (req, file, cb) => {
-        const ext = path.extname(file.originalname);
-        cb(null, `joint_${Date.now()}${ext}`);
-      },
-    }),
+    storage: multer.memoryStorage(),
     limits: { fileSize: 20 * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
       if (file.mimetype.startsWith('image/')) cb(null, true);
@@ -7036,8 +7027,13 @@ ${htmlDraft}
   app.post('/api/joint-inspections/upload-photo', isAuthenticated, jointInspectionPhotoUpload.single('photo'), async (req: any, res) => {
     try {
       if (!req.file) return res.status(400).json({ message: "파일 없음" });
-      const url = `/uploads/${req.file.filename}`;
-      res.json({ url, name: req.file.originalname });
+      const ext = safeExt(req.file.originalname, ALLOWED_IMG_EXTS);
+      const filename = `joint_${Date.now()}${ext}`;
+      const objUrl = await uploadToObjectStorage(req.file.buffer, filename, req.file.mimetype);
+      if (objUrl) return res.json({ url: objUrl, name: req.file.originalname });
+      // fallback → local disk
+      fs.writeFileSync(path.join(uploadDir, filename), req.file.buffer);
+      res.json({ url: `/uploads/${filename}`, name: req.file.originalname });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 

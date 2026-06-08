@@ -5,7 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Users, Trash2, Presentation, FileText, Eye, Upload, Loader2, Plus } from "lucide-react";
+import { Users, Trash2, Presentation, FileText, Eye, Upload, Loader2, Plus, ExternalLink } from "lucide-react";
 import type { SafetyCommittee } from "@shared/schema";
 
 export default function SafetyCommitteePage() {
@@ -23,6 +23,8 @@ export default function SafetyCommitteePage() {
 
   // 미리보기 상태
   const [officeViewerUrl, setOfficeViewerUrl] = useState<string | null>(null); // PPT Office Online
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);     // PDF 인앱 미리보기
+  const [pdfPreviewTitle, setPdfPreviewTitle] = useState("");
   const [docHtml, setDocHtml] = useState<string | null>(null);
   const [docLoading, setDocLoading] = useState(false);
 
@@ -111,19 +113,25 @@ export default function SafetyCommitteePage() {
 
   const openMaterialPreview = (url: string, name: string) => {
     const ext = getExt(name);
-    const fullUrl = `${window.location.origin}${url}`;
+    // object storage URL은 공개 접근 가능 → 인앱 iframe으로 표시
+    const isObj = url.startsWith("/objects/");
+    const fullUrl = isObj ? url : `${window.location.origin}${url}`;
     if (ext === "pdf") {
-      window.open(fullUrl, "_blank");
+      setPdfPreviewTitle(name || "회의자료");
+      setPdfPreviewUrl(fullUrl);
     } else {
-      setOfficeViewerUrl(`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(fullUrl)}`);
+      setOfficeViewerUrl(`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(window.location.origin + (isObj ? "" : "") + fullUrl)}`);
     }
   };
 
   const openMinutesPreview = async (c: SafetyCommittee) => {
     const ext = getExt(c.meetingMinutesName ?? "");
     if (ext === "pdf") {
-      const fullUrl = `${window.location.origin}${c.meetingMinutesUrl}`;
-      window.open(fullUrl, "_blank");
+      const url = c.meetingMinutesUrl ?? "";
+      const isObj = url.startsWith("/objects/");
+      const fullUrl = isObj ? url : `${window.location.origin}${url}`;
+      setPdfPreviewTitle(c.meetingMinutesName || "회의록");
+      setPdfPreviewUrl(fullUrl);
     } else {
       setDocLoading(true);
       setDocHtml("");
@@ -267,6 +275,39 @@ export default function SafetyCommitteePage() {
           </DialogHeader>
           <div className="flex-1 overflow-hidden p-2">
             {officeViewerUrl && <iframe src={officeViewerUrl} className="w-full h-full rounded border" title="PPT 미리보기" allowFullScreen />}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* PDF 인앱 미리보기 */}
+      <Dialog open={!!pdfPreviewUrl} onOpenChange={() => setPdfPreviewUrl(null)}>
+        <DialogContent className="max-w-4xl w-[95vw] h-[90vh] flex flex-col p-0 gap-0">
+          <DialogHeader className="p-3 pb-2 shrink-0 border-b">
+            <div className="flex items-center justify-between gap-2">
+              <DialogTitle className="flex items-center gap-2 text-base truncate">
+                <FileText className="w-4 h-4 text-red-500 shrink-0" />
+                <span className="truncate">{pdfPreviewTitle}</span>
+              </DialogTitle>
+              {pdfPreviewUrl && (
+                <a
+                  href={pdfPreviewUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="shrink-0 text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 border rounded px-2 py-1"
+                >
+                  <ExternalLink className="w-3 h-3" />새 탭
+                </a>
+              )}
+            </div>
+          </DialogHeader>
+          <div className="flex-1 overflow-hidden">
+            {pdfPreviewUrl && (
+              <iframe
+                src={pdfPreviewUrl}
+                className="w-full h-full"
+                title="PDF 미리보기"
+              />
+            )}
           </div>
         </DialogContent>
       </Dialog>
