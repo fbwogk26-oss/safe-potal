@@ -10115,8 +10115,21 @@ ${htmlDraft}
           budgets = legacyS ? JSON.parse(legacyS.value) : {};
           console.log(`[export-template] 예산 legacy:`, JSON.stringify(budgets));
         }
-        // 2.예산입력 시트 대구본부 행에 직접 주입
-        // 대구본부: 행44(인건비)~행52(산보위), D열=상반기, E열=하반기 (C열은 D+E 합산 수식이라 건드리지 않음)
+        // ── 수식/sharedFormula 구조 유지하며 cachedValue(result)만 업데이트 ──────
+        // 셀에 숫자를 직접 주입하면 shared formula master가 손상되어 writeBuffer 오류 발생
+        const setCached = (cell: any, val: number | string, fmt?: string) => {
+          const v = cell.value;
+          if (v && typeof v === 'object') {
+            if ('formula' in v)            cell.value = { formula: v.formula, result: val };
+            else if ('sharedFormula' in v) cell.value = { sharedFormula: v.sharedFormula, result: val };
+          }
+          if (fmt) cell.numFmt = fmt;
+          else if (val && typeof val === 'number') cell.numFmt = '#,##0';
+        };
+
+        // 2.예산입력 시트 대구본부 행에 주입
+        // 대구본부: 행44~52, D열=상반기(직접숫자), E열=하반기(직접숫자), C열=SUM(D:E)(setCached)
+        // C45가 master, C46~C52는 SF:C45 → C열은 setCached로 처리해야 오류 없음
         const budgetSheet = wb.getWorksheet('2.예산입력');
         if (budgetSheet) {
           const DAEGU_ROWS: Record<string, number> = {
@@ -10126,20 +10139,27 @@ ${htmlDraft}
           // h1S/h2S가 없는 legacy 케이스: budgets 전체를 상반기로 사용
           const h1: Record<string, number> = h1S ? JSON.parse(h1S.value) : (!h2S ? budgets : {});
           const h2: Record<string, number> = h2S ? JSON.parse(h2S.value) : {};
+          let h1Total = 0, h2Total = 0;
           for (const [catNum, rowNum] of Object.entries(DAEGU_ROWS)) {
             const row = budgetSheet.getRow(rowNum);
             const h1val = Number(h1[catNum]) || 0;
             const h2val = Number(h2[catNum]) || 0;
-            row.getCell(4).value = h1val;  // D: 상반기 예산
+            row.getCell(4).value = h1val;  // D: 상반기 예산 (직접 숫자, shared formula 아님)
             row.getCell(4).numFmt = '#,##0';
-            row.getCell(5).value = h2val;  // E: 하반기 예산
+            row.getCell(5).value = h2val;  // E: 하반기 예산 (직접 숫자)
             row.getCell(5).numFmt = '#,##0';
-            row.getCell(3).value = h1val + h2val;  // C: 연간예산 (수식 cachedValue 대체)
-            row.getCell(3).numFmt = '#,##0';
+            setCached(row.getCell(3), h1val + h2val);  // C: SUM(D:E) → setCached로 master 보호
+            h1Total += h1val;
+            h2Total += h2val;
           }
+          // 소계 R53: C53=SUM(C44:C52), D53=SUM(D44:D52), E53=SUM(E44:E52)
+          const bSub = budgetSheet.getRow(53);
+          setCached(bSub.getCell(3), h1Total + h2Total);
+          setCached(bSub.getCell(4), h1Total);
+          setCached(bSub.getCell(5), h2Total);
           console.log(`[export-template] 대구본부 예산 주입 완료`);
 
-          // ── 항목별 월별 지출 집계 (1.지출통계 / 3.예산대비_지출통계에 주입) ──
+          // ── 항목별 월별 지출 집계 ───────────────────────────────────────────
           const CAT_NUMS = ['1','2','3','4','5','6','7','8','9'];
           const monthlyByCat: Record<string, Record<number, number>> = {};
           for (const cn of CAT_NUMS) {
@@ -10156,17 +10176,6 @@ ${htmlDraft}
             monthlyByCat[cn][d.getMonth() + 1] += Number(rec.totalAmount) || 0;
           }
 
-          // 수식/sharedFormula 구조를 유지하면서 cachedValue(result)만 업데이트
-          // 셀 value를 숫자로 바꾸면 O열 shared formula master가 손상되어 오류 발생
-          const setCached = (cell: any, val: number) => {
-            const v = cell.value;
-            if (v && typeof v === 'object') {
-              if ('formula' in v)            cell.value = { formula: v.formula, result: val };
-              else if ('sharedFormula' in v) cell.value = { sharedFormula: v.sharedFormula, result: val };
-            }
-            if (val) cell.numFmt = '#,##0';
-          };
-
           // ── 1.지출통계 시트 대구본부 행(R44~R52) cachedValue 업데이트 ──────
           const statSheet = wb.getWorksheet('1.지출통계');
           if (statSheet) {
@@ -10182,9 +10191,9 @@ ${htmlDraft}
                 setCached(row.getCell(m + 2), val);  // C(3)~N(14): 1~12월
                 catTotal += val;
               }
-              setCached(row.getCell(15), catTotal);   // O(15): 합계
+              setCached(row.getCell(15), catTotal);   // O(15): SUM(C:N) 합계
             }
-            // 소계 R53: 월별 합계 + O열 grand total
+            // 소계 R53: C53=SUM(C44:C52), D53~O53=SF:C53
             const stRow = statSheet.getRow(53);
             let grandStat = 0;
             for (let m = 1; m <= 12; m++) {
@@ -10196,7 +10205,8 @@ ${htmlDraft}
             console.log('[export-template] 1.지출통계 대구본부 주입 완료');
           }
 
-          // ── 3.예산대비_지출통계 시트 대구본부 행(R45~R53) cachedValue 업데이트 ──
+          // ── 3.예산대비_지출통계 대구본부 행(R45~R53) cachedValue 업데이트 ──
+          // C(col3)=연간예산, D(col4)=누계지출, E(col5)=잔액(SF:E37=C-D), F(col6)=집행률(SF:F37)
           const cmpSheet = wb.getWorksheet('3.예산대비_지출통계');
           if (cmpSheet) {
             const DAEGU_CMP: Record<string, number> = {
@@ -10208,15 +10218,21 @@ ${htmlDraft}
               const row = cmpSheet.getRow(rn);
               const annual = (Number(h1[cn]) || 0) + (Number(h2[cn]) || 0);
               const spent = Object.values(monthlyByCat[cn] || {}).reduce((s, v) => s + v, 0);
-              setCached(row.getCell(3), annual);  // C: 연간예산
-              setCached(row.getCell(4), spent);   // D: 누계지출
+              setCached(row.getCell(3), annual);           // C: 연간예산
+              setCached(row.getCell(4), spent);            // D: 누계지출
+              setCached(row.getCell(5), annual - spent);   // E: 잔액 (C-D)
+              const rateStr = annual > 0 ? (spent / annual * 100).toFixed(1) + '%' : '-';
+              setCached(row.getCell(6), rateStr);          // F: 집행률 TEXT(D/C,"0.0%")
               totalBudgetCmp += annual;
               totalSpentCmp  += spent;
             }
-            // 소계 R54
+            // 소계 R54: C54=2.예산입력!C53, D54=1.지출통계!O53, E54=SF:E37, F54=SF:F37
             const cmpSub = cmpSheet.getRow(54);
             setCached(cmpSub.getCell(3), totalBudgetCmp);
             setCached(cmpSub.getCell(4), totalSpentCmp);
+            setCached(cmpSub.getCell(5), totalBudgetCmp - totalSpentCmp);
+            const totalRateStr = totalBudgetCmp > 0 ? (totalSpentCmp / totalBudgetCmp * 100).toFixed(1) + '%' : '-';
+            setCached(cmpSub.getCell(6), totalRateStr);
             console.log('[export-template] 3.예산대비_지출통계 대구본부 주입 완료');
           }
         }
