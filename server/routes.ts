@@ -10063,8 +10063,20 @@ ${htmlDraft}
 
       // ── 예산 데이터를 나머지 시트(1~3번)에 주입 ─────────────────────────
       try {
-        const budgetSetting = await storage.getSetting(`safety_cost_budgets_${year}`);
-        const budgets: Record<string, number> = budgetSetting ? JSON.parse(budgetSetting.value) : {};
+        // 상반기+하반기 합산 (없으면 legacy 키로 fallback)
+        const h1S = await storage.getSetting(`safety_cost_budgets_h1_${year}`);
+        const h2S = await storage.getSetting(`safety_cost_budgets_h2_${year}`);
+        let budgets: Record<string, number> = {};
+        if (h1S || h2S) {
+          const h1: Record<string, number> = h1S ? JSON.parse(h1S.value) : {};
+          const h2: Record<string, number> = h2S ? JSON.parse(h2S.value) : {};
+          [...new Set([...Object.keys(h1), ...Object.keys(h2)])].forEach(k => {
+            budgets[k] = (Number(h1[k]) || 0) + (Number(h2[k]) || 0);
+          });
+        } else {
+          const legacyS = await storage.getSetting(`safety_cost_budgets_${year}`);
+          budgets = legacyS ? JSON.parse(legacyS.value) : {};
+        }
         // 카테고리 번호 → 검색 키워드
         const CAT_KW: Record<string, string[]> = {
           '1': ['안전관리자', '인건비'],
