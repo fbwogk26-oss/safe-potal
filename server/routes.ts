@@ -9992,6 +9992,15 @@ ${htmlDraft}
       const ws = wb.getWorksheet('사용내역');
       if (!ws) throw new Error("'사용내역' 시트를 찾을 수 없습니다");
 
+      // 3행(첫 번째 데이터 행) 서식 저장 — 이후 모든 데이터 행에 복사
+      const tmplRow = ws.getRow(3);
+      const tmplStyles: Record<number, any> = {};
+      const tmplRowHeight = tmplRow.height;
+      for (let c = 2; c <= 13; c++) {
+        const s = tmplRow.getCell(c).style;
+        tmplStyles[c] = s ? JSON.parse(JSON.stringify(s)) : {};
+      }
+
       // 기존 데이터 행(3행~) 초기화
       for (let r = 3; r <= Math.max(ws.rowCount, 50); r++) {
         const row = ws.getRow(r);
@@ -10036,6 +10045,14 @@ ${htmlDraft}
         const amount = Number(rec.totalAmount) || 0;
 
         const row = ws.getRow(rowNum);
+        // 행 높이 및 셀 서식 적용 (3행 템플릿 서식 복사)
+        if (tmplRowHeight) row.height = tmplRowHeight;
+        for (let c = 2; c <= 13; c++) {
+          if (tmplStyles[c] && Object.keys(tmplStyles[c]).length > 0) {
+            row.getCell(c).style = JSON.parse(JSON.stringify(tmplStyles[c]));
+          }
+        }
+
         row.getCell(2).value = { formula: `ROW()-2`, result: idx + 1 };   // B: 순번
         row.getCell(3).value = '대구';                                      // C: 본부
 
