@@ -24,6 +24,7 @@ export default function SafetyCommitteePage() {
   const [pptPreviewUrl, setPptPreviewUrl] = useState<string | null>(null);
   const [docPreviewHtml, setDocPreviewHtml] = useState<string | null>(null);
   const [docPreviewLoading, setDocPreviewLoading] = useState(false);
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
 
   const { data: committees = [], isLoading } = useQuery<SafetyCommittee[]>({
     queryKey: ["/api/safety-committees"],
@@ -128,23 +129,35 @@ export default function SafetyCommitteePage() {
     } finally { setUploadingMinutes(false); }
   };
 
-  const openPptPreview = (url: string) => {
-    const fullUrl = `${window.location.origin}${url}`;
-    setPptPreviewUrl(`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(fullUrl)}`);
+  const getExt = (name: string) => name.split('.').pop()?.toLowerCase() ?? "";
+
+  const openMaterialPreview = (url: string, name: string) => {
+    const ext = getExt(name);
+    if (ext === "pdf") {
+      setPdfPreviewUrl(url);
+    } else {
+      const fullUrl = `${window.location.origin}${url}`;
+      setPptPreviewUrl(`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(fullUrl)}`);
+    }
   };
 
-  const openDocPreview = async (id: number) => {
-    setDocPreviewLoading(true);
-    setDocPreviewHtml("");
-    try {
-      const res = await fetch(`/api/safety-committees/${id}/preview-minutes`, { credentials: "include" });
-      if (!res.ok) throw new Error("미리보기 불가");
-      const data = await res.json();
-      setDocPreviewHtml(data.html);
-    } catch {
-      toast({ title: "회의록 미리보기 실패", variant: "destructive" });
-      setDocPreviewHtml(null);
-    } finally { setDocPreviewLoading(false); }
+  const openMinutesPreview = async (c: SafetyCommittee) => {
+    const ext = getExt(c.meetingMinutesName ?? "");
+    if (ext === "pdf") {
+      setPdfPreviewUrl(c.meetingMinutesUrl!);
+    } else {
+      setDocPreviewLoading(true);
+      setDocPreviewHtml("");
+      try {
+        const res = await fetch(`/api/safety-committees/${c.id}/preview-minutes`, { credentials: "include" });
+        if (!res.ok) throw new Error("미리보기 불가");
+        const data = await res.json();
+        setDocPreviewHtml(data.html);
+      } catch {
+        toast({ title: "회의록 미리보기 실패", variant: "destructive" });
+        setDocPreviewHtml(null);
+      } finally { setDocPreviewLoading(false); }
+    }
   };
 
   return (
@@ -207,12 +220,12 @@ export default function SafetyCommitteePage() {
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
                   {c.meetingMaterialUrl && (
-                    <Button size="sm" variant="outline" className="gap-1 text-orange-600 border-orange-300 hover:bg-orange-50" onClick={() => openPptPreview(c.meetingMaterialUrl!)} data-testid={`button-preview-material-${c.id}`}>
-                      <Eye className="w-3.5 h-3.5" />PPT
+                    <Button size="sm" variant="outline" className="gap-1 text-orange-600 border-orange-300 hover:bg-orange-50" onClick={() => openMaterialPreview(c.meetingMaterialUrl!, c.meetingMaterialName ?? "")} data-testid={`button-preview-material-${c.id}`}>
+                      <Eye className="w-3.5 h-3.5" />회의자료
                     </Button>
                   )}
                   {c.meetingMinutesUrl && (
-                    <Button size="sm" variant="outline" className="gap-1 text-blue-600 border-blue-300 hover:bg-blue-50" onClick={() => openDocPreview(c.id)} data-testid={`button-preview-minutes-${c.id}`}>
+                    <Button size="sm" variant="outline" className="gap-1 text-blue-600 border-blue-300 hover:bg-blue-50" onClick={() => openMinutesPreview(c)} data-testid={`button-preview-minutes-${c.id}`}>
                       <Eye className="w-3.5 h-3.5" />회의록
                     </Button>
                   )}
@@ -239,7 +252,7 @@ export default function SafetyCommitteePage() {
             {/* 회의자료(PPT) */}
             <div className="space-y-2 border rounded-lg p-4 bg-orange-50/50">
               <p className="flex items-center gap-2 text-sm font-semibold text-orange-700">
-                <Presentation className="w-4 h-4" />회의자료 (PPT/PPTX)
+                <Presentation className="w-4 h-4" />회의자료 (PPT/PPTX/PDF)
               </p>
               {materialName ? (
                 <div className="flex items-center gap-2 bg-white border rounded p-2 text-sm">
@@ -250,16 +263,16 @@ export default function SafetyCommitteePage() {
               ) : (
                 <label className="flex items-center gap-2 border-2 border-dashed border-orange-300 rounded-lg p-3 cursor-pointer hover:bg-orange-50 text-orange-600">
                   {uploadingMaterial ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                  <span className="text-sm">{uploadingMaterial ? "업로드 중..." : "파일 선택"}</span>
-                  <input type="file" accept=".ppt,.pptx" className="hidden" disabled={uploadingMaterial} onChange={e => { if (e.target.files?.[0]) uploadMaterial(e.target.files[0]); e.target.value = ""; }} data-testid="input-material-file" />
+                  <span className="text-sm">{uploadingMaterial ? "업로드 중..." : "파일 선택 (PPT/PPTX/PDF)"}</span>
+                  <input type="file" accept=".ppt,.pptx,.pdf" className="hidden" disabled={uploadingMaterial} onChange={e => { if (e.target.files?.[0]) uploadMaterial(e.target.files[0]); e.target.value = ""; }} data-testid="input-material-file" />
                 </label>
               )}
             </div>
 
-            {/* 회의록(Word) */}
+            {/* 회의록(Word/PDF) */}
             <div className="space-y-2 border rounded-lg p-4 bg-blue-50/50">
               <p className="flex items-center gap-2 text-sm font-semibold text-blue-700">
-                <FileText className="w-4 h-4" />회의록 (DOC/DOCX)
+                <FileText className="w-4 h-4" />회의록 (DOC/DOCX/PDF)
               </p>
               {minutesName ? (
                 <div className="flex items-center gap-2 bg-white border rounded p-2 text-sm">
@@ -270,8 +283,8 @@ export default function SafetyCommitteePage() {
               ) : (
                 <label className="flex items-center gap-2 border-2 border-dashed border-blue-300 rounded-lg p-3 cursor-pointer hover:bg-blue-50 text-blue-600">
                   {uploadingMinutes ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                  <span className="text-sm">{uploadingMinutes ? "업로드 중..." : "파일 선택"}</span>
-                  <input type="file" accept=".doc,.docx" className="hidden" disabled={uploadingMinutes} onChange={e => { if (e.target.files?.[0]) uploadMinutes(e.target.files[0]); e.target.value = ""; }} data-testid="input-minutes-file" />
+                  <span className="text-sm">{uploadingMinutes ? "업로드 중..." : "파일 선택 (DOC/DOCX/PDF)"}</span>
+                  <input type="file" accept=".doc,.docx,.pdf" className="hidden" disabled={uploadingMinutes} onChange={e => { if (e.target.files?.[0]) uploadMinutes(e.target.files[0]); e.target.value = ""; }} data-testid="input-minutes-file" />
                 </label>
               )}
             </div>
@@ -302,7 +315,7 @@ export default function SafetyCommitteePage() {
         </DialogContent>
       </Dialog>
 
-      {/* 회의록 미리보기 모달 */}
+      {/* 회의록 미리보기 모달 (DOCX → HTML) */}
       <Dialog open={docPreviewHtml !== null} onOpenChange={() => setDocPreviewHtml(null)}>
         <DialogContent className="max-w-4xl w-full max-h-[85vh] flex flex-col p-0 gap-0">
           <DialogHeader className="p-4 pb-2 shrink-0">
@@ -318,6 +331,27 @@ export default function SafetyCommitteePage() {
               </div>
             ) : (
               <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: docPreviewHtml || "" }} />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* PDF 미리보기 모달 (브라우저 내장 뷰어) */}
+      <Dialog open={!!pdfPreviewUrl} onOpenChange={() => setPdfPreviewUrl(null)}>
+        <DialogContent className="max-w-5xl w-full h-[90vh] flex flex-col p-0 gap-0">
+          <DialogHeader className="p-4 pb-2 shrink-0">
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="w-5 h-5 text-red-500" />
+              PDF 미리보기
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-hidden px-4 pb-4">
+            {pdfPreviewUrl && (
+              <iframe
+                src={pdfPreviewUrl}
+                className="w-full h-full rounded border"
+                title="PDF 미리보기"
+              />
             )}
           </div>
         </DialogContent>

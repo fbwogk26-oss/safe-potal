@@ -6919,24 +6919,27 @@ ${htmlDraft}
     }),
     limits: { fileSize: 100 * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
-      if (/\.(ppt|pptx)$/i.test(file.originalname)) cb(null, true);
-      else cb(new Error('PPT/PPTX 파일만 가능합니다'));
+      if (/\.(ppt|pptx|pdf)$/i.test(file.originalname)) cb(null, true);
+      else cb(new Error('PPT/PPTX/PDF 파일만 가능합니다'));
     },
   });
 
-  // 회의록(Word) 업로드 - uploads (인증 후 mammoth HTML 변환)
+  // 회의록(Word/PDF) 업로드 - PDF는 public-uploads, DOCX는 uploads
   const committeeMinutesUpload = multer({
     storage: multer.diskStorage({
-      destination: (req, file, cb) => cb(null, uploadDir),
+      destination: (req, file, cb) => {
+        const isPdf = /\.pdf$/i.test(file.originalname);
+        cb(null, isPdf ? publicUploadsDir : uploadDir);
+      },
       filename: (req, file, cb) => {
         const ext = path.extname(file.originalname);
         cb(null, `committee_min_${Date.now()}_${Math.random().toString(36).slice(2)}${ext}`);
       },
     }),
-    limits: { fileSize: 50 * 1024 * 1024 },
+    limits: { fileSize: 100 * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
-      if (/\.(doc|docx)$/i.test(file.originalname)) cb(null, true);
-      else cb(new Error('DOC/DOCX 파일만 가능합니다'));
+      if (/\.(doc|docx|pdf)$/i.test(file.originalname)) cb(null, true);
+      else cb(new Error('DOC/DOCX/PDF 파일만 가능합니다'));
     },
   });
 
@@ -6950,7 +6953,9 @@ ${htmlDraft}
   app.post('/api/safety-committees/upload-minutes', isAuthenticated, committeeMinutesUpload.single('file'), async (req: any, res) => {
     try {
       if (!req.file) return res.status(400).json({ message: "파일 없음" });
-      res.json({ url: `/uploads/${req.file.filename}`, name: req.file.originalname });
+      const isPdf = /\.pdf$/i.test(req.file.originalname);
+      const url = isPdf ? `/public-uploads/${req.file.filename}` : `/uploads/${req.file.filename}`;
+      res.json({ url, name: req.file.originalname });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
