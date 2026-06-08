@@ -10073,9 +10073,11 @@ ${htmlDraft}
           [...new Set([...Object.keys(h1), ...Object.keys(h2)])].forEach(k => {
             budgets[k] = (Number(h1[k]) || 0) + (Number(h2[k]) || 0);
           });
+          console.log(`[export-template] 예산 h1+h2 합산:`, JSON.stringify(budgets));
         } else {
           const legacyS = await storage.getSetting(`safety_cost_budgets_${year}`);
           budgets = legacyS ? JSON.parse(legacyS.value) : {};
+          console.log(`[export-template] 예산 legacy:`, JSON.stringify(budgets));
         }
         // 카테고리 번호 → 검색 키워드
         const CAT_KW: Record<string, string[]> = {
@@ -10097,10 +10099,12 @@ ${htmlDraft}
               for (const [catNum, kws] of Object.entries(CAT_KW)) {
                 if (kws.some(kw => val.includes(kw))) {
                   const budget = Number(budgets[catNum]) || 0;
-                  // 바로 오른쪽 셀이 숫자이거나 비어있으면 예산값으로 덮어씀
+                  // 바로 오른쪽 셀(숫자·수식·빈칸 모두)에 예산값 덮어씀
                   const targetCell = row.getCell(cIdx + 1);
                   const tv = targetCell.value;
-                  if (tv === null || tv === undefined || typeof tv === 'number') {
+                  const isFormula = tv !== null && typeof tv === 'object' && 'formula' in (tv as object);
+                  const isWritable = tv === null || tv === undefined || typeof tv === 'number' || isFormula;
+                  if (isWritable) {
                     targetCell.value = budget;
                     targetCell.numFmt = '#,##0';
                   }
