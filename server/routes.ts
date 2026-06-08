@@ -10138,6 +10138,79 @@ ${htmlDraft}
             row.getCell(3).numFmt = '#,##0';
           }
           console.log(`[export-template] 대구본부 예산 주입 완료`);
+
+          // ── 항목별 월별 지출 집계 (1.지출통계 / 3.예산대비_지출통계에 주입) ──
+          const CAT_NUMS = ['1','2','3','4','5','6','7','8','9'];
+          const monthlyByCat: Record<string, Record<number, number>> = {};
+          for (const cn of CAT_NUMS) {
+            monthlyByCat[cn] = {};
+            for (let m = 1; m <= 12; m++) monthlyByCat[cn][m] = 0;
+          }
+          for (const rec of records) {
+            const cn = (rec.category || '').split('.')[0].trim();
+            if (!monthlyByCat[cn]) continue;
+            const ds = (rec as any).paymentRequestDate || rec.purchaseDate || '';
+            if (!ds) continue;
+            const d = new Date(ds.replace(/\./g, '-'));
+            if (isNaN(d.getTime())) continue;
+            monthlyByCat[cn][d.getMonth() + 1] += Number(rec.totalAmount) || 0;
+          }
+
+          // ── 1.지출통계 시트 대구본부 행(R44~R52) 직접 주입 ──────────────
+          const statSheet = wb.getWorksheet('1.지출통계');
+          if (statSheet) {
+            const DAEGU_STAT: Record<string, number> = {
+              '1': 44, '2': 45, '3': 46, '4': 47, '5': 48,
+              '6': 49, '7': 50, '8': 51, '9': 52,
+            };
+            const subtotals: Record<number, number> = {};
+            for (let m = 1; m <= 12; m++) subtotals[m] = 0;
+            let grandStat = 0;
+            for (const [cn, rn] of Object.entries(DAEGU_STAT)) {
+              const row = statSheet.getRow(rn);
+              let catTotal = 0;
+              for (let m = 1; m <= 12; m++) {
+                const val = monthlyByCat[cn]?.[m] || 0;
+                if (val) { row.getCell(m + 2).value = val; row.getCell(m + 2).numFmt = '#,##0'; }
+                subtotals[m] += val;
+                catTotal += val;
+              }
+              if (catTotal) { row.getCell(15).value = catTotal; row.getCell(15).numFmt = '#,##0'; }
+              grandStat += catTotal;
+            }
+            // 대구본부 소계 R53
+            const stRow = statSheet.getRow(53);
+            for (let m = 1; m <= 12; m++) {
+              if (subtotals[m]) { stRow.getCell(m + 2).value = subtotals[m]; stRow.getCell(m + 2).numFmt = '#,##0'; }
+            }
+            if (grandStat) { stRow.getCell(15).value = grandStat; stRow.getCell(15).numFmt = '#,##0'; }
+            console.log('[export-template] 1.지출통계 대구본부 주입 완료');
+          }
+
+          // ── 3.예산대비_지출통계 시트 대구본부 행(R45~R53) 직접 주입 ──────
+          const cmpSheet = wb.getWorksheet('3.예산대비_지출통계');
+          if (cmpSheet) {
+            const DAEGU_CMP: Record<string, number> = {
+              '1': 45, '2': 46, '3': 47, '4': 48, '5': 49,
+              '6': 50, '7': 51, '8': 52, '9': 53,
+            };
+            let totalBudgetCmp = 0;
+            let totalSpentCmp = 0;
+            for (const [cn, rn] of Object.entries(DAEGU_CMP)) {
+              const row = cmpSheet.getRow(rn);
+              const annual = (Number(h1[cn]) || 0) + (Number(h2[cn]) || 0);
+              const spent = Object.values(monthlyByCat[cn] || {}).reduce((s, v) => s + v, 0);
+              if (annual) { row.getCell(3).value = annual; row.getCell(3).numFmt = '#,##0'; }
+              if (spent)  { row.getCell(4).value = spent;  row.getCell(4).numFmt = '#,##0'; }
+              totalBudgetCmp += annual;
+              totalSpentCmp  += spent;
+            }
+            // 대구본부 소계 R54
+            const cmpSub = cmpSheet.getRow(54);
+            if (totalBudgetCmp) { cmpSub.getCell(3).value = totalBudgetCmp; cmpSub.getCell(3).numFmt = '#,##0'; }
+            if (totalSpentCmp)  { cmpSub.getCell(4).value = totalSpentCmp;  cmpSub.getCell(4).numFmt = '#,##0'; }
+            console.log('[export-template] 3.예산대비_지출통계 대구본부 주입 완료');
+          }
         }
       } catch (budgetErr: any) {
         console.warn('[export-template] 예산 주입 실패(무시):', budgetErr.message);
