@@ -10123,7 +10123,8 @@ ${htmlDraft}
             '1': 44, '2': 45, '3': 46, '4': 47, '5': 48,
             '6': 49, '7': 50, '8': 51, '9': 52,
           };
-          const h1: Record<string, number> = h1S ? JSON.parse(h1S.value) : {};
+          // h1S/h2S가 없는 legacy 케이스: budgets 전체를 상반기로 사용
+          const h1: Record<string, number> = h1S ? JSON.parse(h1S.value) : (!h2S ? budgets : {});
           const h2: Record<string, number> = h2S ? JSON.parse(h2S.value) : {};
           for (const [catNum, rowNum] of Object.entries(DAEGU_ROWS)) {
             const row = budgetSheet.getRow(rowNum);

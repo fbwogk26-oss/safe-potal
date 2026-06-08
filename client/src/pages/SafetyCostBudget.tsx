@@ -816,7 +816,7 @@ export default function SafetyCostBudget() {
           <h1 className="text-xl font-bold text-foreground">산업안전보건관리비 사용내역</h1>
           <p className="text-sm text-muted-foreground">대구본부 · {year}년 법정경비 관리</p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
           <Select value={year.toString()} onValueChange={v => setYear(Number(v))}>
             <SelectTrigger className="w-24" data-testid="select-year"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -825,7 +825,7 @@ export default function SafetyCostBudget() {
               ))}
             </SelectContent>
           </Select>
-          <Button variant="outline" onClick={() => {
+          <Button variant="outline" className="px-2.5 sm:px-4" title="예산 입력" onClick={() => {
             const init = { h1: {} as Record<string, string>, h2: {} as Record<string, string> };
             CATEGORIES.forEach((_, i) => {
               const k = String(i + 1);
@@ -836,23 +836,23 @@ export default function SafetyCostBudget() {
             setBudgetHalf("h1");
             setBudgetDlgOpen(true);
           }} data-testid="button-open-budget">
-            <Wallet className="w-4 h-4 mr-1" /> 예산 입력
+            <Wallet className="w-4 h-4 sm:mr-1.5" /><span className="hidden sm:inline">예산 입력</span>
           </Button>
-          <Button variant="outline" onClick={handleDownloadTemplate} disabled={downloadingTemplate} data-testid="button-download-template">
-            {downloadingTemplate ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Download className="w-4 h-4 mr-1" />}
-            사용내역 다운로드
+          <Button variant="outline" className="px-2.5 sm:px-4" title="사용내역 다운로드" onClick={handleDownloadTemplate} disabled={downloadingTemplate} data-testid="button-download-template">
+            {downloadingTemplate ? <Loader2 className="w-4 h-4 sm:mr-1.5 animate-spin" /> : <Download className="w-4 h-4 sm:mr-1.5" />}
+            <span className="hidden sm:inline">사용내역 다운로드</span>
           </Button>
-          <Button variant="outline" onClick={handleDownload} disabled={downloading} data-testid="button-download">
-            {downloading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Download className="w-4 h-4 mr-1" />}
-            법정경비 다운로드
+          <Button variant="outline" className="px-2.5 sm:px-4" title="법정경비 다운로드" onClick={handleDownload} disabled={downloading} data-testid="button-download">
+            {downloading ? <Loader2 className="w-4 h-4 sm:mr-1.5 animate-spin" /> : <Download className="w-4 h-4 sm:mr-1.5" />}
+            <span className="hidden sm:inline">법정경비 다운로드</span>
           </Button>
-          <Button variant="outline" onClick={() => { openMultiResDlg(); setTimeout(() => multiResRef.current?.click(), 50); }} data-testid="btn-multi-res-upload">
-            <FileScan className="w-4 h-4 mr-1" /> 결의서 일괄
+          <Button variant="outline" className="px-2.5 sm:px-4" title="결의서 일괄 업로드" onClick={() => { openMultiResDlg(); setTimeout(() => multiResRef.current?.click(), 50); }} data-testid="btn-multi-res-upload">
+            <FileScan className="w-4 h-4 sm:mr-1.5" /><span className="hidden sm:inline">결의서 일괄</span>
           </Button>
           <input ref={multiResRef} type="file" multiple accept="image/*,application/pdf" className="hidden"
             onChange={e => { handleMultiResFilesSelected(e.target.files); e.target.value = ""; }} />
-          <Button onClick={openAdd} data-testid="button-add-record">
-            <Plus className="w-4 h-4 mr-1" /> 지출 등록
+          <Button className="px-2.5 sm:px-4" onClick={openAdd} data-testid="button-add-record">
+            <Plus className="w-4 h-4 sm:mr-1.5" /><span className="hidden sm:inline">지출 등록</span>
           </Button>
         </div>
       </div>
@@ -1263,7 +1263,7 @@ export default function SafetyCostBudget() {
                       <Label className="flex-1 text-xs leading-tight text-foreground min-w-0 truncate" title={cat.split(". ")[1]}>
                         {cat.split(". ")[1]}
                       </Label>
-                      <div className="relative w-40 shrink-0">
+                      <div className="relative w-28 sm:w-40 shrink-0">
                         <Input
                           type="text"
                           inputMode="numeric"
@@ -1358,7 +1358,7 @@ export default function SafetyCostBudget() {
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <input ref={quoteRef} type="file" accept="image/*,application/pdf" className="hidden"
                   onChange={e => { if (e.target.files?.[0]) handleExtract("quote", e.target.files[0]); e.target.value=""; }} />
@@ -1439,7 +1439,7 @@ export default function SafetyCostBudget() {
           </div>
 
           {/* 품의번호 / 지급요청일자 */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <Label className="flex items-center gap-1">
                 <FileScan className="w-3 h-3 text-violet-500" /> 품의번호
@@ -1456,7 +1456,7 @@ export default function SafetyCostBudget() {
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             <div><Label>연도 *</Label>
               <Select value={form.year.toString()} onValueChange={v => setF("year", Number(v))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -1479,13 +1479,13 @@ export default function SafetyCostBudget() {
               <SelectContent>{CATEGORIES.map(c=><SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
             </Select>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div><Label>세부항목</Label><Input placeholder="세부항목" value={form.subCategory} onChange={e=>setF("subCategory",e.target.value)} /></div>
             <div><Label>업체명</Label><Input placeholder="공급업체명" value={form.vendorName} onChange={e=>setF("vendorName",e.target.value)} data-testid="input-vendor" /></div>
           </div>
           <div><Label>품명 *</Label><Input placeholder="품명" value={form.itemName} onChange={e=>setF("itemName",e.target.value)} data-testid="input-item-name" /></div>
           <div><Label>규격</Label><Input placeholder="규격" value={form.specification} onChange={e=>setF("specification",e.target.value)} /></div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             <div><Label>단위</Label>
               <Select value={form.unit} onValueChange={v=>setF("unit",v)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -1495,7 +1495,7 @@ export default function SafetyCostBudget() {
             <div><Label>수량</Label><Input type="number" placeholder="0" value={form.quantity} onChange={e=>autoCalc("quantity",e.target.value)} data-testid="input-quantity" /></div>
             <div><Label>단가</Label><Input type="number" placeholder="0" value={form.unitPrice} onChange={e=>autoCalc("unitPrice",e.target.value)} data-testid="input-unit-price" /></div>
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             <div><Label>공급가액</Label><Input type="number" placeholder="0" value={form.supplyAmount} onChange={e=>setF("supplyAmount",e.target.value)} /></div>
             <div>
               <div className="flex items-center justify-between mb-1">
