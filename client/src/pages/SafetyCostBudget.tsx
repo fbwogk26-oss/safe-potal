@@ -99,6 +99,32 @@ interface BulkCommon {
   purchaseDate: string; vendorName: string; documentNumber: string; paymentRequestDate: string;
   quoteFileUrl: string; transactionFileUrl: string;
 }
+// 다중 결의서 일괄 업로드 행
+interface MultiResRow {
+  id: string;
+  file: File;
+  status: "pending" | "processing" | "done" | "error";
+  error?: string;
+  checked: boolean;
+  documentType?: string;
+  documentNumber?: string;
+  paymentRequestDate?: string;
+  purchaseDate?: string;
+  vendorName?: string;
+  itemName?: string;
+  totalAmount?: string;
+  supplyAmount?: string;
+  vatAmount?: string;
+  category?: string;
+  fileUrl?: string;
+  year: number;
+  month: number;
+  subCategory?: string;
+  quantity?: string;
+  unit?: string;
+  unitPrice?: string;
+  notes?: string;
+}
 
 // ══════════════════════════════════════════════════════════════════
 export default function SafetyCostBudget() {
@@ -130,6 +156,11 @@ export default function SafetyCostBudget() {
   const [bulkItems, setBulkItems] = useState<BulkItemRow[]>([]);
   const [bulkSaving, setBulkSaving] = useState(false);
 
+  // 다중 결의서 일괄 업로드 다이얼로그
+  const [multiResDlgOpen, setMultiResDlgOpen] = useState(false);
+  const [multiResRows, setMultiResRows] = useState<MultiResRow[]>([]);
+  const [multiResSaving, setMultiResSaving] = useState(false);
+
   // 세금계산서 다이얼로그
   const [taxDlgOpen, setTaxDlgOpen] = useState(false);
   const [editTax, setEditTax] = useState<SafetyCostTaxInvoice | null>(null);
@@ -148,6 +179,7 @@ export default function SafetyCostBudget() {
   const taxFileRef = useRef<HTMLInputElement>(null);
   const certRef = useRef<HTMLInputElement>(null);
   const resolutionRef = useRef<HTMLInputElement>(null);
+  const multiResRef = useRef<HTMLInputElement>(null);
 
   // ── Queries ──────────────────────────────────────────────────────
   const { data: records = [], isLoading } = useQuery<SafetyCostRecord[]>({
@@ -378,6 +410,104 @@ export default function SafetyCostBudget() {
     } finally { setResolutionExtracting(false); }
   }
 
+  // ── 다중 결의서 일괄 업로드 ───────────────────────────────────────
+  function openMultiResDlg() { setMultiResRows([]); setMultiResDlgOpen(true); }
+  function closeMultiResDlg() { setMultiResDlgOpen(false); setMultiResRows([]); }
+  function updateMultiResRow(id: string, updates: Partial<MultiResRow>) {
+    setMultiResRows(p => p.map(r => r.id === id ? { ...r, ...updates } : r));
+  }
+
+  async function handleMultiResFilesSelected(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    const newRows: MultiResRow[] = Array.from(files).map(file => ({
+      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      file,
+      status: "pending",
+      checked: true,
+      year: currentYear,
+      month: new Date().getMonth() + 1,
+    }));
+    setMultiResRows(p => [...p, ...newRows]);
+    // 바로 분석 시작
+    for (const row of newRows) {
+      setMultiResRows(p => p.map(r => r.id === row.id ? { ...r, status: "processing" } : r));
+      try {
+        const fd = new FormData(); fd.append("file", row.file);
+        const resp = await fetch("/api/safety-cost-records/extract-resolution", { method: "POST", body: fd, credentials: "include" });
+        if (!resp.ok) throw new Error("분석 실패");
+        const data = await resp.json();
+        const docType: string = data.documentType || data.documentNumber || "";
+        let autoCategory = "";
+        if (docType.includes("지출결의서")) autoCategory = "1. 안전관리자 등 인건비 및 각종 업무수당 등";
+        else if (docType.includes("구매결의서") || docType.includes("기안서")) autoCategory = "3. 개인보호구 및 안전장구 구입비 등";
+        const firstItem = data.items?.[0];
+        setMultiResRows(p => p.map(r => r.id === row.id ? {
+          ...r,
+          status: "done",
+          documentType: data.documentType || "",
+          documentNumber: data.documentNumber || "",
+          paymentRequestDate: data.paymentRequestDate || "",
+          purchaseDate: data.documentDate || "",
+          vendorName: data.vendorName || "",
+          itemName: firstItem?.itemName || "",
+          totalAmount: (data.totalAmount ?? firstItem?.totalAmount ?? "").toString(),
+          supplyAmount: (data.supplyAmount ?? firstItem?.supplyAmount ?? "").toString(),
+          vatAmount: (data.vatAmount ?? firstItem?.vatAmount ?? "").toString(),
+          quantity: firstItem?.quantity?.toString() || "",
+          unit: firstItem?.unit || "",
+          unitPrice: firstItem?.unitPrice?.toString() || "",
+          category: autoCategory,
+          fileUrl: data._fileUrl || "",
+        } : r));
+      } catch (e: any) {
+        setMultiResRows(p => p.map(r => r.id === row.id ? { ...r, status: "error", error: e.message } : r));
+      }
+    }
+    toast({ title: `${newRows.length}개 파일 분석 완료` });
+  }
+
+  async function submitMultiResRows() {
+    const selected = multiResRows.filter(r => r.checked && r.status === "done");
+    if (selected.length === 0) {
+      toast({ title: "등록할 항목 없음", description: "체크된 분석 완료 항목이 없습니다.", variant: "destructive" });
+      return;
+    }
+    setMultiResSaving(true);
+    let success = 0, fail = 0;
+    for (const r of selected) {
+      try {
+        await apiRequest("POST", "/api/safety-cost-records", {
+          year: Number(r.year), month: Number(r.month),
+          category: r.category || null,
+          subCategory: r.subCategory || null,
+          itemName: r.itemName || "품명 미상",
+          specification: null,
+          unit: r.unit || null,
+          quantity: r.quantity || null,
+          unitPrice: r.unitPrice || null,
+          supplyAmount: r.supplyAmount || null,
+          vatAmount: r.vatAmount || null,
+          totalAmount: r.totalAmount || "0",
+          purchaseDate: r.purchaseDate || null,
+          vendorName: r.vendorName || null,
+          notes: r.notes || null,
+          documentNumber: r.documentNumber || null,
+          paymentRequestDate: r.paymentRequestDate || null,
+          resolutionFileUrl: r.fileUrl || null,
+        });
+        success++;
+      } catch { fail++; }
+    }
+    setMultiResSaving(false);
+    qc.invalidateQueries({ queryKey: ["/api/safety-cost-records"] });
+    if (fail === 0) {
+      toast({ title: `${success}건 일괄 등록 완료 ✓` });
+      closeMultiResDlg();
+    } else {
+      toast({ title: `${success}건 성공, ${fail}건 실패`, variant: "destructive" });
+    }
+  }
+
   // ── 세금계산서 헬퍼 ───────────────────────────────────────────────
   function openAddTax() { setEditTax(null); setTaxForm({ ...emptyTaxForm, year }); setTaxFile(null); setTaxDlgOpen(true); }
   function openAddTaxForMonth(month: number) {
@@ -569,6 +699,11 @@ export default function SafetyCostBudget() {
             {downloading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Download className="w-4 h-4 mr-1" />}
             법정경비 다운로드
           </Button>
+          <Button variant="outline" onClick={() => { openMultiResDlg(); setTimeout(() => multiResRef.current?.click(), 50); }} data-testid="btn-multi-res-upload">
+            <FileScan className="w-4 h-4 mr-1" /> 결의서 일괄
+          </Button>
+          <input ref={multiResRef} type="file" multiple accept="image/*,application/pdf" className="hidden"
+            onChange={e => { handleMultiResFilesSelected(e.target.files); e.target.value = ""; }} />
           <Button onClick={openAdd} data-testid="button-add-record">
             <Plus className="w-4 h-4 mr-1" /> 지출 등록
           </Button>
@@ -1144,6 +1279,167 @@ export default function SafetyCostBudget() {
               {bulkSaving
                 ? <><Loader2 className="w-4 h-4 animate-spin" />등록 중...</>
                 : <><PackagePlus className="w-4 h-4" />{bulkSelectedCount}개 품목 일괄 등록</>
+              }
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ══ 다중 결의서 일괄 등록 다이얼로그 ══ */}
+      <Dialog open={multiResDlgOpen} onOpenChange={v => { if (!v) closeMultiResDlg(); }}>
+        <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileScan className="w-5 h-5 text-primary" />
+              결의서 일괄 등록
+            </DialogTitle>
+          </DialogHeader>
+
+          {/* 파일 추가 버튼 */}
+          <div className="flex items-center gap-3 py-2 border-b">
+            <Button variant="outline" size="sm" onClick={() => multiResRef.current?.click()} data-testid="btn-multi-res-add-more">
+              <Upload className="w-3.5 h-3.5 mr-1" /> 파일 추가
+            </Button>
+            <span className="text-xs text-muted-foreground">
+              PDF·이미지 여러 개 동시 선택 가능 · AI가 자동으로 내용을 추출합니다
+            </span>
+            {multiResRows.length > 0 && (
+              <span className="ml-auto text-xs text-muted-foreground">
+                {multiResRows.filter(r=>r.status==="done" && r.checked).length}건 선택됨 / {multiResRows.length}건 전체
+              </span>
+            )}
+          </div>
+
+          {/* 행 없을 때 안내 */}
+          {multiResRows.length === 0 && (
+            <div className="flex-1 flex flex-col items-center justify-center gap-3 py-16 text-muted-foreground">
+              <FileScan className="w-12 h-12 opacity-20" />
+              <p className="text-sm">파일 추가 버튼을 눌러 구매결의서·지출결의서·기안서를 선택하세요</p>
+            </div>
+          )}
+
+          {/* 결과 테이블 */}
+          {multiResRows.length > 0 && (
+            <div className="flex-1 overflow-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-8">
+                      <Checkbox
+                        checked={multiResRows.filter(r=>r.status==="done").every(r=>r.checked)}
+                        onCheckedChange={v => setMultiResRows(p => p.map(r => r.status==="done" ? { ...r, checked: !!v } : r))}
+                        data-testid="chk-multi-res-all"
+                      />
+                    </TableHead>
+                    <TableHead className="w-28 text-xs">상태</TableHead>
+                    <TableHead className="w-36 text-xs">파일명</TableHead>
+                    <TableHead className="w-28 text-xs">문서유형</TableHead>
+                    <TableHead className="w-40 text-xs">업체명</TableHead>
+                    <TableHead className="min-w-[160px] text-xs">품명</TableHead>
+                    <TableHead className="w-28 text-xs">항목구분</TableHead>
+                    <TableHead className="w-24 text-xs">날짜</TableHead>
+                    <TableHead className="w-24 text-xs">월</TableHead>
+                    <TableHead className="w-32 text-xs">합계금액</TableHead>
+                    <TableHead className="w-8"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {multiResRows.map(row => (
+                    <TableRow key={row.id} className={row.status === "error" ? "opacity-50" : ""}>
+                      <TableCell>
+                        <Checkbox
+                          checked={row.checked && row.status === "done"}
+                          disabled={row.status !== "done"}
+                          onCheckedChange={v => updateMultiResRow(row.id, { checked: !!v })}
+                          data-testid={`chk-multi-res-${row.id}`}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        {row.status === "pending" && <Badge variant="secondary" className="text-xs">대기</Badge>}
+                        {row.status === "processing" && <Badge variant="outline" className="text-xs gap-1"><Loader2 className="w-3 h-3 animate-spin" />분석중</Badge>}
+                        {row.status === "done" && <Badge className="text-xs bg-green-500 hover:bg-green-600">완료</Badge>}
+                        {row.status === "error" && <Badge variant="destructive" className="text-xs" title={row.error}>오류</Badge>}
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground truncate max-w-[100px]" title={row.file.name}>
+                        {row.file.name}
+                      </TableCell>
+                      <TableCell>
+                        {row.status === "done" ? (
+                          <Input value={row.documentType || ""} onChange={e => updateMultiResRow(row.id, { documentType: e.target.value })}
+                            className="h-7 text-xs" placeholder="문서유형" data-testid={`inp-doc-type-${row.id}`} />
+                        ) : <span className="text-xs text-muted-foreground">—</span>}
+                      </TableCell>
+                      <TableCell>
+                        {row.status === "done" ? (
+                          <Input value={row.vendorName || ""} onChange={e => updateMultiResRow(row.id, { vendorName: e.target.value })}
+                            className="h-7 text-xs" placeholder="업체명" data-testid={`inp-vendor-${row.id}`} />
+                        ) : <span className="text-xs text-muted-foreground">—</span>}
+                      </TableCell>
+                      <TableCell>
+                        {row.status === "done" ? (
+                          <Input value={row.itemName || ""} onChange={e => updateMultiResRow(row.id, { itemName: e.target.value })}
+                            className="h-7 text-xs" placeholder="품명" data-testid={`inp-item-${row.id}`} />
+                        ) : <span className="text-xs text-muted-foreground">—</span>}
+                      </TableCell>
+                      <TableCell>
+                        {row.status === "done" ? (
+                          <Select value={row.category || ""} onValueChange={v => updateMultiResRow(row.id, { category: v })}>
+                            <SelectTrigger className="h-7 text-xs w-28" data-testid={`sel-cat-${row.id}`}>
+                              <SelectValue placeholder="항목선택" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {CATEGORIES.map(c => <SelectItem key={c} value={c} className="text-xs">{c.split(". ")[0]}. {c.split(". ")[1]?.substring(0, 12)}…</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        ) : <span className="text-xs text-muted-foreground">—</span>}
+                      </TableCell>
+                      <TableCell>
+                        {row.status === "done" ? (
+                          <Input value={row.purchaseDate || ""} onChange={e => updateMultiResRow(row.id, { purchaseDate: e.target.value })}
+                            className="h-7 text-xs" placeholder="YYYY-MM-DD" data-testid={`inp-date-${row.id}`} />
+                        ) : <span className="text-xs text-muted-foreground">—</span>}
+                      </TableCell>
+                      <TableCell>
+                        {row.status === "done" ? (
+                          <Select value={row.month.toString()} onValueChange={v => updateMultiResRow(row.id, { month: Number(v) })}>
+                            <SelectTrigger className="h-7 text-xs w-16" data-testid={`sel-month-${row.id}`}>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {MONTHS.map((m, i) => <SelectItem key={i} value={(i+1).toString()} className="text-xs">{m}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        ) : <span className="text-xs text-muted-foreground">—</span>}
+                      </TableCell>
+                      <TableCell>
+                        {row.status === "done" ? (
+                          <Input value={row.totalAmount || ""} onChange={e => updateMultiResRow(row.id, { totalAmount: e.target.value })}
+                            className="h-7 text-xs text-right" placeholder="0" data-testid={`inp-total-${row.id}`} />
+                        ) : <span className="text-xs text-muted-foreground">—</span>}
+                      </TableCell>
+                      <TableCell>
+                        <button onClick={() => setMultiResRows(p => p.filter(r => r.id !== row.id))}
+                          className="text-muted-foreground hover:text-red-500" data-testid={`btn-del-multi-${row.id}`}>
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+
+          <DialogFooter className="pt-2 border-t gap-2">
+            <Button variant="ghost" onClick={closeMultiResDlg} data-testid="btn-multi-res-cancel">취소</Button>
+            <Button
+              onClick={submitMultiResRows}
+              disabled={multiResSaving || multiResRows.filter(r => r.checked && r.status === "done").length === 0}
+              data-testid="btn-multi-res-submit"
+            >
+              {multiResSaving
+                ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" />등록 중...</>
+                : <><PackagePlus className="w-4 h-4 mr-1" />{multiResRows.filter(r => r.checked && r.status === "done").length}건 일괄 등록</>
               }
             </Button>
           </DialogFooter>
