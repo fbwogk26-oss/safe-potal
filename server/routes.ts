@@ -10080,7 +10080,7 @@ ${htmlDraft}
         };
         // 열별 최소 너비 (헤더 기준)
         const MIN_WIDTHS: Record<number, number> = {
-          2: 6, 3: 7, 4: 13, 5: 5, 6: 22, 7: 28, 8: 14, 9: 10, 10: 14, 11: 16, 12: 16, 13: 18,
+          2: 6, 3: 7, 4: 18, 5: 5, 6: 22, 7: 28, 8: 14, 9: 10, 10: 14, 11: 16, 12: 16, 13: 18,
         };
         const MAX_WIDTH = 50;
         const colMaxW: Record<number, number> = {};
