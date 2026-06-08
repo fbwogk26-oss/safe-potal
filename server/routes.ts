@@ -9974,18 +9974,6 @@ ${htmlDraft}
       await wb.xlsx.readFile(templatePath);
       (wb as any).calcProperties = { fullCalcOnLoad: true };
 
-      // shared formula를 독립 수식으로 풀어줌 (덮어쓸 때 ExcelJS 버그 방지)
-      wb.worksheets.forEach(sheet => {
-        sheet.eachRow(row => {
-          row.eachCell({ includeEmpty: false }, (cell: any) => {
-            const v = cell.value;
-            if (v && typeof v === 'object' && ('sharedFormula' in v || ('formula' in v && v.sharedFormula))) {
-              cell.value = { formula: v.sharedFormula || v.formula || '', result: v.result };
-            }
-          });
-        });
-      });
-
       // ── DB 카테고리 → 템플릿 항목명 매핑 ───────────────────────────
       const CAT_MAP: Record<string, string> = {
         '1': '안전관리자 등 인건비',
@@ -10111,12 +10099,10 @@ ${htmlDraft}
               for (const [catNum, kws] of Object.entries(CAT_KW)) {
                 if (kws.some(kw => val.includes(kw))) {
                   const budget = Number(budgets[catNum]) || 0;
-                  // 바로 오른쪽 셀(숫자·수식·빈칸 모두)에 예산값 덮어씀
+                  // 바로 오른쪽 셀이 빈칸이거나 숫자인 경우에만 예산값 주입 (수식 셀 건드리지 않음)
                   const targetCell = row.getCell(cIdx + 1);
                   const tv = targetCell.value;
-                  const isFormula = tv !== null && typeof tv === 'object' && 'formula' in (tv as object);
-                  const isWritable = tv === null || tv === undefined || typeof tv === 'number' || isFormula;
-                  if (isWritable) {
+                  if (tv === null || tv === undefined || typeof tv === 'number') {
                     targetCell.value = budget;
                     targetCell.numFmt = '#,##0';
                   }
