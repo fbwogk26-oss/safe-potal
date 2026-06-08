@@ -5,7 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Users, Trash2, Presentation, FileText, Eye, Upload, Loader2, Plus, ExternalLink } from "lucide-react";
+import { Users, Trash2, Presentation, FileText, Eye, Upload, Loader2, Plus } from "lucide-react";
 import type { SafetyCommittee } from "@shared/schema";
 
 export default function SafetyCommitteePage() {
@@ -25,7 +25,6 @@ export default function SafetyCommitteePage() {
   const [officeViewerUrl, setOfficeViewerUrl] = useState<string | null>(null); // PPT Office Online
   const [docHtml, setDocHtml] = useState<string | null>(null);
   const [docLoading, setDocLoading] = useState(false);
-  const [pdfModal, setPdfModal] = useState<{ viewerUrl: string; directUrl: string } | null>(null);
 
   const { data: committees = [], isLoading } = useQuery<SafetyCommittee[]>({
     queryKey: ["/api/safety-committees"],
@@ -114,8 +113,7 @@ export default function SafetyCommitteePage() {
     const ext = getExt(name);
     const fullUrl = `${window.location.origin}${url}`;
     if (ext === "pdf") {
-      const viewerUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(fullUrl)}&embedded=true`;
-      setPdfModal({ viewerUrl, directUrl: fullUrl });
+      window.open(fullUrl, "_blank");
     } else {
       setOfficeViewerUrl(`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(fullUrl)}`);
     }
@@ -125,8 +123,7 @@ export default function SafetyCommitteePage() {
     const ext = getExt(c.meetingMinutesName ?? "");
     if (ext === "pdf") {
       const fullUrl = `${window.location.origin}${c.meetingMinutesUrl}`;
-      const viewerUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(fullUrl)}&embedded=true`;
-      setPdfModal({ viewerUrl, directUrl: fullUrl });
+      window.open(fullUrl, "_blank");
     } else {
       setDocLoading(true);
       setDocHtml("");
@@ -270,33 +267,6 @@ export default function SafetyCommitteePage() {
           </DialogHeader>
           <div className="flex-1 overflow-hidden p-2">
             {officeViewerUrl && <iframe src={officeViewerUrl} className="w-full h-full rounded border" title="PPT 미리보기" allowFullScreen />}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* PDF 미리보기 (Google Docs Viewer) */}
-      <Dialog open={!!pdfModal} onOpenChange={() => setPdfModal(null)}>
-        <DialogContent className="max-w-3xl w-[95vw] h-[90vh] flex flex-col p-0 gap-0">
-          <DialogHeader className="p-3 pb-2 shrink-0 border-b">
-            <div className="flex items-center justify-between">
-              <DialogTitle className="flex items-center gap-2 text-base">
-                <FileText className="w-4 h-4 text-red-500" />PDF 미리보기
-              </DialogTitle>
-              {pdfModal && (
-                <a href={pdfModal.directUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mr-6">
-                  <ExternalLink className="w-3.5 h-3.5" />새 탭
-                </a>
-              )}
-            </div>
-          </DialogHeader>
-          <div className="flex-1 overflow-hidden p-2">
-            {pdfModal && (
-              <iframe
-                src={pdfModal.viewerUrl}
-                className="w-full h-full rounded border bg-muted/20"
-                title="PDF 미리보기"
-              />
-            )}
           </div>
         </DialogContent>
       </Dialog>

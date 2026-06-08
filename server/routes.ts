@@ -6946,16 +6946,20 @@ ${htmlDraft}
   app.post('/api/safety-committees/upload-material', isAuthenticated, committeeMaterialUpload.single('file'), async (req: any, res) => {
     try {
       if (!req.file) return res.status(400).json({ message: "파일 없음" });
-      res.json({ url: `/public-uploads/${req.file.filename}`, name: req.file.originalname });
+      let name = req.file.originalname;
+      try { name = Buffer.from(name, 'latin1').toString('utf8'); } catch {}
+      res.json({ url: `/public-uploads/${req.file.filename}`, name });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
   app.post('/api/safety-committees/upload-minutes', isAuthenticated, committeeMinutesUpload.single('file'), async (req: any, res) => {
     try {
       if (!req.file) return res.status(400).json({ message: "파일 없음" });
+      let name = req.file.originalname;
+      try { name = Buffer.from(name, 'latin1').toString('utf8'); } catch {}
       const isPdf = /\.pdf$/i.test(req.file.originalname);
       const url = isPdf ? `/public-uploads/${req.file.filename}` : `/uploads/${req.file.filename}`;
-      res.json({ url, name: req.file.originalname });
+      res.json({ url, name });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
