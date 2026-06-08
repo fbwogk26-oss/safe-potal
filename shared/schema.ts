@@ -847,6 +847,20 @@ export const insertJointInspectionSchema = createInsertSchema(jointInspections).
 export type JointInspection = typeof jointInspections.$inferSelect;
 export type InsertJointInspection = z.infer<typeof insertJointInspectionSchema>;
 
+// === 합동점검 참석자 서명 ===
+export const jointInspectionSignatures = pgTable("joint_inspection_signatures", {
+  id: serial("id").primaryKey(),
+  inspectionId: integer("inspection_id").notNull(),
+  signerName: text("signer_name").notNull(),
+  signerDepartment: text("signer_department"),
+  signerRole: text("signer_role"),
+  signatureData: text("signature_data").notNull(),
+  signedAt: timestamp("signed_at").defaultNow(),
+});
+export const insertJointInspectionSignatureSchema = createInsertSchema(jointInspectionSignatures).omit({ id: true, signedAt: true });
+export type JointInspectionSignature = typeof jointInspectionSignatures.$inferSelect;
+export type InsertJointInspectionSignature = z.infer<typeof insertJointInspectionSignatureSchema>;
+
 // Export auth schema
 export * from "./models/auth";
 

@@ -25,8 +25,9 @@ import {
   type WorkPlan, type InsertWorkPlan,
   safetyCommittees,
   type SafetyCommittee, type InsertSafetyCommittee,
-  jointInspections,
+  jointInspections, jointInspectionSignatures,
   type JointInspection, type InsertJointInspection,
+  type JointInspectionSignature, type InsertJointInspectionSignature,
   musicFiles,
   type MusicFile, type InsertMusicFile,
   fuelRecords,
@@ -191,6 +192,10 @@ export interface IStorage {
   createJointInspection(data: InsertJointInspection): Promise<JointInspection>;
   updateJointInspection(id: number, data: Partial<InsertJointInspection>): Promise<JointInspection | undefined>;
   deleteJointInspection(id: number): Promise<void>;
+  // Joint Inspection Signatures
+  getJointInspectionSignatures(inspectionId: number): Promise<JointInspectionSignature[]>;
+  createJointInspectionSignature(data: InsertJointInspectionSignature): Promise<JointInspectionSignature>;
+  deleteJointInspectionSignature(id: number): Promise<void>;
 
   // Attendance
   getAttendanceUploads(): Promise<AttendanceUpload[]>;
@@ -756,6 +761,18 @@ export class DatabaseStorage implements IStorage {
   }
   async deleteJointInspection(id: number): Promise<void> {
     await db.delete(jointInspections).where(eq(jointInspections.id, id));
+  }
+  async getJointInspectionSignatures(inspectionId: number): Promise<JointInspectionSignature[]> {
+    return await db.select().from(jointInspectionSignatures)
+      .where(eq(jointInspectionSignatures.inspectionId, inspectionId))
+      .orderBy(asc(jointInspectionSignatures.signedAt));
+  }
+  async createJointInspectionSignature(data: InsertJointInspectionSignature): Promise<JointInspectionSignature> {
+    const [row] = await db.insert(jointInspectionSignatures).values(data).returning();
+    return row;
+  }
+  async deleteJointInspectionSignature(id: number): Promise<void> {
+    await db.delete(jointInspectionSignatures).where(eq(jointInspectionSignatures.id, id));
   }
 
   // === ATTENDANCE ===

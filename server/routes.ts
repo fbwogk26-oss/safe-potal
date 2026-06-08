@@ -7041,6 +7041,33 @@ ${htmlDraft}
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
+  // 합동점검 참석자 서명
+  app.get('/api/joint-inspections/:id/signatures', isAuthenticated, async (req: any, res) => {
+    try {
+      const sigs = await storage.getJointInspectionSignatures(Number(req.params.id));
+      res.json(sigs);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.post('/api/joint-inspections/:id/signatures', isAuthenticated, async (req: any, res) => {
+    try {
+      const { signerName, signerDepartment, signerRole, signatureData } = req.body;
+      if (!signerName || !signatureData) return res.status(400).json({ message: "이름과 서명이 필요합니다" });
+      const sig = await storage.createJointInspectionSignature({
+        inspectionId: Number(req.params.id),
+        signerName, signerDepartment, signerRole, signatureData,
+      });
+      res.json(sig);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.delete('/api/joint-inspection-signatures/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      await storage.deleteJointInspectionSignature(Number(req.params.id));
+      res.json({ success: true });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
   // ===== 입회 관리 =====
   const attendanceUploadMiddleware = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
