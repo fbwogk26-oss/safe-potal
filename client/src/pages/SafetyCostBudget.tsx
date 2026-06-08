@@ -113,6 +113,7 @@ export default function SafetyCostBudget() {
   const [dlgOpen, setDlgOpen] = useState(false);
   const [editRec, setEditRec] = useState<SafetyCostRecord | null>(null);
   const [form, setForm] = useState({ ...emptyForm });
+  const [vatExcluded, setVatExcluded] = useState(false);
   const [extracting, setExtracting] = useState<"quote"|"transaction"|null>(null);
   const [extractedItems, setExtractedItems] = useState<ExtractedItem[]>([]);
   const [selItemIdx, setSelItemIdx] = useState(0);
@@ -188,9 +189,11 @@ export default function SafetyCostBudget() {
   });
 
   // ── 단일 등록 다이얼로그 헬퍼 ─────────────────────────────────────
-  function openAdd() { setEditRec(null); setForm({ ...emptyForm, year }); setExtractedItems([]); setDlgOpen(true); }
+  function openAdd() { setEditRec(null); setForm({ ...emptyForm, year }); setVatExcluded(false); setExtractedItems([]); setDlgOpen(true); }
   function openEdit(r: SafetyCostRecord) {
     setEditRec(r);
+    const excluded = r.vatAmount !== null && r.vatAmount !== undefined && Number(r.vatAmount) === 0;
+    setVatExcluded(excluded);
     setForm({ year: r.year, month: r.month, category: r.category, subCategory: r.subCategory||"", itemName: r.itemName,
       specification: r.specification||"", unit: r.unit||"EA", quantity: r.quantity?.toString()||"",
       unitPrice: r.unitPrice?.toString()||"", supplyAmount: r.supplyAmount?.toString()||"",
@@ -201,16 +204,27 @@ export default function SafetyCostBudget() {
       certificateFileUrl: r.certificateFileUrl||"", resolutionFileUrl: (r as any).resolutionFileUrl||"" });
     setExtractedItems([]); setDlgOpen(true);
   }
-  function closeDlg() { setDlgOpen(false); setEditRec(null); setExtractedItems([]); }
+  function closeDlg() { setDlgOpen(false); setEditRec(null); setExtractedItems([]); setVatExcluded(false); }
   function setF(k: string, v: any) { setForm(p => ({ ...p, [k]: v })); }
   function autoCalc(k: string, v: string) {
     const up = { ...form, [k]: v };
     const q = parseFloat(up.quantity||"0"), u = parseFloat(up.unitPrice||"0");
     if ((k==="quantity"||k==="unitPrice") && !isNaN(q) && !isNaN(u) && q>0 && u>0) {
-      const supply = q*u, vat = Math.round(supply*0.1);
+      const supply = q*u;
+      const vat = vatExcluded ? 0 : Math.round(supply*0.1);
       up.supplyAmount = supply.toString(); up.vatAmount = vat.toString(); up.totalAmount = (supply+vat).toString();
     }
     setForm(up);
+  }
+  function toggleVatExcluded(checked: boolean) {
+    setVatExcluded(checked);
+    const supply = parseFloat(form.supplyAmount||"0");
+    if (checked) {
+      setForm(p => ({ ...p, vatAmount: "0", totalAmount: supply > 0 ? supply.toString() : p.totalAmount }));
+    } else {
+      const vat = supply > 0 ? Math.round(supply*0.1) : 0;
+      setForm(p => ({ ...p, vatAmount: vat > 0 ? vat.toString() : "", totalAmount: supply > 0 ? (supply+vat).toString() : p.totalAmount }));
+    }
   }
   function applyItem(item: ExtractedItem) {
     setForm(p => ({ ...p,
@@ -961,8 +975,17 @@ export default function SafetyCostBudget() {
           </div>
           <div className="grid grid-cols-3 gap-3">
             <div><Label>공급가액</Label><Input type="number" placeholder="0" value={form.supplyAmount} onChange={e=>setF("supplyAmount",e.target.value)} /></div>
-            <div><Label>세액</Label><Input type="number" placeholder="0" value={form.vatAmount} onChange={e=>setF("vatAmount",e.target.value)} /></div>
-            <div><Label className="font-semibold">합계(VAT포함) *</Label><Input type="number" placeholder="0" value={form.totalAmount} onChange={e=>setF("totalAmount",e.target.value)} className="font-semibold" data-testid="input-total" /></div>
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <Label>세액</Label>
+                <label className="flex items-center gap-1.5 cursor-pointer select-none text-xs text-muted-foreground">
+                  <Checkbox checked={vatExcluded} onCheckedChange={v=>toggleVatExcluded(!!v)} data-testid="checkbox-vat-excluded" />
+                  세액 제외
+                </label>
+              </div>
+              <Input type="number" placeholder="0" value={form.vatAmount} onChange={e=>setF("vatAmount",e.target.value)} disabled={vatExcluded} className={vatExcluded ? "bg-muted text-muted-foreground" : ""} />
+            </div>
+            <div><Label className="font-semibold">합계 *</Label><Input type="number" placeholder="0" value={form.totalAmount} onChange={e=>setF("totalAmount",e.target.value)} className="font-semibold" data-testid="input-total" /></div>
           </div>
           <div><Label>비고</Label><Textarea rows={2} value={form.notes} onChange={e=>setF("notes",e.target.value)} /></div>
 
