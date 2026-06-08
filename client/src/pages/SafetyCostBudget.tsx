@@ -429,6 +429,7 @@ export default function SafetyCostBudget() {
     }));
     setMultiResRows(p => [...p, ...newRows]);
     // 바로 분석 시작
+    let totalItemCount = 0;
     for (const row of newRows) {
       setMultiResRows(p => p.map(r => r.id === row.id ? { ...r, status: "processing" } : r));
       try {
@@ -440,30 +441,62 @@ export default function SafetyCostBudget() {
         let autoCategory = "";
         if (docType.includes("지출결의서")) autoCategory = "1. 안전관리자 등 인건비 및 각종 업무수당 등";
         else if (docType.includes("구매결의서") || docType.includes("기안서")) autoCategory = "3. 개인보호구 및 안전장구 구입비 등";
-        const firstItem = data.items?.[0];
-        setMultiResRows(p => p.map(r => r.id === row.id ? {
-          ...r,
-          status: "done",
+
+        const items: any[] = data.items && data.items.length > 0 ? data.items : [{}];
+        const commonFields = {
           documentType: data.documentType || "",
           documentNumber: data.documentNumber || "",
           paymentRequestDate: data.paymentRequestDate || "",
           purchaseDate: data.documentDate || "",
           vendorName: data.vendorName || "",
-          itemName: firstItem?.itemName || "",
-          totalAmount: (data.totalAmount ?? firstItem?.totalAmount ?? "").toString(),
-          supplyAmount: (data.supplyAmount ?? firstItem?.supplyAmount ?? "").toString(),
-          vatAmount: (data.vatAmount ?? firstItem?.vatAmount ?? "").toString(),
-          quantity: firstItem?.quantity?.toString() || "",
-          unit: firstItem?.unit || "",
-          unitPrice: firstItem?.unitPrice?.toString() || "",
           category: autoCategory,
           fileUrl: data._fileUrl || "",
-        } : r));
+          year: row.year,
+          month: row.month,
+        };
+
+        if (items.length === 1) {
+          // 단일 품목 → 기존 행 업데이트
+          const it = items[0];
+          setMultiResRows(p => p.map(r => r.id === row.id ? {
+            ...r, ...commonFields, status: "done",
+            itemName: it.itemName || "",
+            totalAmount: (it.totalAmount ?? data.totalAmount ?? "").toString(),
+            supplyAmount: (it.supplyAmount ?? data.supplyAmount ?? "").toString(),
+            vatAmount: (it.vatAmount ?? data.vatAmount ?? "").toString(),
+            quantity: it.quantity?.toString() || "",
+            unit: it.unit || "",
+            unitPrice: it.unitPrice?.toString() || "",
+          } : r));
+          totalItemCount += 1;
+        } else {
+          // 다중 품목 → 첫 번째 행을 첫 품목으로 교체, 나머지는 새 행으로 추가
+          const expandedRows: MultiResRow[] = items.map((it, idx) => ({
+            id: idx === 0 ? row.id : `${Date.now()}-${Math.random().toString(36).slice(2)}-${idx}`,
+            file: row.file,
+            status: "done" as const,
+            checked: true,
+            ...commonFields,
+            itemName: it.itemName || "",
+            totalAmount: (it.totalAmount ?? "").toString(),
+            supplyAmount: (it.supplyAmount ?? "").toString(),
+            vatAmount: (it.vatAmount ?? "").toString(),
+            quantity: it.quantity?.toString() || "",
+            unit: it.unit || "",
+            unitPrice: it.unitPrice?.toString() || "",
+          }));
+          setMultiResRows(p => {
+            // 원래 pending 행을 제거하고 확장된 행들로 교체
+            const without = p.filter(r => r.id !== row.id);
+            return [...without, ...expandedRows];
+          });
+          totalItemCount += items.length;
+        }
       } catch (e: any) {
         setMultiResRows(p => p.map(r => r.id === row.id ? { ...r, status: "error", error: e.message } : r));
       }
     }
-    toast({ title: `${newRows.length}개 파일 분석 완료` });
+    toast({ title: `${newRows.length}개 파일 분석 완료`, description: `총 ${totalItemCount}개 품목 추출됨` });
   }
 
   async function submitMultiResRows() {
