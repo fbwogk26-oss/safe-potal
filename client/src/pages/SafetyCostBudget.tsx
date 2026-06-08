@@ -117,6 +117,10 @@ interface MultiResRow {
   vatAmount?: string;
   category?: string;
   fileUrl?: string;
+  quoteFileUrl?: string;
+  transactionFileUrl?: string;
+  quoteUploading?: boolean;
+  transactionUploading?: boolean;
   year: number;
   month: number;
   subCategory?: string;
@@ -160,6 +164,11 @@ export default function SafetyCostBudget() {
   const [multiResDlgOpen, setMultiResDlgOpen] = useState(false);
   const [multiResRows, setMultiResRows] = useState<MultiResRow[]>([]);
   const [multiResSaving, setMultiResSaving] = useState(false);
+  const [multiResUploadRowId, setMultiResUploadRowId] = useState<string | null>(null);
+  const [multiResUploadType, setMultiResUploadType] = useState<"quote" | "transaction">("quote");
+
+  // 사용내역 행 선택
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
   // 예산 다이얼로그
   const [budgetDlgOpen, setBudgetDlgOpen] = useState(false);
@@ -184,6 +193,8 @@ export default function SafetyCostBudget() {
   const certRef = useRef<HTMLInputElement>(null);
   const resolutionRef = useRef<HTMLInputElement>(null);
   const multiResRef = useRef<HTMLInputElement>(null);
+  const multiResQuoteRef = useRef<HTMLInputElement>(null);
+  const multiResTransRef = useRef<HTMLInputElement>(null);
 
   // ── Queries ──────────────────────────────────────────────────────
   const { data: records = [], isLoading } = useQuery<SafetyCostRecord[]>({
@@ -540,6 +551,8 @@ export default function SafetyCostBudget() {
           documentNumber: r.documentNumber || null,
           paymentRequestDate: r.paymentRequestDate || null,
           resolutionFileUrl: r.fileUrl || null,
+          quoteFileUrl: r.quoteFileUrl || null,
+          transactionFileUrl: r.transactionFileUrl || null,
         });
         success++;
       } catch { fail++; }
@@ -551,6 +564,25 @@ export default function SafetyCostBudget() {
       closeMultiResDlg();
     } else {
       toast({ title: `${success}건 성공, ${fail}건 실패`, variant: "destructive" });
+    }
+  }
+
+  async function uploadAttachmentFile(rowId: string, file: File, type: "quote" | "transaction") {
+    updateMultiResRow(rowId, { [type === "quote" ? "quoteUploading" : "transactionUploading"]: true });
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("type", type);
+      const resp = await fetch("/api/safety-cost-records/upload-file", { method: "POST", body: fd, credentials: "include" });
+      if (!resp.ok) throw new Error("업로드 실패");
+      const data = await resp.json();
+      updateMultiResRow(rowId, {
+        [type === "quote" ? "quoteFileUrl" : "transactionFileUrl"]: data.url,
+        [type === "quote" ? "quoteUploading" : "transactionUploading"]: false,
+      });
+    } catch (e: any) {
+      updateMultiResRow(rowId, { [type === "quote" ? "quoteUploading" : "transactionUploading"]: false });
+      toast({ title: `${type === "quote" ? "견적서" : "거래명세서"} 업로드 실패`, variant: "destructive" });
     }
   }
 
@@ -713,6 +745,16 @@ export default function SafetyCostBudget() {
   const taxGrandTotal = taxInvoices.reduce((s,t) => s+toNum(t.totalAmount), 0);
   const totalBudget = Object.values(budgets).reduce((s, v) => s + (Number(v) || 0), 0);
   const catIdx = (cat: string) => CATEGORIES.indexOf(cat);
+
+  // 선택 관련 computed
+  const allFilteredSelected = filtered.length > 0 && filtered.every(r => selectedIds.has(r.id));
+  const someFilteredSelected = !allFilteredSelected && filtered.some(r => selectedIds.has(r.id));
+  const selectedRecords = records.filter(r => selectedIds.has(r.id));
+  const selectedTotal = selectedRecords.reduce((s, r) => s + toNum(r.totalAmount), 0);
+  const selectedCatBreakdown = CATEGORIES.map((cat, i) => {
+    const recs = selectedRecords.filter(r => r.category === cat);
+    return { cat, i, count: recs.length, total: recs.reduce((s, r) => s + toNum(r.totalAmount), 0) };
+  }).filter(c => c.count > 0);
   // 월별 세금계산서 map (month → invoice)
   const monthTaxMap: Record<number, SafetyCostTaxInvoice> = {};
   taxInvoices.forEach(t => { if (!monthTaxMap[t.month]) monthTaxMap[t.month] = t; });
@@ -851,6 +893,17 @@ export default function SafetyCostBudget() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/40">
+                    <TableHead className="w-8 px-2">
+                      <Checkbox
+                        checked={allFilteredSelected}
+                        data-state={someFilteredSelected ? "indeterminate" : undefined}
+                        onCheckedChange={v => {
+                          if (v) setSelectedIds(prev => new Set([...prev, ...filtered.map(r => r.id)]));
+                          else setSelectedIds(prev => { const n = new Set(prev); filtered.forEach(r => n.delete(r.id)); return n; });
+                        }}
+                        data-testid="chk-select-all"
+                      />
+                    </TableHead>
                     <TableHead className="w-10 text-center">월</TableHead>
                     <TableHead className="w-10">항목</TableHead>
                     <TableHead className="min-w-[180px]">품명</TableHead>
@@ -875,8 +928,16 @@ export default function SafetyCostBudget() {
                 <TableBody>
                   {filtered.map(rec => {
                     const ci = catIdx(rec.category);
+                    const isSelected = selectedIds.has(rec.id);
                     return (
-                      <TableRow key={rec.id} className="hover:bg-muted/30" data-testid={`row-record-${rec.id}`}>
+                      <TableRow key={rec.id} className={`hover:bg-muted/30 ${isSelected ? "bg-primary/5" : ""}`} data-testid={`row-record-${rec.id}`}>
+                        <TableCell className="px-2">
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={v => setSelectedIds(prev => { const n = new Set(prev); v ? n.add(rec.id) : n.delete(rec.id); return n; })}
+                            data-testid={`chk-row-${rec.id}`}
+                          />
+                        </TableCell>
                         <TableCell className="text-center font-medium text-sm">{rec.month}월</TableCell>
                         <TableCell>
                           <Badge className={`text-xs border ${CAT_COLORS[ci]?.badge||""}`} variant="outline">
@@ -957,6 +1018,26 @@ export default function SafetyCostBudget() {
                   })}
                 </TableBody>
               </Table>
+            </div>
+          )}
+
+          {/* ── 선택 요약 바 ── */}
+          {selectedIds.size > 0 && (
+            <div className="mt-3 rounded-xl bg-primary text-primary-foreground px-4 py-3 flex flex-wrap items-center gap-2 shadow-md">
+              <span className="font-bold text-sm">{selectedIds.size}건 선택</span>
+              <span className="opacity-60">·</span>
+              <span className="font-bold">{fmt(selectedTotal)}</span>
+              <div className="flex flex-wrap gap-1.5 ml-2">
+                {selectedCatBreakdown.map(c => (
+                  <span key={c.i} className="text-[11px] bg-white/20 rounded-full px-2 py-0.5">
+                    {c.cat.split(". ")[0]}항 {c.count}건 · {fmtMan(c.total)}
+                  </span>
+                ))}
+              </div>
+              <button onClick={() => setSelectedIds(new Set())}
+                className="ml-auto text-xs underline opacity-70 hover:opacity-100" data-testid="btn-clear-selection">
+                선택 해제
+              </button>
             </div>
           )}
         </TabsContent>
@@ -1520,6 +1601,15 @@ export default function SafetyCostBudget() {
                     <TableHead className="w-24 text-xs">날짜</TableHead>
                     <TableHead className="w-24 text-xs">월</TableHead>
                     <TableHead className="w-32 text-xs">합계금액</TableHead>
+                    <TableHead className="w-20 text-xs text-center">
+                      <div className="flex flex-col items-center gap-0.5">
+                        <div className="flex gap-1">
+                          <span className="text-blue-500"><FileText className="w-3 h-3 inline" /></span>
+                          <span className="text-emerald-500"><FileText className="w-3 h-3 inline" /></span>
+                        </div>
+                        <span className="text-[9px] text-muted-foreground">견적·거래</span>
+                      </div>
+                    </TableHead>
                     <TableHead className="w-8"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -1597,6 +1687,28 @@ export default function SafetyCostBudget() {
                             className="h-7 text-xs text-right" placeholder="0" data-testid={`inp-total-${row.id}`} />
                         ) : <span className="text-xs text-muted-foreground">—</span>}
                       </TableCell>
+                      <TableCell className="text-center">
+                        {row.status === "done" ? (
+                          <div className="flex gap-1.5 justify-center">
+                            <button
+                              onClick={() => { setMultiResUploadRowId(row.id); setMultiResUploadType("quote"); setTimeout(() => multiResQuoteRef.current?.click(), 10); }}
+                              title={row.quoteFileUrl ? "견적서 첨부됨 (클릭하여 교체)" : "견적서 첨부"}
+                              className={row.quoteFileUrl ? "text-blue-500 hover:text-blue-700" : "text-muted-foreground/30 hover:text-blue-400"}
+                              data-testid={`btn-multi-quote-${row.id}`}
+                            >
+                              {row.quoteUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
+                            </button>
+                            <button
+                              onClick={() => { setMultiResUploadRowId(row.id); setMultiResUploadType("transaction"); setTimeout(() => multiResTransRef.current?.click(), 10); }}
+                              title={row.transactionFileUrl ? "거래명세서 첨부됨 (클릭하여 교체)" : "거래명세서 첨부"}
+                              className={row.transactionFileUrl ? "text-emerald-500 hover:text-emerald-700" : "text-muted-foreground/30 hover:text-emerald-400"}
+                              data-testid={`btn-multi-trans-${row.id}`}
+                            >
+                              {row.transactionUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
+                            </button>
+                          </div>
+                        ) : <span className="text-xs text-muted-foreground">—</span>}
+                      </TableCell>
                       <TableCell>
                         <button onClick={() => setMultiResRows(p => p.filter(r => r.id !== row.id))}
                           className="text-muted-foreground hover:text-red-500" data-testid={`btn-del-multi-${row.id}`}>
@@ -1609,6 +1721,12 @@ export default function SafetyCostBudget() {
               </Table>
             </div>
           )}
+
+          {/* 숨김 파일 입력 — 결의서 일괄 견적서/거래명세서 업로드용 */}
+          <input ref={multiResQuoteRef} type="file" accept="image/*,application/pdf" className="hidden"
+            onChange={e => { if (e.target.files?.[0] && multiResUploadRowId) { uploadAttachmentFile(multiResUploadRowId, e.target.files[0], "quote"); } e.target.value = ""; }} />
+          <input ref={multiResTransRef} type="file" accept="image/*,application/pdf" className="hidden"
+            onChange={e => { if (e.target.files?.[0] && multiResUploadRowId) { uploadAttachmentFile(multiResUploadRowId, e.target.files[0], "transaction"); } e.target.value = ""; }} />
 
           <DialogFooter className="pt-2 border-t gap-2">
             <Button variant="ghost" onClick={closeMultiResDlg} data-testid="btn-multi-res-cancel">취소</Button>

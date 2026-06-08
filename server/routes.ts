@@ -10377,6 +10377,29 @@ ${htmlDraft}
     }
   });
 
+  // ─── 결의서 일괄: 견적서/거래명세서 단순 파일 업로드 ─────────────────
+  app.post('/api/safety-cost-records/upload-file', requireEditor, safetyCostUpload.single('file'), async (req: any, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: "파일이 없습니다" });
+      const isPdf = req.file.mimetype === 'application/pdf' || req.file.originalname.toLowerCase().endsWith('.pdf');
+      const ext = req.file.originalname.split('.').pop() || (isPdf ? 'pdf' : 'jpg');
+      const t = (req.body.type === 'quote' ? 'quote' : req.body.type === 'transaction' ? 'trans' : 'attach');
+      const filename = `${t}-${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const objUrl = await uploadToObjectStorage(req.file.buffer, filename, req.file.mimetype);
+      let fileUrl = '';
+      if (objUrl) {
+        fileUrl = objUrl;
+      } else {
+        const localP = path.join(uploadDir, filename);
+        fs.writeFileSync(localP, req.file.buffer);
+        fileUrl = `/uploads/${filename}`;
+      }
+      res.json({ url: fileUrl });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   // ─── 안전사고 발생 대응훈련 API ─────────────────────────────────────
   const drillPhotoUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
   const drillDocxUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
