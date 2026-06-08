@@ -30,6 +30,8 @@ const DEPARTMENTS = [
   "운용계획팀", "사업지원팀", "현장경영팀",
 ];
 
+const SUBCONTRACTORS = ["와이어블", "스피드이엔지"];
+
 type CheckItem = { item: string; issue: string; improvement: string };
 type Photo = { url: string; name: string };
 
@@ -551,7 +553,7 @@ export default function JointInspectionPage() {
                   <button
                     key={role}
                     type="button"
-                    onClick={() => setSignForm(f => ({ ...f, signerRole: role }))}
+                    onClick={() => setSignForm(f => ({ ...f, signerRole: role, signerDepartment: "" }))}
                     className={`flex-1 py-2 rounded-lg border-2 text-sm font-medium transition-colors ${
                       signForm.signerRole === role
                         ? role === "도급인" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-orange-500 bg-orange-50 text-orange-700"
@@ -573,13 +575,19 @@ export default function JointInspectionPage() {
 
             {/* 소속 */}
             <div className="space-y-1">
-              <Label>소속</Label>
-              <Select value={signForm.signerDepartment} onValueChange={v => setSignForm(f => ({ ...f, signerDepartment: v }))}>
+              <Label>{signForm.signerRole === "수급인" ? "수급사" : "소속"}</Label>
+              <Select
+                value={signForm.signerDepartment}
+                onValueChange={v => setSignForm(f => ({ ...f, signerDepartment: v }))}
+              >
                 <SelectTrigger data-testid="select-signer-dept">
-                  <SelectValue placeholder="소속 선택 (선택)" />
+                  <SelectValue placeholder="선택 (선택)" />
                 </SelectTrigger>
                 <SelectContent>
-                  {DEPARTMENTS.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                  {signForm.signerRole === "수급인"
+                    ? SUBCONTRACTORS.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)
+                    : DEPARTMENTS.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)
+                  }
                   <SelectItem value="기타">기타</SelectItem>
                 </SelectContent>
               </Select>
