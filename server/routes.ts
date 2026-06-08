@@ -9901,6 +9901,24 @@ ${htmlDraft}
   });
 
   // ─── 사용내역 양식 다운로드 (템플릿 기반) ─────────────────────────────
+  // ─── 산업안전보건관리비 예산 GET/PUT ──────────────────────────────────
+  app.get('/api/safety-cost-budget', isAuthenticated, async (req: any, res) => {
+    try {
+      const year = Number(req.query.year) || new Date().getFullYear();
+      const setting = await storage.getSetting(`safety_cost_budgets_${year}`);
+      res.json(setting ? JSON.parse(setting.value) : {});
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.put('/api/safety-cost-budget', requireEditor, async (req: any, res) => {
+    try {
+      const { year, budgets } = req.body;
+      if (!year || !budgets) return res.status(400).json({ message: '연도와 예산 데이터가 필요합니다' });
+      await storage.setSetting(`safety_cost_budgets_${year}`, JSON.stringify(budgets));
+      res.json({ success: true });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
   app.get('/api/safety-cost-records/export-template', isAuthenticated, async (req: any, res) => {
     try {
       const yearRaw = Number(req.query.year);
@@ -9991,6 +10009,51 @@ ${htmlDraft}
         row.getCell(12).value = rec.notes || null;                          // L: 비고
         row.getCell(13).value = (rec as any).documentNumber || null;        // M: 관련 문서번호(증빙)
       });
+
+      // ── 예산 데이터를 나머지 시트(1~3번)에 주입 ─────────────────────────
+      try {
+        const budgetSetting = await storage.getSetting(`safety_cost_budgets_${year}`);
+        const budgets: Record<string, number> = budgetSetting ? JSON.parse(budgetSetting.value) : {};
+        const hasBudget = Object.values(budgets).some(v => v > 0);
+        if (hasBudget) {
+          // 카테고리 번호 → 검색 키워드 (짧은 것 우선)
+          const CAT_KW: Record<string, string[]> = {
+            '1': ['안전관리자', '인건비'],
+            '2': ['안전시설비'],
+            '3': ['보호구', '안전용품'],
+            '4': ['안전진단비'],
+            '5': ['안전보건교육', '행사비'],
+            '6': ['건강관리', '근로자 건강'],
+            '7': ['건설재해'],
+            '8': ['기타'],
+            '9': ['산보위', '위험성평가'],
+          };
+          wb.worksheets.forEach(sheet => {
+            if (sheet.name === '사용내역') return;
+            sheet.eachRow((row, rIdx) => {
+              row.eachCell({ includeEmpty: false }, (cell, cIdx) => {
+                const val = (cell.value ?? '').toString();
+                for (const [catNum, kws] of Object.entries(CAT_KW)) {
+                  if (kws.some(kw => val.includes(kw))) {
+                    const budget = Number(budgets[catNum]) || 0;
+                    // 같은 행에서 빈 숫자 셀 또는 0으로 채워진 셀을 찾아 예산 입력
+                    // 먼저 바로 오른쪽 셀, 없으면 +2
+                    const targetCell = row.getCell(cIdx + 1);
+                    const tv = targetCell.value;
+                    if (tv === null || tv === undefined || tv === 0 || (typeof tv === 'number' && tv === 0)) {
+                      targetCell.value = budget;
+                      if (budget > 0) targetCell.numFmt = '#,##0';
+                    }
+                    break;
+                  }
+                }
+              });
+            });
+          });
+        }
+      } catch (budgetErr: any) {
+        console.warn('[export-template] 예산 주입 실패(무시):', budgetErr.message);
+      }
 
       // ─── 응답 ───────────────────────────────────────────────────────
       console.log(`[export-template] writeBuffer 시작 (records=${records.length})`);

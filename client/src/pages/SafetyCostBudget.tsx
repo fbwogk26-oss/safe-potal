@@ -15,7 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Plus, Trash2, Edit2, Upload, FileText, ImageIcon, Loader2,
-  BarChart3, List, X, Download, Receipt, FileCheck, PackagePlus, CheckSquare, FileScan, ScrollText
+  BarChart3, List, X, Download, Receipt, FileCheck, PackagePlus, CheckSquare, FileScan, ScrollText, Wallet
 } from "lucide-react";
 import type { SafetyCostRecord, SafetyCostTaxInvoice } from "@shared/schema";
 
@@ -161,6 +161,10 @@ export default function SafetyCostBudget() {
   const [multiResRows, setMultiResRows] = useState<MultiResRow[]>([]);
   const [multiResSaving, setMultiResSaving] = useState(false);
 
+  // 예산 다이얼로그
+  const [budgetDlgOpen, setBudgetDlgOpen] = useState(false);
+  const [budgetInput, setBudgetInput] = useState<Record<string, string>>({});
+
   // 세금계산서 다이얼로그
   const [taxDlgOpen, setTaxDlgOpen] = useState(false);
   const [editTax, setEditTax] = useState<SafetyCostTaxInvoice | null>(null);
@@ -190,6 +194,10 @@ export default function SafetyCostBudget() {
     queryKey: ["/api/safety-cost-tax-invoices", year],
     queryFn: () => fetch(`/api/safety-cost-tax-invoices?year=${year}`, { credentials: "include" }).then(r => r.json()),
   });
+  const { data: budgets = {} } = useQuery<Record<string, number>>({
+    queryKey: ["/api/safety-cost-budget", year],
+    queryFn: () => fetch(`/api/safety-cost-budget?year=${year}`, { credentials: "include" }).then(r => r.json()),
+  });
 
   // ── Mutations ────────────────────────────────────────────────────
   const createMut = useMutation({
@@ -218,6 +226,11 @@ export default function SafetyCostBudget() {
   const deleteTaxMut = useMutation({
     mutationFn: (id: number) => apiRequest("DELETE", `/api/safety-cost-tax-invoices/${id}`),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/safety-cost-tax-invoices"] }); toast({ title: "삭제 완료" }); setDelConfirm(null); },
+  });
+  const saveBudgetMut = useMutation({
+    mutationFn: (b: Record<string, number>) => apiRequest("PUT", "/api/safety-cost-budget", { year, budgets: b }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/safety-cost-budget"] }); toast({ title: "예산 저장 완료" }); setBudgetDlgOpen(false); },
+    onError: (e: any) => toast({ title: "저장 실패", description: e.message, variant: "destructive" }),
   });
 
   // ── 단일 등록 다이얼로그 헬퍼 ─────────────────────────────────────
@@ -698,6 +711,7 @@ export default function SafetyCostBudget() {
   });
   const monthlyTotals = MONTHS.map((_,i) => records.filter(r=>r.month===i+1).reduce((s,r)=>s+toNum(r.totalAmount),0));
   const taxGrandTotal = taxInvoices.reduce((s,t) => s+toNum(t.totalAmount), 0);
+  const totalBudget = Object.values(budgets).reduce((s, v) => s + (Number(v) || 0), 0);
   const catIdx = (cat: string) => CATEGORIES.indexOf(cat);
   // 월별 세금계산서 map (month → invoice)
   const monthTaxMap: Record<number, SafetyCostTaxInvoice> = {};
@@ -724,6 +738,14 @@ export default function SafetyCostBudget() {
               ))}
             </SelectContent>
           </Select>
+          <Button variant="outline" onClick={() => {
+            const init: Record<string, string> = {};
+            CATEGORIES.forEach((_, i) => { init[String(i+1)] = String(budgets[String(i+1)] ?? 0); });
+            setBudgetInput(init);
+            setBudgetDlgOpen(true);
+          }} data-testid="button-open-budget">
+            <Wallet className="w-4 h-4 mr-1" /> 예산 입력
+          </Button>
           <Button variant="outline" onClick={handleDownloadTemplate} disabled={downloadingTemplate} data-testid="button-download-template">
             {downloadingTemplate ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Download className="w-4 h-4 mr-1" />}
             사용내역 다운로드
@@ -749,6 +771,16 @@ export default function SafetyCostBudget() {
           <CardContent className="pt-4 pb-3">
             <div className="text-xs text-muted-foreground font-medium uppercase tracking-wide">연간 총 지출</div>
             <div className="text-2xl font-bold text-primary mt-1">{fmtMan(grandTotal)}</div>
+            {totalBudget > 0 && (
+              <>
+                <div className="mt-2 h-1.5 rounded-full bg-muted overflow-hidden">
+                  <div className={`h-full rounded-full transition-all ${grandTotal > totalBudget ? "bg-red-500" : "bg-primary"}`} style={{ width: `${Math.min((grandTotal / totalBudget) * 100, 100)}%` }} />
+                </div>
+                <div className={`text-xs mt-1 ${grandTotal > totalBudget ? "text-red-500 font-semibold" : "text-muted-foreground"}`}>
+                  예산 {fmtMan(totalBudget)} 중 {Math.min((grandTotal / totalBudget) * 100, 100).toFixed(1)}% 사용
+                </div>
+              </>
+            )}
             <div className="text-xs text-muted-foreground mt-1 flex gap-2">
               <span>사용내역 {records.length}건</span>
               <span>·</span>
@@ -932,41 +964,74 @@ export default function SafetyCostBudget() {
         {/* ══ 항목별 요약 탭 ══ */}
         <TabsContent value="summary" className="mt-3 space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-            {catTotals.map((c, i) => (
-              <div key={i} className={`rounded-xl border p-4 transition-all ${c.total===0 ? "opacity-40" : "hover:shadow-sm"}`}>
-                <div className="flex items-start justify-between gap-2 mb-3">
-                  <div>
-                    <div className="text-xs text-muted-foreground mb-0.5">항목 {i+1}</div>
-                    <div className="text-sm font-semibold leading-tight text-foreground">{c.cat.split(". ")[1]}</div>
+            {catTotals.map((c, i) => {
+              const catNum = String(i + 1);
+              const budget = Number(budgets[catNum]) || 0;
+              const budgetPct = budget > 0 ? Math.min((c.total / budget) * 100, 100) : 0;
+              const overBudget = budget > 0 && c.total > budget;
+              return (
+                <div key={i} className={`rounded-xl border p-4 transition-all ${c.total===0 && budget===0 ? "opacity-40" : "hover:shadow-sm"}`}>
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div>
+                      <div className="text-xs text-muted-foreground mb-0.5">항목 {i+1}</div>
+                      <div className="text-sm font-semibold leading-tight text-foreground">{c.cat.split(". ")[1]}</div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="text-lg font-bold text-foreground">{c.total>0 ? fmtMan(c.total) : "-"}</div>
+                      <div className="text-xs text-muted-foreground">{c.count}건</div>
+                    </div>
                   </div>
-                  <div className="text-right shrink-0">
-                    <div className="text-lg font-bold text-foreground">{c.total>0 ? fmtMan(c.total) : "-"}</div>
-                    <div className="text-xs text-muted-foreground">{c.count}건</div>
-                  </div>
-                </div>
-                <div className="h-2 rounded-full bg-muted overflow-hidden mb-3">
-                  <div className={`h-full rounded-full transition-all ${c.color.bar}`} style={{ width:`${c.pct}%` }} />
-                </div>
-                {c.total > 0 && (
-                  <div className="flex gap-0.5 items-end h-8">
-                    {c.monthly.map((v, mi) => {
-                      const maxM = Math.max(...c.monthly);
-                      const barH = maxM > 0 ? Math.max(2, (v / maxM) * 32) : 2;
-                      return (
-                        <div key={mi} className="flex-1 flex flex-col items-center gap-0.5" title={`${mi+1}월: ${fmt(v)}`}>
-                          <div className={`w-full rounded-sm ${c.color.bar} opacity-70`} style={{ height: `${barH}px` }} />
+                  {budget > 0 ? (
+                    <>
+                      <div className="flex justify-between text-[11px] text-muted-foreground mb-1">
+                        <span>예산 {fmtMan(budget)}</span>
+                        <span className={overBudget ? "text-red-500 font-semibold" : "text-foreground"}>
+                          {budgetPct.toFixed(1)}% 사용
+                        </span>
+                      </div>
+                      <div className="h-2 rounded-full bg-muted overflow-hidden mb-2">
+                        <div
+                          className={`h-full rounded-full transition-all ${overBudget ? "bg-red-500" : c.color.bar}`}
+                          style={{ width: `${budgetPct}%` }}
+                        />
+                      </div>
+                      {overBudget && (
+                        <div className="text-[10px] text-red-500 font-medium mb-1">
+                          ⚠ 예산 초과 {fmtMan(c.total - budget)}
                         </div>
-                      );
-                    })}
-                  </div>
-                )}
-                {c.total > 0 && (
-                  <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
-                    <span>1월</span><span>6월</span><span>12월</span>
-                  </div>
-                )}
-              </div>
-            ))}
+                      )}
+                      {!overBudget && budget > 0 && (
+                        <div className="text-[10px] text-muted-foreground mb-1">
+                          잔액 {fmtMan(budget - c.total)}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="h-2 rounded-full bg-muted overflow-hidden mb-2">
+                      <div className={`h-full rounded-full transition-all ${c.color.bar}`} style={{ width:`${c.pct}%` }} />
+                    </div>
+                  )}
+                  {c.total > 0 && (
+                    <div className="flex gap-0.5 items-end h-8 mt-1">
+                      {c.monthly.map((v, mi) => {
+                        const maxM = Math.max(...c.monthly);
+                        const barH = maxM > 0 ? Math.max(2, (v / maxM) * 32) : 2;
+                        return (
+                          <div key={mi} className="flex-1 flex flex-col items-center gap-0.5" title={`${mi+1}월: ${fmt(v)}`}>
+                            <div className={`w-full rounded-sm ${c.color.bar} opacity-70`} style={{ height: `${barH}px` }} />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {c.total > 0 && (
+                    <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
+                      <span>1월</span><span>6월</span><span>12월</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
           <div className="rounded-xl border overflow-hidden">
             <div className="px-4 py-3 bg-muted/40 border-b">
@@ -996,6 +1061,71 @@ export default function SafetyCostBudget() {
         </TabsContent>
 
       </Tabs>
+
+      {/* ══ 예산 입력 다이얼로그 ══ */}
+      <Dialog open={budgetDlgOpen} onOpenChange={setBudgetDlgOpen}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Wallet className="w-5 h-5 text-primary" />
+              {year}년 항목별 예산 입력
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <p className="text-xs text-muted-foreground">각 항목의 연간 예산액을 원 단위로 입력하세요. 저장 후 항목별 요약에서 예산 대비 현황을 확인할 수 있습니다.</p>
+            {CATEGORIES.map((cat, i) => {
+              const catNum = String(i + 1);
+              return (
+                <div key={catNum} className="flex items-center gap-3">
+                  <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0" style={{ backgroundColor: ['#3b82f6','#10b981','#f59e0b','#8b5cf6','#f97316','#ec4899','#14b8a6','#f43f5e','#6366f1'][i] }}>
+                    {i+1}
+                  </div>
+                  <Label className="flex-1 text-xs leading-tight text-foreground min-w-0 truncate" title={cat.split(". ")[1]}>
+                    {cat.split(". ")[1]}
+                  </Label>
+                  <div className="relative w-40 shrink-0">
+                    <Input
+                      type="text"
+                      inputMode="numeric"
+                      className="pr-6 text-right text-sm h-8"
+                      value={Number(budgetInput[catNum] || 0).toLocaleString("ko-KR")}
+                      onChange={e => {
+                        const raw = e.target.value.replace(/[^0-9]/g, "");
+                        setBudgetInput(prev => ({ ...prev, [catNum]: raw }));
+                      }}
+                      data-testid={`input-budget-cat-${catNum}`}
+                    />
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">원</span>
+                  </div>
+                </div>
+              );
+            })}
+            <div className="pt-2 border-t flex items-center justify-between text-sm font-semibold">
+              <span className="text-muted-foreground">총 예산</span>
+              <span className="text-primary">
+                {Object.values(budgetInput).reduce((s, v) => s + (Number(v) || 0), 0).toLocaleString("ko-KR")}원
+              </span>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBudgetDlgOpen(false)}>취소</Button>
+            <Button
+              onClick={() => {
+                const parsed: Record<string, number> = {};
+                CATEGORIES.forEach((_, i) => {
+                  parsed[String(i+1)] = Number(budgetInput[String(i+1)] || 0);
+                });
+                saveBudgetMut.mutate(parsed);
+              }}
+              disabled={saveBudgetMut.isPending}
+              data-testid="button-save-budget"
+            >
+              {saveBudgetMut.isPending ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : null}
+              저장
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ══ 지출 등록/수정 다이얼로그 ══ */}
       <Dialog open={dlgOpen} onOpenChange={setDlgOpen}>
