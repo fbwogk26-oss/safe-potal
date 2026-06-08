@@ -4020,7 +4020,7 @@ ${buildEmailFooter()}
     }
   });
 
-  app.post('/api/risk-assessments/bulk-delete', requireEditor, async (req: any, res) => {
+  app.delete('/api/risk-assessments/bulk-delete', requireEditor, async (req: any, res) => {
     const { ids } = req.body;
     if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ message: "ids required" });
     let deleted = 0;
