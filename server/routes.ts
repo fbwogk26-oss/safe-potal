@@ -10400,6 +10400,18 @@ ${htmlDraft}
     }
   });
 
+  // ─── 사용내역 일괄 삭제 ───────────────────────────────────────────────
+  app.delete('/api/safety-cost-records/bulk-delete', requireEditor, async (req: any, res) => {
+    try {
+      const schema = z.object({ ids: z.array(z.number()).min(1) });
+      const { ids } = schema.parse(req.body);
+      await db.delete(safetyCostRecords).where(inArray(safetyCostRecords.id, ids));
+      res.json({ deleted: ids.length });
+    } catch (e: any) {
+      res.status(400).json({ message: e.message });
+    }
+  });
+
   // ─── 거래명세서 일괄 업데이트 ─────────────────────────────────────────
   app.patch('/api/safety-cost-records/bulk-transaction', requireEditor, async (req: any, res) => {
     try {

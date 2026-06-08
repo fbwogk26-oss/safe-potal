@@ -184,6 +184,7 @@ export default function SafetyCostBudget() {
   // 첨부파일 미리보기
   const [preview, setPreview] = useState<{ url: string; title: string } | null>(null);
   const [delConfirm, setDelConfirm] = useState<{ type: "record"|"tax"; id: number } | null>(null);
+  const [bulkDelConfirm, setBulkDelConfirm] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
   const [certUploading, setCertUploading] = useState(false);
@@ -238,6 +239,16 @@ export default function SafetyCostBudget() {
   const deleteTaxMut = useMutation({
     mutationFn: (id: number) => apiRequest("DELETE", `/api/safety-cost-tax-invoices/${id}`),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/safety-cost-tax-invoices"] }); toast({ title: "삭제 완료" }); setDelConfirm(null); },
+  });
+  const bulkDeleteMut = useMutation({
+    mutationFn: (ids: number[]) => apiRequest("DELETE", "/api/safety-cost-records/bulk-delete", { ids }),
+    onSuccess: (_, ids) => {
+      qc.invalidateQueries({ queryKey: ["/api/safety-cost-records"] });
+      toast({ title: `${ids.length}건 일괄 삭제 완료` });
+      setSelectedIds(new Set());
+      setBulkDelConfirm(false);
+    },
+    onError: (e: any) => toast({ title: "일괄 삭제 실패", description: e.message, variant: "destructive" }),
   });
   const saveBudgetMut = useMutation({
     mutationFn: (b: Record<string, number>) => apiRequest("PUT", "/api/safety-cost-budget", { year, budgets: b }),
@@ -1070,6 +1081,15 @@ export default function SafetyCostBudget() {
                     ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" />첨부 중...</>
                     : <><FileText className="w-3 h-3 mr-1" />거래명세서 일괄 첨부</>}
                 </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="h-7 text-xs bg-red-500/80 hover:bg-red-600/80 text-white border-0"
+                  onClick={() => setBulkDelConfirm(true)}
+                  data-testid="btn-bulk-delete"
+                >
+                  <Trash2 className="w-3 h-3 mr-1" />{selectedIds.size}건 삭제
+                </Button>
                 <button onClick={() => setSelectedIds(new Set())}
                   className="text-xs underline opacity-70 hover:opacity-100" data-testid="btn-clear-selection">
                   선택 해제
@@ -1839,6 +1859,27 @@ export default function SafetyCostBudget() {
                 else deleteTaxMut.mutate(delConfirm.id);
               }}>
               {(deleteMut.isPending||deleteTaxMut.isPending) && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}삭제
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ══ 일괄 삭제 확인 ══ */}
+      <Dialog open={bulkDelConfirm} onOpenChange={setBulkDelConfirm}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>일괄 삭제 확인</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            선택한 <span className="font-bold text-destructive">{selectedIds.size}건</span>을 삭제합니다.
+            삭제 후 복구할 수 없습니다. 계속하시겠습니까?
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkDelConfirm(false)}>취소</Button>
+            <Button variant="destructive" data-testid="btn-confirm-bulk-delete"
+              disabled={bulkDeleteMut.isPending}
+              onClick={() => bulkDeleteMut.mutate(Array.from(selectedIds))}>
+              {bulkDeleteMut.isPending
+                ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" />삭제 중...</>
+                : `${selectedIds.size}건 삭제`}
             </Button>
           </DialogFooter>
         </DialogContent>
