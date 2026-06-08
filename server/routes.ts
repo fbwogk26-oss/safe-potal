@@ -9961,6 +9961,20 @@ ${htmlDraft}
         for (let c = 2; c <= 13; c++) { row.getCell(c).value = null; }
       }
 
+      // 열 너비 강제 설정 (###### 방지)
+      ws.getColumn(2).width = 8;   // B: 순번
+      ws.getColumn(3).width = 8;   // C: 본부
+      ws.getColumn(4).width = 14;  // D: 지급일자
+      ws.getColumn(5).width = 7;   // E: 월
+      ws.getColumn(6).width = 22;  // F: 항목명
+      ws.getColumn(7).width = 30;  // G: 세부항목/품목명
+      ws.getColumn(8).width = 16;  // H: 금액(원)
+      ws.getColumn(9).width = 10;  // I: 적정여부
+      ws.getColumn(10).width = 14; // J: 위험성평가 반영
+      ws.getColumn(11).width = 20; // K: 의결내용
+      ws.getColumn(12).width = 20; // L: 비고
+      ws.getColumn(13).width = 20; // M: 관련문서번호
+
       // 정렬: 항목 순 → 지급일자 순
       const sorted = [...records].sort((a, b) => {
         const catA = parseInt((a.category || '1').split('.')[0]) || 99;
@@ -10014,43 +10028,39 @@ ${htmlDraft}
       try {
         const budgetSetting = await storage.getSetting(`safety_cost_budgets_${year}`);
         const budgets: Record<string, number> = budgetSetting ? JSON.parse(budgetSetting.value) : {};
-        const hasBudget = Object.values(budgets).some(v => v > 0);
-        if (hasBudget) {
-          // 카테고리 번호 → 검색 키워드 (짧은 것 우선)
-          const CAT_KW: Record<string, string[]> = {
-            '1': ['안전관리자', '인건비'],
-            '2': ['안전시설비'],
-            '3': ['보호구', '안전용품'],
-            '4': ['안전진단비'],
-            '5': ['안전보건교육', '행사비'],
-            '6': ['건강관리', '근로자 건강'],
-            '7': ['건설재해'],
-            '8': ['기타'],
-            '9': ['산보위', '위험성평가'],
-          };
-          wb.worksheets.forEach(sheet => {
-            if (sheet.name === '사용내역') return;
-            sheet.eachRow((row, rIdx) => {
-              row.eachCell({ includeEmpty: false }, (cell, cIdx) => {
-                const val = (cell.value ?? '').toString();
-                for (const [catNum, kws] of Object.entries(CAT_KW)) {
-                  if (kws.some(kw => val.includes(kw))) {
-                    const budget = Number(budgets[catNum]) || 0;
-                    // 같은 행에서 빈 숫자 셀 또는 0으로 채워진 셀을 찾아 예산 입력
-                    // 먼저 바로 오른쪽 셀, 없으면 +2
-                    const targetCell = row.getCell(cIdx + 1);
-                    const tv = targetCell.value;
-                    if (tv === null || tv === undefined || tv === 0 || (typeof tv === 'number' && tv === 0)) {
-                      targetCell.value = budget;
-                      if (budget > 0) targetCell.numFmt = '#,##0';
-                    }
-                    break;
+        // 카테고리 번호 → 검색 키워드
+        const CAT_KW: Record<string, string[]> = {
+          '1': ['안전관리자', '인건비'],
+          '2': ['안전시설비'],
+          '3': ['보호구', '안전용품'],
+          '4': ['안전진단비'],
+          '5': ['안전보건교육', '행사비'],
+          '6': ['건강관리', '근로자 건강'],
+          '7': ['건설재해'],
+          '8': ['기타'],
+          '9': ['산보위', '위험성평가'],
+        };
+        wb.worksheets.forEach(sheet => {
+          if (sheet.name === '사용내역') return;
+          sheet.eachRow((row) => {
+            row.eachCell({ includeEmpty: false }, (cell, cIdx) => {
+              const val = (cell.value ?? '').toString();
+              for (const [catNum, kws] of Object.entries(CAT_KW)) {
+                if (kws.some(kw => val.includes(kw))) {
+                  const budget = Number(budgets[catNum]) || 0;
+                  // 바로 오른쪽 셀이 숫자이거나 비어있으면 예산값으로 덮어씀
+                  const targetCell = row.getCell(cIdx + 1);
+                  const tv = targetCell.value;
+                  if (tv === null || tv === undefined || typeof tv === 'number') {
+                    targetCell.value = budget;
+                    targetCell.numFmt = '#,##0';
                   }
+                  break;
                 }
-              });
+              }
             });
           });
-        }
+        });
       } catch (budgetErr: any) {
         console.warn('[export-template] 예산 주입 실패(무시):', budgetErr.message);
       }
