@@ -139,7 +139,7 @@ export default function SafetyCostBudget() {
   const [dlgOpen, setDlgOpen] = useState(false);
   const [editRec, setEditRec] = useState<SafetyCostRecord | null>(null);
   const [form, setForm] = useState({ ...emptyForm });
-  const [vatExcluded, setVatExcluded] = useState(false);
+  const [vatExcluded, setVatExcluded] = useState(true);
   const [extracting, setExtracting] = useState<"quote"|"transaction"|null>(null);
   const [extractedItems, setExtractedItems] = useState<ExtractedItem[]>([]);
   const [selItemIdx, setSelItemIdx] = useState(0);
@@ -221,7 +221,7 @@ export default function SafetyCostBudget() {
   });
 
   // ── 단일 등록 다이얼로그 헬퍼 ─────────────────────────────────────
-  function openAdd() { setEditRec(null); setForm({ ...emptyForm, year }); setVatExcluded(false); setExtractedItems([]); setDlgOpen(true); }
+  function openAdd() { setEditRec(null); setForm({ ...emptyForm, year }); setVatExcluded(true); setExtractedItems([]); setDlgOpen(true); }
   function openEdit(r: SafetyCostRecord) {
     setEditRec(r);
     const excluded = r.vatAmount !== null && r.vatAmount !== undefined && Number(r.vatAmount) === 0;
@@ -236,7 +236,7 @@ export default function SafetyCostBudget() {
       certificateFileUrl: r.certificateFileUrl||"", resolutionFileUrl: (r as any).resolutionFileUrl||"" });
     setExtractedItems([]); setDlgOpen(true);
   }
-  function closeDlg() { setDlgOpen(false); setEditRec(null); setExtractedItems([]); setVatExcluded(false); }
+  function closeDlg() { setDlgOpen(false); setEditRec(null); setExtractedItems([]); setVatExcluded(true); }
   function setF(k: string, v: any) { setForm(p => ({ ...p, [k]: v })); }
   function autoCalc(k: string, v: string) {
     const up = { ...form, [k]: v };
