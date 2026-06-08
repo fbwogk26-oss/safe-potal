@@ -10190,10 +10190,16 @@ ${htmlDraft}
     }
   ]
 }
-숫자는 쉼표 없이 순수 숫자로 반환하세요. 찾을 수 없는 값은 null로 반환하세요.
-품의번호는 문서 상단에 표기된 문서번호/결의번호입니다.
-지급요청일자는 지출결의서의 지급요청일 또는 지급일자입니다.
-documentType 판별: 문서 제목·양식명에 "지출결의서"가 있으면 지출결의서, "구매결의서"가 있으면 구매결의서, "기안서"가 있으면 기안서.`;
+
+【중요 규칙】
+- 숫자는 쉼표 없이 순수 숫자로 반환하세요. 찾을 수 없는 값은 null로 반환하세요.
+- unitPrice(단가)는 반드시 부가세(VAT) 제외 공급가 기준입니다. VAT 포함 가격을 단가로 넣지 마세요.
+- 금액 관계: supplyAmount = unitPrice × quantity, vatAmount = supplyAmount × 0.1, totalAmount = supplyAmount + vatAmount
+- 문서에 단가가 명시되지 않은 경우: unitPrice = supplyAmount ÷ quantity (소수점 반올림)
+- unitPrice가 명시됐더라도 unitPrice × quantity ≠ supplyAmount이면, supplyAmount ÷ quantity로 재계산하세요.
+- 품의번호는 문서 상단에 표기된 문서번호/결의번호입니다.
+- 지급요청일자는 지출결의서의 지급요청일 또는 지급일자입니다.
+- documentType 판별: 문서 제목·양식명에 "지출결의서"가 있으면 지출결의서, "구매결의서"가 있으면 구매결의서, "기안서"가 있으면 기안서.`;
 
       let messages: any[];
       if (isPdf) {
@@ -10236,6 +10242,55 @@ documentType 판별: 문서 제목·양식명에 "지출결의서"가 있으면 
       } catch {
         const jsonMatch = raw.match(/\{[\s\S]*\}/);
         if (jsonMatch) { try { parsed = JSON.parse(jsonMatch[0]); } catch { parsed = {}; } }
+      }
+
+      // ── 단가 보정: AI가 VAT 포함 단가나 잘못된 값을 반환하는 경우 수정 ──
+      if (Array.isArray(parsed.items)) {
+        for (const item of parsed.items) {
+          const qty = Number(item.quantity) || 1;
+          const supply = Number(item.supplyAmount) || 0;
+          const total = Number(item.totalAmount) || 0;
+          const extractedUp = Number(item.unitPrice) || 0;
+
+          if (supply > 0 && qty > 0) {
+            // 공급가액에서 역산한 단가 (항상 정확)
+            const correctUp = Math.round(supply / qty);
+            if (!extractedUp) {
+              // 단가 없으면 공급가액 ÷ 수량
+              item.unitPrice = correctUp;
+            } else {
+              // 단가 × 수량이 공급가액과 5% 이상 차이나면 → 잘못 추출된 것
+              const calcSupply = extractedUp * qty;
+              const diffRatio = Math.abs(calcSupply - supply) / supply;
+              if (diffRatio > 0.05) {
+                // VAT 포함 단가인지 확인 (단가×수량 ≈ 합계)
+                const calcTotal = extractedUp * qty;
+                const totalDiff = total > 0 ? Math.abs(calcTotal - total) / total : 1;
+                if (totalDiff < 0.05) {
+                  // AI가 VAT 포함 단가를 반환 → 공급가액 기준으로 보정
+                  item.unitPrice = correctUp;
+                } else {
+                  // 그냥 공급가액 기준으로 보정
+                  item.unitPrice = correctUp;
+                }
+              }
+            }
+          } else if (!extractedUp && total > 0 && qty > 0) {
+            // supplyAmount 없지만 totalAmount와 수량으로 역산
+            const supplyFromTotal = Math.round(total / 1.1);
+            item.unitPrice = Math.round(supplyFromTotal / qty);
+            if (!supply) item.supplyAmount = supplyFromTotal;
+            if (!item.vatAmount) item.vatAmount = total - supplyFromTotal;
+          }
+        }
+      }
+      // 최상위 supplyAmount/vatAmount가 없으면 items 합산으로 채움
+      if (!parsed.supplyAmount && Array.isArray(parsed.items) && parsed.items.length > 0) {
+        parsed.supplyAmount = parsed.items.reduce((s: number, it: any) => s + (Number(it.supplyAmount) || 0), 0) || null;
+        parsed.vatAmount = parsed.items.reduce((s: number, it: any) => s + (Number(it.vatAmount) || 0), 0) || null;
+        if (!parsed.totalAmount) {
+          parsed.totalAmount = (Number(parsed.supplyAmount) || 0) + (Number(parsed.vatAmount) || 0) || null;
+        }
       }
 
       // 파일을 스토리지에 업로드
