@@ -10134,6 +10134,8 @@ ${htmlDraft}
             row.getCell(4).numFmt = '#,##0';
             row.getCell(5).value = h2val;  // E: 하반기 예산
             row.getCell(5).numFmt = '#,##0';
+            row.getCell(3).value = h1val + h2val;  // C: 연간예산 (수식 cachedValue 대체)
+            row.getCell(3).numFmt = '#,##0';
           }
           console.log(`[export-template] 대구본부 예산 주입 완료`);
         }
