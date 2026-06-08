@@ -7,7 +7,7 @@ import rateLimit from "express-rate-limit";
 import { createHash } from "crypto";
 import { db } from "./db";
 import { teams, trafficFines, accidentReports, educationSignatures, safetyInspections, educationTasks } from "@shared/schema";
-import { eq, and, count, sql } from "drizzle-orm";
+import { eq, and, count, sql, inArray } from "drizzle-orm";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -10397,6 +10397,23 @@ ${htmlDraft}
       res.json({ url: fileUrl });
     } catch (e: any) {
       res.status(500).json({ message: e.message });
+    }
+  });
+
+  // ─── 거래명세서 일괄 업데이트 ─────────────────────────────────────────
+  app.patch('/api/safety-cost-records/bulk-transaction', requireEditor, async (req: any, res) => {
+    try {
+      const schema = z.object({
+        ids: z.array(z.number()).min(1),
+        transactionFileUrl: z.string().min(1),
+      });
+      const { ids, transactionFileUrl } = schema.parse(req.body);
+      await db.update(safetyCostRecords)
+        .set({ transactionFileUrl })
+        .where(inArray(safetyCostRecords.id, ids));
+      res.json({ updated: ids.length });
+    } catch (e: any) {
+      res.status(400).json({ message: e.message });
     }
   });
 

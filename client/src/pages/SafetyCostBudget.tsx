@@ -164,11 +164,12 @@ export default function SafetyCostBudget() {
   const [multiResDlgOpen, setMultiResDlgOpen] = useState(false);
   const [multiResRows, setMultiResRows] = useState<MultiResRow[]>([]);
   const [multiResSaving, setMultiResSaving] = useState(false);
-  const [multiResUploadRowId, setMultiResUploadRowId] = useState<string | null>(null);
-  const [multiResUploadType, setMultiResUploadType] = useState<"quote" | "transaction">("quote");
+  const [multiResQuoteUrl, setMultiResQuoteUrl] = useState<string>("");
+  const [multiResQuoteUploading, setMultiResQuoteUploading] = useState(false);
 
   // 사용내역 행 선택
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [bulkTransUploading, setBulkTransUploading] = useState(false);
 
   // 예산 다이얼로그
   const [budgetDlgOpen, setBudgetDlgOpen] = useState(false);
@@ -194,7 +195,7 @@ export default function SafetyCostBudget() {
   const resolutionRef = useRef<HTMLInputElement>(null);
   const multiResRef = useRef<HTMLInputElement>(null);
   const multiResQuoteRef = useRef<HTMLInputElement>(null);
-  const multiResTransRef = useRef<HTMLInputElement>(null);
+  const bulkTransRef = useRef<HTMLInputElement>(null);
 
   // ── Queries ──────────────────────────────────────────────────────
   const { data: records = [], isLoading } = useQuery<SafetyCostRecord[]>({
@@ -436,7 +437,7 @@ export default function SafetyCostBudget() {
 
   // ── 다중 결의서 일괄 업로드 ───────────────────────────────────────
   function openMultiResDlg() { setMultiResRows([]); setMultiResDlgOpen(true); }
-  function closeMultiResDlg() { setMultiResDlgOpen(false); setMultiResRows([]); }
+  function closeMultiResDlg() { setMultiResDlgOpen(false); setMultiResRows([]); setMultiResQuoteUrl(""); }
   function updateMultiResRow(id: string, updates: Partial<MultiResRow>) {
     setMultiResRows(p => p.map(r => r.id === id ? { ...r, ...updates } : r));
   }
@@ -551,8 +552,8 @@ export default function SafetyCostBudget() {
           documentNumber: r.documentNumber || null,
           paymentRequestDate: r.paymentRequestDate || null,
           resolutionFileUrl: r.fileUrl || null,
-          quoteFileUrl: r.quoteFileUrl || null,
-          transactionFileUrl: r.transactionFileUrl || null,
+          quoteFileUrl: multiResQuoteUrl || null,
+          transactionFileUrl: null,
         });
         success++;
       } catch { fail++; }
@@ -567,22 +568,44 @@ export default function SafetyCostBudget() {
     }
   }
 
-  async function uploadAttachmentFile(rowId: string, file: File, type: "quote" | "transaction") {
-    updateMultiResRow(rowId, { [type === "quote" ? "quoteUploading" : "transactionUploading"]: true });
+  async function uploadSharedQuote(file: File) {
+    setMultiResQuoteUploading(true);
     try {
       const fd = new FormData();
       fd.append("file", file);
-      fd.append("type", type);
+      fd.append("type", "quote");
       const resp = await fetch("/api/safety-cost-records/upload-file", { method: "POST", body: fd, credentials: "include" });
       if (!resp.ok) throw new Error("업로드 실패");
       const data = await resp.json();
-      updateMultiResRow(rowId, {
-        [type === "quote" ? "quoteFileUrl" : "transactionFileUrl"]: data.url,
-        [type === "quote" ? "quoteUploading" : "transactionUploading"]: false,
+      setMultiResQuoteUrl(data.url);
+    } catch {
+      toast({ title: "견적서 업로드 실패", variant: "destructive" });
+    } finally {
+      setMultiResQuoteUploading(false);
+    }
+  }
+
+  async function uploadBulkTransaction(file: File) {
+    if (selectedIds.size === 0) return;
+    setBulkTransUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("type", "transaction");
+      const upResp = await fetch("/api/safety-cost-records/upload-file", { method: "POST", body: fd, credentials: "include" });
+      if (!upResp.ok) throw new Error("업로드 실패");
+      const { url } = await upResp.json();
+      await apiRequest("PATCH", "/api/safety-cost-records/bulk-transaction", {
+        ids: Array.from(selectedIds),
+        transactionFileUrl: url,
       });
-    } catch (e: any) {
-      updateMultiResRow(rowId, { [type === "quote" ? "quoteUploading" : "transactionUploading"]: false });
-      toast({ title: `${type === "quote" ? "견적서" : "거래명세서"} 업로드 실패`, variant: "destructive" });
+      qc.invalidateQueries({ queryKey: ["/api/safety-cost-records"] });
+      toast({ title: `${selectedIds.size}건 거래명세서 첨부 완료 ✓` });
+      setSelectedIds(new Set());
+    } catch {
+      toast({ title: "거래명세서 일괄 첨부 실패", variant: "destructive" });
+    } finally {
+      setBulkTransUploading(false);
     }
   }
 
@@ -1034,12 +1057,29 @@ export default function SafetyCostBudget() {
                   </span>
                 ))}
               </div>
-              <button onClick={() => setSelectedIds(new Set())}
-                className="ml-auto text-xs underline opacity-70 hover:opacity-100" data-testid="btn-clear-selection">
-                선택 해제
-              </button>
+              <div className="ml-auto flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="h-7 text-xs bg-white/20 hover:bg-white/30 text-primary-foreground border-0"
+                  onClick={() => bulkTransRef.current?.click()}
+                  disabled={bulkTransUploading}
+                  data-testid="btn-bulk-trans-upload"
+                >
+                  {bulkTransUploading
+                    ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" />첨부 중...</>
+                    : <><FileText className="w-3 h-3 mr-1" />거래명세서 일괄 첨부</>}
+                </Button>
+                <button onClick={() => setSelectedIds(new Set())}
+                  className="text-xs underline opacity-70 hover:opacity-100" data-testid="btn-clear-selection">
+                  선택 해제
+                </button>
+              </div>
             </div>
           )}
+          {/* 숨김 파일 입력 — 거래명세서 일괄 첨부용 */}
+          <input ref={bulkTransRef} type="file" accept="image/*,application/pdf" className="hidden"
+            onChange={e => { if (e.target.files?.[0]) { uploadBulkTransaction(e.target.files[0]); } e.target.value = ""; }} />
         </TabsContent>
 
         {/* ══ 항목별 요약 탭 ══ */}
@@ -1564,6 +1604,27 @@ export default function SafetyCostBudget() {
             <span className="text-xs text-muted-foreground">
               PDF·이미지 여러 개 동시 선택 가능 · AI가 자동으로 내용을 추출합니다
             </span>
+            <div className="ml-auto flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">견적서 (전체 공유):</span>
+              {multiResQuoteUrl ? (
+                <div className="flex items-center gap-1.5">
+                  <FileText className="w-3.5 h-3.5 text-blue-500" />
+                  <span className="text-xs text-blue-600 max-w-[120px] truncate">첨부됨</span>
+                  <button onClick={() => setMultiResQuoteUrl("")} className="text-muted-foreground hover:text-red-500" title="제거">
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ) : (
+                <Button variant="outline" size="sm" className="h-7 text-xs border-blue-300 text-blue-600 hover:bg-blue-50"
+                  onClick={() => multiResQuoteRef.current?.click()}
+                  disabled={multiResQuoteUploading}
+                  data-testid="btn-shared-quote-upload">
+                  {multiResQuoteUploading
+                    ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" />업로드 중...</>
+                    : <><FileText className="w-3 h-3 mr-1" />견적서 첨부</>}
+                </Button>
+              )}
+            </div>
             {multiResRows.length > 0 && (
               <span className="ml-auto text-xs text-muted-foreground">
                 {multiResRows.filter(r=>r.status==="done" && r.checked).length}건 선택됨 / {multiResRows.length}건 전체
@@ -1601,15 +1662,6 @@ export default function SafetyCostBudget() {
                     <TableHead className="w-24 text-xs">날짜</TableHead>
                     <TableHead className="w-24 text-xs">월</TableHead>
                     <TableHead className="w-32 text-xs">합계금액</TableHead>
-                    <TableHead className="w-20 text-xs text-center">
-                      <div className="flex flex-col items-center gap-0.5">
-                        <div className="flex gap-1">
-                          <span className="text-blue-500"><FileText className="w-3 h-3 inline" /></span>
-                          <span className="text-emerald-500"><FileText className="w-3 h-3 inline" /></span>
-                        </div>
-                        <span className="text-[9px] text-muted-foreground">견적·거래</span>
-                      </div>
-                    </TableHead>
                     <TableHead className="w-8"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -1687,28 +1739,6 @@ export default function SafetyCostBudget() {
                             className="h-7 text-xs text-right" placeholder="0" data-testid={`inp-total-${row.id}`} />
                         ) : <span className="text-xs text-muted-foreground">—</span>}
                       </TableCell>
-                      <TableCell className="text-center">
-                        {row.status === "done" ? (
-                          <div className="flex gap-1.5 justify-center">
-                            <button
-                              onClick={() => { setMultiResUploadRowId(row.id); setMultiResUploadType("quote"); setTimeout(() => multiResQuoteRef.current?.click(), 10); }}
-                              title={row.quoteFileUrl ? "견적서 첨부됨 (클릭하여 교체)" : "견적서 첨부"}
-                              className={row.quoteFileUrl ? "text-blue-500 hover:text-blue-700" : "text-muted-foreground/30 hover:text-blue-400"}
-                              data-testid={`btn-multi-quote-${row.id}`}
-                            >
-                              {row.quoteUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
-                            </button>
-                            <button
-                              onClick={() => { setMultiResUploadRowId(row.id); setMultiResUploadType("transaction"); setTimeout(() => multiResTransRef.current?.click(), 10); }}
-                              title={row.transactionFileUrl ? "거래명세서 첨부됨 (클릭하여 교체)" : "거래명세서 첨부"}
-                              className={row.transactionFileUrl ? "text-emerald-500 hover:text-emerald-700" : "text-muted-foreground/30 hover:text-emerald-400"}
-                              data-testid={`btn-multi-trans-${row.id}`}
-                            >
-                              {row.transactionUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
-                            </button>
-                          </div>
-                        ) : <span className="text-xs text-muted-foreground">—</span>}
-                      </TableCell>
                       <TableCell>
                         <button onClick={() => setMultiResRows(p => p.filter(r => r.id !== row.id))}
                           className="text-muted-foreground hover:text-red-500" data-testid={`btn-del-multi-${row.id}`}>
@@ -1722,11 +1752,9 @@ export default function SafetyCostBudget() {
             </div>
           )}
 
-          {/* 숨김 파일 입력 — 결의서 일괄 견적서/거래명세서 업로드용 */}
+          {/* 숨김 파일 입력 — 결의서 일괄 견적서 공유 업로드용 */}
           <input ref={multiResQuoteRef} type="file" accept="image/*,application/pdf" className="hidden"
-            onChange={e => { if (e.target.files?.[0] && multiResUploadRowId) { uploadAttachmentFile(multiResUploadRowId, e.target.files[0], "quote"); } e.target.value = ""; }} />
-          <input ref={multiResTransRef} type="file" accept="image/*,application/pdf" className="hidden"
-            onChange={e => { if (e.target.files?.[0] && multiResUploadRowId) { uploadAttachmentFile(multiResUploadRowId, e.target.files[0], "transaction"); } e.target.value = ""; }} />
+            onChange={e => { if (e.target.files?.[0]) { uploadSharedQuote(e.target.files[0]); } e.target.value = ""; }} />
 
           <DialogFooter className="pt-2 border-t gap-2">
             <Button variant="ghost" onClick={closeMultiResDlg} data-testid="btn-multi-res-cancel">취소</Button>
