@@ -15,7 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Plus, Trash2, Edit2, Upload, FileText, ImageIcon, Loader2,
-  BarChart3, List, X, Download, Receipt, FileCheck, PackagePlus, CheckSquare, FileScan
+  BarChart3, List, X, Download, Receipt, FileCheck, PackagePlus, CheckSquare, FileScan, ScrollText
 } from "lucide-react";
 import type { SafetyCostRecord, SafetyCostTaxInvoice } from "@shared/schema";
 
@@ -787,15 +787,23 @@ export default function SafetyCostBudget() {
                 <TableHeader>
                   <TableRow className="bg-muted/40">
                     <TableHead className="w-10 text-center">월</TableHead>
-                    <TableHead>항목</TableHead>
-                    <TableHead>품명</TableHead>
-                    <TableHead>업체명</TableHead>
-                    <TableHead className="text-right">수량</TableHead>
-                    <TableHead className="text-right">단가</TableHead>
-                    <TableHead className="text-right">공급가액</TableHead>
-                    <TableHead className="text-right">세액</TableHead>
-                    <TableHead className="text-right font-semibold">합계</TableHead>
-                    <TableHead className="w-24 text-center">첨부/세금계산서</TableHead>
+                    <TableHead className="w-10">항목</TableHead>
+                    <TableHead className="min-w-[180px]">품명</TableHead>
+                    <TableHead className="w-28">업체명</TableHead>
+                    <TableHead className="text-right w-16 hidden md:table-cell">수량</TableHead>
+                    <TableHead className="text-right w-20 hidden lg:table-cell">단가</TableHead>
+                    <TableHead className="text-right w-24 hidden lg:table-cell">공급가액</TableHead>
+                    <TableHead className="text-right w-20 hidden xl:table-cell">세액</TableHead>
+                    <TableHead className="text-right font-semibold w-28">합계</TableHead>
+                    <TableHead className="w-36 text-center">
+                      <div className="flex items-center justify-center gap-1.5 text-xs leading-tight">
+                        <span className="text-blue-500"><FileText className="w-3.5 h-3.5 inline" /></span>
+                        <span className="text-emerald-500"><FileText className="w-3.5 h-3.5 inline" /></span>
+                        <span className="text-indigo-500"><ScrollText className="w-3.5 h-3.5 inline" /></span>
+                        <span className="text-violet-500"><Receipt className="w-3.5 h-3.5 inline" /></span>
+                      </div>
+                      <div className="text-[10px] text-muted-foreground mt-0.5">첨부·결의서·세금계산서</div>
+                    </TableHead>
                     <TableHead className="w-14 text-center">관리</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -814,31 +822,40 @@ export default function SafetyCostBudget() {
                           <div className="font-medium text-sm leading-tight">{rec.itemName}</div>
                           {rec.specification && <div className="text-xs text-muted-foreground truncate max-w-36">{rec.specification}</div>}
                         </TableCell>
-                        <TableCell className="text-sm">{rec.vendorName||"-"}</TableCell>
-                        <TableCell className="text-right text-sm">{rec.quantity ? `${fmtNum(rec.quantity)}${rec.unit?" "+rec.unit:""}` : "-"}</TableCell>
-                        <TableCell className="text-right text-sm">{rec.unitPrice ? fmt(rec.unitPrice) : "-"}</TableCell>
-                        <TableCell className="text-right text-sm">{rec.supplyAmount ? fmt(rec.supplyAmount) : "-"}</TableCell>
-                        <TableCell className="text-right text-sm">{rec.vatAmount ? fmt(rec.vatAmount) : "-"}</TableCell>
+                        <TableCell className="text-sm w-28 truncate max-w-[7rem]">{rec.vendorName||"-"}</TableCell>
+                        <TableCell className="text-right text-sm hidden md:table-cell">{rec.quantity ? `${fmtNum(rec.quantity)}${rec.unit?" "+rec.unit:""}` : "-"}</TableCell>
+                        <TableCell className="text-right text-sm hidden lg:table-cell">{rec.unitPrice ? fmt(rec.unitPrice) : "-"}</TableCell>
+                        <TableCell className="text-right text-sm hidden lg:table-cell">{rec.supplyAmount ? fmt(rec.supplyAmount) : "-"}</TableCell>
+                        <TableCell className="text-right text-sm hidden xl:table-cell">{rec.vatAmount ? fmt(rec.vatAmount) : "-"}</TableCell>
                         <TableCell className="text-right font-bold text-sm">{fmt(rec.totalAmount)}</TableCell>
                         <TableCell className="text-center">
-                          <div className="flex gap-1 justify-center flex-wrap">
-                            {rec.quoteFileUrl && (
+                          <div className="flex gap-1.5 justify-center items-center">
+                            {/* 견적서 */}
+                            {rec.quoteFileUrl ? (
                               <button onClick={() => setPreview({ url: rec.quoteFileUrl!, title: "견적서" })}
                                 className="text-blue-500 hover:text-blue-700 transition-colors" title="견적서" data-testid={`btn-quote-${rec.id}`}>
                                 <FileText className="w-4 h-4" />
                               </button>
+                            ) : (
+                              <FileText className="w-4 h-4 text-muted-foreground/20" />
                             )}
-                            {rec.transactionFileUrl && (
+                            {/* 거래명세서 */}
+                            {rec.transactionFileUrl ? (
                               <button onClick={() => setPreview({ url: rec.transactionFileUrl!, title: "거래명세서" })}
                                 className="text-emerald-500 hover:text-emerald-700 transition-colors" title="거래명세서" data-testid={`btn-trans-${rec.id}`}>
                                 <FileText className="w-4 h-4" />
                               </button>
+                            ) : (
+                              <FileText className="w-4 h-4 text-muted-foreground/20" />
                             )}
-                            {rec.certificateFileUrl && (
-                              <button onClick={() => setPreview({ url: rec.certificateFileUrl!, title: "수료증" })}
-                                className="text-orange-500 hover:text-orange-700 transition-colors" title="수료증/이수증" data-testid={`btn-cert-${rec.id}`}>
-                                <FileCheck className="w-4 h-4" />
+                            {/* 결의서(구매/지출/기안서) */}
+                            {(rec as any).resolutionFileUrl ? (
+                              <button onClick={() => setPreview({ url: (rec as any).resolutionFileUrl, title: "결의서" })}
+                                className="text-indigo-500 hover:text-indigo-700 transition-colors" title="결의서(구매/지출/기안서)" data-testid={`btn-resolution-${rec.id}`}>
+                                <ScrollText className="w-4 h-4" />
                               </button>
+                            ) : (
+                              <ScrollText className="w-4 h-4 text-muted-foreground/20" />
                             )}
                             {/* 월별 세금계산서 */}
                             {monthTaxMap[rec.month] ? (
@@ -853,7 +870,7 @@ export default function SafetyCostBudget() {
                               </button>
                             ) : (
                               <button onClick={() => openAddTaxForMonth(rec.month)}
-                                className="text-muted-foreground/30 hover:text-violet-400 transition-colors" title={`${rec.month}월 세금계산서 등록`}
+                                className="text-muted-foreground/20 hover:text-violet-400 transition-colors" title={`${rec.month}월 세금계산서 등록`}
                                 data-testid={`btn-tax-add-month-${rec.id}`}>
                                 <Receipt className="w-4 h-4" />
                               </button>
