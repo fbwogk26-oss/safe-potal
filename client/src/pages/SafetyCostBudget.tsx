@@ -173,7 +173,8 @@ export default function SafetyCostBudget() {
 
   // 예산 다이얼로그
   const [budgetDlgOpen, setBudgetDlgOpen] = useState(false);
-  const [budgetInput, setBudgetInput] = useState<Record<string, string>>({});
+  const [budgetHalf, setBudgetHalf] = useState<"h1"|"h2">("h1");
+  const [budgetInput, setBudgetInput] = useState<{ h1: Record<string, string>; h2: Record<string, string> }>({ h1: {}, h2: {} });
 
   // 세금계산서 다이얼로그
   const [taxDlgOpen, setTaxDlgOpen] = useState(false);
@@ -210,6 +211,10 @@ export default function SafetyCostBudget() {
   const { data: budgets = {} } = useQuery<Record<string, number>>({
     queryKey: ["/api/safety-cost-budget", year],
     queryFn: () => fetch(`/api/safety-cost-budget?year=${year}`, { credentials: "include" }).then(r => r.json()),
+  });
+  const { data: budgetDetail = { h1: {}, h2: {} } } = useQuery<{ h1: Record<string, number>; h2: Record<string, number> }>({
+    queryKey: ["/api/safety-cost-budget-detail", year],
+    queryFn: () => fetch(`/api/safety-cost-budget-detail?year=${year}`, { credentials: "include" }).then(r => r.json()),
   });
 
   // ── Mutations ────────────────────────────────────────────────────
@@ -251,8 +256,14 @@ export default function SafetyCostBudget() {
     onError: (e: any) => toast({ title: "일괄 삭제 실패", description: e.message, variant: "destructive" }),
   });
   const saveBudgetMut = useMutation({
-    mutationFn: (b: Record<string, number>) => apiRequest("PUT", "/api/safety-cost-budget", { year, budgets: b }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/safety-cost-budget"] }); toast({ title: "예산 저장 완료" }); setBudgetDlgOpen(false); },
+    mutationFn: (b: { h1: Record<string, number>; h2: Record<string, number> }) =>
+      apiRequest("PUT", "/api/safety-cost-budget", { year, h1: b.h1, h2: b.h2 }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/safety-cost-budget"] });
+      qc.invalidateQueries({ queryKey: ["/api/safety-cost-budget-detail"] });
+      toast({ title: "예산 저장 완료" });
+      setBudgetDlgOpen(false);
+    },
     onError: (e: any) => toast({ title: "저장 실패", description: e.message, variant: "destructive" }),
   });
 
@@ -815,9 +826,14 @@ export default function SafetyCostBudget() {
             </SelectContent>
           </Select>
           <Button variant="outline" onClick={() => {
-            const init: Record<string, string> = {};
-            CATEGORIES.forEach((_, i) => { init[String(i+1)] = String(budgets[String(i+1)] ?? 0); });
+            const init = { h1: {} as Record<string, string>, h2: {} as Record<string, string> };
+            CATEGORIES.forEach((_, i) => {
+              const k = String(i + 1);
+              init.h1[k] = String(budgetDetail.h1[k] ?? 0);
+              init.h2[k] = String(budgetDetail.h2[k] ?? 0);
+            });
             setBudgetInput(init);
+            setBudgetHalf("h1");
             setBudgetDlgOpen(true);
           }} data-testid="button-open-budget">
             <Wallet className="w-4 h-4 mr-1" /> 예산 입력
@@ -1205,58 +1221,98 @@ export default function SafetyCostBudget() {
 
       {/* ══ 예산 입력 다이얼로그 ══ */}
       <Dialog open={budgetDlgOpen} onOpenChange={setBudgetDlgOpen}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Wallet className="w-5 h-5 text-primary" />
-              {year}년 항목별 예산 입력
+              {year}년 항목별 예산 입력 (상반기/하반기)
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-2 py-2">
-            <p className="text-xs text-muted-foreground">각 항목의 연간 예산액을 원 단위로 입력하세요. 저장 후 항목별 요약에서 예산 대비 현황을 확인할 수 있습니다.</p>
-            {CATEGORIES.map((cat, i) => {
-              const catNum = String(i + 1);
-              return (
-                <div key={catNum} className="flex items-center gap-3">
-                  <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0" style={{ backgroundColor: ['#3b82f6','#10b981','#f59e0b','#8b5cf6','#f97316','#ec4899','#14b8a6','#f43f5e','#6366f1'][i] }}>
-                    {i+1}
-                  </div>
-                  <Label className="flex-1 text-xs leading-tight text-foreground min-w-0 truncate" title={cat.split(". ")[1]}>
-                    {cat.split(". ")[1]}
-                  </Label>
-                  <div className="relative w-40 shrink-0">
-                    <Input
-                      type="text"
-                      inputMode="numeric"
-                      className="pr-6 text-right text-sm h-8"
-                      value={Number(budgetInput[catNum] || 0).toLocaleString("ko-KR")}
-                      onChange={e => {
-                        const raw = e.target.value.replace(/[^0-9]/g, "");
-                        setBudgetInput(prev => ({ ...prev, [catNum]: raw }));
-                      }}
-                      data-testid={`input-budget-cat-${catNum}`}
-                    />
-                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">원</span>
-                  </div>
+
+          {/* 상반기/하반기 탭 */}
+          <Tabs value={budgetHalf} onValueChange={v => setBudgetHalf(v as "h1"|"h2")}>
+            <TabsList className="w-full">
+              <TabsTrigger value="h1" className="flex-1" data-testid="tab-budget-h1">
+                상반기 (1~6월)
+                <span className="ml-2 text-xs text-muted-foreground">
+                  {Object.values(budgetInput.h1).reduce((s, v) => s + (Number(v) || 0), 0).toLocaleString("ko-KR")}원
+                </span>
+              </TabsTrigger>
+              <TabsTrigger value="h2" className="flex-1" data-testid="tab-budget-h2">
+                하반기 (7~12월)
+                <span className="ml-2 text-xs text-muted-foreground">
+                  {Object.values(budgetInput.h2).reduce((s, v) => s + (Number(v) || 0), 0).toLocaleString("ko-KR")}원
+                </span>
+              </TabsTrigger>
+            </TabsList>
+
+            {(["h1", "h2"] as const).map(half => (
+              <TabsContent key={half} value={half} className="space-y-2 py-2">
+                <p className="text-xs text-muted-foreground">
+                  {half === "h1" ? "1~6월" : "7~12월"} 예산액을 원 단위로 입력하세요.
+                </p>
+                {CATEGORIES.map((cat, i) => {
+                  const catNum = String(i + 1);
+                  const CAT_COLORS_HEX = ['#3b82f6','#10b981','#f59e0b','#8b5cf6','#f97316','#ec4899','#14b8a6','#f43f5e','#6366f1'];
+                  return (
+                    <div key={catNum} className="flex items-center gap-3">
+                      <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
+                        style={{ backgroundColor: CAT_COLORS_HEX[i] }}>
+                        {i + 1}
+                      </div>
+                      <Label className="flex-1 text-xs leading-tight text-foreground min-w-0 truncate" title={cat.split(". ")[1]}>
+                        {cat.split(". ")[1]}
+                      </Label>
+                      <div className="relative w-40 shrink-0">
+                        <Input
+                          type="text"
+                          inputMode="numeric"
+                          className="pr-6 text-right text-sm h-8"
+                          value={Number(budgetInput[half][catNum] || 0).toLocaleString("ko-KR")}
+                          onChange={e => {
+                            const raw = e.target.value.replace(/[^0-9]/g, "");
+                            setBudgetInput(prev => ({ ...prev, [half]: { ...prev[half], [catNum]: raw } }));
+                          }}
+                          data-testid={`input-budget-${half}-cat-${catNum}`}
+                        />
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">원</span>
+                      </div>
+                    </div>
+                  );
+                })}
+                <div className="pt-2 border-t flex items-center justify-between text-sm font-semibold">
+                  <span className="text-muted-foreground">{half === "h1" ? "상반기" : "하반기"} 소계</span>
+                  <span className="text-primary">
+                    {Object.values(budgetInput[half]).reduce((s, v) => s + (Number(v) || 0), 0).toLocaleString("ko-KR")}원
+                  </span>
                 </div>
-              );
-            })}
-            <div className="pt-2 border-t flex items-center justify-between text-sm font-semibold">
-              <span className="text-muted-foreground">총 예산</span>
-              <span className="text-primary">
-                {Object.values(budgetInput).reduce((s, v) => s + (Number(v) || 0), 0).toLocaleString("ko-KR")}원
-              </span>
-            </div>
+              </TabsContent>
+            ))}
+          </Tabs>
+
+          {/* 연간 총 예산 합계 */}
+          <div className="border rounded-lg p-3 bg-muted/30 flex items-center justify-between text-sm font-semibold">
+            <span className="text-muted-foreground">연간 총 예산</span>
+            <span className="text-primary text-base">
+              {(
+                Object.values(budgetInput.h1).reduce((s, v) => s + (Number(v) || 0), 0) +
+                Object.values(budgetInput.h2).reduce((s, v) => s + (Number(v) || 0), 0)
+              ).toLocaleString("ko-KR")}원
+            </span>
           </div>
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setBudgetDlgOpen(false)}>취소</Button>
             <Button
               onClick={() => {
-                const parsed: Record<string, number> = {};
+                const h1: Record<string, number> = {};
+                const h2: Record<string, number> = {};
                 CATEGORIES.forEach((_, i) => {
-                  parsed[String(i+1)] = Number(budgetInput[String(i+1)] || 0);
+                  const k = String(i + 1);
+                  h1[k] = Number(budgetInput.h1[k] || 0);
+                  h2[k] = Number(budgetInput.h2[k] || 0);
                 });
-                saveBudgetMut.mutate(parsed);
+                saveBudgetMut.mutate({ h1, h2 });
               }}
               disabled={saveBudgetMut.isPending}
               data-testid="button-save-budget"

@@ -9905,16 +9905,53 @@ ${htmlDraft}
   app.get('/api/safety-cost-budget', isAuthenticated, async (req: any, res) => {
     try {
       const year = Number(req.query.year) || new Date().getFullYear();
-      const setting = await storage.getSetting(`safety_cost_budgets_${year}`);
-      res.json(setting ? JSON.parse(setting.value) : {});
+      const h1S = await storage.getSetting(`safety_cost_budgets_h1_${year}`);
+      const h2S = await storage.getSetting(`safety_cost_budgets_h2_${year}`);
+      if (h1S || h2S) {
+        const h1: Record<string, number> = h1S ? JSON.parse(h1S.value) : {};
+        const h2: Record<string, number> = h2S ? JSON.parse(h2S.value) : {};
+        const total: Record<string, number> = {};
+        [...new Set([...Object.keys(h1), ...Object.keys(h2)])].forEach(k => {
+          total[k] = (Number(h1[k]) || 0) + (Number(h2[k]) || 0);
+        });
+        res.json(total);
+      } else {
+        const setting = await storage.getSetting(`safety_cost_budgets_${year}`);
+        res.json(setting ? JSON.parse(setting.value) : {});
+      }
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // 상반기/하반기 상세 조회
+  app.get('/api/safety-cost-budget-detail', isAuthenticated, async (req: any, res) => {
+    try {
+      const year = Number(req.query.year) || new Date().getFullYear();
+      const h1S = await storage.getSetting(`safety_cost_budgets_h1_${year}`);
+      const h2S = await storage.getSetting(`safety_cost_budgets_h2_${year}`);
+      if (h1S || h2S) {
+        res.json({
+          h1: h1S ? JSON.parse(h1S.value) : {},
+          h2: h2S ? JSON.parse(h2S.value) : {},
+        });
+      } else {
+        const legacyS = await storage.getSetting(`safety_cost_budgets_${year}`);
+        res.json({ h1: legacyS ? JSON.parse(legacyS.value) : {}, h2: {} });
+      }
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
   app.put('/api/safety-cost-budget', requireEditor, async (req: any, res) => {
     try {
-      const { year, budgets } = req.body;
-      if (!year || !budgets) return res.status(400).json({ message: '연도와 예산 데이터가 필요합니다' });
-      await storage.setSetting(`safety_cost_budgets_${year}`, JSON.stringify(budgets));
+      const { year, h1, h2, budgets } = req.body;
+      if (!year) return res.status(400).json({ message: '연도가 필요합니다' });
+      if (h1 !== undefined || h2 !== undefined) {
+        await storage.setSetting(`safety_cost_budgets_h1_${year}`, JSON.stringify(h1 || {}));
+        await storage.setSetting(`safety_cost_budgets_h2_${year}`, JSON.stringify(h2 || {}));
+      } else if (budgets) {
+        await storage.setSetting(`safety_cost_budgets_${year}`, JSON.stringify(budgets));
+      } else {
+        return res.status(400).json({ message: '예산 데이터가 필요합니다' });
+      }
       res.json({ success: true });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
