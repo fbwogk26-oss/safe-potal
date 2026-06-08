@@ -9974,6 +9974,18 @@ ${htmlDraft}
       await wb.xlsx.readFile(templatePath);
       (wb as any).calcProperties = { fullCalcOnLoad: true };
 
+      // shared formula를 독립 수식으로 풀어줌 (덮어쓸 때 ExcelJS 버그 방지)
+      wb.worksheets.forEach(sheet => {
+        sheet.eachRow(row => {
+          row.eachCell({ includeEmpty: false }, (cell: any) => {
+            const v = cell.value;
+            if (v && typeof v === 'object' && ('sharedFormula' in v || ('formula' in v && v.sharedFormula))) {
+              cell.value = { formula: v.sharedFormula || v.formula || '', result: v.result };
+            }
+          });
+        });
+      });
+
       // ── DB 카테고리 → 템플릿 항목명 매핑 ───────────────────────────
       const CAT_MAP: Record<string, string> = {
         '1': '안전관리자 등 인건비',
