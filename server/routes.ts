@@ -10115,44 +10115,66 @@ ${htmlDraft}
           budgets = legacyS ? JSON.parse(legacyS.value) : {};
           console.log(`[export-template] 예산 legacy:`, JSON.stringify(budgets));
         }
-        // 카테고리 번호 → 검색 키워드
-        const CAT_KW: Record<string, string[]> = {
-          '1': ['안전관리자', '인건비'],
-          '2': ['안전시설비'],
-          '3': ['보호구', '안전용품'],
-          '4': ['안전진단비'],
-          '5': ['안전보건교육', '행사비'],
-          '6': ['건강관리', '근로자 건강'],
-          '7': ['건설재해'],
-          '8': ['기타'],
-          '9': ['산보위', '위험성평가'],
-        };
-        wb.worksheets.forEach(sheet => {
-          if (sheet.name === '사용내역') return;
-          sheet.eachRow((row) => {
-            row.eachCell({ includeEmpty: false }, (cell, cIdx) => {
-              const val = (cell.value ?? '').toString();
-              for (const [catNum, kws] of Object.entries(CAT_KW)) {
-                if (kws.some(kw => val.includes(kw))) {
-                  const budget = Number(budgets[catNum]) || 0;
-                  // 바로 오른쪽 셀이 빈칸이거나 숫자인 경우에만 예산값 주입 (수식 셀 건드리지 않음)
-                  const targetCell = row.getCell(cIdx + 1);
-                  const tv = targetCell.value;
-                  if (tv === null || tv === undefined || typeof tv === 'number') {
-                    targetCell.value = budget;
-                    targetCell.numFmt = '#,##0';
-                  }
-                  break;
-                }
-              }
-            });
-          });
-        });
+        // 2.예산입력 시트 대구본부 행에 직접 주입
+        // 대구본부: 행44(인건비)~행52(산보위), D열=상반기, E열=하반기 (C열은 D+E 합산 수식이라 건드리지 않음)
+        const budgetSheet = wb.getWorksheet('2.예산입력');
+        if (budgetSheet) {
+          const DAEGU_ROWS: Record<string, number> = {
+            '1': 44, '2': 45, '3': 46, '4': 47, '5': 48,
+            '6': 49, '7': 50, '8': 51, '9': 52,
+          };
+          const h1: Record<string, number> = h1S ? JSON.parse(h1S.value) : {};
+          const h2: Record<string, number> = h2S ? JSON.parse(h2S.value) : {};
+          for (const [catNum, rowNum] of Object.entries(DAEGU_ROWS)) {
+            const row = budgetSheet.getRow(rowNum);
+            const h1val = Number(h1[catNum]) || 0;
+            const h2val = Number(h2[catNum]) || 0;
+            row.getCell(4).value = h1val;  // D: 상반기 예산
+            row.getCell(4).numFmt = '#,##0';
+            row.getCell(5).value = h2val;  // E: 하반기 예산
+            row.getCell(5).numFmt = '#,##0';
+          }
+          console.log(`[export-template] 대구본부 예산 주입 완료`);
+        }
       } catch (budgetErr: any) {
         console.warn('[export-template] 예산 주입 실패(무시):', budgetErr.message);
       }
 
       // ─── 응답 ───────────────────────────────────────────────────────
+      // ── 전체 시트 열 너비 자동 조정 (사용내역 제외 — 위에서 이미 처리) ──
+      {
+        const strW = (v: any): number => {
+          const s = v === null || v === undefined ? '' :
+            (typeof v === 'object' && 'result' in v) ? String((v as any).result ?? '') :
+            (v instanceof Date) ? 'YYYY-MM-DD' : String(v);
+          let w = 0;
+          for (const ch of s) {
+            w += /[\u1100-\u11FF\u2E80-\uD7AF\uF900-\uFAFF\uFE30-\uFE4F\uFF01-\uFF60]/.test(ch) ? 2 : 1;
+          }
+          return w;
+        };
+        wb.worksheets.forEach(sheet => {
+          if (sheet.name === '사용내역') return; // 위에서 이미 처리
+          const maxW: Record<number, number> = {};
+          sheet.eachRow((row, rn) => {
+            if (rn < 3) return; // 제목/설명 행 스킵
+            row.eachCell({ includeEmpty: false }, (cell, ci) => {
+              const w = strW(cell.value) + 2;
+              if (!maxW[ci] || w > maxW[ci]) maxW[ci] = w;
+            });
+          });
+          // 헤더행(3행)도 반영
+          const hdrRow = sheet.getRow(3);
+          hdrRow.eachCell({ includeEmpty: false }, (cell, ci) => {
+            const w = strW(cell.value) + 2;
+            if (!maxW[ci] || w > maxW[ci]) maxW[ci] = w;
+          });
+          Object.entries(maxW).forEach(([ci, w]) => {
+            sheet.getColumn(Number(ci)).width = Math.min(Math.max(w, 8), 45);
+          });
+        });
+      }
+
       console.log(`[export-template] writeBuffer 시작 (records=${records.length})`);
       const buffer = await wb.xlsx.writeBuffer();
       console.log(`[export-template] writeBuffer 완료, size=${Buffer.isBuffer(buffer) ? buffer.length : (buffer as any).byteLength}`);
