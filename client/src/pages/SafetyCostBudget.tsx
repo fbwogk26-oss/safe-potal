@@ -484,7 +484,7 @@ export default function SafetyCostBudget() {
   async function handleDownloadTemplate() {
     setDownloadingTemplate(true);
     try {
-      const r = await fetch(`/api/safety-cost-records/export?year=${year}`, { credentials: "include" });
+      const r = await fetch(`/api/safety-cost-records/export-template?year=${year}`, { credentials: "include" });
       if (!r.ok) throw new Error("다운로드 실패");
       const blob = await r.blob();
       const url = URL.createObjectURL(blob);
