@@ -241,7 +241,7 @@ export default function SafetyCostBudget() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/safety-cost-tax-invoices"] }); toast({ title: "삭제 완료" }); setDelConfirm(null); },
   });
   const bulkDeleteMut = useMutation({
-    mutationFn: (ids: number[]) => apiRequest("DELETE", "/api/safety-cost-records/bulk-delete", { ids }),
+    mutationFn: (ids: number[]) => apiRequest("POST", "/api/safety-cost-records/bulk-delete", { ids }),
     onSuccess: (_, ids) => {
       qc.invalidateQueries({ queryKey: ["/api/safety-cost-records"] });
       toast({ title: `${ids.length}건 일괄 삭제 완료` });

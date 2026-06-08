@@ -4020,7 +4020,7 @@ ${buildEmailFooter()}
     }
   });
 
-  app.delete('/api/risk-assessments/bulk-delete', requireEditor, async (req: any, res) => {
+  app.post('/api/risk-assessments/bulk-delete', requireEditor, async (req: any, res) => {
     const { ids } = req.body;
     if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ message: "ids required" });
     let deleted = 0;
@@ -10401,7 +10401,7 @@ ${htmlDraft}
   });
 
   // ─── 사용내역 일괄 삭제 ───────────────────────────────────────────────
-  app.delete('/api/safety-cost-records/bulk-delete', requireEditor, async (req: any, res) => {
+  app.post('/api/safety-cost-records/bulk-delete', requireEditor, async (req: any, res) => {
     try {
       const schema = z.object({ ids: z.array(z.number()).min(1) });
       const { ids } = schema.parse(req.body);
