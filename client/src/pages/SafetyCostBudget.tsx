@@ -15,7 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Plus, Trash2, Edit2, Upload, FileText, ImageIcon, Loader2,
-  BarChart3, List, X, Download, Receipt, FileCheck, PackagePlus, CheckSquare
+  BarChart3, List, X, Download, Receipt, FileCheck, PackagePlus, CheckSquare, FileScan
 } from "lucide-react";
 import type { SafetyCostRecord, SafetyCostTaxInvoice } from "@shared/schema";
 
@@ -72,7 +72,8 @@ const emptyForm = {
   category: "", subCategory: "", itemName: "", specification: "",
   unit: "EA", quantity: "", unitPrice: "", supplyAmount: "", vatAmount: "",
   totalAmount: "", purchaseDate: "", vendorName: "", notes: "",
-  quoteFileUrl: "", transactionFileUrl: "", certificateFileUrl: "",
+  documentNumber: "", paymentRequestDate: "",
+  quoteFileUrl: "", transactionFileUrl: "", certificateFileUrl: "", resolutionFileUrl: "",
 };
 const emptyTaxForm = {
   year: currentYear, month: new Date().getMonth() + 1,
@@ -95,7 +96,8 @@ interface BulkItemRow extends ExtractedItem {
 // 일괄 등록 공통 필드
 interface BulkCommon {
   year: number; month: number; category: string; subCategory: string;
-  purchaseDate: string; vendorName: string; quoteFileUrl: string; transactionFileUrl: string;
+  purchaseDate: string; vendorName: string; documentNumber: string; paymentRequestDate: string;
+  quoteFileUrl: string; transactionFileUrl: string;
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -120,8 +122,10 @@ export default function SafetyCostBudget() {
   const [bulkCommon, setBulkCommon] = useState<BulkCommon>({
     year: currentYear, month: new Date().getMonth() + 1,
     category: "", subCategory: "", purchaseDate: "", vendorName: "",
+    documentNumber: "", paymentRequestDate: "",
     quoteFileUrl: "", transactionFileUrl: "",
   });
+  const [resolutionExtracting, setResolutionExtracting] = useState(false);
   const [bulkItems, setBulkItems] = useState<BulkItemRow[]>([]);
   const [bulkSaving, setBulkSaving] = useState(false);
 
@@ -142,6 +146,7 @@ export default function SafetyCostBudget() {
   const transRef = useRef<HTMLInputElement>(null);
   const taxFileRef = useRef<HTMLInputElement>(null);
   const certRef = useRef<HTMLInputElement>(null);
+  const resolutionRef = useRef<HTMLInputElement>(null);
 
   // ── Queries ──────────────────────────────────────────────────────
   const { data: records = [], isLoading } = useQuery<SafetyCostRecord[]>({
@@ -191,8 +196,9 @@ export default function SafetyCostBudget() {
       unitPrice: r.unitPrice?.toString()||"", supplyAmount: r.supplyAmount?.toString()||"",
       vatAmount: r.vatAmount?.toString()||"", totalAmount: r.totalAmount?.toString()||"",
       purchaseDate: r.purchaseDate||"", vendorName: r.vendorName||"", notes: r.notes||"",
+      documentNumber: (r as any).documentNumber||"", paymentRequestDate: (r as any).paymentRequestDate||"",
       quoteFileUrl: r.quoteFileUrl||"", transactionFileUrl: r.transactionFileUrl||"",
-      certificateFileUrl: r.certificateFileUrl||"" });
+      certificateFileUrl: r.certificateFileUrl||"", resolutionFileUrl: (r as any).resolutionFileUrl||"" });
     setExtractedItems([]); setDlgOpen(true);
   }
   function closeDlg() { setDlgOpen(false); setEditRec(null); setExtractedItems([]); }
@@ -216,7 +222,7 @@ export default function SafetyCostBudget() {
   }
 
   // ── 일괄 등록 헬퍼 ───────────────────────────────────────────────
-  function openBulkDlg(data: ExtractedData) {
+  function openBulkDlg(data: ExtractedData & { documentNumber?: string; paymentRequestDate?: string }) {
     const items: BulkItemRow[] = (data.items || []).map(it => ({ ...it, checked: true }));
     setBulkItems(items);
     setBulkCommon({
@@ -224,6 +230,8 @@ export default function SafetyCostBudget() {
       category: "", subCategory: "",
       purchaseDate: data.documentDate || "",
       vendorName: data.vendorName || "",
+      documentNumber: data.documentNumber || "",
+      paymentRequestDate: data.paymentRequestDate || "",
       quoteFileUrl: data._fileUrl || "",
       transactionFileUrl: "",
     });
@@ -273,6 +281,8 @@ export default function SafetyCostBudget() {
           purchaseDate: bulkCommon.purchaseDate || null,
           vendorName: bulkCommon.vendorName || null,
           notes: null,
+          documentNumber: bulkCommon.documentNumber || null,
+          paymentRequestDate: bulkCommon.paymentRequestDate || null,
           quoteFileUrl: bulkCommon.quoteFileUrl || null,
           transactionFileUrl: bulkCommon.transactionFileUrl || null,
         });
@@ -307,6 +317,41 @@ export default function SafetyCostBudget() {
     } catch (e: any) {
       toast({ title: "업로드 실패", description: e.message, variant: "destructive" });
     } finally { setCertUploading(false); }
+  }
+
+  // ── 결의서(구매/지출) PDF AI 추출 ──────────────────────────────────
+  async function handleExtractResolution(file: File) {
+    setResolutionExtracting(true);
+    try {
+      const fd = new FormData(); fd.append("file", file);
+      const r = await fetch("/api/safety-cost-records/extract-resolution", { method: "POST", body: fd, credentials: "include" });
+      if (!r.ok) { const e = await r.json().catch(() => ({ message: "분석 실패" })); throw new Error(e.message); }
+      const data = await r.json();
+
+      let changed: string[] = [];
+      if (data.documentNumber) { setF("documentNumber", data.documentNumber); changed.push("품의번호"); }
+      if (data.paymentRequestDate) { setF("paymentRequestDate", data.paymentRequestDate); changed.push("지급요청일자"); }
+      if (data.documentDate && !form.purchaseDate) { setF("purchaseDate", data.documentDate); changed.push("구매일자"); }
+      if (data.vendorName && !form.vendorName) { setF("vendorName", data.vendorName); changed.push("업체명"); }
+      if (data.supplyAmount && !form.supplyAmount) { setF("supplyAmount", data.supplyAmount.toString()); }
+      if (data.vatAmount && !form.vatAmount) { setF("vatAmount", data.vatAmount.toString()); }
+      if (data.totalAmount && !form.totalAmount) { setF("totalAmount", data.totalAmount.toString()); changed.push("합계금액"); }
+
+      if (data._fileUrl) setF("resolutionFileUrl", data._fileUrl);
+
+      if (data.items && data.items.length > 0) {
+        setExtractedItems(data.items);
+        setSelItemIdx(0);
+        applyItem(data.items[0]);
+      }
+
+      toast({
+        title: "결의서 분석 완료",
+        description: changed.length > 0 ? `${changed.join(", ")} 자동 입력됨` : "내용을 확인하세요.",
+      });
+    } catch (e: any) {
+      toast({ title: "결의서 분석 실패", description: e.message, variant: "destructive" });
+    } finally { setResolutionExtracting(false); }
   }
 
   // ── 세금계산서 헬퍼 ───────────────────────────────────────────────
@@ -402,8 +447,9 @@ export default function SafetyCostBudget() {
       supplyAmount: form.supplyAmount||null, vatAmount: form.vatAmount||null,
       totalAmount: form.totalAmount, purchaseDate: form.purchaseDate||null,
       vendorName: form.vendorName||null, notes: form.notes||null,
+      documentNumber: form.documentNumber||null, paymentRequestDate: form.paymentRequestDate||null,
       quoteFileUrl: form.quoteFileUrl||null, transactionFileUrl: form.transactionFileUrl||null,
-      certificateFileUrl: form.certificateFileUrl||null,
+      certificateFileUrl: form.certificateFileUrl||null, resolutionFileUrl: form.resolutionFileUrl||null,
     };
     if (editRec) updateMut.mutate({ id: editRec.id, d: payload }); else createMut.mutate(payload);
   }
@@ -752,9 +798,30 @@ export default function SafetyCostBudget() {
           {/* AI 첨부 */}
           <div className="space-y-3 border rounded-xl p-3 bg-muted/20">
             <div className="text-sm font-semibold flex items-center gap-2 text-foreground">
-              <Upload className="w-4 h-4" /> AI 자동 입력 (견적서 / 거래명세서)
+              <Upload className="w-4 h-4" /> AI 자동 입력
               <span className="text-xs font-normal text-muted-foreground">· 이미지 및 PDF 지원</span>
             </div>
+
+            {/* 결의서 (구매결의서/지출결의서) — 품의번호·지급요청일자 추출 */}
+            <div className="bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-800 rounded-lg px-3 py-2 space-y-2">
+              <p className="text-xs font-semibold text-violet-700 dark:text-violet-300 flex items-center gap-1">
+                <FileScan className="w-3.5 h-3.5" /> 결의서 업로드 (품의번호 · 지급요청일자 자동 입력)
+              </p>
+              <input ref={resolutionRef} type="file" accept="image/*,application/pdf" className="hidden"
+                onChange={e => { if (e.target.files?.[0]) handleExtractResolution(e.target.files[0]); e.target.value=""; }} />
+              <Button variant="outline" size="sm" className="w-full border-violet-300 hover:border-violet-500" disabled={resolutionExtracting}
+                onClick={() => resolutionRef.current?.click()} data-testid="btn-upload-resolution">
+                {resolutionExtracting ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <FileScan className="w-4 h-4 mr-1" />}
+                구매결의서 / 지출결의서 첨부 (AI 분석)
+              </Button>
+              {form.resolutionFileUrl && (
+                <button onClick={() => setPreview({ url: form.resolutionFileUrl, title: "결의서" })}
+                  className="text-xs text-violet-600 flex items-center gap-1 hover:underline">
+                  <FileCheck className="w-3 h-3" />첨부된 결의서 보기
+                </button>
+              )}
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <input ref={quoteRef} type="file" accept="image/*,application/pdf" className="hidden"
@@ -833,6 +900,24 @@ export default function SafetyCostBudget() {
                 </div>
               </div>
             )}
+          </div>
+
+          {/* 품의번호 / 지급요청일자 */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="flex items-center gap-1">
+                <FileScan className="w-3 h-3 text-violet-500" /> 품의번호
+              </Label>
+              <Input placeholder="결의서 업로드 시 자동 입력" value={form.documentNumber}
+                onChange={e => setF("documentNumber", e.target.value)} data-testid="input-document-number" />
+            </div>
+            <div>
+              <Label className="flex items-center gap-1">
+                <FileScan className="w-3 h-3 text-violet-500" /> 지급요청일자
+              </Label>
+              <Input type="date" value={form.paymentRequestDate}
+                onChange={e => setF("paymentRequestDate", e.target.value)} data-testid="input-payment-request-date" />
+            </div>
           </div>
 
           <div className="grid grid-cols-3 gap-3">
@@ -922,6 +1007,16 @@ export default function SafetyCostBudget() {
               </div>
               <div><Label>업체명</Label>
                 <Input placeholder="업체명" value={bulkCommon.vendorName} onChange={e=>setBC("vendorName",e.target.value)} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="flex items-center gap-1"><FileScan className="w-3 h-3 text-violet-500" />품의번호</Label>
+                <Input placeholder="품의번호 (선택)" value={bulkCommon.documentNumber} onChange={e=>setBC("documentNumber",e.target.value)} />
+              </div>
+              <div>
+                <Label className="flex items-center gap-1"><FileScan className="w-3 h-3 text-violet-500" />지급요청일자</Label>
+                <Input type="date" value={bulkCommon.paymentRequestDate} onChange={e=>setBC("paymentRequestDate",e.target.value)} />
               </div>
             </div>
             <div><Label>항목 구분 * <span className="text-destructive">필수</span></Label>
