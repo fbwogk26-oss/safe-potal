@@ -449,6 +449,7 @@ export default function FuelCosts() {
       queryClient.invalidateQueries({ queryKey: ["/api/fuel-records"] });
       queryClient.invalidateQueries({ queryKey: ["/api/fuel-records/summary"] });
       queryClient.invalidateQueries({ queryKey: ["/api/fuel-records/batches"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/vehicle-log-errors"] });
     },
     onError: (e: Error) => toast({ title: "업로드 실패", description: e.message, variant: "destructive" }),
   });
