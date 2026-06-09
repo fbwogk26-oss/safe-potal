@@ -28,6 +28,8 @@ import {
   jointInspections, jointInspectionSignatures,
   type JointInspection, type InsertJointInspection,
   type JointInspectionSignature, type InsertJointInspectionSignature,
+  vehicleLogErrors,
+  type VehicleLogError, type InsertVehicleLogError,
   musicFiles,
   type MusicFile, type InsertMusicFile,
   fuelRecords,
@@ -236,6 +238,12 @@ export interface IStorage {
   deleteFuelRecordsByBatch(batchId: string): Promise<void>;
   deleteFuelRecordsByYearMonth(year: number, month: number): Promise<void>;
   getFuelBatches(): Promise<{ batchId: string; uploadedAt: Date; recordCount: number; yearMonths: string[] }[]>;
+
+  // Vehicle Log Errors
+  getVehicleLogErrors(filters?: { year?: number; month?: number; status?: string }): Promise<VehicleLogError[]>;
+  createVehicleLogErrors(records: InsertVehicleLogError[]): Promise<number>;
+  updateVehicleLogError(id: number, data: Partial<VehicleLogError>): Promise<VehicleLogError | undefined>;
+  deleteVehicleLogErrorsByBatch(batchId: string): Promise<void>;
 
   // Safety Manager Reports
   getSafetyManagerReports(yearMonth?: string, year?: string): Promise<SafetyManagerReport[]>;
@@ -882,6 +890,33 @@ export class DatabaseStorage implements IStorage {
       recordCount: r.recordCount,
       yearMonths: r.yearMonths ?? [],
     }));
+  }
+
+  // === VEHICLE LOG ERRORS ===
+  async getVehicleLogErrors(filters?: { year?: number; month?: number; status?: string }): Promise<VehicleLogError[]> {
+    const conds: any[] = [];
+    if (filters?.year) conds.push(eq(vehicleLogErrors.year, filters.year));
+    if (filters?.month) conds.push(eq(vehicleLogErrors.month, filters.month));
+    if (filters?.status) conds.push(eq(vehicleLogErrors.status, filters.status));
+    const q = conds.length > 0
+      ? db.select().from(vehicleLogErrors).where(and(...conds))
+      : db.select().from(vehicleLogErrors);
+    return await q.orderBy(asc(vehicleLogErrors.plateNumber), asc(vehicleLogErrors.rowIndex));
+  }
+
+  async createVehicleLogErrors(records: InsertVehicleLogError[]): Promise<number> {
+    if (!records.length) return 0;
+    await db.insert(vehicleLogErrors).values(records);
+    return records.length;
+  }
+
+  async updateVehicleLogError(id: number, data: Partial<VehicleLogError>): Promise<VehicleLogError | undefined> {
+    const [row] = await db.update(vehicleLogErrors).set(data).where(eq(vehicleLogErrors.id, id)).returning();
+    return row;
+  }
+
+  async deleteVehicleLogErrorsByBatch(batchId: string): Promise<void> {
+    await db.delete(vehicleLogErrors).where(eq(vehicleLogErrors.uploadBatch, batchId));
   }
 
   // === SAFETY MANAGER REPORTS ===

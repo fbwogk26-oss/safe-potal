@@ -8609,13 +8609,31 @@ ${htmlDraft}
         }
       }
 
+      // 날짜 값에서 "YYYY-MM-DD" 추출 헬퍼
+      const extractDate = (val: any): string | null => {
+        if (!val) return null;
+        if (val instanceof Date) {
+          return `${val.getFullYear()}-${String(val.getMonth() + 1).padStart(2, "0")}-${String(val.getDate()).padStart(2, "0")}`;
+        }
+        const s = String(val).trim();
+        const m = s.match(/(\d{4})-(\d{2})-(\d{2})/);
+        if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+        // "26년5월15일" 형식
+        const m2 = s.match(/(\d{2,4})년\s*(\d{1,2})월\s*(\d{1,2})일/);
+        if (m2) {
+          const yr = parseInt(m2[1]) < 100 ? 2000 + parseInt(m2[1]) : parseInt(m2[1]);
+          return `${yr}-${String(parseInt(m2[2])).padStart(2, "0")}-${String(parseInt(m2[3])).padStart(2, "0")}`;
+        }
+        return null;
+      };
+
       // 차량일지 시트 1장 파싱 (행=운행기록): 차량별 집계 → year/month 기준 필터
       // 컬럼: key(0) 운행목적(1) 사용용도(2) 차량번호(3) 출발시간(4) 종료시간(5)
       //        운행일자(6) 시작km(7) 출발지(8) 종료km(9) 종료지(10) 경유지(11)
       //        주유량(12) 주유금액(13) 탑승자(14)
-      const parseSheet = (rows: any[][], year: number, month: number) => {
-        const targetYM = `${year}-${String(month).padStart(2, "0")}`;
+      const parseSheet = (rows: any[][], year: number, month: number, batchId: string, meta: Record<string, any>) => {
         const agg: Record<string, { dist: number; fuelCost: number; driver: string }> = {};
+        const errors: any[] = [];
 
         // 헤더 행 탐색
         let headerIdx = 0;
@@ -8634,18 +8652,26 @@ ${htmlDraft}
         };
         const colPlate  = findC(["차량번호"]);
         const colDeparture = findC(["출발시간"]);
+        const colArrival   = findC(["종료시간", "도착시간"]);
+        const colLogDate   = findC(["운행일자", "일자"]);
         const colStartKm   = findC(["시작km", "시작Km", "출발km"]);
         const colEndKm     = findC(["종료km", "종료Km", "도착km"]);
+        const colFuelAmt   = findC(["주유량"]);
         const colFuel      = findC(["주유금액", "주유비", "연료비"]);
         const colDriver    = findC(["탑승자", "운전자", "사용자"]);
+        const colPurpose   = findC(["운행목적", "목적"]);
 
         // 컬럼 인덱스 기본값 (첨부 파일 형식 기준)
         const cPlate   = colPlate >= 0     ? colPlate     : 3;
         const cDepart  = colDeparture >= 0 ? colDeparture : 4;
+        const cArrive  = colArrival >= 0   ? colArrival   : 5;
+        const cLogDate = colLogDate >= 0   ? colLogDate   : 6;
         const cStartKm = colStartKm >= 0   ? colStartKm   : 7;
         const cEndKm   = colEndKm >= 0     ? colEndKm     : 9;
+        const cFuelAmt = colFuelAmt >= 0   ? colFuelAmt   : 12;
         const cFuel    = colFuel >= 0      ? colFuel      : 13;
         const cDriver  = colDriver >= 0    ? colDriver     : 14;
+        const cPurpose = colPurpose >= 0   ? colPurpose   : 1;
 
         for (let ri = headerIdx + 1; ri < rows.length; ri++) {
           const row = rows[ri];
@@ -8670,16 +8696,72 @@ ${htmlDraft}
           const dist = Math.max(0, Math.round(num(row[cEndKm]) - num(row[cStartKm])));
           const fuel = Math.round(num(row[cFuel]));
           const driver = String(row[cDriver] ?? "").trim();
+          const vehicleMeta2 = meta[plate];
+          const team = vehicleMeta2?.team ?? "미확인팀";
 
           if (!agg[plate]) agg[plate] = { dist: 0, fuelCost: 0, driver: "" };
           agg[plate].dist += dist;
           agg[plate].fuelCost += fuel;
           if (driver && !agg[plate].driver) agg[plate].driver = driver;
+
+          // ── 오류 감지 ──
+          const departDateStr = extractDate(depVal);
+          const arrivalDateStr = extractDate(row[cArrive]);
+          const logDateStr = extractDate(row[cLogDate]);
+          const startKm = num(row[cStartKm]);
+          const endKm = num(row[cEndKm]);
+          const fuelAmount = num(row[cFuelAmt]);
+          const fuelCost = fuel;
+
+          const errorTypes: string[] = [];
+          // 1. 출발시간 날짜 ≠ 운행일자
+          if (departDateStr && logDateStr && departDateStr !== logDateStr) {
+            errorTypes.push("date_departure");
+          }
+          // 2. 종료시간 날짜 ≠ 운행일자
+          if (arrivalDateStr && logDateStr && arrivalDateStr !== logDateStr) {
+            errorTypes.push("date_arrival");
+          }
+          // 3. 종료km < 시작km (역방향)
+          if (startKm > 0 && endKm > 0 && endKm < startKm) {
+            errorTypes.push("km_reverse");
+          }
+          // 4. 주유금액이 있는데 주유량이 0
+          if (fuelCost > 0 && fuelAmount <= 0) {
+            errorTypes.push("fuel_no_amount");
+          }
+          // 5. 주유금액 과도 (300,000원 초과)
+          if (fuelCost > 300000) {
+            errorTypes.push("fuel_high_cost");
+          }
+
+          if (errorTypes.length > 0) {
+            errors.push({
+              year,
+              month,
+              rowIndex: ri,
+              plateNumber: plate,
+              team,
+              driver: driver || vehicleMeta2?.driver || null,
+              logDate: logDateStr || String(row[cLogDate] ?? ""),
+              departureTime: departDateStr || String(depVal ?? ""),
+              arrivalTime: arrivalDateStr || String(row[cArrive] ?? ""),
+              beforeMileage: startKm > 0 ? Math.round(startKm) : null,
+              afterMileage: endKm > 0 ? Math.round(endKm) : null,
+              fuelAmount: fuelAmount > 0 ? String(fuelAmount) : null,
+              fuelCost: fuelCost > 0 ? fuelCost : null,
+              purpose: String(row[cPurpose] ?? "").trim() || null,
+              errorTypes,
+              status: "pending",
+              uploadBatch: batchId,
+            });
+          }
         }
-        return agg;
+        return { agg, errors };
       };
 
       const allRecordsToInsert: any[] = [];
+      const allErrors: any[] = [];
       const processedYMs: Set<string> = new Set();
       const skippedVehicles: string[] = [];
 
@@ -8699,7 +8781,8 @@ ${htmlDraft}
         const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", cellDates: true });
         if (rows.length < 2) continue;
 
-        const agg = parseSheet(rows, ym.year, ym.month);
+        const { agg, errors: sheetErrors } = parseSheet(rows, ym.year, ym.month, batchId, vehicleMeta);
+        allErrors.push(...sheetErrors);
         const ymKey = `${ym.year}-${ym.month}`;
         processedYMs.add(ymKey);
 
@@ -8747,26 +8830,85 @@ ${htmlDraft}
         });
       }
 
-      // 해당 연월 기존 데이터 삭제 후 재삽입
+      // 해당 연월 기존 데이터 삭제 후 재삽입 (오류 기록도 함께 삭제)
       for (const ymKey of processedYMs) {
         const [yr, mo] = ymKey.split("-").map(Number);
         await storage.deleteFuelRecordsByYearMonth(yr, mo);
       }
+      await storage.deleteVehicleLogErrorsByBatch(batchId);
       const inserted = await storage.insertFuelRecords(allRecordsToInsert);
+      const errorInserted = await storage.createVehicleLogErrors(allErrors);
       const ymLabels = [...processedYMs].map(k => { const [y,m]=k.split("-"); return `${y}년 ${m}월`; });
       res.json({
         success: true,
         batchId,
         inserted,
+        errorCount: errorInserted,
         unknownVehicles: skippedVehicles.length,
         unknownPlates: skippedVehicles,
         yearMonths: ymLabels,
-        message: `${inserted}건 처리 완료 — ${ymLabels.join(", ")} 차량일지 반영${skippedVehicles.length ? ` (팀미확인 ${skippedVehicles.length}대 "미확인팀"으로 포함: ${skippedVehicles.join(", ")})` : ""}`,
+        message: `${inserted}건 처리 완료 — ${ymLabels.join(", ")} 차량일지 반영${errorInserted > 0 ? ` (오류 ${errorInserted}건 감지됨)` : ""}${skippedVehicles.length ? ` (팀미확인 ${skippedVehicles.length}대 "미확인팀"으로 포함: ${skippedVehicles.join(", ")})` : ""}`,
       });
     } catch (e: any) {
       console.error("차량일지 업로드 오류:", e);
       res.status(500).json({ message: e.message });
     }
+  });
+
+  // GET /api/vehicle-log-errors
+  app.get("/api/vehicle-log-errors", isAuthenticated, async (req: any, res) => {
+    try {
+      const year  = req.query.year  ? parseInt(req.query.year)  : undefined;
+      const month = req.query.month ? parseInt(req.query.month) : undefined;
+      const status = req.query.status as string | undefined;
+      const errors = await storage.getVehicleLogErrors({ year, month, status });
+      res.json(errors);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // PUT /api/vehicle-log-errors/:id/respond  (소명 등록)
+  app.put("/api/vehicle-log-errors/:id/respond", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { response } = req.body;
+      if (!response?.trim()) return res.status(400).json({ message: "소명 내용을 입력해주세요." });
+      const updated = await storage.updateVehicleLogError(id, {
+        response: response.trim(),
+        responseBy: req.user?.name || req.user?.username,
+        responseAt: new Date(),
+        status: "responded",
+      });
+      res.json(updated);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // PUT /api/vehicle-log-errors/:id/resolve  (처리 완료)
+  app.put("/api/vehicle-log-errors/:id/resolve", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const updated = await storage.updateVehicleLogError(id, {
+        resolvedBy: req.user?.name || req.user?.username,
+        resolvedAt: new Date(),
+        status: "resolved",
+      });
+      res.json(updated);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // PUT /api/vehicle-log-errors/:id/reopen  (소명 재요청)
+  app.put("/api/vehicle-log-errors/:id/reopen", requireAdmin, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const updated = await storage.updateVehicleLogError(id, {
+        status: "pending",
+        response: null,
+        responseBy: null,
+        responseAt: null,
+        resolvedBy: null,
+        resolvedAt: null,
+      });
+      res.json(updated);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
   // ── 안전관리자 상태보고서 ────────────────────────────────────

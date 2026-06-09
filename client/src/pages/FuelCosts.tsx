@@ -221,6 +221,13 @@ export default function FuelCosts() {
   const [detailPage, setDetailPage] = useState(1);
   const [deleteBatchId, setDeleteBatchId] = useState<string | null>(null);
 
+  // ── 오류 현황 탭 상태 ──
+  const [errYear, setErrYear] = useState<string>(String(new Date().getFullYear()));
+  const [errMonth, setErrMonth] = useState<string>(String(new Date().getMonth() + 1));
+  const [errStatus, setErrStatus] = useState<string>("all");
+  const [respondingId, setRespondingId] = useState<number | null>(null);
+  const [respondText, setRespondText] = useState("");
+
   // ── 차량DB 탭 상태 ──
   const vdbFileInputRef = useRef<HTMLInputElement>(null);
   const [vdbSearch, setVdbSearch] = useState("");
@@ -265,6 +272,44 @@ export default function FuelCosts() {
   const { data: batches = [], isLoading: batchesLoading } = useQuery<Batch[]>({
     queryKey: ["/api/fuel-records/batches"],
     enabled: tab === "upload",
+  });
+
+  // ── 오류 현황 쿼리 / 뮤테이션 ──
+  const errParams = new URLSearchParams({ year: errYear, month: errMonth });
+  if (errStatus !== "all") errParams.set("status", errStatus);
+  const { data: errList = [], isLoading: errLoading } = useQuery<any[]>({
+    queryKey: ["/api/vehicle-log-errors", errYear, errMonth, errStatus],
+    queryFn: () => fetch(`/api/vehicle-log-errors?${errParams.toString()}`, { credentials: "include" }).then(r => r.json()),
+    enabled: tab === "errors",
+  });
+
+  const respondMutation = useMutation({
+    mutationFn: ({ id, response }: { id: number; response: string }) =>
+      apiRequest("PUT", `/api/vehicle-log-errors/${id}/respond`, { response }),
+    onSuccess: () => {
+      toast({ title: "소명이 등록되었습니다" });
+      queryClient.invalidateQueries({ queryKey: ["/api/vehicle-log-errors"] });
+      setRespondingId(null); setRespondText("");
+    },
+    onError: (e: Error) => toast({ title: "소명 등록 실패", description: e.message, variant: "destructive" }),
+  });
+
+  const resolveMutation = useMutation({
+    mutationFn: (id: number) => apiRequest("PUT", `/api/vehicle-log-errors/${id}/resolve`, {}),
+    onSuccess: () => {
+      toast({ title: "처리 완료로 변경되었습니다" });
+      queryClient.invalidateQueries({ queryKey: ["/api/vehicle-log-errors"] });
+    },
+    onError: (e: Error) => toast({ title: "변경 실패", description: e.message, variant: "destructive" }),
+  });
+
+  const reopenMutation = useMutation({
+    mutationFn: (id: number) => apiRequest("PUT", `/api/vehicle-log-errors/${id}/reopen`, {}),
+    onSuccess: () => {
+      toast({ title: "소명 요청 재개됨" });
+      queryClient.invalidateQueries({ queryKey: ["/api/vehicle-log-errors"] });
+    },
+    onError: (e: Error) => toast({ title: "변경 실패", description: e.message, variant: "destructive" }),
   });
 
   // ── 차량DB 쿼리 / 뮤테이션 ──
@@ -557,6 +602,7 @@ export default function FuelCosts() {
             <TabsTrigger value="detail" className="flex-1 sm:flex-none sm:px-5 text-xs sm:text-sm" data-testid="tab-detail">상세 데이터</TabsTrigger>
             <TabsTrigger value="vehicledb" className="flex-1 sm:flex-none sm:px-5 text-xs sm:text-sm" data-testid="tab-vehicledb">차량DB</TabsTrigger>
             <TabsTrigger value="upload" className="flex-1 sm:flex-none sm:px-5 text-xs sm:text-sm" data-testid="tab-upload">업로드 관리</TabsTrigger>
+            <TabsTrigger value="errors" className="flex-1 sm:flex-none sm:px-5 text-xs sm:text-sm" data-testid="tab-errors">오류 현황</TabsTrigger>
           </TabsList>
 
           {/* ══════════ 대시보드 ══════════ */}
@@ -1507,6 +1553,167 @@ export default function FuelCosts() {
               )}
             </div>
           </TabsContent>
+
+          {/* ══════════ 오류 현황 ══════════ */}
+          <TabsContent value="errors" className="space-y-5 mt-5">
+            {/* 필터 바 */}
+            <div className="flex flex-wrap items-center gap-3">
+              <Select value={errYear} onValueChange={setErrYear}>
+                <SelectTrigger className="w-24 h-9" data-testid="select-err-year"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {["2024","2025","2026"].map(y => <SelectItem key={y} value={y}>{y}년</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Select value={errMonth} onValueChange={setErrMonth}>
+                <SelectTrigger className="w-20 h-9" data-testid="select-err-month"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {MONTHS.map((m, i) => <SelectItem key={i} value={String(i+1)}>{m}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Select value={errStatus} onValueChange={setErrStatus}>
+                <SelectTrigger className="w-32 h-9" data-testid="select-err-status"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">전체 상태</SelectItem>
+                  <SelectItem value="pending">소명 대기</SelectItem>
+                  <SelectItem value="responded">소명 완료</SelectItem>
+                  <SelectItem value="resolved">처리 완료</SelectItem>
+                </SelectContent>
+              </Select>
+              <div className="ml-auto flex items-center gap-2 text-sm text-muted-foreground">
+                {errLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : null}
+                <span className="font-semibold text-foreground">{errList.length}</span>건
+              </div>
+            </div>
+
+            {/* 안내 카드 */}
+            <Card className="border-amber-200 bg-amber-50/50 dark:bg-amber-950/20 dark:border-amber-800">
+              <CardContent className="p-4 text-xs text-amber-800 dark:text-amber-300 space-y-1">
+                <p className="font-semibold">🔍 오류 감지 기준</p>
+                <p>• <strong>날짜 불일치</strong>: 출발/종료시간 날짜가 운행일자와 다른 경우</p>
+                <p>• <strong>km 역방향</strong>: 종료km가 시작km보다 작은 경우</p>
+                <p>• <strong>주유 이상</strong>: 주유금액이 30만원 초과, 또는 주유금액이 있으나 주유량이 0인 경우</p>
+              </CardContent>
+            </Card>
+
+            {/* 오류 목록 */}
+            {errLoading ? (
+              <div className="flex items-center justify-center py-16 text-muted-foreground gap-2">
+                <RefreshCw className="w-5 h-5 animate-spin" />불러오는 중...
+              </div>
+            ) : errList.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
+                <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                  <CheckSquare className="w-6 h-6 text-green-600 dark:text-green-400" />
+                </div>
+                <p className="font-semibold text-foreground">오류가 없습니다</p>
+                <p className="text-sm">해당 월에 감지된 오류 항목이 없습니다</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {errList.map((err: any) => {
+                  const errTypes: string[] = err.errorTypes ?? [];
+                  const errLabels: Record<string, { label: string; color: string }> = {
+                    date_departure: { label: "출발시간 날짜 불일치", color: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" },
+                    date_arrival:   { label: "종료시간 날짜 불일치", color: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" },
+                    km_reverse:     { label: "km 역방향", color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
+                    fuel_no_amount: { label: "주유량 누락", color: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400" },
+                    fuel_high_cost: { label: "주유금액 과다", color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
+                  };
+                  const statusBadge = err.status === "resolved"
+                    ? <Badge className="bg-green-100 text-green-700 border-0 text-[11px]">처리완료</Badge>
+                    : err.status === "responded"
+                    ? <Badge className="bg-blue-100 text-blue-700 border-0 text-[11px]">소명완료</Badge>
+                    : <Badge className="bg-amber-100 text-amber-700 border-0 text-[11px]">소명대기</Badge>;
+                  const isResponding = respondingId === err.id;
+                  return (
+                    <Card key={err.id} className={`border shadow-sm ${err.status === "resolved" ? "opacity-60" : ""}`} data-testid={`card-err-${err.id}`}>
+                      <CardContent className="p-4 space-y-3">
+                        {/* 헤더 행 */}
+                        <div className="flex items-start justify-between gap-2 flex-wrap">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-sm">{err.plateNumber}</span>
+                            {err.team && <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{err.team}</span>}
+                            {err.driver && <span className="text-xs text-muted-foreground">{err.driver}</span>}
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            {statusBadge}
+                            {err.status !== "resolved" && (
+                              <Button size="sm" variant="outline" className="h-7 text-xs"
+                                onClick={() => resolveMutation.mutate(err.id)}
+                                disabled={resolveMutation.isPending}
+                                data-testid={`button-resolve-${err.id}`}>처리완료</Button>
+                            )}
+                          </div>
+                        </div>
+                        {/* 오류 유형 배지 */}
+                        <div className="flex flex-wrap gap-1.5">
+                          {errTypes.map(t => (
+                            <span key={t} className={`inline-block text-[11px] px-2 py-0.5 rounded-full font-medium ${errLabels[t]?.color ?? "bg-muted text-muted-foreground"}`}>
+                              {errLabels[t]?.label ?? t}
+                            </span>
+                          ))}
+                        </div>
+                        {/* 운행 세부 정보 */}
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1 text-xs text-muted-foreground bg-muted/30 rounded-lg p-3">
+                          {err.logDate && <p><span className="font-medium">운행일자:</span> {err.logDate}</p>}
+                          {err.departureTime && <p><span className="font-medium">출발시간:</span> {err.departureTime}</p>}
+                          {err.arrivalTime && <p><span className="font-medium">종료시간:</span> {err.arrivalTime}</p>}
+                          {(err.beforeMileage != null || err.afterMileage != null) && (
+                            <p><span className="font-medium">km:</span> {err.beforeMileage ?? "-"} → {err.afterMileage ?? "-"}</p>
+                          )}
+                          {err.fuelAmount && <p><span className="font-medium">주유량:</span> {err.fuelAmount}L</p>}
+                          {err.fuelCost != null && <p><span className="font-medium">주유금액:</span> {fmt(err.fuelCost)}원</p>}
+                          {err.purpose && <p className="col-span-2"><span className="font-medium">운행목적:</span> {err.purpose}</p>}
+                        </div>
+                        {/* 소명 내용 (이미 등록된 경우) */}
+                        {err.response && (
+                          <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3 text-xs">
+                            <p className="font-semibold text-blue-700 dark:text-blue-400 mb-1">소명 내용</p>
+                            <p className="text-foreground">{err.response}</p>
+                            <p className="text-muted-foreground mt-1">{err.responseBy} · {err.responseAt ? new Date(err.responseAt).toLocaleString("ko-KR") : ""}</p>
+                          </div>
+                        )}
+                        {/* 소명 입력 폼 */}
+                        {err.status !== "resolved" && (
+                          <div>
+                            {isResponding ? (
+                              <div className="space-y-2">
+                                <textarea
+                                  className="w-full text-xs p-2.5 border rounded-lg resize-none h-20 bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                                  placeholder="소명 내용을 입력해주세요..."
+                                  value={respondText}
+                                  onChange={e => setRespondText(e.target.value)}
+                                  data-testid={`textarea-respond-${err.id}`}
+                                />
+                                <div className="flex gap-2 justify-end">
+                                  <Button size="sm" variant="ghost" className="h-7 text-xs"
+                                    onClick={() => { setRespondingId(null); setRespondText(""); }}>취소</Button>
+                                  <Button size="sm" className="h-7 text-xs bg-blue-600 hover:bg-blue-700 text-white"
+                                    onClick={() => respondMutation.mutate({ id: err.id, response: respondText })}
+                                    disabled={!respondText.trim() || respondMutation.isPending}
+                                    data-testid={`button-submit-respond-${err.id}`}>
+                                    {respondMutation.isPending ? <RefreshCw className="w-3 h-3 mr-1 animate-spin" /> : null}
+                                    소명 등록
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <Button size="sm" variant="outline" className="h-7 text-xs border-blue-300 text-blue-600 hover:bg-blue-50"
+                                onClick={() => { setRespondingId(err.id); setRespondText(err.response ?? ""); }}
+                                data-testid={`button-respond-${err.id}`}>
+                                {err.response ? "소명 수정" : "소명 등록"}
+                              </Button>
+                            )}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </TabsContent>
+
         </Tabs>
 
       <AlertDialog open={!!deleteBatchId} onOpenChange={o => !o && setDeleteBatchId(null)}>

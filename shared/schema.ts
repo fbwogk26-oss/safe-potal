@@ -861,6 +861,37 @@ export const insertJointInspectionSignatureSchema = createInsertSchema(jointInsp
 export type JointInspectionSignature = typeof jointInspectionSignatures.$inferSelect;
 export type InsertJointInspectionSignature = z.infer<typeof insertJointInspectionSignatureSchema>;
 
+// === 차량운행일지 오류 기록 ===
+export const vehicleLogErrors = pgTable("vehicle_log_errors", {
+  id: serial("id").primaryKey(),
+  year: integer("year").notNull(),
+  month: integer("month").notNull(),
+  rowIndex: integer("row_index"),
+  plateNumber: text("plate_number").notNull(),
+  team: text("team"),
+  driver: text("driver"),
+  logDate: text("log_date"),
+  departureTime: text("departure_time"),
+  arrivalTime: text("arrival_time"),
+  beforeMileage: integer("before_mileage"),
+  afterMileage: integer("after_mileage"),
+  fuelAmount: text("fuel_amount"),
+  fuelCost: integer("fuel_cost"),
+  purpose: text("purpose"),
+  errorTypes: jsonb("error_types"),
+  status: text("status").default("pending"),
+  response: text("response"),
+  responseBy: text("response_by"),
+  responseAt: timestamp("response_at"),
+  resolvedBy: text("resolved_by"),
+  resolvedAt: timestamp("resolved_at"),
+  uploadBatch: text("upload_batch"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertVehicleLogErrorSchema = createInsertSchema(vehicleLogErrors).omit({ id: true, createdAt: true });
+export type VehicleLogError = typeof vehicleLogErrors.$inferSelect;
+export type InsertVehicleLogError = z.infer<typeof insertVehicleLogErrorSchema>;
+
 // Export auth schema
 export * from "./models/auth";
 
