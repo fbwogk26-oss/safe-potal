@@ -1556,7 +1556,7 @@ export default function FuelCosts() {
 
           {/* ══════════ 오류 현황 ══════════ */}
           <TabsContent value="errors" className="space-y-5 mt-5">
-            {/* 필터 바 */}
+            {/* 업로드 + 필터 바 */}
             <div className="flex flex-wrap items-center gap-3">
               <Select value={errYear} onValueChange={setErrYear}>
                 <SelectTrigger className="w-24 h-9" data-testid="select-err-year"><SelectValue /></SelectTrigger>
@@ -1579,9 +1579,26 @@ export default function FuelCosts() {
                   <SelectItem value="resolved">처리 완료</SelectItem>
                 </SelectContent>
               </Select>
-              <div className="ml-auto flex items-center gap-2 text-sm text-muted-foreground">
-                {errLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : null}
-                <span className="font-semibold text-foreground">{errList.length}</span>건
+              <div className="ml-auto flex items-center gap-2">
+                {errLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin text-muted-foreground" /> : null}
+                <span className="text-sm text-muted-foreground"><span className="font-semibold text-foreground">{errList.length}</span>건</span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-9 text-xs border-blue-400 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/30"
+                  onClick={() => {
+                    setVlogYear(errYear);
+                    setVlogMonth(errMonth);
+                    setTimeout(() => vehicleLogInputRef.current?.click(), 0);
+                  }}
+                  disabled={vehicleLogMutation.isPending}
+                  data-testid="button-upload-from-errors"
+                >
+                  {vehicleLogMutation.isPending
+                    ? <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                    : <Upload className="w-3.5 h-3.5 mr-1.5" />}
+                  {errYear}년 {errMonth}월 업로드
+                </Button>
               </div>
             </div>
 
