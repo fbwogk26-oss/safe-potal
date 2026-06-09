@@ -8673,6 +8673,18 @@ ${htmlDraft}
         const cDriver  = colDriver >= 0    ? colDriver     : 14;
         const cPurpose = colPurpose >= 0   ? colPurpose   : 1;
 
+        console.log("[DEBUG] 헤더idx:", headerIdx, "컬럼인덱스 plate/depart/arrive/logDate/startKm/endKm/fuelAmt/fuel:", cPlate, cDepart, cArrive, cLogDate, cStartKm, cEndKm, cFuelAmt, cFuel);
+        // 첫 데이터 행 샘플 출력
+        if (rows.length > headerIdx + 1) {
+          const sr = rows[headerIdx + 1];
+          console.log("[DEBUG] 샘플행:", JSON.stringify({
+            plate: sr[cPlate], depart: sr[cDepart], arrive: sr[cArrive], logDate: sr[cLogDate],
+            startKm: sr[cStartKm], endKm: sr[cEndKm], fuelAmt: sr[cFuelAmt], fuel: sr[cFuel],
+            departType: typeof sr[cDepart], logDateType: typeof sr[cLogDate],
+            departExtracted: extractDate(sr[cDepart]), logDateExtracted: extractDate(sr[cLogDate]),
+          }));
+        }
+
         for (let ri = headerIdx + 1; ri < rows.length; ri++) {
           const row = rows[ri];
           const plate = String(row[cPlate] ?? "").replace(/\s/g, "");
