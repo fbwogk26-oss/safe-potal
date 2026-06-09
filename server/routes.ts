@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import type { Server } from "http";
+import fs from "fs";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -8662,16 +8663,16 @@ ${htmlDraft}
           }
           return -1;
         };
-        const colPlate  = findC(["차량번호"]);
-        const colDeparture = findC(["출발시간"]);
-        const colArrival   = findC(["종료시간", "도착시간"]);
-        const colLogDate   = findC(["운행일자", "일자"]);
-        const colStartKm   = findC(["시작km", "시작Km", "출발km"]);
-        const colEndKm     = findC(["종료km", "종료Km", "도착km"]);
-        const colFuelAmt   = findC(["주유량"]);
-        const colFuel      = findC(["주유금액", "주유비", "연료비"]);
-        const colDriver    = findC(["탑승자", "운전자", "사용자"]);
-        const colPurpose   = findC(["운행목적", "목적"]);
+        const colPlate  = findC(["차량번호", "차량"]);
+        const colDeparture = findC(["출발시간", "출발일시"]);
+        const colArrival   = findC(["종료시간", "도착시간", "종료일시", "도착일시"]);
+        const colLogDate   = findC(["운행일자", "일자", "날짜", "운행날짜", "날자", "운행일"]);
+        const colStartKm   = findC(["시작km", "시작Km", "시작KM", "출발km", "출발Km", "출발KM", "전km", "전Km"]);
+        const colEndKm     = findC(["종료km", "종료Km", "종료KM", "도착km", "도착Km", "도착KM", "후km", "후Km"]);
+        const colFuelAmt   = findC(["주유량", "주유 량"]);
+        const colFuel      = findC(["주유금액", "주유비", "연료비", "주유 금액"]);
+        const colDriver    = findC(["탑승자", "운전자", "사용자", "운전원"]);
+        const colPurpose   = findC(["운행목적", "목적", "용도"]);
 
         // 컬럼 인덱스 기본값 (첨부 파일 형식 기준)
         const cPlate   = colPlate >= 0     ? colPlate     : 3;
@@ -8685,19 +8686,30 @@ ${htmlDraft}
         const cDriver  = colDriver >= 0    ? colDriver     : 14;
         const cPurpose = colPurpose >= 0   ? colPurpose   : 1;
 
-        // 첫 데이터 행 디버그 캡처
-        if (rows.length > headerIdx + 1) {
-          const sr = rows[headerIdx + 1];
+        // 처음 3개 데이터 행 디버그 캡처 → 파일 기록
+        {
+          const debugRows: any[] = [];
+          for (let di = headerIdx + 1; di < Math.min(headerIdx + 4, rows.length); di++) {
+            const sr = rows[di];
+            debugRows.push({
+              rowIdx: di,
+              plate: String(sr[cPlate] ?? ""),
+              depart: sr[cDepart] instanceof Date ? sr[cDepart].toISOString() : String(sr[cDepart] ?? ""),
+              arrive: sr[cArrive] instanceof Date ? sr[cArrive].toISOString() : String(sr[cArrive] ?? ""),
+              logDate: sr[cLogDate] instanceof Date ? sr[cLogDate].toISOString() : String(sr[cLogDate] ?? ""),
+              startKm: sr[cStartKm], endKm: sr[cEndKm],
+              fuelAmt: sr[cFuelAmt], fuel: sr[cFuel],
+              departExtracted: extractDate(sr[cDepart]),
+              logDateExtracted: extractDate(sr[cLogDate]),
+              arriveExtracted: extractDate(sr[cArrive]),
+            });
+          }
           _debugSample = {
-            cols: { plate: cPlate, depart: cDepart, arrive: cArrive, logDate: cLogDate, startKm: cStartKm, endKm: cEndKm, fuelAmt: cFuelAmt, fuel: cFuel },
             headerRow: rows[headerIdx].map((c: any) => String(c ?? "")).slice(0, 16),
-            plate: String(sr[cPlate] ?? ""), depart: String(sr[cDepart] ?? ""), arrive: String(sr[cArrive] ?? ""), logDate: String(sr[cLogDate] ?? ""),
-            startKm: sr[cStartKm], endKm: sr[cEndKm], fuelAmt: sr[cFuelAmt], fuel: sr[cFuel],
-            departType: typeof sr[cDepart], logDateType: typeof sr[cLogDate],
-            departIsDate: sr[cDepart] instanceof Date, logDateIsDate: sr[cLogDate] instanceof Date,
-            departExtracted: extractDate(sr[cDepart]), logDateExtracted: extractDate(sr[cLogDate]),
-            arriveExtracted: extractDate(sr[cArrive]),
+            cols: { plate: cPlate, depart: cDepart, arrive: cArrive, logDate: cLogDate, startKm: cStartKm, endKm: cEndKm, fuelAmt: cFuelAmt, fuel: cFuel },
+            rows: debugRows,
           };
+          console.log("[VLOG_DEBUG]", JSON.stringify(_debugSample));
         }
 
         for (let ri = headerIdx + 1; ri < rows.length; ri++) {
