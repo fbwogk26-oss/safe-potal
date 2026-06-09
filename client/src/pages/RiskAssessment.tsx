@@ -1007,13 +1007,55 @@ export default function RiskAssessmentPage() {
                                 {ra.afterPhotoUrl && <div><p className="text-xs text-muted-foreground font-semibold mb-1">개선 후 사진</p><img src={ra.afterPhotoUrl} alt="개선 후" className="h-24 w-36 object-cover rounded-md border" /></div>}
                               </div>
                             )}
-                            {grade.grade === "A" && ra.improvementMeasures && (
-                              <div className="p-2 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800 text-xs space-y-1">
-                                <p className="font-semibold text-green-700 dark:text-green-400">개선 내용</p>
-                                <p>{ra.improvementMeasures}</p>
-                                <div className="flex gap-3 text-muted-foreground">
-                                  {ra.plannedDate && <span>예정일: {ra.plannedDate}</span>}
-                                  {ra.completionDate && <span>완료일: {ra.completionDate}</span>}
+                            {ra.improvementMeasures && (
+                              <div className="rounded-lg border border-green-200 dark:border-green-800 overflow-hidden text-xs">
+                                {/* 헤더 */}
+                                <div className="flex items-center justify-between px-3 py-2 bg-green-100 dark:bg-green-900/40">
+                                  <span className="font-semibold text-green-800 dark:text-green-300 flex items-center gap-1.5">
+                                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500" />개선대책
+                                  </span>
+                                  {(ra as any).improvementStatus && (
+                                    <span className={`px-2 py-0.5 rounded-full font-medium text-[10px] ${
+                                      (ra as any).improvementStatus === "완료" ? "bg-green-200 text-green-800" :
+                                      (ra as any).improvementStatus === "진행중" ? "bg-blue-100 text-blue-700" :
+                                      "bg-gray-100 text-gray-600"
+                                    }`}>{(ra as any).improvementStatus}</span>
+                                  )}
+                                </div>
+                                {/* 개선대책 내용 */}
+                                <div className="px-3 py-2 bg-green-50/60 dark:bg-green-900/10 border-b border-green-100 dark:border-green-800">
+                                  <p className="leading-relaxed text-foreground/80 whitespace-pre-line">{ra.improvementMeasures}</p>
+                                </div>
+                                {/* 날짜 + 위험성 그리드 */}
+                                <div className="grid grid-cols-2 sm:grid-cols-5 divide-x divide-y sm:divide-y-0 divide-green-100 dark:divide-green-800 bg-white dark:bg-muted/10">
+                                  <div className="px-3 py-2">
+                                    <p className="text-muted-foreground mb-0.5">개선예정일</p>
+                                    <p className="font-medium">{ra.plannedDate || "-"}</p>
+                                  </div>
+                                  <div className="px-3 py-2">
+                                    <p className="text-muted-foreground mb-0.5">개선완료일</p>
+                                    <p className="font-medium">{ra.completionDate || "-"}</p>
+                                  </div>
+                                  <div className="px-3 py-2">
+                                    <p className="text-muted-foreground mb-0.5">가능성(개선 후)</p>
+                                    <p className="font-medium">
+                                      {(ra as any).afterFrequency ? `${(ra as any).afterFrequency} (${PROBABILITY_LABELS[(ra as any).afterFrequency]})` : "-"}
+                                    </p>
+                                  </div>
+                                  <div className="px-3 py-2">
+                                    <p className="text-muted-foreground mb-0.5">중대성(개선 후)</p>
+                                    <p className="font-medium">
+                                      {(ra as any).afterSeverity ? `${(ra as any).afterSeverity} (${CRITICALITY_LABELS[(ra as any).afterSeverity]})` : "-"}
+                                    </p>
+                                  </div>
+                                  <div className="px-3 py-2">
+                                    <p className="text-muted-foreground mb-0.5">위험성 결정</p>
+                                    {(ra as any).afterRiskScore ? (
+                                      <span className={`inline-block px-2 py-0.5 rounded-full font-bold text-[11px] ${getRiskBadgeClass(getRiskGrade((ra as any).afterRiskScore).label)}`}>
+                                        {(ra as any).afterRiskScore}점 {(ra as any).afterRiskLevel || getRiskGrade((ra as any).afterRiskScore).label}
+                                      </span>
+                                    ) : <p className="font-medium">-</p>}
+                                  </div>
                                 </div>
                               </div>
                             )}
