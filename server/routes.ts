@@ -8611,18 +8611,29 @@ ${htmlDraft}
 
       // 날짜 값에서 "YYYY-MM-DD" 추출 헬퍼
       const extractDate = (val: any): string | null => {
-        if (!val) return null;
+        if (!val && val !== 0) return null;
         if (val instanceof Date) {
           return `${val.getFullYear()}-${String(val.getMonth() + 1).padStart(2, "0")}-${String(val.getDate()).padStart(2, "0")}`;
         }
         const s = String(val).trim();
-        const m = s.match(/(\d{4})-(\d{2})-(\d{2})/);
-        if (m) return `${m[1]}-${m[2]}-${m[3]}`;
-        // "26년5월15일" 형식
-        const m2 = s.match(/(\d{2,4})년\s*(\d{1,2})월\s*(\d{1,2})일/);
-        if (m2) {
-          const yr = parseInt(m2[1]) < 100 ? 2000 + parseInt(m2[1]) : parseInt(m2[1]);
-          return `${yr}-${String(parseInt(m2[2])).padStart(2, "0")}-${String(parseInt(m2[3])).padStart(2, "0")}`;
+        if (!s) return null;
+        // "YYYY-MM-DD" 또는 "YYYY-MM-DD HH:MM" 형식
+        const m1 = s.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+        if (m1) return `${m1[1]}-${String(parseInt(m1[2])).padStart(2,"0")}-${String(parseInt(m1[3])).padStart(2,"0")}`;
+        // "YYYY/MM/DD" 또는 "YYYY/M/D" 형식
+        const m2 = s.match(/(\d{4})\/(\d{1,2})\/(\d{1,2})/);
+        if (m2) return `${m2[1]}-${String(parseInt(m2[2])).padStart(2,"0")}-${String(parseInt(m2[3])).padStart(2,"0")}`;
+        // "YYYY.MM.DD" 형식
+        const m3 = s.match(/(\d{4})\.(\d{1,2})\.(\d{1,2})/);
+        if (m3) return `${m3[1]}-${String(parseInt(m3[2])).padStart(2,"0")}-${String(parseInt(m3[3])).padStart(2,"0")}`;
+        // "YYYYMMDD" 형식 (8자리 숫자)
+        const m4 = s.match(/^(\d{4})(\d{2})(\d{2})$/);
+        if (m4) return `${m4[1]}-${m4[2]}-${m4[3]}`;
+        // "YY년M월D일" 또는 "YYYY년M월D일" 형식
+        const m5 = s.match(/(\d{2,4})년\s*(\d{1,2})월\s*(\d{1,2})일/);
+        if (m5) {
+          const yr = parseInt(m5[1]) < 100 ? 2000 + parseInt(m5[1]) : parseInt(m5[1]);
+          return `${yr}-${String(parseInt(m5[2])).padStart(2, "0")}-${String(parseInt(m5[3])).padStart(2, "0")}`;
         }
         return null;
       };
@@ -8634,6 +8645,7 @@ ${htmlDraft}
       const parseSheet = (rows: any[][], year: number, month: number, batchId: string, meta: Record<string, any>) => {
         const agg: Record<string, { dist: number; fuelCost: number; driver: string }> = {};
         const errors: any[] = [];
+        let _debugSample: any = null;
 
         // 헤더 행 탐색
         let headerIdx = 0;
@@ -8673,16 +8685,19 @@ ${htmlDraft}
         const cDriver  = colDriver >= 0    ? colDriver     : 14;
         const cPurpose = colPurpose >= 0   ? colPurpose   : 1;
 
-        console.log("[DEBUG] 헤더idx:", headerIdx, "컬럼인덱스 plate/depart/arrive/logDate/startKm/endKm/fuelAmt/fuel:", cPlate, cDepart, cArrive, cLogDate, cStartKm, cEndKm, cFuelAmt, cFuel);
-        // 첫 데이터 행 샘플 출력
+        // 첫 데이터 행 디버그 캡처
         if (rows.length > headerIdx + 1) {
           const sr = rows[headerIdx + 1];
-          console.log("[DEBUG] 샘플행:", JSON.stringify({
-            plate: sr[cPlate], depart: sr[cDepart], arrive: sr[cArrive], logDate: sr[cLogDate],
+          _debugSample = {
+            cols: { plate: cPlate, depart: cDepart, arrive: cArrive, logDate: cLogDate, startKm: cStartKm, endKm: cEndKm, fuelAmt: cFuelAmt, fuel: cFuel },
+            headerRow: rows[headerIdx].map((c: any) => String(c ?? "")).slice(0, 16),
+            plate: String(sr[cPlate] ?? ""), depart: String(sr[cDepart] ?? ""), arrive: String(sr[cArrive] ?? ""), logDate: String(sr[cLogDate] ?? ""),
             startKm: sr[cStartKm], endKm: sr[cEndKm], fuelAmt: sr[cFuelAmt], fuel: sr[cFuel],
             departType: typeof sr[cDepart], logDateType: typeof sr[cLogDate],
+            departIsDate: sr[cDepart] instanceof Date, logDateIsDate: sr[cLogDate] instanceof Date,
             departExtracted: extractDate(sr[cDepart]), logDateExtracted: extractDate(sr[cLogDate]),
-          }));
+            arriveExtracted: extractDate(sr[cArrive]),
+          };
         }
 
         for (let ri = headerIdx + 1; ri < rows.length; ri++) {
@@ -8769,11 +8784,12 @@ ${htmlDraft}
             });
           }
         }
-        return { agg, errors };
+        return { agg, errors, _debugSample };
       };
 
       const allRecordsToInsert: any[] = [];
       const allErrors: any[] = [];
+      let _debugSamples: any[] = [];
       const processedYMs: Set<string> = new Set();
       const skippedVehicles: string[] = [];
 
@@ -8793,8 +8809,9 @@ ${htmlDraft}
         const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", cellDates: true });
         if (rows.length < 2) continue;
 
-        const { agg, errors: sheetErrors } = parseSheet(rows, ym.year, ym.month, batchId, vehicleMeta);
+        const { agg, errors: sheetErrors, _debugSample } = parseSheet(rows, ym.year, ym.month, batchId, vehicleMeta);
         allErrors.push(...sheetErrors);
+        if (_debugSample) _debugSamples.push({ sheet: sheetName, ...(_debugSample as any) });
         const ymKey = `${ym.year}-${ym.month}`;
         processedYMs.add(ymKey);
 
@@ -8856,6 +8873,7 @@ ${htmlDraft}
         batchId,
         inserted,
         errorCount: errorInserted,
+        _debug: { errorCount: allErrors.length, samples: _debugSamples.slice(0, 1) },
         unknownVehicles: skippedVehicles.length,
         unknownPlates: skippedVehicles,
         yearMonths: ymLabels,
