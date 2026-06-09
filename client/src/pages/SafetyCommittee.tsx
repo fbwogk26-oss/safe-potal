@@ -1,17 +1,23 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Users, Trash2, Presentation, FileText, Eye, Upload, Loader2, Plus, ExternalLink } from "lucide-react";
+import {
+  Users, Trash2, Presentation, FileText, Eye, Upload, Loader2, Plus,
+  ExternalLink, ChevronLeft, ChevronRight, CheckCircle2, Circle, FileQuestion,
+} from "lucide-react";
 import type { SafetyCommittee } from "@shared/schema";
+
+const MONTH_NAMES = ["1월","2월","3월","4월","5월","6월","7월","8월","9월","10월","11월","12월"];
 
 export default function SafetyCommitteePage() {
   const { toast } = useToast();
+  const [viewYear, setViewYear] = useState(() => new Date().getFullYear());
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
+  const [targetMonth, setTargetMonth] = useState("");
 
   const [materialUrl, setMaterialUrl] = useState("");
   const [materialName, setMaterialName] = useState("");
@@ -21,9 +27,8 @@ export default function SafetyCommitteePage() {
   const [uploadingMaterial, setUploadingMaterial] = useState(false);
   const [uploadingMinutes, setUploadingMinutes] = useState(false);
 
-  // 미리보기 상태
-  const [officeViewerUrl, setOfficeViewerUrl] = useState<string | null>(null); // PPT Office Online
-  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);     // PDF 인앱 미리보기
+  const [officeViewerUrl, setOfficeViewerUrl] = useState<string | null>(null);
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
   const [pdfPreviewTitle, setPdfPreviewTitle] = useState("");
   const [docHtml, setDocHtml] = useState<string | null>(null);
   const [docLoading, setDocLoading] = useState(false);
@@ -32,38 +37,41 @@ export default function SafetyCommitteePage() {
     queryKey: ["/api/safety-committees"],
   });
 
+  const byMonth = useMemo(() => {
+    const map = new Map<string, SafetyCommittee[]>();
+    committees.forEach(c => {
+      const key = (c.meetingDate || c.createdAt || "").slice(0, 7);
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(c);
+    });
+    return map;
+  }, [committees]);
+
+  const yearTotal = useMemo(() =>
+    committees.filter(c => (c.meetingDate || c.createdAt || "").startsWith(String(viewYear))).length,
+  [committees, viewYear]);
+
   const createMutation = useMutation({
     mutationFn: (data: any) => apiRequest("POST", "/api/safety-committees", data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/safety-committees"] });
-      toast({ title: "등록됐습니다" });
-      setDialogOpen(false);
-    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/safety-committees"] }); toast({ title: "등록됐습니다" }); setDialogOpen(false); },
     onError: () => toast({ title: "저장 실패", variant: "destructive" }),
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: any }) =>
-      apiRequest("PUT", `/api/safety-committees/${id}`, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/safety-committees"] });
-      toast({ title: "수정됐습니다" });
-      setDialogOpen(false);
-    },
+    mutationFn: ({ id, data }: { id: number; data: any }) => apiRequest("PUT", `/api/safety-committees/${id}`, data),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/safety-committees"] }); toast({ title: "수정됐습니다" }); setDialogOpen(false); },
     onError: () => toast({ title: "수정 실패", variant: "destructive" }),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => apiRequest("DELETE", `/api/safety-committees/${id}`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/safety-committees"] });
-      toast({ title: "삭제됐습니다" });
-    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/safety-committees"] }),
     onError: () => toast({ title: "삭제 실패", variant: "destructive" }),
   });
 
-  const openCreate = () => {
+  const openCreate = (yearMonth: string) => {
     setEditId(null);
+    setTargetMonth(yearMonth);
     setMaterialUrl(""); setMaterialName("");
     setMinutesUrl(""); setMinutesName("");
     setDialogOpen(true);
@@ -71,6 +79,7 @@ export default function SafetyCommitteePage() {
 
   const openEdit = (c: SafetyCommittee) => {
     setEditId(c.id);
+    setTargetMonth((c.meetingDate || "").slice(0, 7));
     setMaterialUrl(c.meetingMaterialUrl ?? "");
     setMaterialName(c.meetingMaterialName ?? "");
     setMinutesUrl(c.meetingMinutesUrl ?? "");
@@ -79,9 +88,8 @@ export default function SafetyCommitteePage() {
   };
 
   const handleSubmit = () => {
-    const today = new Date().toISOString().slice(0, 10);
     const payload = {
-      meetingDate: today,
+      meetingDate: targetMonth ? targetMonth + "-01" : new Date().toISOString().slice(0, 10),
       location: "-",
       meetingType: "정기",
       principalCount: 0,
@@ -113,15 +121,10 @@ export default function SafetyCommitteePage() {
 
   const openMaterialPreview = (url: string, name: string) => {
     const ext = getExt(name);
-    // object storage URL은 공개 접근 가능 → 인앱 iframe으로 표시
     const isObj = url.startsWith("/objects/");
     const fullUrl = isObj ? url : `${window.location.origin}${url}`;
-    if (ext === "pdf") {
-      setPdfPreviewTitle(name || "회의자료");
-      setPdfPreviewUrl(fullUrl);
-    } else {
-      setOfficeViewerUrl(`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(window.location.origin + (isObj ? "" : "") + fullUrl)}`);
-    }
+    if (ext === "pdf") { setPdfPreviewTitle(name || "회의자료"); setPdfPreviewUrl(fullUrl); }
+    else { setOfficeViewerUrl(`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(fullUrl)}`); }
   };
 
   const openMinutesPreview = async (c: SafetyCommittee) => {
@@ -130,95 +133,87 @@ export default function SafetyCommitteePage() {
       const url = c.meetingMinutesUrl ?? "";
       const isObj = url.startsWith("/objects/");
       const fullUrl = isObj ? url : `${window.location.origin}${url}`;
-      setPdfPreviewTitle(c.meetingMinutesName || "회의록");
-      setPdfPreviewUrl(fullUrl);
+      setPdfPreviewTitle(c.meetingMinutesName || "회의록"); setPdfPreviewUrl(fullUrl);
     } else {
-      setDocLoading(true);
-      setDocHtml("");
+      setDocLoading(true); setDocHtml("");
       try {
         const res = await fetch(`/api/safety-committees/${c.id}/preview-minutes`, { credentials: "include" });
         if (!res.ok) throw new Error("미리보기 불가");
         const data = await res.json();
         setDocHtml(data.html);
-      } catch {
-        toast({ title: "회의록 미리보기 실패", variant: "destructive" });
-        setDocHtml(null);
-      } finally { setDocLoading(false); }
+      } catch { toast({ title: "회의록 미리보기 실패", variant: "destructive" }); setDocHtml(null); }
+      finally { setDocLoading(false); }
     }
   };
 
-  const formatDate = (c: SafetyCommittee) => {
-    try {
-      return new Date(c.createdAt!).toLocaleDateString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit" });
-    } catch { return c.meetingDate; }
-  };
-
   return (
-    <div className="p-4 max-w-2xl mx-auto space-y-4">
+    <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-5">
       {/* 헤더 */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold flex items-center gap-2">
-            <Users className="w-5 h-5 text-blue-600 shrink-0" />
+          <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
+            <Users className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600 shrink-0" />
             산업안전보건협의체
           </h1>
-          <p className="text-xs text-muted-foreground mt-0.5">회의자료 및 회의록 관리</p>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1">월별 회의자료 및 회의록 관리</p>
         </div>
-        <Button onClick={openCreate} size="sm" data-testid="button-create-committee">
-          <Plus className="w-4 h-4 mr-1" />등록
-        </Button>
       </div>
 
-      {/* 목록 */}
+      {/* 연도 네비게이션 + 요약 */}
+      <div className="flex items-center justify-between bg-muted/40 border rounded-xl px-4 py-3">
+        <button
+          onClick={() => setViewYear(y => y - 1)}
+          className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-background transition-colors"
+        >
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+        <div className="text-center">
+          <div className="text-lg font-bold">{viewYear}년</div>
+          <div className="text-xs text-muted-foreground">
+            {yearTotal > 0 ? `${yearTotal}건 등록됨` : "등록 없음"}
+          </div>
+        </div>
+        <button
+          onClick={() => setViewYear(y => y + 1)}
+          className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-background transition-colors"
+        >
+          <ChevronRight className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* 12개월 그리드 */}
       {isLoading ? (
-        <div className="flex items-center justify-center py-12 text-muted-foreground gap-2">
+        <div className="flex items-center justify-center py-16 text-muted-foreground gap-2">
           <Loader2 className="w-5 h-5 animate-spin" />불러오는 중...
         </div>
-      ) : committees.length === 0 ? (
-        <Card>
-          <CardContent className="py-10 text-center text-muted-foreground">
-            <Users className="w-9 h-9 mx-auto mb-2 opacity-30" />
-            <p className="text-sm">등록된 항목이 없습니다</p>
-          </CardContent>
-        </Card>
       ) : (
-        <div className="space-y-3">
-          {committees.map((c) => (
-            <Card key={c.id} className="p-4" data-testid={`card-committee-${c.id}`}>
-              {/* 날짜 + 관리 버튼 */}
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-sm font-medium text-muted-foreground">{formatDate(c)}</span>
-                <div className="flex items-center gap-1">
-                  <Button size="sm" variant="ghost" className="h-8 px-2 text-xs" onClick={() => openEdit(c)} data-testid={`button-edit-committee-${c.id}`}>수정</Button>
-                  <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-destructive" onClick={() => { if (confirm("삭제하시겠습니까?")) deleteMutation.mutate(c.id); }} data-testid={`button-delete-committee-${c.id}`}>
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </Button>
-                </div>
-              </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          {Array.from({ length: 12 }, (_, i) => i + 1).map(m => {
+            const key = `${viewYear}-${String(m).padStart(2, "0")}`;
+            const items = byMonth.get(key) ?? [];
+            const hasMaterial = items.some(c => c.meetingMaterialUrl);
+            const hasMinutes = items.some(c => c.meetingMinutesUrl);
+            const status = hasMaterial && hasMinutes ? "complete" : items.length > 0 ? "partial" : "empty";
+            const isCurrentMonth = new Date().getFullYear() === viewYear && new Date().getMonth() + 1 === m;
 
-              {/* 회의자료 */}
-              <div className="space-y-2">
-                <FileRow
-                  icon={<Presentation className="w-4 h-4 text-orange-500 shrink-0" />}
-                  label="회의자료"
-                  name={c.meetingMaterialName}
-                  hasFile={!!c.meetingMaterialUrl}
-                  color="orange"
-                  onPreview={() => openMaterialPreview(c.meetingMaterialUrl!, c.meetingMaterialName ?? "")}
-                  previewTestId={`button-preview-material-${c.id}`}
-                />
-                <FileRow
-                  icon={<FileText className="w-4 h-4 text-blue-500 shrink-0" />}
-                  label="회의록"
-                  name={c.meetingMinutesName}
-                  hasFile={!!c.meetingMinutesUrl}
-                  color="blue"
-                  onPreview={() => openMinutesPreview(c)}
-                  previewTestId={`button-preview-minutes-${c.id}`}
-                />
-              </div>
-            </Card>
-          ))}
+            return (
+              <MonthCard
+                key={m}
+                month={m}
+                monthKey={key}
+                items={items}
+                status={status}
+                isCurrentMonth={isCurrentMonth}
+                hasMaterial={hasMaterial}
+                hasMinutes={hasMinutes}
+                onAdd={() => openCreate(key)}
+                onEdit={(c) => openEdit(c)}
+                onDelete={(id) => { if (confirm("삭제하시겠습니까?")) deleteMutation.mutate(id); }}
+                onPreviewMaterial={(url, name) => openMaterialPreview(url, name)}
+                onPreviewMinutes={(c) => openMinutesPreview(c)}
+              />
+            );
+          })}
         </div>
       )}
 
@@ -226,10 +221,11 @@ export default function SafetyCommitteePage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-sm mx-auto">
           <DialogHeader>
-            <DialogTitle>{editId ? "수정" : "회의자료/회의록 등록"}</DialogTitle>
+            <DialogTitle>
+              {editId ? "수정" : `${targetMonth ? `${parseInt(targetMonth.split("-")[1])}월 ` : ""}회의자료/회의록 등록`}
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            {/* 회의자료 */}
             <UploadBox
               icon={<Presentation className="w-4 h-4" />}
               label="회의자료"
@@ -242,7 +238,6 @@ export default function SafetyCommitteePage() {
               onRemove={() => { setMaterialUrl(""); setMaterialName(""); }}
               testId="input-material-file"
             />
-            {/* 회의록 */}
             <UploadBox
               icon={<FileText className="w-4 h-4" />}
               label="회의록"
@@ -265,7 +260,7 @@ export default function SafetyCommitteePage() {
         </DialogContent>
       </Dialog>
 
-      {/* PPT 미리보기 (Office Online) */}
+      {/* PPT 미리보기 */}
       <Dialog open={!!officeViewerUrl} onOpenChange={() => setOfficeViewerUrl(null)}>
         <DialogContent className="max-w-5xl w-[95vw] h-[85vh] flex flex-col p-0 gap-0">
           <DialogHeader className="p-3 pb-2 shrink-0 border-b">
@@ -289,30 +284,20 @@ export default function SafetyCommitteePage() {
                 <span className="truncate">{pdfPreviewTitle}</span>
               </DialogTitle>
               {pdfPreviewUrl && (
-                <a
-                  href={pdfPreviewUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="shrink-0 text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 border rounded px-2 py-1"
-                >
+                <a href={pdfPreviewUrl} target="_blank" rel="noopener noreferrer"
+                  className="shrink-0 text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 border rounded px-2 py-1">
                   <ExternalLink className="w-3 h-3" />새 탭
                 </a>
               )}
             </div>
           </DialogHeader>
           <div className="flex-1 overflow-hidden">
-            {pdfPreviewUrl && (
-              <iframe
-                src={pdfPreviewUrl}
-                className="w-full h-full"
-                title="PDF 미리보기"
-              />
-            )}
+            {pdfPreviewUrl && <iframe src={pdfPreviewUrl} className="w-full h-full" title="PDF 미리보기" />}
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* Word 미리보기 (mammoth HTML) */}
+      {/* Word 미리보기 */}
       <Dialog open={docHtml !== null} onOpenChange={() => setDocHtml(null)}>
         <DialogContent className="max-w-3xl w-[95vw] max-h-[90vh] flex flex-col p-0 gap-0">
           <DialogHeader className="p-3 pb-2 shrink-0 border-b">
@@ -335,32 +320,117 @@ export default function SafetyCommitteePage() {
   );
 }
 
-/* ── 파일 행 컴포넌트 ── */
-function FileRow({ icon, label, name, hasFile, color, onPreview, previewTestId }: {
-  icon: React.ReactNode; label: string; name?: string | null;
-  hasFile: boolean; color: "orange" | "blue";
-  onPreview: () => void; previewTestId: string;
+/* ── 월별 카드 컴포넌트 ── */
+function MonthCard({
+  month, monthKey, items, status, isCurrentMonth,
+  hasMaterial, hasMinutes,
+  onAdd, onEdit, onDelete, onPreviewMaterial, onPreviewMinutes,
+}: {
+  month: number; monthKey: string; items: SafetyCommittee[]; status: "complete" | "partial" | "empty";
+  isCurrentMonth: boolean; hasMaterial: boolean; hasMinutes: boolean;
+  onAdd: () => void; onEdit: (c: SafetyCommittee) => void; onDelete: (id: number) => void;
+  onPreviewMaterial: (url: string, name: string) => void; onPreviewMinutes: (c: SafetyCommittee) => void;
 }) {
-  const colors = {
-    orange: { bg: "bg-orange-50 border-orange-200", text: "text-orange-700", btn: "text-orange-600 border-orange-300 hover:bg-orange-50", empty: "text-orange-300" },
-    blue: { bg: "bg-blue-50 border-blue-200", text: "text-blue-700", btn: "text-blue-600 border-blue-300 hover:bg-blue-50", empty: "text-blue-300" },
-  }[color];
+  const c = items[0]; // 월 1건 기준
+
+  const borderColor = status === "complete" ? "border-green-400" : status === "partial" ? "border-amber-400" : "border-border";
+  const headerBg = status === "complete" ? "bg-green-50 dark:bg-green-950/30" : status === "partial" ? "bg-amber-50 dark:bg-amber-950/30" : "bg-muted/30";
+  const monthColor = status === "complete" ? "text-green-700 dark:text-green-400" : status === "partial" ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground";
 
   return (
-    <div className={`flex items-center gap-2 rounded-lg border px-3 py-2 ${hasFile ? colors.bg : "bg-muted/20 border-dashed border-muted"}`}>
-      <span className={hasFile ? colors.text : "text-muted-foreground/40"}>{icon}</span>
-      <div className="flex-1 min-w-0">
-        <p className={`text-xs font-medium ${hasFile ? colors.text : "text-muted-foreground"}`}>{label}</p>
-        {name ? (
-          <p className={`text-xs truncate ${colors.text} opacity-80`}>{name}</p>
+    <div className={`border-2 rounded-xl overflow-hidden transition-all ${borderColor} ${isCurrentMonth ? "ring-2 ring-blue-400 ring-offset-1" : ""}`}
+      data-testid={`card-committee-${monthKey}`}>
+      {/* 월 헤더 */}
+      <div className={`flex items-center justify-between px-3 py-2.5 ${headerBg}`}>
+        <div className="flex items-center gap-2">
+          <span className={`text-base font-bold ${monthColor}`}>{MONTH_NAMES[month - 1]}</span>
+          {isCurrentMonth && <span className="text-xs bg-blue-500 text-white px-1.5 py-0.5 rounded-full">이달</span>}
+        </div>
+        {status === "complete" ? (
+          <CheckCircle2 className="w-4 h-4 text-green-500" />
+        ) : status === "partial" ? (
+          <div className="w-4 h-4 rounded-full border-2 border-amber-400 bg-amber-200" />
         ) : (
-          <p className="text-xs text-muted-foreground/60">파일 없음</p>
+          <Circle className="w-4 h-4 text-muted-foreground/40" />
         )}
       </div>
-      {hasFile && (
-        <Button size="sm" variant="outline" className={`shrink-0 h-7 px-2 text-xs gap-1 ${colors.btn}`} onClick={onPreview} data-testid={previewTestId}>
-          <Eye className="w-3 h-3" />보기
-        </Button>
+
+      {/* 본문 */}
+      <div className="p-3 space-y-2">
+        {status === "empty" ? (
+          <div className="flex flex-col items-center justify-center py-3 gap-1.5">
+            <FileQuestion className="w-7 h-7 text-muted-foreground/25" />
+            <p className="text-xs text-muted-foreground/60">미등록</p>
+            <button
+              onClick={onAdd}
+              className="mt-1 text-xs text-blue-600 hover:text-blue-700 flex items-center gap-0.5 border border-blue-200 rounded px-2 py-1 hover:bg-blue-50 transition-colors"
+              data-testid={`button-add-month-${monthKey}`}
+            >
+              <Plus className="w-3 h-3" />등록
+            </button>
+          </div>
+        ) : (
+          <>
+            {/* 파일 상태 */}
+            <div className="space-y-1.5">
+              <FileStatusRow
+                icon={<Presentation className="w-3 h-3" />}
+                label="회의자료"
+                hasFile={hasMaterial}
+                color="orange"
+                onPreview={c?.meetingMaterialUrl ? () => onPreviewMaterial(c.meetingMaterialUrl!, c.meetingMaterialName ?? "") : undefined}
+              />
+              <FileStatusRow
+                icon={<FileText className="w-3 h-3" />}
+                label="회의록"
+                hasFile={hasMinutes}
+                color="blue"
+                onPreview={c?.meetingMinutesUrl ? () => onPreviewMinutes(c) : undefined}
+              />
+            </div>
+
+            {/* 관리 버튼 */}
+            {c && (
+              <div className="flex items-center gap-1 pt-1 border-t">
+                <button
+                  onClick={() => onEdit(c)}
+                  className="flex-1 text-xs text-center py-1 rounded hover:bg-muted/60 text-muted-foreground hover:text-foreground transition-colors"
+                  data-testid={`button-edit-committee-${c.id}`}
+                >수정</button>
+                <div className="w-px h-3 bg-border" />
+                <button
+                  onClick={() => onDelete(c.id)}
+                  className="flex-1 text-xs text-center py-1 rounded hover:bg-red-50 text-muted-foreground hover:text-red-600 transition-colors"
+                  data-testid={`button-delete-committee-${c.id}`}
+                >삭제</button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ── 파일 상태 행 ── */
+function FileStatusRow({ icon, label, hasFile, color, onPreview }: {
+  icon: React.ReactNode; label: string; hasFile: boolean; color: "orange" | "blue";
+  onPreview?: () => void;
+}) {
+  const c = color === "orange"
+    ? { text: "text-orange-600", bg: "bg-orange-50", border: "border-orange-200" }
+    : { text: "text-blue-600", bg: "bg-blue-50", border: "border-blue-200" };
+
+  return (
+    <div className={`flex items-center gap-1.5 rounded-lg px-2 py-1.5 ${hasFile ? `${c.bg} border ${c.border}` : "bg-muted/20 border border-dashed border-muted"}`}>
+      <span className={hasFile ? c.text : "text-muted-foreground/40"}>{icon}</span>
+      <span className={`text-xs flex-1 ${hasFile ? `${c.text} font-medium` : "text-muted-foreground/60"}`}>{label}</span>
+      {hasFile && onPreview ? (
+        <button onClick={onPreview} className={`text-xs flex items-center gap-0.5 ${c.text} hover:opacity-70`}>
+          <Eye className="w-2.5 h-2.5" />보기
+        </button>
+      ) : (
+        <span className="text-xs text-muted-foreground/40">미첨부</span>
       )}
     </div>
   );

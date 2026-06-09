@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Pencil, Trash2, ClipboardCheck, Camera, ChevronDown, ChevronUp, MapPin, Building2, PenTool, UserCheck, X, Users, FileDown, Loader2 } from "lucide-react";
+import { Plus, Pencil, Trash2, ClipboardCheck, Camera, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, MapPin, Building2, PenTool, UserCheck, X, Users, FileDown, Loader2 } from "lucide-react";
 import type { JointInspection } from "@shared/schema";
 
 const CHECK_ITEMS_TEMPLATE = [
@@ -405,15 +405,35 @@ export default function JointInspectionPage() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [downloading, setDownloading] = useState(false);
 
+  const [viewYear, setViewYear] = useState(() => new Date().getFullYear());
+  const [collapsedMonths, setCollapsedMonths] = useState<Set<string>>(new Set());
+  const toggleMonthCollapse = (key: string) =>
+    setCollapsedMonths(prev => { const s = new Set(prev); s.has(key) ? s.delete(key) : s.add(key); return s; });
+
   // 서명 다이얼로그
   const [signDialogOpen, setSignDialogOpen] = useState(false);
   const [signInspectionId, setSignInspectionId] = useState<number | null>(null);
-  const [signForm, setSignForm] = useState({ signerName: "", signerDepartment: "", signerRole: "도급인" });
+  const [signForm, setSignForm] = useState({ signerName: "", signerDepartment: "", signerRole: "도급인", signerPosition: "" });
   const [signatureData, setSignatureData] = useState<string>("");
 
   const { data: inspections = [], isLoading } = useQuery<JointInspection[]>({
     queryKey: ["/api/joint-inspections"],
   });
+
+  // 월별 그룹핑
+  const byMonth = useMemo(() => {
+    const map = new Map<string, JointInspection[]>();
+    inspections
+      .filter(i => (i.inspectionDate || "").startsWith(String(viewYear)))
+      .forEach(insp => {
+        const key = (insp.inspectionDate || "").slice(0, 7);
+        if (!map.has(key)) map.set(key, []);
+        map.get(key)!.push(insp);
+      });
+    return map;
+  }, [inspections, viewYear]);
+
+  const monthKeys = useMemo(() => Array.from(byMonth.keys()).sort().reverse(), [byMonth]);
 
   const { data: signatures = [], refetch: refetchSigs } = useQuery<JoinInspectionSignature[]>({
     queryKey: ["/api/joint-inspections", expandedId, "signatures"],
@@ -512,7 +532,7 @@ export default function JointInspectionPage() {
     if (!signForm.signerName.trim()) return toast({ title: "성명을 입력하세요", variant: "destructive" });
     if (!signatureData) return toast({ title: "서명을 해주세요", variant: "destructive" });
     if (!signInspectionId) return;
-    createSigMutation.mutate({ inspectionId: signInspectionId, signerName: signForm.signerName.trim(), signerDepartment: signForm.signerDepartment, signerRole: signForm.signerRole, signatureData });
+    createSigMutation.mutate({ inspectionId: signInspectionId, signerName: signForm.signerName.trim(), signerDepartment: signForm.signerDepartment, signerRole: signForm.signerRole, signerPosition: signForm.signerPosition, signatureData });
   };
 
   // 체크박스 토글
@@ -590,6 +610,22 @@ export default function JointInspectionPage() {
         </Button>
       </div>
 
+      {/* 연도 네비게이션 + 다운로드 */}
+      <div className="flex items-center justify-between bg-muted/40 border rounded-xl px-4 py-3">
+        <button onClick={() => setViewYear(y => y - 1)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-background transition-colors">
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+        <div className="text-center">
+          <div className="text-base font-bold">{viewYear}년</div>
+          <div className="text-xs text-muted-foreground">
+            {inspections.filter(i => (i.inspectionDate || "").startsWith(String(viewYear))).length}건 등록됨
+          </div>
+        </div>
+        <button onClick={() => setViewYear(y => y + 1)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-background transition-colors">
+          <ChevronRight className="w-4 h-4" />
+        </button>
+      </div>
+
       {/* 선택 액션 바 */}
       {inspections.length > 0 && (
         <div className="flex items-center gap-3 bg-muted/30 border rounded-lg px-3 py-2">
@@ -618,62 +654,94 @@ export default function JointInspectionPage() {
         </div>
       )}
 
-      {/* 목록 */}
+      {/* 월별 그룹 목록 */}
       {isLoading ? (
         <div className="text-center py-12 text-muted-foreground">불러오는 중...</div>
-      ) : inspections.length === 0 ? (
+      ) : monthKeys.length === 0 ? (
         <Card><CardContent className="py-12 text-center text-muted-foreground">
           <ClipboardCheck className="w-10 h-10 mx-auto mb-3 opacity-30" />
-          <p>등록된 합동점검이 없습니다</p>
+          <p>{viewYear}년 등록된 합동점검이 없습니다</p>
         </CardContent></Card>
       ) : (
-        <div className="space-y-3">
-          {inspections.map((insp) => {
-            const ci = (insp.checkItems as CheckItem[] | null) ?? [];
-            const issueCount = ci.filter(c => c.issue && c.issue !== "양호" && c.issue !== "-").length;
-            const isExpanded = expandedId === insp.id;
-            const isSelected = selectedIds.has(insp.id);
+        <div className="space-y-4">
+          {monthKeys.map(monthKey => {
+            const monthInspections = byMonth.get(monthKey) ?? [];
+            const isCollapsed = collapsedMonths.has(monthKey);
+            const [, m] = monthKey.split("-");
+            const monthLabel = `${parseInt(m)}월`;
+            const issueTotal = monthInspections.reduce((sum, insp) => {
+              const ci = (insp.checkItems as CheckItem[] | null) ?? [];
+              return sum + ci.filter(c => c.issue && c.issue !== "양호" && c.issue !== "-").length;
+            }, 0);
 
             return (
-              <Card key={insp.id} className={`overflow-hidden transition-colors ${isSelected ? "ring-2 ring-green-500 ring-offset-1" : ""}`}>
-                <div className="flex items-center gap-2 px-3 pt-3 pb-0">
-                  <Checkbox
-                    checked={isSelected}
-                    onCheckedChange={() => toggleSelect(insp.id)}
-                    onClick={e => e.stopPropagation()}
-                    data-testid={`checkbox-inspection-${insp.id}`}
-                  />
-                  <div
-                    className="flex-1 flex items-center justify-between cursor-pointer pb-3"
-                    onClick={() => setExpandedId(isExpanded ? null : insp.id)}
-                    data-testid={`card-inspection-${insp.id}`}
-                  >
-                    <div className="flex-1 min-w-0 space-y-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-semibold">{insp.inspectionDate}</span>
-                        {issueCount > 0 && (
-                          <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full shrink-0">지적 {issueCount}건</span>
-                        )}
-                      </div>
-                      <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-                        <span className="flex items-center gap-1"><MapPin className="w-3 h-3 shrink-0" /><span className="truncate">{insp.siteName}</span></span>
-                        <span className="flex items-center gap-1"><Building2 className="w-3 h-3 shrink-0" /><span className="truncate">{insp.subcontractor}</span></span>
-                      </div>
+              <div key={monthKey} className="border rounded-xl overflow-hidden shadow-sm">
+                {/* 월 헤더 */}
+                <button
+                  className="w-full flex items-center justify-between px-4 py-3 bg-muted/40 hover:bg-muted/60 transition-colors"
+                  onClick={() => toggleMonthCollapse(monthKey)}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-green-600 flex items-center justify-center shrink-0">
+                      <span className="text-white text-xs font-bold">{monthLabel}</span>
                     </div>
-                    <div className="flex items-center gap-1 shrink-0 ml-2">
-                      <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={(e) => { e.stopPropagation(); openEdit(insp); }} data-testid={`button-edit-inspection-${insp.id}`}>
-                        <Pencil className="w-3.5 h-3.5" />
-                      </Button>
-                      <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-destructive" onClick={(e) => { e.stopPropagation(); if (confirm("삭제하시겠습니까?")) deleteMutation.mutate(insp.id); }} data-testid={`button-delete-inspection-${insp.id}`}>
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
-                      {isExpanded ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                    <div className="text-left">
+                      <div className="font-semibold text-sm">{monthKey} <span className="text-muted-foreground font-normal">· {monthInspections.length}건</span></div>
+                      {issueTotal > 0 && <div className="text-xs text-amber-600">지적사항 {issueTotal}건</div>}
                     </div>
                   </div>
-                </div>
+                  {isCollapsed ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronUp className="w-4 h-4 text-muted-foreground" />}
+                </button>
 
-                {isExpanded && (
-                  <CardContent className="border-t bg-muted/10 pt-4 space-y-6">
+                {/* 월 내 점검 목록 */}
+                {!isCollapsed && (
+                  <div className="divide-y">
+                    {monthInspections.map((insp) => {
+                      const ci = (insp.checkItems as CheckItem[] | null) ?? [];
+                      const issueCount = ci.filter(c => c.issue && c.issue !== "양호" && c.issue !== "-").length;
+                      const isExpanded = expandedId === insp.id;
+                      const isSelected = selectedIds.has(insp.id);
+
+                      return (
+                        <div key={insp.id} className={`transition-colors ${isSelected ? "bg-green-50 dark:bg-green-950/20" : "bg-background"}`}>
+                          <div className="flex items-center gap-2 px-4 py-3">
+                            <Checkbox
+                              checked={isSelected}
+                              onCheckedChange={() => toggleSelect(insp.id)}
+                              onClick={e => e.stopPropagation()}
+                              data-testid={`checkbox-inspection-${insp.id}`}
+                            />
+                            <div
+                              className="flex-1 flex items-center justify-between cursor-pointer min-w-0"
+                              onClick={() => setExpandedId(isExpanded ? null : insp.id)}
+                              data-testid={`card-inspection-${insp.id}`}
+                            >
+                              <div className="flex-1 min-w-0 space-y-0.5">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="font-semibold text-sm">{insp.inspectionDate}</span>
+                                  {issueCount > 0 && (
+                                    <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full shrink-0">지적 {issueCount}건</span>
+                                  )}
+                                </div>
+                                <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                                  <span className="flex items-center gap-1"><MapPin className="w-3 h-3 shrink-0" /><span className="truncate max-w-[120px]">{insp.siteName}</span></span>
+                                  <span className="flex items-center gap-1"><Building2 className="w-3 h-3 shrink-0" /><span className="truncate">{insp.subcontractor}</span></span>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1 shrink-0 ml-2">
+                                <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={(e) => { e.stopPropagation(); openEdit(insp); }} data-testid={`button-edit-inspection-${insp.id}`}>
+                                  <Pencil className="w-3 h-3" />
+                                </Button>
+                                <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive" onClick={(e) => { e.stopPropagation(); if (confirm("삭제하시겠습니까?")) deleteMutation.mutate(insp.id); }} data-testid={`button-delete-inspection-${insp.id}`}>
+                                  <Trash2 className="w-3 h-3" />
+                                </Button>
+                                {isExpanded ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                              </div>
+                            </div>
+                          </div>
+
+                          {isExpanded && (
+                            <div className="border-t bg-muted/10 px-4 pt-4 pb-4 space-y-6">
                     <div className="overflow-x-auto">
                       <Table>
                         <TableHeader>
@@ -744,9 +812,14 @@ export default function JointInspectionPage() {
                         </div>
                       )}
                     </div>
-                  </CardContent>
+                          </div>
+                        )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
-              </Card>
+              </div>
             );
           })}
         </div>
