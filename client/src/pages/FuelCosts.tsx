@@ -1609,7 +1609,7 @@ export default function FuelCosts() {
                 <p className="font-semibold">🔍 오류 감지 기준</p>
                 <p>• <strong>날짜 불일치</strong>: 출발/종료시간 날짜가 운행일자와 다른 경우</p>
                 <p>• <strong>km 역방향</strong>: 종료km가 시작km보다 작은 경우</p>
-                <p>• <strong>주유 이상</strong>: 주유금액이 30만원 초과, 또는 주유금액이 있으나 주유량이 0인 경우</p>
+                <p>• <strong>주유 이상</strong>: 주유금액 30만원 초과 / 주유금액 있는데 주유량 0 / 주유량 있는데 주유금액 0</p>
               </CardContent>
             </Card>
 
@@ -1634,8 +1634,9 @@ export default function FuelCosts() {
                     date_departure: { label: "출발시간 날짜 불일치", color: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" },
                     date_arrival:   { label: "종료시간 날짜 불일치", color: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" },
                     km_reverse:     { label: "km 역방향", color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
-                    fuel_no_amount: { label: "주유량 누락", color: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400" },
-                    fuel_high_cost: { label: "주유금액 과다", color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
+                    fuel_no_amount: { label: "주유량 누락 (금액있음)", color: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400" },
+                    fuel_no_cost:   { label: "주유금액 누락 (주유량있음)", color: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400" },
+                    fuel_high_cost: { label: "주유금액 과다 (30만원 초과)", color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
                   };
                   const statusBadge = err.status === "resolved"
                     ? <Badge className="bg-green-100 text-green-700 border-0 text-[11px]">처리완료</Badge>

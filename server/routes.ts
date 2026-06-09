@@ -8757,7 +8757,11 @@ ${htmlDraft}
           if (fuelCost > 0 && fuelAmount <= 0) {
             errorTypes.push("fuel_no_amount");
           }
-          // 5. 주유금액 과도 (300,000원 초과)
+          // 5. 주유량이 있는데 주유금액이 0
+          if (fuelAmount > 0 && fuelCost <= 0) {
+            errorTypes.push("fuel_no_cost");
+          }
+          // 6. 주유금액 과도 (300,000원 초과)
           if (fuelCost > 300000) {
             errorTypes.push("fuel_high_cost");
           }
