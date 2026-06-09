@@ -202,6 +202,13 @@ export default function RiskAssessmentPage() {
         .then(r => { if (!r.ok) throw new Error(r.statusText); return r.json(); }),
   });
 
+  const { data: allAssessments } = useQuery<RiskAssessment[]>({
+    queryKey: ["/api/risk-assessments", "all"],
+    queryFn: () =>
+      fetch(`/api/risk-assessments`, { credentials: "include" })
+        .then(r => { if (!r.ok) throw new Error(r.statusText); return r.json(); }),
+  });
+
   const batchMutation = useMutation({
     mutationFn: (payload: object[]) =>
       apiRequest("POST", "/api/risk-assessments/batch", { items: payload }),
@@ -1109,7 +1116,80 @@ export default function RiskAssessmentPage() {
 
       {/* ===== 평가 결과 탭 ===== */}
       {activeTab === "results" && (
-        <RiskAssessmentResults />
+        <div className="space-y-4">
+          <RiskAssessmentResults />
+
+          {/* 개선대책 현황 테이블 */}
+          {(() => {
+            const improved = (allAssessments || []).filter(a => (a as any).improvementMeasures);
+            if (!improved.length) return null;
+            return (
+              <div className="rounded-xl border border-green-200 dark:border-green-800 overflow-hidden">
+                <div className="flex items-center gap-2 px-4 py-3 bg-green-50 dark:bg-green-900/30 border-b border-green-200 dark:border-green-800">
+                  <span className="w-6 h-6 rounded-md bg-green-500 flex items-center justify-center text-white text-xs font-bold shrink-0">✓</span>
+                  <span className="font-semibold text-green-800 dark:text-green-300 text-sm">개선대책 현황</span>
+                  <span className="ml-auto text-xs text-muted-foreground">{improved.length}건</span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs border-collapse" style={{ minWidth: 800 }}>
+                    <thead>
+                      <tr className="bg-green-50/80 dark:bg-green-900/20 border-b border-green-100 dark:border-green-800">
+                        <th className="px-3 py-2.5 text-left font-semibold whitespace-nowrap">부서</th>
+                        <th className="px-3 py-2.5 text-left font-semibold whitespace-nowrap">유해위험요인</th>
+                        <th className="px-3 py-2.5 text-left font-semibold whitespace-nowrap w-40">개선대책</th>
+                        <th className="px-3 py-2.5 text-center font-semibold whitespace-nowrap">개선예정일</th>
+                        <th className="px-3 py-2.5 text-center font-semibold whitespace-nowrap">개선완료일</th>
+                        <th className="px-3 py-2.5 text-center font-semibold whitespace-nowrap">가능성(후)</th>
+                        <th className="px-3 py-2.5 text-center font-semibold whitespace-nowrap">중대성(후)</th>
+                        <th className="px-3 py-2.5 text-center font-semibold whitespace-nowrap">위험성 결정</th>
+                        <th className="px-3 py-2.5 text-center font-semibold whitespace-nowrap">개선현황</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {improved.map((a, idx) => {
+                        const ra = a as any;
+                        const afterGrade = ra.afterRiskScore ? getRiskGrade(ra.afterRiskScore) : null;
+                        return (
+                          <tr key={a.id} className={`border-b border-border/20 ${idx % 2 === 1 ? "bg-muted/20" : ""} hover:bg-green-50/40 dark:hover:bg-green-900/10 transition-colors`}>
+                            <td className="px-3 py-2 whitespace-nowrap font-medium">{a.department}</td>
+                            <td className="px-3 py-2 max-w-[160px]">
+                              <p className="truncate" title={a.hazard}>{a.hazard}</p>
+                            </td>
+                            <td className="px-3 py-2 max-w-[160px]">
+                              <p className="truncate text-foreground/80" title={ra.improvementMeasures}>{ra.improvementMeasures}</p>
+                            </td>
+                            <td className="px-3 py-2 text-center whitespace-nowrap">{ra.plannedDate || "-"}</td>
+                            <td className="px-3 py-2 text-center whitespace-nowrap">{ra.completionDate || "-"}</td>
+                            <td className="px-3 py-2 text-center whitespace-nowrap">
+                              {ra.afterFrequency ? `${ra.afterFrequency} (${PROBABILITY_LABELS[ra.afterFrequency]})` : "-"}
+                            </td>
+                            <td className="px-3 py-2 text-center whitespace-nowrap">
+                              {ra.afterSeverity ? `${ra.afterSeverity} (${CRITICALITY_LABELS[ra.afterSeverity]})` : "-"}
+                            </td>
+                            <td className="px-3 py-2 text-center">
+                              {afterGrade ? (
+                                <span className={`inline-block px-2 py-0.5 rounded-full font-bold text-[11px] ${getRiskBadgeClass(afterGrade.label)}`}>
+                                  {ra.afterRiskScore}점 {ra.afterRiskLevel || afterGrade.label}
+                                </span>
+                              ) : "-"}
+                            </td>
+                            <td className="px-3 py-2 text-center">
+                              <span className={`inline-block px-2 py-0.5 rounded-full font-medium text-[10px] ${
+                                ra.improvementStatus === "완료" ? "bg-green-100 text-green-700" :
+                                ra.improvementStatus === "진행중" ? "bg-blue-100 text-blue-700" :
+                                "bg-gray-100 text-gray-600"
+                              }`}>{ra.improvementStatus || "미완료"}</span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })()}
+        </div>
       )}
 
       {/* 등록/수정 다이얼로그 */}
