@@ -35,6 +35,9 @@ interface ResultRow {
   afterFrequency: number | null;
   afterSeverity: number | null;
   afterRiskScore: number | null;
+  improvementMeasures?: string;
+  plannedDate?: string;
+  completionDate?: string;
 }
 
 interface UploadRecord {
@@ -73,6 +76,9 @@ function getRiskGrade(score: number | null) {
   if (score >= 3) return { grade: "B", bg: "bg-orange-100 text-orange-700", dot: "#f97316" };
   return { grade: "C", bg: "bg-blue-100 text-blue-700", dot: "#3b82f6" };
 }
+
+const PROB_LABELS: Record<number, string> = { 1: "아주 낮음", 2: "낮음", 3: "보통", 4: "높음", 5: "아주 높음" };
+const CRIT_LABELS: Record<number, string> = { 1: "구급 상해", 2: "경상", 3: "심각", 4: "매우 심각" };
 
 const STATUS_STYLES: Record<string, string> = {
   "승인완료": "bg-emerald-100 text-emerald-700 border-emerald-200",
@@ -555,6 +561,72 @@ export default function RiskAssessmentResults() {
               </div>
             </CardContent>
           </Card>
+
+          {/* ── 개선대책 현황 ── */}
+          {(() => {
+            const improved = rows.filter(r => r.improvementMeasures && r.improvementMeasures.trim() !== "");
+            if (!improved.length) return null;
+            return (
+              <Card className="border shadow-sm">
+                <CardHeader className="pb-2 pt-4 px-5">
+                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-md bg-green-500 flex items-center justify-center text-white text-xs font-bold">✓</span>
+                    개선대책 현황
+                    <span className="ml-1 text-xs font-normal text-muted-foreground">{improved.length}건</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="px-0 pb-4">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs border-collapse" style={{ minWidth: 820 }}>
+                      <thead>
+                        <tr className="bg-green-50 dark:bg-green-900/20 border-b border-green-100 dark:border-green-800">
+                          <th className="px-3 py-2.5 text-left font-semibold whitespace-nowrap">팀</th>
+                          <th className="px-3 py-2.5 text-left font-semibold whitespace-nowrap">유해위험요인</th>
+                          <th className="px-3 py-2.5 text-left font-semibold whitespace-nowrap">개선대책</th>
+                          <th className="px-3 py-2.5 text-center font-semibold whitespace-nowrap">개선예정일</th>
+                          <th className="px-3 py-2.5 text-center font-semibold whitespace-nowrap">개선완료일</th>
+                          <th className="px-3 py-2.5 text-center font-semibold whitespace-nowrap">가능성(후)</th>
+                          <th className="px-3 py-2.5 text-center font-semibold whitespace-nowrap">중대성(후)</th>
+                          <th className="px-3 py-2.5 text-center font-semibold whitespace-nowrap">위험성 결정</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {improved.map((r, idx) => {
+                          const afterGrade = r.afterRiskScore ? getRiskGrade(r.afterRiskScore) : null;
+                          return (
+                            <tr key={idx} className={`border-b border-border/20 ${idx % 2 === 1 ? "bg-muted/20" : ""} hover:bg-green-50/40 dark:hover:bg-green-900/10 transition-colors`}>
+                              <td className="px-3 py-2 whitespace-nowrap font-medium">{r.team}</td>
+                              <td className="px-3 py-2 max-w-[180px]">
+                                <p className="truncate" title={r.hazardCondition}>{r.hazardCondition}</p>
+                              </td>
+                              <td className="px-3 py-2 max-w-[180px]">
+                                <p className="truncate text-foreground/80" title={r.improvementMeasures}>{r.improvementMeasures}</p>
+                              </td>
+                              <td className="px-3 py-2 text-center whitespace-nowrap">{r.plannedDate || "-"}</td>
+                              <td className="px-3 py-2 text-center whitespace-nowrap">{r.completionDate || "-"}</td>
+                              <td className="px-3 py-2 text-center whitespace-nowrap">
+                                {r.afterFrequency ? `${r.afterFrequency} (${PROB_LABELS[r.afterFrequency] || ""})` : "-"}
+                              </td>
+                              <td className="px-3 py-2 text-center whitespace-nowrap">
+                                {r.afterSeverity ? `${r.afterSeverity} (${CRIT_LABELS[r.afterSeverity] || ""})` : "-"}
+                              </td>
+                              <td className="px-3 py-2 text-center">
+                                {afterGrade ? (
+                                  <span className={`inline-block px-2 py-0.5 rounded-full font-bold text-[11px] ${afterGrade.bg}`}>
+                                    {r.afterRiskScore}점 {afterGrade.grade}등급
+                                  </span>
+                                ) : "-"}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })()}
 
           {/* ── 부서별 등록건수 (좌우 탭 패널) ── */}
           {(() => {
