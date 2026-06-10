@@ -259,21 +259,32 @@ export default function AdminUsers() {
                     className="rounded-lg border bg-card overflow-visible"
                     data-testid={`user-row-${user.id}`}
                   >
-                    <div className="flex items-center justify-between p-4">
-                      <div className="flex items-center gap-3">
-                        <Avatar className="h-10 w-10">
-                          <AvatarFallback className="bg-primary/10 text-primary">
+                    <div className="p-3 sm:p-4">
+                      {/* 상단: 아바타 + 이름 + 뱃지 */}
+                      <div className="flex items-center gap-3 mb-2">
+                        <Avatar className="h-9 w-9 shrink-0">
+                          <AvatarFallback className="bg-primary/10 text-primary text-sm">
                             {(user.name?.[0] || user.username?.[0] || "U").toUpperCase()}
                           </AvatarFallback>
                         </Avatar>
-                        <div>
-                          <p className="font-medium">
-                            {user.name || user.username}
-                            {isCurrentUser && (
-                              <span className="ml-2 text-xs text-muted-foreground">(나)</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-medium text-sm truncate">
+                              {user.name || user.username}
+                              {isCurrentUser && (
+                                <span className="ml-1.5 text-xs text-muted-foreground">(나)</span>
+                              )}
+                            </p>
+                            <Badge variant={getRoleVariant(user.role)} className="text-xs shrink-0">
+                              {getRoleLabel(user.role)}
+                            </Badge>
+                            {user.lockedUntil && new Date(user.lockedUntil) > new Date() && (
+                              <Badge variant="destructive" className="gap-1 text-xs shrink-0">
+                                <Lock className="w-3 h-3" />잠김
+                              </Badge>
                             )}
-                          </p>
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
+                          </div>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap mt-0.5">
                             <span>@{user.username}</span>
                             {user.department && (
                               <span className="flex items-center gap-1">
@@ -284,79 +295,69 @@ export default function AdminUsers() {
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 flex-wrap justify-end">
-                        <Badge variant={getRoleVariant(user.role)}>
-                          {getRoleLabel(user.role)}
-                        </Badge>
-                        {user.lockedUntil && new Date(user.lockedUntil) > new Date() && (
-                          <Badge variant="destructive" className="gap-1 text-xs">
-                            <Lock className="w-3 h-3" />
-                            잠김
-                          </Badge>
-                        )}
-                        {!isCurrentUser && (
-                          <>
-                            <Select
-                              value={user.role}
-                              onValueChange={(newRole) =>
-                                updateRoleMutation.mutate({ userId: user.id, role: newRole })
-                              }
-                              disabled={updateRoleMutation.isPending}
-                            >
-                              <SelectTrigger className="w-[120px] h-8" data-testid={`select-role-${user.id}`}>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="admin">관리자</SelectItem>
-                                <SelectItem value="deptHead">부서장</SelectItem>
-                                <SelectItem value="manager">담당자</SelectItem>
-                                <SelectItem value="user">일반 사용자</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            {!isUserAdmin && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="gap-1.5"
-                                onClick={() => setExpandedUser(isExpanded ? null : user.id)}
-                                data-testid={`button-permissions-${user.id}`}
-                              >
-                                <Settings className="w-3.5 h-3.5" />
-                                권한설정
-                                {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                              </Button>
-                            )}
-                            <ResetPasswordDialog user={user} />
-                            {user.lockedUntil && new Date(user.lockedUntil) > new Date() && (
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                className="h-8 w-8 text-orange-600 border-orange-300 hover:bg-orange-50"
-                                onClick={() => unlockUserMutation.mutate(user.id)}
-                                disabled={unlockUserMutation.isPending}
-                                title="계정 잠금 해제"
-                                data-testid={`button-unlock-${user.id}`}
-                              >
-                                <Unlock className="w-3.5 h-3.5" />
-                              </Button>
-                            )}
+                      {/* 하단: 역할 선택 + 버튼들 */}
+                      {!isCurrentUser && (
+                        <div className="flex items-center gap-1.5 flex-wrap pl-0 sm:pl-12">
+                          <Select
+                            value={user.role}
+                            onValueChange={(newRole) =>
+                              updateRoleMutation.mutate({ userId: user.id, role: newRole })
+                            }
+                            disabled={updateRoleMutation.isPending}
+                          >
+                            <SelectTrigger className="w-[110px] h-7 text-xs" data-testid={`select-role-${user.id}`}>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="admin">관리자</SelectItem>
+                              <SelectItem value="deptHead">부서장</SelectItem>
+                              <SelectItem value="manager">담당자</SelectItem>
+                              <SelectItem value="user">일반 사용자</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          {!isUserAdmin && (
                             <Button
-                              variant="ghost"
-                              size="icon"
-                              className="text-destructive hover:text-destructive"
-                              onClick={() => {
-                                if (confirm("정말로 이 사용자를 삭제하시겠습니까?")) {
-                                  deleteUserMutation.mutate(user.id);
-                                }
-                              }}
-                              disabled={deleteUserMutation.isPending}
-                              data-testid={`button-delete-${user.id}`}
+                              variant="outline"
+                              size="sm"
+                              className="gap-1 h-7 text-xs px-2"
+                              onClick={() => setExpandedUser(isExpanded ? null : user.id)}
+                              data-testid={`button-permissions-${user.id}`}
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <Settings className="w-3 h-3" />
+                              권한설정
+                              {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                             </Button>
-                          </>
-                        )}
-                      </div>
+                          )}
+                          <ResetPasswordDialog user={user} />
+                          {user.lockedUntil && new Date(user.lockedUntil) > new Date() && (
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-7 w-7 text-orange-600 border-orange-300 hover:bg-orange-50"
+                              onClick={() => unlockUserMutation.mutate(user.id)}
+                              disabled={unlockUserMutation.isPending}
+                              title="계정 잠금 해제"
+                              data-testid={`button-unlock-${user.id}`}
+                            >
+                              <Unlock className="w-3 h-3" />
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => {
+                              if (confirm("정말로 이 사용자를 삭제하시겠습니까?")) {
+                                deleteUserMutation.mutate(user.id);
+                              }
+                            }}
+                            disabled={deleteUserMutation.isPending}
+                            data-testid={`button-delete-${user.id}`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      )}
                     </div>
 
                     {isExpanded && !isUserAdmin && (

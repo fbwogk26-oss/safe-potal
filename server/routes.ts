@@ -11522,9 +11522,11 @@ ${result.value}
     }
   });
 
-  app.post('/api/card-news/send-email', requireAdmin, async (_req, res) => {
+  app.post('/api/card-news/send-email', requireAdmin, async (req, res) => {
     try {
-      const results = await sendCardNewsEmail();
+      const clientArticles = Array.isArray(req.body?.articles) && req.body.articles.length > 0
+        ? req.body.articles : null;
+      const results = await sendCardNewsEmail(clientArticles);
       const sentAt = new Date().toISOString();
       const failed = results.filter((r: any) => !r.ok);
       if (failed.length > 0) {
@@ -11970,10 +11972,12 @@ function buildCardNewsEmailHtml(cards: any[]): string {
 </body></html>`;
 }
 
-async function sendCardNewsEmail() {
-  const articles = await fetchDrunkDrivingNews();
+async function sendCardNewsEmail(preloadedArticles?: any[] | null) {
+  const articles = preloadedArticles && preloadedArticles.length > 0
+    ? preloadedArticles
+    : await fetchDrunkDrivingNews();
   if (articles.length === 0) throw new Error('뉴스를 수집할 수 없습니다');
-  const cards = await buildCardNewsCards(articles.slice(0, 4));
+  const cards = await buildCardNewsCards(articles.slice(0, 6));
   const html = buildCardNewsEmailHtml(cards);
   const setting = await storage.getSetting('card_news_config').catch(() => null);
   const config = setting?.value ? JSON.parse(setting.value) : {};

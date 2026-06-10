@@ -8,10 +8,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Loader2, Newspaper, Send, RefreshCw, Settings, Clock,
   Mail, AlertTriangle, CheckCircle2, X, Plus, ExternalLink,
-  Calendar, Radio
+  Calendar, Radio, ChevronDown, ChevronUp
 } from "lucide-react";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
@@ -69,6 +70,8 @@ export default function CardNewsAdmin() {
   const [hasFetched, setHasFetched] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>("preview");
   const [newRecipient, setNewRecipient] = useState("");
+  const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
+  const [expandedArticles, setExpandedArticles] = useState<Set<number>>(new Set());
 
   const { data: config, isLoading: configLoading } = useQuery<CardNewsConfig>({
     queryKey: ["/api/card-news/config"],
@@ -89,12 +92,15 @@ export default function CardNewsAdmin() {
       return res.json() as Promise<{ articles: NewsArticle[]; fetchedAt: string }>;
     },
     onSuccess: (data) => {
-      setArticles(data.articles || []);
+      const fetched = data.articles || [];
+      setArticles(fetched);
       setFetchedAt(data.fetchedAt || null);
       setHasFetched(true);
-      const count = data.articles?.length || 0;
+      setSelectedIndices(new Set(fetched.map((_, i) => i)));
+      setExpandedArticles(new Set());
+      const count = fetched.length;
       toast({
-        title: count > 0 ? `${count}건의 뉴스를 수집했습니다` : "수집된 뉴스가 없습니다",
+        title: count > 0 ? `${count}건의 뉴스를 수집했습니다. 전체 선택됨.` : "수집된 뉴스가 없습니다",
         description: count === 0 ? "잠시 후 다시 시도해 주세요." : undefined,
       });
     },
@@ -105,7 +111,8 @@ export default function CardNewsAdmin() {
   });
 
   const sendEmailMutation = useMutation({
-    mutationFn: () => apiRequest("POST", "/api/card-news/send-email", {}),
+    mutationFn: (articlesToSend: NewsArticle[]) =>
+      apiRequest("POST", "/api/card-news/send-email", { articles: articlesToSend }),
     onSuccess: async () => {
       toast({ title: "✅ 카드뉴스 이메일이 발송되었습니다" });
       queryClient.invalidateQueries({ queryKey: ["/api/card-news/config"] });
@@ -115,6 +122,30 @@ export default function CardNewsAdmin() {
       toast({ variant: "destructive", title: "이메일 발송 실패", description: String(err?.message || "") });
     },
   });
+
+  const selectedArticles = articles.filter((_, i) => selectedIndices.has(i));
+  const allSelected = articles.length > 0 && selectedIndices.size === articles.length;
+
+  const toggleSelectAll = () => {
+    if (allSelected) setSelectedIndices(new Set());
+    else setSelectedIndices(new Set(articles.map((_, i) => i)));
+  };
+
+  const toggleSelect = (i: number) => {
+    setSelectedIndices(prev => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i); else next.add(i);
+      return next;
+    });
+  };
+
+  const toggleExpand = (i: number) => {
+    setExpandedArticles(prev => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i); else next.add(i);
+      return next;
+    });
+  };
 
   const saveConfigMutation = useMutation({
     mutationFn: (cfg: CardNewsConfig) => apiRequest("PUT", "/api/card-news/config", cfg),
@@ -203,8 +234,8 @@ export default function CardNewsAdmin() {
         <div className="space-y-5">
 
           {/* 수집 + 발송 액션 바 */}
-          <div className="flex items-center justify-between gap-3 p-4 bg-muted/30 rounded-xl border">
-            <div className="space-y-0.5">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 bg-muted/30 rounded-xl border">
+            <div className="space-y-0.5 flex-1">
               <p className="text-sm font-semibold">Google뉴스 · KBS · SBS · MBC · JTBC · 연합뉴스 등 12개 소스</p>
               <p className="text-xs text-muted-foreground">
                 최근 7일 · 음주운전·음주사고·음주단속 키워드
@@ -215,7 +246,7 @@ export default function CardNewsAdmin() {
                 )}
               </p>
             </div>
-            <div className="flex gap-2 shrink-0">
+            <div className="flex gap-2 shrink-0 flex-wrap">
               <Button
                 onClick={() => fetchNewsMutation.mutate()}
                 disabled={fetchNewsMutation.isPending}
@@ -230,8 +261,8 @@ export default function CardNewsAdmin() {
                 뉴스 수집
               </Button>
               <Button
-                onClick={() => sendEmailMutation.mutate()}
-                disabled={sendEmailMutation.isPending || articles.length === 0}
+                onClick={() => sendEmailMutation.mutate(selectedArticles)}
+                disabled={sendEmailMutation.isPending || selectedArticles.length === 0}
                 size="sm"
                 className="gap-2 bg-red-600 hover:bg-red-700 text-white"
                 data-testid="button-send-email"
@@ -239,7 +270,7 @@ export default function CardNewsAdmin() {
                 {sendEmailMutation.isPending
                   ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   : <Send className="w-3.5 h-3.5" />}
-                지금 발송
+                선택 발송 {selectedArticles.length > 0 && `(${selectedArticles.length}건)`}
               </Button>
             </div>
           </div>
@@ -278,88 +309,132 @@ export default function CardNewsAdmin() {
           {/* 뉴스 카드 목록 */}
           {articles.length > 0 && !fetchNewsMutation.isPending && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold text-foreground">
-                  수집된 뉴스
-                  <span className="ml-2 text-xs font-normal text-muted-foreground">{articles.length}건</span>
-                </span>
+              {/* 헤더: 전체 선택 + 카운트 */}
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={toggleSelectAll}
+                    className="flex items-center gap-2 text-sm font-semibold text-foreground hover:text-primary transition-colors"
+                    data-testid="button-select-all"
+                  >
+                    <Checkbox
+                      checked={allSelected}
+                      onCheckedChange={toggleSelectAll}
+                      className="w-4 h-4"
+                    />
+                    {allSelected ? "전체 해제" : "전체 선택"}
+                  </button>
+                  <span className="text-xs text-muted-foreground">
+                    {articles.length}건 수집 · <span className="text-red-600 font-semibold">{selectedIndices.size}건 선택</span>
+                  </span>
+                </div>
                 <Badge variant="outline" className="text-xs text-green-600 border-green-300 bg-green-50 dark:bg-green-950/30">
                   <Radio className="w-2.5 h-2.5 mr-1 fill-green-500 text-green-500" />
                   발송 대기
                 </Badge>
               </div>
 
-              <div className="grid gap-3">
-                {articles.map((article, i) => (
-                  <div
-                    key={i}
-                    className="group flex gap-4 p-4 rounded-xl border bg-card hover:shadow-sm transition-shadow"
-                    data-testid={`card-news-${i}`}
-                  >
-                    {/* 번호 */}
-                    <div className="shrink-0 flex flex-col items-center gap-1">
-                      <span className="w-8 h-8 rounded-lg bg-red-600 text-white text-xs font-bold flex items-center justify-center">
-                        {String(i + 1).padStart(2, "0")}
-                      </span>
-                    </div>
-
-                    {/* 본문 */}
-                    <div className="flex-1 min-w-0 space-y-1.5">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {article.source && (
-                          <Badge variant="secondary" className="text-[10px] h-4 px-1.5">
-                            {article.source}
-                          </Badge>
-                        )}
-                        {article.pubDate && (
-                          <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
-                            <Calendar className="w-2.5 h-2.5" />
-                            {safePubDate(article.pubDate)}
+              <div className="grid gap-2">
+                {articles.map((article, i) => {
+                  const isSelected = selectedIndices.has(i);
+                  const isExpanded = expandedArticles.has(i);
+                  return (
+                    <div
+                      key={i}
+                      className={`rounded-xl border bg-card transition-all ${isSelected ? "border-red-300 dark:border-red-800 bg-red-50/30 dark:bg-red-950/10" : "opacity-60"}`}
+                      data-testid={`card-news-${i}`}
+                    >
+                      <div className="flex gap-3 p-3">
+                        {/* 체크박스 */}
+                        <div className="shrink-0 flex flex-col items-center gap-2 pt-0.5">
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={() => toggleSelect(i)}
+                            className="w-4 h-4"
+                            data-testid={`checkbox-news-${i}`}
+                          />
+                          <span className={`w-7 h-7 rounded-lg text-white text-xs font-bold flex items-center justify-center ${isSelected ? "bg-red-600" : "bg-gray-300 dark:bg-gray-600"}`}>
+                            {String(i + 1).padStart(2, "0")}
                           </span>
+                        </div>
+
+                        {/* 본문 */}
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {article.source && (
+                              <Badge variant="secondary" className="text-[10px] h-4 px-1.5">
+                                {article.source}
+                              </Badge>
+                            )}
+                            {article.pubDate && (
+                              <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+                                <Calendar className="w-2.5 h-2.5" />
+                                {safePubDate(article.pubDate)}
+                              </span>
+                            )}
+                          </div>
+                          <h3 className="text-sm font-semibold leading-snug text-foreground">
+                            {article.title}
+                          </h3>
+                          {article.description && (
+                            <div>
+                              <p className={`text-xs text-muted-foreground leading-relaxed ${isExpanded ? "" : "line-clamp-2"}`}>
+                                {article.description}
+                              </p>
+                              {article.description.length > 100 && (
+                                <button
+                                  onClick={() => toggleExpand(i)}
+                                  className="text-[10px] text-primary hover:underline flex items-center gap-0.5 mt-0.5"
+                                >
+                                  {isExpanded ? <><ChevronUp className="w-3 h-3" />접기</> : <><ChevronDown className="w-3 h-3" />더 보기</>}
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* 링크 */}
+                        {article.link && (
+                          <a
+                            href={article.link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="shrink-0 self-start text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </a>
                         )}
                       </div>
-                      <h3 className="text-sm font-semibold leading-snug text-foreground">
-                        {article.title}
-                      </h3>
-                      {article.description && (
-                        <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">
-                          {article.description}
-                        </p>
-                      )}
                     </div>
-
-                    {/* 링크 */}
-                    {article.link && (
-                      <a
-                        href={article.link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="shrink-0 self-start text-muted-foreground hover:text-foreground transition-colors opacity-0 group-hover:opacity-100"
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                      </a>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* 발송 확인 바 */}
-              <div className="flex items-center gap-3 p-4 rounded-xl bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900">
-                <Send className="w-4 h-4 text-red-500 shrink-0" />
-                <p className="text-sm text-red-700 dark:text-red-400 flex-1">
-                  <span className="font-semibold">{articles.length}건</span>의 뉴스가 수집되었습니다.
-                  수신자 <span className="font-semibold">{effectiveConfig.recipients.length}명</span>에게 카드뉴스를 발송합니다.
+              <div className={`flex items-center gap-3 p-4 rounded-xl border transition-all ${selectedArticles.length > 0 ? "bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-900" : "bg-muted/30 border-muted"}`}>
+                <Send className={`w-4 h-4 shrink-0 ${selectedArticles.length > 0 ? "text-red-500" : "text-muted-foreground"}`} />
+                <p className="text-sm flex-1">
+                  {selectedArticles.length > 0 ? (
+                    <>
+                      <span className="font-semibold text-red-700 dark:text-red-400">{selectedArticles.length}건</span>
+                      <span className="text-red-700 dark:text-red-400"> 선택됨 · 수신자 </span>
+                      <span className="font-semibold text-red-700 dark:text-red-400">{effectiveConfig.recipients.length}명</span>
+                      <span className="text-red-700 dark:text-red-400">에게 발송합니다.</span>
+                    </>
+                  ) : (
+                    <span className="text-muted-foreground">발송할 뉴스를 선택해주세요.</span>
+                  )}
                 </p>
                 <Button
-                  onClick={() => sendEmailMutation.mutate()}
-                  disabled={sendEmailMutation.isPending}
+                  onClick={() => sendEmailMutation.mutate(selectedArticles)}
+                  disabled={sendEmailMutation.isPending || selectedArticles.length === 0}
                   size="sm"
-                  className="shrink-0 gap-2 bg-red-600 hover:bg-red-700 text-white"
+                  className="shrink-0 gap-2 bg-red-600 hover:bg-red-700 text-white disabled:opacity-40"
                 >
                   {sendEmailMutation.isPending
                     ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     : <Send className="w-3.5 h-3.5" />}
-                  지금 발송
+                  발송
                 </Button>
               </div>
             </div>

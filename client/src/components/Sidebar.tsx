@@ -258,7 +258,7 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
             data-testid={`button-nav-group-${entry.label}`}
           >
             <entry.icon className={cn("shrink-0 transition-colors", isMobile ? "w-5 h-5" : "w-4 h-4", childActive ? "text-primary dark:text-blue-400" : "text-slate-400 dark:text-gray-500")} />
-            <span className={cn("flex-1 text-left", isMobile ? "block text-base" : "hidden md:block")}>{entry.label}</span>
+            <span className={cn("flex-1 text-left whitespace-nowrap", isMobile ? "block text-base" : "hidden md:block")}>{entry.label}</span>
             <ChevronDown
               className={cn(
                 "transition-transform duration-200",
@@ -296,7 +296,7 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
                         data-testid={`button-nav-subgroup-${child.label}`}
                       >
                         <child.icon className={cn("shrink-0", isMobile ? "w-4 h-4" : "w-3.5 h-3.5", subActive ? "text-primary dark:text-blue-400" : "text-slate-400 dark:text-gray-500")} />
-                        <span className={cn("flex-1 text-left", isMobile ? "block" : "hidden md:inline")}>{child.label}</span>
+                        <span className={cn("flex-1 text-left whitespace-nowrap", isMobile ? "block" : "hidden md:inline")}>{child.label}</span>
                         <ChevronDown className={cn("transition-transform duration-200", isMobile ? "w-3 h-3 block" : "w-3 h-3 hidden md:block", subActive ? "text-primary/50 dark:text-blue-400/50" : "text-slate-300 dark:text-gray-600", subOpen && "rotate-180")} />
                       </button>
                       <div className={cn("overflow-hidden transition-all duration-200", subOpen ? "max-h-[300px] opacity-100" : "max-h-0 opacity-0")}>
@@ -319,7 +319,7 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
                                 data-testid={`link-nav-${gc.href.replace(/\//g, "-").replace(/^-/, "")}`}
                               >
                                 <gc.icon className={cn("shrink-0", isMobile ? "w-3.5 h-3.5" : "w-3 h-3", gcActive ? "text-primary dark:text-blue-400" : "text-slate-400 dark:text-gray-500")} />
-                                <span className={cn(isMobile ? "block" : "hidden md:inline")}>{gc.label}</span>
+                                <span className={cn("whitespace-nowrap", isMobile ? "block" : "hidden md:inline")}>{gc.label}</span>
                                 {gcActive && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-primary/80 dark:bg-blue-400/80" />}
                               </Link>
                             );
@@ -346,7 +346,7 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
                     data-testid={`link-nav-${item.href.replace("/", "")}`}
                   >
                     <item.icon className={cn("shrink-0", isMobile ? "w-4 h-4" : "w-3.5 h-3.5", isActive ? "text-primary dark:text-blue-400" : "text-slate-400 dark:text-gray-500")} />
-                    <span className={cn(isMobile ? "block" : "hidden md:inline")}>{item.label}</span>
+                    <span className={cn("whitespace-nowrap", isMobile ? "block" : "hidden md:inline")}>{item.label}</span>
                     {isActive && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-primary/80 dark:bg-blue-400/80" />}
                   </Link>
                 );
@@ -372,7 +372,7 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
         data-testid={`link-nav-${entry.href.replace("/", "") || "dashboard"}`}
       >
         <entry.icon className={cn("shrink-0", isMobile ? "w-5 h-5" : "w-4 h-4", isActive ? "text-primary dark:text-blue-400" : "text-slate-400 dark:text-gray-500")} />
-        <span className={cn(isMobile ? "block" : "hidden md:inline")}>{entry.label}</span>
+        <span className={cn("whitespace-nowrap", isMobile ? "block" : "hidden md:inline")}>{entry.label}</span>
         {isActive && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-primary/80 dark:bg-blue-400/80" />}
       </Link>
     );

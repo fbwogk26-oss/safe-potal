@@ -1879,16 +1879,16 @@ export default function DrillTraining() {
           ) : (
             <div className="space-y-4">
               {/* 세션 헤더 */}
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="font-semibold">{currentSession?.title}</h2>
-                  <p className="text-xs text-muted-foreground">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                <div className="min-w-0">
+                  <h2 className="font-semibold text-base leading-snug break-keep">{currentSession?.title}</h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">
                     총 {assignments.length}개 부서 · 완료 {totalCompleted}개
                   </p>
                 </div>
                 {isAdmin && (
-                  <div className="flex flex-wrap gap-2">
-                    <Button variant="outline" size="sm" onClick={() => {
+                  <div className="flex flex-wrap gap-1.5 shrink-0">
+                    <Button variant="outline" size="sm" className="text-xs h-8" onClick={() => {
                       if (currentSession?.status === "완료") {
                         apiRequest("PUT", `/api/drill-sessions/${selectedSession}`, { status: "진행중" })
                           .then(() => qc.invalidateQueries({ queryKey: ["/api/drill-sessions"] }));
@@ -1899,10 +1899,10 @@ export default function DrillTraining() {
                     }}>
                       {currentSession?.status === "완료" ? "진행중으로 변경" : "훈련 완료 처리"}
                     </Button>
-                    <Button variant="outline" size="sm" onClick={() => setBulkAssignOpen(true)}>
+                    <Button variant="outline" size="sm" className="text-xs h-8" onClick={() => setBulkAssignOpen(true)}>
                       <Shuffle className="w-3 h-3 mr-1" />랜덤 일괄 배정
                     </Button>
-                    <Button size="sm" onClick={() => setAddAssignOpen(true)}>
+                    <Button size="sm" className="text-xs h-8" onClick={() => setAddAssignOpen(true)}>
                       <Plus className="w-3 h-3 mr-1" />부서 추가
                     </Button>
                   </div>
