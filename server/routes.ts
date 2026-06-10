@@ -7540,6 +7540,18 @@ ${htmlDraft}
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
+  app.patch('/api/safety-supply/surveys/:id/items/:itemId/bulk-delivery-status', isAuthenticated, async (req: any, res) => {
+    try {
+      const surveyId = parseInt(req.params.id);
+      const itemId = parseInt(req.params.itemId);
+      const { deliveryStatus } = req.body;
+      const valid = ["주문예정", "주문완료", "배송중", "배송완료"];
+      if (!valid.includes(deliveryStatus)) return res.status(400).json({ message: "유효하지 않은 배송 상태" });
+      await storage.bulkUpdateDeliveryStatusByItem(surveyId, itemId, deliveryStatus);
+      res.json({ ok: true });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
   app.get('/api/safety-supply/surveys/:id/dept-entries', isAuthenticated, async (req: any, res) => {
     try { res.json(await storage.getSafetySupplyDeptEntries(parseInt(req.params.id))); }
     catch (e: any) { res.status(500).json({ message: e.message }); }

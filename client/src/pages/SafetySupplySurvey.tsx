@@ -203,6 +203,16 @@ export default function SafetySupplySurvey() {
     onError: (e: any) => toast({ title: "배송 현황 변경 실패", description: e.message, variant: "destructive" }),
   });
 
+  const bulkItemDeliveryMut = useMutation({
+    mutationFn: ({ itemId, deliveryStatus }: { itemId: number; deliveryStatus: string }) =>
+      apiRequest("PATCH", `/api/safety-supply/surveys/${selectedId}/items/${itemId}/bulk-delivery-status`, { deliveryStatus }).then(r => r.json()),
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/safety-supply/surveys", selectedId, "dept-entries"] });
+      toast({ title: `전체 부서에 "${vars.deliveryStatus}" 일괄 적용됐습니다.` });
+    },
+    onError: (e: any) => toast({ title: "일괄 변경 실패", description: e.message, variant: "destructive" }),
+  });
+
   const registerCostMut = useMutation({
     mutationFn: (body: any) => apiRequest("POST", `/api/safety-supply/surveys/${selectedId}/register-cost`, body).then(r => r.json()),
     onSuccess: (data) => {
@@ -770,7 +780,7 @@ export default function SafetySupplySurvey() {
                           {items.map(it => {
                             const canAuto = parseAutoQty(it.supplyStandard, 1) !== null;
                             return (
-                              <th key={it.id} className="border border-gray-300 bg-amber-600 text-white px-2 py-2 text-center whitespace-nowrap font-semibold" colSpan={2}>
+                              <th key={it.id} className="border border-gray-300 bg-amber-600 text-white px-2 py-2 text-center whitespace-nowrap font-semibold" colSpan={3}>
                                 <div className="flex items-center justify-center gap-1">
                                   {it.itemName}
                                   {canAuto && <Zap className="w-3 h-3 text-yellow-300 shrink-0" title="지급기준 자동계산 가능" />}
@@ -787,11 +797,37 @@ export default function SafetySupplySurvey() {
                         </tr>
                         <tr>
                           {items.map(it => (
-                            <th key={`h2-${it.id}`} className="border border-gray-300 bg-amber-50 text-amber-800 px-3 py-1.5 text-center whitespace-nowrap font-semibold" colSpan={2}>
-                              <span className="inline-block w-12 text-center">수량</span>
-                              <span className="inline-block mx-1 text-amber-300">|</span>
-                              <span className="inline-block w-16 text-center">금액</span>
-                            </th>
+                            <>
+                              <th key={`h2-qty-${it.id}`} className="border border-gray-300 bg-amber-50 text-amber-800 px-3 py-1.5 text-center whitespace-nowrap font-semibold w-16">수량</th>
+                              <th key={`h2-amt-${it.id}`} className="border border-gray-300 bg-amber-50 text-amber-800 px-3 py-1.5 text-center whitespace-nowrap font-semibold w-20">금액</th>
+                              <th key={`h2-ds-${it.id}`} className="border border-gray-300 bg-amber-50 text-amber-800 py-1 text-center whitespace-nowrap font-semibold">
+                                <div className="flex flex-col items-center gap-0.5">
+                                  <span className="text-[10px] text-amber-600">배송현황</span>
+                                  <Select
+                                    onValueChange={(v) => bulkItemDeliveryMut.mutate({ itemId: it.id, deliveryStatus: v })}
+                                    disabled={bulkItemDeliveryMut.isPending}
+                                    value=""
+                                  >
+                                    <SelectTrigger className="h-5 text-[10px] border border-amber-300 bg-white text-amber-700 font-semibold px-1.5 py-0 rounded w-[72px] gap-0.5 focus:ring-0">
+                                      <span className="truncate">일괄변경</span>
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {DELIVERY_STATUSES.map(s => {
+                                        const cfg = DELIVERY_STATUS_CONFIG[s];
+                                        const SIcon = cfg.icon;
+                                        return (
+                                          <SelectItem key={s} value={s} className="text-xs">
+                                            <span className="flex items-center gap-1.5">
+                                              <SIcon className="w-3 h-3" />{s}
+                                            </span>
+                                          </SelectItem>
+                                        );
+                                      })}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </th>
+                            </>
                           ))}
                         </tr>
                       </thead>
@@ -827,48 +863,49 @@ export default function SafetySupplySurvey() {
                                 const ds = ((dept.deliveryStatuses || {})[String(it.id)] || "주문예정") as DeliveryStatus;
                                 const dsCfg = DELIVERY_STATUS_CONFIG[ds];
                                 const DsIcon = dsCfg.icon;
+                                const cellBg = ds === "배송완료" ? "bg-green-50/60" : ds === "배송중" ? "bg-orange-50/40" : ds === "주문완료" ? "bg-blue-50/40" : "";
                                 return (
                                   <>
-                                    <td key={`${di}-${it.id}-qty`} className={`border border-gray-200 px-1 py-1 ${ds === "배송완료" ? "bg-green-50/60" : ""}`}>
-                                      <div className="flex flex-col items-center gap-0.5">
-                                        <Input
-                                          className="h-7 text-xs border-0 focus-visible:ring-1 focus-visible:ring-amber-300 px-2 bg-transparent text-center w-16"
-                                          type="number"
-                                          min={0}
-                                          value={qty || ""}
-                                          placeholder="0"
-                                          onChange={e => setQty(di, it.id, e.target.value)}
-                                          data-testid={`input-qty-${di}-${it.id}`}
-                                        />
-                                        {deptId !== undefined && (
-                                          <Select
-                                            value={ds}
-                                            onValueChange={(v) => updateDeptDeliveryStatusMut.mutate({ deptEntryId: deptId, itemId: it.id, deliveryStatus: v })}
-                                            data-testid={`select-ds-${di}-${it.id}`}
-                                          >
-                                            <SelectTrigger className={`h-5 text-[10px] border font-semibold px-1.5 py-0 rounded-full w-auto gap-0.5 focus:ring-0 min-w-[62px] justify-center ${dsCfg.className}`}>
-                                              <DsIcon className="w-2.5 h-2.5 shrink-0" />
-                                              <span className="truncate">{ds}</span>
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                              {DELIVERY_STATUSES.map(s => {
-                                                const cfg = DELIVERY_STATUS_CONFIG[s];
-                                                const SIcon = cfg.icon;
-                                                return (
-                                                  <SelectItem key={s} value={s} className="text-xs">
-                                                    <span className="flex items-center gap-1.5">
-                                                      <SIcon className="w-3 h-3" />{s}
-                                                    </span>
-                                                  </SelectItem>
-                                                );
-                                              })}
-                                            </SelectContent>
-                                          </Select>
-                                        )}
-                                      </div>
+                                    <td key={`${di}-${it.id}-qty`} className={`border border-gray-200 px-1 py-1.5 text-center ${cellBg}`}>
+                                      <Input
+                                        className="h-7 text-xs border-0 focus-visible:ring-1 focus-visible:ring-amber-300 px-2 bg-transparent text-center w-16"
+                                        type="number"
+                                        min={0}
+                                        value={qty || ""}
+                                        placeholder="0"
+                                        onChange={e => setQty(di, it.id, e.target.value)}
+                                        data-testid={`input-qty-${di}-${it.id}`}
+                                      />
                                     </td>
-                                    <td key={`${di}-${it.id}-amt`} className={`border border-gray-200 px-3 py-1.5 text-right whitespace-nowrap align-top ${ds === "배송완료" ? "bg-green-50/60" : ""} ${amt ? "text-gray-800 font-medium" : "text-gray-300"}`}>
+                                    <td key={`${di}-${it.id}-amt`} className={`border border-gray-200 px-3 py-1.5 text-right whitespace-nowrap ${cellBg} ${amt ? "text-gray-800 font-medium" : "text-gray-300"}`}>
                                       {amt ? fmt(amt) : "—"}
+                                    </td>
+                                    <td key={`${di}-${it.id}-ds`} className={`border border-gray-200 px-1 py-1 text-center ${cellBg}`}>
+                                      {deptId !== undefined && (
+                                        <Select
+                                          value={ds}
+                                          onValueChange={(v) => updateDeptDeliveryStatusMut.mutate({ deptEntryId: deptId, itemId: it.id, deliveryStatus: v })}
+                                          data-testid={`select-ds-${di}-${it.id}`}
+                                        >
+                                          <SelectTrigger className={`h-6 text-[10px] border font-semibold px-1.5 py-0 rounded-full w-[72px] gap-0.5 focus:ring-0 justify-center ${dsCfg.className}`}>
+                                            <DsIcon className="w-2.5 h-2.5 shrink-0" />
+                                            <span className="truncate">{ds}</span>
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            {DELIVERY_STATUSES.map(s => {
+                                              const cfg = DELIVERY_STATUS_CONFIG[s];
+                                              const SIcon = cfg.icon;
+                                              return (
+                                                <SelectItem key={s} value={s} className="text-xs">
+                                                  <span className="flex items-center gap-1.5">
+                                                    <SIcon className="w-3 h-3" />{s}
+                                                  </span>
+                                                </SelectItem>
+                                              );
+                                            })}
+                                          </SelectContent>
+                                        </Select>
+                                      )}
                                     </td>
                                   </>
                                 );
@@ -897,16 +934,26 @@ export default function SafetySupplySurvey() {
                           <td className="border border-gray-600 px-2 py-2.5 text-center text-gray-300 text-xs">합계</td>
                           <td className="border border-gray-600 px-4 py-2.5 text-center text-sm">합 계</td>
                           <td className="border border-gray-600 px-3 py-2.5 text-center text-blue-300">{totalHeadcount}</td>
-                          {items.map(it => (
-                            <>
-                              <td key={`sum-${it.id}-qty`} className="border border-gray-600 px-3 py-2.5 text-center text-amber-300">
-                                {itemTotal(it.id) || "—"}
-                              </td>
-                              <td key={`sum-${it.id}-amt`} className="border border-gray-600 px-3 py-2.5 text-right text-amber-200 whitespace-nowrap">
-                                {itemAmt(it) ? fmt(itemAmt(it)) : "—"}
-                              </td>
-                            </>
-                          ))}
+                          {items.map(it => {
+                            const deliveredCount = depts.filter(d => ((d.deliveryStatuses || {}) as Record<string, string>)[String(it.id)] === "배송완료").length;
+                            return (
+                              <>
+                                <td key={`sum-${it.id}-qty`} className="border border-gray-600 px-3 py-2.5 text-center text-amber-300">
+                                  {itemTotal(it.id) || "—"}
+                                </td>
+                                <td key={`sum-${it.id}-amt`} className="border border-gray-600 px-3 py-2.5 text-right text-amber-200 whitespace-nowrap">
+                                  {itemAmt(it) ? fmt(itemAmt(it)) : "—"}
+                                </td>
+                                <td key={`sum-${it.id}-ds`} className="border border-gray-600 px-2 py-2.5 text-center whitespace-nowrap">
+                                  {depts.length > 0 ? (
+                                    <span className={`text-[10px] font-semibold ${deliveredCount === depts.length ? "text-green-400" : deliveredCount > 0 ? "text-amber-300" : "text-gray-500"}`}>
+                                      {deliveredCount}/{depts.length}
+                                    </span>
+                                  ) : "—"}
+                                </td>
+                              </>
+                            );
+                          })}
                           <td className="border border-gray-600 px-3 py-2.5 text-center text-green-300 text-sm">{grandQty || "—"}</td>
                           <td className="border border-gray-600 px-3 py-2.5 text-right text-green-200 whitespace-nowrap text-sm">{grandAmt ? fmt(grandAmt) : "—"}</td>
                           <td className="border border-gray-600 bg-gray-700"></td>
