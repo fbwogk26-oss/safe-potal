@@ -7523,8 +7523,20 @@ ${htmlDraft}
 
   app.put('/api/safety-supply/surveys/:id/items', isAuthenticated, async (req: any, res) => {
     try {
-      const items = req.body; // [{itemName, unitPrice, supplyStandard}]
+      const items = req.body; // [{itemName, unitPrice, supplyStandard, deliveryStatus?}]
       res.json(await storage.upsertSafetySupplyItems(parseInt(req.params.id), items));
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.patch('/api/safety-supply/items/:id/delivery-status', isAuthenticated, async (req: any, res) => {
+    try {
+      const itemId = parseInt(req.params.id);
+      const { deliveryStatus } = req.body;
+      const valid = ["주문예정", "주문완료", "배송중", "배송완료"];
+      if (!valid.includes(deliveryStatus)) return res.status(400).json({ message: "유효하지 않은 배송 상태" });
+      const updated = await storage.updateSafetySupplyItemDeliveryStatus(itemId, deliveryStatus);
+      if (!updated) return res.status(404).json({ message: "물품을 찾을 수 없습니다" });
+      res.json(updated);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 

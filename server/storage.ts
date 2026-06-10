@@ -1091,6 +1091,13 @@ export class DatabaseStorage implements IStorage {
       .where(eq(safetySupplyItems.surveyId, surveyId))
       .orderBy(asc(safetySupplyItems.sortOrder));
   }
+  async updateSafetySupplyItemDeliveryStatus(itemId: number, deliveryStatus: string): Promise<SafetySupplyItem | undefined> {
+    const [row] = await db.update(safetySupplyItems)
+      .set({ deliveryStatus })
+      .where(eq(safetySupplyItems.id, itemId))
+      .returning();
+    return row;
+  }
   async upsertSafetySupplyItems(surveyId: number, items: Omit<InsertSafetySupplyItem, 'surveyId'>[]): Promise<SafetySupplyItem[]> {
     // 기존 rows를 sortOrder 순으로 가져와서 index 매칭으로 UPDATE — ID를 유지해야 depts quantities 키가 살아남음
     const existing = await db.select().from(safetySupplyItems)

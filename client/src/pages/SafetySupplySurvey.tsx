@@ -12,7 +12,18 @@ import {
   Plus, Trash2, Download, Upload, Save, PackageCheck,
   Pencil, X, Check, Copy, ChevronRight, FileSpreadsheet,
   Wallet, TrendingDown, PiggyBank, ReceiptText, Zap,
+  ShoppingCart, Package, Truck, Lock,
 } from "lucide-react";
+
+const DELIVERY_STATUSES = ["주문예정", "주문완료", "배송중", "배송완료"] as const;
+type DeliveryStatus = typeof DELIVERY_STATUSES[number];
+
+const DELIVERY_STATUS_CONFIG: Record<DeliveryStatus, { icon: any; className: string; dotColor: string }> = {
+  "주문예정": { icon: ShoppingCart, className: "bg-gray-100 text-gray-600 border-gray-300", dotColor: "bg-gray-400" },
+  "주문완료": { icon: Package,      className: "bg-blue-100 text-blue-700 border-blue-300", dotColor: "bg-blue-500" },
+  "배송중":   { icon: Truck,        className: "bg-orange-100 text-orange-700 border-orange-300", dotColor: "bg-orange-500" },
+  "배송완료": { icon: PackageCheck, className: "bg-green-100 text-green-700 border-green-300", dotColor: "bg-green-500" },
+};
 
 // ── 지급기준 파싱 → 자동 수량 계산 ──────────────────────
 // 지원 패턴: "인당 2개", "1인당 1개", "2개/인", "부서당 3개", "팀당 1개", "N개"(고정)
@@ -52,7 +63,7 @@ const CATEGORIES = [
 ];
 
 type Survey = { id: number; year: number; half: number; title: string; budget: number | null; createdBy: string | null; createdAt: string };
-type Item = { id: number; surveyId: number; itemName: string; unitPrice: number; supplyStandard: string; sortOrder: number };
+type Item = { id: number; surveyId: number; itemName: string; unitPrice: number; supplyStandard: string; sortOrder: number; deliveryStatus: DeliveryStatus | null };
 type DeptEntry = { id: number; surveyId: number; deptName: string; deptCount: number; quantities: Record<string, number>; sortOrder: number };
 
 const CURRENT_YEAR = new Date().getFullYear();
@@ -79,6 +90,7 @@ export default function SafetySupplySurvey() {
   // ── 물품 편집 ────────────────────────────────────────
   const [editingItems, setEditingItems] = useState(false);
   const [localItems, setLocalItems] = useState<Omit<Item, "id" | "surveyId" | "sortOrder">[]>([]);
+  const [updatingDeliveryId, setUpdatingDeliveryId] = useState<number | null>(null);
 
   // ── 부서 로컬 편집 ───────────────────────────────────
   const [localDepts, setLocalDepts] = useState<Omit<DeptEntry, "id" | "surveyId" | "sortOrder">[]>([]);
@@ -153,10 +165,23 @@ export default function SafetySupplySurvey() {
   const saveItemsMut = useMutation({
     mutationFn: (its: any[]) => apiRequest("PUT", `/api/safety-supply/surveys/${selectedId}/items`, its).then(r => r.json()),
     onSuccess: () => {
-      // dept-entries는 무효화하지 않음 — 수량 데이터 보존 (서버에서 item ID를 유지하므로 OK)
       queryClient.invalidateQueries({ queryKey: ["/api/safety-supply/surveys", selectedId, "items"] });
       setEditingItems(false);
       toast({ title: "물품 목록이 저장됐습니다." });
+    },
+  });
+
+  const updateDeliveryStatusMut = useMutation({
+    mutationFn: ({ itemId, deliveryStatus }: { itemId: number; deliveryStatus: string }) =>
+      apiRequest("PATCH", `/api/safety-supply/items/${itemId}/delivery-status`, { deliveryStatus }).then(r => r.json()),
+    onMutate: ({ itemId }) => setUpdatingDeliveryId(itemId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/safety-supply/surveys", selectedId, "items"] });
+      setUpdatingDeliveryId(null);
+    },
+    onError: (e: any) => {
+      setUpdatingDeliveryId(null);
+      toast({ title: "배송 현황 변경 실패", description: e.message, variant: "destructive" });
     },
   });
 
@@ -264,7 +289,7 @@ export default function SafetySupplySurvey() {
 
   // ── 물품 편집 헬퍼 ───────────────────────────────────
   const startEditItems = () => {
-    setLocalItems(items.map(it => ({ itemName: it.itemName, unitPrice: it.unitPrice, supplyStandard: it.supplyStandard })));
+    setLocalItems(items.map(it => ({ itemName: it.itemName, unitPrice: it.unitPrice, supplyStandard: it.supplyStandard, deliveryStatus: it.deliveryStatus })));
     setEditingItems(true);
   };
 
@@ -293,12 +318,12 @@ export default function SafetySupplySurvey() {
   const addItemAndEdit = () => {
     if (!editingItems) {
       setLocalItems([
-        ...items.map(it => ({ itemName: it.itemName, unitPrice: it.unitPrice, supplyStandard: it.supplyStandard })),
-        { itemName: "", unitPrice: 0, supplyStandard: "" },
+        ...items.map(it => ({ itemName: it.itemName, unitPrice: it.unitPrice, supplyStandard: it.supplyStandard, deliveryStatus: it.deliveryStatus })),
+        { itemName: "", unitPrice: 0, supplyStandard: "", deliveryStatus: "주문예정" as DeliveryStatus },
       ]);
       setEditingItems(true);
     } else {
-      setLocalItems([...localItems, { itemName: "", unitPrice: 0, supplyStandard: "" }]);
+      setLocalItems([...localItems, { itemName: "", unitPrice: 0, supplyStandard: "", deliveryStatus: "주문예정" as DeliveryStatus }]);
     }
   };
 
@@ -612,31 +637,47 @@ export default function SafetySupplySurvey() {
 
               {editingItems ? (
                 <div className="space-y-1.5">
-                  {localItems.map((it, idx) => (
-                    <div key={idx} className="flex items-center gap-2 bg-gray-50 rounded px-2 py-1">
-                      <span className="text-xs text-gray-400 w-5 text-center">{idx + 1}</span>
-                      <Input className="h-7 text-xs flex-1" placeholder="품명" value={it.itemName}
-                        onChange={e => { const u = [...localItems]; u[idx] = { ...u[idx], itemName: e.target.value }; setLocalItems(u); }}
-                        data-testid={`input-item-name-${idx}`} />
-                      <div className="flex items-center gap-1">
-                        <span className="text-xs text-gray-400">단가</span>
-                        <Input className="h-7 text-xs w-24" placeholder="0" type="number" value={it.unitPrice || ""}
-                          onChange={e => { const u = [...localItems]; u[idx] = { ...u[idx], unitPrice: parseInt(e.target.value) || 0 }; setLocalItems(u); }}
-                          data-testid={`input-item-price-${idx}`} />
-                        <span className="text-xs text-gray-400">원</span>
+                  {localItems.map((it, idx) => {
+                    const isDelivered = it.deliveryStatus === "배송완료";
+                    return (
+                      <div key={idx} className={`flex items-center gap-2 rounded px-2 py-1 ${isDelivered ? "bg-green-50 border border-green-200" : "bg-gray-50"}`}>
+                        <span className="text-xs text-gray-400 w-5 text-center">{idx + 1}</span>
+                        {isDelivered ? (
+                          <>
+                            <span className="text-xs font-semibold text-gray-700 flex-1 truncate">{it.itemName}</span>
+                            <span className="text-[11px] text-gray-500">{fmt(it.unitPrice)}원</span>
+                            <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full border bg-green-100 text-green-700 border-green-300">
+                              <PackageCheck className="w-3 h-3" />배송완료
+                            </span>
+                            <Lock className="w-3 h-3 text-green-500 shrink-0" title="배송완료 — 수정 불가" />
+                          </>
+                        ) : (
+                          <>
+                            <Input className="h-7 text-xs flex-1" placeholder="품명" value={it.itemName}
+                              onChange={e => { const u = [...localItems]; u[idx] = { ...u[idx], itemName: e.target.value }; setLocalItems(u); }}
+                              data-testid={`input-item-name-${idx}`} />
+                            <div className="flex items-center gap-1">
+                              <span className="text-xs text-gray-400">단가</span>
+                              <Input className="h-7 text-xs w-24" placeholder="0" type="number" value={it.unitPrice || ""}
+                                onChange={e => { const u = [...localItems]; u[idx] = { ...u[idx], unitPrice: parseInt(e.target.value) || 0 }; setLocalItems(u); }}
+                                data-testid={`input-item-price-${idx}`} />
+                              <span className="text-xs text-gray-400">원</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <span className="text-xs text-gray-400">지급기준</span>
+                              <Input className="h-7 text-xs w-24" placeholder="예: 인당 1개" value={it.supplyStandard}
+                                onChange={e => { const u = [...localItems]; u[idx] = { ...u[idx], supplyStandard: e.target.value }; setLocalItems(u); }}
+                                data-testid={`input-item-standard-${idx}`} />
+                            </div>
+                            <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-red-400 hover:text-red-600" onClick={() => setLocalItems(localItems.filter((_, i) => i !== idx))} data-testid={`button-remove-item-${idx}`}>
+                              <X className="w-3 h-3" />
+                            </Button>
+                          </>
+                        )}
                       </div>
-                      <div className="flex items-center gap-1">
-                        <span className="text-xs text-gray-400">지급기준</span>
-                        <Input className="h-7 text-xs w-24" placeholder="예: 인당 1개" value={it.supplyStandard}
-                          onChange={e => { const u = [...localItems]; u[idx] = { ...u[idx], supplyStandard: e.target.value }; setLocalItems(u); }}
-                          data-testid={`input-item-standard-${idx}`} />
-                      </div>
-                      <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-red-400 hover:text-red-600" onClick={() => setLocalItems(localItems.filter((_, i) => i !== idx))} data-testid={`button-remove-item-${idx}`}>
-                        <X className="w-3 h-3" />
-                      </Button>
-                    </div>
-                  ))}
-                  <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => setLocalItems([...localItems, { itemName: "", unitPrice: 0, supplyStandard: "" }])} data-testid="button-add-item">
+                    );
+                  })}
+                  <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => setLocalItems([...localItems, { itemName: "", unitPrice: 0, supplyStandard: "", deliveryStatus: "주문예정" as DeliveryStatus }])} data-testid="button-add-item">
                     <Plus className="w-3 h-3" /> 물품 추가
                   </Button>
                 </div>
@@ -644,16 +685,52 @@ export default function SafetySupplySurvey() {
                 <div className="flex flex-wrap gap-2">
                   {itemsLoading && <span className="text-xs text-gray-400">불러오는 중...</span>}
                   {!itemsLoading && items.length === 0 && <span className="text-xs text-gray-400 italic">등록된 물품 없음 — 편집 버튼을 눌러 추가하세요</span>}
-                  {items.map((it, idx) => (
-                    <div key={it.id} className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-md px-3 py-1.5 shadow-sm">
-                      <span className="w-5 h-5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-bold flex items-center justify-center shrink-0">{idx + 1}</span>
-                      <span className="text-xs font-semibold text-gray-800">{it.itemName}</span>
-                      <span className="text-[11px] text-gray-400">|</span>
-                      <span className="text-[11px] text-gray-600">{fmt(it.unitPrice)}원</span>
-                      <span className="text-[11px] text-gray-400">/</span>
-                      <span className="text-[11px] text-gray-600">{it.supplyStandard || "—"}</span>
-                    </div>
-                  ))}
+                  {items.map((it, idx) => {
+                    const ds = (it.deliveryStatus || "주문예정") as DeliveryStatus;
+                    const dsCfg = DELIVERY_STATUS_CONFIG[ds];
+                    const DsIcon = dsCfg.icon;
+                    const isUpdating = updatingDeliveryId === it.id;
+                    return (
+                      <div key={it.id} className={`flex items-center gap-1.5 bg-white border rounded-md px-3 py-1.5 shadow-sm transition-all ${ds === "배송완료" ? "border-green-300 bg-green-50" : "border-gray-200"}`}>
+                        <span className="w-5 h-5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-bold flex items-center justify-center shrink-0">{idx + 1}</span>
+                        <span className="text-xs font-semibold text-gray-800">{it.itemName}</span>
+                        <span className="text-[11px] text-gray-400">|</span>
+                        <span className="text-[11px] text-gray-600">{fmt(it.unitPrice)}원</span>
+                        {it.supplyStandard && (
+                          <>
+                            <span className="text-[11px] text-gray-400">/</span>
+                            <span className="text-[11px] text-gray-600">{it.supplyStandard}</span>
+                          </>
+                        )}
+                        <span className="text-[11px] text-gray-300 mx-0.5">|</span>
+                        <Select
+                          value={ds}
+                          onValueChange={(v) => updateDeliveryStatusMut.mutate({ itemId: it.id, deliveryStatus: v })}
+                          disabled={isUpdating}
+                          data-testid={`select-delivery-status-${it.id}`}
+                        >
+                          <SelectTrigger className={`h-6 text-[11px] border font-semibold px-1.5 py-0 rounded-full w-auto gap-1 focus:ring-0 ${dsCfg.className} ${isUpdating ? "opacity-50" : ""}`}>
+                            <DsIcon className="w-3 h-3 shrink-0" />
+                            <span>{ds}</span>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {DELIVERY_STATUSES.map(s => {
+                              const cfg = DELIVERY_STATUS_CONFIG[s];
+                              const SIcon = cfg.icon;
+                              return (
+                                <SelectItem key={s} value={s} className="text-xs">
+                                  <span className="flex items-center gap-1.5">
+                                    <SIcon className="w-3 h-3" />
+                                    {s}
+                                  </span>
+                                </SelectItem>
+                              );
+                            })}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

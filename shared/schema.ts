@@ -720,6 +720,7 @@ export const safetySupplyItems = pgTable("safety_supply_items", {
   unitPrice: integer("unit_price").notNull().default(0),
   supplyStandard: text("supply_standard").notNull().default(""),
   sortOrder: integer("sort_order").notNull().default(0),
+  deliveryStatus: text("delivery_status").default("주문예정"),
 });
 export const insertSafetySupplyItemSchema = createInsertSchema(safetySupplyItems).omit({ id: true });
 export type SafetySupplyItem = typeof safetySupplyItems.$inferSelect;
