@@ -64,7 +64,7 @@ const CATEGORIES = [
 
 type Survey = { id: number; year: number; half: number; title: string; budget: number | null; createdBy: string | null; createdAt: string };
 type Item = { id: number; surveyId: number; itemName: string; unitPrice: number; supplyStandard: string; sortOrder: number; deliveryStatus: DeliveryStatus | null };
-type DeptEntry = { id: number; surveyId: number; deptName: string; deptCount: number; quantities: Record<string, number>; sortOrder: number };
+type DeptEntry = { id: number; surveyId: number; deptName: string; deptCount: number; quantities: Record<string, number>; deliveryStatuses: Record<string, string>; sortOrder: number };
 
 const CURRENT_YEAR = new Date().getFullYear();
 const fmt = (n: number) => n.toLocaleString("ko-KR");
@@ -194,6 +194,15 @@ export default function SafetySupplySurvey() {
     },
   });
 
+  const updateDeptDeliveryStatusMut = useMutation({
+    mutationFn: ({ deptEntryId, itemId, deliveryStatus }: { deptEntryId: number; itemId: number; deliveryStatus: string }) =>
+      apiRequest("PATCH", `/api/safety-supply/dept-entries/${deptEntryId}/delivery-status`, { itemId, deliveryStatus }).then(r => r.json()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/safety-supply/surveys", selectedId, "dept-entries"] });
+    },
+    onError: (e: any) => toast({ title: "배송 현황 변경 실패", description: e.message, variant: "destructive" }),
+  });
+
   const registerCostMut = useMutation({
     mutationFn: (body: any) => apiRequest("POST", `/api/safety-supply/surveys/${selectedId}/register-cost`, body).then(r => r.json()),
     onSuccess: (data) => {
@@ -296,7 +305,7 @@ export default function SafetySupplySurvey() {
   // ── 부서 편집 헬퍼 ───────────────────────────────────
   const getDisplayDepts = () => deptsDirty
     ? localDepts
-    : depts.map(d => ({ deptName: d.deptName, deptCount: d.deptCount, quantities: { ...d.quantities } }));
+    : depts.map(d => ({ deptName: d.deptName, deptCount: d.deptCount, quantities: { ...d.quantities }, deliveryStatuses: { ...(d.deliveryStatuses || {}) } }));
 
   const mutateDepts = (fn: (current: typeof localDepts) => typeof localDepts) => {
     const current = getDisplayDepts();
@@ -313,7 +322,7 @@ export default function SafetySupplySurvey() {
   const setDeptName = (di: number, val: string) =>
     mutateDepts(c => c.map((d, i) => i === di ? { ...d, deptName: val } : d));
 
-  const addDept = () => mutateDepts(c => [...c, { deptName: "새 부서", deptCount: 0, quantities: {} }]);
+  const addDept = () => mutateDepts(c => [...c, { deptName: "새 부서", deptCount: 0, quantities: {}, deliveryStatuses: {} }]);
 
   const addItemAndEdit = () => {
     if (!editingItems) {
@@ -685,52 +694,20 @@ export default function SafetySupplySurvey() {
                 <div className="flex flex-wrap gap-2">
                   {itemsLoading && <span className="text-xs text-gray-400">불러오는 중...</span>}
                   {!itemsLoading && items.length === 0 && <span className="text-xs text-gray-400 italic">등록된 물품 없음 — 편집 버튼을 눌러 추가하세요</span>}
-                  {items.map((it, idx) => {
-                    const ds = (it.deliveryStatus || "주문예정") as DeliveryStatus;
-                    const dsCfg = DELIVERY_STATUS_CONFIG[ds];
-                    const DsIcon = dsCfg.icon;
-                    const isUpdating = updatingDeliveryId === it.id;
-                    return (
-                      <div key={it.id} className={`flex items-center gap-1.5 bg-white border rounded-md px-3 py-1.5 shadow-sm transition-all ${ds === "배송완료" ? "border-green-300 bg-green-50" : "border-gray-200"}`}>
-                        <span className="w-5 h-5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-bold flex items-center justify-center shrink-0">{idx + 1}</span>
-                        <span className="text-xs font-semibold text-gray-800">{it.itemName}</span>
-                        <span className="text-[11px] text-gray-400">|</span>
-                        <span className="text-[11px] text-gray-600">{fmt(it.unitPrice)}원</span>
-                        {it.supplyStandard && (
-                          <>
-                            <span className="text-[11px] text-gray-400">/</span>
-                            <span className="text-[11px] text-gray-600">{it.supplyStandard}</span>
-                          </>
-                        )}
-                        <span className="text-[11px] text-gray-300 mx-0.5">|</span>
-                        <Select
-                          value={ds}
-                          onValueChange={(v) => updateDeliveryStatusMut.mutate({ itemId: it.id, deliveryStatus: v })}
-                          disabled={isUpdating}
-                          data-testid={`select-delivery-status-${it.id}`}
-                        >
-                          <SelectTrigger className={`h-6 text-[11px] border font-semibold px-1.5 py-0 rounded-full w-auto gap-1 focus:ring-0 ${dsCfg.className} ${isUpdating ? "opacity-50" : ""}`}>
-                            <DsIcon className="w-3 h-3 shrink-0" />
-                            <span>{ds}</span>
-                          </SelectTrigger>
-                          <SelectContent>
-                            {DELIVERY_STATUSES.map(s => {
-                              const cfg = DELIVERY_STATUS_CONFIG[s];
-                              const SIcon = cfg.icon;
-                              return (
-                                <SelectItem key={s} value={s} className="text-xs">
-                                  <span className="flex items-center gap-1.5">
-                                    <SIcon className="w-3 h-3" />
-                                    {s}
-                                  </span>
-                                </SelectItem>
-                              );
-                            })}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    );
-                  })}
+                  {items.map((it, idx) => (
+                    <div key={it.id} className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-md px-3 py-1.5 shadow-sm">
+                      <span className="w-5 h-5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-bold flex items-center justify-center shrink-0">{idx + 1}</span>
+                      <span className="text-xs font-semibold text-gray-800">{it.itemName}</span>
+                      <span className="text-[11px] text-gray-400">|</span>
+                      <span className="text-[11px] text-gray-600">{fmt(it.unitPrice)}원</span>
+                      {it.supplyStandard && (
+                        <>
+                          <span className="text-[11px] text-gray-400">/</span>
+                          <span className="text-[11px] text-gray-600">{it.supplyStandard}</span>
+                        </>
+                      )}
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
@@ -846,20 +823,51 @@ export default function SafetySupplySurvey() {
                               {items.map(it => {
                                 const qty = Number(dept.quantities[it.id]) || 0;
                                 const amt = qty * it.unitPrice;
+                                const deptId = depts[di]?.id;
+                                const ds = ((dept.deliveryStatuses || {})[String(it.id)] || "주문예정") as DeliveryStatus;
+                                const dsCfg = DELIVERY_STATUS_CONFIG[ds];
+                                const DsIcon = dsCfg.icon;
                                 return (
                                   <>
-                                    <td key={`${di}-${it.id}-qty`} className="border border-gray-200 px-1 py-1">
-                                      <Input
-                                        className="h-7 text-xs border-0 focus-visible:ring-1 focus-visible:ring-amber-300 px-2 bg-transparent text-center w-16"
-                                        type="number"
-                                        min={0}
-                                        value={qty || ""}
-                                        placeholder="0"
-                                        onChange={e => setQty(di, it.id, e.target.value)}
-                                        data-testid={`input-qty-${di}-${it.id}`}
-                                      />
+                                    <td key={`${di}-${it.id}-qty`} className={`border border-gray-200 px-1 py-1 ${ds === "배송완료" ? "bg-green-50/60" : ""}`}>
+                                      <div className="flex flex-col items-center gap-0.5">
+                                        <Input
+                                          className="h-7 text-xs border-0 focus-visible:ring-1 focus-visible:ring-amber-300 px-2 bg-transparent text-center w-16"
+                                          type="number"
+                                          min={0}
+                                          value={qty || ""}
+                                          placeholder="0"
+                                          onChange={e => setQty(di, it.id, e.target.value)}
+                                          data-testid={`input-qty-${di}-${it.id}`}
+                                        />
+                                        {deptId !== undefined && (
+                                          <Select
+                                            value={ds}
+                                            onValueChange={(v) => updateDeptDeliveryStatusMut.mutate({ deptEntryId: deptId, itemId: it.id, deliveryStatus: v })}
+                                            data-testid={`select-ds-${di}-${it.id}`}
+                                          >
+                                            <SelectTrigger className={`h-5 text-[10px] border font-semibold px-1.5 py-0 rounded-full w-auto gap-0.5 focus:ring-0 min-w-[62px] justify-center ${dsCfg.className}`}>
+                                              <DsIcon className="w-2.5 h-2.5 shrink-0" />
+                                              <span className="truncate">{ds}</span>
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                              {DELIVERY_STATUSES.map(s => {
+                                                const cfg = DELIVERY_STATUS_CONFIG[s];
+                                                const SIcon = cfg.icon;
+                                                return (
+                                                  <SelectItem key={s} value={s} className="text-xs">
+                                                    <span className="flex items-center gap-1.5">
+                                                      <SIcon className="w-3 h-3" />{s}
+                                                    </span>
+                                                  </SelectItem>
+                                                );
+                                              })}
+                                            </SelectContent>
+                                          </Select>
+                                        )}
+                                      </div>
                                     </td>
-                                    <td key={`${di}-${it.id}-amt`} className={`border border-gray-200 px-3 py-1.5 text-right whitespace-nowrap ${amt ? "text-gray-800 font-medium" : "text-gray-300"}`}>
+                                    <td key={`${di}-${it.id}-amt`} className={`border border-gray-200 px-3 py-1.5 text-right whitespace-nowrap align-top ${ds === "배송완료" ? "bg-green-50/60" : ""} ${amt ? "text-gray-800 font-medium" : "text-gray-300"}`}>
                                       {amt ? fmt(amt) : "—"}
                                     </td>
                                   </>

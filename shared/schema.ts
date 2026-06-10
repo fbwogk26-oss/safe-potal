@@ -732,6 +732,7 @@ export const safetySupplyDeptEntries = pgTable("safety_supply_dept_entries", {
   deptName: text("dept_name").notNull(),
   deptCount: integer("dept_count").notNull().default(0),
   quantities: jsonb("quantities").notNull().default({}), // { itemId: quantity }
+  deliveryStatuses: jsonb("delivery_statuses").notNull().default({}), // { itemId: deliveryStatus }
   sortOrder: integer("sort_order").notNull().default(0),
 });
 export const insertSafetySupplyDeptEntrySchema = createInsertSchema(safetySupplyDeptEntries).omit({ id: true });

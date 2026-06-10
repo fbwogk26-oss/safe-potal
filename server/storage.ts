@@ -1141,6 +1141,17 @@ export class DatabaseStorage implements IStorage {
       .returning();
     return rows;
   }
+  async updateDeptEntryDeliveryStatus(deptEntryId: number, itemId: number, deliveryStatus: string): Promise<SafetySupplyDeptEntry | undefined> {
+    const [current] = await db.select().from(safetySupplyDeptEntries).where(eq(safetySupplyDeptEntries.id, deptEntryId));
+    if (!current) return undefined;
+    const existing = (current.deliveryStatuses as Record<string, string>) || {};
+    const updated = { ...existing, [String(itemId)]: deliveryStatus };
+    const [row] = await db.update(safetySupplyDeptEntries)
+      .set({ deliveryStatuses: updated })
+      .where(eq(safetySupplyDeptEntries.id, deptEntryId))
+      .returning();
+    return row;
+  }
 
   async bulkCreateOnlineEduRecords(records: InsertOnlineEduRecord[]): Promise<void> {
     if (records.length === 0) return;
