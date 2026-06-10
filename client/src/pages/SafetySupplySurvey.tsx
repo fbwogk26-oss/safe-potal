@@ -12,7 +12,7 @@ import {
   Plus, Trash2, Download, Upload, Save, PackageCheck,
   Pencil, X, Check, Copy, ChevronRight, FileSpreadsheet,
   Wallet, TrendingDown, PiggyBank, ReceiptText, Zap,
-  ShoppingCart, Package, Truck, Lock,
+  ShoppingCart, Package, Truck, Lock, ListChecks,
 } from "lucide-react";
 
 const DELIVERY_STATUSES = ["주문예정", "주문완료", "배송중", "배송완료"] as const;
@@ -869,10 +869,25 @@ export default function SafetySupplySurvey() {
                           const tAmt = rowAmt(dept);
                           const isEven = di % 2 === 1;
                           const deptId = depts[di]?.id;
+                          const isBulkActive = bulkRowDeptId !== null && bulkRowDeptId === deptId;
                           return (
                             <React.Fragment key={di}>
-                            <tr className={`group/row transition-colors hover:bg-amber-50/60 ${isEven ? "bg-gray-50/60" : "bg-white"}`}>
-                              <td className="border border-gray-200 px-2 py-1.5 text-center text-gray-400 font-medium whitespace-nowrap">{di + 1}</td>
+                            <tr className={`group/row transition-colors ${isBulkActive ? "bg-blue-50/60 outline outline-2 outline-blue-400 outline-offset-[-1px]" : `hover:bg-amber-50/60 ${isEven ? "bg-gray-50/60" : "bg-white"}`}`}>
+                              <td className="border border-gray-200 px-1 py-1 text-center">
+                                <div className="flex flex-col items-center gap-0.5">
+                                  <span className="text-[10px] text-gray-400 font-medium">{di + 1}</span>
+                                  {deptId !== undefined && (
+                                    <button
+                                      onClick={() => isBulkActive ? closeBulkRow() : openBulkRow(deptId)}
+                                      className={`w-6 h-6 rounded flex items-center justify-center transition-all ${isBulkActive ? "bg-blue-600 text-white shadow-sm" : "text-gray-300 hover:text-blue-500 hover:bg-blue-50"}`}
+                                      title="물품별 배송현황 일괄 변경"
+                                      data-testid={`button-bulk-row-${di}`}
+                                    >
+                                      <ListChecks className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
                               <td className="border border-gray-200 px-1 py-1 min-w-[130px]">
                                 <Input
                                   className="h-7 text-xs border-0 focus-visible:ring-1 focus-visible:ring-amber-300 px-2 bg-transparent font-medium text-gray-800"
@@ -897,9 +912,10 @@ export default function SafetySupplySurvey() {
                                 const dsCfg = DELIVERY_STATUS_CONFIG[ds];
                                 const DsIcon = dsCfg.icon;
                                 const cellBg = ds === "배송완료" ? "bg-green-50/60" : ds === "배송중" ? "bg-orange-50/40" : ds === "주문완료" ? "bg-blue-50/40" : "";
+                                const isChecked = bulkCheckedItems.has(it.id);
                                 return (
                                   <>
-                                    <td key={`${di}-${it.id}-qty`} className={`border border-gray-200 px-1 py-1.5 text-center ${cellBg}`}>
+                                    <td key={`${di}-${it.id}-qty`} className={`border border-gray-200 px-1 py-1.5 text-center ${isBulkActive ? "" : cellBg}`}>
                                       <Input
                                         className="h-7 text-xs border-0 focus-visible:ring-1 focus-visible:ring-amber-300 px-2 bg-transparent text-center w-16"
                                         type="number"
@@ -910,25 +926,31 @@ export default function SafetySupplySurvey() {
                                         data-testid={`input-qty-${di}-${it.id}`}
                                       />
                                     </td>
-                                    <td key={`${di}-${it.id}-amt`} className={`border border-gray-200 px-3 py-1.5 text-right whitespace-nowrap ${cellBg} ${amt ? "text-gray-800 font-medium" : "text-gray-300"}`}>
+                                    <td key={`${di}-${it.id}-amt`} className={`border border-gray-200 px-3 py-1.5 text-right whitespace-nowrap ${isBulkActive ? "" : cellBg} ${amt ? "text-gray-800 font-medium" : "text-gray-300"}`}>
                                       {amt ? fmt(amt) : "—"}
                                     </td>
-                                    <td key={`${di}-${it.id}-ds`} className={`border border-gray-200 px-1 py-1 text-center ${cellBg} ${bulkRowDeptId === deptId ? "cursor-pointer" : ""}`}
-                                      onClick={bulkRowDeptId === deptId ? () => toggleBulkItem(it.id) : undefined}
+                                    <td
+                                      key={`${di}-${it.id}-ds`}
+                                      className={`border py-1.5 text-center transition-all select-none ${
+                                        isBulkActive
+                                          ? isChecked
+                                            ? "bg-blue-500 border-blue-500 cursor-pointer"
+                                            : "border-gray-200 bg-white hover:bg-blue-50 cursor-pointer"
+                                          : `border-gray-200 px-1 ${cellBg}`
+                                      }`}
+                                      onClick={isBulkActive ? () => toggleBulkItem(it.id) : undefined}
                                     >
-                                      {bulkRowDeptId === deptId ? (
-                                        <div className="flex items-center justify-center gap-1">
-                                          <Checkbox
-                                            checked={bulkCheckedItems.has(it.id)}
-                                            onCheckedChange={() => toggleBulkItem(it.id)}
-                                            className="w-3.5 h-3.5 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
-                                            data-testid={`bulk-check-${di}-${it.id}`}
-                                          />
-                                          <span className={`inline-flex items-center gap-0.5 text-[10px] font-semibold px-1 py-0.5 rounded-full border ${dsCfg.className}`}>
-                                            <DsIcon className="w-2.5 h-2.5" />{ds}
+                                      {isBulkActive ? (
+                                        <div className="flex flex-col items-center gap-0.5 px-1">
+                                          <div className={`w-5 h-5 rounded-full flex items-center justify-center border-2 transition-all ${isChecked ? "bg-white border-white" : "border-gray-300 bg-white"}`}>
+                                            {isChecked && <Check className="w-3 h-3 text-blue-600 font-bold" strokeWidth={3} />}
+                                          </div>
+                                          <span className={`text-[10px] font-semibold whitespace-nowrap ${isChecked ? "text-white" : "text-gray-600"}`}>
+                                            {ds}
                                           </span>
                                         </div>
                                       ) : deptId !== undefined ? (
+                                        <div className="px-1">
                                         <Select
                                           value={ds}
                                           onValueChange={(v) => updateDeptDeliveryStatusMut.mutate({ deptEntryId: deptId, itemId: it.id, deliveryStatus: v })}
@@ -950,6 +972,7 @@ export default function SafetySupplySurvey() {
                                             })}
                                           </SelectContent>
                                         </Select>
+                                        </div>
                                       ) : null}
                                     </td>
                                   </>
@@ -962,74 +985,60 @@ export default function SafetySupplySurvey() {
                                 {tAmt ? fmt(tAmt) : "—"}
                               </td>
                               <td className="border border-gray-200 px-1 py-1 bg-white">
-                                <div className="flex flex-col items-center gap-0.5">
-                                  {deptId !== undefined && (
-                                    <button
-                                      onClick={() => bulkRowDeptId === deptId ? closeBulkRow() : openBulkRow(deptId)}
-                                      className={`w-6 h-6 rounded flex items-center justify-center text-[9px] font-bold transition-colors ${bulkRowDeptId === deptId ? "bg-blue-100 text-blue-700 border border-blue-300" : "text-gray-400 hover:text-blue-600 hover:bg-blue-50 opacity-0 group-hover/row:opacity-100"}`}
-                                      title="부서별 일괄 배송현황 변경"
-                                      data-testid={`button-bulk-row-${di}`}
-                                    >
-                                      일괄
-                                    </button>
-                                  )}
-                                  <button
-                                    onClick={() => removeDept(di)}
-                                    className="w-6 h-6 rounded flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover/row:opacity-100"
-                                    data-testid={`button-remove-dept-${di}`}
-                                  >
-                                    <X className="w-3 h-3" />
-                                  </button>
-                                </div>
+                                <button
+                                  onClick={() => removeDept(di)}
+                                  className="w-6 h-6 rounded flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover/row:opacity-100"
+                                  data-testid={`button-remove-dept-${di}`}
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
                               </td>
                             </tr>
                             {/* 일괄 배송현황 액션 바 */}
-                            {bulkRowDeptId === deptId && (
-                              <tr className="bg-blue-50 border-b-2 border-blue-200">
-                                <td colSpan={3 + items.length * 3 + 3} className="px-4 py-2">
-                                  <div className="flex items-center gap-3 flex-wrap">
+                            {isBulkActive && (
+                              <tr className="bg-blue-600">
+                                <td colSpan={3 + items.length * 3 + 3} className="px-4 py-2.5">
+                                  <div className="flex items-center gap-4 flex-wrap">
+                                    {/* 전체선택 */}
                                     <button
                                       onClick={() => toggleAllBulkItems(items.map(i => i.id))}
-                                      className="text-xs text-blue-600 hover:underline font-medium shrink-0"
+                                      className="flex items-center gap-1.5 text-xs text-blue-100 hover:text-white font-medium transition-colors shrink-0"
+                                      data-testid={`button-select-all-${di}`}
                                     >
-                                      {bulkCheckedItems.size === items.length ? "전체 해제" : "전체 선택"}
+                                      <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all ${bulkCheckedItems.size === items.length && items.length > 0 ? "bg-white border-white" : "border-blue-300"}`}>
+                                        {bulkCheckedItems.size === items.length && items.length > 0 && <Check className="w-2.5 h-2.5 text-blue-600" strokeWidth={3} />}
+                                      </div>
+                                      {bulkCheckedItems.size === items.length && items.length > 0 ? "전체 해제" : "전체 선택"}
                                     </button>
-                                    <span className="text-xs text-blue-700 font-semibold shrink-0">
-                                      {bulkCheckedItems.size}개 선택됨
+                                    <span className="text-xs font-bold text-white bg-blue-500 rounded-full px-2.5 py-0.5 shrink-0">
+                                      {bulkCheckedItems.size}개 선택
                                     </span>
-                                    <div className="flex items-center gap-1.5">
-                                      <span className="text-xs text-gray-500 shrink-0">→ 변경할 상태:</span>
-                                      <Select value={bulkTargetStatus} onValueChange={(v) => setBulkTargetStatus(v as DeliveryStatus)}>
-                                        <SelectTrigger className={`h-7 text-xs border font-semibold px-2 py-0 rounded w-[100px] gap-1 focus:ring-0 ${DELIVERY_STATUS_CONFIG[bulkTargetStatus].className}`}>
-                                          {(() => { const I = DELIVERY_STATUS_CONFIG[bulkTargetStatus].icon; return <I className="w-3 h-3 shrink-0" />; })()}
-                                          <span>{bulkTargetStatus}</span>
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          {DELIVERY_STATUSES.map(s => {
-                                            const cfg = DELIVERY_STATUS_CONFIG[s];
-                                            const SI = cfg.icon;
-                                            return (
-                                              <SelectItem key={s} value={s} className="text-xs">
-                                                <span className="flex items-center gap-1.5"><SI className="w-3 h-3" />{s}</span>
-                                              </SelectItem>
-                                            );
-                                          })}
-                                        </SelectContent>
-                                      </Select>
+                                    <div className="w-px h-5 bg-blue-400 shrink-0" />
+                                    <span className="text-xs text-blue-200 shrink-0">변경할 상태 클릭 →</span>
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      {DELIVERY_STATUSES.map(s => {
+                                        const cfg = DELIVERY_STATUS_CONFIG[s];
+                                        const SI = cfg.icon;
+                                        return (
+                                          <button
+                                            key={s}
+                                            disabled={bulkCheckedItems.size === 0 || bulkRowMut.isPending}
+                                            onClick={() => { if (deptId !== undefined) bulkRowMut.mutate({ deptEntryId: deptId, itemIds: Array.from(bulkCheckedItems), deliveryStatus: s }); }}
+                                            className={`inline-flex items-center gap-1 h-7 px-3 rounded-full text-[11px] font-semibold border transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:scale-105 active:scale-95 shadow-sm ${cfg.className}`}
+                                            data-testid={`button-bulk-status-${di}-${s}`}
+                                          >
+                                            <SI className="w-3 h-3" />{s}
+                                          </button>
+                                        );
+                                      })}
                                     </div>
-                                    <Button
-                                      size="sm"
-                                      className="h-7 text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 shrink-0"
-                                      disabled={bulkCheckedItems.size === 0 || bulkRowMut.isPending}
-                                      onClick={() => {
-                                        if (deptId !== undefined)
-                                          bulkRowMut.mutate({ deptEntryId: deptId, itemIds: Array.from(bulkCheckedItems), deliveryStatus: bulkTargetStatus });
-                                      }}
-                                      data-testid={`button-bulk-apply-${di}`}
+                                    <button
+                                      onClick={closeBulkRow}
+                                      className="ml-auto flex items-center gap-1 text-xs text-blue-200 hover:text-white transition-colors shrink-0"
+                                      data-testid={`button-bulk-close-${di}`}
                                     >
-                                      일괄 적용
-                                    </Button>
-                                    <button onClick={closeBulkRow} className="text-xs text-gray-400 hover:text-gray-600 ml-1 shrink-0">취소</button>
+                                      <X className="w-3.5 h-3.5" />닫기
+                                    </button>
                                   </div>
                                 </td>
                               </tr>
