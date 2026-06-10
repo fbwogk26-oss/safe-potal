@@ -855,23 +855,66 @@ export default function SafetySupplySurvey() {
                             <>
                               <th key={`h2-qty-${it.id}`} className="border border-gray-300 bg-amber-50 text-amber-800 px-3 py-1.5 text-center whitespace-nowrap font-semibold w-16">수량</th>
                               <th key={`h2-amt-${it.id}`} className="border border-gray-300 bg-amber-50 text-amber-800 px-3 py-1.5 text-center whitespace-nowrap font-semibold w-20">금액</th>
-                              <th key={`h2-ds-${it.id}`} className={`border py-1 text-center whitespace-nowrap font-semibold transition-colors ${bulkColItemId === it.id ? "bg-indigo-600 border-indigo-500" : "border-gray-300 bg-amber-50 text-amber-800"}`}>
-                                <div className="flex flex-col items-center gap-0.5 px-1">
-                                  <div className="flex items-center gap-1">
-                                    <span className={`text-[10px] ${bulkColItemId === it.id ? "text-indigo-100" : "text-amber-600"}`}>배송현황</span>
+                              <th key={`h2-ds-${it.id}`} className={`border text-center font-semibold transition-all ${bulkColItemId === it.id ? "bg-indigo-600 border-indigo-400 min-w-[140px]" : "border-gray-300 bg-amber-50 text-amber-800 py-1 whitespace-nowrap"}`}>
+                                {bulkColItemId === it.id ? (
+                                  /* ── 인라인 액션 패널 (헤더 sticky에 붙어 항상 보임) ── */
+                                  <div className="flex flex-col items-center gap-1.5 px-2 py-2">
+                                    <div className="flex items-center justify-between w-full">
+                                      <span className="text-[10px] text-indigo-200 font-normal">배송현황 일괄변경</span>
+                                      <button
+                                        onClick={closeBulkCol}
+                                        className="w-4 h-4 rounded flex items-center justify-center text-indigo-300 hover:text-white hover:bg-indigo-500 transition-colors"
+                                        data-testid={`button-bulk-col-${it.id}`}
+                                      >
+                                        <X className="w-3 h-3" />
+                                      </button>
+                                    </div>
+                                    {/* 전체선택 + 카운터 */}
                                     <button
-                                      onClick={() => bulkColItemId === it.id ? closeBulkCol() : openBulkCol(it.id)}
-                                      className={`w-5 h-5 rounded flex items-center justify-center transition-all ${bulkColItemId === it.id ? "bg-white text-indigo-600" : "text-amber-400 hover:text-indigo-600 hover:bg-amber-100"}`}
-                                      title="이 물품의 부서별 일괄 변경"
-                                      data-testid={`button-bulk-col-${it.id}`}
+                                      onClick={toggleAllBulkColDepts}
+                                      className="flex items-center gap-1 text-[11px] text-indigo-200 hover:text-white transition-colors w-full justify-center"
+                                      data-testid="button-col-select-all"
                                     >
-                                      <ListChecks className="w-3 h-3" />
+                                      <div className={`w-3.5 h-3.5 rounded border-2 flex items-center justify-center shrink-0 ${bulkColCheckedDepts.size === allSavedDeptIds.length && allSavedDeptIds.length > 0 ? "bg-white border-white" : "border-indigo-400"}`}>
+                                        {bulkColCheckedDepts.size === allSavedDeptIds.length && allSavedDeptIds.length > 0 && <Check className="w-2 h-2 text-indigo-700" strokeWidth={3} />}
+                                      </div>
+                                      {bulkColCheckedDepts.size > 0 ? `${bulkColCheckedDepts.size}개 선택됨` : "전체 선택"}
                                     </button>
+                                    {/* 상태 버튼 2×2 그리드 */}
+                                    <div className="grid grid-cols-2 gap-1 w-full">
+                                      {DELIVERY_STATUSES.map(s => {
+                                        const cfg = DELIVERY_STATUS_CONFIG[s];
+                                        const SI = cfg.icon;
+                                        return (
+                                          <button
+                                            key={s}
+                                            disabled={bulkColCheckedDepts.size === 0 || bulkColMut.isPending}
+                                            onClick={() => bulkColMut.mutate({ itemId: it.id, deptEntryIds: Array.from(bulkColCheckedDepts), deliveryStatus: s })}
+                                            className={`inline-flex items-center justify-center gap-0.5 h-6 px-1 rounded text-[10px] font-semibold border transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:scale-105 active:scale-95 ${cfg.className}`}
+                                            data-testid={`button-col-bulk-status-${it.id}-${s}`}
+                                          >
+                                            <SI className="w-2.5 h-2.5 shrink-0" />{s}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
                                   </div>
-                                  {bulkColItemId === it.id && (
-                                    <span className="text-[10px] text-indigo-200 font-normal">부서 선택 중</span>
-                                  )}
-                                </div>
+                                ) : (
+                                  /* ── 평상시 헤더 ── */
+                                  <div className="flex flex-col items-center gap-0.5 px-1">
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-[10px] text-amber-600">배송현황</span>
+                                      <button
+                                        onClick={() => openBulkCol(it.id)}
+                                        className="w-5 h-5 rounded flex items-center justify-center text-amber-400 hover:text-indigo-600 hover:bg-amber-100 transition-all"
+                                        title="이 물품의 부서별 일괄 변경"
+                                        data-testid={`button-bulk-col-${it.id}`}
+                                      >
+                                        <ListChecks className="w-3 h-3" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
                               </th>
                             </>
                           ))}
@@ -1283,63 +1326,6 @@ export default function SafetySupplySurvey() {
         </DialogContent>
       </Dialog>
 
-      {/* ── 세로 일괄변경 고정 액션 바 ──────────────────── */}
-      {bulkColItemId !== null && (() => {
-        const activeItem = items.find(i => i.id === bulkColItemId);
-        return (
-          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-4 duration-200">
-            <div className="bg-indigo-700 text-white rounded-2xl shadow-2xl px-5 py-3 flex items-center gap-4 flex-wrap max-w-[90vw] border border-indigo-500">
-              {/* 물품명 */}
-              <div className="flex items-center gap-2 shrink-0">
-                <ListChecks className="w-4 h-4 text-indigo-300" />
-                <span className="text-sm font-bold text-white">{activeItem?.itemName}</span>
-                <span className="text-xs text-indigo-300">부서별 일괄변경</span>
-              </div>
-              <div className="w-px h-6 bg-indigo-500 shrink-0" />
-              {/* 전체선택 */}
-              <button
-                onClick={toggleAllBulkColDepts}
-                className="flex items-center gap-1.5 text-xs text-indigo-200 hover:text-white transition-colors shrink-0"
-                data-testid="button-col-select-all"
-              >
-                <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all ${bulkColCheckedDepts.size === allSavedDeptIds.length && allSavedDeptIds.length > 0 ? "bg-white border-white" : "border-indigo-400"}`}>
-                  {bulkColCheckedDepts.size === allSavedDeptIds.length && allSavedDeptIds.length > 0 && <Check className="w-2.5 h-2.5 text-indigo-700" strokeWidth={3} />}
-                </div>
-                {bulkColCheckedDepts.size === allSavedDeptIds.length && allSavedDeptIds.length > 0 ? "전체 해제" : "전체 선택"}
-              </button>
-              <span className="text-xs font-bold bg-indigo-500 rounded-full px-2.5 py-0.5 shrink-0">
-                {bulkColCheckedDepts.size}개 부서 선택
-              </span>
-              <div className="w-px h-6 bg-indigo-500 shrink-0" />
-              <span className="text-xs text-indigo-300 shrink-0">→ 상태 클릭 즉시 적용</span>
-              <div className="flex items-center gap-1.5 flex-wrap">
-                {DELIVERY_STATUSES.map(s => {
-                  const cfg = DELIVERY_STATUS_CONFIG[s];
-                  const SI = cfg.icon;
-                  return (
-                    <button
-                      key={s}
-                      disabled={bulkColCheckedDepts.size === 0 || bulkColMut.isPending}
-                      onClick={() => bulkColMut.mutate({ itemId: bulkColItemId, deptEntryIds: Array.from(bulkColCheckedDepts), deliveryStatus: s })}
-                      className={`inline-flex items-center gap-1 h-7 px-3 rounded-full text-[11px] font-semibold border transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:scale-105 active:scale-95 shadow-sm ${cfg.className}`}
-                      data-testid={`button-col-bulk-status-${s}`}
-                    >
-                      <SI className="w-3 h-3" />{s}
-                    </button>
-                  );
-                })}
-              </div>
-              <button
-                onClick={closeBulkCol}
-                className="flex items-center gap-1 text-xs text-indigo-300 hover:text-white transition-colors shrink-0 ml-1"
-                data-testid="button-col-bulk-close"
-              >
-                <X className="w-3.5 h-3.5" />닫기
-              </button>
-            </div>
-          </div>
-        );
-      })()}
     </div>
   );
 }
