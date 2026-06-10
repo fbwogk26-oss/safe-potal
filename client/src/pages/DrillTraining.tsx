@@ -440,7 +440,7 @@ function Step1Form({ assignment, onClose }: { assignment: DrillAssignment; onClo
   return (
     <div className="space-y-4">
       <div className="bg-blue-50 dark:bg-blue-950/30 rounded-lg p-3 text-sm text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-        <strong>보고제목 예시:</strong> [대응훈련] {assignment.department} 안전사고 1단계 보고
+        <strong>보고제목 예시:</strong> [대응훈련] {assignment.department} 비상사태 1단계 보고
       </div>
       <div className="bg-green-50 dark:bg-green-950/30 rounded-lg p-2.5 text-xs text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800">
         ✅ 소속부서와 사고내용이 배정된 시나리오로 자동 입력되었습니다. 내용을 확인·보완하세요.

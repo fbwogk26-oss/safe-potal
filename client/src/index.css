@@ -324,3 +324,16 @@ table tbody td {
 .pause-hover:hover {
   animation-play-state: paused;
 }
+
+/* sticky 열 오른쪽 그림자 — 스크롤 시 콘텐츠 겹침 방지 */
+/* mobile에서만 마지막 sticky 열: 모바일 shadow, sm+ 에서는 제거 */
+.sticky-mobile-last {
+  box-shadow: 2px 0 6px -1px rgba(0, 0, 0, 0.14);
+}
+@media (min-width: 640px) {
+  .sticky-mobile-last { box-shadow: none; }
+  /* sm+ 에서 마지막 sticky 열 */
+  .sticky-desktop-last {
+    box-shadow: 2px 0 6px -1px rgba(0, 0, 0, 0.14);
+  }
+}

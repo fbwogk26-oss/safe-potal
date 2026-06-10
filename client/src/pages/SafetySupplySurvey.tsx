@@ -830,8 +830,8 @@ export default function SafetySupplySurvey() {
                       <thead className="sticky top-0 z-20">
                         <tr>
                           <th className="sticky left-0 z-30 border border-gray-300 bg-gray-700 text-white px-2 py-2 text-center whitespace-nowrap font-semibold w-10" rowSpan={2}>번호</th>
-                          <th className="sticky left-10 z-30 border border-gray-300 bg-gray-700 text-white px-4 py-2 text-center whitespace-nowrap font-semibold w-[140px]" rowSpan={2}>부서</th>
-                          <th className="sticky left-[180px] z-30 border border-gray-300 bg-gray-700 text-white px-3 py-2 text-center whitespace-nowrap font-semibold w-14" rowSpan={2}>인원</th>
+                          <th className="sticky left-10 z-30 border border-gray-300 bg-gray-700 text-white px-4 py-2 text-center whitespace-nowrap font-semibold w-[140px] sticky-mobile-last" rowSpan={2}>부서</th>
+                          <th className="sm:sticky sm:left-[180px] z-30 border border-gray-300 bg-gray-700 text-white px-3 py-2 text-center whitespace-nowrap font-semibold w-14 sticky-desktop-last" rowSpan={2}>인원</th>
                           {items.map(it => {
                             const canAuto = parseAutoQty(it.supplyStandard, 1) !== null;
                             return (
@@ -945,7 +945,7 @@ export default function SafetySupplySurvey() {
                                   )}
                                 </div>
                               </td>
-                              <td className={`sticky left-10 z-10 border border-gray-200 px-1 py-1 w-[140px] ${isBulkActive ? "bg-blue-50" : isEven ? "bg-gray-50" : "bg-white"}`}>
+                              <td className={`sticky left-10 z-10 border border-gray-200 px-1 py-1 w-[140px] sticky-mobile-last ${isBulkActive ? "bg-blue-50" : isEven ? "bg-gray-50" : "bg-white"}`}>
                                 <Input
                                   className="h-7 text-xs border-0 focus-visible:ring-1 focus-visible:ring-amber-300 px-2 bg-transparent font-medium text-gray-800"
                                   value={dept.deptName}
@@ -953,7 +953,7 @@ export default function SafetySupplySurvey() {
                                   data-testid={`input-dept-name-${di}`}
                                 />
                               </td>
-                              <td className={`sticky left-[180px] z-10 border border-gray-200 px-1 py-1 bg-blue-50`}>
+                              <td className={`sm:sticky sm:left-[180px] z-10 border border-gray-200 px-1 py-1 bg-blue-50 sticky-desktop-last`}>
                                 <Input
                                   className="h-7 text-xs border-0 focus-visible:ring-1 focus-visible:ring-blue-300 px-2 bg-transparent text-center text-blue-700 font-semibold w-14"
                                   type="number"
@@ -1124,8 +1124,8 @@ export default function SafetySupplySurvey() {
                         {/* 합계 행 */}
                         <tr className="bg-gray-800 text-white font-bold">
                           <td className="sticky left-0 z-10 bg-gray-800 border border-gray-600 px-2 py-2.5 text-center text-gray-300 text-xs">합계</td>
-                          <td className="sticky left-10 z-10 bg-gray-800 border border-gray-600 px-4 py-2.5 text-center text-sm">합 계</td>
-                          <td className="sticky left-[180px] z-10 bg-gray-800 border border-gray-600 px-3 py-2.5 text-center text-blue-300">{totalHeadcount}</td>
+                          <td className="sticky left-10 z-10 bg-gray-800 border border-gray-600 px-4 py-2.5 text-center text-sm sticky-mobile-last">합 계</td>
+                          <td className="sm:sticky sm:left-[180px] z-10 bg-gray-800 border border-gray-600 px-3 py-2.5 text-center text-blue-300 sticky-desktop-last">{totalHeadcount}</td>
                           {items.map(it => {
                             const deliveredCount = depts.filter(d => ((d.deliveryStatuses || {}) as Record<string, string>)[String(it.id)] === "배송완료").length;
                             return (

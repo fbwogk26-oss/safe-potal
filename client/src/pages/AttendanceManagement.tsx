@@ -911,7 +911,10 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
                     variant="destructive"
                     className="h-6 text-xs px-2 ml-auto gap-1"
                     disabled={bulkDeleteMutation.isPending}
-                    onClick={() => bulkDeleteMutation.mutate(Array.from(selectedReasonIds))}
+                    onClick={() => {
+                      if (confirm(`선택한 ${selectedReasonIds.size}건의 기록을 삭제하시겠습니까?`))
+                        bulkDeleteMutation.mutate(Array.from(selectedReasonIds));
+                    }}
                     data-testid="button-bulk-delete-reasons"
                   >
                     <Trash2 className="w-3 h-3" />
@@ -997,7 +1000,7 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
                               variant="ghost"
                               className="h-7 w-7 p-0 text-gray-300 hover:text-red-500 hover:bg-red-50"
                               disabled={deleteRecordMutation.isPending}
-                              onClick={() => deleteRecordMutation.mutate(r.id)}
+                              onClick={() => { if (confirm("이 기록을 삭제하시겠습니까?")) deleteRecordMutation.mutate(r.id); }}
                               data-testid={`button-delete-reason-${r.id}`}
                             >
                               <Trash2 className="w-3.5 h-3.5" />
