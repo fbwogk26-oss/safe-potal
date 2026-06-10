@@ -92,10 +92,14 @@ export default function SafetySupplySurvey() {
   const [localItems, setLocalItems] = useState<Omit<Item, "id" | "surveyId" | "sortOrder">[]>([]);
   const [updatingDeliveryId, setUpdatingDeliveryId] = useState<number | null>(null);
 
-  // ── 부서별 일괄 배송현황 ──────────────────────────────
+  // ── 부서별 일괄 배송현황 (가로: 한 부서 × 여러 물품) ─────
   const [bulkRowDeptId, setBulkRowDeptId] = useState<number | null>(null);
   const [bulkCheckedItems, setBulkCheckedItems] = useState<Set<number>>(new Set());
   const [bulkTargetStatus, setBulkTargetStatus] = useState<DeliveryStatus>("주문예정");
+
+  // ── 물품별 일괄 배송현황 (세로: 한 물품 × 여러 부서) ─────
+  const [bulkColItemId, setBulkColItemId] = useState<number | null>(null);
+  const [bulkColCheckedDepts, setBulkColCheckedDepts] = useState<Set<number>>(new Set());
 
   // ── 부서 로컬 편집 ───────────────────────────────────
   const [localDepts, setLocalDepts] = useState<Omit<DeptEntry, "id" | "surveyId" | "sortOrder">[]>([]);
@@ -231,6 +235,7 @@ export default function SafetySupplySurvey() {
   });
 
   const openBulkRow = (deptId: number) => {
+    setBulkColItemId(null); setBulkColCheckedDepts(new Set());
     setBulkRowDeptId(deptId);
     setBulkCheckedItems(new Set());
     setBulkTargetStatus("주문예정");
@@ -243,6 +248,33 @@ export default function SafetySupplySurvey() {
   });
   const toggleAllBulkItems = (allIds: number[]) => setBulkCheckedItems(prev =>
     prev.size === allIds.length ? new Set() : new Set(allIds)
+  );
+
+  const bulkColMut = useMutation({
+    mutationFn: ({ itemId, deptEntryIds, deliveryStatus }: { itemId: number; deptEntryIds: number[]; deliveryStatus: string }) =>
+      apiRequest("PATCH", `/api/safety-supply/surveys/${selectedId}/items/${itemId}/selected-depts-delivery-status`, { deptEntryIds, deliveryStatus }).then(r => r.json()),
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/safety-supply/surveys", selectedId, "dept-entries"] });
+      setBulkColCheckedDepts(new Set());
+      setBulkColItemId(null);
+      toast({ title: `${vars.deptEntryIds.length}개 부서에 "${vars.deliveryStatus}" 적용됐습니다.` });
+    },
+    onError: (e: any) => toast({ title: "일괄 변경 실패", description: e.message, variant: "destructive" }),
+  });
+  const openBulkCol = (itemId: number) => {
+    setBulkRowDeptId(null); setBulkCheckedItems(new Set());
+    setBulkColItemId(itemId);
+    setBulkColCheckedDepts(new Set());
+  };
+  const closeBulkCol = () => { setBulkColItemId(null); setBulkColCheckedDepts(new Set()); };
+  const toggleBulkColDept = (deptId: number) => setBulkColCheckedDepts(prev => {
+    const next = new Set(prev);
+    next.has(deptId) ? next.delete(deptId) : next.add(deptId);
+    return next;
+  });
+  const allSavedDeptIds = depts.filter(d => d.id !== undefined).map(d => d.id as number);
+  const toggleAllBulkColDepts = () => setBulkColCheckedDepts(prev =>
+    prev.size === allSavedDeptIds.length ? new Set() : new Set(allSavedDeptIds)
   );
 
   const registerCostMut = useMutation({
@@ -832,31 +864,44 @@ export default function SafetySupplySurvey() {
                             <>
                               <th key={`h2-qty-${it.id}`} className="border border-gray-300 bg-amber-50 text-amber-800 px-3 py-1.5 text-center whitespace-nowrap font-semibold w-16">수량</th>
                               <th key={`h2-amt-${it.id}`} className="border border-gray-300 bg-amber-50 text-amber-800 px-3 py-1.5 text-center whitespace-nowrap font-semibold w-20">금액</th>
-                              <th key={`h2-ds-${it.id}`} className="border border-gray-300 bg-amber-50 text-amber-800 py-1 text-center whitespace-nowrap font-semibold">
-                                <div className="flex flex-col items-center gap-0.5">
-                                  <span className="text-[10px] text-amber-600">배송현황</span>
-                                  <Select
-                                    onValueChange={(v) => bulkItemDeliveryMut.mutate({ itemId: it.id, deliveryStatus: v })}
-                                    disabled={bulkItemDeliveryMut.isPending}
-                                    value=""
-                                  >
-                                    <SelectTrigger className="h-5 text-[10px] border border-amber-300 bg-white text-amber-700 font-semibold px-1.5 py-0 rounded w-[72px] gap-0.5 focus:ring-0">
-                                      <span className="truncate">일괄변경</span>
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {DELIVERY_STATUSES.map(s => {
-                                        const cfg = DELIVERY_STATUS_CONFIG[s];
-                                        const SIcon = cfg.icon;
-                                        return (
-                                          <SelectItem key={s} value={s} className="text-xs">
-                                            <span className="flex items-center gap-1.5">
-                                              <SIcon className="w-3 h-3" />{s}
-                                            </span>
-                                          </SelectItem>
-                                        );
-                                      })}
-                                    </SelectContent>
-                                  </Select>
+                              <th key={`h2-ds-${it.id}`} className={`border py-1 text-center whitespace-nowrap font-semibold transition-colors ${bulkColItemId === it.id ? "bg-indigo-600 border-indigo-500" : "border-gray-300 bg-amber-50 text-amber-800"}`}>
+                                <div className="flex flex-col items-center gap-0.5 px-1">
+                                  <div className="flex items-center gap-1">
+                                    <span className={`text-[10px] ${bulkColItemId === it.id ? "text-indigo-100" : "text-amber-600"}`}>배송현황</span>
+                                    <button
+                                      onClick={() => bulkColItemId === it.id ? closeBulkCol() : openBulkCol(it.id)}
+                                      className={`w-5 h-5 rounded flex items-center justify-center transition-all ${bulkColItemId === it.id ? "bg-white text-indigo-600" : "text-amber-400 hover:text-indigo-600 hover:bg-amber-100"}`}
+                                      title="이 물품의 부서별 일괄 변경"
+                                      data-testid={`button-bulk-col-${it.id}`}
+                                    >
+                                      <ListChecks className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                  {bulkColItemId !== it.id && (
+                                    <Select
+                                      onValueChange={(v) => bulkItemDeliveryMut.mutate({ itemId: it.id, deliveryStatus: v })}
+                                      disabled={bulkItemDeliveryMut.isPending}
+                                      value=""
+                                    >
+                                      <SelectTrigger className="h-5 text-[10px] border border-amber-300 bg-white text-amber-700 font-semibold px-1.5 py-0 rounded w-[72px] gap-0.5 focus:ring-0">
+                                        <span className="truncate">전체변경</span>
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {DELIVERY_STATUSES.map(s => {
+                                          const cfg = DELIVERY_STATUS_CONFIG[s];
+                                          const SIcon = cfg.icon;
+                                          return (
+                                            <SelectItem key={s} value={s} className="text-xs">
+                                              <span className="flex items-center gap-1.5"><SIcon className="w-3 h-3" />{s}</span>
+                                            </SelectItem>
+                                          );
+                                        })}
+                                      </SelectContent>
+                                    </Select>
+                                  )}
+                                  {bulkColItemId === it.id && (
+                                    <span className="text-[10px] text-indigo-200 font-normal">부서 선택 중</span>
+                                  )}
                                 </div>
                               </th>
                             </>
@@ -936,9 +981,17 @@ export default function SafetySupplySurvey() {
                                           ? isChecked
                                             ? "bg-blue-500 border-blue-500 cursor-pointer"
                                             : "border-gray-200 bg-white hover:bg-blue-50 cursor-pointer"
-                                          : `border-gray-200 px-1 ${cellBg}`
+                                          : bulkColItemId === it.id && deptId !== undefined
+                                            ? bulkColCheckedDepts.has(deptId)
+                                              ? "bg-indigo-500 border-indigo-500 cursor-pointer"
+                                              : "border-gray-200 bg-white hover:bg-indigo-50 cursor-pointer"
+                                            : `border-gray-200 px-1 ${cellBg}`
                                       }`}
-                                      onClick={isBulkActive ? () => toggleBulkItem(it.id) : undefined}
+                                      onClick={
+                                        isBulkActive ? () => toggleBulkItem(it.id)
+                                        : bulkColItemId === it.id && deptId !== undefined ? () => toggleBulkColDept(deptId)
+                                        : undefined
+                                      }
                                     >
                                       {isBulkActive ? (
                                         <div className="flex flex-col items-center gap-0.5 px-1">
@@ -946,6 +999,15 @@ export default function SafetySupplySurvey() {
                                             {isChecked && <Check className="w-3 h-3 text-blue-600 font-bold" strokeWidth={3} />}
                                           </div>
                                           <span className={`text-[10px] font-semibold whitespace-nowrap ${isChecked ? "text-white" : "text-gray-600"}`}>
+                                            {ds}
+                                          </span>
+                                        </div>
+                                      ) : bulkColItemId === it.id && deptId !== undefined ? (
+                                        <div className="flex flex-col items-center gap-0.5 px-1">
+                                          <div className={`w-5 h-5 rounded-full flex items-center justify-center border-2 transition-all ${bulkColCheckedDepts.has(deptId) ? "bg-white border-white" : "border-gray-300 bg-white"}`}>
+                                            {bulkColCheckedDepts.has(deptId) && <Check className="w-3 h-3 text-indigo-600" strokeWidth={3} />}
+                                          </div>
+                                          <span className={`text-[10px] font-semibold whitespace-nowrap ${bulkColCheckedDepts.has(deptId) ? "text-white" : "text-gray-600"}`}>
                                             {ds}
                                           </span>
                                         </div>
@@ -1251,6 +1313,64 @@ export default function SafetySupplySurvey() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── 세로 일괄변경 고정 액션 바 ──────────────────── */}
+      {bulkColItemId !== null && (() => {
+        const activeItem = items.find(i => i.id === bulkColItemId);
+        return (
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-4 duration-200">
+            <div className="bg-indigo-700 text-white rounded-2xl shadow-2xl px-5 py-3 flex items-center gap-4 flex-wrap max-w-[90vw] border border-indigo-500">
+              {/* 물품명 */}
+              <div className="flex items-center gap-2 shrink-0">
+                <ListChecks className="w-4 h-4 text-indigo-300" />
+                <span className="text-sm font-bold text-white">{activeItem?.itemName}</span>
+                <span className="text-xs text-indigo-300">부서별 일괄변경</span>
+              </div>
+              <div className="w-px h-6 bg-indigo-500 shrink-0" />
+              {/* 전체선택 */}
+              <button
+                onClick={toggleAllBulkColDepts}
+                className="flex items-center gap-1.5 text-xs text-indigo-200 hover:text-white transition-colors shrink-0"
+                data-testid="button-col-select-all"
+              >
+                <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all ${bulkColCheckedDepts.size === allSavedDeptIds.length && allSavedDeptIds.length > 0 ? "bg-white border-white" : "border-indigo-400"}`}>
+                  {bulkColCheckedDepts.size === allSavedDeptIds.length && allSavedDeptIds.length > 0 && <Check className="w-2.5 h-2.5 text-indigo-700" strokeWidth={3} />}
+                </div>
+                {bulkColCheckedDepts.size === allSavedDeptIds.length && allSavedDeptIds.length > 0 ? "전체 해제" : "전체 선택"}
+              </button>
+              <span className="text-xs font-bold bg-indigo-500 rounded-full px-2.5 py-0.5 shrink-0">
+                {bulkColCheckedDepts.size}개 부서 선택
+              </span>
+              <div className="w-px h-6 bg-indigo-500 shrink-0" />
+              <span className="text-xs text-indigo-300 shrink-0">→ 상태 클릭 즉시 적용</span>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {DELIVERY_STATUSES.map(s => {
+                  const cfg = DELIVERY_STATUS_CONFIG[s];
+                  const SI = cfg.icon;
+                  return (
+                    <button
+                      key={s}
+                      disabled={bulkColCheckedDepts.size === 0 || bulkColMut.isPending}
+                      onClick={() => bulkColMut.mutate({ itemId: bulkColItemId, deptEntryIds: Array.from(bulkColCheckedDepts), deliveryStatus: s })}
+                      className={`inline-flex items-center gap-1 h-7 px-3 rounded-full text-[11px] font-semibold border transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:scale-105 active:scale-95 shadow-sm ${cfg.className}`}
+                      data-testid={`button-col-bulk-status-${s}`}
+                    >
+                      <SI className="w-3 h-3" />{s}
+                    </button>
+                  );
+                })}
+              </div>
+              <button
+                onClick={closeBulkCol}
+                className="flex items-center gap-1 text-xs text-indigo-300 hover:text-white transition-colors shrink-0 ml-1"
+                data-testid="button-col-bulk-close"
+              >
+                <X className="w-3.5 h-3.5" />닫기
+              </button>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
