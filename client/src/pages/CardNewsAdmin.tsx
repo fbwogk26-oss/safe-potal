@@ -261,8 +261,12 @@ export default function CardNewsAdmin() {
                 뉴스 수집
               </Button>
               <Button
-                onClick={() => sendEmailMutation.mutate(selectedArticles)}
-                disabled={sendEmailMutation.isPending || selectedArticles.length === 0}
+                onClick={() => {
+                  const toSend = articles.filter((_, i) => selectedIndices.has(i));
+                  if (toSend.length === 0) return;
+                  sendEmailMutation.mutate(toSend);
+                }}
+                disabled={sendEmailMutation.isPending || selectedIndices.size === 0}
                 size="sm"
                 className="gap-2 bg-red-600 hover:bg-red-700 text-white"
                 data-testid="button-send-email"
@@ -270,7 +274,7 @@ export default function CardNewsAdmin() {
                 {sendEmailMutation.isPending
                   ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   : <Send className="w-3.5 h-3.5" />}
-                선택 발송 {selectedArticles.length > 0 && `(${selectedArticles.length}건)`}
+                선택 발송 {selectedIndices.size > 0 && `(${selectedIndices.size}건)`}
               </Button>
             </div>
           </div>
@@ -312,18 +316,17 @@ export default function CardNewsAdmin() {
               {/* 헤더: 전체 선택 + 카운트 */}
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <button
+                  <div
                     onClick={toggleSelectAll}
-                    className="flex items-center gap-2 text-sm font-semibold text-foreground hover:text-primary transition-colors"
+                    className="flex items-center gap-2 text-sm font-semibold text-foreground hover:text-primary transition-colors cursor-pointer select-none"
                     data-testid="button-select-all"
                   >
                     <Checkbox
                       checked={allSelected}
-                      onCheckedChange={toggleSelectAll}
-                      className="w-4 h-4"
+                      className="w-4 h-4 pointer-events-none"
                     />
                     {allSelected ? "전체 해제" : "전체 선택"}
-                  </button>
+                  </div>
                   <span className="text-xs text-muted-foreground">
                     {articles.length}건 수집 · <span className="text-red-600 font-semibold">{selectedIndices.size}건 선택</span>
                   </span>
@@ -426,8 +429,12 @@ export default function CardNewsAdmin() {
                   )}
                 </p>
                 <Button
-                  onClick={() => sendEmailMutation.mutate(selectedArticles)}
-                  disabled={sendEmailMutation.isPending || selectedArticles.length === 0}
+                  onClick={() => {
+                    const toSend = articles.filter((_, i) => selectedIndices.has(i));
+                    if (toSend.length === 0) return;
+                    sendEmailMutation.mutate(toSend);
+                  }}
+                  disabled={sendEmailMutation.isPending || selectedIndices.size === 0}
                   size="sm"
                   className="shrink-0 gap-2 bg-red-600 hover:bg-red-700 text-white disabled:opacity-40"
                 >

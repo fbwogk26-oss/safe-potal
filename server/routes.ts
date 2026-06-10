@@ -11524,6 +11524,7 @@ ${result.value}
 
   app.post('/api/card-news/send-email', requireAdmin, async (req, res) => {
     try {
+      console.log('[카드뉴스] send-email body keys:', Object.keys(req.body || {}), 'articles count:', req.body?.articles?.length ?? 'none');
       const clientArticles = Array.isArray(req.body?.articles) && req.body.articles.length > 0
         ? req.body.articles : null;
       const results = await sendCardNewsEmail(clientArticles);
