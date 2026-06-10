@@ -428,16 +428,16 @@ export default function TrafficFines() {
       )}
 
       {/* 헤더 */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-start sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">과태료 현황</h1>
           <p className="text-sm text-muted-foreground mt-1">교통 과태료 PDF 업로드 시 자동 분석 · 등록</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="outline"
             size="sm"
-            className="text-xs h-8"
+            className="text-xs h-9"
             onClick={() => window.open("/api/traffic-fines/excel", "_blank")}
             data-testid="button-excel-download"
           >
@@ -447,7 +447,7 @@ export default function TrafficFines() {
             <Button
               variant={selectionMode ? "default" : "outline"}
               size="sm"
-              className={`gap-1.5 ${selectionMode ? "bg-red-500 hover:bg-red-600 text-white" : ""}`}
+              className={`h-9 gap-1.5 ${selectionMode ? "bg-red-500 hover:bg-red-600 text-white" : ""}`}
               onClick={() => { setSelectionMode(v => !v); setSelectedIds(new Set()); }}
               data-testid="button-toggle-selection"
             >
@@ -456,7 +456,7 @@ export default function TrafficFines() {
             </Button>
           )}
           {isAdmin && (
-            <Button onClick={openNew} data-testid="button-new-fine">
+            <Button className="h-9" onClick={openNew} data-testid="button-new-fine">
               <Plus className="h-4 w-4 mr-1" /> 직접 등록
             </Button>
           )}
@@ -595,23 +595,23 @@ export default function TrafficFines() {
       {/* 목록 */}
       <Card>
         <CardHeader>
-          <div className="flex flex-col md:flex-row gap-3 md:items-center">
+          <div className="flex flex-col gap-3">
             <div className="flex items-center gap-2">
-            <CardTitle className="text-base">과태료 목록</CardTitle>
-            {selectionMode && (
-              <span className="text-sm text-muted-foreground">({selectedIds.size}개 선택됨)</span>
-            )}
-          </div>
-            <div className="flex gap-2 ml-auto">
+              <CardTitle className="text-base">과태료 목록</CardTitle>
+              {selectionMode && (
+                <span className="text-sm text-muted-foreground">({selectedIds.size}개 선택됨)</span>
+              )}
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2">
               <Input
                 placeholder="차량번호, 운전자, 위반내역 검색..."
                 value={filterText}
                 onChange={(e) => setFilterText(e.target.value)}
-                className="w-52"
+                className="flex-1 h-10"
                 data-testid="input-search-fine"
               />
               <Select value={filterStatus} onValueChange={(v: any) => setFilterStatus(v)}>
-                <SelectTrigger className="w-32" data-testid="select-filter-status">
+                <SelectTrigger className="w-full sm:w-32 h-10" data-testid="select-filter-status">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -631,7 +631,7 @@ export default function TrafficFines() {
           ) : filtered.length === 0 ? (
             <p className="text-center text-muted-foreground py-12 text-sm">과태료 내역이 없습니다</p>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto scrollbar-thick">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-muted-foreground">
@@ -779,7 +779,7 @@ export default function TrafficFines() {
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
             {/* 1. 납부요청일 */}
             <div className="space-y-1">
@@ -860,7 +860,7 @@ export default function TrafficFines() {
             </div>
 
             {/* 7. 위반내역 */}
-            <div className="col-span-2 space-y-1">
+            <div className="col-span-1 sm:col-span-2 space-y-1">
               <Label>위반내역</Label>
               <Input
                 value={form.violationType || ""}
@@ -871,7 +871,7 @@ export default function TrafficFines() {
             </div>
 
             {/* 8. 적발장소 */}
-            <div className="col-span-2 space-y-1">
+            <div className="col-span-1 sm:col-span-2 space-y-1">
               <Label>적발장소</Label>
               <Input
                 value={form.violationLocation || ""}

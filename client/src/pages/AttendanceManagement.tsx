@@ -485,7 +485,7 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
       </div>
 
       {/* 단계별 + 안전등급별 + 날짜별 차트 — 한 줄 5분할 */}
-      <div className="grid lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <Card className="lg:col-span-1">
           <CardHeader className="pb-2 pt-3 px-4 border-b">
             <div className="flex items-center justify-between">

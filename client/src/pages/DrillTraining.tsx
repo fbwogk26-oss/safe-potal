@@ -1237,7 +1237,7 @@ function CreateSessionDialog({ open, onClose }: { open: boolean; onClose: () => 
   const { toast } = useToast();
   const qc = useQueryClient();
   const [form, setForm] = useState({
-    title: `${CURRENT_YEAR}년 하반기 안전사고 발생 대응훈련`,
+    title: `${CURRENT_YEAR}년 하반기 비상사태 발생 시 대응훈련`,
     year: CURRENT_YEAR,
     period: "하반기",
     drillDate: "",
@@ -1255,11 +1255,11 @@ function CreateSessionDialog({ open, onClose }: { open: boolean; onClose: () => 
 
   function handlePeriodChange(v: string) {
     const half = v === "상반기" ? "상반기" : "하반기";
-    setForm(p => ({ ...p, period: half, title: `${form.year}년 ${half} 안전사고 발생 대응훈련` }));
+    setForm(p => ({ ...p, period: half, title: `${form.year}년 ${half} 비상사태 발생 시 대응훈련` }));
   }
   function handleYearChange(e: any) {
     const yr = Number(e.target.value);
-    setForm(p => ({ ...p, year: yr, title: `${yr}년 ${p.period} 안전사고 발생 대응훈련` }));
+    setForm(p => ({ ...p, year: yr, title: `${yr}년 ${p.period} 비상사태 발생 시 대응훈련` }));
   }
 
   return (
@@ -1802,18 +1802,18 @@ export default function DrillTraining() {
   return (
     <div className="space-y-5">
       {/* 헤더 */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-start sm:items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+          <div className="w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center shrink-0">
             <Siren className="w-4 h-4 text-red-600 dark:text-red-400" />
           </div>
           <div>
-            <h1 className="text-xl font-bold">안전사고 발생 대응훈련</h1>
-            <p className="text-xs text-muted-foreground">부서별 사고 대응 훈련 관리 및 보고 시스템</p>
+            <h1 className="text-xl font-bold">비상사태 발생 시 대응훈련</h1>
+            <p className="text-xs text-muted-foreground">부서별 비상사태 대응 훈련 관리 및 보고 시스템</p>
           </div>
         </div>
         {isAdmin && (
-          <Button onClick={() => setCreateOpen(true)}>
+          <Button onClick={() => setCreateOpen(true)} className="h-9">
             <Plus className="w-4 h-4 mr-1" />새 훈련 세션
           </Button>
         )}
@@ -1887,7 +1887,7 @@ export default function DrillTraining() {
                   </p>
                 </div>
                 {isAdmin && (
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <Button variant="outline" size="sm" onClick={() => {
                       if (currentSession?.status === "완료") {
                         apiRequest("PUT", `/api/drill-sessions/${selectedSession}`, { status: "진행중" })

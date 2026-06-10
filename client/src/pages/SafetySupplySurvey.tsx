@@ -480,10 +480,10 @@ export default function SafetySupplySurvey() {
   const isPending = createMut.isPending || copyMut.isPending;
 
   return (
-    <div className="flex h-full min-h-0" data-testid="page-safety-supply-survey">
+    <div className="flex flex-col sm:flex-row h-full min-h-0" data-testid="page-safety-supply-survey">
 
       {/* ── 사이드바 ──────────────────────────────────── */}
-      <div className="w-60 shrink-0 bg-white border-r border-gray-200 flex flex-col">
+      <div className="w-full sm:w-60 sm:shrink-0 bg-white border-b sm:border-b-0 sm:border-r border-gray-200 flex flex-col sm:max-h-full max-h-48 overflow-hidden">
         <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
           <span className="font-bold text-gray-800 text-sm flex items-center gap-1.5">
             <PackageCheck className="w-4 h-4 text-amber-500" />
@@ -557,50 +557,50 @@ export default function SafetySupplySurvey() {
         ) : (
           <>
             {/* ── 상단 툴바 ── */}
-            <div className="bg-white border-b border-gray-200 px-5 py-2.5 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div>
-                  <div className="flex items-center gap-2">
+            <div className="bg-white border-b border-gray-200 px-4 py-2.5 flex flex-wrap items-center gap-2 justify-between">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <h2 className="font-bold text-gray-800 text-base">{selected.year}년 {selected.half === 1 ? "상반기" : "하반기"}</h2>
                     <Badge variant="outline" className={`text-xs ${selected.half === 1 ? "border-blue-300 text-blue-700 bg-blue-50" : "border-orange-300 text-orange-700 bg-orange-50"}`}>
                       {selected.half === 1 ? "상반기" : "하반기"}
                     </Badge>
                   </div>
-                  <p className="text-xs text-gray-500">{selected.title}</p>
+                  <p className="text-xs text-gray-500 truncate">{selected.title}</p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-1.5">
+              <div className="flex flex-wrap items-center gap-1.5">
                 {deptsDirty && (
-                  <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white gap-1 h-8" onClick={() => saveDeptsMut.mutate(displayDepts)} disabled={saveDeptsMut.isPending} data-testid="button-save-depts">
+                  <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white gap-1 h-9" onClick={() => saveDeptsMut.mutate(displayDepts)} disabled={saveDeptsMut.isPending} data-testid="button-save-depts">
                     <Save className="w-3.5 h-3.5" /> {saveDeptsMut.isPending ? "저장중..." : "저장"}
                   </Button>
                 )}
                 {items.length > 0 && grandAmt > 0 && (
-                  <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white gap-1 h-8" onClick={openRegDlg} data-testid="button-register-cost">
+                  <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white gap-1 h-9" onClick={openRegDlg} data-testid="button-register-cost">
                     <ReceiptText className="w-3.5 h-3.5" /> 지출등록
                   </Button>
                 )}
-                <Button size="sm" variant="outline" className="gap-1 h-8" onClick={() => openCopyDialog(selected.id, { stopPropagation: () => {} } as any)} data-testid="button-copy-this-survey">
+                <Button size="sm" variant="outline" className="gap-1 h-9" onClick={() => openCopyDialog(selected.id, { stopPropagation: () => {} } as any)} data-testid="button-copy-this-survey">
                   <Copy className="w-3.5 h-3.5" /> 복사
                 </Button>
                 <label className="cursor-pointer">
                   <input type="file" accept=".xlsx,.xls" className="hidden" onChange={handleImport} data-testid="input-import-excel" />
-                  <span className="inline-flex items-center gap-1 h-8 px-3 rounded-md border border-gray-300 bg-white text-xs font-medium text-gray-700 hover:bg-gray-50 cursor-pointer">
+                  <span className="inline-flex items-center gap-1 h-9 px-3 rounded-md border border-gray-300 bg-white text-xs font-medium text-gray-700 hover:bg-gray-50 cursor-pointer">
                     <Upload className="w-3.5 h-3.5" /> 엑셀 업로드
                   </span>
                 </label>
-                <Button size="sm" variant="outline" className="gap-1 h-8" onClick={handleExport} data-testid="button-export-excel">
+                <Button size="sm" variant="outline" className="gap-1 h-9" onClick={handleExport} data-testid="button-export-excel">
                   <FileSpreadsheet className="w-3.5 h-3.5" /> 엑셀 다운로드
                 </Button>
-                <Button size="sm" variant="outline" className="gap-1 h-8 text-red-600 hover:text-red-700 border-red-200 hover:bg-red-50" onClick={() => { if (confirm("이 조사를 삭제하시겠습니까?")) deleteSurveyMut.mutate(selected.id); }} data-testid="button-delete-survey">
+                <Button size="sm" variant="outline" className="gap-1 h-9 text-red-600 hover:text-red-700 border-red-200 hover:bg-red-50" onClick={() => { if (confirm("이 조사를 삭제하시겠습니까?")) deleteSurveyMut.mutate(selected.id); }} data-testid="button-delete-survey">
                   <Trash2 className="w-3.5 h-3.5" /> 삭제
                 </Button>
               </div>
             </div>
 
             {/* ── 예산 카드 바 ── */}
-            <div className="bg-white border-b border-gray-200 px-5 py-2 flex items-center gap-6">
+            <div className="bg-white border-b border-gray-200 px-4 py-2 flex flex-wrap items-center gap-4">
               {/* 예산 */}
               <div className="flex items-center gap-2">
                 <div className="w-7 h-7 rounded-lg bg-amber-100 flex items-center justify-center shrink-0">
@@ -778,7 +778,7 @@ export default function SafetySupplySurvey() {
             </div>
 
             {/* ── 조사 그리드 ── */}
-            <div className="flex-1 overflow-auto p-4">
+            <div className="flex-1 overflow-auto scrollbar-thick p-4">
               {(itemsLoading || deptsLoading) && (
                 <div className="text-center py-16 text-gray-400 text-sm">불러오는 중...</div>
               )}
@@ -817,7 +817,7 @@ export default function SafetySupplySurvey() {
                         </Button>
                       )}
                     </div>
-                    <div className="flex items-center gap-4 text-xs text-gray-500">
+                    <div className="hidden sm:flex items-center gap-4 text-xs text-gray-500">
                       <span>부서 <strong className="text-gray-700">{displayDepts.length}</strong>개</span>
                       <span>총 인원 <strong className="text-gray-700">{totalHeadcount}</strong>명</span>
                       <span>총 수량 <strong className="text-green-700">{grandQty}</strong>개</span>

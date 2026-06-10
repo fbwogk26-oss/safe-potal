@@ -100,7 +100,7 @@ const NAV_SECTIONS: NavSection[] = [
           { label: "안전용품 신청", href: "/equipment", icon: ShoppingCart, permissionKey: "canViewEquipment" },
           { label: "안전관리자 보고서", href: "/safety-manager-reports", icon: HardHat, permissionKey: "canViewInspections" },
           { label: "산업안전보건관리비", href: "/safety-cost-budget", icon: Receipt, permissionKey: "canViewInspections" },
-          { label: "안전사고 발생 대응훈련", href: "/drill-training", icon: Siren, permissionKey: "canViewAccidents" },
+          { label: "비상사태 발생 시 대응훈련", href: "/drill-training", icon: Siren, permissionKey: "canViewAccidents" },
         ],
       },
     ],

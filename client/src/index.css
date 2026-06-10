@@ -208,19 +208,30 @@ table tbody td {
    스크롤바
 ──────────────────────────────────────────────── */
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 8px;
+  height: 8px;
 }
 ::-webkit-scrollbar-track {
   @apply bg-transparent;
 }
 ::-webkit-scrollbar-thumb {
-  @apply bg-border/80 rounded-full hover:bg-muted-foreground/30 transition-colors;
+  @apply bg-border rounded-full hover:bg-muted-foreground/40 transition-colors;
+}
+
+/* 모바일 스크롤바 더 크게 */
+@media (max-width: 768px) {
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-muted-foreground/40 rounded-full;
+  }
 }
 
 /* 두꺼운 가로 스크롤바 (테이블 전용) */
 .scrollbar-thick::-webkit-scrollbar {
-  height: 12px;
+  height: 14px;
 }
 .scrollbar-thick::-webkit-scrollbar-track {
   @apply bg-gray-100 rounded-full;
@@ -233,6 +244,16 @@ table tbody td {
 .scrollbar-thick {
   scrollbar-width: auto;
   scrollbar-color: #9ca3af #f3f4f6;
+}
+
+/* 모바일 두꺼운 스크롤바 */
+@media (max-width: 768px) {
+  .scrollbar-thick::-webkit-scrollbar {
+    height: 18px;
+  }
+  .scrollbar-thick::-webkit-scrollbar-thumb {
+    border: 3px solid transparent;
+  }
 }
 
 /* ────────────────────────────────────────────────
