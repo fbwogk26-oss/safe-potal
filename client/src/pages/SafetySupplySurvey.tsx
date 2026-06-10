@@ -825,7 +825,7 @@ export default function SafetySupplySurvey() {
                     </div>
                   </div>
 
-                  <div className="overflow-x-auto">
+                  <div className="overflow-x-auto scrollbar-thick">
                     <table className="text-xs border-collapse w-max min-w-full">
                       <thead className="sticky top-0 z-20">
                         <tr>
