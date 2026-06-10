@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend, LabelList } from "recharts";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Upload, Trash2, Users, Calendar, TrendingUp, FileSpreadsheet, UserCheck, Download, ClipboardList, ShieldCheck, AlertCircle, ChevronDown, ChevronRight } from "lucide-react";
 
 interface AttendanceRecord {
@@ -306,15 +307,36 @@ export default function AttendanceManagement() {
 
 // ─── 점검 분석 탭 ────────────────────────────────────────────
 function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
+  const { toast } = useToast();
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
   const [trendView, setTrendView] = useState<"weekly" | "monthly">("weekly");
   const [reasonDraft, setReasonDraft] = useState<Record<number, string>>({});
   const [reasonSaving, setReasonSaving] = useState<Record<number, boolean>>({});
+  const [selectedReasonIds, setSelectedReasonIds] = useState<Set<number>>(new Set());
 
   const saveReasonMutation = useMutation({
     mutationFn: ({ id, absenceReason }: { id: number; absenceReason: string }) =>
       apiRequest("PUT", `/api/attendance/records/${id}/reason`, { absenceReason }),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/attendance/records"] }); },
+  });
+
+  const deleteRecordMutation = useMutation({
+    mutationFn: (id: number) => apiRequest("DELETE", `/api/attendance/records/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/attendance/records"] });
+      toast({ title: "삭제되었습니다" });
+    },
+    onError: (e: any) => toast({ title: "삭제 실패", description: e.message, variant: "destructive" }),
+  });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: (ids: number[]) => apiRequest("DELETE", `/api/attendance/records`, { ids }),
+    onSuccess: (_data, ids) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/attendance/records"] });
+      setSelectedReasonIds(new Set());
+      toast({ title: `${ids.length}건 삭제되었습니다` });
+    },
+    onError: (e: any) => toast({ title: "일괄 삭제 실패", description: e.message, variant: "destructive" }),
   });
 
   // 미분류 제외
@@ -860,6 +882,20 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
           extractGrade(r.department) === "1등급" && getDeptHead(r.name) === null
         );
         if (grade1NoHead.length === 0) return null;
+        const allIds = grade1NoHead.map(r => r.id);
+        const allSelected = allIds.length > 0 && allIds.every(id => selectedReasonIds.has(id));
+        const someSelected = selectedReasonIds.size > 0;
+        const toggleAll = () => {
+          if (allSelected) setSelectedReasonIds(new Set());
+          else setSelectedReasonIds(new Set(allIds));
+        };
+        const toggleOne = (id: number) => {
+          setSelectedReasonIds(prev => {
+            const next = new Set(prev);
+            next.has(id) ? next.delete(id) : next.add(id);
+            return next;
+          });
+        };
         return (
           <Card className="overflow-hidden border-red-200/60 dark:border-red-800/40">
             <CardHeader className="pb-3 bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-950/30 dark:to-orange-950/20 border-b border-red-100 dark:border-red-800/30">
@@ -869,18 +905,38 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
                 </div>
                 <span>1등급 부서장 미입회 사유</span>
                 <Badge className="bg-red-500 hover:bg-red-500 text-white text-xs">{grade1NoHead.length}건</Badge>
+                {someSelected && (
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    className="h-6 text-xs px-2 ml-auto gap-1"
+                    disabled={bulkDeleteMutation.isPending}
+                    onClick={() => bulkDeleteMutation.mutate(Array.from(selectedReasonIds))}
+                    data-testid="button-bulk-delete-reasons"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    {selectedReasonIds.size}건 삭제
+                  </Button>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/30 hover:bg-muted/30">
+                    <TableHead className="py-2 w-8">
+                      <Checkbox
+                        checked={allSelected}
+                        onCheckedChange={toggleAll}
+                        data-testid="checkbox-select-all-reasons"
+                      />
+                    </TableHead>
                     <TableHead className="py-2 text-xs">날짜</TableHead>
                     <TableHead className="py-2 text-xs">점검자</TableHead>
                     <TableHead className="py-2 text-xs">국사명</TableHead>
                     <TableHead className="py-2 text-xs">공사내용</TableHead>
                     <TableHead className="py-2 text-xs">미입회 사유</TableHead>
-                    <TableHead className="py-2 text-xs w-16"></TableHead>
+                    <TableHead className="py-2 text-xs w-24"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -889,8 +945,16 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
                     const draft = reasonDraft[r.id] ?? savedReason;
                     const isDirty = draft !== savedReason;
                     const isSaving = reasonSaving[r.id];
+                    const isChecked = selectedReasonIds.has(r.id);
                     return (
-                      <TableRow key={r.id} className={savedReason ? "bg-green-50/30 dark:bg-green-950/10" : "bg-red-50/30 dark:bg-red-950/10"}>
+                      <TableRow key={r.id} className={isChecked ? "bg-red-100/60 dark:bg-red-900/20" : savedReason ? "bg-green-50/30 dark:bg-green-950/10" : "bg-red-50/30 dark:bg-red-950/10"}>
+                        <TableCell className="py-1.5 w-8">
+                          <Checkbox
+                            checked={isChecked}
+                            onCheckedChange={() => toggleOne(r.id)}
+                            data-testid={`checkbox-reason-${r.id}`}
+                          />
+                        </TableCell>
                         <TableCell className="text-xs text-muted-foreground whitespace-nowrap py-2">{r.attendanceDate}</TableCell>
                         <TableCell className="text-xs font-medium py-2">{r.name}</TableCell>
                         <TableCell className="text-xs font-medium py-2 whitespace-nowrap">{r.stationName || "-"}</TableCell>
@@ -907,26 +971,38 @@ function InspectionAnalytics({ records }: { records: AttendanceRecord[] }) {
                           />
                         </TableCell>
                         <TableCell className="py-1.5 text-right">
-                          {savedReason && !isDirty ? (
-                            <span className="text-[10px] text-green-600 font-medium">저장됨</span>
-                          ) : (
+                          <div className="flex items-center justify-end gap-1">
+                            {savedReason && !isDirty ? (
+                              <span className="text-[10px] text-green-600 font-medium">저장됨</span>
+                            ) : (
+                              <Button
+                                size="sm"
+                                className="h-7 text-xs px-2.5"
+                                disabled={!isDirty || isSaving}
+                                onClick={async () => {
+                                  setReasonSaving(prev => ({ ...prev, [r.id]: true }));
+                                  try {
+                                    await saveReasonMutation.mutateAsync({ id: r.id, absenceReason: draft });
+                                    setReasonDraft(prev => { const n = { ...prev }; delete n[r.id]; return n; });
+                                  } finally {
+                                    setReasonSaving(prev => ({ ...prev, [r.id]: false }));
+                                  }
+                                }}
+                              >
+                                {isSaving ? "저장중..." : "저장"}
+                              </Button>
+                            )}
                             <Button
                               size="sm"
-                              className="h-7 text-xs px-2.5"
-                              disabled={!isDirty || isSaving}
-                              onClick={async () => {
-                                setReasonSaving(prev => ({ ...prev, [r.id]: true }));
-                                try {
-                                  await saveReasonMutation.mutateAsync({ id: r.id, absenceReason: draft });
-                                  setReasonDraft(prev => { const n = { ...prev }; delete n[r.id]; return n; });
-                                } finally {
-                                  setReasonSaving(prev => ({ ...prev, [r.id]: false }));
-                                }
-                              }}
+                              variant="ghost"
+                              className="h-7 w-7 p-0 text-gray-300 hover:text-red-500 hover:bg-red-50"
+                              disabled={deleteRecordMutation.isPending}
+                              onClick={() => deleteRecordMutation.mutate(r.id)}
+                              data-testid={`button-delete-reason-${r.id}`}
                             >
-                              {isSaving ? "저장중..." : "저장"}
+                              <Trash2 className="w-3.5 h-3.5" />
                             </Button>
-                          )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     );

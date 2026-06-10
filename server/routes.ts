@@ -7225,6 +7225,9 @@ ${htmlDraft}
         createdBy: req.user?.username,
       });
 
+      // 기존 저장된 미입회 사유 맵 (이름::날짜 → 사유) — 재업로드 시 승계
+      const existingReasonMap = await storage.getAbsenceReasonMap();
+
       let insertedCount = 0;
       for (const row of dataRows) {
         let name = nameCol >= 0 ? (row[nameCol] || "").trim() : "";
@@ -7246,6 +7249,9 @@ ${htmlDraft}
         const month = d.getMonth() + 1;
         const year = d.getFullYear();
 
+        // 기존에 저장된 미입회 사유 승계
+        const inheritedReason = existingReasonMap.get(`${name}::${dateStr}`) ?? null;
+
         await storage.createAttendanceRecord({
           uploadId: upload.id,
           attendanceDate: dateStr,
@@ -7257,6 +7263,7 @@ ${htmlDraft}
           weekNum,
           month,
           year,
+          absenceReason: inheritedReason,
           createdBy: req.user?.username,
         });
         insertedCount++;
@@ -7286,6 +7293,25 @@ ${htmlDraft}
       const { absenceReason } = req.body;
       await storage.updateAttendanceRecordReason(id, absenceReason ?? "");
       res.json({ message: "저장되었습니다" });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // 입회 기록 단건 삭제
+  app.delete('/api/attendance/records/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteAttendanceRecord(id);
+      res.json({ message: "삭제되었습니다" });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // 입회 기록 일괄 삭제
+  app.delete('/api/attendance/records', isAuthenticated, async (req: any, res) => {
+    try {
+      const { ids } = req.body;
+      if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ message: "삭제할 항목을 선택하세요" });
+      await storage.deleteAttendanceRecordsBulk(ids.map(Number));
+      res.json({ message: `${ids.length}건 삭제되었습니다` });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 

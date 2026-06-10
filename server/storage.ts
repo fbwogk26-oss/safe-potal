@@ -65,7 +65,7 @@ import {
   safetySupplyDeptEntries,
   type SafetySupplyDeptEntry, type InsertSafetySupplyDeptEntry,
 } from "@shared/schema";
-import { eq, desc, asc, and, ilike, or, sql, inArray } from "drizzle-orm";
+import { eq, desc, asc, and, ilike, or, sql, inArray, isNotNull } from "drizzle-orm";
 
 export interface IStorage {
   // Teams
@@ -206,6 +206,9 @@ export interface IStorage {
   getAttendanceRecords(filters?: { year?: number; month?: number; weekNum?: number; uploadId?: number }): Promise<AttendanceRecord[]>;
   createAttendanceRecord(data: InsertAttendanceRecord): Promise<AttendanceRecord>;
   deleteAttendanceRecordsByUpload(uploadId: number): Promise<void>;
+  deleteAttendanceRecord(id: number): Promise<void>;
+  deleteAttendanceRecordsBulk(ids: number[]): Promise<void>;
+  getAbsenceReasonMap(): Promise<Map<string, string>>;
   updateAttendanceRecordReason(id: number, absenceReason: string): Promise<void>;
 
   // Online Education Progress
@@ -811,6 +814,25 @@ export class DatabaseStorage implements IStorage {
   }
   async deleteAttendanceRecordsByUpload(uploadId: number): Promise<void> {
     await db.delete(attendanceRecords).where(eq(attendanceRecords.uploadId, uploadId));
+  }
+  async deleteAttendanceRecord(id: number): Promise<void> {
+    await db.delete(attendanceRecords).where(eq(attendanceRecords.id, id));
+  }
+  async deleteAttendanceRecordsBulk(ids: number[]): Promise<void> {
+    if (ids.length === 0) return;
+    await db.delete(attendanceRecords).where(inArray(attendanceRecords.id, ids));
+  }
+  async getAbsenceReasonMap(): Promise<Map<string, string>> {
+    const rows = await db.select({
+      name: attendanceRecords.name,
+      attendanceDate: attendanceRecords.attendanceDate,
+      absenceReason: attendanceRecords.absenceReason,
+    }).from(attendanceRecords).where(isNotNull(attendanceRecords.absenceReason));
+    const map = new Map<string, string>();
+    for (const r of rows) {
+      if (r.absenceReason) map.set(`${r.name}::${r.attendanceDate}`, r.absenceReason);
+    }
+    return map;
   }
   async updateAttendanceRecordReason(id: number, absenceReason: string): Promise<void> {
     await db.update(attendanceRecords).set({ absenceReason }).where(eq(attendanceRecords.id, id));
