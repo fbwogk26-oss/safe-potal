@@ -7528,6 +7528,18 @@ ${htmlDraft}
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
+  app.patch('/api/safety-supply/dept-entries/:id/bulk-items-delivery-status', isAuthenticated, async (req: any, res) => {
+    try {
+      const deptEntryId = parseInt(req.params.id);
+      const { itemIds, deliveryStatus } = req.body;
+      const valid = ["주문예정", "주문완료", "배송중", "배송완료"];
+      if (!valid.includes(deliveryStatus) || !Array.isArray(itemIds)) return res.status(400).json({ message: "잘못된 요청" });
+      const updated = await storage.bulkUpdateDeptEntryDeliveryStatusItems(deptEntryId, itemIds.map(Number), deliveryStatus);
+      if (!updated) return res.status(404).json({ message: "부서 항목을 찾을 수 없습니다" });
+      res.json(updated);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
   app.patch('/api/safety-supply/dept-entries/:id/delivery-status', isAuthenticated, async (req: any, res) => {
     try {
       const deptEntryId = parseInt(req.params.id);
