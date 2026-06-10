@@ -6,7 +6,7 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { useAuth } from "@/hooks/use-auth";
 import { Link } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { PackagePlus, ChevronLeft, Trash2, Send, ImagePlus, Link2, X, ExternalLink, Clock, CheckCircle2, XCircle, AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { PackagePlus, ChevronLeft, Trash2, Send, ImagePlus, Link2, X, ExternalLink, Clock, CheckCircle2, XCircle, AlertCircle, ChevronDown, ChevronUp, Truck, Package, PackageCheck, ShoppingCart, Lock } from "lucide-react";
 import { format } from "date-fns";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,6 +28,13 @@ const STATUS_CONFIG: Record<string, { label: string; icon: any; className: strin
   "반려": { label: "반려", icon: XCircle, className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border-red-200" },
 };
 
+const DELIVERY_STATUS_CONFIG: Record<string, { label: string; icon: any; className: string }> = {
+  "주문예정": { label: "주문예정", icon: ShoppingCart, className: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400 border-gray-200" },
+  "주문완료": { label: "주문완료", icon: Package, className: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border-blue-200" },
+  "배송중": { label: "배송중", icon: Truck, className: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400 border-orange-200" },
+  "배송완료": { label: "배송완료", icon: PackageCheck, className: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border-green-200" },
+};
+
 const URGENCY_CONFIG: Record<string, { className: string }> = {
   "보통": { className: "bg-gray-100 text-gray-600 border-gray-200" },
   "긴급": { className: "bg-orange-100 text-orange-700 border-orange-200" },
@@ -36,6 +43,17 @@ const URGENCY_CONFIG: Record<string, { className: string }> = {
 
 function StatusBadge({ status }: { status: string }) {
   const cfg = STATUS_CONFIG[status] || STATUS_CONFIG["대기"];
+  const Icon = cfg.icon;
+  return (
+    <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full border ${cfg.className}`}>
+      <Icon className="w-3 h-3" />{cfg.label}
+    </span>
+  );
+}
+
+function DeliveryStatusBadge({ status }: { status: string | null }) {
+  const s = status || "주문예정";
+  const cfg = DELIVERY_STATUS_CONFIG[s] || DELIVERY_STATUS_CONFIG["주문예정"];
   const Icon = cfg.icon;
   return (
     <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full border ${cfg.className}`}>
@@ -66,6 +84,7 @@ export default function NewEquipmentRequestPage() {
   const [adminDialogOpen, setAdminDialogOpen] = useState(false);
   const [adminTarget, setAdminTarget] = useState<NewEquipmentRequest | null>(null);
   const [adminStatus, setAdminStatus] = useState("대기");
+  const [adminDeliveryStatus, setAdminDeliveryStatus] = useState("주문예정");
   const [adminNote, setAdminNote] = useState("");
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
@@ -108,12 +127,15 @@ export default function NewEquipmentRequestPage() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, ...body }: { id: number; status: string; adminNote: string }) =>
+    mutationFn: async ({ id, ...body }: { id: number; status: string; deliveryStatus: string; adminNote: string }) =>
       apiRequest("PUT", `/api/new-equipment-requests/${id}`, { ...body, isReadByAdmin: true }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/new-equipment-requests"] });
       toast({ title: "상태 변경 완료" });
       setAdminDialogOpen(false); setAdminTarget(null);
+    },
+    onError: (err: any) => {
+      toast({ variant: "destructive", title: "수정 실패", description: err?.message || "배송완료 항목은 수정할 수 없습니다." });
     },
   });
 
@@ -122,6 +144,9 @@ export default function NewEquipmentRequestPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/new-equipment-requests"] });
       toast({ title: "삭제 완료" });
+    },
+    onError: (err: any) => {
+      toast({ variant: "destructive", title: "삭제 실패", description: err?.message || "배송완료 항목은 삭제할 수 없습니다." });
     },
   });
 
@@ -161,8 +186,11 @@ export default function NewEquipmentRequestPage() {
   };
 
   const openAdminDialog = (req: NewEquipmentRequest) => {
-    setAdminTarget(req); setAdminStatus(req.status);
-    setAdminNote(req.adminNote || ""); setAdminDialogOpen(true);
+    setAdminTarget(req);
+    setAdminStatus(req.status);
+    setAdminDeliveryStatus(req.deliveryStatus || "주문예정");
+    setAdminNote(req.adminNote || "");
+    setAdminDialogOpen(true);
   };
 
   const handleDelete = (id: number) => {
@@ -365,9 +393,9 @@ export default function NewEquipmentRequestPage() {
           <AnimatePresence>
             {requests.map((req) => {
               const isExpanded = expandedId === req.id;
-              const statusCfg = STATUS_CONFIG[req.status] || STATUS_CONFIG["대기"];
               const urgencyCfg = URGENCY_CONFIG[req.urgency] || URGENCY_CONFIG["보통"];
               const imgSrc = req.imageUrl ? getImageSrc(req.imageUrl) : null;
+              const isDelivered = req.deliveryStatus === "배송완료";
               return (
                 <motion.div
                   key={req.id}
@@ -376,15 +404,18 @@ export default function NewEquipmentRequestPage() {
                   exit={{ opacity: 0, y: -8 }}
                 >
                   <Card
-                    className="overflow-hidden border-border/60 hover:border-border hover:shadow-sm transition-all"
+                    className={`overflow-hidden border-border/60 hover:border-border hover:shadow-sm transition-all ${isDelivered ? "opacity-75" : ""}`}
                     data-testid={`card-request-${req.id}`}
                   >
                     <div
                       className="flex items-center gap-3 px-4 py-3 cursor-pointer"
                       onClick={() => setExpandedId(isExpanded ? null : req.id)}
                     >
-                      {/* Status pill */}
-                      <StatusBadge status={req.status} />
+                      {/* Status pills */}
+                      <div className="flex flex-col gap-1 shrink-0">
+                        <StatusBadge status={req.status} />
+                        <DeliveryStatusBadge status={req.deliveryStatus} />
+                      </div>
 
                       {/* Title & meta */}
                       <div className="flex-1 min-w-0">
@@ -394,6 +425,7 @@ export default function NewEquipmentRequestPage() {
                           <span className={`inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${urgencyCfg.className}`}>
                             {req.urgency}
                           </span>
+                          {isDelivered && <Lock className="w-3 h-3 text-muted-foreground" />}
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5 truncate">
                           {req.requestedBy} · {req.department} · {req.createdAt ? format(new Date(req.createdAt), "yyyy-MM-dd") : ""}
@@ -402,7 +434,7 @@ export default function NewEquipmentRequestPage() {
 
                       {/* Actions */}
                       <div className="flex items-center gap-1 shrink-0">
-                        {canManageEquipmentRequests && (
+                        {canManageEquipmentRequests && !isDelivered && (
                           <Button
                             variant="outline" size="sm"
                             onClick={(e) => { e.stopPropagation(); openAdminDialog(req); }}
@@ -412,7 +444,12 @@ export default function NewEquipmentRequestPage() {
                             상태변경
                           </Button>
                         )}
-                        {(user?.role === "admin" || user?.username === req.requestedBy) && (
+                        {isDelivered && canManageEquipmentRequests && (
+                          <span className="text-xs text-muted-foreground flex items-center gap-1 px-2">
+                            <Lock className="w-3 h-3" />수정불가
+                          </span>
+                        )}
+                        {(user?.role === "admin" || user?.username === req.requestedBy) && !isDelivered && (
                           <Button
                             variant="ghost" size="icon"
                             className="h-7 w-7"
@@ -499,7 +536,7 @@ export default function NewEquipmentRequestPage() {
                 <span className="text-muted-foreground ml-2">({adminTarget.category})</span>
               </div>
               <div className="space-y-1.5">
-                <Label>상태</Label>
+                <Label>검토 상태</Label>
                 <Select value={adminStatus} onValueChange={setAdminStatus}>
                   <SelectTrigger data-testid="select-admin-status">
                     <SelectValue />
@@ -511,6 +548,26 @@ export default function NewEquipmentRequestPage() {
                     <SelectItem value="반려">반려</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>배송 현황</Label>
+                <Select value={adminDeliveryStatus} onValueChange={setAdminDeliveryStatus}>
+                  <SelectTrigger data-testid="select-admin-delivery-status">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="주문예정">주문예정</SelectItem>
+                    <SelectItem value="주문완료">주문완료</SelectItem>
+                    <SelectItem value="배송중">배송중</SelectItem>
+                    <SelectItem value="배송완료">배송완료</SelectItem>
+                  </SelectContent>
+                </Select>
+                {adminDeliveryStatus === "배송완료" && (
+                  <p className="text-xs text-orange-600 dark:text-orange-400 flex items-center gap-1 mt-1">
+                    <Lock className="w-3 h-3" />
+                    배송완료로 변경하면 이후 수정이 불가합니다.
+                  </p>
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label>관리자 메모</Label>
@@ -527,7 +584,14 @@ export default function NewEquipmentRequestPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setAdminDialogOpen(false)} data-testid="button-admin-cancel">취소</Button>
             <Button
-              onClick={() => { if (adminTarget) updateMutation.mutate({ id: adminTarget.id, status: adminStatus, adminNote }); }}
+              onClick={() => {
+                if (adminTarget) updateMutation.mutate({
+                  id: adminTarget.id,
+                  status: adminStatus,
+                  deliveryStatus: adminDeliveryStatus,
+                  adminNote,
+                });
+              }}
               disabled={updateMutation.isPending}
               data-testid="button-admin-save"
               className="bg-teal-600 hover:bg-teal-700 text-white"

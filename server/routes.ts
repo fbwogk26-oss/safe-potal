@@ -5371,6 +5371,7 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
       const id = Number(req.params.id);
       const existing = await storage.getNewEquipmentRequest(id);
       if (!existing) return res.status(404).json({ message: "Not found" });
+      if (existing.deliveryStatus === "배송완료") return res.status(403).json({ message: "배송완료된 항목은 수정할 수 없습니다" });
       if (!isOwnerOrAdmin(req, existing.requestedBy)) return res.status(403).json({ message: "본인이 요청한 항목만 수정할 수 있습니다" });
       const request = await storage.updateNewEquipmentRequest(id, req.body);
       res.json(request);
@@ -5384,6 +5385,7 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
       const id = Number(req.params.id);
       const existing = await storage.getNewEquipmentRequest(id);
       if (!existing) return res.status(404).json({ message: "Not found" });
+      if (existing.deliveryStatus === "배송완료") return res.status(403).json({ message: "배송완료된 항목은 삭제할 수 없습니다" });
       if (!isOwnerOrAdmin(req, existing.requestedBy)) return res.status(403).json({ message: "본인이 요청한 항목만 삭제할 수 있습니다" });
       await storage.deleteNewEquipmentRequest(id);
       res.status(204).send();

@@ -367,6 +367,7 @@ export const newEquipmentRequests = pgTable("new_equipment_requests", {
   department: text("department"),
   requestedBy: text("requested_by"),
   status: text("status").notNull().default("대기"),
+  deliveryStatus: text("delivery_status").default("주문예정"),
   adminNote: text("admin_note"),
   imageUrl: text("image_url"),
   referenceUrl: text("reference_url"),
