@@ -212,15 +212,6 @@ export default function SafetySupplySurvey() {
     onError: (e: any) => toast({ title: "배송 현황 변경 실패", description: e.message, variant: "destructive" }),
   });
 
-  const bulkItemDeliveryMut = useMutation({
-    mutationFn: ({ itemId, deliveryStatus }: { itemId: number; deliveryStatus: string }) =>
-      apiRequest("PATCH", `/api/safety-supply/surveys/${selectedId}/items/${itemId}/bulk-delivery-status`, { deliveryStatus }).then(r => r.json()),
-    onSuccess: (_data, vars) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/safety-supply/surveys", selectedId, "dept-entries"] });
-      toast({ title: `전체 부서에 "${vars.deliveryStatus}" 일괄 적용됐습니다.` });
-    },
-    onError: (e: any) => toast({ title: "일괄 변경 실패", description: e.message, variant: "destructive" }),
-  });
 
   const bulkRowMut = useMutation({
     mutationFn: ({ deptEntryId, itemIds, deliveryStatus }: { deptEntryId: number; itemIds: number[]; deliveryStatus: string }) =>
@@ -877,28 +868,6 @@ export default function SafetySupplySurvey() {
                                       <ListChecks className="w-3 h-3" />
                                     </button>
                                   </div>
-                                  {bulkColItemId !== it.id && (
-                                    <Select
-                                      onValueChange={(v) => bulkItemDeliveryMut.mutate({ itemId: it.id, deliveryStatus: v })}
-                                      disabled={bulkItemDeliveryMut.isPending}
-                                      value=""
-                                    >
-                                      <SelectTrigger className="h-5 text-[10px] border border-amber-300 bg-white text-amber-700 font-semibold px-1.5 py-0 rounded w-[72px] gap-0.5 focus:ring-0">
-                                        <span className="truncate">전체변경</span>
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {DELIVERY_STATUSES.map(s => {
-                                          const cfg = DELIVERY_STATUS_CONFIG[s];
-                                          const SIcon = cfg.icon;
-                                          return (
-                                            <SelectItem key={s} value={s} className="text-xs">
-                                              <span className="flex items-center gap-1.5"><SIcon className="w-3 h-3" />{s}</span>
-                                            </SelectItem>
-                                          );
-                                        })}
-                                      </SelectContent>
-                                    </Select>
-                                  )}
                                   {bulkColItemId === it.id && (
                                     <span className="text-[10px] text-indigo-200 font-normal">부서 선택 중</span>
                                   )}
