@@ -31,7 +31,7 @@ const DEPARTMENTS = [
   "운용계획팀", "사업지원팀", "현장경영팀",
 ];
 
-const SUBCONTRACTORS = ["와이어블", "스피드이엔지"];
+const SUBCONTRACTORS = ["와이어블", "스피드이엔지", "대구본부"];
 
 type CheckItem = { item: string; issue: string; improvement: string };
 type Photo = { url: string; name: string };
