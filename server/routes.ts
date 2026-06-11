@@ -10048,7 +10048,8 @@ ${htmlDraft}
   app.get('/api/safety-cost-records', isAuthenticated, async (req, res) => {
     try {
       const year = req.query.year ? Number(req.query.year) : undefined;
-      const records = await storage.getSafetyCostRecords(year);
+      const headquarters = req.query.headquarters as string | undefined;
+      const records = await storage.getSafetyCostRecords(year, headquarters);
       res.json(records);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
@@ -10097,7 +10098,8 @@ ${htmlDraft}
   app.get('/api/safety-cost-tax-invoices', isAuthenticated, async (req, res) => {
     try {
       const year = req.query.year ? Number(req.query.year) : undefined;
-      const records = await storage.getSafetyCostTaxInvoices(year);
+      const headquarters = req.query.headquarters as string | undefined;
+      const records = await storage.getSafetyCostTaxInvoices(year, headquarters);
       res.json(records);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
@@ -10155,9 +10157,10 @@ ${htmlDraft}
     try {
       const yearRaw = Number(req.query.year);
       const year = (!isNaN(yearRaw) && yearRaw > 2000) ? yearRaw : new Date().getFullYear();
-      console.log(`[export] 법정경비 다운로드 요청: year=${year}`);
-      const records = await storage.getSafetyCostRecords(year);
-      const taxInvoices = await storage.getSafetyCostTaxInvoices(year);
+      const headquarters = req.query.headquarters as string | undefined;
+      console.log(`[export] 법정경비 다운로드 요청: year=${year}, headquarters=${headquarters}`);
+      const records = await storage.getSafetyCostRecords(year, headquarters);
+      const taxInvoices = await storage.getSafetyCostTaxInvoices(year, headquarters);
       console.log(`[export] DB 로드 완료: records=${records.length}, taxInvoices=${taxInvoices.length}`);
 
       const wb = new ExcelJS.Workbook();

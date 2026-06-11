@@ -203,12 +203,12 @@ export default function SafetyCostBudget() {
 
   // ── Queries ──────────────────────────────────────────────────────
   const { data: records = [], isLoading } = useQuery<SafetyCostRecord[]>({
-    queryKey: ["/api/safety-cost-records", year],
-    queryFn: () => fetch(`/api/safety-cost-records?year=${year}`, { credentials: "include" }).then(r => r.json()),
+    queryKey: ["/api/safety-cost-records", year, headquarters],
+    queryFn: () => fetch(`/api/safety-cost-records?year=${year}&headquarters=${encodeURIComponent(headquarters)}`, { credentials: "include" }).then(r => r.json()),
   });
   const { data: taxInvoices = [] } = useQuery<SafetyCostTaxInvoice[]>({
-    queryKey: ["/api/safety-cost-tax-invoices", year],
-    queryFn: () => fetch(`/api/safety-cost-tax-invoices?year=${year}`, { credentials: "include" }).then(r => r.json()),
+    queryKey: ["/api/safety-cost-tax-invoices", year, headquarters],
+    queryFn: () => fetch(`/api/safety-cost-tax-invoices?year=${year}&headquarters=${encodeURIComponent(headquarters)}`, { credentials: "include" }).then(r => r.json()),
   });
   const { data: budgets = {} } = useQuery<Record<string, number>>({
     queryKey: ["/api/safety-cost-budget", year],
@@ -221,7 +221,7 @@ export default function SafetyCostBudget() {
 
   // ── Mutations ────────────────────────────────────────────────────
   const createMut = useMutation({
-    mutationFn: (d: any) => apiRequest("POST", "/api/safety-cost-records", d),
+    mutationFn: (d: any) => apiRequest("POST", "/api/safety-cost-records", { ...d, headquarters }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/safety-cost-records"] }); toast({ title: "저장 완료" }); closeDlg(); },
     onError: (e: any) => toast({ title: "저장 실패", description: e.message, variant: "destructive" }),
   });
@@ -249,7 +249,7 @@ export default function SafetyCostBudget() {
   });
   const bulkDeleteMut = useMutation({
     mutationFn: (ids: number[]) => apiRequest("POST", "/api/safety-cost-records/bulk-delete", { ids }),
-    onSuccess: (_, ids) => {
+    onSuccess: (_: any, ids: number[]) => {
       qc.invalidateQueries({ queryKey: ["/api/safety-cost-records"] });
       toast({ title: `${ids.length}건 일괄 삭제 완료` });
       setSelectedIds(new Set());
@@ -366,6 +366,7 @@ export default function SafetyCostBudget() {
     for (const it of selected) {
       try {
         await apiRequest("POST", "/api/safety-cost-records", {
+          headquarters,
           year: Number(bulkCommon.year), month: Number(bulkCommon.month),
           category: bulkCommon.category, subCategory: bulkCommon.subCategory || null,
           itemName: it.itemName || "품명 미상",
@@ -559,6 +560,7 @@ export default function SafetyCostBudget() {
     for (const r of selected) {
       try {
         await apiRequest("POST", "/api/safety-cost-records", {
+          headquarters,
           year: Number(r.year), month: Number(r.month),
           category: r.category || null,
           subCategory: r.subCategory || null,
@@ -719,6 +721,7 @@ export default function SafetyCostBudget() {
       toast({ title: "필수 항목 누락", description: "항목·품명·합계금액은 필수입니다.", variant:"destructive" }); return;
     }
     const payload = {
+      headquarters,
       year: Number(form.year), month: Number(form.month), category: form.category,
       subCategory: form.subCategory||null, itemName: form.itemName,
       specification: form.specification||null, unit: form.unit||null,
@@ -736,7 +739,7 @@ export default function SafetyCostBudget() {
   function handleTaxSubmit() {
     if (!taxForm.totalAmount) { toast({ title: "합계금액 필수", variant:"destructive" }); return; }
     const fd = new FormData();
-    const body = { year: Number(taxForm.year), month: Number(taxForm.month),
+    const body = { headquarters, year: Number(taxForm.year), month: Number(taxForm.month),
       vendorName: taxForm.vendorName||null, supplyAmount: taxForm.supplyAmount||null,
       vatAmount: taxForm.vatAmount||null, totalAmount: taxForm.totalAmount, notes: taxForm.notes||null };
     fd.append("data", JSON.stringify(body));
@@ -748,7 +751,7 @@ export default function SafetyCostBudget() {
   async function handleDownload() {
     setDownloading(true);
     try {
-      const r = await fetch(`/api/safety-cost-records/export?year=${year}`, { credentials:"include" });
+      const r = await fetch(`/api/safety-cost-records/export?year=${year}&headquarters=${encodeURIComponent(headquarters)}`, { credentials:"include" });
       if (!r.ok) throw new Error("다운로드 실패");
       const blob = await r.blob();
       const url = URL.createObjectURL(blob);

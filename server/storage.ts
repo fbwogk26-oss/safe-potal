@@ -282,14 +282,14 @@ export interface IStorage {
   bulkConfirmEducationTasks(ids: number[]): Promise<void>;
 
   // Safety Cost Records (산업안전보건관리비)
-  getSafetyCostRecords(year?: number): Promise<SafetyCostRecord[]>;
+  getSafetyCostRecords(year?: number, headquarters?: string): Promise<SafetyCostRecord[]>;
   getSafetyCostRecord(id: number): Promise<SafetyCostRecord | undefined>;
   createSafetyCostRecord(data: InsertSafetyCostRecord): Promise<SafetyCostRecord>;
   updateSafetyCostRecord(id: number, data: Partial<InsertSafetyCostRecord>): Promise<SafetyCostRecord>;
   deleteSafetyCostRecord(id: number): Promise<void>;
 
   // Safety Cost Tax Invoices (세금계산서)
-  getSafetyCostTaxInvoices(year?: number): Promise<SafetyCostTaxInvoice[]>;
+  getSafetyCostTaxInvoices(year?: number, headquarters?: string): Promise<SafetyCostTaxInvoice[]>;
   createSafetyCostTaxInvoice(data: InsertSafetyCostTaxInvoice): Promise<SafetyCostTaxInvoice>;
   updateSafetyCostTaxInvoice(id: number, data: Partial<InsertSafetyCostTaxInvoice>): Promise<SafetyCostTaxInvoice>;
   deleteSafetyCostTaxInvoice(id: number): Promise<void>;
@@ -1047,14 +1047,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   // === 산업안전보건관리비 사용내역 ===
-  async getSafetyCostRecords(year?: number): Promise<SafetyCostRecord[]> {
-    if (year) {
-      return await db.select().from(safetyCostRecords)
-        .where(eq(safetyCostRecords.year, year))
-        .orderBy(desc(safetyCostRecords.month), desc(safetyCostRecords.createdAt));
-    }
-    return await db.select().from(safetyCostRecords)
-      .orderBy(desc(safetyCostRecords.year), desc(safetyCostRecords.month), desc(safetyCostRecords.createdAt));
+  async getSafetyCostRecords(year?: number, headquarters?: string): Promise<SafetyCostRecord[]> {
+    const conditions = [];
+    if (year) conditions.push(eq(safetyCostRecords.year, year));
+    if (headquarters) conditions.push(eq(safetyCostRecords.headquarters, headquarters));
+    const q = db.select().from(safetyCostRecords);
+    const filtered = conditions.length > 0 ? q.where(conditions.length === 1 ? conditions[0] : and(...conditions)) : q;
+    return await filtered.orderBy(desc(safetyCostRecords.year), desc(safetyCostRecords.month), desc(safetyCostRecords.createdAt));
   }
   async getSafetyCostRecord(id: number): Promise<SafetyCostRecord | undefined> {
     const [row] = await db.select().from(safetyCostRecords).where(eq(safetyCostRecords.id, id));
@@ -1073,14 +1072,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   // === 세금계산서 ===
-  async getSafetyCostTaxInvoices(year?: number): Promise<SafetyCostTaxInvoice[]> {
-    if (year) {
-      return await db.select().from(safetyCostTaxInvoices)
-        .where(eq(safetyCostTaxInvoices.year, year))
-        .orderBy(desc(safetyCostTaxInvoices.month));
-    }
-    return await db.select().from(safetyCostTaxInvoices)
-      .orderBy(desc(safetyCostTaxInvoices.year), desc(safetyCostTaxInvoices.month));
+  async getSafetyCostTaxInvoices(year?: number, headquarters?: string): Promise<SafetyCostTaxInvoice[]> {
+    const conditions = [];
+    if (year) conditions.push(eq(safetyCostTaxInvoices.year, year));
+    if (headquarters) conditions.push(eq(safetyCostTaxInvoices.headquarters, headquarters));
+    const q = db.select().from(safetyCostTaxInvoices);
+    const filtered = conditions.length > 0 ? q.where(conditions.length === 1 ? conditions[0] : and(...conditions)) : q;
+    return await filtered.orderBy(desc(safetyCostTaxInvoices.year), desc(safetyCostTaxInvoices.month));
   }
   async createSafetyCostTaxInvoice(data: InsertSafetyCostTaxInvoice): Promise<SafetyCostTaxInvoice> {
     const [row] = await db.insert(safetyCostTaxInvoices).values(data).returning();

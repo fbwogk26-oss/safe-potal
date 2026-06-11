@@ -579,6 +579,7 @@ export type InsertEducationTask = z.infer<typeof insertEducationTaskSchema>;
 // === 산업안전보건관리비 사용내역 ===
 export const safetyCostRecords = pgTable("safety_cost_records", {
   id: serial("id").primaryKey(),
+  headquarters: text("headquarters").notNull().default("대구본부"),
   year: integer("year").notNull(),
   month: integer("month").notNull(),
   category: text("category").notNull(), // "1. 안전관리자 등 인건비..." ~ "9. 위험성평가..."
@@ -611,6 +612,7 @@ export type InsertSafetyCostRecord = z.infer<typeof insertSafetyCostRecordSchema
 // === 세금계산서 (월별) ===
 export const safetyCostTaxInvoices = pgTable("safety_cost_tax_invoices", {
   id: serial("id").primaryKey(),
+  headquarters: text("headquarters").notNull().default("대구본부"),
   year: integer("year").notNull(),
   month: integer("month").notNull(),
   vendorName: text("vendor_name"),
