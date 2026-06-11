@@ -1,4 +1,5 @@
 import { useNotices, useCreateNotice, useDeleteNotice, useUpdateNotice } from "@/hooks/use-notices";
+import { useHeadquarters } from "@/contexts/HeadquartersContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,7 +17,6 @@ import { motion } from "framer-motion";
 import { Link } from "wouter";
 import { usePermissions } from "@/hooks/use-permissions";
 
-const TEAMS = ["동대구운용팀", "포항운용팀", "안동운용팀", "서대구운용팀", "남대구운용팀", "구미운용팀", "문경운용팀", "운용계획팀", "사업지원팀", "현장경영팀"];
 
 const CATEGORIES = [
   { id: "보호구", label: "보호구", icon: HardHat },
@@ -115,6 +115,7 @@ interface EquipmentStatusProps {
 }
 
 export default function EquipmentStatus({ embedded = false }: EquipmentStatusProps) {
+  const { departments: TEAMS } = useHeadquarters();
   const { canDownloadEquipmentExcel, canEditEquipmentStatus } = usePermissions();
   const { data: statusRecords, isLoading } = useNotices("equip_status");
   const { mutate: createRecord, mutateAsync: createRecordAsync, isPending: isCreating } = useCreateNotice();

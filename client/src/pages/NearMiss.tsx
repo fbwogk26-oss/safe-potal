@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useHeadquarters } from "@/contexts/HeadquartersContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -23,7 +24,6 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
 } from "recharts";
 
-const TEAMS = ["동대구운용팀","포항운용팀","안동운용팀","서대구운용팀","남대구운용팀","구미운용팀","문경운용팀","운용계획팀","사업지원팀","현장경영팀"];
 
 const ACCIDENT_TYPES = ["추락","전도(넘어짐)","감전","낙하·비래","협착(끼임)","충돌","화재","기타"];
 const RISK_FACTORS = ["불안전한 상태 (시설·장비 결함)", "불안전한 행동 (보호구 미착용 등)", "환경적 요인", "기타"];
@@ -44,6 +44,7 @@ type NearMiss = {
 };
 
 export default function NearMiss() {
+  const { departments: TEAMS } = useHeadquarters();
   const { toast } = useToast();
   const qc = useQueryClient();
   const { isAdmin, canEditAccidents } = usePermissions();

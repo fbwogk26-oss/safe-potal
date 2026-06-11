@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useHeadquarters } from "@/contexts/HeadquartersContext";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -25,13 +26,7 @@ const CHECK_ITEMS_TEMPLATE = [
   "기타",
 ];
 
-const DEPARTMENTS = [
-  "동대구운용팀", "포항운용팀", "안동운용팀",
-  "서대구운용팀", "남대구운용팀", "구미운용팀", "문경운용팀",
-  "운용계획팀", "사업지원팀", "현장경영팀",
-];
-
-const SUBCONTRACTORS = ["와이어블", "스피드이엔지", "대구본부"];
+const SUBCONTRACTORS_BASE = ["와이어블", "스피드이엔지"];
 
 type CheckItem = { item: string; issue: string; improvement: string };
 type Photo = { url: string; name: string };
@@ -87,6 +82,7 @@ function buildPrintHtml(
   selectedInspections: JointInspection[],
   allSignatures: Record<number, JoinInspectionSignature[]>,
   photosBase64: Record<number, string[]>,
+  hq = "대구본부",
 ) {
   const total = selectedInspections.length + 1;
 
@@ -140,7 +136,7 @@ function buildPrintHtml(
           ${photoHtml}
         </div>
         <div class="page-footer">
-          <span class="footer-org">대구본부 현장경영팀</span>
+          <span class="footer-org">${hq} 현장경영팀</span>
           <span class="footer-page">${pageNum} / ${total}</span>
         </div>
       </div>
@@ -185,7 +181,7 @@ function buildPrintHtml(
         </table>
       </div>
       <div class="page-footer">
-        <span class="footer-org">대구본부 현장경영팀</span>
+        <span class="footer-org">${hq} 현장경영팀</span>
         <span class="footer-page">${total} / ${total}</span>
       </div>
     </div>
@@ -394,6 +390,8 @@ function SignaturePad({ onSave, onClear }: { onSave: (data: string) => void; onC
 
 // ── 메인 페이지 ─────────────────────────────────────────────
 export default function JointInspectionPage() {
+  const { headquarters, departments: DEPARTMENTS } = useHeadquarters();
+  const SUBCONTRACTORS = [...SUBCONTRACTORS_BASE, headquarters];
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
@@ -579,7 +577,7 @@ export default function JointInspectionPage() {
       const photosMap: Record<number, string[]> = {};
       photosResults.forEach(({ id, b64 }) => { photosMap[id] = b64; });
 
-      const html = buildPrintHtml(selected, sigsMap, photosMap);
+      const html = buildPrintHtml(selected, sigsMap, photosMap, headquarters);
       const w = window.open("", "_blank");
       if (!w) { toast({ title: "팝업이 차단됐습니다. 팝업 허용 후 다시 시도하세요", variant: "destructive" }); return; }
       w.document.write(html);

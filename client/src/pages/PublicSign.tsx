@@ -9,12 +9,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { GraduationCap, PenTool, CheckCircle2, Users, Calendar, BookOpen, Loader2, X, Info } from "lucide-react";
+import { useHeadquarters } from "@/contexts/HeadquartersContext";
 
-const DEPARTMENTS = [
-  "동대구운용팀", "포항운용팀", "안동운용팀",
-  "서대구운용팀", "남대구운용팀", "구미운용팀", "문경운용팀",
-  "운용계획팀", "사업지원팀", "현장경영팀"
-];
 
 interface TaskField { type: string; title: string; }
 
@@ -142,6 +138,7 @@ function SignaturePad({ onSave, onClear }: { onSave: (data: string) => void; onC
 }
 
 export default function PublicSign() {
+  const { departments: DEPARTMENTS } = useHeadquarters();
   const { id } = useParams<{ id: string }>();
   const { toast } = useToast();
   const [signerName, setSignerName] = useState("");

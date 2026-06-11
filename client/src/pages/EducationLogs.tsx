@@ -21,12 +21,8 @@ import {
   BookOpen, Paperclip, FileSpreadsheet, FileIcon, Image, Video, Loader2, Link2, CheckSquare
 } from "lucide-react";
 import type { EducationSession, EducationSignature } from "@shared/schema";
+import { useHeadquarters } from "@/contexts/HeadquartersContext";
 
-const DEPARTMENTS = [
-  "동대구운용팀", "포항운용팀", "안동운용팀",
-  "서대구운용팀", "남대구운용팀", "구미운용팀", "문경운용팀",
-  "운용계획팀", "사업지원팀", "현장경영팀"
-];
 
 const EDUCATION_TYPES = ["정기교육", "신규교육", "특별교육", "안전교육", "직무교육"];
 
@@ -398,6 +394,7 @@ function isVideoByType(fileType: string | null | undefined, fileName: string | n
 }
 
 export default function EducationLogs() {
+  const { departments: DEPARTMENTS } = useHeadquarters();
   const { isAdmin, canRegisterEducation, canEditEducationLogs, canDownloadEducationExcel, canUploadEducationPhotos, canDownloadEducationFiles } = usePermissions();
   const canEditLogs = canRegisterEducation || canEditEducationLogs;
   const { user } = useAuth();

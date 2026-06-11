@@ -1,4 +1,5 @@
-import { Bell, LogOut, Users, Shield, KeyRound, Eye, EyeOff, Menu, Sun, Moon } from "lucide-react";
+import { Bell, LogOut, Users, Shield, KeyRound, Eye, EyeOff, Menu, Sun, Moon, Building2, ChevronDown } from "lucide-react";
+import { useHeadquarters } from "@/contexts/HeadquartersContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,6 +32,7 @@ interface TopbarProps {
 }
 
 export function Topbar({ onMenuClick }: TopbarProps) {
+  const { headquarters, setHeadquarters, hqNames } = useHeadquarters();
   const [pwDialogOpen, setPwDialogOpen] = useState(false);
   const [currentPw, setCurrentPw] = useState("");
   const [newPw, setNewPw] = useState("");
@@ -131,6 +133,31 @@ export function Topbar({ onMenuClick }: TopbarProps) {
 
         {/* Spacer */}
         <div className="flex-1" />
+
+        {/* 본부 선택 드롭다운 */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              className="flex items-center gap-1 h-8 px-2.5 rounded-lg text-xs font-semibold bg-primary/10 text-primary hover:bg-primary/20 transition-colors shrink-0"
+              data-testid="button-hq-selector"
+            >
+              <Building2 className="w-3.5 h-3.5" />
+              <span>{headquarters}</span>
+              <ChevronDown className="w-3 h-3 opacity-60" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-[120px]">
+            {hqNames.map(hq => (
+              <DropdownMenuItem
+                key={hq}
+                onClick={() => setHeadquarters(hq)}
+                className={`text-sm cursor-pointer ${hq === headquarters ? "font-bold text-primary" : ""}`}
+              >
+                {hq === headquarters && <span className="mr-1">✓</span>}{hq}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         {/* 다크/라이트 모드 토글 */}
         <button

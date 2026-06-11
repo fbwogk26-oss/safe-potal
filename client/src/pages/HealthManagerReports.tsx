@@ -1,4 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useHeadquarters } from "@/contexts/HeadquartersContext";
 import { useState, useRef } from "react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isToday } from "date-fns";
 import { ko } from "date-fns/locale";
@@ -31,11 +32,6 @@ const STAFF_COLOR: Record<StaffType, string> = {
   "의사":    "bg-green-600 text-white",
 };
 
-const ALL_TEAMS = [
-  "동대구운용팀", "포항운용팀", "안동운용팀",
-  "서대구운용팀", "남대구운용팀", "구미운용팀", "문경운용팀",
-  "운용계획팀", "사업지원팀", "현장경영팀",
-];
 
 const DAY_NAMES = ["일", "월", "화", "수", "목", "금", "토"];
 
@@ -56,6 +52,7 @@ function shortTeam(team: string | null | undefined): string {
 }
 
 export default function HealthManagerReports() {
+  const { departments: ALL_TEAMS } = useHeadquarters();
   const { canEditInspections } = usePermissions();
   const { toast } = useToast();
   const now = new Date();

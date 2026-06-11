@@ -1,4 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useHeadquarters } from "@/contexts/HeadquartersContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -19,7 +20,6 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { useAuth } from "@/hooks/use-auth";
 import type { MusculoskeletalAssessment } from "@shared/schema";
 
-const DEPARTMENTS = ["동대구운용팀", "포항운용팀", "안동운용팀", "서대구운용팀", "남대구운용팀", "구미운용팀", "문경운용팀", "운용계획팀", "사업지원팀", "현장경영팀"];
 const RISK_LEVELS = ["높음", "중간", "낮음"];
 const STATUS_OPTIONS = ["진행중", "완료", "보류"];
 
@@ -65,6 +65,7 @@ const defaultForm: FormState = {
 };
 
 export default function MusculoskeletalDisease() {
+  const { departments: DEPARTMENTS } = useHeadquarters();
   const { canEditMusculoskeletal } = usePermissions();
   const canEdit = canEditMusculoskeletal;
   const { user } = useAuth();

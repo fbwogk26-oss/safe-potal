@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { useHeadquarters } from "@/contexts/HeadquartersContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -132,6 +133,7 @@ interface MultiResRow {
 
 // ══════════════════════════════════════════════════════════════════
 export default function SafetyCostBudget() {
+  const { headquarters } = useHeadquarters();
   const { toast } = useToast();
   const qc = useQueryClient();
   const [year, setYear] = useState(currentYear);
@@ -814,7 +816,7 @@ export default function SafetyCostBudget() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-foreground">산업안전보건관리비 사용내역</h1>
-          <p className="text-sm text-muted-foreground">대구본부 · {year}년 법정경비 관리</p>
+          <p className="text-sm text-muted-foreground">{headquarters} · {year}년 법정경비 관리</p>
         </div>
         <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
           <Select value={year.toString()} onValueChange={v => setYear(Number(v))}>

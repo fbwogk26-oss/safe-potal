@@ -1,4 +1,5 @@
 import { useTeams, useResetTeam, useResetAllTeams } from "@/hooks/use-teams";
+import { useHeadquarters } from "@/contexts/HeadquartersContext";
 import { 
   BarChart, 
   Bar, 
@@ -33,6 +34,7 @@ import { usePermissions } from "@/hooks/use-permissions";
 import html2canvas from "html2canvas";
 
 export default function Dashboard() {
+  const { headquarters, departments } = useHeadquarters();
   const [showDetailTable, setShowDetailTable] = useState(false);
   const [year, setYear] = useState(2026);
   const [baseVehicleCount, setBaseVehicleCount] = useState(15);
@@ -134,7 +136,7 @@ export default function Dashboard() {
   };
 
   // Fixed team order
-  const teamOrder = ["동대구운용팀", "포항운용팀", "안동운용팀", "서대구운용팀", "남대구운용팀", "구미운용팀", "문경운용팀", "운용계획팀", "사업지원팀", "현장경영팀"];
+  const teamOrder = departments;
   const orderedTeams = teams ? teamOrder.map(name => teams.find(t => t.name === name)).filter(Boolean) as typeof teams : [];
   
   // Chart data with shortened team names

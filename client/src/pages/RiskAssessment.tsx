@@ -1,4 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useHeadquarters } from "@/contexts/HeadquartersContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,25 +31,6 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { useAuth } from "@/hooks/use-auth";
 import type { RiskAssessment } from "@shared/schema";
 
-const DEPARTMENTS = [
-  "동대구운용팀", "포항운용팀", "안동운용팀",
-  "서대구운용팀", "남대구운용팀", "구미운용팀", "문경운용팀",
-  "운용계획팀", "사업지원팀", "현장경영팀",
-];
-
-const DEPT_SHORT: Record<string, string> = {
-  "동대구운용팀": "동대구", "서대구운용팀": "서대구", "남대구운용팀": "남대구",
-  "포항운용팀": "포항", "안동운용팀": "안동", "구미운용팀": "구미",
-  "문경운용팀": "문경", "운용계획팀": "운용계획",
-  "사업지원팀": "사업지원", "현장경영팀": "현장경영",
-};
-
-const DEPT_DIVISION: Record<string, string> = {
-  "동대구운용팀": "대구본부", "서대구운용팀": "대구본부", "남대구운용팀": "대구본부",
-  "포항운용팀": "대구본부", "안동운용팀": "대구본부", "구미운용팀": "대구본부",
-  "문경운용팀": "대구본부", "운용계획팀": "대구본부",
-  "사업지원팀": "대구본부", "현장경영팀": "대구본부",
-};
 
 const HAZARD_TYPES = ["추락", "전도", "충돌", "협착", "감전", "화재/폭발", "기타"];
 const RESPONSIBLE_TASKS = ["운용팀", "제어망", "고객케어 및 응대", "일반사무", "통합수리"];
@@ -121,7 +103,14 @@ interface UserName {
   id: string; name: string; username: string; department: string;
 }
 
+function deptShort(dept: string) {
+  return dept.replace(/운용팀$/, "").replace(/운용계획팀$/, "운용계획").replace(/사업지원팀$/, "사업지원").replace(/현장경영팀$/, "현장경영");
+}
+
 export default function RiskAssessmentPage() {
+  const { headquarters, departments: DEPARTMENTS } = useHeadquarters();
+  const DEPT_SHORT: Record<string, string> = Object.fromEntries(DEPARTMENTS.map(d => [d, deptShort(d)]));
+  const DEPT_DIVISION: Record<string, string> = Object.fromEntries(DEPARTMENTS.map(d => [d, headquarters]));
   const { canEditRiskAssessment, canDownloadRiskAssessmentExcel } = usePermissions();
   const { user } = useAuth();
   const isDeptHead = user?.role === "deptHead" || user?.role === "admin";
@@ -930,7 +919,7 @@ export default function RiskAssessmentPage() {
                 const grade = getRiskGrade(item.riskScore);
                 const ra = item as any;
                 const isSelected = selectedId === item.id;
-                const division = DEPT_DIVISION[item.department] || "대구본부";
+                const division = DEPT_DIVISION[item.department] || headquarters;
                 const shortName = DEPT_SHORT[item.department] || item.department;
                 const isTypeSuji = item.assessmentType === "수시평가";
 

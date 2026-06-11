@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { useHeadquarters } from "@/contexts/HeadquartersContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,7 +30,6 @@ const RISK_FACTORS = [
   { label: "기타", desc: "기타 원인", icon: "❓" },
 ];
 
-const TEAMS = ["동대구운용팀","포항운용팀","안동운용팀","서대구운용팀","남대구운용팀","구미운용팀","문경운용팀","운용계획팀","사업지원팀","현장경영팀"];
 
 type Step = "type" | "detail" | "action" | "done";
 
@@ -50,6 +50,7 @@ const EMPTY_FORM = {
 };
 
 export default function PublicNearMiss() {
+  const { departments: TEAMS } = useHeadquarters();
   const { toast } = useToast();
   const [step, setStep] = useState<Step>("type");
   const [submitting, setSubmitting] = useState(false);

@@ -59,6 +59,7 @@ import { ForcePasswordChange } from "@/components/ForcePasswordChange";
 import { MusicPlayer } from "@/components/MusicPlayer";
 import { useRealtime } from "@/hooks/use-realtime";
 import { ShieldOff } from "lucide-react";
+import { HeadquartersProvider } from "@/contexts/HeadquartersContext";
 
 function AccessDenied() {
   return (
@@ -207,12 +208,14 @@ function AppContent() {
 function App() {
   return (
     <ThemeProvider>
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <AppContent />
-          <Toaster />
-        </TooltipProvider>
-      </QueryClientProvider>
+      <HeadquartersProvider>
+        <QueryClientProvider client={queryClient}>
+          <TooltipProvider>
+            <AppContent />
+            <Toaster />
+          </TooltipProvider>
+        </QueryClientProvider>
+      </HeadquartersProvider>
     </ThemeProvider>
   );
 }

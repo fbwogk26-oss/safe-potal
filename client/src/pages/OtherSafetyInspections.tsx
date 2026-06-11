@@ -1,4 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useHeadquarters } from "@/contexts/HeadquartersContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -46,7 +47,6 @@ const DEFAULT_CHECKLIST: ChecklistItem[] = [
 
 const MAX_IMAGES = 10;
 
-const EXTRA_DEPARTMENTS = ["운용계획팀", "사업지원팀", "현장경영팀"];
 
 const OTHER_INSPECTION_TYPES = ["KT 점검", "본사 점검", "현장경영팀 점검"] as const;
 type OtherInspectionType = typeof OTHER_INSPECTION_TYPES[number];
@@ -58,6 +58,8 @@ const SUBTYPE_COLORS: Record<OtherInspectionType, string> = {
 };
 
 export default function OtherSafetyInspections() {
+  const { departments } = useHeadquarters();
+  const EXTRA_DEPARTMENTS = departments.slice(0, 3);
   const { canEditInspections, canUploadInspectionPhotos } = usePermissions();
   const { user } = useAuth();
   const { toast } = useToast();

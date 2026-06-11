@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useHeadquarters } from "@/contexts/HeadquartersContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -272,10 +273,6 @@ type DrillAssignment = {
   scenarioFileName: string | null;
 };
 
-const DEPT_LIST = [
-  "스탭", "남대구운용팀", "포항운용팀",
-  "동대구운용팀", "안동운용팀", "문경운용팀", "구미운용팀", "서대구운용팀",
-];
 
 const ACCIDENT_TYPES = [
   "빙판길 낙상사고", "추락사고", "발목 접지름 사고", "중량물 낙하사고",
@@ -1749,6 +1746,8 @@ function BulkAssignDialog({ open, sessionId, onClose }: { open: boolean; session
 
 // ─── 메인 페이지 ──────────────────────────────────────────────────────────
 export default function DrillTraining() {
+  const { departments } = useHeadquarters();
+  const DEPT_LIST = ["스탭", ...departments];
   const { user } = useAuth();
   const { isAdmin: isAdminPerm } = usePermissions();
   const isAdmin = isAdminPerm || user?.role === "admin";

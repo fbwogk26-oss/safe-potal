@@ -1,4 +1,5 @@
 import { useNotices, useCreateNotice, useDeleteNotice, useUpdateNotice } from "@/hooks/use-notices";
+import { useHeadquarters } from "@/contexts/HeadquartersContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,7 +22,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useAuth } from "@/hooks/use-auth";
 
-const TEAMS = ["동대구운용팀", "포항운용팀", "안동운용팀", "서대구운용팀", "남대구운용팀", "구미운용팀", "문경운용팀", "운용계획팀", "사업지원팀", "현장경영팀"];
 
 const DEFAULT_EQUIPMENT = [
   { name: "안전모(일반)", category: "보호구" },
@@ -62,6 +62,7 @@ interface SafetyEquipment {
 }
 
 export default function EquipmentRequest() {
+  const { departments: TEAMS } = useHeadquarters();
   const { user } = useAuth();
   const { canManageEquipmentRequests, canAddEquipmentMaterials } = usePermissions();
   const queryClient = useQueryClient();
