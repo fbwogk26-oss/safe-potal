@@ -5,6 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useAuth } from "@/hooks/use-auth";
 import type { Chemical, InsertChemical } from "@shared/schema";
+import { useHeadquarters } from "@/contexts/HeadquartersContext";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -98,6 +99,7 @@ const EMPTY_FORM: InsertChemical = {
 };
 
 export default function MsdsSearch() {
+  const { headquarters } = useHeadquarters();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { canEditMsds, canDownloadMsdsPdf } = usePermissions();
@@ -120,12 +122,17 @@ export default function MsdsSearch() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: chemicals, isLoading } = useQuery<Chemical[]>({
-    queryKey: ["/api/chemicals", searchQuery ? `?search=${encodeURIComponent(searchQuery)}` : ""],
+    queryKey: ["/api/chemicals", headquarters, searchQuery],
+    queryFn: () => {
+      const params = new URLSearchParams({ headquarters });
+      if (searchQuery) params.set("search", searchQuery);
+      return fetch(`/api/chemicals?${params.toString()}`, { credentials: "include" }).then(r => r.json());
+    },
   });
 
   const createMutation = useMutation({
     mutationFn: async (data: InsertChemical) => {
-      return apiRequest("POST", "/api/chemicals", data);
+      return apiRequest("POST", "/api/chemicals", { ...data, headquarters });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/chemicals"] });

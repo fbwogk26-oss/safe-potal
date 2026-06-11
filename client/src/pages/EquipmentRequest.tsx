@@ -62,7 +62,7 @@ interface SafetyEquipment {
 }
 
 export default function EquipmentRequest() {
-  const { departments: TEAMS } = useHeadquarters();
+  const { headquarters, departments: TEAMS } = useHeadquarters();
   const { user } = useAuth();
   const { canManageEquipmentRequests, canAddEquipmentMaterials } = usePermissions();
   const queryClient = useQueryClient();

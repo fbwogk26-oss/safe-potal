@@ -29,6 +29,7 @@ export const teams = pgTable("teams", {
   // Calculated Score (Stored or calculated on fly? Stored is easier for sorting)
   totalScore: integer("total_score").notNull().default(100),
   rank: integer("rank").default(0),
+  headquarters: text("headquarters").notNull().default("대구본부"),
 });
 
 // === NOTICES / RULES / EDUCATION ===
@@ -41,6 +42,7 @@ export const notices = pgTable("notices", {
   fileName: text("file_name"),
   fileType: text("file_type"),
   attachments: jsonb("attachments").$type<Array<{ url: string; name: string; type: string }>>(),
+  headquarters: text("headquarters").notNull().default("대구본부"),
   createdBy: text("created_by"),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -113,6 +115,7 @@ export const safetyEquipment = pgTable("safety_equipment", {
   category: text("category").notNull(), // '보호구', '안전용품', '기타품목'
   imageUrl: text("image_url"),
   isActive: boolean("is_active").notNull().default(true),
+  headquarters: text("headquarters").notNull().default("대구본부"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -155,6 +158,7 @@ export const safetyInspections = pgTable("safety_inspections", {
   checklist: jsonb("checklist").$type<Array<{ item: string; status: '양호' | '미흡' | '미점검' }>>().notNull().default([]),
   notes: text("notes"),
   images: text("images").array().notNull().default([]),
+  headquarters: text("headquarters").notNull().default("대구본부"),
   createdBy: text("created_by"),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -182,6 +186,7 @@ export const vehicleLogs = pgTable("vehicle_logs", {
   fuelAmount: text("fuel_amount"),
   fuelReceiptUrl: text("fuel_receipt_url"),
   notes: text("notes"),
+  headquarters: text("headquarters").notNull().default("대구본부"),
   createdBy: text("created_by"),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -207,6 +212,7 @@ export const educationSessions = pgTable("education_sessions", {
   createdAt: timestamp("created_at").defaultNow(),
   materialAttachments: jsonb("material_attachments").$type<Array<{url: string; name: string; type: string}>>().default([]),
   taskId: integer("task_id"),
+  headquarters: text("headquarters").notNull().default("대구본부"),
 });
 
 export const educationSignatures = pgTable("education_signatures", {
@@ -246,6 +252,7 @@ export const chemicals = pgTable("chemicals", {
   pdfUrl: text("pdf_url"),
   pdfFileName: text("pdf_file_name"),
   pdfFileType: text("pdf_file_type"),
+  headquarters: text("headquarters").notNull().default("대구본부"),
   createdBy: text("created_by"),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -266,6 +273,7 @@ export const musculoskeletalAssessments = pgTable("musculoskeletal_assessments",
   assessmentDate: text("assessment_date"),
   assessor: text("assessor"),
   status: text("status").notNull().default("진행중"),
+  headquarters: text("headquarters").notNull().default("대구본부"),
   createdBy: text("created_by"),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -312,6 +320,7 @@ export const riskAssessments = pgTable("risk_assessments", {
   relatedLaw: text("related_law"),
   equipmentId: text("equipment_id"),
   equipmentName: text("equipment_name"),
+  headquarters: text("headquarters").notNull().default("대구본부"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -350,6 +359,7 @@ export const accidentReports = pgTable("accident_reports", {
   faultRate: integer("fault_rate"),
   kpiTarget: boolean("kpi_target"),
   trafficAccidentType: text("traffic_accident_type"),
+  headquarters: text("headquarters").notNull().default("대구본부"),
 });
 
 export const insertAccidentReportSchema = createInsertSchema(accidentReports).omit({ id: true, createdAt: true });
@@ -372,6 +382,7 @@ export const newEquipmentRequests = pgTable("new_equipment_requests", {
   imageUrl: text("image_url"),
   referenceUrl: text("reference_url"),
   isReadByAdmin: boolean("is_read_by_admin").default(false),
+  headquarters: text("headquarters").notNull().default("대구본부"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -397,6 +408,7 @@ export const trafficFines = pgTable("traffic_fines", {
   paidAt: text("paid_at"),                         // 납부일자
   pdfUrl: text("pdf_url"),                         // 업로드된 PDF 경로
   thumbnailUrl: text("thumbnail_url"),             // PDF 썸네일 이미지 경로
+  headquarters: text("headquarters").notNull().default("대구본부"),
   createdBy: text("created_by"),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -413,6 +425,7 @@ export const workPlans = pgTable("work_plans", {
   processedFileUrl: text("processed_file_url"),
   emailDraft: text("email_draft"),
   sheetSummary: text("sheet_summary"),
+  headquarters: text("headquarters").notNull().default("대구본부"),
   createdBy: text("created_by"),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -479,6 +492,7 @@ export const fuelRecords = pgTable("fuel_records", {
   avgCostPerKm: integer("avg_cost_per_km").default(0),
   // 업로드 배치
   uploadBatch: text("upload_batch"),
+  headquarters: text("headquarters").notNull().default("대구본부"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -506,6 +520,7 @@ export const nearMissReports = pgTable("near_miss_reports", {
   assignedTo: text("assigned_to"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  headquarters: text("headquarters").notNull().default("대구본부"),
 });
 
 export const insertNearMissSchema = createInsertSchema(nearMissReports).omit({ id: true, createdAt: true, updatedAt: true });
@@ -524,6 +539,7 @@ export const safetyManagerReports = pgTable("safety_manager_reports", {
   fileUrl: text("file_url"),
   fileOriginalName: text("file_original_name"),
   notes: text("notes"),
+  headquarters: text("headquarters").notNull().default("대구본부"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   createdBy: text("created_by"),
 });
@@ -543,6 +559,7 @@ export const healthManagerReports = pgTable("health_manager_reports", {
   fileUrl: text("file_url"),
   fileOriginalName: text("file_original_name"),
   notes: text("notes"),
+  headquarters: text("headquarters").notNull().default("대구본부"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   createdBy: text("created_by"),
 });
@@ -634,6 +651,7 @@ export const attendanceUploads = pgTable("attendance_uploads", {
   id: serial("id").primaryKey(),
   fileName: text("file_name").notNull(),
   totalCount: integer("total_count").notNull().default(0),
+  headquarters: text("headquarters").notNull().default("대구본부"),
   createdBy: text("created_by"),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -671,6 +689,7 @@ export const onlineEduUploads = pgTable("online_edu_uploads", {
   learningPeriod: text("learning_period"),
   totalCount: integer("total_count").notNull().default(0),
   completedCount: integer("completed_count").notNull().default(0),
+  headquarters: text("headquarters").notNull().default("대구본부"),
   createdBy: text("created_by"),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -708,6 +727,7 @@ export const safetySupplySurveys = pgTable("safety_supply_surveys", {
   half: integer("half").notNull(), // 1=상반기, 2=하반기
   title: text("title").notNull(),
   budget: integer("budget"), // 예산 (원)
+  headquarters: text("headquarters").notNull().default("대구본부"),
   createdBy: text("created_by"),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -748,6 +768,7 @@ export const riskAssessmentResultUploads = pgTable("risk_assessment_result_uploa
   totalRows: integer("total_rows").notNull().default(0),
   rows: jsonb("rows").notNull().default([]),
   rawSheet: jsonb("raw_sheet"),
+  headquarters: text("headquarters").notNull().default("대구본부"),
   uploadedBy: text("uploaded_by"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -775,6 +796,7 @@ export const drillSessions = pgTable("drill_sessions", {
   drillDate: text("drill_date"),
   description: text("description"),
   status: text("status").notNull().default("진행중"), // 진행중/완료
+  headquarters: text("headquarters").notNull().default("대구본부"),
   createdBy: text("created_by"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -830,6 +852,7 @@ export const safetyCommittees = pgTable("safety_committees", {
   meetingMaterialName: text("meeting_material_name"),
   meetingMinutesUrl: text("meeting_minutes_url"),
   meetingMinutesName: text("meeting_minutes_name"),
+  headquarters: text("headquarters").notNull().default("대구본부"),
   createdBy: text("created_by"),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -845,6 +868,7 @@ export const jointInspections = pgTable("joint_inspections", {
   subcontractor: text("subcontractor").notNull(),
   checkItems: jsonb("check_items"),
   photos: jsonb("photos"),
+  headquarters: text("headquarters").notNull().default("대구본부"),
   createdBy: text("created_by"),
   createdAt: timestamp("created_at").defaultNow(),
 });

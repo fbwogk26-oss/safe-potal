@@ -70,16 +70,18 @@ const MAX_IMAGES = 10;
 
 
 export default function SafetyInspections() {
-  const { departments } = useHeadquarters();
+  const { headquarters, departments } = useHeadquarters();
   const EXTRA_DEPARTMENTS = departments.slice(0, 3);
   const { canEditInspections, canDownloadInspectionExcel, canUploadInspectionPhotos } = usePermissions();
   const { user } = useAuth();
   const { data: inspections, isLoading } = useQuery<SafetyInspection[]>({
-    queryKey: ["/api/safety-inspections"],
+    queryKey: ["/api/safety-inspections", headquarters],
+    queryFn: () => fetch(`/api/safety-inspections?headquarters=${encodeURIComponent(headquarters)}`, { credentials: "include" }).then(r => r.json()),
   });
   
   const { data: teams } = useQuery<Team[]>({
-    queryKey: ["/api/teams"],
+    queryKey: ["/api/teams", headquarters],
+    queryFn: () => fetch(`/api/teams?headquarters=${encodeURIComponent(headquarters)}`, { credentials: "include" }).then(r => r.json()),
   });
 
   const { data: inspectionTargets } = useQuery<{

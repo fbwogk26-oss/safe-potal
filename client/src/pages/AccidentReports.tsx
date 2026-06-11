@@ -76,7 +76,7 @@ const emptyForm = {
 
 
 export default function AccidentReports() {
-  const { departments: DEPARTMENTS } = useHeadquarters();
+  const { headquarters, departments: DEPARTMENTS } = useHeadquarters();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { canEditAccidents, canDownloadAccidentReport, canUploadAccidentPhotos } = usePermissions();
@@ -152,7 +152,8 @@ export default function AccidentReports() {
   };
 
   const { data: reports = [], isLoading } = useQuery<AccidentReport[]>({
-    queryKey: ["/api/accidents"],
+    queryKey: ["/api/accidents", headquarters],
+    queryFn: () => fetch(`/api/accidents?headquarters=${encodeURIComponent(headquarters)}`, { credentials: "include" }).then(r => r.json()),
   });
 
   const getServerError = (error: unknown, fallback: string): string => {
@@ -163,7 +164,7 @@ export default function AccidentReports() {
   };
 
   const createMutation = useMutation({
-    mutationFn: (data: any) => apiRequest("POST", "/api/accidents", data),
+    mutationFn: (data: any) => apiRequest("POST", "/api/accidents", { ...data, headquarters }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/accidents"] });
       queryClient.invalidateQueries({ queryKey: ["/api/accidents/stats"] });

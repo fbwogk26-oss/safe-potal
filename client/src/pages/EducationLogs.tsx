@@ -394,7 +394,7 @@ function isVideoByType(fileType: string | null | undefined, fileName: string | n
 }
 
 export default function EducationLogs() {
-  const { departments: DEPARTMENTS } = useHeadquarters();
+  const { headquarters, departments: DEPARTMENTS } = useHeadquarters();
   const { isAdmin, canRegisterEducation, canEditEducationLogs, canDownloadEducationExcel, canUploadEducationPhotos, canDownloadEducationFiles } = usePermissions();
   const canEditLogs = canRegisterEducation || canEditEducationLogs;
   const { user } = useAuth();
@@ -462,7 +462,8 @@ export default function EducationLogs() {
   const [previewPhotoIndex, setPreviewPhotoIndex] = useState<number | null>(null);
 
   const { data: sessions, isLoading: sessionsLoading } = useQuery<EducationSession[]>({
-    queryKey: ["/api/education-sessions"],
+    queryKey: ["/api/education-sessions", headquarters],
+    queryFn: () => fetch(`/api/education-sessions?headquarters=${encodeURIComponent(headquarters)}`, { credentials: "include" }).then(r => r.json()),
   });
 
   useEffect(() => {

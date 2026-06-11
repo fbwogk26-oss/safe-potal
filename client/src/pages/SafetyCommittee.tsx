@@ -9,10 +9,12 @@ import {
   ExternalLink, ChevronLeft, ChevronRight, CheckCircle2, Circle, FileQuestion,
 } from "lucide-react";
 import type { SafetyCommittee } from "@shared/schema";
+import { useHeadquarters } from "@/contexts/HeadquartersContext";
 
 const MONTH_NAMES = ["1월","2월","3월","4월","5월","6월","7월","8월","9월","10월","11월","12월"];
 
 export default function SafetyCommitteePage() {
+  const { headquarters } = useHeadquarters();
   const { toast } = useToast();
   const [viewYear, setViewYear] = useState(() => new Date().getFullYear());
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -34,7 +36,8 @@ export default function SafetyCommitteePage() {
   const [docLoading, setDocLoading] = useState(false);
 
   const { data: committees = [], isLoading } = useQuery<SafetyCommittee[]>({
-    queryKey: ["/api/safety-committees"],
+    queryKey: ["/api/safety-committees", headquarters],
+    queryFn: () => fetch(`/api/safety-committees?headquarters=${encodeURIComponent(headquarters)}`, { credentials: "include" }).then(r => r.json()),
   });
 
   const byMonth = useMemo(() => {
@@ -52,7 +55,7 @@ export default function SafetyCommitteePage() {
   [committees, viewYear]);
 
   const createMutation = useMutation({
-    mutationFn: (data: any) => apiRequest("POST", "/api/safety-committees", data),
+    mutationFn: (data: any) => apiRequest("POST", "/api/safety-committees", { ...data, headquarters }),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/safety-committees"] }); toast({ title: "등록됐습니다" }); setDialogOpen(false); },
     onError: () => toast({ title: "저장 실패", variant: "destructive" }),
   });

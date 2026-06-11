@@ -1,15 +1,15 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl, type CreateTeamRequest, type UpdateTeamRequest } from "@shared/routes";
+import { useHeadquarters } from "@/contexts/HeadquartersContext";
 
 export function useTeams(year?: number) {
+  const { headquarters } = useHeadquarters();
   return useQuery({
-    queryKey: [api.teams.list.path, year],
+    queryKey: [api.teams.list.path, headquarters, year],
     queryFn: async () => {
-      const url = year 
-        ? `${api.teams.list.path}?year=${year}` 
-        : api.teams.list.path;
-      
-      const res = await fetch(url, { credentials: "include" });
+      const params = new URLSearchParams({ headquarters });
+      if (year) params.set("year", String(year));
+      const res = await fetch(`${api.teams.list.path}?${params.toString()}`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch teams");
       return api.teams.list.responses[200].parse(await res.json());
     },

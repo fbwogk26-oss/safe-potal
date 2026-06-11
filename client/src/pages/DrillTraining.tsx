@@ -1242,7 +1242,7 @@ function CreateSessionDialog({ open, onClose }: { open: boolean; onClose: () => 
   });
 
   const createMut = useMutation({
-    mutationFn: (data: any) => apiRequest("POST", "/api/drill-sessions", data),
+    mutationFn: (data: any) => apiRequest("POST", "/api/drill-sessions", { ...data, headquarters }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/drill-sessions"] });
       toast({ title: "훈련 세션 생성 완료" });
@@ -1746,7 +1746,7 @@ function BulkAssignDialog({ open, sessionId, onClose }: { open: boolean; session
 
 // ─── 메인 페이지 ──────────────────────────────────────────────────────────
 export default function DrillTraining() {
-  const { departments } = useHeadquarters();
+  const { headquarters, departments } = useHeadquarters();
   const DEPT_LIST = ["스탭", ...departments];
   const { user } = useAuth();
   const { isAdmin: isAdminPerm } = usePermissions();
@@ -1761,7 +1761,8 @@ export default function DrillTraining() {
   const [detailAssignmentId, setDetailAssignmentId] = useState<number | null>(null);
 
   const { data: sessions = [], isLoading } = useQuery<DrillSession[]>({
-    queryKey: ["/api/drill-sessions"],
+    queryKey: ["/api/drill-sessions", headquarters],
+    queryFn: () => fetch(`/api/drill-sessions?headquarters=${encodeURIComponent(headquarters)}`, { credentials: "include" }).then(r => r.json()),
   });
 
   const { data: assignments = [] } = useQuery<DrillAssignment[]>({

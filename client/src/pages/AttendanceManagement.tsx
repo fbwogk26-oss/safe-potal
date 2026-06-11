@@ -3,6 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { usePermissions } from "@/hooks/use-permissions";
+import { useHeadquarters } from "@/contexts/HeadquartersContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -122,6 +123,7 @@ function isInspectionData(records: AttendanceRecord[]): boolean {
 }
 
 export default function AttendanceManagement() {
+  const { headquarters } = useHeadquarters();
   const { canEditAttendance } = usePermissions();
   const { toast } = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -133,11 +135,13 @@ export default function AttendanceManagement() {
   const [activeTab, setActiveTab] = useState<"inspection" | "trend">("inspection");
 
   const { data: records = [], isLoading } = useQuery<AttendanceRecord[]>({
-    queryKey: ["/api/attendance/records"],
+    queryKey: ["/api/attendance/records", headquarters],
+    queryFn: () => fetch(`/api/attendance/records?headquarters=${encodeURIComponent(headquarters)}`, { credentials: "include" }).then(r => r.json()),
   });
 
   const { data: uploads = [] } = useQuery<AttendanceUpload[]>({
-    queryKey: ["/api/attendance/uploads"],
+    queryKey: ["/api/attendance/uploads", headquarters],
+    queryFn: () => fetch(`/api/attendance/uploads?headquarters=${encodeURIComponent(headquarters)}`, { credentials: "include" }).then(r => r.json()),
   });
 
   const uploadMutation = useMutation({

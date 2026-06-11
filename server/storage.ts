@@ -69,14 +69,14 @@ import { eq, desc, asc, and, ilike, or, sql, inArray, isNotNull } from "drizzle-
 
 export interface IStorage {
   // Teams
-  getTeams(year?: number): Promise<Team[]>;
+  getTeams(year?: number, headquarters?: string): Promise<Team[]>;
   getTeam(id: number): Promise<Team | undefined>;
   createTeam(team: InsertTeam): Promise<Team>;
   updateTeam(id: number, updates: UpdateTeamRequest): Promise<Team>;
   deleteTeam(id: number): Promise<void>;
 
   // Notices
-  getNotices(category?: string): Promise<Notice[]>;
+  getNotices(category?: string, headquarters?: string): Promise<Notice[]>;
   getNotice(id: number): Promise<Notice | undefined>;
   createNotice(notice: InsertNotice): Promise<Notice>;
   updateNotice(id: number, updates: Partial<InsertNotice>): Promise<Notice>;
@@ -87,20 +87,20 @@ export interface IStorage {
   setSetting(key: string, value: string): Promise<Setting>;
 
   // Safety Equipment
-  getSafetyEquipment(): Promise<SafetyEquipment[]>;
+  getSafetyEquipment(headquarters?: string): Promise<SafetyEquipment[]>;
   createSafetyEquipment(equipment: InsertSafetyEquipment): Promise<SafetyEquipment>;
   updateSafetyEquipment(id: number, updates: Partial<InsertSafetyEquipment>): Promise<SafetyEquipment>;
   deleteSafetyEquipment(id: number): Promise<void>;
   
   // Safety Inspections
-  getSafetyInspections(): Promise<SafetyInspection[]>;
+  getSafetyInspections(headquarters?: string): Promise<SafetyInspection[]>;
   getSafetyInspection(id: number): Promise<SafetyInspection | undefined>;
   createSafetyInspection(inspection: InsertSafetyInspection): Promise<SafetyInspection>;
   updateSafetyInspection(id: number, updates: Partial<InsertSafetyInspection>): Promise<SafetyInspection>;
   deleteSafetyInspection(id: number): Promise<void>;
 
   // Education Sessions
-  getEducationSessions(department?: string): Promise<EducationSession[]>;
+  getEducationSessions(department?: string, headquarters?: string): Promise<EducationSession[]>;
   getEducationSession(id: number): Promise<EducationSession | undefined>;
   getSessionsByTaskId(taskId: number): Promise<EducationSession[]>;
   createEducationSession(session: InsertEducationSession): Promise<EducationSession>;
@@ -119,36 +119,36 @@ export interface IStorage {
   updateUserRole(id: string, role: string): Promise<User>;
 
   // Chemicals (MSDS)
-  getChemicals(): Promise<Chemical[]>;
-  searchChemicals(query: string): Promise<Chemical[]>;
+  getChemicals(headquarters?: string): Promise<Chemical[]>;
+  searchChemicals(query: string, headquarters?: string): Promise<Chemical[]>;
   getChemical(id: number): Promise<Chemical | undefined>;
   createChemical(chemical: InsertChemical): Promise<Chemical>;
   updateChemical(id: number, updates: Partial<InsertChemical>): Promise<Chemical>;
   deleteChemical(id: number): Promise<void>;
 
   // Risk Assessments
-  getRiskAssessments(assessmentType?: string): Promise<RiskAssessment[]>;
+  getRiskAssessments(assessmentType?: string, headquarters?: string): Promise<RiskAssessment[]>;
   getRiskAssessment(id: number): Promise<RiskAssessment | undefined>;
   createRiskAssessment(assessment: InsertRiskAssessment): Promise<RiskAssessment>;
   updateRiskAssessment(id: number, updates: Partial<InsertRiskAssessment>): Promise<RiskAssessment>;
   deleteRiskAssessment(id: number): Promise<void>;
 
   // Accident Reports
-  getAccidentReports(): Promise<AccidentReport[]>;
+  getAccidentReports(headquarters?: string): Promise<AccidentReport[]>;
   getAccidentReport(id: number): Promise<AccidentReport | undefined>;
   createAccidentReport(report: InsertAccidentReport): Promise<AccidentReport>;
   updateAccidentReport(id: number, updates: Partial<InsertAccidentReport>): Promise<AccidentReport>;
   deleteAccidentReport(id: number): Promise<void>;
 
   // Near Miss Reports
-  getNearMissReports(): Promise<NearMissReport[]>;
+  getNearMissReports(headquarters?: string): Promise<NearMissReport[]>;
   getNearMissReport(id: number): Promise<NearMissReport | undefined>;
   createNearMissReport(report: any): Promise<NearMissReport>;
   updateNearMissReport(id: number, updates: Partial<any>): Promise<NearMissReport>;
   deleteNearMissReport(id: number): Promise<void>;
 
   // New Equipment Requests
-  getNewEquipmentRequests(): Promise<NewEquipmentRequest[]>;
+  getNewEquipmentRequests(headquarters?: string): Promise<NewEquipmentRequest[]>;
   getNewEquipmentRequest(id: number): Promise<NewEquipmentRequest | undefined>;
   createNewEquipmentRequest(request: InsertNewEquipmentRequest): Promise<NewEquipmentRequest>;
   updateNewEquipmentRequest(id: number, updates: Partial<InsertNewEquipmentRequest>): Promise<NewEquipmentRequest>;
@@ -157,39 +157,39 @@ export interface IStorage {
   markAllNewEquipmentRequestsRead(): Promise<void>;
 
   // Musculoskeletal Assessments
-  getMusculoskeletalAssessments(): Promise<MusculoskeletalAssessment[]>;
+  getMusculoskeletalAssessments(headquarters?: string): Promise<MusculoskeletalAssessment[]>;
   getMusculoskeletalAssessment(id: number): Promise<MusculoskeletalAssessment | undefined>;
   createMusculoskeletalAssessment(data: InsertMusculoskeletalAssessment): Promise<MusculoskeletalAssessment>;
   updateMusculoskeletalAssessment(id: number, data: Partial<InsertMusculoskeletalAssessment>): Promise<MusculoskeletalAssessment>;
   deleteMusculoskeletalAssessment(id: number): Promise<void>;
 
   // Vehicles
-  getVehicles(): Promise<any[]>;
+  getVehicles(headquarters?: string): Promise<any[]>;
   insertVehicle(data: any): Promise<any>;
   updateVehicle(id: number, data: any): Promise<any>;
   deleteVehicle(id: number): Promise<void>;
   getFuelVehicleMeta(): Promise<any[]>;
 
   // Traffic Fines
-  getTrafficFines(): Promise<TrafficFine[]>;
+  getTrafficFines(headquarters?: string): Promise<TrafficFine[]>;
   getTrafficFine(id: number): Promise<TrafficFine | undefined>;
   createTrafficFine(data: InsertTrafficFine): Promise<TrafficFine>;
   updateTrafficFine(id: number, data: Partial<InsertTrafficFine>): Promise<TrafficFine>;
   deleteTrafficFine(id: number): Promise<void>;
-  getWorkPlans(): Promise<WorkPlan[]>;
+  getWorkPlans(headquarters?: string): Promise<WorkPlan[]>;
   getWorkPlan(id: number): Promise<WorkPlan | undefined>;
   createWorkPlan(data: InsertWorkPlan): Promise<WorkPlan>;
   deleteWorkPlan(id: number): Promise<void>;
 
   // Safety Committees (산업안전보건협의체)
-  getSafetyCommittees(): Promise<SafetyCommittee[]>;
+  getSafetyCommittees(headquarters?: string): Promise<SafetyCommittee[]>;
   getSafetyCommittee(id: number): Promise<SafetyCommittee | undefined>;
   createSafetyCommittee(data: InsertSafetyCommittee): Promise<SafetyCommittee>;
   updateSafetyCommittee(id: number, data: Partial<InsertSafetyCommittee>): Promise<SafetyCommittee | undefined>;
   deleteSafetyCommittee(id: number): Promise<void>;
 
   // Joint Inspections (합동안전보건점검)
-  getJointInspections(): Promise<JointInspection[]>;
+  getJointInspections(headquarters?: string): Promise<JointInspection[]>;
   getJointInspection(id: number): Promise<JointInspection | undefined>;
   createJointInspection(data: InsertJointInspection): Promise<JointInspection>;
   updateJointInspection(id: number, data: Partial<InsertJointInspection>): Promise<JointInspection | undefined>;
@@ -201,7 +201,7 @@ export interface IStorage {
   getAllJointInspectionSignaturesWithInspection(): Promise<Array<JointInspectionSignature & { inspectionDate: string; siteName: string; subcontractor: string }>>;
 
   // Attendance
-  getAttendanceUploads(): Promise<AttendanceUpload[]>;
+  getAttendanceUploads(headquarters?: string): Promise<AttendanceUpload[]>;
   createAttendanceUpload(data: InsertAttendanceUpload): Promise<AttendanceUpload>;
   deleteAttendanceUpload(id: number): Promise<void>;
   getAttendanceRecords(filters?: { year?: number; month?: number; weekNum?: number; uploadId?: number }): Promise<AttendanceRecord[]>;
@@ -213,14 +213,14 @@ export interface IStorage {
   updateAttendanceRecordReason(id: number, absenceReason: string): Promise<void>;
 
   // Online Education Progress
-  getOnlineEduUploads(): Promise<OnlineEduUpload[]>;
+  getOnlineEduUploads(headquarters?: string): Promise<OnlineEduUpload[]>;
   createOnlineEduUpload(data: InsertOnlineEduUpload): Promise<OnlineEduUpload>;
   deleteOnlineEduUpload(id: number): Promise<void>;
   getOnlineEduRecords(uploadId: number): Promise<OnlineEduRecord[]>;
   bulkCreateOnlineEduRecords(records: InsertOnlineEduRecord[]): Promise<void>;
 
   // Safety Supply Surveys
-  getSafetySupplySurveys(): Promise<SafetySupplySurvey[]>;
+  getSafetySupplySurveys(headquarters?: string): Promise<SafetySupplySurvey[]>;
   createSafetySupplySurvey(data: InsertSafetySupplySurvey): Promise<SafetySupplySurvey>;
   updateSafetySupplySurvey(id: number, data: Partial<InsertSafetySupplySurvey>): Promise<SafetySupplySurvey>;
   deleteSafetySupplySurvey(id: number): Promise<void>;
@@ -250,21 +250,21 @@ export interface IStorage {
   deleteVehicleLogErrorsByBatch(batchId: string): Promise<void>;
 
   // Safety Manager Reports
-  getSafetyManagerReports(yearMonth?: string, year?: string): Promise<SafetyManagerReport[]>;
+  getSafetyManagerReports(yearMonth?: string, year?: string, headquarters?: string): Promise<SafetyManagerReport[]>;
   getSafetyManagerReport(id: number): Promise<SafetyManagerReport | undefined>;
   createSafetyManagerReport(data: any): Promise<SafetyManagerReport>;
   updateSafetyManagerReport(id: number, data: any): Promise<SafetyManagerReport>;
   deleteSafetyManagerReport(id: number): Promise<void>;
 
   // Health Manager Reports
-  getHealthManagerReports(yearMonth?: string, year?: string): Promise<HealthManagerReport[]>;
+  getHealthManagerReports(yearMonth?: string, year?: string, headquarters?: string): Promise<HealthManagerReport[]>;
   getHealthManagerReport(id: number): Promise<HealthManagerReport | undefined>;
   createHealthManagerReport(data: any): Promise<HealthManagerReport>;
   updateHealthManagerReport(id: number, data: any): Promise<HealthManagerReport>;
   deleteHealthManagerReport(id: number): Promise<void>;
 
   // Risk Assessment Result Uploads
-  getRiskAssessmentResultUploads(): Promise<RiskAssessmentResultUpload[]>;
+  getRiskAssessmentResultUploads(headquarters?: string): Promise<RiskAssessmentResultUpload[]>;
   getRiskAssessmentResultUpload(id: number): Promise<RiskAssessmentResultUpload | undefined>;
   createRiskAssessmentResultUpload(data: InsertRiskAssessmentResultUpload): Promise<RiskAssessmentResultUpload>;
   deleteRiskAssessmentResultUpload(id: number): Promise<void>;
@@ -273,7 +273,7 @@ export interface IStorage {
   addRiskAssessmentDownloadLog(data: InsertRiskAssessmentDownloadLog): Promise<RiskAssessmentDownloadLog>;
 
   // Education Tasks
-  getEducationTasks(): Promise<EducationTask[]>;
+  getEducationTasks(headquarters?: string): Promise<EducationTask[]>;
   getEducationTask(id: number): Promise<EducationTask | undefined>;
   createEducationTask(data: InsertEducationTask): Promise<EducationTask>;
   updateEducationTask(id: number, data: Partial<InsertEducationTask>): Promise<EducationTask>;
@@ -297,8 +297,10 @@ export interface IStorage {
 
 export class DatabaseStorage implements IStorage {
   // === TEAMS ===
-  async getTeams(year: number = 2025): Promise<Team[]> {
-    return await db.select().from(teams).where(eq(teams.year, year)).orderBy(desc(teams.totalScore));
+  async getTeams(year: number = 2025, headquarters?: string): Promise<Team[]> {
+    const conditions = [eq(teams.year, year)];
+    if (headquarters) conditions.push(eq(teams.headquarters, headquarters));
+    return await db.select().from(teams).where(and(...conditions)).orderBy(desc(teams.totalScore));
   }
 
   async getTeam(id: number): Promise<Team | undefined> {
@@ -321,11 +323,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   // === NOTICES ===
-  async getNotices(category?: string): Promise<Notice[]> {
-    if (category) {
-      return await db.select().from(notices)
-        .where(eq(notices.category, category))
-        .orderBy(desc(notices.createdAt));
+  async getNotices(category?: string, headquarters?: string): Promise<Notice[]> {
+    const conditions: any[] = [];
+    if (category) conditions.push(eq(notices.category, category));
+    if (headquarters) conditions.push(eq(notices.headquarters, headquarters));
+    if (conditions.length > 0) {
+      return await db.select().from(notices).where(and(...conditions)).orderBy(desc(notices.createdAt));
     }
     return await db.select().from(notices).orderBy(desc(notices.createdAt));
   }
@@ -367,8 +370,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   // === SAFETY EQUIPMENT ===
-  async getSafetyEquipment(): Promise<SafetyEquipment[]> {
-    return await db.select().from(safetyEquipment).where(eq(safetyEquipment.isActive, true)).orderBy(asc(safetyEquipment.category), asc(safetyEquipment.name));
+  async getSafetyEquipment(headquarters?: string): Promise<SafetyEquipment[]> {
+    const conditions: any[] = [eq(safetyEquipment.isActive, true)];
+    if (headquarters) conditions.push(eq(safetyEquipment.headquarters, headquarters));
+    return await db.select().from(safetyEquipment).where(and(...conditions)).orderBy(asc(safetyEquipment.category), asc(safetyEquipment.name));
   }
 
   async createSafetyEquipment(equipment: InsertSafetyEquipment): Promise<SafetyEquipment> {
@@ -386,7 +391,10 @@ export class DatabaseStorage implements IStorage {
   }
   
   // === SAFETY INSPECTIONS ===
-  async getSafetyInspections(): Promise<SafetyInspection[]> {
+  async getSafetyInspections(headquarters?: string): Promise<SafetyInspection[]> {
+    if (headquarters) {
+      return await db.select().from(safetyInspections).where(eq(safetyInspections.headquarters, headquarters)).orderBy(desc(safetyInspections.createdAt));
+    }
     return await db.select().from(safetyInspections).orderBy(desc(safetyInspections.createdAt));
   }
 
@@ -410,11 +418,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   // === EDUCATION SESSIONS ===
-  async getEducationSessions(department?: string): Promise<EducationSession[]> {
-    if (department) {
-      return await db.select().from(educationSessions)
-        .where(eq(educationSessions.department, department))
-        .orderBy(desc(educationSessions.createdAt));
+  async getEducationSessions(department?: string, headquarters?: string): Promise<EducationSession[]> {
+    const conditions: any[] = [];
+    if (department) conditions.push(eq(educationSessions.department, department));
+    if (headquarters) conditions.push(eq(educationSessions.headquarters, headquarters));
+    if (conditions.length > 0) {
+      return await db.select().from(educationSessions).where(and(...conditions)).orderBy(desc(educationSessions.createdAt));
     }
     return await db.select().from(educationSessions).orderBy(desc(educationSessions.createdAt));
   }
@@ -506,15 +515,20 @@ export class DatabaseStorage implements IStorage {
   }
 
   // === CHEMICALS (MSDS) ===
-  async getChemicals(): Promise<Chemical[]> {
+  async getChemicals(headquarters?: string): Promise<Chemical[]> {
+    if (headquarters) {
+      return await db.select().from(chemicals).where(eq(chemicals.headquarters, headquarters)).orderBy(asc(chemicals.name));
+    }
     return await db.select().from(chemicals).orderBy(asc(chemicals.name));
   }
 
-  async searchChemicals(query: string): Promise<Chemical[]> {
+  async searchChemicals(query: string, headquarters?: string): Promise<Chemical[]> {
     const pattern = `%${query}%`;
-    return await db.select().from(chemicals).where(
-      or(ilike(chemicals.name, pattern), ilike(chemicals.casNumber, pattern))
-    ).orderBy(asc(chemicals.name));
+    const searchCond = or(ilike(chemicals.name, pattern), ilike(chemicals.casNumber, pattern));
+    if (headquarters) {
+      return await db.select().from(chemicals).where(and(searchCond, eq(chemicals.headquarters, headquarters))).orderBy(asc(chemicals.name));
+    }
+    return await db.select().from(chemicals).where(searchCond).orderBy(asc(chemicals.name));
   }
 
   async getChemical(id: number): Promise<Chemical | undefined> {
@@ -537,11 +551,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   // === RISK ASSESSMENTS ===
-  async getRiskAssessments(assessmentType?: string): Promise<RiskAssessment[]> {
-    if (assessmentType) {
-      return await db.select().from(riskAssessments)
-        .where(eq(riskAssessments.assessmentType, assessmentType))
-        .orderBy(desc(riskAssessments.createdAt));
+  async getRiskAssessments(assessmentType?: string, headquarters?: string): Promise<RiskAssessment[]> {
+    const conditions: any[] = [];
+    if (assessmentType) conditions.push(eq(riskAssessments.assessmentType, assessmentType));
+    if (headquarters) conditions.push(eq(riskAssessments.headquarters, headquarters));
+    if (conditions.length > 0) {
+      return await db.select().from(riskAssessments).where(and(...conditions)).orderBy(desc(riskAssessments.createdAt));
     }
     return await db.select().from(riskAssessments).orderBy(desc(riskAssessments.createdAt));
   }
@@ -566,7 +581,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   // === ACCIDENT REPORTS ===
-  async getAccidentReports(): Promise<AccidentReport[]> {
+  async getAccidentReports(headquarters?: string): Promise<AccidentReport[]> {
+    if (headquarters) {
+      return await db.select().from(accidentReports).where(eq(accidentReports.headquarters, headquarters)).orderBy(desc(accidentReports.createdAt));
+    }
     return await db.select().from(accidentReports).orderBy(desc(accidentReports.createdAt));
   }
 
@@ -590,7 +608,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   // === NEAR MISS REPORTS ===
-  async getNearMissReports(): Promise<NearMissReport[]> {
+  async getNearMissReports(headquarters?: string): Promise<NearMissReport[]> {
+    if (headquarters) {
+      return await db.select().from(nearMissReports).where(eq(nearMissReports.headquarters, headquarters)).orderBy(desc(nearMissReports.createdAt));
+    }
     return await db.select().from(nearMissReports).orderBy(desc(nearMissReports.createdAt));
   }
 
@@ -614,7 +635,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   // === NEW EQUIPMENT REQUESTS ===
-  async getNewEquipmentRequests(): Promise<NewEquipmentRequest[]> {
+  async getNewEquipmentRequests(headquarters?: string): Promise<NewEquipmentRequest[]> {
+    if (headquarters) {
+      return await db.select().from(newEquipmentRequests).where(eq(newEquipmentRequests.headquarters, headquarters)).orderBy(desc(newEquipmentRequests.createdAt));
+    }
     return await db.select().from(newEquipmentRequests).orderBy(desc(newEquipmentRequests.createdAt));
   }
 
@@ -647,7 +671,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   // === MUSCULOSKELETAL ASSESSMENTS ===
-  async getMusculoskeletalAssessments(): Promise<MusculoskeletalAssessment[]> {
+  async getMusculoskeletalAssessments(headquarters?: string): Promise<MusculoskeletalAssessment[]> {
+    if (headquarters) {
+      return await db.select().from(musculoskeletalAssessments).where(eq(musculoskeletalAssessments.headquarters, headquarters)).orderBy(desc(musculoskeletalAssessments.createdAt));
+    }
     return await db.select().from(musculoskeletalAssessments).orderBy(desc(musculoskeletalAssessments.createdAt));
   }
 
@@ -671,7 +698,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   // === TRAFFIC FINES ===
-  async getVehicles(): Promise<any[]> {
+  async getVehicles(headquarters?: string): Promise<any[]> {
+    if (headquarters) {
+      return await db.select().from(vehicles).where(eq(vehicles.headquarters, headquarters)).orderBy(vehicles.plateNumber);
+    }
     return await db.select().from(vehicles).orderBy(vehicles.plateNumber);
   }
 
@@ -694,7 +724,10 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(vehicles).orderBy(vehicles.team, vehicles.plateNumber);
   }
 
-  async getTrafficFines(): Promise<TrafficFine[]> {
+  async getTrafficFines(headquarters?: string): Promise<TrafficFine[]> {
+    if (headquarters) {
+      return await db.select().from(trafficFines).where(eq(trafficFines.headquarters, headquarters)).orderBy(desc(trafficFines.createdAt));
+    }
     return await db.select().from(trafficFines).orderBy(desc(trafficFines.createdAt));
   }
 
@@ -717,7 +750,10 @@ export class DatabaseStorage implements IStorage {
     await db.delete(trafficFines).where(eq(trafficFines.id, id));
   }
 
-  async getWorkPlans(): Promise<WorkPlan[]> {
+  async getWorkPlans(headquarters?: string): Promise<WorkPlan[]> {
+    if (headquarters) {
+      return await db.select().from(workPlans).where(eq(workPlans.headquarters, headquarters)).orderBy(desc(workPlans.createdAt));
+    }
     return await db.select().from(workPlans).orderBy(desc(workPlans.createdAt));
   }
 
@@ -736,7 +772,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   // === SAFETY COMMITTEES ===
-  async getSafetyCommittees(): Promise<SafetyCommittee[]> {
+  async getSafetyCommittees(headquarters?: string): Promise<SafetyCommittee[]> {
+    if (headquarters) {
+      return await db.select().from(safetyCommittees).where(eq(safetyCommittees.headquarters, headquarters)).orderBy(desc(safetyCommittees.createdAt));
+    }
     return await db.select().from(safetyCommittees).orderBy(desc(safetyCommittees.createdAt));
   }
   async getSafetyCommittee(id: number): Promise<SafetyCommittee | undefined> {
@@ -756,7 +795,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   // === JOINT INSPECTIONS ===
-  async getJointInspections(): Promise<JointInspection[]> {
+  async getJointInspections(headquarters?: string): Promise<JointInspection[]> {
+    if (headquarters) {
+      return await db.select().from(jointInspections).where(eq(jointInspections.headquarters, headquarters)).orderBy(desc(jointInspections.createdAt));
+    }
     return await db.select().from(jointInspections).orderBy(desc(jointInspections.createdAt));
   }
   async getJointInspection(id: number): Promise<JointInspection | undefined> {
@@ -807,7 +849,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   // === ATTENDANCE ===
-  async getAttendanceUploads(): Promise<AttendanceUpload[]> {
+  async getAttendanceUploads(headquarters?: string): Promise<AttendanceUpload[]> {
+    if (headquarters) {
+      return await db.select().from(attendanceUploads).where(eq(attendanceUploads.headquarters, headquarters)).orderBy(desc(attendanceUploads.createdAt));
+    }
     return await db.select().from(attendanceUploads).orderBy(desc(attendanceUploads.createdAt));
   }
   async createAttendanceUpload(data: InsertAttendanceUpload): Promise<AttendanceUpload> {
@@ -883,12 +928,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   // === FUEL RECORDS ===
-  async getFuelRecords(filters?: { year?: number; month?: number; team?: string; fuelType?: string }): Promise<FuelRecord[]> {
+  async getFuelRecords(filters?: { year?: number; month?: number; team?: string; fuelType?: string; headquarters?: string }): Promise<FuelRecord[]> {
     const conditions = [];
     if (filters?.year) conditions.push(eq(fuelRecords.year, filters.year));
     if (filters?.month) conditions.push(eq(fuelRecords.month, filters.month));
     if (filters?.team) conditions.push(eq(fuelRecords.team, filters.team));
     if (filters?.fuelType) conditions.push(eq(fuelRecords.fuelType, filters.fuelType));
+    if (filters?.headquarters) conditions.push(eq(fuelRecords.headquarters, filters.headquarters));
     const query = conditions.length > 0
       ? db.select().from(fuelRecords).where(and(...conditions))
       : db.select().from(fuelRecords);
@@ -962,15 +1008,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   // === SAFETY MANAGER REPORTS ===
-  async getSafetyManagerReports(yearMonth?: string, year?: string): Promise<SafetyManagerReport[]> {
-    let cond: any = undefined;
-    if (yearMonth) {
-      cond = sql`LEFT(${safetyManagerReports.visitDate}, 7) = ${yearMonth}`;
-    } else if (year) {
-      cond = sql`LEFT(${safetyManagerReports.visitDate}, 4) = ${year}`;
-    }
+  async getSafetyManagerReports(yearMonth?: string, year?: string, headquarters?: string): Promise<SafetyManagerReport[]> {
+    const conditions: any[] = [];
+    if (yearMonth) conditions.push(sql`LEFT(${safetyManagerReports.visitDate}, 7) = ${yearMonth}`);
+    else if (year) conditions.push(sql`LEFT(${safetyManagerReports.visitDate}, 4) = ${year}`);
+    if (headquarters) conditions.push(eq(safetyManagerReports.headquarters, headquarters));
     return await db.select().from(safetyManagerReports)
-      .where(cond)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(desc(safetyManagerReports.createdAt));
   }
   async getSafetyManagerReport(id: number): Promise<SafetyManagerReport | undefined> {
@@ -990,16 +1034,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   // === HEALTH MANAGER REPORTS ===
-  async getHealthManagerReports(yearMonth?: string, year?: string): Promise<HealthManagerReport[]> {
-    // visitDate 기준으로 조회 — 기존 yearMonth 필드 오염 데이터도 올바르게 처리
-    let cond: any = undefined;
-    if (yearMonth) {
-      cond = sql`LEFT(${healthManagerReports.visitDate}, 7) = ${yearMonth}`;
-    } else if (year) {
-      cond = sql`LEFT(${healthManagerReports.visitDate}, 4) = ${year}`;
-    }
+  async getHealthManagerReports(yearMonth?: string, year?: string, headquarters?: string): Promise<HealthManagerReport[]> {
+    const conditions: any[] = [];
+    if (yearMonth) conditions.push(sql`LEFT(${healthManagerReports.visitDate}, 7) = ${yearMonth}`);
+    else if (year) conditions.push(sql`LEFT(${healthManagerReports.visitDate}, 4) = ${year}`);
+    if (headquarters) conditions.push(eq(healthManagerReports.headquarters, headquarters));
     return await db.select().from(healthManagerReports)
-      .where(cond)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(desc(healthManagerReports.visitDate));
   }
   async getHealthManagerReport(id: number): Promise<HealthManagerReport | undefined> {
@@ -1019,7 +1060,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   // === EDUCATION TASKS ===
-  async getEducationTasks(): Promise<EducationTask[]> {
+  async getEducationTasks(headquarters?: string): Promise<EducationTask[]> {
+    if (headquarters) {
+      return await db.select().from(educationTasks).where(eq(educationTasks.headquarters, headquarters)).orderBy(desc(educationTasks.createdAt));
+    }
     return await db.select().from(educationTasks).orderBy(desc(educationTasks.createdAt));
   }
   async getEducationTask(id: number): Promise<EducationTask | undefined> {
@@ -1093,7 +1137,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   // === 온라인 교육 진도율 ===
-  async getOnlineEduUploads(): Promise<OnlineEduUpload[]> {
+  async getOnlineEduUploads(headquarters?: string): Promise<OnlineEduUpload[]> {
+    if (headquarters) {
+      return await db.select().from(onlineEduUploads).where(eq(onlineEduUploads.headquarters, headquarters)).orderBy(desc(onlineEduUploads.createdAt));
+    }
     return await db.select().from(onlineEduUploads).orderBy(desc(onlineEduUploads.createdAt));
   }
   async createOnlineEduUpload(data: InsertOnlineEduUpload): Promise<OnlineEduUpload> {
@@ -1110,7 +1157,10 @@ export class DatabaseStorage implements IStorage {
       .orderBy(asc(onlineEduRecords.name));
   }
   // === 상/하반기 필요용품 조사 ===
-  async getSafetySupplySurveys(): Promise<SafetySupplySurvey[]> {
+  async getSafetySupplySurveys(headquarters?: string): Promise<SafetySupplySurvey[]> {
+    if (headquarters) {
+      return await db.select().from(safetySupplySurveys).where(eq(safetySupplySurveys.headquarters, headquarters)).orderBy(desc(safetySupplySurveys.year), desc(safetySupplySurveys.half));
+    }
     return await db.select().from(safetySupplySurveys).orderBy(desc(safetySupplySurveys.year), desc(safetySupplySurveys.half));
   }
   async createSafetySupplySurvey(data: InsertSafetySupplySurvey): Promise<SafetySupplySurvey> {
@@ -1234,7 +1284,10 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async getRiskAssessmentResultUploads(): Promise<RiskAssessmentResultUpload[]> {
+  async getRiskAssessmentResultUploads(headquarters?: string): Promise<RiskAssessmentResultUpload[]> {
+    if (headquarters) {
+      return await db.select().from(riskAssessmentResultUploads).where(eq(riskAssessmentResultUploads.headquarters, headquarters)).orderBy(desc(riskAssessmentResultUploads.createdAt));
+    }
     return await db.select().from(riskAssessmentResultUploads).orderBy(desc(riskAssessmentResultUploads.createdAt));
   }
   async getRiskAssessmentResultUpload(id: number): Promise<RiskAssessmentResultUpload | undefined> {

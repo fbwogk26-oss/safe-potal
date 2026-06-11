@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useHeadquarters } from "@/contexts/HeadquartersContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -203,6 +204,7 @@ const ChartTooltip = ({ active, payload, label, unit = "만원" }: any) => {
 
 
 export default function FuelCosts() {
+  const { headquarters } = useHeadquarters();
   const { toast } = useToast();
   const vehicleLogInputRef = useRef<HTMLInputElement>(null);
   const [tab, setTab] = useState("dashboard");
@@ -243,7 +245,8 @@ export default function FuelCosts() {
   const [vdbForm, setVdbForm] = useState<typeof emptyVehicleForm>(emptyVehicleForm);
 
   const { data: summary, isLoading: summaryLoading } = useQuery<SummaryData>({
-    queryKey: ["/api/fuel-records/summary"],
+    queryKey: ["/api/fuel-records/summary", headquarters],
+    queryFn: () => fetch(`/api/fuel-records/summary?headquarters=${encodeURIComponent(headquarters)}`, { credentials: "include" }).then(r => r.json()),
   });
 
   const { data: vehicleStats } = useQuery<{
@@ -253,32 +256,35 @@ export default function FuelCosts() {
     byAcquisition: { type: string; count: number }[];
     updatedAt: string;
   }>({
-    queryKey: ["/api/vehicles/stats"],
+    queryKey: ["/api/vehicles/stats", headquarters],
+    queryFn: () => fetch(`/api/vehicles/stats?headquarters=${encodeURIComponent(headquarters)}`, { credentials: "include" }).then(r => r.json()),
     enabled: tab === "dashboard",
   });
 
   const recordParams = new URLSearchParams();
+  recordParams.set("headquarters", headquarters);
   if (filterYear !== "all") recordParams.set("year", filterYear);
   if (filterMonth !== "all") recordParams.set("month", filterMonth);
   if (filterTeam !== "all") recordParams.set("team", filterTeam);
   if (filterFuelType !== "all") recordParams.set("fuelType", filterFuelType);
 
   const { data: records = [], isLoading: recordsLoading } = useQuery<FuelRecord[]>({
-    queryKey: ["/api/fuel-records", filterYear, filterMonth, filterTeam, filterFuelType],
+    queryKey: ["/api/fuel-records", headquarters, filterYear, filterMonth, filterTeam, filterFuelType],
     queryFn: () => fetch(`/api/fuel-records?${recordParams.toString()}`, { credentials: "include" }).then(r => r.json()),
     enabled: tab === "detail",
   });
 
   const { data: batches = [], isLoading: batchesLoading } = useQuery<Batch[]>({
-    queryKey: ["/api/fuel-records/batches"],
+    queryKey: ["/api/fuel-records/batches", headquarters],
+    queryFn: () => fetch(`/api/fuel-records/batches?headquarters=${encodeURIComponent(headquarters)}`, { credentials: "include" }).then(r => r.json()),
     enabled: tab === "upload",
   });
 
   // ── 오류 현황 쿼리 / 뮤테이션 ──
-  const errParams = new URLSearchParams({ year: errYear, month: errMonth });
+  const errParams = new URLSearchParams({ year: errYear, month: errMonth, headquarters });
   if (errStatus !== "all") errParams.set("status", errStatus);
   const { data: errList = [], isLoading: errLoading } = useQuery<any[]>({
-    queryKey: ["/api/vehicle-log-errors", errYear, errMonth, errStatus],
+    queryKey: ["/api/vehicle-log-errors", headquarters, errYear, errMonth, errStatus],
     queryFn: () => fetch(`/api/vehicle-log-errors?${errParams.toString()}`, { credentials: "include" }).then(r => r.json()),
     enabled: tab === "errors",
   });
@@ -314,12 +320,13 @@ export default function FuelCosts() {
 
   // ── 차량DB 쿼리 / 뮤테이션 ──
   const { data: vehicleDbList = [], isLoading: vdbLoading } = useQuery<Vehicle[]>({
-    queryKey: ["/api/vehicles"],
+    queryKey: ["/api/vehicles", headquarters],
+    queryFn: () => fetch(`/api/vehicles?headquarters=${encodeURIComponent(headquarters)}`, { credentials: "include" }).then(r => r.json()),
     enabled: tab === "vehicledb",
   });
 
   const vdbCreateMutation = useMutation({
-    mutationFn: (data: any) => apiRequest("POST", "/api/vehicles", data),
+    mutationFn: (data: any) => apiRequest("POST", "/api/vehicles", { ...data, headquarters }),
     onSuccess: () => {
       toast({ title: "차량 등록 완료" });
       queryClient.invalidateQueries({ queryKey: ["/api/vehicles"] });

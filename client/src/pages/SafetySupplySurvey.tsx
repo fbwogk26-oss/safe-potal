@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useHeadquarters } from "@/contexts/HeadquartersContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -72,6 +73,7 @@ const fmt = (n: number) => n.toLocaleString("ko-KR");
 type CreateMode = "new" | "copy";
 
 export default function SafetySupplySurvey() {
+  const { headquarters } = useHeadquarters();
   const { toast } = useToast();
   const [selectedId, setSelectedId] = useState<number | null>(null);
 
@@ -117,7 +119,10 @@ export default function SafetySupplySurvey() {
   const [regItemIds, setRegItemIds] = useState<Set<number>>(new Set());
 
   // ── 쿼리 ─────────────────────────────────────────────
-  const { data: surveys = [] } = useQuery<Survey[]>({ queryKey: ["/api/safety-supply/surveys"] });
+  const { data: surveys = [] } = useQuery<Survey[]>({
+    queryKey: ["/api/safety-supply/surveys", headquarters],
+    queryFn: () => fetch(`/api/safety-supply/surveys?headquarters=${encodeURIComponent(headquarters)}`, { credentials: "include" }).then(r => r.json()),
+  });
   const { data: items = [], isLoading: itemsLoading } = useQuery<Item[]>({
     queryKey: ["/api/safety-supply/surveys", selectedId, "items"],
     queryFn: () => selectedId ? apiRequest("GET", `/api/safety-supply/surveys/${selectedId}/items`).then(r => r.json()) : Promise.resolve([]),
@@ -133,7 +138,7 @@ export default function SafetySupplySurvey() {
 
   // ── 뮤테이션 ─────────────────────────────────────────
   const createMut = useMutation({
-    mutationFn: (body: any) => apiRequest("POST", "/api/safety-supply/surveys", body).then(r => r.json()),
+    mutationFn: (body: any) => apiRequest("POST", "/api/safety-supply/surveys", { ...body, headquarters }).then(r => r.json()),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/safety-supply/surveys"] });
       selectSurvey(data.id);

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
+import { useHeadquarters } from "@/contexts/HeadquartersContext";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import {
@@ -31,6 +32,7 @@ const DONE_COLOR = "#6366f1";
 const TODO_COLOR = "#e0e7ff";
 
 export default function EducationStatus() {
+  const { headquarters } = useHeadquarters();
   const { user } = useAuth();
   const { toast } = useToast();
   const isEditor = user?.role === "admin" || user?.role === "deptHead" || user?.role === "manager";
@@ -39,7 +41,8 @@ export default function EducationStatus() {
   const [confirmIds, setConfirmIds] = useState<number[]>([]);
 
   const { data: tasks = [], isLoading } = useQuery<EducationTask[]>({
-    queryKey: ["/api/education-tasks"],
+    queryKey: ["/api/education-tasks", headquarters],
+    queryFn: () => fetch(`/api/education-tasks?headquarters=${encodeURIComponent(headquarters)}`, { credentials: "include" }).then(r => r.json()),
   });
 
   const bulkConfirmMutation = useMutation({

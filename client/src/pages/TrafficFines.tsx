@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2, Upload, FileText, Pencil, Trash2, Plus, ReceiptText, AlertCircle, Car, X, ZoomIn, FileDown, Zap, AlertTriangle, CheckSquare } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { TrafficFine, Vehicle } from "@shared/schema";
+import { useHeadquarters } from "@/contexts/HeadquartersContext";
 
 const todayStr = () => {
   const d = new Date();
@@ -213,6 +214,7 @@ function ImageViewer({ src, pdfUrl, onClose }: { src: string; pdfUrl?: string | 
 }
 
 export default function TrafficFines() {
+  const { headquarters } = useHeadquarters();
   const { user } = useAuth();
   const { toast } = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -229,7 +231,8 @@ export default function TrafficFines() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
   const { data: fines = [], isLoading } = useQuery<TrafficFine[]>({
-    queryKey: ["/api/traffic-fines"],
+    queryKey: ["/api/traffic-fines", headquarters],
+    queryFn: () => fetch(`/api/traffic-fines?headquarters=${encodeURIComponent(headquarters)}`, { credentials: "include" }).then(r => r.json()),
   });
 
   const { data: stats } = useQuery<{
@@ -237,15 +240,17 @@ export default function TrafficFines() {
     paidAmount: number; unpaidCount: number; paidCount: number;
     byViolationType: Record<string, number>;
   }>({
-    queryKey: ["/api/traffic-fines/stats"],
+    queryKey: ["/api/traffic-fines/stats", headquarters],
+    queryFn: () => fetch(`/api/traffic-fines/stats?headquarters=${encodeURIComponent(headquarters)}`, { credentials: "include" }).then(r => r.json()),
   });
 
   const { data: vehicles = [] } = useQuery<Vehicle[]>({
-    queryKey: ["/api/vehicles"],
+    queryKey: ["/api/vehicles", headquarters],
+    queryFn: () => fetch(`/api/vehicles?headquarters=${encodeURIComponent(headquarters)}`, { credentials: "include" }).then(r => r.json()),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: Partial<TrafficFine>) => apiRequest("POST", "/api/traffic-fines", data),
+    mutationFn: (data: Partial<TrafficFine>) => apiRequest("POST", "/api/traffic-fines", { ...data, headquarters }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/traffic-fines"] });
       queryClient.invalidateQueries({ queryKey: ["/api/traffic-fines/stats"] });

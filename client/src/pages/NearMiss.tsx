@@ -44,7 +44,7 @@ type NearMiss = {
 };
 
 export default function NearMiss() {
-  const { departments: TEAMS } = useHeadquarters();
+  const { headquarters, departments: TEAMS } = useHeadquarters();
   const { toast } = useToast();
   const qc = useQueryClient();
   const { isAdmin, canEditAccidents } = usePermissions();
@@ -60,7 +60,8 @@ export default function NearMiss() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
   const { data: reports = [], isLoading } = useQuery<NearMiss[]>({
-    queryKey: ["/api/near-miss"],
+    queryKey: ["/api/near-miss", headquarters],
+    queryFn: () => fetch(`/api/near-miss?headquarters=${encodeURIComponent(headquarters)}`, { credentials: "include" }).then(r => r.json()),
   });
 
   const updateMutation = useMutation({

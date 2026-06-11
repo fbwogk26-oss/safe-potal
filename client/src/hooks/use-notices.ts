@@ -1,14 +1,16 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl } from "@shared/routes";
 import type { InsertNotice } from "@shared/schema";
+import { useHeadquarters } from "@/contexts/HeadquartersContext";
 
 export function useNotices(category?: string, options?: { refetchInterval?: number }) {
+  const { headquarters } = useHeadquarters();
   return useQuery({
-    queryKey: [api.notices.list.path, category],
+    queryKey: [api.notices.list.path, category, headquarters],
     queryFn: async () => {
-      const url = category 
-        ? `${api.notices.list.path}?category=${category}` 
-        : api.notices.list.path;
+      let url = category 
+        ? `${api.notices.list.path}?category=${category}&headquarters=${encodeURIComponent(headquarters)}` 
+        : `${api.notices.list.path}?headquarters=${encodeURIComponent(headquarters)}`;
 
       const res = await fetch(url, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch notices");
@@ -21,12 +23,13 @@ export function useNotices(category?: string, options?: { refetchInterval?: numb
 
 export function useCreateNotice() {
   const queryClient = useQueryClient();
+  const { headquarters } = useHeadquarters();
   return useMutation({
     mutationFn: async (data: InsertNotice) => {
       const res = await fetch(api.notices.create.path, {
         method: api.notices.create.method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify({ ...data, headquarters }),
         credentials: "include",
       });
       if (!res.ok) throw new Error("Failed to create notice");

@@ -185,16 +185,16 @@ export default function RiskAssessmentPage() {
   const [uploadingImprovementPhoto, setUploadingImprovementPhoto] = useState(false);
 
   const { data: assessments, isLoading } = useQuery<RiskAssessment[]>({
-    queryKey: ["/api/risk-assessments", activeType],
+    queryKey: ["/api/risk-assessments", activeType, headquarters],
     queryFn: () =>
-      fetch(`/api/risk-assessments?type=${encodeURIComponent(activeType)}`, { credentials: "include" })
+      fetch(`/api/risk-assessments?type=${encodeURIComponent(activeType)}&headquarters=${encodeURIComponent(headquarters)}`, { credentials: "include" })
         .then(r => { if (!r.ok) throw new Error(r.statusText); return r.json(); }),
   });
 
   const { data: allAssessments } = useQuery<RiskAssessment[]>({
-    queryKey: ["/api/risk-assessments", "all"],
+    queryKey: ["/api/risk-assessments", "all", headquarters],
     queryFn: () =>
-      fetch(`/api/risk-assessments`, { credentials: "include" })
+      fetch(`/api/risk-assessments?headquarters=${encodeURIComponent(headquarters)}`, { credentials: "include" })
         .then(r => { if (!r.ok) throw new Error(r.statusText); return r.json(); }),
   });
 

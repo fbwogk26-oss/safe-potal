@@ -3,6 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { usePermissions } from "@/hooks/use-permissions";
+import { useHeadquarters } from "@/contexts/HeadquartersContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -90,6 +91,7 @@ const STATUS_STYLES: Record<string, string> = {
 const STATUSES = ["승인완료", "승인요청"] as const;
 
 export default function RiskAssessmentResults() {
+  const { headquarters } = useHeadquarters();
   const { toast } = useToast();
   const { canEditRiskAssessment } = usePermissions();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -100,8 +102,8 @@ export default function RiskAssessmentResults() {
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
 
   const { data: uploads = [], isLoading } = useQuery<UploadRecord[]>({
-    queryKey: ["/api/risk-assessment-results"],
-    queryFn: () => fetch("/api/risk-assessment-results", { credentials: "include" }).then(r => r.json()),
+    queryKey: ["/api/risk-assessment-results", headquarters],
+    queryFn: () => fetch(`/api/risk-assessment-results?headquarters=${encodeURIComponent(headquarters)}`, { credentials: "include" }).then(r => r.json()),
   });
 
   const deleteMutation = useMutation({

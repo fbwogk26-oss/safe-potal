@@ -52,7 +52,7 @@ function shortTeam(team: string | null | undefined): string {
 }
 
 export default function HealthManagerReports() {
-  const { departments: ALL_TEAMS } = useHeadquarters();
+  const { headquarters, departments: ALL_TEAMS } = useHeadquarters();
   const { canEditInspections } = usePermissions();
   const { toast } = useToast();
   const now = new Date();
@@ -173,13 +173,13 @@ export default function HealthManagerReports() {
   const yearMonth = getYearMonth(year, month);
 
   const { data: reports = [], isLoading } = useQuery<HealthManagerReport[]>({
-    queryKey: ["/api/health-manager-reports", yearMonth],
-    queryFn: () => fetch(`/api/health-manager-reports?yearMonth=${yearMonth}`).then(r => r.json()),
+    queryKey: ["/api/health-manager-reports", yearMonth, headquarters],
+    queryFn: () => fetch(`/api/health-manager-reports?yearMonth=${yearMonth}&headquarters=${encodeURIComponent(headquarters)}`, { credentials: "include" }).then(r => r.json()),
   });
 
   const { data: annualReports = [] } = useQuery<HealthManagerReport[]>({
-    queryKey: ["/api/health-manager-reports", "year", String(year)],
-    queryFn: () => fetch(`/api/health-manager-reports?year=${year}`).then(r => r.json()),
+    queryKey: ["/api/health-manager-reports", "year", String(year), headquarters],
+    queryFn: () => fetch(`/api/health-manager-reports?year=${year}&headquarters=${encodeURIComponent(headquarters)}`, { credentials: "include" }).then(r => r.json()),
   });
 
   const deleteMutation = useMutation({

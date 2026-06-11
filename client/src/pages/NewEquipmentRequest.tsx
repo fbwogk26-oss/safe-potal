@@ -4,6 +4,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useAuth } from "@/hooks/use-auth";
+import { useHeadquarters } from "@/contexts/HeadquartersContext";
 import { Link } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { PackagePlus, ChevronLeft, Trash2, Send, ImagePlus, Link2, X, ExternalLink, Clock, CheckCircle2, XCircle, AlertCircle, ChevronDown, ChevronUp, Truck, Package, PackageCheck, ShoppingCart, Lock } from "lucide-react";
@@ -63,6 +64,7 @@ function DeliveryStatusBadge({ status }: { status: string | null }) {
 }
 
 export default function NewEquipmentRequestPage() {
+  const { headquarters } = useHeadquarters();
   const { user } = useAuth();
   const { canManageEquipmentRequests } = usePermissions();
   const queryClient = useQueryClient();
@@ -96,7 +98,8 @@ export default function NewEquipmentRequestPage() {
   }, [user]);
 
   const { data: requests, isLoading } = useQuery<NewEquipmentRequest[]>({
-    queryKey: ["/api/new-equipment-requests"],
+    queryKey: ["/api/new-equipment-requests", headquarters],
+    queryFn: () => fetch(`/api/new-equipment-requests?headquarters=${encodeURIComponent(headquarters)}`, { credentials: "include" }).then(r => r.json()),
   });
 
   const markReadMutation = useMutation({
@@ -117,7 +120,7 @@ export default function NewEquipmentRequestPage() {
       itemName: string; category: string; reason: string;
       quantity: number; urgency: string; department: string;
       requestedBy: string; imageUrl?: string; referenceUrl?: string;
-    }) => apiRequest("POST", "/api/new-equipment-requests", body),
+    }) => apiRequest("POST", "/api/new-equipment-requests", { ...body, headquarters }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/new-equipment-requests"] });
       toast({ title: "요청 등록 완료", description: "신규 상품 요청이 등록되었습니다." });

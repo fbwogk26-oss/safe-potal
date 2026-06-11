@@ -415,7 +415,8 @@ export default function JointInspectionPage() {
   const [signatureData, setSignatureData] = useState<string>("");
 
   const { data: inspections = [], isLoading } = useQuery<JointInspection[]>({
-    queryKey: ["/api/joint-inspections"],
+    queryKey: ["/api/joint-inspections", headquarters],
+    queryFn: () => fetch(`/api/joint-inspections?headquarters=${encodeURIComponent(headquarters)}`, { credentials: "include" }).then(r => r.json()),
   });
 
   // 월별 그룹핑
@@ -445,7 +446,7 @@ export default function JointInspectionPage() {
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: any) => apiRequest("POST", "/api/joint-inspections", data),
+    mutationFn: (data: any) => apiRequest("POST", "/api/joint-inspections", { ...data, headquarters }),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/joint-inspections"] }); toast({ title: "합동점검이 등록됐습니다" }); setDialogOpen(false); },
     onError: () => toast({ title: "저장 실패", variant: "destructive" }),
   });

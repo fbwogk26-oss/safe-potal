@@ -65,7 +65,7 @@ const defaultForm: FormState = {
 };
 
 export default function MusculoskeletalDisease() {
-  const { departments: DEPARTMENTS } = useHeadquarters();
+  const { headquarters, departments: DEPARTMENTS } = useHeadquarters();
   const { canEditMusculoskeletal } = usePermissions();
   const canEdit = canEditMusculoskeletal;
   const { user } = useAuth();
@@ -79,12 +79,13 @@ export default function MusculoskeletalDisease() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
   const { data: assessments, isLoading } = useQuery<MusculoskeletalAssessment[]>({
-    queryKey: ["/api/musculoskeletal-assessments"],
+    queryKey: ["/api/musculoskeletal-assessments", headquarters],
+    queryFn: () => fetch(`/api/musculoskeletal-assessments?headquarters=${encodeURIComponent(headquarters)}`, { credentials: "include" }).then(r => r.json()),
   });
 
   const createMutation = useMutation({
     mutationFn: (data: FormState) =>
-      apiRequest("POST", "/api/musculoskeletal-assessments", data as unknown as Record<string, unknown>),
+      apiRequest("POST", "/api/musculoskeletal-assessments", { ...data, headquarters } as unknown as Record<string, unknown>),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments"] });
       resetForm();

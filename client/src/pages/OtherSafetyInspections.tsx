@@ -58,14 +58,15 @@ const SUBTYPE_COLORS: Record<OtherInspectionType, string> = {
 };
 
 export default function OtherSafetyInspections() {
-  const { departments } = useHeadquarters();
+  const { headquarters, departments } = useHeadquarters();
   const EXTRA_DEPARTMENTS = departments.slice(0, 3);
   const { canEditInspections, canUploadInspectionPhotos } = usePermissions();
   const { user } = useAuth();
   const { toast } = useToast();
 
   const { data: allInspections, isLoading } = useQuery<SafetyInspection[]>({
-    queryKey: ["/api/safety-inspections"],
+    queryKey: ["/api/safety-inspections", headquarters],
+    queryFn: () => fetch(`/api/safety-inspections?headquarters=${encodeURIComponent(headquarters)}`, { credentials: "include" }).then(r => r.json()),
   });
 
   const inspections = allInspections?.filter(i =>
@@ -73,7 +74,8 @@ export default function OtherSafetyInspections() {
   ) ?? [];
 
   const { data: teams } = useQuery<Team[]>({
-    queryKey: ["/api/teams"],
+    queryKey: ["/api/teams", headquarters],
+    queryFn: () => fetch(`/api/teams?headquarters=${encodeURIComponent(headquarters)}`, { credentials: "include" }).then(r => r.json()),
   });
 
   const [editingId, setEditingId] = useState<number | null>(null);

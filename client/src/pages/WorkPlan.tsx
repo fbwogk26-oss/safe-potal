@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useHeadquarters } from "@/contexts/HeadquartersContext";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,6 +42,7 @@ interface AutoJobStatus {
 }
 
 export default function WorkPlan() {
+  const { headquarters } = useHeadquarters();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -70,7 +72,8 @@ export default function WorkPlan() {
   const [processingUid, setProcessingUid] = useState<number|null>(null);
 
   const { data: workPlans = [], isLoading } = useQuery<WorkPlan[]>({
-    queryKey: ["/api/work-plans"],
+    queryKey: ["/api/work-plans", headquarters],
+    queryFn: () => fetch(`/api/work-plans?headquarters=${encodeURIComponent(headquarters)}`, { credentials: "include" }).then(r => r.json()),
   });
 
   const { data: autoJobStatus, refetch: refetchAutoStatus } = useQuery<AutoJobStatus>({

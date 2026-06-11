@@ -97,13 +97,13 @@ export default function SafetyManagerReports() {
   const yearMonth = getYearMonth(year, month);
 
   const { data: reports = [], isLoading } = useQuery<SafetyManagerReport[]>({
-    queryKey: ["/api/safety-manager-reports", yearMonth],
-    queryFn: () => fetch(`/api/safety-manager-reports?yearMonth=${yearMonth}`, { credentials: "include" }).then(r => r.json()),
+    queryKey: ["/api/safety-manager-reports", yearMonth, headquarters],
+    queryFn: () => fetch(`/api/safety-manager-reports?yearMonth=${yearMonth}&headquarters=${encodeURIComponent(headquarters)}`, { credentials: "include" }).then(r => r.json()),
   });
 
   const { data: annualReports = [] } = useQuery<SafetyManagerReport[]>({
-    queryKey: ["/api/safety-manager-reports", "year", String(year)],
-    queryFn: () => fetch(`/api/safety-manager-reports?year=${year}`, { credentials: "include" }).then(r => r.json()),
+    queryKey: ["/api/safety-manager-reports", "year", String(year), headquarters],
+    queryFn: () => fetch(`/api/safety-manager-reports?year=${year}&headquarters=${encodeURIComponent(headquarters)}`, { credentials: "include" }).then(r => r.json()),
   });
 
   const deleteMutation = useMutation({

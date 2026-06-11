@@ -697,7 +697,8 @@ export async function registerRoutes(
   // === TEAMS ===
   app.get(api.teams.list.path, isAuthenticated, async (req: any, res) => {
     const year = req.query.year ? Number(req.query.year) : 2025;
-    const teams = await storage.getTeams(year);
+    const headquarters = req.query.headquarters as string | undefined;
+    const teams = await storage.getTeams(year, headquarters);
     res.json(teams);
   });
 
@@ -1408,7 +1409,8 @@ export async function registerRoutes(
   // === NOTICES ===
   app.get(api.notices.list.path, isAuthenticated, async (req: any, res) => {
     const category = req.query.category as string;
-    const notices = await storage.getNotices(category);
+    const headquarters = req.query.headquarters as string | undefined;
+    const notices = await storage.getNotices(category, headquarters);
     res.json(notices);
   });
 
@@ -1777,7 +1779,8 @@ export async function registerRoutes(
   ];
 
   app.get("/api/safety-equipment", isAuthenticated, async (req: any, res) => {
-    const equipment = await storage.getSafetyEquipment();
+    const headquarters = req.query.headquarters as string | undefined;
+    const equipment = await storage.getSafetyEquipment(headquarters);
     res.json(equipment);
   });
 
@@ -1946,7 +1949,8 @@ export async function registerRoutes(
 
   // === SAFETY INSPECTIONS ===
   app.get("/api/safety-inspections", isAuthenticated, async (req: any, res) => {
-    const inspections = await storage.getSafetyInspections();
+    const headquarters = req.query.headquarters as string | undefined;
+    const inspections = await storage.getSafetyInspections(headquarters);
     res.json(inspections);
   });
 
@@ -2412,7 +2416,8 @@ ${buildEmailFooter()}
   // === EDUCATION SESSIONS (교육일지) ===
   app.get("/api/education-sessions", isAuthenticated, async (req: any, res) => {
     const department = req.query.department as string | undefined;
-    const sessions = await storage.getEducationSessions(department);
+    const headquarters = req.query.headquarters as string | undefined;
+    const sessions = await storage.getEducationSessions(department, headquarters);
     const sigCounts = await db
       .select({ sessionId: educationSignatures.sessionId, cnt: count() })
       .from(educationSignatures)
@@ -3614,11 +3619,12 @@ ${buildEmailFooter()}
   app.get('/api/chemicals', isAuthenticated, async (req: any, res) => {
     try {
       const search = req.query.search as string;
+      const headquarters = req.query.headquarters as string | undefined;
       if (search) {
-        const results = await storage.searchChemicals(search);
+        const results = await storage.searchChemicals(search, headquarters);
         return res.json(results);
       }
-      const all = await storage.getChemicals();
+      const all = await storage.getChemicals(headquarters);
       res.json(all);
     } catch (error) {
       res.status(500).json({ message: "화학물질 목록 조회에 실패했습니다" });
@@ -3681,7 +3687,8 @@ ${buildEmailFooter()}
   // === MUSCULOSKELETAL ASSESSMENTS ===
   app.get('/api/musculoskeletal-assessments', isAuthenticated, async (req: any, res) => {
     try {
-      const results = await storage.getMusculoskeletalAssessments();
+      const headquarters = req.query.headquarters as string | undefined;
+      const results = await storage.getMusculoskeletalAssessments(headquarters);
       res.json(results);
     } catch (error) {
       res.status(500).json({ message: "근골격계 유해요인조사 목록 조회에 실패했습니다" });
@@ -3745,8 +3752,9 @@ ${buildEmailFooter()}
 
       const department = (req.query.department as string) || '전체';
       const assessmentType = req.query.type as string | undefined;
+      const headquartersExcel = req.query.headquarters as string | undefined;
 
-      let assessments = await storage.getRiskAssessments(assessmentType || undefined);
+      let assessments = await storage.getRiskAssessments(assessmentType || undefined, headquartersExcel);
       if (department && department !== '전체') {
         assessments = assessments.filter((a: any) => a.department === department);
       }
@@ -3936,7 +3944,8 @@ ${buildEmailFooter()}
   app.get('/api/risk-assessments', isAuthenticated, async (req: any, res) => {
     try {
       const type = req.query.type as string;
-      const results = await storage.getRiskAssessments(type || undefined);
+      const headquarters = req.query.headquarters as string | undefined;
+      const results = await storage.getRiskAssessments(type || undefined, headquarters);
       res.json(results);
     } catch (error) {
       res.status(500).json({ message: "위험성평가 목록 조회에 실패했습니다" });
@@ -4310,7 +4319,8 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
 
   app.get('/api/risk-assessment-results', isAuthenticated, async (req: any, res) => {
     try {
-      const uploads = await storage.getRiskAssessmentResultUploads();
+      const headquarters = req.query.headquarters as string | undefined;
+      const uploads = await storage.getRiskAssessmentResultUploads(headquarters);
       res.json(uploads);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
@@ -4663,7 +4673,8 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
   // === ACCIDENT REPORTS ===
   app.get('/api/accidents', isAuthenticated, async (req: any, res) => {
     try {
-      const reports = await storage.getAccidentReports();
+      const headquarters = req.query.headquarters as string | undefined;
+      const reports = await storage.getAccidentReports(headquarters);
       res.json(reports);
     } catch (error) {
       res.status(500).json({ message: "사고보고 목록 조회에 실패했습니다" });
@@ -4672,7 +4683,8 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
 
   app.get('/api/accidents/stats', isAuthenticated, async (req: any, res) => {
     try {
-      const reports = await storage.getAccidentReports();
+      const headquarters = req.query.headquarters as string | undefined;
+      const reports = await storage.getAccidentReports(headquarters);
       const byType: Record<string, number> = {};
       const byCause: Record<string, number> = {};
       const byDepartment: Record<string, number> = {};
@@ -5275,7 +5287,10 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
   });
 
   app.get('/api/near-miss', isAuthenticated, async (req: any, res) => {
-    try { res.json(await storage.getNearMissReports()); }
+    try {
+      const headquarters = req.query.headquarters as string | undefined;
+      res.json(await storage.getNearMissReports(headquarters));
+    }
     catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
@@ -5313,7 +5328,8 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
   // 아차사고 엑셀 다운로드
   app.get('/api/near-miss/export/excel', isAuthenticated, async (req: any, res) => {
     try {
-      const reports = await storage.getNearMissReports();
+      const headquarters = req.query.headquarters as string | undefined;
+      const reports = await storage.getNearMissReports(headquarters);
       const wb = new ExcelJS.Workbook();
       const ws = wb.addWorksheet('아차사고 목록');
       ws.columns = [
@@ -5355,7 +5371,8 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
   // === NEW EQUIPMENT REQUESTS ===
   app.get('/api/new-equipment-requests', isAuthenticated, async (req: any, res) => {
     try {
-      const requests = await storage.getNewEquipmentRequests();
+      const headquarters = req.query.headquarters as string | undefined;
+      const requests = await storage.getNewEquipmentRequests(headquarters);
       res.json(requests);
     } catch (error) {
       res.status(500).json({ message: "신규 상품요청 목록 조회에 실패했습니다" });
@@ -5760,7 +5777,8 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
   // === VEHICLES API ===
   app.get('/api/vehicles', isAuthenticated, async (req: any, res) => {
     try {
-      const list = await storage.getVehicles();
+      const headquarters = req.query.headquarters as string | undefined;
+      const list = await storage.getVehicles(headquarters);
       res.json(list);
     } catch (error) {
       res.status(500).json({ message: "차량 목록 조회에 실패했습니다" });
@@ -5770,7 +5788,8 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
   // 차량DB 현황 통계 (대시보드용)
   app.get('/api/vehicles/stats', isAuthenticated, async (req: any, res) => {
     try {
-      const list = await storage.getVehicles();
+      const headquarters = req.query.headquarters as string | undefined;
+      const list = await storage.getVehicles(headquarters);
       const active = list.filter((v: any) => v.status === '사용중');
       const inactive = list.filter((v: any) => v.status === '미사용');
 
@@ -5956,7 +5975,8 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
   // 과태료 엑셀 다운로드
   app.get('/api/traffic-fines/excel', isAuthenticated, async (req: any, res) => {
     try {
-      const fines = await storage.getTrafficFines();
+      const headquarters = req.query.headquarters as string | undefined;
+      const fines = await storage.getTrafficFines(headquarters);
       const workbook = new ExcelJS.Workbook();
       const ws = workbook.addWorksheet('교통 과태료 현황');
 
@@ -6035,7 +6055,8 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
 
   app.get('/api/traffic-fines', isAuthenticated, async (req: any, res) => {
     try {
-      const fines = await storage.getTrafficFines();
+      const headquarters = req.query.headquarters as string | undefined;
+      const fines = await storage.getTrafficFines(headquarters);
       res.json(fines);
     } catch (error) {
       res.status(500).json({ message: "과태료 목록 조회에 실패했습니다" });
@@ -6139,7 +6160,8 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
   // 과태료 통계
   app.get('/api/traffic-fines/stats', isAuthenticated, async (req: any, res) => {
     try {
-      const fines = await storage.getTrafficFines();
+      const headquarters = req.query.headquarters as string | undefined;
+      const fines = await storage.getTrafficFines(headquarters);
       const totalAmount = fines.reduce((s, f) => s + (f.amount || 0), 0);
       const unpaidAmount = fines.filter(f => f.paymentStatus === "미납").reduce((s, f) => s + (f.amount || 0), 0);
       const paidAmount = fines.filter(f => f.paymentStatus === "납부완료").reduce((s, f) => s + (f.amount || 0), 0);
@@ -6172,7 +6194,8 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
 
   app.get('/api/work-plans', isAuthenticated, async (req: any, res) => {
     try {
-      const plans = await storage.getWorkPlans();
+      const headquarters = req.query.headquarters as string | undefined;
+      const plans = await storage.getWorkPlans(headquarters);
       res.json(plans);
     } catch (error) {
       res.status(500).json({ message: "조회에 실패했습니다" });
@@ -6329,6 +6352,7 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
         emailDraft,
         sheetSummary,
         createdBy: req.user?.username,
+        headquarters: req.body.headquarters || '대구본부',
       });
 
       res.json({ plan, emailDraft, processedFileUrl: finalProcessedUrl });
@@ -6556,6 +6580,7 @@ workers 배열은 실제 작업자 명단이며, supervisor는 KT/KTMOS 측 감�
           emailDraft: htmlDraft,
           sheetSummary: `총 ${items.length}건`,
           createdBy: (req as any).user?.username || null,
+          headquarters: (req as any).body?.headquarters || '대구본부',
         });
       } catch (saveErr) {
         console.error("[parse-subcontract-email] DB 저장 실패:", saveErr);
@@ -6726,6 +6751,7 @@ workers 배열은 실제 작업자 명단이며, supervisor는 KT/KTMOS 측 감�
           emailDraft: htmlDraft,
           sheetSummary: `총 ${items.length}건`,
           createdBy: (req as any).user?.username || null,
+          headquarters: (req as any).body?.headquarters || '대구본부',
         });
       } catch (saveErr) {
         console.error("[process-gmail] DB 저장 실패:", saveErr);
@@ -6799,6 +6825,7 @@ ${htmlDraft}
         emailDraft,
         sheetSummary,
         createdBy: req.user?.username,
+        headquarters: req.body.headquarters || '대구본부',
       });
       res.json({ plan, emailDraft });
     } catch (error: any) {
@@ -6885,7 +6912,8 @@ ${htmlDraft}
 
   app.get('/api/safety-committees', isAuthenticated, async (req: any, res) => {
     try {
-      const rows = await storage.getSafetyCommittees();
+      const headquarters = req.query.headquarters as string | undefined;
+      const rows = await storage.getSafetyCommittees(headquarters);
       res.json(rows);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
@@ -7010,7 +7038,8 @@ ${htmlDraft}
 
   app.get('/api/joint-inspections', isAuthenticated, async (req: any, res) => {
     try {
-      const rows = await storage.getJointInspections();
+      const headquarters = req.query.headquarters as string | undefined;
+      const rows = await storage.getJointInspections(headquarters);
       res.json(rows);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
@@ -7102,7 +7131,8 @@ ${htmlDraft}
 
   app.get('/api/attendance/uploads', isAuthenticated, async (req: any, res) => {
     try {
-      const uploads = await storage.getAttendanceUploads();
+      const headquarters = req.query.headquarters as string | undefined;
+      const uploads = await storage.getAttendanceUploads(headquarters);
       res.json(uploads);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
@@ -7341,9 +7371,10 @@ ${htmlDraft}
   // ── 온라인 교육 진도율 ──────────────────────────────────────────
   const onlineEduUploadMw = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
-  app.get('/api/online-edu/uploads', isAuthenticated, async (_req, res) => {
+  app.get('/api/online-edu/uploads', isAuthenticated, async (req: any, res) => {
     try {
-      const uploads = await storage.getOnlineEduUploads();
+      const headquarters = req.query.headquarters as string | undefined;
+      const uploads = await storage.getOnlineEduUploads(headquarters);
       res.json(uploads);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
@@ -7467,8 +7498,11 @@ ${htmlDraft}
   });
 
   // ── 상/하반기 필요용품 조사 ──────────────────────────────────────
-  app.get('/api/safety-supply/surveys', isAuthenticated, async (_req, res) => {
-    try { res.json(await storage.getSafetySupplySurveys()); }
+  app.get('/api/safety-supply/surveys', isAuthenticated, async (req: any, res) => {
+    try {
+      const headquarters = req.query.headquarters as string | undefined;
+      res.json(await storage.getSafetySupplySurveys(headquarters));
+    }
     catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
@@ -8383,7 +8417,8 @@ ${htmlDraft}
       const month = req.query.month ? parseInt(req.query.month as string) : undefined;
       const team = req.query.team as string | undefined;
       const fuelType = req.query.fuelType as string | undefined;
-      const records = await storage.getFuelRecords({ year, month, team, fuelType });
+      const headquarters = req.query.headquarters as string | undefined;
+      const records = await storage.getFuelRecords({ year, month, team, fuelType, headquarters });
       res.json(records);
     } catch (e: any) {
       res.status(500).json({ message: e.message });
@@ -9061,7 +9096,8 @@ ${htmlDraft}
     try {
       const yearMonth = req.query.yearMonth as string | undefined;
       const year = req.query.year as string | undefined;
-      res.json(await storage.getSafetyManagerReports(yearMonth, year));
+      const headquarters = req.query.headquarters as string | undefined;
+      res.json(await storage.getSafetyManagerReports(yearMonth, year, headquarters));
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
@@ -9178,7 +9214,8 @@ ${htmlDraft}
     try {
       const yearMonth = req.query.yearMonth as string | undefined;
       const year = req.query.year as string | undefined;
-      res.json(await storage.getHealthManagerReports(yearMonth, year));
+      const headquarters = req.query.headquarters as string | undefined;
+      res.json(await storage.getHealthManagerReports(yearMonth, year, headquarters));
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
@@ -9411,9 +9448,10 @@ ${htmlDraft}
     }
   }
 
-  app.get('/api/education-tasks', isAuthenticated, async (_req, res) => {
+  app.get('/api/education-tasks', isAuthenticated, async (req: any, res) => {
     try {
-      const tasks = await storage.getEducationTasks();
+      const headquarters = req.query.headquarters as string | undefined;
+      const tasks = await storage.getEducationTasks(headquarters);
       // 연결된 세션 수(linkedSessionCount) 및 총 대상인원 포함하여 반환
       const enriched = await Promise.all(tasks.map(async (t) => {
         const sessions = await storage.getSessionsByTaskId(t.id);

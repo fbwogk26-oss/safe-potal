@@ -3,6 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
+import { useHeadquarters } from "@/contexts/HeadquartersContext";
 import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -1075,6 +1076,7 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
 }
 
 export default function EducationManagement() {
+  const { headquarters } = useHeadquarters();
   const { user } = useAuth();
   const { toast } = useToast();
   const isEditor = user?.role === "admin" || user?.role === "deptHead" || user?.role === "manager";
@@ -1094,11 +1096,12 @@ export default function EducationManagement() {
   const [expandedTaskId, setExpandedTaskId] = useState<number | null>(null);
 
   const { data: tasks = [], isLoading } = useQuery<EducationTaskWithLinked[]>({
-    queryKey: ["/api/education-tasks"],
+    queryKey: ["/api/education-tasks", headquarters],
+    queryFn: () => fetch(`/api/education-tasks?headquarters=${encodeURIComponent(headquarters)}`, { credentials: "include" }).then(r => r.json()),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: any) => apiRequest("POST", "/api/education-tasks", data),
+    mutationFn: (data: any) => apiRequest("POST", "/api/education-tasks", { ...data, headquarters }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/education-tasks"] });
       setRegisterOpen(false);

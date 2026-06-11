@@ -4,6 +4,7 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { useHeadquarters } from "@/contexts/HeadquartersContext";
 import { Upload, Trash2, ChevronDown, Search, CheckCircle2, XCircle, Clock, AlertCircle, BarChart3, List } from "lucide-react";
 import type { OnlineEduUpload, OnlineEduRecord } from "@shared/schema";
 
@@ -58,6 +59,7 @@ function buildDeptStats(records: OnlineEduRecord[]): DeptStat[] {
 }
 
 export default function OnlineEduProgress() {
+  const { headquarters } = useHeadquarters();
   const { toast } = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -67,7 +69,8 @@ export default function OnlineEduProgress() {
   const [view, setView] = useState<ViewType>("list");
 
   const { data: uploads = [], isLoading: uploadsLoading } = useQuery<OnlineEduUpload[]>({
-    queryKey: ["/api/online-edu/uploads"],
+    queryKey: ["/api/online-edu/uploads", headquarters],
+    queryFn: () => fetch(`/api/online-edu/uploads?headquarters=${encodeURIComponent(headquarters)}`, { credentials: "include" }).then(r => r.json()),
   });
 
   const { data: records = [], isLoading: recordsLoading } = useQuery<OnlineEduRecord[]>({
