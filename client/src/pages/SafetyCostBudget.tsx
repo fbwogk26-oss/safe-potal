@@ -1718,33 +1718,33 @@ export default function SafetyCostBudget() {
 
           {/* 결과 테이블 */}
           {multiResRows.length > 0 && (
-            <div className="flex-1 overflow-auto">
-              <Table>
-                <TableHeader>
+            <div className="flex-1 overflow-auto border rounded-lg">
+              <Table className="min-w-[1000px]">
+                <TableHeader className="sticky top-0 bg-background z-10">
                   <TableRow>
-                    <TableHead className="w-8">
+                    <TableHead className="w-9 px-3">
                       <Checkbox
                         checked={multiResRows.filter(r=>r.status==="done").every(r=>r.checked)}
                         onCheckedChange={v => setMultiResRows(p => p.map(r => r.status==="done" ? { ...r, checked: !!v } : r))}
                         data-testid="chk-multi-res-all"
                       />
                     </TableHead>
-                    <TableHead className="w-28 text-xs">상태</TableHead>
-                    <TableHead className="w-36 text-xs">파일명</TableHead>
-                    <TableHead className="w-28 text-xs">문서유형</TableHead>
-                    <TableHead className="w-40 text-xs">업체명</TableHead>
-                    <TableHead className="min-w-[160px] text-xs">품명</TableHead>
-                    <TableHead className="w-28 text-xs">항목구분</TableHead>
-                    <TableHead className="w-24 text-xs">날짜</TableHead>
-                    <TableHead className="w-24 text-xs">월</TableHead>
-                    <TableHead className="w-32 text-xs">합계금액</TableHead>
+                    <TableHead className="w-16 text-xs whitespace-nowrap">상태</TableHead>
+                    <TableHead className="w-40 text-xs whitespace-nowrap">파일명</TableHead>
+                    <TableHead className="w-28 text-xs whitespace-nowrap">문서유형</TableHead>
+                    <TableHead className="w-36 text-xs whitespace-nowrap">업체명</TableHead>
+                    <TableHead className="w-44 text-xs whitespace-nowrap">품명</TableHead>
+                    <TableHead className="w-48 text-xs whitespace-nowrap">항목구분</TableHead>
+                    <TableHead className="w-32 text-xs whitespace-nowrap">날짜</TableHead>
+                    <TableHead className="w-20 text-xs whitespace-nowrap">월</TableHead>
+                    <TableHead className="w-28 text-xs whitespace-nowrap">합계금액</TableHead>
                     <TableHead className="w-8"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {multiResRows.map(row => (
                     <TableRow key={row.id} className={row.status === "error" ? "opacity-50" : ""}>
-                      <TableCell>
+                      <TableCell className="px-3">
                         <Checkbox
                           checked={row.checked && row.status === "done"}
                           disabled={row.status !== "done"}
@@ -1758,35 +1758,35 @@ export default function SafetyCostBudget() {
                         {row.status === "done" && <Badge className="text-xs bg-green-500 hover:bg-green-600">완료</Badge>}
                         {row.status === "error" && <Badge variant="destructive" className="text-xs" title={row.error}>오류</Badge>}
                       </TableCell>
-                      <TableCell className="text-xs text-muted-foreground truncate max-w-[100px]" title={row.file.name}>
-                        {row.file.name}
+                      <TableCell className="text-xs text-muted-foreground max-w-[150px]">
+                        <span className="block truncate" title={row.file.name}>{row.file.name}</span>
                       </TableCell>
                       <TableCell>
                         {row.status === "done" ? (
                           <Input value={row.documentType || ""} onChange={e => updateMultiResRow(row.id, { documentType: e.target.value })}
-                            className="h-7 text-xs" placeholder="문서유형" data-testid={`inp-doc-type-${row.id}`} />
+                            className="h-7 text-xs w-24" placeholder="문서유형" data-testid={`inp-doc-type-${row.id}`} />
                         ) : <span className="text-xs text-muted-foreground">—</span>}
                       </TableCell>
                       <TableCell>
                         {row.status === "done" ? (
                           <Input value={row.vendorName || ""} onChange={e => updateMultiResRow(row.id, { vendorName: e.target.value })}
-                            className="h-7 text-xs" placeholder="업체명" data-testid={`inp-vendor-${row.id}`} />
+                            className="h-7 text-xs w-32" placeholder="업체명" data-testid={`inp-vendor-${row.id}`} />
                         ) : <span className="text-xs text-muted-foreground">—</span>}
                       </TableCell>
                       <TableCell>
                         {row.status === "done" ? (
                           <Input value={row.itemName || ""} onChange={e => updateMultiResRow(row.id, { itemName: e.target.value })}
-                            className="h-7 text-xs" placeholder="품명" data-testid={`inp-item-${row.id}`} />
+                            className="h-7 text-xs w-40" placeholder="품명" data-testid={`inp-item-${row.id}`} />
                         ) : <span className="text-xs text-muted-foreground">—</span>}
                       </TableCell>
                       <TableCell>
                         {row.status === "done" ? (
                           <Select value={row.category || ""} onValueChange={v => updateMultiResRow(row.id, { category: v })}>
-                            <SelectTrigger className="h-7 text-xs w-28" data-testid={`sel-cat-${row.id}`}>
+                            <SelectTrigger className="h-7 text-xs w-44" data-testid={`sel-cat-${row.id}`}>
                               <SelectValue placeholder="항목선택" />
                             </SelectTrigger>
                             <SelectContent>
-                              {CATEGORIES.map(c => <SelectItem key={c} value={c} className="text-xs">{c.split(". ")[0]}. {c.split(". ")[1]?.substring(0, 12)}…</SelectItem>)}
+                              {CATEGORIES.map(c => <SelectItem key={c} value={c} className="text-xs">{c}</SelectItem>)}
                             </SelectContent>
                           </Select>
                         ) : <span className="text-xs text-muted-foreground">—</span>}
@@ -1794,13 +1794,13 @@ export default function SafetyCostBudget() {
                       <TableCell>
                         {row.status === "done" ? (
                           <Input value={row.purchaseDate || ""} onChange={e => updateMultiResRow(row.id, { purchaseDate: e.target.value })}
-                            className="h-7 text-xs" placeholder="YYYY-MM-DD" data-testid={`inp-date-${row.id}`} />
+                            className="h-7 text-xs w-28" placeholder="YYYY-MM-DD" data-testid={`inp-date-${row.id}`} />
                         ) : <span className="text-xs text-muted-foreground">—</span>}
                       </TableCell>
                       <TableCell>
                         {row.status === "done" ? (
                           <Select value={row.month.toString()} onValueChange={v => updateMultiResRow(row.id, { month: Number(v) })}>
-                            <SelectTrigger className="h-7 text-xs w-16" data-testid={`sel-month-${row.id}`}>
+                            <SelectTrigger className="h-7 text-xs w-18" data-testid={`sel-month-${row.id}`}>
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -1812,7 +1812,7 @@ export default function SafetyCostBudget() {
                       <TableCell>
                         {row.status === "done" ? (
                           <Input value={row.totalAmount || ""} onChange={e => updateMultiResRow(row.id, { totalAmount: e.target.value })}
-                            className="h-7 text-xs text-right" placeholder="0" data-testid={`inp-total-${row.id}`} />
+                            className="h-7 text-xs text-right w-24" placeholder="0" data-testid={`inp-total-${row.id}`} />
                         ) : <span className="text-xs text-muted-foreground">—</span>}
                       </TableCell>
                       <TableCell>
