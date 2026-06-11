@@ -858,8 +858,8 @@ export default function SafetyCostBudget() {
       </div>
 
       {/* ── 요약 카드 ── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Card className="col-span-2 md:col-span-1 border-primary/20 bg-primary/5">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3">
+        <Card className="col-span-2 sm:col-span-3 md:col-span-1 border-primary/20 bg-primary/5">
           <CardContent className="pt-4 pb-3">
             <div className="text-xs text-muted-foreground font-medium uppercase tracking-wide">연간 총 지출</div>
             <div className="text-2xl font-bold text-primary mt-1">{fmtMan(grandTotal)}</div>
@@ -880,7 +880,7 @@ export default function SafetyCostBudget() {
             </div>
           </CardContent>
         </Card>
-        {catTotals.filter(c=>c.total>0).slice(0,3).map((c,i) => (
+        {catTotals.filter(c=>c.total>0).map((c,i) => (
           <Card key={i}>
             <CardContent className="pt-4 pb-3">
               <div className="text-xs text-muted-foreground truncate">{c.cat.split(". ")[1]?.split(" 등")[0]}</div>
