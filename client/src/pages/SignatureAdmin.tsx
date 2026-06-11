@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   ShieldCheck, Search, Copy, Trash2, Eye, CheckCircle2,
   XCircle, Monitor, MapPin, Hash, Clock, Users, BookOpen,
-  GraduationCap, ShoppingCart,
+  GraduationCap, ShoppingCart, ClipboardCheck,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
@@ -19,8 +19,9 @@ import { ko } from "date-fns/locale";
 interface SignatureRecord {
   id: string;
   rawId: number;
-  type: "education" | "equipment";
+  type: "education" | "equipment" | "inspection";
   sessionTitle: string;
+  signerRole?: string;
   sessionDate: string;
   sessionDepartment: string;
   signerName: string;
@@ -42,12 +43,26 @@ function parseUA(ua: string | null) {
   return ua.slice(0, 28) + "…";
 }
 
-function TypeBadge({ type }: { type: "education" | "equipment" }) {
+function TypeBadge({ type, signerRole }: { type: "education" | "equipment" | "inspection"; signerRole?: string }) {
   if (type === "education") {
     return (
       <Badge className="gap-1 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-0 text-xs whitespace-nowrap">
         <GraduationCap className="w-3 h-3" />교육
       </Badge>
+    );
+  }
+  if (type === "inspection") {
+    return (
+      <div className="flex flex-col gap-0.5">
+        <Badge className="gap-1 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 border-0 text-xs whitespace-nowrap">
+          <ClipboardCheck className="w-3 h-3" />합동점검
+        </Badge>
+        {signerRole && (
+          <span className={`text-[10px] font-medium px-1.5 rounded-full ${signerRole === "도급인" ? "text-blue-600" : "text-orange-600"}`}>
+            {signerRole}
+          </span>
+        )}
+      </div>
     );
   }
   return (
@@ -172,7 +187,7 @@ function SignaturePreviewDialog({ sig, open, onClose }: { sig: SignatureRecord; 
 export default function SignatureAdmin() {
   const { toast } = useToast();
   const [search, setSearch] = useState("");
-  const [typeFilter, setTypeFilter] = useState<"all" | "education" | "equipment">("all");
+  const [typeFilter, setTypeFilter] = useState<"all" | "education" | "equipment" | "inspection">("all");
   const [selected, setSelected] = useState<SignatureRecord | null>(null);
 
   const { data: signatures = [], isLoading } = useQuery<SignatureRecord[]>({
@@ -200,6 +215,7 @@ export default function SignatureAdmin() {
 
   const eduCount = signatures.filter(s => s.type === "education").length;
   const equipCount = signatures.filter(s => s.type === "equipment").length;
+  const inspCount = signatures.filter(s => s.type === "inspection").length;
   const consentCount = signatures.filter(s => s.consentAgreed).length;
   const todayCount = signatures.filter(s => {
     if (!s.signedAt) return false;
@@ -219,7 +235,7 @@ export default function SignatureAdmin() {
       </div>
 
       {/* 통계 카드 */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         <Card>
           <CardContent className="p-4 flex items-center gap-3">
             <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -256,7 +272,18 @@ export default function SignatureAdmin() {
         <Card>
           <CardContent className="p-4 flex items-center gap-3">
             <div className="w-9 h-9 rounded-lg bg-green-500/10 flex items-center justify-center">
-              <Clock className="w-4 h-4 text-green-600" />
+              <ClipboardCheck className="w-4 h-4 text-green-600" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">합동점검 서명</p>
+              <p className="text-xl font-bold">{inspCount}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-violet-500/10 flex items-center justify-center">
+              <Clock className="w-4 h-4 text-violet-600" />
             </div>
             <div>
               <p className="text-xs text-muted-foreground">오늘 서명</p>
@@ -274,14 +301,14 @@ export default function SignatureAdmin() {
             <div className="flex items-center gap-2 flex-wrap">
               {/* 유형 필터 탭 */}
               <div className="flex rounded-lg border bg-muted/40 p-0.5 text-xs">
-                {(["all", "education", "equipment"] as const).map(t => (
+                {(["all", "education", "equipment", "inspection"] as const).map(t => (
                   <button
                     key={t}
                     onClick={() => setTypeFilter(t)}
                     className={`px-3 py-1 rounded-md font-medium transition-colors ${typeFilter === t ? "bg-white dark:bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
                     data-testid={`button-filter-${t}`}
                   >
-                    {t === "all" ? "전체" : t === "education" ? "교육" : "보호구"}
+                    {t === "all" ? "전체" : t === "education" ? "교육" : t === "equipment" ? "보호구" : "합동점검"}
                   </button>
                 ))}
               </div>
@@ -337,7 +364,7 @@ export default function SignatureAdmin() {
                       data-testid={`row-signature-${sig.id}`}
                     >
                       <td className="px-4 py-3">
-                        <TypeBadge type={sig.type} />
+                        <TypeBadge type={sig.type} signerRole={sig.signerRole} />
                       </td>
                       <td className="px-4 py-3 max-w-[180px]">
                         <p className="font-medium truncate text-xs" title={sig.sessionTitle}>{sig.sessionTitle || "-"}</p>
@@ -404,7 +431,11 @@ export default function SignatureAdmin() {
                             size="icon"
                             className="h-7 w-7 text-destructive hover:text-destructive"
                             onClick={() => {
-                              const label = sig.type === "education" ? `${sig.signerName}님의 교육 서명` : `${sig.signerName}님의 보호구 지급 서명`;
+                              const label = sig.type === "education"
+                                ? `${sig.signerName}님의 교육 서명`
+                                : sig.type === "inspection"
+                                  ? `${sig.signerName}님의 합동점검 서명`
+                                  : `${sig.signerName}님의 보호구 지급 서명`;
                               if (confirm(`${label} 기록을 삭제하시겠습니까?`)) {
                                 deleteMutation.mutate(sig.id);
                               }

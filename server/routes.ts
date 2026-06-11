@@ -2885,8 +2885,28 @@ ${buildEmailFooter()}
           };
         });
 
+      // 3) 합동안전보건점검 서명
+      const jointSigs = await storage.getAllJointInspectionSignaturesWithInspection();
+      const inspectionResult = jointSigs.map(s => ({
+        id: `insp_${s.id}`,
+        rawId: s.id,
+        type: "inspection" as const,
+        sessionTitle: `합동점검 — ${s.siteName} (${s.subcontractor})`,
+        sessionDate: s.inspectionDate,
+        sessionDepartment: s.subcontractor,
+        signerName: s.signerName,
+        signerDepartment: s.signerDepartment ?? "",
+        signatureData: s.signatureData,
+        signedAt: s.signedAt ? s.signedAt.toISOString() : null,
+        ipAddress: null,
+        userAgent: null,
+        consentAgreed: null,
+        integrityHash: null,
+        signerRole: s.signerRole ?? "",
+      }));
+
       // 최신순 정렬
-      const combined = [...eduResult, ...equipResult].sort((a, b) => {
+      const combined = [...eduResult, ...equipResult, ...inspectionResult].sort((a, b) => {
         const ta = a.signedAt ? new Date(a.signedAt).getTime() : 0;
         const tb = b.signedAt ? new Date(b.signedAt).getTime() : 0;
         return tb - ta;
@@ -2906,6 +2926,9 @@ ${buildEmailFooter()}
       if (rawId.startsWith("equip_")) {
         const noticeId = Number(rawId.replace("equip_", ""));
         await storage.deleteNotice(noticeId);
+      } else if (rawId.startsWith("insp_")) {
+        const sigId = Number(rawId.replace("insp_", ""));
+        await storage.deleteJointInspectionSignature(sigId);
       } else {
         const sigId = Number(rawId.replace("edu_", ""));
         await storage.deleteSignature(sigId);

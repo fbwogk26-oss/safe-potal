@@ -198,6 +198,7 @@ export interface IStorage {
   getJointInspectionSignatures(inspectionId: number): Promise<JointInspectionSignature[]>;
   createJointInspectionSignature(data: InsertJointInspectionSignature): Promise<JointInspectionSignature>;
   deleteJointInspectionSignature(id: number): Promise<void>;
+  getAllJointInspectionSignaturesWithInspection(): Promise<Array<JointInspectionSignature & { inspectionDate: string; siteName: string; subcontractor: string }>>;
 
   // Attendance
   getAttendanceUploads(): Promise<AttendanceUpload[]>;
@@ -784,6 +785,25 @@ export class DatabaseStorage implements IStorage {
   }
   async deleteJointInspectionSignature(id: number): Promise<void> {
     await db.delete(jointInspectionSignatures).where(eq(jointInspectionSignatures.id, id));
+  }
+  async getAllJointInspectionSignaturesWithInspection() {
+    const rows = await db
+      .select({
+        id: jointInspectionSignatures.id,
+        inspectionId: jointInspectionSignatures.inspectionId,
+        signerName: jointInspectionSignatures.signerName,
+        signerDepartment: jointInspectionSignatures.signerDepartment,
+        signerRole: jointInspectionSignatures.signerRole,
+        signatureData: jointInspectionSignatures.signatureData,
+        signedAt: jointInspectionSignatures.signedAt,
+        inspectionDate: jointInspections.inspectionDate,
+        siteName: jointInspections.siteName,
+        subcontractor: jointInspections.subcontractor,
+      })
+      .from(jointInspectionSignatures)
+      .innerJoin(jointInspections, eq(jointInspectionSignatures.inspectionId, jointInspections.id))
+      .orderBy(desc(jointInspectionSignatures.signedAt));
+    return rows;
   }
 
   // === ATTENDANCE ===
