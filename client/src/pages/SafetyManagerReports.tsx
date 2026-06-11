@@ -1,4 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useHeadquarters } from "@/contexts/HeadquartersContext";
 import { useState, useRef } from "react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameDay, isToday } from "date-fns";
 import { ko } from "date-fns/locale";
@@ -17,21 +18,15 @@ import { FileViewer } from "@/components/FileViewer";
 import { extractDateFromPdf } from "@/lib/extractPdfDate";
 import type { SafetyManagerReport } from "@shared/schema";
 
-const DAEGU_TEAMS = ["동대구운용팀", "서대구운용팀", "남대구운용팀"];
-const ALL_TEAMS = [...DAEGU_TEAMS, "포항운용팀", "안동운용팀", "구미운용팀", "문경운용팀"];
+const TEAM_COLORS_LIST = [
+  "bg-orange-500 text-white", "bg-orange-400 text-white", "bg-amber-500 text-white",
+  "bg-blue-500 text-white", "bg-green-500 text-white", "bg-purple-500 text-white",
+  "bg-rose-500 text-white", "bg-cyan-500 text-white", "bg-pink-500 text-white",
+  "bg-indigo-500 text-white",
+];
 
-const TEAM_COLOR: Record<string, string> = {
-  "동대구운용팀": "bg-orange-500 text-white",
-  "서대구운용팀": "bg-orange-400 text-white",
-  "남대구운용팀": "bg-amber-500 text-white",
-  "구미운용팀":   "bg-blue-500 text-white",
-  "포항운용팀":   "bg-green-500 text-white",
-  "안동운용팀":   "bg-purple-500 text-white",
-  "문경운용팀":   "bg-rose-500 text-white",
-};
-
-const VISIT_PLAN: { label: string; teams: string[]; planned: number; note: string }[] = [
-  { label: "대구 지역", teams: DAEGU_TEAMS, planned: 2, note: "4팀 중 매월 2팀 순환" },
+const DAEGU_VISIT_PLAN = [
+  { label: "대구 지역", teams: ["동대구운용팀", "서대구운용팀", "남대구운용팀"], planned: 2, note: "4팀 중 매월 2팀 순환" },
   { label: "구미운용팀", teams: ["구미운용팀"], planned: 2, note: "매월 2회" },
   { label: "포항운용팀", teams: ["포항운용팀"], planned: 2, note: "매월 2회" },
   { label: "안동운용팀", teams: ["안동운용팀"], planned: 1, note: "매월 1회" },
@@ -44,9 +39,16 @@ function getYearMonth(year: number, month: number) {
   return `${year}-${String(month).padStart(2, "0")}`;
 }
 
-const needsSequence = (team: string) => team === "구미운용팀" || team === "포항운용팀";
-
 export default function SafetyManagerReports() {
+  const { headquarters, departments: ALL_TEAMS } = useHeadquarters();
+  const TEAM_COLOR: Record<string, string> = Object.fromEntries(
+    ALL_TEAMS.map((t, i) => [t, TEAM_COLORS_LIST[i % TEAM_COLORS_LIST.length]])
+  );
+  const VISIT_PLAN = headquarters === "대구본부"
+    ? DAEGU_VISIT_PLAN
+    : ALL_TEAMS.map(t => ({ label: t, teams: [t], planned: 1, note: "매월 1회" }));
+  const needsSequence = (team: string) =>
+    headquarters === "대구본부" && (team === "구미운용팀" || team === "포항운용팀");
   const { canEditInspections } = usePermissions();
   const { toast } = useToast();
   const now = new Date();
