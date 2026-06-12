@@ -204,7 +204,7 @@ export interface IStorage {
   getAttendanceUploads(headquarters?: string): Promise<AttendanceUpload[]>;
   createAttendanceUpload(data: InsertAttendanceUpload): Promise<AttendanceUpload>;
   deleteAttendanceUpload(id: number): Promise<void>;
-  getAttendanceRecords(filters?: { year?: number; month?: number; weekNum?: number; uploadId?: number }): Promise<AttendanceRecord[]>;
+  getAttendanceRecords(filters?: { year?: number; month?: number; weekNum?: number; uploadId?: number; headquarters?: string }): Promise<AttendanceRecord[]>;
   createAttendanceRecord(data: InsertAttendanceRecord): Promise<AttendanceRecord>;
   deleteAttendanceRecordsByUpload(uploadId: number): Promise<void>;
   deleteAttendanceRecord(id: number): Promise<void>;
@@ -241,7 +241,7 @@ export interface IStorage {
   insertFuelRecords(records: InsertFuelRecord[]): Promise<number>;
   deleteFuelRecordsByBatch(batchId: string): Promise<void>;
   deleteFuelRecordsByYearMonth(year: number, month: number, headquarters?: string): Promise<void>;
-  getFuelBatches(): Promise<{ batchId: string; uploadedAt: Date; recordCount: number; yearMonths: string[] }[]>;
+  getFuelBatches(headquarters?: string): Promise<{ batchId: string; uploadedAt: Date; recordCount: number; yearMonths: string[] }[]>;
 
   // Vehicle Log Errors
   getVehicleLogErrors(filters?: { year?: number; month?: number; status?: string }): Promise<VehicleLogError[]>;
@@ -862,12 +862,18 @@ export class DatabaseStorage implements IStorage {
   async deleteAttendanceUpload(id: number): Promise<void> {
     await db.delete(attendanceUploads).where(eq(attendanceUploads.id, id));
   }
-  async getAttendanceRecords(filters?: { year?: number; month?: number; weekNum?: number; uploadId?: number }): Promise<AttendanceRecord[]> {
+  async getAttendanceRecords(filters?: { year?: number; month?: number; weekNum?: number; uploadId?: number; headquarters?: string }): Promise<AttendanceRecord[]> {
     const conditions = [];
     if (filters?.year) conditions.push(eq(attendanceRecords.year, filters.year));
     if (filters?.month) conditions.push(eq(attendanceRecords.month, filters.month));
     if (filters?.weekNum) conditions.push(eq(attendanceRecords.weekNum, filters.weekNum));
     if (filters?.uploadId) conditions.push(eq(attendanceRecords.uploadId, filters.uploadId));
+    if (filters?.headquarters) {
+      const hqUploads = await db.select({ id: attendanceUploads.id }).from(attendanceUploads).where(eq(attendanceUploads.headquarters, filters.headquarters));
+      const uploadIds = hqUploads.map(u => u.id);
+      if (uploadIds.length === 0) return [];
+      conditions.push(inArray(attendanceRecords.uploadId, uploadIds));
+    }
     const query = conditions.length > 0
       ? db.select().from(attendanceRecords).where(and(...conditions))
       : db.select().from(attendanceRecords);
@@ -963,17 +969,18 @@ export class DatabaseStorage implements IStorage {
     await db.delete(fuelRecords).where(and(...conditions));
   }
 
-  async getFuelBatches(): Promise<{ batchId: string; uploadedAt: Date; recordCount: number; yearMonths: string[] }[]> {
-    const rows = await db
+  async getFuelBatches(headquarters?: string): Promise<{ batchId: string; uploadedAt: Date; recordCount: number; yearMonths: string[] }[]> {
+    const baseQuery = db
       .select({
         batchId: fuelRecords.uploadBatch,
         uploadedAt: sql<Date>`min(${fuelRecords.createdAt})`,
         recordCount: sql<number>`count(*)::int`,
         yearMonths: sql<string[]>`array_agg(distinct concat(${fuelRecords.year}, '-', lpad(${fuelRecords.month}::text, 2, '0')) order by concat(${fuelRecords.year}, '-', lpad(${fuelRecords.month}::text, 2, '0')))`,
       })
-      .from(fuelRecords)
-      .groupBy(fuelRecords.uploadBatch)
-      .orderBy(sql`min(${fuelRecords.createdAt}) desc`);
+      .from(fuelRecords);
+    const rows = await (headquarters
+      ? baseQuery.where(eq(fuelRecords.headquarters, headquarters)).groupBy(fuelRecords.uploadBatch).orderBy(sql`min(${fuelRecords.createdAt}) desc`)
+      : baseQuery.groupBy(fuelRecords.uploadBatch).orderBy(sql`min(${fuelRecords.createdAt}) desc`));
     return rows.map(r => ({
       batchId: r.batchId ?? "",
       uploadedAt: r.uploadedAt,

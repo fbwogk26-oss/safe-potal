@@ -7126,7 +7126,8 @@ ${htmlDraft}
 
   app.get('/api/attendance/records', isAuthenticated, async (req: any, res) => {
     try {
-      const records = await storage.getAttendanceRecords();
+      const headquarters = req.query.headquarters as string | undefined;
+      const records = await storage.getAttendanceRecords({ headquarters });
       res.json(records);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
@@ -8430,7 +8431,8 @@ ${htmlDraft}
   // GET /api/fuel-records/summary - 연도별/월별/팀별 집계
   app.get("/api/fuel-records/summary", isAuthenticated, async (req, res) => {
     try {
-      const records = await storage.getFuelRecords();
+      const headquarters = req.query.headquarters as string | undefined;
+      const records = await storage.getFuelRecords({ headquarters });
       // 연도-월별 합계
       const byYearMonth: Record<string, { year: number; month: number; totalCost: number; totalDistance: number; fuelCost: number; cardFuelCost: number; cashFuelCost: number; cardOther: number; cashOther: number }> = {};
       // 팀별 (전체)
@@ -8538,9 +8540,10 @@ ${htmlDraft}
   });
 
   // GET /api/fuel-records/batches - 업로드 배치 목록
-  app.get("/api/fuel-records/batches", requireAdmin, async (_req, res) => {
+  app.get("/api/fuel-records/batches", requireAdmin, async (req: any, res) => {
     try {
-      const batches = await storage.getFuelBatches();
+      const headquarters = req.query.headquarters as string | undefined;
+      const batches = await storage.getFuelBatches(headquarters);
       res.json(batches);
     } catch (e: any) {
       res.status(500).json({ message: e.message });
