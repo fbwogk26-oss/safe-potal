@@ -86,6 +86,13 @@ const HQ_WEATHER_CITY: Record<string, string> = {
   "부산본부": "부산",
 };
 
+const HQ_CITIES: Record<string, string[]> = {
+  "대구본부": ["대구", "구미", "문경", "안동", "포항", "울진", "울릉도"],
+  "충청본부": ["대전", "청주", "충주", "천안", "보령", "서산", "제천"],
+  "호남본부": ["광주", "전주", "군산", "목포", "여수", "순천", "남원"],
+  "부산본부": ["부산", "울산", "창원", "거제", "진주", "통영", "사천"],
+};
+
 export default function HomePage() {
   const { user } = useAuth();
   const { headquarters } = useHeadquarters();
@@ -576,7 +583,7 @@ export default function HomePage() {
                   <span>🌤️</span> 현재 날씨
                 </h2>
                 <span className="text-[10px] border border-border rounded px-1.5 py-0.5 bg-background text-foreground">
-                  {weatherCity}
+                  {(HQ_CITIES[headquarters] ?? [weatherCity]).join("/")}
                 </span>
               </div>
               <Card className="border-0 shadow-sm overflow-hidden flex-1 flex flex-col min-h-0">
@@ -707,6 +714,7 @@ export default function HomePage() {
         open={safetyMsgOpen}
         onOpenChange={setSafetyMsgOpen}
         initialCity={weatherCity}
+        headquarters={headquarters}
       />
     </div>
   );

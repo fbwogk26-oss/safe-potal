@@ -12,7 +12,13 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
-const PRESET_CITIES = ["대구", "구미", "문경", "안동", "포항", "울릉도", "울진"];
+const HQ_CITIES: Record<string, string[]> = {
+  "대구본부": ["대구", "구미", "문경", "안동", "포항", "울진", "울릉도"],
+  "충청본부": ["대전", "청주", "충주", "천안", "보령", "서산", "제천"],
+  "호남본부": ["광주", "전주", "군산", "목포", "여수", "순천", "남원"],
+  "부산본부": ["부산", "울산", "창원", "거제", "진주", "통영", "사천"],
+};
+const DEFAULT_CITIES = ["대구", "구미", "문경", "안동", "포항", "울진", "울릉도"];
 
 interface WeatherData {
   city: string;
@@ -217,10 +223,12 @@ interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   initialCity?: string;
+  headquarters?: string;
 }
 
-export default function WeatherSafetyDialog({ open, onOpenChange, initialCity = "대구" }: Props) {
+export default function WeatherSafetyDialog({ open, onOpenChange, initialCity = "대구", headquarters }: Props) {
   const { toast } = useToast();
+  const presetCities = (headquarters && HQ_CITIES[headquarters]) ? HQ_CITIES[headquarters] : DEFAULT_CITIES;
   const [city, setCity] = useState(initialCity);
   const [editTitle, setEditTitle] = useState("");
   const [editContent, setEditContent] = useState("");
@@ -347,7 +355,7 @@ export default function WeatherSafetyDialog({ open, onOpenChange, initialCity = 
                   </div>
                 </SelectTrigger>
                 <SelectContent>
-                  {PRESET_CITIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  {presetCities.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
