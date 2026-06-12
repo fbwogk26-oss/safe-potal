@@ -7126,8 +7126,11 @@ ${htmlDraft}
 
   app.get('/api/attendance/records', isAuthenticated, async (req: any, res) => {
     try {
-      const headquarters = req.query.headquarters as string | undefined;
+      const hqRaw = req.query.headquarters;
+      const headquarters = (typeof hqRaw === 'string' && hqRaw.trim()) ? hqRaw.trim() : undefined;
+      console.log('[attendance/records] headquarters param:', JSON.stringify(hqRaw), '→', headquarters);
       const records = await storage.getAttendanceRecords({ headquarters });
+      console.log('[attendance/records] returned count:', records.length);
       res.json(records);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
