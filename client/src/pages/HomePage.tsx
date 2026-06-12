@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import WeatherSafetyDialog from "@/components/WeatherSafetyDialog";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -170,9 +171,10 @@ export default function HomePage() {
     enabled: canViewEducationLogs,
   });
   const weatherCity = HQ_WEATHER_CITY[headquarters] ?? "대구";
+  const [selectedWeatherCity, setSelectedWeatherCity] = useState(weatherCity);
   const { data: weather, isLoading: weatherLoading } = useQuery<WeatherData>({
-    queryKey: ["/api/weather/current", weatherCity],
-    queryFn: () => fetch(`/api/weather/current?city=${encodeURIComponent(weatherCity)}`, { credentials: "include" }).then(r => r.json()),
+    queryKey: ["/api/weather/current", selectedWeatherCity],
+    queryFn: () => fetch(`/api/weather/current?city=${encodeURIComponent(selectedWeatherCity)}`, { credentials: "include" }).then(r => r.json()),
     staleTime: 10 * 60 * 1000,
     refetchInterval: 10 * 60 * 1000,
   });
@@ -582,9 +584,16 @@ export default function HomePage() {
                 <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                   <span>🌤️</span> 현재 날씨
                 </h2>
-                <span className="text-[10px] border border-border rounded px-1.5 py-0.5 bg-background text-foreground">
-                  {(HQ_CITIES[headquarters] ?? [weatherCity]).join("/")}
-                </span>
+                <Select value={selectedWeatherCity} onValueChange={setSelectedWeatherCity}>
+                  <SelectTrigger className="h-6 text-[10px] px-1.5 py-0 border border-border rounded bg-background text-foreground w-auto min-w-[3rem] shadow-none focus:ring-0">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(HQ_CITIES[headquarters] ?? [weatherCity]).map((c) => (
+                      <SelectItem key={c} value={c} className="text-xs">{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <Card className="border-0 shadow-sm overflow-hidden flex-1 flex flex-col min-h-0">
                 {weatherLoading || !weather ? (
