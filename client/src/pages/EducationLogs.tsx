@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { maskName } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -1323,7 +1324,7 @@ export default function EducationLogs() {
         {selectedSession.instructor && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground px-1">
             <Award className="w-4 h-4" />
-            교육자: <span className="font-medium text-foreground">{selectedSession.instructor}</span>
+            교육자: <span className="font-medium text-foreground">{maskName(selectedSession.instructor)}</span>
           </div>
         )}
 
@@ -2516,7 +2517,7 @@ export default function EducationLogs() {
                 <span>□ 시행일시: <strong className="text-foreground">{previewSession.educationDate}{previewSession.educationEndDate && previewSession.educationEndDate !== previewSession.educationDate ? ` ~ ${previewSession.educationEndDate}` : ""}</strong></span>
                 <span>□ 부서명: <strong className="text-foreground">{previewSession.department}</strong></span>
                 <span>□ 교육유형: <strong className="text-foreground">{previewSession.educationType}</strong></span>
-                {previewSession.instructor && <span>□ 강사: <strong className="text-foreground">{previewSession.instructor}</strong></span>}
+                {previewSession.instructor && <span>□ 강사: <strong className="text-foreground">{maskName(previewSession.instructor)}</strong></span>}
               </div>
             )}
           </DialogHeader>

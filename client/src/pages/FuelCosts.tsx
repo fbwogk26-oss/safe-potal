@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { maskName } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useHeadquarters } from "@/contexts/HeadquartersContext";
 import { Button } from "@/components/ui/button";
@@ -1174,7 +1175,7 @@ export default function FuelCosts() {
                                 <span className={`text-xs font-bold px-2 py-0.5 rounded-md ${p.badgeBg}`}>{shortYr(r.year)}년 {r.month}월</span>
                               </td>
                               <td className="py-2.5 px-3 text-sm font-medium">{r.team}</td>
-                              <td className="py-2.5 px-3 text-sm text-muted-foreground">{r.driver || "-"}</td>
+                              <td className="py-2.5 px-3 text-sm text-muted-foreground">{r.driver ? maskName(r.driver) : "-"}</td>
                               <td className="py-2.5 px-3 font-mono text-xs font-semibold">{r.licensePlate}</td>
                               <td className="py-2.5 px-3 text-sm">{r.modelName}</td>
                               <td className="py-2.5 px-3">
@@ -1416,8 +1417,8 @@ export default function FuelCosts() {
                               {v.fuelType ? <Badge variant="secondary" className="text-xs">{v.fuelType}</Badge> : <span className="text-muted-foreground">-</span>}
                             </td>
                             <td className="px-3 py-2 text-xs text-muted-foreground">{v.acquisitionType ?? "-"}</td>
-                            <td className="px-3 py-2 text-xs">{v.driver ?? "-"}</td>
-                            <td className="px-3 py-2 text-xs text-muted-foreground">{(v as any).secondDriver ?? "-"}</td>
+                            <td className="px-3 py-2 text-xs">{v.driver ? maskName(v.driver) : "-"}</td>
+                            <td className="px-3 py-2 text-xs text-muted-foreground">{(v as any).secondDriver ? maskName((v as any).secondDriver) : "-"}</td>
                             <td className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap">{(v as any).contractEnd ?? "-"}</td>
                             <td className="px-3 py-2 text-xs text-right tabular-nums">{v.mileage ? `${v.mileage.toLocaleString()}km` : "-"}</td>
                             <td className="px-3 py-2">
@@ -1661,7 +1662,7 @@ export default function FuelCosts() {
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-bold text-sm">{err.plateNumber}</span>
                             {err.team && <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{err.team}</span>}
-                            {err.driver && <span className="text-xs text-muted-foreground">{err.driver}</span>}
+                            {err.driver && <span className="text-xs text-muted-foreground">{maskName(err.driver)}</span>}
                           </div>
                           <div className="flex items-center gap-1.5">
                             {statusBadge}

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { maskName } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { useHeadquarters } from "@/contexts/HeadquartersContext";
@@ -816,14 +817,14 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
                         {slots.map(({ left, right }, i) => (
                           <tr key={i}>
                             <td className="border border-black px-1 py-0.5 text-center">{i + 1}</td>
-                            <td className="border border-black px-1 py-0.5 text-center">{left?.signerName ?? ""}</td>
+                            <td className="border border-black px-1 py-0.5 text-center">{left?.signerName ? maskName(left.signerName) : ""}</td>
                             <td className="border border-black px-1 py-0 text-center" style={{ height: "22px" }}>
                               {left?.signatureData
                                 ? <img src={left.signatureData} alt="서명" className="h-5 mx-auto object-contain" />
                                 : ""}
                             </td>
                             <td className="border border-black px-1 py-0.5 text-center">{i + ROWS + 1}</td>
-                            <td className="border border-black px-1 py-0.5 text-center">{right?.signerName ?? ""}</td>
+                            <td className="border border-black px-1 py-0.5 text-center">{right?.signerName ? maskName(right.signerName) : ""}</td>
                             <td className="border border-black px-1 py-0 text-center" style={{ height: "22px" }}>
                               {right?.signatureData
                                 ? <img src={right.signatureData} alt="서명" className="h-5 mx-auto object-contain" />
@@ -845,7 +846,7 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
                     <p className="text-[10px] font-semibold text-gray-600 mb-1">추가 입력 데이터</p>
                     {viewSigs.filter((s: any) => s.fieldValues && Object.keys(s.fieldValues).length > 0).map((s: any, i: number) => (
                       <div key={i} className="text-[10px] flex flex-wrap gap-x-4 gap-y-0.5 border-b border-gray-100 pb-1">
-                        <span className="font-medium text-gray-700">{s.signerName}</span>
+                        <span className="font-medium text-gray-700">{maskName(s.signerName)}</span>
                         {Object.entries(s.fieldValues as Record<string, string>).map(([k, v]) => (
                           <span key={k} className="text-gray-500">{k}: <span className="text-gray-800">{v}</span></span>
                         ))}
@@ -903,7 +904,7 @@ function LinkedSessionsPanel({ taskId, task }: { taskId: number; task: Education
               {detailSession?.department}
             </DialogTitle>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {detailSession?.educationType} · {detailSession?.educationDate} ~ {detailSession?.educationEndDate || detailSession?.educationDate} · 강사: {detailSession?.instructor || "-"}
+              {detailSession?.educationType} · {detailSession?.educationDate} ~ {detailSession?.educationEndDate || detailSession?.educationDate} · 강사: {detailSession?.instructor ? maskName(detailSession.instructor) : "-"}
             </p>
           </DialogHeader>
 

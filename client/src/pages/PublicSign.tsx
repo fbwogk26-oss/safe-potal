@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useParams } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { maskName } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -470,7 +471,7 @@ export default function PublicSign() {
                   {signatures.map(s => (
                     <Badge key={s.id} variant="secondary" className="text-xs gap-1">
                       <CheckCircle2 className="w-2.5 h-2.5 text-green-500" />
-                      {s.signerName}
+                      {maskName(s.signerName)}
                     </Badge>
                   ))}
                 </div>

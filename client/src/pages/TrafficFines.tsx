@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { maskName } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -714,7 +715,7 @@ export default function TrafficFines() {
                       <td className="py-2 px-2 font-mono font-semibold whitespace-nowrap text-xs">{fine.licensePlate || "-"}</td>
                       <td className="py-2 px-2 hidden md:table-cell text-muted-foreground text-xs">{fine.vehicleType || "-"}</td>
                       <td className="py-2 px-2 hidden md:table-cell text-muted-foreground text-xs">{fine.department || "-"}</td>
-                      <td className="py-2 px-2 whitespace-nowrap text-xs">{fine.driver || "-"}</td>
+                      <td className="py-2 px-2 whitespace-nowrap text-xs">{fine.driver ? maskName(fine.driver) : "-"}</td>
                       <td className="py-2 px-2 hidden lg:table-cell text-xs">{fine.violationType || "-"}</td>
                       <td className="py-2 px-2 hidden lg:table-cell text-muted-foreground text-xs max-w-[120px] truncate">{fine.violationLocation || "-"}</td>
                       <td className="py-2 px-2 text-right font-medium whitespace-nowrap text-xs">{fmt(fine.amount)}</td>

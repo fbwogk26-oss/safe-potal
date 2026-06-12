@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useParams } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { maskName } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -244,14 +245,14 @@ export default function PublicTaskSign() {
         </div>
         <div className="text-center space-y-2">
           <h2 className="text-2xl font-bold">서명이 완료되었습니다!</h2>
-          <p className="text-muted-foreground">{signerName}님의 서명이 성공적으로 등록되었습니다.</p>
+          <p className="text-muted-foreground">{maskName(signerName)}님의 서명이 성공적으로 등록되었습니다.</p>
         </div>
         <Card className="w-full max-w-sm border-primary/20">
           <CardContent className="p-4 space-y-1 text-sm">
             <p><span className="text-muted-foreground">교육명:</span> <span className="font-medium">{task.title}</span></p>
             <p><span className="text-muted-foreground">기간:</span> <span className="font-medium">{task.startDate} ~ {task.endDate}</span></p>
             <p><span className="text-muted-foreground">소속:</span> <span className="font-medium">{selectedDept}</span></p>
-            <p><span className="text-muted-foreground">서명자:</span> <span className="font-medium">{signerName}</span></p>
+            <p><span className="text-muted-foreground">서명자:</span> <span className="font-medium">{maskName(signerName)}</span></p>
           </CardContent>
         </Card>
         <p className="text-xs text-muted-foreground">이 창을 닫아도 됩니다.</p>

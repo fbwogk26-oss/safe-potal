@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { maskName } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -112,7 +113,7 @@ function SignaturePreviewDialog({ sig, open, onClose }: { sig: SignatureRecord; 
             <div className="border-t border-border/50 my-1" />
             <div className="flex justify-between">
               <span className="text-muted-foreground">서명자</span>
-              <span className="font-semibold">{sig.signerName || "-"}</span>
+              <span className="font-semibold">{sig.signerName ? maskName(sig.signerName) : "-"}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">소속팀</span>
@@ -370,7 +371,7 @@ export default function SignatureAdmin() {
                         <p className="font-medium truncate text-xs" title={sig.sessionTitle}>{sig.sessionTitle || "-"}</p>
                         <p className="text-xs text-muted-foreground">{sig.sessionDate || ""}</p>
                       </td>
-                      <td className="px-4 py-3 font-semibold whitespace-nowrap">{sig.signerName || "-"}</td>
+                      <td className="px-4 py-3 font-semibold whitespace-nowrap">{sig.signerName ? maskName(sig.signerName) : "-"}</td>
                       <td className="px-4 py-3 text-muted-foreground whitespace-nowrap text-xs">{sig.signerDepartment || sig.sessionDepartment || "-"}</td>
                       <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
                         {sig.signedAt ? format(new Date(sig.signedAt), "MM-dd HH:mm", { locale: ko }) : "-"}
@@ -432,10 +433,10 @@ export default function SignatureAdmin() {
                             className="h-7 w-7 text-destructive hover:text-destructive"
                             onClick={() => {
                               const label = sig.type === "education"
-                                ? `${sig.signerName}님의 교육 서명`
+                                ? `${maskName(sig.signerName)}님의 교육 서명`
                                 : sig.type === "inspection"
-                                  ? `${sig.signerName}님의 합동점검 서명`
-                                  : `${sig.signerName}님의 보호구 지급 서명`;
+                                  ? `${maskName(sig.signerName)}님의 합동점검 서명`
+                                  : `${maskName(sig.signerName)}님의 보호구 지급 서명`;
                               if (confirm(`${label} 기록을 삭제하시겠습니까?`)) {
                                 deleteMutation.mutate(sig.id);
                               }
