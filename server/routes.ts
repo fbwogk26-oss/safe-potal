@@ -5890,9 +5890,11 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
 
       const { db: dbInst } = await import('./db');
       const { vehicles: vTable } = await import('@shared/schema');
+      const { eq: eqOp } = await import('drizzle-orm');
+      const uploadHq = req.body?.headquarters || '대구본부';
 
-      // 기존 전체 삭제
-      await dbInst.delete(vTable);
+      // 해당 본부 데이터만 삭제
+      await dbInst.delete(vTable).where(eqOp(vTable.headquarters, uploadHq));
 
       let inserted = 0;
       for (const r of rows) {
@@ -5907,7 +5909,7 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
           fuelType: String(r[6]).trim() || null,
           garage: String(r[7]).trim() || null,
           insuranceAge: String(r[8]).trim() || null,
-          headquarters: String(r[9]).trim() || null,
+          headquarters: String(r[9]).trim() || uploadHq,
           operationsDept: String(r[10]).trim() || null,
           team: String(r[11]).trim() || '미배정',
           driver: String(r[12]).trim() || null,
@@ -8570,6 +8572,7 @@ ${htmlDraft}
       // 폼에서 넘어온 연도/월 오버라이드 (단일 시트 파일용)
       const overrideYear = req.body?.year ? parseInt(req.body.year) : null;
       const overrideMonth = req.body?.month ? parseInt(req.body.month) : null;
+      const uploadHqFuel = req.body?.headquarters || '대구본부';
 
       // 파일명에서 YYYYMMDD 추출 fallback
       const filenameDate = req.file.originalname.match(/(\d{4})(\d{2})\d{2}/);
@@ -8597,18 +8600,18 @@ ${htmlDraft}
           continue;
         }
 
-        // 같은 연월 기존 데이터 삭제 (재업로드)
-        await storage.deleteFuelRecordsByYearMonth(year, month);
+        // 같은 연월·본부 기존 데이터 삭제 (재업로드)
+        await storage.deleteFuelRecordsByYearMonth(year, month, uploadHqFuel);
 
         const ws = wb.Sheets[sheetName];
         const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: 0 });
 
         for (let i = 2; i < rows.length; i++) {
           const row = rows[i];
-          // 순번이 양수이고 본부가 '대구본부'인 실제 데이터 행만 처리
+          // 순번이 양수인 실제 데이터 행만 처리
           const seq = row[0];
           if (typeof seq !== "number" || seq <= 0) continue;
-          if (row[1] !== "대구본부") continue;
+          if (row[1] && String(row[1]).trim() !== uploadHqFuel) continue;
           const teamVal = typeof row[2] === "string" ? row[2].trim() : "";
           if (!teamVal || teamVal === "0") continue;
 
@@ -8650,6 +8653,7 @@ ${htmlDraft}
             totalCost: num(row[34]),
             avgCostPerKm: num(row[35]),
             uploadBatch: batchId,
+            headquarters: uploadHqFuel,
           });
         }
       }
@@ -8687,6 +8691,7 @@ ${htmlDraft}
 
       const manualYear  = req.body?.year  ? parseInt(req.body.year)  : null;
       const manualMonth = req.body?.month ? parseInt(req.body.month) : null;
+      const uploadHq    = req.body?.headquarters || '대구본부';
 
       const XLSX = await import("xlsx");
       const wb   = XLSX.read(req.file.buffer, { type: "buffer" });
@@ -8993,6 +8998,7 @@ ${htmlDraft}
             avgCostPerKm: v.dist > 0 ? Math.round(v.fuelCost / v.dist) : 0,
             avgOperatingDays: 0,
             uploadBatch: batchId,
+            headquarters: uploadHq,
           });
         }
       }
@@ -9009,10 +9015,10 @@ ${htmlDraft}
         });
       }
 
-      // 해당 연월 기존 데이터 삭제 후 재삽입 (오류 기록도 함께 삭제)
+      // 해당 연월·본부 기존 데이터 삭제 후 재삽입 (오류 기록도 함께 삭제)
       for (const ymKey of processedYMs) {
         const [yr, mo] = ymKey.split("-").map(Number);
-        await storage.deleteFuelRecordsByYearMonth(yr, mo);
+        await storage.deleteFuelRecordsByYearMonth(yr, mo, uploadHq);
       }
       await storage.deleteVehicleLogErrorsByBatch(batchId);
       const inserted = await storage.insertFuelRecords(allRecordsToInsert);

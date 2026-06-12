@@ -20,6 +20,7 @@ import { ko } from "date-fns/locale";
 import { useAuth } from "@/hooks/use-auth";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useTeams } from "@/hooks/use-teams";
+import { useHeadquarters } from "@/contexts/HeadquartersContext";
 import { useState, useEffect, useMemo } from "react";
 import { cn } from "@/lib/utils";
 
@@ -61,7 +62,6 @@ const CATEGORY_LABELS: Record<string, string> = {
   safe_message: "세이프메시지", equip_request: "용품신청",
 };
 
-const KOREAN_CITIES = ["대구","구미","문경","안동","포항","울릉도","울진"];
 
 function getWeatherEmojiUI(code: string, tempC: number): string {
   const c = Number(code);
@@ -79,8 +79,16 @@ function getWeatherEmojiUI(code: string, tempC: number): string {
 
 type Tab = "공지사항" | "최근 사고" | "승인대기" | "과태료" | "교육내역" | "용품 신청" | "출입신청";
 
+const HQ_WEATHER_CITY: Record<string, string> = {
+  "대구본부": "대구",
+  "충청본부": "대전",
+  "호남본부": "광주",
+  "부산본부": "부산",
+};
+
 export default function HomePage() {
   const { user } = useAuth();
+  const { headquarters } = useHeadquarters();
   const {
     canViewNotices,
     canViewAccidents,
@@ -128,13 +136,33 @@ export default function HomePage() {
   }, [TABS.length]);
 
   const { data: teams } = useTeams(CURRENT_YEAR);
-  const { data: notices } = useQuery<Notice[]>({ queryKey: ["/api/notices"] });
-  const { data: accidentStats } = useQuery<AccidentStat>({ queryKey: ["/api/accidents/stats"] });
-  const { data: accidents } = useQuery<Accident[]>({ queryKey: ["/api/accidents"] });
-  const { data: riskAssessments } = useQuery<RiskAssessment[]>({ queryKey: ["/api/risk-assessments"] });
-  const { data: trafficFines } = useQuery<TrafficFine[]>({ queryKey: ["/api/traffic-fines"], enabled: canViewVehicleLogs });
-  const { data: eduSessions } = useQuery<EduSession[]>({ queryKey: ["/api/education-sessions"], enabled: canViewEducationLogs });
-  const [weatherCity, setWeatherCity] = useState("대구");
+  const { data: notices } = useQuery<Notice[]>({
+    queryKey: ["/api/notices", headquarters],
+    queryFn: () => fetch(`/api/notices?headquarters=${encodeURIComponent(headquarters)}`, { credentials: "include" }).then(r => r.json()),
+  });
+  const { data: accidentStats } = useQuery<AccidentStat>({
+    queryKey: ["/api/accidents/stats", headquarters],
+    queryFn: () => fetch(`/api/accidents/stats?headquarters=${encodeURIComponent(headquarters)}`, { credentials: "include" }).then(r => r.json()),
+  });
+  const { data: accidents } = useQuery<Accident[]>({
+    queryKey: ["/api/accidents", headquarters],
+    queryFn: () => fetch(`/api/accidents?headquarters=${encodeURIComponent(headquarters)}`, { credentials: "include" }).then(r => r.json()),
+  });
+  const { data: riskAssessments } = useQuery<RiskAssessment[]>({
+    queryKey: ["/api/risk-assessments", headquarters],
+    queryFn: () => fetch(`/api/risk-assessments?headquarters=${encodeURIComponent(headquarters)}`, { credentials: "include" }).then(r => r.json()),
+  });
+  const { data: trafficFines } = useQuery<TrafficFine[]>({
+    queryKey: ["/api/traffic-fines", headquarters],
+    queryFn: () => fetch(`/api/traffic-fines?headquarters=${encodeURIComponent(headquarters)}`, { credentials: "include" }).then(r => r.json()),
+    enabled: canViewVehicleLogs,
+  });
+  const { data: eduSessions } = useQuery<EduSession[]>({
+    queryKey: ["/api/education-sessions", headquarters],
+    queryFn: () => fetch(`/api/education-sessions?headquarters=${encodeURIComponent(headquarters)}`, { credentials: "include" }).then(r => r.json()),
+    enabled: canViewEducationLogs,
+  });
+  const weatherCity = HQ_WEATHER_CITY[headquarters] ?? "대구";
   const { data: weather, isLoading: weatherLoading } = useQuery<WeatherData>({
     queryKey: ["/api/weather/current", weatherCity],
     queryFn: () => fetch(`/api/weather/current?city=${encodeURIComponent(weatherCity)}`, { credentials: "include" }).then(r => r.json()),
@@ -547,13 +575,9 @@ export default function HomePage() {
                 <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                   <span>🌤️</span> 현재 날씨
                 </h2>
-                <select
-                  value={weatherCity}
-                  onChange={e => setWeatherCity(e.target.value)}
-                  className="text-[10px] border border-border rounded px-1.5 py-0.5 bg-background text-foreground cursor-pointer"
-                >
-                  {KOREAN_CITIES.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
+                <span className="text-[10px] border border-border rounded px-1.5 py-0.5 bg-background text-foreground">
+                  {weatherCity}
+                </span>
               </div>
               <Card className="border-0 shadow-sm overflow-hidden flex-1 flex flex-col min-h-0">
                 {weatherLoading || !weather ? (

@@ -240,7 +240,7 @@ export interface IStorage {
   getFuelRecords(filters?: { year?: number; month?: number; team?: string; fuelType?: string }): Promise<FuelRecord[]>;
   insertFuelRecords(records: InsertFuelRecord[]): Promise<number>;
   deleteFuelRecordsByBatch(batchId: string): Promise<void>;
-  deleteFuelRecordsByYearMonth(year: number, month: number): Promise<void>;
+  deleteFuelRecordsByYearMonth(year: number, month: number, headquarters?: string): Promise<void>;
   getFuelBatches(): Promise<{ batchId: string; uploadedAt: Date; recordCount: number; yearMonths: string[] }[]>;
 
   // Vehicle Log Errors
@@ -957,8 +957,10 @@ export class DatabaseStorage implements IStorage {
     await db.delete(fuelRecords).where(eq(fuelRecords.uploadBatch, batchId));
   }
 
-  async deleteFuelRecordsByYearMonth(year: number, month: number): Promise<void> {
-    await db.delete(fuelRecords).where(and(eq(fuelRecords.year, year), eq(fuelRecords.month, month)));
+  async deleteFuelRecordsByYearMonth(year: number, month: number, headquarters?: string): Promise<void> {
+    const conditions = [eq(fuelRecords.year, year), eq(fuelRecords.month, month)];
+    if (headquarters) conditions.push(eq(fuelRecords.headquarters, headquarters));
+    await db.delete(fuelRecords).where(and(...conditions));
   }
 
   async getFuelBatches(): Promise<{ batchId: string; uploadedAt: Date; recordCount: number; yearMonths: string[] }[]> {

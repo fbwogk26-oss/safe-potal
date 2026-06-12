@@ -381,6 +381,7 @@ export default function FuelCosts() {
     mutationFn: async (file: File) => {
       const form = new FormData();
       form.append("file", file);
+      form.append("headquarters", headquarters);
       const res = await fetch("/api/vehicles/upload-excel", { method: "POST", body: form, credentials: "include" });
       if (!res.ok) throw new Error((await res.json()).message);
       return res.json();
@@ -445,6 +446,7 @@ export default function FuelCosts() {
     mutationFn: async ({ file, year, month }: { file: File; year?: string; month?: string }) => {
       const form = new FormData();
       form.append("file", file);
+      form.append("headquarters", headquarters);
       if (year) form.append("year", year);
       if (month) form.append("month", month);
       const res = await fetch("/api/fuel-records/upload-vehicle-log", { method: "POST", body: form, credentials: "include" });
