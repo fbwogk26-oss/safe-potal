@@ -190,6 +190,11 @@ export default function SafetyCostBudget() {
   const [bulkDelConfirm, setBulkDelConfirm] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
+  const [showExportDialog, setShowExportDialog] = useState(false);
+  const [exportStartYear, setExportStartYear] = useState(currentYear);
+  const [exportStartMonth, setExportStartMonth] = useState(1);
+  const [exportEndYear, setExportEndYear] = useState(currentYear);
+  const [exportEndMonth, setExportEndMonth] = useState(new Date().getMonth() + 1);
   const [certUploading, setCertUploading] = useState(false);
 
   const quoteRef = useRef<HTMLInputElement>(null);
@@ -749,15 +754,20 @@ export default function SafetyCostBudget() {
 
   // ── 다운로드 ──────────────────────────────────────────────────────
   async function handleDownload() {
+    setShowExportDialog(false);
     setDownloading(true);
     try {
-      const r = await fetch(`/api/safety-cost-records/export?year=${year}&headquarters=${encodeURIComponent(headquarters)}`, { credentials:"include" });
+      const sy2 = String(exportStartYear).slice(2);
+      const ey2 = String(exportEndYear).slice(2);
+      const label = `${sy2}년_${exportStartMonth}월_${ey2}년_${exportEndMonth}월`;
+      const url = `/api/safety-cost-records/export?startYear=${exportStartYear}&startMonth=${exportStartMonth}&endYear=${exportEndYear}&endMonth=${exportEndMonth}&headquarters=${encodeURIComponent(headquarters)}`;
+      const r = await fetch(url, { credentials:"include" });
       if (!r.ok) throw new Error("다운로드 실패");
       const blob = await r.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a"); a.href=url;
-      a.download=`${year}년_산업안전보건관리비_법정경비.xlsx`; a.click();
-      URL.revokeObjectURL(url);
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a"); a.href=blobUrl;
+      a.download=`산업안전보건관리비_법정경비_${label}.xlsx`; a.click();
+      URL.revokeObjectURL(blobUrl);
       toast({ title: "다운로드 완료" });
     } catch (e: any) { toast({ title: "다운로드 실패", description: e.message, variant:"destructive" }); }
     finally { setDownloading(false); }
@@ -847,7 +857,7 @@ export default function SafetyCostBudget() {
             {downloadingTemplate ? <Loader2 className="w-4 h-4 sm:mr-1.5 animate-spin" /> : <Download className="w-4 h-4 sm:mr-1.5" />}
             <span className="hidden sm:inline">사용내역 다운로드</span>
           </Button>
-          <Button variant="outline" className="px-2.5 sm:px-4" title="법정경비 다운로드" onClick={handleDownload} disabled={downloading} data-testid="button-download">
+          <Button variant="outline" className="px-2.5 sm:px-4" title="법정경비 다운로드" onClick={() => setShowExportDialog(true)} disabled={downloading} data-testid="button-download">
             {downloading ? <Loader2 className="w-4 h-4 sm:mr-1.5 animate-spin" /> : <Download className="w-4 h-4 sm:mr-1.5" />}
             <span className="hidden sm:inline">법정경비 다운로드</span>
           </Button>
@@ -1941,6 +1951,78 @@ export default function SafetyCostBudget() {
               {bulkDeleteMut.isPending
                 ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" />삭제 중...</>
                 : `${selectedIds.size}건 삭제`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ══ 법정경비 다운로드 기간 선택 ══ */}
+      <Dialog open={showExportDialog} onOpenChange={setShowExportDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><Download className="w-4 h-4" />법정경비 다운로드 기간 선택</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <p className="text-sm font-medium mb-2">시작 연월</p>
+              <div className="flex gap-2">
+                <Select value={String(exportStartYear)} onValueChange={v => setExportStartYear(Number(v))}>
+                  <SelectTrigger className="flex-1" data-testid="select-export-start-year">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 5 }, (_, i) => currentYear - 2 + i).map(y => (
+                      <SelectItem key={y} value={String(y)}>{y}년</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={String(exportStartMonth)} onValueChange={v => setExportStartMonth(Number(v))}>
+                  <SelectTrigger className="flex-1" data-testid="select-export-start-month">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                      <SelectItem key={m} value={String(m)}>{m}월</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div>
+              <p className="text-sm font-medium mb-2">종료 연월</p>
+              <div className="flex gap-2">
+                <Select value={String(exportEndYear)} onValueChange={v => setExportEndYear(Number(v))}>
+                  <SelectTrigger className="flex-1" data-testid="select-export-end-year">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 5 }, (_, i) => currentYear - 2 + i).map(y => (
+                      <SelectItem key={y} value={String(y)}>{y}년</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={String(exportEndMonth)} onValueChange={v => setExportEndMonth(Number(v))}>
+                  <SelectTrigger className="flex-1" data-testid="select-export-end-month">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                      <SelectItem key={m} value={String(m)}>{m}월</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              선택 기간의 사용내역(견적서·거래명세서) + 세금계산서가 Excel에 포함됩니다.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowExportDialog(false)}>취소</Button>
+            <Button
+              onClick={handleDownload}
+              disabled={downloading || (exportStartYear * 100 + exportStartMonth > exportEndYear * 100 + exportEndMonth)}
+              data-testid="btn-confirm-export"
+            >
+              {downloading ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" />생성 중...</> : <><Download className="w-4 h-4 mr-1" />다운로드</>}
             </Button>
           </DialogFooter>
         </DialogContent>

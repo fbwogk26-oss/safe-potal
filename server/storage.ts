@@ -282,14 +282,14 @@ export interface IStorage {
   bulkConfirmEducationTasks(ids: number[]): Promise<void>;
 
   // Safety Cost Records (산업안전보건관리비)
-  getSafetyCostRecords(year?: number, headquarters?: string): Promise<SafetyCostRecord[]>;
+  getSafetyCostRecords(filters?: { year?: number; headquarters?: string; startYM?: number; endYM?: number }): Promise<SafetyCostRecord[]>;
   getSafetyCostRecord(id: number): Promise<SafetyCostRecord | undefined>;
   createSafetyCostRecord(data: InsertSafetyCostRecord): Promise<SafetyCostRecord>;
   updateSafetyCostRecord(id: number, data: Partial<InsertSafetyCostRecord>): Promise<SafetyCostRecord>;
   deleteSafetyCostRecord(id: number): Promise<void>;
 
   // Safety Cost Tax Invoices (세금계산서)
-  getSafetyCostTaxInvoices(year?: number, headquarters?: string): Promise<SafetyCostTaxInvoice[]>;
+  getSafetyCostTaxInvoices(filters?: { year?: number; headquarters?: string; startYM?: number; endYM?: number }): Promise<SafetyCostTaxInvoice[]>;
   createSafetyCostTaxInvoice(data: InsertSafetyCostTaxInvoice): Promise<SafetyCostTaxInvoice>;
   updateSafetyCostTaxInvoice(id: number, data: Partial<InsertSafetyCostTaxInvoice>): Promise<SafetyCostTaxInvoice>;
   deleteSafetyCostTaxInvoice(id: number): Promise<void>;
@@ -1100,13 +1100,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   // === 산업안전보건관리비 사용내역 ===
-  async getSafetyCostRecords(year?: number, headquarters?: string): Promise<SafetyCostRecord[]> {
+  async getSafetyCostRecords(filters?: { year?: number; headquarters?: string; startYM?: number; endYM?: number }): Promise<SafetyCostRecord[]> {
     const conditions = [];
-    if (year) conditions.push(eq(safetyCostRecords.year, year));
-    if (headquarters) conditions.push(eq(safetyCostRecords.headquarters, headquarters));
+    if (filters?.year) conditions.push(eq(safetyCostRecords.year, filters.year));
+    if (filters?.headquarters) conditions.push(eq(safetyCostRecords.headquarters, filters.headquarters));
+    if (filters?.startYM) conditions.push(gte(sql<number>`${safetyCostRecords.year} * 100 + ${safetyCostRecords.month}`, filters.startYM));
+    if (filters?.endYM) conditions.push(lte(sql<number>`${safetyCostRecords.year} * 100 + ${safetyCostRecords.month}`, filters.endYM));
     const q = db.select().from(safetyCostRecords);
     const filtered = conditions.length > 0 ? q.where(conditions.length === 1 ? conditions[0] : and(...conditions)) : q;
-    return await filtered.orderBy(desc(safetyCostRecords.year), desc(safetyCostRecords.month), desc(safetyCostRecords.createdAt));
+    return await filtered.orderBy(asc(safetyCostRecords.year), asc(safetyCostRecords.month), desc(safetyCostRecords.createdAt));
   }
   async getSafetyCostRecord(id: number): Promise<SafetyCostRecord | undefined> {
     const [row] = await db.select().from(safetyCostRecords).where(eq(safetyCostRecords.id, id));
@@ -1125,13 +1127,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   // === 세금계산서 ===
-  async getSafetyCostTaxInvoices(year?: number, headquarters?: string): Promise<SafetyCostTaxInvoice[]> {
+  async getSafetyCostTaxInvoices(filters?: { year?: number; headquarters?: string; startYM?: number; endYM?: number }): Promise<SafetyCostTaxInvoice[]> {
     const conditions = [];
-    if (year) conditions.push(eq(safetyCostTaxInvoices.year, year));
-    if (headquarters) conditions.push(eq(safetyCostTaxInvoices.headquarters, headquarters));
+    if (filters?.year) conditions.push(eq(safetyCostTaxInvoices.year, filters.year));
+    if (filters?.headquarters) conditions.push(eq(safetyCostTaxInvoices.headquarters, filters.headquarters));
+    if (filters?.startYM) conditions.push(gte(sql<number>`${safetyCostTaxInvoices.year} * 100 + ${safetyCostTaxInvoices.month}`, filters.startYM));
+    if (filters?.endYM) conditions.push(lte(sql<number>`${safetyCostTaxInvoices.year} * 100 + ${safetyCostTaxInvoices.month}`, filters.endYM));
     const q = db.select().from(safetyCostTaxInvoices);
     const filtered = conditions.length > 0 ? q.where(conditions.length === 1 ? conditions[0] : and(...conditions)) : q;
-    return await filtered.orderBy(desc(safetyCostTaxInvoices.year), desc(safetyCostTaxInvoices.month));
+    return await filtered.orderBy(asc(safetyCostTaxInvoices.year), asc(safetyCostTaxInvoices.month));
   }
   async createSafetyCostTaxInvoice(data: InsertSafetyCostTaxInvoice): Promise<SafetyCostTaxInvoice> {
     const [row] = await db.insert(safetyCostTaxInvoices).values(data).returning();

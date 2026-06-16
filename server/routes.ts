@@ -10099,7 +10099,7 @@ ${htmlDraft}
     try {
       const year = req.query.year ? Number(req.query.year) : undefined;
       const headquarters = req.query.headquarters as string | undefined;
-      const records = await storage.getSafetyCostRecords(year, headquarters);
+      const records = await storage.getSafetyCostRecords({ year, headquarters });
       res.json(records);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
@@ -10149,7 +10149,7 @@ ${htmlDraft}
     try {
       const year = req.query.year ? Number(req.query.year) : undefined;
       const headquarters = req.query.headquarters as string | undefined;
-      const records = await storage.getSafetyCostTaxInvoices(year, headquarters);
+      const records = await storage.getSafetyCostTaxInvoices({ year, headquarters });
       res.json(records);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
@@ -10205,12 +10205,38 @@ ${htmlDraft}
   // === 법정경비 Excel 다운로드 (첨부파일 이미지 포함) ===
   app.get('/api/safety-cost-records/export', isAuthenticated, async (req: any, res) => {
     try {
-      const yearRaw = Number(req.query.year);
-      const year = (!isNaN(yearRaw) && yearRaw > 2000) ? yearRaw : new Date().getFullYear();
       const headquarters = req.query.headquarters as string | undefined;
-      console.log(`[export] 법정경비 다운로드 요청: year=${year}, headquarters=${headquarters}`);
-      const records = await storage.getSafetyCostRecords(year, headquarters);
-      const taxInvoices = await storage.getSafetyCostTaxInvoices(year, headquarters);
+      const now = new Date();
+      const curYear = now.getFullYear();
+      const curMonth = now.getMonth() + 1;
+
+      // 기간별 파라미터 우선, 없으면 year 기반 fallback
+      const syRaw = Number(req.query.startYear);
+      const smRaw = Number(req.query.startMonth);
+      const eyRaw = Number(req.query.endYear);
+      const emRaw = Number(req.query.endMonth);
+      const yearRaw = Number(req.query.year);
+
+      let startYM: number | undefined;
+      let endYM: number | undefined;
+      let rangeLabel: string;
+
+      if (syRaw > 2000 && smRaw >= 1 && smRaw <= 12 && eyRaw > 2000 && emRaw >= 1 && emRaw <= 12) {
+        startYM = syRaw * 100 + smRaw;
+        endYM = eyRaw * 100 + emRaw;
+        const sy2 = String(syRaw).slice(2);
+        const ey2 = String(eyRaw).slice(2);
+        rangeLabel = `${sy2}년 ${smRaw}월 ~ ${ey2}년 ${emRaw}월`;
+      } else {
+        const year = (!isNaN(yearRaw) && yearRaw > 2000) ? yearRaw : curYear;
+        startYM = year * 100 + 1;
+        endYM = year * 100 + 12;
+        rangeLabel = `${year}년`;
+      }
+
+      console.log(`[export] 법정경비 다운로드 요청: startYM=${startYM}, endYM=${endYM}, headquarters=${headquarters}`);
+      const records = await storage.getSafetyCostRecords({ headquarters, startYM, endYM });
+      const taxInvoices = await storage.getSafetyCostTaxInvoices({ headquarters, startYM, endYM });
       console.log(`[export] DB 로드 완료: records=${records.length}, taxInvoices=${taxInvoices.length}`);
 
       const wb = new ExcelJS.Workbook();
@@ -10261,7 +10287,7 @@ ${htmlDraft}
       const HEADER_FILL = { type: "pattern" as const, pattern: "solid" as const, fgColor: { argb: "FFD6E4F7" } };
 
       // ─── Sheet 1: 사용내역 (카테고리별 그룹핑, 품의번호·지급요청일자 포함) ─────
-      const dataSheet = wb.addWorksheet(`${year}년 사용내역`);
+      const dataSheet = wb.addWorksheet(`사용내역`);
 
       // 컬럼 너비 설정 (열 고정: A~P)
       // A=순번, B=품의번호, C=지급요청일자, D=구매일자, E=항목, F=세부항목,
@@ -10275,7 +10301,7 @@ ${htmlDraft}
       // Title row
       dataSheet.getRow(1).height = 32;
       const t1 = dataSheet.getCell("A1");
-      t1.value = `${year}년 산업안전보건관리비 사용내역`;
+      t1.value = `산업안전보건관리비 사용내역 (${rangeLabel})`;
       t1.font = { bold: true, size: 15, color: { argb: "FFFFFFFF" } };
       t1.alignment = CENTER;
       t1.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1F4E79" } };
@@ -10406,7 +10432,7 @@ ${htmlDraft}
       dataRowIdx++;
 
       // ─── Sheet 2: 세금계산서 ───────────────────────────────
-      const taxSheet = wb.addWorksheet(`${year}년 세금계산서`);
+      const taxSheet = wb.addWorksheet(`세금계산서`);
       taxSheet.columns = [
         { header: "월", width: 6 },
         { header: "업체명", width: 20 },
@@ -10416,7 +10442,7 @@ ${htmlDraft}
         { header: "비고", width: 20 },
         { header: "세금계산서", width: 28 },
       ];
-      taxSheet.insertRow(1, [`${year}년 세금계산서 목록`]);
+      taxSheet.insertRow(1, [`세금계산서 목록 (${rangeLabel})`]);
       taxSheet.mergeCells("A1:G1");
       const taxTitle = taxSheet.getCell("A1");
       taxTitle.font = { bold: true, size: 13, color: { argb: "FFFFFFFF" } };
@@ -10463,7 +10489,7 @@ ${htmlDraft}
       const buf = await wb.xlsx.writeBuffer();
       console.log(`[export] writeBuffer 완료, size=${Buffer.isBuffer(buf) ? buf.length : (buf as any).byteLength}`);
       res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-      res.setHeader("Content-Disposition", `attachment; filename*=UTF-8''${encodeURIComponent(`${year}년_산업안전보건관리비_법정경비.xlsx`)}`);
+      res.setHeader("Content-Disposition", `attachment; filename*=UTF-8''${encodeURIComponent(`산업안전보건관리비_법정경비_${rangeLabel.replace(/ /g,"_")}.xlsx`)}`);
       res.send(Buffer.isBuffer(buf) ? buf : Buffer.from(buf as ArrayBuffer));
     } catch (e: any) {
       console.error("[export] 법정경비 export 오류:", e.message, e.stack?.split('\n').slice(0,3).join(' | '));
@@ -10531,7 +10557,7 @@ ${htmlDraft}
     try {
       const yearRaw = Number(req.query.year);
       const year = (!isNaN(yearRaw) && yearRaw > 2000) ? yearRaw : new Date().getFullYear();
-      const records = await storage.getSafetyCostRecords(year);
+      const records = await storage.getSafetyCostRecords({ year });
 
       const templatePath = [
         path.join(process.cwd(), 'server/assets/safety_cost_template.xlsx'),
