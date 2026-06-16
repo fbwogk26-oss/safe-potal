@@ -10277,8 +10277,8 @@ ${htmlDraft}
       async function compressImg(buf: Buffer): Promise<Buffer> {
         try {
           return await sharpLib(buf)
-            .resize({ width: 1000, height: 1400, fit: 'inside', withoutEnlargement: true })
-            .jpeg({ quality: 65, mozjpeg: false })
+            .resize({ width: 1400, height: 2000, fit: 'inside', withoutEnlargement: true })
+            .jpeg({ quality: 80, mozjpeg: false })
             .toBuffer();
         } catch {
           return buf; // 압축 실패 시 원본 반환
@@ -10294,7 +10294,7 @@ ${htmlDraft}
           fs.writeFileSync(tmpPdf, pdfBuf);
           // -jpeg: JPEG 출력 (PNG 대비 크기 90% 절감), -r 96: 화면 표시용 적정 해상도
           // -f/-l 없이 실행하면 모든 페이지 변환
-          await execFileAsync('pdftoppm', ['-r', '96', '-jpeg', '-jpegopt', 'quality=82', tmpPdf, outPrefix]);
+          await execFileAsync('pdftoppm', ['-r', '150', '-jpeg', '-jpegopt', 'quality=85', tmpPdf, outPrefix]);
           const dir = os.tmpdir();
           const base = path.basename(outPrefix);
           const files = fs.readdirSync(dir)
@@ -10403,7 +10403,7 @@ ${htmlDraft}
         const LAST_LETTER = "T"; // 20번째 열
         const MID_LETTER_L = "J"; // 10번째 열 (좌 끝)
         const MID_LETTER_R = "K"; // 11번째 열 (우 시작)
-        const IMG_H = 200;
+        const IMG_H = 400;
         const LABEL_H = 22;
         const HDR_H = 28;
 
@@ -10572,15 +10572,21 @@ ${htmlDraft}
           return ri;
         }
 
-        // ─── 헬퍼: 월 그룹핑 ────────────────────────────────────────
-        function groupByMonth<T extends { month: number | null }>(recs: T[]): Map<number, T[]> {
+        // ─── 헬퍼: 연도+월 복합 그룹핑 (ym = year*100+month) ─────────
+        function groupByYM<T extends { year: number | null; month: number | null }>(recs: T[]): Map<number, T[]> {
           const map = new Map<number, T[]>();
           for (const r of recs) {
-            const m = r.month ?? 0;
-            if (!map.has(m)) map.set(m, []);
-            map.get(m)!.push(r);
+            const ym = (r.year ?? 0) * 100 + (r.month ?? 0);
+            if (!map.has(ym)) map.set(ym, []);
+            map.get(ym)!.push(r);
           }
           return new Map([...map.entries()].sort((a, b) => a[0] - b[0]));
+        }
+        // ─── 헬퍼: ym 키에서 "25년 10월" 형식 문자열 ────────────────
+        function ymLabel(ym: number): string {
+          const y = Math.floor(ym / 100);
+          const m = ym % 100;
+          return `${String(y).slice(2)}년 ${m}월`;
         }
 
         // ─── 카테고리 상수 ───────────────────────────────────────────
@@ -10593,9 +10599,9 @@ ${htmlDraft}
         // 월별: 견적서(좌) | 거래명세서(우) + 세금계산서
         // ════════════════════════════════════════════════════════════
         const cat3Recs = records.filter(r => r.category === CAT3);
-        const cat3ByMonth = groupByMonth(cat3Recs);
-        const cat3TaxMonths = new Set(cat3Recs.map(r => r.month));
-        const cat3Tax = taxInvoices.filter(t => cat3TaxMonths.has(t.month));
+        const cat3ByYM = groupByYM(cat3Recs);
+        const cat3TaxYMs = new Set(cat3Recs.map(r => (r.year ?? 0) * 100 + (r.month ?? 0)));
+        const cat3Tax = taxInvoices.filter(t => cat3TaxYMs.has((t.year ?? 0) * 100 + (t.month ?? 0)));
 
         const ws1 = wb.addWorksheet("개인보호구_구입비");
         setupCols(ws1);
@@ -10605,8 +10611,8 @@ ${htmlDraft}
         if (cat3Recs.length === 0) {
           addFullLabel(ws1, r1, "해당 기간에 개인보호구 및 안전장구 구입비 내역이 없습니다.", "FFFFF0F0");
         } else {
-          for (const [month, mRecs] of cat3ByMonth) {
-            r1 = addMonthHdr(ws1, r1, `  ${month}월 개인보호구 및 안전장구 구입비`, "FF2E75B6");
+          for (const [ym, mRecs] of cat3ByYM) {
+            r1 = addMonthHdr(ws1, r1, `  ${ymLabel(ym)} 개인보호구 및 안전장구 구입비`, "FF2E75B6");
 
             for (const rec of mRecs) {
               r1 = addFullLabel(ws1, r1,
@@ -10620,10 +10626,10 @@ ${htmlDraft}
               }
             }
 
-            // 해당 월 세금계산서
-            const mTax = cat3Tax.filter(t => t.month === month);
+            // 해당 연월 세금계산서
+            const mTax = cat3Tax.filter(t => (t.year ?? 0) * 100 + (t.month ?? 0) === ym);
             if (mTax.length > 0) {
-              r1 = addFullLabel(ws1, r1, `  💰 ${month}월 세금계산서`, "FFFFF3D6");
+              r1 = addFullLabel(ws1, r1, `  💰 ${ymLabel(ym)} 세금계산서`, "FFFFF3D6");
               for (const t of mTax) {
                 if (t.vendorName) {
                   r1 = addFullLabel(ws1, r1,
@@ -10635,7 +10641,7 @@ ${htmlDraft}
             }
 
             // 월 구분 여백
-            ws1.getRow(r1).height = 10;
+            ws1.getRow(r1).height = 14;
             r1++;
           }
         }
@@ -10655,8 +10661,8 @@ ${htmlDraft}
         // 분류 안 된 나머지 → 안전관리로 포함
         const unclassified = cat1Recs.filter(r => !safetyMgr.includes(r) && !healthMgr.includes(r));
         const safetyAll = [...safetyMgr, ...unclassified];
-        const cat1TaxMonths = new Set(cat1Recs.map(r => r.month));
-        const cat1Tax = taxInvoices.filter(t => cat1TaxMonths.has(t.month));
+        const cat1TaxYMs = new Set(cat1Recs.map(r => (r.year ?? 0) * 100 + (r.month ?? 0)));
+        const cat1Tax = taxInvoices.filter(t => cat1TaxYMs.has((t.year ?? 0) * 100 + (t.month ?? 0)));
 
         const ws2 = wb.addWorksheet("안전관리자_인건비");
         setupCols(ws2);
@@ -10669,12 +10675,11 @@ ${htmlDraft}
         if (safetyAll.length === 0) {
           r2 = addFullLabel(ws2, r2, "해당 내역이 없습니다.", "FFFFF0F0");
         } else {
-          const safetyByMonth = groupByMonth(safetyAll);
-          for (const [month, mRecs] of safetyByMonth) {
-            r2 = addMonthHdr(ws2, r2, `  ${month}월 안전관리 집행`, "FF2E75B6");
+          const safetyByYM = groupByYM(safetyAll);
+          for (const [ym, mRecs] of safetyByYM) {
+            r2 = addMonthHdr(ws2, r2, `  ${ymLabel(ym)} 안전관리 집행`, "FF2E75B6");
 
-            // 해당 월 세금계산서 (좌: 위탁계약 관련서류, 우: 세금계산서)
-            const mRec = mRecs[0]; // 월별 대표 레코드
+            const mRec = mRecs[0];
             r2 = addFullLabel(ws2, r2,
               `  항목: ${mRec.itemName || "-"}  |  업체: ${mRec.vendorName || "-"}  |  금액: ${mRecs.reduce((s, r) => s + Number(r.totalAmount || 0), 0).toLocaleString()}원`,
               "FFE8F0FE");
@@ -10689,7 +10694,7 @@ ${htmlDraft}
             }
 
             // 세금계산서 (별도 테이블)
-            const mTax = cat1Tax.filter(t => t.month === month);
+            const mTax = cat1Tax.filter(t => (t.year ?? 0) * 100 + (t.month ?? 0) === ym);
             for (const t of mTax) {
               if (t.vendorName) {
                 r2 = addFullLabel(ws2, r2,
@@ -10699,7 +10704,7 @@ ${htmlDraft}
               r2 = addFullImg(ws2, r2, getPages(t.fileUrl), !!t.fileUrl);
             }
 
-            ws2.getRow(r2).height = 10;
+            ws2.getRow(r2).height = 14;
             r2++;
           }
         }
@@ -10710,9 +10715,9 @@ ${htmlDraft}
         if (healthMgr.length === 0) {
           r2 = addFullLabel(ws2, r2, "해당 내역이 없습니다. (itemName에 '보건관리' 포함 항목 기준)", "FFFFF0F0");
         } else {
-          const healthByMonth = groupByMonth(healthMgr);
-          for (const [month, mRecs] of healthByMonth) {
-            r2 = addMonthHdr(ws2, r2, `  ${month}월 보건관리 집행`, "FF1F7055");
+          const healthByYM = groupByYM(healthMgr);
+          for (const [ym, mRecs] of healthByYM) {
+            r2 = addMonthHdr(ws2, r2, `  ${ymLabel(ym)} 보건관리 집행`, "FF1F7055");
             const mRec = mRecs[0];
             r2 = addFullLabel(ws2, r2,
               `  항목: ${mRec.itemName || "-"}  |  업체: ${mRec.vendorName || "-"}  |  금액: ${mRecs.reduce((s, r) => s + Number(r.totalAmount || 0), 0).toLocaleString()}원`,
@@ -10726,7 +10731,7 @@ ${htmlDraft}
                 r2 = addImgPair(ws2, r2, getPages(rec.quoteFileUrl), getPages(rec.transactionFileUrl), !!rec.quoteFileUrl, !!rec.transactionFileUrl);
               }
             }
-            ws2.getRow(r2).height = 10;
+            ws2.getRow(r2).height = 14;
             r2++;
           }
         }
@@ -10736,9 +10741,9 @@ ${htmlDraft}
         // 교육 시기별: 수료증(좌) | 세금계산서(우)
         // ════════════════════════════════════════════════════════════
         const cat5Recs = records.filter(r => r.category === CAT5);
-        const cat5ByMonth = groupByMonth(cat5Recs);
-        const cat5TaxMonths = new Set(cat5Recs.map(r => r.month));
-        const cat5Tax = taxInvoices.filter(t => cat5TaxMonths.has(t.month));
+        const cat5ByYM = groupByYM(cat5Recs);
+        const cat5TaxYMs = new Set(cat5Recs.map(r => (r.year ?? 0) * 100 + (r.month ?? 0)));
+        const cat5Tax = taxInvoices.filter(t => cat5TaxYMs.has((t.year ?? 0) * 100 + (t.month ?? 0)));
 
         const ws3 = wb.addWorksheet("안전보건교육비");
         setupCols(ws3);
@@ -10748,8 +10753,8 @@ ${htmlDraft}
         if (cat5Recs.length === 0) {
           addFullLabel(ws3, r3, "해당 기간에 안전보건교육비 내역이 없습니다.", "FFFFF0F0");
         } else {
-          for (const [month, mRecs] of cat5ByMonth) {
-            r3 = addMonthHdr(ws3, r3, `  ${month}월 안전보건교육비 집행`, "FF7030A0");
+          for (const [ym, mRecs] of cat5ByYM) {
+            r3 = addMonthHdr(ws3, r3, `  ${ymLabel(ym)} 안전보건교육비 집행`, "FF7030A0");
 
             for (const rec of mRecs) {
               r3 = addFullLabel(ws3, r3,
@@ -10764,10 +10769,10 @@ ${htmlDraft}
               }
             }
 
-            // 해당 월 세금계산서 (별도 테이블)
-            const mTax = cat5Tax.filter(t => t.month === month);
+            // 해당 연월 세금계산서 (별도 테이블)
+            const mTax = cat5Tax.filter(t => (t.year ?? 0) * 100 + (t.month ?? 0) === ym);
             if (mTax.length > 0) {
-              r3 = addFullLabel(ws3, r3, `  💰 ${month}월 세금계산서`, "FFFFF3D6");
+              r3 = addFullLabel(ws3, r3, `  💰 ${ymLabel(ym)} 세금계산서`, "FFFFF3D6");
               for (const t of mTax) {
                 if (t.vendorName) {
                   r3 = addFullLabel(ws3, r3,
@@ -10778,7 +10783,7 @@ ${htmlDraft}
               }
             }
 
-            ws3.getRow(r3).height = 10;
+            ws3.getRow(r3).height = 14;
             r3++;
           }
         }
