@@ -481,8 +481,16 @@ export default function SafetyCostBudget() {
   function applyNoVatToChecked() {
     setMultiResRows(p => p.map(r => {
       if (!r.checked || r.status !== "done") return r;
-      const total = parseFloat(r.totalAmount || "0") || 0;
-      return { ...r, vatAmount: "0", supplyAmount: total.toString() };
+      const supply = parseFloat(r.supplyAmount || "0") || 0;
+      const total  = parseFloat(r.totalAmount  || "0") || 0;
+      // 세액제외: 공급가액이 있으면 그것이 실제 금액, 없으면 합계에서 VAT 역산
+      const baseAmount = supply > 0 ? supply : (total > 0 ? Math.round(total / 1.1) : total);
+      return {
+        ...r,
+        supplyAmount: baseAmount.toString(),
+        vatAmount:    "0",
+        totalAmount:  baseAmount.toString(),   // 세액 0이므로 합계 = 공급가액
+      };
     }));
   }
 
@@ -1875,8 +1883,14 @@ export default function SafetyCostBudget() {
                       </TableCell>
                       <TableCell>
                         {row.status === "done" ? (
-                          <Input value={row.totalAmount || ""} onChange={e => updateMultiResRow(row.id, { totalAmount: e.target.value })}
-                            className="h-7 text-xs text-right w-24" placeholder="0" data-testid={`inp-total-${row.id}`} />
+                          <div className="flex flex-col gap-0.5">
+                            <Input value={row.totalAmount || ""} onChange={e => updateMultiResRow(row.id, { totalAmount: e.target.value })}
+                              className={`h-7 text-xs text-right w-24 ${row.vatAmount === "0" ? "border-orange-400 text-orange-700" : ""}`}
+                              placeholder="0" data-testid={`inp-total-${row.id}`} />
+                            {row.vatAmount === "0" && (
+                              <span className="text-[10px] text-orange-500 text-right">세액제외</span>
+                            )}
+                          </div>
                         ) : <span className="text-xs text-muted-foreground">—</span>}
                       </TableCell>
                       <TableCell>
