@@ -1751,7 +1751,7 @@ export default function SafetyCostBudget() {
                     <TableHead className="w-44 text-xs whitespace-nowrap">품명</TableHead>
                     <TableHead className="w-48 text-xs whitespace-nowrap">항목구분</TableHead>
                     <TableHead className="w-32 text-xs whitespace-nowrap">날짜</TableHead>
-                    <TableHead className="w-20 text-xs whitespace-nowrap">월</TableHead>
+                    <TableHead className="w-36 text-xs whitespace-nowrap">연월</TableHead>
                     <TableHead className="w-28 text-xs whitespace-nowrap">합계금액</TableHead>
                     <TableHead className="w-8"></TableHead>
                   </TableRow>
@@ -1814,14 +1814,26 @@ export default function SafetyCostBudget() {
                       </TableCell>
                       <TableCell>
                         {row.status === "done" ? (
-                          <Select value={row.month.toString()} onValueChange={v => updateMultiResRow(row.id, { month: Number(v) })}>
-                            <SelectTrigger className="h-7 text-xs w-18" data-testid={`sel-month-${row.id}`}>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {MONTHS.map((m, i) => <SelectItem key={i} value={(i+1).toString()} className="text-xs">{m}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
+                          <div className="flex gap-1">
+                            <Select value={row.year.toString()} onValueChange={v => updateMultiResRow(row.id, { year: Number(v) })}>
+                              <SelectTrigger className="h-7 text-xs w-16" data-testid={`sel-year-${row.id}`}>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {Array.from({ length: 5 }, (_, i) => currentYear - 2 + i).map(y => (
+                                  <SelectItem key={y} value={y.toString()} className="text-xs">{y}년</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <Select value={row.month.toString()} onValueChange={v => updateMultiResRow(row.id, { month: Number(v) })}>
+                              <SelectTrigger className="h-7 text-xs w-14" data-testid={`sel-month-${row.id}`}>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {MONTHS.map((m, i) => <SelectItem key={i} value={(i+1).toString()} className="text-xs">{m}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
                         ) : <span className="text-xs text-muted-foreground">—</span>}
                       </TableCell>
                       <TableCell>
