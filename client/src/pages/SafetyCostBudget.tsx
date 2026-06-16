@@ -179,11 +179,19 @@ export default function SafetyCostBudget() {
   const [budgetHalf, setBudgetHalf] = useState<"h1"|"h2">("h1");
   const [budgetInput, setBudgetInput] = useState<{ h1: Record<string, string>; h2: Record<string, string> }>({ h1: {}, h2: {} });
 
-  // 세금계산서 다이얼로그
+  // 세금계산서 다이얼로그 (월별)
   const [taxDlgOpen, setTaxDlgOpen] = useState(false);
   const [editTax, setEditTax] = useState<SafetyCostTaxInvoice | null>(null);
   const [taxForm, setTaxForm] = useState({ ...emptyTaxForm });
   const [taxFile, setTaxFile] = useState<File | null>(null);
+
+  // 개별 세금계산서 다이얼로그 (레코드별)
+  const [recTaxDlg, setRecTaxDlg] = useState<SafetyCostRecord | null>(null);
+  const [recTaxYear, setRecTaxYear] = useState(currentYear);
+  const [recTaxMonth, setRecTaxMonth] = useState(1);
+  const [recTaxFile, setRecTaxFile] = useState<File | null>(null);
+  const [recTaxUploading, setRecTaxUploading] = useState(false);
+  const [recTaxSaving, setRecTaxSaving] = useState(false);
 
   // 첨부파일 미리보기
   const [preview, setPreview] = useState<{ url: string; title: string } | null>(null);
@@ -201,6 +209,7 @@ export default function SafetyCostBudget() {
   const quoteRef = useRef<HTMLInputElement>(null);
   const transRef = useRef<HTMLInputElement>(null);
   const taxFileRef = useRef<HTMLInputElement>(null);
+  const recTaxFileRef = useRef<HTMLInputElement>(null);
   const certRef = useRef<HTMLInputElement>(null);
   const resolutionRef = useRef<HTMLInputElement>(null);
   const multiResRef = useRef<HTMLInputElement>(null);
@@ -252,6 +261,15 @@ export default function SafetyCostBudget() {
   const deleteTaxMut = useMutation({
     mutationFn: (id: number) => apiRequest("DELETE", `/api/safety-cost-tax-invoices/${id}`),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/safety-cost-tax-invoices"] }); toast({ title: "삭제 완료" }); setDelConfirm(null); },
+  });
+  const updateRecTaxMut = useMutation({
+    mutationFn: ({ id, d }: { id: number; d: any }) => apiRequest("PUT", `/api/safety-cost-records/${id}`, d),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/safety-cost-records"] });
+      toast({ title: "개별 세금계산서 저장 완료" });
+      setRecTaxDlg(null);
+    },
+    onError: (e: any) => toast({ title: "저장 실패", description: e.message, variant: "destructive" }),
   });
   const bulkDeleteMut = useMutation({
     mutationFn: (ids: number[]) => apiRequest("POST", "/api/safety-cost-records/bulk-delete", { ids }),
@@ -662,6 +680,47 @@ export default function SafetyCostBudget() {
     }
   }
 
+  // ── 개별 세금계산서 헬퍼 ────────────────────────────────────────────
+  function openRecTaxDlg(rec: SafetyCostRecord) {
+    setRecTaxDlg(rec);
+    setRecTaxYear(rec.taxInvoiceYear ?? rec.year);
+    setRecTaxMonth(rec.taxInvoiceMonth ?? rec.month);
+    setRecTaxFile(null);
+  }
+  async function saveRecTax() {
+    if (!recTaxDlg) return;
+    setRecTaxSaving(true);
+    try {
+      let fileUrl = recTaxDlg.taxInvoiceFileUrl ?? null;
+      if (recTaxFile) {
+        setRecTaxUploading(true);
+        const fd = new FormData();
+        fd.append("file", recTaxFile);
+        fd.append("type", "tax");
+        const r = await fetch("/api/safety-cost-records/upload-file", { method: "POST", body: fd, credentials: "include" });
+        if (!r.ok) throw new Error("파일 업로드 실패");
+        const data = await r.json();
+        fileUrl = data.url;
+        setRecTaxUploading(false);
+      }
+      await updateRecTaxMut.mutateAsync({
+        id: recTaxDlg.id,
+        d: { taxInvoiceYear: recTaxYear, taxInvoiceMonth: recTaxMonth, taxInvoiceFileUrl: fileUrl },
+      });
+    } catch (e: any) {
+      toast({ title: "저장 실패", description: e.message, variant: "destructive" });
+    } finally {
+      setRecTaxSaving(false);
+      setRecTaxUploading(false);
+    }
+  }
+  async function clearRecTax(rec: SafetyCostRecord) {
+    await updateRecTaxMut.mutateAsync({
+      id: rec.id,
+      d: { taxInvoiceYear: null, taxInvoiceMonth: null, taxInvoiceFileUrl: null },
+    });
+  }
+
   // ── 세금계산서 헬퍼 ───────────────────────────────────────────────
   function openAddTax() { setEditTax(null); setTaxForm({ ...emptyTaxForm, year }); setTaxFile(null); setTaxDlgOpen(true); }
   function openAddTaxForMonth(month: number) {
@@ -1001,13 +1060,14 @@ export default function SafetyCostBudget() {
                     <TableHead className="text-right w-20 hidden xl:table-cell">세액</TableHead>
                     <TableHead className="text-right font-semibold w-28">합계</TableHead>
                     <TableHead className="w-36 text-center">
-                      <div className="flex items-center justify-center gap-1.5 text-xs leading-tight">
+                      <div className="flex items-center justify-center gap-1 text-xs leading-tight">
                         <span className="text-blue-500"><FileText className="w-3.5 h-3.5 inline" /></span>
                         <span className="text-emerald-500"><FileText className="w-3.5 h-3.5 inline" /></span>
                         <span className="text-indigo-500"><ScrollText className="w-3.5 h-3.5 inline" /></span>
+                        <span className="text-amber-500"><Receipt className="w-3.5 h-3.5 inline" /></span>
                         <span className="text-violet-500"><Receipt className="w-3.5 h-3.5 inline" /></span>
                       </div>
-                      <div className="text-[10px] text-muted-foreground mt-0.5">첨부·결의서·세금계산서</div>
+                      <div className="text-[10px] text-muted-foreground mt-0.5">첨부·결의서·세금(개별·월)</div>
                     </TableHead>
                     <TableHead className="w-14 text-center">관리</TableHead>
                   </TableRow>
@@ -1070,20 +1130,42 @@ export default function SafetyCostBudget() {
                             ) : (
                               <ScrollText className="w-4 h-4 text-muted-foreground/20" />
                             )}
-                            {/* 월별 세금계산서 */}
+                            {/* 개별 세금계산서 (amber) */}
+                            {rec.taxInvoiceYear ? (
+                              <button
+                                onClick={() => rec.taxInvoiceFileUrl
+                                  ? setPreview({ url: rec.taxInvoiceFileUrl, title: `개별 세금계산서 (${rec.taxInvoiceYear}년 ${rec.taxInvoiceMonth}월)` })
+                                  : openRecTaxDlg(rec)
+                                }
+                                className="text-amber-500 hover:text-amber-700 transition-colors relative"
+                                title={`개별 세금계산서: ${rec.taxInvoiceYear}년 ${rec.taxInvoiceMonth}월${rec.taxInvoiceMonth !== rec.month ? " ⚠ 구매월과 다름" : ""}`}
+                                data-testid={`btn-rec-tax-${rec.id}`}>
+                                <Receipt className="w-4 h-4" />
+                                {rec.taxInvoiceMonth !== rec.month && (
+                                  <span className="absolute -top-1 -right-1 w-1.5 h-1.5 rounded-full bg-orange-400" />
+                                )}
+                              </button>
+                            ) : (
+                              <button onClick={() => openRecTaxDlg(rec)}
+                                className="text-muted-foreground/20 hover:text-amber-400 transition-colors" title="개별 세금계산서 등록"
+                                data-testid={`btn-rec-tax-add-${rec.id}`}>
+                                <Receipt className="w-4 h-4" />
+                              </button>
+                            )}
+                            {/* 월별 세금계산서 (violet) */}
                             {monthTaxMap[rec.month] ? (
                               <button
                                 onClick={() => monthTaxMap[rec.month].fileUrl
                                   ? setPreview({ url: monthTaxMap[rec.month].fileUrl!, title: `${rec.month}월 세금계산서` })
                                   : openEditTax(monthTaxMap[rec.month])
                                 }
-                                className="text-violet-500 hover:text-violet-700 transition-colors" title={`${rec.month}월 세금계산서`}
+                                className="text-violet-500 hover:text-violet-700 transition-colors" title={`${rec.month}월 세금계산서 (월별)`}
                                 data-testid={`btn-tax-month-${rec.id}`}>
                                 <Receipt className="w-4 h-4" />
                               </button>
                             ) : (
                               <button onClick={() => openAddTaxForMonth(rec.month)}
-                                className="text-muted-foreground/20 hover:text-violet-400 transition-colors" title={`${rec.month}월 세금계산서 등록`}
+                                className="text-muted-foreground/20 hover:text-violet-400 transition-colors" title={`${rec.month}월 세금계산서 등록 (월별)`}
                                 data-testid={`btn-tax-add-month-${rec.id}`}>
                                 <Receipt className="w-4 h-4" />
                               </button>
@@ -1973,6 +2055,82 @@ export default function SafetyCostBudget() {
             <Button onClick={handleTaxSubmit} disabled={createTaxMut.isPending||updateTaxMut.isPending} data-testid="btn-tax-submit">
               {(createTaxMut.isPending||updateTaxMut.isPending) && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
               {editTax ? "수정 저장" : "등록"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ══ 개별 세금계산서 다이얼로그 ══ */}
+      <Dialog open={recTaxDlg !== null} onOpenChange={v => { if (!v) setRecTaxDlg(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Receipt className="w-4 h-4 text-amber-500" />
+              개별 세금계산서 {recTaxDlg?.taxInvoiceYear ? "수정" : "등록"}
+            </DialogTitle>
+          </DialogHeader>
+          {recTaxDlg && (
+            <div className="space-y-4">
+              <div className="rounded-md bg-muted/50 px-3 py-2 text-sm">
+                <span className="text-muted-foreground">구매 항목: </span>
+                <span className="font-medium">{recTaxDlg.itemName}</span>
+                <span className="text-muted-foreground ml-2">({recTaxDlg.year}년 {recTaxDlg.month}월 구매)</span>
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1 block">세금계산서 발행 연월</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <Select value={recTaxYear.toString()} onValueChange={v => setRecTaxYear(Number(v))}>
+                    <SelectTrigger data-testid="sel-rec-tax-year"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {[currentYear - 1, currentYear, currentYear + 1].map(y => (
+                        <SelectItem key={y} value={y.toString()}>{y}년</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={recTaxMonth.toString()} onValueChange={v => setRecTaxMonth(Number(v))}>
+                    <SelectTrigger data-testid="sel-rec-tax-month"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {MONTHS.map((m, i) => <SelectItem key={i} value={(i + 1).toString()}>{m}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {recTaxMonth !== recTaxDlg.month && (
+                  <p className="text-xs text-amber-600 mt-1">⚠ 구매월({recTaxDlg.month}월)과 세금계산서 발행월({recTaxMonth}월)이 다릅니다</p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">세금계산서 파일 (이미지/PDF)</Label>
+                <input ref={recTaxFileRef} type="file" accept="image/*,application/pdf" className="hidden"
+                  onChange={e => { if (e.target.files?.[0]) setRecTaxFile(e.target.files[0]); }} />
+                <Button variant="outline" size="sm" className="w-full" onClick={() => recTaxFileRef.current?.click()}
+                  data-testid="btn-rec-tax-file" disabled={recTaxUploading}>
+                  {recTaxUploading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Upload className="w-4 h-4 mr-1" />}
+                  {recTaxFile ? recTaxFile.name : (recTaxDlg.taxInvoiceFileUrl ? "파일 교체" : "세금계산서 첨부")}
+                </Button>
+                {recTaxDlg.taxInvoiceFileUrl && !recTaxFile && (
+                  <button onClick={() => setPreview({ url: recTaxDlg.taxInvoiceFileUrl!, title: "개별 세금계산서" })}
+                    className="text-xs text-amber-600 flex items-center gap-1 hover:underline">
+                    <FileCheck className="w-3 h-3" />현재 첨부파일 보기
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+          <DialogFooter className="gap-2">
+            {recTaxDlg?.taxInvoiceYear && (
+              <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700 mr-auto"
+                onClick={() => recTaxDlg && clearRecTax(recTaxDlg)}
+                disabled={updateRecTaxMut.isPending}
+                data-testid="btn-rec-tax-clear">
+                등록 취소
+              </Button>
+            )}
+            <Button variant="outline" onClick={() => setRecTaxDlg(null)}>닫기</Button>
+            <Button onClick={saveRecTax} disabled={recTaxSaving || recTaxUploading}
+              className="bg-amber-500 hover:bg-amber-600 text-white"
+              data-testid="btn-rec-tax-save">
+              {(recTaxSaving || recTaxUploading) && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
+              저장
             </Button>
           </DialogFooter>
         </DialogContent>

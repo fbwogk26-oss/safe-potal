@@ -618,6 +618,9 @@ export const safetyCostRecords = pgTable("safety_cost_records", {
   transactionFileUrl: text("transaction_file_url"),
   certificateFileUrl: text("certificate_file_url"),
   resolutionFileUrl: text("resolution_file_url"),
+  taxInvoiceYear: integer("tax_invoice_year"),
+  taxInvoiceMonth: integer("tax_invoice_month"),
+  taxInvoiceFileUrl: text("tax_invoice_file_url"),
   createdAt: timestamp("created_at").defaultNow(),
   createdBy: text("created_by"),
 });
