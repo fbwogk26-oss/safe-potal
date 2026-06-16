@@ -168,6 +168,7 @@ export default function SafetyCostBudget() {
   const [multiResSaving, setMultiResSaving] = useState(false);
   const [multiResQuoteUrl, setMultiResQuoteUrl] = useState<string>("");
   const [multiResQuoteUploading, setMultiResQuoteUploading] = useState(false);
+  const [multiResGlobalYear, setMultiResGlobalYear] = useState(currentYear);
 
   // 사용내역 행 선택
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -466,8 +467,13 @@ export default function SafetyCostBudget() {
   }
 
   // ── 다중 결의서 일괄 업로드 ───────────────────────────────────────
-  function openMultiResDlg() { setMultiResRows([]); setMultiResDlgOpen(true); }
-  function closeMultiResDlg() { setMultiResDlgOpen(false); setMultiResRows([]); setMultiResQuoteUrl(""); }
+  function openMultiResDlg() { setMultiResRows([]); setMultiResGlobalYear(currentYear); setMultiResDlgOpen(true); }
+  function closeMultiResDlg() { setMultiResDlgOpen(false); setMultiResRows([]); setMultiResQuoteUrl(""); setMultiResGlobalYear(currentYear); }
+
+  function applyGlobalYearToAll(y: number) {
+    setMultiResGlobalYear(y);
+    setMultiResRows(p => p.map(r => ({ ...r, year: y })));
+  }
   function updateMultiResRow(id: string, updates: Partial<MultiResRow>) {
     setMultiResRows(p => p.map(r => r.id === id ? { ...r, ...updates } : r));
   }
@@ -487,7 +493,7 @@ export default function SafetyCostBudget() {
       file,
       status: "pending",
       checked: true,
-      year: currentYear,
+      year: multiResGlobalYear,
       month: new Date().getMonth() + 1,
     }));
     setMultiResRows(p => [...p, ...newRows]);
@@ -1696,10 +1702,24 @@ export default function SafetyCostBudget() {
           </DialogHeader>
 
           {/* 파일 추가 버튼 */}
-          <div className="flex items-center gap-3 py-2 border-b">
+          <div className="flex items-center gap-3 py-2 border-b flex-wrap">
             <Button variant="outline" size="sm" onClick={() => multiResRef.current?.click()} data-testid="btn-multi-res-add-more">
               <Upload className="w-3.5 h-3.5 mr-1" /> 파일 추가
             </Button>
+            {/* 전체 연도 일괄 선택 */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-medium text-foreground whitespace-nowrap">전체 연도:</span>
+              <Select value={multiResGlobalYear.toString()} onValueChange={v => applyGlobalYearToAll(Number(v))}>
+                <SelectTrigger className="h-7 text-xs w-24" data-testid="sel-global-year">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 5 }, (_, i) => currentYear - 2 + i).map(y => (
+                    <SelectItem key={y} value={y.toString()} className="text-xs">{y}년</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             {multiResRows.some(r => r.checked && r.status === "done") && (
               <Button variant="outline" size="sm"
                 className="h-7 text-xs border-orange-300 text-orange-600 hover:bg-orange-50"
@@ -1833,12 +1853,12 @@ export default function SafetyCostBudget() {
                         {row.status === "done" ? (
                           <div className="flex gap-1">
                             <Select value={row.year.toString()} onValueChange={v => updateMultiResRow(row.id, { year: Number(v) })}>
-                              <SelectTrigger className="h-7 text-xs w-16" data-testid={`sel-year-${row.id}`}>
+                              <SelectTrigger className="h-7 text-xs w-[4.5rem]" data-testid={`sel-year-${row.id}`}>
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
                                 {Array.from({ length: 5 }, (_, i) => currentYear - 2 + i).map(y => (
-                                  <SelectItem key={y} value={y.toString()} className="text-xs">{y}년</SelectItem>
+                                  <SelectItem key={y} value={y.toString()} className="text-xs">{String(y).slice(2)}년({y})</SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
