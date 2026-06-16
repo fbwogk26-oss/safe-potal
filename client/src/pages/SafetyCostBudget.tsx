@@ -472,6 +472,14 @@ export default function SafetyCostBudget() {
     setMultiResRows(p => p.map(r => r.id === id ? { ...r, ...updates } : r));
   }
 
+  function applyNoVatToChecked() {
+    setMultiResRows(p => p.map(r => {
+      if (!r.checked || r.status !== "done") return r;
+      const total = parseFloat(r.totalAmount || "0") || 0;
+      return { ...r, vatAmount: "0", supplyAmount: total.toString() };
+    }));
+  }
+
   async function handleMultiResFilesSelected(files: FileList | null) {
     if (!files || files.length === 0) return;
     const newRows: MultiResRow[] = Array.from(files).map(file => ({
@@ -1692,6 +1700,15 @@ export default function SafetyCostBudget() {
             <Button variant="outline" size="sm" onClick={() => multiResRef.current?.click()} data-testid="btn-multi-res-add-more">
               <Upload className="w-3.5 h-3.5 mr-1" /> 파일 추가
             </Button>
+            {multiResRows.some(r => r.checked && r.status === "done") && (
+              <Button variant="outline" size="sm"
+                className="h-7 text-xs border-orange-300 text-orange-600 hover:bg-orange-50"
+                onClick={applyNoVatToChecked}
+                data-testid="btn-bulk-no-vat"
+                title="선택 항목의 세액을 0으로 설정하고 공급가액 = 합계금액으로 변경">
+                <span className="text-sm mr-1">⊘</span> 일괄 세액제외
+              </Button>
+            )}
             <span className="text-xs text-muted-foreground">
               PDF·이미지 여러 개 동시 선택 가능 · AI가 자동으로 내용을 추출합니다
             </span>
