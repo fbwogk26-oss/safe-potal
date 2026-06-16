@@ -10277,8 +10277,8 @@ ${htmlDraft}
       async function compressImg(buf: Buffer): Promise<Buffer> {
         try {
           return await sharpLib(buf)
-            .resize({ width: 1400, height: 2000, fit: 'inside', withoutEnlargement: true })
-            .jpeg({ quality: 80, mozjpeg: false })
+            .resize({ width: 1000, height: 1500, fit: 'inside', withoutEnlargement: true })
+            .jpeg({ quality: 72, mozjpeg: false })
             .toBuffer();
         } catch {
           return buf; // 압축 실패 시 원본 반환
@@ -10294,7 +10294,7 @@ ${htmlDraft}
           fs.writeFileSync(tmpPdf, pdfBuf);
           // -jpeg: JPEG 출력 (PNG 대비 크기 90% 절감), -r 96: 화면 표시용 적정 해상도
           // -f/-l 없이 실행하면 모든 페이지 변환
-          await execFileAsync('pdftoppm', ['-r', '150', '-jpeg', '-jpegopt', 'quality=85', tmpPdf, outPrefix]);
+          await execFileAsync('pdftoppm', ['-r', '110', '-jpeg', '-jpegopt', 'quality=80', tmpPdf, outPrefix]);
           const dir = os.tmpdir();
           const base = path.basename(outPrefix);
           const files = fs.readdirSync(dir)
@@ -10403,7 +10403,7 @@ ${htmlDraft}
         const LAST_LETTER = "T"; // 20번째 열
         const MID_LETTER_L = "J"; // 10번째 열 (좌 끝)
         const MID_LETTER_R = "K"; // 11번째 열 (우 시작)
-        const IMG_H = 400;
+        const IMG_H = 280;
         const LABEL_H = 22;
         const HDR_H = 28;
 
@@ -10792,24 +10792,25 @@ ${htmlDraft}
       }
 
 
-      // ─── 이미지 포함 workbook 생성 → writeBuffer 실패 시 텍스트 전용으로 폴백 ─
-      let xlsBuf: Buffer;
+      // ─── workbook 생성 → 스트리밍 전송 (버퍼 메모리 절약) ──────────────
+      const fileLabel = rangeLabel.replace(/ /g, "_");
+
+      let wbFinal: ExcelJS.Workbook;
       try {
-        const wbWithImg = buildWorkbook(true);
-        console.log(`[export] writeBuffer(이미지포함) 시작`);
-        xlsBuf = Buffer.from(await wbWithImg.xlsx.writeBuffer());
-        console.log(`[export] writeBuffer 완료, size=${xlsBuf.length}`);
+        wbFinal = buildWorkbook(true);
+        console.log(`[export] 이미지포함 workbook 빌드 완료`);
       } catch (imgErr: any) {
-        console.warn(`[export] 이미지 임베딩 writeBuffer 실패(${imgErr.message}), 텍스트 전용으로 재시도`);
-        const wbNoImg = buildWorkbook(false);
-        xlsBuf = Buffer.from(await wbNoImg.xlsx.writeBuffer());
-        console.log(`[export] 텍스트 전용 writeBuffer 완료, size=${xlsBuf.length}`);
+        console.warn(`[export] 이미지 빌드 실패(${imgErr.message}), 텍스트 전용으로 재시도`);
+        wbFinal = buildWorkbook(false);
+        console.log(`[export] 텍스트 전용 workbook 빌드 완료`);
       }
 
-      const fileLabel = rangeLabel.replace(/ /g, "_");
       res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
       res.setHeader("Content-Disposition", `attachment; filename*=UTF-8''${encodeURIComponent(`산업안전보건관리비_법정경비_${fileLabel}.xlsx`)}`);
-      res.send(xlsBuf);
+      console.log(`[export] 스트리밍 전송 시작`);
+      await wbFinal.xlsx.write(res);
+      res.end();
+      console.log(`[export] 스트리밍 전송 완료`);
     } catch (e: any) {
       console.error("[export] 법정경비 export 오류:", e.message, e.stack?.split('\n').slice(0,3).join(' | '));
       res.status(500).json({ message: "내보내기 실패: " + e.message });
