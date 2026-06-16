@@ -10272,19 +10272,20 @@ ${htmlDraft}
         return null;
       }
 
-      // ─── 헬퍼: PDF 전체 페이지 → PNG Buffer[] (pdftoppm) ──────────
+      // ─── 헬퍼: PDF 전체 페이지 → JPEG Buffer[] (pdftoppm, 압축률↑) ──
       async function pdfToAllPages(pdfBuf: Buffer): Promise<Buffer[]> {
         const ts = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
         const tmpPdf = path.join(os.tmpdir(), `sc_${ts}.pdf`);
         const outPrefix = path.join(os.tmpdir(), `sc_${ts}_out`);
         try {
           fs.writeFileSync(tmpPdf, pdfBuf);
+          // -jpeg: JPEG 출력 (PNG 대비 크기 90% 절감), -r 96: 화면 표시용 적정 해상도
           // -f/-l 없이 실행하면 모든 페이지 변환
-          await execFileAsync('pdftoppm', ['-r', '120', '-png', tmpPdf, outPrefix]);
+          await execFileAsync('pdftoppm', ['-r', '96', '-jpeg', '-jpegopt', 'quality=82', tmpPdf, outPrefix]);
           const dir = os.tmpdir();
           const base = path.basename(outPrefix);
           const files = fs.readdirSync(dir)
-            .filter(f => f.startsWith(base) && f.endsWith('.png'))
+            .filter(f => f.startsWith(base) && (f.endsWith('.jpg') || f.endsWith('.jpeg')))
             .sort(); // 페이지 순서 보장
           const bufs: Buffer[] = [];
           for (const f of files) {
@@ -10292,11 +10293,28 @@ ${htmlDraft}
             bufs.push(fs.readFileSync(fpath));
             try { fs.unlinkSync(fpath); } catch {}
           }
-          console.log(`[export] PDF→PNG 변환 완료: ${bufs.length}페이지`);
+          console.log(`[export] PDF→JPEG 변환 완료: ${bufs.length}페이지`);
           return bufs;
         } catch (e: any) {
           console.warn('[export] pdfToAllPages 실패:', e.message);
-          return [];
+          // JPEG 옵션 미지원 시 PNG 폴백
+          try {
+            await execFileAsync('pdftoppm', ['-r', '96', '-png', tmpPdf, outPrefix]);
+            const dir = os.tmpdir();
+            const base = path.basename(outPrefix);
+            const files = fs.readdirSync(dir).filter(f => f.startsWith(base) && f.endsWith('.png')).sort();
+            const bufs: Buffer[] = [];
+            for (const f of files) {
+              const fpath = path.join(dir, f);
+              bufs.push(fs.readFileSync(fpath));
+              try { fs.unlinkSync(fpath); } catch {}
+            }
+            console.log(`[export] PDF→PNG 폴백 변환 완료: ${bufs.length}페이지`);
+            return bufs;
+          } catch (e2: any) {
+            console.warn('[export] pdfToAllPages PNG 폴백도 실패:', e2.message);
+            return [];
+          }
         } finally {
           try { fs.unlinkSync(tmpPdf); } catch {}
         }
