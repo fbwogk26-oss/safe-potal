@@ -843,7 +843,10 @@ export default function SafetyCostBudget() {
       const label = `${sy2}년_${exportStartMonth}월_${ey2}년_${exportEndMonth}월`;
       const url = `/api/safety-cost-records/export?startYear=${exportStartYear}&startMonth=${exportStartMonth}&endYear=${exportEndYear}&endMonth=${exportEndMonth}&headquarters=${encodeURIComponent(headquarters)}`;
       const r = await fetch(url, { credentials:"include" });
-      if (!r.ok) throw new Error("다운로드 실패");
+      if (!r.ok) {
+        const errData = await r.json().catch(() => ({}));
+        throw new Error(errData.message || `서버 오류 (${r.status})`);
+      }
       const blob = await r.blob();
       const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement("a"); a.href=blobUrl;

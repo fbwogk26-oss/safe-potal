@@ -10270,10 +10270,11 @@ ${htmlDraft}
         return null;
       }
 
-      function getExt(url: string): string {
+      function getExt(url: string): string | null {
         const lower = url.toLowerCase();
         if (lower.includes(".png")) return "png";
-        if (lower.includes(".pdf")) return "png"; // PDF → 그냥 png으로 fallback
+        if (lower.includes(".gif")) return "gif";
+        if (lower.includes(".pdf")) return null; // PDF는 이미지 임베드 불가 → 스킵
         return "jpeg";
       }
 
@@ -10381,25 +10382,35 @@ ${htmlDraft}
 
           // 견적서 이미지 embed (col 17)
           if (r.quoteFileUrl) {
-            try {
-              const buf = await fetchBuf(r.quoteFileUrl);
-              if (buf) {
-                const ext = getExt(r.quoteFileUrl);
-                const imgId = wb.addImage({ buffer: buf, extension: ext as any });
-                dataSheet.addImage(imgId, { tl: { col: 16, row: dataRowIdx-1 }, br: { col: 17, row: dataRowIdx }, editAs: "oneCell" });
-              }
-            } catch { }
+            const ext = getExt(r.quoteFileUrl);
+            if (ext) {
+              try {
+                const buf = await fetchBuf(r.quoteFileUrl);
+                if (buf) {
+                  const imgId = wb.addImage({ buffer: buf, extension: ext as any });
+                  dataSheet.addImage(imgId, { tl: { col: 16, row: dataRowIdx-1 }, br: { col: 17, row: dataRowIdx }, editAs: "oneCell" });
+                }
+              } catch { }
+            } else {
+              row.getCell(17).value = "PDF첨부";
+              row.getCell(17).font = { color: { argb: "FF0070C0" } };
+            }
           }
           // 거래명세서 이미지 embed (col 18)
           if (r.transactionFileUrl) {
-            try {
-              const buf = await fetchBuf(r.transactionFileUrl);
-              if (buf) {
-                const ext = getExt(r.transactionFileUrl);
-                const imgId = wb.addImage({ buffer: buf, extension: ext as any });
-                dataSheet.addImage(imgId, { tl: { col: 17, row: dataRowIdx-1 }, br: { col: 18, row: dataRowIdx }, editAs: "oneCell" });
-              }
-            } catch { }
+            const ext = getExt(r.transactionFileUrl);
+            if (ext) {
+              try {
+                const buf = await fetchBuf(r.transactionFileUrl);
+                if (buf) {
+                  const imgId = wb.addImage({ buffer: buf, extension: ext as any });
+                  dataSheet.addImage(imgId, { tl: { col: 17, row: dataRowIdx-1 }, br: { col: 18, row: dataRowIdx }, editAs: "oneCell" });
+                }
+              } catch { }
+            } else {
+              row.getCell(18).value = "PDF첨부";
+              row.getCell(18).font = { color: { argb: "FF0070C0" } };
+            }
           }
           dataRowIdx++;
         }
@@ -10469,18 +10480,23 @@ ${htmlDraft}
         row.height = IMG_ROW_H;
 
         if (t.fileUrl) {
-          try {
-            const buf = await fetchBuf(t.fileUrl);
-            if (buf) {
-              const ext = getExt(t.fileUrl);
-              const imgId = wb.addImage({ buffer: buf, extension: ext as any });
-              taxSheet.addImage(imgId, {
-                tl: { col: 6, row: taxRowIdx - 1 },
-                br: { col: 7, row: taxRowIdx },
-                editAs: "oneCell",
-              });
-            }
-          } catch { /* skip */ }
+          const ext = getExt(t.fileUrl);
+          if (ext) {
+            try {
+              const buf = await fetchBuf(t.fileUrl);
+              if (buf) {
+                const imgId = wb.addImage({ buffer: buf, extension: ext as any });
+                taxSheet.addImage(imgId, {
+                  tl: { col: 6, row: taxRowIdx - 1 },
+                  br: { col: 7, row: taxRowIdx },
+                  editAs: "oneCell",
+                });
+              }
+            } catch { /* skip */ }
+          } else {
+            taxSheet.getRow(taxRowIdx).getCell(7).value = "PDF첨부";
+            taxSheet.getRow(taxRowIdx).getCell(7).font = { color: { argb: "FF0070C0" } };
+          }
         }
         taxRowIdx++;
       }
