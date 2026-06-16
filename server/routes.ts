@@ -10272,41 +10272,45 @@ ${htmlDraft}
         return null;
       }
 
-      // ─── 헬퍼: PDF 첫 페이지 → PNG Buffer (pdftoppm) ────────────────
-      async function pdfToImgBuf(pdfBuf: Buffer): Promise<Buffer | null> {
+      // ─── 헬퍼: PDF 전체 페이지 → PNG Buffer[] (pdftoppm) ──────────
+      async function pdfToAllPages(pdfBuf: Buffer): Promise<Buffer[]> {
         const ts = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
         const tmpPdf = path.join(os.tmpdir(), `sc_${ts}.pdf`);
         const outPrefix = path.join(os.tmpdir(), `sc_${ts}_out`);
         try {
           fs.writeFileSync(tmpPdf, pdfBuf);
-          await execFileAsync('pdftoppm', ['-r', '120', '-png', '-f', '1', '-l', '1', tmpPdf, outPrefix]);
+          // -f/-l 없이 실행하면 모든 페이지 변환
+          await execFileAsync('pdftoppm', ['-r', '120', '-png', tmpPdf, outPrefix]);
           const dir = os.tmpdir();
           const base = path.basename(outPrefix);
-          const files = fs.readdirSync(dir).filter(f => f.startsWith(base) && f.endsWith('.png'));
-          if (files.length === 0) return null;
-          const imgPath = path.join(dir, files[0]);
-          const imgBuf = fs.readFileSync(imgPath);
-          fs.unlinkSync(imgPath);
-          return imgBuf;
+          const files = fs.readdirSync(dir)
+            .filter(f => f.startsWith(base) && f.endsWith('.png'))
+            .sort(); // 페이지 순서 보장
+          const bufs: Buffer[] = [];
+          for (const f of files) {
+            const fpath = path.join(dir, f);
+            bufs.push(fs.readFileSync(fpath));
+            try { fs.unlinkSync(fpath); } catch {}
+          }
+          console.log(`[export] PDF→PNG 변환 완료: ${bufs.length}페이지`);
+          return bufs;
         } catch (e: any) {
-          console.warn('[export] pdfToImgBuf 실패:', e.message);
-          return null;
+          console.warn('[export] pdfToAllPages 실패:', e.message);
+          return [];
         } finally {
           try { fs.unlinkSync(tmpPdf); } catch {}
         }
       }
 
-      // ─── 헬퍼: URL → 임베드용 이미지 Buffer (PDF 변환 포함) ─────────
-      async function fetchImgBuf(url: string): Promise<Buffer | null> {
+      // ─── 헬퍼: URL → 임베드용 이미지 Buffer[] (PDF 전체 페이지 포함) ─
+      async function fetchImgPages(url: string): Promise<Buffer[]> {
         const raw = await fetchBuf(url);
-        if (!raw) return null;
-        // PDF이면 첫 페이지를 PNG로 변환
+        if (!raw) return [];
         const isPdf = url.toLowerCase().includes('.pdf') ||
-                      (raw[0] === 0x25 && raw[1] === 0x50 && raw[2] === 0x44 && raw[3] === 0x46);
-        if (isPdf) return pdfToImgBuf(raw);
-        // 이미지 magic byte 검증
-        if (detectImgExt(raw)) return raw;
-        return null;
+                      (raw.length >= 4 && raw[0] === 0x25 && raw[1] === 0x50 && raw[2] === 0x44 && raw[3] === 0x46);
+        if (isPdf) return pdfToAllPages(raw);
+        if (detectImgExt(raw)) return [raw]; // 이미지: 단일 페이지
+        return [];
       }
 
       // ─── 헬퍼: ExcelJS 이미지 임베딩 ───────────────────────────────
@@ -10327,10 +10331,10 @@ ${htmlDraft}
         } catch { return false; }
       }
 
-      // ─── 모든 첨부파일 사전 로드 (병렬) ─────────────────────────────
+      // ─── 모든 첨부파일 사전 로드 (병렬, 전체 페이지) ─────────────────
       const IMG_ROW_H = 100;
-      type ImgCache = Map<string, Buffer | null>;
-      const imgCache: ImgCache = new Map();
+      // url → Buffer[] (페이지별 이미지 배열)
+      const imgCache = new Map<string, Buffer[]>();
 
       const allUrls = new Set<string>();
       for (const r of records) {
@@ -10341,8 +10345,8 @@ ${htmlDraft}
 
       console.log(`[export] 첨부파일 로드 시작: ${allUrls.size}개`);
       await Promise.all(Array.from(allUrls).map(async (url) => {
-        const buf = await fetchImgBuf(url);
-        imgCache.set(url, buf);
+        const pages = await fetchImgPages(url);
+        imgCache.set(url, pages);
       }));
       console.log(`[export] 첨부파일 로드 완료`);
 
@@ -10425,52 +10429,70 @@ ${htmlDraft}
           for (const r of catRecs) {
             const hasQuote = !!r.quoteFileUrl;
             const hasTrans = !!r.transactionFileUrl;
-            const needImg = withImages && (hasQuote || hasTrans);
-            const row = dataSheet.getRow(dataRowIdx);
-            row.height = needImg ? IMG_ROW_H : 18;
-            row.getCell(1).value = seqNum++;
-            row.getCell(2).value = (r as any).documentNumber || "";
-            row.getCell(3).value = (r as any).paymentRequestDate || "";
-            row.getCell(4).value = r.purchaseDate || "";
-            row.getCell(5).value = r.category;
-            row.getCell(6).value = r.subCategory || "";
-            row.getCell(7).value = r.itemName;
-            row.getCell(8).value = r.specification || "";
-            row.getCell(9).value = r.unit || "";
-            row.getCell(10).value = r.quantity ? Number(r.quantity) : null;
-            row.getCell(11).value = r.unitPrice ? Number(r.unitPrice) : null;
-            row.getCell(12).value = r.supplyAmount ? Number(r.supplyAmount) : null;
-            row.getCell(13).value = r.vatAmount ? Number(r.vatAmount) : null;
-            row.getCell(14).value = r.totalAmount ? Number(r.totalAmount) : null;
-            row.getCell(15).value = r.vendorName || "";
-            row.getCell(16).value = r.notes || "";
-            [11,12,13,14].forEach(c => { row.getCell(c).numFmt = '#,##0'; });
-            row.eachCell(c => { c.alignment = MID; c.border = THIN_BORDER; });
+            const quotePages = withImages && hasQuote ? (imgCache.get(r.quoteFileUrl!) ?? []) : [];
+            const transPages = withImages && hasTrans ? (imgCache.get(r.transactionFileUrl!) ?? []) : [];
+            // 다중 페이지: quote/trans 중 더 많은 페이지 수만큼 행 생성
+            const pageCount = Math.max(quotePages.length, transPages.length, 1);
             catSubtotal += Number(r.totalAmount || 0);
 
-            // 견적서 (col 17, index 16)
-            if (hasQuote) {
-              const imgBuf = imgCache.get(r.quoteFileUrl!);
-              if (withImages && imgBuf) {
-                embedImage(wb, dataSheet, imgBuf, 16, dataRowIdx);
+            for (let pg = 0; pg < pageCount; pg++) {
+              const row = dataSheet.getRow(dataRowIdx);
+              const hasAnyImg = quotePages.length > 0 || transPages.length > 0;
+              row.height = (withImages && hasAnyImg) ? IMG_ROW_H : 18;
+
+              if (pg === 0) {
+                // 첫 번째 행: 모든 데이터 입력
+                row.getCell(1).value = seqNum++;
+                row.getCell(2).value = (r as any).documentNumber || "";
+                row.getCell(3).value = (r as any).paymentRequestDate || "";
+                row.getCell(4).value = r.purchaseDate || "";
+                row.getCell(5).value = r.category;
+                row.getCell(6).value = r.subCategory || "";
+                row.getCell(7).value = r.itemName;
+                row.getCell(8).value = r.specification || "";
+                row.getCell(9).value = r.unit || "";
+                row.getCell(10).value = r.quantity ? Number(r.quantity) : null;
+                row.getCell(11).value = r.unitPrice ? Number(r.unitPrice) : null;
+                row.getCell(12).value = r.supplyAmount ? Number(r.supplyAmount) : null;
+                row.getCell(13).value = r.vatAmount ? Number(r.vatAmount) : null;
+                row.getCell(14).value = r.totalAmount ? Number(r.totalAmount) : null;
+                row.getCell(15).value = r.vendorName || "";
+                row.getCell(16).value = r.notes || "";
+                [11,12,13,14].forEach(c => { row.getCell(c).numFmt = '#,##0'; });
+                row.eachCell(c => { c.alignment = MID; c.border = THIN_BORDER; });
               } else {
-                row.getCell(17).value = "✓";
-                row.getCell(17).font = { color: { argb: "FF1F4E79" }, bold: true };
-                row.getCell(17).alignment = CENTER;
+                // 추가 페이지 행: 데이터 열은 비워두고 연속 표시
+                for (let c = 1; c <= 16; c++) {
+                  const cell = row.getCell(c);
+                  cell.border = THIN_BORDER;
+                  cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF5F5F5" } };
+                }
               }
-            }
-            // 거래명세서 (col 18, index 17)
-            if (hasTrans) {
-              const imgBuf = imgCache.get(r.transactionFileUrl!);
-              if (withImages && imgBuf) {
-                embedImage(wb, dataSheet, imgBuf, 17, dataRowIdx);
-              } else {
-                row.getCell(18).value = "✓";
-                row.getCell(18).font = { color: { argb: "FF1F4E79" }, bold: true };
-                row.getCell(18).alignment = CENTER;
+
+              // 견적서 이미지 (col 17, 0-based index 16)
+              if (hasQuote) {
+                if (withImages && quotePages[pg]) {
+                  embedImage(wb, dataSheet, quotePages[pg], 16, dataRowIdx);
+                } else if (pg === 0) {
+                  row.getCell(17).value = "✓";
+                  row.getCell(17).font = { color: { argb: "FF1F4E79" }, bold: true };
+                  row.getCell(17).alignment = CENTER;
+                  row.getCell(17).border = THIN_BORDER;
+                }
               }
+              // 거래명세서 이미지 (col 18, 0-based index 17)
+              if (hasTrans) {
+                if (withImages && transPages[pg]) {
+                  embedImage(wb, dataSheet, transPages[pg], 17, dataRowIdx);
+                } else if (pg === 0) {
+                  row.getCell(18).value = "✓";
+                  row.getCell(18).font = { color: { argb: "FF1F4E79" }, bold: true };
+                  row.getCell(18).alignment = CENTER;
+                  row.getCell(18).border = THIN_BORDER;
+                }
+              }
+              dataRowIdx++;
             }
-            dataRowIdx++;
           }
 
           const stRow = dataSheet.getRow(dataRowIdx);
@@ -10524,28 +10546,43 @@ ${htmlDraft}
         let taxRowIdx = 3;
         for (const t of taxInvoices) {
           const hasTaxFile = !!t.fileUrl;
-          const row = taxSheet.getRow(taxRowIdx);
-          row.height = (withImages && hasTaxFile && imgCache.get(t.fileUrl!)) ? IMG_ROW_H : 18;
-          row.getCell(1).value = t.month;
-          row.getCell(2).value = t.vendorName || "";
-          row.getCell(3).value = t.supplyAmount ? Number(t.supplyAmount) : null;
-          row.getCell(4).value = t.vatAmount ? Number(t.vatAmount) : null;
-          row.getCell(5).value = t.totalAmount ? Number(t.totalAmount) : null;
-          row.getCell(6).value = t.notes || "";
-          [3,4,5].forEach(c => { row.getCell(c).numFmt = '#,##0'; });
-          row.eachCell(c => { c.alignment = MID; c.border = THIN_BORDER; });
+          const taxPages = withImages && hasTaxFile ? (imgCache.get(t.fileUrl!) ?? []) : [];
+          const pageCount = Math.max(taxPages.length, 1);
 
-          if (hasTaxFile) {
-            const imgBuf = imgCache.get(t.fileUrl!);
-            if (withImages && imgBuf) {
-              embedImage(wb, taxSheet, imgBuf, 6, taxRowIdx);
+          for (let pg = 0; pg < pageCount; pg++) {
+            const row = taxSheet.getRow(taxRowIdx);
+            row.height = (withImages && taxPages.length > 0) ? IMG_ROW_H : 18;
+
+            if (pg === 0) {
+              row.getCell(1).value = t.month;
+              row.getCell(2).value = t.vendorName || "";
+              row.getCell(3).value = t.supplyAmount ? Number(t.supplyAmount) : null;
+              row.getCell(4).value = t.vatAmount ? Number(t.vatAmount) : null;
+              row.getCell(5).value = t.totalAmount ? Number(t.totalAmount) : null;
+              row.getCell(6).value = t.notes || "";
+              [3,4,5].forEach(c => { row.getCell(c).numFmt = '#,##0'; });
+              row.eachCell(c => { c.alignment = MID; c.border = THIN_BORDER; });
             } else {
-              row.getCell(7).value = "✓";
-              row.getCell(7).font = { color: { argb: "FF1F4E79" }, bold: true };
-              row.getCell(7).alignment = CENTER;
+              // 추가 페이지 행: 데이터 열 비워두고 연속 표시
+              for (let c = 1; c <= 6; c++) {
+                const cell = row.getCell(c);
+                cell.border = THIN_BORDER;
+                cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF5F5F5" } };
+              }
             }
+
+            if (hasTaxFile) {
+              if (withImages && taxPages[pg]) {
+                embedImage(wb, taxSheet, taxPages[pg], 6, taxRowIdx);
+              } else if (pg === 0) {
+                row.getCell(7).value = "✓";
+                row.getCell(7).font = { color: { argb: "FF1F4E79" }, bold: true };
+                row.getCell(7).alignment = CENTER;
+                row.getCell(7).border = THIN_BORDER;
+              }
+            }
+            taxRowIdx++;
           }
-          taxRowIdx++;
         }
 
         return wb;
