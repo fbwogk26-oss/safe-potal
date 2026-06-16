@@ -11074,8 +11074,15 @@ ${htmlDraft}
 - 숫자는 쉼표 없이 순수 숫자로 반환하세요. 찾을 수 없는 값은 null로 반환하세요.
 - unitPrice(단가)는 반드시 부가세(VAT) 제외 공급가 기준입니다. VAT 포함 가격을 단가로 넣지 마세요.
 - 금액 관계: supplyAmount = unitPrice × quantity, vatAmount = supplyAmount × 0.1, totalAmount = supplyAmount + vatAmount
+
+【수량(quantity) 추출 주의사항 — 매우 중요】
+- 수량은 문서 표에서 "수량" 또는 "QTY" 열의 값만 읽으세요. 절대로 단가·금액·규격 열의 숫자를 수량으로 읽지 마세요.
+- 수량 열이 명확히 구분되지 않는 경우: quantity × unitPrice = supplyAmount 관계가 성립하는지 반드시 검증하세요.
+- 수량이 의심스러운 경우: supplyAmount ÷ unitPrice 로 역산한 값과 비교하여, 역산값이 더 합리적이면 역산값을 사용하세요.
+- 수량 자릿수 오류 주의: 예를 들어 수량 "2"를 "20"이나 "200"으로 읽는 오류가 발생하지 않도록 문서 표를 픽셀 단위로 정확히 읽으세요.
+- quantity는 일반적으로 1~999 범위의 정수입니다. 이 범위를 크게 벗어나는 값은 오독일 가능성이 높으니 다시 확인하세요.
+
 - 문서에 단가가 명시되지 않은 경우: unitPrice = supplyAmount ÷ quantity (소수점 반올림)
-- unitPrice가 명시됐더라도 unitPrice × quantity ≠ supplyAmount이면, supplyAmount ÷ quantity로 재계산하세요.
 - 품의번호는 문서 상단에 표기된 문서번호/결의번호입니다.
 - 지급요청일자는 지출결의서의 지급요청일 또는 지급일자입니다.
 - documentType 판별: 문서 제목·양식명에 "지출결의서"가 있으면 지출결의서, "구매결의서"가 있으면 구매결의서, "기안서"가 있으면 기안서.`;
@@ -11123,7 +11130,22 @@ ${htmlDraft}
         if (jsonMatch) { try { parsed = JSON.parse(jsonMatch[0]); } catch { parsed = {}; } }
       }
 
-      // ── 단가 보정: AI가 VAT 포함 단가나 잘못된 값을 반환하는 경우 수정 ──
+      // ── 수량·단가 보정 ──────────────────────────────────────────────────
+      // AI가 수량 자릿수를 잘못 읽거나 VAT 포함 단가를 반환하는 경우를 수정한다.
+      // 판단 기준: "더 round한(깔끔한) 숫자" 쪽이 문서 원본에 가깝다고 가정.
+      function roundness(n: number): number {
+        if (n <= 0 || !isFinite(n)) return 0;
+        let score = 0;
+        if (Number.isInteger(n)) score += 10;
+        if (n % 10 === 0) score += 5;
+        if (n % 100 === 0) score += 4;
+        if (n % 500 === 0) score += 3;
+        if (n % 1000 === 0) score += 3;
+        if (n % 5000 === 0) score += 2;
+        if (n % 10000 === 0) score += 2;
+        return score;
+      }
+
       if (Array.isArray(parsed.items)) {
         for (const item of parsed.items) {
           const qty = Number(item.quantity) || 1;
@@ -11131,29 +11153,40 @@ ${htmlDraft}
           const total = Number(item.totalAmount) || 0;
           const extractedUp = Number(item.unitPrice) || 0;
 
-          if (supply > 0 && qty > 0) {
-            // 공급가액에서 역산한 단가 (항상 정확)
-            const correctUp = Math.round(supply / qty);
-            if (!extractedUp) {
-              // 단가 없으면 공급가액 ÷ 수량
-              item.unitPrice = correctUp;
-            } else {
-              // 단가 × 수량이 공급가액과 5% 이상 차이나면 → 잘못 추출된 것
-              const calcSupply = extractedUp * qty;
-              const diffRatio = Math.abs(calcSupply - supply) / supply;
-              if (diffRatio > 0.05) {
-                // VAT 포함 단가인지 확인 (단가×수량 ≈ 합계)
-                const calcTotal = extractedUp * qty;
-                const totalDiff = total > 0 ? Math.abs(calcTotal - total) / total : 1;
-                if (totalDiff < 0.05) {
-                  // AI가 VAT 포함 단가를 반환 → 공급가액 기준으로 보정
-                  item.unitPrice = correctUp;
+          if (supply > 0 && qty > 0 && extractedUp > 0) {
+            const calcSupply = extractedUp * qty;
+            const diffRatio = Math.abs(calcSupply - supply) / supply;
+
+            if (diffRatio > 0.02) {
+              // 불일치 → 수량 오독 vs 단가 오독 중 어느 쪽을 고칠지 결정
+              const correctedUp = supply / qty;       // 수량이 맞다고 가정 → 단가 역산
+              const correctedQty = supply / extractedUp; // 단가가 맞다고 가정 → 수량 역산
+
+              const qtyIsInteger = Number.isInteger(Math.round(correctedQty * 10) / 10);
+              const correctedQtyRound = Math.round(correctedQty);
+              const qtyCloseToInt = Math.abs(correctedQty - correctedQtyRound) < 0.05;
+
+              if (qtyIsInteger || qtyCloseToInt) {
+                // correctedQty가 정수에 가까움 → 단가가 맞고 수량이 잘못 읽힌 것
+                const fixedQty = correctedQtyRound;
+                const fixedUp = Math.round(supply / fixedQty);
+                // 두 보정 중 단가 roundness가 더 높은 쪽 선택
+                const scoreFixQty = roundness(fixedUp) + roundness(fixedQty);
+                const scoreFixUp = roundness(Math.round(correctedUp)) + roundness(qty);
+                if (scoreFixQty >= scoreFixUp) {
+                  item.quantity = fixedQty;
+                  item.unitPrice = fixedUp;
                 } else {
-                  // 그냥 공급가액 기준으로 보정
-                  item.unitPrice = correctUp;
+                  item.unitPrice = Math.round(correctedUp);
                 }
+              } else {
+                // 수량이 정수가 안 됨 → 단가를 보정
+                item.unitPrice = Math.round(correctedUp);
               }
             }
+          } else if (supply > 0 && qty > 0 && !extractedUp) {
+            // 단가 없으면 공급가액 ÷ 수량으로 역산
+            item.unitPrice = Math.round(supply / qty);
           } else if (!extractedUp && total > 0 && qty > 0) {
             // supplyAmount 없지만 totalAmount와 수량으로 역산
             const supplyFromTotal = Math.round(total / 1.1);
