@@ -19,6 +19,7 @@ import { promisify } from "util";
 const execFileAsync = promisify(execFile);
 import ExcelJS from "exceljs";
 import XLSX from "xlsx";
+import archiver from "archiver";
 import mammoth from "mammoth";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 import { objectStorageClient } from "./replit_integrations/object_storage/objectStorage";
@@ -10208,9 +10209,7 @@ ${htmlDraft}
       const headquarters = req.query.headquarters as string | undefined;
       const now = new Date();
       const curYear = now.getFullYear();
-      const curMonth = now.getMonth() + 1;
 
-      // 기간별 파라미터 우선, 없으면 year 기반 fallback
       const syRaw = Number(req.query.startYear);
       const smRaw = Number(req.query.startMonth);
       const eyRaw = Number(req.query.endYear);
@@ -10224,9 +10223,7 @@ ${htmlDraft}
       if (syRaw > 2000 && smRaw >= 1 && smRaw <= 12 && eyRaw > 2000 && emRaw >= 1 && emRaw <= 12) {
         startYM = syRaw * 100 + smRaw;
         endYM = eyRaw * 100 + emRaw;
-        const sy2 = String(syRaw).slice(2);
-        const ey2 = String(eyRaw).slice(2);
-        rangeLabel = `${sy2}년 ${smRaw}월 ~ ${ey2}년 ${emRaw}월`;
+        rangeLabel = `${String(syRaw).slice(2)}년 ${smRaw}월 ~ ${String(eyRaw).slice(2)}년 ${emRaw}월`;
       } else {
         const year = (!isNaN(yearRaw) && yearRaw > 2000) ? yearRaw : curYear;
         startYM = year * 100 + 1;
@@ -10234,16 +10231,14 @@ ${htmlDraft}
         rangeLabel = `${year}년`;
       }
 
-      console.log(`[export] 법정경비 다운로드 요청: startYM=${startYM}, endYM=${endYM}, headquarters=${headquarters}`);
-      const records = await storage.getSafetyCostRecords({ headquarters, startYM, endYM });
-      const taxInvoices = await storage.getSafetyCostTaxInvoices({ headquarters, startYM, endYM });
-      console.log(`[export] DB 로드 완료: records=${records.length}, taxInvoices=${taxInvoices.length}`);
+      console.log(`[export] 법정경비 요청: startYM=${startYM}, endYM=${endYM}, hq=${headquarters}`);
+      const [records, taxInvoices] = await Promise.all([
+        storage.getSafetyCostRecords({ headquarters, startYM, endYM }),
+        storage.getSafetyCostTaxInvoices({ headquarters, startYM, endYM }),
+      ]);
+      console.log(`[export] DB 완료: records=${records.length}, taxInvoices=${taxInvoices.length}`);
 
-      const wb = new ExcelJS.Workbook();
-      wb.creator = "안전포털시스템";
-      wb.created = new Date();
-
-      // ─── 헬퍼: URL → Buffer ──────────────────────────────
+      // ─── 헬퍼: URL → Buffer ──────────────────────────────────────────
       async function fetchBuf(url: string): Promise<Buffer | null> {
         if (!url) return null;
         try {
@@ -10255,201 +10250,325 @@ ${htmlDraft}
               const prefix = parts.slice(1).join("/");
               const objectName = url.replace("/objects/", prefix ? `${prefix}/` : "");
               const [buf] = await objectStorageClient.bucket(bucketName).file(objectName.replace(/^\//, "")).download();
-              return buf;
+              return buf as Buffer;
             }
           } else if (url.startsWith("/uploads/")) {
-            const filename = url.replace("/uploads/", "");
-            const localPath = path.join(uploadDir, filename);
+            const localPath = path.join(uploadDir, url.replace("/uploads/", ""));
             if (fs.existsSync(localPath)) return fs.readFileSync(localPath);
           } else if (url.startsWith("http")) {
             const r = await fetch(url);
-            if (!r.ok) return null;
-            return Buffer.from(await r.arrayBuffer());
+            if (r.ok) return Buffer.from(await r.arrayBuffer());
           }
         } catch { /* skip */ }
         return null;
       }
 
-      const BOLD = { bold: true };
-      const CENTER = { horizontal: "center" as const, vertical: "middle" as const, wrapText: true };
-      const MID = { vertical: "middle" as const, wrapText: true };
-      const THIN_BORDER = {
-        top: { style: "thin" as const }, bottom: { style: "thin" as const },
-        left: { style: "thin" as const }, right: { style: "thin" as const },
-      };
-      const HEADER_FILL = { type: "pattern" as const, pattern: "solid" as const, fgColor: { argb: "FFD6E4F7" } };
+      // ─── 헬퍼: magic byte로 이미지 타입 확인 ────────────────────────
+      function detectImgExt(buf: Buffer): 'jpeg' | 'png' | 'gif' | null {
+        if (!buf || buf.length < 4) return null;
+        if (buf[0] === 0xFF && buf[1] === 0xD8) return 'jpeg';
+        if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47) return 'png';
+        if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46) return 'gif';
+        return null;
+      }
 
-      // ─── Sheet 1: 사용내역 ─────────────────────────────────────────────
-      // A=순번, B=품의번호, C=지급요청일자, D=구매일자, E=항목, F=세부항목,
-      // G=품명, H=규격, I=단위, J=수량, K=단가, L=공급가액, M=세액, N=합계,
-      // O=업체명, P=비고, Q=견적서여부, R=거래명세서여부
-      const dataSheet = wb.addWorksheet(`사용내역`);
-      const COL_WIDTHS = [5,22,14,12,28,14,22,16,6,7,12,14,12,16,16,18,10,10];
-      COL_WIDTHS.forEach((w,i) => { dataSheet.getColumn(i+1).width = w; });
+      // ─── 헬퍼: PDF 첫 페이지 → PNG Buffer (pdftoppm) ────────────────
+      async function pdfToImgBuf(pdfBuf: Buffer): Promise<Buffer | null> {
+        const ts = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+        const tmpPdf = path.join(os.tmpdir(), `sc_${ts}.pdf`);
+        const outPrefix = path.join(os.tmpdir(), `sc_${ts}_out`);
+        try {
+          fs.writeFileSync(tmpPdf, pdfBuf);
+          await execFileAsync('pdftoppm', ['-r', '120', '-png', '-f', '1', '-l', '1', tmpPdf, outPrefix]);
+          const dir = os.tmpdir();
+          const base = path.basename(outPrefix);
+          const files = fs.readdirSync(dir).filter(f => f.startsWith(base) && f.endsWith('.png'));
+          if (files.length === 0) return null;
+          const imgPath = path.join(dir, files[0]);
+          const imgBuf = fs.readFileSync(imgPath);
+          fs.unlinkSync(imgPath);
+          return imgBuf;
+        } catch (e: any) {
+          console.warn('[export] pdfToImgBuf 실패:', e.message);
+          return null;
+        } finally {
+          try { fs.unlinkSync(tmpPdf); } catch {}
+        }
+      }
 
-      const lastColLetter = "R";
+      // ─── 헬퍼: URL → 임베드용 이미지 Buffer (PDF 변환 포함) ─────────
+      async function fetchImgBuf(url: string): Promise<Buffer | null> {
+        const raw = await fetchBuf(url);
+        if (!raw) return null;
+        // PDF이면 첫 페이지를 PNG로 변환
+        const isPdf = url.toLowerCase().includes('.pdf') ||
+                      (raw[0] === 0x25 && raw[1] === 0x50 && raw[2] === 0x44 && raw[3] === 0x46);
+        if (isPdf) return pdfToImgBuf(raw);
+        // 이미지 magic byte 검증
+        if (detectImgExt(raw)) return raw;
+        return null;
+      }
 
-      dataSheet.getRow(1).height = 32;
-      const t1 = dataSheet.getCell("A1");
-      t1.value = `산업안전보건관리비 사용내역 (${rangeLabel})`;
-      t1.font = { bold: true, size: 15, color: { argb: "FFFFFFFF" } };
-      t1.alignment = CENTER;
-      t1.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1F4E79" } };
-      dataSheet.mergeCells(`A1:${lastColLetter}1`);
+      // ─── 헬퍼: ExcelJS 이미지 임베딩 ───────────────────────────────
+      function embedImage(
+        wb: ExcelJS.Workbook, sheet: ExcelJS.Worksheet,
+        imgBuf: Buffer, col0: number, rowIdx: number
+      ): boolean {
+        try {
+          const ext = detectImgExt(imgBuf);
+          if (!ext) return false;
+          const imgId = wb.addImage({ base64: imgBuf.toString('base64'), extension: ext });
+          sheet.addImage(imgId, {
+            tl: { col: col0, row: rowIdx - 1 } as any,
+            br: { col: col0 + 1, row: rowIdx } as any,
+            editAs: 'oneCell',
+          });
+          return true;
+        } catch { return false; }
+      }
 
-      dataSheet.getRow(2).height = 24;
-      const HEADERS = ["순번","품의번호","지급요청일자","구매일자","항목","세부항목","품명","규격","단위","수량","단가","공급가액","세액","합계(VAT포함)","업체명","비고","견적서","거래명세서"];
-      const hdrRow = dataSheet.getRow(2);
-      hdrRow.values = HEADERS;
-      hdrRow.eachCell(c => { c.font = BOLD; c.alignment = CENTER; c.fill = HEADER_FILL; c.border = THIN_BORDER; });
+      // ─── 모든 첨부파일 사전 로드 (병렬) ─────────────────────────────
+      const IMG_ROW_H = 100;
+      type ImgCache = Map<string, Buffer | null>;
+      const imgCache: ImgCache = new Map();
 
-      let dataRowIdx = 3;
+      const allUrls = new Set<string>();
+      for (const r of records) {
+        if (r.quoteFileUrl) allUrls.add(r.quoteFileUrl);
+        if (r.transactionFileUrl) allUrls.add(r.transactionFileUrl);
+      }
+      for (const t of taxInvoices) { if (t.fileUrl) allUrls.add(t.fileUrl); }
 
-      const CATEGORIES_ORDER = [
-        "1. 안전관리자 등 인건비 및 각종 업무수당 등",
-        "2. 안전시설비 등",
-        "3. 개인보호구 및 안전장구 구입비 등",
-        "4. 안전진단비 등",
-        "5. 안전보건교육비 및 행사비 등",
-        "6. 근로자 건강관리비 등",
-        "7. 건설재해예방 기술지도비",
-        "8. 본사사용비",
-        "9. 위험성평가 및 산보위 안건 비용",
-      ];
-      const CAT_FILL_COLORS = [
-        "FFD6E4F7","FFD6F0E4","FFFFF3D6","FFEAD6F7","FFFBE6D4",
-        "FFFCE4EC","FFD4F0EF","FFE8EAF6","FFF3E5F5",
-      ];
+      console.log(`[export] 첨부파일 로드 시작: ${allUrls.size}개`);
+      await Promise.all(Array.from(allUrls).map(async (url) => {
+        const buf = await fetchImgBuf(url);
+        imgCache.set(url, buf);
+      }));
+      console.log(`[export] 첨부파일 로드 완료`);
 
-      let seqNum = 1;
-      const grandTotal = records.reduce((s, r) => s + Number(r.totalAmount || 0), 0);
+      // ─── 엑셀 workbook 생성 함수 ─────────────────────────────────────
+      function buildWorkbook(withImages: boolean): ExcelJS.Workbook {
+        const wb = new ExcelJS.Workbook();
+        wb.creator = "안전포털시스템";
+        wb.created = new Date();
 
-      for (let ci = 0; ci < CATEGORIES_ORDER.length; ci++) {
-        const cat = CATEGORIES_ORDER[ci];
-        const catRecs = records.filter(r => r.category === cat);
-        if (catRecs.length === 0) continue;
+        const BOLD = { bold: true };
+        const CENTER = { horizontal: "center" as const, vertical: "middle" as const, wrapText: true };
+        const MID = { vertical: "middle" as const, wrapText: true };
+        const THIN_BORDER = {
+          top: { style: "thin" as const }, bottom: { style: "thin" as const },
+          left: { style: "thin" as const }, right: { style: "thin" as const },
+        };
+        const HEADER_FILL = { type: "pattern" as const, pattern: "solid" as const, fgColor: { argb: "FFD6E4F7" } };
 
-        const catFill = { type: "pattern" as const, pattern: "solid" as const, fgColor: { argb: CAT_FILL_COLORS[ci] } };
+        // ── Sheet 1: 사용내역 ───────────────────────────────────────────
+        // A=순번,B=품의번호,C=지급요청일자,D=구매일자,E=항목,F=세부항목
+        // G=품명,H=규격,I=단위,J=수량,K=단가,L=공급가액,M=세액,N=합계
+        // O=업체명,P=비고,Q=견적서,R=거래명세서
+        const dataSheet = wb.addWorksheet(`사용내역`);
+        const COL_WIDTHS = [5,22,14,12,28,14,22,16,6,7,12,14,12,16,16,18,22,22];
+        COL_WIDTHS.forEach((w,i) => { dataSheet.getColumn(i+1).width = w; });
 
-        const catHdrRow = dataSheet.getRow(dataRowIdx);
-        catHdrRow.height = 20;
-        catHdrRow.getCell(1).value = cat;
-        dataSheet.mergeCells(`A${dataRowIdx}:${lastColLetter}${dataRowIdx}`);
-        catHdrRow.getCell(1).font = { bold: true, size: 11, color: { argb: "FF1F4E79" } };
-        catHdrRow.getCell(1).alignment = { horizontal: "left", vertical: "middle" };
-        catHdrRow.getCell(1).fill = catFill;
-        catHdrRow.getCell(1).border = THIN_BORDER;
-        dataRowIdx++;
+        const lastColLetter = "R";
+        dataSheet.getRow(1).height = 32;
+        const t1 = dataSheet.getCell("A1");
+        t1.value = `산업안전보건관리비 사용내역 (${rangeLabel})`;
+        t1.font = { bold: true, size: 15, color: { argb: "FFFFFFFF" } };
+        t1.alignment = CENTER;
+        t1.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1F4E79" } };
+        dataSheet.mergeCells(`A1:${lastColLetter}1`);
 
-        let catSubtotal = 0;
+        dataSheet.getRow(2).height = 24;
+        const hdrRow = dataSheet.getRow(2);
+        hdrRow.values = ["순번","품의번호","지급요청일자","구매일자","항목","세부항목","품명","규격","단위","수량","단가","공급가액","세액","합계(VAT포함)","업체명","비고","견적서","거래명세서"];
+        hdrRow.eachCell(c => { c.font = BOLD; c.alignment = CENTER; c.fill = HEADER_FILL; c.border = THIN_BORDER; });
 
-        for (const r of catRecs) {
-          const row = dataSheet.getRow(dataRowIdx);
-          row.height = 18;
-          row.getCell(1).value = seqNum++;
-          row.getCell(2).value = (r as any).documentNumber || "";
-          row.getCell(3).value = (r as any).paymentRequestDate || "";
-          row.getCell(4).value = r.purchaseDate || "";
-          row.getCell(5).value = r.category;
-          row.getCell(6).value = r.subCategory || "";
-          row.getCell(7).value = r.itemName;
-          row.getCell(8).value = r.specification || "";
-          row.getCell(9).value = r.unit || "";
-          row.getCell(10).value = r.quantity ? Number(r.quantity) : null;
-          row.getCell(11).value = r.unitPrice ? Number(r.unitPrice) : null;
-          row.getCell(12).value = r.supplyAmount ? Number(r.supplyAmount) : null;
-          row.getCell(13).value = r.vatAmount ? Number(r.vatAmount) : null;
-          row.getCell(14).value = r.totalAmount ? Number(r.totalAmount) : null;
-          row.getCell(15).value = r.vendorName || "";
-          row.getCell(16).value = r.notes || "";
-          // 견적서·거래명세서: 첨부 여부만 표시 (이미지 임베딩 없음)
-          if (r.quoteFileUrl) {
-            row.getCell(17).value = "✓";
-            row.getCell(17).font = { color: { argb: "FF1F4E79" }, bold: true };
+        const CATEGORIES_ORDER = [
+          "1. 안전관리자 등 인건비 및 각종 업무수당 등",
+          "2. 안전시설비 등",
+          "3. 개인보호구 및 안전장구 구입비 등",
+          "4. 안전진단비 등",
+          "5. 안전보건교육비 및 행사비 등",
+          "6. 근로자 건강관리비 등",
+          "7. 건설재해예방 기술지도비",
+          "8. 본사사용비",
+          "9. 위험성평가 및 산보위 안건 비용",
+        ];
+        const CAT_FILL_COLORS = [
+          "FFD6E4F7","FFD6F0E4","FFFFF3D6","FFEAD6F7","FFFBE6D4",
+          "FFFCE4EC","FFD4F0EF","FFE8EAF6","FFF3E5F5",
+        ];
+
+        let seqNum = 1;
+        let dataRowIdx = 3;
+        const grandTotal = records.reduce((s, r) => s + Number(r.totalAmount || 0), 0);
+
+        for (let ci = 0; ci < CATEGORIES_ORDER.length; ci++) {
+          const cat = CATEGORIES_ORDER[ci];
+          const catRecs = records.filter(r => r.category === cat);
+          if (catRecs.length === 0) continue;
+
+          const catFill = { type: "pattern" as const, pattern: "solid" as const, fgColor: { argb: CAT_FILL_COLORS[ci] } };
+
+          const catHdrRow = dataSheet.getRow(dataRowIdx);
+          catHdrRow.height = 20;
+          catHdrRow.getCell(1).value = cat;
+          dataSheet.mergeCells(`A${dataRowIdx}:${lastColLetter}${dataRowIdx}`);
+          catHdrRow.getCell(1).font = { bold: true, size: 11, color: { argb: "FF1F4E79" } };
+          catHdrRow.getCell(1).alignment = { horizontal: "left", vertical: "middle" };
+          catHdrRow.getCell(1).fill = catFill;
+          catHdrRow.getCell(1).border = THIN_BORDER;
+          dataRowIdx++;
+
+          let catSubtotal = 0;
+
+          for (const r of catRecs) {
+            const hasQuote = !!r.quoteFileUrl;
+            const hasTrans = !!r.transactionFileUrl;
+            const needImg = withImages && (hasQuote || hasTrans);
+            const row = dataSheet.getRow(dataRowIdx);
+            row.height = needImg ? IMG_ROW_H : 18;
+            row.getCell(1).value = seqNum++;
+            row.getCell(2).value = (r as any).documentNumber || "";
+            row.getCell(3).value = (r as any).paymentRequestDate || "";
+            row.getCell(4).value = r.purchaseDate || "";
+            row.getCell(5).value = r.category;
+            row.getCell(6).value = r.subCategory || "";
+            row.getCell(7).value = r.itemName;
+            row.getCell(8).value = r.specification || "";
+            row.getCell(9).value = r.unit || "";
+            row.getCell(10).value = r.quantity ? Number(r.quantity) : null;
+            row.getCell(11).value = r.unitPrice ? Number(r.unitPrice) : null;
+            row.getCell(12).value = r.supplyAmount ? Number(r.supplyAmount) : null;
+            row.getCell(13).value = r.vatAmount ? Number(r.vatAmount) : null;
+            row.getCell(14).value = r.totalAmount ? Number(r.totalAmount) : null;
+            row.getCell(15).value = r.vendorName || "";
+            row.getCell(16).value = r.notes || "";
+            [11,12,13,14].forEach(c => { row.getCell(c).numFmt = '#,##0'; });
+            row.eachCell(c => { c.alignment = MID; c.border = THIN_BORDER; });
+            catSubtotal += Number(r.totalAmount || 0);
+
+            // 견적서 (col 17, index 16)
+            if (hasQuote) {
+              const imgBuf = imgCache.get(r.quoteFileUrl!);
+              if (withImages && imgBuf) {
+                embedImage(wb, dataSheet, imgBuf, 16, dataRowIdx);
+              } else {
+                row.getCell(17).value = "✓";
+                row.getCell(17).font = { color: { argb: "FF1F4E79" }, bold: true };
+                row.getCell(17).alignment = CENTER;
+              }
+            }
+            // 거래명세서 (col 18, index 17)
+            if (hasTrans) {
+              const imgBuf = imgCache.get(r.transactionFileUrl!);
+              if (withImages && imgBuf) {
+                embedImage(wb, dataSheet, imgBuf, 17, dataRowIdx);
+              } else {
+                row.getCell(18).value = "✓";
+                row.getCell(18).font = { color: { argb: "FF1F4E79" }, bold: true };
+                row.getCell(18).alignment = CENTER;
+              }
+            }
+            dataRowIdx++;
           }
-          if (r.transactionFileUrl) {
-            row.getCell(18).value = "✓";
-            row.getCell(18).font = { color: { argb: "FF1F4E79" }, bold: true };
-          }
-          [11,12,13,14].forEach(c => { row.getCell(c).numFmt = '#,##0'; });
-          row.eachCell(c => { c.alignment = MID; c.border = THIN_BORDER; });
-          catSubtotal += Number(r.totalAmount || 0);
+
+          const stRow = dataSheet.getRow(dataRowIdx);
+          stRow.height = 18;
+          stRow.getCell(1).value = `${cat.split(".")[0]}항 소계`;
+          dataSheet.mergeCells(`A${dataRowIdx}:M${dataRowIdx}`);
+          stRow.getCell(1).alignment = { horizontal: "right", vertical: "middle" };
+          stRow.getCell(14).value = catSubtotal;
+          stRow.getCell(14).numFmt = '#,##0';
+          stRow.eachCell(c => { c.font = { bold: true }; c.fill = catFill; c.border = THIN_BORDER; });
           dataRowIdx++;
         }
 
-        const stRow = dataSheet.getRow(dataRowIdx);
-        stRow.height = 18;
-        stRow.getCell(1).value = `${cat.split(".")[0]}항 소계`;
+        const gtRow = dataSheet.getRow(dataRowIdx);
+        gtRow.height = 22;
+        gtRow.getCell(1).value = "합 계";
         dataSheet.mergeCells(`A${dataRowIdx}:M${dataRowIdx}`);
-        stRow.getCell(1).alignment = { horizontal: "right", vertical: "middle" };
-        stRow.getCell(14).value = catSubtotal;
-        stRow.getCell(14).numFmt = '#,##0';
-        stRow.eachCell(c => { c.font = { bold: true }; c.fill = catFill; c.border = THIN_BORDER; });
-        dataRowIdx++;
-      }
+        gtRow.getCell(1).alignment = CENTER;
+        gtRow.getCell(14).value = grandTotal;
+        gtRow.getCell(14).numFmt = '#,##0';
+        gtRow.eachCell(c => {
+          c.font = { bold: true, size: 12, color: { argb: "FFFFFFFF" } };
+          c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1F4E79" } };
+          c.border = THIN_BORDER;
+        });
 
-      const gtRow = dataSheet.getRow(dataRowIdx);
-      gtRow.height = 22;
-      gtRow.getCell(1).value = "합 계";
-      dataSheet.mergeCells(`A${dataRowIdx}:M${dataRowIdx}`);
-      gtRow.getCell(1).alignment = CENTER;
-      gtRow.getCell(14).value = grandTotal;
-      gtRow.getCell(14).numFmt = '#,##0';
-      gtRow.eachCell(c => {
-        c.font = { bold: true, size: 12, color: { argb: "FFFFFFFF" } };
-        c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1F4E79" } };
-        c.border = THIN_BORDER;
-      });
+        // ── Sheet 2: 세금계산서 ────────────────────────────────────────
+        const taxSheet = wb.addWorksheet(`세금계산서`);
+        taxSheet.columns = [
+          { header: "월", width: 6 },
+          { header: "업체명", width: 20 },
+          { header: "공급가액", width: 16 },
+          { header: "세액", width: 14 },
+          { header: "합계(VAT포함)", width: 18 },
+          { header: "비고", width: 20 },
+          { header: "세금계산서", width: 30 },
+        ];
+        taxSheet.insertRow(1, [`세금계산서 목록 (${rangeLabel})`]);
+        taxSheet.mergeCells("A1:G1");
+        const taxTitle = taxSheet.getCell("A1");
+        taxTitle.font = { bold: true, size: 13, color: { argb: "FFFFFFFF" } };
+        taxTitle.alignment = CENTER;
+        taxTitle.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1F4E79" } };
+        taxSheet.getRow(1).height = 28;
 
-      // ─── Sheet 2: 세금계산서 ───────────────────────────────────────────
-      const taxSheet = wb.addWorksheet(`세금계산서`);
-      taxSheet.columns = [
-        { header: "월", width: 6 },
-        { header: "업체명", width: 20 },
-        { header: "공급가액", width: 16 },
-        { header: "세액", width: 14 },
-        { header: "합계", width: 16 },
-        { header: "비고", width: 20 },
-        { header: "파일첨부", width: 10 },
-      ];
-      taxSheet.insertRow(1, [`세금계산서 목록 (${rangeLabel})`]);
-      taxSheet.mergeCells("A1:G1");
-      const taxTitle = taxSheet.getCell("A1");
-      taxTitle.font = { bold: true, size: 13, color: { argb: "FFFFFFFF" } };
-      taxTitle.alignment = CENTER;
-      taxTitle.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1F4E79" } };
-      taxSheet.getRow(1).height = 28;
+        const taxHdrRow = taxSheet.getRow(2);
+        taxHdrRow.values = ["월","업체명","공급가액","세액","합계(VAT포함)","비고","세금계산서"];
+        taxHdrRow.eachCell(c => { c.font = BOLD; c.alignment = CENTER; c.fill = HEADER_FILL; c.border = THIN_BORDER; });
+        taxHdrRow.height = 22;
 
-      const taxHdrRow = taxSheet.getRow(2);
-      taxHdrRow.values = ["월","업체명","공급가액","세액","합계(VAT포함)","비고","파일첨부"];
-      taxHdrRow.eachCell(c => { c.font = BOLD; c.alignment = CENTER; c.fill = HEADER_FILL; c.border = THIN_BORDER; });
-      taxHdrRow.height = 22;
+        let taxRowIdx = 3;
+        for (const t of taxInvoices) {
+          const hasTaxFile = !!t.fileUrl;
+          const row = taxSheet.getRow(taxRowIdx);
+          row.height = (withImages && hasTaxFile && imgCache.get(t.fileUrl!)) ? IMG_ROW_H : 18;
+          row.getCell(1).value = t.month;
+          row.getCell(2).value = t.vendorName || "";
+          row.getCell(3).value = t.supplyAmount ? Number(t.supplyAmount) : null;
+          row.getCell(4).value = t.vatAmount ? Number(t.vatAmount) : null;
+          row.getCell(5).value = t.totalAmount ? Number(t.totalAmount) : null;
+          row.getCell(6).value = t.notes || "";
+          [3,4,5].forEach(c => { row.getCell(c).numFmt = '#,##0'; });
+          row.eachCell(c => { c.alignment = MID; c.border = THIN_BORDER; });
 
-      let taxRowIdx = 3;
-      for (const t of taxInvoices) {
-        const row = taxSheet.getRow(taxRowIdx);
-        row.getCell(1).value = t.month;
-        row.getCell(2).value = t.vendorName || "";
-        row.getCell(3).value = t.supplyAmount ? Number(t.supplyAmount) : null;
-        row.getCell(4).value = t.vatAmount ? Number(t.vatAmount) : null;
-        row.getCell(5).value = t.totalAmount ? Number(t.totalAmount) : null;
-        row.getCell(6).value = t.notes || "";
-        if (t.fileUrl) {
-          row.getCell(7).value = "✓";
-          row.getCell(7).font = { color: { argb: "FF1F4E79" }, bold: true };
+          if (hasTaxFile) {
+            const imgBuf = imgCache.get(t.fileUrl!);
+            if (withImages && imgBuf) {
+              embedImage(wb, taxSheet, imgBuf, 6, taxRowIdx);
+            } else {
+              row.getCell(7).value = "✓";
+              row.getCell(7).font = { color: { argb: "FF1F4E79" }, bold: true };
+              row.getCell(7).alignment = CENTER;
+            }
+          }
+          taxRowIdx++;
         }
-        [3,4,5].forEach(c => { row.getCell(c).numFmt = '#,##0'; });
-        row.eachCell(c => { c.alignment = MID; c.border = THIN_BORDER; });
-        row.height = 18;
-        taxRowIdx++;
+
+        return wb;
       }
 
-      console.log(`[export] writeBuffer 시작 (records=${records.length}, taxInvoices=${taxInvoices.length})`);
-      const buf = await wb.xlsx.writeBuffer();
-      console.log(`[export] writeBuffer 완료, size=${Buffer.isBuffer(buf) ? buf.length : (buf as any).byteLength}`);
+      // ─── 이미지 포함 workbook 생성 → writeBuffer 실패 시 텍스트 전용으로 폴백 ─
+      let xlsBuf: Buffer;
+      try {
+        const wbWithImg = buildWorkbook(true);
+        console.log(`[export] writeBuffer(이미지포함) 시작`);
+        xlsBuf = Buffer.from(await wbWithImg.xlsx.writeBuffer());
+        console.log(`[export] writeBuffer 완료, size=${xlsBuf.length}`);
+      } catch (imgErr: any) {
+        console.warn(`[export] 이미지 임베딩 writeBuffer 실패(${imgErr.message}), 텍스트 전용으로 재시도`);
+        const wbNoImg = buildWorkbook(false);
+        xlsBuf = Buffer.from(await wbNoImg.xlsx.writeBuffer());
+        console.log(`[export] 텍스트 전용 writeBuffer 완료, size=${xlsBuf.length}`);
+      }
+
+      const fileLabel = rangeLabel.replace(/ /g, "_");
       res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-      res.setHeader("Content-Disposition", `attachment; filename*=UTF-8''${encodeURIComponent(`산업안전보건관리비_법정경비_${rangeLabel.replace(/ /g,"_")}.xlsx`)}`);
-      res.send(Buffer.isBuffer(buf) ? buf : Buffer.from(buf as ArrayBuffer));
+      res.setHeader("Content-Disposition", `attachment; filename*=UTF-8''${encodeURIComponent(`산업안전보건관리비_법정경비_${fileLabel}.xlsx`)}`);
+      res.send(xlsBuf);
     } catch (e: any) {
       console.error("[export] 법정경비 export 오류:", e.message, e.stack?.split('\n').slice(0,3).join(' | '));
       res.status(500).json({ message: "내보내기 실패: " + e.message });
