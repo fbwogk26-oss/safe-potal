@@ -10272,6 +10272,19 @@ ${htmlDraft}
         return null;
       }
 
+      // ─── 헬퍼: sharp로 이미지 압축 (최대 1000px, JPEG q65) ──────────
+      const sharpLib = require('sharp') as typeof import('sharp');
+      async function compressImg(buf: Buffer): Promise<Buffer> {
+        try {
+          return await sharpLib(buf)
+            .resize({ width: 1000, height: 1400, fit: 'inside', withoutEnlargement: true })
+            .jpeg({ quality: 65, mozjpeg: false })
+            .toBuffer();
+        } catch {
+          return buf; // 압축 실패 시 원본 반환
+        }
+      }
+
       // ─── 헬퍼: PDF 전체 페이지 → JPEG Buffer[] (pdftoppm, 압축률↑) ──
       async function pdfToAllPages(pdfBuf: Buffer): Promise<Buffer[]> {
         const ts = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
@@ -10287,13 +10300,15 @@ ${htmlDraft}
           const files = fs.readdirSync(dir)
             .filter(f => f.startsWith(base) && (f.endsWith('.jpg') || f.endsWith('.jpeg')))
             .sort(); // 페이지 순서 보장
-          const bufs: Buffer[] = [];
+          const rawBufs: Buffer[] = [];
           for (const f of files) {
             const fpath = path.join(dir, f);
-            bufs.push(fs.readFileSync(fpath));
+            rawBufs.push(fs.readFileSync(fpath));
             try { fs.unlinkSync(fpath); } catch {}
           }
-          console.log(`[export] PDF→JPEG 변환 완료: ${bufs.length}페이지`);
+          // sharp로 추가 압축 (크기 통일)
+          const bufs = await Promise.all(rawBufs.map(b => compressImg(b)));
+          console.log(`[export] PDF→JPEG 변환 완료: ${bufs.length}페이지, sizes=${bufs.map(b=>Math.round(b.length/1024)+'KB').join(',')}`);
           return bufs;
         } catch (e: any) {
           console.warn('[export] pdfToAllPages 실패:', e.message);
@@ -10303,12 +10318,13 @@ ${htmlDraft}
             const dir = os.tmpdir();
             const base = path.basename(outPrefix);
             const files = fs.readdirSync(dir).filter(f => f.startsWith(base) && f.endsWith('.png')).sort();
-            const bufs: Buffer[] = [];
+            const rawBufs: Buffer[] = [];
             for (const f of files) {
               const fpath = path.join(dir, f);
-              bufs.push(fs.readFileSync(fpath));
+              rawBufs.push(fs.readFileSync(fpath));
               try { fs.unlinkSync(fpath); } catch {}
             }
+            const bufs = await Promise.all(rawBufs.map(b => compressImg(b)));
             console.log(`[export] PDF→PNG 폴백 변환 완료: ${bufs.length}페이지`);
             return bufs;
           } catch (e2: any) {
@@ -10327,7 +10343,7 @@ ${htmlDraft}
         const isPdf = url.toLowerCase().includes('.pdf') ||
                       (raw.length >= 4 && raw[0] === 0x25 && raw[1] === 0x50 && raw[2] === 0x44 && raw[3] === 0x46);
         if (isPdf) return pdfToAllPages(raw);
-        if (detectImgExt(raw)) return [raw]; // 이미지: 단일 페이지
+        if (detectImgExt(raw)) return [await compressImg(raw)]; // 이미지: sharp 압축 후 반환
         return [];
       }
 
