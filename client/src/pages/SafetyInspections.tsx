@@ -74,10 +74,18 @@ export default function SafetyInspections() {
   const EXTRA_DEPARTMENTS = departments.slice(0, 3);
   const { canEditInspections, canDownloadInspectionExcel, canUploadInspectionPhotos } = usePermissions();
   const { user } = useAuth();
-  const { data: inspections, isLoading } = useQuery<SafetyInspection[]>({
+  // 기타 안전점검 타입은 OtherSafetyInspections 페이지에서만 표시
+  const OTHER_INSPECTION_TYPES = ["KT 점검", "본사 점검", "현장경영팀 점검"];
+
+  const { data: rawInspections, isLoading } = useQuery<SafetyInspection[]>({
     queryKey: ["/api/safety-inspections", headquarters],
     queryFn: () => fetch(`/api/safety-inspections?headquarters=${encodeURIComponent(headquarters)}`, { credentials: "include" }).then(r => r.json()),
   });
+
+  // 자체 안전점검만 표시 (기타 안전점검 타입 제외)
+  const inspections = rawInspections?.filter(
+    i => !OTHER_INSPECTION_TYPES.includes(i.inspectionType ?? "")
+  );
   
   const { data: teams } = useQuery<Team[]>({
     queryKey: ["/api/teams", headquarters],
