@@ -10374,6 +10374,7 @@ ${htmlDraft}
       for (const r of records) {
         if (r.quoteFileUrl) allUrls.add(r.quoteFileUrl);
         if (r.transactionFileUrl) allUrls.add(r.transactionFileUrl);
+        if (r.certificateFileUrl) allUrls.add(r.certificateFileUrl);
       }
       for (const t of taxInvoices) { if (t.fileUrl) allUrls.add(t.fileUrl); }
 
@@ -10593,6 +10594,7 @@ ${htmlDraft}
         const CAT1 = "1. 안전관리자 등 인건비 및 각종 업무수당 등";
         const CAT3 = "3. 개인보호구 및 안전장구 구입비 등";
         const CAT5 = "5. 안전보건교육비 및 행사비 등";
+        const CAT9 = "9. 위험성평가 및 산보위 안건 비용";
 
         // ════════════════════════════════════════════════════════════
         // Sheet 1: 개인보호구 및 안전장구 구입비
@@ -10697,6 +10699,10 @@ ${htmlDraft}
                 r2 = addFullLabel(ws2, r2, "  💰 세금계산서", "FFFFF3D6");
                 r2 = addFullImg(ws2, r2, getPages(rec.transactionFileUrl), true);
               }
+              if (rec.certificateFileUrl) {
+                r2 = addFullLabel(ws2, r2, "  🎓 수료증 / 이수증", "FFEAD6F7");
+                r2 = addFullImg(ws2, r2, getPages(rec.certificateFileUrl), true);
+              }
             }
 
             // 세금계산서 (별도 테이블)
@@ -10738,6 +10744,10 @@ ${htmlDraft}
                 r2 = addFullLabel(ws2, r2, "  💰 세금계산서", "FFFFF3D6");
                 r2 = addFullImg(ws2, r2, getPages(rec.transactionFileUrl), true);
               }
+              if (rec.certificateFileUrl) {
+                r2 = addFullLabel(ws2, r2, "  🎓 수료증 / 이수증", "FFEAD6F7");
+                r2 = addFullImg(ws2, r2, getPages(rec.certificateFileUrl), true);
+              }
             }
             ws2.getRow(r2).height = 14;
             r2++;
@@ -10771,13 +10781,18 @@ ${htmlDraft}
 
               const hasQ = !!rec.quoteFileUrl;
               const hasT = !!rec.transactionFileUrl;
+              const hasC = !!rec.certificateFileUrl;
+              if (hasT) {
+                r3 = addFullLabel(ws3, r3, "  💰 세금계산서", "FFFFF3D6");
+                r3 = addFullImg(ws3, r3, getPages(rec.transactionFileUrl), hasT);
+              }
               if (hasQ) {
                 r3 = addFullLabel(ws3, r3, "  🎓 수료증", "FFEAD6F7");
                 r3 = addFullImg(ws3, r3, getPages(rec.quoteFileUrl), hasQ);
               }
-              if (hasT) {
-                r3 = addFullLabel(ws3, r3, "  💰 세금계산서", "FFFFF3D6");
-                r3 = addFullImg(ws3, r3, getPages(rec.transactionFileUrl), hasT);
+              if (hasC) {
+                r3 = addFullLabel(ws3, r3, "  🎓 수료증 / 이수증", "FFEAD6F7");
+                r3 = addFullImg(ws3, r3, getPages(rec.certificateFileUrl), hasC);
               }
             }
 
@@ -10797,6 +10812,59 @@ ${htmlDraft}
 
             ws3.getRow(r3).height = 14;
             r3++;
+          }
+        }
+
+        // ════════════════════════════════════════════════════════════
+        // Sheet 4: 위험성평가 및 산보위 안건 비용
+        // 월별: 견적서 → 거래명세서 → 세금계산서 세로 배치
+        // ════════════════════════════════════════════════════════════
+        const cat9Recs = records.filter(r => r.category === CAT9);
+        const cat9ByYM = groupByYM(cat9Recs);
+        const cat9TaxYMs = new Set(cat9Recs.map(r => (r.year ?? 0) * 100 + (r.month ?? 0)));
+        const cat9Tax = taxInvoices.filter(t => cat9TaxYMs.has((t.year ?? 0) * 100 + (t.month ?? 0)));
+
+        const ws4 = wb.addWorksheet("위험성평가_비용");
+        setupCols(ws4);
+        let r4 = 1;
+        r4 = addTitle(ws4, r4, `위험성평가 및 산보위 안건 비용 증빙자료 (${rangeLabel})`, "FFFFFFFF", "FF833C00");
+
+        if (cat9Recs.length === 0) {
+          addFullLabel(ws4, r4, "해당 기간에 위험성평가 및 산보위 안건 비용 내역이 없습니다.", "FFFFF0F0");
+        } else {
+          for (const [ym, mRecs] of cat9ByYM) {
+            r4 = addMonthHdr(ws4, r4, `  ${ymLabel(ym)} 위험성평가/산보위 비용`, "FF833C00");
+
+            for (const rec of mRecs) {
+              r4 = addFullLabel(ws4, r4,
+                `  품명: ${rec.itemName || "-"}  |  업체: ${rec.vendorName || "-"}  |  금액: ${Number(rec.totalAmount || 0).toLocaleString()}원`,
+                "FFE8F0FE");
+              if (rec.quoteFileUrl) {
+                r4 = addFullLabel(ws4, r4, "  📄 견적서", "FFD6E4F7");
+                r4 = addFullImg(ws4, r4, getPages(rec.quoteFileUrl), true);
+              }
+              if (rec.transactionFileUrl) {
+                r4 = addFullLabel(ws4, r4, "  📋 거래명세서", "FFD6F0E4");
+                r4 = addFullImg(ws4, r4, getPages(rec.transactionFileUrl), true);
+              }
+            }
+
+            // 해당 연월 세금계산서
+            const mTax9 = cat9Tax.filter(t => (t.year ?? 0) * 100 + (t.month ?? 0) === ym);
+            if (mTax9.length > 0) {
+              r4 = addFullLabel(ws4, r4, `  💰 ${ymLabel(ym)} 세금계산서`, "FFFFF3D6");
+              for (const t of mTax9) {
+                if (t.vendorName) {
+                  r4 = addFullLabel(ws4, r4,
+                    `  업체: ${t.vendorName}  |  공급가액: ${Number(t.supplyAmount || 0).toLocaleString()}원  |  합계: ${Number(t.totalAmount || 0).toLocaleString()}원`,
+                    "FFFEF9E7");
+                }
+                r4 = addFullImg(ws4, r4, getPages(t.fileUrl), !!t.fileUrl);
+              }
+            }
+
+            ws4.getRow(r4).height = 14;
+            r4++;
           }
         }
 

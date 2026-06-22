@@ -1503,11 +1503,11 @@ export default function SafetyCostBudget() {
               </div>
             </div>
 
-            {/* 수료증/이수증 — 안전교육비(5항) 선택 시 표시 */}
-            {form.category === CATEGORIES[4] && (
+            {/* 수료증/이수증 — 1항(인건비) 또는 5항(교육비) 선택 시 표시 */}
+            {(form.category === CATEGORIES[0] || form.category === CATEGORIES[4]) && (
               <div className="border-t pt-2 mt-1">
                 <div className="text-xs font-semibold text-orange-600 flex items-center gap-1 mb-1.5">
-                  <FileCheck className="w-3.5 h-3.5" /> 수료증 / 이수증 첨부 (5항 교육비)
+                  <FileCheck className="w-3.5 h-3.5" /> 수료증 / 이수증 첨부
                 </div>
                 <input ref={certRef} type="file" accept="image/*,application/pdf" className="hidden"
                   onChange={e => { if (e.target.files?.[0]) handleCertUpload(e.target.files[0]); e.target.value=""; }} />
