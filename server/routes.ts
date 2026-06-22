@@ -10404,9 +10404,10 @@ ${htmlDraft}
         const LAST_LETTER = "T"; // 20번째 열
         const MID_LETTER_L = "J"; // 10번째 열 (좌 끝)
         const MID_LETTER_R = "K"; // 11번째 열 (우 시작)
-        const IMG_H = 709; // 25cm (25 × 72/2.54)
-        const LABEL_H = 22;
-        const HDR_H = 28;
+        const IMG_H = 350;  // ~12.3cm (적당한 미리보기 크기)
+        const LABEL_H = 28; // 레이블 행 높이
+        const INFO_H = 42;  // 품명/업체/금액 정보 행 높이
+        const HDR_H = 32;
 
         // ─── 헬퍼: imgCache에서 페이지 배열 ─────────────────────────
         function getPages(url: string | null | undefined): Buffer[] {
@@ -10456,9 +10457,23 @@ ${htmlDraft}
           row.height = LABEL_H;
           const c = row.getCell(1);
           c.value = text;
-          c.font = BOLD;
+          c.font = { bold: true, size: 12 };
           c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bgArgb } };
           c.alignment = { horizontal: "left", vertical: "middle" };
+          c.border = THIN_BORDER;
+          ws.mergeCells(`A${ri}:${LAST_LETTER}${ri}`);
+          return ri + 1;
+        }
+
+        // ─── 헬퍼: 품명/업체/금액 등 굵은 정보 행 (큰 글씨) ────────
+        function addInfoLabel(ws: ExcelJS.Worksheet, ri: number, text: string, bgArgb: string): number {
+          const row = ws.getRow(ri);
+          row.height = INFO_H;
+          const c = row.getCell(1);
+          c.value = text;
+          c.font = { bold: true, size: 13 };
+          c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bgArgb } };
+          c.alignment = { horizontal: "left", vertical: "middle", wrapText: false };
           c.border = THIN_BORDER;
           ws.mergeCells(`A${ri}:${LAST_LETTER}${ri}`);
           return ri + 1;
@@ -10619,7 +10634,7 @@ ${htmlDraft}
 
             const seenUrls1 = new Set<string>();
             for (const rec of mRecs) {
-              r1 = addFullLabel(ws1, r1,
+              r1 = addInfoLabel(ws1, r1,
                 `  품명: ${rec.itemName || "-"}  |  업체: ${rec.vendorName || "-"}  |  금액: ${Number(rec.totalAmount || 0).toLocaleString()}원`,
                 "FFE8F0FE");
               const freshQ = !!rec.quoteFileUrl && !seenUrls1.has(rec.quoteFileUrl);
@@ -10686,7 +10701,7 @@ ${htmlDraft}
             r2 = addMonthHdr(ws2, r2, `  ${ymLabel(ym)} 안전관리 집행`, "FF2E75B6");
 
             const mRec = mRecs[0];
-            r2 = addFullLabel(ws2, r2,
+            r2 = addInfoLabel(ws2, r2,
               `  항목: ${mRec.itemName || "-"}  |  업체: ${mRec.vendorName || "-"}  |  금액: ${mRecs.reduce((s, r) => s + Number(r.totalAmount || 0), 0).toLocaleString()}원`,
               "FFE8F0FE");
 
@@ -10709,7 +10724,7 @@ ${htmlDraft}
             const mTax = cat1Tax.filter(t => (t.year ?? 0) * 100 + (t.month ?? 0) === ym);
             for (const t of mTax) {
               if (t.vendorName) {
-                r2 = addFullLabel(ws2, r2,
+                r2 = addInfoLabel(ws2, r2,
                   `  세금계산서 - 업체: ${t.vendorName}  |  합계: ${Number(t.totalAmount || 0).toLocaleString()}원`,
                   "FFFEF9E7");
               }
@@ -10731,7 +10746,7 @@ ${htmlDraft}
           for (const [ym, mRecs] of healthByYM) {
             r2 = addMonthHdr(ws2, r2, `  ${ymLabel(ym)} 보건관리 집행`, "FF1F7055");
             const mRec = mRecs[0];
-            r2 = addFullLabel(ws2, r2,
+            r2 = addInfoLabel(ws2, r2,
               `  항목: ${mRec.itemName || "-"}  |  업체: ${mRec.vendorName || "-"}  |  금액: ${mRecs.reduce((s, r) => s + Number(r.totalAmount || 0), 0).toLocaleString()}원`,
               "FFE8F5EE");
 
@@ -10775,7 +10790,7 @@ ${htmlDraft}
             r3 = addMonthHdr(ws3, r3, `  ${ymLabel(ym)} 안전보건교육비 집행`, "FF7030A0");
 
             for (const rec of mRecs) {
-              r3 = addFullLabel(ws3, r3,
+              r3 = addInfoLabel(ws3, r3,
                 `  교육명: ${rec.itemName || "-"}  |  업체: ${rec.vendorName || "-"}  |  구매일: ${rec.purchaseDate || "-"}  |  금액: ${Number(rec.totalAmount || 0).toLocaleString()}원`,
                 "FFF3E8FD");
 
@@ -10837,7 +10852,7 @@ ${htmlDraft}
 
             const seenUrls4 = new Set<string>();
             for (const rec of mRecs) {
-              r4 = addFullLabel(ws4, r4,
+              r4 = addInfoLabel(ws4, r4,
                 `  품명: ${rec.itemName || "-"}  |  업체: ${rec.vendorName || "-"}  |  금액: ${Number(rec.totalAmount || 0).toLocaleString()}원`,
                 "FFE8F0FE");
               const freshQ4 = !!rec.quoteFileUrl && !seenUrls4.has(rec.quoteFileUrl);
