@@ -10404,7 +10404,7 @@ ${htmlDraft}
         const LAST_LETTER = "T"; // 20번째 열
         const MID_LETTER_L = "J"; // 10번째 열 (좌 끝)
         const MID_LETTER_R = "K"; // 11번째 열 (우 시작)
-        const IMG_H = 420;
+        const IMG_H = 709; // 25cm (25 × 72/2.54)
         const LABEL_H = 22;
         const HDR_H = 28;
 
@@ -10415,9 +10415,10 @@ ${htmlDraft}
         }
 
         // ─── 헬퍼: 시트 컬럼 폭 설정 ────────────────────────────────
+        // width=19: 10열 × 19 ≈ 35cm (이미지 너비 기준)
         function setupCols(ws: ExcelJS.Worksheet) {
           for (let i = 1; i <= TOTAL_COLS; i++) {
-            ws.getColumn(i).width = 14;
+            ws.getColumn(i).width = 19;
           }
         }
 
@@ -10622,13 +10623,9 @@ ${htmlDraft}
                 "FFE8F0FE");
               const hasQ = !!rec.quoteFileUrl;
               const hasT = !!rec.transactionFileUrl;
-              if (hasQ) {
-                r1 = addFullLabel(ws1, r1, "  📄 견적서", "FFD6E4F7");
-                r1 = addFullImg(ws1, r1, getPages(rec.quoteFileUrl), hasQ);
-              }
-              if (hasT) {
-                r1 = addFullLabel(ws1, r1, "  📋 거래명세서", "FFD6F0E4");
-                r1 = addFullImg(ws1, r1, getPages(rec.transactionFileUrl), hasT);
+              if (hasQ || hasT) {
+                r1 = addLRLabel(ws1, r1, "  📄 견적서", "  📋 거래명세서", "FFD6E4F7", "FFD6F0E4");
+                r1 = addImgPair(ws1, r1, getPages(rec.quoteFileUrl), getPages(rec.transactionFileUrl), hasQ, hasT);
               }
             }
 
@@ -10839,13 +10836,9 @@ ${htmlDraft}
               r4 = addFullLabel(ws4, r4,
                 `  품명: ${rec.itemName || "-"}  |  업체: ${rec.vendorName || "-"}  |  금액: ${Number(rec.totalAmount || 0).toLocaleString()}원`,
                 "FFE8F0FE");
-              if (rec.quoteFileUrl) {
-                r4 = addFullLabel(ws4, r4, "  📄 견적서", "FFD6E4F7");
-                r4 = addFullImg(ws4, r4, getPages(rec.quoteFileUrl), true);
-              }
-              if (rec.transactionFileUrl) {
-                r4 = addFullLabel(ws4, r4, "  📋 거래명세서", "FFD6F0E4");
-                r4 = addFullImg(ws4, r4, getPages(rec.transactionFileUrl), true);
+              if (rec.quoteFileUrl || rec.transactionFileUrl) {
+                r4 = addLRLabel(ws4, r4, "  📄 견적서", "  📋 거래명세서", "FFD6E4F7", "FFD6F0E4");
+                r4 = addImgPair(ws4, r4, getPages(rec.quoteFileUrl), getPages(rec.transactionFileUrl), !!rec.quoteFileUrl, !!rec.transactionFileUrl);
               }
             }
 
