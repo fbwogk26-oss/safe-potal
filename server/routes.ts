@@ -10502,6 +10502,70 @@ ${htmlDraft}
           return ri + 1;
         }
 
+        // ─── 헬퍼: 좌/우 반반 분할 정보 그리드 ─────────────────────
+        // 좌측 절반(col 1-10)에 leftItems, 우측 절반(col 11-20)에 rightItems 표시
+        function addSplitInfoGrid(
+          ws: ExcelJS.Worksheet, ri: number,
+          leftItems: { label: string; value: string }[],
+          rightItems: { label: string; value: string }[],
+          leftValBg: string, rightValBg: string,
+          leftLabelBg: string, rightLabelBg: string
+        ): number {
+          const row = ws.getRow(ri);
+          row.height = INFO_H;
+          const HALF = Math.floor(TOTAL_COLS / 2); // 10
+          const LABEL_SPAN = 2;
+
+          const fillHalf = (
+            items: { label: string; value: string }[],
+            offset: number, valBg: string, labelBg: string
+          ) => {
+            const n = items.length;
+            const colsPerItem = Math.floor(HALF / n);
+            for (let fi = 0; fi < n; fi++) {
+              const startCol = offset + fi * colsPerItem + 1;
+              const endCol = fi === n - 1 ? offset + HALF : offset + (fi + 1) * colsPerItem;
+              const labelEnd = startCol + LABEL_SPAN - 1;
+              const valueStart = labelEnd + 1;
+              const { label, value } = items[fi];
+              const lc = row.getCell(startCol);
+              lc.value = label;
+              lc.font = { bold: true, size: 10, color: { argb: "FFFFFFFF" } };
+              lc.fill = { type: "pattern", pattern: "solid", fgColor: { argb: labelBg } };
+              lc.alignment = { horizontal: "center", vertical: "middle", wrapText: false };
+              lc.border = THIN_BORDER;
+              if (startCol < labelEnd) ws.mergeCells(`${colLetter(startCol)}${ri}:${colLetter(labelEnd)}${ri}`);
+              const vc = row.getCell(valueStart);
+              vc.value = value;
+              vc.font = { bold: true, size: 12 };
+              vc.fill = { type: "pattern", pattern: "solid", fgColor: { argb: valBg } };
+              vc.alignment = { horizontal: "left", vertical: "middle", wrapText: false };
+              vc.border = THIN_BORDER;
+              if (valueStart < endCol) ws.mergeCells(`${colLetter(valueStart)}${ri}:${colLetter(endCol)}${ri}`);
+            }
+          };
+
+          if (leftItems.length > 0) {
+            fillHalf(leftItems, 0, leftValBg, leftLabelBg);
+          } else {
+            const c = row.getCell(1);
+            c.value = "-"; c.alignment = { horizontal: "center", vertical: "middle" };
+            c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF5F5F5" } };
+            c.border = THIN_BORDER;
+            ws.mergeCells(`A${ri}:${MID_LETTER_L}${ri}`);
+          }
+          if (rightItems.length > 0) {
+            fillHalf(rightItems, HALF, rightValBg, rightLabelBg);
+          } else {
+            const c = row.getCell(HALF + 1);
+            c.value = "-"; c.alignment = { horizontal: "center", vertical: "middle" };
+            c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF5F5F5" } };
+            c.border = THIN_BORDER;
+            ws.mergeCells(`${MID_LETTER_R}${ri}:${LAST_LETTER}${ri}`);
+          }
+          return ri + 1;
+        }
+
         // ─── 헬퍼: 좌/우 이미지 페어 행 삽입 ───────────────────────
         function addImgPair(
           ws: ExcelJS.Worksheet, ri: number,
@@ -10674,8 +10738,7 @@ ${htmlDraft}
 
         // ════════════════════════════════════════════════════════════
         // Sheet 2: 안전관리자 등 인건비
-        // 섹션1: 안전관리 집행금액(안전관리자 수수료)
-        // 섹션2: 보건관리 집행금액(보건관리자 수수료)
+        // 월별 2열: 좌=안전관리자 수수료 / 우=보건관리자 수수료
         // ════════════════════════════════════════════════════════════
         const cat1Recs = records.filter(r => r.category === CAT1);
         const safetyMgr = cat1Recs.filter(r =>
@@ -10693,81 +10756,73 @@ ${htmlDraft}
         let r2 = 1;
         r2 = addTitle(ws2, r2, `안전관리자 등 인건비 및 수당 증빙자료 (${rangeLabel})`, "FFFFFFFF", "FF1F4E79");
 
-        // 섹션1: 안전관리 집행금액
-        r2 = addTitle(ws2, r2, "1. 안전관리 집행금액 (안전관리자 수수료)", "FFFFFFFF", "FF2E75B6", 11);
+        // 두 그룹을 월별로 통합 → 안전/보건 각각 좌/우 표시
+        const safetyByYM2 = groupByYM(safetyAll);
+        const healthByYM2 = groupByYM(healthMgr);
+        const allYMs2 = [...new Set([...safetyByYM2.keys(), ...healthByYM2.keys()])].sort((a, b) => a - b);
 
-        if (safetyAll.length === 0) {
-          r2 = addFullLabel(ws2, r2, "해당 내역이 없습니다.", "FFFFF0F0");
+        if (allYMs2.length === 0) {
+          r2 = addFullLabel(ws2, r2, "해당 기간에 안전관리자 등 인건비 내역이 없습니다.", "FFFFF0F0");
         } else {
-          const safetyByYM = groupByYM(safetyAll);
-          for (const [ym, mRecs] of safetyByYM) {
-            r2 = addMonthHdr(ws2, r2, `  ${ymLabel(ym)} 안전관리 집행`, "FF2E75B6");
+          for (const ym of allYMs2) {
+            const sRecs = safetyByYM2.get(ym) ?? [];
+            const hRecs = healthByYM2.get(ym) ?? [];
+            const sRep = sRecs[0];
+            const hRep = hRecs[0];
+            const sTotal = sRecs.reduce((s, r) => s + Number(r.totalAmount || 0), 0);
+            const hTotal = hRecs.reduce((s, r) => s + Number(r.totalAmount || 0), 0);
 
-            const mRec = mRecs[0];
-            r2 = addInfoGrid(ws2, r2, [
-              { label: "항목", value: mRec.itemName || "-" },
-              { label: "업체", value: mRec.vendorName || "-" },
-              { label: "금액", value: `${mRecs.reduce((s, r) => s + Number(r.totalAmount || 0), 0).toLocaleString()}원` },
-            ], "FFE8F0FE", "FF2E75B6");
+            // 월 헤더 (전체 너비)
+            r2 = addMonthHdr(ws2, r2, `  ${ymLabel(ym)}`, "FF1F4E79");
 
-            for (const rec of mRecs) {
-              if (rec.quoteFileUrl) {
-                r2 = addFullLabel(ws2, r2, "  📋 위탁계약서 / 관련서류", "FFD6E4F7");
-                r2 = addFullImg(ws2, r2, getPages(rec.quoteFileUrl), true);
-              }
-              if (rec.transactionFileUrl) {
-                r2 = addFullLabel(ws2, r2, "  🧾 거래명세서", "FFD6F0E4");
-                r2 = addFullImg(ws2, r2, getPages(rec.transactionFileUrl), true);
-              }
-              if (rec.taxInvoiceFileUrl) {
-                r2 = addFullLabel(ws2, r2, "  💰 세금계산서", "FFFFF3D6");
-                r2 = addFullImg(ws2, r2, getPages(rec.taxInvoiceFileUrl), true);
-              }
-              if (rec.certificateFileUrl) {
-                r2 = addFullLabel(ws2, r2, "  🎓 수료증 / 이수증", "FFEAD6F7");
-                r2 = addFullImg(ws2, r2, getPages(rec.certificateFileUrl), true);
+            // 구분 레이블: 안전관리자 수수료(좌) | 보건관리자 수수료(우)
+            r2 = addLRLabel(ws2, r2,
+              "  🔵 안전관리자 수수료",
+              "  🟢 보건관리자 수수료",
+              "FFD6E4F7", "FFD6F0E4"
+            );
+
+            // 항목/업체/금액 정보: 좌(안전) | 우(보건)
+            r2 = addSplitInfoGrid(ws2, r2,
+              sRep
+                ? [
+                    { label: "항목", value: sRep.itemName || "-" },
+                    { label: "업체", value: sRep.vendorName || "-" },
+                    { label: "금액", value: `${sTotal.toLocaleString()}원` },
+                  ]
+                : [],
+              hRep
+                ? [
+                    { label: "항목", value: hRep.itemName || "-" },
+                    { label: "업체", value: hRep.vendorName || "-" },
+                    { label: "금액", value: `${hTotal.toLocaleString()}원` },
+                  ]
+                : [],
+              "FFE8F0FE", "FFE8F5EE", "FF2E75B6", "FF1F7055"
+            );
+
+            // 첨부 이미지: 문서 종류별로 좌/우 페어
+            const docTypes = [
+              { key: "quoteFileUrl",       icon: "📋 위탁계약서",    lBg: "FFD6E4F7", rBg: "FFD6F0E4" },
+              { key: "transactionFileUrl", icon: "🧾 거래명세서",    lBg: "FFD6F0E4", rBg: "FFD6E4F7" },
+              { key: "taxInvoiceFileUrl",  icon: "💰 세금계산서",    lBg: "FFFFF3D6", rBg: "FFFFF3D6" },
+              { key: "certificateFileUrl", icon: "🎓 수료증/이수증", lBg: "FFEAD6F7", rBg: "FFEAD6F7" },
+            ] as const;
+
+            for (const { key, icon, lBg, rBg } of docTypes) {
+              const lUrl = sRep?.[key] ?? null;
+              const rUrl = hRep?.[key] ?? null;
+              if (lUrl || rUrl) {
+                r2 = addLRLabel(ws2, r2, `  ${icon} (안전)`, `  ${icon} (보건)`, lBg, rBg);
+                r2 = addImgPair(ws2, r2,
+                  lUrl ? getPages(lUrl) : [],
+                  rUrl ? getPages(rUrl) : [],
+                  !!lUrl, !!rUrl
+                );
               }
             }
 
-            ws2.getRow(r2).height = 14;
-            r2++;
-          }
-        }
-
-        // 섹션2: 보건관리 집행금액
-        r2 = addTitle(ws2, r2, "2. 보건관리 집행금액 (보건관리자 수수료)", "FFFFFFFF", "FF1F7055", 11);
-
-        if (healthMgr.length === 0) {
-          r2 = addFullLabel(ws2, r2, "해당 내역이 없습니다. (itemName에 '보건관리' 포함 항목 기준)", "FFFFF0F0");
-        } else {
-          const healthByYM = groupByYM(healthMgr);
-          for (const [ym, mRecs] of healthByYM) {
-            r2 = addMonthHdr(ws2, r2, `  ${ymLabel(ym)} 보건관리 집행`, "FF1F7055");
-            const mRec = mRecs[0];
-            r2 = addInfoGrid(ws2, r2, [
-              { label: "항목", value: mRec.itemName || "-" },
-              { label: "업체", value: mRec.vendorName || "-" },
-              { label: "금액", value: `${mRecs.reduce((s, r) => s + Number(r.totalAmount || 0), 0).toLocaleString()}원` },
-            ], "FFE8F5EE", "FF1F7055");
-
-            for (const rec of mRecs) {
-              if (rec.quoteFileUrl) {
-                r2 = addFullLabel(ws2, r2, "  📋 위탁계약서 / 관련서류", "FFD6F0E4");
-                r2 = addFullImg(ws2, r2, getPages(rec.quoteFileUrl), true);
-              }
-              if (rec.transactionFileUrl) {
-                r2 = addFullLabel(ws2, r2, "  🧾 거래명세서", "FFD6E4F7");
-                r2 = addFullImg(ws2, r2, getPages(rec.transactionFileUrl), true);
-              }
-              if (rec.taxInvoiceFileUrl) {
-                r2 = addFullLabel(ws2, r2, "  💰 세금계산서", "FFFFF3D6");
-                r2 = addFullImg(ws2, r2, getPages(rec.taxInvoiceFileUrl), true);
-              }
-              if (rec.certificateFileUrl) {
-                r2 = addFullLabel(ws2, r2, "  🎓 수료증 / 이수증", "FFEAD6F7");
-                r2 = addFullImg(ws2, r2, getPages(rec.certificateFileUrl), true);
-              }
-            }
+            // 월 구분 여백
             ws2.getRow(r2).height = 14;
             r2++;
           }
