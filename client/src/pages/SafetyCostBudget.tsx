@@ -193,6 +193,7 @@ export default function SafetyCostBudget() {
   });
   const [taxFile, setTaxFile] = useState<File | null>(null);
   const [taxFileUploading, setTaxFileUploading] = useState(false);
+  const [taxExtracting, setTaxExtracting] = useState(false);
   const [taxDelConfirm, setTaxDelConfirm] = useState<{ id: number } | null>(null);
   const taxFileRef = useRef<HTMLInputElement>(null);
 
@@ -772,6 +773,45 @@ export default function SafetyCostBudget() {
       taxUpdateMut.mutate({ id: editTax.id, d: payload });
     } else {
       taxCreateMut.mutate(payload);
+    }
+  }
+  async function handleTaxExtract(file: File) {
+    setTaxExtracting(true);
+    setTaxFile(file);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const r = await fetch("/api/safety-cost-tax-invoices/extract", { method: "POST", body: fd, credentials: "include" });
+      if (!r.ok) {
+        const errText = await r.text();
+        let errMsg = "추출 실패";
+        try { errMsg = JSON.parse(errText).message || errMsg; } catch { errMsg = errText || errMsg; }
+        throw new Error(errMsg);
+      }
+      const data = await r.json();
+      // 자동 입력
+      setTaxForm(p => ({
+        ...p,
+        vendorName: data.vendorName || p.vendorName,
+        supplyAmount: data.supplyAmount != null ? String(data.supplyAmount) : p.supplyAmount,
+        vatAmount: data.vatAmount != null ? String(data.vatAmount) : p.vatAmount,
+        totalAmount: data.totalAmount != null ? String(data.totalAmount) : p.totalAmount,
+        // 발행일이 있으면 연/월 자동 설정
+        ...(data.issueDate ? (() => {
+          const d = new Date(data.issueDate);
+          if (!isNaN(d.getTime())) return { year: d.getFullYear(), month: d.getMonth() + 1 };
+          return {};
+        })() : {}),
+        // 추출 API에서 파일 URL 반환 시 바로 적용
+        fileUrl: data._fileUrl || p.fileUrl,
+      }));
+      // 파일 URL을 서버에서 받았으면 로컬 File 객체 제거 (중복 업로드 방지)
+      if (data._fileUrl) setTaxFile(null);
+      toast({ title: "AI 자동입력 완료", description: "내용을 확인 후 저장하세요." });
+    } catch (e: any) {
+      toast({ title: "AI 추출 실패", description: e.message, variant: "destructive" });
+    } finally {
+      setTaxExtracting(false);
     }
   }
 
@@ -1460,24 +1500,40 @@ export default function SafetyCostBudget() {
               <Label className="text-xs">비고</Label>
               <Textarea value={taxForm.notes} onChange={e => setTaxF("notes", e.target.value)} placeholder="비고 (선택)" rows={2} data-testid="textarea-tax-notes" />
             </div>
-            <div className="space-y-1">
-              <Label className="text-xs">첨부파일 (이미지/PDF)</Label>
-              <input ref={taxFileRef} type="file" accept="image/*,.pdf" className="hidden" onChange={e => setTaxFile(e.target.files?.[0] ?? null)} />
-              <div className="flex gap-2 items-center">
-                <Button type="button" variant="outline" size="sm" className="gap-1" onClick={() => taxFileRef.current?.click()} data-testid="btn-tax-file-pick">
-                  <Upload className="w-3.5 h-3.5" />{taxFile ? taxFile.name : "파일 선택"}
-                </Button>
-                {(taxForm.fileUrl || taxFile) && (
-                  <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => { setTaxFile(null); setTaxF("fileUrl", ""); }}>
-                    <X className="w-3.5 h-3.5" />
-                  </Button>
-                )}
-                {taxForm.fileUrl && !taxFile && (
-                  <Button type="button" variant="ghost" size="sm" className="h-8 gap-1 text-xs" onClick={() => setPreview({ url: taxForm.fileUrl, title: "첨부파일 미리보기" })}>
-                    <ImageIcon className="w-3.5 h-3.5" />현재 파일 보기
-                  </Button>
-                )}
+            {/* AI 자동입력 섹션 */}
+            <div className="border rounded-xl p-3 bg-muted/20 space-y-2">
+              <div className="text-sm font-semibold flex items-center gap-2 text-foreground">
+                <Upload className="w-4 h-4" /> AI 자동입력
+                <span className="text-xs font-normal text-muted-foreground">· 이미지 및 PDF 지원</span>
               </div>
+              <input ref={taxFileRef} type="file" accept="image/*,.pdf,application/pdf" className="hidden"
+                onChange={e => { if (e.target.files?.[0]) handleTaxExtract(e.target.files[0]); e.target.value = ""; }} />
+              <Button type="button" variant="outline" size="sm" className="w-full gap-1.5 border-blue-300 hover:border-blue-500"
+                disabled={taxExtracting} onClick={() => taxFileRef.current?.click()} data-testid="btn-tax-ai-extract">
+                {taxExtracting
+                  ? <><Loader2 className="w-4 h-4 animate-spin" />AI 분석 중...</>
+                  : <><FileScan className="w-4 h-4" />세금계산서 첨부 (AI 자동입력)</>}
+              </Button>
+              {taxExtracting && (
+                <p className="text-xs text-blue-600 text-center">업체명·공급가액·세액·합계·발행월을 자동으로 입력합니다...</p>
+              )}
+              {(taxForm.fileUrl || taxFile) && !taxExtracting && (
+                <div className="flex items-center gap-2 mt-1">
+                  {taxForm.fileUrl && (
+                    <button type="button" onClick={() => setPreview({ url: taxForm.fileUrl, title: "세금계산서 미리보기" })}
+                      className="text-xs text-blue-600 flex items-center gap-1 hover:underline" data-testid="btn-tax-preview-inline">
+                      <FileText className="w-3 h-3" />첨부된 파일 보기
+                    </button>
+                  )}
+                  {taxFile && !taxForm.fileUrl && (
+                    <span className="text-xs text-muted-foreground truncate max-w-[200px]">{taxFile.name}</span>
+                  )}
+                  <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-destructive ml-auto"
+                    onClick={() => { setTaxFile(null); setTaxF("fileUrl", ""); }}>
+                    <X className="w-3 h-3" />
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter>

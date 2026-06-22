@@ -11503,6 +11503,102 @@ ${htmlDraft}
     }
   });
 
+  // ─── 세금계산서 AI 자동 추출 ─────────────────────────────────────────
+  app.post('/api/safety-cost-tax-invoices/extract', requireEditor, safetyCostUpload.single('file'), async (req: any, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: "파일이 없습니다" });
+
+      const OpenAI = (await import("openai")).default;
+      const aiClient = new OpenAI({
+        apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+        baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+      });
+
+      const mimeType = req.file.mimetype || 'image/jpeg';
+      const isPdf = mimeType === 'application/pdf' || req.file.originalname.toLowerCase().endsWith('.pdf');
+
+      const systemPrompt = `당신은 한국 세금계산서(전자세금계산서 포함)를 분석하는 전문가입니다.
+문서에서 다음 정보를 추출하여 JSON 형식으로만 반환하세요 (코드블록 없이).
+
+{
+  "vendorName": "공급자(업체)명",
+  "supplyAmount": 공급가액(숫자, 쉼표 없이),
+  "vatAmount": 세액(숫자, 쉼표 없이),
+  "totalAmount": 합계금액(숫자, 쉼표 없이),
+  "issueDate": "발행일 YYYY-MM-DD 형식"
+}
+
+- 공급자는 세금계산서를 발행한 회사(공급하는 자)입니다.
+- 숫자는 쉼표 없이 순수 숫자로 반환하세요.
+- 찾을 수 없는 값은 null로 반환하세요.`;
+
+      let messages: any[];
+
+      if (isPdf) {
+        let pdfText = "";
+        try {
+          pdfText = await extractPdfText(req.file.buffer);
+        } catch (e: any) {
+          console.warn("pdf-parse 실패:", e.message);
+        }
+        messages = [
+          { role: "system", content: systemPrompt },
+          {
+            role: "user",
+            content: pdfText.trim()
+              ? `다음은 세금계산서 PDF에서 추출한 텍스트입니다. 분석하여 JSON으로 반환하세요.\n\n---\n${pdfText.slice(0, 8000)}\n---`
+              : `세금계산서 PDF가 업로드되었으나 텍스트 추출에 실패했습니다. 빈 JSON {}을 반환하세요.`,
+          },
+        ];
+      } else {
+        const base64Data = req.file.buffer.toString('base64');
+        messages = [
+          { role: "system", content: systemPrompt },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: "다음 세금계산서 이미지를 분석하여 JSON으로 반환하세요." },
+              { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64Data}`, detail: "high" } },
+            ],
+          },
+        ];
+      }
+
+      const response = await aiClient.chat.completions.create({
+        model: "gpt-4o",
+        messages,
+        max_tokens: 500,
+        temperature: 0.1,
+      });
+
+      const raw = response.choices[0].message.content?.trim() || "{}";
+      let parsed: any = {};
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        const m = raw.match(/\{[\s\S]*\}/);
+        if (m) { try { parsed = JSON.parse(m[0]); } catch { parsed = {}; } }
+      }
+
+      // 파일 저장 후 URL 반환
+      try {
+        const ext = req.file.originalname.split('.').pop() || (isPdf ? 'pdf' : 'jpg');
+        const filename = `tax-${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+        const objUrl = await uploadToObjectStorage(req.file.buffer, filename, req.file.mimetype);
+        parsed._fileUrl = objUrl || (() => {
+          const localP = path.join(uploadDir, filename);
+          fs.writeFileSync(localP, req.file.buffer);
+          return `/uploads/${filename}`;
+        })();
+      } catch { /* 저장 실패 무시 */ }
+
+      res.json(parsed);
+    } catch (e: any) {
+      console.error("Tax invoice extract error:", e.message);
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   // ─── 결의서(구매/지출) PDF 파싱 → 품의번호, 지급요청일자 추출 ──────────────
   app.post('/api/safety-cost-records/extract-resolution', requireEditor, safetyCostUpload.single('file'), async (req: any, res) => {
     try {
