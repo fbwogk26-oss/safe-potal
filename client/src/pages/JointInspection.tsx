@@ -267,9 +267,9 @@ function buildPrintHtml(
 
     /* ── 점검사진 ── */
     .photo-section-title { font-size: 10pt; font-weight: 700; margin: 4mm 0 3mm; }
-    .photos-grid { display: flex; flex-wrap: wrap; gap: 6px; min-height: 45mm; align-content: flex-start; }
-    .photos-placeholder { min-height: 45mm; border: 1px dashed #bbb; }
-    .photo-img { width: 82mm; height: 58mm; object-fit: cover; border: 1px solid #888; display: block; }
+    .photos-grid { display: flex; flex-direction: row; flex-wrap: nowrap; gap: 4mm; min-height: 55mm; }
+    .photos-placeholder { min-height: 55mm; border: 1px dashed #bbb; }
+    .photo-img { flex: 1 1 0; min-width: 0; height: 70mm; object-fit: cover; border: 1px solid #888; display: block; }
 
     /* ── 참석자 명단 테이블 ── */
     .sig-table { width: 100%; border-collapse: collapse; }
