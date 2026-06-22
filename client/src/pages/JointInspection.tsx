@@ -38,6 +38,7 @@ interface JoinInspectionSignature {
   signerName: string;
   signerDepartment?: string | null;
   signerRole?: string | null;
+  signerPosition?: string | null;
   signatureData: string;
   signedAt?: string | null;
 }
@@ -144,7 +145,7 @@ function buildPrintHtml(
     `;
   }).join("");
 
-  // 서명 수집 — 도급인 먼저, 중복 제거
+  // 서명 수집 — 중복 제거
   const allSigs: JoinInspectionSignature[] = [];
   const seen = new Set<number>();
   selectedInspections.forEach(insp => {
@@ -152,13 +153,12 @@ function buildPrintHtml(
       if (!seen.has(sig.id)) { seen.add(sig.id); allSigs.push(sig); }
     });
   });
-  allSigs.sort((a, b) => (a.signerRole === "도급인" ? 0 : 1) - (b.signerRole === "도급인" ? 0 : 1));
 
   const sigRows = allSigs.length > 0
     ? allSigs.map(sig => `
         <tr>
-          <td class="sig-cell center ${sig.signerRole === "도급인" ? "role-c" : "role-s"}">${sig.signerRole || ""}</td>
           <td class="sig-cell center">${sig.signerDepartment || ""}</td>
+          <td class="sig-cell center">${sig.signerPosition || ""}</td>
           <td class="sig-cell center">${sig.signerName}</td>
           <td class="sig-cell center"><img src="${sig.signatureData}" class="sig-img" /></td>
         </tr>
@@ -172,10 +172,10 @@ function buildPrintHtml(
         <table class="sig-table">
           <thead>
             <tr>
-              <th class="sth" style="width:15%">구분</th>
-              <th class="sth" style="width:27%">소속</th>
-              <th class="sth" style="width:18%">성명</th>
-              <th class="sth" style="width:40%">서명</th>
+              <th class="sth" style="width:28%">소속</th>
+              <th class="sth" style="width:17%">직책</th>
+              <th class="sth" style="width:20%">성명</th>
+              <th class="sth" style="width:35%">서명</th>
             </tr>
           </thead>
           <tbody>${sigRows}</tbody>
@@ -905,41 +905,34 @@ export default function JointInspectionPage() {
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1">
-              <Label>구분</Label>
-              <div className="flex gap-2">
-                {["도급인", "수급인"].map(role => (
-                  <button key={role} type="button"
-                    onClick={() => setSignForm(f => ({ ...f, signerRole: role, signerDepartment: "" }))}
-                    className={`flex-1 py-2 rounded-lg border-2 text-sm font-medium transition-colors ${
-                      signForm.signerRole === role
-                        ? role === "도급인" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-orange-500 bg-orange-50 text-orange-700"
-                        : "border-muted bg-background text-muted-foreground"
-                    }`} data-testid={`button-role-${role}`}>{role}</button>
-                ))}
-              </div>
-            </div>
-            <div className="space-y-1">
               <Label>성명 *</Label>
               <Input placeholder="성명을 입력하세요" value={signForm.signerName}
                 onChange={e => setSignForm(f => ({ ...f, signerName: e.target.value }))}
                 data-testid="input-signer-name" />
             </div>
             <div className="space-y-1">
-              <Label>{signForm.signerRole === "수급인" ? "수급사" : "소속"}</Label>
+              <Label>소속</Label>
               <Select value={signForm.signerDepartment} onValueChange={v => setSignForm(f => ({ ...f, signerDepartment: v }))}>
                 <SelectTrigger data-testid="select-signer-dept">
                   <SelectValue placeholder="선택 (선택)" />
                 </SelectTrigger>
                 <SelectContent>
-                  {(signForm.signerRole === "수급인" ? SUBCONTRACTORS : DEPARTMENTS).map(d => (
+                  {DEPARTMENTS.map(d => (
                     <SelectItem key={d} value={d}>{d}</SelectItem>
                   ))}
-                  {signForm.signerRole === "도급인"
-                    ? <SelectItem value={headquarters}>{headquarters}</SelectItem>
-                    : <SelectItem value="기타">기타</SelectItem>
-                  }
+                  <SelectItem value={headquarters}>{headquarters}</SelectItem>
+                  {SUBCONTRACTORS.map(d => (
+                    <SelectItem key={d} value={d}>{d}</SelectItem>
+                  ))}
+                  <SelectItem value="기타">기타</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>직책</Label>
+              <Input placeholder="직책을 입력하세요" value={signForm.signerPosition}
+                onChange={e => setSignForm(f => ({ ...f, signerPosition: e.target.value }))}
+                data-testid="input-signer-position" />
             </div>
             <div className="space-y-1">
               <Label className="flex items-center gap-1">
