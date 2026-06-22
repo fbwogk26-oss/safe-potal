@@ -18,7 +18,7 @@ import {
   Plus, Trash2, Edit2, Upload, FileText, ImageIcon, Loader2,
   BarChart3, List, X, Download, Receipt, FileCheck, PackagePlus, CheckSquare, FileScan, ScrollText, Wallet
 } from "lucide-react";
-import type { SafetyCostRecord, SafetyCostTaxInvoice } from "@shared/schema";
+import type { SafetyCostRecord } from "@shared/schema";
 
 // ── 상수 ────────────────────────────────────────────────────────────
 const CATEGORIES = [
@@ -75,10 +75,6 @@ const emptyForm = {
   totalAmount: "", purchaseDate: "", vendorName: "", notes: "",
   documentNumber: "", paymentRequestDate: "",
   quoteFileUrl: "", transactionFileUrl: "", certificateFileUrl: "", resolutionFileUrl: "",
-};
-const emptyTaxForm = {
-  year: currentYear, month: new Date().getMonth() + 1,
-  vendorName: "", supplyAmount: "", vatAmount: "", totalAmount: "", notes: "",
 };
 
 interface ExtractedItem {
@@ -179,12 +175,6 @@ export default function SafetyCostBudget() {
   const [budgetHalf, setBudgetHalf] = useState<"h1"|"h2">("h1");
   const [budgetInput, setBudgetInput] = useState<{ h1: Record<string, string>; h2: Record<string, string> }>({ h1: {}, h2: {} });
 
-  // 세금계산서 다이얼로그 (월별)
-  const [taxDlgOpen, setTaxDlgOpen] = useState(false);
-  const [editTax, setEditTax] = useState<SafetyCostTaxInvoice | null>(null);
-  const [taxForm, setTaxForm] = useState({ ...emptyTaxForm });
-  const [taxFile, setTaxFile] = useState<File | null>(null);
-
   // 개별 세금계산서 다이얼로그 (레코드별)
   const [recTaxDlg, setRecTaxDlg] = useState<SafetyCostRecord | null>(null);
   const [recTaxYear, setRecTaxYear] = useState(currentYear);
@@ -195,7 +185,7 @@ export default function SafetyCostBudget() {
 
   // 첨부파일 미리보기
   const [preview, setPreview] = useState<{ url: string; title: string } | null>(null);
-  const [delConfirm, setDelConfirm] = useState<{ type: "record"|"tax"; id: number } | null>(null);
+  const [delConfirm, setDelConfirm] = useState<{ id: number } | null>(null);
   const [bulkDelConfirm, setBulkDelConfirm] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
@@ -208,7 +198,6 @@ export default function SafetyCostBudget() {
 
   const quoteRef = useRef<HTMLInputElement>(null);
   const transRef = useRef<HTMLInputElement>(null);
-  const taxFileRef = useRef<HTMLInputElement>(null);
   const recTaxFileRef = useRef<HTMLInputElement>(null);
   const certRef = useRef<HTMLInputElement>(null);
   const resolutionRef = useRef<HTMLInputElement>(null);
@@ -220,10 +209,6 @@ export default function SafetyCostBudget() {
   const { data: records = [], isLoading } = useQuery<SafetyCostRecord[]>({
     queryKey: ["/api/safety-cost-records", year, headquarters],
     queryFn: () => fetch(`/api/safety-cost-records?year=${year}&headquarters=${encodeURIComponent(headquarters)}`, { credentials: "include" }).then(r => r.json()),
-  });
-  const { data: taxInvoices = [] } = useQuery<SafetyCostTaxInvoice[]>({
-    queryKey: ["/api/safety-cost-tax-invoices", year, headquarters],
-    queryFn: () => fetch(`/api/safety-cost-tax-invoices?year=${year}&headquarters=${encodeURIComponent(headquarters)}`, { credentials: "include" }).then(r => r.json()),
   });
   const { data: budgets = {} } = useQuery<Record<string, number>>({
     queryKey: ["/api/safety-cost-budget", year],
@@ -248,19 +233,6 @@ export default function SafetyCostBudget() {
   const deleteMut = useMutation({
     mutationFn: (id: number) => apiRequest("DELETE", `/api/safety-cost-records/${id}`),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/safety-cost-records"] }); toast({ title: "삭제 완료" }); setDelConfirm(null); },
-  });
-  const createTaxMut = useMutation({
-    mutationFn: (fd: FormData) => fetch("/api/safety-cost-tax-invoices", { method: "POST", body: fd, credentials: "include" }).then(r => { if (!r.ok) throw new Error("저장 실패"); return r.json(); }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/safety-cost-tax-invoices"] }); toast({ title: "세금계산서 저장 완료" }); closeTaxDlg(); },
-    onError: (e: any) => toast({ title: "저장 실패", description: e.message, variant: "destructive" }),
-  });
-  const updateTaxMut = useMutation({
-    mutationFn: ({ id, fd }: { id: number; fd: FormData }) => fetch(`/api/safety-cost-tax-invoices/${id}`, { method: "PUT", body: fd, credentials: "include" }).then(r => { if (!r.ok) throw new Error("수정 실패"); return r.json(); }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/safety-cost-tax-invoices"] }); toast({ title: "수정 완료" }); closeTaxDlg(); },
-  });
-  const deleteTaxMut = useMutation({
-    mutationFn: (id: number) => apiRequest("DELETE", `/api/safety-cost-tax-invoices/${id}`),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/safety-cost-tax-invoices"] }); toast({ title: "삭제 완료" }); setDelConfirm(null); },
   });
   const updateRecTaxMut = useMutation({
     mutationFn: ({ id, d }: { id: number; d: any }) => apiRequest("PUT", `/api/safety-cost-records/${id}`, d),
@@ -721,30 +693,6 @@ export default function SafetyCostBudget() {
     });
   }
 
-  // ── 세금계산서 헬퍼 ───────────────────────────────────────────────
-  function openAddTax() { setEditTax(null); setTaxForm({ ...emptyTaxForm, year }); setTaxFile(null); setTaxDlgOpen(true); }
-  function openAddTaxForMonth(month: number) {
-    setEditTax(null); setTaxForm({ ...emptyTaxForm, year, month }); setTaxFile(null); setTaxDlgOpen(true);
-  }
-  function openEditTax(t: SafetyCostTaxInvoice) {
-    setEditTax(t);
-    setTaxForm({ year: t.year, month: t.month, vendorName: t.vendorName||"",
-      supplyAmount: t.supplyAmount?.toString()||"", vatAmount: t.vatAmount?.toString()||"",
-      totalAmount: t.totalAmount?.toString()||"", notes: t.notes||"" });
-    setTaxFile(null); setTaxDlgOpen(true);
-  }
-  function closeTaxDlg() { setTaxDlgOpen(false); setEditTax(null); setTaxFile(null); }
-  function setTF(k: string, v: any) { setTaxForm(p => ({ ...p, [k]: v })); }
-  function taxAutoCalc(k: string, v: string) {
-    const up = { ...taxForm, [k]: v };
-    const s = parseFloat(up.supplyAmount||"0"), va = parseFloat(up.vatAmount||"0");
-    if ((k==="supplyAmount"||k==="vatAmount") && !isNaN(s) && !isNaN(va) && s>0) {
-      up.totalAmount = (s + (isNaN(va)?0:va)).toString();
-      if (k==="supplyAmount" && !taxForm.vatAmount) up.vatAmount = Math.round(s*0.1).toString(), up.totalAmount=(s+Math.round(s*0.1)).toString();
-    }
-    setTaxForm(up);
-  }
-
   // ── AI 추출 ───────────────────────────────────────────────────────
   async function handleExtract(docType: "quote"|"transaction", file: File) {
     setExtracting(docType);
@@ -822,17 +770,6 @@ export default function SafetyCostBudget() {
     if (editRec) updateMut.mutate({ id: editRec.id, d: payload }); else createMut.mutate(payload);
   }
 
-  function handleTaxSubmit() {
-    if (!taxForm.totalAmount) { toast({ title: "합계금액 필수", variant:"destructive" }); return; }
-    const fd = new FormData();
-    const body = { headquarters, year: Number(taxForm.year), month: Number(taxForm.month),
-      vendorName: taxForm.vendorName||null, supplyAmount: taxForm.supplyAmount||null,
-      vatAmount: taxForm.vatAmount||null, totalAmount: taxForm.totalAmount, notes: taxForm.notes||null };
-    fd.append("data", JSON.stringify(body));
-    if (taxFile) fd.append("file", taxFile);
-    if (editTax) updateTaxMut.mutate({ id: editTax.id, fd }); else createTaxMut.mutate(fd);
-  }
-
   // ── 다운로드 ──────────────────────────────────────────────────────
   async function handleDownload() {
     setShowExportDialog(false);
@@ -886,7 +823,6 @@ export default function SafetyCostBudget() {
     return { cat, total, monthly, count: catRecs.length, pct, color: CAT_COLORS[i] };
   });
   const monthlyTotals = MONTHS.map((_,i) => records.filter(r=>r.month===i+1).reduce((s,r)=>s+toNum(r.totalAmount),0));
-  const taxGrandTotal = taxInvoices.reduce((s,t) => s+toNum(t.totalAmount), 0);
   const totalBudget = Object.values(budgets).reduce((s, v) => s + (Number(v) || 0), 0);
   const catIdx = (cat: string) => CATEGORIES.indexOf(cat);
 
@@ -899,10 +835,6 @@ export default function SafetyCostBudget() {
     const recs = selectedRecords.filter(r => r.category === cat);
     return { cat, i, count: recs.length, total: recs.reduce((s, r) => s + toNum(r.totalAmount), 0) };
   }).filter(c => c.count > 0);
-  // 월별 세금계산서 map (month → invoice)
-  const monthTaxMap: Record<number, SafetyCostTaxInvoice> = {};
-  taxInvoices.forEach(t => { if (!monthTaxMap[t.month]) monthTaxMap[t.month] = t; });
-
   const bulkSelectedTotal = bulkItems.filter(it => it.checked).reduce((s, it) => s + toNum(it.totalAmount), 0);
   const bulkSelectedCount = bulkItems.filter(it => it.checked).length;
 
@@ -972,10 +904,8 @@ export default function SafetyCostBudget() {
                 </div>
               </>
             )}
-            <div className="text-xs text-muted-foreground mt-1 flex gap-2">
+            <div className="text-xs text-muted-foreground mt-1">
               <span>사용내역 {records.length}건</span>
-              <span>·</span>
-              <span>세금계산서 {taxInvoices.length}건</span>
             </div>
           </CardContent>
         </Card>
@@ -1152,24 +1082,6 @@ export default function SafetyCostBudget() {
                               <button onClick={() => openRecTaxDlg(rec)}
                                 className="text-muted-foreground/20 hover:text-amber-400 transition-colors" title="개별 세금계산서 등록"
                                 data-testid={`btn-rec-tax-add-${rec.id}`}>
-                                <Receipt className="w-4 h-4" />
-                              </button>
-                            )}
-                            {/* 월별 세금계산서 (violet) */}
-                            {monthTaxMap[rec.month] ? (
-                              <button
-                                onClick={() => monthTaxMap[rec.month].fileUrl
-                                  ? setPreview({ url: monthTaxMap[rec.month].fileUrl!, title: `${rec.month}월 세금계산서` })
-                                  : openEditTax(monthTaxMap[rec.month])
-                                }
-                                className="text-violet-500 hover:text-violet-700 transition-colors" title={`${rec.month}월 세금계산서 (월별)`}
-                                data-testid={`btn-tax-month-${rec.id}`}>
-                                <Receipt className="w-4 h-4" />
-                              </button>
-                            ) : (
-                              <button onClick={() => openAddTaxForMonth(rec.month)}
-                                className="text-muted-foreground/20 hover:text-violet-400 transition-colors" title={`${rec.month}월 세금계산서 등록 (월별)`}
-                                data-testid={`btn-tax-add-month-${rec.id}`}>
                                 <Receipt className="w-4 h-4" />
                               </button>
                             )}
@@ -2011,58 +1923,6 @@ export default function SafetyCostBudget() {
         </DialogContent>
       </Dialog>
 
-      {/* ══ 세금계산서 등록/수정 다이얼로그 ══ */}
-      <Dialog open={taxDlgOpen} onOpenChange={setTaxDlgOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>{editTax ? "세금계산서 수정" : "세금계산서 등록"}</DialogTitle>
-          </DialogHeader>
-          <div className="grid grid-cols-2 gap-3">
-            <div><Label>연도 *</Label>
-              <Select value={taxForm.year.toString()} onValueChange={v=>setTF("year",Number(v))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{[currentYear-1,currentYear,currentYear+1].map(y=><SelectItem key={y} value={y.toString()}>{y}년</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div><Label>월 *</Label>
-              <Select value={taxForm.month.toString()} onValueChange={v=>setTF("month",Number(v))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{MONTHS.map((m,i)=><SelectItem key={i} value={(i+1).toString()}>{m}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-          </div>
-          <div><Label>업체명</Label><Input placeholder="공급업체명" value={taxForm.vendorName} onChange={e=>setTF("vendorName",e.target.value)} data-testid="input-tax-vendor" /></div>
-          <div className="grid grid-cols-3 gap-3">
-            <div><Label>공급가액</Label><Input type="number" placeholder="0" value={taxForm.supplyAmount} onChange={e=>taxAutoCalc("supplyAmount",e.target.value)} /></div>
-            <div><Label>세액</Label><Input type="number" placeholder="0" value={taxForm.vatAmount} onChange={e=>taxAutoCalc("vatAmount",e.target.value)} /></div>
-            <div><Label className="font-semibold">합계 *</Label><Input type="number" placeholder="0" value={taxForm.totalAmount} onChange={e=>setTF("totalAmount",e.target.value)} className="font-semibold" data-testid="input-tax-total" /></div>
-          </div>
-          <div><Label>비고</Label><Input placeholder="비고" value={taxForm.notes} onChange={e=>setTF("notes",e.target.value)} /></div>
-          <div className="space-y-2">
-            <Label>세금계산서 파일</Label>
-            <input ref={taxFileRef} type="file" accept="image/*,application/pdf" className="hidden"
-              onChange={e => { if (e.target.files?.[0]) setTaxFile(e.target.files[0]); }} />
-            <Button variant="outline" size="sm" className="w-full" onClick={() => taxFileRef.current?.click()} data-testid="btn-tax-file">
-              <Upload className="w-4 h-4 mr-1" />
-              {taxFile ? taxFile.name : (editTax?.fileUrl ? "파일 교체" : "세금계산서 첨부 (이미지/PDF)")}
-            </Button>
-            {editTax?.fileUrl && !taxFile && (
-              <button onClick={() => setPreview({ url: editTax.fileUrl!, title: "세금계산서" })}
-                className="text-xs text-violet-600 flex items-center gap-1 hover:underline">
-                <FileCheck className="w-3 h-3" />현재 첨부파일 보기
-              </button>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={closeTaxDlg}>취소</Button>
-            <Button onClick={handleTaxSubmit} disabled={createTaxMut.isPending||updateTaxMut.isPending} data-testid="btn-tax-submit">
-              {(createTaxMut.isPending||updateTaxMut.isPending) && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
-              {editTax ? "수정 저장" : "등록"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       {/* ══ 개별 세금계산서 다이얼로그 ══ */}
       <Dialog open={recTaxDlg !== null} onOpenChange={v => { if (!v) setRecTaxDlg(null); }}>
         <DialogContent className="max-w-sm">
@@ -2147,13 +2007,12 @@ export default function SafetyCostBudget() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setDelConfirm(null)}>취소</Button>
             <Button variant="destructive" data-testid="btn-confirm-delete"
-              disabled={deleteMut.isPending||deleteTaxMut.isPending}
+              disabled={deleteMut.isPending}
               onClick={() => {
                 if (!delConfirm) return;
-                if (delConfirm.type==="record") deleteMut.mutate(delConfirm.id);
-                else deleteTaxMut.mutate(delConfirm.id);
+                deleteMut.mutate(delConfirm.id);
               }}>
-              {(deleteMut.isPending||deleteTaxMut.isPending) && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}삭제
+              {deleteMut.isPending && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}삭제
             </Button>
           </DialogFooter>
         </DialogContent>

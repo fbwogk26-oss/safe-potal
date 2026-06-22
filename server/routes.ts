@@ -10143,66 +10143,6 @@ ${htmlDraft}
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  // === 세금계산서 CRUD ===
-  const taxInvoiceUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
-
-  app.get('/api/safety-cost-tax-invoices', isAuthenticated, async (req, res) => {
-    try {
-      const year = req.query.year ? Number(req.query.year) : undefined;
-      const headquarters = req.query.headquarters as string | undefined;
-      const records = await storage.getSafetyCostTaxInvoices({ year, headquarters });
-      res.json(records);
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
-  });
-
-  app.post('/api/safety-cost-tax-invoices', requireEditor, taxInvoiceUpload.single('file'), async (req: any, res) => {
-    try {
-      const body = JSON.parse(req.body.data || '{}');
-      let fileUrl: string | null = null;
-      if (req.file) {
-        const ext = req.file.originalname.split('.').pop() || 'pdf';
-        const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-        const objUrl = await uploadToObjectStorage(req.file.buffer, filename, req.file.mimetype);
-        fileUrl = objUrl || (() => {
-          const localP = path.join(uploadDir, filename);
-          fs.writeFileSync(localP, req.file.buffer);
-          return `/uploads/${filename}`;
-        })();
-      }
-      const data = { ...body, fileUrl: fileUrl || body.fileUrl || null };
-      const record = await storage.createSafetyCostTaxInvoice(data);
-      res.json(record);
-    } catch (e: any) { res.status(400).json({ message: e.message }); }
-  });
-
-  app.put('/api/safety-cost-tax-invoices/:id', requireEditor, taxInvoiceUpload.single('file'), async (req: any, res) => {
-    try {
-      let fileUrl: string | undefined;
-      if (req.file) {
-        const ext = req.file.originalname.split('.').pop() || 'pdf';
-        const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-        const objUrl = await uploadToObjectStorage(req.file.buffer, filename, req.file.mimetype);
-        fileUrl = objUrl || (() => {
-          const localP = path.join(uploadDir, filename);
-          fs.writeFileSync(localP, req.file.buffer);
-          return `/uploads/${filename}`;
-        })();
-      }
-      const body = req.body.data ? JSON.parse(req.body.data) : req.body;
-      const updates: any = { ...body };
-      if (fileUrl) updates.fileUrl = fileUrl;
-      const record = await storage.updateSafetyCostTaxInvoice(Number(req.params.id), updates);
-      res.json(record);
-    } catch (e: any) { res.status(400).json({ message: e.message }); }
-  });
-
-  app.delete('/api/safety-cost-tax-invoices/:id', requireEditor, async (req, res) => {
-    try {
-      await storage.deleteSafetyCostTaxInvoice(Number(req.params.id));
-      res.json({ success: true });
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
-  });
-
   // === 법정경비 Excel 다운로드 (첨부파일 이미지 포함) ===
   app.get('/api/safety-cost-records/export', isAuthenticated, async (req: any, res) => {
     try {
@@ -10232,11 +10172,8 @@ ${htmlDraft}
       }
 
       console.log(`[export] 법정경비 요청: startYM=${startYM}, endYM=${endYM}, hq=${headquarters}`);
-      const [records, taxInvoices] = await Promise.all([
-        storage.getSafetyCostRecords({ headquarters, startYM, endYM }),
-        storage.getSafetyCostTaxInvoices({ headquarters, startYM, endYM }),
-      ]);
-      console.log(`[export] DB 완료: records=${records.length}, taxInvoices=${taxInvoices.length}`);
+      const records = await storage.getSafetyCostRecords({ headquarters, startYM, endYM });
+      console.log(`[export] DB 완료: records=${records.length}`);
 
       // ─── 헬퍼: URL → Buffer ──────────────────────────────────────────
       async function fetchBuf(url: string): Promise<Buffer | null> {
@@ -10376,7 +10313,6 @@ ${htmlDraft}
         if (r.transactionFileUrl) allUrls.add(r.transactionFileUrl);
         if (r.certificateFileUrl) allUrls.add(r.certificateFileUrl);
       }
-      for (const t of taxInvoices) { if (t.fileUrl) allUrls.add(t.fileUrl); }
 
       console.log(`[export] 첨부파일 로드 시작: ${allUrls.size}개`);
       await Promise.all(Array.from(allUrls).map(async (url) => {
@@ -10618,8 +10554,6 @@ ${htmlDraft}
         // ════════════════════════════════════════════════════════════
         const cat3Recs = records.filter(r => r.category === CAT3);
         const cat3ByYM = groupByYM(cat3Recs);
-        const cat3TaxYMs = new Set(cat3Recs.map(r => (r.year ?? 0) * 100 + (r.month ?? 0)));
-        const cat3Tax = taxInvoices.filter(t => cat3TaxYMs.has((t.year ?? 0) * 100 + (t.month ?? 0)));
 
         const ws1 = wb.addWorksheet("개인보호구_구입비");
         setupCols(ws1);
@@ -10647,20 +10581,6 @@ ${htmlDraft}
               }
             }
 
-            // 해당 연월 세금계산서
-            const mTax = cat3Tax.filter(t => (t.year ?? 0) * 100 + (t.month ?? 0) === ym);
-            if (mTax.length > 0) {
-              r1 = addFullLabel(ws1, r1, `  💰 ${ymLabel(ym)} 세금계산서`, "FFFFF3D6");
-              for (const t of mTax) {
-                if (t.vendorName) {
-                  r1 = addFullLabel(ws1, r1,
-                    `  업체: ${t.vendorName}  |  공급가액: ${Number(t.supplyAmount || 0).toLocaleString()}원  |  세액: ${Number(t.vatAmount || 0).toLocaleString()}원  |  합계: ${Number(t.totalAmount || 0).toLocaleString()}원`,
-                    "FFFEF9E7");
-                }
-                r1 = addFullImg(ws1, r1, getPages(t.fileUrl), !!t.fileUrl);
-              }
-            }
-
             // 월 구분 여백
             ws1.getRow(r1).height = 14;
             r1++;
@@ -10682,8 +10602,6 @@ ${htmlDraft}
         // 분류 안 된 나머지 → 안전관리로 포함
         const unclassified = cat1Recs.filter(r => !safetyMgr.includes(r) && !healthMgr.includes(r));
         const safetyAll = [...safetyMgr, ...unclassified];
-        const cat1TaxYMs = new Set(cat1Recs.map(r => (r.year ?? 0) * 100 + (r.month ?? 0)));
-        const cat1Tax = taxInvoices.filter(t => cat1TaxYMs.has((t.year ?? 0) * 100 + (t.month ?? 0)));
 
         const ws2 = wb.addWorksheet("안전관리자_인건비");
         setupCols(ws2);
@@ -10718,17 +10636,6 @@ ${htmlDraft}
                 r2 = addFullLabel(ws2, r2, "  🎓 수료증 / 이수증", "FFEAD6F7");
                 r2 = addFullImg(ws2, r2, getPages(rec.certificateFileUrl), true);
               }
-            }
-
-            // 세금계산서 (별도 테이블)
-            const mTax = cat1Tax.filter(t => (t.year ?? 0) * 100 + (t.month ?? 0) === ym);
-            for (const t of mTax) {
-              if (t.vendorName) {
-                r2 = addInfoLabel(ws2, r2,
-                  `  세금계산서 - 업체: ${t.vendorName}  |  합계: ${Number(t.totalAmount || 0).toLocaleString()}원`,
-                  "FFFEF9E7");
-              }
-              r2 = addFullImg(ws2, r2, getPages(t.fileUrl), !!t.fileUrl);
             }
 
             ws2.getRow(r2).height = 14;
@@ -10775,8 +10682,6 @@ ${htmlDraft}
         // ════════════════════════════════════════════════════════════
         const cat5Recs = records.filter(r => r.category === CAT5);
         const cat5ByYM = groupByYM(cat5Recs);
-        const cat5TaxYMs = new Set(cat5Recs.map(r => (r.year ?? 0) * 100 + (r.month ?? 0)));
-        const cat5Tax = taxInvoices.filter(t => cat5TaxYMs.has((t.year ?? 0) * 100 + (t.month ?? 0)));
 
         const ws3 = wb.addWorksheet("안전보건교육비");
         setupCols(ws3);
@@ -10811,20 +10716,6 @@ ${htmlDraft}
               }
             }
 
-            // 해당 연월 세금계산서 (별도 테이블)
-            const mTax = cat5Tax.filter(t => (t.year ?? 0) * 100 + (t.month ?? 0) === ym);
-            if (mTax.length > 0) {
-              r3 = addFullLabel(ws3, r3, `  💰 ${ymLabel(ym)} 세금계산서`, "FFFFF3D6");
-              for (const t of mTax) {
-                if (t.vendorName) {
-                  r3 = addFullLabel(ws3, r3,
-                    `  업체: ${t.vendorName}  |  합계: ${Number(t.totalAmount || 0).toLocaleString()}원`,
-                    "FFFEF9E7");
-                }
-                r3 = addFullImg(ws3, r3, getPages(t.fileUrl), !!t.fileUrl);
-              }
-            }
-
             ws3.getRow(r3).height = 14;
             r3++;
           }
@@ -10836,8 +10727,6 @@ ${htmlDraft}
         // ════════════════════════════════════════════════════════════
         const cat9Recs = records.filter(r => r.category === CAT9);
         const cat9ByYM = groupByYM(cat9Recs);
-        const cat9TaxYMs = new Set(cat9Recs.map(r => (r.year ?? 0) * 100 + (r.month ?? 0)));
-        const cat9Tax = taxInvoices.filter(t => cat9TaxYMs.has((t.year ?? 0) * 100 + (t.month ?? 0)));
 
         const ws4 = wb.addWorksheet("위험성평가_비용");
         setupCols(ws4);
@@ -10862,20 +10751,6 @@ ${htmlDraft}
               if (freshQ4 || freshT4) {
                 r4 = addLRLabel(ws4, r4, "  📄 견적서", "  📋 거래명세서", "FFD6E4F7", "FFD6F0E4");
                 r4 = addImgPair(ws4, r4, freshQ4 ? getPages(rec.quoteFileUrl) : [], freshT4 ? getPages(rec.transactionFileUrl) : [], freshQ4, freshT4);
-              }
-            }
-
-            // 해당 연월 세금계산서
-            const mTax9 = cat9Tax.filter(t => (t.year ?? 0) * 100 + (t.month ?? 0) === ym);
-            if (mTax9.length > 0) {
-              r4 = addFullLabel(ws4, r4, `  💰 ${ymLabel(ym)} 세금계산서`, "FFFFF3D6");
-              for (const t of mTax9) {
-                if (t.vendorName) {
-                  r4 = addFullLabel(ws4, r4,
-                    `  업체: ${t.vendorName}  |  공급가액: ${Number(t.supplyAmount || 0).toLocaleString()}원  |  합계: ${Number(t.totalAmount || 0).toLocaleString()}원`,
-                    "FFFEF9E7");
-                }
-                r4 = addFullImg(ws4, r4, getPages(t.fileUrl), !!t.fileUrl);
               }
             }
 
