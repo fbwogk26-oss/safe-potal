@@ -10617,15 +10617,18 @@ ${htmlDraft}
           for (const [ym, mRecs] of cat3ByYM) {
             r1 = addMonthHdr(ws1, r1, `  ${ymLabel(ym)} 개인보호구 및 안전장구 구입비`, "FF2E75B6");
 
+            const seenUrls1 = new Set<string>();
             for (const rec of mRecs) {
               r1 = addFullLabel(ws1, r1,
                 `  품명: ${rec.itemName || "-"}  |  업체: ${rec.vendorName || "-"}  |  금액: ${Number(rec.totalAmount || 0).toLocaleString()}원`,
                 "FFE8F0FE");
-              const hasQ = !!rec.quoteFileUrl;
-              const hasT = !!rec.transactionFileUrl;
-              if (hasQ || hasT) {
+              const freshQ = !!rec.quoteFileUrl && !seenUrls1.has(rec.quoteFileUrl);
+              const freshT = !!rec.transactionFileUrl && !seenUrls1.has(rec.transactionFileUrl);
+              if (rec.quoteFileUrl) seenUrls1.add(rec.quoteFileUrl);
+              if (rec.transactionFileUrl) seenUrls1.add(rec.transactionFileUrl);
+              if (freshQ || freshT) {
                 r1 = addLRLabel(ws1, r1, "  📄 견적서", "  📋 거래명세서", "FFD6E4F7", "FFD6F0E4");
-                r1 = addImgPair(ws1, r1, getPages(rec.quoteFileUrl), getPages(rec.transactionFileUrl), hasQ, hasT);
+                r1 = addImgPair(ws1, r1, freshQ ? getPages(rec.quoteFileUrl) : [], freshT ? getPages(rec.transactionFileUrl) : [], freshQ, freshT);
               }
             }
 
@@ -10832,13 +10835,18 @@ ${htmlDraft}
           for (const [ym, mRecs] of cat9ByYM) {
             r4 = addMonthHdr(ws4, r4, `  ${ymLabel(ym)} 위험성평가/산보위 비용`, "FF833C00");
 
+            const seenUrls4 = new Set<string>();
             for (const rec of mRecs) {
               r4 = addFullLabel(ws4, r4,
                 `  품명: ${rec.itemName || "-"}  |  업체: ${rec.vendorName || "-"}  |  금액: ${Number(rec.totalAmount || 0).toLocaleString()}원`,
                 "FFE8F0FE");
-              if (rec.quoteFileUrl || rec.transactionFileUrl) {
+              const freshQ4 = !!rec.quoteFileUrl && !seenUrls4.has(rec.quoteFileUrl);
+              const freshT4 = !!rec.transactionFileUrl && !seenUrls4.has(rec.transactionFileUrl);
+              if (rec.quoteFileUrl) seenUrls4.add(rec.quoteFileUrl);
+              if (rec.transactionFileUrl) seenUrls4.add(rec.transactionFileUrl);
+              if (freshQ4 || freshT4) {
                 r4 = addLRLabel(ws4, r4, "  📄 견적서", "  📋 거래명세서", "FFD6E4F7", "FFD6F0E4");
-                r4 = addImgPair(ws4, r4, getPages(rec.quoteFileUrl), getPages(rec.transactionFileUrl), !!rec.quoteFileUrl, !!rec.transactionFileUrl);
+                r4 = addImgPair(ws4, r4, freshQ4 ? getPages(rec.quoteFileUrl) : [], freshT4 ? getPages(rec.transactionFileUrl) : [], freshQ4, freshT4);
               }
             }
 
