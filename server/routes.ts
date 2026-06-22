@@ -10608,6 +10608,21 @@ ${htmlDraft}
           return `${String(y).slice(2)}년 ${m}월`;
         }
 
+        // ─── 헬퍼: 문서쌍(견적서+거래명세서)으로 레코드 그룹핑 ────────
+        function groupByDocPair<T extends {
+          quoteFileUrl?: string | null;
+          transactionFileUrl?: string | null;
+          taxInvoiceFileUrl?: string | null;
+        }>(recs: T[]): Map<string, T[]> {
+          const map = new Map<string, T[]>();
+          for (const rec of recs) {
+            const key = (rec.quoteFileUrl || '') + '\x00' + (rec.transactionFileUrl || '');
+            if (!map.has(key)) map.set(key, []);
+            map.get(key)!.push(rec);
+          }
+          return map;
+        }
+
         // ─── 카테고리 상수 ───────────────────────────────────────────
         const CAT1 = "1. 안전관리자 등 인건비 및 각종 업무수당 등";
         const CAT3 = "3. 개인보호구 및 안전장구 구입비 등";
@@ -10632,20 +10647,22 @@ ${htmlDraft}
           for (const [ym, mRecs] of cat3ByYM) {
             r1 = addMonthHdr(ws1, r1, `  ${ymLabel(ym)} 개인보호구 및 안전장구 구입비`, "FF2E75B6");
 
-            const seenUrls1 = new Set<string>();
-            for (const rec of mRecs) {
-              r1 = addInfoGrid(ws1, r1, [
-                { label: "품명", value: rec.itemName || "-" },
-                { label: "업체", value: rec.vendorName || "-" },
-                { label: "금액", value: `${Number(rec.totalAmount || 0).toLocaleString()}원` },
-              ], "FFE8F0FE", "FF2E75B6");
-              const freshQ = !!rec.quoteFileUrl && !seenUrls1.has(rec.quoteFileUrl);
-              const freshT = !!rec.transactionFileUrl && !seenUrls1.has(rec.transactionFileUrl);
-              if (rec.quoteFileUrl) seenUrls1.add(rec.quoteFileUrl);
-              if (rec.transactionFileUrl) seenUrls1.add(rec.transactionFileUrl);
-              if (freshQ || freshT) {
+            for (const groupRecs of groupByDocPair(mRecs).values()) {
+              // ① 같은 문서를 공유하는 물품들의 정보를 먼저 모두 표시
+              for (const rec of groupRecs) {
+                r1 = addInfoGrid(ws1, r1, [
+                  { label: "품명", value: rec.itemName || "-" },
+                  { label: "업체", value: rec.vendorName || "-" },
+                  { label: "금액", value: `${Number(rec.totalAmount || 0).toLocaleString()}원` },
+                ], "FFE8F0FE", "FF2E75B6");
+              }
+              // ② 문서 이미지는 한 번만
+              const rep1 = groupRecs[0];
+              const hasQ1 = !!rep1.quoteFileUrl;
+              const hasT1 = !!rep1.transactionFileUrl;
+              if (hasQ1 || hasT1) {
                 r1 = addLRLabel(ws1, r1, "  📄 견적서", "  📋 거래명세서", "FFD6E4F7", "FFD6F0E4");
-                r1 = addImgPair(ws1, r1, freshQ ? getPages(rec.quoteFileUrl) : [], freshT ? getPages(rec.transactionFileUrl) : [], freshQ, freshT);
+                r1 = addImgPair(ws1, r1, hasQ1 ? getPages(rep1.quoteFileUrl) : [], hasT1 ? getPages(rep1.transactionFileUrl) : [], hasQ1, hasT1);
               }
             }
 
@@ -10774,29 +10791,36 @@ ${htmlDraft}
           for (const [ym, mRecs] of cat5ByYM) {
             r3 = addMonthHdr(ws3, r3, `  ${ymLabel(ym)} 안전보건교육비 집행`, "FF7030A0");
 
-            for (const rec of mRecs) {
-              r3 = addInfoGrid(ws3, r3, [
-                { label: "교육명", value: rec.itemName || "-" },
-                { label: "업체", value: rec.vendorName || "-" },
-                { label: "구매일", value: rec.purchaseDate || "-" },
-                { label: "금액", value: `${Number(rec.totalAmount || 0).toLocaleString()}원` },
-              ], "FFF3E8FD", "FF7030A0");
-
-              if (rec.taxInvoiceFileUrl) {
+            for (const groupRecs of groupByDocPair(mRecs).values()) {
+              // ① 같은 문서를 공유하는 교육항목 정보 먼저 모두 표시
+              for (const rec of groupRecs) {
+                r3 = addInfoGrid(ws3, r3, [
+                  { label: "교육명", value: rec.itemName || "-" },
+                  { label: "업체", value: rec.vendorName || "-" },
+                  { label: "구매일", value: rec.purchaseDate || "-" },
+                  { label: "금액", value: `${Number(rec.totalAmount || 0).toLocaleString()}원` },
+                ], "FFF3E8FD", "FF7030A0");
+              }
+              // ② 공유 문서 이미지는 한 번만 (대표 레코드 기준)
+              const rep3 = groupRecs[0];
+              if (rep3.taxInvoiceFileUrl) {
                 r3 = addFullLabel(ws3, r3, "  💰 세금계산서", "FFFFF3D6");
-                r3 = addFullImg(ws3, r3, getPages(rec.taxInvoiceFileUrl), true);
+                r3 = addFullImg(ws3, r3, getPages(rep3.taxInvoiceFileUrl), true);
               }
-              if (rec.transactionFileUrl) {
+              if (rep3.transactionFileUrl) {
                 r3 = addFullLabel(ws3, r3, "  🧾 거래명세서", "FFD6E4F7");
-                r3 = addFullImg(ws3, r3, getPages(rec.transactionFileUrl), true);
+                r3 = addFullImg(ws3, r3, getPages(rep3.transactionFileUrl), true);
               }
-              if (rec.quoteFileUrl) {
+              if (rep3.quoteFileUrl) {
                 r3 = addFullLabel(ws3, r3, "  📄 견적서 / 관련서류", "FFE8D6F7");
-                r3 = addFullImg(ws3, r3, getPages(rec.quoteFileUrl), true);
+                r3 = addFullImg(ws3, r3, getPages(rep3.quoteFileUrl), true);
               }
-              if (rec.certificateFileUrl) {
-                r3 = addFullLabel(ws3, r3, "  🎓 수료증 / 이수증", "FFEAD6F7");
-                r3 = addFullImg(ws3, r3, getPages(rec.certificateFileUrl), true);
+              // ③ 수료증은 레코드별 개별 표시 (각 교육생마다 다를 수 있음)
+              for (const rec of groupRecs) {
+                if (rec.certificateFileUrl) {
+                  r3 = addFullLabel(ws3, r3, "  🎓 수료증 / 이수증", "FFEAD6F7");
+                  r3 = addFullImg(ws3, r3, getPages(rec.certificateFileUrl), true);
+                }
               }
             }
 
@@ -10823,20 +10847,22 @@ ${htmlDraft}
           for (const [ym, mRecs] of cat9ByYM) {
             r4 = addMonthHdr(ws4, r4, `  ${ymLabel(ym)} 위험성평가/산보위 비용`, "FF833C00");
 
-            const seenUrls4 = new Set<string>();
-            for (const rec of mRecs) {
-              r4 = addInfoGrid(ws4, r4, [
-                { label: "품명", value: rec.itemName || "-" },
-                { label: "업체", value: rec.vendorName || "-" },
-                { label: "금액", value: `${Number(rec.totalAmount || 0).toLocaleString()}원` },
-              ], "FFE8F0FE", "FF833C00");
-              const freshQ4 = !!rec.quoteFileUrl && !seenUrls4.has(rec.quoteFileUrl);
-              const freshT4 = !!rec.transactionFileUrl && !seenUrls4.has(rec.transactionFileUrl);
-              if (rec.quoteFileUrl) seenUrls4.add(rec.quoteFileUrl);
-              if (rec.transactionFileUrl) seenUrls4.add(rec.transactionFileUrl);
-              if (freshQ4 || freshT4) {
+            for (const groupRecs of groupByDocPair(mRecs).values()) {
+              // ① 같은 문서를 공유하는 물품들의 정보를 먼저 모두 표시
+              for (const rec of groupRecs) {
+                r4 = addInfoGrid(ws4, r4, [
+                  { label: "품명", value: rec.itemName || "-" },
+                  { label: "업체", value: rec.vendorName || "-" },
+                  { label: "금액", value: `${Number(rec.totalAmount || 0).toLocaleString()}원` },
+                ], "FFE8F0FE", "FF833C00");
+              }
+              // ② 문서 이미지는 한 번만
+              const rep4 = groupRecs[0];
+              const hasQ4 = !!rep4.quoteFileUrl;
+              const hasT4 = !!rep4.transactionFileUrl;
+              if (hasQ4 || hasT4) {
                 r4 = addLRLabel(ws4, r4, "  📄 견적서", "  📋 거래명세서", "FFD6E4F7", "FFD6F0E4");
-                r4 = addImgPair(ws4, r4, freshQ4 ? getPages(rec.quoteFileUrl) : [], freshT4 ? getPages(rec.transactionFileUrl) : [], freshQ4, freshT4);
+                r4 = addImgPair(ws4, r4, hasQ4 ? getPages(rep4.quoteFileUrl) : [], hasT4 ? getPages(rep4.transactionFileUrl) : [], hasQ4, hasT4);
               }
             }
 
