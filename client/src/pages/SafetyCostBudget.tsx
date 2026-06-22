@@ -18,7 +18,7 @@ import {
   Plus, Trash2, Edit2, Upload, FileText, ImageIcon, Loader2,
   BarChart3, List, X, Download, Receipt, FileCheck, PackagePlus, CheckSquare, FileScan, ScrollText, Wallet
 } from "lucide-react";
-import type { SafetyCostRecord } from "@shared/schema";
+import type { SafetyCostRecord, SafetyCostTaxInvoice } from "@shared/schema";
 
 // ── 상수 ────────────────────────────────────────────────────────────
 const CATEGORIES = [
@@ -133,7 +133,7 @@ export default function SafetyCostBudget() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [year, setYear] = useState(currentYear);
-  const [activeTab, setActiveTab] = useState<"list" | "summary">("list");
+  const [activeTab, setActiveTab] = useState<"list" | "summary" | "tax">("list");
   const [filterCat, setFilterCat] = useState("all");
   const [filterMonth, setFilterMonth] = useState("all");
 
@@ -182,6 +182,19 @@ export default function SafetyCostBudget() {
   const [recTaxFile, setRecTaxFile] = useState<File | null>(null);
   const [recTaxUploading, setRecTaxUploading] = useState(false);
   const [recTaxSaving, setRecTaxSaving] = useState(false);
+
+  // ── 세금계산서 탭 state ────────────────────────────────────────────
+  const [taxDlgOpen, setTaxDlgOpen] = useState(false);
+  const [editTax, setEditTax] = useState<SafetyCostTaxInvoice | null>(null);
+  const [taxForm, setTaxForm] = useState({
+    year: currentYear, month: new Date().getMonth() + 1,
+    vendorName: "", supplyAmount: "", vatAmount: "", totalAmount: "",
+    notes: "", fileUrl: "",
+  });
+  const [taxFile, setTaxFile] = useState<File | null>(null);
+  const [taxFileUploading, setTaxFileUploading] = useState(false);
+  const [taxDelConfirm, setTaxDelConfirm] = useState<{ id: number } | null>(null);
+  const taxFileRef = useRef<HTMLInputElement>(null);
 
   // 첨부파일 미리보기
   const [preview, setPreview] = useState<{ url: string; title: string } | null>(null);
@@ -263,6 +276,27 @@ export default function SafetyCostBudget() {
       setBudgetDlgOpen(false);
     },
     onError: (e: any) => toast({ title: "저장 실패", description: e.message, variant: "destructive" }),
+  });
+
+  // ── 세금계산서 Query/Mutation ─────────────────────────────────────
+  const { data: taxInvoices = [] } = useQuery<SafetyCostTaxInvoice[]>({
+    queryKey: ["/api/safety-cost-tax-invoices", year, headquarters],
+    queryFn: () => fetch(`/api/safety-cost-tax-invoices?year=${year}&headquarters=${encodeURIComponent(headquarters)}`, { credentials: "include" }).then(r => r.json()),
+  });
+  const taxCreateMut = useMutation({
+    mutationFn: (d: any) => apiRequest("POST", "/api/safety-cost-tax-invoices", { ...d, headquarters }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/safety-cost-tax-invoices"] }); toast({ title: "저장 완료" }); closeTaxDlg(); },
+    onError: (e: any) => toast({ title: "저장 실패", description: e.message, variant: "destructive" }),
+  });
+  const taxUpdateMut = useMutation({
+    mutationFn: ({ id, d }: { id: number; d: any }) => apiRequest("PUT", `/api/safety-cost-tax-invoices/${id}`, d),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/safety-cost-tax-invoices"] }); toast({ title: "수정 완료" }); closeTaxDlg(); },
+    onError: (e: any) => toast({ title: "수정 실패", description: e.message, variant: "destructive" }),
+  });
+  const taxDeleteMut = useMutation({
+    mutationFn: (id: number) => apiRequest("DELETE", `/api/safety-cost-tax-invoices/${id}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/safety-cost-tax-invoices"] }); toast({ title: "삭제 완료" }); setTaxDelConfirm(null); },
+    onError: (e: any) => toast({ title: "삭제 실패", description: e.message, variant: "destructive" }),
   });
 
   // ── 단일 등록 다이얼로그 헬퍼 ─────────────────────────────────────
@@ -693,6 +727,54 @@ export default function SafetyCostBudget() {
     });
   }
 
+  // ── 세금계산서 탭 헬퍼 ───────────────────────────────────────────
+  function openTaxAdd() {
+    setEditTax(null);
+    setTaxForm({ year, month: new Date().getMonth() + 1, vendorName: "", supplyAmount: "", vatAmount: "", totalAmount: "", notes: "", fileUrl: "" });
+    setTaxFile(null);
+    setTaxDlgOpen(true);
+  }
+  function openTaxEdit(t: SafetyCostTaxInvoice) {
+    setEditTax(t);
+    setTaxForm({ year: t.year, month: t.month, vendorName: t.vendorName || "", supplyAmount: t.supplyAmount?.toString() || "", vatAmount: t.vatAmount?.toString() || "", totalAmount: t.totalAmount?.toString() || "", notes: t.notes || "", fileUrl: t.fileUrl || "" });
+    setTaxFile(null);
+    setTaxDlgOpen(true);
+  }
+  function closeTaxDlg() { setTaxDlgOpen(false); setEditTax(null); setTaxFile(null); }
+  function setTaxF(k: string, v: any) { setTaxForm(p => ({ ...p, [k]: v })); }
+  function autoCalcTax(k: string, v: string) {
+    const up = { ...taxForm, [k]: v };
+    const s = parseFloat(up.supplyAmount || "0");
+    if (k === "supplyAmount" && !isNaN(s) && s > 0) {
+      const vat = Math.round(s * 0.1);
+      up.vatAmount = vat.toString();
+      up.totalAmount = (s + vat).toString();
+    }
+    setTaxForm(up);
+  }
+  async function saveTax() {
+    let fileUrl = taxForm.fileUrl;
+    if (taxFile) {
+      setTaxFileUploading(true);
+      try {
+        const fd = new FormData();
+        fd.append("file", taxFile);
+        const r = await fetch("/api/safety-cost-records/upload-file", { method: "POST", body: fd, credentials: "include" });
+        if (!r.ok) throw new Error("파일 업로드 실패");
+        const data = await r.json();
+        fileUrl = data.url;
+      } finally {
+        setTaxFileUploading(false);
+      }
+    }
+    const payload = { ...taxForm, supplyAmount: toNum(taxForm.supplyAmount), vatAmount: toNum(taxForm.vatAmount), totalAmount: toNum(taxForm.totalAmount), fileUrl };
+    if (editTax) {
+      taxUpdateMut.mutate({ id: editTax.id, d: payload });
+    } else {
+      taxCreateMut.mutate(payload);
+    }
+  }
+
   // ── AI 추출 ───────────────────────────────────────────────────────
   async function handleExtract(docType: "quote"|"transaction", file: File) {
     setExtracting(docType);
@@ -928,6 +1010,7 @@ export default function SafetyCostBudget() {
         <TabsList>
           <TabsTrigger value="list" data-testid="tab-list"><List className="w-4 h-4 mr-1 hidden sm:inline" />사용내역</TabsTrigger>
           <TabsTrigger value="summary" data-testid="tab-summary"><BarChart3 className="w-4 h-4 mr-1 hidden sm:inline" />항목별 요약</TabsTrigger>
+          <TabsTrigger value="tax" data-testid="tab-tax"><Receipt className="w-4 h-4 mr-1 hidden sm:inline" />세금계산서</TabsTrigger>
         </TabsList>
 
         {/* ══ 사용내역 탭 ══ */}
@@ -1251,7 +1334,173 @@ export default function SafetyCostBudget() {
           </div>
         </TabsContent>
 
+        {/* ══ 세금계산서 탭 ══ */}
+        <TabsContent value="tax" className="mt-3">
+          <div className="flex justify-between items-center mb-3">
+            <p className="text-sm text-muted-foreground">월별 세금계산서를 등록하고 관리합니다.</p>
+            <Button size="sm" onClick={openTaxAdd} data-testid="btn-add-tax-invoice">
+              <Plus className="w-4 h-4 mr-1" />세금계산서 등록
+            </Button>
+          </div>
+          {taxInvoices.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2">
+              <Receipt className="w-10 h-10 opacity-30" />
+              <p className="text-sm">등록된 세금계산서가 없습니다.</p>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {(() => {
+                const byMonth: Record<number, SafetyCostTaxInvoice[]> = {};
+                for (const t of taxInvoices) {
+                  if (!byMonth[t.month]) byMonth[t.month] = [];
+                  byMonth[t.month].push(t);
+                }
+                return Object.keys(byMonth).sort((a, b) => Number(a) - Number(b)).map(mStr => {
+                  const m = Number(mStr);
+                  const mTaxes = byMonth[m];
+                  return (
+                    <div key={m}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="font-semibold text-sm text-primary">{year}년 {m}월</span>
+                        <Badge variant="secondary" className="text-xs">{mTaxes.length}건</Badge>
+                        <span className="text-xs text-muted-foreground ml-auto">
+                          합계: {fmt(mTaxes.reduce((s, t) => s + toNum(t.totalAmount), 0))}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-3">
+                        {mTaxes.map(t => (
+                          <Card key={t.id} className="w-72 shrink-0" data-testid={`card-tax-invoice-${t.id}`}>
+                            <CardContent className="p-3 space-y-2">
+                              <div className="flex justify-between items-start">
+                                <div>
+                                  <p className="font-medium text-sm truncate max-w-[160px]" title={t.vendorName || ""}>{t.vendorName || "업체명 없음"}</p>
+                                  <p className="text-xs text-muted-foreground">{year}년 {t.month}월</p>
+                                </div>
+                                <div className="flex gap-1">
+                                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openTaxEdit(t)} data-testid={`btn-edit-tax-${t.id}`}><Edit2 className="w-3.5 h-3.5" /></Button>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setTaxDelConfirm({ id: t.id })} data-testid={`btn-del-tax-${t.id}`}><Trash2 className="w-3.5 h-3.5" /></Button>
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-2 gap-x-2 text-xs text-muted-foreground">
+                                <span>공급가액</span><span className="text-right font-medium text-foreground">{fmt(t.supplyAmount)}</span>
+                                <span>세액</span><span className="text-right font-medium text-foreground">{fmt(t.vatAmount)}</span>
+                                <span className="font-semibold text-foreground">합계</span><span className="text-right font-bold text-primary">{fmt(t.totalAmount)}</span>
+                              </div>
+                              {t.notes && <p className="text-xs text-muted-foreground border-t pt-1 truncate">{t.notes}</p>}
+                              {t.fileUrl ? (
+                                <Button variant="outline" size="sm" className="w-full h-7 text-xs gap-1" onClick={() => setPreview({ url: t.fileUrl!, title: `${t.vendorName || "세금계산서"} (${year}년 ${t.month}월)` })} data-testid={`btn-preview-tax-${t.id}`}>
+                                  <ImageIcon className="w-3.5 h-3.5" />첨부파일 보기
+                                </Button>
+                              ) : (
+                                <p className="text-xs text-muted-foreground/50 text-center py-1">첨부파일 없음</p>
+                              )}
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+          )}
+        </TabsContent>
+
       </Tabs>
+
+      {/* ══ 세금계산서 등록/수정 다이얼로그 ══ */}
+      <Dialog open={taxDlgOpen} onOpenChange={v => { if (!v) closeTaxDlg(); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Receipt className="w-5 h-5 text-primary" />
+              {editTax ? "세금계산서 수정" : "세금계산서 등록"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">연도</Label>
+                <Select value={taxForm.year.toString()} onValueChange={v => setTaxF("year", Number(v))}>
+                  <SelectTrigger data-testid="select-tax-year"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {[currentYear - 1, currentYear, currentYear + 1].map(y => <SelectItem key={y} value={y.toString()}>{y}년</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">월</Label>
+                <Select value={taxForm.month.toString()} onValueChange={v => setTaxF("month", Number(v))}>
+                  <SelectTrigger data-testid="select-tax-month"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {MONTHS.map((m, i) => <SelectItem key={i + 1} value={(i + 1).toString()}>{m}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">업체명</Label>
+              <Input value={taxForm.vendorName} onChange={e => setTaxF("vendorName", e.target.value)} placeholder="업체명 입력" data-testid="input-tax-vendor" />
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="space-y-1">
+                <Label className="text-xs">공급가액</Label>
+                <Input type="number" value={taxForm.supplyAmount} onChange={e => autoCalcTax("supplyAmount", e.target.value)} placeholder="0" data-testid="input-tax-supply" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">세액</Label>
+                <Input type="number" value={taxForm.vatAmount} onChange={e => setTaxF("vatAmount", e.target.value)} placeholder="0" data-testid="input-tax-vat" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">합계금액</Label>
+                <Input type="number" value={taxForm.totalAmount} onChange={e => setTaxF("totalAmount", e.target.value)} placeholder="0" data-testid="input-tax-total" />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">비고</Label>
+              <Textarea value={taxForm.notes} onChange={e => setTaxF("notes", e.target.value)} placeholder="비고 (선택)" rows={2} data-testid="textarea-tax-notes" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">첨부파일 (이미지/PDF)</Label>
+              <input ref={taxFileRef} type="file" accept="image/*,.pdf" className="hidden" onChange={e => setTaxFile(e.target.files?.[0] ?? null)} />
+              <div className="flex gap-2 items-center">
+                <Button type="button" variant="outline" size="sm" className="gap-1" onClick={() => taxFileRef.current?.click()} data-testid="btn-tax-file-pick">
+                  <Upload className="w-3.5 h-3.5" />{taxFile ? taxFile.name : "파일 선택"}
+                </Button>
+                {(taxForm.fileUrl || taxFile) && (
+                  <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => { setTaxFile(null); setTaxF("fileUrl", ""); }}>
+                    <X className="w-3.5 h-3.5" />
+                  </Button>
+                )}
+                {taxForm.fileUrl && !taxFile && (
+                  <Button type="button" variant="ghost" size="sm" className="h-8 gap-1 text-xs" onClick={() => setPreview({ url: taxForm.fileUrl, title: "첨부파일 미리보기" })}>
+                    <ImageIcon className="w-3.5 h-3.5" />현재 파일 보기
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeTaxDlg}>취소</Button>
+            <Button onClick={saveTax} disabled={taxCreateMut.isPending || taxUpdateMut.isPending || taxFileUploading} data-testid="btn-save-tax">
+              {(taxCreateMut.isPending || taxUpdateMut.isPending || taxFileUploading) ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+              저장
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ══ 세금계산서 삭제 확인 ══ */}
+      <Dialog open={!!taxDelConfirm} onOpenChange={v => { if (!v) setTaxDelConfirm(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>세금계산서 삭제</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">이 세금계산서를 삭제하시겠습니까?</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTaxDelConfirm(null)}>취소</Button>
+            <Button variant="destructive" onClick={() => taxDelConfirm && taxDeleteMut.mutate(taxDelConfirm.id)} disabled={taxDeleteMut.isPending}>삭제</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ══ 예산 입력 다이얼로그 ══ */}
       <Dialog open={budgetDlgOpen} onOpenChange={setBudgetDlgOpen}>

@@ -44,6 +44,8 @@ import {
   type EducationTask, type InsertEducationTask,
   safetyCostRecords,
   type SafetyCostRecord, type InsertSafetyCostRecord,
+  safetyCostTaxInvoices,
+  type SafetyCostTaxInvoice, type InsertSafetyCostTaxInvoice,
   attendanceUploads,
   type AttendanceUpload, type InsertAttendanceUpload,
   attendanceRecords,
@@ -286,6 +288,11 @@ export interface IStorage {
   updateSafetyCostRecord(id: number, data: Partial<InsertSafetyCostRecord>): Promise<SafetyCostRecord>;
   deleteSafetyCostRecord(id: number): Promise<void>;
 
+  // 세금계산서 (월별)
+  getSafetyCostTaxInvoices(filters?: { year?: number; headquarters?: string; startYM?: number; endYM?: number }): Promise<SafetyCostTaxInvoice[]>;
+  createSafetyCostTaxInvoice(data: InsertSafetyCostTaxInvoice): Promise<SafetyCostTaxInvoice>;
+  updateSafetyCostTaxInvoice(id: number, data: Partial<InsertSafetyCostTaxInvoice>): Promise<SafetyCostTaxInvoice>;
+  deleteSafetyCostTaxInvoice(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1117,6 +1124,29 @@ export class DatabaseStorage implements IStorage {
   }
   async deleteSafetyCostRecord(id: number): Promise<void> {
     await db.delete(safetyCostRecords).where(eq(safetyCostRecords.id, id));
+  }
+
+  // === 세금계산서 (월별) ===
+  async getSafetyCostTaxInvoices(filters?: { year?: number; headquarters?: string; startYM?: number; endYM?: number }): Promise<SafetyCostTaxInvoice[]> {
+    const conditions: any[] = [];
+    if (filters?.year) conditions.push(eq(safetyCostTaxInvoices.year, filters.year));
+    if (filters?.headquarters) conditions.push(eq(safetyCostTaxInvoices.headquarters, filters.headquarters));
+    if (filters?.startYM) conditions.push(gte(sql<number>`${safetyCostTaxInvoices.year} * 100 + ${safetyCostTaxInvoices.month}`, filters.startYM));
+    if (filters?.endYM) conditions.push(lte(sql<number>`${safetyCostTaxInvoices.year} * 100 + ${safetyCostTaxInvoices.month}`, filters.endYM));
+    const q = db.select().from(safetyCostTaxInvoices);
+    const filtered = conditions.length > 0 ? q.where(conditions.length === 1 ? conditions[0] : and(...conditions)) : q;
+    return await filtered.orderBy(asc(safetyCostTaxInvoices.year), asc(safetyCostTaxInvoices.month), asc(safetyCostTaxInvoices.id));
+  }
+  async createSafetyCostTaxInvoice(data: InsertSafetyCostTaxInvoice): Promise<SafetyCostTaxInvoice> {
+    const [row] = await db.insert(safetyCostTaxInvoices).values(data).returning();
+    return row;
+  }
+  async updateSafetyCostTaxInvoice(id: number, data: Partial<InsertSafetyCostTaxInvoice>): Promise<SafetyCostTaxInvoice> {
+    const [row] = await db.update(safetyCostTaxInvoices).set(data).where(eq(safetyCostTaxInvoices.id, id)).returning();
+    return row;
+  }
+  async deleteSafetyCostTaxInvoice(id: number): Promise<void> {
+    await db.delete(safetyCostTaxInvoices).where(eq(safetyCostTaxInvoices.id, id));
   }
 
   // === 온라인 교육 진도율 ===

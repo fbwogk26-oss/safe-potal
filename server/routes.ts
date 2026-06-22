@@ -10172,8 +10172,11 @@ ${htmlDraft}
       }
 
       console.log(`[export] 법정경비 요청: startYM=${startYM}, endYM=${endYM}, hq=${headquarters}`);
-      const records = await storage.getSafetyCostRecords({ headquarters, startYM, endYM });
-      console.log(`[export] DB 완료: records=${records.length}`);
+      const [records, taxInvoices] = await Promise.all([
+        storage.getSafetyCostRecords({ headquarters, startYM, endYM }),
+        storage.getSafetyCostTaxInvoices({ headquarters, startYM, endYM }),
+      ]);
+      console.log(`[export] DB 완료: records=${records.length}, taxInvoices=${taxInvoices.length}`);
 
       // ─── 헬퍼: URL → Buffer ──────────────────────────────────────────
       async function fetchBuf(url: string): Promise<Buffer | null> {
@@ -10315,6 +10318,9 @@ ${htmlDraft}
         if (r.certificateFileUrl) allUrls.add(r.certificateFileUrl);
         if (r.taxInvoiceFileUrl) allUrls.add(r.taxInvoiceFileUrl);
       }
+      for (const t of taxInvoices) {
+        if (t.fileUrl) allUrls.add(t.fileUrl);
+      }
 
       console.log(`[export] 첨부파일 로드 시작: ${allUrls.size}개`);
       await Promise.all(Array.from(allUrls).map(async (url) => {
@@ -10323,7 +10329,7 @@ ${htmlDraft}
       }));
       console.log(`[export] 첨부파일 로드 완료`);
 
-      // ─── 엑셀 workbook 생성 함수 (3-시트 증빙자료 형식) ──────────────
+      // ─── 엑셀 workbook 생성 함수 (5-시트 증빙자료 형식) ──────────────
       function buildWorkbook(withImages: boolean): ExcelJS.Workbook {
         const wb = new ExcelJS.Workbook();
         wb.creator = "안전포털시스템";
@@ -10839,6 +10845,68 @@ ${htmlDraft}
           }
         }
 
+        // ════════════════════════════════════════════════════════════
+        // Sheet 5: 세금계산서 (월별)
+        // 같은 월 복수 세금계산서 → 좌/우 가로 배치
+        // ════════════════════════════════════════════════════════════
+        const ws5 = wb.addWorksheet("세금계산서");
+        setupCols(ws5);
+        let r5 = 1;
+        r5 = addTitle(ws5, r5, `세금계산서 현황 (${rangeLabel})`, "FFFFFFFF", "FF1F4E79");
+
+        if (taxInvoices.length === 0) {
+          addFullLabel(ws5, r5, "해당 기간에 등록된 세금계산서가 없습니다.", "FFFFF0F0");
+        } else {
+          // 월별 그룹핑
+          const taxByYM = groupByYM(taxInvoices as any[]);
+
+          for (const [ym, mTaxes] of taxByYM) {
+            r5 = addMonthHdr(ws5, r5, `  ${ymLabel(ym)} 세금계산서`, "FF2E75B6");
+
+            // 2개씩 짝지어 좌/우 가로 배치
+            for (let i = 0; i < mTaxes.length; i += 2) {
+              const left = mTaxes[i] as any;
+              const right = mTaxes[i + 1] as any;
+
+              if (right) {
+                // 좌/우 info 행: 업체 | 금액
+                const lRow = ws5.getRow(r5);
+                lRow.height = INFO_H;
+                // 좌측 정보
+                const lLabel = ws5.getRow(r5).getCell(1);
+                lLabel.value = `${left.vendorName || "업체명 없음"}  |  ${Number(left.totalAmount || 0).toLocaleString()}원`;
+                lLabel.font = { bold: true, size: 12 };
+                lLabel.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE8F0FE" } };
+                lLabel.alignment = { horizontal: "center", vertical: "middle" };
+                lLabel.border = THIN_BORDER;
+                ws5.mergeCells(`A${r5}:${MID_LETTER_L}${r5}`);
+                // 우측 정보
+                const rLabel = ws5.getRow(r5).getCell(MID_IDX + 1);
+                rLabel.value = `${right.vendorName || "업체명 없음"}  |  ${Number(right.totalAmount || 0).toLocaleString()}원`;
+                rLabel.font = { bold: true, size: 12 };
+                rLabel.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE8F5EE" } };
+                rLabel.alignment = { horizontal: "center", vertical: "middle" };
+                rLabel.border = THIN_BORDER;
+                ws5.mergeCells(`${MID_LETTER_R}${r5}:${LAST_LETTER}${r5}`);
+                r5++;
+
+                const lBufs = getPages(left.fileUrl);
+                const rBufs = getPages(right.fileUrl);
+                r5 = addImgPair(ws5, r5, lBufs, rBufs, !!left.fileUrl, !!right.fileUrl);
+              } else {
+                // 홀수 마지막 → 전체 너비
+                r5 = addInfoLabel(ws5, r5,
+                  `  ${left.vendorName || "업체명 없음"}  |  ${Number(left.totalAmount || 0).toLocaleString()}원${left.notes ? "  |  " + left.notes : ""}`,
+                  "FFE8F0FE");
+                r5 = addFullImg(ws5, r5, getPages(left.fileUrl), !!left.fileUrl);
+              }
+            }
+
+            ws5.getRow(r5).height = 14;
+            r5++;
+          }
+        }
+
         return wb;
       }
 
@@ -10866,6 +10934,40 @@ ${htmlDraft}
       console.error("[export] 법정경비 export 오류:", e.message, e.stack?.split('\n').slice(0,3).join(' | '));
       res.status(500).json({ message: "내보내기 실패: " + e.message });
     }
+  });
+
+  // ─── 세금계산서 (월별) CRUD ────────────────────────────────────────────
+  app.get('/api/safety-cost-tax-invoices', isAuthenticated, async (req: any, res) => {
+    try {
+      const year = req.query.year ? Number(req.query.year) : undefined;
+      const headquarters = (req.query.headquarters as string) || undefined;
+      const startYM = req.query.startYM ? Number(req.query.startYM) : undefined;
+      const endYM = req.query.endYM ? Number(req.query.endYM) : undefined;
+      const rows = await storage.getSafetyCostTaxInvoices({ year, headquarters, startYM, endYM });
+      res.json(rows);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.post('/api/safety-cost-tax-invoices', requireEditor, async (req: any, res) => {
+    try {
+      const data = { ...req.body, createdBy: req.user?.username };
+      const row = await storage.createSafetyCostTaxInvoice(data);
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.put('/api/safety-cost-tax-invoices/:id', requireEditor, async (req: any, res) => {
+    try {
+      const row = await storage.updateSafetyCostTaxInvoice(Number(req.params.id), req.body);
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.delete('/api/safety-cost-tax-invoices/:id', requireEditor, async (req: any, res) => {
+    try {
+      await storage.deleteSafetyCostTaxInvoice(Number(req.params.id));
+      res.json({ success: true });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
   // ─── 사용내역 양식 다운로드 (템플릿 기반) ─────────────────────────────
