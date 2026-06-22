@@ -472,7 +472,7 @@ export default function JointInspectionPage() {
       toast({ title: "서명이 등록됐습니다" });
       setSignDialogOpen(false);
       setSignatureData("");
-      setSignForm({ signerName: "", signerDepartment: "", signerRole: "도급인" });
+      setSignForm({ signerName: "", signerDepartment: "", signerRole: "도급인", signerPosition: "" });
     },
     onError: () => toast({ title: "서명 등록 실패", variant: "destructive" }),
   });
@@ -801,8 +801,8 @@ export default function JointInspectionPage() {
                               </div>
                               <p className="font-semibold text-sm truncate">{sig.signerName}</p>
                               <div className="flex items-center gap-1 mt-0.5">
-                                {sig.signerRole && (
-                                  <span className={`text-xs px-1.5 py-0.5 rounded-full shrink-0 ${sig.signerRole === "도급인" ? "bg-blue-100 text-blue-700" : "bg-orange-100 text-orange-700"}`}>{sig.signerRole}</span>
+                                {sig.signerPosition && (
+                                  <span className="text-xs px-1.5 py-0.5 rounded-full shrink-0 bg-gray-100 text-gray-600">{sig.signerPosition}</span>
                                 )}
                                 {sig.signerDepartment && <span className="text-xs text-muted-foreground truncate">{sig.signerDepartment}</span>}
                               </div>

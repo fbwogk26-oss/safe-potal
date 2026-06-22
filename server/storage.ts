@@ -836,6 +836,7 @@ export class DatabaseStorage implements IStorage {
         signerName: jointInspectionSignatures.signerName,
         signerDepartment: jointInspectionSignatures.signerDepartment,
         signerRole: jointInspectionSignatures.signerRole,
+        signerPosition: jointInspectionSignatures.signerPosition,
         signatureData: jointInspectionSignatures.signatureData,
         signedAt: jointInspectionSignatures.signedAt,
         inspectionDate: jointInspections.inspectionDate,
