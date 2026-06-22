@@ -10712,26 +10712,29 @@ ${htmlDraft}
             r1 = addMonthHdr(ws1, r1, `  ${ymLabel(ym)} 개인보호구 및 안전장구 구입비`, "FF2E75B6");
 
             for (const groupRecs of groupByDocPair(mRecs).values()) {
-              // ① 같은 문서를 공유하는 물품들을 2개씩 가로(좌/우)로 배치
+              // ① 같은 문서를 공유하는 물품들을 2개씩 가로(좌/우)로 배치, 필드는 행별로 분리
               for (let gi = 0; gi < groupRecs.length; gi += 2) {
                 const recL = groupRecs[gi];
                 const recR = groupRecs[gi + 1];
+                // 품명 행
                 r1 = addSplitInfoGrid(ws1, r1,
-                  [
-                    { label: "품명", value: recL.itemName || "-" },
-                    { label: "업체", value: recL.vendorName || "-" },
-                    { label: "금액", value: `${Number(recL.totalAmount || 0).toLocaleString()}원` },
-                  ],
-                  recR
-                    ? [
-                        { label: "품명", value: recR.itemName || "-" },
-                        { label: "업체", value: recR.vendorName || "-" },
-                        { label: "금액", value: `${Number(recR.totalAmount || 0).toLocaleString()}원` },
-                      ]
-                    : [],
-                  "FFE8F0FE", "FFE8F0FE",
-                  "FF2E75B6", "FF2E75B6"
+                  [{ label: "품명", value: recL.itemName || "-" }],
+                  recR ? [{ label: "품명", value: recR.itemName || "-" }] : [],
+                  "FFE8F0FE", "FFE8F0FE", "FF2E75B6", "FF2E75B6"
                 );
+                // 업체 행
+                r1 = addSplitInfoGrid(ws1, r1,
+                  [{ label: "업체", value: recL.vendorName || "-" }],
+                  recR ? [{ label: "업체", value: recR.vendorName || "-" }] : [],
+                  "FFE8F0FE", "FFE8F0FE", "FF2E75B6", "FF2E75B6"
+                );
+                // 금액 행
+                r1 = addSplitInfoGrid(ws1, r1,
+                  [{ label: "금액", value: `${Number(recL.totalAmount || 0).toLocaleString()}원` }],
+                  recR ? [{ label: "금액", value: `${Number(recR.totalAmount || 0).toLocaleString()}원` }] : [],
+                  "FFFFFACD", "FFFFFACD", "FF2E75B6", "FF2E75B6"
+                );
+                void rightFn;
               }
               // ② 문서 이미지는 한 번만
               const rep1 = groupRecs[0];
@@ -10795,23 +10798,21 @@ ${htmlDraft}
               "FFD6E4F7", "FFD6F0E4"
             );
 
-            // 항목/업체/금액 정보: 좌(안전) | 우(보건)
+            // 항목/업체/금액 정보: 행별로 분리하여 값 칸 확보
             r2 = addSplitInfoGrid(ws2, r2,
-              sRep
-                ? [
-                    { label: "항목", value: sRep.itemName || "-" },
-                    { label: "업체", value: sRep.vendorName || "-" },
-                    { label: "금액", value: `${sTotal.toLocaleString()}원` },
-                  ]
-                : [],
-              hRep
-                ? [
-                    { label: "항목", value: hRep.itemName || "-" },
-                    { label: "업체", value: hRep.vendorName || "-" },
-                    { label: "금액", value: `${hTotal.toLocaleString()}원` },
-                  ]
-                : [],
+              sRep ? [{ label: "항목", value: sRep.itemName || "-" }] : [],
+              hRep ? [{ label: "항목", value: hRep.itemName || "-" }] : [],
               "FFE8F0FE", "FFE8F5EE", "FF2E75B6", "FF1F7055"
+            );
+            r2 = addSplitInfoGrid(ws2, r2,
+              sRep ? [{ label: "업체", value: sRep.vendorName || "-" }] : [],
+              hRep ? [{ label: "업체", value: hRep.vendorName || "-" }] : [],
+              "FFE8F0FE", "FFE8F5EE", "FF2E75B6", "FF1F7055"
+            );
+            r2 = addSplitInfoGrid(ws2, r2,
+              sRep ? [{ label: "금액", value: `${sTotal.toLocaleString()}원` }] : [],
+              hRep ? [{ label: "금액", value: `${hTotal.toLocaleString()}원` }] : [],
+              "FFFFFACD", "FFFFFACD", "FF2E75B6", "FF1F7055"
             );
 
             // 첨부 이미지: 문서 종류별로 좌/우 페어
@@ -10860,13 +10861,15 @@ ${htmlDraft}
             r3 = addMonthHdr(ws3, r3, `  ${ymLabel(ym)} 안전보건교육비 집행`, "FF7030A0");
 
             for (const groupRecs of groupByDocPair(mRecs).values()) {
-              // ① 같은 문서를 공유하는 교육항목 정보 먼저 모두 표시
+              // ① 같은 문서를 공유하는 교육항목 정보 먼저 모두 표시 (2열씩 행 분리)
               for (const rec of groupRecs) {
                 r3 = addInfoGrid(ws3, r3, [
                   { label: "교육명", value: rec.itemName || "-" },
-                  { label: "업체", value: rec.vendorName || "-" },
+                  { label: "업체",   value: rec.vendorName || "-" },
+                ], "FFF3E8FD", "FF7030A0");
+                r3 = addInfoGrid(ws3, r3, [
                   { label: "구매일", value: rec.purchaseDate || "-" },
-                  { label: "금액", value: `${Number(rec.totalAmount || 0).toLocaleString()}원` },
+                  { label: "금액",   value: `${Number(rec.totalAmount || 0).toLocaleString()}원` },
                 ], "FFF3E8FD", "FF7030A0");
               }
               // ② 공유 문서 이미지는 한 번만 (대표 레코드 기준)
@@ -10916,13 +10919,15 @@ ${htmlDraft}
             r4 = addMonthHdr(ws4, r4, `  ${ymLabel(ym)} 위험성평가/산보위 비용`, "FF833C00");
 
             for (const groupRecs of groupByDocPair(mRecs).values()) {
-              // ① 같은 문서를 공유하는 물품들의 정보를 먼저 모두 표시
+              // ① 같은 문서를 공유하는 물품들의 정보를 먼저 모두 표시 (2열씩 행 분리)
               for (const rec of groupRecs) {
                 r4 = addInfoGrid(ws4, r4, [
                   { label: "품명", value: rec.itemName || "-" },
                   { label: "업체", value: rec.vendorName || "-" },
-                  { label: "금액", value: `${Number(rec.totalAmount || 0).toLocaleString()}원` },
                 ], "FFE8F0FE", "FF833C00");
+                r4 = addInfoGrid(ws4, r4, [
+                  { label: "금액", value: `${Number(rec.totalAmount || 0).toLocaleString()}원` },
+                ], "FFFFFACD", "FF833C00");
               }
               // ② 문서 이미지는 한 번만
               const rep4 = groupRecs[0];
