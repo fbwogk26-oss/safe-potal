@@ -10403,7 +10403,7 @@ ${htmlDraft}
         const LAST_LETTER = "T"; // 20번째 열
         const MID_LETTER_L = "J"; // 10번째 열 (좌 끝)
         const MID_LETTER_R = "K"; // 11번째 열 (우 시작)
-        const IMG_H = 280;
+        const IMG_H = 420;
         const LABEL_H = 22;
         const HDR_H = 28;
 
@@ -10620,9 +10620,13 @@ ${htmlDraft}
                 "FFE8F0FE");
               const hasQ = !!rec.quoteFileUrl;
               const hasT = !!rec.transactionFileUrl;
-              if (hasQ || hasT) {
-                r1 = addLRLabel(ws1, r1, "📄 견적서", "📋 거래명세서", "FFD6E4F7", "FFD6F0E4");
-                r1 = addImgPair(ws1, r1, getPages(rec.quoteFileUrl), getPages(rec.transactionFileUrl), hasQ, hasT);
+              if (hasQ) {
+                r1 = addFullLabel(ws1, r1, "  📄 견적서", "FFD6E4F7");
+                r1 = addFullImg(ws1, r1, getPages(rec.quoteFileUrl), hasQ);
+              }
+              if (hasT) {
+                r1 = addFullLabel(ws1, r1, "  📋 거래명세서", "FFD6F0E4");
+                r1 = addFullImg(ws1, r1, getPages(rec.transactionFileUrl), hasT);
               }
             }
 
@@ -10684,12 +10688,14 @@ ${htmlDraft}
               `  항목: ${mRec.itemName || "-"}  |  업체: ${mRec.vendorName || "-"}  |  금액: ${mRecs.reduce((s, r) => s + Number(r.totalAmount || 0), 0).toLocaleString()}원`,
               "FFE8F0FE");
 
-            const hasQ = mRecs.some(r => !!r.quoteFileUrl);
-            const hasT = mRecs.some(r => !!r.transactionFileUrl);
-            if (hasQ || hasT) {
-              r2 = addLRLabel(ws2, r2, "📋 위탁계약서 / 관련서류", "💰 세금계산서", "FFD6E4F7", "FFFFF3D6");
-              for (const rec of mRecs) {
-                r2 = addImgPair(ws2, r2, getPages(rec.quoteFileUrl), getPages(rec.transactionFileUrl), !!rec.quoteFileUrl, !!rec.transactionFileUrl);
+            for (const rec of mRecs) {
+              if (rec.quoteFileUrl) {
+                r2 = addFullLabel(ws2, r2, "  📋 위탁계약서 / 관련서류", "FFD6E4F7");
+                r2 = addFullImg(ws2, r2, getPages(rec.quoteFileUrl), true);
+              }
+              if (rec.transactionFileUrl) {
+                r2 = addFullLabel(ws2, r2, "  💰 세금계산서", "FFFFF3D6");
+                r2 = addFullImg(ws2, r2, getPages(rec.transactionFileUrl), true);
               }
             }
 
@@ -10723,12 +10729,14 @@ ${htmlDraft}
               `  항목: ${mRec.itemName || "-"}  |  업체: ${mRec.vendorName || "-"}  |  금액: ${mRecs.reduce((s, r) => s + Number(r.totalAmount || 0), 0).toLocaleString()}원`,
               "FFE8F5EE");
 
-            const hasQ = mRecs.some(r => !!r.quoteFileUrl);
-            const hasT = mRecs.some(r => !!r.transactionFileUrl);
-            if (hasQ || hasT) {
-              r2 = addLRLabel(ws2, r2, "📋 위탁계약서 / 관련서류", "💰 세금계산서", "FFD6F0E4", "FFFFF3D6");
-              for (const rec of mRecs) {
-                r2 = addImgPair(ws2, r2, getPages(rec.quoteFileUrl), getPages(rec.transactionFileUrl), !!rec.quoteFileUrl, !!rec.transactionFileUrl);
+            for (const rec of mRecs) {
+              if (rec.quoteFileUrl) {
+                r2 = addFullLabel(ws2, r2, "  📋 위탁계약서 / 관련서류", "FFD6F0E4");
+                r2 = addFullImg(ws2, r2, getPages(rec.quoteFileUrl), true);
+              }
+              if (rec.transactionFileUrl) {
+                r2 = addFullLabel(ws2, r2, "  💰 세금계산서", "FFFFF3D6");
+                r2 = addFullImg(ws2, r2, getPages(rec.transactionFileUrl), true);
               }
             }
             ws2.getRow(r2).height = 14;
@@ -10763,9 +10771,13 @@ ${htmlDraft}
 
               const hasQ = !!rec.quoteFileUrl;
               const hasT = !!rec.transactionFileUrl;
-              if (hasQ || hasT) {
-                r3 = addLRLabel(ws3, r3, "🎓 수료증", "💰 세금계산서", "FFEAD6F7", "FFFFF3D6");
-                r3 = addImgPair(ws3, r3, getPages(rec.quoteFileUrl), getPages(rec.transactionFileUrl), hasQ, hasT);
+              if (hasQ) {
+                r3 = addFullLabel(ws3, r3, "  🎓 수료증", "FFEAD6F7");
+                r3 = addFullImg(ws3, r3, getPages(rec.quoteFileUrl), hasQ);
+              }
+              if (hasT) {
+                r3 = addFullLabel(ws3, r3, "  💰 세금계산서", "FFFFF3D6");
+                r3 = addFullImg(ws3, r3, getPages(rec.transactionFileUrl), hasT);
               }
             }
 
