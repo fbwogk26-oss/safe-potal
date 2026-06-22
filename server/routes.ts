@@ -10313,6 +10313,7 @@ ${htmlDraft}
         if (r.quoteFileUrl) allUrls.add(r.quoteFileUrl);
         if (r.transactionFileUrl) allUrls.add(r.transactionFileUrl);
         if (r.certificateFileUrl) allUrls.add(r.certificateFileUrl);
+        if (r.taxInvoiceFileUrl) allUrls.add(r.taxInvoiceFileUrl);
       }
 
       console.log(`[export] 첨부파일 로드 시작: ${allUrls.size}개`);
@@ -10692,8 +10693,12 @@ ${htmlDraft}
                 r2 = addFullImg(ws2, r2, getPages(rec.quoteFileUrl), true);
               }
               if (rec.transactionFileUrl) {
-                r2 = addFullLabel(ws2, r2, "  💰 세금계산서", "FFFFF3D6");
+                r2 = addFullLabel(ws2, r2, "  🧾 거래명세서", "FFD6F0E4");
                 r2 = addFullImg(ws2, r2, getPages(rec.transactionFileUrl), true);
+              }
+              if (rec.taxInvoiceFileUrl) {
+                r2 = addFullLabel(ws2, r2, "  💰 세금계산서", "FFFFF3D6");
+                r2 = addFullImg(ws2, r2, getPages(rec.taxInvoiceFileUrl), true);
               }
               if (rec.certificateFileUrl) {
                 r2 = addFullLabel(ws2, r2, "  🎓 수료증 / 이수증", "FFEAD6F7");
@@ -10728,8 +10733,12 @@ ${htmlDraft}
                 r2 = addFullImg(ws2, r2, getPages(rec.quoteFileUrl), true);
               }
               if (rec.transactionFileUrl) {
-                r2 = addFullLabel(ws2, r2, "  💰 세금계산서", "FFFFF3D6");
+                r2 = addFullLabel(ws2, r2, "  🧾 거래명세서", "FFD6E4F7");
                 r2 = addFullImg(ws2, r2, getPages(rec.transactionFileUrl), true);
+              }
+              if (rec.taxInvoiceFileUrl) {
+                r2 = addFullLabel(ws2, r2, "  💰 세금계산서", "FFFFF3D6");
+                r2 = addFullImg(ws2, r2, getPages(rec.taxInvoiceFileUrl), true);
               }
               if (rec.certificateFileUrl) {
                 r2 = addFullLabel(ws2, r2, "  🎓 수료증 / 이수증", "FFEAD6F7");
@@ -10767,20 +10776,21 @@ ${htmlDraft}
                 { label: "금액", value: `${Number(rec.totalAmount || 0).toLocaleString()}원` },
               ], "FFF3E8FD", "FF7030A0");
 
-              const hasQ = !!rec.quoteFileUrl;
-              const hasT = !!rec.transactionFileUrl;
-              const hasC = !!rec.certificateFileUrl;
-              if (hasT) {
+              if (rec.taxInvoiceFileUrl) {
                 r3 = addFullLabel(ws3, r3, "  💰 세금계산서", "FFFFF3D6");
-                r3 = addFullImg(ws3, r3, getPages(rec.transactionFileUrl), hasT);
+                r3 = addFullImg(ws3, r3, getPages(rec.taxInvoiceFileUrl), true);
               }
-              if (hasQ) {
-                r3 = addFullLabel(ws3, r3, "  🎓 수료증", "FFEAD6F7");
-                r3 = addFullImg(ws3, r3, getPages(rec.quoteFileUrl), hasQ);
+              if (rec.transactionFileUrl) {
+                r3 = addFullLabel(ws3, r3, "  🧾 거래명세서", "FFD6E4F7");
+                r3 = addFullImg(ws3, r3, getPages(rec.transactionFileUrl), true);
               }
-              if (hasC) {
+              if (rec.quoteFileUrl) {
+                r3 = addFullLabel(ws3, r3, "  📄 견적서 / 관련서류", "FFE8D6F7");
+                r3 = addFullImg(ws3, r3, getPages(rec.quoteFileUrl), true);
+              }
+              if (rec.certificateFileUrl) {
                 r3 = addFullLabel(ws3, r3, "  🎓 수료증 / 이수증", "FFEAD6F7");
-                r3 = addFullImg(ws3, r3, getPages(rec.certificateFileUrl), hasC);
+                r3 = addFullImg(ws3, r3, getPages(rec.certificateFileUrl), true);
               }
             }
 
