@@ -886,6 +886,7 @@ export const jointInspectionSignatures = pgTable("joint_inspection_signatures", 
   signerName: text("signer_name").notNull(),
   signerDepartment: text("signer_department"),
   signerRole: text("signer_role"),
+  signerPosition: text("signer_position"),
   signatureData: text("signature_data").notNull(),
   signedAt: timestamp("signed_at").defaultNow(),
 });
