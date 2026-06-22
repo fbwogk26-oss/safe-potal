@@ -392,7 +392,7 @@ function SignaturePad({ onSave, onClear }: { onSave: (data: string) => void; onC
 // ── 메인 페이지 ─────────────────────────────────────────────
 export default function JointInspectionPage() {
   const { headquarters, departments: DEPARTMENTS } = useHeadquarters();
-  const SUBCONTRACTORS = [...SUBCONTRACTORS_BASE, headquarters];
+  const SUBCONTRACTORS = [...SUBCONTRACTORS_BASE];
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
@@ -934,7 +934,10 @@ export default function JointInspectionPage() {
                   {(signForm.signerRole === "수급인" ? SUBCONTRACTORS : DEPARTMENTS).map(d => (
                     <SelectItem key={d} value={d}>{d}</SelectItem>
                   ))}
-                  <SelectItem value="기타">기타</SelectItem>
+                  {signForm.signerRole === "도급인"
+                    ? <SelectItem value={headquarters}>{headquarters}</SelectItem>
+                    : <SelectItem value="기타">기타</SelectItem>
+                  }
                 </SelectContent>
               </Select>
             </div>
