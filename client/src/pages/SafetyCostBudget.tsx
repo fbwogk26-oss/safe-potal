@@ -995,7 +995,7 @@ export default function SafetyCostBudget() {
             {downloadingTemplate ? <Loader2 className="w-4 h-4 sm:mr-1.5 animate-spin" /> : <Download className="w-4 h-4 sm:mr-1.5" />}
             <span className="hidden sm:inline">사용내역 다운로드</span>
           </Button>
-          <Button variant="outline" className="px-2.5 sm:px-4" title="법정경비 다운로드" onClick={() => setShowExportDialog(true)} disabled={downloading} data-testid="button-download">
+          <Button variant="outline" className="px-2.5 sm:px-4" title="법정경비 다운로드" onClick={() => { setExportStartYear(year); setExportStartMonth(1); setExportEndYear(year); setExportEndMonth(12); setShowExportDialog(true); }} disabled={downloading} data-testid="button-download">
             {downloading ? <Loader2 className="w-4 h-4 sm:mr-1.5 animate-spin" /> : <Download className="w-4 h-4 sm:mr-1.5" />}
             <span className="hidden sm:inline">법정경비 다운로드</span>
           </Button>
