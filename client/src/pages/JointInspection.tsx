@@ -159,7 +159,7 @@ function buildPrintHtml(
         <tr>
           <td class="sig-cell center ${sig.signerRole === "도급인" ? "role-c" : "role-s"}">${sig.signerRole || ""}</td>
           <td class="sig-cell center">${sig.signerDepartment || ""}</td>
-          <td class="sig-cell center">${maskName(sig.signerName)}</td>
+          <td class="sig-cell center">${sig.signerName}</td>
           <td class="sig-cell center"><img src="${sig.signatureData}" class="sig-img" /></td>
         </tr>
       `).join("")
@@ -799,7 +799,7 @@ export default function JointInspectionPage() {
                               <div className="bg-gray-50 dark:bg-gray-800 rounded border mb-2 overflow-hidden">
                                 <img src={sig.signatureData} alt="서명" className="w-full h-14 object-contain" />
                               </div>
-                              <p className="font-semibold text-sm truncate">{maskName(sig.signerName)}</p>
+                              <p className="font-semibold text-sm truncate">{sig.signerName}</p>
                               <div className="flex items-center gap-1 mt-0.5">
                                 {sig.signerRole && (
                                   <span className={`text-xs px-1.5 py-0.5 rounded-full shrink-0 ${sig.signerRole === "도급인" ? "bg-blue-100 text-blue-700" : "bg-orange-100 text-orange-700"}`}>{sig.signerRole}</span>
