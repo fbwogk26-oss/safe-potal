@@ -10209,16 +10209,17 @@ ${htmlDraft}
         return null;
       }
 
-      // ─── 헬퍼: sharp로 이미지 압축 (최대 1000px, JPEG q65) ──────────
+      // ─── 헬퍼: sharp로 이미지 압축 + 여백 제거 ─────────────────────
       const sharpLib = require('sharp') as typeof import('sharp');
       async function compressImg(buf: Buffer): Promise<Buffer> {
         try {
           return await sharpLib(buf)
-            .resize({ width: 1000, height: 1500, fit: 'inside', withoutEnlargement: true })
-            .jpeg({ quality: 72, mozjpeg: false })
+            .trim({ background: '#FFFFFF', threshold: 25 }) // 흰색 여백 자동 제거
+            .resize({ width: 1500, height: 2000, fit: 'inside', withoutEnlargement: true })
+            .jpeg({ quality: 78, mozjpeg: false })
             .toBuffer();
         } catch {
-          return buf; // 압축 실패 시 원본 반환
+          return buf;
         }
       }
 
@@ -10335,15 +10336,29 @@ ${htmlDraft}
         };
 
         // ─── 레이아웃 상수 ────────────────────────────────────────────
-        const TOTAL_COLS = 20;   // 총 20열
-        const MID_IDX = 10;      // 0-based: 0-9 = 좌, 10-19 = 우
-        const LAST_LETTER = "T"; // 20번째 열
+        const TOTAL_COLS = 20;    // 총 20열
+        const MID_IDX = 10;       // 0-based: 0-9 = 좌, 10-19 = 우
+        const LAST_LETTER = "T";  // 20번째 열
         const MID_LETTER_L = "J"; // 10번째 열 (좌 끝)
         const MID_LETTER_R = "K"; // 11번째 열 (우 시작)
-        const IMG_H = 350;  // ~12.3cm (적당한 미리보기 크기)
-        const LABEL_H = 28; // 레이블 행 높이
-        const INFO_H = 42;  // 품명/업체/금액 정보 행 높이
+        // 25cm × 25cm 이미지: 1cm = 28.35pt → 25cm ≈ 709pt
+        // 열 너비: 25cm / 10열 / 0.2646cm per unit ≈ 9.45 → 9.5
+        const COL_W = 9.5;        // 각 열 너비 (10열 = 약 25cm)
+        const IMG_H = 709;        // 이미지 행 높이 ≈ 25cm
+        const LABEL_H = 28;       // 레이블 행 높이
+        const INFO_H = 50;        // 품명/업체/금액 정보 행 높이
         const HDR_H = 32;
+
+        // ─── 헬퍼: 열 인덱스(1-based) → Excel 열 문자 ───────────────
+        function colLetter(col: number): string {
+          let s = '';
+          while (col > 0) {
+            const rem = (col - 1) % 26;
+            s = String.fromCharCode(65 + rem) + s;
+            col = Math.floor((col - 1) / 26);
+          }
+          return s;
+        }
 
         // ─── 헬퍼: imgCache에서 페이지 배열 ─────────────────────────
         function getPages(url: string | null | undefined): Buffer[] {
@@ -10351,11 +10366,10 @@ ${htmlDraft}
           return imgCache.get(url) ?? [];
         }
 
-        // ─── 헬퍼: 시트 컬럼 폭 설정 ────────────────────────────────
-        // width=19: 10열 × 19 ≈ 35cm (이미지 너비 기준)
+        // ─── 헬퍼: 시트 컬럼 폭 설정 (COL_W=9.5: 10열 ≈ 25cm) ──────
         function setupCols(ws: ExcelJS.Worksheet) {
           for (let i = 1; i <= TOTAL_COLS; i++) {
-            ws.getColumn(i).width = 19;
+            ws.getColumn(i).width = COL_W;
           }
         }
 
@@ -10412,6 +10426,51 @@ ${htmlDraft}
           c.alignment = { horizontal: "left", vertical: "middle", wrapText: false };
           c.border = THIN_BORDER;
           ws.mergeCells(`A${ri}:${LAST_LETTER}${ri}`);
+          return ri + 1;
+        }
+
+        // ─── 헬퍼: 품명/업체/금액 테이블형 정보 행 ─────────────────
+        // items: [{label, value}] — 3개(품명/업체/금액) 또는 4개(+구매일)
+        // valBgArgb: 값 셀 배경색; 레이블 셀은 자동으로 진한 배경 사용
+        function addInfoGrid(
+          ws: ExcelJS.Worksheet,
+          ri: number,
+          items: { label: string; value: string }[],
+          valBgArgb: string,
+          labelBgArgb: string
+        ): number {
+          const row = ws.getRow(ri);
+          row.height = INFO_H;
+          const n = items.length;
+          const colsPerItem = Math.floor(TOTAL_COLS / n); // 예: 3개→6열씩, 4개→5열씩
+          const LABEL_SPAN = 2; // 레이블 열 수
+
+          for (let fi = 0; fi < n; fi++) {
+            const startCol = fi * colsPerItem + 1;
+            const endCol = fi === n - 1 ? TOTAL_COLS : (fi + 1) * colsPerItem;
+            const labelEnd = startCol + LABEL_SPAN - 1;
+            const valueStart = labelEnd + 1;
+
+            const { label, value } = items[fi];
+
+            // 레이블 셀
+            const lc = row.getCell(startCol);
+            lc.value = label;
+            lc.font = { bold: true, size: 10, color: { argb: "FFFFFFFF" } };
+            lc.fill = { type: "pattern", pattern: "solid", fgColor: { argb: labelBgArgb } };
+            lc.alignment = { horizontal: "center", vertical: "middle", wrapText: false };
+            lc.border = THIN_BORDER;
+            if (startCol < labelEnd) ws.mergeCells(`${colLetter(startCol)}${ri}:${colLetter(labelEnd)}${ri}`);
+
+            // 값 셀
+            const vc = row.getCell(valueStart);
+            vc.value = value;
+            vc.font = { bold: true, size: 12 };
+            vc.fill = { type: "pattern", pattern: "solid", fgColor: { argb: valBgArgb } };
+            vc.alignment = { horizontal: "left", vertical: "middle", wrapText: false };
+            vc.border = THIN_BORDER;
+            if (valueStart < endCol) ws.mergeCells(`${colLetter(valueStart)}${ri}:${colLetter(endCol)}${ri}`);
+          }
           return ri + 1;
         }
 
@@ -10568,9 +10627,11 @@ ${htmlDraft}
 
             const seenUrls1 = new Set<string>();
             for (const rec of mRecs) {
-              r1 = addInfoLabel(ws1, r1,
-                `  품명: ${rec.itemName || "-"}  |  업체: ${rec.vendorName || "-"}  |  금액: ${Number(rec.totalAmount || 0).toLocaleString()}원`,
-                "FFE8F0FE");
+              r1 = addInfoGrid(ws1, r1, [
+                { label: "품명", value: rec.itemName || "-" },
+                { label: "업체", value: rec.vendorName || "-" },
+                { label: "금액", value: `${Number(rec.totalAmount || 0).toLocaleString()}원` },
+              ], "FFE8F0FE", "FF2E75B6");
               const freshQ = !!rec.quoteFileUrl && !seenUrls1.has(rec.quoteFileUrl);
               const freshT = !!rec.transactionFileUrl && !seenUrls1.has(rec.transactionFileUrl);
               if (rec.quoteFileUrl) seenUrls1.add(rec.quoteFileUrl);
@@ -10619,9 +10680,11 @@ ${htmlDraft}
             r2 = addMonthHdr(ws2, r2, `  ${ymLabel(ym)} 안전관리 집행`, "FF2E75B6");
 
             const mRec = mRecs[0];
-            r2 = addInfoLabel(ws2, r2,
-              `  항목: ${mRec.itemName || "-"}  |  업체: ${mRec.vendorName || "-"}  |  금액: ${mRecs.reduce((s, r) => s + Number(r.totalAmount || 0), 0).toLocaleString()}원`,
-              "FFE8F0FE");
+            r2 = addInfoGrid(ws2, r2, [
+              { label: "항목", value: mRec.itemName || "-" },
+              { label: "업체", value: mRec.vendorName || "-" },
+              { label: "금액", value: `${mRecs.reduce((s, r) => s + Number(r.totalAmount || 0), 0).toLocaleString()}원` },
+            ], "FFE8F0FE", "FF2E75B6");
 
             for (const rec of mRecs) {
               if (rec.quoteFileUrl) {
@@ -10653,9 +10716,11 @@ ${htmlDraft}
           for (const [ym, mRecs] of healthByYM) {
             r2 = addMonthHdr(ws2, r2, `  ${ymLabel(ym)} 보건관리 집행`, "FF1F7055");
             const mRec = mRecs[0];
-            r2 = addInfoLabel(ws2, r2,
-              `  항목: ${mRec.itemName || "-"}  |  업체: ${mRec.vendorName || "-"}  |  금액: ${mRecs.reduce((s, r) => s + Number(r.totalAmount || 0), 0).toLocaleString()}원`,
-              "FFE8F5EE");
+            r2 = addInfoGrid(ws2, r2, [
+              { label: "항목", value: mRec.itemName || "-" },
+              { label: "업체", value: mRec.vendorName || "-" },
+              { label: "금액", value: `${mRecs.reduce((s, r) => s + Number(r.totalAmount || 0), 0).toLocaleString()}원` },
+            ], "FFE8F5EE", "FF1F7055");
 
             for (const rec of mRecs) {
               if (rec.quoteFileUrl) {
@@ -10695,9 +10760,12 @@ ${htmlDraft}
             r3 = addMonthHdr(ws3, r3, `  ${ymLabel(ym)} 안전보건교육비 집행`, "FF7030A0");
 
             for (const rec of mRecs) {
-              r3 = addInfoLabel(ws3, r3,
-                `  교육명: ${rec.itemName || "-"}  |  업체: ${rec.vendorName || "-"}  |  구매일: ${rec.purchaseDate || "-"}  |  금액: ${Number(rec.totalAmount || 0).toLocaleString()}원`,
-                "FFF3E8FD");
+              r3 = addInfoGrid(ws3, r3, [
+                { label: "교육명", value: rec.itemName || "-" },
+                { label: "업체", value: rec.vendorName || "-" },
+                { label: "구매일", value: rec.purchaseDate || "-" },
+                { label: "금액", value: `${Number(rec.totalAmount || 0).toLocaleString()}원` },
+              ], "FFF3E8FD", "FF7030A0");
 
               const hasQ = !!rec.quoteFileUrl;
               const hasT = !!rec.transactionFileUrl;
@@ -10741,9 +10809,11 @@ ${htmlDraft}
 
             const seenUrls4 = new Set<string>();
             for (const rec of mRecs) {
-              r4 = addInfoLabel(ws4, r4,
-                `  품명: ${rec.itemName || "-"}  |  업체: ${rec.vendorName || "-"}  |  금액: ${Number(rec.totalAmount || 0).toLocaleString()}원`,
-                "FFE8F0FE");
+              r4 = addInfoGrid(ws4, r4, [
+                { label: "품명", value: rec.itemName || "-" },
+                { label: "업체", value: rec.vendorName || "-" },
+                { label: "금액", value: `${Number(rec.totalAmount || 0).toLocaleString()}원` },
+              ], "FFE8F0FE", "FF833C00");
               const freshQ4 = !!rec.quoteFileUrl && !seenUrls4.has(rec.quoteFileUrl);
               const freshT4 = !!rec.transactionFileUrl && !seenUrls4.has(rec.transactionFileUrl);
               if (rec.quoteFileUrl) seenUrls4.add(rec.quoteFileUrl);
