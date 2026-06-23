@@ -1189,12 +1189,9 @@ export default function SafetyCostBudget() {
                             {/* 개별 세금계산서 (amber) */}
                             {rec.taxInvoiceYear ? (
                               <button
-                                onClick={() => rec.taxInvoiceFileUrl
-                                  ? setPreview({ url: rec.taxInvoiceFileUrl, title: `개별 세금계산서 (${rec.taxInvoiceYear}년 ${rec.taxInvoiceMonth}월)` })
-                                  : openRecTaxDlg(rec)
-                                }
+                                onClick={() => openRecTaxDlg(rec)}
                                 className="text-amber-500 hover:text-amber-700 transition-colors relative"
-                                title={`개별 세금계산서: ${rec.taxInvoiceYear}년 ${rec.taxInvoiceMonth}월${rec.taxInvoiceMonth !== rec.month ? " ⚠ 구매월과 다름" : ""}`}
+                                title={`개별 세금계산서 수정/삭제: ${rec.taxInvoiceYear}년 ${rec.taxInvoiceMonth}월${rec.taxInvoiceMonth !== rec.month ? " ⚠ 구매월과 다름" : ""}`}
                                 data-testid={`btn-rec-tax-${rec.id}`}>
                                 <Receipt className="w-4 h-4" />
                                 {rec.taxInvoiceMonth !== rec.month && (
