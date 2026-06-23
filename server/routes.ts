@@ -10255,6 +10255,19 @@ ${htmlDraft}
         }
       }
 
+      // ─── 헬퍼: 여백 제거 후 압축 (세금계산서용) ──────────────────
+      async function trimAndCompressImg(buf: Buffer): Promise<Buffer> {
+        try {
+          const trimmed = await sharpLib(buf).trim().toBuffer();
+          return await sharpLib(trimmed)
+            .resize({ width: 1500, height: 2000, fit: 'inside', withoutEnlargement: true })
+            .jpeg({ quality: 85, mozjpeg: false })
+            .toBuffer();
+        } catch {
+          return compressImg(buf);
+        }
+      }
+
       // ─── 헬퍼: PDF 전체 페이지 → JPEG Buffer[] (pdftoppm, 압축률↑) ──
       async function pdfToAllPages(pdfBuf: Buffer): Promise<Buffer[]> {
         const ts = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
@@ -10351,10 +10364,24 @@ ${htmlDraft}
         if (t.fileUrl) allUrls.add(t.fileUrl);
       }
 
+      // 세금계산서 URL 별도 수집 (여백 제거 처리용)
+      const taxInvoiceUrls = new Set<string>();
+      for (const t of taxInvoices) { if (t.fileUrl) taxInvoiceUrls.add(t.fileUrl); }
+      for (const r of records) { if ((r as any).taxInvoiceFileUrl) taxInvoiceUrls.add((r as any).taxInvoiceFileUrl); }
+
       console.log(`[export] 첨부파일 로드 시작: ${allUrls.size}개`);
       await Promise.all(Array.from(allUrls).map(async (url) => {
         const pages = await fetchImgPages(url);
         imgCache.set(url, pages);
+      }));
+
+      // 세금계산서 이미지: 여백 제거 후 재압축
+      await Promise.all(Array.from(taxInvoiceUrls).map(async (url) => {
+        const pages = imgCache.get(url);
+        if (!pages || pages.length === 0) return;
+        const trimmed = await Promise.all(pages.map(b => trimAndCompressImg(b)));
+        imgCache.set(url, trimmed);
+        console.log(`[export] 세금계산서 여백제거: ${url.split('/').pop()}`);
       }));
       console.log(`[export] 첨부파일 로드 완료`);
 
