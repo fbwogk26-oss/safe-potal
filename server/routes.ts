@@ -11074,6 +11074,251 @@ ${htmlDraft}
           }
         }
 
+        // ════════════════════════════════════════════════════════════
+        // Sheet 7: 안전관리비 사용내역서 (표 형식 — 원본 양식 그대로)
+        // 분류항목 | 월 | 일 | 사용내역(품명) | 수량 | 단가 | 금액 |
+        // 증빙유형 | 구매처상호 | 구매처사업종목 | 정당여부 | 부당사유 | 비고
+        // ════════════════════════════════════════════════════════════
+        const ws7 = wb.addWorksheet("안전관리비_사용내역");
+
+        // 컬럼 폭 설정 (13개 컬럼)
+        const T7_COLS = [
+          { w: 35 }, // A: 분류항목
+          { w: 5  }, // B: 월
+          { w: 5  }, // C: 일
+          { w: 25 }, // D: 사용내역(품명)
+          { w: 6  }, // E: 수량
+          { w: 12 }, // F: 단가
+          { w: 13 }, // G: 금액
+          { w: 15 }, // H: 증빙유형
+          { w: 18 }, // I: 구매처 상호
+          { w: 13 }, // J: 구매처 사업종목
+          { w: 8  }, // K: 정당여부
+          { w: 12 }, // L: 부당사유
+          { w: 15 }, // M: 비고
+        ];
+        T7_COLS.forEach((c, i) => { ws7.getColumn(i + 1).width = c.w; });
+
+        const T7_LAST = "M";
+        const T7_NCOLS = 13;
+
+        // 행 1: 제목
+        let r7 = 1;
+        {
+          const row = ws7.getRow(r7);
+          row.height = 36;
+          const c = row.getCell(1);
+          c.value = "안전관리비 사용내역서";
+          c.font = { bold: true, size: 16, color: { argb: "FFFFFFFF" } };
+          c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1F4E79" } };
+          c.alignment = CENTER;
+          c.border = THIN_BORDER;
+          ws7.mergeCells(`A${r7}:${T7_LAST}${r7}`);
+        }
+        r7++;
+
+        // 행 2-6: 공사 정보 (빈칸으로 제공 — 담당자 직접 기재)
+        const infoRows = [
+          "▣ 공   사   명 :",
+          "▣ 계약상대자 :",
+          "▣ 정 산 기 간 :",
+          "▣ 총공사금액 :",
+          "▣ 감리확인자 :",
+        ];
+        for (const txt of infoRows) {
+          const row = ws7.getRow(r7);
+          row.height = 22;
+          const c = row.getCell(1);
+          c.value = txt;
+          c.font = { bold: false, size: 10 };
+          c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF2F7FC" } };
+          c.alignment = { horizontal: "left", vertical: "middle" };
+          c.border = THIN_BORDER;
+          ws7.mergeCells(`A${r7}:${T7_LAST}${r7}`);
+          r7++;
+        }
+
+        // 행 7: 협력사 기재 / 계약팀 기재 구분
+        {
+          const row = ws7.getRow(r7);
+          row.height = 20;
+          const lc = row.getCell(1);
+          lc.value = "협  력  사  기  재";
+          lc.font = { bold: true, size: 10, color: { argb: "FFFFFFFF" } };
+          lc.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF2E75B6" } };
+          lc.alignment = CENTER;
+          lc.border = THIN_BORDER;
+          ws7.mergeCells(`A${r7}:J${r7}`);
+          const rc = row.getCell(11);
+          rc.value = "계 약 팀 기 재";
+          rc.font = { bold: true, size: 10, color: { argb: "FFFFFFFF" } };
+          rc.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF375623" } };
+          rc.alignment = CENTER;
+          rc.border = THIN_BORDER;
+          ws7.mergeCells(`K${r7}:${T7_LAST}${r7}`);
+          r7++;
+        }
+
+        // 행 8: 컬럼 헤더
+        {
+          const headers = ["분류항목", "월", "일", "사용내역(품명)", "수량", "단가", "금액", "증빙유형", "구매처 상호", "구매처사업종목", "정당여부", "부당사유", "비고"];
+          const row = ws7.getRow(r7);
+          row.height = 22;
+          headers.forEach((h, i) => {
+            const c = row.getCell(i + 1);
+            c.value = h;
+            c.font = { bold: true, size: 10, color: { argb: "FFFFFFFF" } };
+            c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1F4E79" } };
+            c.alignment = CENTER;
+            c.border = THIN_BORDER;
+          });
+          r7++;
+        }
+
+        // 데이터 행 시작 위치 기록 (SUM 수식용)
+        const DATA_START_ROW = r7;
+
+        // 모든 카테고리 순서대로 출력
+        const ALL_CATS = [
+          "1. 안전관리자 등 인건비 및 각종 업무수당 등",
+          "2. 안전시설비 등",
+          "3. 개인보호구 및 안전장구 구입비 등",
+          "4. 안전진단비 등",
+          "5. 안전보건교육비 및 행사비 등",
+          "6. 근로자 건강관리비 등",
+          "7. 건설재해예방 기술지도비",
+          "8. 본사사용비",
+          "9. 위험성평가 및 산보위 안건 비용",
+        ];
+
+        // 증빙유형 도출 헬퍼
+        function getDocType(rec: any): string {
+          const hasT = !!rec.taxInvoiceFileUrl;
+          const hasTr = !!rec.transactionFileUrl;
+          const hasQ = !!rec.quoteFileUrl;
+          if (hasT) return "전자세금계산서";
+          if (hasTr && hasQ) return "견적서+거래명세서";
+          if (hasTr) return "거래명세서";
+          if (hasQ) return "견적서";
+          return "-";
+        }
+
+        // records를 category → 날짜순 정렬
+        const sortedRecs = [...records].sort((a, b) => {
+          const ci = ALL_CATS.indexOf(a.category) - ALL_CATS.indexOf(b.category);
+          if (ci !== 0) return ci;
+          const da = `${a.year}${String(a.month).padStart(2,'0')}${(a.purchaseDate||'').replace(/-/g,'')}`;
+          const db = `${b.year}${String(b.month).padStart(2,'0')}${(b.purchaseDate||'').replace(/-/g,'')}`;
+          return da.localeCompare(db);
+        });
+
+        const subTotalRows: { cat: string; startRow: number; endRow: number }[] = [];
+
+        for (const cat of ALL_CATS) {
+          const catRecs = sortedRecs.filter(r => r.category === cat);
+          if (catRecs.length === 0) continue;
+
+          const catStart = r7;
+
+          for (const rec of catRecs) {
+            const day = rec.purchaseDate ? rec.purchaseDate.split('-')[2] || '-' : '-';
+            const row = ws7.getRow(r7);
+            row.height = 18;
+
+            const vals: (string | number | null)[] = [
+              rec.category,
+              rec.month,
+              day,
+              rec.itemName || "-",
+              rec.quantity ? Number(rec.quantity) : null,
+              rec.unitPrice ? Number(rec.unitPrice) : null,
+              rec.totalAmount ? Number(rec.totalAmount) : null,
+              getDocType(rec),
+              rec.vendorName || "-",
+              "-",
+              "정당",
+              "-",
+              rec.notes || "-",
+            ];
+
+            vals.forEach((v, i) => {
+              const c = row.getCell(i + 1);
+              c.value = v;
+              c.font = { size: 9 };
+              c.alignment = {
+                horizontal: i === 0 || i === 3 || i === 7 || i === 8 || i === 9 || i === 12 ? "left" : "center",
+                vertical: "middle",
+                wrapText: false,
+              };
+              if (i === 5 || i === 6) { // 단가, 금액 → 숫자 포맷
+                c.numFmt = '#,##0';
+              }
+              c.border = THIN_BORDER;
+            });
+            r7++;
+          }
+
+          // 소계 행
+          const catEnd = r7 - 1;
+          subTotalRows.push({ cat, startRow: catStart, endRow: catEnd });
+          {
+            const row = ws7.getRow(r7);
+            row.height = 20;
+            const lc = row.getCell(1);
+            lc.value = `소계 (${cat.split('.')[0]}항)`;
+            lc.font = { bold: true, size: 9, color: { argb: "FFFFFFFF" } };
+            lc.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF2E75B6" } };
+            lc.alignment = { horizontal: "center", vertical: "middle" };
+            lc.border = THIN_BORDER;
+            ws7.mergeCells(`A${r7}:F${r7}`);
+
+            const gc = row.getCell(7);
+            gc.value = { formula: `SUM(G${catStart}:G${catEnd})`, result: catRecs.reduce((s, r) => s + Number(r.totalAmount || 0), 0) };
+            gc.font = { bold: true, size: 9 };
+            gc.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF0AA" } };
+            gc.alignment = { horizontal: "right", vertical: "middle" };
+            gc.numFmt = '#,##0';
+            gc.border = THIN_BORDER;
+
+            for (let c = 8; c <= T7_NCOLS; c++) {
+              const cell = row.getCell(c);
+              cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF0AA" } };
+              cell.border = THIN_BORDER;
+            }
+            if (7 < T7_NCOLS) ws7.mergeCells(`H${r7}:${T7_LAST}${r7}`);
+            r7++;
+          }
+        }
+
+        // 합계 행
+        {
+          const grandTotal = records.reduce((s, r) => s + Number(r.totalAmount || 0), 0);
+          const row = ws7.getRow(r7);
+          row.height = 24;
+          const lc = row.getCell(1);
+          lc.value = "합   계";
+          lc.font = { bold: true, size: 11, color: { argb: "FFFFFFFF" } };
+          lc.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1F4E79" } };
+          lc.alignment = CENTER;
+          lc.border = THIN_BORDER;
+          ws7.mergeCells(`A${r7}:F${r7}`);
+
+          const gc = row.getCell(7);
+          gc.value = { formula: `SUM(G${DATA_START_ROW}:G${r7 - 1})`, result: grandTotal };
+          gc.font = { bold: true, size: 11, color: { argb: "FFFFFFFF" } };
+          gc.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1F4E79" } };
+          gc.alignment = { horizontal: "right", vertical: "middle" };
+          gc.numFmt = '#,##0';
+          gc.border = THIN_BORDER;
+
+          for (let c = 8; c <= T7_NCOLS; c++) {
+            const cell = row.getCell(c);
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1F4E79" } };
+            cell.border = THIN_BORDER;
+          }
+          ws7.mergeCells(`H${r7}:${T7_LAST}${r7}`);
+        }
+
         return wb;
       }
 
