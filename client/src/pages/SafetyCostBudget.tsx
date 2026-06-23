@@ -16,7 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Plus, Trash2, Edit2, Upload, FileText, ImageIcon, Loader2,
-  BarChart3, List, X, Download, Receipt, FileCheck, PackagePlus, CheckSquare, FileScan, ScrollText, Wallet
+  BarChart3, List, X, Download, Receipt, FileCheck, PackagePlus, CheckSquare, FileScan, ScrollText, Wallet, Settings2
 } from "lucide-react";
 import type { SafetyCostRecord, SafetyCostTaxInvoice } from "@shared/schema";
 
@@ -210,6 +210,11 @@ export default function SafetyCostBudget() {
   const [exportEndMonth, setExportEndMonth] = useState(new Date().getMonth() + 1);
   const [certUploading, setCertUploading] = useState(false);
 
+  // 공사 정보 설정
+  const [showProjInfoDlg, setShowProjInfoDlg] = useState(false);
+  const [projInfoForm, setProjInfoForm] = useState({ projectName: "", contractor: "", totalAmount: "", supervisor: "" });
+  const [savingProjInfo, setSavingProjInfo] = useState(false);
+
   const quoteRef = useRef<HTMLInputElement>(null);
   const transRef = useRef<HTMLInputElement>(null);
   const recTaxFileRef = useRef<HTMLInputElement>(null);
@@ -220,6 +225,9 @@ export default function SafetyCostBudget() {
   const bulkTransRef = useRef<HTMLInputElement>(null);
 
   // ── Queries ──────────────────────────────────────────────────────
+  const { data: projInfo } = useQuery<{ projectName: string; contractor: string; totalAmount: string; supervisor: string }>({
+    queryKey: ["/api/settings/safety-cost-project-info"],
+  });
   const { data: records = [], isLoading } = useQuery<SafetyCostRecord[]>({
     queryKey: ["/api/safety-cost-records", year, headquarters],
     queryFn: () => fetch(`/api/safety-cost-records?year=${year}&headquarters=${encodeURIComponent(headquarters)}`, { credentials: "include" }).then(r => r.json()),
@@ -994,6 +1002,9 @@ export default function SafetyCostBudget() {
           <Button variant="outline" className="px-2.5 sm:px-4" title="사용내역 다운로드" onClick={handleDownloadTemplate} disabled={downloadingTemplate} data-testid="button-download-template">
             {downloadingTemplate ? <Loader2 className="w-4 h-4 sm:mr-1.5 animate-spin" /> : <Download className="w-4 h-4 sm:mr-1.5" />}
             <span className="hidden sm:inline">사용내역 다운로드</span>
+          </Button>
+          <Button variant="outline" className="px-2.5 sm:px-4" title="공사 정보 설정" onClick={() => { setProjInfoForm({ projectName: projInfo?.projectName || "", contractor: projInfo?.contractor || "", totalAmount: projInfo?.totalAmount || "", supervisor: projInfo?.supervisor || "" }); setShowProjInfoDlg(true); }} data-testid="button-proj-info">
+            <Settings2 className="w-4 h-4 sm:mr-1.5" /><span className="hidden sm:inline">공사 정보</span>
           </Button>
           <Button variant="outline" className="px-2.5 sm:px-4" title="법정경비 다운로드" onClick={() => { setExportStartYear(year); setExportStartMonth(1); setExportEndYear(year); setExportEndMonth(12); setShowExportDialog(true); }} disabled={downloading} data-testid="button-download">
             {downloading ? <Loader2 className="w-4 h-4 sm:mr-1.5 animate-spin" /> : <Download className="w-4 h-4 sm:mr-1.5" />}
@@ -2336,6 +2347,50 @@ export default function SafetyCostBudget() {
               {bulkDeleteMut.isPending
                 ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" />삭제 중...</>
                 : `${selectedIds.size}건 삭제`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ══ 공사 정보 설정 ══ */}
+      <Dialog open={showProjInfoDlg} onOpenChange={setShowProjInfoDlg}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Settings2 className="w-4 h-4" />공사 정보 설정 (법정경비 Excel 자동 반영)</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div>
+              <Label className="text-xs text-muted-foreground">공사명</Label>
+              <Input value={projInfoForm.projectName} onChange={e => setProjInfoForm(f => ({ ...f, projectName: e.target.value }))} placeholder="예) ○○신축공사" data-testid="input-proj-name" />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">계약상대자</Label>
+              <Input value={projInfoForm.contractor} onChange={e => setProjInfoForm(f => ({ ...f, contractor: e.target.value }))} placeholder="예) (주)○○건설" data-testid="input-contractor" />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">총공사금액 (숫자만 입력)</Label>
+              <Input type="number" value={projInfoForm.totalAmount} onChange={e => setProjInfoForm(f => ({ ...f, totalAmount: e.target.value }))} placeholder="예) 1500000000" data-testid="input-total-amount" />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">감리확인자</Label>
+              <Input value={projInfoForm.supervisor} onChange={e => setProjInfoForm(f => ({ ...f, supervisor: e.target.value }))} placeholder="예) 홍길동" data-testid="input-supervisor" />
+            </div>
+            <p className="text-xs text-muted-foreground bg-muted rounded px-3 py-2">저장 후 법정경비 다운로드 시 안전관리비 사용내역서 상단에 자동으로 채워집니다. 정산기간은 다운로드 시 선택한 기간으로 자동 입력됩니다.</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowProjInfoDlg(false)}>취소</Button>
+            <Button disabled={savingProjInfo} onClick={async () => {
+              setSavingProjInfo(true);
+              try {
+                await apiRequest("POST", "/api/settings/safety-cost-project-info", projInfoForm);
+                qc.invalidateQueries({ queryKey: ["/api/settings/safety-cost-project-info"] });
+                toast({ title: "공사 정보 저장 완료" });
+                setShowProjInfoDlg(false);
+              } catch (e: any) {
+                toast({ title: "저장 실패", description: e.message, variant: "destructive" });
+              } finally { setSavingProjInfo(false); }
+            }} data-testid="btn-save-proj-info">
+              {savingProjInfo ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" />저장 중...</> : "저장"}
             </Button>
           </DialogFooter>
         </DialogContent>

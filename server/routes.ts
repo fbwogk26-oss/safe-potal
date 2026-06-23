@@ -1753,6 +1753,32 @@ export async function registerRoutes(
     }
   });
 
+  // === SAFETY COST PROJECT INFO SETTINGS ===
+  app.get("/api/settings/safety-cost-project-info", isAuthenticated, async (_req, res) => {
+    try {
+      const [projectName, contractor, totalAmount, supervisor] = await Promise.all([
+        storage.getSetting("safety_cost_project_name"),
+        storage.getSetting("safety_cost_contractor"),
+        storage.getSetting("safety_cost_total_amount"),
+        storage.getSetting("safety_cost_supervisor"),
+      ]);
+      res.json({ projectName: projectName || "", contractor: contractor || "", totalAmount: totalAmount || "", supervisor: supervisor || "" });
+    } catch (e: any) { res.status(500).json({ message: e?.message || "조회 실패" }); }
+  });
+
+  app.post("/api/settings/safety-cost-project-info", requireAdmin, async (req, res) => {
+    try {
+      const { projectName = "", contractor = "", totalAmount = "", supervisor = "" } = req.body;
+      await Promise.all([
+        storage.setSetting("safety_cost_project_name", projectName),
+        storage.setSetting("safety_cost_contractor", contractor),
+        storage.setSetting("safety_cost_total_amount", totalAmount),
+        storage.setSetting("safety_cost_supervisor", supervisor),
+      ]);
+      res.json({ ok: true });
+    } catch (e: any) { res.status(500).json({ message: e?.message || "저장 실패" }); }
+  });
+
   // === SAFETY EQUIPMENT ===
   const DEFAULT_EQUIPMENT_LIST = [
     { name: "안전모(일반)", category: "보호구" },
@@ -10172,9 +10198,13 @@ ${htmlDraft}
       }
 
       console.log(`[export] 법정경비 요청: startYM=${startYM}, endYM=${endYM}, hq=${headquarters}`);
-      const [records, taxInvoices] = await Promise.all([
+      const [records, taxInvoices, projName, projContractor, projTotalAmt, projSupervisor] = await Promise.all([
         storage.getSafetyCostRecords({ headquarters, startYM, endYM }),
         storage.getSafetyCostTaxInvoices({ headquarters, startYM, endYM }),
+        storage.getSetting("safety_cost_project_name"),
+        storage.getSetting("safety_cost_contractor"),
+        storage.getSetting("safety_cost_total_amount"),
+        storage.getSetting("safety_cost_supervisor"),
       ]);
       console.log(`[export] DB 완료: records=${records.length}, taxInvoices=${taxInvoices.length}`);
 
@@ -11047,24 +11077,41 @@ ${htmlDraft}
         }
         r7++;
 
-        // 행 2-6: 공사 정보 (빈칸으로 제공 — 담당자 직접 기재)
-        const infoRows = [
-          "▣ 공   사   명 :",
-          "▣ 계약상대자 :",
-          "▣ 정 산 기 간 :",
-          "▣ 총공사금액 :",
-          "▣ 감리확인자 :",
+        // 행 2-6: 공사 정보 (settings에서 자동 반영)
+        // 정산기간은 export 파라미터에서 자동 계산
+        const settlementPeriod = (() => {
+          if (syRaw > 2000 && smRaw >= 1 && eyRaw > 2000 && emRaw >= 1) {
+            return `${syRaw}년 ${smRaw}월 ~ ${eyRaw}년 ${emRaw}월`;
+          }
+          const y = (!isNaN(yearRaw) && yearRaw > 2000) ? yearRaw : new Date().getFullYear();
+          return `${y}년 1월 ~ ${y}년 12월`;
+        })();
+        const infoRows: { label: string; value: string }[] = [
+          { label: "▣ 공   사   명 :", value: projName || "" },
+          { label: "▣ 계약상대자 :", value: projContractor || "" },
+          { label: "▣ 정 산 기 간 :", value: settlementPeriod },
+          { label: "▣ 총공사금액 :", value: projTotalAmt ? `${Number(projTotalAmt).toLocaleString("ko-KR")}원` : "" },
+          { label: "▣ 감리확인자 :", value: projSupervisor || "" },
         ];
-        for (const txt of infoRows) {
+        for (const { label, value } of infoRows) {
           const row = ws7.getRow(r7);
           row.height = 22;
-          const c = row.getCell(1);
-          c.value = txt;
-          c.font = { bold: false, size: 10 };
-          c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF2F7FC" } };
-          c.alignment = { horizontal: "left", vertical: "middle" };
-          c.border = THIN_BORDER;
-          ws7.mergeCells(`A${r7}:${T7_LAST}${r7}`);
+          // 라벨 셀 (A:D)
+          const lc = row.getCell(1);
+          lc.value = label;
+          lc.font = { bold: true, size: 10, color: { argb: "FF1F4E79" } };
+          lc.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE8F0FB" } };
+          lc.alignment = { horizontal: "left", vertical: "middle" };
+          lc.border = THIN_BORDER;
+          ws7.mergeCells(`A${r7}:D${r7}`);
+          // 값 셀 (E:M)
+          const vc = row.getCell(5);
+          vc.value = value;
+          vc.font = { size: 10 };
+          vc.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFFFFF" } };
+          vc.alignment = { horizontal: "left", vertical: "middle" };
+          vc.border = THIN_BORDER;
+          ws7.mergeCells(`E${r7}:${T7_LAST}${r7}`);
           r7++;
         }
 
@@ -11241,6 +11288,102 @@ ${htmlDraft}
           gc.numFmt = '#,##0';
           gc.border = THIN_BORDER;
 
+          for (let c = 8; c <= T7_NCOLS; c++) {
+            const cell = row.getCell(c);
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1F4E79" } };
+            cell.border = THIN_BORDER;
+          }
+          ws7.mergeCells(`H${r7}:${T7_LAST}${r7}`);
+          r7++;
+        }
+
+        // ── 항목합계 섹션 (데이터 표 아래 별도 집계 표) ──────────────
+        // 빈 줄 하나
+        ws7.getRow(r7).height = 10;
+        r7++;
+
+        // 항목합계 헤더
+        {
+          const row = ws7.getRow(r7);
+          row.height = 22;
+          const lc = row.getCell(1);
+          lc.value = "항  목  합  계";
+          lc.font = { bold: true, size: 11, color: { argb: "FFFFFFFF" } };
+          lc.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1F4E79" } };
+          lc.alignment = CENTER;
+          lc.border = THIN_BORDER;
+          ws7.mergeCells(`A${r7}:F${r7}`);
+          const gc = row.getCell(7);
+          gc.value = "금  액";
+          gc.font = { bold: true, size: 10, color: { argb: "FFFFFFFF" } };
+          gc.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1F4E79" } };
+          gc.alignment = CENTER;
+          gc.border = THIN_BORDER;
+          for (let c = 8; c <= T7_NCOLS; c++) {
+            const cell = row.getCell(c);
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1F4E79" } };
+            cell.border = THIN_BORDER;
+          }
+          ws7.mergeCells(`H${r7}:${T7_LAST}${r7}`);
+          r7++;
+        }
+
+        // 카테고리별 합계 행
+        const grandSumCells: string[] = [];
+        for (const cat of ALL_CATS) {
+          const st = subTotalRows.find(s => s.cat === cat);
+          const catTotal = st
+            ? sortedRecs.filter(r => r.category === cat).reduce((s, r) => s + Number(r.totalAmount || 0), 0)
+            : 0;
+          const row = ws7.getRow(r7);
+          row.height = 20;
+          const lc = row.getCell(1);
+          lc.value = cat;
+          lc.font = { size: 9 };
+          lc.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF2F7FC" } };
+          lc.alignment = { horizontal: "left", vertical: "middle" };
+          lc.border = THIN_BORDER;
+          ws7.mergeCells(`A${r7}:F${r7}`);
+          const gc = row.getCell(7);
+          if (st) {
+            gc.value = { formula: `SUM(G${st.startRow}:G${st.endRow})`, result: catTotal };
+          } else {
+            gc.value = 0;
+          }
+          gc.font = { size: 9 };
+          gc.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF2F7FC" } };
+          gc.alignment = { horizontal: "right", vertical: "middle" };
+          gc.numFmt = '#,##0';
+          gc.border = THIN_BORDER;
+          grandSumCells.push(`G${r7}`);
+          for (let c = 8; c <= T7_NCOLS; c++) {
+            const cell = row.getCell(c);
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF2F7FC" } };
+            cell.border = THIN_BORDER;
+          }
+          ws7.mergeCells(`H${r7}:${T7_LAST}${r7}`);
+          r7++;
+        }
+
+        // 계 (총합계) 행
+        {
+          const grandTotal2 = records.reduce((s, r) => s + Number(r.totalAmount || 0), 0);
+          const row = ws7.getRow(r7);
+          row.height = 24;
+          const lc = row.getCell(1);
+          lc.value = "계";
+          lc.font = { bold: true, size: 11, color: { argb: "FFFFFFFF" } };
+          lc.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1F4E79" } };
+          lc.alignment = CENTER;
+          lc.border = THIN_BORDER;
+          ws7.mergeCells(`A${r7}:F${r7}`);
+          const gc = row.getCell(7);
+          gc.value = { formula: grandSumCells.join("+"), result: grandTotal2 };
+          gc.font = { bold: true, size: 11, color: { argb: "FFFFFFFF" } };
+          gc.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1F4E79" } };
+          gc.alignment = { horizontal: "right", vertical: "middle" };
+          gc.numFmt = '#,##0';
+          gc.border = THIN_BORDER;
           for (let c = 8; c <= T7_NCOLS; c++) {
             const cell = row.getCell(c);
             cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1F4E79" } };
