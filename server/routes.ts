@@ -4836,9 +4836,33 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  app.post('/api/accidents/upload-photos', requireEditor, upload.array('photos', 10), async (req: any, res) => {
+  const accidentPhotoUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 20 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+      const allowedMimes = ['image/jpeg','image/jpg','image/png','image/gif','image/webp','image/heic','image/heif','image/bmp','image/tiff'];
+      const cleanName = file.originalname.replace(/\0/g, "");
+      const ext = path.extname(cleanName).toLowerCase();
+      const allowedExts = ['.jpg','.jpeg','.png','.gif','.webp','.heic','.heif','.bmp','.tiff','.tif'];
+      if (allowedExts.includes(ext) || allowedMimes.includes(file.mimetype)) {
+        cb(null, true);
+      } else {
+        cb(new Error(`지원하지 않는 이미지 형식입니다: ${ext || file.mimetype}`));
+      }
+    }
+  });
+
+  app.post('/api/accidents/upload-photos', requireEditor, (req: any, res: any, next: any) => {
+    accidentPhotoUpload.array('photos', 10)(req, res, (err: any) => {
+      if (err) {
+        if (err.code === 'LIMIT_FILE_SIZE') return res.status(400).json({ message: "파일 크기가 너무 큽니다 (최대 20MB)" });
+        return res.status(400).json({ message: err.message || "업로드 실패" });
+      }
+      next();
+    });
+  }, async (req: any, res) => {
     if (!req.files || req.files.length === 0) {
-      return res.status(400).json({ message: "No files uploaded" });
+      return res.status(400).json({ message: "업로드된 파일이 없습니다" });
     }
     const urls: string[] = [];
     for (const f of req.files as Express.Multer.File[]) {
