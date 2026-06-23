@@ -10756,7 +10756,7 @@ ${htmlDraft}
         const cat3Recs = records.filter(r => r.category === CAT3);
         const cat3ByYM = groupByYM(cat3Recs);
 
-        const ws1 = wb.addWorksheet("개인보호구_구입비");
+        const ws1 = wb.addWorksheet("3.개인보호구및안전장구구입비");
         setupCols(ws1);
         let r1 = 1;
         r1 = addTitle(ws1, r1, `개인보호구 및 안전장구 구입비 증빙자료 (${rangeLabel})`, "FFFFFFFF", "FF1F4E79");
@@ -10822,7 +10822,7 @@ ${htmlDraft}
         const unclassified = cat1Recs.filter(r => !safetyMgr.includes(r) && !healthMgr.includes(r));
         const safetyAll = [...safetyMgr, ...unclassified];
 
-        const ws2 = wb.addWorksheet("안전관리자_인건비");
+        const ws2 = wb.addWorksheet("1.인건비및각종업무수당");
         setupCols(ws2);
         let r2 = 1;
         r2 = addTitle(ws2, r2, `안전관리자 등 인건비 및 수당 증빙자료 (${rangeLabel})`, "FFFFFFFF", "FF1F4E79");
@@ -10904,7 +10904,7 @@ ${htmlDraft}
         const cat5Recs = records.filter(r => r.category === CAT5);
         const cat5ByYM = groupByYM(cat5Recs);
 
-        const ws3 = wb.addWorksheet("안전보건교육비");
+        const ws3 = wb.addWorksheet("5.안전보건교육비및행사비");
         setupCols(ws3);
         let r3 = 1;
         r3 = addTitle(ws3, r3, `안전보건교육비 집행금액 증빙자료 (${rangeLabel})`, "FFFFFFFF", "FF7030A0");
@@ -10962,7 +10962,7 @@ ${htmlDraft}
         const cat9Recs = records.filter(r => r.category === CAT9);
         const cat9ByYM = groupByYM(cat9Recs);
 
-        const ws4 = wb.addWorksheet("위험성평가_비용");
+        const ws4 = wb.addWorksheet("9.위험성평가및산보위비용");
         setupCols(ws4);
         let r4 = 1;
         r4 = addTitle(ws4, r4, `위험성평가 및 산보위 안건 비용 증빙자료 (${rangeLabel})`, "FFFFFFFF", "FF833C00");
@@ -11083,7 +11083,7 @@ ${htmlDraft}
         (wsCatList as any).state = "hidden";
         ALL_CATS.forEach((cat, i) => { wsCatList.getCell(`A${i + 1}`).value = cat; });
 
-        const ws7 = wb.addWorksheet("안전관리비_사용내역");
+        const ws7 = wb.addWorksheet("안전관리비사용내역서");
 
         // 컬럼 폭 설정 (13개 컬럼)
         const T7_WIDTHS = [36, 5, 5, 26, 6, 13, 14, 16, 18, 13, 8, 12, 15];
