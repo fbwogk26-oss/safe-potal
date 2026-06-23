@@ -72,7 +72,7 @@ const emptyForm = {
   year: currentYear, month: new Date().getMonth() + 1,
   category: "", subCategory: "", itemName: "", specification: "",
   unit: "EA", quantity: "", unitPrice: "", supplyAmount: "", vatAmount: "",
-  totalAmount: "", purchaseDate: "", vendorName: "", notes: "",
+  totalAmount: "", purchaseDate: "", vendorName: "", vendorBusinessType: "", notes: "",
   documentNumber: "", paymentRequestDate: "",
   quoteFileUrl: "", transactionFileUrl: "", certificateFileUrl: "", resolutionFileUrl: "",
 };
@@ -318,7 +318,7 @@ export default function SafetyCostBudget() {
       specification: r.specification||"", unit: r.unit||"EA", quantity: r.quantity?.toString()||"",
       unitPrice: r.unitPrice?.toString()||"", supplyAmount: r.supplyAmount?.toString()||"",
       vatAmount: r.vatAmount?.toString()||"", totalAmount: r.totalAmount?.toString()||"",
-      purchaseDate: r.purchaseDate||"", vendorName: r.vendorName||"", notes: r.notes||"",
+      purchaseDate: r.purchaseDate||"", vendorName: r.vendorName||"", vendorBusinessType: (r as any).vendorBusinessType||"", notes: r.notes||"",
       documentNumber: (r as any).documentNumber||"", paymentRequestDate: (r as any).paymentRequestDate||"",
       quoteFileUrl: r.quoteFileUrl||"", transactionFileUrl: r.transactionFileUrl||"",
       certificateFileUrl: r.certificateFileUrl||"", resolutionFileUrl: (r as any).resolutionFileUrl||"" });
@@ -468,6 +468,7 @@ export default function SafetyCostBudget() {
       if (data.paymentRequestDate) { setF("paymentRequestDate", data.paymentRequestDate); changed.push("지급요청일자"); }
       if (data.documentDate && !form.purchaseDate) { setF("purchaseDate", data.documentDate); changed.push("구매일자"); }
       if (data.vendorName && !form.vendorName) { setF("vendorName", data.vendorName); changed.push("업체명"); }
+      if ((data as any).vendorBusinessType && !(form as any).vendorBusinessType) { setF("vendorBusinessType", (data as any).vendorBusinessType); changed.push("사업종목"); }
       if (data.supplyAmount && !form.supplyAmount) { setF("supplyAmount", data.supplyAmount.toString()); }
       if (data.vatAmount && !form.vatAmount) { setF("vatAmount", data.vatAmount.toString()); }
       if (data.totalAmount && !form.totalAmount) { setF("totalAmount", data.totalAmount.toString()); changed.push("합계금액"); }
@@ -837,6 +838,7 @@ export default function SafetyCostBudget() {
       }
       const data: ExtractedData = await r.json();
       if (data.vendorName) setF("vendorName", data.vendorName);
+      if ((data as any).vendorBusinessType) setF("vendorBusinessType", (data as any).vendorBusinessType);
       if (data.documentDate) setF("purchaseDate", data.documentDate);
 
       // 파일 URL 적용
@@ -892,7 +894,7 @@ export default function SafetyCostBudget() {
       quantity: form.quantity||null, unitPrice: form.unitPrice||null,
       supplyAmount: form.supplyAmount||null, vatAmount: form.vatAmount||null,
       totalAmount: form.totalAmount, purchaseDate: form.purchaseDate||null,
-      vendorName: form.vendorName||null, notes: form.notes||null,
+      vendorName: form.vendorName||null, vendorBusinessType: (form as any).vendorBusinessType||null, notes: form.notes||null,
       documentNumber: form.documentNumber||null, paymentRequestDate: form.paymentRequestDate||null,
       quoteFileUrl: form.quoteFileUrl||null, transactionFileUrl: form.transactionFileUrl||null,
       certificateFileUrl: form.certificateFileUrl||null, resolutionFileUrl: form.resolutionFileUrl||null,
@@ -1829,6 +1831,9 @@ export default function SafetyCostBudget() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div><Label>세부항목</Label><Input placeholder="세부항목" value={form.subCategory} onChange={e=>setF("subCategory",e.target.value)} /></div>
             <div><Label>업체명</Label><Input placeholder="공급업체명" value={form.vendorName} onChange={e=>setF("vendorName",e.target.value)} data-testid="input-vendor" /></div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div><Label>구매처 사업종목</Label><Input placeholder="예: 도매업, 제조업, 서비스업 등" value={(form as any).vendorBusinessType||""} onChange={e=>setF("vendorBusinessType",e.target.value)} data-testid="input-vendor-business-type" /></div>
           </div>
           <div><Label>품명 *</Label><Input placeholder="품명" value={form.itemName} onChange={e=>setF("itemName",e.target.value)} data-testid="input-item-name" /></div>
           <div><Label>규격</Label><Input placeholder="규격" value={form.specification} onChange={e=>setF("specification",e.target.value)} /></div>

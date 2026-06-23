@@ -11237,7 +11237,7 @@ ${htmlDraft}
           // I: 구매처 상호
           { const c = ws7.getRow(r7).getCell(9); c.value = rec.vendorName || ""; t7Style(c, rowBg, "FF000000", false, 9, "left"); }
           // J: 구매처 사업종목
-          { const c = ws7.getRow(r7).getCell(10); c.value = ""; t7Style(c, rowBg, "FF000000", false, 9, "center"); }
+          { const c = ws7.getRow(r7).getCell(10); c.value = (rec as any).vendorBusinessType || ""; t7Style(c, rowBg, "FF000000", false, 9, "center"); }
           // K: 정당여부
           { const c = ws7.getRow(r7).getCell(11); c.value = "정당"; t7Style(c, rowBg, "FF000000", false, 9, "center"); }
           // L: 부당사유
@@ -11839,6 +11839,7 @@ ${htmlDraft}
 
 {
   "vendorName": "공급업체명",
+  "vendorBusinessType": "공급업체의 업종/사업종목(예: 도매업, 소매업, 제조업, 서비스업, 기타 등. 문서에서 업태·종목 란을 참조)",
   "documentDate": "YYYY-MM-DD 형식의 날짜",
   "totalAmount": 합계금액(VAT포함, 숫자),
   "items": [

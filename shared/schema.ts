@@ -611,6 +611,7 @@ export const safetyCostRecords = pgTable("safety_cost_records", {
   totalAmount: numeric("total_amount").notNull(),
   purchaseDate: text("purchase_date"),
   vendorName: text("vendor_name"),
+  vendorBusinessType: text("vendor_business_type"),
   notes: text("notes"),
   documentNumber: text("document_number"),
   paymentRequestDate: text("payment_request_date"),
