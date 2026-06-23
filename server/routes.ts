@@ -10212,14 +10212,13 @@ ${htmlDraft}
         return null;
       }
 
-      // ─── 헬퍼: sharp로 이미지 압축 + 여백 제거 ─────────────────────
+      // ─── 헬퍼: sharp로 이미지 압축 ─────────────────────────────────
       const sharpLib = require('sharp') as typeof import('sharp');
       async function compressImg(buf: Buffer): Promise<Buffer> {
         try {
           return await sharpLib(buf)
-            .trim({ background: '#FFFFFF', threshold: 25 }) // 흰색 여백 자동 제거
             .resize({ width: 1500, height: 2000, fit: 'inside', withoutEnlargement: true })
-            .jpeg({ quality: 78, mozjpeg: false })
+            .jpeg({ quality: 82, mozjpeg: false })
             .toBuffer();
         } catch {
           return buf;
