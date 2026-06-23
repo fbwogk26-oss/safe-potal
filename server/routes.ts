@@ -10734,7 +10734,6 @@ ${htmlDraft}
                   recR ? [{ label: "금액", value: `${Number(recR.totalAmount || 0).toLocaleString()}원` }] : [],
                   "FFFFFACD", "FFFFFACD", "FF2E75B6", "FF2E75B6"
                 );
-                void rightFn;
               }
               // ② 문서 이미지는 한 번만
               const rep1 = groupRecs[0];
