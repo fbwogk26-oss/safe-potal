@@ -373,6 +373,9 @@
 </main>
 
 <script>
+// ═══════════════════════════════════════════════
+//  Browser / Platform Check
+// ═══════════════════════════════════════════════
 const ua = navigator.userAgent;
 const isIOS     = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const isAndroid = /Android/.test(ua);
@@ -394,14 +397,23 @@ if (isIOS) {
   notice.style.display = 'block';
 }
 
+// ═══════════════════════════════════════════════
+//  State
+// ═══════════════════════════════════════════════
 let recognition = null;
 let finalTranscript = '';
+let interimText  = '';
+let stopIntent   = false;
+let noSpeechCount = 0;
 let isRecording  = false;
 let isPaused     = false;
 let timerInterval = null;
 let elapsedSeconds = 0;
 let startTime = null;
 
+// ═══════════════════════════════════════════════
+//  Elements
+// ═══════════════════════════════════════════════
 const micBtn       = document.getElementById('mic-btn');
 const micHint      = document.getElementById('mic-hint');
 const timer        = document.getElementById('timer');
@@ -417,6 +429,9 @@ const btnDl        = document.getElementById('btn-dl');
 const statusBadge  = document.getElementById('status-badge');
 const micNotice    = document.getElementById('mic-notice');
 
+// ═══════════════════════════════════════════════
+//  Timer
+// ═══════════════════════════════════════════════
 function startTimer() {
   startTime = Date.now() - elapsedSeconds * 1000;
   timerInterval = setInterval(() => {
@@ -431,6 +446,9 @@ function stopTimer() {
   timerInterval = null;
 }
 
+// ═══════════════════════════════════════════════
+//  Step / Status helpers
+// ═══════════════════════════════════════════════
 function setStep(n) {
   ['step-1','step-2','step-3','step-4'].forEach((id, i) => {
     const el = document.getElementById(id);
@@ -444,6 +462,9 @@ function setStatus(text, cls) {
   statusBadge.className = 'status-badge ' + (cls || '');
 }
 
+// ═══════════════════════════════════════════════
+//  Speech Recognition Setup
+// ═══════════════════════════════════════════════
 function buildRecognition() {
   const r = new SpeechRecognition();
   r.lang = 'ko-KR';
@@ -451,7 +472,9 @@ function buildRecognition() {
   r.interimResults = true;
   r.maxAlternatives = 1;
 
-  r.onstart = () => { micNotice.style.display = 'none'; };
+  r.onstart = () => {
+    micNotice.style.display = 'none';
+  };
 
   r.onresult = (e) => {
     let interim = '';
@@ -459,10 +482,12 @@ function buildRecognition() {
       const t = e.results[i][0].transcript;
       if (e.results[i].isFinal) {
         finalTranscript += t + ' ';
+        interimText = '';
       } else {
         interim += t;
       }
     }
+    interimText = interim;
     renderTranscript(interim);
   };
 
@@ -471,7 +496,12 @@ function buildRecognition() {
       micNotice.style.display = 'block';
       stopRec(true);
     } else if (e.error === 'no-speech') {
-      // ignore
+      noSpeechCount++;
+      if (noSpeechCount >= 3 && !finalTranscript.trim()) {
+        showTranscriptHint('🔇 음성이 감지되지 않습니다. 마이크에 가까이 대고 말씀해 주세요.');
+      }
+    } else if (e.error === 'network') {
+      showTranscriptHint('⚠️ 네트워크 오류. 인터넷 연결을 확인해 주세요.');
     } else {
       console.warn('Speech recognition error:', e.error);
     }
@@ -479,17 +509,40 @@ function buildRecognition() {
 
   r.onend = () => {
     if (isRecording && !isPaused) {
+      // Auto-restart during continuous recording (Chrome quirk)
       try { r.start(); } catch(_) {}
+    } else if (stopIntent) {
+      // Intentional stop — all results are now in, safe to generate
+      stopIntent = false;
+      if (finalTranscript.trim()) {
+        btnGenerate.disabled = false;
+        setStep(3);
+        setStatus('생성 대기', 'generating');
+        generateMinutes();
+      } else {
+        setStep(1);
+        setStatus('대기 중', '');
+        timer.classList.add('hidden');
+        showTranscriptHint('인식된 내용이 없습니다. 마이크 권한과 인터넷 연결을 확인한 뒤 다시 녹음해 주세요.');
+      }
     }
   };
 
   return r;
 }
 
+function showTranscriptHint(msg) {
+  transcriptBox.innerHTML = `<span style="color:#9ca3af;font-style:italic">${msg}</span>`;
+}
+
 function renderTranscript(interim) {
   transcriptBox.innerHTML =
-    (finalTranscript ? '<span>' + escHtml(finalTranscript) + '</span>' : '') +
-    (interim ? '<span style="color:#9ca3af">' + escHtml(interim) + '</span>' : '');
+    (finalTranscript
+      ? '<span id="final-text">' + escHtml(finalTranscript) + '</span>'
+      : '') +
+    (interim
+      ? '<span id="interim-text" style="color:#9ca3af">' + escHtml(interim) + '</span>'
+      : '');
   transcriptBox.scrollTop = transcriptBox.scrollHeight;
 }
 
@@ -497,11 +550,20 @@ function escHtml(s) {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
-micBtn.addEventListener('click', () => { if (!isRecording) startRec(); });
+// ═══════════════════════════════════════════════
+//  Recording Controls
+// ═══════════════════════════════════════════════
+micBtn.addEventListener('click', () => {
+  if (isRecording) return;
+  startRec();
+});
 
 function startRec() {
   if (!SpeechRecognition || isIOS) return;
   finalTranscript = '';
+  interimText     = '';
+  stopIntent      = false;
+  noSpeechCount   = 0;
   elapsedSeconds  = 0;
   isRecording = true;
   isPaused    = false;
@@ -516,7 +578,7 @@ function startRec() {
   ctrlBtns.style.display = 'flex';
   btnPause.style.display  = '';
   btnResume.style.display = 'none';
-  transcriptBox.innerHTML = '';
+  transcriptBox.innerHTML = '<span style="color:#9ca3af;font-style:italic">🎙 듣고 있습니다... 말씀해 주세요.</span>';
   minutesBox.innerHTML = '<span class="placeholder">녹음 종료 후 회의록이 자동으로 생성됩니다.</span>';
   btnGenerate.disabled = true;
   btnCopy.disabled     = true;
@@ -554,6 +616,14 @@ function stopRec(silent) {
   if (!isRecording) return;
   isRecording = false;
   isPaused    = false;
+
+  // Capture any interim text still being processed
+  if (!silent && interimText.trim()) {
+    finalTranscript += interimText + ' ';
+    interimText = '';
+  }
+
+  stopIntent = !silent;
   try { recognition.stop(); } catch(_) {}
   stopTimer();
 
@@ -562,23 +632,25 @@ function stopRec(silent) {
   micHint.textContent = '버튼을 눌러 녹음을 시작하세요';
   ctrlBtns.style.display = 'none';
 
-  if (!silent && finalTranscript.trim()) {
-    btnGenerate.disabled = false;
-    setStep(3);
-    setStatus('생성 대기', 'generating');
-    generateMinutes();
-  } else {
+  if (silent) {
     setStep(1);
     setStatus('대기 중', '');
   }
+  // Non-silent: generate decision deferred to onend (after all results arrive)
 }
 
+// ═══════════════════════════════════════════════
+//  Meeting Minutes Generation
+// ═══════════════════════════════════════════════
 function generateMinutes() {
   const text = finalTranscript.trim();
   if (!text) return;
+
   setStep(3);
   setStatus('생성 중', 'generating');
   btnGenerate.disabled = true;
+
+  // Simulate brief processing delay for UX
   setTimeout(() => {
     const minutes = buildMinutes(text);
     renderMinutes(minutes);
@@ -594,7 +666,9 @@ function buildMinutes(text) {
   const now = new Date();
   const dateStr = now.toLocaleDateString('ko-KR', {year:'numeric',month:'long',day:'numeric',weekday:'long'});
   const timeStr = now.toLocaleTimeString('ko-KR', {hour:'2-digit',minute:'2-digit'});
+
   const sentences = splitSentences(text);
+
   return {
     title:     extractTitle(sentences),
     datetime:  `${dateStr} ${timeStr}`,
@@ -615,12 +689,16 @@ function splitSentences(text) {
 
 function extractTitle(sentences) {
   if (!sentences.length) return '회의록';
-  const hint = sentences.find(s => /회의|안건|주제|관련|보고|검토|논의/.test(s));
-  const raw = hint || sentences[0];
+  // Try to find a sentence that looks like an agenda
+  const titleHints = sentences.find(s =>
+    /회의|안건|주제|관련|보고|검토|논의/.test(s)
+  );
+  const raw = titleHints || sentences[0];
   return raw.length > 40 ? raw.slice(0, 40) + '…' : raw;
 }
 
 function extractKeywords(text) {
+  // Korean stop words
   const STOP = new Set([
     '이','그','저','것','수','를','을','은','는','이','가','의','에','도','로','으로',
     '와','과','하고','하는','하면','하여','하지','합니다','했습니다','있습니다',
@@ -628,11 +706,13 @@ function extractKeywords(text) {
     '그러나','그래서','따라서','우리','저는','제가','아','네','예','맞','맞아',
     '그냥','좀','거','게','데','됩니다','입니다','습니다','ㅎ','ㅇ',
   ]);
+
   const freq = {};
   text.replace(/[^가-힣a-zA-Z0-9\s]/g, ' ')
       .split(/\s+/)
       .filter(w => w.length >= 2 && !STOP.has(w))
       .forEach(w => { freq[w] = (freq[w] || 0) + 1; });
+
   return Object.entries(freq)
     .filter(([,c]) => c >= 2)
     .sort((a, b) => b[1] - a[1])
@@ -645,17 +725,24 @@ function filterSentences(sentences, keywords) {
   return sentences.filter(s => re.test(s));
 }
 
+// ═══════════════════════════════════════════════
+//  Render Minutes (HTML)
+// ═══════════════════════════════════════════════
 function renderMinutes(m) {
   const section = (title, items, icon) => {
     if (!items || items.length === 0) return '';
-    return `<h3>${icon} ${title}</h3><ul>${items.map(i => `<li>${escHtml(i)}</li>`).join('')}</ul>`;
+    const liItems = items.map(i => `<li>${escHtml(i)}</li>`).join('');
+    return `<h3>${icon} ${title}</h3><ul>${liItems}</ul>`;
   };
+
   const kwTags = m.keywords.length
     ? m.keywords.map(k => `<span class="tag">#${escHtml(k)}</span>`).join(' ')
     : '<span style="color:#9ca3af">추출된 키워드 없음</span>';
+
   minutesBox.innerHTML = `
     <h2>📋 ${escHtml(m.title)}</h2>
-    <p class="meta">📅 일시: ${m.datetime}</p><br>
+    <p class="meta">📅 일시: ${m.datetime}</p>
+    <br>
     <h3>🗣 전체 발언 내용</h3>
     <p>${escHtml(m.fullText)}</p>
     <h3>🔖 주요 키워드</h3>
@@ -666,6 +753,38 @@ function renderMinutes(m) {
   `;
 }
 
+// ═══════════════════════════════════════════════
+//  Plain text for copy / docx
+// ═══════════════════════════════════════════════
+function buildPlainText(m) {
+  const lines = [];
+  lines.push(`[회의록]`);
+  lines.push(`제목: ${m.title}`);
+  lines.push(`일시: ${m.datetime}`);
+  lines.push('');
+  lines.push('[전체 발언 내용]');
+  lines.push(m.fullText);
+  lines.push('');
+  lines.push('[주요 키워드]');
+  lines.push(m.keywords.length ? m.keywords.map(k=>`#${k}`).join('  ') : '없음');
+  if (m.decisions.length) {
+    lines.push(''); lines.push('[결정사항]');
+    m.decisions.forEach((s,i) => lines.push(`${i+1}. ${s}`));
+  }
+  if (m.actions.length) {
+    lines.push(''); lines.push('[조치사항]');
+    m.actions.forEach((s,i) => lines.push(`${i+1}. ${s}`));
+  }
+  if (m.agendas.length) {
+    lines.push(''); lines.push('[안건 목록]');
+    m.agendas.forEach((s,i) => lines.push(`${i+1}. ${s}`));
+  }
+  return lines.join('\n');
+}
+
+// ═══════════════════════════════════════════════
+//  Copy
+// ═══════════════════════════════════════════════
 async function copyMinutes() {
   const text = minutesBox.innerText || minutesBox.textContent;
   try {
@@ -678,33 +797,87 @@ async function copyMinutes() {
   }
 }
 
+// ═══════════════════════════════════════════════
+//  DOCX Download
+// ═══════════════════════════════════════════════
 async function downloadDocx() {
-  if (!window.docx) { alert('docx 라이브러리 로딩 중입니다. 잠시 후 다시 시도해 주세요.'); return; }
+  if (!window.docx) {
+    alert('docx 라이브러리 로딩 중입니다. 잠시 후 다시 시도해 주세요.');
+    return;
+  }
   const text = finalTranscript.trim();
   if (!text) return;
+
   const m = buildMinutes(text);
-  const { Document, Packer, Paragraph, TextRun, HeadingLevel } = window.docx;
-  const h1  = t => new Paragraph({ text: t, heading: HeadingLevel.HEADING_1, spacing: { before: 200, after: 120 } });
-  const h2  = t => new Paragraph({ text: t, heading: HeadingLevel.HEADING_2, spacing: { before: 300, after: 80 } });
-  const bod = t => new Paragraph({ children: [new TextRun({ text: t, size: 22, font: 'Malgun Gothic' })], spacing: { after: 60 } });
-  const bul = t => new Paragraph({ children: [new TextRun({ text: `• ${t}`, size: 22, font: 'Malgun Gothic' })], spacing: { after: 40 }, indent: { left: 360 } });
-  const emp = () => new Paragraph({ text: '' });
+  const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } = window.docx;
+
+  const heading1 = (t) => new Paragraph({
+    text: t,
+    heading: HeadingLevel.HEADING_1,
+    spacing: { before: 200, after: 120 },
+  });
+  const heading2 = (t) => new Paragraph({
+    text: t,
+    heading: HeadingLevel.HEADING_2,
+    spacing: { before: 300, after: 80 },
+  });
+  const body = (t) => new Paragraph({
+    children: [new TextRun({ text: t, size: 22, font: 'Malgun Gothic' })],
+    spacing: { after: 60 },
+  });
+  const bullet = (t) => new Paragraph({
+    children: [new TextRun({ text: `• ${t}`, size: 22, font: 'Malgun Gothic' })],
+    spacing: { after: 40 },
+    indent: { left: 360 },
+  });
+  const empty = () => new Paragraph({ text: '' });
+
   const children = [
-    h1(`회의록: ${m.title}`), bod(`일시: ${m.datetime}`), emp(),
-    h2('전체 발언 내용'), bod(m.fullText), emp(),
-    h2('주요 키워드'), bod(m.keywords.length ? m.keywords.map(k=>`#${k}`).join('  ') : '없음'), emp(),
+    heading1(`회의록: ${m.title}`),
+    body(`일시: ${m.datetime}`),
+    empty(),
+    heading2('전체 발언 내용'),
+    body(m.fullText),
+    empty(),
+    heading2('주요 키워드'),
+    body(m.keywords.length ? m.keywords.map(k=>`#${k}`).join('  ') : '없음'),
+    empty(),
   ];
-  if (m.decisions.length) { children.push(h2('결정사항')); m.decisions.forEach(s=>children.push(bul(s))); children.push(emp()); }
-  if (m.actions.length)   { children.push(h2('조치사항')); m.actions.forEach(s=>children.push(bul(s)));   children.push(emp()); }
-  if (m.agendas.length)   { children.push(h2('안건 목록')); m.agendas.forEach(s=>children.push(bul(s)));  children.push(emp()); }
-  const doc = new Document({ creator: '회의록 자동 생성기', title: m.title, sections: [{ properties: {}, children }] });
+
+  if (m.decisions.length) {
+    children.push(heading2('결정사항'));
+    m.decisions.forEach(s => children.push(bullet(s)));
+    children.push(empty());
+  }
+  if (m.actions.length) {
+    children.push(heading2('조치사항'));
+    m.actions.forEach(s => children.push(bullet(s)));
+    children.push(empty());
+  }
+  if (m.agendas.length) {
+    children.push(heading2('안건 목록'));
+    m.agendas.forEach(s => children.push(bullet(s)));
+    children.push(empty());
+  }
+
+  const doc = new Document({
+    creator: '회의록 자동 생성기',
+    title: m.title,
+    sections: [{ properties: {}, children }],
+  });
+
   try {
     const blob = await Packer.toBlob(doc);
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
-    a.href = url; a.download = `회의록_${new Date().toISOString().slice(0,10)}.docx`;
-    a.click(); URL.revokeObjectURL(url);
-  } catch(e) { console.error(e); alert('Word 파일 생성 중 오류: ' + e.message); }
+    a.href     = url;
+    a.download = `회의록_${new Date().toISOString().slice(0,10)}.docx`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch(e) {
+    console.error(e);
+    alert('Word 파일 생성 중 오류가 발생했습니다: ' + e.message);
+  }
 }
 </script>
 </body>
