@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>회의록 자동 생성기</title>
+  <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Pretendard', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+      background: #f5f6fa;
+      color: #1a1a2e;
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    header {
+      background: #fff;
+      border-bottom: 1px solid #e8eaed;
+      padding: 18px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    header .logo {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, #4f46e5, #7c3aed);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; color: #fff; flex-shrink: 0;
+    }
+    header h1 { font-size: 1.15rem; font-weight: 700; color: #1a1a2e; }
+    header p  { font-size: 0.78rem; color: #6b7280; margin-top: 1px; }
+    .status-badge {
+      margin-left: auto;
+      padding: 5px 12px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      background: #f3f4f6;
+      color: #6b7280;
+      transition: all .3s;
+    }
+    .status-badge.recording { background: #fee2e2; color: #dc2626; }
+    .status-badge.paused    { background: #fef3c7; color: #d97706; }
+    .status-badge.generating{ background: #dbeafe; color: #2563eb; }
+    .status-badge.done      { background: #d1fae5; color: #059669; }
+
+    /* ── Browser Notice ── */
+    #browser-notice {
+      display: none;
+      margin: 24px;
+      padding: 18px 22px;
+      background: #fff7ed;
+      border: 1px solid #fed7aa;
+      border-radius: 12px;
+      color: #c2410c;
+      font-size: 0.9rem;
+    }
+    #browser-notice strong { display: block; margin-bottom: 4px; }
+
+    /* ── Layout ── */
+    main {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 28px 20px 60px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    /* ── Cards ── */
+    .card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.08);
+    }
+    .card-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: #9ca3af;
+      margin-bottom: 18px;
+    }
+
+    /* ── Recording Controls ── */
+    .rec-center {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+    }
+    #mic-btn {
+      width: 88px; height: 88px;
+      border-radius: 50%;
+      border: none;
+      background: linear-gradient(135deg, #4f46e5, #7c3aed);
+      color: #fff;
+      font-size: 36px;
+      cursor: pointer;
+      box-shadow: 0 4px 20px rgba(79,70,229,.4);
+      transition: transform .15s, box-shadow .15s;
+      position: relative;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    #mic-btn:hover { transform: scale(1.06); box-shadow: 0 6px 28px rgba(79,70,229,.5); }
+    #mic-btn.active { background: linear-gradient(135deg, #dc2626, #b91c1c); box-shadow: 0 4px 20px rgba(220,38,38,.4); }
+    #mic-btn.active::after {
+      content: '';
+      position: absolute;
+      inset: -8px;
+      border-radius: 50%;
+      border: 3px solid rgba(220,38,38,.4);
+      animation: pulse 1.4s ease-out infinite;
+    }
+    @keyframes pulse {
+      0%   { transform: scale(1); opacity: .8; }
+      100% { transform: scale(1.5); opacity: 0; }
+    }
+    .mic-hint { font-size: 0.82rem; color: #9ca3af; text-align: center; }
+
+    /* Timer */
+    #timer {
+      font-size: 2rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      color: #1a1a2e;
+      letter-spacing: .04em;
+    }
+    #timer.hidden { display: none; }
+
+    /* Control buttons */
+    .ctrl-btns {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .btn {
+      padding: 10px 20px;
+      border-radius: 10px;
+      border: none;
+      font-size: 0.86rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .15s, transform .1s;
+    }
+    .btn:disabled { opacity: .38; cursor: not-allowed; }
+    .btn:not(:disabled):hover { opacity: .88; transform: translateY(-1px); }
+    .btn-pause  { background: #fef3c7; color: #92400e; }
+    .btn-resume { background: #d1fae5; color: #065f46; }
+    .btn-stop   { background: #fee2e2; color: #991b1b; }
+    .btn-primary{ background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #fff; padding: 12px 28px; }
+    .btn-copy   { background: #f3f4f6; color: #374151; }
+    .btn-dl     { background: linear-gradient(135deg, #059669, #047857); color: #fff; }
+
+    /* ── Transcript ── */
+    #transcript-box {
+      min-height: 120px;
+      max-height: 260px;
+      overflow-y: auto;
+      border: 1.5px solid #e5e7eb;
+      border-radius: 10px;
+      padding: 14px 16px;
+      font-size: 0.92rem;
+      line-height: 1.75;
+      color: #374151;
+      background: #f9fafb;
+      position: relative;
+    }
+    #transcript-box .placeholder {
+      color: #c4b5d1;
+      font-style: italic;
+    }
+    #interim-text { color: #9ca3af; }
+
+    /* ── Minutes Output ── */
+    #minutes-box {
+      min-height: 200px;
+      max-height: 520px;
+      overflow-y: auto;
+      border: 1.5px solid #e5e7eb;
+      border-radius: 10px;
+      padding: 20px;
+      font-size: 0.9rem;
+      line-height: 1.8;
+      outline: none;
+      background: #fafafa;
+    }
+    #minutes-box:focus { border-color: #a5b4fc; background: #fff; }
+    #minutes-box .placeholder { color: #c4b5d1; font-style: italic; }
+    #minutes-box h2 {
+      font-size: 1.1rem; font-weight: 700;
+      color: #1a1a2e; margin-bottom: 4px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #4f46e5;
+    }
+    #minutes-box h3 {
+      font-size: 0.85rem; font-weight: 700;
+      color: #6b7280; text-transform: uppercase;
+      letter-spacing: .05em; margin: 18px 0 6px;
+    }
+    #minutes-box p  { margin: 3px 0; }
+    #minutes-box ul { padding-left: 18px; margin: 4px 0; }
+    #minutes-box li { margin: 3px 0; }
+    #minutes-box .meta { color: #6b7280; font-size: 0.82rem; }
+    #minutes-box .tag {
+      display: inline-block;
+      background: #ede9fe;
+      color: #5b21b6;
+      font-size: 0.76rem;
+      padding: 2px 8px;
+      border-radius: 20px;
+      margin: 2px 3px;
+      font-weight: 600;
+    }
+    .action-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 14px;
+    }
+
+    /* ── Progress Steps ── */
+    .steps {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.78rem;
+      color: #9ca3af;
+      flex-wrap: wrap;
+    }
+    .step { padding: 4px 10px; border-radius: 20px; background: #f3f4f6; }
+    .step.active { background: #ede9fe; color: #5b21b6; font-weight: 700; }
+    .step.done   { background: #d1fae5; color: #059669; }
+    .step-arrow  { color: #d1d5db; }
+
+    /* ── Mic permission notice ── */
+    #mic-notice {
+      display: none;
+      font-size: 0.82rem;
+      color: #6b7280;
+      background: #f0f9ff;
+      border: 1px solid #bae6fd;
+      border-radius: 8px;
+      padding: 10px 14px;
+    }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
+
+    /* ── Responsive ── */
+    @media (max-width: 540px) {
+      header { padding: 14px 16px; }
+      main { padding: 16px 14px 50px; gap: 16px; }
+      .card { padding: 18px 16px; }
+      #mic-btn { width: 74px; height: 74px; font-size: 30px; }
+      #timer { font-size: 1.6rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Browser Notice -->
+<div id="browser-notice">
+  <strong>⚠️ Chrome 브라우저를 사용해 주세요</strong>
+  이 앱은 Web Speech API를 사용하며, <strong>Chrome 브라우저에서만</strong> 정상 동작합니다.<br>
+  다른 브라우저(Firefox, Safari, Edge 등)에서는 음성 인식이 지원되지 않습니다.
+</div>
+
+<!-- Header -->
+<header>
+  <div class="logo">🎙</div>
+  <div>
+    <h1>회의록 자동 생성기</h1>
+    <p>Web Speech API 기반 · API 키 불필요</p>
+  </div>
+  <span class="status-badge" id="status-badge">대기 중</span>
+</header>
+
+<main>
+
+  <!-- Step Indicator -->
+  <div class="steps">
+    <span class="step active" id="step-1">1. 대기 중</span>
+    <span class="step-arrow">›</span>
+    <span class="step" id="step-2">2. 녹음 중</span>
+    <span class="step-arrow">›</span>
+    <span class="step" id="step-3">3. 회의록 생성</span>
+    <span class="step-arrow">›</span>
+    <span class="step" id="step-4">4. 완료</span>
+  </div>
+
+  <!-- Recording Card -->
+  <div class="card">
+    <div class="card-title">녹음 컨트롤</div>
+
+    <div class="rec-center">
+      <button id="mic-btn" title="녹음 시작">🎙</button>
+      <p class="mic-hint" id="mic-hint">버튼을 눌러 녹음을 시작하세요</p>
+      <div id="timer" class="hidden">00:00</div>
+
+      <div class="ctrl-btns" id="ctrl-btns" style="display:none">
+        <button class="btn btn-pause"  id="btn-pause"  onclick="pauseRec()">⏸ 일시정지</button>
+        <button class="btn btn-resume" id="btn-resume" onclick="resumeRec()" style="display:none">▶ 재개</button>
+        <button class="btn btn-stop"   id="btn-stop"   onclick="stopRec()">⏹ 종료</button>
+      </div>
+
+      <div id="mic-notice">
+        🔒 마이크 권한이 필요합니다. 브라우저 주소창의 🔒 아이콘을 클릭해 마이크 허용 후 다시 시도해 주세요.
+      </div>
+    </div>
+  </div>
+
+  <!-- Transcript Card -->
+  <div class="card">
+    <div class="card-title">실시간 음성 전사</div>
+    <div id="transcript-box">
+      <span class="placeholder">녹음이 시작되면 여기에 인식된 내용이 실시간으로 표시됩니다.</span>
+    </div>
+  </div>
+
+  <!-- Minutes Card -->
+  <div class="card">
+    <div class="card-title">회의록</div>
+    <div id="minutes-box" contenteditable="true" spellcheck="false">
+      <span class="placeholder">녹음 종료 후 회의록이 자동으로 생성됩니다.<br>생성된 내용은 직접 편집할 수 있습니다.</span>
+    </div>
+    <div class="action-row">
+      <button class="btn btn-primary" id="btn-generate" onclick="generateMinutes()" disabled>📝 회의록 생성</button>
+      <button class="btn btn-copy"    id="btn-copy"    onclick="copyMinutes()"   disabled>📋 텍스트 복사</button>
+      <button class="btn btn-dl"      id="btn-dl"      onclick="downloadDocx()"  disabled>⬇ Word 다운로드</button>
+    </div>
+  </div>
+
+</main>
+
+<script>
+// ═══════════════════════════════════════════════
+//  Browser Check
+// ═══════════════════════════════════════════════
+const isChrome = /Chrome/.test(navigator.userAgent) && /Google Inc/.test(navigator.vendor);
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+if (!isChrome || !SpeechRecognition) {
+  document.getElementById('browser-notice').style.display = 'block';
+}
+
+// ═══════════════════════════════════════════════
+//  State
+// ═══════════════════════════════════════════════
+let recognition = null;
+let finalTranscript = '';
+let isRecording  = false;
+let isPaused     = false;
+let timerInterval = null;
+let elapsedSeconds = 0;
+let startTime = null;
+
+// ═══════════════════════════════════════════════
+//  Elements
+// ═══════════════════════════════════════════════
+const micBtn       = document.getElementById('mic-btn');
+const micHint      = document.getElementById('mic-hint');
+const timer        = document.getElementById('timer');
+const ctrlBtns     = document.getElementById('ctrl-btns');
+const btnPause     = document.getElementById('btn-pause');
+const btnResume    = document.getElementById('btn-resume');
+const btnStop      = document.getElementById('btn-stop');
+const transcriptBox= document.getElementById('transcript-box');
+const minutesBox   = document.getElementById('minutes-box');
+const btnGenerate  = document.getElementById('btn-generate');
+const btnCopy      = document.getElementById('btn-copy');
+const btnDl        = document.getElementById('btn-dl');
+const statusBadge  = document.getElementById('status-badge');
+const micNotice    = document.getElementById('mic-notice');
+
+// ═══════════════════════════════════════════════
+//  Timer
+// ═══════════════════════════════════════════════
+function startTimer() {
+  startTime = Date.now() - elapsedSeconds * 1000;
+  timerInterval = setInterval(() => {
+    elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
+    const m = String(Math.floor(elapsedSeconds / 60)).padStart(2, '0');
+    const s = String(elapsedSeconds % 60).padStart(2, '0');
+    timer.textContent = `${m}:${s}`;
+  }, 500);
+}
+function stopTimer() {
+  clearInterval(timerInterval);
+  timerInterval = null;
+}
+
+// ═══════════════════════════════════════════════
+//  Step / Status helpers
+// ═══════════════════════════════════════════════
+function setStep(n) {
+  ['step-1','step-2','step-3','step-4'].forEach((id, i) => {
+    const el = document.getElementById(id);
+    el.classList.remove('active','done');
+    if (i + 1 < n)  el.classList.add('done');
+    if (i + 1 === n) el.classList.add('active');
+  });
+}
+function setStatus(text, cls) {
+  statusBadge.textContent = text;
+  statusBadge.className = 'status-badge ' + (cls || '');
+}
+
+// ═══════════════════════════════════════════════
+//  Speech Recognition Setup
+// ═══════════════════════════════════════════════
+function buildRecognition() {
+  const r = new SpeechRecognition();
+  r.lang = 'ko-KR';
+  r.continuous = true;
+  r.interimResults = true;
+  r.maxAlternatives = 1;
+
+  r.onstart = () => {
+    micNotice.style.display = 'none';
+  };
+
+  r.onresult = (e) => {
+    let interim = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const t = e.results[i][0].transcript;
+      if (e.results[i].isFinal) {
+        finalTranscript += t + ' ';
+      } else {
+        interim += t;
+      }
+    }
+    renderTranscript(interim);
+  };
+
+  r.onerror = (e) => {
+    if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+      micNotice.style.display = 'block';
+      stopRec(true);
+    } else if (e.error === 'no-speech') {
+      // silently ignore
+    } else {
+      console.warn('Speech recognition error:', e.error);
+    }
+  };
+
+  // Auto-restart if continuous mode drops (Chrome quirk)
+  r.onend = () => {
+    if (isRecording && !isPaused) {
+      try { r.start(); } catch(_) {}
+    }
+  };
+
+  return r;
+}
+
+function renderTranscript(interim) {
+  transcriptBox.innerHTML =
+    (finalTranscript
+      ? '<span id="final-text">' + escHtml(finalTranscript) + '</span>'
+      : '') +
+    (interim
+      ? '<span id="interim-text" style="color:#9ca3af">' + escHtml(interim) + '</span>'
+      : '');
+  transcriptBox.scrollTop = transcriptBox.scrollHeight;
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ═══════════════════════════════════════════════
+//  Recording Controls
+// ═══════════════════════════════════════════════
+micBtn.addEventListener('click', () => {
+  if (isRecording) return;
+  startRec();
+});
+
+function startRec() {
+  if (!SpeechRecognition) return;
+  finalTranscript = '';
+  elapsedSeconds  = 0;
+  isRecording = true;
+  isPaused    = false;
+
+  recognition = buildRecognition();
+  recognition.start();
+
+  micBtn.classList.add('active');
+  micBtn.textContent = '🔴';
+  micHint.textContent = '녹음 중... 말씀해 주세요';
+  timer.classList.remove('hidden');
+  ctrlBtns.style.display = 'flex';
+  btnPause.style.display  = '';
+  btnResume.style.display = 'none';
+  transcriptBox.innerHTML = '';
+  minutesBox.innerHTML = '<span class="placeholder">녹음 종료 후 회의록이 자동으로 생성됩니다.</span>';
+  btnGenerate.disabled = true;
+  btnCopy.disabled     = true;
+  btnDl.disabled       = true;
+
+  startTimer();
+  setStep(2);
+  setStatus('녹음 중', 'recording');
+}
+
+function pauseRec() {
+  if (!isRecording || isPaused) return;
+  isPaused = true;
+  try { recognition.stop(); } catch(_) {}
+  stopTimer();
+  micHint.textContent = '일시정지됨';
+  btnPause.style.display  = 'none';
+  btnResume.style.display = '';
+  setStatus('일시정지', 'paused');
+}
+
+function resumeRec() {
+  if (!isRecording || !isPaused) return;
+  isPaused = false;
+  recognition = buildRecognition();
+  recognition.start();
+  startTimer();
+  micHint.textContent = '녹음 중... 말씀해 주세요';
+  btnPause.style.display  = '';
+  btnResume.style.display = 'none';
+  setStatus('녹음 중', 'recording');
+}
+
+function stopRec(silent) {
+  if (!isRecording) return;
+  isRecording = false;
+  isPaused    = false;
+  try { recognition.stop(); } catch(_) {}
+  stopTimer();
+
+  micBtn.classList.remove('active');
+  micBtn.textContent = '🎙';
+  micHint.textContent = '버튼을 눌러 녹음을 시작하세요';
+  ctrlBtns.style.display = 'none';
+
+  if (!silent && finalTranscript.trim()) {
+    btnGenerate.disabled = false;
+    setStep(3);
+    setStatus('생성 대기', 'generating');
+    generateMinutes();
+  } else {
+    setStep(1);
+    setStatus('대기 중', '');
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  Meeting Minutes Generation
+// ═══════════════════════════════════════════════
+function generateMinutes() {
+  const text = finalTranscript.trim();
+  if (!text) return;
+
+  setStep(3);
+  setStatus('생성 중', 'generating');
+  btnGenerate.disabled = true;
+
+  // Simulate brief processing delay for UX
+  setTimeout(() => {
+    const minutes = buildMinutes(text);
+    renderMinutes(minutes);
+    btnCopy.disabled = false;
+    btnDl.disabled   = false;
+    btnGenerate.disabled = false;
+    setStep(4);
+    setStatus('완료', 'done');
+  }, 500);
+}
+
+function buildMinutes(text) {
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('ko-KR', {year:'numeric',month:'long',day:'numeric',weekday:'long'});
+  const timeStr = now.toLocaleTimeString('ko-KR', {hour:'2-digit',minute:'2-digit'});
+
+  const sentences = splitSentences(text);
+
+  return {
+    title:     extractTitle(sentences),
+    datetime:  `${dateStr} ${timeStr}`,
+    fullText:  text,
+    keywords:  extractKeywords(text),
+    decisions: filterSentences(sentences, ['결정','확정','하기로','하겠습니다','결정했','채택']),
+    actions:   filterSentences(sentences, ['해주세요','해 주세요','부탁','담당','기한','까지','요청','처리']),
+    agendas:   filterSentences(sentences, ['관련','대해서','대한','건의','제안','논의','검토']),
+  };
+}
+
+function splitSentences(text) {
+  return text
+    .split(/(?<=[.!?。\n])\s+|(?<=다\s*[.!?])\s*|(?<=요\s*[.!?])\s*/)
+    .map(s => s.trim())
+    .filter(s => s.length > 5);
+}
+
+function extractTitle(sentences) {
+  if (!sentences.length) return '회의록';
+  // Try to find a sentence that looks like an agenda
+  const titleHints = sentences.find(s =>
+    /회의|안건|주제|관련|보고|검토|논의/.test(s)
+  );
+  const raw = titleHints || sentences[0];
+  return raw.length > 40 ? raw.slice(0, 40) + '…' : raw;
+}
+
+function extractKeywords(text) {
+  // Korean stop words
+  const STOP = new Set([
+    '이','그','저','것','수','를','을','은','는','이','가','의','에','도','로','으로',
+    '와','과','하고','하는','하면','하여','하지','합니다','했습니다','있습니다',
+    '있는','없는','같은','때문','위해','통해','대한','또한','그리고','하지만',
+    '그러나','그래서','따라서','우리','저는','제가','아','네','예','맞','맞아',
+    '그냥','좀','거','게','데','됩니다','입니다','습니다','ㅎ','ㅇ',
+  ]);
+
+  const freq = {};
+  text.replace(/[^가-힣a-zA-Z0-9\s]/g, ' ')
+      .split(/\s+/)
+      .filter(w => w.length >= 2 && !STOP.has(w))
+      .forEach(w => { freq[w] = (freq[w] || 0) + 1; });
+
+  return Object.entries(freq)
+    .filter(([,c]) => c >= 2)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 12)
+    .map(([w]) => w);
+}
+
+function filterSentences(sentences, keywords) {
+  const re = new RegExp(keywords.join('|'));
+  return sentences.filter(s => re.test(s));
+}
+
+// ═══════════════════════════════════════════════
+//  Render Minutes (HTML)
+// ═══════════════════════════════════════════════
+function renderMinutes(m) {
+  const section = (title, items, icon) => {
+    if (!items || items.length === 0) return '';
+    const liItems = items.map(i => `<li>${escHtml(i)}</li>`).join('');
+    return `<h3>${icon} ${title}</h3><ul>${liItems}</ul>`;
+  };
+
+  const kwTags = m.keywords.length
+    ? m.keywords.map(k => `<span class="tag">#${escHtml(k)}</span>`).join(' ')
+    : '<span style="color:#9ca3af">추출된 키워드 없음</span>';
+
+  minutesBox.innerHTML = `
+    <h2>📋 ${escHtml(m.title)}</h2>
+    <p class="meta">📅 일시: ${m.datetime}</p>
+    <br>
+    <h3>🗣 전체 발언 내용</h3>
+    <p>${escHtml(m.fullText)}</p>
+    <h3>🔖 주요 키워드</h3>
+    <p>${kwTags}</p>
+    ${section('결정사항', m.decisions, '✅')}
+    ${section('조치사항', m.actions,   '📌')}
+    ${section('안건 목록', m.agendas,  '📂')}
+  `;
+}
+
+// ═══════════════════════════════════════════════
+//  Plain text for copy / docx
+// ═══════════════════════════════════════════════
+function buildPlainText(m) {
+  const lines = [];
+  lines.push(`[회의록]`);
+  lines.push(`제목: ${m.title}`);
+  lines.push(`일시: ${m.datetime}`);
+  lines.push('');
+  lines.push('[전체 발언 내용]');
+  lines.push(m.fullText);
+  lines.push('');
+  lines.push('[주요 키워드]');
+  lines.push(m.keywords.length ? m.keywords.map(k=>`#${k}`).join('  ') : '없음');
+  if (m.decisions.length) {
+    lines.push(''); lines.push('[결정사항]');
+    m.decisions.forEach((s,i) => lines.push(`${i+1}. ${s}`));
+  }
+  if (m.actions.length) {
+    lines.push(''); lines.push('[조치사항]');
+    m.actions.forEach((s,i) => lines.push(`${i+1}. ${s}`));
+  }
+  if (m.agendas.length) {
+    lines.push(''); lines.push('[안건 목록]');
+    m.agendas.forEach((s,i) => lines.push(`${i+1}. ${s}`));
+  }
+  return lines.join('\n');
+}
+
+// ═══════════════════════════════════════════════
+//  Copy
+// ═══════════════════════════════════════════════
+async function copyMinutes() {
+  const text = minutesBox.innerText || minutesBox.textContent;
+  try {
+    await navigator.clipboard.writeText(text);
+    const orig = btnCopy.textContent;
+    btnCopy.textContent = '✅ 복사됨!';
+    setTimeout(() => { btnCopy.textContent = orig; }, 1800);
+  } catch(e) {
+    alert('복사에 실패했습니다. 직접 선택하여 복사해 주세요.');
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  DOCX Download
+// ═══════════════════════════════════════════════
+async function downloadDocx() {
+  if (!window.docx) {
+    alert('docx 라이브러리 로딩 중입니다. 잠시 후 다시 시도해 주세요.');
+    return;
+  }
+  const text = finalTranscript.trim();
+  if (!text) return;
+
+  const m = buildMinutes(text);
+  const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } = window.docx;
+
+  const heading1 = (t) => new Paragraph({
+    text: t,
+    heading: HeadingLevel.HEADING_1,
+    spacing: { before: 200, after: 120 },
+  });
+  const heading2 = (t) => new Paragraph({
+    text: t,
+    heading: HeadingLevel.HEADING_2,
+    spacing: { before: 300, after: 80 },
+  });
+  const body = (t) => new Paragraph({
+    children: [new TextRun({ text: t, size: 22, font: 'Malgun Gothic' })],
+    spacing: { after: 60 },
+  });
+  const bullet = (t) => new Paragraph({
+    children: [new TextRun({ text: `• ${t}`, size: 22, font: 'Malgun Gothic' })],
+    spacing: { after: 40 },
+    indent: { left: 360 },
+  });
+  const empty = () => new Paragraph({ text: '' });
+
+  const children = [
+    heading1(`회의록: ${m.title}`),
+    body(`일시: ${m.datetime}`),
+    empty(),
+    heading2('전체 발언 내용'),
+    body(m.fullText),
+    empty(),
+    heading2('주요 키워드'),
+    body(m.keywords.length ? m.keywords.map(k=>`#${k}`).join('  ') : '없음'),
+    empty(),
+  ];
+
+  if (m.decisions.length) {
+    children.push(heading2('결정사항'));
+    m.decisions.forEach(s => children.push(bullet(s)));
+    children.push(empty());
+  }
+  if (m.actions.length) {
+    children.push(heading2('조치사항'));
+    m.actions.forEach(s => children.push(bullet(s)));
+    children.push(empty());
+  }
+  if (m.agendas.length) {
+    children.push(heading2('안건 목록'));
+    m.agendas.forEach(s => children.push(bullet(s)));
+    children.push(empty());
+  }
+
+  const doc = new Document({
+    creator: '회의록 자동 생성기',
+    title: m.title,
+    sections: [{ properties: {}, children }],
+  });
+
+  try {
+    const blob = await Packer.toBlob(doc);
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `회의록_${new Date().toISOString().slice(0,10)}.docx`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch(e) {
+    console.error(e);
+    alert('Word 파일 생성 중 오류가 발생했습니다: ' + e.message);
+  }
+}
+</script>
+</body>
+</html>
