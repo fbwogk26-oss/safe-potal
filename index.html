@@ -402,6 +402,8 @@ if (isIOS) {
 // ═══════════════════════════════════════════════
 let recognition = null;
 let finalTranscript = '';
+let interimText  = '';
+let stopIntent   = false;
 let isRecording  = false;
 let isPaused     = false;
 let timerInterval = null;
@@ -479,10 +481,12 @@ function buildRecognition() {
       const t = e.results[i][0].transcript;
       if (e.results[i].isFinal) {
         finalTranscript += t + ' ';
+        interimText = '';
       } else {
         interim += t;
       }
     }
+    interimText = interim;
     renderTranscript(interim);
   };
 
@@ -497,10 +501,22 @@ function buildRecognition() {
     }
   };
 
-  // Auto-restart if continuous mode drops (Chrome quirk)
   r.onend = () => {
     if (isRecording && !isPaused) {
+      // Auto-restart during continuous recording (Chrome quirk)
       try { r.start(); } catch(_) {}
+    } else if (stopIntent) {
+      // Intentional stop — all results are now in, safe to generate
+      stopIntent = false;
+      if (finalTranscript.trim()) {
+        btnGenerate.disabled = false;
+        setStep(3);
+        setStatus('생성 대기', 'generating');
+        generateMinutes();
+      } else {
+        setStep(1);
+        setStatus('대기 중', '');
+      }
     }
   };
 
@@ -533,6 +549,8 @@ micBtn.addEventListener('click', () => {
 function startRec() {
   if (!SpeechRecognition || isIOS) return;
   finalTranscript = '';
+  interimText     = '';
+  stopIntent      = false;
   elapsedSeconds  = 0;
   isRecording = true;
   isPaused    = false;
@@ -585,6 +603,14 @@ function stopRec(silent) {
   if (!isRecording) return;
   isRecording = false;
   isPaused    = false;
+
+  // Capture any interim text still being processed
+  if (!silent && interimText.trim()) {
+    finalTranscript += interimText + ' ';
+    interimText = '';
+  }
+
+  stopIntent = !silent;
   try { recognition.stop(); } catch(_) {}
   stopTimer();
 
@@ -593,15 +619,11 @@ function stopRec(silent) {
   micHint.textContent = '버튼을 눌러 녹음을 시작하세요';
   ctrlBtns.style.display = 'none';
 
-  if (!silent && finalTranscript.trim()) {
-    btnGenerate.disabled = false;
-    setStep(3);
-    setStatus('생성 대기', 'generating');
-    generateMinutes();
-  } else {
+  if (silent) {
     setStep(1);
     setStatus('대기 중', '');
   }
+  // Non-silent: generate decision deferred to onend (after all results arrive)
 }
 
 // ═══════════════════════════════════════════════
