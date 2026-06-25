@@ -4,7 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>회의록 자동 생성기</title>
-  <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.min.js"></script>
+  <script src="https://unpkg.com/docx@8.5.0/build/index.min.js"
+          onerror="console.warn('docx CDN failed to load')"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -397,6 +398,13 @@ if (isIOS) {
   notice.style.display = 'block';
 }
 
+// Update download button label based on docx availability
+window.addEventListener('load', () => {
+  if (!window.docx) {
+    document.getElementById('btn-dl').textContent = '⬇ TXT 다운로드';
+  }
+});
+
 // ═══════════════════════════════════════════════
 //  State
 // ═══════════════════════════════════════════════
@@ -650,16 +658,23 @@ function generateMinutes() {
   setStatus('생성 중', 'generating');
   btnGenerate.disabled = true;
 
-  // Simulate brief processing delay for UX
   setTimeout(() => {
-    const minutes = buildMinutes(text);
-    renderMinutes(minutes);
-    btnCopy.disabled = false;
-    btnDl.disabled   = false;
-    btnGenerate.disabled = false;
-    setStep(4);
-    setStatus('완료', 'done');
-  }, 500);
+    try {
+      const minutes = buildMinutes(text);
+      renderMinutes(minutes);
+      btnCopy.disabled = false;
+      btnDl.disabled   = false;
+      btnGenerate.disabled = false;
+      setStep(4);
+      setStatus('완료', 'done');
+    } catch(e) {
+      console.error('회의록 생성 오류:', e);
+      minutesBox.innerHTML = `<span style="color:#dc2626">오류: ${e.message}</span>`;
+      btnGenerate.disabled = false;
+      setStep(1);
+      setStatus('대기 중', '');
+    }
+  }, 300);
 }
 
 function buildMinutes(text) {
@@ -681,8 +696,11 @@ function buildMinutes(text) {
 }
 
 function splitSentences(text) {
+  // No lookbehind — insert separator after sentence endings, then split
   return text
-    .split(/(?<=[.!?。\n])\s+|(?<=다\s*[.!?])\s*|(?<=요\s*[.!?])\s*/)
+    .replace(/([.!?。])\s+/g, '$1\n')
+    .replace(/(다|요)([.!?\s])/g, '$1\n$2')
+    .split('\n')
     .map(s => s.trim())
     .filter(s => s.length > 5);
 }
@@ -801,12 +819,22 @@ async function copyMinutes() {
 //  DOCX Download
 // ═══════════════════════════════════════════════
 async function downloadDocx() {
-  if (!window.docx) {
-    alert('docx 라이브러리 로딩 중입니다. 잠시 후 다시 시도해 주세요.');
-    return;
-  }
   const text = finalTranscript.trim();
   if (!text) return;
+
+  // Fallback: plain text download if docx library didn't load
+  if (!window.docx) {
+    const m = buildMinutes(text);
+    const plain = buildPlainText(m);
+    const blob = new Blob([plain], { type: 'text/plain;charset=utf-8' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url;
+    a.download = `회의록_${new Date().toISOString().slice(0,10)}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+    return;
+  }
 
   const m = buildMinutes(text);
   const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } = window.docx;
