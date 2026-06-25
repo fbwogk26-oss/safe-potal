@@ -404,6 +404,7 @@ let recognition = null;
 let finalTranscript = '';
 let interimText  = '';
 let stopIntent   = false;
+let noSpeechCount = 0;
 let isRecording  = false;
 let isPaused     = false;
 let timerInterval = null;
@@ -495,7 +496,12 @@ function buildRecognition() {
       micNotice.style.display = 'block';
       stopRec(true);
     } else if (e.error === 'no-speech') {
-      // silently ignore
+      noSpeechCount++;
+      if (noSpeechCount >= 3 && !finalTranscript.trim()) {
+        showTranscriptHint('🔇 음성이 감지되지 않습니다. 마이크에 가까이 대고 말씀해 주세요.');
+      }
+    } else if (e.error === 'network') {
+      showTranscriptHint('⚠️ 네트워크 오류. 인터넷 연결을 확인해 주세요.');
     } else {
       console.warn('Speech recognition error:', e.error);
     }
@@ -516,11 +522,17 @@ function buildRecognition() {
       } else {
         setStep(1);
         setStatus('대기 중', '');
+        timer.classList.add('hidden');
+        showTranscriptHint('인식된 내용이 없습니다. 마이크 권한과 인터넷 연결을 확인한 뒤 다시 녹음해 주세요.');
       }
     }
   };
 
   return r;
+}
+
+function showTranscriptHint(msg) {
+  transcriptBox.innerHTML = `<span style="color:#9ca3af;font-style:italic">${msg}</span>`;
 }
 
 function renderTranscript(interim) {
@@ -551,6 +563,7 @@ function startRec() {
   finalTranscript = '';
   interimText     = '';
   stopIntent      = false;
+  noSpeechCount   = 0;
   elapsedSeconds  = 0;
   isRecording = true;
   isPaused    = false;
@@ -565,7 +578,7 @@ function startRec() {
   ctrlBtns.style.display = 'flex';
   btnPause.style.display  = '';
   btnResume.style.display = 'none';
-  transcriptBox.innerHTML = '';
+  transcriptBox.innerHTML = '<span style="color:#9ca3af;font-style:italic">🎙 듣고 있습니다... 말씀해 주세요.</span>';
   minutesBox.innerHTML = '<span class="placeholder">녹음 종료 후 회의록이 자동으로 생성됩니다.</span>';
   btnGenerate.disabled = true;
   btnCopy.disabled     = true;
