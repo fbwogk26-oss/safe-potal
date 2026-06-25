@@ -230,6 +230,16 @@
     #minutes-box ul { padding-left: 18px; margin: 4px 0; }
     #minutes-box li { margin: 3px 0; }
     #minutes-box .meta { color: #6b7280; font-size: 0.82rem; }
+    #minutes-box .summary-box {
+      background: #f0f9ff;
+      border-left: 3px solid #4f46e5;
+      border-radius: 0 8px 8px 0;
+      padding: 12px 14px;
+      margin: 4px 0 8px;
+      font-size: 0.9rem;
+      line-height: 1.8;
+      color: #1e293b;
+    }
     #minutes-box .tag {
       display: inline-block;
       background: #ede9fe;
@@ -687,12 +697,14 @@ function buildMinutes(text) {
   const timeStr = now.toLocaleTimeString('ko-KR', {hour:'2-digit',minute:'2-digit'});
 
   const sentences = splitSentences(text);
+  const keywords  = extractKeywords(text);
 
   return {
     title:     extractTitle(sentences),
     datetime:  `${dateStr} ${timeStr}`,
     fullText:  text,
-    keywords:  extractKeywords(text),
+    summary:   extractSummary(sentences, keywords),
+    keywords,
     decisions: filterSentences(sentences, ['결정','확정','하기로','하겠습니다','결정했','채택']),
     actions:   filterSentences(sentences, ['해주세요','해 주세요','부탁','담당','기한','까지','요청','처리']),
     agendas:   filterSentences(sentences, ['관련','대해서','대한','건의','제안','논의','검토']),
@@ -748,6 +760,48 @@ function filterSentences(sentences, keywords) {
 }
 
 // ═══════════════════════════════════════════════
+//  Extractive Summarization
+// ═══════════════════════════════════════════════
+function extractSummary(sentences, keywords) {
+  if (!sentences.length) return '내용이 없습니다.';
+  if (sentences.length <= 3) return sentences.join(' ');
+
+  const importantRe = /결정|확정|목표|계획|중요|핵심|문제|해결|필요|제안|결론|합의/;
+  const actionRe    = /해주세요|부탁|담당|기한|처리|완료|요청/;
+
+  const scored = sentences.map((s, i) => {
+    let score = 0;
+
+    // 위치 가산점 (첫 문장, 끝 문장 중요)
+    if (i === 0) score += 3;
+    if (i === sentences.length - 1) score += 1;
+    if (i < sentences.length * 0.2) score += 1;
+
+    // 키워드 포함 여부
+    keywords.forEach(kw => { if (s.includes(kw)) score += 2; });
+
+    // 중요 표현 포함
+    if (importantRe.test(s)) score += 4;
+    if (actionRe.test(s))    score += 3;
+
+    // 길이 점수 (너무 짧거나 너무 길면 감점)
+    if (s.length < 8)   score -= 3;
+    if (s.length > 120) score -= 1;
+
+    return { s, score, i };
+  });
+
+  // 상위 문장 추출 (전체의 30%, 최소 2개 최대 5개)
+  const topN = Math.min(5, Math.max(2, Math.floor(sentences.length * 0.3)));
+  return scored
+    .sort((a, b) => b.score - a.score)
+    .slice(0, topN)
+    .sort((a, b) => a.i - b.i)   // 원래 순서 복원
+    .map(x => x.s)
+    .join(' ');
+}
+
+// ═══════════════════════════════════════════════
 //  Render Minutes (HTML)
 // ═══════════════════════════════════════════════
 function renderMinutes(m) {
@@ -765,13 +819,15 @@ function renderMinutes(m) {
     <h2>📋 ${escHtml(m.title)}</h2>
     <p class="meta">📅 일시: ${m.datetime}</p>
     <br>
-    <h3>🗣 전체 발언 내용</h3>
-    <p>${escHtml(m.fullText)}</p>
+    <h3>💡 요약</h3>
+    <div class="summary-box">${escHtml(m.summary)}</div>
     <h3>🔖 주요 키워드</h3>
     <p>${kwTags}</p>
     ${section('결정사항', m.decisions, '✅')}
     ${section('조치사항', m.actions,   '📌')}
     ${section('안건 목록', m.agendas,  '📂')}
+    <h3>🗣 전체 발언 내용</h3>
+    <p>${escHtml(m.fullText)}</p>
   `;
 }
 
@@ -783,6 +839,9 @@ function buildPlainText(m) {
   lines.push(`[회의록]`);
   lines.push(`제목: ${m.title}`);
   lines.push(`일시: ${m.datetime}`);
+  lines.push('');
+  lines.push('[요약]');
+  lines.push(m.summary);
   lines.push('');
   lines.push('[전체 발언 내용]');
   lines.push(m.fullText);
@@ -877,8 +936,9 @@ async function downloadDocx() {
 
     const children = [
       h1(`회의록: ${m.title}`), bod(`일시: ${m.datetime}`), emp(),
-      h2('전체 발언 내용'), bod(m.fullText), emp(),
+      h2('요약'), bod(m.summary), emp(),
       h2('주요 키워드'), bod(m.keywords.length ? m.keywords.map(k => `#${k}`).join('  ') : '없음'), emp(),
+      h2('전체 발언 내용'), bod(m.fullText), emp(),
     ];
     if (m.decisions.length) { children.push(h2('결정사항')); m.decisions.forEach(s => children.push(bul(s))); children.push(emp()); }
     if (m.actions.length)   { children.push(h2('조치사항')); m.actions.forEach(s   => children.push(bul(s))); children.push(emp()); }
