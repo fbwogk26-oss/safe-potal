@@ -654,9 +654,11 @@ function generateMinutes() {
   const text = finalTranscript.trim();
   if (!text) return;
 
+  const orig = btnGenerate.textContent;
+  btnGenerate.textContent = '⏳ 생성 중...';
+  btnGenerate.disabled = true;
   setStep(3);
   setStatus('생성 중', 'generating');
-  btnGenerate.disabled = true;
 
   setTimeout(() => {
     try {
@@ -665,12 +667,14 @@ function generateMinutes() {
       btnCopy.disabled = false;
       btnDl.disabled   = false;
       btnGenerate.disabled = false;
+      btnGenerate.textContent = '✅ 재생성';
       setStep(4);
       setStatus('완료', 'done');
     } catch(e) {
       console.error('회의록 생성 오류:', e);
-      minutesBox.innerHTML = `<span style="color:#dc2626">오류: ${e.message}</span>`;
+      minutesBox.innerHTML = `<span style="color:#dc2626">⚠️ 오류: ${e.message}</span>`;
       btnGenerate.disabled = false;
+      btnGenerate.textContent = orig;
       setStep(1);
       setStatus('대기 중', '');
     }
@@ -816,95 +820,82 @@ async function copyMinutes() {
 }
 
 // ═══════════════════════════════════════════════
+//  Download helper — works reliably on Android Chrome
+// ═══════════════════════════════════════════════
+function triggerDownload(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a   = document.createElement('a');
+  a.href     = url;
+  a.download = filename;
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1500);
+}
+
+function downloadAsTxt() {
+  const text = finalTranscript.trim();
+  if (!text) return;
+  const m     = buildMinutes(text);
+  const plain = buildPlainText(m);
+  triggerDownload(
+    new Blob(['﻿' + plain], { type: 'text/plain;charset=utf-8' }),
+    `회의록_${new Date().toISOString().slice(0,10)}.txt`
+  );
+}
+
+// ═══════════════════════════════════════════════
 //  DOCX Download
 // ═══════════════════════════════════════════════
 async function downloadDocx() {
   const text = finalTranscript.trim();
   if (!text) return;
 
-  // Fallback: plain text download if docx library didn't load
+  const origLabel = btnDl.textContent;
+  btnDl.disabled  = true;
+  btnDl.textContent = '⏳ 생성 중...';
+
+  const filename = `회의록_${new Date().toISOString().slice(0,10)}`;
+
+  // TXT fallback if docx library failed to load
   if (!window.docx) {
-    const m = buildMinutes(text);
-    const plain = buildPlainText(m);
-    const blob = new Blob([plain], { type: 'text/plain;charset=utf-8' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href = url;
-    a.download = `회의록_${new Date().toISOString().slice(0,10)}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadAsTxt();
+    btnDl.textContent = '⬇ TXT 다운로드';
+    btnDl.disabled = false;
     return;
   }
 
-  const m = buildMinutes(text);
-  const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } = window.docx;
-
-  const heading1 = (t) => new Paragraph({
-    text: t,
-    heading: HeadingLevel.HEADING_1,
-    spacing: { before: 200, after: 120 },
-  });
-  const heading2 = (t) => new Paragraph({
-    text: t,
-    heading: HeadingLevel.HEADING_2,
-    spacing: { before: 300, after: 80 },
-  });
-  const body = (t) => new Paragraph({
-    children: [new TextRun({ text: t, size: 22, font: 'Malgun Gothic' })],
-    spacing: { after: 60 },
-  });
-  const bullet = (t) => new Paragraph({
-    children: [new TextRun({ text: `• ${t}`, size: 22, font: 'Malgun Gothic' })],
-    spacing: { after: 40 },
-    indent: { left: 360 },
-  });
-  const empty = () => new Paragraph({ text: '' });
-
-  const children = [
-    heading1(`회의록: ${m.title}`),
-    body(`일시: ${m.datetime}`),
-    empty(),
-    heading2('전체 발언 내용'),
-    body(m.fullText),
-    empty(),
-    heading2('주요 키워드'),
-    body(m.keywords.length ? m.keywords.map(k=>`#${k}`).join('  ') : '없음'),
-    empty(),
-  ];
-
-  if (m.decisions.length) {
-    children.push(heading2('결정사항'));
-    m.decisions.forEach(s => children.push(bullet(s)));
-    children.push(empty());
-  }
-  if (m.actions.length) {
-    children.push(heading2('조치사항'));
-    m.actions.forEach(s => children.push(bullet(s)));
-    children.push(empty());
-  }
-  if (m.agendas.length) {
-    children.push(heading2('안건 목록'));
-    m.agendas.forEach(s => children.push(bullet(s)));
-    children.push(empty());
-  }
-
-  const doc = new Document({
-    creator: '회의록 자동 생성기',
-    title: m.title,
-    sections: [{ properties: {}, children }],
-  });
-
   try {
+    const m = buildMinutes(text);
+    const { Document, Packer, Paragraph, TextRun, HeadingLevel } = window.docx;
+
+    const h1  = t => new Paragraph({ text: t, heading: HeadingLevel.HEADING_1, spacing: { before: 200, after: 120 } });
+    const h2  = t => new Paragraph({ text: t, heading: HeadingLevel.HEADING_2, spacing: { before: 300, after: 80 } });
+    const bod = t => new Paragraph({ children: [new TextRun({ text: t, size: 22, font: 'Malgun Gothic' })], spacing: { after: 60 } });
+    const bul = t => new Paragraph({ children: [new TextRun({ text: `• ${t}`, size: 22, font: 'Malgun Gothic' })], spacing: { after: 40 }, indent: { left: 360 } });
+    const emp = () => new Paragraph({ text: '' });
+
+    const children = [
+      h1(`회의록: ${m.title}`), bod(`일시: ${m.datetime}`), emp(),
+      h2('전체 발언 내용'), bod(m.fullText), emp(),
+      h2('주요 키워드'), bod(m.keywords.length ? m.keywords.map(k => `#${k}`).join('  ') : '없음'), emp(),
+    ];
+    if (m.decisions.length) { children.push(h2('결정사항')); m.decisions.forEach(s => children.push(bul(s))); children.push(emp()); }
+    if (m.actions.length)   { children.push(h2('조치사항')); m.actions.forEach(s   => children.push(bul(s))); children.push(emp()); }
+    if (m.agendas.length)   { children.push(h2('안건 목록')); m.agendas.forEach(s  => children.push(bul(s))); children.push(emp()); }
+
+    const doc  = new Document({ creator: '회의록 자동 생성기', title: m.title, sections: [{ properties: {}, children }] });
     const blob = await Packer.toBlob(doc);
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href     = url;
-    a.download = `회의록_${new Date().toISOString().slice(0,10)}.docx`;
-    a.click();
-    URL.revokeObjectURL(url);
+
+    triggerDownload(blob, filename + '.docx');
+    btnDl.textContent = origLabel;
   } catch(e) {
-    console.error(e);
-    alert('Word 파일 생성 중 오류가 발생했습니다: ' + e.message);
+    console.error('docx 생성 실패, txt로 전환:', e);
+    // docx 실패 시 자동으로 txt 다운로드
+    downloadAsTxt();
+    btnDl.textContent = '⬇ TXT 다운로드';
+  } finally {
+    btnDl.disabled = false;
   }
 }
 </script>
