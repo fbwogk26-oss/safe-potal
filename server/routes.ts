@@ -9217,7 +9217,8 @@ ${htmlDraft}
   //   - 결재:   X [75%~98%], Y bottom [3%~11%]
   async function embedSignaturesIntoFile(
     buffer: Buffer, ext: string,
-    sigs: { manager: string | null; reviewer: string | null; approver: string | null }
+    sigs: { manager: string | null; reviewer: string | null; approver: string | null },
+    reportType: 'safety' | 'health' = 'safety'
   ): Promise<Buffer> {
     function b64ToBuffer(dataUrl: string | null): Buffer | null {
       if (!dataUrl) return null;
@@ -9227,6 +9228,13 @@ ${htmlDraft}
     const sigBufs = [b64ToBuffer(sigs.manager), b64ToBuffer(sigs.reviewer), b64ToBuffer(sigs.approver)];
     if (sigBufs.every(b => !b)) return buffer;
 
+    // ── 결재란 위치 (두 보고서 모두 동일: 상단 7~16%, 우측 63~99%) ──────
+    // 이미지 분석 결과: 서명행 top=7%, height=9%
+    // 담당: 63~75%, 검토: 75~87%, 승인: 87~99%
+    const sigTopPct  = 0.070;   // 7% from top (image coords)
+    const sigHPct    = 0.090;   // 9% height
+    const sigYBotPct = 0.840;   // pdf-lib: bottom of sig row = 84% from bottom (= 16% from top)
+
     // ── 이미지 파일 (sharp 합성) ─────────────────────
     if (['.jpg', '.jpeg', '.png'].includes(ext)) {
       const sharp = (await import('sharp')).default;
@@ -9234,12 +9242,11 @@ ${htmlDraft}
       const W = meta.width || 1000;
       const H = meta.height || 1400;
 
-      // 서명 셀 위치 (상단 기준, top-left origin) — 결재란은 우측 상단
-      // 1행: 헤더(담당/검토/승인 라벨) ~0-4%, 2행: 서명칸 ~4-10%
+      // 담당: 63~75%, 검토: 75~87%, 승인: 87~99%
       const cells = [
-        { left: Math.round(W * 0.64), top: Math.round(H * 0.040), w: Math.round(W * 0.115), h: Math.round(H * 0.060) },
-        { left: Math.round(W * 0.755), top: Math.round(H * 0.040), w: Math.round(W * 0.115), h: Math.round(H * 0.060) },
-        { left: Math.round(W * 0.87), top: Math.round(H * 0.040), w: Math.round(W * 0.115), h: Math.round(H * 0.060) },
+        { left: Math.round(W * 0.630), top: Math.round(H * sigTopPct), w: Math.round(W * 0.120), h: Math.round(H * sigHPct) },
+        { left: Math.round(W * 0.750), top: Math.round(H * sigTopPct), w: Math.round(W * 0.120), h: Math.round(H * sigHPct) },
+        { left: Math.round(W * 0.870), top: Math.round(H * sigTopPct), w: Math.round(W * 0.120), h: Math.round(H * sigHPct) },
       ];
       const composites: any[] = [];
       for (let i = 0; i < 3; i++) {
@@ -9271,11 +9278,11 @@ ${htmlDraft}
       const { width: W, height: H } = firstPage.getSize();
 
       // pdf-lib 좌표: 좌측 하단 기준 (y=0 이 아래)
-      // 1행: 헤더 ~96-100%, 2행: 서명칸 ~90-96%  →  yBottom = H*0.90, h = H*0.06
+      // yBottom=0.840 → 서명행 하단이 상단16%에 위치, h=0.09 → 상단7~16%
       const cells = [
-        { x: W * 0.64,  yBottom: H * 0.90, w: W * 0.115, h: H * 0.060 },  // 담당
-        { x: W * 0.755, yBottom: H * 0.90, w: W * 0.115, h: H * 0.060 },  // 검토
-        { x: W * 0.87,  yBottom: H * 0.90, w: W * 0.115, h: H * 0.060 },  // 승인
+        { x: W * 0.630, yBottom: H * sigYBotPct, w: W * 0.120, h: H * sigHPct },  // 담당
+        { x: W * 0.750, yBottom: H * sigYBotPct, w: W * 0.120, h: H * sigHPct },  // 검토
+        { x: W * 0.870, yBottom: H * sigYBotPct, w: W * 0.120, h: H * sigHPct },  // 승인
       ];
       for (let i = 0; i < 3; i++) {
         if (!sigBufs[i]) continue;
@@ -9425,7 +9432,7 @@ ${htmlDraft}
       };
 
       const { buffer, ext } = await loadReportBuffer(report.fileUrl);
-      const processed = await embedSignaturesIntoFile(buffer, ext, sigs);
+      const processed = await embedSignaturesIntoFile(buffer, ext, sigs, 'safety');
 
       const mimeMap: Record<string, string> = {
         '.pdf': 'application/pdf', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
@@ -9547,7 +9554,7 @@ ${htmlDraft}
       };
 
       const { buffer, ext } = await loadReportBuffer(report.fileUrl);
-      const processed = await embedSignaturesIntoFile(buffer, ext, sigs);
+      const processed = await embedSignaturesIntoFile(buffer, ext, sigs, 'health');
 
       const mimeMap: Record<string, string> = {
         '.pdf': 'application/pdf', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
