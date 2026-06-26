@@ -9192,6 +9192,113 @@ ${htmlDraft}
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
+  // ── 보고서 파일 버퍼 로드 (object storage 또는 로컬) ──────────
+  async function loadReportBuffer(fileUrl: string): Promise<{ buffer: Buffer; ext: string }> {
+    const filename = fileUrl.split('/').pop()!;
+    const ext = path.extname(filename).toLowerCase();
+    if (fileUrl.startsWith('/objects/')) {
+      const privateDir = process.env.PRIVATE_OBJECT_DIR;
+      if (privateDir) {
+        const fullPath = `${privateDir.replace(/\/$/, "")}/uploads/${filename}`;
+        const parts = fullPath.replace(/^\//, "").split("/");
+        const [buf] = await objectStorageClient.bucket(parts[0]).file(parts.slice(1).join("/")).download();
+        return { buffer: buf as Buffer, ext };
+      }
+    }
+    const localPath = path.join(uploadDir, filename);
+    if (fs.existsSync(localPath)) return { buffer: fs.readFileSync(localPath), ext };
+    throw new Error("파일을 찾을 수 없습니다");
+  }
+
+  // ── 서명 이미지를 PDF 또는 이미지 파일에 합성 ──────────────────
+  // 결재 테이블 셀 위치 (페이지 크기 대비 비율):
+  //   - 담당자: X [29%~52%], Y bottom [3%~11%]
+  //   - 검토:   X [52%~75%], Y bottom [3%~11%]
+  //   - 결재:   X [75%~98%], Y bottom [3%~11%]
+  async function embedSignaturesIntoFile(
+    buffer: Buffer, ext: string,
+    sigs: { manager: string | null; reviewer: string | null; approver: string | null }
+  ): Promise<Buffer> {
+    function b64ToBuffer(dataUrl: string | null): Buffer | null {
+      if (!dataUrl) return null;
+      const base64 = dataUrl.replace(/^data:image\/\w+;base64,/, '');
+      return Buffer.from(base64, 'base64');
+    }
+    const sigBufs = [b64ToBuffer(sigs.manager), b64ToBuffer(sigs.reviewer), b64ToBuffer(sigs.approver)];
+    if (sigBufs.every(b => !b)) return buffer;
+
+    // ── 이미지 파일 (sharp 합성) ─────────────────────
+    if (['.jpg', '.jpeg', '.png'].includes(ext)) {
+      const sharp = (await import('sharp')).default;
+      const meta = await sharp(buffer).metadata();
+      const W = meta.width || 1000;
+      const H = meta.height || 1400;
+
+      // 서명 셀 위치 (상단 기준, top-left origin)
+      const cells = [
+        { left: Math.round(W * 0.295), top: Math.round(H * 0.885), w: Math.round(W * 0.215), h: Math.round(H * 0.08) },
+        { left: Math.round(W * 0.52),  top: Math.round(H * 0.885), w: Math.round(W * 0.215), h: Math.round(H * 0.08) },
+        { left: Math.round(W * 0.745), top: Math.round(H * 0.885), w: Math.round(W * 0.215), h: Math.round(H * 0.08) },
+      ];
+      const composites: any[] = [];
+      for (let i = 0; i < 3; i++) {
+        if (!sigBufs[i]) continue;
+        const resized = await sharp(sigBufs[i]!)
+          .resize({ width: cells[i].w, height: cells[i].h, fit: 'inside', background: { r: 255, g: 255, b: 255, alpha: 0 } })
+          .png().toBuffer();
+        composites.push({ input: resized, left: cells[i].left, top: cells[i].top });
+      }
+      if (composites.length === 0) return buffer;
+      const result = await sharp(buffer).composite(composites).toBuffer();
+      return result;
+    }
+
+    // ── PDF 파일 (pdf-lib) ────────────────────────────
+    if (ext === '.pdf') {
+      const { PDFDocument } = await import('pdf-lib');
+      const pdfDoc = await PDFDocument.load(buffer);
+      const pages = pdfDoc.getPages();
+      const lastPage = pages[pages.length - 1];
+      const { width: W, height: H } = lastPage.getSize();
+
+      // pdf-lib 좌표: 좌측 하단 기준 (y=0 이 아래)
+      const cells = [
+        { x: W * 0.295, yBottom: H * 0.03, w: W * 0.215, h: H * 0.08 },
+        { x: W * 0.52,  yBottom: H * 0.03, w: W * 0.215, h: H * 0.08 },
+        { x: W * 0.745, yBottom: H * 0.03, w: W * 0.215, h: H * 0.08 },
+      ];
+      for (let i = 0; i < 3; i++) {
+        if (!sigBufs[i]) continue;
+        try {
+          const image = await pdfDoc.embedPng(sigBufs[i]!);
+          const { width: iw, height: ih } = image.size();
+          const scale = Math.min(cells[i].w / iw, cells[i].h / ih);
+          const drawW = iw * scale;
+          const drawH = ih * scale;
+          const drawX = cells[i].x + (cells[i].w - drawW) / 2;
+          const drawY = cells[i].yBottom + (cells[i].h - drawH) / 2;
+          lastPage.drawImage(image, { x: drawX, y: drawY, width: drawW, height: drawH });
+        } catch {
+          // JPG로 fallback
+          try {
+            const image = await pdfDoc.embedJpg(sigBufs[i]!);
+            const { width: iw, height: ih } = image.size();
+            const scale = Math.min(cells[i].w / iw, cells[i].h / ih);
+            const drawW = iw * scale;
+            const drawH = ih * scale;
+            const drawX = cells[i].x + (cells[i].w - drawW) / 2;
+            const drawY = cells[i].yBottom + (cells[i].h - drawH) / 2;
+            lastPage.drawImage(image, { x: drawX, y: drawY, width: drawW, height: drawH });
+          } catch { /* skip this signature */ }
+        }
+      }
+      const pdfBytes = await pdfDoc.save();
+      return Buffer.from(pdfBytes);
+    }
+
+    return buffer; // 지원되지 않는 형식은 원본 반환
+  }
+
   // 보고서 파일 다운로드 프록시 (object storage → 브라우저)
   async function proxyReportFile(fileUrl: string | null, fileOriginalName: string | null, res: any, inline = false) {
     if (!fileUrl) return res.status(404).json({ message: "파일 없음" });
@@ -9293,6 +9400,43 @@ ${htmlDraft}
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
+  // 서명 포함 다운로드 (안전관리자)
+  app.get('/api/safety-manager-reports/:id/download-signed', isAuthenticated, async (req: any, res) => {
+    try {
+      const reports = await storage.getSafetyManagerReports();
+      const report = reports.find((r: any) => r.id === parseInt(req.params.id));
+      if (!report) return res.status(404).json({ message: "보고서 없음" });
+      if (!report.fileUrl) return res.status(404).json({ message: "파일 없음" });
+
+      const [sigManager, sigReviewer, sigApprover] = await Promise.all([
+        storage.getSetting("approval_sign_manager"),
+        storage.getSetting("approval_sign_reviewer"),
+        storage.getSetting("approval_sign_approver"),
+      ]);
+      const sigs = {
+        manager: sigManager?.value || null,
+        reviewer: sigReviewer?.value || null,
+        approver: sigApprover?.value || null,
+      };
+
+      const { buffer, ext } = await loadReportBuffer(report.fileUrl);
+      const processed = await embedSignaturesIntoFile(buffer, ext, sigs);
+
+      const mimeMap: Record<string, string> = {
+        '.pdf': 'application/pdf', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
+        '.doc': 'application/msword', '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        '.hwp': 'application/x-hwp', '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      };
+      const baseName = (report.fileOriginalName || `report${ext}`).replace(/\.[^.]+$/, '');
+      const outExt = ['.jpg', '.jpeg'].includes(ext) ? '.png' : ext; // sharp outputs png
+      const outMime = mimeMap[outExt] || 'application/octet-stream';
+      const safeFilename = encodeURIComponent(`${baseName}_결재서명${outExt}`);
+      res.setHeader('Content-Type', outMime);
+      res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${safeFilename}`);
+      res.send(processed);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
   app.delete('/api/safety-manager-reports/:id', requireEditor, async (req: any, res) => {
     try {
       await storage.deleteSafetyManagerReport(parseInt(req.params.id));
@@ -9374,6 +9518,43 @@ ${htmlDraft}
       const report = reports.find((r: any) => r.id === parseInt(req.params.id));
       if (!report) return res.status(404).json({ message: "보고서 없음" });
       await proxyReportFile(report.fileUrl, report.fileOriginalName, res, req.query.inline === 'true');
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // 서명 포함 다운로드 (보건관리자)
+  app.get('/api/health-manager-reports/:id/download-signed', isAuthenticated, async (req: any, res) => {
+    try {
+      const reports = await storage.getHealthManagerReports();
+      const report = reports.find((r: any) => r.id === parseInt(req.params.id));
+      if (!report) return res.status(404).json({ message: "보고서 없음" });
+      if (!report.fileUrl) return res.status(404).json({ message: "파일 없음" });
+
+      const [sigManager, sigReviewer, sigApprover] = await Promise.all([
+        storage.getSetting("approval_sign_manager"),
+        storage.getSetting("approval_sign_reviewer"),
+        storage.getSetting("approval_sign_approver"),
+      ]);
+      const sigs = {
+        manager: sigManager?.value || null,
+        reviewer: sigReviewer?.value || null,
+        approver: sigApprover?.value || null,
+      };
+
+      const { buffer, ext } = await loadReportBuffer(report.fileUrl);
+      const processed = await embedSignaturesIntoFile(buffer, ext, sigs);
+
+      const mimeMap: Record<string, string> = {
+        '.pdf': 'application/pdf', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
+        '.doc': 'application/msword', '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        '.hwp': 'application/x-hwp', '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      };
+      const baseName = (report.fileOriginalName || `report${ext}`).replace(/\.[^.]+$/, '');
+      const outExt = ['.jpg', '.jpeg'].includes(ext) ? '.png' : ext;
+      const outMime = mimeMap[outExt] || 'application/octet-stream';
+      const safeFilename = encodeURIComponent(`${baseName}_결재서명${outExt}`);
+      res.setHeader('Content-Type', outMime);
+      res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${safeFilename}`);
+      res.send(processed);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 

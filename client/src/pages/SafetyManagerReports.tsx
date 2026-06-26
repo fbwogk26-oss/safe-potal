@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { HardHat, Plus, Trash2, Pencil, FileText, ChevronLeft, ChevronRight, CheckCircle2, AlertCircle, Loader2, Paperclip, X, TrendingUp, CalendarDays } from "lucide-react";
+import { HardHat, Plus, Trash2, Pencil, FileText, ChevronLeft, ChevronRight, CheckCircle2, AlertCircle, Loader2, Paperclip, X, TrendingUp, CalendarDays, Download } from "lucide-react";
 import { FileViewer } from "@/components/FileViewer";
 import { ApprovalStamp } from "@/components/ApprovalStamp";
 import { extractDateFromPdf } from "@/lib/extractPdfDate";
@@ -493,6 +493,21 @@ export default function SafetyManagerReports() {
                   </Button>
                   <Button variant="outline" size="sm" className="gap-1 text-destructive hover:text-destructive" onClick={() => { if (confirm("삭제하시겠습니까?")) { deleteMutation.mutate(detailReport.id); setDetailReport(null); } }}>
                     <Trash2 className="h-3 w-3" /> 삭제
+                  </Button>
+                </div>
+              )}
+              {detailReport.fileUrl && (
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" className="gap-1.5 text-blue-600 border-blue-300 hover:bg-blue-50"
+                    onClick={async () => {
+                      const a = document.createElement("a");
+                      a.href = `/api/safety-manager-reports/${detailReport.id}/download-signed`;
+                      a.download = "";
+                      document.body.appendChild(a);
+                      a.click();
+                      document.body.removeChild(a);
+                    }}>
+                    <Download className="h-3.5 w-3.5" /> 서명 포함 다운로드
                   </Button>
                 </div>
               )}
