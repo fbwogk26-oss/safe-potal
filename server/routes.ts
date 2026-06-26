@@ -1779,6 +1779,34 @@ export async function registerRoutes(
     } catch (e: any) { res.status(500).json({ message: e?.message || "저장 실패" }); }
   });
 
+  // ── 결재 서명 설정 ──────────────────────────────────────────────
+  app.get("/api/settings/approval-signatures", isAuthenticated, async (_req, res) => {
+    try {
+      const [manager, reviewer, approver] = await Promise.all([
+        storage.getSetting("approval_sign_manager"),
+        storage.getSetting("approval_sign_reviewer"),
+        storage.getSetting("approval_sign_approver"),
+      ]);
+      res.json({
+        manager: manager?.value || null,
+        reviewer: reviewer?.value || null,
+        approver: approver?.value || null,
+      });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/settings/approval-signatures", requireAdmin, async (req: any, res) => {
+    try {
+      const { manager, reviewer, approver } = req.body;
+      const ops: Promise<any>[] = [];
+      if (manager !== undefined) ops.push(storage.setSetting("approval_sign_manager", manager || ""));
+      if (reviewer !== undefined) ops.push(storage.setSetting("approval_sign_reviewer", reviewer || ""));
+      if (approver !== undefined) ops.push(storage.setSetting("approval_sign_approver", approver || ""));
+      await Promise.all(ops);
+      res.json({ ok: true });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
   // === SAFETY EQUIPMENT ===
   const DEFAULT_EQUIPMENT_LIST = [
     { name: "안전모(일반)", category: "보호구" },

@@ -15,7 +15,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { HardHat, Plus, Trash2, Pencil, FileText, ChevronLeft, ChevronRight, CheckCircle2, AlertCircle, Loader2, Paperclip, X, TrendingUp, CalendarDays } from "lucide-react";
 import { FileViewer } from "@/components/FileViewer";
+import { ApprovalStamp } from "@/components/ApprovalStamp";
 import { extractDateFromPdf } from "@/lib/extractPdfDate";
+import { useAuth } from "@/hooks/use-auth";
 import type { SafetyManagerReport } from "@shared/schema";
 
 const TEAM_COLORS_LIST = [
@@ -50,6 +52,7 @@ export default function SafetyManagerReports() {
   const needsSequence = (team: string) =>
     headquarters === "대구본부" && (team === "구미운용팀" || team === "포항운용팀");
   const { canEditInspections } = usePermissions();
+  const { user } = useAuth();
   const { toast } = useToast();
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
@@ -498,6 +501,7 @@ export default function SafetyManagerReports() {
                 fileOriginalName={detailReport.fileOriginalName}
                 apiBase={`/api/safety-manager-reports/${detailReport.id}/file`}
               />
+              <ApprovalStamp isAdmin={user?.role === "admin"} />
             </div>
           )}
         </DialogContent>
