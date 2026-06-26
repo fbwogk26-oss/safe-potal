@@ -9235,11 +9235,11 @@ ${htmlDraft}
       const H = meta.height || 1400;
 
       // 서명 셀 위치 (상단 기준, top-left origin) — 결재란은 우측 상단
-      // 담당(64~75%), 검토(75~87%), 승인(87~99%), 세로 2~11%
+      // 1행: 헤더(담당/검토/승인 라벨) ~0-4%, 2행: 서명칸 ~4-10%
       const cells = [
-        { left: Math.round(W * 0.64), top: Math.round(H * 0.02), w: Math.round(W * 0.115), h: Math.round(H * 0.09) },
-        { left: Math.round(W * 0.755), top: Math.round(H * 0.02), w: Math.round(W * 0.115), h: Math.round(H * 0.09) },
-        { left: Math.round(W * 0.87), top: Math.round(H * 0.02), w: Math.round(W * 0.115), h: Math.round(H * 0.09) },
+        { left: Math.round(W * 0.64), top: Math.round(H * 0.040), w: Math.round(W * 0.115), h: Math.round(H * 0.060) },
+        { left: Math.round(W * 0.755), top: Math.round(H * 0.040), w: Math.round(W * 0.115), h: Math.round(H * 0.060) },
+        { left: Math.round(W * 0.87), top: Math.round(H * 0.040), w: Math.round(W * 0.115), h: Math.round(H * 0.060) },
       ];
       const composites: any[] = [];
       for (let i = 0; i < 3; i++) {
@@ -9263,11 +9263,11 @@ ${htmlDraft}
       const { width: W, height: H } = firstPage.getSize();
 
       // pdf-lib 좌표: 좌측 하단 기준 (y=0 이 아래)
-      // 결재란 우측 상단: x 64~99%, y 상단 2~11% → yBottom = H*(1-0.11) ~ H*(1-0.02)
+      // 1행: 헤더 ~96-100%, 2행: 서명칸 ~90-96%  →  yBottom = H*0.90, h = H*0.06
       const cells = [
-        { x: W * 0.64,  yBottom: H * 0.89, w: W * 0.115, h: H * 0.09 },  // 담당
-        { x: W * 0.755, yBottom: H * 0.89, w: W * 0.115, h: H * 0.09 },  // 검토
-        { x: W * 0.87,  yBottom: H * 0.89, w: W * 0.115, h: H * 0.09 },  // 승인
+        { x: W * 0.64,  yBottom: H * 0.90, w: W * 0.115, h: H * 0.060 },  // 담당
+        { x: W * 0.755, yBottom: H * 0.90, w: W * 0.115, h: H * 0.060 },  // 검토
+        { x: W * 0.87,  yBottom: H * 0.90, w: W * 0.115, h: H * 0.060 },  // 승인
       ];
       for (let i = 0; i < 3; i++) {
         if (!sigBufs[i]) continue;
