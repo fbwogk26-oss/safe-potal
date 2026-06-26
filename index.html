@@ -585,11 +585,7 @@ if (isIOS) {
   notice.style.display = 'block';
 }
 
-// Update download button label based on docx availability
 window.addEventListener('load', () => {
-  if (!window.docx) {
-    document.getElementById('btn-dl').textContent = '⬇ TXT 다운로드';
-  }
   renderHistoryList();
 });
 
@@ -1187,6 +1183,42 @@ function downloadAsTxt() {
 }
 
 // ═══════════════════════════════════════════════
+//  DOCX Library — lazy-load from multiple CDNs
+// ═══════════════════════════════════════════════
+const DOCX_CDNS = [
+  'https://unpkg.com/docx@8.5.0/build/index.min.js',
+  'https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.min.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/index.min.js',
+];
+let docxLoading = null;
+
+async function ensureDocx() {
+  if (window.docx) return true;
+  if (docxLoading) return docxLoading;
+
+  docxLoading = (async () => {
+    for (const src of DOCX_CDNS) {
+      try {
+        await new Promise((resolve, reject) => {
+          // avoid re-inserting if already in DOM
+          if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
+          const s = document.createElement('script');
+          s.src = src;
+          s.onload = resolve;
+          s.onerror = reject;
+          s.crossOrigin = 'anonymous';
+          document.head.appendChild(s);
+        });
+        if (window.docx) return true;
+      } catch(_) {}
+    }
+    return false;
+  })();
+
+  return docxLoading;
+}
+
+// ═══════════════════════════════════════════════
 //  DOCX Download
 // ═══════════════════════════════════════════════
 async function downloadDocx() {
@@ -1195,13 +1227,16 @@ async function downloadDocx() {
 
   const origLabel = btnDl.textContent;
   btnDl.disabled  = true;
-  btnDl.textContent = '⏳ 생성 중...';
+  btnDl.textContent = '⏳ Word 생성 중...';
 
   const filename = `회의록_${new Date().toISOString().slice(0,10)}`;
 
-  if (!window.docx) {
+  const loaded = await ensureDocx();
+  if (!loaded) {
+    // All CDNs failed — fall back to TXT with notice
+    alert('Word 라이브러리 로드 실패. TXT로 다운로드합니다.\n(인터넷 연결 확인 후 다시 시도해 주세요.)');
     downloadAsTxt();
-    btnDl.textContent = '⬇ TXT 다운로드';
+    btnDl.textContent = origLabel;
     btnDl.disabled = false;
     return;
   }
