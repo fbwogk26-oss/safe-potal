@@ -1,0 +1,1398 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>회의록 자동 생성기</title>
+  <script src="https://unpkg.com/docx@8.5.0/build/index.min.js"
+          onerror="console.warn('docx CDN failed to load')"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Pretendard', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+      background: #f5f6fa;
+      color: #1a1a2e;
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    header {
+      background: #fff;
+      border-bottom: 1px solid #e8eaed;
+      padding: 18px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    header .logo {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, #4f46e5, #7c3aed);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; color: #fff; flex-shrink: 0;
+    }
+    header h1 { font-size: 1.15rem; font-weight: 700; color: #1a1a2e; }
+    header p  { font-size: 0.78rem; color: #6b7280; margin-top: 1px; }
+    .status-badge {
+      margin-left: auto;
+      padding: 5px 12px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      background: #f3f4f6;
+      color: #6b7280;
+      transition: all .3s;
+    }
+    .status-badge.recording { background: #fee2e2; color: #dc2626; }
+    .status-badge.paused    { background: #fef3c7; color: #d97706; }
+    .status-badge.generating{ background: #dbeafe; color: #2563eb; }
+    .status-badge.done      { background: #d1fae5; color: #059669; }
+
+    /* ── Browser Notice ── */
+    #browser-notice {
+      display: none;
+      margin: 16px;
+      padding: 16px 18px;
+      border-radius: 12px;
+      font-size: 0.88rem;
+      line-height: 1.6;
+    }
+    #browser-notice.ios-notice {
+      background: #fff1f2;
+      border: 1px solid #fecdd3;
+      color: #9f1239;
+    }
+    #browser-notice.chrome-notice {
+      background: #fff7ed;
+      border: 1px solid #fed7aa;
+      color: #c2410c;
+    }
+    #browser-notice strong { display: block; margin-bottom: 4px; font-size: 0.95rem; }
+
+    /* ── Layout ── */
+    main {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 28px 20px 60px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    /* ── Cards ── */
+    .card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.08);
+    }
+    .card-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: #9ca3af;
+      margin-bottom: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    /* ── Meeting Info Card ── */
+    .info-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .info-full { grid-column: 1 / -1; }
+    .info-field label {
+      display: block;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: #6b7280;
+      margin-bottom: 4px;
+    }
+    .info-field input {
+      width: 100%;
+      padding: 9px 12px;
+      border: 1.5px solid #e5e7eb;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      color: #1a1a2e;
+      background: #f9fafb;
+      outline: none;
+      transition: border-color .2s;
+    }
+    .info-field input:focus { border-color: #a5b4fc; background: #fff; }
+    .btn-toggle-info {
+      font-size: 0.75rem;
+      color: #9ca3af;
+      background: #f3f4f6;
+      border: none;
+      border-radius: 6px;
+      padding: 4px 8px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    @media (max-width: 480px) {
+      .info-grid { grid-template-columns: 1fr; }
+    }
+
+    /* ── Recording Controls ── */
+    .rec-center {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+    }
+    #mic-btn {
+      width: 96px; height: 96px;
+      border-radius: 50%;
+      border: none;
+      background: linear-gradient(135deg, #4f46e5, #7c3aed);
+      color: #fff;
+      font-size: 38px;
+      cursor: pointer;
+      box-shadow: 0 4px 20px rgba(79,70,229,.4);
+      transition: transform .15s, box-shadow .15s;
+      position: relative;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    #mic-btn:hover { transform: scale(1.06); box-shadow: 0 6px 28px rgba(79,70,229,.5); }
+    #mic-btn:active { transform: scale(0.96); }
+    #mic-btn.active { background: linear-gradient(135deg, #dc2626, #b91c1c); box-shadow: 0 4px 20px rgba(220,38,38,.4); }
+    #mic-btn.active::after {
+      content: '';
+      position: absolute;
+      inset: -8px;
+      border-radius: 50%;
+      border: 3px solid rgba(220,38,38,.4);
+      animation: pulse 1.4s ease-out infinite;
+    }
+    @keyframes pulse {
+      0%   { transform: scale(1); opacity: .8; }
+      100% { transform: scale(1.5); opacity: 0; }
+    }
+    .mic-hint { font-size: 0.82rem; color: #9ca3af; text-align: center; }
+
+    /* Timer */
+    #timer {
+      font-size: 2rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      color: #1a1a2e;
+      letter-spacing: .04em;
+    }
+    #timer.hidden { display: none; }
+
+    /* Control buttons */
+    .ctrl-btns {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .btn {
+      padding: 12px 22px;
+      border-radius: 12px;
+      border: none;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .15s, transform .1s;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      min-height: 48px;
+      user-select: none;
+    }
+    .btn:disabled { opacity: .38; cursor: not-allowed; }
+    .btn:not(:disabled):hover { opacity: .88; transform: translateY(-1px); }
+    .btn:not(:disabled):active { transform: scale(0.97); opacity: .85; }
+    .btn-pause  { background: #fef3c7; color: #92400e; }
+    .btn-resume { background: #d1fae5; color: #065f46; }
+    .btn-stop   { background: #fee2e2; color: #991b1b; }
+    .btn-primary{ background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #fff; padding: 13px 28px; }
+    .btn-copy   { background: #f3f4f6; color: #374151; }
+    .btn-dl     { background: linear-gradient(135deg, #059669, #047857); color: #fff; }
+    .btn-hist   { background: #f0f9ff; color: #0369a1; }
+
+    /* ── Transcript ── */
+    #transcript-box {
+      min-height: 120px;
+      max-height: 260px;
+      overflow-y: auto;
+      border: 1.5px solid #e5e7eb;
+      border-radius: 10px;
+      padding: 14px 16px;
+      font-size: 0.92rem;
+      line-height: 1.75;
+      color: #374151;
+      background: #f9fafb;
+      position: relative;
+    }
+    #transcript-box .placeholder {
+      color: #c4b5d1;
+      font-style: italic;
+    }
+    #interim-text { color: #9ca3af; }
+
+    /* ── Minutes Output ── */
+    #minutes-box {
+      min-height: 200px;
+      max-height: 560px;
+      overflow-y: auto;
+      border: 1.5px solid #e5e7eb;
+      border-radius: 10px;
+      padding: 20px;
+      font-size: 0.9rem;
+      line-height: 1.8;
+      outline: none;
+      background: #fafafa;
+    }
+    #minutes-box:focus { border-color: #a5b4fc; background: #fff; }
+    #minutes-box .placeholder { color: #c4b5d1; font-style: italic; }
+
+    /* Official minutes format */
+    .minutes-doc-title {
+      text-align: center;
+      font-size: 1.05rem;
+      font-weight: 700;
+      padding-bottom: 12px;
+      border-bottom: 2px solid #1a1a2e;
+      margin-bottom: 14px;
+      letter-spacing: .02em;
+    }
+    .minutes-meta-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+      margin-bottom: 18px;
+    }
+    .minutes-meta-table td {
+      border: 1px solid #c8c8c8;
+      padding: 7px 10px;
+      vertical-align: middle;
+    }
+    .minutes-meta-table .mlabel {
+      background: #f0f0f0;
+      font-weight: 700;
+      white-space: nowrap;
+      color: #374151;
+      width: 68px;
+    }
+    .minutes-section-hd {
+      font-size: 0.92rem;
+      font-weight: 700;
+      margin: 20px 0 8px;
+      padding-bottom: 5px;
+      border-bottom: 1.5px solid #374151;
+    }
+    .minutes-bullet-o {
+      margin: 8px 0 4px 6px;
+      font-weight: 600;
+      font-size: 0.88rem;
+    }
+    .minutes-bullet-dash {
+      margin: 3px 0 3px 22px;
+      font-size: 0.86rem;
+      color: #374151;
+    }
+    .minutes-kw-row {
+      padding: 6px 0 0 6px;
+    }
+    .tag {
+      display: inline-block;
+      background: #ede9fe;
+      color: #5b21b6;
+      font-size: 0.76rem;
+      padding: 2px 8px;
+      border-radius: 20px;
+      margin: 2px 3px;
+      font-weight: 600;
+    }
+
+    /* ── Action Row ── */
+    .action-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 14px;
+    }
+    @media (max-width: 400px) {
+      .action-row { flex-direction: column; }
+      .action-row .btn { width: 100%; justify-content: center; display: flex; }
+    }
+
+    /* ── Progress Steps ── */
+    .steps {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.78rem;
+      color: #9ca3af;
+      flex-wrap: wrap;
+    }
+    .step { padding: 4px 10px; border-radius: 20px; background: #f3f4f6; }
+    .step.active { background: #ede9fe; color: #5b21b6; font-weight: 700; }
+    .step.done   { background: #d1fae5; color: #059669; }
+    .step-arrow  { color: #d1d5db; }
+
+    /* ── Mic permission notice ── */
+    #mic-notice {
+      display: none;
+      font-size: 0.82rem;
+      color: #6b7280;
+      background: #f0f9ff;
+      border: 1px solid #bae6fd;
+      border-radius: 8px;
+      padding: 10px 14px;
+    }
+
+    /* ── History Panel ── */
+    .history-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 14px;
+      border: 1.5px solid #e5e7eb;
+      border-radius: 10px;
+      margin-bottom: 8px;
+      transition: border-color .2s;
+      cursor: default;
+    }
+    .history-item:hover { border-color: #a5b4fc; }
+    .history-item-info { flex: 1; min-width: 0; }
+    .history-item-title {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #1a1a2e;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .history-item-date {
+      font-size: 0.76rem;
+      color: #9ca3af;
+      margin-top: 2px;
+    }
+    .history-item-btns { display: flex; gap: 6px; flex-shrink: 0; }
+    .btn-sm {
+      padding: 6px 12px;
+      border-radius: 8px;
+      border: none;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      touch-action: manipulation;
+      background: #ede9fe;
+      color: #5b21b6;
+    }
+    .btn-sm:hover { opacity: .82; }
+    .btn-sm-del { background: #fee2e2; color: #991b1b; }
+    .history-empty {
+      text-align: center;
+      color: #9ca3af;
+      font-size: 0.88rem;
+      padding: 28px 0;
+    }
+    .btn-close-hist {
+      font-size: 0.8rem;
+      color: #6b7280;
+      background: #f3f4f6;
+      border: none;
+      border-radius: 8px;
+      padding: 5px 10px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    @media (max-width: 400px) {
+      .history-item { flex-wrap: wrap; }
+      .history-item-btns { width: 100%; }
+      .btn-sm { flex: 1; text-align: center; }
+    }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
+
+    /* ── Responsive ── */
+    @media (max-width: 540px) {
+      header { padding: 12px 14px; }
+      header h1 { font-size: 1rem; }
+      main { padding: 14px 12px 80px; gap: 14px; }
+      .card { padding: 16px 14px; }
+      #mic-btn { width: 84px; height: 84px; font-size: 34px; }
+      #timer { font-size: 1.8rem; }
+      .steps { font-size: 0.72rem; gap: 4px; }
+      .step { padding: 3px 8px; }
+      #transcript-box { max-height: 180px; font-size: 0.88rem; }
+      #minutes-box    { max-height: 420px; font-size: 0.88rem; }
+    }
+
+    /* safe area for notch/home-bar phones */
+    @supports (padding-bottom: env(safe-area-inset-bottom)) {
+      main { padding-bottom: calc(60px + env(safe-area-inset-bottom)); }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Browser Notice (content set by JS) -->
+<div id="browser-notice"></div>
+
+<!-- Header -->
+<header>
+  <div class="logo">🎙</div>
+  <div>
+    <h1>회의록 자동 생성기</h1>
+    <p>Web Speech API 기반 · API 키 불필요</p>
+  </div>
+  <span class="status-badge" id="status-badge">대기 중</span>
+</header>
+
+<main>
+
+  <!-- Step Indicator -->
+  <div class="steps">
+    <span class="step active" id="step-1">1. 대기 중</span>
+    <span class="step-arrow">›</span>
+    <span class="step" id="step-2">2. 녹음 중</span>
+    <span class="step-arrow">›</span>
+    <span class="step" id="step-3">3. 회의록 생성</span>
+    <span class="step-arrow">›</span>
+    <span class="step" id="step-4">4. 완료</span>
+  </div>
+
+  <!-- Meeting Info Card -->
+  <div class="card">
+    <div class="card-title">
+      <span>회의 정보 <span style="font-weight:400;text-transform:none;font-size:0.72rem">(선택 입력)</span></span>
+      <button class="btn-toggle-info" id="info-toggle" onclick="toggleInfoCard()">접기 ▲</button>
+    </div>
+    <div id="info-fields" class="info-grid">
+      <div class="info-field info-full">
+        <label>회의 안건</label>
+        <input type="text" id="f-agenda" placeholder="예) '26년 5월 산업안전보건협의체 회의">
+      </div>
+      <div class="info-field info-full">
+        <label>회의 목적</label>
+        <input type="text" id="f-purpose" placeholder="예) 산업재해 예방 조치 논의">
+      </div>
+      <div class="info-field">
+        <label>장소</label>
+        <input type="text" id="f-location" placeholder="예) 본사 대회의실">
+      </div>
+      <div class="info-field">
+        <label>작성자</label>
+        <input type="text" id="f-author" placeholder="이름">
+      </div>
+      <div class="info-field">
+        <label>책임자</label>
+        <input type="text" id="f-responsible" placeholder="이름">
+      </div>
+      <div class="info-field info-full">
+        <label>참석자</label>
+        <input type="text" id="f-attendees" placeholder="예) 홍길동, 김철수 외 10명">
+      </div>
+    </div>
+  </div>
+
+  <!-- Recording Card -->
+  <div class="card">
+    <div class="card-title">녹음 컨트롤</div>
+
+    <div class="rec-center">
+      <button id="mic-btn" title="녹음 시작">🎙</button>
+      <p class="mic-hint" id="mic-hint">버튼을 눌러 녹음을 시작하세요</p>
+      <div id="timer" class="hidden">00:00</div>
+
+      <div class="ctrl-btns" id="ctrl-btns" style="display:none">
+        <button class="btn btn-pause"  id="btn-pause"  onclick="pauseRec()">⏸ 일시정지</button>
+        <button class="btn btn-resume" id="btn-resume" onclick="resumeRec()" style="display:none">▶ 재개</button>
+        <button class="btn btn-stop"   id="btn-stop"   onclick="stopRec()">⏹ 종료</button>
+      </div>
+
+      <div id="mic-notice">
+        🔒 마이크 권한이 필요합니다. 브라우저 주소창의 🔒 아이콘을 클릭해 마이크 허용 후 다시 시도해 주세요.
+      </div>
+    </div>
+  </div>
+
+  <!-- Transcript Card -->
+  <div class="card">
+    <div class="card-title">실시간 음성 전사</div>
+    <div id="transcript-box">
+      <span class="placeholder">녹음이 시작되면 여기에 인식된 내용이 실시간으로 표시됩니다.</span>
+    </div>
+  </div>
+
+  <!-- Minutes Card -->
+  <div class="card" id="minutes-card">
+    <div class="card-title">회의록</div>
+    <div id="minutes-box" contenteditable="true" spellcheck="false">
+      <span class="placeholder">녹음 종료 후 회의록이 자동으로 생성됩니다.<br>생성된 내용은 직접 편집할 수 있습니다.</span>
+    </div>
+    <div class="action-row">
+      <button class="btn btn-primary" id="btn-generate" onclick="generateMinutes()" disabled>📝 회의록 생성</button>
+      <button class="btn btn-copy"    id="btn-copy"    onclick="copyMinutes()"   disabled>📋 텍스트 복사</button>
+      <button class="btn btn-dl"      id="btn-dl"      onclick="downloadDocx()"  disabled>⬇ Word 다운로드</button>
+      <button class="btn btn-hist"    id="btn-hist"    onclick="toggleHistory()">📚 이전 회의록</button>
+    </div>
+  </div>
+
+  <!-- History Card -->
+  <div class="card" id="history-card" style="display:none">
+    <div class="card-title">
+      <span>저장된 회의록</span>
+      <button class="btn-close-hist" onclick="toggleHistory()">✕ 닫기</button>
+    </div>
+    <div id="history-list"></div>
+  </div>
+
+</main>
+
+<script>
+// ═══════════════════════════════════════════════
+//  Browser / Platform Check
+// ═══════════════════════════════════════════════
+const ua = navigator.userAgent;
+const isIOS     = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isAndroid = /Android/.test(ua);
+const isChrome  = /Chrome/.test(ua) && /Google Inc/.test(navigator.vendor);
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+const notice = document.getElementById('browser-notice');
+if (isIOS) {
+  notice.className = 'ios-notice';
+  notice.innerHTML = '<strong>⚠️ iOS에서는 음성 인식이 지원되지 않습니다</strong>'
+    + 'Safari 및 iOS Chrome은 Web Speech API를 지원하지 않습니다.<br>'
+    + '<strong>Android + Chrome 브라우저</strong>에서 이용해 주세요.';
+  notice.style.display = 'block';
+} else if (!SpeechRecognition) {
+  notice.className = 'chrome-notice';
+  notice.innerHTML = '<strong>⚠️ Chrome 브라우저를 사용해 주세요</strong>'
+    + '이 앱은 Web Speech API를 사용하며, <strong>Chrome 브라우저에서만</strong> 정상 동작합니다.<br>'
+    + '다른 브라우저(Firefox, Safari, Edge 등)에서는 음성 인식이 지원되지 않습니다.';
+  notice.style.display = 'block';
+}
+
+window.addEventListener('load', () => {
+  renderHistoryList();
+});
+
+// ═══════════════════════════════════════════════
+//  State
+// ═══════════════════════════════════════════════
+let recognition    = null;
+let finalTranscript = '';
+let interimText    = '';
+let stopIntent     = false;
+let noSpeechCount  = 0;
+let isRecording    = false;
+let isPaused       = false;
+let timerInterval  = null;
+let elapsedSeconds = 0;
+let startTime      = null;
+let wakeLock       = null;
+
+// ═══════════════════════════════════════════════
+//  Elements
+// ═══════════════════════════════════════════════
+const micBtn       = document.getElementById('mic-btn');
+const micHint      = document.getElementById('mic-hint');
+const timer        = document.getElementById('timer');
+const ctrlBtns     = document.getElementById('ctrl-btns');
+const btnPause     = document.getElementById('btn-pause');
+const btnResume    = document.getElementById('btn-resume');
+const btnStop      = document.getElementById('btn-stop');
+const transcriptBox= document.getElementById('transcript-box');
+const minutesBox   = document.getElementById('minutes-box');
+const btnGenerate  = document.getElementById('btn-generate');
+const btnCopy      = document.getElementById('btn-copy');
+const btnDl        = document.getElementById('btn-dl');
+const statusBadge  = document.getElementById('status-badge');
+const micNotice    = document.getElementById('mic-notice');
+
+// ═══════════════════════════════════════════════
+//  Timer
+// ═══════════════════════════════════════════════
+function startTimer() {
+  startTime = Date.now() - elapsedSeconds * 1000;
+  timerInterval = setInterval(() => {
+    elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
+    const m = String(Math.floor(elapsedSeconds / 60)).padStart(2, '0');
+    const s = String(elapsedSeconds % 60).padStart(2, '0');
+    timer.textContent = `${m}:${s}`;
+  }, 500);
+}
+function stopTimer() {
+  clearInterval(timerInterval);
+  timerInterval = null;
+}
+
+// ═══════════════════════════════════════════════
+//  Step / Status helpers
+// ═══════════════════════════════════════════════
+function setStep(n) {
+  ['step-1','step-2','step-3','step-4'].forEach((id, i) => {
+    const el = document.getElementById(id);
+    el.classList.remove('active','done');
+    if (i + 1 < n)  el.classList.add('done');
+    if (i + 1 === n) el.classList.add('active');
+  });
+}
+function setStatus(text, cls) {
+  statusBadge.textContent = text;
+  statusBadge.className = 'status-badge ' + (cls || '');
+}
+
+// ═══════════════════════════════════════════════
+//  Info Card Toggle
+// ═══════════════════════════════════════════════
+function toggleInfoCard() {
+  const fields  = document.getElementById('info-fields');
+  const toggle  = document.getElementById('info-toggle');
+  const hidden  = fields.style.display === 'none';
+  fields.style.display = hidden ? '' : 'none';
+  toggle.textContent   = hidden ? '접기 ▲' : '펼치기 ▼';
+}
+
+// ═══════════════════════════════════════════════
+//  Wake Lock — prevent screen sleep during recording
+// ═══════════════════════════════════════════════
+async function acquireWakeLock() {
+  if (!('wakeLock' in navigator)) return;
+  try {
+    wakeLock = await navigator.wakeLock.request('screen');
+  } catch(_) {}
+}
+
+function releaseWakeLock() {
+  if (wakeLock) {
+    wakeLock.release().catch(() => {});
+    wakeLock = null;
+  }
+}
+
+// Re-acquire wake lock and restart recognition when app returns from background
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && isRecording && !isPaused) {
+    acquireWakeLock();
+    try { recognition.stop(); } catch(_) {}
+    setTimeout(() => {
+      if (isRecording && !isPaused && !stopIntent) {
+        recognition = buildRecognition();
+        try { recognition.start(); } catch(_) {}
+      }
+    }, 300);
+  }
+});
+
+// ═══════════════════════════════════════════════
+//  Speech Recognition Setup
+// ═══════════════════════════════════════════════
+function buildRecognition() {
+  const r = new SpeechRecognition();
+  r.lang = 'ko-KR';
+  r.continuous = true;
+  r.interimResults = true;
+  r.maxAlternatives = 1;
+
+  r.onstart = () => {
+    micNotice.style.display = 'none';
+  };
+
+  r.onresult = (e) => {
+    let interim = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const t = e.results[i][0].transcript;
+      if (e.results[i].isFinal) {
+        finalTranscript += t + ' ';
+        interimText = '';
+      } else {
+        interim += t;
+      }
+    }
+    interimText = interim;
+    renderTranscript(interim);
+  };
+
+  r.onerror = (e) => {
+    if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+      micNotice.style.display = 'block';
+      stopRec(true);
+    } else if (e.error === 'no-speech') {
+      noSpeechCount++;
+      if (noSpeechCount >= 3 && !finalTranscript.trim()) {
+        showTranscriptHint('🔇 음성이 감지되지 않습니다. 마이크에 가까이 대고 말씀해 주세요.');
+      }
+    } else if (e.error === 'network') {
+      showTranscriptHint('⚠️ 네트워크 오류. 인터넷 연결을 확인해 주세요.');
+    } else {
+      console.warn('Speech recognition error:', e.error);
+    }
+  };
+
+  r.onend = () => {
+    if (isRecording && !isPaused) {
+      try { r.start(); } catch(_) {}
+    } else if (stopIntent) {
+      stopIntent = false;
+      if (finalTranscript.trim()) {
+        btnGenerate.disabled = false;
+        setStep(3);
+        setStatus('생성 대기', 'generating');
+        generateMinutes();
+      } else {
+        setStep(1);
+        setStatus('대기 중', '');
+        timer.classList.add('hidden');
+        showTranscriptHint('인식된 내용이 없습니다. 마이크 권한과 인터넷 연결을 확인한 뒤 다시 녹음해 주세요.');
+      }
+    }
+  };
+
+  return r;
+}
+
+function showTranscriptHint(msg) {
+  transcriptBox.innerHTML = `<span style="color:#9ca3af;font-style:italic">${msg}</span>`;
+}
+
+function renderTranscript(interim) {
+  transcriptBox.innerHTML =
+    (finalTranscript
+      ? '<span id="final-text">' + escHtml(finalTranscript) + '</span>'
+      : '') +
+    (interim
+      ? '<span id="interim-text" style="color:#9ca3af">' + escHtml(interim) + '</span>'
+      : '');
+  transcriptBox.scrollTop = transcriptBox.scrollHeight;
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ═══════════════════════════════════════════════
+//  Recording Controls
+// ═══════════════════════════════════════════════
+micBtn.addEventListener('click', () => {
+  if (isRecording) return;
+  startRec();
+});
+
+function startRec() {
+  if (!SpeechRecognition || isIOS) return;
+  finalTranscript = '';
+  interimText     = '';
+  stopIntent      = false;
+  noSpeechCount   = 0;
+  elapsedSeconds  = 0;
+  isRecording = true;
+  isPaused    = false;
+
+  recognition = buildRecognition();
+  recognition.start();
+  acquireWakeLock();
+
+  micBtn.classList.add('active');
+  micBtn.textContent = '🔴';
+  micHint.textContent = '녹음 중... 말씀해 주세요';
+  timer.classList.remove('hidden');
+  ctrlBtns.style.display = 'flex';
+  btnPause.style.display  = '';
+  btnResume.style.display = 'none';
+  transcriptBox.innerHTML = '<span style="color:#9ca3af;font-style:italic">🎙 듣고 있습니다... 말씀해 주세요.</span>';
+  minutesBox.innerHTML = '<span class="placeholder">녹음 종료 후 회의록이 자동으로 생성됩니다.</span>';
+  btnGenerate.disabled = true;
+  btnCopy.disabled     = true;
+  btnDl.disabled       = true;
+
+  startTimer();
+  setStep(2);
+  setStatus('녹음 중', 'recording');
+}
+
+function pauseRec() {
+  if (!isRecording || isPaused) return;
+  isPaused = true;
+  try { recognition.stop(); } catch(_) {}
+  stopTimer();
+  micHint.textContent = '일시정지됨';
+  btnPause.style.display  = 'none';
+  btnResume.style.display = '';
+  setStatus('일시정지', 'paused');
+}
+
+function resumeRec() {
+  if (!isRecording || !isPaused) return;
+  isPaused = false;
+  recognition = buildRecognition();
+  recognition.start();
+  startTimer();
+  micHint.textContent = '녹음 중... 말씀해 주세요';
+  btnPause.style.display  = '';
+  btnResume.style.display = 'none';
+  setStatus('녹음 중', 'recording');
+}
+
+function stopRec(silent) {
+  if (!isRecording) return;
+  isRecording = false;
+  isPaused    = false;
+
+  if (!silent && interimText.trim()) {
+    finalTranscript += interimText + ' ';
+    interimText = '';
+  }
+
+  stopIntent = !silent;
+  releaseWakeLock();
+  try { recognition.stop(); } catch(_) {}
+  stopTimer();
+
+  micBtn.classList.remove('active');
+  micBtn.textContent = '🎙';
+  micHint.textContent = '버튼을 눌러 녹음을 시작하세요';
+  ctrlBtns.style.display = 'none';
+
+  if (silent) {
+    setStep(1);
+    setStatus('대기 중', '');
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  Meeting Minutes Generation
+// ═══════════════════════════════════════════════
+function generateMinutes() {
+  const text = finalTranscript.trim();
+  if (!text) return;
+
+  const orig = btnGenerate.textContent;
+  btnGenerate.textContent = '⏳ 생성 중...';
+  btnGenerate.disabled = true;
+  setStep(3);
+  setStatus('생성 중', 'generating');
+
+  setTimeout(() => {
+    try {
+      const minutes = buildMinutes(text);
+      renderMinutes(minutes);
+      saveToHistory(minutes);
+      btnCopy.disabled = false;
+      btnDl.disabled   = false;
+      btnGenerate.disabled = false;
+      btnGenerate.textContent = '✅ 재생성';
+      setStep(4);
+      setStatus('완료', 'done');
+    } catch(e) {
+      console.error('회의록 생성 오류:', e);
+      minutesBox.innerHTML = `<span style="color:#dc2626">⚠️ 오류: ${e.message}</span>`;
+      btnGenerate.disabled = false;
+      btnGenerate.textContent = orig;
+      setStep(1);
+      setStatus('대기 중', '');
+    }
+  }, 300);
+}
+
+function getMeta() {
+  return {
+    agenda:      (document.getElementById('f-agenda').value      || '').trim(),
+    purpose:     (document.getElementById('f-purpose').value     || '').trim(),
+    location:    (document.getElementById('f-location').value    || '').trim(),
+    author:      (document.getElementById('f-author').value      || '').trim(),
+    responsible: (document.getElementById('f-responsible').value || '').trim(),
+    attendees:   (document.getElementById('f-attendees').value   || '').trim(),
+  };
+}
+
+function setMeta(meta) {
+  document.getElementById('f-agenda').value      = meta.agenda      || '';
+  document.getElementById('f-purpose').value     = meta.purpose     || '';
+  document.getElementById('f-location').value    = meta.location    || '';
+  document.getElementById('f-author').value      = meta.author      || '';
+  document.getElementById('f-responsible').value = meta.responsible || '';
+  document.getElementById('f-attendees').value   = meta.attendees   || '';
+}
+
+function buildMinutes(text) {
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('ko-KR', {year:'numeric',month:'long',day:'numeric',weekday:'long'});
+  const timeStr = now.toLocaleTimeString('ko-KR', {hour:'2-digit',minute:'2-digit'});
+
+  const sentences = splitSentences(text);
+  const keywords  = extractKeywords(text);
+
+  return {
+    title:     extractTitle(sentences),
+    datetime:  `${dateStr} ${timeStr}`,
+    fullText:  text,
+    summary:   extractSummary(sentences, keywords),
+    keywords,
+    decisions: filterSentences(sentences, ['결정','확정','하기로','하겠습니다','결정했','채택']),
+    actions:   filterSentences(sentences, ['해주세요','해 주세요','부탁','담당','기한','까지','요청','처리']),
+    agendas:   filterSentences(sentences, ['관련','대해서','대한','건의','제안','논의','검토','안내','활동']),
+  };
+}
+
+function splitSentences(text) {
+  return text
+    .replace(/([.!?。])\s+/g, '$1\n')
+    .replace(/(다|요)([.!?\s])/g, '$1\n$2')
+    .split('\n')
+    .map(s => s.trim())
+    .filter(s => s.length > 5);
+}
+
+function extractTitle(sentences) {
+  if (!sentences.length) return '회의록';
+  const titleHints = sentences.find(s =>
+    /회의|안건|주제|관련|보고|검토|논의/.test(s)
+  );
+  const raw = titleHints || sentences[0];
+  return raw.length > 40 ? raw.slice(0, 40) + '…' : raw;
+}
+
+function extractKeywords(text) {
+  const STOP = new Set([
+    '이','그','저','것','수','를','을','은','는','이','가','의','에','도','로','으로',
+    '와','과','하고','하는','하면','하여','하지','합니다','했습니다','있습니다',
+    '있는','없는','같은','때문','위해','통해','대한','또한','그리고','하지만',
+    '그러나','그래서','따라서','우리','저는','제가','아','네','예','맞','맞아',
+    '그냥','좀','거','게','데','됩니다','입니다','습니다','ㅎ','ㅇ',
+  ]);
+
+  const freq = {};
+  text.replace(/[^가-힣a-zA-Z0-9\s]/g, ' ')
+      .split(/\s+/)
+      .filter(w => w.length >= 2 && !STOP.has(w))
+      .forEach(w => { freq[w] = (freq[w] || 0) + 1; });
+
+  return Object.entries(freq)
+    .filter(([,c]) => c >= 2)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 12)
+    .map(([w]) => w);
+}
+
+function filterSentences(sentences, keywords) {
+  const re = new RegExp(keywords.join('|'));
+  return sentences.filter(s => re.test(s));
+}
+
+// ═══════════════════════════════════════════════
+//  Extractive Summarization
+// ═══════════════════════════════════════════════
+function extractSummary(sentences, keywords) {
+  if (!sentences.length) return '내용이 없습니다.';
+  if (sentences.length <= 3) return sentences.join(' ');
+
+  const importantRe = /결정|확정|목표|계획|중요|핵심|문제|해결|필요|제안|결론|합의/;
+  const actionRe    = /해주세요|부탁|담당|기한|처리|완료|요청/;
+
+  const scored = sentences.map((s, i) => {
+    let score = 0;
+    if (i === 0) score += 3;
+    if (i === sentences.length - 1) score += 1;
+    if (i < sentences.length * 0.2) score += 1;
+    keywords.forEach(kw => { if (s.includes(kw)) score += 2; });
+    if (importantRe.test(s)) score += 4;
+    if (actionRe.test(s))    score += 3;
+    if (s.length < 8)   score -= 3;
+    if (s.length > 120) score -= 1;
+    return { s, score, i };
+  });
+
+  const topN = Math.min(5, Math.max(2, Math.floor(sentences.length * 0.3)));
+  return scored
+    .sort((a, b) => b.score - a.score)
+    .slice(0, topN)
+    .sort((a, b) => a.i - b.i)
+    .map(x => x.s)
+    .join(' ');
+}
+
+// ═══════════════════════════════════════════════
+//  Render Minutes — official Korean format
+// ═══════════════════════════════════════════════
+function renderMinutes(m) {
+  const meta = getMeta();
+  const docTitle = meta.agenda || m.title;
+
+  // Deduplicated discussions (agendas + decisions)
+  const seen = new Set();
+  const discussions = [...m.agendas, ...m.decisions].filter(s => {
+    if (seen.has(s)) return false;
+    seen.add(s);
+    return true;
+  });
+
+  const bulletO = s => `<div class="minutes-bullet-o">○ ${escHtml(s)}</div>`;
+  const bulletD = s => `<div class="minutes-bullet-dash">- ${escHtml(s)}</div>`;
+
+  const sectionItems = (items, fallback) =>
+    items.length
+      ? items.map(bulletO).join('')
+      : bulletD(fallback || '-');
+
+  const kwHtml = m.keywords.length
+    ? m.keywords.map(k => `<span class="tag">#${escHtml(k)}</span>`).join(' ')
+    : '<span style="color:#9ca3af">없음</span>';
+
+  minutesBox.innerHTML = `
+    <div class="minutes-doc-title">${escHtml(docTitle)}</div>
+    <table class="minutes-meta-table">
+      <tr>
+        <td class="mlabel">회의 안건</td>
+        <td colspan="3">${escHtml(meta.agenda || m.title)}</td>
+      </tr>
+      ${meta.purpose ? `<tr><td class="mlabel">회의 목적</td><td colspan="3">${escHtml(meta.purpose)}</td></tr>` : ''}
+      <tr>
+        <td class="mlabel">날짜/시간</td>
+        <td>${escHtml(m.datetime)}</td>
+        <td class="mlabel">장소</td>
+        <td>${escHtml(meta.location || '-')}</td>
+      </tr>
+      <tr>
+        <td class="mlabel">작성자</td>
+        <td>${escHtml(meta.author || '-')}</td>
+        <td class="mlabel">책임자</td>
+        <td>${escHtml(meta.responsible || '-')}</td>
+      </tr>
+      <tr>
+        <td class="mlabel">참석자</td>
+        <td colspan="3">${escHtml(meta.attendees || '-')}</td>
+      </tr>
+    </table>
+
+    <div class="minutes-section-hd">ㅁ 요약</div>
+    <div class="minutes-bullet-dash" style="line-height:1.9">${escHtml(m.summary)}</div>
+
+    <div class="minutes-section-hd">ㅁ 협의 및 결정사항</div>
+    ${sectionItems(discussions, '(자동 추출된 항목 없음)')}
+
+    <div class="minutes-section-hd">ㅁ 기타사항</div>
+    ${sectionItems(m.actions, '-')}
+
+    <div class="minutes-section-hd">ㅁ 주요 키워드</div>
+    <div class="minutes-kw-row">${kwHtml}</div>
+
+    <div class="minutes-section-hd">ㅁ 전체 발언 내용</div>
+    <div class="minutes-bullet-dash" style="white-space:pre-wrap;line-height:1.9">${escHtml(m.fullText)}</div>
+  `;
+}
+
+// ═══════════════════════════════════════════════
+//  Plain text for TXT download
+// ═══════════════════════════════════════════════
+function buildPlainText(m) {
+  const meta = getMeta();
+  const docTitle = meta.agenda || m.title;
+
+  const seen = new Set();
+  const discussions = [...m.agendas, ...m.decisions].filter(s => {
+    if (seen.has(s)) return false; seen.add(s); return true;
+  });
+
+  const lines = [];
+  lines.push(docTitle);
+  lines.push('');
+  lines.push(`회의 안건: ${meta.agenda || m.title}`);
+  if (meta.purpose) lines.push(`회의 목적: ${meta.purpose}`);
+  lines.push(`날짜/시간: ${m.datetime}　　장소: ${meta.location || '-'}`);
+  lines.push(`작성자: ${meta.author || '-'}　　책임자: ${meta.responsible || '-'}`);
+  lines.push(`참석자: ${meta.attendees || '-'}`);
+  lines.push('');
+  lines.push('─'.repeat(44));
+  lines.push('');
+  lines.push('ㅁ 요약');
+  lines.push(m.summary);
+  lines.push('');
+  lines.push('ㅁ 협의 및 결정사항');
+  if (discussions.length) {
+    discussions.forEach(s => lines.push(`  ○ ${s}`));
+  } else {
+    lines.push('  -');
+  }
+  lines.push('');
+  lines.push('ㅁ 기타사항');
+  if (m.actions.length) {
+    m.actions.forEach(s => lines.push(`  ○ ${s}`));
+  } else {
+    lines.push('  -');
+  }
+  lines.push('');
+  lines.push('ㅁ 주요 키워드');
+  lines.push(`  ${m.keywords.length ? m.keywords.map(k=>`#${k}`).join('  ') : '없음'}`);
+  lines.push('');
+  lines.push('ㅁ 전체 발언 내용');
+  lines.push(m.fullText);
+
+  return lines.join('\n');
+}
+
+// ═══════════════════════════════════════════════
+//  Copy
+// ═══════════════════════════════════════════════
+async function copyMinutes() {
+  const text = minutesBox.innerText || minutesBox.textContent;
+  try {
+    await navigator.clipboard.writeText(text);
+    const orig = btnCopy.textContent;
+    btnCopy.textContent = '✅ 복사됨!';
+    setTimeout(() => { btnCopy.textContent = orig; }, 1800);
+  } catch(e) {
+    alert('복사에 실패했습니다. 직접 선택하여 복사해 주세요.');
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  Download helper — works reliably on Android Chrome
+// ═══════════════════════════════════════════════
+function triggerDownload(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a   = document.createElement('a');
+  a.href     = url;
+  a.download = filename;
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1500);
+}
+
+function downloadAsTxt() {
+  const text = finalTranscript.trim();
+  if (!text) return;
+  const plain = buildPlainText(buildMinutes(text));
+  triggerDownload(
+    new Blob(['﻿' + plain], { type: 'text/plain;charset=utf-8' }),
+    `회의록_${new Date().toISOString().slice(0,10)}.txt`
+  );
+}
+
+// ═══════════════════════════════════════════════
+//  DOCX Library — lazy-load from multiple CDNs
+// ═══════════════════════════════════════════════
+const DOCX_CDNS = [
+  'https://unpkg.com/docx@8.5.0/build/index.min.js',
+  'https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.min.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/index.min.js',
+];
+let docxLoading = null;
+
+async function ensureDocx() {
+  if (window.docx) return true;
+  if (docxLoading) return docxLoading;
+
+  docxLoading = (async () => {
+    for (const src of DOCX_CDNS) {
+      try {
+        await new Promise((resolve, reject) => {
+          // avoid re-inserting if already in DOM
+          if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
+          const s = document.createElement('script');
+          s.src = src;
+          s.onload = resolve;
+          s.onerror = reject;
+          s.crossOrigin = 'anonymous';
+          document.head.appendChild(s);
+        });
+        if (window.docx) return true;
+      } catch(_) {}
+    }
+    return false;
+  })();
+
+  return docxLoading;
+}
+
+// ═══════════════════════════════════════════════
+//  DOCX Download
+// ═══════════════════════════════════════════════
+async function downloadDocx() {
+  const text = finalTranscript.trim();
+  if (!text) return;
+
+  const origLabel = btnDl.textContent;
+  btnDl.disabled  = true;
+  btnDl.textContent = '⏳ Word 생성 중...';
+
+  const filename = `회의록_${new Date().toISOString().slice(0,10)}`;
+
+  const loaded = await ensureDocx();
+  if (!loaded) {
+    // All CDNs failed — fall back to TXT with notice
+    alert('Word 라이브러리 로드 실패. TXT로 다운로드합니다.\n(인터넷 연결 확인 후 다시 시도해 주세요.)');
+    downloadAsTxt();
+    btnDl.textContent = origLabel;
+    btnDl.disabled = false;
+    return;
+  }
+
+  try {
+    const m    = buildMinutes(text);
+    const meta = getMeta();
+    const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } = window.docx;
+
+    const h1  = t => new Paragraph({ text: t, heading: HeadingLevel.HEADING_1, alignment: AlignmentType.CENTER, spacing: { before: 200, after: 200 } });
+    const h2  = t => new Paragraph({ text: t, heading: HeadingLevel.HEADING_2, spacing: { before: 300, after: 100 } });
+    const bod = t => new Paragraph({ children: [new TextRun({ text: t, size: 22, font: 'Malgun Gothic' })], spacing: { after: 60 } });
+    const bul = (prefix, t) => new Paragraph({ children: [new TextRun({ text: `${prefix} ${t}`, size: 22, font: 'Malgun Gothic' })], spacing: { after: 40 }, indent: { left: prefix === '○' ? 360 : 720 } });
+    const emp = () => new Paragraph({ text: '' });
+
+    const seen = new Set();
+    const discussions = [...m.agendas, ...m.decisions].filter(s => {
+      if (seen.has(s)) return false; seen.add(s); return true;
+    });
+
+    const docTitle = meta.agenda || m.title;
+    const children = [
+      h1(docTitle),
+      bod(`회의 안건: ${meta.agenda || m.title}`),
+      ...(meta.purpose ? [bod(`회의 목적: ${meta.purpose}`)] : []),
+      bod(`날짜/시간: ${m.datetime}   장소: ${meta.location || '-'}`),
+      bod(`작성자: ${meta.author || '-'}   책임자: ${meta.responsible || '-'}`),
+      bod(`참석자: ${meta.attendees || '-'}`),
+      emp(),
+      h2('ㅁ 요약'), bod(m.summary), emp(),
+      h2('ㅁ 협의 및 결정사항'),
+      ...(discussions.length ? discussions.map(s => bul('○', s)) : [bul('-', '-')]),
+      emp(),
+      h2('ㅁ 기타사항'),
+      ...(m.actions.length ? m.actions.map(s => bul('○', s)) : [bul('-', '-')]),
+      emp(),
+      h2('ㅁ 주요 키워드'),
+      bod(m.keywords.length ? m.keywords.map(k => `#${k}`).join('  ') : '없음'),
+      emp(),
+      h2('ㅁ 전체 발언 내용'), bod(m.fullText), emp(),
+    ];
+
+    const doc  = new Document({ creator: '회의록 자동 생성기', title: docTitle, sections: [{ properties: {}, children }] });
+    const blob = await Packer.toBlob(doc);
+
+    triggerDownload(blob, filename + '.docx');
+    btnDl.textContent = origLabel;
+  } catch(e) {
+    console.error('docx 생성 실패, txt로 전환:', e);
+    downloadAsTxt();
+    btnDl.textContent = '⬇ TXT 다운로드';
+  } finally {
+    btnDl.disabled = false;
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  History — localStorage 기반 회의록 누적 관리
+// ═══════════════════════════════════════════════
+const HISTORY_KEY = 'meeting-minutes-history';
+
+function saveToHistory(m) {
+  try {
+    const history = getHistory();
+    const meta = getMeta();
+    const entry = {
+      id:      Date.now().toString(),
+      label:   meta.agenda || m.title,
+      datetime: m.datetime,
+      savedAt: new Date().toISOString(),
+      meta,
+      minutes: m,
+    };
+    history.unshift(entry);
+    if (history.length > 30) history.splice(30);
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+    // Refresh list if history panel is open
+    if (document.getElementById('history-card').style.display !== 'none') {
+      renderHistoryList();
+    }
+  } catch(_) {}
+}
+
+function getHistory() {
+  try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); }
+  catch(_) { return []; }
+}
+
+function renderHistoryList() {
+  const history = getHistory();
+  const listEl  = document.getElementById('history-list');
+  if (!history.length) {
+    listEl.innerHTML = '<div class="history-empty">저장된 회의록이 없습니다.</div>';
+    return;
+  }
+  listEl.innerHTML = history.map(entry => {
+    const savedDate = new Date(entry.savedAt).toLocaleDateString('ko-KR', {
+      month:'long', day:'numeric', hour:'2-digit', minute:'2-digit'
+    });
+    return `
+      <div class="history-item">
+        <div class="history-item-info">
+          <div class="history-item-title">${escHtml(entry.label || entry.datetime)}</div>
+          <div class="history-item-date">저장: ${savedDate}</div>
+        </div>
+        <div class="history-item-btns">
+          <button class="btn-sm" onclick="loadFromHistory('${entry.id}')">불러오기</button>
+          <button class="btn-sm btn-sm-del" onclick="deleteFromHistory('${entry.id}')">삭제</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function loadFromHistory(id) {
+  const entry = getHistory().find(e => e.id === id);
+  if (!entry) return;
+
+  // Restore meta fields
+  if (entry.meta) setMeta(entry.meta);
+
+  // Restore transcript state
+  finalTranscript = entry.minutes.fullText;
+  renderTranscript('');
+
+  // Render minutes in official format
+  renderMinutes(entry.minutes);
+
+  btnGenerate.disabled = false;
+  btnCopy.disabled     = false;
+  btnDl.disabled       = false;
+  setStep(4);
+  setStatus('완료', 'done');
+
+  // Close history panel, scroll to minutes
+  document.getElementById('history-card').style.display = 'none';
+  document.getElementById('minutes-card').scrollIntoView({ behavior: 'smooth' });
+}
+
+function deleteFromHistory(id) {
+  if (!confirm('이 회의록을 삭제하시겠습니까?')) return;
+  const updated = getHistory().filter(e => e.id !== id);
+  try { localStorage.setItem(HISTORY_KEY, JSON.stringify(updated)); } catch(_) {}
+  renderHistoryList();
+}
+
+function toggleHistory() {
+  const card = document.getElementById('history-card');
+  if (card.style.display === 'none') {
+    card.style.display = 'block';
+    renderHistoryList();
+    card.scrollIntoView({ behavior: 'smooth' });
+  } else {
+    card.style.display = 'none';
+  }
+}
+</script>
+</body>
+</html>
