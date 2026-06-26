@@ -9237,12 +9237,12 @@ ${htmlDraft}
     // sigHPct    = 서명행 높이 (%)
     // sigYBotPct = pdf-lib 기준 (하단 기준) = 1 - sigTopPct - sigHPct
     const isHealth = reportType === 'health';
-    // 스크린샷 확인: 헤더행 아래 서명행으로 이동
-    //   보건: 헤더행(~0~3%) → 서명행(~3~7%)
-    //   안전: 헤더행(~0~5%) → 서명행(~5~9%)
-    const sigTopPct  = isHealth ? 0.030 : 0.052;   // 보건: 3%, 안전: 5.2%
-    const sigHPct    = isHealth ? 0.040 : 0.038;   // 공통 ~4% 높이
-    const sigYBotPct = isHealth ? 0.930 : 0.910;   // pdf-lib 하단 기준
+    // 스크린샷 확인(3차):
+    //   보건: 헤더(0~3%) → 서명칸(3~8%)  ← sigTopPct=0.040
+    //   안전: 헤더(4~8%) → 서명칸(8~13%) ← sigTopPct=0.090
+    const sigTopPct  = isHealth ? 0.040 : 0.090;
+    const sigHPct    = isHealth ? 0.040 : 0.042;
+    const sigYBotPct = isHealth ? 0.920 : 0.868;   // pdf-lib 하단 기준
 
     // ── 이미지 파일 (sharp 합성) ─────────────────────
     if (['.jpg', '.jpeg', '.png'].includes(ext)) {
