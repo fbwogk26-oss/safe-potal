@@ -9244,10 +9244,18 @@ ${htmlDraft}
       const composites: any[] = [];
       for (let i = 0; i < 3; i++) {
         if (!sigBufs[i]) continue;
+        // 셀의 75%로 축소 후 셀 중앙 배치 (여백 확보)
+        const maxW = Math.round(cells[i].w * 0.75);
+        const maxH = Math.round(cells[i].h * 0.75);
         const resized = await sharp(sigBufs[i]!)
-          .resize({ width: cells[i].w, height: cells[i].h, fit: 'inside', background: { r: 255, g: 255, b: 255, alpha: 0 } })
+          .resize({ width: maxW, height: maxH, fit: 'inside' })
           .png().toBuffer();
-        composites.push({ input: resized, left: cells[i].left, top: cells[i].top });
+        const rMeta = await sharp(resized).metadata();
+        const rW = rMeta.width ?? maxW;
+        const rH = rMeta.height ?? maxH;
+        const left = cells[i].left + Math.round((cells[i].w - rW) / 2);
+        const top  = cells[i].top  + Math.round((cells[i].h - rH) / 2);
+        composites.push({ input: resized, left, top });
       }
       if (composites.length === 0) return buffer;
       const result = await sharp(buffer).composite(composites).toBuffer();
@@ -9271,27 +9279,22 @@ ${htmlDraft}
       ];
       for (let i = 0; i < 3; i++) {
         if (!sigBufs[i]) continue;
-        try {
-          const image = await pdfDoc.embedPng(sigBufs[i]!);
+        // 셀의 75%로 제한하여 여백 확보
+        const maxW = cells[i].w * 0.75;
+        const maxH = cells[i].h * 0.75;
+        const drawImg = async (image: any) => {
           const { width: iw, height: ih } = image.size();
-          const scale = Math.min(cells[i].w / iw, cells[i].h / ih);
+          const scale = Math.min(maxW / iw, maxH / ih);
           const drawW = iw * scale;
           const drawH = ih * scale;
           const drawX = cells[i].x + (cells[i].w - drawW) / 2;
           const drawY = cells[i].yBottom + (cells[i].h - drawH) / 2;
           firstPage.drawImage(image, { x: drawX, y: drawY, width: drawW, height: drawH });
+        };
+        try {
+          await drawImg(await pdfDoc.embedPng(sigBufs[i]!));
         } catch {
-          // JPG로 fallback
-          try {
-            const image = await pdfDoc.embedJpg(sigBufs[i]!);
-            const { width: iw, height: ih } = image.size();
-            const scale = Math.min(cells[i].w / iw, cells[i].h / ih);
-            const drawW = iw * scale;
-            const drawH = ih * scale;
-            const drawX = cells[i].x + (cells[i].w - drawW) / 2;
-            const drawY = cells[i].yBottom + (cells[i].h - drawH) / 2;
-            firstPage.drawImage(image, { x: drawX, y: drawY, width: drawW, height: drawH });
-          } catch { /* skip this signature */ }
+          try { await drawImg(await pdfDoc.embedJpg(sigBufs[i]!)); } catch { /* skip */ }
         }
       }
       const pdfBytes = await pdfDoc.save();
