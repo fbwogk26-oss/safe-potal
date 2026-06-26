@@ -9228,12 +9228,18 @@ ${htmlDraft}
     const sigBufs = [b64ToBuffer(sigs.manager), b64ToBuffer(sigs.reviewer), b64ToBuffer(sigs.approver)];
     if (sigBufs.every(b => !b)) return buffer;
 
-    // ── 결재란 위치 (두 보고서 모두 동일: 상단 7~16%, 우측 63~99%) ──────
-    // 이미지 분석 결과: 서명행 top=7%, height=9%
-    // 담당: 63~75%, 검토: 75~87%, 승인: 87~99%
-    const sigTopPct  = 0.070;   // 7% from top (image coords)
-    const sigHPct    = 0.090;   // 9% height
-    const sigYBotPct = 0.840;   // pdf-lib: bottom of sig row = 84% from bottom (= 16% from top)
+    // ── 결재란 위치 ────────────────────────────────────────────────────────
+    // 스크린샷 분석:
+    //   보건관리자: 결재란에 헤더행 없음, 셀이 페이지 최상단 (~1~5%)
+    //   안전관리자: 담당/검토/승인 헤더행(~0~4%) + 서명행(~4~8%)
+    // X: 담당 63~75%, 검토 75~87%, 승인 87~99%
+    // sigTopPct  = 서명행 상단 (image top-down %)
+    // sigHPct    = 서명행 높이 (%)
+    // sigYBotPct = pdf-lib 기준 (하단 기준) = 1 - sigTopPct - sigHPct
+    const isHealth = reportType === 'health';
+    const sigTopPct  = isHealth ? 0.012 : 0.040;   // 보건: 1.2%, 안전: 4%
+    const sigHPct    = isHealth ? 0.040 : 0.038;   // 공통 ~4% 높이
+    const sigYBotPct = isHealth ? 0.948 : 0.922;   // pdf-lib 하단 기준
 
     // ── 이미지 파일 (sharp 합성) ─────────────────────
     if (['.jpg', '.jpeg', '.png'].includes(ext)) {
@@ -9242,7 +9248,6 @@ ${htmlDraft}
       const W = meta.width || 1000;
       const H = meta.height || 1400;
 
-      // 담당: 63~75%, 검토: 75~87%, 승인: 87~99%
       const cells = [
         { left: Math.round(W * 0.630), top: Math.round(H * sigTopPct), w: Math.round(W * 0.120), h: Math.round(H * sigHPct) },
         { left: Math.round(W * 0.750), top: Math.round(H * sigTopPct), w: Math.round(W * 0.120), h: Math.round(H * sigHPct) },
@@ -9251,9 +9256,9 @@ ${htmlDraft}
       const composites: any[] = [];
       for (let i = 0; i < 3; i++) {
         if (!sigBufs[i]) continue;
-        // 셀의 75%로 축소 후 셀 중앙 배치 (여백 확보)
-        const maxW = Math.round(cells[i].w * 0.75);
-        const maxH = Math.round(cells[i].h * 0.75);
+        // 셀의 65%로 축소 후 셀 중앙 배치 (여백 확보)
+        const maxW = Math.round(cells[i].w * 0.65);
+        const maxH = Math.round(cells[i].h * 0.65);
         const resized = await sharp(sigBufs[i]!)
           .resize({ width: maxW, height: maxH, fit: 'inside' })
           .png().toBuffer();
@@ -9278,7 +9283,6 @@ ${htmlDraft}
       const { width: W, height: H } = firstPage.getSize();
 
       // pdf-lib 좌표: 좌측 하단 기준 (y=0 이 아래)
-      // yBottom=0.840 → 서명행 하단이 상단16%에 위치, h=0.09 → 상단7~16%
       const cells = [
         { x: W * 0.630, yBottom: H * sigYBotPct, w: W * 0.120, h: H * sigHPct },  // 담당
         { x: W * 0.750, yBottom: H * sigYBotPct, w: W * 0.120, h: H * sigHPct },  // 검토
