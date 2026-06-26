@@ -428,6 +428,7 @@ let isPaused     = false;
 let timerInterval = null;
 let elapsedSeconds = 0;
 let startTime = null;
+let wakeLock  = null;
 
 // ═══════════════════════════════════════════════
 //  Elements
@@ -571,6 +572,38 @@ function escHtml(s) {
 // ═══════════════════════════════════════════════
 //  Recording Controls
 // ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════
+//  Wake Lock — prevent screen sleep during recording
+// ═══════════════════════════════════════════════
+async function acquireWakeLock() {
+  if (!('wakeLock' in navigator)) return;
+  try {
+    wakeLock = await navigator.wakeLock.request('screen');
+  } catch(_) {}
+}
+
+function releaseWakeLock() {
+  if (wakeLock) {
+    wakeLock.release().catch(() => {});
+    wakeLock = null;
+  }
+}
+
+// Re-acquire wake lock and restart recognition when app returns from background
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && isRecording && !isPaused) {
+    acquireWakeLock();
+    // Chrome stops recognition when page is hidden; restart it
+    try { recognition.stop(); } catch(_) {}
+    setTimeout(() => {
+      if (isRecording && !isPaused && !stopIntent) {
+        recognition = buildRecognition();
+        try { recognition.start(); } catch(_) {}
+      }
+    }, 300);
+  }
+});
+
 micBtn.addEventListener('click', () => {
   if (isRecording) return;
   startRec();
@@ -588,6 +621,7 @@ function startRec() {
 
   recognition = buildRecognition();
   recognition.start();
+  acquireWakeLock();
 
   micBtn.classList.add('active');
   micBtn.textContent = '🔴';
@@ -642,6 +676,7 @@ function stopRec(silent) {
   }
 
   stopIntent = !silent;
+  releaseWakeLock();
   try { recognition.stop(); } catch(_) {}
   stopTimer();
 
