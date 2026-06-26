@@ -99,6 +99,11 @@ export default function SafetyManagerReports() {
 
   const yearMonth = getYearMonth(year, month);
 
+  const { data: approvalSigs } = useQuery<{ manager: string | null; reviewer: string | null; approver: string | null }>({
+    queryKey: ["/api/settings/approval-signatures"],
+  });
+  const hasSignatures = !!(approvalSigs?.manager || approvalSigs?.reviewer || approvalSigs?.approver);
+
   const { data: reports = [], isLoading } = useQuery<SafetyManagerReport[]>({
     queryKey: ["/api/safety-manager-reports", yearMonth, headquarters],
     queryFn: () => fetch(`/api/safety-manager-reports?yearMonth=${yearMonth}&headquarters=${encodeURIComponent(headquarters)}`, { credentials: "include" }).then(r => r.json()),
@@ -514,7 +519,9 @@ export default function SafetyManagerReports() {
               <FileViewer
                 fileUrl={detailReport.fileUrl}
                 fileOriginalName={detailReport.fileOriginalName}
-                apiBase={`/api/safety-manager-reports/${detailReport.id}/file`}
+                apiBase={hasSignatures
+                  ? `/api/safety-manager-reports/${detailReport.id}/download-signed`
+                  : `/api/safety-manager-reports/${detailReport.id}/file`}
               />
               <ApprovalStamp isAdmin={user?.role === "admin"} />
             </div>

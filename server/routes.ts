@@ -9433,8 +9433,9 @@ ${htmlDraft}
       const outExt = ['.jpg', '.jpeg'].includes(ext) ? '.png' : ext; // sharp outputs png
       const outMime = mimeMap[outExt] || 'application/octet-stream';
       const safeFilename = encodeURIComponent(`${baseName}_결재서명${outExt}`);
+      const isInline = req.query.inline === 'true';
       res.setHeader('Content-Type', outMime);
-      res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${safeFilename}`);
+      res.setHeader('Content-Disposition', `${isInline ? 'inline' : 'attachment'}; filename*=UTF-8''${safeFilename}`);
       res.send(processed);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
@@ -9554,8 +9555,9 @@ ${htmlDraft}
       const outExt = ['.jpg', '.jpeg'].includes(ext) ? '.png' : ext;
       const outMime = mimeMap[outExt] || 'application/octet-stream';
       const safeFilename = encodeURIComponent(`${baseName}_결재서명${outExt}`);
+      const isInline = req.query.inline === 'true';
       res.setHeader('Content-Type', outMime);
-      res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${safeFilename}`);
+      res.setHeader('Content-Disposition', `${isInline ? 'inline' : 'attachment'}; filename*=UTF-8''${safeFilename}`);
       res.send(processed);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });

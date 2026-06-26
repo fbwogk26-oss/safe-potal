@@ -175,6 +175,11 @@ export default function HealthManagerReports() {
 
   const yearMonth = getYearMonth(year, month);
 
+  const { data: approvalSigs } = useQuery<{ manager: string | null; reviewer: string | null; approver: string | null }>({
+    queryKey: ["/api/settings/approval-signatures"],
+  });
+  const hasSignatures = !!(approvalSigs?.manager || approvalSigs?.reviewer || approvalSigs?.approver);
+
   const { data: reports = [], isLoading } = useQuery<HealthManagerReport[]>({
     queryKey: ["/api/health-manager-reports", yearMonth, headquarters],
     queryFn: () => fetch(`/api/health-manager-reports?yearMonth=${yearMonth}&headquarters=${encodeURIComponent(headquarters)}`, { credentials: "include" }).then(r => r.json()),
@@ -649,7 +654,9 @@ export default function HealthManagerReports() {
               <FileViewer
                 fileUrl={detailReport.fileUrl}
                 fileOriginalName={detailReport.fileOriginalName}
-                apiBase={`/api/health-manager-reports/${detailReport.id}/file`}
+                apiBase={hasSignatures
+                  ? `/api/health-manager-reports/${detailReport.id}/download-signed`
+                  : `/api/health-manager-reports/${detailReport.id}/file`}
                 accentColor="text-rose-500"
               />
               <ApprovalStamp isAdmin={user?.role === "admin"} />
