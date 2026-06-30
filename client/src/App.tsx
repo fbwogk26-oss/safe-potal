@@ -16,6 +16,7 @@ import EquipmentRequest from "@/pages/EquipmentRequest";
 import AccessRequest from "@/pages/AccessRequest";
 import DigitalBoard from "@/pages/DigitalBoard";
 import SafetyInspections from "@/pages/SafetyInspections";
+import ParallaxViewer from "@/pages/ParallaxViewer";
 import NotFound from "@/pages/NotFound";
 import { useLocation } from "wouter";
 
@@ -44,6 +45,7 @@ function Router() {
             <Route path="/equipment/request" component={EquipmentRequest} />
             <Route path="/access" component={AccessRequest} />
             <Route path="/digital-board" component={DigitalBoard} />
+            <Route path="/parallax" component={ParallaxViewer} />
             <Route component={NotFound} />
           </Switch>
         </div>
