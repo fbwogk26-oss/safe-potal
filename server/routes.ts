@@ -3741,6 +3741,74 @@ ${buildEmailFooter()}
 
   // === MUSCULOSKELETAL ASSESSMENTS ===
   // === 폭염 일일 체크리스트 ===
+  const emlUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+
+  app.post('/api/heat-wave-checklists/parse-email', isAuthenticated, emlUpload.single('eml'), async (req: any, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: ".eml 파일을 업로드해 주세요" });
+      const emlContent = req.file.buffer.toString('utf8');
+
+      // Decode base64 text/plain body
+      const b64match = emlContent.match(/Content-Type: text\/plain[\s\S]*?Content-Transfer-Encoding: base64\s*\r?\n\s*\r?\n([\s\S]+?)(?:\r?\n---=Part|$)/);
+      if (!b64match) return res.status(422).json({ message: "이메일에서 텍스트 본문을 찾을 수 없습니다" });
+
+      const b64 = b64match[1].replace(/\s+/g, '');
+      const decoded = Buffer.from(b64, 'base64').toString('utf8');
+      const lines = decoded.split(/\r?\n/).filter((l: string) => l.trim());
+
+      // Find header row
+      const hdrIdx = lines.findIndex((l: string) => l.trim() === '권역');
+      if (hdrIdx === -1) return res.status(422).json({ message: "테이블 헤더(권역)를 찾을 수 없습니다. 올바른 체감온도 안내 이메일인지 확인해 주세요" });
+
+      // Parse data rows: 8 lines each after 8-line header
+      const dataStart = hdrIdx + 8;
+      const rows: any[] = [];
+      for (let i = dataStart; i + 7 < lines.length; i += 8) {
+        const level = lines[i + 7]?.trim();
+        if (!level || level === '&nbsp;') continue;
+        const temp = parseFloat(lines[i + 4]);
+        const humidity = parseFloat(lines[i + 5]);
+        const feelsLike = parseFloat(lines[i + 6]);
+        if (isNaN(temp) || isNaN(humidity) || isNaN(feelsLike)) continue;
+        rows.push({
+          region: lines[i].trim(),
+          area: lines[i + 1].trim(),
+          date: lines[i + 2].trim(),
+          time: lines[i + 3].trim(),
+          temp, humidity, feelsLike, level
+        });
+      }
+
+      // Filter 대구(경북) rows
+      const daeguRows = rows.filter((r: any) => r.region.includes('대구'));
+      if (daeguRows.length === 0) return res.status(422).json({ message: "대구(경북) 데이터를 찾을 수 없습니다. 이메일에 대구/경북 권역 데이터가 포함되어 있는지 확인해 주세요" });
+
+      // Determine max feels-like (최고 체감온도 예보)
+      const maxFeelsLike = Math.max(...daeguRows.map((r: any) => r.feelsLike));
+      // Representative row: highest feels-like
+      const repRow = daeguRows.find((r: any) => r.feelsLike === maxFeelsLike) || daeguRows[0];
+
+      // Alert level mapping
+      const levels = daeguRows.map((r: any) => r.level);
+      let heatAlertStatus = "해당없음";
+      if (levels.some((l: string) => l === '경보' || l === '위험')) heatAlertStatus = "폭염경보";
+      else if (levels.some((l: string) => l === '주의')) heatAlertStatus = "폭염주의보";
+
+      res.json({
+        checkDate: repRow.date,
+        targetArea: "대구 / 경북",
+        currentTemperature: repRow.temp,
+        currentHumidity: repRow.humidity,
+        currentFeelsLike: repRow.feelsLike,
+        maxFeelsLikeForecast: maxFeelsLike,
+        heatAlertStatus,
+        summary: `대구(경북) ${daeguRows.length}개 지점 분석 — 최고 체감온도 ${maxFeelsLike}°C (${repRow.area} ${repRow.time})`
+      });
+    } catch (error) {
+      res.status(500).json({ message: "이메일 파싱에 실패했습니다" });
+    }
+  });
+
   app.get('/api/heat-wave-checklists', isAuthenticated, async (req: any, res) => {
     try {
       const results = await storage.getHeatWaveChecklists();

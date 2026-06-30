@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -29,7 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Plus, Trash2, Eye, Thermometer, Sun } from "lucide-react";
+import { Plus, Trash2, Eye, Thermometer, Sun, Mail, Loader2 } from "lucide-react";
 import type { HeatWaveChecklist } from "@shared/schema";
 import { format } from "date-fns";
 
@@ -246,7 +246,11 @@ function ChecklistForm({
   isPending?: boolean;
   readOnly?: boolean;
 }) {
+  const { toast } = useToast();
   const [form, setForm] = useState<FormData>(initial);
+  const [emlParsing, setEmlParsing] = useState(false);
+  const [emlSummary, setEmlSummary] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const set = (k: keyof FormData, v: any) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -258,8 +262,85 @@ function ChecklistForm({
     });
   };
 
+  const handleEmlFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.eml')) {
+      toast({ title: ".eml 파일만 업로드 가능합니다", variant: "destructive" });
+      return;
+    }
+    setEmlParsing(true);
+    setEmlSummary(null);
+    try {
+      const fd = new FormData();
+      fd.append("eml", file);
+      const resp = await fetch("/api/heat-wave-checklists/parse-email", {
+        method: "POST",
+        body: fd,
+        credentials: "include",
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.message || "파싱 실패");
+      setForm((f) => ({
+        ...f,
+        checkDate: data.checkDate || f.checkDate,
+        targetArea: data.targetArea || f.targetArea,
+        currentTemperature: data.currentTemperature?.toString() ?? f.currentTemperature,
+        currentHumidity: data.currentHumidity?.toString() ?? f.currentHumidity,
+        currentFeelsLike: data.currentFeelsLike?.toString() ?? f.currentFeelsLike,
+        maxFeelsLikeForecast: data.maxFeelsLikeForecast?.toString() ?? f.maxFeelsLikeForecast,
+        heatAlertStatus: data.heatAlertStatus || f.heatAlertStatus,
+      }));
+      setEmlSummary(data.summary || "기상 데이터가 자동으로 입력되었습니다");
+      toast({ title: "이메일에서 기상 데이터를 불러왔습니다" });
+    } catch (err: any) {
+      toast({ title: err.message || "이메일 파싱 실패", variant: "destructive" });
+    } finally {
+      setEmlParsing(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
   return (
     <div className="space-y-5">
+      {/* 이메일에서 불러오기 */}
+      {!readOnly && (
+        <div className="flex items-center gap-2 p-3 rounded-lg border border-dashed border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-950/20">
+          <Mail className="w-4 h-4 text-blue-500 flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-medium text-blue-700 dark:text-blue-300">이메일에서 기상 데이터 자동 입력</p>
+            {emlSummary ? (
+              <p className="text-xs text-blue-600 dark:text-blue-400 mt-0.5 truncate">{emlSummary}</p>
+            ) : (
+              <p className="text-xs text-muted-foreground mt-0.5">「권역별 체감온도 안내」 .eml 파일을 올리면 기온·습도·체감온도를 자동으로 채웁니다</p>
+            )}
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".eml"
+            className="hidden"
+            onChange={handleEmlFile}
+            data-testid="input-eml-file"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={emlParsing}
+            onClick={() => fileInputRef.current?.click()}
+            className="flex-shrink-0 text-blue-600 border-blue-300 hover:bg-blue-50 dark:text-blue-400 dark:border-blue-700"
+            data-testid="button-load-email"
+          >
+            {emlParsing ? (
+              <><Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> 분석 중...</>
+            ) : (
+              <><Mail className="w-3.5 h-3.5 mr-1" /> .eml 불러오기</>
+            )}
+          </Button>
+        </div>
+      )}
+
       {/* 기본 정보 */}
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
