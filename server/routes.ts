@@ -3740,6 +3740,51 @@ ${buildEmailFooter()}
   });
 
   // === MUSCULOSKELETAL ASSESSMENTS ===
+  // === 폭염 일일 체크리스트 ===
+  app.get('/api/heat-wave-checklists', isAuthenticated, async (req: any, res) => {
+    try {
+      const results = await storage.getHeatWaveChecklists();
+      res.json(results);
+    } catch (error) {
+      res.status(500).json({ message: "폭염 체크리스트 목록 조회에 실패했습니다" });
+    }
+  });
+
+  app.post('/api/heat-wave-checklists', isAuthenticated, async (req: any, res) => {
+    try {
+      const created = await storage.createHeatWaveChecklist({ ...req.body, createdBy: req.user?.username || null });
+      res.status(201).json(created);
+    } catch (error) {
+      res.status(500).json({ message: "폭염 체크리스트 등록에 실패했습니다" });
+    }
+  });
+
+  app.put('/api/heat-wave-checklists/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const id = Number(req.params.id);
+      const existing = await storage.getHeatWaveChecklist(id);
+      if (!existing) return res.status(404).json({ message: "Not found" });
+      if (!isOwnerOrAdmin(req, existing.createdBy)) return res.status(403).json({ message: "본인이 등록한 항목만 수정할 수 있습니다" });
+      const updated = await storage.updateHeatWaveChecklist(id, req.body);
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ message: "폭염 체크리스트 수정에 실패했습니다" });
+    }
+  });
+
+  app.delete('/api/heat-wave-checklists/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const id = Number(req.params.id);
+      const existing = await storage.getHeatWaveChecklist(id);
+      if (!existing) return res.status(404).json({ message: "Not found" });
+      if (!isOwnerOrAdmin(req, existing.createdBy)) return res.status(403).json({ message: "본인이 등록한 항목만 삭제할 수 있습니다" });
+      await storage.deleteHeatWaveChecklist(id);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "폭염 체크리스트 삭제에 실패했습니다" });
+    }
+  });
+
   app.get('/api/musculoskeletal-assessments', isAuthenticated, async (req: any, res) => {
     try {
       const headquarters = req.query.headquarters as string | undefined;

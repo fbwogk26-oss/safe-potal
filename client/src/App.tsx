@@ -48,6 +48,7 @@ import MusicManager from "@/pages/MusicManager";
 import FuelCosts from "@/pages/FuelCosts";
 import SafetyManagerReports from "@/pages/SafetyManagerReports";
 import HealthManagerReports from "@/pages/HealthManagerReports";
+import HeatWaveChecklist from "@/pages/HeatWaveChecklist";
 import SafetyCostBudget from "@/pages/SafetyCostBudget";
 import DrillTraining from "@/pages/DrillTraining";
 import Login from "@/pages/Login";
@@ -142,6 +143,7 @@ function RouterContent() {
       <Route path="/admin/card-news">{() => <G canAccess={isAdmin} component={CardNewsAdmin} />}</Route>
       <Route path="/safety-manager-reports">{() => <G canAccess={canViewInspections} component={SafetyManagerReports} />}</Route>
       <Route path="/health-manager-reports">{() => <G canAccess={canViewInspections} component={HealthManagerReports} />}</Route>
+      <Route path="/heat-wave-checklist">{() => <G canAccess={canViewMusculoskeletal} component={HeatWaveChecklist} />}</Route>
       <Route path="/safety-cost-budget">{() => <G canAccess={canViewInspections} component={SafetyCostBudget} />}</Route>
       <Route path="/drill-training">{() => <G canAccess={canViewAccidents} component={DrillTraining} />}</Route>
       <Route path="/weather-safety" component={WeatherSafetyMessage} />

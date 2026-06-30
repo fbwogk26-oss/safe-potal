@@ -1,0 +1,674 @@
+import { useState } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Plus, Trash2, Eye, Thermometer, Sun } from "lucide-react";
+import type { HeatWaveChecklist } from "@shared/schema";
+import { format } from "date-fns";
+
+const CHECKS_31 = [
+  "그늘 준비",
+  "시원하고 깨끗한 물 준비",
+  "민감군 사전 확인",
+];
+
+const CHECKS_33 = [
+  "매시간 10분씩 그늘에서 휴식하도록 조치",
+  "오후 2시~5시 옥외작업 단축 또는 작업시간대 조정",
+  "민감군 휴식시간 추가",
+  "아이스조끼, 아이스팩 등 보냉장구 준비",
+];
+
+const CHECKS_35 = [
+  "매시간 15분씩 그늘에서 휴식하도록 조치",
+  "오후 2시~5시 옥외작업 중지",
+  "민감군 옥외작업 중지",
+];
+
+const CHECKS_38 = [
+  "사업장 전체 옥외작업 중지",
+];
+
+const ALERT_STATUS_OPTIONS = ["해당없음", "폭염주의보", "폭염경보"];
+
+const alertBadgeVariant = (status: string) => {
+  if (status === "폭염경보") return "destructive";
+  if (status === "폭염주의보") return "secondary";
+  return "outline";
+};
+
+type FormData = {
+  checkDate: string;
+  checkTime: string;
+  targetArea: string;
+  heatAlertStatus: string;
+  currentTemperature: string;
+  currentHumidity: string;
+  currentFeelsLike: string;
+  maxFeelsLikeForecast: string;
+  checks31: boolean[];
+  checks33: boolean[];
+  checks35: boolean[];
+  stopTime35Start: string;
+  stopTime35End: string;
+  checks38: boolean[];
+  stopTime38Start: string;
+  stopTime38End: string;
+  author: string;
+  safetyManager: string;
+};
+
+function emptyForm(): FormData {
+  const now = new Date();
+  return {
+    checkDate: format(now, "yyyy-MM-dd"),
+    checkTime: format(now, "HH:mm"),
+    targetArea: "대구 / 경북",
+    heatAlertStatus: "해당없음",
+    currentTemperature: "",
+    currentHumidity: "",
+    currentFeelsLike: "",
+    maxFeelsLikeForecast: "",
+    checks31: [false, false, false],
+    checks33: [false, false, false, false],
+    checks35: [false, false, false],
+    stopTime35Start: "",
+    stopTime35End: "",
+    checks38: [false],
+    stopTime38Start: "",
+    stopTime38End: "",
+    author: "",
+    safetyManager: "",
+  };
+}
+
+function formFromRecord(r: HeatWaveChecklist): FormData {
+  return {
+    checkDate: r.checkDate,
+    checkTime: r.checkTime,
+    targetArea: r.targetArea,
+    heatAlertStatus: r.heatAlertStatus,
+    currentTemperature: r.currentTemperature?.toString() ?? "",
+    currentHumidity: r.currentHumidity?.toString() ?? "",
+    currentFeelsLike: r.currentFeelsLike?.toString() ?? "",
+    maxFeelsLikeForecast: r.maxFeelsLikeForecast?.toString() ?? "",
+    checks31: (r.checks31 as boolean[]) ?? [false, false, false],
+    checks33: (r.checks33 as boolean[]) ?? [false, false, false, false],
+    checks35: (r.checks35 as boolean[]) ?? [false, false, false],
+    stopTime35Start: r.stopTime35Start ?? "",
+    stopTime35End: r.stopTime35End ?? "",
+    checks38: (r.checks38 as boolean[]) ?? [false],
+    stopTime38Start: r.stopTime38Start ?? "",
+    stopTime38End: r.stopTime38End ?? "",
+    author: r.author ?? "",
+    safetyManager: r.safetyManager ?? "",
+  };
+}
+
+function formToPayload(f: FormData) {
+  return {
+    checkDate: f.checkDate,
+    checkTime: f.checkTime,
+    targetArea: f.targetArea,
+    heatAlertStatus: f.heatAlertStatus,
+    currentTemperature: f.currentTemperature ? parseFloat(f.currentTemperature) : null,
+    currentHumidity: f.currentHumidity ? parseFloat(f.currentHumidity) : null,
+    currentFeelsLike: f.currentFeelsLike ? parseFloat(f.currentFeelsLike) : null,
+    maxFeelsLikeForecast: f.maxFeelsLikeForecast ? parseFloat(f.maxFeelsLikeForecast) : null,
+    checks31: f.checks31,
+    checks33: f.checks33,
+    checks35: f.checks35,
+    stopTime35Start: f.stopTime35Start || null,
+    stopTime35End: f.stopTime35End || null,
+    checks38: f.checks38,
+    stopTime38Start: f.stopTime38Start || null,
+    stopTime38End: f.stopTime38End || null,
+    author: f.author || null,
+    safetyManager: f.safetyManager || null,
+  };
+}
+
+function CheckSection({
+  title,
+  tempLabel,
+  colorClass,
+  items,
+  checks,
+  onChange,
+  stopStart,
+  stopEnd,
+  onStopStartChange,
+  onStopEndChange,
+  hasStopTime = false,
+  readOnly = false,
+}: {
+  title: string;
+  tempLabel: string;
+  colorClass: string;
+  items: string[];
+  checks: boolean[];
+  onChange?: (idx: number, val: boolean) => void;
+  stopStart?: string;
+  stopEnd?: string;
+  onStopStartChange?: (v: string) => void;
+  onStopEndChange?: (v: string) => void;
+  hasStopTime?: boolean;
+  readOnly?: boolean;
+}) {
+  return (
+    <div className={`border rounded-lg overflow-hidden ${colorClass}`}>
+      <div className="px-4 py-2 flex items-center gap-2">
+        <Thermometer className="w-4 h-4" />
+        <span className="font-bold text-sm">{title}</span>
+        <span className="text-xs opacity-75 ml-1">{tempLabel}</span>
+      </div>
+      <div className="bg-white dark:bg-zinc-900 px-4 py-3 space-y-2">
+        {items.map((item, idx) => (
+          <div key={idx} className="flex items-start gap-2">
+            <Checkbox
+              id={`${title}-${idx}`}
+              checked={checks[idx] ?? false}
+              onCheckedChange={readOnly ? undefined : (v) => onChange?.(idx, !!v)}
+              disabled={readOnly}
+              data-testid={`checkbox-${title}-${idx}`}
+              className="mt-0.5"
+            />
+            <label
+              htmlFor={`${title}-${idx}`}
+              className="text-sm leading-snug cursor-pointer select-none"
+            >
+              {item}
+            </label>
+          </div>
+        ))}
+        {hasStopTime && (
+          <div className="flex items-center gap-2 pt-1">
+            <span className="text-xs text-muted-foreground w-14">중지시간</span>
+            <Input
+              type="time"
+              value={stopStart ?? ""}
+              onChange={(e) => onStopStartChange?.(e.target.value)}
+              disabled={readOnly}
+              className="h-7 text-xs w-28"
+              data-testid={`input-stop-start-${title}`}
+            />
+            <span className="text-xs">~</span>
+            <Input
+              type="time"
+              value={stopEnd ?? ""}
+              onChange={(e) => onStopEndChange?.(e.target.value)}
+              disabled={readOnly}
+              className="h-7 text-xs w-28"
+              data-testid={`input-stop-end-${title}`}
+            />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ChecklistForm({
+  initial,
+  onSubmit,
+  isPending,
+  readOnly = false,
+}: {
+  initial: FormData;
+  onSubmit?: (data: FormData) => void;
+  isPending?: boolean;
+  readOnly?: boolean;
+}) {
+  const [form, setForm] = useState<FormData>(initial);
+
+  const set = (k: keyof FormData, v: any) => setForm((f) => ({ ...f, [k]: v }));
+
+  const setCheck = (field: "checks31" | "checks33" | "checks35" | "checks38", idx: number, val: boolean) => {
+    setForm((f) => {
+      const arr = [...(f[field] as boolean[])];
+      arr[idx] = val;
+      return { ...f, [field]: arr };
+    });
+  };
+
+  return (
+    <div className="space-y-5">
+      {/* 기본 정보 */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <Label className="text-xs">작성일자</Label>
+          <Input
+            type="date"
+            value={form.checkDate}
+            onChange={(e) => set("checkDate", e.target.value)}
+            disabled={readOnly}
+            data-testid="input-check-date"
+          />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">작성시간</Label>
+          <Input
+            type="time"
+            value={form.checkTime}
+            onChange={(e) => set("checkTime", e.target.value)}
+            disabled={readOnly}
+            data-testid="input-check-time"
+          />
+        </div>
+      </div>
+
+      <div className="space-y-1">
+        <Label className="text-xs">대상 지역</Label>
+        <Input
+          value={form.targetArea}
+          onChange={(e) => set("targetArea", e.target.value)}
+          disabled={readOnly}
+          placeholder="예: 대구 / 경북"
+          data-testid="input-target-area"
+        />
+      </div>
+
+      <div className="space-y-1">
+        <Label className="text-xs">폭염특보 현황</Label>
+        <RadioGroup
+          value={form.heatAlertStatus}
+          onValueChange={(v) => set("heatAlertStatus", v)}
+          disabled={readOnly}
+          className="flex gap-4 pt-1"
+          data-testid="radio-heat-alert-status"
+        >
+          {ALERT_STATUS_OPTIONS.map((opt) => (
+            <div key={opt} className="flex items-center gap-1.5">
+              <RadioGroupItem value={opt} id={`alert-${opt}`} />
+              <Label htmlFor={`alert-${opt}`} className="text-sm cursor-pointer">{opt}</Label>
+            </div>
+          ))}
+        </RadioGroup>
+      </div>
+
+      {/* 기상 정보 */}
+      <div className="bg-blue-50 dark:bg-blue-950/30 rounded-lg p-3 space-y-3">
+        <p className="text-xs font-semibold text-blue-700 dark:text-blue-300 flex items-center gap-1">
+          <Sun className="w-3.5 h-3.5" /> 현재 기상 정보
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <Label className="text-xs">현재 기온 (°C)</Label>
+            <Input
+              type="number"
+              step="0.1"
+              value={form.currentTemperature}
+              onChange={(e) => set("currentTemperature", e.target.value)}
+              disabled={readOnly}
+              placeholder="예: 32.5"
+              data-testid="input-current-temperature"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">현재 습도 (%)</Label>
+            <Input
+              type="number"
+              step="0.1"
+              value={form.currentHumidity}
+              onChange={(e) => set("currentHumidity", e.target.value)}
+              disabled={readOnly}
+              placeholder="예: 75"
+              data-testid="input-current-humidity"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">현재 체감온도 (°C)</Label>
+            <Input
+              type="number"
+              step="0.1"
+              value={form.currentFeelsLike}
+              onChange={(e) => set("currentFeelsLike", e.target.value)}
+              disabled={readOnly}
+              placeholder="예: 35.2"
+              data-testid="input-current-feels-like"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">최고 체감온도 예보 (°C)</Label>
+            <Input
+              type="number"
+              step="0.1"
+              value={form.maxFeelsLikeForecast}
+              onChange={(e) => set("maxFeelsLikeForecast", e.target.value)}
+              disabled={readOnly}
+              placeholder="예: 38.0"
+              data-testid="input-max-feels-like"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* 단계별 체크리스트 */}
+      <div className="space-y-3">
+        <p className="text-xs font-semibold">단계별 조치사항 체크리스트</p>
+        <CheckSection
+          title="폭염 관심"
+          tempLabel="31°C 이상"
+          colorClass="border-yellow-300 dark:border-yellow-700 bg-yellow-50 dark:bg-yellow-950/30 [&_.px-4]:bg-yellow-50 [&_.px-4]:dark:bg-yellow-950/30"
+          items={CHECKS_31}
+          checks={form.checks31 as boolean[]}
+          onChange={readOnly ? undefined : (i, v) => setCheck("checks31", i, v)}
+          readOnly={readOnly}
+        />
+        <CheckSection
+          title="폭염 주의"
+          tempLabel="33°C 이상"
+          colorClass="border-orange-300 dark:border-orange-700 bg-orange-50 dark:bg-orange-950/30 [&_.px-4]:bg-orange-50 [&_.px-4]:dark:bg-orange-950/30"
+          items={CHECKS_33}
+          checks={form.checks33 as boolean[]}
+          onChange={readOnly ? undefined : (i, v) => setCheck("checks33", i, v)}
+          readOnly={readOnly}
+        />
+        <CheckSection
+          title="폭염 경고"
+          tempLabel="35°C 이상"
+          colorClass="border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-950/30 [&_.px-4]:bg-red-50 [&_.px-4]:dark:bg-red-950/30"
+          items={CHECKS_35}
+          checks={form.checks35 as boolean[]}
+          onChange={readOnly ? undefined : (i, v) => setCheck("checks35", i, v)}
+          stopStart={form.stopTime35Start}
+          stopEnd={form.stopTime35End}
+          onStopStartChange={(v) => set("stopTime35Start", v)}
+          onStopEndChange={(v) => set("stopTime35End", v)}
+          hasStopTime
+          readOnly={readOnly}
+        />
+        <CheckSection
+          title="폭염 위험"
+          tempLabel="38°C 이상"
+          colorClass="border-red-600 dark:border-red-800 bg-red-100 dark:bg-red-950/50 [&_.px-4]:bg-red-100 [&_.px-4]:dark:bg-red-950/50"
+          items={CHECKS_38}
+          checks={form.checks38 as boolean[]}
+          onChange={readOnly ? undefined : (i, v) => setCheck("checks38", i, v)}
+          stopStart={form.stopTime38Start}
+          stopEnd={form.stopTime38End}
+          onStopStartChange={(v) => set("stopTime38Start", v)}
+          onStopEndChange={(v) => set("stopTime38End", v)}
+          hasStopTime
+          readOnly={readOnly}
+        />
+      </div>
+
+      {/* 서명 영역 */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <Label className="text-xs">작성자</Label>
+          <Input
+            value={form.author}
+            onChange={(e) => set("author", e.target.value)}
+            disabled={readOnly}
+            placeholder="성명"
+            data-testid="input-author"
+          />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">안전보건관리책임자</Label>
+          <Input
+            value={form.safetyManager}
+            onChange={(e) => set("safetyManager", e.target.value)}
+            disabled={readOnly}
+            placeholder="성명"
+            data-testid="input-safety-manager"
+          />
+        </div>
+      </div>
+
+      {!readOnly && onSubmit && (
+        <Button
+          className="w-full"
+          onClick={() => onSubmit(form)}
+          disabled={isPending}
+          data-testid="button-submit-checklist"
+        >
+          {isPending ? "저장 중..." : "저장"}
+        </Button>
+      )}
+    </div>
+  );
+}
+
+export default function HeatWaveChecklist() {
+  const { toast } = useToast();
+  const [showForm, setShowForm] = useState(false);
+  const [viewing, setViewing] = useState<HeatWaveChecklist | null>(null);
+  const [editing, setEditing] = useState<HeatWaveChecklist | null>(null);
+
+  const { data: records = [], isLoading } = useQuery<HeatWaveChecklist[]>({
+    queryKey: ["/api/heat-wave-checklists"],
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (data: any) => apiRequest("POST", "/api/heat-wave-checklists", data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/heat-wave-checklists"] });
+      toast({ title: "체크리스트가 저장되었습니다" });
+      setShowForm(false);
+    },
+    onError: () => toast({ title: "저장 실패", variant: "destructive" }),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: any }) =>
+      apiRequest("PUT", `/api/heat-wave-checklists/${id}`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/heat-wave-checklists"] });
+      toast({ title: "수정되었습니다" });
+      setEditing(null);
+    },
+    onError: () => toast({ title: "수정 실패", variant: "destructive" }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => apiRequest("DELETE", `/api/heat-wave-checklists/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/heat-wave-checklists"] });
+      toast({ title: "삭제되었습니다" });
+    },
+    onError: () => toast({ title: "삭제 실패", variant: "destructive" }),
+  });
+
+  const handleDelete = (id: number) => {
+    if (confirm("이 체크리스트를 삭제하시겠습니까?")) {
+      deleteMutation.mutate(id);
+    }
+  };
+
+  const totalChecks = (r: HeatWaveChecklist) => {
+    const c31 = (r.checks31 as boolean[])?.filter(Boolean).length ?? 0;
+    const c33 = (r.checks33 as boolean[])?.filter(Boolean).length ?? 0;
+    const c35 = (r.checks35 as boolean[])?.filter(Boolean).length ?? 0;
+    const c38 = (r.checks38 as boolean[])?.filter(Boolean).length ?? 0;
+    return c31 + c33 + c35 + c38;
+  };
+
+  const totalPossible = CHECKS_31.length + CHECKS_33.length + CHECKS_35.length + CHECKS_38.length;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <Sun className="w-6 h-6 text-orange-500" />
+            폭염 일일 체크리스트
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">폭염 단계별 조치사항을 일별로 기록·관리합니다</p>
+        </div>
+        <Button onClick={() => setShowForm(true)} data-testid="button-new-checklist">
+          <Plus className="w-4 h-4 mr-1" /> 체크리스트 작성
+        </Button>
+      </div>
+
+      {/* 목록 테이블 */}
+      <div className="border rounded-lg overflow-hidden bg-card">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>작성일시</TableHead>
+              <TableHead>대상지역</TableHead>
+              <TableHead>폭염특보</TableHead>
+              <TableHead className="text-center">기온 / 체감</TableHead>
+              <TableHead className="text-center">조치 완료</TableHead>
+              <TableHead>작성자</TableHead>
+              <TableHead className="w-20 text-right">관리</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              <TableRow>
+                <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">불러오는 중...</TableCell>
+              </TableRow>
+            ) : records.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={7} className="text-center py-14 text-muted-foreground">
+                  <Sun className="w-10 h-10 mx-auto mb-2 opacity-20" />
+                  <p>등록된 체크리스트가 없습니다</p>
+                  <p className="text-xs mt-1">우측 상단 버튼으로 작성하세요</p>
+                </TableCell>
+              </TableRow>
+            ) : (
+              records.map((r) => (
+                <TableRow key={r.id} data-testid={`row-checklist-${r.id}`}>
+                  <TableCell className="font-medium text-sm">
+                    {r.checkDate}<br />
+                    <span className="text-xs text-muted-foreground">{r.checkTime}</span>
+                  </TableCell>
+                  <TableCell className="text-sm">{r.targetArea}</TableCell>
+                  <TableCell>
+                    <Badge variant={alertBadgeVariant(r.heatAlertStatus)} data-testid={`badge-alert-${r.id}`}>
+                      {r.heatAlertStatus}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-center text-sm">
+                    {r.currentTemperature != null ? `${r.currentTemperature}°C` : "-"}
+                    {r.currentFeelsLike != null && (
+                      <span className="text-muted-foreground"> / {r.currentFeelsLike}°C</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-center text-sm">
+                    <span className="font-medium">{totalChecks(r)}</span>
+                    <span className="text-muted-foreground">/{totalPossible}</span>
+                  </TableCell>
+                  <TableCell className="text-sm">{r.author ?? "-"}</TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => setViewing(r)}
+                        data-testid={`button-view-${r.id}`}
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-destructive hover:text-destructive"
+                        onClick={() => handleDelete(r.id)}
+                        disabled={deleteMutation.isPending}
+                        data-testid={`button-delete-${r.id}`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
+
+      {/* 작성 다이얼로그 */}
+      <Dialog open={showForm} onOpenChange={setShowForm}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sun className="w-5 h-5 text-orange-500" /> 폭염 일일 체크리스트 작성
+            </DialogTitle>
+          </DialogHeader>
+          <ChecklistForm
+            initial={emptyForm()}
+            onSubmit={(data) => createMutation.mutate(formToPayload(data))}
+            isPending={createMutation.isPending}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* 상세보기 다이얼로그 */}
+      <Dialog open={!!viewing} onOpenChange={() => setViewing(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sun className="w-5 h-5 text-orange-500" />
+              폭염 일일 체크리스트 — {viewing?.checkDate} {viewing?.checkTime}
+            </DialogTitle>
+          </DialogHeader>
+          {viewing && (
+            <div className="space-y-4">
+              <ChecklistForm initial={formFromRecord(viewing)} readOnly />
+              <div className="flex gap-2 justify-end pt-2">
+                <Button variant="outline" onClick={() => { setEditing(viewing); setViewing(null); }}>
+                  수정
+                </Button>
+                <Button variant="ghost" onClick={() => setViewing(null)}>닫기</Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* 수정 다이얼로그 */}
+      <Dialog open={!!editing} onOpenChange={() => setEditing(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sun className="w-5 h-5 text-orange-500" /> 체크리스트 수정
+            </DialogTitle>
+          </DialogHeader>
+          {editing && (
+            <ChecklistForm
+              initial={formFromRecord(editing)}
+              onSubmit={(data) =>
+                updateMutation.mutate({ id: editing.id, data: formToPayload(data) })
+              }
+              isPending={updateMutation.isPending}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

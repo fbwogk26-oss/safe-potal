@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb, numeric } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, jsonb, numeric, real } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -925,6 +925,34 @@ export const vehicleLogErrors = pgTable("vehicle_log_errors", {
 export const insertVehicleLogErrorSchema = createInsertSchema(vehicleLogErrors).omit({ id: true, createdAt: true });
 export type VehicleLogError = typeof vehicleLogErrors.$inferSelect;
 export type InsertVehicleLogError = z.infer<typeof insertVehicleLogErrorSchema>;
+
+// === 폭염 일일 체크리스트 ===
+export const heatWaveChecklists = pgTable("heat_wave_checklists", {
+  id: serial("id").primaryKey(),
+  checkDate: text("check_date").notNull(),
+  checkTime: text("check_time").notNull(),
+  targetArea: text("target_area").notNull().default("대구 / 경북"),
+  heatAlertStatus: text("heat_alert_status").notNull().default("해당없음"),
+  currentTemperature: real("current_temperature"),
+  currentHumidity: real("current_humidity"),
+  currentFeelsLike: real("current_feels_like"),
+  maxFeelsLikeForecast: real("max_feels_like_forecast"),
+  checks31: jsonb("checks31").$type<boolean[]>().default([false, false, false]),
+  checks33: jsonb("checks33").$type<boolean[]>().default([false, false, false, false]),
+  checks35: jsonb("checks35").$type<boolean[]>().default([false, false, false]),
+  stopTime35Start: text("stop_time_35_start"),
+  stopTime35End: text("stop_time_35_end"),
+  checks38: jsonb("checks38").$type<boolean[]>().default([false]),
+  stopTime38Start: text("stop_time_38_start"),
+  stopTime38End: text("stop_time_38_end"),
+  author: text("author"),
+  safetyManager: text("safety_manager"),
+  createdBy: text("created_by"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const insertHeatWaveChecklistSchema = createInsertSchema(heatWaveChecklists).omit({ id: true, createdAt: true });
+export type HeatWaveChecklist = typeof heatWaveChecklists.$inferSelect;
+export type InsertHeatWaveChecklist = z.infer<typeof insertHeatWaveChecklistSchema>;
 
 // Export auth schema
 export * from "./models/auth";

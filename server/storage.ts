@@ -64,6 +64,8 @@ import {
   type RiskAssessmentDownloadLog, type InsertRiskAssessmentDownloadLog,
   safetySupplyDeptEntries,
   type SafetySupplyDeptEntry, type InsertSafetySupplyDeptEntry,
+  heatWaveChecklists,
+  type HeatWaveChecklist, type InsertHeatWaveChecklist,
 } from "@shared/schema";
 import { eq, desc, asc, and, ilike, or, sql, inArray, isNotNull, gte, lte } from "drizzle-orm";
 
@@ -155,6 +157,13 @@ export interface IStorage {
   deleteNewEquipmentRequest(id: number): Promise<void>;
   getUnreadNewEquipmentCount(): Promise<number>;
   markAllNewEquipmentRequestsRead(): Promise<void>;
+
+  // Heat Wave Checklists
+  getHeatWaveChecklists(): Promise<HeatWaveChecklist[]>;
+  getHeatWaveChecklist(id: number): Promise<HeatWaveChecklist | undefined>;
+  createHeatWaveChecklist(data: InsertHeatWaveChecklist): Promise<HeatWaveChecklist>;
+  updateHeatWaveChecklist(id: number, data: Partial<InsertHeatWaveChecklist>): Promise<HeatWaveChecklist>;
+  deleteHeatWaveChecklist(id: number): Promise<void>;
 
   // Musculoskeletal Assessments
   getMusculoskeletalAssessments(headquarters?: string): Promise<MusculoskeletalAssessment[]>;
@@ -1372,6 +1381,26 @@ export class DatabaseStorage implements IStorage {
   }
   async deleteDrillAssignment(id: number): Promise<void> {
     await db.delete(drillAssignments).where(eq(drillAssignments.id, id));
+  }
+
+  // Heat Wave Checklists
+  async getHeatWaveChecklists(): Promise<HeatWaveChecklist[]> {
+    return await db.select().from(heatWaveChecklists).orderBy(desc(heatWaveChecklists.checkDate), desc(heatWaveChecklists.checkTime));
+  }
+  async getHeatWaveChecklist(id: number): Promise<HeatWaveChecklist | undefined> {
+    const [row] = await db.select().from(heatWaveChecklists).where(eq(heatWaveChecklists.id, id));
+    return row;
+  }
+  async createHeatWaveChecklist(data: InsertHeatWaveChecklist): Promise<HeatWaveChecklist> {
+    const [row] = await db.insert(heatWaveChecklists).values(data).returning();
+    return row;
+  }
+  async updateHeatWaveChecklist(id: number, data: Partial<InsertHeatWaveChecklist>): Promise<HeatWaveChecklist> {
+    const [row] = await db.update(heatWaveChecklists).set(data).where(eq(heatWaveChecklists.id, id)).returning();
+    return row;
+  }
+  async deleteHeatWaveChecklist(id: number): Promise<void> {
+    await db.delete(heatWaveChecklists).where(eq(heatWaveChecklists.id, id));
   }
 }
 
