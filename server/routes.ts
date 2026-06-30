@@ -6557,7 +6557,7 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
   });
 
   // .eml 파일 업로드 → 하도급 작업계획 이메일 HTML 생성
-  const emlUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+  const workPlanEmlUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
   function extractEmlText(emlBuffer: Buffer): string {
     const raw = emlBuffer.toString("latin1");
@@ -6675,7 +6675,7 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
     ].join("\n");
   }
 
-  app.post('/api/work-plans/parse-subcontract-email', isAuthenticated, emlUpload.single("emlFile"), async (req: any, res) => {
+  app.post('/api/work-plans/parse-subcontract-email', isAuthenticated, workPlanEmlUpload.single("emlFile"), async (req: any, res) => {
     try {
       const file = req.file;
       if (!file) {
