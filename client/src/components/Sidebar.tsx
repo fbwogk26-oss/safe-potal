@@ -1,13 +1,14 @@
 import { Link, useLocation } from "wouter";
-import { 
-  LayoutDashboard, 
-  ShieldCheck, 
-  Bell, 
-  GraduationCap, 
+import {
+  LayoutDashboard,
+  ShieldCheck,
+  Bell,
+  GraduationCap,
   DoorOpen,
   ShoppingCart,
   MonitorPlay,
-  ClipboardCheck
+  ClipboardCheck,
+  Layers
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -20,6 +21,7 @@ const NAV_ITEMS = [
   { label: "안전용품신청", href: "/equipment", icon: ShoppingCart },
   { label: "출입신청", href: "/access", icon: DoorOpen },
   { label: "전자게시판", href: "/digital-board", icon: MonitorPlay },
+  { label: "3D 패럴랙스", href: "/parallax", icon: Layers },
 ];
 
 export function Sidebar() {
