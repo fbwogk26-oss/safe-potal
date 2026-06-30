@@ -1,337 +1,310 @@
 import { useRef, useEffect, useState, useCallback } from "react";
 import * as THREE from "three";
-import { Layers, Upload, X, RefreshCw } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Layers, Maximize2, Minimize2, RotateCcw, Info } from "lucide-react";
 
-const DEFAULT_COLORS = [
-  "#1a1a2e", // dark navy - background layer
-  "#16213e", // deep blue - mid layer
-  "#0f3460", // royal blue - front layer
-];
-
-function createColorTexture(color: string): THREE.Texture {
-  const canvas = document.createElement("canvas");
-  canvas.width = 512;
-  canvas.height = 512;
-  const ctx = canvas.getContext("2d")!;
-  const gradient = ctx.createRadialGradient(256, 256, 0, 256, 256, 360);
-  gradient.addColorStop(0, color);
-  gradient.addColorStop(1, "#000000");
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, 512, 512);
-
-  // Add subtle pattern
-  ctx.fillStyle = "rgba(255,255,255,0.03)";
-  for (let i = 0; i < 20; i++) {
-    ctx.beginPath();
-    ctx.arc(
-      Math.random() * 512,
-      Math.random() * 512,
-      Math.random() * 60 + 10,
-      0,
-      Math.PI * 2
-    );
-    ctx.fill();
-  }
-
-  const tex = new THREE.CanvasTexture(canvas);
-  return tex;
-}
-
-interface LayerConfig {
-  url: string | null;
-  z: number;
-  scale: number;
-  depthFactor: number;
-}
-
-const LAYER_CONFIGS: LayerConfig[] = [
-  { url: null, z: -1.5, scale: 6.5, depthFactor: 0.25 },
-  { url: null, z: 0,    scale: 6.0, depthFactor: 0.5 },
-  { url: null, z: 1.5,  scale: 5.5, depthFactor: 0.75 },
+/* ─── 기본 레이어 이미지 (KT MOS 현장사진) ─── */
+const DEFAULT_LAYERS = [
+  { src: "/parallax/layer1.jpg", z: -2.0, scale: 1.35, depth: 0.18, label: "배경" },
+  { src: "/parallax/layer2.jpg", z:  0.0, scale: 1.15, depth: 0.50, label: "중경" },
+  { src: "/parallax/layer3.jpg", z:  2.0, scale: 1.00, depth: 0.85, label: "전경" },
 ];
 
 export default function ParallaxViewer() {
-  const mountRef = useRef<HTMLDivElement>(null);
-  const sceneRef = useRef<{
-    renderer: THREE.WebGLRenderer;
-    scene: THREE.Scene;
-    camera: THREE.PerspectiveCamera;
-    meshes: THREE.Mesh[];
-    animId: number;
-    mouseX: number;
-    mouseY: number;
-    targetX: number;
-    targetY: number;
-  } | null>(null);
-
-  const [photoUrls, setPhotoUrls] = useState<(string | null)[]>([null, null, null]);
+  const mountRef    = useRef<HTMLDivElement>(null);
+  const viewerRef   = useRef<HTMLDivElement>(null);
+  const stateRef    = useRef({
+    renderer: null as THREE.WebGLRenderer | null,
+    scene:    null as THREE.Scene | null,
+    camera:   null as THREE.PerspectiveCamera | null,
+    meshes:   [] as THREE.Mesh[],
+    raf:      0,
+    mx: 0, my: 0,   // smoothed mouse
+    tx: 0, ty: 0,   // target mouse
+    idle: 0,        // idle timer
+  });
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const viewerRef = useRef<HTMLDivElement>(null);
-  const fileInputRefs = [
-    useRef<HTMLInputElement>(null),
-    useRef<HTMLInputElement>(null),
-    useRef<HTMLInputElement>(null),
-  ];
+  const [loaded, setLoaded]             = useState(false);
+  const [showHint, setShowHint]         = useState(true);
 
+  /* ── 씬 초기화 ── */
   const initScene = useCallback(() => {
     const mount = mountRef.current;
     if (!mount) return;
 
-    // Cleanup previous
-    if (sceneRef.current) {
-      sceneRef.current.renderer.dispose();
-      cancelAnimationFrame(sceneRef.current.animId);
+    const s = stateRef.current;
+
+    /* 기존 씬 정리 */
+    if (s.renderer) {
+      cancelAnimationFrame(s.raf);
+      s.renderer.dispose();
+      s.meshes.forEach(m => {
+        (m.material as THREE.MeshBasicMaterial).map?.dispose();
+        m.geometry.dispose();
+        (m.material as THREE.Material).dispose();
+      });
+      s.meshes = [];
       mount.innerHTML = "";
     }
 
-    const w = mount.clientWidth;
-    const h = mount.clientHeight;
+    const W = mount.clientWidth;
+    const H = mount.clientHeight;
+    const aspect = W / H;
 
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x000000);
+    const scene  = new THREE.Scene();
+    scene.background = new THREE.Color(0x0a0a0a);
 
-    const camera = new THREE.PerspectiveCamera(60, w / h, 0.1, 1000);
-    camera.position.z = 7;
+    const camera = new THREE.PerspectiveCamera(55, aspect, 0.1, 100);
+    camera.position.z = 6;
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(w, h);
+    renderer.setSize(W, H);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     mount.appendChild(renderer.domElement);
 
+    s.scene    = scene;
+    s.camera   = camera;
+    s.renderer = renderer;
+
+    /* 텍스처 & 메쉬 로드 */
     const loader = new THREE.TextureLoader();
-    const meshes: THREE.Mesh[] = [];
+    let loadedCount = 0;
 
-    LAYER_CONFIGS.forEach((cfg, i) => {
-      const geo = new THREE.PlaneGeometry(cfg.scale, cfg.scale * (h / w));
-      const tex = photoUrls[i]
-        ? loader.load(photoUrls[i]!)
-        : createColorTexture(DEFAULT_COLORS[i]);
+    DEFAULT_LAYERS.forEach((cfg, i) => {
+      loader.load(cfg.src, (tex) => {
+        tex.colorSpace = THREE.SRGBColorSpace;
 
-      const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true });
-      const mesh = new THREE.Mesh(geo, mat);
-      mesh.position.z = cfg.z;
-      scene.add(mesh);
-      meshes.push(mesh);
+        /* 이미지 비율에 맞춰 플레인 크기 계산 */
+        const imgAspect = tex.image.width / tex.image.height;
+        const planeW = cfg.scale * Math.max(aspect / imgAspect, 1) * imgAspect;
+        const planeH = cfg.scale * Math.max(aspect / imgAspect, 1);
+
+        const geo = new THREE.PlaneGeometry(planeW, planeH);
+        const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: false });
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.position.z = cfg.z;
+        mesh.userData.baseX = 0;
+        mesh.userData.baseY = 0;
+        scene.add(mesh);
+
+        /* z 순서에 따라 정렬 */
+        s.meshes[i] = mesh;
+        loadedCount++;
+        if (loadedCount === DEFAULT_LAYERS.length) setLoaded(true);
+      });
     });
 
-    const state = {
-      renderer,
-      scene,
-      camera,
-      meshes,
-      animId: 0,
-      mouseX: 0,
-      mouseY: 0,
-      targetX: 0,
-      targetY: 0,
-    };
-    sceneRef.current = state;
+    /* ── 애니메이션 루프 ── */
+    const clock = new THREE.Clock();
 
     const animate = () => {
-      state.animId = requestAnimationFrame(animate);
-      state.mouseX += (state.targetX - state.mouseX) * 0.08;
-      state.mouseY += (state.targetY - state.mouseY) * 0.08;
+      s.raf = requestAnimationFrame(animate);
+      const elapsed = clock.getElapsedTime();
 
-      meshes.forEach((mesh, i) => {
-        const d = LAYER_CONFIGS[i].depthFactor;
-        mesh.rotation.y += (state.mouseX * 0.3 * d - mesh.rotation.y) * 0.05;
-        mesh.rotation.x += (-state.mouseY * 0.3 * d - mesh.rotation.x) * 0.05;
-        mesh.position.x += (state.mouseX * d * 0.8 - mesh.position.x) * 0.04;
-        mesh.position.y += (-state.mouseY * d * 0.8 - mesh.position.y) * 0.04;
+      /* 부드러운 마우스 추적 */
+      s.mx += (s.tx - s.mx) * 0.06;
+      s.my += (s.ty - s.my) * 0.06;
+
+      /* 마우스 idle 시 자동 유영 */
+      s.idle += 0.005;
+      const autoX = Math.sin(elapsed * 0.3) * 0.15;
+      const autoY = Math.cos(elapsed * 0.2) * 0.10;
+
+      const useX = Math.abs(s.tx) < 0.001 && Math.abs(s.ty) < 0.001
+        ? autoX : s.mx;
+      const useY = Math.abs(s.tx) < 0.001 && Math.abs(s.ty) < 0.001
+        ? autoY : s.my;
+
+      s.meshes.forEach((mesh, i) => {
+        if (!mesh) return;
+        const d = DEFAULT_LAYERS[i].depth;
+
+        /* 위치 패럴랙스 */
+        const targetX = useX * d * 1.2;
+        const targetY = -useY * d * 1.2;
+        mesh.position.x += (targetX - mesh.position.x) * 0.05;
+        mesh.position.y += (targetY - mesh.position.y) * 0.05;
+
+        /* 미세 회전으로 입체감 강조 */
+        mesh.rotation.y += (useX * 0.08 * d - mesh.rotation.y) * 0.04;
+        mesh.rotation.x += (-useY * 0.06 * d - mesh.rotation.x) * 0.04;
       });
 
       renderer.render(scene, camera);
     };
     animate();
-  }, [photoUrls]);
+  }, []);
 
   useEffect(() => {
     initScene();
     return () => {
-      if (sceneRef.current) {
-        cancelAnimationFrame(sceneRef.current.animId);
-        sceneRef.current.renderer.dispose();
-      }
+      const s = stateRef.current;
+      cancelAnimationFrame(s.raf);
+      s.renderer?.dispose();
     };
   }, [initScene]);
 
+  /* ── 마우스 / 터치 / 자이로 ── */
   useEffect(() => {
-    const handleMouse = (e: MouseEvent) => {
-      if (!sceneRef.current) return;
-      sceneRef.current.targetX = (e.clientX / window.innerWidth - 0.5) * 2;
-      sceneRef.current.targetY = (e.clientY / window.innerHeight - 0.5) * 2;
+    const onMouse = (e: MouseEvent) => {
+      stateRef.current.tx = (e.clientX / window.innerWidth  - 0.5) * 2;
+      stateRef.current.ty = (e.clientY / window.innerHeight - 0.5) * 2;
     };
-    const handleTouch = (e: TouchEvent) => {
-      if (!sceneRef.current || !e.touches[0]) return;
-      sceneRef.current.targetX = (e.touches[0].clientX / window.innerWidth - 0.5) * 2;
-      sceneRef.current.targetY = (e.touches[0].clientY / window.innerHeight - 0.5) * 2;
+    const onTouch = (e: TouchEvent) => {
+      const t = e.touches[0];
+      stateRef.current.tx = (t.clientX / window.innerWidth  - 0.5) * 2;
+      stateRef.current.ty = (t.clientY / window.innerHeight - 0.5) * 2;
     };
-    const handleResize = () => {
-      const s = sceneRef.current;
+    const onLeave = () => {
+      stateRef.current.tx = 0;
+      stateRef.current.ty = 0;
+    };
+    const onGyro = (e: DeviceOrientationEvent) => {
+      if (e.gamma == null || e.beta == null) return;
+      stateRef.current.tx = Math.max(-1, Math.min(1, e.gamma / 20));
+      stateRef.current.ty = Math.max(-1, Math.min(1, (e.beta - 40) / 20));
+    };
+    const onResize = () => {
+      const s = stateRef.current;
       const mount = mountRef.current;
-      if (!s || !mount) return;
-      const w = mount.clientWidth;
-      const h = mount.clientHeight;
-      s.camera.aspect = w / h;
+      if (!s.renderer || !s.camera || !mount) return;
+      const W = mount.clientWidth, H = mount.clientHeight;
+      s.camera.aspect = W / H;
       s.camera.updateProjectionMatrix();
-      s.renderer.setSize(w, h);
+      s.renderer.setSize(W, H);
     };
 
-    window.addEventListener("mousemove", handleMouse);
-    window.addEventListener("touchmove", handleTouch, { passive: true });
-    window.addEventListener("resize", handleResize);
+    window.addEventListener("mousemove",  onMouse);
+    window.addEventListener("touchmove",  onTouch,  { passive: true });
+    window.addEventListener("mouseleave", onLeave);
+    window.addEventListener("deviceorientation", onGyro);
+    window.addEventListener("resize",     onResize);
+
+    /* 힌트 5초 후 숨기기 */
+    const t = setTimeout(() => setShowHint(false), 5000);
+
     return () => {
-      window.removeEventListener("mousemove", handleMouse);
-      window.removeEventListener("touchmove", handleTouch);
-      window.removeEventListener("resize", handleResize);
+      window.removeEventListener("mousemove",  onMouse);
+      window.removeEventListener("touchmove",  onTouch);
+      window.removeEventListener("mouseleave", onLeave);
+      window.removeEventListener("deviceorientation", onGyro);
+      window.removeEventListener("resize",     onResize);
+      clearTimeout(t);
     };
   }, []);
 
-  const handleFileChange = (index: number) => (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const url = URL.createObjectURL(file);
-    setPhotoUrls(prev => {
-      const next = [...prev];
-      next[index] = url;
-      return next;
-    });
-  };
-
-  const clearPhoto = (index: number) => {
-    setPhotoUrls(prev => {
-      const next = [...prev];
-      if (next[index]) URL.revokeObjectURL(next[index]!);
-      next[index] = null;
-      return next;
-    });
-    if (fileInputRefs[index].current) fileInputRefs[index].current!.value = "";
-  };
-
+  /* ── 전체화면 ── */
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
       viewerRef.current?.requestFullscreen();
-      setIsFullscreen(true);
     } else {
       document.exitFullscreen();
-      setIsFullscreen(false);
     }
   };
-
   useEffect(() => {
-    const onFs = () => setIsFullscreen(!!document.fullscreenElement);
-    document.addEventListener("fullscreenchange", onFs);
-    return () => document.removeEventListener("fullscreenchange", onFs);
+    const fn = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", fn);
+    return () => document.removeEventListener("fullscreenchange", fn);
   }, []);
 
-  const LAYER_LABELS = ["배경 레이어 (뒤)", "중간 레이어", "전경 레이어 (앞)"];
+  /* ── 리셋 ── */
+  const handleReset = () => {
+    stateRef.current.tx = 0;
+    stateRef.current.ty = 0;
+  };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-4 sm:space-y-6 md:space-y-8">
+    <div className="max-w-6xl mx-auto space-y-4 sm:space-y-6">
+
+      {/* 헤더 */}
       <div className="flex items-center gap-2 sm:gap-3">
-        <div className="bg-purple-100 p-2 sm:p-2.5 md:p-3 rounded-lg sm:rounded-xl text-purple-600 dark:bg-purple-900/30 dark:text-purple-400">
-          <Layers className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8" />
+        <div className="bg-purple-100 p-2 sm:p-3 rounded-xl text-purple-600 dark:bg-purple-900/30 dark:text-purple-400">
+          <Layers className="w-6 h-6 sm:w-8 sm:h-8" />
         </div>
         <div>
-          <h2 className="text-xl sm:text-2xl md:text-3xl font-display font-bold text-foreground">
-            3D 패럴랙스 뷰어
-          </h2>
-          <p className="text-xs sm:text-sm text-muted-foreground">
-            마우스 또는 손가락으로 움직여보세요
-          </p>
+          <h2 className="text-xl sm:text-3xl font-display font-bold">3D 패럴랙스 뷰어</h2>
+          <p className="text-xs sm:text-sm text-muted-foreground">KT MOS 현장사진 · 3개 레이어 입체 효과</p>
         </div>
       </div>
 
-      {/* Viewer */}
+      {/* 뷰어 */}
       <div
         ref={viewerRef}
-        className={`relative rounded-2xl overflow-hidden bg-black cursor-crosshair ${
-          isFullscreen ? "fixed inset-0 z-50 rounded-none" : "aspect-video"
-        }`}
+        className={
+          isFullscreen
+            ? "fixed inset-0 z-50 bg-black"
+            : "relative rounded-2xl overflow-hidden bg-black shadow-2xl"
+        }
+        style={isFullscreen ? {} : { aspectRatio: "16/9" }}
       >
-        <div ref={mountRef} className="w-full h-full" />
+        {/* Three.js 캔버스 마운트 */}
+        <div ref={mountRef} className="w-full h-full cursor-crosshair" />
 
-        <div className="absolute top-3 left-3 bg-black/50 backdrop-blur-sm text-white/70 text-xs px-3 py-1.5 rounded-full select-none">
-          마우스 또는 손가락으로 움직여보세요
-        </div>
+        {/* 로딩 오버레이 */}
+        {!loaded && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 gap-3">
+            <div className="w-10 h-10 border-4 border-purple-500 border-t-transparent rounded-full animate-spin" />
+            <span className="text-white/70 text-sm">이미지 로딩 중…</span>
+          </div>
+        )}
 
-        <button
-          onClick={toggleFullscreen}
-          className="absolute top-3 right-3 bg-black/50 backdrop-blur-sm text-white/70 hover:text-white px-3 py-1.5 rounded-full text-xs transition-colors"
-        >
-          {isFullscreen ? "축소" : "전체화면"}
-        </button>
-      </div>
+        {/* 힌트 배너 */}
+        {loaded && showHint && (
+          <div className="absolute bottom-16 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur-sm text-white/90 text-sm px-5 py-2.5 rounded-full flex items-center gap-2 pointer-events-none animate-pulse">
+            <Info className="w-4 h-4" />
+            마우스를 움직이면 3D 입체 효과가 나타납니다
+          </div>
+        )}
 
-      {/* Photo Upload */}
-      <Card className="border-purple-200 dark:border-purple-900/30">
-        <CardHeader className="bg-purple-50/50 dark:bg-purple-900/10 border-b p-3 sm:p-4 md:p-6">
-          <CardTitle className="text-sm sm:text-base md:text-lg flex items-center gap-2">
-            <Upload className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600" />
-            레이어 사진 설정
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-3 sm:p-4 md:p-6">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {LAYER_LABELS.map((label, i) => (
-              <div key={i} className="space-y-2">
-                <p className="text-sm font-medium text-muted-foreground">{label}</p>
-                <input
-                  type="file"
-                  accept="image/*"
-                  ref={fileInputRefs[i]}
-                  onChange={handleFileChange(i)}
-                  className="hidden"
-                />
-                <div
-                  onClick={() => fileInputRefs[i].current?.click()}
-                  className="relative aspect-video rounded-lg overflow-hidden border-2 border-dashed border-purple-200 dark:border-purple-800 hover:border-purple-400 cursor-pointer transition-colors group"
-                >
-                  {photoUrls[i] ? (
-                    <>
-                      <img
-                        src={photoUrls[i]!}
-                        alt={label}
-                        className="w-full h-full object-cover"
-                      />
-                      <button
-                        onClick={(e) => { e.stopPropagation(); clearPhoto(i); }}
-                        className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-0.5 hover:bg-red-600 transition-colors"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </>
-                  ) : (
-                    <div
-                      className="w-full h-full flex flex-col items-center justify-center gap-1 text-purple-400 group-hover:text-purple-500 transition-colors"
-                      style={{ background: DEFAULT_COLORS[i] }}
-                    >
-                      <Upload className="w-6 h-6 opacity-70" />
-                      <span className="text-xs opacity-70">클릭하여 업로드</span>
-                    </div>
-                  )}
-                </div>
-              </div>
+        {/* 레이어 뱃지 */}
+        {loaded && (
+          <div className="absolute top-3 left-3 flex gap-1.5">
+            {DEFAULT_LAYERS.map((l, i) => (
+              <span
+                key={i}
+                className="bg-black/50 backdrop-blur-sm text-white/80 text-xs px-2.5 py-1 rounded-full"
+              >
+                {l.label}
+              </span>
             ))}
           </div>
+        )}
 
-          <Button
-            variant="outline"
-            size="sm"
-            className="mt-4 gap-2 text-purple-600 border-purple-300 hover:bg-purple-50"
-            onClick={() => {
-              photoUrls.forEach(url => { if (url) URL.revokeObjectURL(url); });
-              setPhotoUrls([null, null, null]);
-              fileInputRefs.forEach(ref => { if (ref.current) ref.current.value = ""; });
-            }}
+        {/* 컨트롤 버튼 */}
+        <div className="absolute top-3 right-3 flex gap-2">
+          <button
+            onClick={handleReset}
+            className="bg-black/50 backdrop-blur-sm text-white/80 hover:text-white hover:bg-black/70 p-2 rounded-full transition-colors"
+            title="중앙 초기화"
           >
-            <RefreshCw className="w-3.5 h-3.5" />
-            기본값으로 초기화
-          </Button>
-        </CardContent>
-      </Card>
+            <RotateCcw className="w-4 h-4" />
+          </button>
+          <button
+            onClick={toggleFullscreen}
+            className="bg-black/50 backdrop-blur-sm text-white/80 hover:text-white hover:bg-black/70 p-2 rounded-full transition-colors"
+            title={isFullscreen ? "축소" : "전체화면"}
+          >
+            {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+          </button>
+        </div>
+      </div>
+
+      {/* 사용 안내 카드 */}
+      <div className="grid grid-cols-3 gap-3 text-center text-sm">
+        {[
+          { icon: "🖱️", title: "PC", desc: "마우스를 이리저리 움직이세요" },
+          { icon: "👆", title: "모바일", desc: "화면을 터치하며 드래그" },
+          { icon: "📱", title: "자이로", desc: "스마트폰을 기울여보세요" },
+        ].map((item) => (
+          <div
+            key={item.title}
+            className="bg-card border border-border rounded-xl p-3 sm:p-4 space-y-1"
+          >
+            <div className="text-2xl">{item.icon}</div>
+            <p className="font-semibold text-foreground">{item.title}</p>
+            <p className="text-xs text-muted-foreground">{item.desc}</p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
