@@ -19,36 +19,39 @@ import {
 } from "@/components/ui/dialog";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip,
-  ResponsiveContainer, PieChart, Pie, Cell, Legend,
+  ResponsiveContainer, PieChart, Pie, Cell,
 } from "recharts";
 import {
-  Upload, Trash2, RefreshCw, AlertTriangle, CheckCircle2,
+  Upload, Trash2, AlertTriangle, CheckCircle2,
   Clock, XCircle, ShieldCheck, ShieldAlert, FileWarning,
-  TrendingUp, Users, Loader2, Eye, ChevronDown, ChevronUp,
+  TrendingUp, Users, Loader2, Eye, ChevronUp,
 } from "lucide-react";
-import { format } from "date-fns";
 import type { AisSafetyUpload, AisSafetyRecord } from "@shared/schema";
 
-function calcCompliance(records: AisSafetyRecord[]) {
-  if (!records.length) return { rate: 0, items: [] };
-  let total = 0, pass = 0;
-  const issues: { label: string; count: number; list: AisSafetyRecord[] }[] = [];
+// 6대 고위험작업 유형
+const HIGH_RISK_TYPES = ['고소', '전기', '중장비', '굴착', '밀폐', '화기'];
 
-  const highRiskNoPermit = records.filter(r => r.highRiskWork && r.highRiskWork !== '없음' && r.highRiskWork !== 'X' && r.highRiskWork !== '' && r.safetyPermit !== 'Y');
+function isHighRiskWork(val: string | null | undefined): boolean {
+  if (!val || val === '없음' || val === 'X' || val.trim() === '') return false;
+  return HIGH_RISK_TYPES.some(t => val.includes(t));
+}
+
+function calcCompliance(records: AisSafetyRecord[]) {
+  if (!records.length) return { rate: 0, items: [], issues: [], highRiskNoPermit: [], tbmUnreg: [], tbmBad: [] };
+
+  // 고위험작업 → 안전작업허가서 미등록 (핵심 이행 항목)
+  const highRiskNoPermit = records.filter(r => isHighRiskWork(r.highRiskWork) && r.safetyPermit !== 'Y');
   const tbmUnreg = records.filter(r => r.tbmResult === '미등록');
-  const healthUnreg = records.filter(r => r.healthDeclaration === '미등록');
-  const riskUnreg = records.filter(r => r.riskAssessment === '미등록');
   const tbmBad = records.filter(r => r.tbmAiResult === '부적합');
-  const riskBad = records.filter(r => r.riskAiResult === '부적합');
 
   const allItems = [
     { label: '고위험작업 안전허가서 미등록', list: highRiskNoPermit },
     { label: 'TBM 활동 미등록', list: tbmUnreg },
-    { label: '건강확약서 미등록', list: healthUnreg },
-    { label: '상시위험성평가 미등록', list: riskUnreg },
     { label: 'TBM AI 부적합', list: tbmBad },
-    { label: '상시위험성평가 AI 부적합', list: riskBad },
   ];
+
+  let total = 0, pass = 0;
+  const issues: { label: string; count: number; list: AisSafetyRecord[] }[] = [];
 
   for (const item of allItems) {
     total += records.length;
@@ -60,25 +63,26 @@ function calcCompliance(records: AisSafetyRecord[]) {
     rate: total > 0 ? Math.round((pass / total) * 100) : 100,
     highRiskNoPermit,
     tbmUnreg,
-    healthUnreg,
-    riskUnreg,
     tbmBad,
-    riskBad,
     issues,
   };
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  '적합': '#22c55e',
-  '부적합': '#ef4444',
-  '분석전': '#94a3b8',
-  '분석중': '#f59e0b',
-};
 const RISK_COLORS: Record<string, string> = {
   '상': '#ef4444',
   '중': '#f59e0b',
   '하': '#22c55e',
   '없음': '#94a3b8',
+};
+
+// 고위험유형별 색상
+const HIGH_RISK_COLOR: Record<string, string> = {
+  '고소': 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
+  '전기': 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300',
+  '중장비': 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
+  '굴착': 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+  '밀폐': 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300',
+  '화기': 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300',
 };
 
 function RateBadge({ value }: { value: number }) {
@@ -97,9 +101,9 @@ function StatusBadge({ value }: { value: string | null }) {
 }
 
 function PermitBadge({ value, highRisk }: { value: string | null; highRisk: string | null }) {
-  const isHighRisk = highRisk && highRisk !== '없음' && highRisk !== 'X' && highRisk !== '';
+  const hr = isHighRiskWork(highRisk);
   if (value === 'Y') return <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 border-0 text-xs font-semibold"><CheckCircle2 className="w-3 h-3 mr-1" />등록</Badge>;
-  if (isHighRisk) return <Badge className="bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 border-0 text-xs font-semibold"><AlertTriangle className="w-3 h-3 mr-1" />미등록</Badge>;
+  if (hr) return <Badge className="bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 border-0 text-xs font-semibold"><AlertTriangle className="w-3 h-3 mr-1" />미등록</Badge>;
   return <Badge className="bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 border-0 text-xs">해당없음</Badge>;
 }
 
@@ -110,8 +114,24 @@ function RegBadge({ value }: { value: string | null }) {
 
 function HighRiskBadge({ value }: { value: string | null }) {
   const v = value || '없음';
-  if (v === '없음' || v === 'X' || v === '') return <Badge className="bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500 border-0 text-xs">없음</Badge>;
-  return <Badge className="bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300 border-0 text-xs font-semibold"><AlertTriangle className="w-3 h-3 mr-1" />{v}</Badge>;
+  if (!isHighRiskWork(v)) return <Badge className="bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500 border-0 text-xs">없음</Badge>;
+  // 매칭되는 유형 찾기
+  const matched = HIGH_RISK_TYPES.find(t => v.includes(t));
+  const cls = matched ? (HIGH_RISK_COLOR[matched] || 'bg-orange-100 text-orange-700') : 'bg-orange-100 text-orange-700';
+  return <Badge className={`${cls} border-0 text-xs font-semibold`}><AlertTriangle className="w-3 h-3 mr-1" />{v}</Badge>;
+}
+
+// 고위험작업 유형별 통계 (6대 분류)
+function getHighRiskBreakdown(records: AisSafetyRecord[]) {
+  return HIGH_RISK_TYPES.map(type => {
+    const matched = records.filter(r => r.highRiskWork && r.highRiskWork.includes(type));
+    return {
+      type,
+      total: matched.length,
+      permit: matched.filter(r => r.safetyPermit === 'Y').length,
+      noPermit: matched.filter(r => r.safetyPermit !== 'Y').length,
+    };
+  }).filter(d => d.total > 0);
 }
 
 function CircleGauge({ rate }: { rate: number }) {
@@ -141,13 +161,12 @@ export default function AisSafetyRate() {
   const [selectedUploadId, setSelectedUploadId] = useState<number | null>(null);
   const [search, setSearch] = useState('');
   const [filterTeam, setFilterTeam] = useState('all');
-  const [filterRisk, setFilterRisk] = useState('all');
   const [filterIssue, setFilterIssue] = useState('all');
   const [showDetail, setShowDetail] = useState(false);
   const [activeIssue, setActiveIssue] = useState<{ label: string; list: AisSafetyRecord[] } | null>(null);
   const [uploading, setUploading] = useState(false);
 
-  const { data: uploads = [], isLoading: uploadsLoading } = useQuery<AisSafetyUpload[]>({
+  const { data: uploads = [] } = useQuery<AisSafetyUpload[]>({
     queryKey: ['/api/ais-safety/uploads'],
   });
 
@@ -200,16 +219,15 @@ export default function AisSafetyRate() {
 
   const comp = calcCompliance(records);
   const teams = [...new Set(records.map(r => r.team).filter(Boolean))];
+  const highRiskRecords = records.filter(r => isHighRiskWork(r.highRiskWork));
+  const highRiskBreakdown = getHighRiskBreakdown(records);
 
   const filteredRecords = records.filter(r => {
     if (filterTeam !== 'all' && r.team !== filterTeam) return false;
-    if (filterRisk !== 'all' && r.riskLevel !== filterRisk) return false;
-    if (filterIssue === 'highRisk' && (r.highRiskWork === '없음' || r.highRiskWork === 'X' || !r.highRiskWork)) return false;
-    if (filterIssue === 'noPermit' && r.safetyPermit === 'Y') return false;
+    if (filterIssue === 'highRisk' && !isHighRiskWork(r.highRiskWork)) return false;
+    if (filterIssue === 'noPermit' && !(isHighRiskWork(r.highRiskWork) && r.safetyPermit !== 'Y')) return false;
     if (filterIssue === 'tbmUnreg' && r.tbmResult !== '미등록') return false;
     if (filterIssue === 'tbmBad' && r.tbmAiResult !== '부적합') return false;
-    if (filterIssue === 'healthUnreg' && r.healthDeclaration !== '미등록') return false;
-    if (filterIssue === 'riskUnreg' && r.riskAssessment !== '미등록') return false;
     if (search) {
       const q = search.toLowerCase();
       return (r.workOrderNo || '').toLowerCase().includes(q)
@@ -227,21 +245,11 @@ export default function AisSafetyRate() {
     { name: '분석전', value: records.filter(r => r.tbmAiResult === '분석전' || !r.tbmAiResult).length, color: '#94a3b8' },
   ].filter(d => d.value > 0);
 
-  const riskAiData = [
-    { name: '적합', value: records.filter(r => r.riskAiResult === '적합').length, color: '#22c55e' },
-    { name: '부적합', value: records.filter(r => r.riskAiResult === '부적합').length, color: '#ef4444' },
-    { name: '분석전', value: records.filter(r => r.riskAiResult === '분석전' || !r.riskAiResult).length, color: '#94a3b8' },
-  ].filter(d => d.value > 0);
-
   const teamData = teams.map(team => {
     const tr = records.filter(r => r.team === team);
     const c = calcCompliance(tr);
     return { team: team?.replace('운용팀', '').replace('팀', '') || '미지정', rate: c.rate, count: tr.length };
   }).sort((a, b) => b.rate - a.rate);
-
-  const highRiskRecords = records.filter(r => r.highRiskWork && r.highRiskWork !== '없음' && r.highRiskWork !== 'X' && r.highRiskWork !== '');
-
-  const selectedUpload = uploads.find(u => u.id === selectedUploadId);
 
   const complianceItems = [
     {
@@ -250,6 +258,7 @@ export default function AisSafetyRate() {
       total: highRiskRecords.length,
       pass: highRiskRecords.filter(r => r.safetyPermit === 'Y').length,
       description: '고위험작업 시 안전허가서 등록',
+      emptyLabel: '고위험작업 없음',
     },
     {
       label: 'TBM 등록률',
@@ -257,20 +266,7 @@ export default function AisSafetyRate() {
       total: records.length,
       pass: records.filter(r => r.tbmResult === '등록').length,
       description: 'TBM 활동 등록 여부',
-    },
-    {
-      label: '건강확약서',
-      icon: CheckCircle2,
-      total: records.length,
-      pass: records.filter(r => r.healthDeclaration === '등록').length,
-      description: '건강확약서 등록 여부',
-    },
-    {
-      label: '상시위험성평가',
-      icon: ShieldAlert,
-      total: records.length,
-      pass: records.filter(r => r.riskAssessment === '등록').length,
-      description: '상시위험성평가 등록 여부',
+      emptyLabel: '데이터 없음',
     },
   ];
 
@@ -280,7 +276,7 @@ export default function AisSafetyRate() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black tracking-tight">AIS 안전이행률</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">공사작업 안전허가서 매칭 및 TBM AI 분석 현황</p>
+          <p className="text-sm text-muted-foreground mt-0.5">6대 고위험작업 안전허가서 매칭 및 TBM AI 분석 현황</p>
         </div>
         <div className="flex items-center gap-2">
           {selectedUploadId && (
@@ -342,6 +338,7 @@ export default function AisSafetyRate() {
           <div>
             <h3 className="font-bold text-lg">AIS CSV 파일을 업로드하세요</h3>
             <p className="text-sm text-muted-foreground mt-1">공사작업 현황 CSV 파일을 업로드하면 안전이행률을 자동 분석합니다</p>
+            <p className="text-xs text-muted-foreground mt-1">6대 고위험작업(고소·전기·중장비·굴착·밀폐·화기) 안전허가서 매칭 자동 분석</p>
           </div>
           <Button onClick={() => fileInputRef.current?.click()} className="bg-blue-600 hover:bg-blue-700 text-white" data-testid="button-upload-empty">
             <Upload className="w-4 h-4 mr-2" />CSV 파일 선택
@@ -375,7 +372,7 @@ export default function AisSafetyRate() {
                       <div className="w-8 h-8 rounded-lg bg-orange-100 dark:bg-orange-900/40 flex items-center justify-center">
                         <AlertTriangle className="w-4 h-4 text-orange-600 dark:text-orange-400" />
                       </div>
-                      <span className="text-sm font-semibold text-muted-foreground">고위험작업</span>
+                      <span className="text-sm font-semibold text-muted-foreground">6대 고위험작업</span>
                     </div>
                     <p className="text-3xl font-black">{highRiskRecords.length}</p>
                     <p className="text-xs text-muted-foreground mt-1">
@@ -419,8 +416,8 @@ export default function AisSafetyRate() {
                 </Card>
               </div>
 
-              {/* Compliance items bar */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              {/* Compliance items bar (2 items) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {complianceItems.map(item => {
                   const rate = item.total === 0 ? 100 : Math.round((item.pass / item.total) * 100);
                   const Icon = item.icon;
@@ -431,23 +428,68 @@ export default function AisSafetyRate() {
                           <Icon className="w-4 h-4 text-muted-foreground" />
                           <span className="text-xs font-semibold text-muted-foreground">{item.label}</span>
                         </div>
-                        <div className="flex items-end justify-between mb-1.5">
-                          <span className="text-lg font-black">{item.pass}<span className="text-sm font-normal text-muted-foreground">/{item.total}</span></span>
-                          <RateBadge value={rate} />
-                        </div>
-                        <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
-                          <div className="h-full rounded-full transition-all duration-700"
-                            style={{ width: `${rate}%`, backgroundColor: rate >= 90 ? '#22c55e' : rate >= 70 ? '#f59e0b' : '#ef4444' }} />
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-1.5">{item.description}</p>
+                        {item.total === 0 ? (
+                          <p className="text-sm text-muted-foreground">{item.emptyLabel}</p>
+                        ) : (
+                          <>
+                            <div className="flex items-end justify-between mb-1.5">
+                              <span className="text-lg font-black">{item.pass}<span className="text-sm font-normal text-muted-foreground">/{item.total}</span></span>
+                              <RateBadge value={rate} />
+                            </div>
+                            <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
+                              <div className="h-full rounded-full transition-all duration-700"
+                                style={{ width: `${rate}%`, backgroundColor: rate >= 90 ? '#22c55e' : rate >= 70 ? '#f59e0b' : '#ef4444' }} />
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1.5">{item.description}</p>
+                          </>
+                        )}
                       </CardContent>
                     </Card>
                   );
                 })}
               </div>
 
+              {/* 6대 고위험작업 유형별 현황 */}
+              {highRiskBreakdown.length > 0 && (
+                <Card className="border-0 shadow-sm bg-card/60">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-bold flex items-center gap-2">
+                      <ShieldAlert className="w-4 h-4 text-orange-500" />
+                      6대 고위험작업 유형별 현황
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+                      {HIGH_RISK_TYPES.map(type => {
+                        const d = highRiskBreakdown.find(h => h.type === type);
+                        if (!d) return (
+                          <div key={type} className="p-3 rounded-lg border border-dashed border-muted text-center">
+                            <p className="text-xs font-semibold text-muted-foreground mb-1">{type}</p>
+                            <p className="text-lg font-black text-muted-foreground">0</p>
+                            <p className="text-xs text-muted-foreground">해당없음</p>
+                          </div>
+                        );
+                        const rate = Math.round((d.permit / d.total) * 100);
+                        return (
+                          <div key={type} className="p-3 rounded-lg border bg-card/80 text-center">
+                            <p className="text-xs font-semibold text-muted-foreground mb-1">{type}</p>
+                            <p className="text-2xl font-black">{d.total}</p>
+                            <div className="flex items-center justify-center gap-1 mt-1">
+                              <RateBadge value={rate} />
+                            </div>
+                            {d.noPermit > 0 && (
+                              <p className="text-xs text-red-600 font-semibold mt-1">미발급 {d.noPermit}</p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               {/* Charts row */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {/* TBM AI Pie */}
                 <Card className="border-0 shadow-sm bg-card/60">
                   <CardHeader className="pb-2">
@@ -467,34 +509,6 @@ export default function AisSafetyRate() {
                     ) : <p className="text-center text-sm text-muted-foreground py-12">데이터 없음</p>}
                     <div className="flex flex-wrap gap-2 justify-center">
                       {tbmAiData.map(d => (
-                        <div key={d.name} className="flex items-center gap-1">
-                          <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: d.color }} />
-                          <span className="text-xs text-muted-foreground">{d.name} {d.value}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Risk AI Pie */}
-                <Card className="border-0 shadow-sm bg-card/60">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-bold">상시위험성평가 AI 분석결과</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {riskAiData.length > 0 ? (
-                      <ResponsiveContainer width="100%" height={180}>
-                        <PieChart>
-                          <Pie data={riskAiData} cx="50%" cy="50%" innerRadius={45} outerRadius={70}
-                            dataKey="value" label={({ name, value }) => `${name} ${value}`} labelLine={false}>
-                            {riskAiData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                          </Pie>
-                          <ReTooltip />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    ) : <p className="text-center text-sm text-muted-foreground py-12">데이터 없음</p>}
-                    <div className="flex flex-wrap gap-2 justify-center">
-                      {riskAiData.map(d => (
                         <div key={d.name} className="flex items-center gap-1">
                           <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: d.color }} />
                           <span className="text-xs text-muted-foreground">{d.name} {d.value}</span>
@@ -539,7 +553,7 @@ export default function AisSafetyRate() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                       {(comp.issues || []).map(issue => (
                         <button key={issue.label} onClick={() => setActiveIssue(issue)}
                           className="text-left p-3 rounded-lg border border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
@@ -563,6 +577,7 @@ export default function AisSafetyRate() {
                     <CardTitle className="text-sm font-bold flex items-center gap-2">
                       <ShieldCheck className="w-4 h-4 text-orange-500" />
                       고위험작업 안전허가서 매칭 현황
+                      <span className="ml-auto text-xs font-normal text-muted-foreground">6대 고위험작업(고소·전기·중장비·굴착·밀폐·화기)</span>
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="p-0">
@@ -630,17 +645,15 @@ export default function AisSafetyRate() {
                   </SelectContent>
                 </Select>
                 <Select value={filterIssue} onValueChange={setFilterIssue}>
-                  <SelectTrigger className="h-8 text-xs w-40" data-testid="select-filter-issue">
+                  <SelectTrigger className="h-8 text-xs w-44" data-testid="select-filter-issue">
                     <SelectValue placeholder="이슈 필터" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">전체</SelectItem>
-                    <SelectItem value="highRisk">고위험작업만</SelectItem>
+                    <SelectItem value="highRisk">6대 고위험작업만</SelectItem>
                     <SelectItem value="noPermit">안전허가서 미등록</SelectItem>
                     <SelectItem value="tbmUnreg">TBM 미등록</SelectItem>
                     <SelectItem value="tbmBad">TBM AI 부적합</SelectItem>
-                    <SelectItem value="healthUnreg">건강확약서 미등록</SelectItem>
-                    <SelectItem value="riskUnreg">상시위험성평가 미등록</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -655,13 +668,10 @@ export default function AisSafetyRate() {
                     <TableHead className="text-xs font-bold">작업번호</TableHead>
                     <TableHead className="text-xs font-bold">작업명</TableHead>
                     <TableHead className="text-xs font-bold">팀</TableHead>
-                    <TableHead className="text-xs font-bold">고위험</TableHead>
-                    <TableHead className="text-xs font-bold">허가서</TableHead>
+                    <TableHead className="text-xs font-bold">고위험유형</TableHead>
+                    <TableHead className="text-xs font-bold">안전허가서</TableHead>
                     <TableHead className="text-xs font-bold">TBM</TableHead>
                     <TableHead className="text-xs font-bold">TBM AI</TableHead>
-                    <TableHead className="text-xs font-bold">건강확약서</TableHead>
-                    <TableHead className="text-xs font-bold">상시위험성</TableHead>
-                    <TableHead className="text-xs font-bold">위험성 AI</TableHead>
                     <TableHead className="text-xs font-bold">위험도</TableHead>
                     <TableHead className="text-xs font-bold">시작일</TableHead>
                     <TableHead className="text-xs font-bold">공사유형</TableHead>
@@ -670,7 +680,7 @@ export default function AisSafetyRate() {
                 <TableBody>
                   {filteredRecords.map((r, i) => (
                     <TableRow key={r.id} data-testid={`row-record-${r.id}`}
-                      className={r.safetyPermit !== 'Y' && r.highRiskWork && r.highRiskWork !== '없음' ? 'bg-red-50/20 dark:bg-red-950/10' : ''}>
+                      className={isHighRiskWork(r.highRiskWork) && r.safetyPermit !== 'Y' ? 'bg-red-50/20 dark:bg-red-950/10' : ''}>
                       <TableCell className="text-xs text-muted-foreground">{i + 1}</TableCell>
                       <TableCell className="text-xs font-mono whitespace-nowrap">{r.workOrderNo}</TableCell>
                       <TableCell className="text-xs max-w-[180px] truncate" title={r.workName || ''}>{r.workName}</TableCell>
@@ -679,9 +689,6 @@ export default function AisSafetyRate() {
                       <TableCell><PermitBadge value={r.safetyPermit} highRisk={r.highRiskWork} /></TableCell>
                       <TableCell><RegBadge value={r.tbmResult} /></TableCell>
                       <TableCell><StatusBadge value={r.tbmAiResult} /></TableCell>
-                      <TableCell><RegBadge value={r.healthDeclaration} /></TableCell>
-                      <TableCell><RegBadge value={r.riskAssessment} /></TableCell>
-                      <TableCell><StatusBadge value={r.riskAiResult} /></TableCell>
                       <TableCell>
                         <span className="text-xs font-semibold" style={{ color: RISK_COLORS[r.riskLevel || ''] || '#94a3b8' }}>
                           {r.riskLevel || '-'}
@@ -723,8 +730,8 @@ export default function AisSafetyRate() {
                   <TableHead className="text-xs">작업번호</TableHead>
                   <TableHead className="text-xs">작업명</TableHead>
                   <TableHead className="text-xs">팀</TableHead>
-                  <TableHead className="text-xs">고위험</TableHead>
-                  <TableHead className="text-xs">허가서</TableHead>
+                  <TableHead className="text-xs">고위험유형</TableHead>
+                  <TableHead className="text-xs">안전허가서</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
