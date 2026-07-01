@@ -121,17 +121,22 @@ function HighRiskBadge({ value }: { value: string | null }) {
   return <Badge className={`${cls} border-0 text-xs font-semibold`}><AlertTriangle className="w-3 h-3 mr-1" />{v}</Badge>;
 }
 
-// 고위험작업 유형별 통계 (6대 분류)
+// 고위험작업 유형별 통계 (6대 분류 + 해당없음)
 function getHighRiskBreakdown(records: AisSafetyRecord[]) {
-  return HIGH_RISK_TYPES.map(type => {
+  const types = HIGH_RISK_TYPES.map(type => {
     const matched = records.filter(r => r.highRiskWork && r.highRiskWork.includes(type));
     return {
       type,
       total: matched.length,
       permit: matched.filter(r => r.safetyPermit === 'Y').length,
       noPermit: matched.filter(r => r.safetyPermit !== 'Y').length,
+      isNone: false,
     };
-  }).filter(d => d.total > 0);
+  });
+  // 해당없음 (고위험작업에 해당하지 않는 행)
+  const noneCount = records.filter(r => !isHighRiskWork(r.highRiskWork)).length;
+  types.push({ type: '해당없음', total: noneCount, permit: 0, noPermit: 0, isNone: true });
+  return types;
 }
 
 function CircleGauge({ rate }: { rate: number }) {
@@ -450,35 +455,42 @@ export default function AisSafetyRate() {
               </div>
 
               {/* 6대 고위험작업 유형별 현황 */}
-              {highRiskBreakdown.length > 0 && (
+              {records.length > 0 && (
                 <Card className="border-0 shadow-sm bg-card/60">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm font-bold flex items-center gap-2">
                       <ShieldAlert className="w-4 h-4 text-orange-500" />
-                      6대 고위험작업 유형별 현황
+                      고위험작업 유형별 현황
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
-                      {HIGH_RISK_TYPES.map(type => {
-                        const d = highRiskBreakdown.find(h => h.type === type);
-                        if (!d) return (
-                          <div key={type} className="p-3 rounded-lg border border-dashed border-muted text-center">
-                            <p className="text-xs font-semibold text-muted-foreground mb-1">{type}</p>
-                            <p className="text-lg font-black text-muted-foreground">0</p>
-                            <p className="text-xs text-muted-foreground">해당없음</p>
-                          </div>
-                        );
-                        const rate = Math.round((d.permit / d.total) * 100);
-                        return (
-                          <div key={type} className="p-3 rounded-lg border bg-card/80 text-center">
-                            <p className="text-xs font-semibold text-muted-foreground mb-1">{type}</p>
-                            <p className="text-2xl font-black">{d.total}</p>
-                            <div className="flex items-center justify-center gap-1 mt-1">
-                              <RateBadge value={rate} />
+                    <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-3">
+                      {highRiskBreakdown.map(d => {
+                        if (d.isNone) {
+                          return (
+                            <div key="해당없음" className="p-3 rounded-lg border border-dashed border-muted bg-muted/20 text-center col-span-1">
+                              <p className="text-xs font-semibold text-muted-foreground mb-1">해당없음</p>
+                              <p className="text-2xl font-black text-muted-foreground">{d.total}</p>
+                              <p className="text-xs text-muted-foreground mt-1">일반작업</p>
                             </div>
-                            {d.noPermit > 0 && (
-                              <p className="text-xs text-red-600 font-semibold mt-1">미발급 {d.noPermit}</p>
+                          );
+                        }
+                        const rate = d.total === 0 ? 100 : Math.round((d.permit / d.total) * 100);
+                        return (
+                          <div key={d.type} className={`p-3 rounded-lg border bg-card/80 text-center ${d.total === 0 ? 'border-dashed border-muted opacity-50' : ''}`}>
+                            <p className="text-xs font-semibold text-muted-foreground mb-1">{d.type}</p>
+                            <p className={`text-2xl font-black ${d.total === 0 ? 'text-muted-foreground' : ''}`}>{d.total}</p>
+                            {d.total > 0 ? (
+                              <>
+                                <div className="flex items-center justify-center gap-1 mt-1">
+                                  <RateBadge value={rate} />
+                                </div>
+                                {d.noPermit > 0 && (
+                                  <p className="text-xs text-red-600 font-semibold mt-1">미발급 {d.noPermit}</p>
+                                )}
+                              </>
+                            ) : (
+                              <p className="text-xs text-muted-foreground mt-1">해당없음</p>
                             )}
                           </div>
                         );
