@@ -3958,6 +3958,12 @@ ${buildEmailFooter()}
           reviewRisk: col(row, '검토의견/작업리스크', '검토의견', '작업리스크'),
         });
       }
+      // 고위험작업 컬럼 분포 디버그 로그
+      const hrIdx = header.findIndex(h => h === '고위험작업' || h.replace(/\s+/g,'') === '고위험작업');
+      console.log(`[AIS-CSV] 고위험작업 컬럼 인덱스: ${hrIdx} (Excel ${hrIdx >= 0 ? String.fromCharCode(65 + Math.floor(hrIdx/26) - 1) + String.fromCharCode(65 + hrIdx%26) : '?'}열)`);
+      const hrDist: Record<string, number> = {};
+      for (const r of records) { const v = (r as any).highRiskWork || '없음'; hrDist[v] = (hrDist[v] || 0) + 1; }
+      console.log('[AIS-CSV] 고위험작업 분포:', JSON.stringify(hrDist));
       const upload = await storage.createAisSafetyUpload({
         fileName: req.file.originalname,
         recordCount: records.length,
