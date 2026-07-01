@@ -1067,26 +1067,28 @@ export default function AisSafetyRate() {
 
       {/* Issue detail dialog */}
       <Dialog open={!!activeIssue} onOpenChange={() => setActiveIssue(null)}>
-        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-red-500" />
+        <DialogContent className="w-[min(95vw,800px)] max-w-none max-h-[90vh] overflow-y-auto p-0">
+          {/* 헤더 */}
+          <div className="sticky top-0 z-10 bg-background border-b px-5 py-4">
+            <DialogTitle className="flex items-center gap-2 text-base font-bold">
+              <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0" />
               {activeIssue?.label}
             </DialogTitle>
-          </DialogHeader>
+          </div>
+          <div className="px-5 py-4">
           {activeIssue && (() => {
             const list = activeIssue.list.filter(r => !isCancelled(r));
             const noPermit = list.filter(r => isHighRiskWork(r.highRiskWork) && r.safetyPermit !== 'Y');
             const tbmUnreg = list.filter(r => r.tbmResult === '미등록');
             const tbmBad = list.filter(r => r.tbmAiResult === '부적합');
             const groups = [
-              { label: '고위험작업 안전허가서 미등록', records: noPermit, headerColor: 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800', badgeColor: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' },
-              { label: 'TBM 활동 미등록', records: tbmUnreg, headerColor: 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800', badgeColor: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },
-              { label: 'TBM AI 부적합', records: tbmBad, headerColor: 'bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-800', badgeColor: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300' },
+              { label: '고위험작업 안전허가서 미등록', records: noPermit, accent: 'border-l-red-500 bg-red-50/60 dark:bg-red-950/20', headBg: 'bg-red-100/80 dark:bg-red-900/30', badgeColor: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' },
+              { label: 'TBM 활동 미등록', records: tbmUnreg, accent: 'border-l-amber-500 bg-amber-50/60 dark:bg-amber-950/20', headBg: 'bg-amber-100/80 dark:bg-amber-900/30', badgeColor: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },
+              { label: 'TBM AI 부적합', records: tbmBad, accent: 'border-l-orange-500 bg-orange-50/60 dark:bg-orange-950/20', headBg: 'bg-orange-100/80 dark:bg-orange-900/30', badgeColor: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300' },
             ].filter(g => g.records.length > 0);
 
             if (groups.length === 0) return (
-              <p className="text-sm text-muted-foreground py-6 text-center">취소 건 제외 시 이슈 없음</p>
+              <p className="text-sm text-muted-foreground py-8 text-center">취소 건 제외 시 이슈 없음</p>
             );
 
             return (
@@ -1099,45 +1101,41 @@ export default function AisSafetyRate() {
                     </span>
                   ))}
                 </div>
-                {/* 유형별 섹션 */}
+
+                {/* 유형별 섹션 — 카드 리스트 */}
                 {groups.map(g => (
-                  <div key={g.label} className={`rounded-lg border ${g.headerColor}`}>
-                    <div className={`px-3 py-2 border-b ${g.headerColor} rounded-t-lg`}>
-                      <p className="text-xs font-bold">{g.label} — {g.records.length}건</p>
+                  <div key={g.label} className="rounded-xl border overflow-hidden">
+                    <div className={`px-4 py-2.5 ${g.headBg} border-b`}>
+                      <p className="text-sm font-bold">{g.label} — {g.records.length}건</p>
                     </div>
-                    <div className="overflow-x-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="text-xs w-[100px]">작업번호</TableHead>
-                            <TableHead className="text-xs">작업명</TableHead>
-                            <TableHead className="text-xs w-[90px]">팀</TableHead>
-                            <TableHead className="text-xs w-[80px]">고위험유형</TableHead>
-                            <TableHead className="text-xs w-[80px]">안전허가서</TableHead>
-                            <TableHead className="text-xs w-[70px]">TBM</TableHead>
-                            <TableHead className="text-xs w-[80px]">TBM AI</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {g.records.map(r => (
-                            <TableRow key={r.id}>
-                              <TableCell className="text-xs font-mono"><span className="block truncate max-w-[96px]" title={r.workOrderNo || ''}>{r.workOrderNo || '-'}</span></TableCell>
-                              <TableCell className="text-xs"><span className="block truncate max-w-[160px]" title={r.workName || ''}>{r.workName || '-'}</span></TableCell>
-                              <TableCell className="text-xs whitespace-nowrap">{r.team || '-'}</TableCell>
-                              <TableCell><HighRiskBadge value={r.highRiskWork} /></TableCell>
-                              <TableCell><PermitBadge value={r.safetyPermit} highRisk={r.highRiskWork} /></TableCell>
-                              <TableCell><span className={`text-xs font-semibold ${r.tbmResult === '미등록' ? 'text-red-600' : 'text-emerald-600'}`}>{r.tbmResult || '-'}</span></TableCell>
-                              <TableCell><StatusBadge value={r.tbmAiResult} /></TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
+                    <div className="divide-y">
+                      {g.records.map((r, idx) => (
+                        <div key={r.id} className={`px-4 py-3 ${idx % 2 === 0 ? '' : 'bg-muted/20'}`}>
+                          {/* 행 1: 번호 + 팀 */}
+                          <div className="flex items-center justify-between gap-2 mb-1">
+                            <span className="text-[11px] font-mono text-muted-foreground truncate" title={r.workOrderNo || ''}>{r.workOrderNo || '-'}</span>
+                            <span className="text-xs font-semibold text-muted-foreground whitespace-nowrap flex-shrink-0">{r.team || '-'}</span>
+                          </div>
+                          {/* 행 2: 작업명 */}
+                          <p className="text-sm font-semibold mb-2 leading-snug" title={r.workName || ''}>{r.workName || '-'}</p>
+                          {/* 행 3: 뱃지들 */}
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <HighRiskBadge value={r.highRiskWork} />
+                            <PermitBadge value={r.safetyPermit} highRisk={r.highRiskWork} />
+                            <span className={`inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-full ${r.tbmResult === '미등록' ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'}`}>
+                              TBM {r.tbmResult || '-'}
+                            </span>
+                            <StatusBadge value={r.tbmAiResult} />
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 ))}
               </div>
             );
           })()}
+          </div>
         </DialogContent>
       </Dialog>
     </div>
