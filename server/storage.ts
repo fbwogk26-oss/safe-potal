@@ -168,6 +168,7 @@ export interface IStorage {
   createAisSafetyUpload(data: InsertAisSafetyUpload): Promise<AisSafetyUpload>;
   deleteAisSafetyUpload(id: number): Promise<void>;
   getAisSafetyRecords(uploadId: number): Promise<AisSafetyRecord[]>;
+  getAllAisSafetyRecords(): Promise<AisSafetyRecord[]>;
   createAisSafetyRecords(records: InsertAisSafetyRecord[]): Promise<void>;
   deleteAisSafetyRecordsByUpload(uploadId: number): Promise<void>;
 
@@ -1414,6 +1415,9 @@ export class DatabaseStorage implements IStorage {
   }
   async getAisSafetyRecords(uploadId: number): Promise<AisSafetyRecord[]> {
     return await db.select().from(aisSafetyRecords).where(eq(aisSafetyRecords.uploadId, uploadId)).orderBy(asc(aisSafetyRecords.id));
+  }
+  async getAllAisSafetyRecords(): Promise<AisSafetyRecord[]> {
+    return await db.select().from(aisSafetyRecords).orderBy(asc(aisSafetyRecords.id));
   }
   async createAisSafetyRecords(records: InsertAisSafetyRecord[]): Promise<void> {
     if (records.length === 0) return;

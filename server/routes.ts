@@ -3940,6 +3940,15 @@ ${buildEmailFooter()}
     }
   });
 
+  app.get('/api/ais-safety/records/all', isAuthenticated, async (req: any, res) => {
+    try {
+      const records = await storage.getAllAisSafetyRecords();
+      res.json(records);
+    } catch (error) {
+      res.status(500).json({ message: "전체 레코드 조회에 실패했습니다" });
+    }
+  });
+
   app.get('/api/ais-safety/records/:uploadId', isAuthenticated, async (req: any, res) => {
     try {
       const id = Number(req.params.uploadId);

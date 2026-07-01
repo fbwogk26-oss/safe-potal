@@ -19,12 +19,12 @@ import {
 } from "@/components/ui/dialog";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip,
-  ResponsiveContainer, PieChart, Pie, Cell,
+  ResponsiveContainer, PieChart, Pie, Cell, LabelList,
 } from "recharts";
 import {
   Upload, Trash2, AlertTriangle, CheckCircle2,
   Clock, XCircle, ShieldCheck, ShieldAlert, FileWarning,
-  TrendingUp, Users, Loader2, Eye, ChevronUp,
+  TrendingUp, Users, Loader2, Eye, ChevronUp, Layers,
 } from "lucide-react";
 import type { AisSafetyUpload, AisSafetyRecord } from "@shared/schema";
 
@@ -163,7 +163,7 @@ function CircleGauge({ rate }: { rate: number }) {
 export default function AisSafetyRate() {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [selectedUploadId, setSelectedUploadId] = useState<number | null>(null);
+  const [selectedUploadId, setSelectedUploadId] = useState<number | 'all' | null>(null);
   const [search, setSearch] = useState('');
   const [filterTeam, setFilterTeam] = useState('all');
   const [filterIssue, setFilterIssue] = useState('all');
@@ -179,9 +179,14 @@ export default function AisSafetyRate() {
     queryKey: ['/api/ais-safety/records', selectedUploadId],
     enabled: selectedUploadId !== null,
     queryFn: async () => {
-      if (!selectedUploadId) return [];
-      const res = await fetch(`/api/ais-safety/records/${selectedUploadId}`, { credentials: 'include' });
-      return res.json();
+      if (selectedUploadId === null) return [];
+      const url = selectedUploadId === 'all'
+        ? '/api/ais-safety/records/all'
+        : `/api/ais-safety/records/${selectedUploadId}`;
+      const res = await fetch(url, { credentials: 'include' });
+      if (!res.ok) throw new Error('레코드 조회 실패');
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
     },
   });
 
@@ -191,9 +196,9 @@ export default function AisSafetyRate() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/ais-safety/uploads'] });
-      if (selectedUploadId) queryClient.invalidateQueries({ queryKey: ['/api/ais-safety/records', selectedUploadId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/ais-safety/records', 'all'] });
       toast({ title: '삭제되었습니다' });
-      setSelectedUploadId(null);
+      setSelectedUploadId('all');
     },
   });
 
@@ -212,8 +217,9 @@ export default function AisSafetyRate() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || '업로드 실패');
       queryClient.invalidateQueries({ queryKey: ['/api/ais-safety/uploads'] });
-      setSelectedUploadId(data.upload.id);
-      toast({ title: `${data.recordCount}건 데이터가 업로드되었습니다` });
+      queryClient.invalidateQueries({ queryKey: ['/api/ais-safety/records', 'all'] });
+      setSelectedUploadId('all');
+      toast({ title: `${data.recordCount}건 누적 데이터에 추가되었습니다` });
     } catch (err: any) {
       toast({ title: err.message || '업로드 실패', variant: 'destructive' });
     } finally {
@@ -303,32 +309,53 @@ export default function AisSafetyRate() {
       {uploads.length > 0 && (
         <Card className="border-0 shadow-sm bg-card/60 backdrop-blur-sm">
           <CardContent className="pt-4 pb-4">
-            <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
-              <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            <div className="flex flex-col gap-3">
+              {/* 전체 누적 버튼 */}
+              <button
+                data-testid="button-upload-all"
+                onClick={() => setSelectedUploadId('all')}
+                className={`w-full text-left px-4 py-3 rounded-lg border-2 text-sm transition-all flex items-center gap-3 ${selectedUploadId === 'all'
+                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 shadow-sm'
+                  : 'border-dashed border-blue-300 hover:border-blue-400 hover:bg-blue-50/40 dark:border-blue-700 dark:hover:bg-blue-950/20'}`}>
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${selectedUploadId === 'all' ? 'bg-blue-500' : 'bg-blue-100 dark:bg-blue-900/40'}`}>
+                  <Layers className={`w-4 h-4 ${selectedUploadId === 'all' ? 'text-white' : 'text-blue-600 dark:text-blue-400'}`} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold">전체 누적 데이터</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">
+                    {uploads.length}개 파일 · 총 {uploads.reduce((s, u) => s + (u.recordCount || 0), 0)}건 합산
+                  </div>
+                </div>
+                {selectedUploadId === 'all' && (
+                  <span className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded-full font-semibold flex-shrink-0">선택됨</span>
+                )}
+              </button>
+              {/* 개별 업로드 목록 */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                 {uploads.map(u => (
-                  <button key={u.id} data-testid={`button-upload-${u.id}`}
-                    onClick={() => setSelectedUploadId(u.id)}
-                    className={`text-left px-3 py-2.5 rounded-lg border text-sm transition-all ${selectedUploadId === u.id
-                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 shadow-sm'
-                      : 'border-border hover:border-blue-300 hover:bg-muted/40'}`}>
-                    <div className="font-medium truncate">{u.fileName}</div>
-                    <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2">
-                      <span>{u.workDate || '날짜 미상'}</span>
-                      <span>·</span>
-                      <span>{u.recordCount}건</span>
-                      <span>·</span>
-                      <span>{u.uploadedBy}</span>
-                    </div>
-                  </button>
+                  <div key={u.id} className="flex items-stretch gap-1">
+                    <button data-testid={`button-upload-${u.id}`}
+                      onClick={() => setSelectedUploadId(u.id)}
+                      className={`flex-1 text-left px-3 py-2.5 rounded-lg border text-sm transition-all ${selectedUploadId === u.id
+                        ? 'border-slate-500 bg-slate-50 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 shadow-sm'
+                        : 'border-border hover:border-slate-300 hover:bg-muted/40'}`}>
+                      <div className="font-medium truncate text-xs">{u.fileName}</div>
+                      <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5">
+                        <span>{u.workDate || '날짜 미상'}</span>
+                        <span>·</span>
+                        <span className="font-semibold">{u.recordCount}건</span>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => deleteMutation.mutate(u.id)}
+                      className="px-2 rounded-lg border border-border hover:border-red-300 hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-500 text-muted-foreground transition-colors flex-shrink-0"
+                      data-testid={`button-delete-upload-${u.id}`}
+                      title="삭제">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 ))}
               </div>
-              {selectedUploadId && (
-                <Button variant="ghost" size="sm" onClick={() => deleteMutation.mutate(selectedUploadId)}
-                  className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 flex-shrink-0"
-                  data-testid="button-delete-upload">
-                  <Trash2 className="w-4 h-4 mr-1" />삭제
-                </Button>
-              )}
             </div>
           </CardContent>
         </Card>
@@ -537,16 +564,27 @@ export default function AisSafetyRate() {
                   </CardHeader>
                   <CardContent>
                     {teamData.length > 0 ? (
-                      <ResponsiveContainer width="100%" height={180}>
-                        <BarChart data={teamData} layout="vertical" margin={{ left: -10 }}>
+                      <ResponsiveContainer width="100%" height={Math.max(180, teamData.length * 32)}>
+                        <BarChart data={teamData} layout="vertical" margin={{ left: -10, right: 56 }}>
                           <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                           <XAxis type="number" domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 10 }} />
                           <YAxis type="category" dataKey="team" tick={{ fontSize: 10 }} width={60} />
-                          <ReTooltip formatter={(v: any) => [`${v}%`, '이행률']} />
+                          <ReTooltip formatter={(v: any, _: any, props: any) => [`${v}% (${props.payload.count}건)`, '이행률']} />
                           <Bar dataKey="rate" radius={[0, 4, 4, 0]}>
                             {teamData.map((entry, i) => (
                               <Cell key={i} fill={entry.rate >= 90 ? '#22c55e' : entry.rate >= 70 ? '#f59e0b' : '#ef4444'} />
                             ))}
+                            <LabelList
+                              content={(props: any) => {
+                                const { x, y, width, height, value, index } = props;
+                                const count = teamData[index]?.count ?? 0;
+                                return (
+                                  <text x={x + width + 6} y={y + height / 2} dy={4} textAnchor="start" fontSize={10} fill="#64748b">
+                                    {value}% ({count}건)
+                                  </text>
+                                );
+                              }}
+                            />
                           </Bar>
                         </BarChart>
                       </ResponsiveContainer>
