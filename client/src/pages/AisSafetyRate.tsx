@@ -25,11 +25,10 @@ import {
   Upload, Trash2, AlertTriangle, CheckCircle2,
   Clock, XCircle, ShieldCheck, ShieldAlert, FileWarning,
   TrendingUp, Users, Loader2, Eye, ChevronUp, Layers,
-  CalendarDays, Calendar, ChevronLeft,
+  CalendarDays, Calendar, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import type { AisSafetyUpload, AisSafetyRecord } from "@shared/schema";
 
-// 6대 고위험작업 유형
 const HIGH_RISK_TYPES = ['고소', '전기', '중장비', '굴착', '밀폐', '화기'];
 
 function isHighRiskWork(val: string | null | undefined): boolean {
@@ -38,42 +37,26 @@ function isHighRiskWork(val: string | null | undefined): boolean {
 }
 
 function calcCompliance(records: AisSafetyRecord[]) {
-  if (!records.length) return { rate: 0, items: [], issues: [], highRiskNoPermit: [], tbmUnreg: [], tbmBad: [] };
-
+  if (!records.length) return { rate: 0, issues: [], highRiskNoPermit: [], tbmUnreg: [], tbmBad: [] };
   const highRiskNoPermit = records.filter(r => isHighRiskWork(r.highRiskWork) && r.safetyPermit !== 'Y');
   const tbmUnreg = records.filter(r => r.tbmResult === '미등록');
   const tbmBad = records.filter(r => r.tbmAiResult === '부적합');
-
   const allItems = [
     { label: '고위험작업 안전허가서 미등록', list: highRiskNoPermit },
     { label: 'TBM 활동 미등록', list: tbmUnreg },
     { label: 'TBM AI 부적합', list: tbmBad },
   ];
-
   let total = 0, pass = 0;
   const issues: { label: string; count: number; list: AisSafetyRecord[] }[] = [];
-
   for (const item of allItems) {
     total += records.length;
     pass += records.length - item.list.length;
     if (item.list.length > 0) issues.push({ ...item, count: item.list.length });
   }
-
-  return {
-    rate: total > 0 ? Math.round((pass / total) * 100) : 100,
-    highRiskNoPermit,
-    tbmUnreg,
-    tbmBad,
-    issues,
-  };
+  return { rate: total > 0 ? Math.round((pass / total) * 100) : 100, highRiskNoPermit, tbmUnreg, tbmBad, issues };
 }
 
-const RISK_COLORS: Record<string, string> = {
-  '상': '#ef4444',
-  '중': '#f59e0b',
-  '하': '#22c55e',
-  '없음': '#94a3b8',
-};
+const RISK_COLORS: Record<string, string> = { '상': '#ef4444', '중': '#f59e0b', '하': '#22c55e', '없음': '#94a3b8' };
 
 const HIGH_RISK_COLOR: Record<string, string> = {
   '고소': 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
@@ -122,13 +105,7 @@ function HighRiskBadge({ value }: { value: string | null }) {
 function getHighRiskBreakdown(records: AisSafetyRecord[]) {
   const types = HIGH_RISK_TYPES.map(type => {
     const matched = records.filter(r => r.highRiskWork && r.highRiskWork.includes(type));
-    return {
-      type,
-      total: matched.length,
-      permit: matched.filter(r => r.safetyPermit === 'Y').length,
-      noPermit: matched.filter(r => r.safetyPermit !== 'Y').length,
-      isNone: false,
-    };
+    return { type, total: matched.length, permit: matched.filter(r => r.safetyPermit === 'Y').length, noPermit: matched.filter(r => r.safetyPermit !== 'Y').length, isNone: false };
   });
   const noneCount = records.filter(r => !isHighRiskWork(r.highRiskWork)).length;
   types.push({ type: '해당없음', total: noneCount, permit: 0, noPermit: 0, isNone: true });
@@ -136,23 +113,53 @@ function getHighRiskBreakdown(records: AisSafetyRecord[]) {
 }
 
 function CircleGauge({ rate }: { rate: number }) {
-  const r = 56;
-  const circ = 2 * Math.PI * r;
-  const dash = (rate / 100) * circ;
+  const r = 56, circ = 2 * Math.PI * r, dash = (rate / 100) * circ;
   const color = rate >= 90 ? '#22c55e' : rate >= 70 ? '#f59e0b' : '#ef4444';
   return (
     <div className="relative w-36 h-36 mx-auto">
       <svg className="w-full h-full -rotate-90" viewBox="0 0 128 128">
         <circle cx="64" cy="64" r={r} fill="none" stroke="currentColor" strokeWidth="10" className="text-muted/20" />
-        <circle cx="64" cy="64" r={r} fill="none" stroke={color} strokeWidth="10"
-          strokeDasharray={`${dash} ${circ}`} strokeLinecap="round"
-          style={{ transition: 'stroke-dasharray 1s ease' }} />
+        <circle cx="64" cy="64" r={r} fill="none" stroke={color} strokeWidth="10" strokeDasharray={`${dash} ${circ}`} strokeLinecap="round" style={{ transition: 'stroke-dasharray 1s ease' }} />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span className="text-3xl font-black" style={{ color }}>{rate}</span>
         <span className="text-xs font-semibold text-muted-foreground">%</span>
       </div>
     </div>
+  );
+}
+
+// 팀별 현황 카드
+function TeamBreakdown({ records, title }: { records: AisSafetyRecord[]; title: string }) {
+  const teams = [...new Set(records.map(r => r.team).filter(Boolean))] as string[];
+  if (teams.length === 0) return null;
+  const teamStats = teams.map(team => {
+    const tr = records.filter(r => r.team === team);
+    const c = calcCompliance(tr);
+    return { team, count: tr.length, rate: c.rate, issues: c.issues.reduce((a, b) => a + b.count, 0) };
+  }).sort((a, b) => b.count - a.count);
+
+  return (
+    <Card className="border-0 shadow-sm bg-card/60">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-bold flex items-center gap-2">
+          <Users className="w-4 h-4 text-blue-500" />
+          {title} — 팀별 현황
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+          {teamStats.map(s => (
+            <div key={s.team} className="p-3 rounded-lg border bg-card/80">
+              <p className="text-xs font-semibold text-muted-foreground mb-1 truncate" title={s.team}>{s.team}</p>
+              <p className="text-xl font-black leading-none mb-1.5">{s.count}<span className="text-xs font-normal text-muted-foreground ml-0.5">건</span></p>
+              <RateBadge value={s.rate} />
+              {s.issues > 0 && <p className="text-xs text-red-600 font-semibold mt-1">이슈 {s.issues}건</p>}
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -170,6 +177,8 @@ export default function AisSafetyRate() {
   const [showDetail, setShowDetail] = useState(false);
   const [activeIssue, setActiveIssue] = useState<{ label: string; list: AisSafetyRecord[] } | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [pageSize, setPageSize] = useState(30);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const { data: uploads = [] } = useQuery<AisSafetyUpload[]>({
     queryKey: ['/api/ais-safety/uploads'],
@@ -186,7 +195,6 @@ export default function AisSafetyRate() {
     },
   });
 
-  // 일단위 그룹화 (startDate 기준)
   const dailyGroups = useMemo(() => {
     const groups: Record<string, AisSafetyRecord[]> = {};
     for (const r of allRecords) {
@@ -199,7 +207,6 @@ export default function AisSafetyRate() {
       .map(([date, recs]) => ({ date, records: recs, ...calcCompliance(recs) }));
   }, [allRecords]);
 
-  // 월단위 그룹화
   const monthlyGroups = useMemo(() => {
     const groups: Record<string, AisSafetyRecord[]> = {};
     for (const r of allRecords) {
@@ -212,15 +219,10 @@ export default function AisSafetyRate() {
       .map(([month, recs]) => ({ month, records: recs, ...calcCompliance(recs) }));
   }, [allRecords]);
 
-  // 표시할 레코드 (viewMode에 따라 필터링)
   const records = useMemo(() => {
     if (viewMode === 'cumulative') return allRecords;
-    if (viewMode === 'daily' && selectedDate) {
-      return allRecords.filter(r => r.startDate === selectedDate);
-    }
-    if (viewMode === 'monthly' && selectedMonth) {
-      return allRecords.filter(r => r.startDate?.startsWith(selectedMonth));
-    }
+    if (viewMode === 'daily' && selectedDate) return allRecords.filter(r => r.startDate === selectedDate);
+    if (viewMode === 'monthly' && selectedMonth) return allRecords.filter(r => r.startDate?.startsWith(selectedMonth));
     return [];
   }, [allRecords, viewMode, selectedDate, selectedMonth]);
 
@@ -281,86 +283,62 @@ export default function AisSafetyRate() {
       return (r.workOrderNo || '').toLowerCase().includes(q)
         || (r.workName || '').toLowerCase().includes(q)
         || (r.team || '').toLowerCase().includes(q)
-        || (r.vendorName || '').toLowerCase().includes(q);
+        || (r.vendorName || '').toLowerCase().includes(q)
+        || (r.workLocation || '').toLowerCase().includes(q);
     }
     return true;
   });
 
+  const totalPages = Math.ceil(filteredRecords.length / pageSize);
+  const safePage = Math.min(currentPage, Math.max(1, totalPages));
+  const pagedRecords = filteredRecords.slice((safePage - 1) * pageSize, safePage * pageSize);
+
+  // 필터 변경 시 첫 페이지로
+  const resetPage = () => setCurrentPage(1);
+
+  // TBM AI 분석결과 — 분석전/적합/부적합/분석중 순
   const tbmAiData = [
+    { name: '분석전', value: records.filter(r => !r.tbmAiResult || r.tbmAiResult === '분석전').length, color: '#94a3b8' },
     { name: '적합', value: records.filter(r => r.tbmAiResult === '적합').length, color: '#22c55e' },
     { name: '부적합', value: records.filter(r => r.tbmAiResult === '부적합').length, color: '#ef4444' },
     { name: '분석중', value: records.filter(r => r.tbmAiResult === '분석중').length, color: '#f59e0b' },
-    { name: '분석전', value: records.filter(r => r.tbmAiResult === '분석전' || !r.tbmAiResult).length, color: '#94a3b8' },
   ].filter(d => d.value > 0);
 
   const teamData = teams.map(team => {
     const tr = records.filter(r => r.team === team);
     const c = calcCompliance(tr);
-    return { team: team?.replace('운용팀', '').replace('팀', '') || '미지정', rate: c.rate, count: tr.length };
+    return { team: team?.replace('운용팀', '').replace('팀', '') || '미지정', fullTeam: team || '', rate: c.rate, count: tr.length };
   }).sort((a, b) => b.rate - a.rate);
 
   const complianceItems = [
-    {
-      label: '안전허가서 매칭',
-      icon: ShieldCheck,
-      total: highRiskRecords.length,
-      pass: highRiskRecords.filter(r => r.safetyPermit === 'Y').length,
-      description: '고위험작업 시 안전허가서 등록',
-      emptyLabel: '고위험작업 없음',
-    },
-    {
-      label: 'TBM 등록률',
-      icon: Users,
-      total: records.length,
-      pass: records.filter(r => r.tbmResult === '등록').length,
-      description: 'TBM 활동 등록 여부',
-      emptyLabel: '데이터 없음',
-    },
+    { label: '안전허가서 매칭', icon: ShieldCheck, total: highRiskRecords.length, pass: highRiskRecords.filter(r => r.safetyPermit === 'Y').length, description: '고위험작업 시 안전허가서 등록', emptyLabel: '고위험작업 없음' },
+    { label: 'TBM 등록률', icon: Users, total: records.length, pass: records.filter(r => r.tbmResult === '등록').length, description: 'TBM 활동 등록 여부', emptyLabel: '데이터 없음' },
   ];
 
-  // 일단위 추세 차트 데이터 (최근 14일)
-  const dailyTrendData = dailyGroups
-    .filter(g => g.date !== '날짜 미상')
-    .slice(0, 14)
-    .reverse()
-    .map(g => ({
-      date: g.date.replace(/^\d{4}-/, ''),
-      rate: g.rate,
-      count: g.records.length,
-      fullDate: g.date,
-    }));
+  const dailyTrendData = dailyGroups.filter(g => g.date !== '날짜 미상').slice(0, 14).reverse()
+    .map(g => ({ date: g.date.replace(/^\d{4}-/, ''), rate: g.rate, count: g.records.length, fullDate: g.date }));
 
-  // 월단위 추세 차트 데이터
-  const monthlyTrendData = monthlyGroups
-    .filter(g => g.month !== '월 미상')
-    .slice(0, 12)
-    .reverse()
-    .map(g => ({
-      month: g.month,
-      rate: g.rate,
-      count: g.records.length,
-    }));
+  const monthlyTrendData = monthlyGroups.filter(g => g.month !== '월 미상').slice(0, 12).reverse()
+    .map(g => ({ month: g.month, rate: g.rate, count: g.records.length }));
 
   const tabBtn = (mode: ViewMode, icon: any, label: string) => {
     const Icon = icon;
     const active = viewMode === mode;
     return (
-      <button
-        data-testid={`tab-${mode}`}
-        onClick={() => {
-          setViewMode(mode);
-          setSelectedDate(null);
-          setSelectedMonth(null);
-          setShowDetail(false);
-        }}
-        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${active
-          ? 'bg-blue-600 text-white shadow-sm'
-          : 'text-muted-foreground hover:bg-muted/60'}`}>
-        <Icon className="w-4 h-4" />
-        {label}
+      <button data-testid={`tab-${mode}`}
+        onClick={() => { setViewMode(mode); setSelectedDate(null); setSelectedMonth(null); setShowDetail(false); }}
+        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${active ? 'bg-blue-600 text-white shadow-sm' : 'text-muted-foreground hover:bg-muted/60'}`}>
+        <Icon className="w-4 h-4" />{label}
       </button>
     );
   };
+
+  // 드릴다운 헤더 라벨
+  const drilldownLabel = viewMode === 'daily' && selectedDate
+    ? selectedDate
+    : viewMode === 'monthly' && selectedMonth
+      ? selectedMonth
+      : null;
 
   return (
     <div className="space-y-6 pb-10">
@@ -378,10 +356,8 @@ export default function AisSafetyRate() {
             </Button>
           )}
           <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={handleUpload} data-testid="input-csv" />
-          <Button onClick={() => fileInputRef.current?.click()} disabled={uploading} data-testid="button-upload-csv"
-            className="bg-blue-600 hover:bg-blue-700 text-white">
-            {uploading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />업로드 중...</>
-              : <><Upload className="w-4 h-4 mr-2" />CSV 업로드</>}
+          <Button onClick={() => fileInputRef.current?.click()} disabled={uploading} data-testid="button-upload-csv" className="bg-blue-600 hover:bg-blue-700 text-white">
+            {uploading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />업로드 중...</> : <><Upload className="w-4 h-4 mr-2" />CSV 업로드</>}
           </Button>
         </div>
       </div>
@@ -395,7 +371,6 @@ export default function AisSafetyRate() {
           <div>
             <h3 className="font-bold text-lg">AIS CSV 파일을 업로드하세요</h3>
             <p className="text-sm text-muted-foreground mt-1">공사작업 현황 CSV 파일을 업로드하면 안전이행률을 자동 분석합니다</p>
-            <p className="text-xs text-muted-foreground mt-1">6대 고위험작업(고소·전기·중장비·굴착·밀폐·화기) 안전허가서 매칭 자동 분석</p>
           </div>
           <Button onClick={() => fileInputRef.current?.click()} className="bg-blue-600 hover:bg-blue-700 text-white" data-testid="button-upload-empty">
             <Upload className="w-4 h-4 mr-2" />CSV 파일 선택
@@ -403,18 +378,17 @@ export default function AisSafetyRate() {
         </div>
       )}
 
-      {/* Tab selector + Upload management */}
+      {/* Tab selector */}
       {uploads.length > 0 && (
         <Card className="border-0 shadow-sm bg-card/60 backdrop-blur-sm">
           <CardContent className="pt-4 pb-4">
-            {/* Tab bar */}
             <div className="flex items-center gap-1 bg-muted/40 p-1 rounded-xl mb-4 w-fit">
               {tabBtn('cumulative', Layers, '전체 누적')}
               {tabBtn('daily', CalendarDays, '일단위 관리')}
               {tabBtn('monthly', Calendar, '월단위 관리')}
             </div>
 
-            {/* 전체 누적 탭: 업로드 파일 목록 */}
+            {/* 전체 누적: 업로드 파일 목록 */}
             {viewMode === 'cumulative' && (
               <div className="flex flex-col gap-3">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -424,19 +398,16 @@ export default function AisSafetyRate() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                   {uploads.map(u => (
                     <div key={u.id} className="flex items-stretch gap-1">
-                      <div className="flex-1 text-left px-3 py-2.5 rounded-lg border border-border bg-muted/20 text-sm">
+                      <div className="flex-1 px-3 py-2.5 rounded-lg border border-border bg-muted/20 text-sm">
                         <div className="font-medium truncate text-xs">{u.fileName}</div>
                         <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5">
-                          <span>{u.workDate || '날짜 미상'}</span>
-                          <span>·</span>
+                          <span>{u.workDate || '날짜 미상'}</span><span>·</span>
                           <span className="font-semibold">{u.recordCount}건</span>
                         </div>
                       </div>
-                      <button
-                        onClick={() => deleteMutation.mutate(u.id)}
+                      <button onClick={() => deleteMutation.mutate(u.id)}
                         className="px-2 rounded-lg border border-border hover:border-red-300 hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-500 text-muted-foreground transition-colors flex-shrink-0"
-                        data-testid={`button-delete-upload-${u.id}`}
-                        title="삭제">
+                        data-testid={`button-delete-upload-${u.id}`} title="삭제">
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
@@ -445,13 +416,12 @@ export default function AisSafetyRate() {
               </div>
             )}
 
-            {/* 일단위 탭: 날짜별 카드 */}
+            {/* 일단위 관리 */}
             {viewMode === 'daily' && (
               <div className="space-y-4">
                 {selectedDate ? (
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => setSelectedDate(null)}
-                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button onClick={() => setSelectedDate(null)} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
                       <ChevronLeft className="w-3.5 h-3.5" />날짜 목록으로
                     </button>
                     <span className="text-xs text-muted-foreground">·</span>
@@ -461,7 +431,6 @@ export default function AisSafetyRate() {
                   </div>
                 ) : (
                   <>
-                    {/* 일별 추세 차트 */}
                     {dailyTrendData.length > 1 && (
                       <div>
                         <p className="text-xs font-semibold text-muted-foreground mb-2">일별 이행률 추세 (최근 {dailyTrendData.length}일)</p>
@@ -480,19 +449,15 @@ export default function AisSafetyRate() {
                         </ResponsiveContainer>
                       </div>
                     )}
-                    {/* 날짜 카드 목록 */}
-                    <p className="text-xs font-semibold text-muted-foreground">날짜를 선택하면 해당 일의 대시보드를 확인합니다</p>
+                    <p className="text-xs font-semibold text-muted-foreground">날짜를 선택하면 해당 일의 상세 현황을 확인합니다</p>
                     {recordsLoading ? (
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
-                        <Loader2 className="w-4 h-4 animate-spin" />데이터 불러오는 중...
-                      </div>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground py-4"><Loader2 className="w-4 h-4 animate-spin" />데이터 불러오는 중...</div>
                     ) : dailyGroups.length === 0 ? (
                       <p className="text-sm text-muted-foreground">날짜별 데이터가 없습니다</p>
                     ) : (
                       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
                         {dailyGroups.map(g => (
-                          <button key={g.date} data-testid={`card-date-${g.date}`}
-                            onClick={() => setSelectedDate(g.date)}
+                          <button key={g.date} data-testid={`card-date-${g.date}`} onClick={() => setSelectedDate(g.date)}
                             className="text-left p-3 rounded-lg border border-border hover:border-blue-300 hover:bg-blue-50/50 dark:hover:border-blue-700 dark:hover:bg-blue-950/20 transition-all">
                             <p className="text-xs font-semibold text-muted-foreground mb-1 truncate">{g.date}</p>
                             <p className="text-lg font-black leading-none mb-1.5">{g.records.length}<span className="text-xs font-normal text-muted-foreground ml-0.5">건</span></p>
@@ -506,13 +471,12 @@ export default function AisSafetyRate() {
               </div>
             )}
 
-            {/* 월단위 탭: 월별 카드 */}
+            {/* 월단위 관리 */}
             {viewMode === 'monthly' && (
               <div className="space-y-4">
                 {selectedMonth ? (
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => setSelectedMonth(null)}
-                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button onClick={() => setSelectedMonth(null)} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
                       <ChevronLeft className="w-3.5 h-3.5" />월 목록으로
                     </button>
                     <span className="text-xs text-muted-foreground">·</span>
@@ -522,7 +486,6 @@ export default function AisSafetyRate() {
                   </div>
                 ) : (
                   <>
-                    {/* 월별 추세 차트 */}
                     {monthlyTrendData.length > 1 && (
                       <div>
                         <p className="text-xs font-semibold text-muted-foreground mb-2">월별 이행률 추세</p>
@@ -541,19 +504,15 @@ export default function AisSafetyRate() {
                         </ResponsiveContainer>
                       </div>
                     )}
-                    {/* 월 카드 목록 */}
-                    <p className="text-xs font-semibold text-muted-foreground">월을 선택하면 해당 월의 대시보드를 확인합니다</p>
+                    <p className="text-xs font-semibold text-muted-foreground">월을 선택하면 해당 월의 상세 현황을 확인합니다</p>
                     {recordsLoading ? (
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
-                        <Loader2 className="w-4 h-4 animate-spin" />데이터 불러오는 중...
-                      </div>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground py-4"><Loader2 className="w-4 h-4 animate-spin" />데이터 불러오는 중...</div>
                     ) : monthlyGroups.length === 0 ? (
                       <p className="text-sm text-muted-foreground">월별 데이터가 없습니다</p>
                     ) : (
                       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
                         {monthlyGroups.map(g => (
-                          <button key={g.month} data-testid={`card-month-${g.month}`}
-                            onClick={() => setSelectedMonth(g.month)}
+                          <button key={g.month} data-testid={`card-month-${g.month}`} onClick={() => setSelectedMonth(g.month)}
                             className="text-left p-3 rounded-lg border border-border hover:border-blue-300 hover:bg-blue-50/50 dark:hover:border-blue-700 dark:hover:bg-blue-950/20 transition-all">
                             <p className="text-xs font-semibold text-muted-foreground mb-1">{g.month}</p>
                             <p className="text-lg font-black leading-none mb-1.5">{g.records.length}<span className="text-xs font-normal text-muted-foreground ml-0.5">건</span></p>
@@ -586,14 +545,17 @@ export default function AisSafetyRate() {
             </div>
           ) : (
             <>
+              {/* 일단위/월단위 드릴다운 시 팀별 현황 먼저 표시 */}
+              {drilldownLabel && (
+                <TeamBreakdown records={records} title={drilldownLabel} />
+              )}
+
               {/* Top KPI Row */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-600 to-blue-700 text-white col-span-2 lg:col-span-1">
                   <CardContent className="p-5">
                     <p className="text-xs font-semibold text-blue-100 uppercase tracking-widest">전체 이행률</p>
-                    <div className="mt-3">
-                      <CircleGauge rate={comp.rate} />
-                    </div>
+                    <div className="mt-3"><CircleGauge rate={comp.rate} /></div>
                     <p className="text-center text-xs text-blue-100 mt-2">{records.length}건 분석</p>
                   </CardContent>
                 </Card>
@@ -606,9 +568,7 @@ export default function AisSafetyRate() {
                       <span className="text-sm font-semibold text-muted-foreground">6대 고위험작업</span>
                     </div>
                     <p className="text-3xl font-black">{highRiskRecords.length}</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      안전허가서 등록 <span className="font-bold text-emerald-600">{highRiskRecords.filter(r => r.safetyPermit === 'Y').length}건</span>
-                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">안전허가서 등록 <span className="font-bold text-emerald-600">{highRiskRecords.filter(r => r.safetyPermit === 'Y').length}건</span></p>
                     {comp.highRiskNoPermit && comp.highRiskNoPermit.length > 0 && (
                       <p className="text-xs mt-0.5 text-red-600 font-semibold">⚠ 미매칭 {comp.highRiskNoPermit.length}건</p>
                     )}
@@ -623,9 +583,7 @@ export default function AisSafetyRate() {
                       <span className="text-sm font-semibold text-muted-foreground">TBM AI 현황</span>
                     </div>
                     <p className="text-3xl font-black">{records.filter(r => r.tbmAiResult === '적합').length}</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      적합 / 전체 {records.length}건
-                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">적합 / 전체 {records.length}건</p>
                     {records.filter(r => r.tbmAiResult === '부적합').length > 0 && (
                       <p className="text-xs mt-0.5 text-red-600 font-semibold">⚠ 부적합 {records.filter(r => r.tbmAiResult === '부적합').length}건</p>
                     )}
@@ -640,14 +598,12 @@ export default function AisSafetyRate() {
                       <span className="text-sm font-semibold text-muted-foreground">누락/미이행</span>
                     </div>
                     <p className="text-3xl font-black">{(comp.issues || []).reduce((a, b) => a + b.count, 0)}</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {(comp.issues || []).length}개 항목 이슈
-                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">{(comp.issues || []).length}개 항목 이슈</p>
                   </CardContent>
                 </Card>
               </div>
 
-              {/* Compliance items bar */}
+              {/* Compliance items */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {complianceItems.map(item => {
                   const rate = item.total === 0 ? 100 : Math.round((item.pass / item.total) * 100);
@@ -655,21 +611,15 @@ export default function AisSafetyRate() {
                   return (
                     <Card key={item.label} className="border-0 shadow-sm bg-card/60">
                       <CardContent className="p-4">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Icon className="w-4 h-4 text-muted-foreground" />
-                          <span className="text-xs font-semibold text-muted-foreground">{item.label}</span>
-                        </div>
-                        {item.total === 0 ? (
-                          <p className="text-sm text-muted-foreground">{item.emptyLabel}</p>
-                        ) : (
+                        <div className="flex items-center gap-2 mb-2"><Icon className="w-4 h-4 text-muted-foreground" /><span className="text-xs font-semibold text-muted-foreground">{item.label}</span></div>
+                        {item.total === 0 ? <p className="text-sm text-muted-foreground">{item.emptyLabel}</p> : (
                           <>
                             <div className="flex items-end justify-between mb-1.5">
                               <span className="text-lg font-black">{item.pass}<span className="text-sm font-normal text-muted-foreground">/{item.total}</span></span>
                               <RateBadge value={rate} />
                             </div>
                             <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
-                              <div className="h-full rounded-full transition-all duration-700"
-                                style={{ width: `${rate}%`, backgroundColor: rate >= 90 ? '#22c55e' : rate >= 70 ? '#f59e0b' : '#ef4444' }} />
+                              <div className="h-full rounded-full transition-all duration-700" style={{ width: `${rate}%`, backgroundColor: rate >= 90 ? '#22c55e' : rate >= 70 ? '#f59e0b' : '#ef4444' }} />
                             </div>
                             <p className="text-xs text-muted-foreground mt-1.5">{item.description}</p>
                           </>
@@ -680,27 +630,22 @@ export default function AisSafetyRate() {
                 })}
               </div>
 
-              {/* 6대 고위험작업 유형별 현황 */}
+              {/* 6대 고위험작업 유형별 */}
               {records.length > 0 && (
                 <Card className="border-0 shadow-sm bg-card/60">
                   <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-bold flex items-center gap-2">
-                      <ShieldAlert className="w-4 h-4 text-orange-500" />
-                      고위험작업 유형별 현황
-                    </CardTitle>
+                    <CardTitle className="text-sm font-bold flex items-center gap-2"><ShieldAlert className="w-4 h-4 text-orange-500" />고위험작업 유형별 현황</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-3">
                       {highRiskBreakdown.map(d => {
-                        if (d.isNone) {
-                          return (
-                            <div key="해당없음" className="p-3 rounded-lg border border-dashed border-muted bg-muted/20 text-center col-span-1">
-                              <p className="text-xs font-semibold text-muted-foreground mb-1">해당없음</p>
-                              <p className="text-2xl font-black text-muted-foreground">{d.total}</p>
-                              <p className="text-xs text-muted-foreground mt-1">일반작업</p>
-                            </div>
-                          );
-                        }
+                        if (d.isNone) return (
+                          <div key="해당없음" className="p-3 rounded-lg border border-dashed border-muted bg-muted/20 text-center">
+                            <p className="text-xs font-semibold text-muted-foreground mb-1">해당없음</p>
+                            <p className="text-2xl font-black text-muted-foreground">{d.total}</p>
+                            <p className="text-xs text-muted-foreground mt-1">일반작업</p>
+                          </div>
+                        );
                         const rate = d.total === 0 ? 100 : Math.round((d.permit / d.total) * 100);
                         return (
                           <div key={d.type} className={`p-3 rounded-lg border bg-card/80 text-center ${d.total === 0 ? 'border-dashed border-muted opacity-50' : ''}`}>
@@ -708,16 +653,10 @@ export default function AisSafetyRate() {
                             <p className={`text-2xl font-black ${d.total === 0 ? 'text-muted-foreground' : ''}`}>{d.total}</p>
                             {d.total > 0 ? (
                               <>
-                                <div className="flex items-center justify-center gap-1 mt-1">
-                                  <RateBadge value={rate} />
-                                </div>
-                                {d.noPermit > 0 && (
-                                  <p className="text-xs text-red-600 font-semibold mt-1">미발급 {d.noPermit}</p>
-                                )}
+                                <div className="flex items-center justify-center gap-1 mt-1"><RateBadge value={rate} /></div>
+                                {d.noPermit > 0 && <p className="text-xs text-red-600 font-semibold mt-1">미발급 {d.noPermit}</p>}
                               </>
-                            ) : (
-                              <p className="text-xs text-muted-foreground mt-1">해당없음</p>
-                            )}
+                            ) : <p className="text-xs text-muted-foreground mt-1">해당없음</p>}
                           </div>
                         );
                       })}
@@ -728,35 +667,36 @@ export default function AisSafetyRate() {
 
               {/* Charts row */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {/* TBM AI Pie */}
                 <Card className="border-0 shadow-sm bg-card/60">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm font-bold">TBM AI 분석결과</CardTitle>
                   </CardHeader>
                   <CardContent>
                     {tbmAiData.length > 0 ? (
-                      <ResponsiveContainer width="100%" height={180}>
-                        <PieChart>
-                          <Pie data={tbmAiData} cx="50%" cy="50%" innerRadius={45} outerRadius={70}
-                            dataKey="value" label={({ name, value }) => `${name} ${value}`} labelLine={false}>
-                            {tbmAiData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                          </Pie>
-                          <ReTooltip />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    ) : <p className="text-center text-sm text-muted-foreground py-12">데이터 없음</p>}
-                    <div className="flex flex-wrap gap-2 justify-center">
-                      {tbmAiData.map(d => (
-                        <div key={d.name} className="flex items-center gap-1">
-                          <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: d.color }} />
-                          <span className="text-xs text-muted-foreground">{d.name} {d.value}</span>
+                      <>
+                        <ResponsiveContainer width="100%" height={180}>
+                          <PieChart>
+                            <Pie data={tbmAiData} cx="50%" cy="50%" innerRadius={45} outerRadius={70}
+                              dataKey="value" label={({ name, value }) => `${name} ${value}`} labelLine={false}>
+                              {tbmAiData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                            </Pie>
+                            <ReTooltip />
+                          </PieChart>
+                        </ResponsiveContainer>
+                        <div className="flex flex-wrap gap-3 justify-center mt-1">
+                          {tbmAiData.map(d => (
+                            <div key={d.name} className="flex items-center gap-1.5">
+                              <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: d.color }} />
+                              <span className="text-xs text-muted-foreground">{d.name}</span>
+                              <span className="text-xs font-bold">{d.value}건</span>
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
+                      </>
+                    ) : <p className="text-center text-sm text-muted-foreground py-12">데이터 없음</p>}
                   </CardContent>
                 </Card>
 
-                {/* Team bar chart */}
                 <Card className="border-0 shadow-sm bg-card/60">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm font-bold">팀별 이행률</CardTitle>
@@ -764,26 +704,28 @@ export default function AisSafetyRate() {
                   <CardContent>
                     {teamData.length > 0 ? (
                       <ResponsiveContainer width="100%" height={Math.max(180, teamData.length * 32)}>
-                        <BarChart data={teamData} layout="vertical" margin={{ left: -10, right: 56 }}>
+                        <BarChart data={teamData} layout="vertical" margin={{ left: -10, right: 60 }}>
                           <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                           <XAxis type="number" domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 10 }} />
-                          <YAxis type="category" dataKey="team" tick={{ fontSize: 10 }} width={60} />
-                          <ReTooltip formatter={(v: any, _: any, props: any) => [`${v}% (${props.payload.count}건)`, '이행률']} />
+                          <YAxis type="category" dataKey="team" tick={{ fontSize: 10 }} width={64} />
+                          <ReTooltip formatter={(v: any, _: any, props: any) => [`${v}% (${props.payload.count}건)`, '이행률']}
+                            labelFormatter={(label) => {
+                              const found = teamData.find(t => t.team === label);
+                              return found?.fullTeam || label;
+                            }} />
                           <Bar dataKey="rate" radius={[0, 4, 4, 0]}>
                             {teamData.map((entry, i) => (
                               <Cell key={i} fill={entry.rate >= 90 ? '#22c55e' : entry.rate >= 70 ? '#f59e0b' : '#ef4444'} />
                             ))}
-                            <LabelList
-                              content={(props: any) => {
-                                const { x, y, width, height, value, index } = props;
-                                const count = teamData[index]?.count ?? 0;
-                                return (
-                                  <text x={x + width + 6} y={y + height / 2} dy={4} textAnchor="start" fontSize={10} fill="#64748b">
-                                    {value}% ({count}건)
-                                  </text>
-                                );
-                              }}
-                            />
+                            <LabelList content={(props: any) => {
+                              const { x, y, width, height, value, index } = props;
+                              const count = teamData[index]?.count ?? 0;
+                              return (
+                                <text x={x + width + 6} y={y + height / 2} dy={4} textAnchor="start" fontSize={10} fill="#64748b">
+                                  {value}% ({count}건)
+                                </text>
+                              );
+                            }} />
                           </Bar>
                         </BarChart>
                       </ResponsiveContainer>
@@ -796,10 +738,7 @@ export default function AisSafetyRate() {
               {(comp.issues || []).length > 0 && (
                 <Card className="border-0 shadow-sm bg-card/60">
                   <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-bold flex items-center gap-2">
-                      <AlertTriangle className="w-4 h-4 text-red-500" />
-                      이슈 현황
-                    </CardTitle>
+                    <CardTitle className="text-sm font-bold flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-red-500" />이슈 현황</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
@@ -819,7 +758,7 @@ export default function AisSafetyRate() {
                 </Card>
               )}
 
-              {/* High risk permit matching table */}
+              {/* High risk table */}
               {highRiskRecords.length > 0 && (
                 <Card className="border-0 shadow-sm bg-card/60">
                   <CardHeader className="pb-3">
@@ -845,25 +784,18 @@ export default function AisSafetyRate() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {highRiskRecords.map((r, i) => {
-                            const isIssue = r.safetyPermit !== 'Y';
-                            return (
-                              <TableRow key={r.id} className={isIssue ? 'bg-red-50/30 dark:bg-red-950/10' : ''}>
-                                <TableCell className="text-xs text-muted-foreground">{i + 1}</TableCell>
-                                <TableCell className="text-xs font-mono">{r.workOrderNo}</TableCell>
-                                <TableCell className="text-xs max-w-[200px] truncate">{r.workName}</TableCell>
-                                <TableCell className="text-xs">{r.team}</TableCell>
-                                <TableCell><HighRiskBadge value={r.highRiskWork} /></TableCell>
-                                <TableCell><PermitBadge value={r.safetyPermit} highRisk={r.highRiskWork} /></TableCell>
-                                <TableCell>
-                                  <span className="text-xs font-semibold" style={{ color: RISK_COLORS[r.riskLevel || ''] || '#94a3b8' }}>
-                                    {r.riskLevel || '-'}
-                                  </span>
-                                </TableCell>
-                                <TableCell><StatusBadge value={r.tbmAiResult} /></TableCell>
-                              </TableRow>
-                            );
-                          })}
+                          {highRiskRecords.map((r, i) => (
+                            <TableRow key={r.id} className={r.safetyPermit !== 'Y' ? 'bg-red-50/30 dark:bg-red-950/10' : ''}>
+                              <TableCell className="text-xs text-muted-foreground">{i + 1}</TableCell>
+                              <TableCell className="text-xs font-mono whitespace-nowrap">{r.workOrderNo || '-'}</TableCell>
+                              <TableCell className="text-xs">{r.workName || '-'}</TableCell>
+                              <TableCell className="text-xs whitespace-nowrap">{r.team || '-'}</TableCell>
+                              <TableCell><HighRiskBadge value={r.highRiskWork} /></TableCell>
+                              <TableCell><PermitBadge value={r.safetyPermit} highRisk={r.highRiskWork} /></TableCell>
+                              <TableCell><span className="text-xs font-semibold" style={{ color: RISK_COLORS[r.riskLevel || ''] || '#94a3b8' }}>{r.riskLevel || '-'}</span></TableCell>
+                              <TableCell><StatusBadge value={r.tbmAiResult} /></TableCell>
+                            </TableRow>
+                          ))}
                         </TableBody>
                       </Table>
                     </div>
@@ -875,28 +807,44 @@ export default function AisSafetyRate() {
         </>
       )}
 
-      {/* Detail Table */}
+      {/* Detail Table — 전체 데이터 */}
       {showDashboard && showDetail && (
         <Card className="border-0 shadow-sm bg-card/60">
           <CardHeader className="pb-3">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-              <CardTitle className="text-sm font-bold flex-1">전체 데이터 ({filteredRecords.length}건)</CardTitle>
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                <CardTitle className="text-sm font-bold flex-1">
+                  전체 데이터
+                  <span className="ml-2 font-normal text-muted-foreground text-xs">
+                    {filteredRecords.length}건 중 {Math.min((safePage - 1) * pageSize + 1, filteredRecords.length)}–{Math.min(safePage * pageSize, filteredRecords.length)}건 표시
+                  </span>
+                </CardTitle>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Select value={String(pageSize)} onValueChange={v => { setPageSize(Number(v)); resetPage(); }}>
+                    <SelectTrigger className="h-8 text-xs w-28" data-testid="select-page-size">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="30">30개씩</SelectItem>
+                      <SelectItem value="50">50개씩</SelectItem>
+                      <SelectItem value="100">100개씩</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              {/* 검색/필터 */}
               <div className="flex flex-wrap gap-2">
-                <Input placeholder="작업번호/작업명/팀 검색..." value={search} onChange={e => setSearch(e.target.value)}
-                  className="h-8 text-xs w-48" data-testid="input-search" />
-                <Select value={filterTeam} onValueChange={setFilterTeam}>
-                  <SelectTrigger className="h-8 text-xs w-36" data-testid="select-filter-team">
-                    <SelectValue placeholder="팀 전체" />
-                  </SelectTrigger>
+                <Input placeholder="작업번호·작업명·팀·장소 검색..." value={search} onChange={e => { setSearch(e.target.value); resetPage(); }}
+                  className="h-8 text-xs w-56" data-testid="input-search" />
+                <Select value={filterTeam} onValueChange={v => { setFilterTeam(v); resetPage(); }}>
+                  <SelectTrigger className="h-8 text-xs w-40" data-testid="select-filter-team"><SelectValue placeholder="팀 전체" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">팀 전체</SelectItem>
                     {teams.map(t => <SelectItem key={t!} value={t!}>{t}</SelectItem>)}
                   </SelectContent>
                 </Select>
-                <Select value={filterIssue} onValueChange={setFilterIssue}>
-                  <SelectTrigger className="h-8 text-xs w-44" data-testid="select-filter-issue">
-                    <SelectValue placeholder="이슈 필터" />
-                  </SelectTrigger>
+                <Select value={filterIssue} onValueChange={v => { setFilterIssue(v); resetPage(); }}>
+                  <SelectTrigger className="h-8 text-xs w-44" data-testid="select-filter-issue"><SelectValue placeholder="이슈 필터" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">전체</SelectItem>
                     <SelectItem value="highRisk">6대 고위험작업만</SelectItem>
@@ -909,56 +857,101 @@ export default function AisSafetyRate() {
             </div>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="overflow-x-auto rounded-b-xl">
+            <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/30">
-                    <TableHead className="text-xs font-bold w-8">#</TableHead>
-                    <TableHead className="text-xs font-bold">작업번호</TableHead>
-                    <TableHead className="text-xs font-bold">작업명</TableHead>
-                    <TableHead className="text-xs font-bold">팀</TableHead>
-                    <TableHead className="text-xs font-bold">고위험유형</TableHead>
-                    <TableHead className="text-xs font-bold">안전허가서</TableHead>
-                    <TableHead className="text-xs font-bold">TBM</TableHead>
-                    <TableHead className="text-xs font-bold">TBM AI</TableHead>
-                    <TableHead className="text-xs font-bold">위험도</TableHead>
-                    <TableHead className="text-xs font-bold">시작일</TableHead>
-                    <TableHead className="text-xs font-bold">공사유형</TableHead>
+                    <TableHead className="text-xs font-bold w-8 sticky left-0 bg-muted/30">#</TableHead>
+                    <TableHead className="text-xs font-bold min-w-[140px]">작업번호</TableHead>
+                    <TableHead className="text-xs font-bold min-w-[200px]">작업명</TableHead>
+                    <TableHead className="text-xs font-bold min-w-[80px]">공사유형</TableHead>
+                    <TableHead className="text-xs font-bold min-w-[100px]">팀명</TableHead>
+                    <TableHead className="text-xs font-bold min-w-[90px]">협력사</TableHead>
+                    <TableHead className="text-xs font-bold min-w-[80px]">고위험작업</TableHead>
+                    <TableHead className="text-xs font-bold min-w-[80px]">안전허가서</TableHead>
+                    <TableHead className="text-xs font-bold min-w-[60px]">위험도</TableHead>
+                    <TableHead className="text-xs font-bold min-w-[60px]">TBM</TableHead>
+                    <TableHead className="text-xs font-bold min-w-[80px]">TBM AI</TableHead>
+                    <TableHead className="text-xs font-bold min-w-[80px]">작업상태</TableHead>
+                    <TableHead className="text-xs font-bold min-w-[90px]">시작일</TableHead>
+                    <TableHead className="text-xs font-bold min-w-[90px]">종료일</TableHead>
+                    <TableHead className="text-xs font-bold min-w-[60px]">주/야간</TableHead>
+                    <TableHead className="text-xs font-bold min-w-[120px]">작업장소</TableHead>
+                    <TableHead className="text-xs font-bold min-w-[80px]">책임자</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredRecords.map((r, i) => (
+                  {pagedRecords.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={17} className="py-12 text-center text-sm text-muted-foreground">조건에 맞는 데이터가 없습니다</TableCell>
+                    </TableRow>
+                  ) : pagedRecords.map((r, i) => (
                     <TableRow key={r.id} data-testid={`row-record-${r.id}`}
                       className={isHighRiskWork(r.highRiskWork) && r.safetyPermit !== 'Y' ? 'bg-red-50/20 dark:bg-red-950/10' : ''}>
-                      <TableCell className="text-xs text-muted-foreground">{i + 1}</TableCell>
-                      <TableCell className="text-xs font-mono whitespace-nowrap">{r.workOrderNo}</TableCell>
-                      <TableCell className="text-xs max-w-[180px] truncate" title={r.workName || ''}>{r.workName}</TableCell>
-                      <TableCell className="text-xs whitespace-nowrap">{r.team}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground sticky left-0 bg-background">{(safePage - 1) * pageSize + i + 1}</TableCell>
+                      <TableCell className="text-xs font-mono whitespace-nowrap">{r.workOrderNo || '-'}</TableCell>
+                      <TableCell className="text-xs min-w-[200px]">
+                        <span title={r.workName || ''}>{r.workName || '-'}</span>
+                      </TableCell>
+                      <TableCell className="text-xs whitespace-nowrap">
+                        {r.workType ? (
+                          <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${r.workType.includes('직영') ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' : 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300'}`}>
+                            {r.workType}
+                          </span>
+                        ) : '-'}
+                      </TableCell>
+                      <TableCell className="text-xs whitespace-nowrap">{r.team || '-'}</TableCell>
+                      <TableCell className="text-xs whitespace-nowrap">{r.vendorName || '-'}</TableCell>
                       <TableCell><HighRiskBadge value={r.highRiskWork} /></TableCell>
                       <TableCell><PermitBadge value={r.safetyPermit} highRisk={r.highRiskWork} /></TableCell>
+                      <TableCell>
+                        <span className="text-xs font-semibold" style={{ color: RISK_COLORS[r.riskLevel || ''] || '#94a3b8' }}>{r.riskLevel || '-'}</span>
+                      </TableCell>
                       <TableCell><RegBadge value={r.tbmResult} /></TableCell>
                       <TableCell><StatusBadge value={r.tbmAiResult} /></TableCell>
-                      <TableCell>
-                        <span className="text-xs font-semibold" style={{ color: RISK_COLORS[r.riskLevel || ''] || '#94a3b8' }}>
-                          {r.riskLevel || '-'}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-xs whitespace-nowrap">{r.startDate}</TableCell>
-                      <TableCell className="text-xs">
-                        <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${r.workType === '직영공사' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' : 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300'}`}>
-                          {r.workType || '-'}
-                        </span>
-                      </TableCell>
+                      <TableCell className="text-xs whitespace-nowrap">{r.workStatus || '-'}</TableCell>
+                      <TableCell className="text-xs whitespace-nowrap">{r.startDate || '-'}</TableCell>
+                      <TableCell className="text-xs whitespace-nowrap">{r.endDate || '-'}</TableCell>
+                      <TableCell className="text-xs whitespace-nowrap">{r.dayNight || '-'}</TableCell>
+                      <TableCell className="text-xs">{r.workLocation || '-'}</TableCell>
+                      <TableCell className="text-xs whitespace-nowrap">{r.supervisor || '-'}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
-              {filteredRecords.length === 0 && (
-                <div className="py-12 text-center text-sm text-muted-foreground">
-                  조건에 맞는 데이터가 없습니다
-                </div>
-              )}
             </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between px-4 py-3 border-t">
+                <span className="text-xs text-muted-foreground">
+                  {filteredRecords.length}건 중 {(safePage - 1) * pageSize + 1}–{Math.min(safePage * pageSize, filteredRecords.length)}건
+                </span>
+                <div className="flex items-center gap-1">
+                  <Button variant="outline" size="icon" className="h-7 w-7"
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={safePage === 1}>
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                  </Button>
+                  {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+                    const page = totalPages <= 7 ? i + 1
+                      : safePage <= 4 ? i + 1
+                        : safePage >= totalPages - 3 ? totalPages - 6 + i
+                          : safePage - 3 + i;
+                    return (
+                      <Button key={page} variant={page === safePage ? 'default' : 'outline'} size="icon"
+                        className="h-7 w-7 text-xs" onClick={() => setCurrentPage(page)}>
+                        {page}
+                      </Button>
+                    );
+                  })}
+                  <Button variant="outline" size="icon" className="h-7 w-7"
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+                <span className="text-xs text-muted-foreground">{safePage} / {totalPages} 페이지</span>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
@@ -981,16 +974,18 @@ export default function AisSafetyRate() {
                   <TableHead className="text-xs">팀</TableHead>
                   <TableHead className="text-xs">고위험유형</TableHead>
                   <TableHead className="text-xs">안전허가서</TableHead>
+                  <TableHead className="text-xs">TBM AI</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {activeIssue?.list.map(r => (
                   <TableRow key={r.id}>
-                    <TableCell className="text-xs font-mono">{r.workOrderNo}</TableCell>
-                    <TableCell className="text-xs max-w-[160px] truncate">{r.workName}</TableCell>
-                    <TableCell className="text-xs">{r.team}</TableCell>
+                    <TableCell className="text-xs font-mono">{r.workOrderNo || '-'}</TableCell>
+                    <TableCell className="text-xs">{r.workName || '-'}</TableCell>
+                    <TableCell className="text-xs whitespace-nowrap">{r.team || '-'}</TableCell>
                     <TableCell><HighRiskBadge value={r.highRiskWork} /></TableCell>
                     <TableCell><PermitBadge value={r.safetyPermit} highRisk={r.highRiskWork} /></TableCell>
+                    <TableCell><StatusBadge value={r.tbmAiResult} /></TableCell>
                   </TableRow>
                 ))}
               </TableBody>
