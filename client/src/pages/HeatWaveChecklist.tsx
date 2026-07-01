@@ -29,7 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Plus, Trash2, Eye, Thermometer, Sun, Mail, Loader2, PenLine, RotateCcw } from "lucide-react";
+import { Plus, Trash2, Eye, Thermometer, Sun, Mail, Loader2, PenLine, RotateCcw, FileDown, FileText } from "lucide-react";
 import type { HeatWaveChecklist } from "@shared/schema";
 import { format } from "date-fns";
 
@@ -292,6 +292,149 @@ function SignaturePad({
         >
           <PenLine className="w-3 h-3 mr-1" />서명 완료
         </Button>
+      </div>
+    </div>
+  );
+}
+
+
+function ChecklistPDFView({ record, pdfRef }: { record: HeatWaveChecklist; pdfRef: React.RefObject<HTMLDivElement | null> }) {
+  const checks31 = (record.checks31 as boolean[]) ?? [];
+  const checks33 = (record.checks33 as boolean[]) ?? [];
+  const checks35 = (record.checks35 as boolean[]) ?? [];
+  const checks38 = (record.checks38 as boolean[]) ?? [];
+
+  const CheckRow = ({ done, label }: { done: boolean; label: string }) => (
+    <div style={{ display: "flex", alignItems: "flex-start", gap: "6px", marginBottom: "4px" }}>
+      <span style={{ width: "16px", height: "16px", border: "1.5px solid #555", borderRadius: "3px", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: "1px", background: done ? "#1d4ed8" : "white" }}>
+        {done && <span style={{ color: "white", fontSize: "11px", fontWeight: "bold" }}>✓</span>}
+      </span>
+      <span style={{ fontSize: "12px", lineHeight: "1.4" }}>{label}</span>
+    </div>
+  );
+
+  const SectionHeader = ({ title, temp, color }: { title: string; temp: string; color: string }) => (
+    <div style={{ background: color, padding: "5px 10px", fontWeight: "bold", fontSize: "12px", marginBottom: "6px", borderRadius: "4px 4px 0 0" }}>
+      {title} <span style={{ fontWeight: "normal", fontSize: "11px" }}>({temp})</span>
+    </div>
+  );
+
+  const alertColor = record.heatAlertStatus === "폭염경보" ? "#fee2e2" : record.heatAlertStatus === "폭염주의보" ? "#fef3c7" : "#f0fdf4";
+  const alertTextColor = record.heatAlertStatus === "폭염경보" ? "#dc2626" : record.heatAlertStatus === "폭염주의보" ? "#d97706" : "#16a34a";
+
+  return (
+    <div ref={pdfRef} style={{ width: "794px", minHeight: "1123px", background: "white", padding: "40px", fontFamily: "'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif", color: "#111", boxSizing: "border-box" }}>
+      {/* 제목 */}
+      <div style={{ textAlign: "center", marginBottom: "24px", borderBottom: "2.5px solid #1d4ed8", paddingBottom: "16px" }}>
+        <div style={{ fontSize: "10px", color: "#555", letterSpacing: "2px", marginBottom: "4px" }}>산업안전보건법 시행규칙 별지 제95호 서식</div>
+        <h1 style={{ fontSize: "22px", fontWeight: "bold", margin: 0 }}>폭염 일일 체크리스트</h1>
+        <div style={{ fontSize: "11px", color: "#555", marginTop: "4px" }}>Heat Wave Daily Safety Checklist</div>
+      </div>
+
+      {/* 기본 정보 */}
+      <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "16px", fontSize: "12px" }}>
+        <tbody>
+          <tr>
+            <td style={{ border: "1px solid #ddd", padding: "7px 12px", background: "#f8fafc", fontWeight: "bold", width: "22%" }}>작성일자</td>
+            <td style={{ border: "1px solid #ddd", padding: "7px 12px", width: "28%" }}>{record.checkDate}</td>
+            <td style={{ border: "1px solid #ddd", padding: "7px 12px", background: "#f8fafc", fontWeight: "bold", width: "22%" }}>작성시간</td>
+            <td style={{ border: "1px solid #ddd", padding: "7px 12px", width: "28%" }}>{record.checkTime}</td>
+          </tr>
+          <tr>
+            <td style={{ border: "1px solid #ddd", padding: "7px 12px", background: "#f8fafc", fontWeight: "bold" }}>대상 지역</td>
+            <td style={{ border: "1px solid #ddd", padding: "7px 12px" }} colSpan={3}>{record.targetArea}</td>
+          </tr>
+          <tr>
+            <td style={{ border: "1px solid #ddd", padding: "7px 12px", background: "#f8fafc", fontWeight: "bold" }}>폭염특보 현황</td>
+            <td style={{ border: "1px solid #ddd", padding: "7px 12px" }} colSpan={3}>
+              <span style={{ background: alertColor, color: alertTextColor, padding: "2px 10px", borderRadius: "12px", fontWeight: "bold", fontSize: "12px" }}>
+                {record.heatAlertStatus}
+              </span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      {/* 기상 정보 */}
+      <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: "6px", padding: "12px 16px", marginBottom: "16px" }}>
+        <div style={{ fontWeight: "bold", fontSize: "12px", color: "#1d4ed8", marginBottom: "8px" }}>▶ 현재 기상 정보</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "8px" }}>
+          {[
+            ["현재 기온", record.currentTemperature != null ? `${record.currentTemperature}°C` : "-"],
+            ["현재 습도", record.currentHumidity != null ? `${record.currentHumidity}%` : "-"],
+            ["현재 체감온도", record.currentFeelsLike != null ? `${record.currentFeelsLike}°C` : "-"],
+            ["최고 체감온도 예보", record.maxFeelsLikeForecast != null ? `${record.maxFeelsLikeForecast}°C` : "-"],
+          ].map(([label, value]) => (
+            <div key={label} style={{ textAlign: "center" }}>
+              <div style={{ fontSize: "10px", color: "#555", marginBottom: "2px" }}>{label}</div>
+              <div style={{ fontSize: "16px", fontWeight: "bold", color: "#1d4ed8" }}>{value}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* 단계별 체크리스트 */}
+      <div style={{ fontWeight: "bold", fontSize: "13px", marginBottom: "10px", borderLeft: "4px solid #1d4ed8", paddingLeft: "8px" }}>단계별 조치사항 체크리스트</div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "16px" }}>
+        <div style={{ border: "1px solid #fde68a", borderRadius: "6px", overflow: "hidden" }}>
+          <SectionHeader title="폭염 관심" temp="31°C 이상" color="#fef9c3" />
+          <div style={{ padding: "8px 12px" }}>
+            {CHECKS_31.map((item, i) => <CheckRow key={i} done={checks31[i] ?? false} label={item} />)}
+          </div>
+        </div>
+        <div style={{ border: "1px solid #fed7aa", borderRadius: "6px", overflow: "hidden" }}>
+          <SectionHeader title="폭염 주의" temp="33°C 이상" color="#ffedd5" />
+          <div style={{ padding: "8px 12px" }}>
+            {CHECKS_33.map((item, i) => <CheckRow key={i} done={checks33[i] ?? false} label={item} />)}
+          </div>
+        </div>
+        <div style={{ border: "1px solid #fca5a5", borderRadius: "6px", overflow: "hidden" }}>
+          <SectionHeader title="폭염 경고" temp="35°C 이상" color="#fee2e2" />
+          <div style={{ padding: "8px 12px" }}>
+            {CHECKS_35.map((item, i) => <CheckRow key={i} done={checks35[i] ?? false} label={item} />)}
+            {(record.stopTime35Start || record.stopTime35End) && (
+              <div style={{ fontSize: "11px", color: "#666", marginTop: "4px" }}>
+                작업중지 시간: {record.stopTime35Start ?? ""} ~ {record.stopTime35End ?? ""}
+              </div>
+            )}
+          </div>
+        </div>
+        <div style={{ border: "1px solid #f87171", borderRadius: "6px", overflow: "hidden" }}>
+          <SectionHeader title="폭염 위험" temp="38°C 이상" color="#fecaca" />
+          <div style={{ padding: "8px 12px" }}>
+            {CHECKS_38.map((item, i) => <CheckRow key={i} done={checks38[i] ?? false} label={item} />)}
+            {(record.stopTime38Start || record.stopTime38End) && (
+              <div style={{ fontSize: "11px", color: "#666", marginTop: "4px" }}>
+                작업중지 시간: {record.stopTime38Start ?? ""} ~ {record.stopTime38End ?? ""}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* 서명 영역 */}
+      <div style={{ border: "1.5px solid #ddd", borderRadius: "6px", overflow: "hidden" }}>
+        <div style={{ background: "#f8fafc", padding: "6px 14px", fontWeight: "bold", fontSize: "12px", borderBottom: "1px solid #ddd" }}>서명</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
+          <div style={{ padding: "12px 16px", borderRight: "1px solid #ddd" }}>
+            <div style={{ fontSize: "11px", color: "#555", marginBottom: "6px" }}>작성자</div>
+            <div style={{ fontSize: "13px", fontWeight: "bold", marginBottom: "8px" }}>{record.author ?? ""}</div>
+            {record.authorSignature ? (
+              <img src={record.authorSignature} alt="작성자 서명" style={{ height: "60px", objectFit: "contain" }} />
+            ) : (
+              <div style={{ height: "60px", border: "1px dashed #ccc", borderRadius: "4px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "11px", color: "#aaa" }}>서명 없음</div>
+            )}
+          </div>
+          <div style={{ padding: "12px 16px" }}>
+            <div style={{ fontSize: "11px", color: "#555", marginBottom: "6px" }}>안전보건관리책임자</div>
+            <div style={{ fontSize: "13px", fontWeight: "bold", marginBottom: "8px" }}>{record.safetyManager ?? ""}</div>
+            {record.safetyManagerSignature ? (
+              <img src={record.safetyManagerSignature} alt="안전보건관리책임자 서명" style={{ height: "60px", objectFit: "contain" }} />
+            ) : (
+              <div style={{ height: "60px", border: "1px dashed #ccc", borderRadius: "4px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "11px", color: "#aaa" }}>서명 없음</div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -725,6 +868,51 @@ export default function HeatWaveChecklist() {
   const [showForm, setShowForm] = useState(false);
   const [viewing, setViewing] = useState<HeatWaveChecklist | null>(null);
   const [editing, setEditing] = useState<HeatWaveChecklist | null>(null);
+  const [pdfViewing, setPdfViewing] = useState<HeatWaveChecklist | null>(null);
+  const [isPdfDownloading, setIsPdfDownloading] = useState(false);
+  const pdfRef = useRef<HTMLDivElement>(null);
+
+  const handleDownloadPDF = async (record: HeatWaveChecklist) => {
+    setPdfViewing(record);
+    setIsPdfDownloading(true);
+    // wait for DOM to render
+    await new Promise((r) => setTimeout(r, 600));
+    try {
+      const html2canvas = (await import("html2canvas")).default;
+      const jsPDF = (await import("jspdf")).jsPDF;
+      const el = document.getElementById("heatwave-pdf-capture");
+      if (!el) return;
+      const canvas = await html2canvas(el, { scale: 2, useCORS: true, logging: false, backgroundColor: "#ffffff" });
+      const imgData = canvas.toDataURL("image/jpeg", 0.95);
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const ratio = canvas.height / canvas.width;
+      const imgHeight = pageWidth * ratio;
+      if (imgHeight <= pageHeight) {
+        pdf.addImage(imgData, "JPEG", 0, 0, pageWidth, imgHeight);
+      } else {
+        let y = 0;
+        while (y < canvas.height) {
+          const sliceCanvas = document.createElement("canvas");
+          sliceCanvas.width = canvas.width;
+          sliceCanvas.height = Math.min(canvas.height - y, Math.floor((canvas.width * pageHeight) / pageWidth));
+          const ctx = sliceCanvas.getContext("2d")!;
+          ctx.drawImage(canvas, 0, -y);
+          const sliceData = sliceCanvas.toDataURL("image/jpeg", 0.95);
+          const sliceH = (sliceCanvas.height / canvas.width) * pageWidth;
+          if (y > 0) pdf.addPage();
+          pdf.addImage(sliceData, "JPEG", 0, 0, pageWidth, sliceH);
+          y += sliceCanvas.height;
+        }
+      }
+      pdf.save(`폭염체크리스트_${record.checkDate}_${record.checkTime.replace(":", "")}.pdf`);
+    } catch (e) {
+      toast({ title: "PDF 생성 실패", variant: "destructive" });
+    } finally {
+      setIsPdfDownloading(false);
+    }
+  };
 
   const { data: records = [], isLoading } = useQuery<HeatWaveChecklist[]>({
     queryKey: ["/api/heat-wave-checklists"],
@@ -856,6 +1044,16 @@ export default function HeatWaveChecklist() {
                       <Button
                         variant="ghost"
                         size="icon"
+                        className="h-7 w-7 text-blue-600 hover:text-blue-700"
+                        onClick={() => setPdfViewing(r)}
+                        title="PDF 미리보기"
+                        data-testid={`button-pdf-${r.id}`}
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
                         className="h-7 w-7 text-destructive hover:text-destructive"
                         onClick={() => handleDelete(r.id)}
                         disabled={deleteMutation.isPending}
@@ -901,6 +1099,9 @@ export default function HeatWaveChecklist() {
             <div className="space-y-4">
               <ChecklistForm initial={formFromRecord(viewing)} readOnly />
               <div className="flex gap-2 justify-end pt-2">
+                <Button variant="outline" onClick={() => { setPdfViewing(viewing); }}>
+                  <FileText className="w-4 h-4 mr-1" /> PDF 미리보기
+                </Button>
                 <Button variant="outline" onClick={() => { setEditing(viewing); setViewing(null); }}>
                   수정
                 </Button>
@@ -928,6 +1129,38 @@ export default function HeatWaveChecklist() {
               isPending={updateMutation.isPending}
             />
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* PDF 미리보기 다이얼로그 */}
+      <Dialog open={!!pdfViewing} onOpenChange={() => { setPdfViewing(null); setIsPdfDownloading(false); }}>
+        <DialogContent className="max-w-[900px] w-[95vw] max-h-[95vh] overflow-y-auto p-0">
+          <DialogHeader className="px-6 pt-5 pb-3 border-b sticky top-0 bg-background z-10">
+            <div className="flex items-center justify-between">
+              <DialogTitle className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-blue-600" />
+                PDF 미리보기 — {pdfViewing?.checkDate} {pdfViewing?.checkTime}
+              </DialogTitle>
+              <Button
+                size="sm"
+                onClick={() => pdfViewing && handleDownloadPDF(pdfViewing)}
+                disabled={isPdfDownloading}
+                className="mr-8"
+                data-testid="button-download-pdf"
+              >
+                {isPdfDownloading ? (
+                  <><Loader2 className="w-4 h-4 mr-1 animate-spin" />생성 중...</>
+                ) : (
+                  <><FileDown className="w-4 h-4 mr-1" />PDF 다운로드</>
+                )}
+              </Button>
+            </div>
+          </DialogHeader>
+          <div className="overflow-auto bg-gray-100 p-6 flex justify-center">
+            <div id="heatwave-pdf-capture" className="shadow-xl">
+              {pdfViewing && <ChecklistPDFView record={pdfViewing} pdfRef={pdfRef} />}
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
