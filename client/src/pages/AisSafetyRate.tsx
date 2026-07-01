@@ -29,7 +29,7 @@ import {
 } from "lucide-react";
 import type { AisSafetyUpload, AisSafetyRecord } from "@shared/schema";
 
-const HIGH_RISK_TYPES = ['고소', '전기', '중장비', '굴착', '밀폐', '화기'];
+const HIGH_RISK_TYPES = ['고소', '전기', '전원', '중장비', '굴착', '밀폐', '화기'];
 
 function isHighRiskWork(val: string | null | undefined): boolean {
   if (!val || val === '없음' || val === 'X' || val.trim() === '') return false;
@@ -61,6 +61,7 @@ const RISK_COLORS: Record<string, string> = { '상': '#ef4444', '중': '#f59e0b'
 const HIGH_RISK_COLOR: Record<string, string> = {
   '고소': 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
   '전기': 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300',
+  '전원': 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300',
   '중장비': 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
   '굴착': 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
   '밀폐': 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300',
