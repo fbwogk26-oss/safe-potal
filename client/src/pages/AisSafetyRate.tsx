@@ -718,30 +718,27 @@ export default function AisSafetyRate() {
                         <p className="text-xs font-semibold text-muted-foreground mb-2">
                           일별 이행률 추세 ({dailyTrendData.length > 0 ? dailyTrendData[0].fullDate.substring(0, 7) : ''} — 1일부터 {dailyTrendData.length}일)
                         </p>
-                        <ResponsiveContainer width="100%" height={180}>
-                          <BarChart data={dailyTrendData} margin={{ left: -15, right: 8, top: 8, bottom: 0 }} barCategoryGap="30%">
-                            <defs>
-                              {dailyTrendData.map((entry, i) => (
-                                <linearGradient key={i} id={`dg-${i}`} x1="0" y1="0" x2="0" y2="1">
-                                  <stop offset="0%" stopColor={entry.rate >= 90 ? '#22c55e' : entry.rate >= 70 ? '#f59e0b' : '#ef4444'} stopOpacity={1} />
-                                  <stop offset="100%" stopColor={entry.rate >= 90 ? '#16a34a' : entry.rate >= 70 ? '#d97706' : '#dc2626'} stopOpacity={0.8} />
-                                </linearGradient>
-                              ))}
-                            </defs>
+                        <div className="flex items-center gap-2 mb-1 justify-end">
+                          <span className="inline-flex items-center gap-1 text-[10px] text-indigo-500 font-semibold">
+                            <span className="inline-block w-6 border-t-2 border-dashed border-indigo-400" />목표 90%
+                          </span>
+                        </div>
+                        <ResponsiveContainer width="100%" height={165}>
+                          <BarChart data={dailyTrendData} margin={{ left: -15, right: 12, top: 4, bottom: 0 }} barCategoryGap="30%">
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="currentColor" strokeOpacity={0.08} />
                             <XAxis dataKey="date" tick={{ fontSize: 9, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                             <YAxis domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 9, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={36} />
                             <ReTooltip
                               contentStyle={{ borderRadius: 8, border: 'none', boxShadow: '0 4px 16px rgba(0,0,0,0.12)', fontSize: 12 }}
                               formatter={(v: any, _: any, p: any) => [`${v}% · ${p.payload.count}건`, '이행률']}
-                              cursor={{ fill: 'currentColor', fillOpacity: 0.04 }}
+                              cursor={{ fill: 'rgba(99,102,241,0.06)' }}
                             />
-                            <ReferenceLine y={90} stroke="#6366f1" strokeDasharray="4 3" strokeWidth={1.5} label={{ value: '90%', position: 'right', fontSize: 9, fill: '#6366f1' }} />
-                            <Bar dataKey="rate" radius={[5, 5, 2, 2]} maxBarSize={32} onClick={(d) => setSelectedDate(d.fullDate)} cursor="pointer">
-                              {dailyTrendData.map((_, i) => (
-                                <Cell key={i} fill={`url(#dg-${i})`} />
+                            <ReferenceLine y={90} stroke="#6366f1" strokeDasharray="4 3" strokeWidth={1.5} />
+                            <Bar dataKey="rate" radius={[4, 4, 2, 2]} maxBarSize={28} onClick={(d) => setSelectedDate(d.fullDate)} cursor="pointer">
+                              {dailyTrendData.map((entry, i) => (
+                                <Cell key={i} fill={entry.rate >= 90 ? '#22c55e' : entry.rate >= 70 ? '#f59e0b' : '#ef4444'} fillOpacity={0.85} />
                               ))}
-                              <LabelList dataKey="rate" position="top" formatter={(v: any) => v >= 70 ? `${v}%` : ''} style={{ fontSize: 8, fontWeight: 700, fill: '#64748b' }} />
+                              <LabelList dataKey="rate" position="insideTop" formatter={(v: any) => v >= 50 ? `${v}` : ''} style={{ fontSize: 8, fontWeight: 700, fill: '#fff' }} />
                             </Bar>
                           </BarChart>
                         </ResponsiveContainer>
@@ -840,30 +837,27 @@ export default function AisSafetyRate() {
                     {monthlyTrendData.length > 1 && (
                       <div>
                         <p className="text-xs font-semibold text-muted-foreground mb-2">월별 이행률 추세</p>
-                        <ResponsiveContainer width="100%" height={180}>
-                          <BarChart data={monthlyTrendData} margin={{ left: -15, right: 8, top: 8, bottom: 0 }} barCategoryGap="35%">
-                            <defs>
-                              {monthlyTrendData.map((entry, i) => (
-                                <linearGradient key={i} id={`mg-${i}`} x1="0" y1="0" x2="0" y2="1">
-                                  <stop offset="0%" stopColor={entry.rate >= 90 ? '#22c55e' : entry.rate >= 70 ? '#f59e0b' : '#ef4444'} stopOpacity={1} />
-                                  <stop offset="100%" stopColor={entry.rate >= 90 ? '#16a34a' : entry.rate >= 70 ? '#d97706' : '#dc2626'} stopOpacity={0.75} />
-                                </linearGradient>
-                              ))}
-                            </defs>
+                        <div className="flex items-center gap-2 mb-1 justify-end">
+                          <span className="inline-flex items-center gap-1 text-[10px] text-indigo-500 font-semibold">
+                            <span className="inline-block w-6 border-t-2 border-dashed border-indigo-400" />목표 90%
+                          </span>
+                        </div>
+                        <ResponsiveContainer width="100%" height={165}>
+                          <BarChart data={monthlyTrendData} margin={{ left: -15, right: 12, top: 4, bottom: 0 }} barCategoryGap="35%">
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="currentColor" strokeOpacity={0.08} />
                             <XAxis dataKey="month" tick={{ fontSize: 9, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                             <YAxis domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 9, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={36} />
                             <ReTooltip
                               contentStyle={{ borderRadius: 8, border: 'none', boxShadow: '0 4px 16px rgba(0,0,0,0.12)', fontSize: 12 }}
                               formatter={(v: any, _: any, p: any) => [`${v}% · ${p.payload.count}건`, '이행률']}
-                              cursor={{ fill: 'currentColor', fillOpacity: 0.04 }}
+                              cursor={{ fill: 'rgba(99,102,241,0.06)' }}
                             />
-                            <ReferenceLine y={90} stroke="#6366f1" strokeDasharray="4 3" strokeWidth={1.5} label={{ value: '90%', position: 'right', fontSize: 9, fill: '#6366f1' }} />
-                            <Bar dataKey="rate" radius={[6, 6, 2, 2]} maxBarSize={44} onClick={(d) => setSelectedMonth(d.month)} cursor="pointer">
-                              {monthlyTrendData.map((_, i) => (
-                                <Cell key={i} fill={`url(#mg-${i})`} />
+                            <ReferenceLine y={90} stroke="#6366f1" strokeDasharray="4 3" strokeWidth={1.5} />
+                            <Bar dataKey="rate" radius={[6, 6, 2, 2]} maxBarSize={52} onClick={(d) => setSelectedMonth(d.month)} cursor="pointer">
+                              {monthlyTrendData.map((entry, i) => (
+                                <Cell key={i} fill={entry.rate >= 90 ? '#22c55e' : entry.rate >= 70 ? '#f59e0b' : '#ef4444'} fillOpacity={0.85} />
                               ))}
-                              <LabelList dataKey="rate" position="top" formatter={(v: any) => `${v}%`} style={{ fontSize: 9, fontWeight: 700, fill: '#64748b' }} />
+                              <LabelList dataKey="rate" position="insideTop" formatter={(v: any) => `${v}%`} style={{ fontSize: 10, fontWeight: 700, fill: '#fff' }} />
                             </Bar>
                           </BarChart>
                         </ResponsiveContainer>
@@ -1090,17 +1084,9 @@ export default function AisSafetyRate() {
                           <div className="relative w-full" style={{ height: 220 }}>
                             <ResponsiveContainer width="100%" height={220}>
                               <PieChart>
-                                <defs>
-                                  {tbmAiData.map((d, i) => (
-                                    <linearGradient key={i} id={`pg-${i}`} x1="0" y1="0" x2="1" y2="1">
-                                      <stop offset="0%" stopColor={d.color} stopOpacity={0.9} />
-                                      <stop offset="100%" stopColor={d.color} stopOpacity={0.65} />
-                                    </linearGradient>
-                                  ))}
-                                </defs>
                                 <Pie data={tbmAiData} cx="50%" cy="50%" innerRadius={68} outerRadius={95}
                                   dataKey="value" labelLine={false} paddingAngle={2} stroke="none">
-                                  {tbmAiData.map((_d, i) => <Cell key={i} fill={`url(#pg-${i})`} />)}
+                                  {tbmAiData.map((d, i) => <Cell key={i} fill={d.color} fillOpacity={0.88} />)}
                                 </Pie>
                                 <ReTooltip
                                   contentStyle={{ borderRadius: 8, border: 'none', boxShadow: '0 4px 16px rgba(0,0,0,0.12)', fontSize: 12 }}
