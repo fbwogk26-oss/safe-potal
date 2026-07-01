@@ -37,14 +37,19 @@ function isHighRiskWork(val: string | null | undefined): boolean {
 }
 
 function isCancelled(r: AisSafetyRecord) {
-  return r.workStatus?.includes('취소') ?? false;
+  const status = (r.workStatus ?? '').trim();
+  // 취소, 작업취소, 공사취소, 취소완료, 중단 등 모든 취소 패턴 포함
+  return status.includes('취소') || status === '중단' || status === '반납';
 }
 
 function calcCompliance(records: AisSafetyRecord[]) {
   const active = records.filter(r => !isCancelled(r));
   if (!active.length) return { rate: 0, issues: [], highRiskNoPermit: [], tbmUnreg: [], tbmBad: [] };
   const highRiskNoPermit = active.filter(r => isHighRiskWork(r.highRiskWork) && r.safetyPermit !== 'Y');
-  const tbmUnreg = active.filter(r => r.tbmResult === '미등록');
+  // TBM 미등록: 취소된 작업은 반드시 제외 (workStatus null 등 예외 상황 대비 이중 확인)
+  const tbmUnreg = active.filter(r =>
+    r.tbmResult === '미등록' && !(r.workStatus ?? '').includes('취소')
+  );
   const tbmBad = active.filter(r => r.tbmAiResult === '부적합');
   const allItems = [
     { label: '고위험작업 안전허가서 미등록', list: highRiskNoPermit },
