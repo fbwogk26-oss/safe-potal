@@ -279,6 +279,7 @@ export default function AisSafetyRate() {
   const [hrSearch, setHrSearch] = useState('');
   const [hrFilterTbm, setHrFilterTbm] = useState('all');
   const [cumulativeMonth, setCumulativeMonth] = useState<string>('all');
+  const [calendarMonth, setCalendarMonth] = useState<string>(() => new Date().toISOString().substring(0, 7));
   const [tbmNoteRecord, setTbmNoteRecord] = useState<AisSafetyRecord | null>(null);
   const [tbmNoteType, setTbmNoteType] = useState<'bad'|'unreg'>('bad');
   const [tbmNoteReason, setTbmNoteReason] = useState('');
@@ -493,13 +494,11 @@ export default function AisSafetyRate() {
   const dailyTrendData = useMemo(() => {
     const valid = dailyGroups.filter(g => g.date !== '날짜 미상' && /^\d{4}-\d{2}-\d{2}$/.test(g.date));
     if (!valid.length) return [];
-    // 가장 최근 달 기준, 1일부터 말일까지 전부 표시
-    const latestMonth = valid[0].date.substring(0, 7);
     return valid
-      .filter(g => g.date.startsWith(latestMonth))
+      .filter(g => g.date.startsWith(calendarMonth))
       .reverse()
       .map(g => ({ date: g.date.replace(/^\d{4}-\d{2}-/, ''), rate: g.rate, count: g.records.length, fullDate: g.date }));
-  }, [dailyGroups]);
+  }, [dailyGroups, calendarMonth]);
 
   const monthlyTrendData = monthlyGroups.filter(g => g.month !== '월 미상').slice(0, 12).reverse()
     .map(g => ({ month: g.month, rate: g.rate, count: g.records.length }));
@@ -756,7 +755,7 @@ export default function AisSafetyRate() {
                     {dailyTrendData.length > 1 && (
                       <div>
                         <p className="text-xs font-semibold text-muted-foreground mb-2">
-                          일별 이행률 추세 ({dailyTrendData.length > 0 ? dailyTrendData[0].fullDate.substring(0, 7) : ''} — 1일부터 {dailyTrendData.length}일)
+                          일별 이행률 추세 ({calendarMonth} — {dailyTrendData.length}일 데이터)
                         </p>
                         <div className="flex items-center gap-2 mb-1 justify-end">
                           <span className="inline-flex items-center gap-1 text-[10px] text-indigo-500 font-semibold">
@@ -785,72 +784,93 @@ export default function AisSafetyRate() {
                       </div>
                     )}
                     <p className="text-xs font-semibold text-muted-foreground">날짜를 선택하면 해당 일의 상세 현황을 확인합니다</p>
-                    {recordsLoading ? (
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground py-4"><Loader2 className="w-4 h-4 animate-spin" />데이터 불러오는 중...</div>
-                    ) : dailyGroups.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">날짜별 데이터가 없습니다</p>
-                    ) : (() => {
-                      // 달력 레이아웃 계산
+                    {(() => {
                       const dateMap = new Map(dailyGroups.map(g => [g.date, g]));
-                      const refDate = [...dailyGroups].sort((a, b) => a.date.localeCompare(b.date))[0].date;
-                      const [yr, mo] = refDate.split('-').map(Number);
+                      const [yr, mo] = calendarMonth.split('-').map(Number);
                       const daysInMonth = new Date(yr, mo, 0).getDate();
-                      const firstDow = new Date(yr, mo - 1, 1).getDay(); // 0=Sun
+                      const firstDow = new Date(yr, mo - 1, 1).getDay();
                       const weekLabels = ['일', '월', '화', '수', '목', '금', '토'];
                       const allDays = Array.from({ length: daysInMonth }, (_, i) => {
                         const d = i + 1;
                         const ds = `${yr}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
                         return { day: d, dateStr: ds, dow: new Date(yr, mo - 1, d).getDay(), group: dateMap.get(ds) ?? null };
                       });
+                      const monthHasData = allDays.some(d => d.group !== null);
+                      const prevMonth = () => {
+                        const [y, m] = calendarMonth.split('-').map(Number);
+                        setCalendarMonth(m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`);
+                      };
+                      const nextMonth = () => {
+                        const [y, m] = calendarMonth.split('-').map(Number);
+                        setCalendarMonth(m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`);
+                      };
                       return (
-                        <div>
-                          {/* 요일 헤더 */}
-                          <div className="grid grid-cols-7 gap-1 mb-1">
-                            {weekLabels.map((w, i) => (
-                              <div key={w} className={`text-center text-[11px] font-bold py-1 ${i === 0 ? 'text-red-500' : i === 6 ? 'text-blue-500' : 'text-muted-foreground'}`}>{w}</div>
-                            ))}
+                        <div className="space-y-3">
+                          {/* 월 네비게이터 */}
+                          <div className="flex items-center justify-between bg-muted/30 rounded-xl px-3 py-2">
+                            <button onClick={prevMonth} className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-border bg-background hover:bg-muted/60 transition-colors text-sm font-medium">
+                              <ChevronLeft className="w-4 h-4" />이전달
+                            </button>
+                            <div className="text-center">
+                              <p className="text-base font-black">{yr}년 {mo}월</p>
+                              <p className={`text-[11px] ${monthHasData ? 'text-muted-foreground' : 'text-amber-500 font-semibold'}`}>
+                                {monthHasData ? `${allDays.filter(d => d.group).length}일 데이터 있음` : '데이터 없음'}
+                              </p>
+                            </div>
+                            <button onClick={nextMonth} className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-border bg-background hover:bg-muted/60 transition-colors text-sm font-medium">
+                              다음달<ChevronRight className="w-4 h-4" />
+                            </button>
                           </div>
-                          {/* 달력 그리드 */}
-                          <div className="grid grid-cols-7 gap-1">
-                            {/* 첫 주 빈칸 */}
-                            {Array.from({ length: firstDow }, (_, i) => <div key={`b${i}`} />)}
-                            {allDays.map(({ day, dateStr, dow, group }) => {
-                              const isWeekend = dow === 0 || dow === 6;
-                              if (!group) {
-                                return (
-                                  <div key={dateStr} className={`min-h-[64px] rounded-lg border border-dashed border-border/30 p-1.5 ${isWeekend ? 'bg-muted/5' : ''}`}>
-                                    <span className={`text-[11px] font-semibold ${isWeekend ? (dow === 0 ? 'text-red-300' : 'text-blue-300') : 'text-muted-foreground/30'}`}>{day}</span>
-                                  </div>
-                                );
-                              }
-                              const totalIssues = (group.issues || []).reduce((a: number, b: any) => a + b.count, 0);
-                              const issueRecords = (group.issues || []).flatMap((i: any) => i.list);
-                              return (
-                                <div key={dateStr} className="flex flex-col rounded-lg border border-border hover:border-blue-300 dark:hover:border-blue-700 transition-all overflow-hidden min-h-[64px]">
-                                  <button
-                                    data-testid={`card-date-${dateStr}`}
-                                    onClick={() => setSelectedDate(dateStr)}
-                                    className="flex-1 text-left p-1.5 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 transition-colors"
-                                  >
-                                    <span className={`text-[11px] font-bold block mb-0.5 ${dow === 0 ? 'text-red-500' : dow === 6 ? 'text-blue-500' : ''}`}>{day}</span>
-                                    <p className="text-base font-black leading-none mb-1">{group.records.length}<span className="text-[10px] font-normal text-muted-foreground ml-0.5">건</span></p>
-                                    <RateBadge value={group.rate} />
-                                  </button>
-                                  {totalIssues > 0 ? (
-                                    <button
-                                      data-testid={`btn-issue-${dateStr}`}
-                                      onClick={(e) => { e.stopPropagation(); setActiveIssue({ label: `${dateStr} 이슈 목록`, list: issueRecords }); }}
-                                      className="border-t border-red-200 dark:border-red-800 bg-red-50/60 dark:bg-red-950/20 hover:bg-red-100 dark:hover:bg-red-950/40 px-1.5 py-1 text-left text-[10px] font-bold text-red-600 dark:text-red-400 transition-colors whitespace-nowrap"
-                                    >
-                                      ⚠ {totalIssues}건
-                                    </button>
-                                  ) : (
-                                    <div className="h-[22px]" />
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
+                          {recordsLoading ? (
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground py-4"><Loader2 className="w-4 h-4 animate-spin" />데이터 불러오는 중...</div>
+                          ) : (
+                            <div>
+                              <div className="grid grid-cols-7 gap-1 mb-1">
+                                {weekLabels.map((w, i) => (
+                                  <div key={w} className={`text-center text-[11px] font-bold py-1 ${i === 0 ? 'text-red-500' : i === 6 ? 'text-blue-500' : 'text-muted-foreground'}`}>{w}</div>
+                                ))}
+                              </div>
+                              <div className="grid grid-cols-7 gap-1">
+                                {Array.from({ length: firstDow }, (_, i) => <div key={`b${i}`} />)}
+                                {allDays.map(({ day, dateStr, dow, group }) => {
+                                  const isWeekend = dow === 0 || dow === 6;
+                                  if (!group) {
+                                    return (
+                                      <div key={dateStr} className={`min-h-[64px] rounded-lg border border-dashed border-border/30 p-1.5 ${isWeekend ? 'bg-muted/5' : ''}`}>
+                                        <span className={`text-[11px] font-semibold ${isWeekend ? (dow === 0 ? 'text-red-300' : 'text-blue-300') : 'text-muted-foreground/30'}`}>{day}</span>
+                                      </div>
+                                    );
+                                  }
+                                  const totalIssues = (group.issues || []).reduce((a: number, b: any) => a + b.count, 0);
+                                  const issueRecords = (group.issues || []).flatMap((i: any) => i.list);
+                                  return (
+                                    <div key={dateStr} className="flex flex-col rounded-lg border border-border hover:border-blue-300 dark:hover:border-blue-700 transition-all overflow-hidden min-h-[64px]">
+                                      <button
+                                        data-testid={`card-date-${dateStr}`}
+                                        onClick={() => setSelectedDate(dateStr)}
+                                        className="flex-1 text-left p-1.5 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 transition-colors"
+                                      >
+                                        <span className={`text-[11px] font-bold block mb-0.5 ${dow === 0 ? 'text-red-500' : dow === 6 ? 'text-blue-500' : ''}`}>{day}</span>
+                                        <p className="text-base font-black leading-none mb-1">{group.records.length}<span className="text-[10px] font-normal text-muted-foreground ml-0.5">건</span></p>
+                                        <RateBadge value={group.rate} />
+                                      </button>
+                                      {totalIssues > 0 ? (
+                                        <button
+                                          data-testid={`btn-issue-${dateStr}`}
+                                          onClick={(e) => { e.stopPropagation(); setActiveIssue({ label: `${dateStr} 이슈 목록`, list: issueRecords }); }}
+                                          className="border-t border-red-200 dark:border-red-800 bg-red-50/60 dark:bg-red-950/20 hover:bg-red-100 dark:hover:bg-red-950/40 px-1.5 py-1 text-left text-[10px] font-bold text-red-600 dark:text-red-400 transition-colors whitespace-nowrap"
+                                        >
+                                          ⚠ {totalIssues}건
+                                        </button>
+                                      ) : (
+                                        <div className="h-[22px]" />
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       );
                     })()}
