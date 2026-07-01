@@ -174,21 +174,31 @@ function SignaturePad({
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
-  const [hasContent, setHasContent] = useState(false);
-  const [mode, setMode] = useState<"view" | "draw">(value ? "view" : "draw");
+  const [hasSig, setHasSig] = useState(!!value);
 
+  // Canvas 초기화 - requestAnimationFrame으로 Dialog 렌더 후 width 보장
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    canvas.width = canvas.offsetWidth;
-    canvas.height = 100;
-    ctx.strokeStyle = "#1d4ed8";
-    ctx.lineWidth = 2;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-  }, [mode]);
+    const init = () => {
+      const w = canvas.parentElement?.offsetWidth || 400;
+      canvas.width = w;
+      canvas.height = 100;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      ctx.strokeStyle = "#1d4ed8";
+      ctx.lineWidth = 2.5;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      // 기존 서명 이미지 복원
+      if (value) {
+        const img = new Image();
+        img.onload = () => ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        img.src = value;
+      }
+    };
+    requestAnimationFrame(() => requestAnimationFrame(init));
+  }, []);
 
   const getPos = useCallback((e: React.TouchEvent | React.MouseEvent) => {
     const canvas = canvasRef.current;
@@ -210,7 +220,6 @@ function SignaturePad({
     const ctx = canvasRef.current?.getContext("2d");
     if (!ctx) return;
     setIsDrawing(true);
-    setHasContent(true);
     const pos = getPos(e);
     ctx.beginPath();
     ctx.moveTo(pos.x, pos.y);
@@ -226,7 +235,16 @@ function SignaturePad({
     ctx.stroke();
   }, [isDrawing, getPos]);
 
-  const endDraw = useCallback(() => setIsDrawing(false), []);
+  // 획 끝날 때 자동 저장
+  const endDraw = useCallback(() => {
+    if (!isDrawing) return;
+    setIsDrawing(false);
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const data = canvas.toDataURL("image/png");
+    onChange(data);
+    setHasSig(true);
+  }, [isDrawing, onChange]);
 
   const clearCanvas = useCallback(() => {
     const canvas = canvasRef.current;
@@ -234,38 +252,13 @@ function SignaturePad({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    setHasContent(false);
-  }, []);
-
-  const handleSave = useCallback(() => {
-    if (!hasContent || !canvasRef.current) return;
-    const data = canvasRef.current.toDataURL("image/png");
-    onChange(data);
-    setMode("view");
-  }, [hasContent, onChange]);
-
-  const handleReset = useCallback(() => {
     onChange("");
-    setMode("draw");
-    setHasContent(false);
+    setHasSig(false);
   }, [onChange]);
-
-  if (mode === "view" && value) {
-    return (
-      <div className="space-y-1">
-        <div className="border rounded-lg overflow-hidden bg-white dark:bg-zinc-900 p-2 flex items-center justify-between gap-2">
-          <img src={value} alt={`${label} 서명`} className="h-14 object-contain" />
-          <Button type="button" variant="ghost" size="sm" onClick={handleReset} className="text-muted-foreground shrink-0">
-            <RotateCcw className="w-3.5 h-3.5 mr-1" />다시
-          </Button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-1.5">
-      <div className="border-2 border-dashed border-blue-300 dark:border-blue-700 rounded-lg overflow-hidden bg-white dark:bg-zinc-900">
+      <div className="relative border-2 border-dashed border-blue-300 dark:border-blue-700 rounded-lg overflow-hidden bg-white dark:bg-zinc-900">
         <canvas
           ref={canvasRef}
           className="w-full touch-none cursor-crosshair block"
@@ -278,21 +271,20 @@ function SignaturePad({
           onTouchMove={draw}
           onTouchEnd={endDraw}
         />
+        {!hasSig && !isDrawing && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <p className="text-xs text-muted-foreground/50 flex items-center gap-1">
+              <PenLine className="w-3.5 h-3.5" />여기에 서명하세요
+            </p>
+          </div>
+        )}
+        {hasSig && (
+          <div className="absolute top-1 right-1.5 text-[10px] text-green-600 font-semibold bg-green-50 px-1.5 py-0.5 rounded">✓ 저장됨</div>
+        )}
       </div>
-      <div className="flex gap-2">
-        <Button type="button" variant="outline" size="sm" onClick={clearCanvas} className="text-xs h-7">
-          <RotateCcw className="w-3 h-3 mr-1" />지우기
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          onClick={handleSave}
-          disabled={!hasContent}
-          className="text-xs h-7"
-        >
-          <PenLine className="w-3 h-3 mr-1" />서명 완료
-        </Button>
-      </div>
+      <Button type="button" variant="outline" size="sm" onClick={clearCanvas} className="text-xs h-7">
+        <RotateCcw className="w-3 h-3 mr-1" />지우기
+      </Button>
     </div>
   );
 }
