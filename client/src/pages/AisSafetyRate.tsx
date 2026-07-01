@@ -90,16 +90,28 @@ function RateBadge({ value }: { value: number }) {
 function StatusBadge({ value, onClick, hasNote }: { value: string | null; onClick?: () => void; hasNote?: boolean }) {
   const v = value || '';
   if (v === '적합') return <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 border-0 text-xs font-semibold"><CheckCircle2 className="w-3 h-3 mr-1" />적합</Badge>;
-  if (v === '부적합') return (
-    <Badge
-      className={`bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 border-0 text-xs font-semibold gap-1 ${onClick ? 'cursor-pointer hover:bg-red-200 dark:hover:bg-red-900/60' : ''}`}
-      onClick={onClick}
-    >
-      <XCircle className="w-3 h-3" />부적합{hasNote && <span className="text-red-400 ml-0.5">✎</span>}
-    </Badge>
-  );
-  if (v === '분석중' || v === '분析중' || v === '분석중') return <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 border-0 text-xs font-semibold"><Loader2 className="w-3 h-3 mr-1 animate-spin" />분석중</Badge>;
-  return <Badge className="bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 border-0 text-xs"><Clock className="w-3 h-3 mr-1" />분석전</Badge>;
+  if (v === '부적합') {
+    if (hasNote) return (
+      <Badge
+        className={`bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 border border-amber-300 dark:border-amber-700 text-xs font-semibold gap-1 ${onClick ? 'cursor-pointer hover:bg-amber-200 dark:hover:bg-amber-900/60' : ''}`}
+        onClick={onClick}
+        title="사유 기록됨 — 클릭하여 확인"
+      >
+        <FileEdit className="w-3 h-3" />부적합 <span className="text-amber-500 font-bold">✎</span>
+      </Badge>
+    );
+    return (
+      <Badge
+        className={`bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 border-0 text-xs font-semibold gap-1 ${onClick ? 'cursor-pointer hover:bg-red-200 dark:hover:bg-red-900/60' : ''}`}
+        onClick={onClick}
+        title="클릭하여 사유 기록"
+      >
+        <XCircle className="w-3 h-3" />부적합
+      </Badge>
+    );
+  }
+  if (v === '분析중' || v === '분析中' || v === '분석중') return <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 border-0 text-xs font-semibold"><Loader2 className="w-3 h-3 mr-1 animate-spin" />분析중</Badge>;
+  return <Badge className="bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 border-0 text-xs"><Clock className="w-3 h-3 mr-1" />分析전</Badge>;
 }
 
 function PermitBadge({ value, highRisk }: { value: string | null; highRisk: string | null }) {
@@ -111,12 +123,22 @@ function PermitBadge({ value, highRisk }: { value: string | null; highRisk: stri
 
 function RegBadge({ value, onClick, hasNote }: { value: string | null; onClick?: () => void; hasNote?: boolean }) {
   if (value === '등록') return <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 border-0 text-xs font-semibold"><CheckCircle2 className="w-3 h-3 mr-1" />등록</Badge>;
+  if (hasNote) return (
+    <Badge
+      className={`bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 border border-amber-300 dark:border-amber-700 text-xs font-semibold gap-1 ${onClick ? 'cursor-pointer hover:bg-amber-200 dark:hover:bg-amber-900/60 transition-colors' : ''}`}
+      onClick={onClick}
+      title="사유 기록됨 — 클릭하여 확인"
+    >
+      <FileEdit className="w-3 h-3" />미등록 <span className="text-amber-500 font-bold">✎</span>
+    </Badge>
+  );
   return (
     <Badge
-      className={`bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 border-0 text-xs ${onClick ? 'cursor-pointer hover:bg-red-200 dark:hover:bg-red-800/40 transition-colors' : ''} ${hasNote ? 'ring-1 ring-red-400' : ''}`}
+      className={`bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 border-0 text-xs ${onClick ? 'cursor-pointer hover:bg-red-200 dark:hover:bg-red-800/40 transition-colors' : ''}`}
       onClick={onClick}
+      title={onClick ? '클릭하여 사유 기록' : undefined}
     >
-      <XCircle className="w-3 h-3 mr-1" />미등록{hasNote ? ' ✎' : ''}
+      <XCircle className="w-3 h-3 mr-1" />미등록
     </Badge>
   );
 }
@@ -492,8 +514,8 @@ export default function AisSafetyRate() {
         credentials: 'include',
         body: formData,
       });
-      queryClient.invalidateQueries({ queryKey: ['/api/ais-safety/tbm-notes'] });
-      toast({ title: 'TBM 부적합 사유가 저장되었습니다' });
+      await queryClient.invalidateQueries({ queryKey: ['/api/ais-safety/tbm-notes'] });
+      toast({ title: tbmNoteType === 'unreg' ? 'TBM 미등록 사유가 저장되었습니다 ✎' : 'TBM AI 부적합 사유가 저장되었습니다 ✎', description: tbmNoteReason ? `사유: ${tbmNoteReason.slice(0, 40)}${tbmNoteReason.length > 40 ? '...' : ''}` : undefined });
       setTbmNoteRecord(null);
     } catch {
       toast({ title: '저장에 실패했습니다', variant: 'destructive' });
@@ -516,8 +538,21 @@ export default function AisSafetyRate() {
                 <p className="font-semibold text-sm text-foreground">{tbmNoteRecord.workName || '-'}</p>
                 <p className="text-muted-foreground">{tbmNoteRecord.workOrderNo} · {tbmNoteRecord.team} · {tbmNoteRecord.startDate}</p>
               </div>
+              {/* 기존 사유 기록 미리보기 */}
+              {tbmNoteMap[tbmNoteRecord.id] && (
+                <div className="rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 p-3 text-xs space-y-1">
+                  <p className="flex items-center gap-1 font-bold text-amber-700 dark:text-amber-400"><FileEdit className="w-3.5 h-3.5" />기존 사유 기록됨</p>
+                  {tbmNoteMap[tbmNoteRecord.id].reason && (
+                    <p className="text-muted-foreground whitespace-pre-line">{tbmNoteMap[tbmNoteRecord.id].reason}</p>
+                  )}
+                  {tbmNoteMap[tbmNoteRecord.id].photoUrl && (
+                    <p className="text-amber-600 dark:text-amber-400">📷 사진 첨부됨</p>
+                  )}
+                  <p className="text-muted-foreground/60">수정하려면 아래에서 다시 작성 후 저장</p>
+                </div>
+              )}
               <div className="space-y-2">
-                <Label className="text-sm font-medium">부적합 사진</Label>
+                <Label className="text-sm font-medium">{tbmNoteType === 'unreg' ? '미등록 사유 사진' : '부적합 사진'}</Label>
                 <div className="flex items-start gap-3">
                   {tbmNotePhotoPreview ? (
                     <div className="relative">
@@ -545,9 +580,9 @@ export default function AisSafetyRate() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label className="text-sm font-medium">부적합 사유</Label>
+                <Label className="text-sm font-medium">{tbmNoteType === 'unreg' ? '미등록 사유' : '부적합 사유'}</Label>
                 <Textarea
-                  placeholder="TBM AI가 부적합으로 판정한 사유를 작성해주세요. (예: 안전모 미착용, 안전대 미착용, 작업허가서 내용 불일치 등)"
+                  placeholder={tbmNoteType === 'unreg' ? 'TBM 미등록 사유를 작성해주세요. (예: 작업 시작 전 TBM 미실시, 담당자 부재 등)' : 'TBM AI가 부적합으로 판정한 사유를 작성해주세요. (예: 안전모 미착용, 안전대 미착용, 작업허가서 내용 불일치 등)'}
                   value={tbmNoteReason}
                   onChange={e => setTbmNoteReason(e.target.value)}
                   className="min-h-[100px] text-sm resize-none"
@@ -920,7 +955,7 @@ export default function AisSafetyRate() {
                       <div className="w-8 h-8 rounded-lg bg-red-100 dark:bg-red-900/40 flex items-center justify-center">
                         <XCircle className="w-4 h-4 text-red-600 dark:text-red-400" />
                       </div>
-                      <span className="text-sm font-semibold text-muted-foreground">누락/미이행</span>
+                      <span className="text-sm font-semibold text-muted-foreground">이슈사항</span>
                     </div>
                     <p className="text-3xl font-black">{(comp.issues || []).reduce((a, b) => a + b.count, 0)}</p>
                     <p className="text-xs text-muted-foreground mt-1">{(comp.issues || []).length}개 항목 이슈</p>
