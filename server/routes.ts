@@ -3930,7 +3930,7 @@ ${buildEmailFooter()}
         // 디버그: 건너뛰는 행도 AR값 확인
         const rawAr43 = (row[43] || '').trim();
         if (!startDate) {
-          if (rawAr43 && rawAr43 !== '없음') console.log(`[AIS-SKIP] AR[43]="${rawAr43}" (날짜없음) wn="${(row[0]||'').substring(0,30)}"`);
+          console.log(`[AIS-SKIP] AR="${rawAr43||'(빈값)'}" wn="${(row[0]||'').substring(0,40)}"`);
           continue;
         }
         if (!workDate) workDate = startDate;
