@@ -26,7 +26,7 @@ import {
   Clock, XCircle, ShieldCheck, ShieldAlert, FileWarning,
   TrendingUp, Users, Loader2, Eye, ChevronUp, Layers,
   CalendarDays, Calendar, ChevronLeft, ChevronRight,
-  Camera, ImageIcon, Save,
+  Camera, ImageIcon, Save, FileEdit,
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -161,14 +161,17 @@ function getHighRiskBreakdown(records: AisSafetyRecord[]) {
   return types;
 }
 
-function CircleGauge({ rate, total, pass: passCount }: { rate: number; total?: number; pass?: number }) {
+function CircleGauge({ rate, total, pass: passCount, size = 'lg' }: { rate: number; total?: number; pass?: number; size?: 'lg' | 'sm' }) {
   const r = 50, circ = 2 * Math.PI * r, dash = (rate / 100) * circ;
   const color = rate >= 90 ? '#22c55e' : rate >= 70 ? '#f59e0b' : '#ef4444';
   const label = rate >= 90 ? '우수' : rate >= 70 ? '양호' : '주의';
-  const gid = `cg-grad-${rate}`;
+  const gid = `cg-grad-${rate}-${size}`;
+  const wh = size === 'sm' ? 'w-24 h-24' : 'w-44 h-44';
+  const numSz = size === 'sm' ? 'text-3xl' : 'text-5xl';
+  const pctSz = size === 'sm' ? 'text-xs' : 'text-base';
   return (
-    <div className="flex flex-col items-center gap-2">
-      <div className="relative w-44 h-44">
+    <div className="flex flex-col items-center gap-1.5">
+      <div className={`relative ${wh}`}>
         <svg className="w-full h-full -rotate-90" viewBox="0 0 120 120">
           <defs>
             <linearGradient id={gid} x1="0%" y1="0%" x2="100%" y2="100%">
@@ -182,12 +185,12 @@ function CircleGauge({ rate, total, pass: passCount }: { rate: number; total?: n
             style={{ filter:`drop-shadow(0 0 6px ${color}88)`, transition:'stroke-dasharray 1.2s cubic-bezier(0.4,0,0.2,1)' }} />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-5xl font-black text-white leading-none">{rate}</span>
-          <span className="text-base font-bold text-white/70 leading-none">%</span>
+          <span className={`${numSz} font-black text-white leading-none`}>{rate}</span>
+          <span className={`${pctSz} font-bold text-white/70 leading-none`}>%</span>
         </div>
       </div>
-      <span className="text-xs font-bold px-3 py-1 rounded-full" style={{ backgroundColor:`${color}33`, color }}>{label}</span>
-      {total != null && <p className="text-xs text-blue-100 mt-1">{passCount}건 이행 / 전체 {total}건</p>}
+      <span className="text-xs font-bold px-2.5 py-0.5 rounded-full" style={{ backgroundColor:`${color}33`, color }}>{label}</span>
+      {total != null && size === 'lg' && <p className="text-xs text-blue-100">{passCount}건 이행 / 전체 {total}건</p>}
     </div>
   );
 }
@@ -963,114 +966,120 @@ export default function AisSafetyRate() {
                 <TeamBreakdown records={records} title={drilldownLabel} onIssueClick={(label, list) => setActiveIssue({ label, list })} />
               )}
 
-              {/* Top KPI Row */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 items-start">
-                <Card className="border-0 text-white col-span-2 lg:col-span-1 overflow-hidden" style={{ background:'linear-gradient(135deg,#1d4ed8 0%,#2563eb 50%,#4f46e5 100%)', boxShadow:'0 8px 32px rgba(37,99,235,0.4)' }}>
-                  <CardContent className="p-5">
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-xs font-bold text-blue-100 uppercase tracking-widest">전체 이행률</p>
-                      <span className="text-xs bg-white/15 text-blue-100 px-2 py-0.5 rounded-full">{records.length}건 분석</span>
-                    </div>
-                    <CircleGauge rate={comp.rate}
-                      total={records.length}
-                      pass={records.length - (comp.issues||[]).reduce((a,b)=>a+b.count,0)} />
+              {/* 통합 KPI 패널 */}
+              <Card className="overflow-hidden border-0 shadow-md">
+                <div className="flex flex-col lg:flex-row">
+                  {/* 왼쪽: 원형 게이지 */}
+                  <div className="lg:w-44 flex-shrink-0 flex flex-col items-center justify-center py-4 px-5 text-white gap-1"
+                    style={{ background:'linear-gradient(160deg,#1d4ed8 0%,#2563eb 55%,#4f46e5 100%)', boxShadow:'inset -4px 0 16px rgba(0,0,0,0.15)' }}>
+                    <p className="text-[10px] font-bold text-blue-200 uppercase tracking-widest mb-1">전체 이행률</p>
+                    <CircleGauge rate={comp.rate} size="sm" />
+                    <p className="text-[11px] text-blue-200 mt-1 text-center leading-tight">
+                      {records.length - (comp.issues||[]).reduce((a,b)=>a+b.count,0)}건 이행 / {records.length}건
+                    </p>
                     {(comp.issues||[]).length > 0 && (
-                      <div className="mt-3 flex flex-wrap gap-1.5 justify-center">
+                      <div className="flex flex-wrap gap-1 justify-center mt-1">
                         {(comp.issues||[]).map(issue => (
-                          <span key={issue.label} className="text-xs bg-white/10 text-blue-100 px-2 py-0.5 rounded-full">
+                          <span key={issue.label} className="text-[10px] bg-white/10 text-blue-100 px-1.5 py-0.5 rounded-full whitespace-nowrap">
                             {issue.label} <span className="font-bold text-white">{issue.count}</span>
                           </span>
                         ))}
                       </div>
                     )}
-                  </CardContent>
-                </Card>
-                <Card className="border-0 shadow-sm bg-card/60">
-                  <CardContent className="p-5">
-                    <div className="flex items-center gap-2 mb-3">
-                      <div className="w-8 h-8 rounded-lg bg-orange-100 dark:bg-orange-900/40 flex items-center justify-center">
-                        <AlertTriangle className="w-4 h-4 text-orange-600 dark:text-orange-400" />
-                      </div>
-                      <span className="text-sm font-semibold text-muted-foreground">6대 고위험작업</span>
-                    </div>
-                    <p className="text-3xl font-black">{highRiskRecords.length}</p>
-                    <p className="text-xs text-muted-foreground mt-1">안전허가서 등록 <span className="font-bold text-emerald-600">{highRiskRecords.filter(r => r.safetyPermit === 'Y').length}건</span></p>
-                    {comp.highRiskNoPermit && comp.highRiskNoPermit.length > 0 && (
-                      <p className="text-xs mt-0.5 text-red-600 font-semibold">⚠ 미매칭 {comp.highRiskNoPermit.length}건</p>
-                    )}
-                  </CardContent>
-                </Card>
-                <Card className="border-0 shadow-sm bg-card/60">
-                  <CardContent className="p-5">
-                    <div className="flex items-center gap-2 mb-3">
-                      <div className="w-8 h-8 rounded-lg bg-purple-100 dark:bg-purple-900/40 flex items-center justify-center">
-                        <FileWarning className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                      </div>
-                      <span className="text-sm font-semibold text-muted-foreground">TBM AI 현황</span>
-                    </div>
-                    <p className="text-3xl font-black">{records.filter(r => r.tbmAiResult === '적합').length}</p>
-                    <p className="text-xs text-muted-foreground mt-1">적합 / 전체 {records.length}건</p>
-                    {records.filter(r => r.tbmAiResult === '부적합').length > 0 && (
-                      <p className="text-xs mt-0.5 text-red-600 font-semibold">⚠ 부적합 {records.filter(r => r.tbmAiResult === '부적합').length}건</p>
-                    )}
-                    {records.filter(r => r.tbmAiResult === '분석중').length > 0 && (
-                      <p className="text-xs mt-0.5 text-amber-600 font-semibold flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" />분석중 {records.filter(r => r.tbmAiResult === '분석중').length}건</p>
-                    )}
-                  </CardContent>
-                </Card>
-                <Card className="border-0 shadow-sm bg-card/60">
-                  <CardContent className="p-5">
-                    <div className="flex items-center gap-2 mb-3">
-                      <div className="w-8 h-8 rounded-lg bg-red-100 dark:bg-red-900/40 flex items-center justify-center">
-                        <XCircle className="w-4 h-4 text-red-600 dark:text-red-400" />
-                      </div>
-                      <span className="text-sm font-semibold text-muted-foreground">이슈사항</span>
-                    </div>
-                    <p className="text-3xl font-black">{(comp.issues || []).reduce((a, b) => a + b.count, 0)}</p>
-                    <p className="text-xs text-muted-foreground mt-1">{(comp.issues || []).length}개 항목 이슈</p>
-                  </CardContent>
-                </Card>
-              </div>
+                  </div>
 
-              {/* Compliance items */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {complianceItems.map(item => {
-                  const rate = item.total === 0 ? 100 : Math.round((item.pass / item.total) * 100);
-                  const fail = item.total - item.pass;
-                  const Icon = item.icon;
-                  const barColor = rate >= 90 ? '#22c55e' : rate >= 70 ? '#f59e0b' : '#ef4444';
-                  const hasIssue = item.total > 0 && rate < 90;
-                  return (
-                    <Card key={item.label} className={`shadow-sm bg-card/80 transition-all border ${hasIssue ? 'border-red-200 dark:border-red-800/60' : 'border-emerald-100 dark:border-emerald-900/40'}`}>
-                      <CardContent className="p-4">
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center gap-2">
-                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${hasIssue ? 'bg-red-100 dark:bg-red-900/30' : 'bg-emerald-100 dark:bg-emerald-900/30'}`}>
-                              <Icon className={`w-4 h-4 ${hasIssue ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`} />
-                            </div>
-                            <span className="text-xs font-semibold text-muted-foreground">{item.label}</span>
+                  {/* 오른쪽: KPI + Compliance 통합 */}
+                  <div className="flex-1 divide-y divide-border/60">
+                    {/* 상단: 3개 KPI 수치 */}
+                    <div className="grid grid-cols-3 divide-x divide-border/60">
+                      {/* 6대 고위험 */}
+                      <div className="p-3 flex flex-col gap-1">
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-6 h-6 rounded-md bg-orange-100 dark:bg-orange-900/40 flex items-center justify-center flex-shrink-0">
+                            <AlertTriangle className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />
                           </div>
-                          {item.total > 0 && <RateBadge value={rate} />}
+                          <span className="text-xs font-semibold text-muted-foreground truncate">6대 고위험작업</span>
                         </div>
-                        {item.total === 0 ? <p className="text-sm text-muted-foreground">{item.emptyLabel}</p> : (
-                          <>
-                            <div className="flex items-baseline gap-2 mb-2">
-                              <span className="text-2xl font-black" style={{ color: barColor }}>{item.pass}</span>
-                              <span className="text-sm text-muted-foreground">/ {item.total}건</span>
-                              {fail > 0 && <span className="ml-auto text-xs font-bold text-red-500">미이행 {fail}건</span>}
-                            </div>
-                            <div className="relative w-full h-3 bg-muted/40 rounded-full overflow-hidden">
-                              <div className="h-full rounded-full transition-all duration-700"
-                                style={{ width:`${rate}%`, background:`linear-gradient(90deg,${barColor}88,${barColor})`, boxShadow:`0 0 8px ${barColor}55` }} />
-                            </div>
-                            <p className="text-xs text-muted-foreground mt-2">{item.description}</p>
-                          </>
+                        <p className="text-2xl font-black leading-none">{highRiskRecords.length}<span className="text-xs font-normal text-muted-foreground ml-1">건</span></p>
+                        <p className="text-[11px] text-muted-foreground">허가서 <span className="font-bold text-emerald-600">{highRiskRecords.filter(r => r.safetyPermit === 'Y').length}건</span></p>
+                        {comp.highRiskNoPermit && comp.highRiskNoPermit.length > 0 && (
+                          <p className="text-[11px] text-red-600 font-semibold">⚠ 미매칭 {comp.highRiskNoPermit.length}건</p>
                         )}
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div>
+                      </div>
+                      {/* TBM AI 현황 */}
+                      <div className="p-3 flex flex-col gap-1">
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-6 h-6 rounded-md bg-purple-100 dark:bg-purple-900/40 flex items-center justify-center flex-shrink-0">
+                            <FileWarning className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                          </div>
+                          <span className="text-xs font-semibold text-muted-foreground truncate">TBM AI 현황</span>
+                        </div>
+                        <p className="text-2xl font-black leading-none">{records.filter(r => r.tbmAiResult === '적합').length}<span className="text-xs font-normal text-muted-foreground ml-1">적합</span></p>
+                        <p className="text-[11px] text-muted-foreground">전체 {records.length}건</p>
+                        {records.filter(r => r.tbmAiResult === '부적합').length > 0 && (
+                          <p className="text-[11px] text-red-600 font-semibold">⚠ 부적합 {records.filter(r => r.tbmAiResult === '부적합').length}건</p>
+                        )}
+                        {records.filter(r => r.tbmAiResult === '분석중').length > 0 && (
+                          <p className="text-[11px] text-amber-600 font-semibold flex items-center gap-0.5"><Loader2 className="w-2.5 h-2.5 animate-spin" />분석중 {records.filter(r => r.tbmAiResult === '분석중').length}건</p>
+                        )}
+                      </div>
+                      {/* 이슈사항 */}
+                      <div className="p-3 flex flex-col gap-1">
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-6 h-6 rounded-md bg-red-100 dark:bg-red-900/40 flex items-center justify-center flex-shrink-0">
+                            <XCircle className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
+                          </div>
+                          <span className="text-xs font-semibold text-muted-foreground truncate">이슈사항</span>
+                        </div>
+                        <p className="text-2xl font-black leading-none">{(comp.issues || []).reduce((a, b) => a + b.count, 0)}<span className="text-xs font-normal text-muted-foreground ml-1">건</span></p>
+                        <p className="text-[11px] text-muted-foreground">{(comp.issues || []).length}개 항목</p>
+                      </div>
+                    </div>
+
+                    {/* 하단: Compliance 진행바 */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 divide-x divide-border/60">
+                      {complianceItems.map(item => {
+                        const rate = item.total === 0 ? 100 : Math.round((item.pass / item.total) * 100);
+                        const fail = item.total - item.pass;
+                        const Icon = item.icon;
+                        const barColor = rate >= 90 ? '#22c55e' : rate >= 70 ? '#f59e0b' : '#ef4444';
+                        const hasIssue = item.total > 0 && rate < 90;
+                        return (
+                          <div key={item.label} className="p-3">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-1.5">
+                                <div className={`w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 ${hasIssue ? 'bg-red-100 dark:bg-red-900/30' : 'bg-emerald-100 dark:bg-emerald-900/30'}`}>
+                                  <Icon className={`w-3.5 h-3.5 ${hasIssue ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`} />
+                                </div>
+                                <span className="text-xs font-semibold text-muted-foreground">{item.label}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {fail > 0 && <span className="text-[11px] font-bold text-red-500">미이행 {fail}건</span>}
+                                {item.total > 0 && <RateBadge value={rate} />}
+                              </div>
+                            </div>
+                            {item.total === 0 ? (
+                              <p className="text-xs text-muted-foreground">{item.emptyLabel}</p>
+                            ) : (
+                              <>
+                                <div className="flex items-baseline gap-1.5 mb-1.5">
+                                  <span className="text-xl font-black" style={{ color: barColor }}>{item.pass}</span>
+                                  <span className="text-xs text-muted-foreground">/ {item.total}건</span>
+                                  <span className="text-[11px] text-muted-foreground ml-auto">{item.description}</span>
+                                </div>
+                                <div className="w-full h-2.5 bg-muted/40 rounded-full overflow-hidden">
+                                  <div className="h-full rounded-full transition-all duration-700"
+                                    style={{ width:`${rate}%`, background:`linear-gradient(90deg,${barColor}88,${barColor})`, boxShadow:`0 0 6px ${barColor}55` }} />
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </Card>
 
               {/* 6대 고위험작업 유형별 */}
               {records.length > 0 && (
