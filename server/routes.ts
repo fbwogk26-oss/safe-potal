@@ -3927,11 +3927,13 @@ ${buildEmailFooter()}
           if (reparsed.length >= header.length * 0.5) row = reparsed;
         }
         const startDate = col(row, '공사작업시작일', '작업시작일', '시작일', '시작일시', '공사시작일');
-        if (!startDate) continue; // 날짜 없는 행(공동작업 참조 등) 제외
+        // 디버그: 건너뛰는 행도 AR값 확인
+        const rawAr43 = (row[43] || '').trim();
+        if (!startDate) {
+          if (rawAr43 && rawAr43 !== '없음') console.log(`[AIS-SKIP] AR[43]="${rawAr43}" (날짜없음) wn="${(row[0]||'').substring(0,30)}"`);
+          continue;
+        }
         if (!workDate) workDate = startDate;
-        // 디버그: 행 길이와 AR열(43번) 원시값 출력
-        const rawAr = row[43];
-        if (rawAr && rawAr.trim()) console.log(`[AIS-ROW] len=${row.length} AR[43]="${rawAr.trim()}" start=${startDate}`);
         const highRisk = col(row, '고위험작업', '고위험작업유형', '고위험유형', '위험작업');
         records.push({
           workOrderNo: col(row, '공사작업번호', '작업번호', '공사번호', '번호'),
