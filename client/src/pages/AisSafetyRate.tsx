@@ -460,14 +460,29 @@ export default function AisSafetyRate() {
                       <p className="text-sm text-muted-foreground">날짜별 데이터가 없습니다</p>
                     ) : (
                       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
-                        {dailyGroups.map(g => (
-                          <button key={g.date} data-testid={`card-date-${g.date}`} onClick={() => setSelectedDate(g.date)}
-                            className="text-left p-3 rounded-lg border border-border hover:border-blue-300 hover:bg-blue-50/50 dark:hover:border-blue-700 dark:hover:bg-blue-950/20 transition-all">
-                            <p className="text-xs font-semibold text-muted-foreground mb-1 truncate">{g.date}</p>
-                            <p className="text-lg font-black leading-none mb-1.5">{g.records.length}<span className="text-xs font-normal text-muted-foreground ml-0.5">건</span></p>
-                            <RateBadge value={g.rate} />
-                          </button>
-                        ))}
+                        {dailyGroups.map(g => {
+                          const totalIssues = (g.issues || []).reduce((a, b) => a + b.count, 0);
+                          const issueRecords = (g.issues || []).flatMap(i => i.list);
+                          return (
+                          <div key={g.date} className="relative group rounded-lg border border-border hover:border-blue-300 hover:bg-blue-50/50 dark:hover:border-blue-700 dark:hover:bg-blue-950/20 transition-all">
+                            <button data-testid={`card-date-${g.date}`} onClick={() => setSelectedDate(g.date)}
+                              className="text-left p-3 w-full h-full block">
+                              <p className="text-xs font-semibold text-muted-foreground mb-1 truncate">{g.date}</p>
+                              <p className="text-lg font-black leading-none mb-1.5">{g.records.length}<span className="text-xs font-normal text-muted-foreground ml-0.5">건</span></p>
+                              <RateBadge value={g.rate} />
+                            </button>
+                            {totalIssues > 0 && (
+                              <button
+                                data-testid={`btn-issue-${g.date}`}
+                                onClick={(e) => { e.stopPropagation(); setActiveIssue({ label: `${g.date} 이슈 목록`, list: issueRecords }); }}
+                                className="mt-1 mx-3 mb-2 block w-[calc(100%-24px)] text-left text-xs font-bold text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 hover:underline transition-colors"
+                              >
+                                ⚠ 이슈 {totalIssues}건 →
+                              </button>
+                            )}
+                          </div>
+                          );
+                        })}
                       </div>
                     )}
                   </>
@@ -515,14 +530,29 @@ export default function AisSafetyRate() {
                       <p className="text-sm text-muted-foreground">월별 데이터가 없습니다</p>
                     ) : (
                       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
-                        {monthlyGroups.map(g => (
-                          <button key={g.month} data-testid={`card-month-${g.month}`} onClick={() => setSelectedMonth(g.month)}
-                            className="text-left p-3 rounded-lg border border-border hover:border-blue-300 hover:bg-blue-50/50 dark:hover:border-blue-700 dark:hover:bg-blue-950/20 transition-all">
-                            <p className="text-xs font-semibold text-muted-foreground mb-1">{g.month}</p>
-                            <p className="text-lg font-black leading-none mb-1.5">{g.records.length}<span className="text-xs font-normal text-muted-foreground ml-0.5">건</span></p>
-                            <RateBadge value={g.rate} />
-                          </button>
-                        ))}
+                        {monthlyGroups.map(g => {
+                          const totalIssues = (g.issues || []).reduce((a, b) => a + b.count, 0);
+                          const issueRecords = (g.issues || []).flatMap(i => i.list);
+                          return (
+                          <div key={g.month} className="relative rounded-lg border border-border hover:border-blue-300 hover:bg-blue-50/50 dark:hover:border-blue-700 dark:hover:bg-blue-950/20 transition-all">
+                            <button data-testid={`card-month-${g.month}`} onClick={() => setSelectedMonth(g.month)}
+                              className="text-left p-3 w-full block">
+                              <p className="text-xs font-semibold text-muted-foreground mb-1">{g.month}</p>
+                              <p className="text-lg font-black leading-none mb-1.5">{g.records.length}<span className="text-xs font-normal text-muted-foreground ml-0.5">건</span></p>
+                              <RateBadge value={g.rate} />
+                            </button>
+                            {totalIssues > 0 && (
+                              <button
+                                data-testid={`btn-issue-month-${g.month}`}
+                                onClick={(e) => { e.stopPropagation(); setActiveIssue({ label: `${g.month} 이슈 목록`, list: issueRecords }); }}
+                                className="mt-1 mx-3 mb-2 block w-[calc(100%-24px)] text-left text-xs font-bold text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 hover:underline transition-colors"
+                              >
+                                ⚠ 이슈 {totalIssues}건 →
+                              </button>
+                            )}
+                          </div>
+                          );
+                        })}
                       </div>
                     )}
                   </>
@@ -965,13 +995,34 @@ export default function AisSafetyRate() {
 
       {/* Issue detail dialog */}
       <Dialog open={!!activeIssue} onOpenChange={() => setActiveIssue(null)}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <AlertTriangle className="w-5 h-5 text-red-500" />
               {activeIssue?.label} — {activeIssue?.list.length}건
             </DialogTitle>
           </DialogHeader>
+          {/* 이슈 유형별 뱃지 요약 */}
+          {activeIssue && (() => {
+            const noPermit = activeIssue.list.filter(r => isHighRiskWork(r.highRiskWork) && r.safetyPermit !== 'Y');
+            const tbmUnreg = activeIssue.list.filter(r => r.tbmResult === '미등록');
+            const tbmBad = activeIssue.list.filter(r => r.tbmAiResult === '부적합');
+            const groups = [
+              { label: '안전허가서 미등록', records: noPermit, color: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' },
+              { label: 'TBM 미등록', records: tbmUnreg, color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },
+              { label: 'TBM AI 부적합', records: tbmBad, color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300' },
+            ].filter(g => g.records.length > 0);
+            if (groups.length === 0) return null;
+            return (
+              <div className="flex flex-wrap gap-2 pb-2 border-b">
+                {groups.map(g => (
+                  <span key={g.label} className={`text-xs font-semibold px-2.5 py-1 rounded-full ${g.color}`}>
+                    {g.label} {g.records.length}건
+                  </span>
+                ))}
+              </div>
+            );
+          })()}
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -981,20 +1032,36 @@ export default function AisSafetyRate() {
                   <TableHead className="text-xs">팀</TableHead>
                   <TableHead className="text-xs">고위험유형</TableHead>
                   <TableHead className="text-xs">안전허가서</TableHead>
+                  <TableHead className="text-xs">TBM</TableHead>
                   <TableHead className="text-xs">TBM AI</TableHead>
+                  <TableHead className="text-xs">이슈</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {activeIssue?.list.map(r => (
-                  <TableRow key={r.id}>
-                    <TableCell className="text-xs font-mono w-[110px]"><span className="block truncate" title={r.workOrderNo || ''}>{r.workOrderNo || '-'}</span></TableCell>
-                    <TableCell className="text-xs">{r.workName || '-'}</TableCell>
-                    <TableCell className="text-xs whitespace-nowrap">{r.team || '-'}</TableCell>
-                    <TableCell><HighRiskBadge value={r.highRiskWork} /></TableCell>
-                    <TableCell><PermitBadge value={r.safetyPermit} highRisk={r.highRiskWork} /></TableCell>
-                    <TableCell><StatusBadge value={r.tbmAiResult} /></TableCell>
-                  </TableRow>
-                ))}
+                {activeIssue?.list.map(r => {
+                  const issueTags: string[] = [];
+                  if (isHighRiskWork(r.highRiskWork) && r.safetyPermit !== 'Y') issueTags.push('안전허가서 미등록');
+                  if (r.tbmResult === '미등록') issueTags.push('TBM 미등록');
+                  if (r.tbmAiResult === '부적합') issueTags.push('TBM AI 부적합');
+                  return (
+                    <TableRow key={r.id} className="bg-red-50/40 dark:bg-red-950/10">
+                      <TableCell className="text-xs font-mono w-[110px]"><span className="block truncate" title={r.workOrderNo || ''}>{r.workOrderNo || '-'}</span></TableCell>
+                      <TableCell className="text-xs">{r.workName || '-'}</TableCell>
+                      <TableCell className="text-xs whitespace-nowrap">{r.team || '-'}</TableCell>
+                      <TableCell><HighRiskBadge value={r.highRiskWork} /></TableCell>
+                      <TableCell><PermitBadge value={r.safetyPermit} highRisk={r.highRiskWork} /></TableCell>
+                      <TableCell><span className={`text-xs font-semibold ${r.tbmResult === '미등록' ? 'text-red-600' : 'text-emerald-600'}`}>{r.tbmResult || '-'}</span></TableCell>
+                      <TableCell><StatusBadge value={r.tbmAiResult} /></TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-0.5">
+                          {issueTags.map(tag => (
+                            <span key={tag} className="text-[10px] font-semibold text-red-600 whitespace-nowrap">⚠ {tag}</span>
+                          ))}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
