@@ -221,6 +221,7 @@ export default function AisSafetyRate() {
   const [hrFilterPermit, setHrFilterPermit] = useState('all');
   const [hrFilterType, setHrFilterType] = useState('all');
   const [hrSearch, setHrSearch] = useState('');
+  const [hrFilterTbm, setHrFilterTbm] = useState('all');
   const [cumulativeMonth, setCumulativeMonth] = useState<string>('all');
   const [tbmNoteRecord, setTbmNoteRecord] = useState<AisSafetyRecord | null>(null);
   const [tbmNoteReason, setTbmNoteReason] = useState('');
@@ -352,6 +353,10 @@ export default function AisSafetyRate() {
     if (hrFilterPermit === 'registered' && r.safetyPermit !== 'Y') return false;
     if (hrFilterPermit === 'unregistered' && r.safetyPermit === 'Y') return false;
     if (hrFilterType !== 'all' && !(r.highRiskWork || '').includes(hrFilterType)) return false;
+    if (hrFilterTbm === 'suita') { if (r.tbmAiResult !== '적합') return false; }
+    else if (hrFilterTbm === 'unsuita') { if (r.tbmAiResult !== '부적합') return false; }
+    else if (hrFilterTbm === 'analyzing') { if (r.tbmAiResult !== '분석중') return false; }
+    else if (hrFilterTbm === 'pending') { if (r.tbmAiResult && r.tbmAiResult !== '분석전') return false; }
     if (hrSearch) {
       const q = hrSearch.toLowerCase();
       if (!(r.workOrderNo || '').toLowerCase().includes(q) &&
@@ -1093,8 +1098,18 @@ export default function AisSafetyRate() {
                           {['고소', '전원', '중장비', '굴착', '밀폐', '화기'].map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
                         </SelectContent>
                       </Select>
-                      {(hrFilterTeam !== 'all' || hrFilterPermit !== 'all' || hrFilterType !== 'all' || hrSearch) && (
-                        <button className="h-8 text-xs px-2 rounded-md border border-input bg-background hover:bg-muted text-muted-foreground" onClick={() => { setHrFilterTeam('all'); setHrFilterPermit('all'); setHrFilterType('all'); setHrSearch(''); setHighRiskPage(1); }}>초기화</button>
+                      <Select value={hrFilterTbm} onValueChange={v => { setHrFilterTbm(v); setHighRiskPage(1); }}>
+                        <SelectTrigger className="h-8 text-xs w-36" data-testid="select-hr-tbm"><SelectValue placeholder="TBM AI 전체" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">TBM AI 전체</SelectItem>
+                          <SelectItem value="suita">적합</SelectItem>
+                          <SelectItem value="unsuita">부적합</SelectItem>
+                          <SelectItem value="analyzing">분석중</SelectItem>
+                          <SelectItem value="pending">분석전</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {(hrFilterTeam !== 'all' || hrFilterPermit !== 'all' || hrFilterType !== 'all' || hrFilterTbm !== 'all' || hrSearch) && (
+                        <button className="h-8 text-xs px-2 rounded-md border border-input bg-background hover:bg-muted text-muted-foreground" onClick={() => { setHrFilterTeam('all'); setHrFilterPermit('all'); setHrFilterType('all'); setHrFilterTbm('all'); setHrSearch(''); setHighRiskPage(1); }}>초기화</button>
                       )}
                     </div>
                   </CardHeader>
