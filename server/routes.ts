@@ -3868,17 +3868,41 @@ ${buildEmailFooter()}
   app.post('/api/ais-safety/upload', isAuthenticated, aisUpload.single('csv'), async (req: any, res) => {
     try {
       if (!req.file) return res.status(400).json({ message: "CSV 파일을 업로드해 주세요" });
-      const rawText = req.file.buffer.toString('latin1');
       const iconv = await import('iconv-lite');
-      const decoded = iconv.decode(req.file.buffer, 'euc-kr');
+      // 인코딩 자동 감지: UTF-8 BOM → UTF-8 → EUC-KR
+      let decoded: string;
+      const buf = req.file.buffer;
+      const hasBom = buf[0] === 0xEF && buf[1] === 0xBB && buf[2] === 0xBF;
+      if (hasBom) {
+        decoded = buf.slice(3).toString('utf-8');
+      } else {
+        const utf8 = buf.toString('utf-8');
+        // 대체문자(0xFFFD)가 없으면 UTF-8로 처리
+        decoded = utf8.includes('\ufffd') ? iconv.decode(buf, 'euc-kr') : utf8;
+      }
       const lines = decoded.split(/\r?\n/);
       if (lines.length < 2) return res.status(422).json({ message: "데이터가 없습니다" });
-      const header = lines[0].split(',');
-      const col = (row: string[], name: string) => {
-        const idx = header.indexOf(name);
-        return idx >= 0 ? (row[idx] || '').trim() : '';
+      // 탭 또는 쉼표 구분자 자동 감지
+      const firstLine = lines[0];
+      const sep = firstLine.includes('\t') && !firstLine.includes(',') ? '\t' : ',';
+      const header = firstLine.split(sep).map(h => h.trim().replace(/^"(.*)"$/, '$1'));
+      console.log('[AIS-CSV] 인코딩:', hasBom ? 'UTF-8 BOM' : decoded.includes('\ufffd') ? 'EUC-KR' : 'UTF-8', '구분자:', sep === '\t' ? 'TAB' : 'COMMA');
+      console.log('[AIS-CSV] 헤더 목록:', header.join(' | '));
+      // 다중 후보 컬럼명 지원
+      const col = (row: string[], ...names: string[]) => {
+        for (const name of names) {
+          const idx = header.findIndex(h => h === name || h.replace(/\s+/g, '') === name.replace(/\s+/g, ''));
+          if (idx >= 0) return (row[idx] || '').trim();
+        }
+        // 부분 일치 fallback
+        for (const name of names) {
+          const idx = header.findIndex(h => h.includes(name) || name.includes(h));
+          if (idx >= 0) return (row[idx] || '').trim();
+        }
+        return '';
       };
       const parseRow = (line: string): string[] => {
+        if (sep === '\t') return line.split('\t').map(c => c.trim().replace(/^"(.*)"$/, '$1'));
         const result: string[] = [];
         let cur = '', inQ = false;
         for (let i = 0; i < line.length; i++) {
@@ -3895,35 +3919,35 @@ ${buildEmailFooter()}
       let workDate: string | null = null;
       for (const line of dataRows) {
         const row = parseRow(line);
-        const startDate = col(row, '공사작업시작일');
+        const startDate = col(row, '공사작업시작일', '작업시작일', '시작일', '시작일시', '공사시작일');
         if (startDate && !workDate) workDate = startDate;
-        const highRisk = col(row, '고위험작업');
+        const highRisk = col(row, '고위험작업', '고위험작업유형', '고위험유형', '위험작업');
         records.push({
-          workOrderNo: col(row, '공사작업번호'),
-          safetyPermit: col(row, '안전허가서'),
-          riskLevel: col(row, '위험도'),
-          aiRiskLevel: col(row, 'AI 위험도'),
-          healthDeclaration: col(row, '건강확약서'),
-          tbmResult: col(row, 'TBM활동결과'),
-          tbmAiResult: col(row, 'TBM AI분석결과'),
-          riskAssessment: col(row, '상시위험성평가'),
-          riskAiResult: col(row, '상시위험성 AI분석결과'),
-          workStatus: col(row, '공사작업상태'),
+          workOrderNo: col(row, '공사작업번호', '작업번호', '공사번호', '번호'),
+          safetyPermit: col(row, '안전허가서', '안전작업허가서', '안전허가', '허가서'),
+          riskLevel: col(row, '위험도', '작업위험도', '위험등급'),
+          aiRiskLevel: col(row, 'AI 위험도', 'AI위험도', 'AI 위험등급'),
+          healthDeclaration: col(row, '건강확약서', '건강선서'),
+          tbmResult: col(row, 'TBM활동결과', 'TBM 활동결과', 'TBM결과', 'TBM'),
+          tbmAiResult: col(row, 'TBM AI분석결과', 'TBM AI 분석결과', 'TBMAI분석결과', 'TBM AI결과', 'AI분석결과'),
+          riskAssessment: col(row, '상시위험성평가', '위험성평가'),
+          riskAiResult: col(row, '상시위험성 AI분석결과', '상시위험성AI분석결과', '위험성AI결과'),
+          workStatus: col(row, '공사작업상태', '작업상태', '공사상태', '상태'),
           startDate,
-          endDate: col(row, '공사작업종료일'),
-          dayNight: col(row, '주/야간'),
-          team: col(row, '팀명'),
-          center: col(row, '센터/지사/법인'),
-          workLocation: col(row, '작업장소'),
+          endDate: col(row, '공사작업종료일', '작업종료일', '종료일', '종료일시', '공사종료일'),
+          dayNight: col(row, '주/야간', '주야간', '주간/야간', '야간작업'),
+          team: col(row, '팀명', '팀', '담당팀', '운용팀'),
+          center: col(row, '센터/지사/법인', '센터', '지사', '법인'),
+          workLocation: col(row, '작업장소', '공사장소', '현장', '장소'),
           highRiskWork: highRisk || '없음',
-          workType: col(row, '공사유형'),
-          workName: col(row, '공사작업명'),
-          workContent: col(row, '공사작업내용'),
-          vendorName: col(row, '협력사'),
-          supervisor: col(row, '책임자(감리자)'),
-          teamLeaderApproval: col(row, '팀장승인'),
-          centerManagerApproval: col(row, '센터장승인'),
-          reviewRisk: col(row, '검토의견/작업리스크'),
+          workType: col(row, '공사유형', '작업유형', '유형', '공사종류'),
+          workName: col(row, '공사작업명', '작업명', '공사명', '작업내용명'),
+          workContent: col(row, '공사작업내용', '작업내용', '공사내용'),
+          vendorName: col(row, '협력사', '도급사', '업체명', '업체'),
+          supervisor: col(row, '책임자(감리자)', '책임자', '감리자', '담당자'),
+          teamLeaderApproval: col(row, '팀장승인', '팀장 승인'),
+          centerManagerApproval: col(row, '센터장승인', '센터장 승인'),
+          reviewRisk: col(row, '검토의견/작업리스크', '검토의견', '작업리스크'),
         });
       }
       const upload = await storage.createAisSafetyUpload({
