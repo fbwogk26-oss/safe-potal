@@ -98,8 +98,8 @@ function StatusBadge({ value, onClick, hasNote }: { value: string | null; onClic
       <XCircle className="w-3 h-3" />부적합{hasNote && <span className="text-red-400 ml-0.5">✎</span>}
     </Badge>
   );
-  if (v === '분析中' || v === '분析중' || v === '분석중') return <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 border-0 text-xs font-semibold"><Loader2 className="w-3 h-3 mr-1 animate-spin" />분析中</Badge>;
-  return <Badge className="bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 border-0 text-xs"><Clock className="w-3 h-3 mr-1" />분析前</Badge>;
+  if (v === '분석중' || v === '분析중' || v === '분석중') return <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 border-0 text-xs font-semibold"><Loader2 className="w-3 h-3 mr-1 animate-spin" />분석중</Badge>;
+  return <Badge className="bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 border-0 text-xs"><Clock className="w-3 h-3 mr-1" />분석전</Badge>;
 }
 
 function PermitBadge({ value, highRisk }: { value: string | null; highRisk: string | null }) {
