@@ -219,7 +219,7 @@ function TeamBreakdown({ records, title, onIssueClick }: {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2">
           {teamStats.map((s, idx) => {
             const barColor = s.rate >= 90 ? '#22c55e' : s.rate >= 70 ? '#f59e0b' : '#ef4444';
             return (
@@ -509,8 +509,8 @@ export default function AisSafetyRate() {
     return (
       <button data-testid={`tab-${mode}`}
         onClick={() => { setViewMode(mode); setSelectedDate(null); setSelectedMonth(null); setShowDetail(false); }}
-        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${active ? 'bg-blue-600 text-white shadow-sm' : 'text-muted-foreground hover:bg-muted/60'}`}>
-        <Icon className="w-4 h-4" />{label}
+        className={`flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all flex-1 sm:flex-none whitespace-nowrap ${active ? 'bg-blue-600 text-white shadow-sm' : 'text-muted-foreground hover:bg-muted/60'}`}>
+        <Icon className="w-4 h-4 flex-shrink-0" /><span>{label}</span>
       </button>
     );
   };
@@ -662,7 +662,7 @@ export default function AisSafetyRate() {
           )}
           <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={handleUpload} data-testid="input-csv" />
           <Button onClick={() => fileInputRef.current?.click()} disabled={uploading} data-testid="button-upload-csv" className="bg-blue-600 hover:bg-blue-700 text-white">
-            {uploading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />업로드 중...</> : <><Upload className="w-4 h-4 mr-2" />CSV 업로드</>}
+            {uploading ? <><Loader2 className="w-4 h-4 sm:mr-2 animate-spin" /><span className="hidden sm:inline">업로드 중...</span></> : <><Upload className="w-4 h-4 sm:mr-2" /><span className="hidden sm:inline">CSV 업로드</span></>}
           </Button>
         </div>
       </div>
@@ -687,7 +687,7 @@ export default function AisSafetyRate() {
       {uploads.length > 0 && (
         <Card className="border-0 shadow-sm bg-card/60 backdrop-blur-sm">
           <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-1 bg-muted/40 p-1 rounded-xl mb-4 w-fit">
+            <div className="flex items-center gap-1 bg-muted/40 p-1 rounded-xl mb-4 w-full sm:w-fit overflow-x-auto">
               {tabBtn('cumulative', Layers, '전체 누적')}
               {tabBtn('daily', CalendarDays, '일단위 관리')}
               {tabBtn('monthly', Calendar, '월단위 관리')}
@@ -836,7 +836,7 @@ export default function AisSafetyRate() {
                                   const isWeekend = dow === 0 || dow === 6;
                                   if (!group) {
                                     return (
-                                      <div key={dateStr} className={`min-h-[64px] rounded-lg border border-dashed border-border/30 p-1.5 ${isWeekend ? 'bg-muted/5' : ''}`}>
+                                      <div key={dateStr} className={`min-h-[48px] sm:min-h-[64px] rounded-lg border border-dashed border-border/30 p-1 sm:p-1.5 ${isWeekend ? 'bg-muted/5' : ''}`}>
                                         <span className={`text-[11px] font-semibold ${isWeekend ? (dow === 0 ? 'text-red-300' : 'text-blue-300') : 'text-muted-foreground/30'}`}>{day}</span>
                                       </div>
                                     );
@@ -844,14 +844,14 @@ export default function AisSafetyRate() {
                                   const totalIssues = (group.issues || []).reduce((a: number, b: any) => a + b.count, 0);
                                   const issueRecords = (group.issues || []).flatMap((i: any) => i.list);
                                   return (
-                                    <div key={dateStr} className="flex flex-col rounded-lg border border-border hover:border-blue-300 dark:hover:border-blue-700 transition-all overflow-hidden min-h-[64px]">
+                                    <div key={dateStr} className="flex flex-col rounded-lg border border-border hover:border-blue-300 dark:hover:border-blue-700 transition-all overflow-hidden min-h-[48px] sm:min-h-[64px]">
                                       <button
                                         data-testid={`card-date-${dateStr}`}
                                         onClick={() => setSelectedDate(dateStr)}
                                         className="flex-1 text-left p-1.5 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 transition-colors"
                                       >
                                         <span className={`text-[11px] font-bold block mb-0.5 ${dow === 0 ? 'text-red-500' : dow === 6 ? 'text-blue-500' : ''}`}>{day}</span>
-                                        <p className="text-base font-black leading-none mb-1">{group.records.length}<span className="text-[10px] font-normal text-muted-foreground ml-0.5">건</span></p>
+                                        <p className="text-sm sm:text-base font-black leading-none mb-0.5 sm:mb-1">{group.records.length}<span className="text-[10px] font-normal text-muted-foreground ml-0.5">건</span></p>
                                         <RateBadge value={group.rate} />
                                       </button>
                                       {totalIssues > 0 ? (
@@ -929,7 +929,7 @@ export default function AisSafetyRate() {
                     ) : monthlyGroups.length === 0 ? (
                       <p className="text-sm text-muted-foreground">월별 데이터가 없습니다</p>
                     ) : (
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2">
                         {monthlyGroups.map(g => {
                           const totalIssues = (g.issues || []).reduce((a, b) => a + b.count, 0);
                           const issueRecords = (g.issues || []).flatMap(i => i.list);
@@ -990,9 +990,9 @@ export default function AisSafetyRate() {
               <Card className="overflow-hidden border-0 shadow-md">
                 <div className="flex flex-col lg:flex-row">
                   {/* 왼쪽: 원형 게이지 */}
-                  <div className="lg:w-44 flex-shrink-0 flex flex-col items-center justify-center py-4 px-5 text-white gap-1"
+                  <div className="lg:w-44 flex-shrink-0 flex flex-row lg:flex-col items-center justify-center py-3 px-4 lg:py-4 lg:px-5 text-white gap-2 lg:gap-1"
                     style={{ background:'linear-gradient(160deg,#1d4ed8 0%,#2563eb 55%,#4f46e5 100%)', boxShadow:'inset -4px 0 16px rgba(0,0,0,0.15)' }}>
-                    <p className="text-[10px] font-bold text-blue-200 uppercase tracking-widest mb-1">전체 이행률</p>
+                    <p className="text-[10px] font-bold text-blue-200 uppercase tracking-widest mb-1 hidden lg:block">전체 이행률</p>
                     <CircleGauge rate={comp.rate} size="sm" />
                     <p className="text-[11px] text-blue-200 mt-1 text-center leading-tight">
                       {records.length - (comp.issues||[]).reduce((a,b)=>a+b.count,0)}건 이행 / {records.length}건
@@ -1340,7 +1340,7 @@ export default function AisSafetyRate() {
                       </div>
                     </div>
                     {/* 필터 행 */}
-                    <div className="flex flex-wrap gap-2 mt-2">
+                    <div className="flex flex-wrap gap-2 mt-2 [&>*]:min-w-0">
                       <input
                         type="text"
                         placeholder="작업번호·작업명·팀 검색..."
@@ -1467,16 +1467,16 @@ export default function AisSafetyRate() {
               {/* 검색/필터 */}
               <div className="flex flex-wrap gap-2">
                 <Input placeholder="작업번호·작업명·팀·장소 검색..." value={search} onChange={e => { setSearch(e.target.value); resetPage(); }}
-                  className="h-8 text-xs w-56" data-testid="input-search" />
+                  className="h-8 text-xs w-full sm:w-56" data-testid="input-search" />
                 <Select value={filterTeam} onValueChange={v => { setFilterTeam(v); resetPage(); }}>
-                  <SelectTrigger className="h-8 text-xs w-40" data-testid="select-filter-team"><SelectValue placeholder="팀 전체" /></SelectTrigger>
+                  <SelectTrigger className="h-8 text-xs w-full sm:w-40" data-testid="select-filter-team"><SelectValue placeholder="팀 전체" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">팀 전체</SelectItem>
                     {teams.map(t => <SelectItem key={t!} value={t!}>{t}</SelectItem>)}
                   </SelectContent>
                 </Select>
                 <Select value={filterIssue} onValueChange={v => { setFilterIssue(v); resetPage(); }}>
-                  <SelectTrigger className="h-8 text-xs w-48" data-testid="select-filter-issue"><SelectValue placeholder="이슈 필터" /></SelectTrigger>
+                  <SelectTrigger className="h-8 text-xs w-full sm:w-48" data-testid="select-filter-issue"><SelectValue placeholder="이슈 필터" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">전체</SelectItem>
                     <SelectItem value="highRisk">6대 고위험작업만</SelectItem>
@@ -1499,9 +1499,9 @@ export default function AisSafetyRate() {
                     <TableHead className="text-xs font-bold w-8 sticky left-0 bg-muted/30">#</TableHead>
                     <TableHead className="text-xs font-bold w-[120px]">작업번호</TableHead>
                     <TableHead className="text-xs font-bold min-w-[200px]">작업명</TableHead>
-                    <TableHead className="text-xs font-bold min-w-[80px]">공사유형</TableHead>
+                    <TableHead className="text-xs font-bold min-w-[80px] hidden md:table-cell">공사유형</TableHead>
                     <TableHead className="text-xs font-bold min-w-[100px]">팀명</TableHead>
-                    <TableHead className="text-xs font-bold min-w-[90px]">협력사</TableHead>
+                    <TableHead className="text-xs font-bold min-w-[90px] hidden md:table-cell">협력사</TableHead>
                     <TableHead className="text-xs font-bold min-w-[80px]">고위험작업</TableHead>
                     <TableHead className="text-xs font-bold min-w-[80px]">안전허가서</TableHead>
                     <TableHead className="text-xs font-bold min-w-[60px]">위험도</TableHead>
@@ -1509,10 +1509,10 @@ export default function AisSafetyRate() {
                     <TableHead className="text-xs font-bold min-w-[80px]">TBM AI</TableHead>
                     <TableHead className="text-xs font-bold min-w-[80px]">작업상태</TableHead>
                     <TableHead className="text-xs font-bold min-w-[90px]">시작일</TableHead>
-                    <TableHead className="text-xs font-bold min-w-[90px]">종료일</TableHead>
-                    <TableHead className="text-xs font-bold min-w-[60px]">주/야간</TableHead>
-                    <TableHead className="text-xs font-bold min-w-[120px]">작업장소</TableHead>
-                    <TableHead className="text-xs font-bold min-w-[80px]">책임자</TableHead>
+                    <TableHead className="text-xs font-bold min-w-[90px] hidden lg:table-cell">종료일</TableHead>
+                    <TableHead className="text-xs font-bold min-w-[60px] hidden lg:table-cell">주/야간</TableHead>
+                    <TableHead className="text-xs font-bold min-w-[120px] hidden lg:table-cell">작업장소</TableHead>
+                    <TableHead className="text-xs font-bold min-w-[80px] hidden lg:table-cell">책임자</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1531,7 +1531,7 @@ export default function AisSafetyRate() {
                       <TableCell className="text-xs min-w-[200px]">
                         <span title={r.workName || ''}>{r.workName || '-'}</span>
                       </TableCell>
-                      <TableCell className="text-xs whitespace-nowrap">
+                      <TableCell className="text-xs whitespace-nowrap hidden md:table-cell">
                         {r.workType ? (
                           <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${r.workType.includes('직영') ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' : 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300'}`}>
                             {r.workType}
@@ -1539,7 +1539,7 @@ export default function AisSafetyRate() {
                         ) : '-'}
                       </TableCell>
                       <TableCell className="text-xs whitespace-nowrap">{r.team || '-'}</TableCell>
-                      <TableCell className="text-xs whitespace-nowrap">{r.vendorName || '-'}</TableCell>
+                      <TableCell className="text-xs whitespace-nowrap hidden md:table-cell">{r.vendorName || '-'}</TableCell>
                       <TableCell><HighRiskBadge value={r.highRiskWork} /></TableCell>
                       <TableCell><PermitBadge value={r.safetyPermit} highRisk={r.highRiskWork} /></TableCell>
                       <TableCell>
@@ -1549,10 +1549,10 @@ export default function AisSafetyRate() {
                       <TableCell><StatusBadge value={r.tbmAiResult} onClick={r.tbmAiResult === '부적합' ? () => openTbmNote(r) : undefined} hasNote={r.tbmAiResult === '부적합' && !!(r.workOrderNo ? tbmNoteByWorkOrder[r.workOrderNo] : tbmNoteMap[r.id])} /></TableCell>
                       <TableCell className="text-xs whitespace-nowrap">{r.workStatus || '-'}</TableCell>
                       <TableCell className="text-xs whitespace-nowrap">{r.startDate || '-'}</TableCell>
-                      <TableCell className="text-xs whitespace-nowrap">{r.endDate || '-'}</TableCell>
-                      <TableCell className="text-xs whitespace-nowrap">{r.dayNight || '-'}</TableCell>
-                      <TableCell className="text-xs">{r.workLocation || '-'}</TableCell>
-                      <TableCell className="text-xs whitespace-nowrap">{r.supervisor || '-'}</TableCell>
+                      <TableCell className="text-xs whitespace-nowrap hidden lg:table-cell">{r.endDate || '-'}</TableCell>
+                      <TableCell className="text-xs whitespace-nowrap hidden lg:table-cell">{r.dayNight || '-'}</TableCell>
+                      <TableCell className="text-xs hidden lg:table-cell">{r.workLocation || '-'}</TableCell>
+                      <TableCell className="text-xs whitespace-nowrap hidden lg:table-cell">{r.supervisor || '-'}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
