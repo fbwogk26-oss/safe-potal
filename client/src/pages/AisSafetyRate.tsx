@@ -828,6 +828,10 @@ export default function AisSafetyRate() {
                               <span className="text-sm font-black ml-auto" style={{ color: d.color }}>{d.value}</span>
                             </div>
                           ))}
+                          <div className="col-span-2 flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/40 border">
+                            <span className="text-xs font-semibold text-muted-foreground">합계</span>
+                            <span className="text-sm font-black ml-auto">{tbmAiData.reduce((s, d) => s + d.value, 0)}건</span>
+                          </div>
                         </div>
                       </div>
                     ) : <p className="text-center text-sm text-muted-foreground py-12">데이터 없음</p>}
