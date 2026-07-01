@@ -3853,6 +3853,112 @@ ${buildEmailFooter()}
     }
   });
 
+  // === AIS 안전이행률 ===
+  const aisUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+
+  app.get('/api/ais-safety/uploads', isAuthenticated, async (req: any, res) => {
+    try {
+      const uploads = await storage.getAisSafetyUploads();
+      res.json(uploads);
+    } catch (error) {
+      res.status(500).json({ message: "업로드 목록 조회에 실패했습니다" });
+    }
+  });
+
+  app.post('/api/ais-safety/upload', isAuthenticated, aisUpload.single('csv'), async (req: any, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: "CSV 파일을 업로드해 주세요" });
+      const rawText = req.file.buffer.toString('latin1');
+      const iconv = await import('iconv-lite');
+      const decoded = iconv.decode(req.file.buffer, 'euc-kr');
+      const lines = decoded.split(/\r?\n/);
+      if (lines.length < 2) return res.status(422).json({ message: "데이터가 없습니다" });
+      const header = lines[0].split(',');
+      const col = (row: string[], name: string) => {
+        const idx = header.indexOf(name);
+        return idx >= 0 ? (row[idx] || '').trim() : '';
+      };
+      const parseRow = (line: string): string[] => {
+        const result: string[] = [];
+        let cur = '', inQ = false;
+        for (let i = 0; i < line.length; i++) {
+          const c = line[i];
+          if (c === '"') { inQ = !inQ; }
+          else if (c === ',' && !inQ) { result.push(cur.trim()); cur = ''; }
+          else { cur += c; }
+        }
+        result.push(cur.trim());
+        return result;
+      };
+      const dataRows = lines.slice(1).filter(l => l.trim());
+      const records: any[] = [];
+      let workDate: string | null = null;
+      for (const line of dataRows) {
+        const row = parseRow(line);
+        const startDate = col(row, '공사작업시작일');
+        if (startDate && !workDate) workDate = startDate;
+        const highRisk = col(row, '고위험작업');
+        records.push({
+          workOrderNo: col(row, '공사작업번호'),
+          safetyPermit: col(row, '안전허가서'),
+          riskLevel: col(row, '위험도'),
+          aiRiskLevel: col(row, 'AI 위험도'),
+          healthDeclaration: col(row, '건강확약서'),
+          tbmResult: col(row, 'TBM활동결과'),
+          tbmAiResult: col(row, 'TBM AI분석결과'),
+          riskAssessment: col(row, '상시위험성평가'),
+          riskAiResult: col(row, '상시위험성 AI분석결과'),
+          workStatus: col(row, '공사작업상태'),
+          startDate,
+          endDate: col(row, '공사작업종료일'),
+          dayNight: col(row, '주/야간'),
+          team: col(row, '팀명'),
+          center: col(row, '센터/지사/법인'),
+          workLocation: col(row, '작업장소'),
+          highRiskWork: highRisk || '없음',
+          workType: col(row, '공사유형'),
+          workName: col(row, '공사작업명'),
+          workContent: col(row, '공사작업내용'),
+          vendorName: col(row, '협력사'),
+          supervisor: col(row, '책임자(감리자)'),
+          teamLeaderApproval: col(row, '팀장승인'),
+          centerManagerApproval: col(row, '센터장승인'),
+          reviewRisk: col(row, '검토의견/작업리스크'),
+        });
+      }
+      const upload = await storage.createAisSafetyUpload({
+        fileName: req.file.originalname,
+        recordCount: records.length,
+        workDate: workDate || null,
+        uploadedBy: req.user?.username || null,
+      });
+      const toInsert = records.map(r => ({ ...r, uploadId: upload.id }));
+      await storage.createAisSafetyRecords(toInsert);
+      res.status(201).json({ upload, recordCount: records.length });
+    } catch (error: any) {
+      res.status(500).json({ message: error?.message || "CSV 파싱에 실패했습니다" });
+    }
+  });
+
+  app.get('/api/ais-safety/records/:uploadId', isAuthenticated, async (req: any, res) => {
+    try {
+      const id = Number(req.params.uploadId);
+      const records = await storage.getAisSafetyRecords(id);
+      res.json(records);
+    } catch (error) {
+      res.status(500).json({ message: "레코드 조회에 실패했습니다" });
+    }
+  });
+
+  app.delete('/api/ais-safety/uploads/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      await storage.deleteAisSafetyUpload(Number(req.params.id));
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "삭제에 실패했습니다" });
+    }
+  });
+
   app.get('/api/musculoskeletal-assessments', isAuthenticated, async (req: any, res) => {
     try {
       const headquarters = req.query.headquarters as string | undefined;

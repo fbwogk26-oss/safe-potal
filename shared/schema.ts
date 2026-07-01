@@ -954,6 +954,53 @@ export const insertHeatWaveChecklistSchema = createInsertSchema(heatWaveChecklis
 export type HeatWaveChecklist = typeof heatWaveChecklists.$inferSelect;
 export type InsertHeatWaveChecklist = z.infer<typeof insertHeatWaveChecklistSchema>;
 
+// === AIS 안전이행률 ===
+export const aisSafetyUploads = pgTable("ais_safety_uploads", {
+  id: serial("id").primaryKey(),
+  fileName: text("file_name").notNull(),
+  recordCount: integer("record_count").notNull().default(0),
+  workDate: text("work_date"),
+  uploadedBy: text("uploaded_by"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const insertAisSafetyUploadSchema = createInsertSchema(aisSafetyUploads).omit({ id: true, createdAt: true });
+export type AisSafetyUpload = typeof aisSafetyUploads.$inferSelect;
+export type InsertAisSafetyUpload = z.infer<typeof insertAisSafetyUploadSchema>;
+
+export const aisSafetyRecords = pgTable("ais_safety_records", {
+  id: serial("id").primaryKey(),
+  uploadId: integer("upload_id").notNull(),
+  workOrderNo: text("work_order_no"),
+  safetyPermit: text("safety_permit"),        // Y / N / 미등록
+  riskLevel: text("risk_level"),               // 상/중/하
+  aiRiskLevel: text("ai_risk_level"),          // 상/중/하/없음
+  healthDeclaration: text("health_declaration"), // 등록/미등록
+  tbmResult: text("tbm_result"),               // 등록/미등록
+  tbmAiResult: text("tbm_ai_result"),          // 분석전/적합/부적합
+  riskAssessment: text("risk_assessment"),     // 등록/미등록
+  riskAiResult: text("risk_ai_result"),        // 분석전/적합/부적합
+  workStatus: text("work_status"),             // 예정/진행중/완료/취소
+  startDate: text("start_date"),
+  endDate: text("end_date"),
+  dayNight: text("day_night"),
+  team: text("team"),
+  center: text("center"),
+  workLocation: text("work_location"),
+  highRiskWork: text("high_risk_work"),        // 고소/밀폐/화기/없음
+  workType: text("work_type"),                 // 직영/도급
+  workName: text("work_name"),
+  workContent: text("work_content"),
+  vendorName: text("vendor_name"),
+  supervisor: text("supervisor"),
+  teamLeaderApproval: text("team_leader_approval"),
+  centerManagerApproval: text("center_manager_approval"),
+  reviewRisk: text("review_risk"),             // 검토의견/작업리스크
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const insertAisSafetyRecordSchema = createInsertSchema(aisSafetyRecords).omit({ id: true, createdAt: true });
+export type AisSafetyRecord = typeof aisSafetyRecords.$inferSelect;
+export type InsertAisSafetyRecord = z.infer<typeof insertAisSafetyRecordSchema>;
+
 // Export auth schema
 export * from "./models/auth";
 

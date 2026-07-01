@@ -66,6 +66,10 @@ import {
   type SafetySupplyDeptEntry, type InsertSafetySupplyDeptEntry,
   heatWaveChecklists,
   type HeatWaveChecklist, type InsertHeatWaveChecklist,
+  aisSafetyUploads,
+  type AisSafetyUpload, type InsertAisSafetyUpload,
+  aisSafetyRecords,
+  type AisSafetyRecord, type InsertAisSafetyRecord,
 } from "@shared/schema";
 import { eq, desc, asc, and, ilike, or, sql, inArray, isNotNull, gte, lte } from "drizzle-orm";
 
@@ -157,6 +161,15 @@ export interface IStorage {
   deleteNewEquipmentRequest(id: number): Promise<void>;
   getUnreadNewEquipmentCount(): Promise<number>;
   markAllNewEquipmentRequestsRead(): Promise<void>;
+
+  // AIS 안전이행률
+  getAisSafetyUploads(): Promise<AisSafetyUpload[]>;
+  getAisSafetyUpload(id: number): Promise<AisSafetyUpload | undefined>;
+  createAisSafetyUpload(data: InsertAisSafetyUpload): Promise<AisSafetyUpload>;
+  deleteAisSafetyUpload(id: number): Promise<void>;
+  getAisSafetyRecords(uploadId: number): Promise<AisSafetyRecord[]>;
+  createAisSafetyRecords(records: InsertAisSafetyRecord[]): Promise<void>;
+  deleteAisSafetyRecordsByUpload(uploadId: number): Promise<void>;
 
   // Heat Wave Checklists
   getHeatWaveChecklists(): Promise<HeatWaveChecklist[]>;
@@ -1381,6 +1394,33 @@ export class DatabaseStorage implements IStorage {
   }
   async deleteDrillAssignment(id: number): Promise<void> {
     await db.delete(drillAssignments).where(eq(drillAssignments.id, id));
+  }
+
+  // AIS 안전이행률
+  async getAisSafetyUploads(): Promise<AisSafetyUpload[]> {
+    return await db.select().from(aisSafetyUploads).orderBy(desc(aisSafetyUploads.createdAt));
+  }
+  async getAisSafetyUpload(id: number): Promise<AisSafetyUpload | undefined> {
+    const [row] = await db.select().from(aisSafetyUploads).where(eq(aisSafetyUploads.id, id));
+    return row;
+  }
+  async createAisSafetyUpload(data: InsertAisSafetyUpload): Promise<AisSafetyUpload> {
+    const [row] = await db.insert(aisSafetyUploads).values(data).returning();
+    return row;
+  }
+  async deleteAisSafetyUpload(id: number): Promise<void> {
+    await db.delete(aisSafetyRecords).where(eq(aisSafetyRecords.uploadId, id));
+    await db.delete(aisSafetyUploads).where(eq(aisSafetyUploads.id, id));
+  }
+  async getAisSafetyRecords(uploadId: number): Promise<AisSafetyRecord[]> {
+    return await db.select().from(aisSafetyRecords).where(eq(aisSafetyRecords.uploadId, uploadId)).orderBy(asc(aisSafetyRecords.id));
+  }
+  async createAisSafetyRecords(records: InsertAisSafetyRecord[]): Promise<void> {
+    if (records.length === 0) return;
+    await db.insert(aisSafetyRecords).values(records);
+  }
+  async deleteAisSafetyRecordsByUpload(uploadId: number): Promise<void> {
+    await db.delete(aisSafetyRecords).where(eq(aisSafetyRecords.uploadId, uploadId));
   }
 
   // Heat Wave Checklists

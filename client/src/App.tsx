@@ -49,6 +49,7 @@ import FuelCosts from "@/pages/FuelCosts";
 import SafetyManagerReports from "@/pages/SafetyManagerReports";
 import HealthManagerReports from "@/pages/HealthManagerReports";
 import HeatWaveChecklist from "@/pages/HeatWaveChecklist";
+import AisSafetyRate from "@/pages/AisSafetyRate";
 import SafetyCostBudget from "@/pages/SafetyCostBudget";
 import DrillTraining from "@/pages/DrillTraining";
 import Login from "@/pages/Login";
@@ -145,6 +146,7 @@ function RouterContent() {
       <Route path="/health-manager-reports">{() => <G canAccess={canViewInspections} component={HealthManagerReports} />}</Route>
       <Route path="/heat-wave-checklist">{() => <G canAccess={canViewMusculoskeletal} component={HeatWaveChecklist} />}</Route>
       <Route path="/safety-cost-budget">{() => <G canAccess={canViewInspections} component={SafetyCostBudget} />}</Route>
+      <Route path="/ais-safety-rate">{() => <AisSafetyRate />}</Route>
       <Route path="/drill-training">{() => <G canAccess={canViewAccidents} component={DrillTraining} />}</Route>
       <Route path="/weather-safety" component={WeatherSafetyMessage} />
       <Route path="/ui-mockup-preview" component={UiMockupPreview} />

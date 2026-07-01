@@ -37,6 +37,7 @@ import {
   Activity,
   Siren,
   Sun,
+  BarChart2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
@@ -101,6 +102,7 @@ const NAV_SECTIONS: NavSection[] = [
           { label: "안전용품 신청", href: "/equipment", icon: ShoppingCart, permissionKey: "canViewEquipment" },
           { label: "안전관리자 보고서", href: "/safety-manager-reports", icon: HardHat, permissionKey: "canViewInspections" },
           { label: "산업안전보건관리비", href: "/safety-cost-budget", icon: Receipt, permissionKey: "canViewInspections" },
+          { label: "AIS 안전이행률", href: "/ais-safety-rate", icon: BarChart2 },
           { label: "비상사태 발생 시 대응훈련", href: "/drill-training", icon: Siren, permissionKey: "canViewAccidents" },
         ],
       },
