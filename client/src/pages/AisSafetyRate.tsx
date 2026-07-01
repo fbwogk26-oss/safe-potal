@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip,
-  ResponsiveContainer, PieChart, Pie, Cell, LabelList,
+  ResponsiveContainer, PieChart, Pie, Cell, LabelList, ReferenceLine,
 } from "recharts";
 import {
   Upload, Trash2, AlertTriangle, CheckCircle2,
@@ -217,25 +217,35 @@ function TeamBreakdown({ records, title, onIssueClick }: {
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
-          {teamStats.map(s => (
-            <div key={s.team} className="flex flex-col rounded-lg border bg-card/80 overflow-hidden">
-              <div className="p-3 flex-1">
-                <p className="text-xs font-semibold text-muted-foreground mb-1 truncate" title={s.team}>{s.team}</p>
-                <p className="text-xl font-black leading-none mb-1.5">{s.count}<span className="text-xs font-normal text-muted-foreground ml-0.5">건</span></p>
-                <RateBadge value={s.rate} />
+          {teamStats.map((s, idx) => {
+            const barColor = s.rate >= 90 ? '#22c55e' : s.rate >= 70 ? '#f59e0b' : '#ef4444';
+            return (
+              <div key={s.team} className="flex flex-col rounded-xl border bg-card/90 overflow-hidden hover:shadow-sm transition-all" style={{ borderColor: `${barColor}30` }}>
+                <div className="p-3 flex-1">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <p className="text-xs font-semibold text-muted-foreground truncate" title={s.team}>{s.team}</p>
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ backgroundColor:`${barColor}18`, color:barColor }}>{s.rate}%</span>
+                  </div>
+                  <p className="text-xl font-black leading-none mb-2">{s.count}<span className="text-xs font-normal text-muted-foreground ml-0.5">건</span></p>
+                  <div className="w-full h-1.5 rounded-full bg-muted/40 overflow-hidden">
+                    <div className="h-full rounded-full transition-all duration-700" style={{ width:`${s.rate}%`, background:`linear-gradient(90deg,${barColor}aa,${barColor})` }} />
+                  </div>
+                </div>
+                {s.issueCount > 0 ? (
+                  <button
+                    onClick={() => onIssueClick?.(`${title} · ${s.team} 이슈 목록`, s.issueList)}
+                    className="border-t border-red-200 dark:border-red-800 bg-red-50/60 dark:bg-red-950/20 hover:bg-red-100 dark:hover:bg-red-950/40 px-3 py-1.5 text-left text-xs font-bold text-red-600 dark:text-red-400 transition-colors"
+                  >
+                    ⚠ 이슈 {s.issueCount}건 →
+                  </button>
+                ) : (
+                  <div className="h-[30px] flex items-center px-3">
+                    <span className="text-[10px] text-emerald-500 font-semibold">✓ 이슈없음</span>
+                  </div>
+                )}
               </div>
-              {s.issueCount > 0 ? (
-                <button
-                  onClick={() => onIssueClick?.(`${title} · ${s.team} 이슈 목록`, s.issueList)}
-                  className="border-t border-red-200 dark:border-red-800 bg-red-50/60 dark:bg-red-950/20 hover:bg-red-100 dark:hover:bg-red-950/40 px-3 py-1.5 text-left text-xs font-bold text-red-600 dark:text-red-400 transition-colors"
-                >
-                  ⚠ 이슈 {s.issueCount}건 →
-                </button>
-              ) : (
-                <div className="h-[30px]" />
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       </CardContent>
     </Card>
@@ -708,16 +718,30 @@ export default function AisSafetyRate() {
                         <p className="text-xs font-semibold text-muted-foreground mb-2">
                           일별 이행률 추세 ({dailyTrendData.length > 0 ? dailyTrendData[0].fullDate.substring(0, 7) : ''} — 1일부터 {dailyTrendData.length}일)
                         </p>
-                        <ResponsiveContainer width="100%" height={120}>
-                          <BarChart data={dailyTrendData} margin={{ left: -20, right: 8 }}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                            <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-                            <YAxis domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 10 }} />
-                            <ReTooltip formatter={(v: any, _: any, p: any) => [`${v}% (${p.payload.count}건)`, '이행률']} />
-                            <Bar dataKey="rate" radius={[4, 4, 0, 0]} onClick={(d) => setSelectedDate(d.fullDate)}>
+                        <ResponsiveContainer width="100%" height={180}>
+                          <BarChart data={dailyTrendData} margin={{ left: -15, right: 8, top: 8, bottom: 0 }} barCategoryGap="30%">
+                            <defs>
                               {dailyTrendData.map((entry, i) => (
-                                <Cell key={i} fill={entry.rate >= 90 ? '#22c55e' : entry.rate >= 70 ? '#f59e0b' : '#ef4444'} />
+                                <linearGradient key={i} id={`dg-${i}`} x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="0%" stopColor={entry.rate >= 90 ? '#22c55e' : entry.rate >= 70 ? '#f59e0b' : '#ef4444'} stopOpacity={1} />
+                                  <stop offset="100%" stopColor={entry.rate >= 90 ? '#16a34a' : entry.rate >= 70 ? '#d97706' : '#dc2626'} stopOpacity={0.8} />
+                                </linearGradient>
                               ))}
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="currentColor" strokeOpacity={0.08} />
+                            <XAxis dataKey="date" tick={{ fontSize: 9, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                            <YAxis domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 9, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={36} />
+                            <ReTooltip
+                              contentStyle={{ borderRadius: 8, border: 'none', boxShadow: '0 4px 16px rgba(0,0,0,0.12)', fontSize: 12 }}
+                              formatter={(v: any, _: any, p: any) => [`${v}% · ${p.payload.count}건`, '이행률']}
+                              cursor={{ fill: 'currentColor', fillOpacity: 0.04 }}
+                            />
+                            <ReferenceLine y={90} stroke="#6366f1" strokeDasharray="4 3" strokeWidth={1.5} label={{ value: '90%', position: 'right', fontSize: 9, fill: '#6366f1' }} />
+                            <Bar dataKey="rate" radius={[5, 5, 2, 2]} maxBarSize={32} onClick={(d) => setSelectedDate(d.fullDate)} cursor="pointer">
+                              {dailyTrendData.map((_, i) => (
+                                <Cell key={i} fill={`url(#dg-${i})`} />
+                              ))}
+                              <LabelList dataKey="rate" position="top" formatter={(v: any) => v >= 70 ? `${v}%` : ''} style={{ fontSize: 8, fontWeight: 700, fill: '#64748b' }} />
                             </Bar>
                           </BarChart>
                         </ResponsiveContainer>
@@ -816,16 +840,30 @@ export default function AisSafetyRate() {
                     {monthlyTrendData.length > 1 && (
                       <div>
                         <p className="text-xs font-semibold text-muted-foreground mb-2">월별 이행률 추세</p>
-                        <ResponsiveContainer width="100%" height={120}>
-                          <BarChart data={monthlyTrendData} margin={{ left: -20, right: 8 }}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                            <XAxis dataKey="month" tick={{ fontSize: 10 }} />
-                            <YAxis domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 10 }} />
-                            <ReTooltip formatter={(v: any, _: any, p: any) => [`${v}% (${p.payload.count}건)`, '이행률']} />
-                            <Bar dataKey="rate" radius={[4, 4, 0, 0]} onClick={(d) => setSelectedMonth(d.month)}>
+                        <ResponsiveContainer width="100%" height={180}>
+                          <BarChart data={monthlyTrendData} margin={{ left: -15, right: 8, top: 8, bottom: 0 }} barCategoryGap="35%">
+                            <defs>
                               {monthlyTrendData.map((entry, i) => (
-                                <Cell key={i} fill={entry.rate >= 90 ? '#22c55e' : entry.rate >= 70 ? '#f59e0b' : '#ef4444'} />
+                                <linearGradient key={i} id={`mg-${i}`} x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="0%" stopColor={entry.rate >= 90 ? '#22c55e' : entry.rate >= 70 ? '#f59e0b' : '#ef4444'} stopOpacity={1} />
+                                  <stop offset="100%" stopColor={entry.rate >= 90 ? '#16a34a' : entry.rate >= 70 ? '#d97706' : '#dc2626'} stopOpacity={0.75} />
+                                </linearGradient>
                               ))}
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="currentColor" strokeOpacity={0.08} />
+                            <XAxis dataKey="month" tick={{ fontSize: 9, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                            <YAxis domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 9, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={36} />
+                            <ReTooltip
+                              contentStyle={{ borderRadius: 8, border: 'none', boxShadow: '0 4px 16px rgba(0,0,0,0.12)', fontSize: 12 }}
+                              formatter={(v: any, _: any, p: any) => [`${v}% · ${p.payload.count}건`, '이행률']}
+                              cursor={{ fill: 'currentColor', fillOpacity: 0.04 }}
+                            />
+                            <ReferenceLine y={90} stroke="#6366f1" strokeDasharray="4 3" strokeWidth={1.5} label={{ value: '90%', position: 'right', fontSize: 9, fill: '#6366f1' }} />
+                            <Bar dataKey="rate" radius={[6, 6, 2, 2]} maxBarSize={44} onClick={(d) => setSelectedMonth(d.month)} cursor="pointer">
+                              {monthlyTrendData.map((_, i) => (
+                                <Cell key={i} fill={`url(#mg-${i})`} />
+                              ))}
+                              <LabelList dataKey="rate" position="top" formatter={(v: any) => `${v}%`} style={{ fontSize: 9, fontWeight: 700, fill: '#64748b' }} />
                             </Bar>
                           </BarChart>
                         </ResponsiveContainer>
@@ -1045,32 +1083,63 @@ export default function AisSafetyRate() {
                     <CardTitle className="text-sm font-bold">TBM AI 분석결과</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    {tbmAiData.length > 0 ? (
-                      <div className="flex flex-col items-center gap-4">
-                        <ResponsiveContainer width="100%" height={200}>
-                          <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
-                            <Pie data={tbmAiData} cx="50%" cy="50%" innerRadius={55} outerRadius={80}
-                              dataKey="value" labelLine={false}>
-                              {tbmAiData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                            </Pie>
-                            <ReTooltip formatter={(v: any, name: any) => [`${v}건`, name]} />
-                          </PieChart>
-                        </ResponsiveContainer>
-                        <div className="grid grid-cols-2 gap-2 w-full px-2">
-                          {tbmAiData.map(d => (
-                            <div key={d.name} className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ backgroundColor: `${d.color}18` }}>
-                              <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: d.color }} />
-                              <span className="text-xs font-semibold text-foreground">{d.name}</span>
-                              <span className="text-sm font-black ml-auto" style={{ color: d.color }}>{d.value}</span>
+                    {tbmAiData.length > 0 ? (() => {
+                      const total = tbmAiData.reduce((s, d) => s + d.value, 0);
+                      return (
+                        <div className="flex flex-col items-center gap-4">
+                          <div className="relative w-full" style={{ height: 220 }}>
+                            <ResponsiveContainer width="100%" height={220}>
+                              <PieChart>
+                                <defs>
+                                  {tbmAiData.map((d, i) => (
+                                    <linearGradient key={i} id={`pg-${i}`} x1="0" y1="0" x2="1" y2="1">
+                                      <stop offset="0%" stopColor={d.color} stopOpacity={0.9} />
+                                      <stop offset="100%" stopColor={d.color} stopOpacity={0.65} />
+                                    </linearGradient>
+                                  ))}
+                                </defs>
+                                <Pie data={tbmAiData} cx="50%" cy="50%" innerRadius={68} outerRadius={95}
+                                  dataKey="value" labelLine={false} paddingAngle={2} stroke="none">
+                                  {tbmAiData.map((_d, i) => <Cell key={i} fill={`url(#pg-${i})`} />)}
+                                </Pie>
+                                <ReTooltip
+                                  contentStyle={{ borderRadius: 8, border: 'none', boxShadow: '0 4px 16px rgba(0,0,0,0.12)', fontSize: 12 }}
+                                  formatter={(v: any, name: any) => [`${v}건 (${total > 0 ? Math.round(v/total*100) : 0}%)`, name]}
+                                />
+                              </PieChart>
+                            </ResponsiveContainer>
+                            {/* 도넛 중앙 텍스트 */}
+                            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                              <span className="text-3xl font-black">{total}</span>
+                              <span className="text-xs font-semibold text-muted-foreground">전체 건</span>
                             </div>
-                          ))}
-                          <div className="col-span-2 flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/40 border">
-                            <span className="text-xs font-semibold text-muted-foreground">합계</span>
-                            <span className="text-sm font-black ml-auto">{tbmAiData.reduce((s, d) => s + d.value, 0)}건</span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 w-full">
+                            {tbmAiData.map(d => {
+                              const pct = total > 0 ? Math.round(d.value / total * 100) : 0;
+                              return (
+                                <div key={d.name} className="flex flex-col gap-1.5 p-3 rounded-xl border transition-all hover:shadow-sm" style={{ borderColor: `${d.color}40`, backgroundColor: `${d.color}0d` }}>
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-1.5">
+                                      <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: d.color }} />
+                                      <span className="text-xs font-semibold">{d.name}</span>
+                                    </div>
+                                    <span className="text-xs font-bold" style={{ color: d.color }}>{pct}%</span>
+                                  </div>
+                                  <div className="flex items-baseline gap-1">
+                                    <span className="text-xl font-black" style={{ color: d.color }}>{d.value}</span>
+                                    <span className="text-xs text-muted-foreground">건</span>
+                                  </div>
+                                  <div className="w-full h-1.5 bg-muted/40 rounded-full overflow-hidden">
+                                    <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, backgroundColor: d.color }} />
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
-                      </div>
-                    ) : <p className="text-center text-sm text-muted-foreground py-12">데이터 없음</p>}
+                      );
+                    })() : <p className="text-center text-sm text-muted-foreground py-12">데이터 없음</p>}
                   </CardContent>
                 </Card>
 
@@ -1097,42 +1166,50 @@ export default function AisSafetyRate() {
                             : entry.rate >= 70 ? { bar: 'bg-amber-500', track: 'bg-amber-100 dark:bg-amber-950/40', text: 'text-amber-700 dark:text-amber-300', badge: 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300' }
                             : { bar: 'bg-red-500', track: 'bg-red-100 dark:bg-red-950/40', text: 'text-red-700 dark:text-red-300', badge: 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300' };
                           return (
-                            <div key={entry.team} className="group rounded-lg border bg-card/80 hover:shadow-sm transition-shadow overflow-hidden">
-                              <div className="flex items-center gap-3 px-3 py-2.5">
+                            <div key={entry.team} className="group rounded-xl border bg-card/90 hover:shadow-md hover:border-border/80 transition-all overflow-hidden">
+                              <div className="flex items-center gap-3 px-3 py-3">
                                 {/* 순위 */}
-                                <span className="text-xs font-bold text-muted-foreground w-5 text-right flex-shrink-0">{i + 1}</span>
+                                <span className={`text-xs font-black w-5 text-center flex-shrink-0 ${i < 3 ? ['text-amber-500','text-slate-400','text-orange-400'][i] : 'text-muted-foreground/50'}`}>{i + 1}</span>
                                 {/* 팀명 */}
-                                <span className="text-xs font-semibold w-24 flex-shrink-0 truncate" title={entry.fullTeam}>{entry.team}</span>
+                                <span className="text-xs font-bold w-20 flex-shrink-0 truncate" title={entry.fullTeam}>{entry.team}</span>
                                 {/* 진행바 */}
                                 <div className="flex-1 relative">
-                                  <div className={`w-full h-5 rounded-full ${color.track} overflow-hidden`}>
+                                  <div className="w-full h-6 rounded-full bg-muted/40 overflow-hidden">
                                     <div
-                                      className={`h-full rounded-full ${color.bar} transition-all duration-500 flex items-center justify-end pr-2`}
-                                      style={{ width: `${Math.max(entry.rate, 2)}%` }}
+                                      className="h-full rounded-full transition-all duration-700 flex items-center justify-end pr-2"
+                                      style={{
+                                        width: `${Math.max(entry.rate, 2)}%`,
+                                        background: entry.rate >= 90
+                                          ? 'linear-gradient(90deg,#16a34a,#22c55e)'
+                                          : entry.rate >= 70
+                                          ? 'linear-gradient(90deg,#d97706,#f59e0b)'
+                                          : 'linear-gradient(90deg,#dc2626,#ef4444)',
+                                        boxShadow: entry.rate >= 90 ? '0 0 8px #22c55e55' : entry.rate >= 70 ? '0 0 8px #f59e0b55' : '0 0 8px #ef444455'
+                                      }}
                                     >
-                                      {entry.rate >= 30 && (
-                                        <span className="text-white text-[10px] font-bold leading-none">{entry.rate}%</span>
+                                      {entry.rate >= 25 && (
+                                        <span className="text-white text-[10px] font-black leading-none drop-shadow">{entry.rate}%</span>
                                       )}
                                     </div>
                                   </div>
-                                  {entry.rate < 30 && (
+                                  {entry.rate < 25 && (
                                     <span className={`absolute left-[calc(${Math.max(entry.rate,2)}%+6px)] top-1/2 -translate-y-1/2 text-[10px] font-bold ${color.text}`}>{entry.rate}%</span>
                                   )}
                                   {/* 90% 기준선 */}
-                                  <div className="absolute top-0 bottom-0 border-l border-dashed border-slate-400/60 dark:border-slate-500/40" style={{ left: '90%' }} />
+                                  <div className="absolute top-0 bottom-0 border-l-2 border-dashed border-indigo-400/50 dark:border-indigo-500/40" style={{ left: '90%' }} />
                                 </div>
                                 {/* 건수 */}
-                                <span className="text-xs text-muted-foreground flex-shrink-0 w-12 text-right">{entry.count}건</span>
+                                <span className="text-xs font-semibold text-muted-foreground flex-shrink-0 w-10 text-right">{entry.count}건</span>
                                 {/* 이슈 뱃지 */}
                                 {entry.issueCount > 0 ? (
                                   <button
                                     onClick={() => setActiveIssue({ label: `${entry.fullTeam} 이슈 목록`, list: entry.issueList })}
-                                    className="flex-shrink-0 flex items-center gap-0.5 text-[10px] font-bold bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400 px-1.5 py-0.5 rounded-full hover:bg-red-200 dark:hover:bg-red-900/60 transition-colors"
+                                    className="flex-shrink-0 flex items-center gap-0.5 text-[10px] font-bold bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400 px-2 py-1 rounded-full hover:bg-red-200 dark:hover:bg-red-900/60 transition-colors border border-red-200 dark:border-red-800"
                                   >
                                     <AlertTriangle className="w-2.5 h-2.5" />{entry.issueCount}
                                   </button>
                                 ) : (
-                                  <span className="flex-shrink-0 flex items-center gap-0.5 text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 px-1.5 py-0.5 rounded-full">
+                                  <span className="flex-shrink-0 flex items-center gap-0.5 text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 px-2 py-1 rounded-full border border-emerald-200 dark:border-emerald-800">
                                     <CheckCircle2 className="w-2.5 h-2.5" />적합
                                   </span>
                                 )}
@@ -1149,23 +1226,36 @@ export default function AisSafetyRate() {
 
               {/* Issue cards */}
               {(comp.issues || []).length > 0 && (
-                <Card className="border-0 shadow-sm bg-card/60">
+                <Card className="border-0 shadow-sm overflow-hidden" style={{ background: 'linear-gradient(135deg,rgba(239,68,68,0.05) 0%,rgba(239,68,68,0.02) 100%)' }}>
                   <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-bold flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-red-500" />이슈 현황</CardTitle>
+                    <CardTitle className="text-sm font-bold flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-lg bg-red-100 dark:bg-red-900/40 flex items-center justify-center">
+                        <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
+                      </div>
+                      이슈 현황
+                      <span className="ml-auto text-xs font-normal text-muted-foreground">클릭하여 상세 확인</span>
+                    </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                      {(comp.issues || []).map(issue => (
-                        <button key={issue.label} onClick={() => setActiveIssue(issue)}
-                          className="text-left p-3 rounded-lg border border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
-                          data-testid={`button-issue-${issue.label}`}>
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-xs font-semibold text-red-700 dark:text-red-300">{issue.label}</span>
-                            <span className="text-lg font-black text-red-600">{issue.count}</span>
-                          </div>
-                          <p className="text-xs text-muted-foreground">클릭하여 상세 보기</p>
-                        </button>
-                      ))}
+                      {(comp.issues || []).map((issue, idx) => {
+                        const total = records.length;
+                        const pct = total > 0 ? Math.round(issue.count / total * 100) : 0;
+                        return (
+                          <button key={issue.label} onClick={() => setActiveIssue(issue)}
+                            className="text-left p-4 rounded-xl border border-red-200/60 dark:border-red-800/60 hover:border-red-400 dark:hover:border-red-600 bg-card/80 hover:shadow-md transition-all group"
+                            data-testid={`button-issue-${issue.label}`}>
+                            <div className="flex items-start justify-between mb-2">
+                              <span className="text-xs font-semibold text-muted-foreground leading-snug">{issue.label}</span>
+                              <span className="text-2xl font-black text-red-600 dark:text-red-400 leading-none">{issue.count}</span>
+                            </div>
+                            <div className="w-full h-1.5 bg-red-100 dark:bg-red-900/30 rounded-full overflow-hidden mb-2">
+                              <div className="h-full rounded-full bg-gradient-to-r from-red-500 to-red-400 transition-all duration-700" style={{ width: `${Math.min(pct * 3, 100)}%` }} />
+                            </div>
+                            <p className="text-xs text-red-500/70 dark:text-red-400/70 group-hover:text-red-600 dark:group-hover:text-red-300 transition-colors">전체의 {pct}% · 상세 보기 →</p>
+                          </button>
+                        );
+                      })}
                     </div>
                   </CardContent>
                 </Card>
