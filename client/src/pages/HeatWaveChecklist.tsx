@@ -176,12 +176,17 @@ function SignaturePad({
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasSig, setHasSig] = useState(!!value);
 
-  // Canvas 초기화 - requestAnimationFrame으로 Dialog 렌더 후 width 보장
+  // Canvas 초기화 - width가 0이면 계속 retry (Dialog 애니메이션 완료 대기)
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const init = () => {
-      const w = canvas.parentElement?.offsetWidth || 400;
+    let rafId: number;
+    const tryInit = () => {
+      const w = canvas.parentElement?.offsetWidth || 0;
+      if (w === 0) {
+        rafId = requestAnimationFrame(tryInit);
+        return;
+      }
       canvas.width = w;
       canvas.height = 100;
       const ctx = canvas.getContext("2d");
@@ -190,14 +195,14 @@ function SignaturePad({
       ctx.lineWidth = 2.5;
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
-      // 기존 서명 이미지 복원
       if (value) {
         const img = new Image();
         img.onload = () => ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         img.src = value;
       }
     };
-    requestAnimationFrame(() => requestAnimationFrame(init));
+    rafId = requestAnimationFrame(tryInit);
+    return () => cancelAnimationFrame(rafId);
   }, []);
 
   const getPos = useCallback((e: React.TouchEvent | React.MouseEvent) => {
@@ -217,7 +222,22 @@ function SignaturePad({
 
   const startDraw = useCallback((e: React.TouchEvent | React.MouseEvent) => {
     e.preventDefault();
-    const ctx = canvasRef.current?.getContext("2d");
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    // canvas가 아직 0 크기이면 즉시 초기화
+    if (canvas.width === 0) {
+      const w = canvas.parentElement?.offsetWidth || 500;
+      canvas.width = w;
+      canvas.height = 100;
+      const ctx2 = canvas.getContext("2d");
+      if (ctx2) {
+        ctx2.strokeStyle = "#1d4ed8";
+        ctx2.lineWidth = 2.5;
+        ctx2.lineCap = "round";
+        ctx2.lineJoin = "round";
+      }
+    }
+    const ctx = canvas.getContext("2d");
     if (!ctx) return;
     setIsDrawing(true);
     const pos = getPos(e);
