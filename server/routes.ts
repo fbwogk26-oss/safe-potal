@@ -4075,6 +4075,7 @@ ${buildEmailFooter()}
         photoFileName = req.file.originalname;
       }
       const note = await storage.upsertAisTbmBadNote(recordId, {
+        noteType: req.body.noteType || 'bad',
         reason: req.body.reason || undefined,
         photoUrl,
         photoFileName,

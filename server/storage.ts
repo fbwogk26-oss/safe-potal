@@ -174,7 +174,7 @@ export interface IStorage {
   deleteAisSafetyRecordsByUpload(uploadId: number): Promise<void>;
   getAllAisTbmBadNotes(): Promise<AisTbmBadNote[]>;
   getAisTbmBadNote(recordId: number): Promise<AisTbmBadNote | null>;
-  upsertAisTbmBadNote(recordId: number, data: { reason?: string; photoUrl?: string; photoFileName?: string; createdBy?: string }): Promise<AisTbmBadNote>;
+  upsertAisTbmBadNote(recordId: number, data: { noteType?: string; reason?: string; photoUrl?: string; photoFileName?: string; createdBy?: string }): Promise<AisTbmBadNote>;
 
   // Heat Wave Checklists
   getHeatWaveChecklists(): Promise<HeatWaveChecklist[]>;
@@ -1437,7 +1437,7 @@ export class DatabaseStorage implements IStorage {
     const [row] = await db.select().from(aisTbmBadNotes).where(eq(aisTbmBadNotes.recordId, recordId));
     return row ?? null;
   }
-  async upsertAisTbmBadNote(recordId: number, data: { reason?: string; photoUrl?: string; photoFileName?: string; createdBy?: string }): Promise<AisTbmBadNote> {
+  async upsertAisTbmBadNote(recordId: number, data: { noteType?: string; reason?: string; photoUrl?: string; photoFileName?: string; createdBy?: string }): Promise<AisTbmBadNote> {
     const existing = await this.getAisTbmBadNote(recordId);
     if (existing) {
       const [row] = await db.update(aisTbmBadNotes).set({ ...data, updatedAt: new Date() }).where(eq(aisTbmBadNotes.recordId, recordId)).returning();

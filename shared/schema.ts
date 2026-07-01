@@ -1005,6 +1005,7 @@ export type InsertAisSafetyRecord = z.infer<typeof insertAisSafetyRecordSchema>;
 export const aisTbmBadNotes = pgTable("ais_tbm_bad_notes", {
   id: serial("id").primaryKey(),
   recordId: integer("record_id").notNull().unique(),
+  noteType: text("note_type").notNull().default("bad"),
   reason: text("reason"),
   photoUrl: text("photo_url"),
   photoFileName: text("photo_file_name"),
