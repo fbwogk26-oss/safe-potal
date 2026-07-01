@@ -3918,7 +3918,14 @@ ${buildEmailFooter()}
       const records: any[] = [];
       let workDate: string | null = null;
       for (const line of dataRows) {
-        const row = parseRow(line);
+        let row = parseRow(line);
+        // MOSAIC 버그 감지: 첫 번째 셀에 콤마가 포함되어 있고 나머지 셀이 대부분 비어있으면
+        // 첫 번째 셀을 다시 파싱 (전체 행 데이터가 첫 셀에 몰린 경우)
+        const nonEmptyCells = row.filter(c => c !== '').length;
+        if (row[0].includes(',') && nonEmptyCells <= 2) {
+          const reparsed = parseRow(row[0]);
+          if (reparsed.length >= header.length * 0.5) row = reparsed;
+        }
         const startDate = col(row, '공사작업시작일', '작업시작일', '시작일', '시작일시', '공사시작일');
         if (startDate && !workDate) workDate = startDate;
         const highRisk = col(row, '고위험작업', '고위험작업유형', '고위험유형', '위험작업');
