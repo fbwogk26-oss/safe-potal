@@ -775,7 +775,7 @@ export default function AisSafetyRate() {
                         <TableHeader>
                           <TableRow className="bg-muted/30">
                             <TableHead className="text-xs font-bold w-8">#</TableHead>
-                            <TableHead className="text-xs font-bold">작업번호</TableHead>
+                            <TableHead className="text-xs font-bold w-[110px]">작업번호</TableHead>
                             <TableHead className="text-xs font-bold">작업명</TableHead>
                             <TableHead className="text-xs font-bold">팀</TableHead>
                             <TableHead className="text-xs font-bold">고위험유형</TableHead>
@@ -788,7 +788,7 @@ export default function AisSafetyRate() {
                           {highRiskRecords.map((r, i) => (
                             <TableRow key={r.id} className={r.safetyPermit !== 'Y' ? 'bg-red-50/30 dark:bg-red-950/10' : ''}>
                               <TableCell className="text-xs text-muted-foreground">{i + 1}</TableCell>
-                              <TableCell className="text-xs font-mono whitespace-nowrap">{r.workOrderNo || '-'}</TableCell>
+                              <TableCell className="text-xs font-mono max-w-[110px]"><span className="block truncate" title={r.workOrderNo || ''}>{r.workOrderNo || '-'}</span></TableCell>
                               <TableCell className="text-xs">{r.workName || '-'}</TableCell>
                               <TableCell className="text-xs whitespace-nowrap">{r.team || '-'}</TableCell>
                               <TableCell><HighRiskBadge value={r.highRiskWork} /></TableCell>
@@ -863,7 +863,7 @@ export default function AisSafetyRate() {
                 <TableHeader>
                   <TableRow className="bg-muted/30">
                     <TableHead className="text-xs font-bold w-8 sticky left-0 bg-muted/30">#</TableHead>
-                    <TableHead className="text-xs font-bold min-w-[140px]">작업번호</TableHead>
+                    <TableHead className="text-xs font-bold w-[120px]">작업번호</TableHead>
                     <TableHead className="text-xs font-bold min-w-[200px]">작업명</TableHead>
                     <TableHead className="text-xs font-bold min-w-[80px]">공사유형</TableHead>
                     <TableHead className="text-xs font-bold min-w-[100px]">팀명</TableHead>
@@ -890,7 +890,7 @@ export default function AisSafetyRate() {
                     <TableRow key={r.id} data-testid={`row-record-${r.id}`}
                       className={isHighRiskWork(r.highRiskWork) && r.safetyPermit !== 'Y' ? 'bg-red-50/20 dark:bg-red-950/10' : ''}>
                       <TableCell className="text-xs text-muted-foreground sticky left-0 bg-background">{(safePage - 1) * pageSize + i + 1}</TableCell>
-                      <TableCell className="text-xs font-mono whitespace-nowrap">{r.workOrderNo || '-'}</TableCell>
+                      <TableCell className="text-xs font-mono w-[120px]"><span className="block truncate" title={r.workOrderNo || ''}>{r.workOrderNo || '-'}</span></TableCell>
                       <TableCell className="text-xs min-w-[200px]">
                         <span title={r.workName || ''}>{r.workName || '-'}</span>
                       </TableCell>
@@ -970,7 +970,7 @@ export default function AisSafetyRate() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="text-xs">작업번호</TableHead>
+                  <TableHead className="text-xs w-[110px]">작업번호</TableHead>
                   <TableHead className="text-xs">작업명</TableHead>
                   <TableHead className="text-xs">팀</TableHead>
                   <TableHead className="text-xs">고위험유형</TableHead>
@@ -981,7 +981,7 @@ export default function AisSafetyRate() {
               <TableBody>
                 {activeIssue?.list.map(r => (
                   <TableRow key={r.id}>
-                    <TableCell className="text-xs font-mono">{r.workOrderNo || '-'}</TableCell>
+                    <TableCell className="text-xs font-mono w-[110px]"><span className="block truncate" title={r.workOrderNo || ''}>{r.workOrderNo || '-'}</span></TableCell>
                     <TableCell className="text-xs">{r.workName || '-'}</TableCell>
                     <TableCell className="text-xs whitespace-nowrap">{r.team || '-'}</TableCell>
                     <TableCell><HighRiskBadge value={r.highRiskWork} /></TableCell>
