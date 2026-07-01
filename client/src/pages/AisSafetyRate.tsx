@@ -36,11 +36,16 @@ function isHighRiskWork(val: string | null | undefined): boolean {
   return HIGH_RISK_TYPES.some(t => val.includes(t));
 }
 
+function isCancelled(r: AisSafetyRecord) {
+  return r.workStatus?.includes('취소') ?? false;
+}
+
 function calcCompliance(records: AisSafetyRecord[]) {
-  if (!records.length) return { rate: 0, issues: [], highRiskNoPermit: [], tbmUnreg: [], tbmBad: [] };
-  const highRiskNoPermit = records.filter(r => isHighRiskWork(r.highRiskWork) && r.safetyPermit !== 'Y');
-  const tbmUnreg = records.filter(r => r.tbmResult === '미등록');
-  const tbmBad = records.filter(r => r.tbmAiResult === '부적합');
+  const active = records.filter(r => !isCancelled(r));
+  if (!active.length) return { rate: 0, issues: [], highRiskNoPermit: [], tbmUnreg: [], tbmBad: [] };
+  const highRiskNoPermit = active.filter(r => isHighRiskWork(r.highRiskWork) && r.safetyPermit !== 'Y');
+  const tbmUnreg = active.filter(r => r.tbmResult === '미등록');
+  const tbmBad = active.filter(r => r.tbmAiResult === '부적합');
   const allItems = [
     { label: '고위험작업 안전허가서 미등록', list: highRiskNoPermit },
     { label: 'TBM 활동 미등록', list: tbmUnreg },
@@ -49,8 +54,8 @@ function calcCompliance(records: AisSafetyRecord[]) {
   let total = 0, pass = 0;
   const issues: { label: string; count: number; list: AisSafetyRecord[] }[] = [];
   for (const item of allItems) {
-    total += records.length;
-    pass += records.length - item.list.length;
+    total += active.length;
+    pass += active.length - item.list.length;
     if (item.list.length > 0) issues.push({ ...item, count: item.list.length });
   }
   return { rate: total > 0 ? Math.round((pass / total) * 100) : 100, highRiskNoPermit, tbmUnreg, tbmBad, issues };
@@ -179,6 +184,8 @@ export default function AisSafetyRate() {
   const [uploading, setUploading] = useState(false);
   const [pageSize, setPageSize] = useState(30);
   const [currentPage, setCurrentPage] = useState(1);
+  const [highRiskPageSize, setHighRiskPageSize] = useState(30);
+  const [highRiskPage, setHighRiskPage] = useState(1);
 
   const { data: uploads = [] } = useQuery<AisSafetyUpload[]>({
     queryKey: ['/api/ais-safety/uploads'],
@@ -793,14 +800,31 @@ export default function AisSafetyRate() {
               )}
 
               {/* High risk table */}
-              {highRiskRecords.length > 0 && (
+              {highRiskRecords.length > 0 && (() => {
+                const hrTotalPages = Math.ceil(highRiskRecords.length / highRiskPageSize);
+                const hrSafePage = Math.min(highRiskPage, Math.max(1, hrTotalPages));
+                const hrPaged = highRiskRecords.slice((hrSafePage - 1) * highRiskPageSize, hrSafePage * highRiskPageSize);
+                return (
                 <Card className="border-0 shadow-sm bg-card/60">
                   <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-bold flex items-center gap-2">
-                      <ShieldCheck className="w-4 h-4 text-orange-500" />
-                      고위험작업 안전허가서 매칭 현황
-                      <span className="ml-auto text-xs font-normal text-muted-foreground">6대 고위험작업(고소·전기·중장비·굴착·밀폐·화기)</span>
-                    </CardTitle>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <CardTitle className="text-sm font-bold flex items-center gap-2">
+                        <ShieldCheck className="w-4 h-4 text-orange-500" />
+                        고위험작업 안전허가서 매칭 현황
+                      </CardTitle>
+                      <span className="text-xs font-normal text-muted-foreground">6대 고위험작업(고소·전기·중장비·굴착·밀폐·화기)</span>
+                      <div className="ml-auto flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">전체 {highRiskRecords.length}건</span>
+                        <Select value={String(highRiskPageSize)} onValueChange={v => { setHighRiskPageSize(Number(v)); setHighRiskPage(1); }}>
+                          <SelectTrigger className="h-7 text-xs w-20" data-testid="select-hr-pagesize"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="30">30개</SelectItem>
+                            <SelectItem value="50">50개</SelectItem>
+                            <SelectItem value="100">100개</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
                   </CardHeader>
                   <CardContent className="p-0">
                     <div className="overflow-x-auto rounded-b-xl">
@@ -818,9 +842,9 @@ export default function AisSafetyRate() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {highRiskRecords.map((r, i) => (
+                          {hrPaged.map((r, i) => (
                             <TableRow key={r.id} className={r.safetyPermit !== 'Y' ? 'bg-red-50/30 dark:bg-red-950/10' : ''}>
-                              <TableCell className="text-xs text-muted-foreground">{i + 1}</TableCell>
+                              <TableCell className="text-xs text-muted-foreground">{(hrSafePage - 1) * highRiskPageSize + i + 1}</TableCell>
                               <TableCell className="text-xs font-mono max-w-[110px]"><span className="block truncate" title={r.workOrderNo || ''}>{r.workOrderNo || '-'}</span></TableCell>
                               <TableCell className="text-xs">{r.workName || '-'}</TableCell>
                               <TableCell className="text-xs whitespace-nowrap">{r.team || '-'}</TableCell>
@@ -833,9 +857,23 @@ export default function AisSafetyRate() {
                         </TableBody>
                       </Table>
                     </div>
+                    {hrTotalPages > 1 && (
+                      <div className="flex items-center justify-between px-4 py-3 border-t">
+                        <span className="text-xs text-muted-foreground">{(hrSafePage - 1) * highRiskPageSize + 1}–{Math.min(hrSafePage * highRiskPageSize, highRiskRecords.length)} / {highRiskRecords.length}건</span>
+                        <div className="flex items-center gap-1">
+                          <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => setHighRiskPage(p => Math.max(1, p - 1))} disabled={hrSafePage === 1}><ChevronLeft className="w-3.5 h-3.5" /></Button>
+                          {Array.from({ length: Math.min(hrTotalPages, 5) }, (_, i) => {
+                            const page = hrTotalPages <= 5 ? i + 1 : hrSafePage <= 3 ? i + 1 : hrSafePage >= hrTotalPages - 2 ? hrTotalPages - 4 + i : hrSafePage - 2 + i;
+                            return <Button key={page} variant={page === hrSafePage ? 'default' : 'outline'} size="icon" className="h-7 w-7 text-xs" onClick={() => setHighRiskPage(page)}>{page}</Button>;
+                          })}
+                          <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => setHighRiskPage(p => Math.min(hrTotalPages, p + 1))} disabled={hrSafePage === hrTotalPages}><ChevronRight className="w-3.5 h-3.5" /></Button>
+                        </div>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
-              )}
+                );
+              })()}
             </>
           )}
         </>
@@ -999,72 +1037,73 @@ export default function AisSafetyRate() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <AlertTriangle className="w-5 h-5 text-red-500" />
-              {activeIssue?.label} — {activeIssue?.list.length}건
+              {activeIssue?.label}
             </DialogTitle>
           </DialogHeader>
-          {/* 이슈 유형별 뱃지 요약 */}
           {activeIssue && (() => {
-            const noPermit = activeIssue.list.filter(r => isHighRiskWork(r.highRiskWork) && r.safetyPermit !== 'Y');
-            const tbmUnreg = activeIssue.list.filter(r => r.tbmResult === '미등록');
-            const tbmBad = activeIssue.list.filter(r => r.tbmAiResult === '부적합');
+            const list = activeIssue.list.filter(r => !isCancelled(r));
+            const noPermit = list.filter(r => isHighRiskWork(r.highRiskWork) && r.safetyPermit !== 'Y');
+            const tbmUnreg = list.filter(r => r.tbmResult === '미등록');
+            const tbmBad = list.filter(r => r.tbmAiResult === '부적합');
             const groups = [
-              { label: '안전허가서 미등록', records: noPermit, color: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' },
-              { label: 'TBM 미등록', records: tbmUnreg, color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },
-              { label: 'TBM AI 부적합', records: tbmBad, color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300' },
+              { label: '고위험작업 안전허가서 미등록', records: noPermit, headerColor: 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800', badgeColor: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' },
+              { label: 'TBM 활동 미등록', records: tbmUnreg, headerColor: 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800', badgeColor: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },
+              { label: 'TBM AI 부적합', records: tbmBad, headerColor: 'bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-800', badgeColor: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300' },
             ].filter(g => g.records.length > 0);
-            if (groups.length === 0) return null;
+
+            if (groups.length === 0) return (
+              <p className="text-sm text-muted-foreground py-6 text-center">취소 건 제외 시 이슈 없음</p>
+            );
+
             return (
-              <div className="flex flex-wrap gap-2 pb-2 border-b">
+              <div className="space-y-5">
+                {/* 요약 뱃지 */}
+                <div className="flex flex-wrap gap-2">
+                  {groups.map(g => (
+                    <span key={g.label} className={`text-xs font-semibold px-2.5 py-1 rounded-full ${g.badgeColor}`}>
+                      {g.label} {g.records.length}건
+                    </span>
+                  ))}
+                </div>
+                {/* 유형별 섹션 */}
                 {groups.map(g => (
-                  <span key={g.label} className={`text-xs font-semibold px-2.5 py-1 rounded-full ${g.color}`}>
-                    {g.label} {g.records.length}건
-                  </span>
+                  <div key={g.label} className={`rounded-lg border ${g.headerColor}`}>
+                    <div className={`px-3 py-2 border-b ${g.headerColor} rounded-t-lg`}>
+                      <p className="text-xs font-bold">{g.label} — {g.records.length}건</p>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="text-xs w-[100px]">작업번호</TableHead>
+                            <TableHead className="text-xs">작업명</TableHead>
+                            <TableHead className="text-xs w-[90px]">팀</TableHead>
+                            <TableHead className="text-xs w-[80px]">고위험유형</TableHead>
+                            <TableHead className="text-xs w-[80px]">안전허가서</TableHead>
+                            <TableHead className="text-xs w-[70px]">TBM</TableHead>
+                            <TableHead className="text-xs w-[80px]">TBM AI</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {g.records.map(r => (
+                            <TableRow key={r.id}>
+                              <TableCell className="text-xs font-mono"><span className="block truncate max-w-[96px]" title={r.workOrderNo || ''}>{r.workOrderNo || '-'}</span></TableCell>
+                              <TableCell className="text-xs"><span className="block truncate max-w-[160px]" title={r.workName || ''}>{r.workName || '-'}</span></TableCell>
+                              <TableCell className="text-xs whitespace-nowrap">{r.team || '-'}</TableCell>
+                              <TableCell><HighRiskBadge value={r.highRiskWork} /></TableCell>
+                              <TableCell><PermitBadge value={r.safetyPermit} highRisk={r.highRiskWork} /></TableCell>
+                              <TableCell><span className={`text-xs font-semibold ${r.tbmResult === '미등록' ? 'text-red-600' : 'text-emerald-600'}`}>{r.tbmResult || '-'}</span></TableCell>
+                              <TableCell><StatusBadge value={r.tbmAiResult} /></TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
                 ))}
               </div>
             );
           })()}
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="text-xs w-[110px]">작업번호</TableHead>
-                  <TableHead className="text-xs">작업명</TableHead>
-                  <TableHead className="text-xs">팀</TableHead>
-                  <TableHead className="text-xs">고위험유형</TableHead>
-                  <TableHead className="text-xs">안전허가서</TableHead>
-                  <TableHead className="text-xs">TBM</TableHead>
-                  <TableHead className="text-xs">TBM AI</TableHead>
-                  <TableHead className="text-xs">이슈</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {activeIssue?.list.map(r => {
-                  const issueTags: string[] = [];
-                  if (isHighRiskWork(r.highRiskWork) && r.safetyPermit !== 'Y') issueTags.push('안전허가서 미등록');
-                  if (r.tbmResult === '미등록') issueTags.push('TBM 미등록');
-                  if (r.tbmAiResult === '부적합') issueTags.push('TBM AI 부적합');
-                  return (
-                    <TableRow key={r.id} className="bg-red-50/40 dark:bg-red-950/10">
-                      <TableCell className="text-xs font-mono w-[110px]"><span className="block truncate" title={r.workOrderNo || ''}>{r.workOrderNo || '-'}</span></TableCell>
-                      <TableCell className="text-xs">{r.workName || '-'}</TableCell>
-                      <TableCell className="text-xs whitespace-nowrap">{r.team || '-'}</TableCell>
-                      <TableCell><HighRiskBadge value={r.highRiskWork} /></TableCell>
-                      <TableCell><PermitBadge value={r.safetyPermit} highRisk={r.highRiskWork} /></TableCell>
-                      <TableCell><span className={`text-xs font-semibold ${r.tbmResult === '미등록' ? 'text-red-600' : 'text-emerald-600'}`}>{r.tbmResult || '-'}</span></TableCell>
-                      <TableCell><StatusBadge value={r.tbmAiResult} /></TableCell>
-                      <TableCell>
-                        <div className="flex flex-col gap-0.5">
-                          {issueTags.map(tag => (
-                            <span key={tag} className="text-[10px] font-semibold text-red-600 whitespace-nowrap">⚠ {tag}</span>
-                          ))}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
         </DialogContent>
       </Dialog>
     </div>
