@@ -166,143 +166,106 @@ function formToPayload(f: FormData) {
 function SignaturePad({
   value,
   onChange,
-  label,
 }: {
   value: string;
   onChange: (data: string) => void;
   label: string;
 }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [paths, setPaths] = useState<string[]>([]);
+  const [currentPath, setCurrentPath] = useState<string>("");
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasSig, setHasSig] = useState(!!value);
+  const [showExisting, setShowExisting] = useState(!!value);
 
-  // Canvas 초기화 - width가 0이면 계속 retry (Dialog 애니메이션 완료 대기)
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    let rafId: number;
-    const tryInit = () => {
-      const w = canvas.parentElement?.offsetWidth || 0;
-      if (w === 0) {
-        rafId = requestAnimationFrame(tryInit);
-        return;
-      }
-      canvas.width = w;
-      canvas.height = 100;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-      ctx.strokeStyle = "#1d4ed8";
-      ctx.lineWidth = 2.5;
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
-      if (value) {
-        const img = new Image();
-        img.onload = () => ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        img.src = value;
-      }
+  const getXY = (e: React.TouchEvent<SVGSVGElement> | React.MouseEvent<SVGSVGElement>) => {
+    const svg = svgRef.current;
+    if (!svg) return { x: 0, y: 0 };
+    const rect = svg.getBoundingClientRect();
+    const clientX = "touches" in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
+    const clientY = "touches" in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
+    return {
+      x: +((clientX - rect.left) / rect.width * 600).toFixed(1),
+      y: +((clientY - rect.top) / rect.height * 120).toFixed(1),
     };
-    rafId = requestAnimationFrame(tryInit);
-    return () => cancelAnimationFrame(rafId);
-  }, []);
+  };
 
-  const getPos = useCallback((e: React.TouchEvent | React.MouseEvent) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return { x: 0, y: 0 };
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-    if ("touches" in e) {
-      return {
-        x: (e.touches[0].clientX - rect.left) * scaleX,
-        y: (e.touches[0].clientY - rect.top) * scaleY,
-      };
-    }
-    return { x: ((e as React.MouseEvent).clientX - rect.left) * scaleX, y: ((e as React.MouseEvent).clientY - rect.top) * scaleY };
-  }, []);
-
-  const startDraw = useCallback((e: React.TouchEvent | React.MouseEvent) => {
+  const startDraw = (e: React.TouchEvent<SVGSVGElement> | React.MouseEvent<SVGSVGElement>) => {
     e.preventDefault();
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    // canvas가 아직 0 크기이면 즉시 초기화
-    if (canvas.width === 0) {
-      const w = canvas.parentElement?.offsetWidth || 500;
-      canvas.width = w;
-      canvas.height = 100;
-      const ctx2 = canvas.getContext("2d");
-      if (ctx2) {
-        ctx2.strokeStyle = "#1d4ed8";
-        ctx2.lineWidth = 2.5;
-        ctx2.lineCap = "round";
-        ctx2.lineJoin = "round";
-      }
-    }
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    if (showExisting) return;
+    const { x, y } = getXY(e);
     setIsDrawing(true);
-    const pos = getPos(e);
-    ctx.beginPath();
-    ctx.moveTo(pos.x, pos.y);
-  }, [getPos]);
+    setCurrentPath(`M${x},${y}`);
+  };
 
-  const draw = useCallback((e: React.TouchEvent | React.MouseEvent) => {
+  const draw = (e: React.TouchEvent<SVGSVGElement> | React.MouseEvent<SVGSVGElement>) => {
     if (!isDrawing) return;
     e.preventDefault();
-    const ctx = canvasRef.current?.getContext("2d");
-    if (!ctx) return;
-    const pos = getPos(e);
-    ctx.lineTo(pos.x, pos.y);
-    ctx.stroke();
-  }, [isDrawing, getPos]);
+    const { x, y } = getXY(e);
+    setCurrentPath((p) => p + ` L${x},${y}`);
+  };
 
-  // 획 끝날 때 자동 저장
-  const endDraw = useCallback(() => {
+  const endDraw = () => {
     if (!isDrawing) return;
     setIsDrawing(false);
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const data = canvas.toDataURL("image/png");
-    onChange(data);
+    if (!currentPath) return;
+    const newPaths = [...paths, currentPath];
+    setPaths(newPaths);
+    setCurrentPath("");
+    const pathEls = newPaths.map((d) => `<path d="${d}" stroke="#1d4ed8" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`).join("");
+    const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 120" width="600" height="120">${pathEls}</svg>`;
+    const dataUrl = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svgStr)))}`;
+    onChange(dataUrl);
     setHasSig(true);
-  }, [isDrawing, onChange]);
+  };
 
-  const clearCanvas = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    onChange("");
+  const clearSig = () => {
+    setPaths([]);
+    setCurrentPath("");
     setHasSig(false);
-  }, [onChange]);
+    setShowExisting(false);
+    onChange("");
+  };
 
   return (
     <div className="space-y-1.5">
-      <div className="relative border-2 border-dashed border-blue-300 dark:border-blue-700 rounded-lg overflow-hidden bg-white dark:bg-zinc-900">
-        <canvas
-          ref={canvasRef}
-          className="w-full touch-none cursor-crosshair block"
-          style={{ height: "100px" }}
-          onMouseDown={startDraw}
-          onMouseMove={draw}
-          onMouseUp={endDraw}
-          onMouseLeave={endDraw}
-          onTouchStart={startDraw}
-          onTouchMove={draw}
-          onTouchEnd={endDraw}
-        />
-        {!hasSig && !isDrawing && (
+      <div className="relative border-2 border-dashed border-blue-300 dark:border-blue-700 rounded-lg overflow-hidden bg-white dark:bg-zinc-900" style={{ height: "100px" }}>
+        {showExisting && value ? (
+          <img src={value} alt="서명" className="w-full h-full object-contain" />
+        ) : (
+          <svg
+            ref={svgRef}
+            viewBox="0 0 600 120"
+            className="w-full touch-none cursor-crosshair block"
+            style={{ height: "100px" }}
+            onMouseDown={startDraw}
+            onMouseMove={draw}
+            onMouseUp={endDraw}
+            onMouseLeave={endDraw}
+            onTouchStart={startDraw}
+            onTouchMove={draw}
+            onTouchEnd={endDraw}
+          >
+            {paths.map((d, i) => (
+              <path key={i} d={d} stroke="#1d4ed8" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+            ))}
+            {currentPath && (
+              <path d={currentPath} stroke="#1d4ed8" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+            )}
+          </svg>
+        )}
+        {!hasSig && !showExisting && !isDrawing && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <p className="text-xs text-muted-foreground/50 flex items-center gap-1">
               <PenLine className="w-3.5 h-3.5" />여기에 서명하세요
             </p>
           </div>
         )}
-        {hasSig && (
+        {(hasSig || showExisting) && (
           <div className="absolute top-1 right-1.5 text-[10px] text-green-600 font-semibold bg-green-50 px-1.5 py-0.5 rounded">✓ 저장됨</div>
         )}
       </div>
-      <Button type="button" variant="outline" size="sm" onClick={clearCanvas} className="text-xs h-7">
+      <Button type="button" variant="outline" size="sm" onClick={clearSig} className="text-xs h-7">
         <RotateCcw className="w-3 h-3 mr-1" />지우기
       </Button>
     </div>
