@@ -186,6 +186,7 @@ export default function AisSafetyRate() {
   const [currentPage, setCurrentPage] = useState(1);
   const [highRiskPageSize, setHighRiskPageSize] = useState(30);
   const [highRiskPage, setHighRiskPage] = useState(1);
+  const [cumulativeMonth, setCumulativeMonth] = useState<string>('all');
 
   const { data: uploads = [] } = useQuery<AisSafetyUpload[]>({
     queryKey: ['/api/ais-safety/uploads'],
@@ -228,11 +229,14 @@ export default function AisSafetyRate() {
   }, [allRecords]);
 
   const records = useMemo(() => {
-    if (viewMode === 'cumulative') return allRecords;
+    if (viewMode === 'cumulative') {
+      if (cumulativeMonth === 'all') return allRecords;
+      return allRecords.filter(r => r.startDate?.startsWith(cumulativeMonth));
+    }
     if (viewMode === 'daily' && selectedDate) return allRecords.filter(r => r.startDate === selectedDate);
     if (viewMode === 'monthly' && selectedMonth) return allRecords.filter(r => r.startDate?.startsWith(selectedMonth));
     return [];
-  }, [allRecords, viewMode, selectedDate, selectedMonth]);
+  }, [allRecords, viewMode, selectedDate, selectedMonth, cumulativeMonth]);
 
   // 대시보드 계산용: 취소된 작업 제외
   const activeRecords = useMemo(() => records.filter(r => r.workStatus !== '취소'), [records]);
@@ -326,8 +330,16 @@ export default function AisSafetyRate() {
     { label: 'TBM 등록률', icon: Users, total: activeRecords.length, pass: activeRecords.filter(r => r.tbmResult === '등록').length, description: 'TBM 활동 등록 여부', emptyLabel: '데이터 없음' },
   ];
 
-  const dailyTrendData = dailyGroups.filter(g => g.date !== '날짜 미상').slice(0, 14).reverse()
-    .map(g => ({ date: g.date.replace(/^\d{4}-/, ''), rate: g.rate, count: g.records.length, fullDate: g.date }));
+  const dailyTrendData = useMemo(() => {
+    const valid = dailyGroups.filter(g => g.date !== '날짜 미상' && /^\d{4}-\d{2}-\d{2}$/.test(g.date));
+    if (!valid.length) return [];
+    // 가장 최근 달 기준, 1일부터 말일까지 전부 표시
+    const latestMonth = valid[0].date.substring(0, 7);
+    return valid
+      .filter(g => g.date.startsWith(latestMonth))
+      .reverse()
+      .map(g => ({ date: g.date.replace(/^\d{4}-\d{2}-/, ''), rate: g.rate, count: g.records.length, fullDate: g.date }));
+  }, [dailyGroups]);
 
   const monthlyTrendData = monthlyGroups.filter(g => g.month !== '월 미상').slice(0, 12).reverse()
     .map(g => ({ month: g.month, rate: g.rate, count: g.records.length }));
@@ -402,9 +414,25 @@ export default function AisSafetyRate() {
             {/* 전체 누적: 업로드 파일 목록 */}
             {viewMode === 'cumulative' && (
               <div className="flex flex-col gap-3">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Layers className="w-3.5 h-3.5 text-blue-500" />
-                  <span>전체 {uploads.length}개 파일 · 총 {uploads.reduce((s, u) => s + (u.recordCount || 0), 0)}건 합산 분석</span>
+                <div className="flex items-center flex-wrap gap-3">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Layers className="w-3.5 h-3.5 text-blue-500" />
+                    <span>전체 {uploads.length}개 파일 · 총 {uploads.reduce((s, u) => s + (u.recordCount || 0), 0)}건</span>
+                  </div>
+                  {monthlyGroups.length > 0 && (
+                    <div className="flex items-center gap-2 ml-auto">
+                      <span className="text-xs text-muted-foreground font-semibold">월 선택:</span>
+                      <Select value={cumulativeMonth} onValueChange={v => { setCumulativeMonth(v); setCurrentPage(1); }}>
+                        <SelectTrigger className="h-7 text-xs w-32" data-testid="select-cumulative-month"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">전체 누적</SelectItem>
+                          {monthlyGroups.map(g => (
+                            <SelectItem key={g.month} value={g.month}>{g.month} ({g.records.length}건)</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                   {uploads.map(u => (
@@ -444,7 +472,9 @@ export default function AisSafetyRate() {
                   <>
                     {dailyTrendData.length > 1 && (
                       <div>
-                        <p className="text-xs font-semibold text-muted-foreground mb-2">일별 이행률 추세 (최근 {dailyTrendData.length}일)</p>
+                        <p className="text-xs font-semibold text-muted-foreground mb-2">
+                          일별 이행률 추세 ({dailyTrendData.length > 0 ? dailyTrendData[0].fullDate.substring(0, 7) : ''} — 1일부터 {dailyTrendData.length}일)
+                        </p>
                         <ResponsiveContainer width="100%" height={120}>
                           <BarChart data={dailyTrendData} margin={{ left: -20, right: 8 }}>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -471,21 +501,23 @@ export default function AisSafetyRate() {
                           const totalIssues = (g.issues || []).reduce((a, b) => a + b.count, 0);
                           const issueRecords = (g.issues || []).flatMap(i => i.list);
                           return (
-                          <div key={g.date} className="relative group rounded-lg border border-border hover:border-blue-300 hover:bg-blue-50/50 dark:hover:border-blue-700 dark:hover:bg-blue-950/20 transition-all">
+                          <div key={g.date} className="flex flex-col rounded-lg border border-border hover:border-blue-300 dark:hover:border-blue-700 transition-all overflow-hidden">
                             <button data-testid={`card-date-${g.date}`} onClick={() => setSelectedDate(g.date)}
-                              className="text-left p-3 w-full h-full block">
+                              className="flex-1 text-left p-3 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 transition-colors">
                               <p className="text-xs font-semibold text-muted-foreground mb-1 truncate">{g.date}</p>
                               <p className="text-lg font-black leading-none mb-1.5">{g.records.length}<span className="text-xs font-normal text-muted-foreground ml-0.5">건</span></p>
                               <RateBadge value={g.rate} />
                             </button>
-                            {totalIssues > 0 && (
+                            {totalIssues > 0 ? (
                               <button
                                 data-testid={`btn-issue-${g.date}`}
                                 onClick={(e) => { e.stopPropagation(); setActiveIssue({ label: `${g.date} 이슈 목록`, list: issueRecords }); }}
-                                className="mt-1 mx-3 mb-2 block w-[calc(100%-24px)] text-left text-xs font-bold text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 hover:underline transition-colors"
+                                className="border-t border-red-200 dark:border-red-800 bg-red-50/60 dark:bg-red-950/20 hover:bg-red-100 dark:hover:bg-red-950/40 px-3 py-1.5 text-left text-xs font-bold text-red-600 dark:text-red-400 transition-colors"
                               >
                                 ⚠ 이슈 {totalIssues}건 →
                               </button>
+                            ) : (
+                              <div className="h-[30px]" />
                             )}
                           </div>
                           );
@@ -541,21 +573,23 @@ export default function AisSafetyRate() {
                           const totalIssues = (g.issues || []).reduce((a, b) => a + b.count, 0);
                           const issueRecords = (g.issues || []).flatMap(i => i.list);
                           return (
-                          <div key={g.month} className="relative rounded-lg border border-border hover:border-blue-300 hover:bg-blue-50/50 dark:hover:border-blue-700 dark:hover:bg-blue-950/20 transition-all">
+                          <div key={g.month} className="flex flex-col rounded-lg border border-border hover:border-blue-300 dark:hover:border-blue-700 transition-all overflow-hidden">
                             <button data-testid={`card-month-${g.month}`} onClick={() => setSelectedMonth(g.month)}
-                              className="text-left p-3 w-full block">
+                              className="flex-1 text-left p-3 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 transition-colors">
                               <p className="text-xs font-semibold text-muted-foreground mb-1">{g.month}</p>
                               <p className="text-lg font-black leading-none mb-1.5">{g.records.length}<span className="text-xs font-normal text-muted-foreground ml-0.5">건</span></p>
                               <RateBadge value={g.rate} />
                             </button>
-                            {totalIssues > 0 && (
+                            {totalIssues > 0 ? (
                               <button
                                 data-testid={`btn-issue-month-${g.month}`}
                                 onClick={(e) => { e.stopPropagation(); setActiveIssue({ label: `${g.month} 이슈 목록`, list: issueRecords }); }}
-                                className="mt-1 mx-3 mb-2 block w-[calc(100%-24px)] text-left text-xs font-bold text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 hover:underline transition-colors"
+                                className="border-t border-red-200 dark:border-red-800 bg-red-50/60 dark:bg-red-950/20 hover:bg-red-100 dark:hover:bg-red-950/40 px-3 py-1.5 text-left text-xs font-bold text-red-600 dark:text-red-400 transition-colors"
                               >
                                 ⚠ 이슈 {totalIssues}건 →
                               </button>
+                            ) : (
+                              <div className="h-[30px]" />
                             )}
                           </div>
                           );
