@@ -198,9 +198,9 @@ export default function AisSafetyRate() {
   const dailyGroups = useMemo(() => {
     const groups: Record<string, AisSafetyRecord[]> = {};
     for (const r of allRecords) {
-      const date = r.startDate || '날짜 미상';
-      if (!groups[date]) groups[date] = [];
-      groups[date].push(r);
+      if (!r.startDate) continue; // 날짜 없는 레코드 제외
+      if (!groups[r.startDate]) groups[r.startDate] = [];
+      groups[r.startDate].push(r);
     }
     return Object.entries(groups)
       .sort((a, b) => b[0].localeCompare(a[0]))
@@ -210,7 +210,8 @@ export default function AisSafetyRate() {
   const monthlyGroups = useMemo(() => {
     const groups: Record<string, AisSafetyRecord[]> = {};
     for (const r of allRecords) {
-      const month = r.startDate?.length >= 7 ? r.startDate.substring(0, 7) : '월 미상';
+      if (!r.startDate || r.startDate.length < 7) continue; // 날짜 없는 레코드 제외
+      const month = r.startDate.substring(0, 7);
       if (!groups[month]) groups[month] = [];
       groups[month].push(r);
     }
