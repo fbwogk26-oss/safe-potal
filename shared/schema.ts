@@ -947,6 +947,8 @@ export const heatWaveChecklists = pgTable("heat_wave_checklists", {
   stopTime38End: text("stop_time_38_end"),
   author: text("author"),
   safetyManager: text("safety_manager"),
+  authorSignature: text("author_signature"),
+  safetyManagerSignature: text("safety_manager_signature"),
   createdBy: text("created_by"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -29,7 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Plus, Trash2, Eye, Thermometer, Sun, Mail, Loader2 } from "lucide-react";
+import { Plus, Trash2, Eye, Thermometer, Sun, Mail, Loader2, PenLine, RotateCcw } from "lucide-react";
 import type { HeatWaveChecklist } from "@shared/schema";
 import { format } from "date-fns";
 
@@ -83,6 +83,8 @@ type FormData = {
   stopTime38End: string;
   author: string;
   safetyManager: string;
+  authorSignature: string;
+  safetyManagerSignature: string;
 };
 
 function emptyForm(): FormData {
@@ -106,6 +108,8 @@ function emptyForm(): FormData {
     stopTime38End: "",
     author: "",
     safetyManager: "",
+    authorSignature: "",
+    safetyManagerSignature: "",
   };
 }
 
@@ -129,6 +133,8 @@ function formFromRecord(r: HeatWaveChecklist): FormData {
     stopTime38End: r.stopTime38End ?? "",
     author: r.author ?? "",
     safetyManager: r.safetyManager ?? "",
+    authorSignature: r.authorSignature ?? "",
+    safetyManagerSignature: r.safetyManagerSignature ?? "",
   };
 }
 
@@ -152,7 +158,143 @@ function formToPayload(f: FormData) {
     stopTime38End: f.stopTime38End || null,
     author: f.author || null,
     safetyManager: f.safetyManager || null,
+    authorSignature: f.authorSignature || null,
+    safetyManagerSignature: f.safetyManagerSignature || null,
   };
+}
+
+function SignaturePad({
+  value,
+  onChange,
+  label,
+}: {
+  value: string;
+  onChange: (data: string) => void;
+  label: string;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [hasContent, setHasContent] = useState(false);
+  const [mode, setMode] = useState<"view" | "draw">(value ? "view" : "draw");
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    canvas.width = canvas.offsetWidth;
+    canvas.height = 100;
+    ctx.strokeStyle = "#1d4ed8";
+    ctx.lineWidth = 2;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+  }, [mode]);
+
+  const getPos = useCallback((e: React.TouchEvent | React.MouseEvent) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    if ("touches" in e) {
+      return {
+        x: (e.touches[0].clientX - rect.left) * scaleX,
+        y: (e.touches[0].clientY - rect.top) * scaleY,
+      };
+    }
+    return { x: ((e as React.MouseEvent).clientX - rect.left) * scaleX, y: ((e as React.MouseEvent).clientY - rect.top) * scaleY };
+  }, []);
+
+  const startDraw = useCallback((e: React.TouchEvent | React.MouseEvent) => {
+    e.preventDefault();
+    const ctx = canvasRef.current?.getContext("2d");
+    if (!ctx) return;
+    setIsDrawing(true);
+    setHasContent(true);
+    const pos = getPos(e);
+    ctx.beginPath();
+    ctx.moveTo(pos.x, pos.y);
+  }, [getPos]);
+
+  const draw = useCallback((e: React.TouchEvent | React.MouseEvent) => {
+    if (!isDrawing) return;
+    e.preventDefault();
+    const ctx = canvasRef.current?.getContext("2d");
+    if (!ctx) return;
+    const pos = getPos(e);
+    ctx.lineTo(pos.x, pos.y);
+    ctx.stroke();
+  }, [isDrawing, getPos]);
+
+  const endDraw = useCallback(() => setIsDrawing(false), []);
+
+  const clearCanvas = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    setHasContent(false);
+  }, []);
+
+  const handleSave = useCallback(() => {
+    if (!hasContent || !canvasRef.current) return;
+    const data = canvasRef.current.toDataURL("image/png");
+    onChange(data);
+    setMode("view");
+  }, [hasContent, onChange]);
+
+  const handleReset = useCallback(() => {
+    onChange("");
+    setMode("draw");
+    setHasContent(false);
+  }, [onChange]);
+
+  if (mode === "view" && value) {
+    return (
+      <div className="space-y-1">
+        <div className="border rounded-lg overflow-hidden bg-white dark:bg-zinc-900 p-2 flex items-center justify-between gap-2">
+          <img src={value} alt={`${label} 서명`} className="h-14 object-contain" />
+          <Button type="button" variant="ghost" size="sm" onClick={handleReset} className="text-muted-foreground shrink-0">
+            <RotateCcw className="w-3.5 h-3.5 mr-1" />다시
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <div className="border-2 border-dashed border-blue-300 dark:border-blue-700 rounded-lg overflow-hidden bg-white dark:bg-zinc-900">
+        <canvas
+          ref={canvasRef}
+          className="w-full touch-none cursor-crosshair block"
+          style={{ height: "100px" }}
+          onMouseDown={startDraw}
+          onMouseMove={draw}
+          onMouseUp={endDraw}
+          onMouseLeave={endDraw}
+          onTouchStart={startDraw}
+          onTouchMove={draw}
+          onTouchEnd={endDraw}
+        />
+      </div>
+      <div className="flex gap-2">
+        <Button type="button" variant="outline" size="sm" onClick={clearCanvas} className="text-xs h-7">
+          <RotateCcw className="w-3 h-3 mr-1" />지우기
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          onClick={handleSave}
+          disabled={!hasContent}
+          className="text-xs h-7"
+        >
+          <PenLine className="w-3 h-3 mr-1" />서명 완료
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 function CheckSection({
@@ -503,26 +645,64 @@ function ChecklistForm({
       </div>
 
       {/* 서명 영역 */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1">
-          <Label className="text-xs">작성자</Label>
-          <Input
-            value={form.author}
-            onChange={(e) => set("author", e.target.value)}
-            disabled={readOnly}
-            placeholder="성명"
-            data-testid="input-author"
-          />
+      <div className="border rounded-lg overflow-hidden">
+        <div className="bg-muted/40 px-3 py-2 flex items-center gap-1.5">
+          <PenLine className="w-3.5 h-3.5 text-muted-foreground" />
+          <span className="text-xs font-semibold">서명</span>
         </div>
-        <div className="space-y-1">
-          <Label className="text-xs">안전보건관리책임자</Label>
-          <Input
-            value={form.safetyManager}
-            onChange={(e) => set("safetyManager", e.target.value)}
-            disabled={readOnly}
-            placeholder="성명"
-            data-testid="input-safety-manager"
-          />
+        <div className="grid grid-cols-2 divide-x">
+          <div className="p-3 space-y-2">
+            <Label className="text-xs font-medium">작성자</Label>
+            <Input
+              value={form.author}
+              onChange={(e) => set("author", e.target.value)}
+              disabled={readOnly}
+              placeholder="성명"
+              className="h-8 text-sm"
+              data-testid="input-author"
+            />
+            {!readOnly ? (
+              <SignaturePad
+                value={form.authorSignature}
+                onChange={(v) => set("authorSignature", v)}
+                label="작성자"
+              />
+            ) : form.authorSignature ? (
+              <div className="border rounded-lg bg-white dark:bg-zinc-900 p-2">
+                <img src={form.authorSignature} alt="작성자 서명" className="h-14 object-contain" />
+              </div>
+            ) : (
+              <div className="border rounded-lg bg-muted/30 h-14 flex items-center justify-center text-xs text-muted-foreground">
+                서명 없음
+              </div>
+            )}
+          </div>
+          <div className="p-3 space-y-2">
+            <Label className="text-xs font-medium">안전보건관리책임자</Label>
+            <Input
+              value={form.safetyManager}
+              onChange={(e) => set("safetyManager", e.target.value)}
+              disabled={readOnly}
+              placeholder="성명"
+              className="h-8 text-sm"
+              data-testid="input-safety-manager"
+            />
+            {!readOnly ? (
+              <SignaturePad
+                value={form.safetyManagerSignature}
+                onChange={(v) => set("safetyManagerSignature", v)}
+                label="안전보건관리책임자"
+              />
+            ) : form.safetyManagerSignature ? (
+              <div className="border rounded-lg bg-white dark:bg-zinc-900 p-2">
+                <img src={form.safetyManagerSignature} alt="안전보건관리책임자 서명" className="h-14 object-contain" />
+              </div>
+            ) : (
+              <div className="border rounded-lg bg-muted/30 h-14 flex items-center justify-center text-xs text-muted-foreground">
+                서명 없음
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
