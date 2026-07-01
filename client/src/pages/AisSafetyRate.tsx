@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -25,6 +25,7 @@ import {
   Upload, Trash2, AlertTriangle, CheckCircle2,
   Clock, XCircle, ShieldCheck, ShieldAlert, FileWarning,
   TrendingUp, Users, Loader2, Eye, ChevronUp, Layers,
+  CalendarDays, Calendar, ChevronLeft,
 } from "lucide-react";
 import type { AisSafetyUpload, AisSafetyRecord } from "@shared/schema";
 
@@ -39,7 +40,6 @@ function isHighRiskWork(val: string | null | undefined): boolean {
 function calcCompliance(records: AisSafetyRecord[]) {
   if (!records.length) return { rate: 0, items: [], issues: [], highRiskNoPermit: [], tbmUnreg: [], tbmBad: [] };
 
-  // 고위험작업 → 안전작업허가서 미등록 (핵심 이행 항목)
   const highRiskNoPermit = records.filter(r => isHighRiskWork(r.highRiskWork) && r.safetyPermit !== 'Y');
   const tbmUnreg = records.filter(r => r.tbmResult === '미등록');
   const tbmBad = records.filter(r => r.tbmAiResult === '부적합');
@@ -75,7 +75,6 @@ const RISK_COLORS: Record<string, string> = {
   '없음': '#94a3b8',
 };
 
-// 고위험유형별 색상
 const HIGH_RISK_COLOR: Record<string, string> = {
   '고소': 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
   '전기': 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300',
@@ -115,13 +114,11 @@ function RegBadge({ value }: { value: string | null }) {
 function HighRiskBadge({ value }: { value: string | null }) {
   const v = value || '없음';
   if (!isHighRiskWork(v)) return <Badge className="bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500 border-0 text-xs">없음</Badge>;
-  // 매칭되는 유형 찾기
   const matched = HIGH_RISK_TYPES.find(t => v.includes(t));
   const cls = matched ? (HIGH_RISK_COLOR[matched] || 'bg-orange-100 text-orange-700') : 'bg-orange-100 text-orange-700';
   return <Badge className={`${cls} border-0 text-xs font-semibold`}><AlertTriangle className="w-3 h-3 mr-1" />{v}</Badge>;
 }
 
-// 고위험작업 유형별 통계 (6대 분류 + 해당없음)
 function getHighRiskBreakdown(records: AisSafetyRecord[]) {
   const types = HIGH_RISK_TYPES.map(type => {
     const matched = records.filter(r => r.highRiskWork && r.highRiskWork.includes(type));
@@ -133,7 +130,6 @@ function getHighRiskBreakdown(records: AisSafetyRecord[]) {
       isNone: false,
     };
   });
-  // 해당없음 (고위험작업에 해당하지 않는 행)
   const noneCount = records.filter(r => !isHighRiskWork(r.highRiskWork)).length;
   types.push({ type: '해당없음', total: noneCount, permit: 0, noPermit: 0, isNone: true });
   return types;
@@ -160,10 +156,14 @@ function CircleGauge({ rate }: { rate: number }) {
   );
 }
 
+type ViewMode = 'cumulative' | 'daily' | 'monthly';
+
 export default function AisSafetyRate() {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [selectedUploadId, setSelectedUploadId] = useState<number | 'all' | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>('cumulative');
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [filterTeam, setFilterTeam] = useState('all');
   const [filterIssue, setFilterIssue] = useState('all');
@@ -175,20 +175,58 @@ export default function AisSafetyRate() {
     queryKey: ['/api/ais-safety/uploads'],
   });
 
-  const { data: records = [], isLoading: recordsLoading } = useQuery<AisSafetyRecord[]>({
-    queryKey: ['/api/ais-safety/records', selectedUploadId],
-    enabled: selectedUploadId !== null,
+  const { data: allRecords = [], isLoading: recordsLoading } = useQuery<AisSafetyRecord[]>({
+    queryKey: ['/api/ais-safety/records/all'],
+    enabled: uploads.length > 0,
     queryFn: async () => {
-      if (selectedUploadId === null) return [];
-      const url = selectedUploadId === 'all'
-        ? '/api/ais-safety/records/all'
-        : `/api/ais-safety/records/${selectedUploadId}`;
-      const res = await fetch(url, { credentials: 'include' });
+      const res = await fetch('/api/ais-safety/records/all', { credentials: 'include' });
       if (!res.ok) throw new Error('레코드 조회 실패');
       const data = await res.json();
       return Array.isArray(data) ? data : [];
     },
   });
+
+  // 일단위 그룹화 (startDate 기준)
+  const dailyGroups = useMemo(() => {
+    const groups: Record<string, AisSafetyRecord[]> = {};
+    for (const r of allRecords) {
+      const date = r.startDate || '날짜 미상';
+      if (!groups[date]) groups[date] = [];
+      groups[date].push(r);
+    }
+    return Object.entries(groups)
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .map(([date, recs]) => ({ date, records: recs, ...calcCompliance(recs) }));
+  }, [allRecords]);
+
+  // 월단위 그룹화
+  const monthlyGroups = useMemo(() => {
+    const groups: Record<string, AisSafetyRecord[]> = {};
+    for (const r of allRecords) {
+      const month = r.startDate?.length >= 7 ? r.startDate.substring(0, 7) : '월 미상';
+      if (!groups[month]) groups[month] = [];
+      groups[month].push(r);
+    }
+    return Object.entries(groups)
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .map(([month, recs]) => ({ month, records: recs, ...calcCompliance(recs) }));
+  }, [allRecords]);
+
+  // 표시할 레코드 (viewMode에 따라 필터링)
+  const records = useMemo(() => {
+    if (viewMode === 'cumulative') return allRecords;
+    if (viewMode === 'daily' && selectedDate) {
+      return allRecords.filter(r => r.startDate === selectedDate);
+    }
+    if (viewMode === 'monthly' && selectedMonth) {
+      return allRecords.filter(r => r.startDate?.startsWith(selectedMonth));
+    }
+    return [];
+  }, [allRecords, viewMode, selectedDate, selectedMonth]);
+
+  const showDashboard = viewMode === 'cumulative' ||
+    (viewMode === 'daily' && selectedDate !== null) ||
+    (viewMode === 'monthly' && selectedMonth !== null);
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
@@ -196,9 +234,8 @@ export default function AisSafetyRate() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/ais-safety/uploads'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/ais-safety/records', 'all'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/ais-safety/records/all'] });
       toast({ title: '삭제되었습니다' });
-      setSelectedUploadId('all');
     },
   });
 
@@ -217,8 +254,8 @@ export default function AisSafetyRate() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || '업로드 실패');
       queryClient.invalidateQueries({ queryKey: ['/api/ais-safety/uploads'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/ais-safety/records', 'all'] });
-      setSelectedUploadId('all');
+      queryClient.invalidateQueries({ queryKey: ['/api/ais-safety/records/all'] });
+      setViewMode('cumulative');
       toast({ title: `${data.recordCount}건 누적 데이터에 추가되었습니다` });
     } catch (err: any) {
       toast({ title: err.message || '업로드 실패', variant: 'destructive' });
@@ -281,6 +318,50 @@ export default function AisSafetyRate() {
     },
   ];
 
+  // 일단위 추세 차트 데이터 (최근 14일)
+  const dailyTrendData = dailyGroups
+    .filter(g => g.date !== '날짜 미상')
+    .slice(0, 14)
+    .reverse()
+    .map(g => ({
+      date: g.date.replace(/^\d{4}-/, ''),
+      rate: g.rate,
+      count: g.records.length,
+      fullDate: g.date,
+    }));
+
+  // 월단위 추세 차트 데이터
+  const monthlyTrendData = monthlyGroups
+    .filter(g => g.month !== '월 미상')
+    .slice(0, 12)
+    .reverse()
+    .map(g => ({
+      month: g.month,
+      rate: g.rate,
+      count: g.records.length,
+    }));
+
+  const tabBtn = (mode: ViewMode, icon: any, label: string) => {
+    const Icon = icon;
+    const active = viewMode === mode;
+    return (
+      <button
+        data-testid={`tab-${mode}`}
+        onClick={() => {
+          setViewMode(mode);
+          setSelectedDate(null);
+          setSelectedMonth(null);
+          setShowDetail(false);
+        }}
+        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${active
+          ? 'bg-blue-600 text-white shadow-sm'
+          : 'text-muted-foreground hover:bg-muted/60'}`}>
+        <Icon className="w-4 h-4" />
+        {label}
+      </button>
+    );
+  };
+
   return (
     <div className="space-y-6 pb-10">
       {/* Header */}
@@ -290,7 +371,7 @@ export default function AisSafetyRate() {
           <p className="text-sm text-muted-foreground mt-0.5">6대 고위험작업 안전허가서 매칭 및 TBM AI 분석 현황</p>
         </div>
         <div className="flex items-center gap-2">
-          {selectedUploadId && (
+          {showDashboard && (
             <Button variant="outline" size="sm" onClick={() => setShowDetail(!showDetail)} data-testid="button-toggle-detail">
               {showDetail ? <ChevronUp className="w-4 h-4 mr-1" /> : <Eye className="w-4 h-4 mr-1" />}
               {showDetail ? '대시보드' : '상세 목록'}
@@ -304,62 +385,6 @@ export default function AisSafetyRate() {
           </Button>
         </div>
       </div>
-
-      {/* Upload selector */}
-      {uploads.length > 0 && (
-        <Card className="border-0 shadow-sm bg-card/60 backdrop-blur-sm">
-          <CardContent className="pt-4 pb-4">
-            <div className="flex flex-col gap-3">
-              {/* 전체 누적 버튼 */}
-              <button
-                data-testid="button-upload-all"
-                onClick={() => setSelectedUploadId('all')}
-                className={`w-full text-left px-4 py-3 rounded-lg border-2 text-sm transition-all flex items-center gap-3 ${selectedUploadId === 'all'
-                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 shadow-sm'
-                  : 'border-dashed border-blue-300 hover:border-blue-400 hover:bg-blue-50/40 dark:border-blue-700 dark:hover:bg-blue-950/20'}`}>
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${selectedUploadId === 'all' ? 'bg-blue-500' : 'bg-blue-100 dark:bg-blue-900/40'}`}>
-                  <Layers className={`w-4 h-4 ${selectedUploadId === 'all' ? 'text-white' : 'text-blue-600 dark:text-blue-400'}`} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-semibold">전체 누적 데이터</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">
-                    {uploads.length}개 파일 · 총 {uploads.reduce((s, u) => s + (u.recordCount || 0), 0)}건 합산
-                  </div>
-                </div>
-                {selectedUploadId === 'all' && (
-                  <span className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded-full font-semibold flex-shrink-0">선택됨</span>
-                )}
-              </button>
-              {/* 개별 업로드 목록 */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                {uploads.map(u => (
-                  <div key={u.id} className="flex items-stretch gap-1">
-                    <button data-testid={`button-upload-${u.id}`}
-                      onClick={() => setSelectedUploadId(u.id)}
-                      className={`flex-1 text-left px-3 py-2.5 rounded-lg border text-sm transition-all ${selectedUploadId === u.id
-                        ? 'border-slate-500 bg-slate-50 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 shadow-sm'
-                        : 'border-border hover:border-slate-300 hover:bg-muted/40'}`}>
-                      <div className="font-medium truncate text-xs">{u.fileName}</div>
-                      <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5">
-                        <span>{u.workDate || '날짜 미상'}</span>
-                        <span>·</span>
-                        <span className="font-semibold">{u.recordCount}건</span>
-                      </div>
-                    </button>
-                    <button
-                      onClick={() => deleteMutation.mutate(u.id)}
-                      className="px-2 rounded-lg border border-border hover:border-red-300 hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-500 text-muted-foreground transition-colors flex-shrink-0"
-                      data-testid={`button-delete-upload-${u.id}`}
-                      title="삭제">
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Empty state */}
       {uploads.length === 0 && (
@@ -378,12 +403,186 @@ export default function AisSafetyRate() {
         </div>
       )}
 
+      {/* Tab selector + Upload management */}
+      {uploads.length > 0 && (
+        <Card className="border-0 shadow-sm bg-card/60 backdrop-blur-sm">
+          <CardContent className="pt-4 pb-4">
+            {/* Tab bar */}
+            <div className="flex items-center gap-1 bg-muted/40 p-1 rounded-xl mb-4 w-fit">
+              {tabBtn('cumulative', Layers, '전체 누적')}
+              {tabBtn('daily', CalendarDays, '일단위 관리')}
+              {tabBtn('monthly', Calendar, '월단위 관리')}
+            </div>
+
+            {/* 전체 누적 탭: 업로드 파일 목록 */}
+            {viewMode === 'cumulative' && (
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Layers className="w-3.5 h-3.5 text-blue-500" />
+                  <span>전체 {uploads.length}개 파일 · 총 {uploads.reduce((s, u) => s + (u.recordCount || 0), 0)}건 합산 분석</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {uploads.map(u => (
+                    <div key={u.id} className="flex items-stretch gap-1">
+                      <div className="flex-1 text-left px-3 py-2.5 rounded-lg border border-border bg-muted/20 text-sm">
+                        <div className="font-medium truncate text-xs">{u.fileName}</div>
+                        <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5">
+                          <span>{u.workDate || '날짜 미상'}</span>
+                          <span>·</span>
+                          <span className="font-semibold">{u.recordCount}건</span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => deleteMutation.mutate(u.id)}
+                        className="px-2 rounded-lg border border-border hover:border-red-300 hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-500 text-muted-foreground transition-colors flex-shrink-0"
+                        data-testid={`button-delete-upload-${u.id}`}
+                        title="삭제">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 일단위 탭: 날짜별 카드 */}
+            {viewMode === 'daily' && (
+              <div className="space-y-4">
+                {selectedDate ? (
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => setSelectedDate(null)}
+                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+                      <ChevronLeft className="w-3.5 h-3.5" />날짜 목록으로
+                    </button>
+                    <span className="text-xs text-muted-foreground">·</span>
+                    <span className="text-sm font-bold text-blue-600">{selectedDate}</span>
+                    <RateBadge value={comp.rate} />
+                    <span className="text-xs text-muted-foreground">({records.length}건)</span>
+                  </div>
+                ) : (
+                  <>
+                    {/* 일별 추세 차트 */}
+                    {dailyTrendData.length > 1 && (
+                      <div>
+                        <p className="text-xs font-semibold text-muted-foreground mb-2">일별 이행률 추세 (최근 {dailyTrendData.length}일)</p>
+                        <ResponsiveContainer width="100%" height={120}>
+                          <BarChart data={dailyTrendData} margin={{ left: -20, right: 8 }}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                            <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+                            <YAxis domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 10 }} />
+                            <ReTooltip formatter={(v: any, _: any, p: any) => [`${v}% (${p.payload.count}건)`, '이행률']} />
+                            <Bar dataKey="rate" radius={[4, 4, 0, 0]} onClick={(d) => setSelectedDate(d.fullDate)}>
+                              {dailyTrendData.map((entry, i) => (
+                                <Cell key={i} fill={entry.rate >= 90 ? '#22c55e' : entry.rate >= 70 ? '#f59e0b' : '#ef4444'} />
+                              ))}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    )}
+                    {/* 날짜 카드 목록 */}
+                    <p className="text-xs font-semibold text-muted-foreground">날짜를 선택하면 해당 일의 대시보드를 확인합니다</p>
+                    {recordsLoading ? (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+                        <Loader2 className="w-4 h-4 animate-spin" />데이터 불러오는 중...
+                      </div>
+                    ) : dailyGroups.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">날짜별 데이터가 없습니다</p>
+                    ) : (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                        {dailyGroups.map(g => (
+                          <button key={g.date} data-testid={`card-date-${g.date}`}
+                            onClick={() => setSelectedDate(g.date)}
+                            className="text-left p-3 rounded-lg border border-border hover:border-blue-300 hover:bg-blue-50/50 dark:hover:border-blue-700 dark:hover:bg-blue-950/20 transition-all">
+                            <p className="text-xs font-semibold text-muted-foreground mb-1 truncate">{g.date}</p>
+                            <p className="text-lg font-black leading-none mb-1.5">{g.records.length}<span className="text-xs font-normal text-muted-foreground ml-0.5">건</span></p>
+                            <RateBadge value={g.rate} />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* 월단위 탭: 월별 카드 */}
+            {viewMode === 'monthly' && (
+              <div className="space-y-4">
+                {selectedMonth ? (
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => setSelectedMonth(null)}
+                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+                      <ChevronLeft className="w-3.5 h-3.5" />월 목록으로
+                    </button>
+                    <span className="text-xs text-muted-foreground">·</span>
+                    <span className="text-sm font-bold text-blue-600">{selectedMonth}</span>
+                    <RateBadge value={comp.rate} />
+                    <span className="text-xs text-muted-foreground">({records.length}건)</span>
+                  </div>
+                ) : (
+                  <>
+                    {/* 월별 추세 차트 */}
+                    {monthlyTrendData.length > 1 && (
+                      <div>
+                        <p className="text-xs font-semibold text-muted-foreground mb-2">월별 이행률 추세</p>
+                        <ResponsiveContainer width="100%" height={120}>
+                          <BarChart data={monthlyTrendData} margin={{ left: -20, right: 8 }}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                            <XAxis dataKey="month" tick={{ fontSize: 10 }} />
+                            <YAxis domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 10 }} />
+                            <ReTooltip formatter={(v: any, _: any, p: any) => [`${v}% (${p.payload.count}건)`, '이행률']} />
+                            <Bar dataKey="rate" radius={[4, 4, 0, 0]} onClick={(d) => setSelectedMonth(d.month)}>
+                              {monthlyTrendData.map((entry, i) => (
+                                <Cell key={i} fill={entry.rate >= 90 ? '#22c55e' : entry.rate >= 70 ? '#f59e0b' : '#ef4444'} />
+                              ))}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    )}
+                    {/* 월 카드 목록 */}
+                    <p className="text-xs font-semibold text-muted-foreground">월을 선택하면 해당 월의 대시보드를 확인합니다</p>
+                    {recordsLoading ? (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+                        <Loader2 className="w-4 h-4 animate-spin" />데이터 불러오는 중...
+                      </div>
+                    ) : monthlyGroups.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">월별 데이터가 없습니다</p>
+                    ) : (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                        {monthlyGroups.map(g => (
+                          <button key={g.month} data-testid={`card-month-${g.month}`}
+                            onClick={() => setSelectedMonth(g.month)}
+                            className="text-left p-3 rounded-lg border border-border hover:border-blue-300 hover:bg-blue-50/50 dark:hover:border-blue-700 dark:hover:bg-blue-950/20 transition-all">
+                            <p className="text-xs font-semibold text-muted-foreground mb-1">{g.month}</p>
+                            <p className="text-lg font-black leading-none mb-1.5">{g.records.length}<span className="text-xs font-normal text-muted-foreground ml-0.5">건</span></p>
+                            <RateBadge value={g.rate} />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Dashboard */}
-      {selectedUploadId && !showDetail && (
+      {showDashboard && !showDetail && (
         <>
           {recordsLoading ? (
             <div className="flex items-center justify-center py-20">
               <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+            </div>
+          ) : records.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
+              <div className="w-12 h-12 rounded-2xl bg-muted flex items-center justify-center">
+                <CalendarDays className="w-6 h-6 text-muted-foreground" />
+              </div>
+              <p className="text-sm font-semibold text-muted-foreground">해당 기간에 데이터가 없습니다</p>
             </div>
           ) : (
             <>
@@ -448,7 +647,7 @@ export default function AisSafetyRate() {
                 </Card>
               </div>
 
-              {/* Compliance items bar (2 items) */}
+              {/* Compliance items bar */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {complianceItems.map(item => {
                   const rate = item.total === 0 ? 100 : Math.round((item.pass / item.total) * 100);
@@ -677,7 +876,7 @@ export default function AisSafetyRate() {
       )}
 
       {/* Detail Table */}
-      {selectedUploadId && showDetail && (
+      {showDashboard && showDetail && (
         <Card className="border-0 shadow-sm bg-card/60">
           <CardHeader className="pb-3">
             <div className="flex flex-col sm:flex-row sm:items-center gap-3">
