@@ -3880,14 +3880,48 @@ ${buildEmailFooter()}
         // 대체문자(0xFFFD)가 없으면 UTF-8로 처리
         decoded = utf8.includes('\ufffd') ? iconv.decode(buf, 'euc-kr') : utf8;
       }
-      const lines = decoded.split(/\r?\n/);
-      if (lines.length < 2) return res.status(422).json({ message: "데이터가 없습니다" });
-      // 탭 또는 쉼표 구분자 자동 감지
-      const firstLine = lines[0];
+      // 구분자 자동 감지 (첫 줄 기준)
+      const firstLineEnd = decoded.indexOf('\n');
+      const firstLine = firstLineEnd >= 0 ? decoded.slice(0, firstLineEnd) : decoded;
       const sep = firstLine.includes('\t') && !firstLine.includes(',') ? '\t' : ',';
-      const header = firstLine.split(sep).map(h => h.trim().replace(/^"(.*)"$/, '$1'));
       console.log('[AIS-CSV] 인코딩:', hasBom ? 'UTF-8 BOM' : decoded.includes('\ufffd') ? 'EUC-KR' : 'UTF-8', '구분자:', sep === '\t' ? 'TAB' : 'COMMA');
+
+      // 멀티라인 따옴표 필드를 올바르게 처리하는 전체 CSV 파서
+      const parseFullCSV = (text: string, delimiter: string): string[][] => {
+        const rows: string[][] = [];
+        let fields: string[] = [];
+        let cur = '';
+        let inQ = false;
+        for (let i = 0; i < text.length; i++) {
+          const c = text[i];
+          const nx = text[i + 1];
+          if (c === '"') {
+            if (inQ && nx === '"') { cur += '"'; i++; } // escaped quote ""
+            else { inQ = !inQ; }
+          } else if (c === delimiter && !inQ) {
+            fields.push(cur.trim());
+            cur = '';
+          } else if ((c === '\r' || c === '\n') && !inQ) {
+            if (c === '\r' && nx === '\n') i++; // skip \r\n pair
+            fields.push(cur.trim());
+            if (fields.some(f => f !== '')) rows.push(fields);
+            fields = [];
+            cur = '';
+          } else {
+            cur += c; // newlines inside quotes are kept (multiline field)
+          }
+        }
+        if (cur || fields.length) { fields.push(cur.trim()); if (fields.some(f => f !== '')) rows.push(fields); }
+        return rows;
+      };
+
+      const allRows = parseFullCSV(decoded, sep);
+      if (allRows.length < 2) return res.status(422).json({ message: "데이터가 없습니다" });
+      const header = allRows[0].map(h => h.replace(/\s+/g, ' ').trim());
+      const dataRows = allRows.slice(1);
       console.log('[AIS-CSV] 헤더 목록:', header.join(' | '));
+      console.log(`[AIS-CSV] 전체 데이터 행 수: ${dataRows.length}`);
+
       // 다중 후보 컬럼명 지원
       const col = (row: string[], ...names: string[]) => {
         for (const name of names) {
@@ -3901,31 +3935,22 @@ ${buildEmailFooter()}
         }
         return '';
       };
+      // parseRow는 단일 셀 재파싱용으로만 유지
       const parseRow = (line: string): string[] => {
-        if (sep === '\t') return line.split('\t').map(c => c.trim().replace(/^"(.*)"$/, '$1'));
         const result: string[] = [];
         let cur = '', inQ = false;
         for (let i = 0; i < line.length; i++) {
           const c = line[i];
           if (c === '"') { inQ = !inQ; }
-          else if (c === ',' && !inQ) { result.push(cur.trim()); cur = ''; }
+          else if (c === sep && !inQ) { result.push(cur.trim()); cur = ''; }
           else { cur += c; }
         }
         result.push(cur.trim());
         return result;
       };
-      const dataRows = lines.slice(1).filter(l => l.trim());
       const records: any[] = [];
       let workDate: string | null = null;
-      for (const line of dataRows) {
-        let row = parseRow(line);
-        // MOSAIC 버그 감지: 첫 번째 셀에 콤마가 포함되어 있고 나머지 셀이 대부분 비어있으면
-        // 첫 번째 셀을 다시 파싱 (전체 행 데이터가 첫 셀에 몰린 경우)
-        const nonEmptyCells = row.filter(c => c !== '').length;
-        if (row[0].includes(',') && nonEmptyCells <= 2) {
-          const reparsed = parseRow(row[0]);
-          if (reparsed.length >= header.length * 0.5) row = reparsed;
-        }
+      for (const row of dataRows) {
         const startDate = col(row, '공사작업시작일', '작업시작일', '시작일', '시작일시', '공사시작일');
         // 디버그: 건너뛰는 행도 AR값 확인
         const rawAr43 = (row[43] || '').trim();
