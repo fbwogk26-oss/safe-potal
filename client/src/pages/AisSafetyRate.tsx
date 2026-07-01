@@ -217,6 +217,10 @@ export default function AisSafetyRate() {
   const [currentPage, setCurrentPage] = useState(1);
   const [highRiskPageSize, setHighRiskPageSize] = useState(30);
   const [highRiskPage, setHighRiskPage] = useState(1);
+  const [hrFilterTeam, setHrFilterTeam] = useState('all');
+  const [hrFilterPermit, setHrFilterPermit] = useState('all');
+  const [hrFilterType, setHrFilterType] = useState('all');
+  const [hrSearch, setHrSearch] = useState('');
   const [cumulativeMonth, setCumulativeMonth] = useState<string>('all');
   const [tbmNoteRecord, setTbmNoteRecord] = useState<AisSafetyRecord | null>(null);
   const [tbmNoteReason, setTbmNoteReason] = useState('');
@@ -342,6 +346,20 @@ export default function AisSafetyRate() {
   const highRiskRecords = activeRecords
     .filter(r => isHighRiskWork(r.highRiskWork))
     .sort((a, b) => (b.startDate ?? '').localeCompare(a.startDate ?? ''));
+  const hrTeams = [...new Set(highRiskRecords.map(r => r.team).filter(Boolean))];
+  const filteredHighRiskRecords = highRiskRecords.filter(r => {
+    if (hrFilterTeam !== 'all' && r.team !== hrFilterTeam) return false;
+    if (hrFilterPermit === 'registered' && r.safetyPermit !== 'Y') return false;
+    if (hrFilterPermit === 'unregistered' && r.safetyPermit === 'Y') return false;
+    if (hrFilterType !== 'all' && !(r.highRiskWork || '').includes(hrFilterType)) return false;
+    if (hrSearch) {
+      const q = hrSearch.toLowerCase();
+      if (!(r.workOrderNo || '').toLowerCase().includes(q) &&
+          !(r.workName || '').toLowerCase().includes(q) &&
+          !(r.team || '').toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
   const highRiskBreakdown = getHighRiskBreakdown(activeRecords);
 
   const filteredRecords = records.filter(r => {
@@ -1019,9 +1037,9 @@ export default function AisSafetyRate() {
 
               {/* High risk table */}
               {highRiskRecords.length > 0 && (() => {
-                const hrTotalPages = Math.ceil(highRiskRecords.length / highRiskPageSize);
+                const hrTotalPages = Math.ceil(filteredHighRiskRecords.length / highRiskPageSize);
                 const hrSafePage = Math.min(highRiskPage, Math.max(1, hrTotalPages));
-                const hrPaged = highRiskRecords.slice((hrSafePage - 1) * highRiskPageSize, hrSafePage * highRiskPageSize);
+                const hrPaged = filteredHighRiskRecords.slice((hrSafePage - 1) * highRiskPageSize, hrSafePage * highRiskPageSize);
                 return (
                 <Card className="border-0 shadow-sm bg-card/60">
                   <CardHeader className="pb-3">
@@ -1032,7 +1050,7 @@ export default function AisSafetyRate() {
                       </CardTitle>
                       <span className="text-xs font-normal text-muted-foreground">6대 고위험작업(고소·전기·중장비·굴착·밀폐·화기)</span>
                       <div className="ml-auto flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">전체 {highRiskRecords.length}건</span>
+                        <span className="text-xs text-muted-foreground">{filteredHighRiskRecords.length === highRiskRecords.length ? `전체 ${highRiskRecords.length}건` : `${filteredHighRiskRecords.length} / ${highRiskRecords.length}건`}</span>
                         <Select value={String(highRiskPageSize)} onValueChange={v => { setHighRiskPageSize(Number(v)); setHighRiskPage(1); }}>
                           <SelectTrigger className="h-7 text-xs w-20" data-testid="select-hr-pagesize"><SelectValue /></SelectTrigger>
                           <SelectContent>
@@ -1042,6 +1060,42 @@ export default function AisSafetyRate() {
                           </SelectContent>
                         </Select>
                       </div>
+                    </div>
+                    {/* 필터 행 */}
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      <input
+                        type="text"
+                        placeholder="작업번호·작업명·팀 검색..."
+                        value={hrSearch}
+                        onChange={e => { setHrSearch(e.target.value); setHighRiskPage(1); }}
+                        className="h-8 text-xs px-3 border border-input rounded-md bg-background w-52 focus:outline-none focus:ring-1 focus:ring-ring"
+                        data-testid="input-hr-search"
+                      />
+                      <Select value={hrFilterTeam} onValueChange={v => { setHrFilterTeam(v); setHighRiskPage(1); }}>
+                        <SelectTrigger className="h-8 text-xs w-36" data-testid="select-hr-team"><SelectValue placeholder="팀 전체" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">팀 전체</SelectItem>
+                          {hrTeams.map(t => <SelectItem key={t!} value={t!}>{t}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                      <Select value={hrFilterPermit} onValueChange={v => { setHrFilterPermit(v); setHighRiskPage(1); }}>
+                        <SelectTrigger className="h-8 text-xs w-36" data-testid="select-hr-permit"><SelectValue placeholder="허가서 전체" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">허가서 전체</SelectItem>
+                          <SelectItem value="registered">등록</SelectItem>
+                          <SelectItem value="unregistered">미등록</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Select value={hrFilterType} onValueChange={v => { setHrFilterType(v); setHighRiskPage(1); }}>
+                        <SelectTrigger className="h-8 text-xs w-36" data-testid="select-hr-type"><SelectValue placeholder="고위험 전체" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">고위험 전체</SelectItem>
+                          {['고소', '전원', '중장비', '굴착', '밀폐', '화기'].map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                      {(hrFilterTeam !== 'all' || hrFilterPermit !== 'all' || hrFilterType !== 'all' || hrSearch) && (
+                        <button className="h-8 text-xs px-2 rounded-md border border-input bg-background hover:bg-muted text-muted-foreground" onClick={() => { setHrFilterTeam('all'); setHrFilterPermit('all'); setHrFilterType('all'); setHrSearch(''); setHighRiskPage(1); }}>초기화</button>
+                      )}
                     </div>
                   </CardHeader>
                   <CardContent className="p-0">
@@ -1077,7 +1131,7 @@ export default function AisSafetyRate() {
                     </div>
                     {hrTotalPages > 1 && (
                       <div className="flex items-center justify-between px-4 py-3 border-t">
-                        <span className="text-xs text-muted-foreground">{(hrSafePage - 1) * highRiskPageSize + 1}–{Math.min(hrSafePage * highRiskPageSize, highRiskRecords.length)} / {highRiskRecords.length}건</span>
+                        <span className="text-xs text-muted-foreground">{(hrSafePage - 1) * highRiskPageSize + 1}–{Math.min(hrSafePage * highRiskPageSize, filteredHighRiskRecords.length)} / {filteredHighRiskRecords.length}건</span>
                         <div className="flex items-center gap-1">
                           <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => setHighRiskPage(p => Math.max(1, p - 1))} disabled={hrSafePage === 1}><ChevronLeft className="w-3.5 h-3.5" /></Button>
                           {Array.from({ length: Math.min(hrTotalPages, 5) }, (_, i) => {
