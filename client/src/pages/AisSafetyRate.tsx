@@ -135,13 +135,18 @@ function CircleGauge({ rate }: { rate: number }) {
 }
 
 // 팀별 현황 카드
-function TeamBreakdown({ records, title }: { records: AisSafetyRecord[]; title: string }) {
+function TeamBreakdown({ records, title, onIssueClick }: {
+  records: AisSafetyRecord[];
+  title: string;
+  onIssueClick?: (label: string, list: AisSafetyRecord[]) => void;
+}) {
   const teams = [...new Set(records.map(r => r.team).filter(Boolean))] as string[];
   if (teams.length === 0) return null;
   const teamStats = teams.map(team => {
     const tr = records.filter(r => r.team === team);
     const c = calcCompliance(tr);
-    return { team, count: tr.length, rate: c.rate, issues: c.issues.reduce((a, b) => a + b.count, 0) };
+    const issueList = c.issues.flatMap(i => i.list);
+    return { team, count: tr.length, rate: c.rate, issueCount: issueList.length, issueList };
   }).sort((a, b) => b.count - a.count);
 
   return (
@@ -155,11 +160,22 @@ function TeamBreakdown({ records, title }: { records: AisSafetyRecord[]; title: 
       <CardContent>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
           {teamStats.map(s => (
-            <div key={s.team} className="p-3 rounded-lg border bg-card/80">
-              <p className="text-xs font-semibold text-muted-foreground mb-1 truncate" title={s.team}>{s.team}</p>
-              <p className="text-xl font-black leading-none mb-1.5">{s.count}<span className="text-xs font-normal text-muted-foreground ml-0.5">건</span></p>
-              <RateBadge value={s.rate} />
-              {s.issues > 0 && <p className="text-xs text-red-600 font-semibold mt-1">이슈 {s.issues}건</p>}
+            <div key={s.team} className="flex flex-col rounded-lg border bg-card/80 overflow-hidden">
+              <div className="p-3 flex-1">
+                <p className="text-xs font-semibold text-muted-foreground mb-1 truncate" title={s.team}>{s.team}</p>
+                <p className="text-xl font-black leading-none mb-1.5">{s.count}<span className="text-xs font-normal text-muted-foreground ml-0.5">건</span></p>
+                <RateBadge value={s.rate} />
+              </div>
+              {s.issueCount > 0 ? (
+                <button
+                  onClick={() => onIssueClick?.(`${title} · ${s.team} 이슈 목록`, s.issueList)}
+                  className="border-t border-red-200 dark:border-red-800 bg-red-50/60 dark:bg-red-950/20 hover:bg-red-100 dark:hover:bg-red-950/40 px-3 py-1.5 text-left text-xs font-bold text-red-600 dark:text-red-400 transition-colors"
+                >
+                  ⚠ 이슈 {s.issueCount}건 →
+                </button>
+              ) : (
+                <div className="h-[30px]" />
+              )}
             </div>
           ))}
         </div>
@@ -495,35 +511,71 @@ export default function AisSafetyRate() {
                       <div className="flex items-center gap-2 text-sm text-muted-foreground py-4"><Loader2 className="w-4 h-4 animate-spin" />데이터 불러오는 중...</div>
                     ) : dailyGroups.length === 0 ? (
                       <p className="text-sm text-muted-foreground">날짜별 데이터가 없습니다</p>
-                    ) : (
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
-                        {dailyGroups.map(g => {
-                          const totalIssues = (g.issues || []).reduce((a, b) => a + b.count, 0);
-                          const issueRecords = (g.issues || []).flatMap(i => i.list);
-                          return (
-                          <div key={g.date} className="flex flex-col rounded-lg border border-border hover:border-blue-300 dark:hover:border-blue-700 transition-all overflow-hidden">
-                            <button data-testid={`card-date-${g.date}`} onClick={() => setSelectedDate(g.date)}
-                              className="flex-1 text-left p-3 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 transition-colors">
-                              <p className="text-xs font-semibold text-muted-foreground mb-1 truncate">{g.date}</p>
-                              <p className="text-lg font-black leading-none mb-1.5">{g.records.length}<span className="text-xs font-normal text-muted-foreground ml-0.5">건</span></p>
-                              <RateBadge value={g.rate} />
-                            </button>
-                            {totalIssues > 0 ? (
-                              <button
-                                data-testid={`btn-issue-${g.date}`}
-                                onClick={(e) => { e.stopPropagation(); setActiveIssue({ label: `${g.date} 이슈 목록`, list: issueRecords }); }}
-                                className="border-t border-red-200 dark:border-red-800 bg-red-50/60 dark:bg-red-950/20 hover:bg-red-100 dark:hover:bg-red-950/40 px-3 py-1.5 text-left text-xs font-bold text-red-600 dark:text-red-400 transition-colors"
-                              >
-                                ⚠ 이슈 {totalIssues}건 →
-                              </button>
-                            ) : (
-                              <div className="h-[30px]" />
-                            )}
+                    ) : (() => {
+                      // 달력 레이아웃 계산
+                      const dateMap = new Map(dailyGroups.map(g => [g.date, g]));
+                      const refDate = [...dailyGroups].sort((a, b) => a.date.localeCompare(b.date))[0].date;
+                      const [yr, mo] = refDate.split('-').map(Number);
+                      const daysInMonth = new Date(yr, mo, 0).getDate();
+                      const firstDow = new Date(yr, mo - 1, 1).getDay(); // 0=Sun
+                      const weekLabels = ['일', '월', '화', '수', '목', '금', '토'];
+                      const allDays = Array.from({ length: daysInMonth }, (_, i) => {
+                        const d = i + 1;
+                        const ds = `${yr}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                        return { day: d, dateStr: ds, dow: new Date(yr, mo - 1, d).getDay(), group: dateMap.get(ds) ?? null };
+                      });
+                      return (
+                        <div>
+                          {/* 요일 헤더 */}
+                          <div className="grid grid-cols-7 gap-1 mb-1">
+                            {weekLabels.map((w, i) => (
+                              <div key={w} className={`text-center text-[11px] font-bold py-1 ${i === 0 ? 'text-red-500' : i === 6 ? 'text-blue-500' : 'text-muted-foreground'}`}>{w}</div>
+                            ))}
                           </div>
-                          );
-                        })}
-                      </div>
-                    )}
+                          {/* 달력 그리드 */}
+                          <div className="grid grid-cols-7 gap-1">
+                            {/* 첫 주 빈칸 */}
+                            {Array.from({ length: firstDow }, (_, i) => <div key={`b${i}`} />)}
+                            {allDays.map(({ day, dateStr, dow, group }) => {
+                              const isWeekend = dow === 0 || dow === 6;
+                              if (!group) {
+                                return (
+                                  <div key={dateStr} className={`min-h-[64px] rounded-lg border border-dashed border-border/30 p-1.5 ${isWeekend ? 'bg-muted/5' : ''}`}>
+                                    <span className={`text-[11px] font-semibold ${isWeekend ? (dow === 0 ? 'text-red-300' : 'text-blue-300') : 'text-muted-foreground/30'}`}>{day}</span>
+                                  </div>
+                                );
+                              }
+                              const totalIssues = (group.issues || []).reduce((a: number, b: any) => a + b.count, 0);
+                              const issueRecords = (group.issues || []).flatMap((i: any) => i.list);
+                              return (
+                                <div key={dateStr} className="flex flex-col rounded-lg border border-border hover:border-blue-300 dark:hover:border-blue-700 transition-all overflow-hidden min-h-[64px]">
+                                  <button
+                                    data-testid={`card-date-${dateStr}`}
+                                    onClick={() => setSelectedDate(dateStr)}
+                                    className="flex-1 text-left p-1.5 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 transition-colors"
+                                  >
+                                    <span className={`text-[11px] font-bold block mb-0.5 ${dow === 0 ? 'text-red-500' : dow === 6 ? 'text-blue-500' : ''}`}>{day}</span>
+                                    <p className="text-base font-black leading-none mb-1">{group.records.length}<span className="text-[10px] font-normal text-muted-foreground ml-0.5">건</span></p>
+                                    <RateBadge value={group.rate} />
+                                  </button>
+                                  {totalIssues > 0 ? (
+                                    <button
+                                      data-testid={`btn-issue-${dateStr}`}
+                                      onClick={(e) => { e.stopPropagation(); setActiveIssue({ label: `${dateStr} 이슈 목록`, list: issueRecords }); }}
+                                      className="border-t border-red-200 dark:border-red-800 bg-red-50/60 dark:bg-red-950/20 hover:bg-red-100 dark:hover:bg-red-950/40 px-1.5 py-1 text-left text-[10px] font-bold text-red-600 dark:text-red-400 transition-colors whitespace-nowrap"
+                                    >
+                                      ⚠ {totalIssues}건
+                                    </button>
+                                  ) : (
+                                    <div className="h-[22px]" />
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </>
                 )}
               </div>
@@ -622,7 +674,7 @@ export default function AisSafetyRate() {
             <>
               {/* 일단위/월단위 드릴다운 시 팀별 현황 먼저 표시 */}
               {drilldownLabel && (
-                <TeamBreakdown records={records} title={drilldownLabel} />
+                <TeamBreakdown records={records} title={drilldownLabel} onIssueClick={(label, list) => setActiveIssue({ label, list })} />
               )}
 
               {/* Top KPI Row */}
