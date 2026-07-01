@@ -198,26 +198,26 @@ export default function AisSafetyRate() {
   const dailyGroups = useMemo(() => {
     const groups: Record<string, AisSafetyRecord[]> = {};
     for (const r of allRecords) {
-      if (!r.startDate) continue; // 날짜 없는 레코드 제외
+      if (!r.startDate) continue;
       if (!groups[r.startDate]) groups[r.startDate] = [];
       groups[r.startDate].push(r);
     }
     return Object.entries(groups)
       .sort((a, b) => b[0].localeCompare(a[0]))
-      .map(([date, recs]) => ({ date, records: recs, ...calcCompliance(recs) }));
+      .map(([date, recs]) => ({ date, records: recs, ...calcCompliance(recs.filter(r => r.workStatus !== '취소')) }));
   }, [allRecords]);
 
   const monthlyGroups = useMemo(() => {
     const groups: Record<string, AisSafetyRecord[]> = {};
     for (const r of allRecords) {
-      if (!r.startDate || r.startDate.length < 7) continue; // 날짜 없는 레코드 제외
+      if (!r.startDate || r.startDate.length < 7) continue;
       const month = r.startDate.substring(0, 7);
       if (!groups[month]) groups[month] = [];
       groups[month].push(r);
     }
     return Object.entries(groups)
       .sort((a, b) => b[0].localeCompare(a[0]))
-      .map(([month, recs]) => ({ month, records: recs, ...calcCompliance(recs) }));
+      .map(([month, recs]) => ({ month, records: recs, ...calcCompliance(recs.filter(r => r.workStatus !== '취소')) }));
   }, [allRecords]);
 
   const records = useMemo(() => {
@@ -226,6 +226,9 @@ export default function AisSafetyRate() {
     if (viewMode === 'monthly' && selectedMonth) return allRecords.filter(r => r.startDate?.startsWith(selectedMonth));
     return [];
   }, [allRecords, viewMode, selectedDate, selectedMonth]);
+
+  // 대시보드 계산용: 취소된 작업 제외
+  const activeRecords = useMemo(() => records.filter(r => r.workStatus !== '취소'), [records]);
 
   const showDashboard = viewMode === 'cumulative' ||
     (viewMode === 'daily' && selectedDate !== null) ||
@@ -268,10 +271,10 @@ export default function AisSafetyRate() {
     }
   };
 
-  const comp = calcCompliance(records);
+  const comp = calcCompliance(activeRecords);
   const teams = [...new Set(records.map(r => r.team).filter(Boolean))];
-  const highRiskRecords = records.filter(r => isHighRiskWork(r.highRiskWork));
-  const highRiskBreakdown = getHighRiskBreakdown(records);
+  const highRiskRecords = activeRecords.filter(r => isHighRiskWork(r.highRiskWork));
+  const highRiskBreakdown = getHighRiskBreakdown(activeRecords);
 
   const filteredRecords = records.filter(r => {
     if (filterTeam !== 'all' && r.team !== filterTeam) return false;
@@ -297,23 +300,23 @@ export default function AisSafetyRate() {
   // 필터 변경 시 첫 페이지로
   const resetPage = () => setCurrentPage(1);
 
-  // TBM AI 분석결과 — 분석전/적합/부적합/분석중 순
+  // TBM AI 분석결과 — 분석전/적합/부적합/분석중 순 (취소 제외)
   const tbmAiData = [
-    { name: '분석전', value: records.filter(r => !r.tbmAiResult || r.tbmAiResult === '분석전').length, color: '#94a3b8' },
-    { name: '적합', value: records.filter(r => r.tbmAiResult === '적합').length, color: '#22c55e' },
-    { name: '부적합', value: records.filter(r => r.tbmAiResult === '부적합').length, color: '#ef4444' },
-    { name: '분석중', value: records.filter(r => r.tbmAiResult === '분석중').length, color: '#f59e0b' },
+    { name: '분석전', value: activeRecords.filter(r => !r.tbmAiResult || r.tbmAiResult === '분석전').length, color: '#94a3b8' },
+    { name: '적합', value: activeRecords.filter(r => r.tbmAiResult === '적합').length, color: '#22c55e' },
+    { name: '부적합', value: activeRecords.filter(r => r.tbmAiResult === '부적합').length, color: '#ef4444' },
+    { name: '분석중', value: activeRecords.filter(r => r.tbmAiResult === '분석중').length, color: '#f59e0b' },
   ].filter(d => d.value > 0);
 
   const teamData = teams.map(team => {
-    const tr = records.filter(r => r.team === team);
+    const tr = activeRecords.filter(r => r.team === team);
     const c = calcCompliance(tr);
     return { team: team?.replace('운용팀', '').replace('팀', '') || '미지정', fullTeam: team || '', rate: c.rate, count: tr.length };
   }).sort((a, b) => b.rate - a.rate);
 
   const complianceItems = [
     { label: '안전허가서 매칭', icon: ShieldCheck, total: highRiskRecords.length, pass: highRiskRecords.filter(r => r.safetyPermit === 'Y').length, description: '고위험작업 시 안전허가서 등록', emptyLabel: '고위험작업 없음' },
-    { label: 'TBM 등록률', icon: Users, total: records.length, pass: records.filter(r => r.tbmResult === '등록').length, description: 'TBM 활동 등록 여부', emptyLabel: '데이터 없음' },
+    { label: 'TBM 등록률', icon: Users, total: activeRecords.length, pass: activeRecords.filter(r => r.tbmResult === '등록').length, description: 'TBM 활동 등록 여부', emptyLabel: '데이터 없음' },
   ];
 
   const dailyTrendData = dailyGroups.filter(g => g.date !== '날짜 미상').slice(0, 14).reverse()
@@ -888,9 +891,12 @@ export default function AisSafetyRate() {
                     </TableRow>
                   ) : pagedRecords.map((r, i) => (
                     <TableRow key={r.id} data-testid={`row-record-${r.id}`}
-                      className={isHighRiskWork(r.highRiskWork) && r.safetyPermit !== 'Y' ? 'bg-red-50/20 dark:bg-red-950/10' : ''}>
+                      className={r.workStatus === '취소' ? 'opacity-50 bg-muted/30' : isHighRiskWork(r.highRiskWork) && r.safetyPermit !== 'Y' ? 'bg-red-50/20 dark:bg-red-950/10' : ''}>
                       <TableCell className="text-xs text-muted-foreground sticky left-0 bg-background">{(safePage - 1) * pageSize + i + 1}</TableCell>
-                      <TableCell className="text-xs font-mono w-[120px]"><span className="block truncate" title={r.workOrderNo || ''}>{r.workOrderNo || '-'}</span></TableCell>
+                      <TableCell className="text-xs font-mono w-[120px]">
+                        <span className="block truncate" title={r.workOrderNo || ''}>{r.workOrderNo || '-'}</span>
+                        {r.workStatus === '취소' && <span className="text-[10px] text-muted-foreground bg-muted px-1 py-0.5 rounded ml-0.5">취소</span>}
+                      </TableCell>
                       <TableCell className="text-xs min-w-[200px]">
                         <span title={r.workName || ''}>{r.workName || '-'}</span>
                       </TableCell>
