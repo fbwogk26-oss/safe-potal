@@ -316,6 +316,9 @@ export default function AisSafetyRate() {
     if (filterIssue === 'noPermit' && !(isHighRiskWork(r.highRiskWork) && r.safetyPermit !== 'Y')) return false;
     if (filterIssue === 'tbmUnreg' && r.tbmResult !== '미등록') return false;
     if (filterIssue === 'tbmBad' && r.tbmAiResult !== '부적합') return false;
+    if (filterIssue === 'tbmAnalyzing' && r.tbmAiResult !== '분석중') return false;
+    if (filterIssue === 'tbmPending' && r.tbmAiResult && r.tbmAiResult !== '분석전') return false;
+    if (filterIssue === 'cancelled' && !isCancelled(r)) return false;
     if (search) {
       const q = search.toLowerCase();
       return (r.workOrderNo || '').toLowerCase().includes(q)
@@ -1016,13 +1019,16 @@ export default function AisSafetyRate() {
                   </SelectContent>
                 </Select>
                 <Select value={filterIssue} onValueChange={v => { setFilterIssue(v); resetPage(); }}>
-                  <SelectTrigger className="h-8 text-xs w-44" data-testid="select-filter-issue"><SelectValue placeholder="이슈 필터" /></SelectTrigger>
+                  <SelectTrigger className="h-8 text-xs w-48" data-testid="select-filter-issue"><SelectValue placeholder="이슈 필터" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">전체</SelectItem>
                     <SelectItem value="highRisk">6대 고위험작업만</SelectItem>
                     <SelectItem value="noPermit">안전허가서 미등록</SelectItem>
                     <SelectItem value="tbmUnreg">TBM 미등록</SelectItem>
                     <SelectItem value="tbmBad">TBM AI 부적합</SelectItem>
+                    <SelectItem value="tbmAnalyzing">TBM AI 분석중</SelectItem>
+                    <SelectItem value="tbmPending">TBM AI 분석전</SelectItem>
+                    <SelectItem value="cancelled">취소된 작업</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
