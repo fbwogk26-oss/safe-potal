@@ -350,11 +350,20 @@ export default function AisSafetyRate() {
     },
   });
   const tbmNoteMap = Object.fromEntries(allTbmNotes.map(n => [n.recordId, n]));
+  // workOrderNo 기반 연동 맵: 같은 작업번호의 모든 레코드가 동일 사유를 공유
+  const tbmNoteByWorkOrder = useMemo(() => {
+    const map: Record<string, AisTbmBadNote> = {};
+    allTbmNotes.forEach(n => {
+      const rec = allRecords.find(r => r.id === n.recordId);
+      if (rec?.workOrderNo) map[rec.workOrderNo] = n;
+    });
+    return map;
+  }, [allTbmNotes, allRecords]);
 
   const openTbmNote = (r: AisSafetyRecord) => {
     setTbmNoteType('bad');
     setTbmNoteRecord(r);
-    const existing = tbmNoteMap[r.id];
+    const existing = (r.workOrderNo ? tbmNoteByWorkOrder[r.workOrderNo] : null) ?? tbmNoteMap[r.id];
     setTbmNoteReason(existing?.reason || '');
     setTbmNotePhotoPreview(existing?.photoUrl || null);
     setTbmNotePhoto(null);
@@ -362,7 +371,7 @@ export default function AisSafetyRate() {
   const openTbmUnregNote = (r: AisSafetyRecord) => {
     setTbmNoteType('unreg');
     setTbmNoteRecord(r);
-    const existing = tbmNoteMap[r.id];
+    const existing = (r.workOrderNo ? tbmNoteByWorkOrder[r.workOrderNo] : null) ?? tbmNoteMap[r.id];
     setTbmNoteReason(existing?.reason || '');
     setTbmNotePhotoPreview(existing?.photoUrl || null);
     setTbmNotePhoto(null);
@@ -515,6 +524,7 @@ export default function AisSafetyRate() {
     if (!tbmNoteRecord) return;
     setTbmNoteSaving(true);
     try {
+      // 1) 기본 레코드 저장 (사진 포함)
       const formData = new FormData();
       formData.append('noteType', tbmNoteType);
       formData.append('reason', tbmNoteReason);
@@ -524,8 +534,32 @@ export default function AisSafetyRate() {
         credentials: 'include',
         body: formData,
       });
+      // 2) 같은 workOrderNo를 가진 다른 레코드에도 사유 연동
+      if (tbmNoteRecord.workOrderNo) {
+        const linked = allRecords.filter(r =>
+          r.id !== tbmNoteRecord.id &&
+          r.workOrderNo === tbmNoteRecord.workOrderNo &&
+          (tbmNoteType === 'bad' ? r.tbmAiResult === '부적합' : r.tbmResult === '미등록')
+        );
+        await Promise.all(linked.map(r => {
+          const fd = new FormData();
+          fd.append('noteType', tbmNoteType);
+          fd.append('reason', tbmNoteReason);
+          return fetch(`/api/ais-safety/records/${r.id}/tbm-note`, {
+            method: 'POST',
+            credentials: 'include',
+            body: fd,
+          });
+        }));
+      }
       await queryClient.invalidateQueries({ queryKey: ['/api/ais-safety/tbm-notes'] });
-      toast({ title: tbmNoteType === 'unreg' ? 'TBM 미등록 사유가 저장되었습니다 ✎' : 'TBM AI 부적합 사유가 저장되었습니다 ✎', description: tbmNoteReason ? `사유: ${tbmNoteReason.slice(0, 40)}${tbmNoteReason.length > 40 ? '...' : ''}` : undefined });
+      const linkedCount = tbmNoteRecord.workOrderNo
+        ? allRecords.filter(r => r.id !== tbmNoteRecord.id && r.workOrderNo === tbmNoteRecord.workOrderNo && (tbmNoteType === 'bad' ? r.tbmAiResult === '부적합' : r.tbmResult === '미등록')).length
+        : 0;
+      toast({
+        title: tbmNoteType === 'unreg' ? 'TBM 미등록 사유가 저장되었습니다 ✎' : 'TBM AI 부적합 사유가 저장되었습니다 ✎',
+        description: linkedCount > 0 ? `동일 작업번호 ${linkedCount}건에도 연동 저장됨` : (tbmNoteReason ? `사유: ${tbmNoteReason.slice(0, 40)}${tbmNoteReason.length > 40 ? '...' : ''}` : undefined),
+      });
       setTbmNoteRecord(null);
     } catch {
       toast({ title: '저장에 실패했습니다', variant: 'destructive' });
@@ -549,16 +583,19 @@ export default function AisSafetyRate() {
                 <p className="text-muted-foreground">{tbmNoteRecord.workOrderNo} · {tbmNoteRecord.team} · {tbmNoteRecord.startDate}</p>
               </div>
               {/* 기존 사유 기록 미리보기 */}
-              {tbmNoteMap[tbmNoteRecord.id] && (
+              {(tbmNoteRecord.workOrderNo ? tbmNoteByWorkOrder[tbmNoteRecord.workOrderNo] : tbmNoteMap[tbmNoteRecord.id]) && (
                 <div className="rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 p-3 text-xs space-y-1">
                   <p className="flex items-center gap-1 font-bold text-amber-700 dark:text-amber-400"><FileEdit className="w-3.5 h-3.5" />기존 사유 기록됨</p>
-                  {tbmNoteMap[tbmNoteRecord.id].reason && (
-                    <p className="text-muted-foreground whitespace-pre-line">{tbmNoteMap[tbmNoteRecord.id].reason}</p>
-                  )}
-                  {tbmNoteMap[tbmNoteRecord.id].photoUrl && (
-                    <p className="text-amber-600 dark:text-amber-400">📷 사진 첨부됨</p>
-                  )}
-                  <p className="text-muted-foreground/60">수정하려면 아래에서 다시 작성 후 저장</p>
+                  {(() => {
+                    const en = tbmNoteRecord.workOrderNo ? tbmNoteByWorkOrder[tbmNoteRecord.workOrderNo] : tbmNoteMap[tbmNoteRecord.id];
+                    return (
+                      <>
+                        {en?.reason && <p className="text-muted-foreground whitespace-pre-line">{en.reason}</p>}
+                        {en?.photoUrl && <p className="text-amber-600 dark:text-amber-400">📷 사진 첨부됨</p>}
+                        <p className="text-muted-foreground/60">수정하려면 아래에서 다시 작성 후 저장</p>
+                      </>
+                    );
+                  })()}
                 </div>
               )}
               <div className="space-y-2">
@@ -927,7 +964,7 @@ export default function AisSafetyRate() {
               )}
 
               {/* Top KPI Row */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 items-start">
                 <Card className="border-0 text-white col-span-2 lg:col-span-1 overflow-hidden" style={{ background:'linear-gradient(135deg,#1d4ed8 0%,#2563eb 50%,#4f46e5 100%)', boxShadow:'0 8px 32px rgba(37,99,235,0.4)' }}>
                   <CardContent className="p-5">
                     <div className="flex items-center justify-between mb-2">
@@ -1345,7 +1382,7 @@ export default function AisSafetyRate() {
                               <TableCell><HighRiskBadge value={r.highRiskWork} /></TableCell>
                               <TableCell><PermitBadge value={r.safetyPermit} highRisk={r.highRiskWork} /></TableCell>
                               <TableCell><span className="text-xs font-semibold" style={{ color: RISK_COLORS[r.riskLevel || ''] || '#94a3b8' }}>{r.riskLevel || '-'}</span></TableCell>
-                              <TableCell><StatusBadge value={r.tbmAiResult} onClick={r.tbmAiResult === '부적합' ? () => openTbmNote(r) : undefined} hasNote={!!tbmNoteMap[r.id]} /></TableCell>
+                              <TableCell><StatusBadge value={r.tbmAiResult} onClick={r.tbmAiResult === '부적합' ? () => openTbmNote(r) : undefined} hasNote={!!(r.workOrderNo ? tbmNoteByWorkOrder[r.workOrderNo] : tbmNoteMap[r.id])} /></TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
@@ -1479,8 +1516,8 @@ export default function AisSafetyRate() {
                       <TableCell>
                         <span className="text-xs font-semibold" style={{ color: RISK_COLORS[r.riskLevel || ''] || '#94a3b8' }}>{r.riskLevel || '-'}</span>
                       </TableCell>
-                      <TableCell><RegBadge value={r.tbmResult} onClick={r.tbmResult === '미등록' && !isCancelled(r.workStatus) ? () => openTbmUnregNote(r) : undefined} hasNote={r.tbmResult === '미등록' && !!tbmNoteMap[r.id]} /></TableCell>
-                      <TableCell><StatusBadge value={r.tbmAiResult} onClick={r.tbmAiResult === '부적합' ? () => openTbmNote(r) : undefined} hasNote={r.tbmAiResult === '부적합' && !!tbmNoteMap[r.id]} /></TableCell>
+                      <TableCell><RegBadge value={r.tbmResult} onClick={r.tbmResult === '미등록' && !isCancelled(r.workStatus) ? () => openTbmUnregNote(r) : undefined} hasNote={r.tbmResult === '미등록' && !!(r.workOrderNo ? tbmNoteByWorkOrder[r.workOrderNo] : tbmNoteMap[r.id])} /></TableCell>
+                      <TableCell><StatusBadge value={r.tbmAiResult} onClick={r.tbmAiResult === '부적합' ? () => openTbmNote(r) : undefined} hasNote={r.tbmAiResult === '부적합' && !!(r.workOrderNo ? tbmNoteByWorkOrder[r.workOrderNo] : tbmNoteMap[r.id])} /></TableCell>
                       <TableCell className="text-xs whitespace-nowrap">{r.workStatus || '-'}</TableCell>
                       <TableCell className="text-xs whitespace-nowrap">{r.startDate || '-'}</TableCell>
                       <TableCell className="text-xs whitespace-nowrap">{r.endDate || '-'}</TableCell>
@@ -1590,8 +1627,8 @@ export default function AisSafetyRate() {
                             <TableCell className="text-xs whitespace-nowrap py-2">{r.team || '-'}</TableCell>
                             <TableCell className="py-2"><HighRiskBadge value={r.highRiskWork} /></TableCell>
                             <TableCell className="py-2"><PermitBadge value={r.safetyPermit} highRisk={r.highRiskWork} /></TableCell>
-                            <TableCell className="py-2 whitespace-nowrap"><RegBadge value={r.tbmResult} onClick={r.tbmResult === '미등록' && !isCancelled(r.workStatus) ? () => openTbmUnregNote(r) : undefined} hasNote={r.tbmResult === '미등록' && !!tbmNoteMap[r.id]} /></TableCell>
-                            <TableCell className="py-2"><StatusBadge value={r.tbmAiResult} onClick={r.tbmAiResult === '부적합' ? () => openTbmNote(r) : undefined} hasNote={r.tbmAiResult === '부적합' && !!tbmNoteMap[r.id]} /></TableCell>
+                            <TableCell className="py-2 whitespace-nowrap"><RegBadge value={r.tbmResult} onClick={r.tbmResult === '미등록' && !isCancelled(r.workStatus) ? () => openTbmUnregNote(r) : undefined} hasNote={r.tbmResult === '미등록' && !!(r.workOrderNo ? tbmNoteByWorkOrder[r.workOrderNo] : tbmNoteMap[r.id])} /></TableCell>
+                            <TableCell className="py-2"><StatusBadge value={r.tbmAiResult} onClick={r.tbmAiResult === '부적합' ? () => openTbmNote(r) : undefined} hasNote={r.tbmAiResult === '부적합' && !!(r.workOrderNo ? tbmNoteByWorkOrder[r.workOrderNo] : tbmNoteMap[r.id])} /></TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
