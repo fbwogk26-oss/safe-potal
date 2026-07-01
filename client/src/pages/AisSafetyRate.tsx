@@ -405,7 +405,9 @@ export default function AisSafetyRate() {
   const teamData = teams.map(team => {
     const tr = activeRecords.filter(r => r.team === team);
     const c = calcCompliance(tr);
-    return { team: team?.replace('운용팀', '').replace('팀', '') || '미지정', fullTeam: team || '', rate: c.rate, count: tr.length };
+    const issueCount = (c.issues || []).reduce((s, i) => s + i.list.length, 0);
+    const issueList = (c.issues || []).flatMap(i => i.list);
+    return { team: team?.replace('운용팀', '').replace('팀', '') || '미지정', fullTeam: team || '', rate: c.rate, count: tr.length, issueCount, issueList };
   }).sort((a, b) => b.rate - a.rate);
 
   const complianceItems = [
@@ -980,37 +982,73 @@ export default function AisSafetyRate() {
                 </Card>
 
                 <Card className="border-0 shadow-sm bg-card/60">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-bold">팀별 이행률</CardTitle>
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <CardTitle className="text-sm font-bold flex items-center gap-2">
+                        <TrendingUp className="w-4 h-4 text-blue-500" />팀별 이행률
+                      </CardTitle>
+                      {teamData.length > 0 && (
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                          <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-emerald-500"></span>90% 이상</span>
+                          <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-amber-500"></span>70~89%</span>
+                          <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-red-500"></span>70% 미만</span>
+                        </div>
+                      )}
+                    </div>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="pt-0">
                     {teamData.length > 0 ? (
-                      <ResponsiveContainer width="100%" height={Math.max(180, teamData.length * 32)}>
-                        <BarChart data={teamData} layout="vertical" margin={{ left: -10, right: 60 }}>
-                          <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                          <XAxis type="number" domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 10 }} />
-                          <YAxis type="category" dataKey="team" tick={{ fontSize: 10 }} width={64} />
-                          <ReTooltip formatter={(v: any, _: any, props: any) => [`${v}% (${props.payload.count}건)`, '이행률']}
-                            labelFormatter={(label) => {
-                              const found = teamData.find(t => t.team === label);
-                              return found?.fullTeam || label;
-                            }} />
-                          <Bar dataKey="rate" radius={[0, 4, 4, 0]}>
-                            {teamData.map((entry, i) => (
-                              <Cell key={i} fill={entry.rate >= 90 ? '#22c55e' : entry.rate >= 70 ? '#f59e0b' : '#ef4444'} />
-                            ))}
-                            <LabelList content={(props: any) => {
-                              const { x, y, width, height, value, index } = props;
-                              const count = teamData[index]?.count ?? 0;
-                              return (
-                                <text x={x + width + 6} y={y + height / 2} dy={4} textAnchor="start" fontSize={10} fill="#64748b">
-                                  {value}% ({count}건)
-                                </text>
-                              );
-                            }} />
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
+                      <div className="space-y-2">
+                        {teamData.map((entry, i) => {
+                          const color = entry.rate >= 90 ? { bar: 'bg-emerald-500', track: 'bg-emerald-100 dark:bg-emerald-950/40', text: 'text-emerald-700 dark:text-emerald-300', badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300' }
+                            : entry.rate >= 70 ? { bar: 'bg-amber-500', track: 'bg-amber-100 dark:bg-amber-950/40', text: 'text-amber-700 dark:text-amber-300', badge: 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300' }
+                            : { bar: 'bg-red-500', track: 'bg-red-100 dark:bg-red-950/40', text: 'text-red-700 dark:text-red-300', badge: 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300' };
+                          return (
+                            <div key={entry.team} className="group rounded-lg border bg-card/80 hover:shadow-sm transition-shadow overflow-hidden">
+                              <div className="flex items-center gap-3 px-3 py-2.5">
+                                {/* 순위 */}
+                                <span className="text-xs font-bold text-muted-foreground w-5 text-right flex-shrink-0">{i + 1}</span>
+                                {/* 팀명 */}
+                                <span className="text-xs font-semibold w-24 flex-shrink-0 truncate" title={entry.fullTeam}>{entry.team}</span>
+                                {/* 진행바 */}
+                                <div className="flex-1 relative">
+                                  <div className={`w-full h-5 rounded-full ${color.track} overflow-hidden`}>
+                                    <div
+                                      className={`h-full rounded-full ${color.bar} transition-all duration-500 flex items-center justify-end pr-2`}
+                                      style={{ width: `${Math.max(entry.rate, 2)}%` }}
+                                    >
+                                      {entry.rate >= 30 && (
+                                        <span className="text-white text-[10px] font-bold leading-none">{entry.rate}%</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  {entry.rate < 30 && (
+                                    <span className={`absolute left-[calc(${Math.max(entry.rate,2)}%+6px)] top-1/2 -translate-y-1/2 text-[10px] font-bold ${color.text}`}>{entry.rate}%</span>
+                                  )}
+                                  {/* 90% 기준선 */}
+                                  <div className="absolute top-0 bottom-0 border-l border-dashed border-slate-400/60 dark:border-slate-500/40" style={{ left: '90%' }} />
+                                </div>
+                                {/* 건수 */}
+                                <span className="text-xs text-muted-foreground flex-shrink-0 w-12 text-right">{entry.count}건</span>
+                                {/* 이슈 뱃지 */}
+                                {entry.issueCount > 0 ? (
+                                  <button
+                                    onClick={() => setActiveIssue({ label: `${entry.fullTeam} 이슈 목록`, list: entry.issueList })}
+                                    className="flex-shrink-0 flex items-center gap-0.5 text-[10px] font-bold bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400 px-1.5 py-0.5 rounded-full hover:bg-red-200 dark:hover:bg-red-900/60 transition-colors"
+                                  >
+                                    <AlertTriangle className="w-2.5 h-2.5" />{entry.issueCount}
+                                  </button>
+                                ) : (
+                                  <span className="flex-shrink-0 flex items-center gap-0.5 text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 px-1.5 py-0.5 rounded-full">
+                                    <CheckCircle2 className="w-2.5 h-2.5" />적합
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                        <p className="text-[10px] text-muted-foreground text-right pt-1">점선 = 90% 기준선</p>
+                      </div>
                     ) : <p className="text-center text-sm text-muted-foreground py-12">데이터 없음</p>}
                   </CardContent>
                 </Card>
