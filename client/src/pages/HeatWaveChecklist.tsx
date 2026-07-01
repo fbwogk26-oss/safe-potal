@@ -229,7 +229,7 @@ function SignaturePad({
 
   return (
     <div className="space-y-1.5">
-      <div className="relative border-2 border-dashed border-blue-300 dark:border-blue-700 rounded-lg overflow-hidden bg-white dark:bg-zinc-900" style={{ height: "100px" }}>
+      <div className="relative border-2 border-dashed border-blue-300 dark:border-blue-700 rounded-lg overflow-hidden bg-white dark:bg-zinc-900" style={{ height: "80px" }}>
         {showExisting && value ? (
           <img src={value} alt="서명" className="w-full h-full object-contain" />
         ) : (
@@ -237,7 +237,7 @@ function SignaturePad({
             ref={svgRef}
             viewBox="0 0 600 120"
             className="w-full touch-none cursor-crosshair block"
-            style={{ height: "100px" }}
+            style={{ height: "80px" }}
             onMouseDown={startDraw}
             onMouseMove={draw}
             onMouseUp={endDraw}
@@ -562,7 +562,7 @@ function ChecklistForm({
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       {/* 이메일에서 불러오기 */}
       {!readOnly && (
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 p-3 rounded-lg border border-dashed border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-950/20">
@@ -787,10 +787,10 @@ function ChecklistForm({
               />
             ) : form.authorSignature ? (
               <div className="border rounded-lg bg-white dark:bg-zinc-900 p-2">
-                <img src={form.authorSignature} alt="작성자 서명" className="h-14 object-contain" />
+                <img src={form.authorSignature} alt="작성자 서명" className="h-12 object-contain" />
               </div>
             ) : (
-              <div className="border rounded-lg bg-muted/30 h-14 flex items-center justify-center text-xs text-muted-foreground">
+              <div className="border rounded-lg bg-muted/30 h-12 flex items-center justify-center text-xs text-muted-foreground">
                 서명 없음
               </div>
             )}
@@ -813,10 +813,10 @@ function ChecklistForm({
               />
             ) : form.safetyManagerSignature ? (
               <div className="border rounded-lg bg-white dark:bg-zinc-900 p-2">
-                <img src={form.safetyManagerSignature} alt="안전보건관리책임자 서명" className="h-14 object-contain" />
+                <img src={form.safetyManagerSignature} alt="안전보건관리책임자 서명" className="h-12 object-contain" />
               </div>
             ) : (
-              <div className="border rounded-lg bg-muted/30 h-14 flex items-center justify-center text-xs text-muted-foreground">
+              <div className="border rounded-lg bg-muted/30 h-12 flex items-center justify-center text-xs text-muted-foreground">
                 서명 없음
               </div>
             )}
@@ -1047,7 +1047,7 @@ export default function HeatWaveChecklist() {
 
       {/* 작성 다이얼로그 */}
       <Dialog open={showForm} onOpenChange={setShowForm}>
-        <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Sun className="w-5 h-5 text-orange-500" /> 폭염 일일 체크리스트 작성
@@ -1063,7 +1063,7 @@ export default function HeatWaveChecklist() {
 
       {/* 상세보기 다이얼로그 */}
       <Dialog open={!!viewing} onOpenChange={() => setViewing(null)}>
-        <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Sun className="w-5 h-5 text-orange-500" />
@@ -1073,7 +1073,7 @@ export default function HeatWaveChecklist() {
           {viewing && (
             <div className="space-y-4">
               <ChecklistForm initial={formFromRecord(viewing)} readOnly />
-              <div className="flex gap-2 justify-end pt-2">
+              <div className="flex flex-wrap gap-2 justify-end pt-2">
                 <Button variant="outline" onClick={() => { setPdfViewing(viewing); }}>
                   <FileText className="w-4 h-4 mr-1" /> PDF 미리보기
                 </Button>
@@ -1089,7 +1089,7 @@ export default function HeatWaveChecklist() {
 
       {/* 수정 다이얼로그 */}
       <Dialog open={!!editing} onOpenChange={() => setEditing(null)}>
-        <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Sun className="w-5 h-5 text-orange-500" /> 체크리스트 수정
@@ -1110,7 +1110,7 @@ export default function HeatWaveChecklist() {
       {/* PDF 미리보기 다이얼로그 */}
       <Dialog open={!!pdfViewing} onOpenChange={() => { setPdfViewing(null); setIsPdfDownloading(false); }}>
         <DialogContent className="max-w-[900px] w-[95vw] max-h-[95vh] overflow-y-auto p-0">
-          <DialogHeader className="px-6 pt-5 pb-3 border-b sticky top-0 bg-background z-10">
+          <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-5 pb-3 border-b sticky top-0 bg-background z-10">
             <div className="flex items-center justify-between">
               <DialogTitle className="flex items-center gap-2">
                 <FileText className="w-5 h-5 text-blue-600" />
@@ -1124,14 +1124,14 @@ export default function HeatWaveChecklist() {
                 data-testid="button-download-pdf"
               >
                 {isPdfDownloading ? (
-                  <><Loader2 className="w-4 h-4 mr-1 animate-spin" />생성 중...</>
+                  <><Loader2 className="w-4 h-4 sm:mr-1 animate-spin" /><span className="hidden sm:inline">생성 중...</span></>
                 ) : (
-                  <><FileDown className="w-4 h-4 mr-1" />PDF 다운로드</>
+                  <><FileDown className="w-4 h-4 sm:mr-1" /><span className="hidden sm:inline">PDF 다운로드</span></>
                 )}
               </Button>
             </div>
           </DialogHeader>
-          <div className="overflow-auto bg-gray-100 p-6 flex justify-center">
+          <div className="overflow-auto bg-gray-100 p-2 sm:p-6 flex justify-center">
             <div id="heatwave-pdf-capture" className="shadow-xl">
               {pdfViewing && <ChecklistPDFView record={pdfViewing} pdfRef={pdfRef} />}
             </div>

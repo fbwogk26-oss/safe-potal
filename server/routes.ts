@@ -4027,6 +4027,24 @@ ${buildEmailFooter()}
     }
   });
 
+  app.put('/api/ais-safety/records/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ message: '잘못된 ID입니다' });
+      const allowed = ['workOrderNo','workName','team','center','vendorName','highRiskWork',
+        'safetyPermit','riskLevel','tbmResult','riskAssessment','workStatus',
+        'startDate','endDate','dayNight','workLocation','supervisor','workType','workContent'];
+      const data: Record<string, any> = {};
+      for (const key of allowed) {
+        if (req.body[key] !== undefined) data[key] = req.body[key] ?? null;
+      }
+      const updated = await storage.updateAisSafetyRecord(id, data);
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ message: '수정에 실패했습니다' });
+    }
+  });
+
   app.delete('/api/ais-safety/uploads/:id', isAuthenticated, async (req: any, res) => {
     try {
       await storage.deleteAisSafetyUpload(Number(req.params.id));

@@ -26,7 +26,7 @@ import {
   Clock, XCircle, ShieldCheck, ShieldAlert, FileWarning,
   TrendingUp, Users, Loader2, Eye, ChevronUp, Layers,
   CalendarDays, Calendar, ChevronLeft, ChevronRight,
-  Camera, ImageIcon, Save, FileEdit,
+  Camera, ImageIcon, Save, FileEdit, Pencil,
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -280,6 +280,8 @@ export default function AisSafetyRate() {
   const [hrFilterTbm, setHrFilterTbm] = useState('all');
   const [cumulativeMonth, setCumulativeMonth] = useState<string>('all');
   const [calendarMonth, setCalendarMonth] = useState<string>(() => new Date().toISOString().substring(0, 7));
+  const [editingRecord, setEditingRecord] = useState<AisSafetyRecord | null>(null);
+  const [editForm, setEditForm] = useState<Partial<AisSafetyRecord>>({});
   const [tbmNoteRecord, setTbmNoteRecord] = useState<AisSafetyRecord | null>(null);
   const [tbmNoteType, setTbmNoteType] = useState<'bad'|'unreg'>('bad');
   const [tbmNoteReason, setTbmNoteReason] = useState('');
@@ -391,6 +393,30 @@ export default function AisSafetyRate() {
       toast({ title: '삭제되었습니다' });
     },
   });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: Partial<AisSafetyRecord> }) => {
+      const res = await fetch(`/api/ais-safety/records/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('수정 실패');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/ais-safety/records/all'] });
+      toast({ title: '수정되었습니다' });
+      setEditingRecord(null);
+    },
+    onError: () => toast({ title: '수정 실패', variant: 'destructive' }),
+  });
+
+  const openEdit = (r: AisSafetyRecord) => {
+    setEditingRecord(r);
+    setEditForm({ ...r });
+  };
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1497,6 +1523,7 @@ export default function AisSafetyRate() {
                 <TableHeader>
                   <TableRow className="bg-muted/30">
                     <TableHead className="text-xs font-bold w-8 sticky left-0 bg-muted/30">#</TableHead>
+                    <TableHead className="text-xs font-bold w-8"></TableHead>
                     <TableHead className="text-xs font-bold w-[120px]">작업번호</TableHead>
                     <TableHead className="text-xs font-bold min-w-[200px]">작업명</TableHead>
                     <TableHead className="text-xs font-bold min-w-[80px] hidden md:table-cell">공사유형</TableHead>
@@ -1524,6 +1551,12 @@ export default function AisSafetyRate() {
                     <TableRow key={r.id} data-testid={`row-record-${r.id}`}
                       className={r.workStatus === '취소' ? 'opacity-50 bg-muted/30' : isHighRiskWork(r.highRiskWork) && r.safetyPermit !== 'Y' ? 'bg-red-50/20 dark:bg-red-950/10' : ''}>
                       <TableCell className="text-xs text-muted-foreground sticky left-0 bg-background">{(safePage - 1) * pageSize + i + 1}</TableCell>
+                      <TableCell className="p-1">
+                        <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-blue-600"
+                          onClick={() => openEdit(r)} data-testid={`button-edit-${r.id}`} title="수정">
+                          <Pencil className="w-3 h-3" />
+                        </Button>
+                      </TableCell>
                       <TableCell className="text-xs font-mono w-[120px]">
                         <span className="block truncate" title={r.workOrderNo || ''}>{r.workOrderNo || '-'}</span>
                         {r.workStatus === '취소' && <span className="text-[10px] text-muted-foreground bg-muted px-1 py-0.5 rounded ml-0.5">취소</span>}
@@ -1593,6 +1626,134 @@ export default function AisSafetyRate() {
           </CardContent>
         </Card>
       )}
+
+      {/* 레코드 수정 다이얼로그 */}
+      <Dialog open={!!editingRecord} onOpenChange={open => { if (!open) setEditingRecord(null); }}>
+        <DialogContent className="w-[95vw] max-w-xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-sm">
+              <Pencil className="w-4 h-4 text-blue-600" />
+              레코드 수정 — {editingRecord?.workOrderNo || editingRecord?.workName || ''}
+            </DialogTitle>
+          </DialogHeader>
+          {editingRecord && (
+            <div className="space-y-3 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">작업번호</Label>
+                  <Input className="h-8 text-xs" value={editForm.workOrderNo ?? ''} onChange={e => setEditForm(f => ({ ...f, workOrderNo: e.target.value }))} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">팀명</Label>
+                  <Input className="h-8 text-xs" value={editForm.team ?? ''} onChange={e => setEditForm(f => ({ ...f, team: e.target.value }))} />
+                </div>
+                <div className="space-y-1 sm:col-span-2">
+                  <Label className="text-xs">작업명</Label>
+                  <Input className="h-8 text-xs" value={editForm.workName ?? ''} onChange={e => setEditForm(f => ({ ...f, workName: e.target.value }))} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">협력사</Label>
+                  <Input className="h-8 text-xs" value={editForm.vendorName ?? ''} onChange={e => setEditForm(f => ({ ...f, vendorName: e.target.value }))} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">작업장소</Label>
+                  <Input className="h-8 text-xs" value={editForm.workLocation ?? ''} onChange={e => setEditForm(f => ({ ...f, workLocation: e.target.value }))} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">책임자</Label>
+                  <Input className="h-8 text-xs" value={editForm.supervisor ?? ''} onChange={e => setEditForm(f => ({ ...f, supervisor: e.target.value }))} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">센터</Label>
+                  <Input className="h-8 text-xs" value={editForm.center ?? ''} onChange={e => setEditForm(f => ({ ...f, center: e.target.value }))} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">작업상태</Label>
+                  <Select value={editForm.workStatus ?? ''} onValueChange={v => setEditForm(f => ({ ...f, workStatus: v }))}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {['예정','진행중','완료','취소'].map(v => <SelectItem key={v} value={v} className="text-xs">{v}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">안전허가서</Label>
+                  <Select value={editForm.safetyPermit ?? ''} onValueChange={v => setEditForm(f => ({ ...f, safetyPermit: v }))}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {['Y','N','미등록'].map(v => <SelectItem key={v} value={v} className="text-xs">{v}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">위험도</Label>
+                  <Select value={editForm.riskLevel ?? ''} onValueChange={v => setEditForm(f => ({ ...f, riskLevel: v }))}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {['상','중','하'].map(v => <SelectItem key={v} value={v} className="text-xs">{v}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">TBM 등록</Label>
+                  <Select value={editForm.tbmResult ?? ''} onValueChange={v => setEditForm(f => ({ ...f, tbmResult: v }))}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {['등록','미등록'].map(v => <SelectItem key={v} value={v} className="text-xs">{v}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">위험성평가</Label>
+                  <Select value={editForm.riskAssessment ?? ''} onValueChange={v => setEditForm(f => ({ ...f, riskAssessment: v }))}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {['등록','미등록'].map(v => <SelectItem key={v} value={v} className="text-xs">{v}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">공사유형</Label>
+                  <Select value={editForm.workType ?? ''} onValueChange={v => setEditForm(f => ({ ...f, workType: v }))}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {['직영','도급'].map(v => <SelectItem key={v} value={v} className="text-xs">{v}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">시작일</Label>
+                  <Input type="date" className="h-8 text-xs" value={editForm.startDate ?? ''} onChange={e => setEditForm(f => ({ ...f, startDate: e.target.value }))} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">종료일</Label>
+                  <Input type="date" className="h-8 text-xs" value={editForm.endDate ?? ''} onChange={e => setEditForm(f => ({ ...f, endDate: e.target.value }))} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">주/야간</Label>
+                  <Select value={editForm.dayNight ?? ''} onValueChange={v => setEditForm(f => ({ ...f, dayNight: v }))}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {['주간','야간'].map(v => <SelectItem key={v} value={v} className="text-xs">{v}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="outline" size="sm" onClick={() => setEditingRecord(null)}>취소</Button>
+                <Button size="sm" disabled={updateMutation.isPending}
+                  onClick={() => updateMutation.mutate({ id: editingRecord.id, data: editForm })}>
+                  {updateMutation.isPending ? <><Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />저장 중...</> : <><Save className="w-3.5 h-3.5 mr-1" />저장</>}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Issue detail dialog */}
       <Dialog open={!!activeIssue} onOpenChange={() => setActiveIssue(null)}>

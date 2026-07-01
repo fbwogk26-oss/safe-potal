@@ -171,6 +171,7 @@ export interface IStorage {
   getAisSafetyRecords(uploadId: number): Promise<AisSafetyRecord[]>;
   getAllAisSafetyRecords(): Promise<AisSafetyRecord[]>;
   createAisSafetyRecords(records: InsertAisSafetyRecord[]): Promise<void>;
+  updateAisSafetyRecord(id: number, data: Partial<InsertAisSafetyRecord>): Promise<AisSafetyRecord>;
   deleteAisSafetyRecordsByUpload(uploadId: number): Promise<void>;
   getAllAisTbmBadNotes(): Promise<AisTbmBadNote[]>;
   getAisTbmBadNote(recordId: number): Promise<AisTbmBadNote | null>;
@@ -1426,6 +1427,10 @@ export class DatabaseStorage implements IStorage {
   async createAisSafetyRecords(records: InsertAisSafetyRecord[]): Promise<void> {
     if (records.length === 0) return;
     await db.insert(aisSafetyRecords).values(records);
+  }
+  async updateAisSafetyRecord(id: number, data: Partial<InsertAisSafetyRecord>): Promise<AisSafetyRecord> {
+    const [updated] = await db.update(aisSafetyRecords).set(data).where(eq(aisSafetyRecords.id, id)).returning();
+    return updated;
   }
   async deleteAisSafetyRecordsByUpload(uploadId: number): Promise<void> {
     await db.delete(aisSafetyRecords).where(eq(aisSafetyRecords.uploadId, uploadId));
