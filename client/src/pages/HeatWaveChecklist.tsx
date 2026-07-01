@@ -444,12 +444,12 @@ function CheckSection({
 }) {
   return (
     <div className={`border rounded-lg overflow-hidden ${colorClass}`}>
-      <div className="px-4 py-2 flex items-center gap-2">
+      <div className="px-3 sm:px-4 py-2 flex items-center gap-2">
         <Thermometer className="w-4 h-4" />
         <span className="font-bold text-sm">{title}</span>
         <span className="text-xs opacity-75 ml-1">{tempLabel}</span>
       </div>
-      <div className="bg-white dark:bg-zinc-900 px-4 py-3 space-y-2">
+      <div className="bg-white dark:bg-zinc-900 px-3 sm:px-4 py-3 space-y-2">
         {items.map((item, idx) => (
           <div key={idx} className="flex items-start gap-2">
             <Checkbox
@@ -469,8 +469,8 @@ function CheckSection({
           </div>
         ))}
         {hasStopTime && (
-          <div className="flex items-center gap-2 pt-1">
-            <span className="text-xs text-muted-foreground w-14">중지시간</span>
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <span className="text-xs text-muted-foreground">중지시간</span>
             <Input
               type="time"
               value={stopStart ?? ""}
@@ -565,7 +565,7 @@ function ChecklistForm({
     <div className="space-y-5">
       {/* 이메일에서 불러오기 */}
       {!readOnly && (
-        <div className="flex items-center gap-2 p-3 rounded-lg border border-dashed border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-950/20">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 p-3 rounded-lg border border-dashed border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-950/20">
           <Mail className="w-4 h-4 text-blue-500 flex-shrink-0" />
           <div className="flex-1 min-w-0">
             <p className="text-xs font-medium text-blue-700 dark:text-blue-300">이메일에서 기상 데이터 자동 입력</p>
@@ -589,7 +589,7 @@ function ChecklistForm({
             size="sm"
             disabled={emlParsing}
             onClick={() => fileInputRef.current?.click()}
-            className="flex-shrink-0 text-blue-600 border-blue-300 hover:bg-blue-50 dark:text-blue-400 dark:border-blue-700"
+            className="flex-shrink-0 w-full sm:w-auto text-blue-600 border-blue-300 hover:bg-blue-50 dark:text-blue-400 dark:border-blue-700"
             data-testid="button-load-email"
           >
             {emlParsing ? (
@@ -602,7 +602,7 @@ function ChecklistForm({
       )}
 
       {/* 기본 정보 */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="space-y-1">
           <Label className="text-xs">작성일자</Label>
           <Input
@@ -642,7 +642,7 @@ function ChecklistForm({
           value={form.heatAlertStatus}
           onValueChange={(v) => set("heatAlertStatus", v)}
           disabled={readOnly}
-          className="flex gap-4 pt-1"
+          className="flex flex-wrap gap-x-4 gap-y-2 pt-1"
           data-testid="radio-heat-alert-status"
         >
           {ALERT_STATUS_OPTIONS.map((opt) => (
@@ -659,7 +659,7 @@ function ChecklistForm({
         <p className="text-xs font-semibold text-blue-700 dark:text-blue-300 flex items-center gap-1">
           <Sun className="w-3.5 h-3.5" /> 현재 기상 정보
         </p>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="space-y-1">
             <Label className="text-xs">현재 기온 (°C)</Label>
             <Input
@@ -768,7 +768,7 @@ function ChecklistForm({
           <PenLine className="w-3.5 h-3.5 text-muted-foreground" />
           <span className="text-xs font-semibold">서명</span>
         </div>
-        <div className="grid grid-cols-2 divide-x">
+        <div className="grid grid-cols-1 sm:grid-cols-2 sm:divide-x divide-y sm:divide-y-0">
           <div className="p-3 space-y-2">
             <Label className="text-xs font-medium">작성자</Label>
             <Input
@@ -943,14 +943,14 @@ export default function HeatWaveChecklist() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
+          <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
             <Sun className="w-6 h-6 text-orange-500" />
             폭염 일일 체크리스트
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">폭염 단계별 조치사항을 일별로 기록·관리합니다</p>
+          <p className="text-sm text-muted-foreground mt-1 hidden sm:block">폭염 단계별 조치사항을 일별로 기록·관리합니다</p>
         </div>
         <Button onClick={() => setShowForm(true)} data-testid="button-new-checklist">
-          <Plus className="w-4 h-4 mr-1" /> 체크리스트 작성
+          <Plus className="w-4 h-4 sm:mr-1" /><span className="hidden sm:inline"> 체크리스트 작성</span>
         </Button>
       </div>
 
@@ -960,11 +960,11 @@ export default function HeatWaveChecklist() {
           <TableHeader>
             <TableRow>
               <TableHead>작성일시</TableHead>
-              <TableHead>대상지역</TableHead>
+              <TableHead className="hidden sm:table-cell">대상지역</TableHead>
               <TableHead>폭염특보</TableHead>
-              <TableHead className="text-center">기온 / 체감</TableHead>
+              <TableHead className="text-center hidden sm:table-cell">기온 / 체감</TableHead>
               <TableHead className="text-center">조치 완료</TableHead>
-              <TableHead>작성자</TableHead>
+              <TableHead className="hidden md:table-cell">작성자</TableHead>
               <TableHead className="w-20 text-right">관리</TableHead>
             </TableRow>
           </TableHeader>
@@ -988,13 +988,13 @@ export default function HeatWaveChecklist() {
                     {r.checkDate}<br />
                     <span className="text-xs text-muted-foreground">{r.checkTime}</span>
                   </TableCell>
-                  <TableCell className="text-sm">{r.targetArea}</TableCell>
+                  <TableCell className="text-sm hidden sm:table-cell">{r.targetArea}</TableCell>
                   <TableCell>
                     <Badge variant={alertBadgeVariant(r.heatAlertStatus)} data-testid={`badge-alert-${r.id}`}>
                       {r.heatAlertStatus}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-center text-sm">
+                  <TableCell className="text-center text-sm hidden sm:table-cell">
                     {r.currentTemperature != null ? `${r.currentTemperature}°C` : "-"}
                     {r.currentFeelsLike != null && (
                       <span className="text-muted-foreground"> / {r.currentFeelsLike}°C</span>
@@ -1004,7 +1004,7 @@ export default function HeatWaveChecklist() {
                     <span className="font-medium">{totalChecks(r)}</span>
                     <span className="text-muted-foreground">/{totalPossible}</span>
                   </TableCell>
-                  <TableCell className="text-sm">{r.author ?? "-"}</TableCell>
+                  <TableCell className="text-sm hidden md:table-cell">{r.author ?? "-"}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
                       <Button
@@ -1047,7 +1047,7 @@ export default function HeatWaveChecklist() {
 
       {/* 작성 다이얼로그 */}
       <Dialog open={showForm} onOpenChange={setShowForm}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Sun className="w-5 h-5 text-orange-500" /> 폭염 일일 체크리스트 작성
@@ -1063,7 +1063,7 @@ export default function HeatWaveChecklist() {
 
       {/* 상세보기 다이얼로그 */}
       <Dialog open={!!viewing} onOpenChange={() => setViewing(null)}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Sun className="w-5 h-5 text-orange-500" />
@@ -1089,7 +1089,7 @@ export default function HeatWaveChecklist() {
 
       {/* 수정 다이얼로그 */}
       <Dialog open={!!editing} onOpenChange={() => setEditing(null)}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Sun className="w-5 h-5 text-orange-500" /> 체크리스트 수정
