@@ -721,6 +721,9 @@ export default function AisSafetyRate() {
                     {records.filter(r => r.tbmAiResult === '부적합').length > 0 && (
                       <p className="text-xs mt-0.5 text-red-600 font-semibold">⚠ 부적합 {records.filter(r => r.tbmAiResult === '부적합').length}건</p>
                     )}
+                    {records.filter(r => r.tbmAiResult === '분석중').length > 0 && (
+                      <p className="text-xs mt-0.5 text-amber-600 font-semibold flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" />분석중 {records.filter(r => r.tbmAiResult === '분석중').length}건</p>
+                    )}
                   </CardContent>
                 </Card>
                 <Card className="border-0 shadow-sm bg-card/60">
