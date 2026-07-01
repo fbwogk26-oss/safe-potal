@@ -305,7 +305,9 @@ export default function AisSafetyRate() {
 
   const comp = calcCompliance(activeRecords);
   const teams = [...new Set(records.map(r => r.team).filter(Boolean))];
-  const highRiskRecords = activeRecords.filter(r => isHighRiskWork(r.highRiskWork));
+  const highRiskRecords = activeRecords
+    .filter(r => isHighRiskWork(r.highRiskWork))
+    .sort((a, b) => (b.startDate ?? '').localeCompare(a.startDate ?? ''));
   const highRiskBreakdown = getHighRiskBreakdown(activeRecords);
 
   const filteredRecords = records.filter(r => {
@@ -323,7 +325,7 @@ export default function AisSafetyRate() {
         || (r.workLocation || '').toLowerCase().includes(q);
     }
     return true;
-  });
+  }).sort((a, b) => (b.startDate ?? '').localeCompare(a.startDate ?? ''));
 
   const totalPages = Math.ceil(filteredRecords.length / pageSize);
   const safePage = Math.min(currentPage, Math.max(1, totalPages));
@@ -456,7 +458,7 @@ export default function AisSafetyRate() {
                   )}
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                  {uploads.map(u => (
+                  {[...uploads].sort((a, b) => (b.workDate ?? '').localeCompare(a.workDate ?? '')).map(u => (
                     <div key={u.id} className="flex items-stretch gap-1">
                       <div className="flex-1 px-3 py-2.5 rounded-lg border border-border bg-muted/20 text-sm">
                         <div className="font-medium truncate text-xs">{u.fileName}</div>
@@ -1132,10 +1134,12 @@ export default function AisSafetyRate() {
             </DialogTitle>
           </DialogHeader>
           {activeIssue && (() => {
-            const list = activeIssue.list.filter(r => !isCancelled(r));
-            const noPermit = list.filter(r => isHighRiskWork(r.highRiskWork) && r.safetyPermit !== 'Y');
-            const tbmUnreg = list.filter(r => r.tbmResult === '미등록');
-            const tbmBad = list.filter(r => r.tbmAiResult === '부적합');
+            const sortByDate = (arr: AisSafetyRecord[]) =>
+              [...arr].sort((a, b) => (b.startDate ?? '').localeCompare(a.startDate ?? ''));
+            const list = sortByDate(activeIssue.list.filter(r => !isCancelled(r)));
+            const noPermit = sortByDate(list.filter(r => isHighRiskWork(r.highRiskWork) && r.safetyPermit !== 'Y'));
+            const tbmUnreg = sortByDate(list.filter(r => r.tbmResult === '미등록'));
+            const tbmBad = sortByDate(list.filter(r => r.tbmAiResult === '부적합'));
             const groups = [
               { label: '고위험작업 안전허가서 미등록', records: noPermit, headerColor: 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800', badgeColor: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' },
               { label: 'TBM 활동 미등록', records: tbmUnreg, headerColor: 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800', badgeColor: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },
