@@ -1001,6 +1001,21 @@ export const insertAisSafetyRecordSchema = createInsertSchema(aisSafetyRecords).
 export type AisSafetyRecord = typeof aisSafetyRecords.$inferSelect;
 export type InsertAisSafetyRecord = z.infer<typeof insertAisSafetyRecordSchema>;
 
+// AIS TBM 부적합 사유/사진
+export const aisTbmBadNotes = pgTable("ais_tbm_bad_notes", {
+  id: serial("id").primaryKey(),
+  recordId: integer("record_id").notNull().unique(),
+  reason: text("reason"),
+  photoUrl: text("photo_url"),
+  photoFileName: text("photo_file_name"),
+  createdBy: text("created_by"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+export const insertAisTbmBadNoteSchema = createInsertSchema(aisTbmBadNotes).omit({ id: true, createdAt: true, updatedAt: true });
+export type AisTbmBadNote = typeof aisTbmBadNotes.$inferSelect;
+export type InsertAisTbmBadNote = z.infer<typeof insertAisTbmBadNoteSchema>;
+
 // Export auth schema
 export * from "./models/auth";
 

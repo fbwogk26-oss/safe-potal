@@ -4036,6 +4036,56 @@ ${buildEmailFooter()}
     }
   });
 
+  // TBM 부적합 사유/사진
+  app.get('/api/ais-safety/tbm-notes', isAuthenticated, async (req: any, res) => {
+    try {
+      const notes = await storage.getAllAisTbmBadNotes();
+      res.json(notes);
+    } catch (error) {
+      res.status(500).json({ message: "조회에 실패했습니다" });
+    }
+  });
+
+  app.get('/api/ais-safety/records/:id/tbm-note', isAuthenticated, async (req: any, res) => {
+    try {
+      const note = await storage.getAisTbmBadNote(Number(req.params.id));
+      res.json(note ?? null);
+    } catch (error) {
+      res.status(500).json({ message: "조회에 실패했습니다" });
+    }
+  });
+
+  app.post('/api/ais-safety/records/:id/tbm-note', isAuthenticated, upload.single('photo'), async (req: any, res) => {
+    try {
+      const recordId = Number(req.params.id);
+      let photoUrl: string | undefined;
+      let photoFileName: string | undefined;
+      if (req.file) {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const ext = safeExt(req.file.originalname, ALLOWED_IMG_EXTS);
+        const filename = uniqueSuffix + ext;
+        const objUrl = await uploadToObjectStorage(req.file.buffer, filename, req.file.mimetype);
+        if (objUrl) {
+          photoUrl = objUrl;
+        } else {
+          const localPath = path.join(uploadDir, filename);
+          fs.writeFileSync(localPath, req.file.buffer);
+          photoUrl = `/uploads/${filename}`;
+        }
+        photoFileName = req.file.originalname;
+      }
+      const note = await storage.upsertAisTbmBadNote(recordId, {
+        reason: req.body.reason || undefined,
+        photoUrl,
+        photoFileName,
+        createdBy: req.user?.username,
+      });
+      res.json(note);
+    } catch (error) {
+      res.status(500).json({ message: "저장에 실패했습니다" });
+    }
+  });
+
   app.get('/api/musculoskeletal-assessments', isAuthenticated, async (req: any, res) => {
     try {
       const headquarters = req.query.headquarters as string | undefined;

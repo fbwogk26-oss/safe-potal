@@ -66,6 +66,7 @@ import {
   type SafetySupplyDeptEntry, type InsertSafetySupplyDeptEntry,
   heatWaveChecklists,
   type HeatWaveChecklist, type InsertHeatWaveChecklist,
+  aisTbmBadNotes, type AisTbmBadNote,
   aisSafetyUploads,
   type AisSafetyUpload, type InsertAisSafetyUpload,
   aisSafetyRecords,
@@ -171,6 +172,9 @@ export interface IStorage {
   getAllAisSafetyRecords(): Promise<AisSafetyRecord[]>;
   createAisSafetyRecords(records: InsertAisSafetyRecord[]): Promise<void>;
   deleteAisSafetyRecordsByUpload(uploadId: number): Promise<void>;
+  getAllAisTbmBadNotes(): Promise<AisTbmBadNote[]>;
+  getAisTbmBadNote(recordId: number): Promise<AisTbmBadNote | null>;
+  upsertAisTbmBadNote(recordId: number, data: { reason?: string; photoUrl?: string; photoFileName?: string; createdBy?: string }): Promise<AisTbmBadNote>;
 
   // Heat Wave Checklists
   getHeatWaveChecklists(): Promise<HeatWaveChecklist[]>;
@@ -1425,6 +1429,22 @@ export class DatabaseStorage implements IStorage {
   }
   async deleteAisSafetyRecordsByUpload(uploadId: number): Promise<void> {
     await db.delete(aisSafetyRecords).where(eq(aisSafetyRecords.uploadId, uploadId));
+  }
+  async getAllAisTbmBadNotes(): Promise<AisTbmBadNote[]> {
+    return await db.select().from(aisTbmBadNotes);
+  }
+  async getAisTbmBadNote(recordId: number): Promise<AisTbmBadNote | null> {
+    const [row] = await db.select().from(aisTbmBadNotes).where(eq(aisTbmBadNotes.recordId, recordId));
+    return row ?? null;
+  }
+  async upsertAisTbmBadNote(recordId: number, data: { reason?: string; photoUrl?: string; photoFileName?: string; createdBy?: string }): Promise<AisTbmBadNote> {
+    const existing = await this.getAisTbmBadNote(recordId);
+    if (existing) {
+      const [row] = await db.update(aisTbmBadNotes).set({ ...data, updatedAt: new Date() }).where(eq(aisTbmBadNotes.recordId, recordId)).returning();
+      return row;
+    }
+    const [row] = await db.insert(aisTbmBadNotes).values({ recordId, ...data }).returning();
+    return row;
   }
 
   // Heat Wave Checklists

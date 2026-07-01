@@ -26,8 +26,11 @@ import {
   Clock, XCircle, ShieldCheck, ShieldAlert, FileWarning,
   TrendingUp, Users, Loader2, Eye, ChevronUp, Layers,
   CalendarDays, Calendar, ChevronLeft, ChevronRight,
+  Camera, ImageIcon, Save,
 } from "lucide-react";
-import type { AisSafetyUpload, AisSafetyRecord } from "@shared/schema";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import type { AisSafetyUpload, AisSafetyRecord, AisTbmBadNote } from "@shared/schema";
 
 const HIGH_RISK_TYPES = ['고소', '전원', '중장비', '굴착', '밀폐', '화기'];
 
@@ -84,12 +87,19 @@ function RateBadge({ value }: { value: number }) {
   return <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${color}`}>{value}%</span>;
 }
 
-function StatusBadge({ value }: { value: string | null }) {
+function StatusBadge({ value, onClick, hasNote }: { value: string | null; onClick?: () => void; hasNote?: boolean }) {
   const v = value || '';
   if (v === '적합') return <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 border-0 text-xs font-semibold"><CheckCircle2 className="w-3 h-3 mr-1" />적합</Badge>;
-  if (v === '부적합') return <Badge className="bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 border-0 text-xs font-semibold"><XCircle className="w-3 h-3 mr-1" />부적합</Badge>;
-  if (v === '분석중') return <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 border-0 text-xs font-semibold"><Loader2 className="w-3 h-3 mr-1 animate-spin" />분석중</Badge>;
-  return <Badge className="bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 border-0 text-xs"><Clock className="w-3 h-3 mr-1" />분석전</Badge>;
+  if (v === '부적합') return (
+    <Badge
+      className={`bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 border-0 text-xs font-semibold gap-1 ${onClick ? 'cursor-pointer hover:bg-red-200 dark:hover:bg-red-900/60' : ''}`}
+      onClick={onClick}
+    >
+      <XCircle className="w-3 h-3" />부적합{hasNote && <span className="text-red-400 ml-0.5">✎</span>}
+    </Badge>
+  );
+  if (v === '분析中' || v === '분析중' || v === '분석중') return <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 border-0 text-xs font-semibold"><Loader2 className="w-3 h-3 mr-1 animate-spin" />분析中</Badge>;
+  return <Badge className="bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 border-0 text-xs"><Clock className="w-3 h-3 mr-1" />분析前</Badge>;
 }
 
 function PermitBadge({ value, highRisk }: { value: string | null; highRisk: string | null }) {
@@ -208,6 +218,12 @@ export default function AisSafetyRate() {
   const [highRiskPageSize, setHighRiskPageSize] = useState(30);
   const [highRiskPage, setHighRiskPage] = useState(1);
   const [cumulativeMonth, setCumulativeMonth] = useState<string>('all');
+  const [tbmNoteRecord, setTbmNoteRecord] = useState<AisSafetyRecord | null>(null);
+  const [tbmNoteReason, setTbmNoteReason] = useState('');
+  const [tbmNotePhoto, setTbmNotePhoto] = useState<File | null>(null);
+  const [tbmNotePhotoPreview, setTbmNotePhotoPreview] = useState<string | null>(null);
+  const [tbmNoteSaving, setTbmNoteSaving] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   const { data: uploads = [] } = useQuery<AisSafetyUpload[]>({
     queryKey: ['/api/ais-safety/uploads'],
@@ -265,6 +281,24 @@ export default function AisSafetyRate() {
   const showDashboard = viewMode === 'cumulative' ||
     (viewMode === 'daily' && selectedDate !== null) ||
     (viewMode === 'monthly' && selectedMonth !== null);
+
+  const { data: allTbmNotes = [] } = useQuery<AisTbmBadNote[]>({
+    queryKey: ['/api/ais-safety/tbm-notes'],
+    queryFn: async () => {
+      const res = await fetch('/api/ais-safety/tbm-notes', { credentials: 'include' });
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
+  const tbmNoteMap = Object.fromEntries(allTbmNotes.map(n => [n.recordId, n]));
+
+  const openTbmNote = (r: AisSafetyRecord) => {
+    setTbmNoteRecord(r);
+    const existing = tbmNoteMap[r.id];
+    setTbmNoteReason(existing?.reason || '');
+    setTbmNotePhotoPreview(existing?.photoUrl || null);
+    setTbmNotePhoto(null);
+  };
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
@@ -389,8 +423,89 @@ export default function AisSafetyRate() {
       ? selectedMonth
       : null;
 
+  const handleTbmNoteSave = async () => {
+    if (!tbmNoteRecord) return;
+    setTbmNoteSaving(true);
+    try {
+      const formData = new FormData();
+      formData.append('reason', tbmNoteReason);
+      if (tbmNotePhoto) formData.append('photo', tbmNotePhoto);
+      await fetch(`/api/ais-safety/records/${tbmNoteRecord.id}/tbm-note`, {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/ais-safety/tbm-notes'] });
+      toast({ title: 'TBM 부적합 사유가 저장되었습니다' });
+      setTbmNoteRecord(null);
+    } catch {
+      toast({ title: '저장에 실패했습니다', variant: 'destructive' });
+    } finally {
+      setTbmNoteSaving(false);
+    }
+  };
+
   return (
     <div className="space-y-6 pb-10">
+      {/* TBM 부적합 사유 다이얼로그 */}
+      <Dialog open={!!tbmNoteRecord} onOpenChange={open => { if (!open) setTbmNoteRecord(null); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600"><XCircle className="w-4 h-4" />TBM AI 부적합 사유 기록</DialogTitle>
+          </DialogHeader>
+          {tbmNoteRecord && (
+            <div className="space-y-4">
+              <div className="rounded-lg bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/30 p-3 text-xs space-y-1">
+                <p className="font-semibold text-sm text-foreground">{tbmNoteRecord.workName || '-'}</p>
+                <p className="text-muted-foreground">{tbmNoteRecord.workOrderNo} · {tbmNoteRecord.team} · {tbmNoteRecord.startDate}</p>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">부적합 사진</Label>
+                <div className="flex items-start gap-3">
+                  {tbmNotePhotoPreview ? (
+                    <div className="relative">
+                      <img src={tbmNotePhotoPreview} alt="부적합 사진" className="w-28 h-28 object-cover rounded-lg border" />
+                      <button className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600"
+                        onClick={() => { setTbmNotePhotoPreview(null); setTbmNotePhoto(null); }}>×</button>
+                    </div>
+                  ) : (
+                    <div className="w-28 h-28 border-2 border-dashed border-muted-foreground/30 rounded-lg flex flex-col items-center justify-center gap-1 cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-colors"
+                      onClick={() => photoInputRef.current?.click()}>
+                      <ImageIcon className="w-6 h-6 text-muted-foreground/50" />
+                      <span className="text-xs text-muted-foreground">사진 추가</span>
+                    </div>
+                  )}
+                  <Button variant="outline" size="sm" className="mt-1" onClick={() => photoInputRef.current?.click()}>
+                    <Camera className="w-3.5 h-3.5 mr-1" />{tbmNotePhotoPreview ? '사진 변경' : '사진 선택'}
+                  </Button>
+                  <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={e => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      setTbmNotePhoto(file);
+                      setTbmNotePhotoPreview(URL.createObjectURL(file));
+                    }
+                  }} />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">부적합 사유</Label>
+                <Textarea
+                  placeholder="TBM AI가 부적합으로 판정한 사유를 작성해주세요. (예: 안전모 미착용, 안전대 미착용, 작업허가서 내용 불일치 등)"
+                  value={tbmNoteReason}
+                  onChange={e => setTbmNoteReason(e.target.value)}
+                  className="min-h-[100px] text-sm resize-none"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-1">
+                <Button variant="outline" size="sm" onClick={() => setTbmNoteRecord(null)}>취소</Button>
+                <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white" disabled={tbmNoteSaving} onClick={handleTbmNoteSave}>
+                  {tbmNoteSaving ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Save className="w-3.5 h-3.5 mr-1" />}저장
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -954,7 +1069,7 @@ export default function AisSafetyRate() {
                               <TableCell><HighRiskBadge value={r.highRiskWork} /></TableCell>
                               <TableCell><PermitBadge value={r.safetyPermit} highRisk={r.highRiskWork} /></TableCell>
                               <TableCell><span className="text-xs font-semibold" style={{ color: RISK_COLORS[r.riskLevel || ''] || '#94a3b8' }}>{r.riskLevel || '-'}</span></TableCell>
-                              <TableCell><StatusBadge value={r.tbmAiResult} /></TableCell>
+                              <TableCell><StatusBadge value={r.tbmAiResult} onClick={r.tbmAiResult === '부적합' ? () => openTbmNote(r) : undefined} hasNote={!!tbmNoteMap[r.id]} /></TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
@@ -1089,7 +1204,7 @@ export default function AisSafetyRate() {
                         <span className="text-xs font-semibold" style={{ color: RISK_COLORS[r.riskLevel || ''] || '#94a3b8' }}>{r.riskLevel || '-'}</span>
                       </TableCell>
                       <TableCell><RegBadge value={r.tbmResult} /></TableCell>
-                      <TableCell><StatusBadge value={r.tbmAiResult} /></TableCell>
+                      <TableCell><StatusBadge value={r.tbmAiResult} onClick={r.tbmAiResult === '부적합' ? () => openTbmNote(r) : undefined} hasNote={!!tbmNoteMap[r.id]} /></TableCell>
                       <TableCell className="text-xs whitespace-nowrap">{r.workStatus || '-'}</TableCell>
                       <TableCell className="text-xs whitespace-nowrap">{r.startDate || '-'}</TableCell>
                       <TableCell className="text-xs whitespace-nowrap">{r.endDate || '-'}</TableCell>
@@ -1200,7 +1315,7 @@ export default function AisSafetyRate() {
                             <TableCell className="py-2"><HighRiskBadge value={r.highRiskWork} /></TableCell>
                             <TableCell className="py-2"><PermitBadge value={r.safetyPermit} highRisk={r.highRiskWork} /></TableCell>
                             <TableCell className="py-2 whitespace-nowrap"><span className={`text-xs font-semibold ${r.tbmResult === '미등록' ? 'text-red-600' : 'text-emerald-600'}`}>{r.tbmResult || '-'}</span></TableCell>
-                            <TableCell className="py-2"><StatusBadge value={r.tbmAiResult} /></TableCell>
+                            <TableCell className="py-2"><StatusBadge value={r.tbmAiResult} onClick={r.tbmAiResult === '부적합' ? () => openTbmNote(r) : undefined} hasNote={!!tbmNoteMap[r.id]} /></TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
