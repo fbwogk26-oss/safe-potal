@@ -1180,7 +1180,7 @@ export default function AisSafetyRate() {
                     {tbmAiData.length > 0 ? (() => {
                       const total = tbmAiData.reduce((s, d) => s + d.value, 0);
                       return (
-                        <div className="flex flex-col sm:flex-row items-center gap-3">
+                        <div className="flex flex-col sm:flex-row items-start gap-3">
                           {/* 도넛 차트 */}
                           <div className="relative flex-shrink-0" style={{ width: 160, height: 160 }}>
                             <PieChart width={160} height={160}>
@@ -1199,7 +1199,7 @@ export default function AisSafetyRate() {
                             </div>
                           </div>
                           {/* 카드 2x2 */}
-                          <div className="grid grid-cols-2 gap-2 flex-1 w-full">
+                          <div className="flex flex-col gap-2 flex-1 w-full">
                             {tbmAiData.map(d => {
                               const pct = total > 0 ? Math.round(d.value / total * 100) : 0;
                               return (
