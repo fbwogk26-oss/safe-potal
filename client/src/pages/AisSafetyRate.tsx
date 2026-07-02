@@ -568,9 +568,9 @@ export default function AisSafetyRate() {
     const issueList = (c.issues || []).flatMap(i => i.list);
     // 취소 건 제외
     const nonCancelled = tr.filter(r => !isCancelled(r));
-    // TBM 등록 이행률 (미등록 제외)
+    // TBM 등록 이행률 (미등록 중 소명완료 건도 등록으로 포함)
     const tbmRegRate = nonCancelled.length > 0
-      ? Math.round((nonCancelled.filter(r => r.tbmResult === '등록').length / nonCancelled.length) * 100)
+      ? Math.round((nonCancelled.filter(r => r.tbmResult === '등록' || (r.tbmResult === '미등록' && justifiedRecordIds.has(r.id))).length / nonCancelled.length) * 100)
       : 100;
     // TBM AI 적합 이행률 (분석전 제외, 소명완료 포함)
     const analyzed = nonCancelled.filter(r => r.tbmResult === '등록');
@@ -582,7 +582,7 @@ export default function AisSafetyRate() {
 
   const complianceItems = [
     { label: '안전허가서 매칭', icon: ShieldCheck, total: highRiskRecords.length, pass: highRiskRecords.filter(r => r.safetyPermit === 'Y').length, description: '고위험작업 시 안전허가서 등록', emptyLabel: '고위험작업 없음' },
-    { label: 'TBM 등록률', icon: Users, total: activeRecords.length, pass: activeRecords.filter(r => r.tbmResult === '등록').length, description: 'TBM 활동 등록 여부', emptyLabel: '데이터 없음' },
+    { label: 'TBM 등록률', icon: Users, total: activeRecords.filter(r => !isCancelled(r)).length, pass: activeRecords.filter(r => !isCancelled(r) && (r.tbmResult === '등록' || (r.tbmResult === '미등록' && justifiedRecordIds.has(r.id)))).length, description: 'TBM 활동 등록 여부 (소명완료 포함)', emptyLabel: '데이터 없음' },
   ];
 
   const dailyTrendData = useMemo(() => {
