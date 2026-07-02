@@ -1039,7 +1039,7 @@ export default function AisSafetyRate() {
                     {/* 상단: 3개 KPI 수치 */}
                     <div className="grid grid-cols-3 divide-x divide-border/60">
                       {/* 6대 고위험 */}
-                      <div className="p-3 flex flex-col gap-1">
+                      <div className="p-3 flex flex-col gap-1.5">
                         <div className="flex items-center gap-1.5">
                           <div className="w-6 h-6 rounded-md bg-orange-100 dark:bg-orange-900/40 flex items-center justify-center flex-shrink-0">
                             <AlertTriangle className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />
@@ -1050,6 +1050,23 @@ export default function AisSafetyRate() {
                         <p className="text-[11px] text-muted-foreground">허가서 <span className="font-bold text-emerald-600">{highRiskRecords.filter(r => r.safetyPermit === 'Y').length}건</span></p>
                         {comp.highRiskNoPermit && comp.highRiskNoPermit.length > 0 && (
                           <p className="text-[11px] text-red-600 font-semibold">⚠ 미매칭 {comp.highRiskNoPermit.length}건</p>
+                        )}
+                        {highRiskBreakdown.length > 0 && (
+                          <div className="flex flex-col gap-0.5 mt-0.5">
+                            {highRiskBreakdown.filter(d => !d.isNone).map(d => {
+                              const rate = d.total === 0 ? 100 : Math.round((d.permit / d.total) * 100);
+                              return (
+                                <div key={d.type} className={`flex items-center justify-between px-2 py-0.5 rounded-md ${d.total === 0 ? 'opacity-40' : 'bg-orange-50/60 dark:bg-orange-950/20'}`}>
+                                  <span className="text-[10px] font-semibold text-muted-foreground">{d.type}</span>
+                                  <div className="flex items-center gap-1">
+                                    <span className={`text-[10px] font-black ${d.total === 0 ? 'text-muted-foreground' : ''}`}>{d.total}</span>
+                                    {d.total > 0 && <RateBadge value={rate} />}
+                                    {d.noPermit > 0 && <span className="text-[9px] text-red-600 font-bold">미{d.noPermit}</span>}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
                         )}
                       </div>
                       {/* TBM AI 현황 */}
@@ -1140,48 +1157,7 @@ export default function AisSafetyRate() {
                 </div>
               </Card>
 
-              {/* 6대 고위험작업 유형별 */}
-              {records.length > 0 && (
-                <Card className="border-0 shadow-sm bg-card/60">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-bold flex items-center gap-2"><ShieldAlert className="w-4 h-4 text-orange-500" />고위험작업 유형별 현황</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex flex-wrap gap-2">
-                      {highRiskBreakdown.map(d => {
-                        if (d.isNone) return (
-                          <div key="해당없음" className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-muted bg-muted/20 min-w-[120px] flex-1">
-                            <div className="flex-1 min-w-0">
-                              <p className="text-[10px] font-semibold text-muted-foreground">해당없음</p>
-                              <p className="text-lg font-black text-muted-foreground leading-tight">{d.total}<span className="text-[10px] font-normal ml-0.5">건</span></p>
-                            </div>
-                            <span className="text-[10px] text-muted-foreground">일반작업</span>
-                          </div>
-                        );
-                        const rate = d.total === 0 ? 100 : Math.round((d.permit / d.total) * 100);
-                        if (d.total === 0) return (
-                          <div key={d.type} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-dashed border-muted bg-muted/10 opacity-50">
-                            <span className="text-[10px] font-semibold text-muted-foreground">{d.type}</span>
-                            <span className="text-xs font-black text-muted-foreground">0</span>
-                          </div>
-                        );
-                        return (
-                          <div key={d.type} className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-card/80 min-w-[100px] flex-1">
-                            <div className="flex-1 min-w-0">
-                              <p className="text-[10px] font-semibold text-muted-foreground">{d.type}</p>
-                              <p className="text-lg font-black leading-tight">{d.total}<span className="text-[10px] font-normal text-muted-foreground ml-0.5">건</span></p>
-                            </div>
-                            <div className="flex flex-col items-end gap-0.5">
-                              <RateBadge value={rate} />
-                              {d.noPermit > 0 && <span className="text-[10px] text-red-600 font-bold">미발급 {d.noPermit}</span>}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+
 
               {/* Charts row */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
