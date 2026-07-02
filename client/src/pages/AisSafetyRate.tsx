@@ -1165,7 +1165,7 @@ export default function AisSafetyRate() {
 
                   {/* 오른쪽: KPI + Compliance 통합 */}
                   <div className="flex-1">
-                    <div className="grid grid-cols-[minmax(0,400px)_1fr] divide-x divide-border/60 h-full">
+                    <div className="grid grid-cols-[minmax(0,400px)_auto_1fr] divide-x divide-border/60 h-full">
                       {/* 1열: 6대 고위험 + 안전허가서 매칭 */}
                       <div className="flex flex-col divide-y divide-border/60">
                       {/* 6대 고위험 */}
@@ -1240,6 +1240,46 @@ export default function AisSafetyRate() {
                         );
                       })()}
                       </div>
+                      {/* TBM 전체 이행률 */}
+                      <div className="flex flex-col items-center justify-center py-4 px-4 text-white gap-2 w-56 self-stretch"
+                        style={{ background:'linear-gradient(160deg,#1d4ed8 0%,#2563eb 55%,#4f46e5 100%)', boxShadow:'inset -4px 0 16px rgba(0,0,0,0.15)' }}>
+                        <p className="text-[10px] font-bold text-blue-200 uppercase tracking-widest">TBM 이행률</p>
+                        {(() => {
+                          const purePass = tbmBase.filter(r => r.tbmResult === '등록').length;
+                          const justified = tbmBase.filter(r => r.tbmResult !== '등록' && justifiedRecordIds.has(r.id)).length;
+                          const total = tbmBase.length;
+                          const fail = Math.max(0, total - purePass - justified);
+                          const rate = total === 0 ? 100 : Math.round(((purePass + justified) / total) * 100);
+                          const donutData = total === 0
+                            ? [{ name: '데이터없음', value: 1, color: '#6366f1' }]
+                            : [
+                                { name: '이행', value: purePass, color: '#22c55e' },
+                                { name: '소명완료', value: justified, color: '#f59e0b' },
+                                { name: '미이행', value: fail, color: '#ef4444' },
+                              ].filter(d => d.value > 0);
+                          return (
+                            <div className="flex flex-col items-center gap-2 w-full">
+                              <div className="relative">
+                                <PieChart width={104} height={104}>
+                                  <Pie data={donutData} cx={47} cy={47} innerRadius={30} outerRadius={46} paddingAngle={2} dataKey="value">
+                                    {donutData.map((entry, idx) => <Cell key={idx} fill={entry.color} opacity={0.9} />)}
+                                  </Pie>
+                                </PieChart>
+                                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                                  <span className="text-2xl font-black text-white leading-none">{rate}</span>
+                                  <span className="text-[9px] text-white/70 font-bold">%</span>
+                                </div>
+                              </div>
+                              <div className="flex flex-wrap justify-center gap-x-2 gap-y-0.5 text-[9px]">
+                                {purePass > 0 && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-emerald-400 inline-block" />이행 {purePass}건</span>}
+                                {justified > 0 && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-amber-400 inline-block" />소명 {justified}건</span>}
+                                {fail > 0 && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-red-400 inline-block" />미이행 {fail}건</span>}
+                              </div>
+                              {total === 0 && <p className="text-[10px] text-blue-300/60">TBM 없음</p>}
+                            </div>
+                          );
+                        })()}
+                      </div>
                       {/* 3열: 이슈사항 + TBM 분석결과 */}
                       <div className="flex flex-col divide-y divide-border/60">
                       {/* 이슈사항 */}
@@ -1266,46 +1306,47 @@ export default function AisSafetyRate() {
                           <p className="text-[11px] text-muted-foreground">이슈 없음</p>
                         )}
                       </div>
-                      {/* TBM 이행률 도넛 */}
-                      <div className="p-4 flex flex-col items-center gap-3">
-                        <div className="flex items-center gap-2 w-full">
+                      {/* TBM 등록률 + AI 적합률 바 */}
+                      <div className="p-4 flex flex-col justify-center gap-3">
+                        <div className="flex items-center gap-2 mb-1">
                           <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 bg-blue-100 dark:bg-blue-900/40">
                             <Users className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                           </div>
-                          <span className="text-sm font-semibold text-muted-foreground">TBM 이행률</span>
+                          <span className="text-sm font-semibold text-muted-foreground">TBM 분석결과</span>
                         </div>
                         {(() => {
-                          const purePass = tbmBase.filter(r => r.tbmResult === '등록').length;
-                          const justified = tbmBase.filter(r => r.tbmResult !== '등록' && justifiedRecordIds.has(r.id)).length;
-                          const total = tbmBase.length;
-                          const fail = Math.max(0, total - purePass - justified);
-                          const rate = total === 0 ? 100 : Math.round(((purePass + justified) / total) * 100);
-                          const donutData = total === 0
-                            ? [{ name: '데이터없음', value: 1, color: '#6366f1' }]
-                            : [
-                                { name: '이행', value: purePass, color: '#22c55e' },
-                                { name: '소명완료', value: justified, color: '#f59e0b' },
-                                { name: '미이행', value: fail, color: '#ef4444' },
-                              ].filter(d => d.value > 0);
+                          const item = complianceItems[1];
+                          const r = item.total === 0 ? 100 : Math.round((item.pass / item.total) * 100);
+                          const bc = r >= 90 ? '#22c55e' : r >= 70 ? '#f59e0b' : '#ef4444';
                           return (
-                            <div className="flex flex-col items-center gap-3 w-full">
-                              <div className="relative">
-                                <PieChart width={120} height={120}>
-                                  <Pie data={donutData} cx={55} cy={55} innerRadius={36} outerRadius={54} paddingAngle={2} dataKey="value">
-                                    {donutData.map((entry, idx) => <Cell key={idx} fill={entry.color} opacity={0.9} />)}
-                                  </Pie>
-                                </PieChart>
-                                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                                  <span className="text-3xl font-black leading-none">{rate}</span>
-                                  <span className="text-[10px] text-muted-foreground font-bold">%</span>
+                            <div>
+                              <div className="flex justify-between mb-1">
+                                <span className="text-xs text-muted-foreground">TBM 등록</span>
+                                <div className="flex items-center gap-1">
+                                  {item.total - item.pass > 0 && <span className="text-[10px] font-bold text-red-500">미이행 {item.total - item.pass}건</span>}
+                                  <span className="text-xs font-bold" style={{ color: bc }}>{r}%</span>
                                 </div>
                               </div>
-                              <div className="flex flex-wrap justify-center gap-2 text-[10px]">
-                                {purePass > 0 && <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-muted/30"><span className="w-2 h-2 rounded-sm bg-emerald-400 inline-block" />이행 {purePass}건</span>}
-                                {justified > 0 && <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-muted/30"><span className="w-2 h-2 rounded-sm bg-amber-400 inline-block" />소명 {justified}건</span>}
-                                {fail > 0 && <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-muted/30"><span className="w-2 h-2 rounded-sm bg-red-400 inline-block" />미이행 {fail}건</span>}
+                              <div className="w-full h-3 bg-muted/40 rounded-full overflow-hidden">
+                                <div className="h-full rounded-full transition-all duration-700"
+                                  style={{ width:`${r}%`, background:`linear-gradient(90deg,${bc}88,${bc})` }} />
                               </div>
-                              {total === 0 && <p className="text-sm text-muted-foreground">TBM 없음</p>}
+                            </div>
+                          );
+                        })()}
+                        {(() => {
+                          const r = tbmOverallAiRate;
+                          const bc = r >= 90 ? '#0ea5e9' : r >= 70 ? '#f59e0b' : '#ef4444';
+                          return (
+                            <div>
+                              <div className="flex justify-between mb-1">
+                                <span className="text-xs text-muted-foreground">AI 적합</span>
+                                <span className="text-xs font-bold" style={{ color: bc }}>{r}%</span>
+                              </div>
+                              <div className="w-full h-3 bg-muted/40 rounded-full overflow-hidden">
+                                <div className="h-full rounded-full transition-all duration-700"
+                                  style={{ width:`${r}%`, background:`linear-gradient(90deg,${bc}88,${bc})` }} />
+                              </div>
                             </div>
                           );
                         })()}
@@ -1321,7 +1362,67 @@ export default function AisSafetyRate() {
               {/* Charts row */}
               {/* Charts row */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-stretch">
-                <Card className="border-0 shadow-sm bg-card/60 lg:col-span-3">
+                <Card className="border-0 shadow-sm bg-card/60 flex flex-col">
+                  <CardHeader className="pb-2 pt-3 px-4">
+                    <CardTitle className="text-sm font-bold">TBM 이행률</CardTitle>
+                  </CardHeader>
+                  <CardContent className="px-4 pb-4 pt-1 flex-1 flex flex-col justify-center">
+                    {(() => {
+                      const purePass = tbmBase.filter(r => r.tbmResult === '등록').length;
+                      const justified = tbmBase.filter(r => r.tbmResult !== '등록' && justifiedRecordIds.has(r.id)).length;
+                      const total = tbmBase.length;
+                      const fail = Math.max(0, total - purePass - justified);
+                      const rate = total === 0 ? 100 : Math.round(((purePass + justified) / total) * 100);
+                      const donutData = total === 0
+                        ? [{ name: '데이터없음', value: 1, color: '#6366f1' }]
+                        : [
+                            { name: '이행', value: purePass, color: '#22c55e' },
+                            { name: '소명완료', value: justified, color: '#f59e0b' },
+                            { name: '미이행', value: fail, color: '#ef4444' },
+                          ].filter(d => d.value > 0);
+                      return (
+                        <div className="flex flex-col gap-4 w-full">
+                          <div className="flex items-baseline gap-1.5">
+                            <span className="text-4xl font-black">{total}</span>
+                            <span className="text-sm text-muted-foreground font-semibold">전체 건</span>
+                          </div>
+                          <div className="w-full h-9 rounded-xl overflow-hidden flex shadow-inner">
+                            {donutData.map((d) => {
+                              const pct = total > 0 ? (d.value / total) * 100 : 0;
+                              return (
+                                <div key={d.name} style={{ width:`${pct}%`, backgroundColor:d.color, opacity:0.88 }}
+                                  className="h-full relative flex items-center justify-center transition-all duration-700"
+                                  title={`${d.name}: ${d.value}건 (${Math.round(pct)}%)`}>
+                                  {pct > 9 && <span className="text-white text-[10px] font-black drop-shadow">{d.value}</span>}
+                                </div>
+                              );
+                            })}
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 w-full">
+                            {[
+                              { name: '이행', value: purePass, color: '#22c55e' },
+                              { name: '소명완료', value: justified, color: '#f59e0b' },
+                              { name: '미이행', value: fail, color: '#ef4444' },
+                            ].map(d => {
+                              const pct = total > 0 ? Math.round(d.value / total * 100) : 0;
+                              return (
+                                <div key={d.name} className="flex items-center gap-2 p-2.5 rounded-xl bg-muted/40">
+                                  <div className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: d.color }} />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-[11px] font-semibold leading-none">{d.name}</p>
+                                    <p className="text-[10px] text-muted-foreground mt-0.5">{pct}%</p>
+                                  </div>
+                                  <span className="text-base font-black flex-shrink-0" style={{ color: d.color }}>{d.value}건</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </CardContent>
+                </Card>
+                <Card className="border-0 shadow-sm bg-card/60 lg:col-span-2">
                   <CardHeader className="pb-2 pt-3 px-4">
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <CardTitle className="text-sm font-bold flex items-center gap-2">
