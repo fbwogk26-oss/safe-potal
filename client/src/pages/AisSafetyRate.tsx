@@ -793,10 +793,10 @@ export default function AisSafetyRate() {
                           </span>
                         </div>
                         <ResponsiveContainer width="100%" height={190}>
-                          <BarChart data={dailyTrendData} margin={{ left: -15, right: 12, top: 20, bottom: 0 }} barCategoryGap="30%">
+                          <BarChart data={dailyTrendData} margin={{ left: 4, right: 16, top: 22, bottom: 0 }} barCategoryGap="30%">
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="currentColor" strokeOpacity={0.08} />
-                            <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} interval={1} />
-                            <YAxis domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} width={36} />
+                            <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#475569', fontWeight: 600 }} axisLine={false} tickLine={false} interval={1} />
+                            <YAxis domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 11, fill: '#475569', fontWeight: 600 }} axisLine={false} tickLine={false} width={40} />
                             <ReTooltip
                               contentStyle={{ borderRadius: 8, border: 'none', boxShadow: '0 4px 16px rgba(0,0,0,0.12)', fontSize: 12 }}
                               formatter={(v: any, _: any, p: any) => [`${v}% · ${p.payload.count}건`, '이행률']}
@@ -807,7 +807,7 @@ export default function AisSafetyRate() {
                               {dailyTrendData.map((entry, i) => (
                                 <Cell key={i} fill={entry.hasData ? (entry.rate >= 90 ? '#22c55e' : entry.rate >= 70 ? '#f59e0b' : '#ef4444') : '#e2e8f0'} fillOpacity={entry.hasData ? 0.85 : 0.5} />
                               ))}
-                              <LabelList dataKey="rate" position="top" formatter={(v: any) => v !== null && v !== undefined ? `${v}%` : ''} style={{ fontSize: 9, fontWeight: 700, fill: '#475569' }} />
+                              <LabelList dataKey="rate" position="top" formatter={(v: any) => v !== null && v !== undefined ? `${v}%` : ''} style={{ fontSize: 10, fontWeight: 800, fill: '#1e293b' }} />
                             </Bar>
                           </BarChart>
                         </ResponsiveContainer>
@@ -933,10 +933,10 @@ export default function AisSafetyRate() {
                           </span>
                         </div>
                         <ResponsiveContainer width="100%" height={190}>
-                          <BarChart data={monthlyTrendData} margin={{ left: -15, right: 12, top: 4, bottom: 0 }} barCategoryGap="35%">
+                          <BarChart data={monthlyTrendData} margin={{ left: 4, right: 16, top: 22, bottom: 0 }} barCategoryGap="35%">
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="currentColor" strokeOpacity={0.08} />
-                            <XAxis dataKey="month" tick={{ fontSize: 9, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                            <YAxis domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} width={36} />
+                            <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#475569', fontWeight: 600 }} axisLine={false} tickLine={false} />
+                            <YAxis domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 11, fill: '#475569', fontWeight: 600 }} axisLine={false} tickLine={false} width={40} />
                             <ReTooltip
                               contentStyle={{ borderRadius: 8, border: 'none', boxShadow: '0 4px 16px rgba(0,0,0,0.12)', fontSize: 12 }}
                               formatter={(v: any, _: any, p: any) => [`${v}% · ${p.payload.count}건`, '이행률']}
