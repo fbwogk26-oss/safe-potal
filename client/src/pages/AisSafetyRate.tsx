@@ -1037,7 +1037,7 @@ export default function AisSafetyRate() {
                   {/* 오른쪽: KPI + Compliance 통합 */}
                   <div className="flex-1 divide-y divide-border/60">
                     {/* 상단: 3개 KPI 수치 */}
-                    <div className="grid grid-cols-3 divide-x divide-border/60">
+                    <div className="grid grid-cols-2 divide-x divide-border/60">
                       {/* 6대 고위험 */}
                       <div className="p-3 flex flex-col gap-1.5">
                         <div className="flex items-center gap-1.5">
@@ -1067,23 +1067,6 @@ export default function AisSafetyRate() {
                               );
                             })}
                           </div>
-                        )}
-                      </div>
-                      {/* TBM AI 현황 */}
-                      <div className="p-3 flex flex-col gap-1">
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-6 h-6 rounded-md bg-purple-100 dark:bg-purple-900/40 flex items-center justify-center flex-shrink-0">
-                            <FileWarning className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
-                          </div>
-                          <span className="text-xs font-semibold text-muted-foreground truncate">TBM AI 현황</span>
-                        </div>
-                        <p className="text-2xl font-black leading-none">{records.filter(r => r.tbmAiResult === '적합').length}<span className="text-xs font-normal text-muted-foreground ml-1">적합</span></p>
-                        <p className="text-[11px] text-muted-foreground">전체 {records.length}건</p>
-                        {records.filter(r => r.tbmAiResult === '부적합').length > 0 && (
-                          <p className="text-[11px] text-red-600 font-semibold">⚠ 부적합 {records.filter(r => r.tbmAiResult === '부적합').length}건</p>
-                        )}
-                        {records.filter(r => r.tbmAiResult === '분석중').length > 0 && (
-                          <p className="text-[11px] text-amber-600 font-semibold flex items-center gap-0.5"><Loader2 className="w-2.5 h-2.5 animate-spin" />분석중 {records.filter(r => r.tbmAiResult === '분석중').length}건</p>
                         )}
                       </div>
                       {/* 이슈사항 */}
