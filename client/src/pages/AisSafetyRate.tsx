@@ -1140,20 +1140,20 @@ export default function AisSafetyRate() {
 
 
               {/* Charts row */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
                 <Card className="border-0 shadow-sm bg-card/60">
-                  <CardHeader className="pb-2">
+                  <CardHeader className="pb-1 pt-3 px-4">
                     <CardTitle className="text-sm font-bold">TBM AI 분석결과</CardTitle>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="px-4 pb-4 pt-2">
                     {tbmAiData.length > 0 ? (() => {
                       const total = tbmAiData.reduce((s, d) => s + d.value, 0);
                       return (
-                        <div className="flex flex-col sm:flex-row items-center gap-3">
+                        <div className="flex flex-row items-center gap-3">
                           {/* 도넛 차트 */}
-                          <div className="relative flex-shrink-0" style={{ width: 160, height: 160 }}>
-                            <PieChart width={160} height={160}>
-                              <Pie data={tbmAiData} cx="50%" cy="50%" innerRadius={52} outerRadius={72}
+                          <div className="relative flex-shrink-0" style={{ width: 120, height: 120 }}>
+                            <PieChart width={120} height={120}>
+                              <Pie data={tbmAiData} cx="50%" cy="50%" innerRadius={38} outerRadius={54}
                                 dataKey="value" labelLine={false} paddingAngle={2} stroke="none">
                                 {tbmAiData.map((d, i) => <Cell key={i} fill={d.color} fillOpacity={0.88} />)}
                               </Pie>
@@ -1163,7 +1163,7 @@ export default function AisSafetyRate() {
                               />
                             </PieChart>
                             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                              <span className="text-2xl font-black">{total}</span>
+                              <span className="text-xl font-black">{total}</span>
                               <span className="text-[10px] font-semibold text-muted-foreground">전체 건</span>
                             </div>
                           </div>
@@ -1172,7 +1172,7 @@ export default function AisSafetyRate() {
                             {tbmAiData.map(d => {
                               const pct = total > 0 ? Math.round(d.value / total * 100) : 0;
                               return (
-                                <div key={d.name} className="flex flex-col gap-1 p-2.5 rounded-xl border transition-all hover:shadow-sm" style={{ borderColor: `${d.color}40`, backgroundColor: `${d.color}0d` }}>
+                                <div key={d.name} className="flex flex-col gap-0.5 p-2 rounded-xl border transition-all hover:shadow-sm" style={{ borderColor: `${d.color}40`, backgroundColor: `${d.color}0d` }}>
                                   <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-1">
                                       <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: d.color }} />
@@ -1181,7 +1181,7 @@ export default function AisSafetyRate() {
                                     <span className="text-[11px] font-bold" style={{ color: d.color }}>{pct}%</span>
                                   </div>
                                   <div className="flex items-baseline gap-0.5">
-                                    <span className="text-lg font-black" style={{ color: d.color }}>{d.value}</span>
+                                    <span className="text-base font-black" style={{ color: d.color }}>{d.value}</span>
                                     <span className="text-[10px] text-muted-foreground">건</span>
                                   </div>
                                   <div className="w-full h-1 bg-muted/40 rounded-full overflow-hidden">
@@ -1197,7 +1197,7 @@ export default function AisSafetyRate() {
                   </CardContent>
                 </Card>
 
-                <Card className="border-0 shadow-sm bg-card/60">
+                <Card className="border-0 shadow-sm bg-card/60 lg:col-span-2">
                   <CardHeader className="pb-3">
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <CardTitle className="text-sm font-bold flex items-center gap-2">
@@ -1285,7 +1285,7 @@ export default function AisSafetyRate() {
                 const hrSafePage = Math.min(highRiskPage, Math.max(1, hrTotalPages));
                 const hrPaged = filteredHighRiskRecords.slice((hrSafePage - 1) * highRiskPageSize, hrSafePage * highRiskPageSize);
                 return (
-                <Card className="border-0 shadow-sm bg-card/60">
+                <Card className="border-0 shadow-sm bg-card/60 lg:col-span-2">
                   <CardHeader className="pb-3">
                     <div className="flex items-center gap-2 flex-wrap">
                       <CardTitle className="text-sm font-bold flex items-center gap-2">
