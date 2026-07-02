@@ -288,6 +288,7 @@ export default function AisSafetyRate() {
   const [tbmNotePhoto, setTbmNotePhoto] = useState<File | null>(null);
   const [tbmNotePhotoPreview, setTbmNotePhotoPreview] = useState<string | null>(null);
   const [tbmNoteSaving, setTbmNoteSaving] = useState(false);
+  const [justifStatus, setJustifStatus] = useState<'소명완료'|'소명불가'|null>(null);
 
   const photoInputRef = useRef<HTMLInputElement>(null);
 
@@ -374,6 +375,7 @@ export default function AisSafetyRate() {
     setTbmNoteReason(existing?.reason || '');
     setTbmNotePhotoPreview(existing?.photoUrl || null);
     setTbmNotePhoto(null);
+    setJustifStatus((existing?.justificationStatus as '소명완료'|'소명불가'|null) ?? null);
   };
   const openTbmUnregNote = (r: AisSafetyRecord) => {
     setTbmNoteType('unreg');
@@ -585,6 +587,15 @@ export default function AisSafetyRate() {
           });
         }));
       }
+      // 소명 상태 저장
+      if (justifStatus !== null) {
+        await fetch(`/api/ais-safety/records/${tbmNoteRecord.id}/justification`, {
+          method: 'PUT',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ justificationStatus: justifStatus, justificationReason: null }),
+        });
+      }
       await queryClient.invalidateQueries({ queryKey: ['/api/ais-safety/tbm-notes'] });
       const linkedCount = tbmNoteRecord.workOrderNo
         ? allRecords.filter(r => r.id !== tbmNoteRecord.id && r.workOrderNo === tbmNoteRecord.workOrderNo && (tbmNoteType === 'bad' ? r.tbmAiResult === '부적합' : r.tbmResult === '미등록')).length
@@ -668,6 +679,20 @@ export default function AisSafetyRate() {
                   onChange={e => setTbmNoteReason(e.target.value)}
                   className="min-h-[100px] text-sm resize-none"
                 />
+              </div>
+              {/* 소명 */}
+              <div className="space-y-1.5 pt-1 border-t border-border">
+                <Label className="text-xs font-medium text-muted-foreground">소명</Label>
+                <div className="flex gap-2">
+                  <button type="button"
+                    onClick={() => setJustifStatus(justifStatus === '소명완료' ? null : '소명완료')}
+                    className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border transition-all ${justifStatus === '소명완료' ? 'bg-emerald-500 text-white border-emerald-500' : 'border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-400 dark:hover:bg-emerald-950/30'}`}
+                  >✓ 소명 가능</button>
+                  <button type="button"
+                    onClick={() => setJustifStatus(justifStatus === '소명불가' ? null : '소명불가')}
+                    className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border transition-all ${justifStatus === '소명불가' ? 'bg-red-500 text-white border-red-500' : 'border-red-300 text-red-700 hover:bg-red-50 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-950/30'}`}
+                  >✗ 소명 불가</button>
+                </div>
               </div>
               <div className="flex justify-end gap-2 pt-1">
                 <Button variant="outline" size="sm" onClick={() => setTbmNoteRecord(null)}>취소</Button>
