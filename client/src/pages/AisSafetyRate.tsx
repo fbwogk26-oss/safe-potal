@@ -1287,44 +1287,6 @@ export default function AisSafetyRate() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="px-4 pb-4 pt-1 flex-1 flex flex-col justify-center">
-                    {/* TBM 이행률 도넛 (KPI에서 이동) */}
-                    {(() => {
-                      const purePass = tbmBase.filter(r => r.tbmResult === '등록').length;
-                      const justified = tbmBase.filter(r => r.tbmResult !== '등록' && justifiedRecordIds.has(r.id)).length;
-                      const total = tbmBase.length;
-                      const fail = Math.max(0, total - purePass - justified);
-                      const rate = total === 0 ? 100 : Math.round(((purePass + justified) / total) * 100);
-                      const donutData = total === 0
-                        ? [{ name: '데이터없음', value: 1, color: '#6366f1' }]
-                        : [
-                            { name: '이행', value: purePass, color: '#22c55e' },
-                            { name: '소명완료', value: justified, color: '#f59e0b' },
-                            { name: '미이행', value: fail, color: '#ef4444' },
-                          ].filter(d => d.value > 0);
-                      return (
-                        <div className="flex items-center gap-4 pb-3 mb-1 border-b border-border/60">
-                          <div className="relative flex-shrink-0">
-                            <PieChart width={80} height={80}>
-                              <Pie data={donutData} cx={35} cy={35} innerRadius={24} outerRadius={37} paddingAngle={2} dataKey="value">
-                                {donutData.map((entry, idx) => <Cell key={idx} fill={entry.color} />)}
-                              </Pie>
-                            </PieChart>
-                            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                              <span className="text-lg font-black leading-none">{rate}</span>
-                              <span className="text-[8px] text-muted-foreground font-bold">%</span>
-                            </div>
-                          </div>
-                          <div className="flex flex-col gap-1.5 min-w-0">
-                            <p className="text-xs font-bold text-muted-foreground">TBM 이행률</p>
-                            <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px]">
-                              {purePass > 0 && <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-sm bg-emerald-400 inline-block" />이행 {purePass}건</span>}
-                              {justified > 0 && <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-sm bg-amber-400 inline-block" />소명 {justified}건</span>}
-                              {fail > 0 && <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-sm bg-red-400 inline-block" />미이행 {fail}건</span>}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })()}
                     {(() => {
                       const total = tbmAiData.reduce((s, d) => s + d.value, 0);
                       const fit = tbmAiData.find(d => d.name === '적합')?.value ?? 0;
@@ -1377,6 +1339,44 @@ export default function AisSafetyRate() {
                                 </div>
                               );
                             })}
+                          </div>
+                        </div>
+                      );
+                    })()}
+                    {/* TBM 이행률 도넛 (KPI에서 이동) */}
+                    {(() => {
+                      const purePass = tbmBase.filter(r => r.tbmResult === '등록').length;
+                      const justified = tbmBase.filter(r => r.tbmResult !== '등록' && justifiedRecordIds.has(r.id)).length;
+                      const total = tbmBase.length;
+                      const fail = Math.max(0, total - purePass - justified);
+                      const rate = total === 0 ? 100 : Math.round(((purePass + justified) / total) * 100);
+                      const donutData = total === 0
+                        ? [{ name: '데이터없음', value: 1, color: '#6366f1' }]
+                        : [
+                            { name: '이행', value: purePass, color: '#22c55e' },
+                            { name: '소명완료', value: justified, color: '#f59e0b' },
+                            { name: '미이행', value: fail, color: '#ef4444' },
+                          ].filter(d => d.value > 0);
+                      return (
+                        <div className="flex items-center gap-4 pb-3 mb-1 border-b border-border/60">
+                          <div className="relative flex-shrink-0">
+                            <PieChart width={80} height={80}>
+                              <Pie data={donutData} cx={35} cy={35} innerRadius={24} outerRadius={37} paddingAngle={2} dataKey="value">
+                                {donutData.map((entry, idx) => <Cell key={idx} fill={entry.color} />)}
+                              </Pie>
+                            </PieChart>
+                            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                              <span className="text-lg font-black leading-none">{rate}</span>
+                              <span className="text-[8px] text-muted-foreground font-bold">%</span>
+                            </div>
+                          </div>
+                          <div className="flex flex-col gap-1.5 min-w-0">
+                            <p className="text-xs font-bold text-muted-foreground">TBM 이행률</p>
+                            <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px]">
+                              {purePass > 0 && <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-sm bg-emerald-400 inline-block" />이행 {purePass}건</span>}
+                              {justified > 0 && <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-sm bg-amber-400 inline-block" />소명 {justified}건</span>}
+                              {fail > 0 && <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-sm bg-red-400 inline-block" />미이행 {fail}건</span>}
+                            </div>
                           </div>
                         </div>
                       );
