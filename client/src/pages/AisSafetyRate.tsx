@@ -564,7 +564,18 @@ export default function AisSafetyRate() {
     const c = calcCompliance(tr, justifiedRecordIds);
     const issueCount = (c.issues || []).reduce((s, i) => s + i.list.length, 0);
     const issueList = (c.issues || []).flatMap(i => i.list);
-    return { team: team?.replace('운용팀', '').replace('팀', '') || '미지정', fullTeam: team || '', rate: c.rate, count: tr.length, issueCount, issueList };
+    // 취소 건 제외
+    const nonCancelled = tr.filter(r => !isCancelled(r));
+    // TBM 등록 이행률 (미등록 제외)
+    const tbmRegRate = nonCancelled.length > 0
+      ? Math.round((nonCancelled.filter(r => r.tbmResult === '등록').length / nonCancelled.length) * 100)
+      : 100;
+    // TBM AI 적합 이행률 (분析전 제외, 소명완료 포함)
+    const analyzed = nonCancelled.filter(r => r.tbmResult === '등록');
+    const tbmAiRate = analyzed.length > 0
+      ? Math.round((analyzed.filter(r => r.tbmAiResult === '적합' || justifiedRecordIds.has(r.id)).length / analyzed.length) * 100)
+      : 100;
+    return { team: team?.replace('운용팀', '').replace('팀', '') || '미지정', fullTeam: team || '', rate: c.rate, count: tr.length, issueCount, issueList, tbmRegRate, tbmAiRate };
   }).sort((a, b) => b.rate - a.rate);
 
   const complianceItems = [
@@ -1297,62 +1308,71 @@ export default function AisSafetyRate() {
                     {teamData.length > 0 ? (
                       <div className="space-y-2">
                         {teamData.map((entry, i) => {
-                          const color = entry.rate >= 90 ? { bar: 'bg-emerald-500', track: 'bg-emerald-100 dark:bg-emerald-950/40', text: 'text-emerald-700 dark:text-emerald-300', badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300' }
-                            : entry.rate >= 70 ? { bar: 'bg-amber-500', track: 'bg-amber-100 dark:bg-amber-950/40', text: 'text-amber-700 dark:text-amber-300', badge: 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300' }
-                            : { bar: 'bg-red-500', track: 'bg-red-100 dark:bg-red-950/40', text: 'text-red-700 dark:text-red-300', badge: 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300' };
+                          const regColor = entry.tbmRegRate >= 90 ? { grad: 'linear-gradient(90deg,#16a34a,#22c55e)', glow: '#22c55e55', text: 'text-emerald-600 dark:text-emerald-400' }
+                            : entry.tbmRegRate >= 70 ? { grad: 'linear-gradient(90deg,#d97706,#f59e0b)', glow: '#f59e0b55', text: 'text-amber-600 dark:text-amber-400' }
+                            : { grad: 'linear-gradient(90deg,#dc2626,#ef4444)', glow: '#ef444455', text: 'text-red-600 dark:text-red-400' };
+                          const aiColor = entry.tbmAiRate >= 90 ? { grad: 'linear-gradient(90deg,#0369a1,#0ea5e9)', glow: '#0ea5e955', text: 'text-sky-600 dark:text-sky-400' }
+                            : entry.tbmAiRate >= 70 ? { grad: 'linear-gradient(90deg,#d97706,#f59e0b)', glow: '#f59e0b55', text: 'text-amber-600 dark:text-amber-400' }
+                            : { grad: 'linear-gradient(90deg,#dc2626,#ef4444)', glow: '#ef444455', text: 'text-red-600 dark:text-red-400' };
                           return (
                             <div key={entry.team} className="group rounded-xl border bg-card/90 hover:shadow-md hover:border-border/80 transition-all overflow-hidden">
-                              <div className="flex items-center gap-3 px-3 py-3">
+                              <div className="flex items-start gap-3 px-3 py-3">
                                 {/* 순위 */}
-                                <span className={`text-xs font-black w-5 text-center flex-shrink-0 ${i < 3 ? ['text-amber-500','text-slate-400','text-orange-400'][i] : 'text-muted-foreground/50'}`}>{i + 1}</span>
+                                <span className={`text-xs font-black w-5 text-center flex-shrink-0 mt-1 ${i < 3 ? ['text-amber-500','text-slate-400','text-orange-400'][i] : 'text-muted-foreground/50'}`}>{i + 1}</span>
                                 {/* 팀명 */}
-                                <span className="text-xs font-bold w-20 flex-shrink-0 truncate" title={entry.fullTeam}>{entry.team}</span>
-                                {/* 진행바 */}
-                                <div className="flex-1 relative">
-                                  <div className="w-full h-6 rounded-full bg-muted/40 overflow-hidden">
-                                    <div
-                                      className="h-full rounded-full transition-all duration-700 flex items-center justify-end pr-2"
-                                      style={{
-                                        width: `${Math.max(entry.rate, 2)}%`,
-                                        background: entry.rate >= 90
-                                          ? 'linear-gradient(90deg,#16a34a,#22c55e)'
-                                          : entry.rate >= 70
-                                          ? 'linear-gradient(90deg,#d97706,#f59e0b)'
-                                          : 'linear-gradient(90deg,#dc2626,#ef4444)',
-                                        boxShadow: entry.rate >= 90 ? '0 0 8px #22c55e55' : entry.rate >= 70 ? '0 0 8px #f59e0b55' : '0 0 8px #ef444455'
-                                      }}
-                                    >
-                                      {entry.rate >= 25 && (
-                                        <span className="text-white text-[10px] font-black leading-none drop-shadow">{entry.rate}%</span>
-                                      )}
+                                <span className="text-xs font-bold w-20 flex-shrink-0 truncate mt-1" title={entry.fullTeam}>{entry.team}</span>
+                                {/* 진행바 2개 */}
+                                <div className="flex-1 flex flex-col gap-1.5">
+                                  {/* TBM 등록 이행률 */}
+                                  <div>
+                                    <div className="flex items-center justify-between mb-0.5">
+                                      <span className="text-[10px] text-muted-foreground font-medium">TBM 등록</span>
+                                      <span className={`text-[10px] font-bold ${regColor.text}`}>{entry.tbmRegRate}%</span>
+                                    </div>
+                                    <div className="relative w-full h-4 rounded-full bg-muted/40 overflow-visible">
+                                      <div
+                                        className="h-full rounded-full transition-all duration-700"
+                                        style={{ width: `${Math.max(entry.tbmRegRate, 2)}%`, background: regColor.grad, boxShadow: `0 0 6px ${regColor.glow}` }}
+                                      />
+                                      <div className="absolute top-0 bottom-0 border-l-2 border-dashed border-indigo-400/50 dark:border-indigo-500/40" style={{ left: '90%' }} />
                                     </div>
                                   </div>
-                                  {entry.rate < 25 && (
-                                    <span className={`absolute left-[calc(${Math.max(entry.rate,2)}%+6px)] top-1/2 -translate-y-1/2 text-[10px] font-bold ${color.text}`}>{entry.rate}%</span>
-                                  )}
-                                  {/* 90% 기준선 */}
-                                  <div className="absolute top-0 bottom-0 border-l-2 border-dashed border-indigo-400/50 dark:border-indigo-500/40" style={{ left: '90%' }} />
+                                  {/* TBM AI 적합 이행률 */}
+                                  <div>
+                                    <div className="flex items-center justify-between mb-0.5">
+                                      <span className="text-[10px] text-muted-foreground font-medium">AI 적합</span>
+                                      <span className={`text-[10px] font-bold ${aiColor.text}`}>{entry.tbmAiRate}%</span>
+                                    </div>
+                                    <div className="relative w-full h-4 rounded-full bg-muted/40 overflow-visible">
+                                      <div
+                                        className="h-full rounded-full transition-all duration-700"
+                                        style={{ width: `${Math.max(entry.tbmAiRate, 2)}%`, background: aiColor.grad, boxShadow: `0 0 6px ${aiColor.glow}` }}
+                                      />
+                                      <div className="absolute top-0 bottom-0 border-l-2 border-dashed border-indigo-400/50 dark:border-indigo-500/40" style={{ left: '90%' }} />
+                                    </div>
+                                  </div>
                                 </div>
-                                {/* 건수 */}
-                                <span className="text-xs font-semibold text-muted-foreground flex-shrink-0 w-10 text-right">{entry.count}건</span>
-                                {/* 이슈 뱃지 */}
-                                {entry.issueCount > 0 ? (
-                                  <button
-                                    onClick={() => setActiveIssue({ label: `${entry.fullTeam} 이슈 목록`, list: entry.issueList })}
-                                    className="flex-shrink-0 flex items-center gap-0.5 text-[10px] font-bold bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400 px-2 py-1 rounded-full hover:bg-red-200 dark:hover:bg-red-900/60 transition-colors border border-red-200 dark:border-red-800"
-                                  >
-                                    <AlertTriangle className="w-2.5 h-2.5" />{entry.issueCount}
-                                  </button>
-                                ) : (
-                                  <span className="flex-shrink-0 flex items-center gap-0.5 text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 px-2 py-1 rounded-full border border-emerald-200 dark:border-emerald-800">
-                                    <CheckCircle2 className="w-2.5 h-2.5" />적합
-                                  </span>
-                                )}
+                                {/* 건수 + 이슈 */}
+                                <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                                  <span className="text-xs font-semibold text-muted-foreground">{entry.count}건</span>
+                                  {entry.issueCount > 0 ? (
+                                    <button
+                                      onClick={() => setActiveIssue({ label: `${entry.fullTeam} 이슈 목록`, list: entry.issueList })}
+                                      className="flex items-center gap-0.5 text-[10px] font-bold bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400 px-2 py-1 rounded-full hover:bg-red-200 dark:hover:bg-red-900/60 transition-colors border border-red-200 dark:border-red-800"
+                                    >
+                                      <AlertTriangle className="w-2.5 h-2.5" />{entry.issueCount}
+                                    </button>
+                                  ) : (
+                                    <span className="flex items-center gap-0.5 text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 px-2 py-1 rounded-full border border-emerald-200 dark:border-emerald-800">
+                                      <CheckCircle2 className="w-2.5 h-2.5" />적합
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           );
                         })}
-                        <p className="text-[10px] text-muted-foreground text-right pt-1">점선 = 90% 기준선</p>
+                        <p className="text-[10px] text-muted-foreground text-right pt-1">점선 = 90% 기준선 · TBM 등록 <span className="text-emerald-500 font-bold">■</span> · AI 적합 <span className="text-sky-500 font-bold">■</span></p>
                       </div>
                     ) : <p className="text-center text-sm text-muted-foreground py-12">데이터 없음</p>}
                   </CardContent>
