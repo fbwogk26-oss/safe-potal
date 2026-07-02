@@ -121,8 +121,26 @@ function PermitBadge({ value, highRisk }: { value: string | null; highRisk: stri
   return <Badge className="bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 border-0 text-xs">해당없음</Badge>;
 }
 
-function RegBadge({ value, onClick, hasNote }: { value: string | null; onClick?: () => void; hasNote?: boolean }) {
+function RegBadge({ value, onClick, hasNote, justificationStatus }: { value: string | null; onClick?: () => void; hasNote?: boolean; justificationStatus?: string | null }) {
   if (value === '등록') return <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 border-0 text-xs font-semibold"><CheckCircle2 className="w-3 h-3 mr-1" />등록</Badge>;
+  if (justificationStatus === '소명완료') return (
+    <Badge
+      className={`bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 text-xs font-semibold gap-1 ${onClick ? 'cursor-pointer hover:bg-emerald-200 dark:hover:bg-emerald-900/60 transition-colors' : ''}`}
+      onClick={onClick}
+      title="소명완료 — 클릭하여 수정"
+    >
+      <CheckCircle2 className="w-3 h-3" />소명완료
+    </Badge>
+  );
+  if (justificationStatus === '소명불가') return (
+    <Badge
+      className={`bg-red-200 text-red-800 dark:bg-red-900/60 dark:text-red-300 border border-red-400 dark:border-red-700 text-xs font-semibold gap-1 ${onClick ? 'cursor-pointer hover:bg-red-300 dark:hover:bg-red-900/80 transition-colors' : ''}`}
+      onClick={onClick}
+      title="소명불가 — 클릭하여 수정"
+    >
+      <XCircle className="w-3 h-3" />미등록·소명불가
+    </Badge>
+  );
   if (hasNote) return (
     <Badge
       className={`bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 border border-amber-300 dark:border-amber-700 text-xs font-semibold gap-1 ${onClick ? 'cursor-pointer hover:bg-amber-200 dark:hover:bg-amber-900/60 transition-colors' : ''}`}
@@ -1422,7 +1440,7 @@ export default function AisSafetyRate() {
                               <TableCell><HighRiskBadge value={r.highRiskWork} /></TableCell>
                               <TableCell><PermitBadge value={r.safetyPermit} highRisk={r.highRiskWork} /></TableCell>
                               <TableCell><span className="text-xs font-semibold" style={{ color: RISK_COLORS[r.riskLevel || ''] || '#94a3b8' }}>{r.riskLevel || '-'}</span></TableCell>
-                              <TableCell><StatusBadge value={r.tbmAiResult} onClick={r.tbmAiResult === '부적합' ? () => openTbmNote(r) : undefined} hasNote={!!(r.workOrderNo ? tbmNoteByWorkOrder[r.workOrderNo] : tbmNoteMap[r.id])} /></TableCell>
+                              <TableCell><StatusBadge value={r.tbmAiResult} onClick={r.tbmAiResult === '부적합' ? () => openTbmNote(r) : undefined} hasNote={!!(r.workOrderNo ? tbmNoteByWorkOrder[r.workOrderNo] : tbmNoteMap[r.id])} justificationStatus={(r.workOrderNo ? tbmNoteByWorkOrder[r.workOrderNo] : tbmNoteMap[r.id])?.justificationStatus} /></TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
@@ -1563,8 +1581,8 @@ export default function AisSafetyRate() {
                       <TableCell>
                         <span className="text-xs font-semibold" style={{ color: RISK_COLORS[r.riskLevel || ''] || '#94a3b8' }}>{r.riskLevel || '-'}</span>
                       </TableCell>
-                      <TableCell><RegBadge value={r.tbmResult} onClick={r.tbmResult === '미등록' && !isCancelled(r.workStatus) ? () => openTbmUnregNote(r) : undefined} hasNote={r.tbmResult === '미등록' && !!(r.workOrderNo ? tbmNoteByWorkOrder[r.workOrderNo] : tbmNoteMap[r.id])} /></TableCell>
-                      <TableCell><StatusBadge value={r.tbmAiResult} onClick={r.tbmAiResult === '부적합' ? () => openTbmNote(r) : undefined} hasNote={r.tbmAiResult === '부적합' && !!(r.workOrderNo ? tbmNoteByWorkOrder[r.workOrderNo] : tbmNoteMap[r.id])} /></TableCell>
+                      <TableCell><RegBadge value={r.tbmResult} onClick={r.tbmResult === '미등록' && !isCancelled(r.workStatus) ? () => openTbmUnregNote(r) : undefined} hasNote={r.tbmResult === '미등록' && !!(r.workOrderNo ? tbmNoteByWorkOrder[r.workOrderNo] : tbmNoteMap[r.id])} justificationStatus={r.tbmResult === '미등록' ? (r.workOrderNo ? tbmNoteByWorkOrder[r.workOrderNo] : tbmNoteMap[r.id])?.justificationStatus : null} /></TableCell>
+                      <TableCell><StatusBadge value={r.tbmAiResult} onClick={r.tbmAiResult === '부적합' ? () => openTbmNote(r) : undefined} hasNote={r.tbmAiResult === '부적합' && !!(r.workOrderNo ? tbmNoteByWorkOrder[r.workOrderNo] : tbmNoteMap[r.id])} justificationStatus={r.tbmAiResult === '부적합' ? (r.workOrderNo ? tbmNoteByWorkOrder[r.workOrderNo] : tbmNoteMap[r.id])?.justificationStatus : null} /></TableCell>
                       <TableCell className="text-xs whitespace-nowrap">{r.workStatus || '-'}</TableCell>
                       <TableCell className="text-xs whitespace-nowrap">{r.startDate || '-'}</TableCell>
                       <TableCell className="text-xs whitespace-nowrap hidden lg:table-cell">{r.endDate || '-'}</TableCell>
@@ -1803,8 +1821,8 @@ export default function AisSafetyRate() {
                             <TableCell className="text-xs whitespace-nowrap py-2">{r.team || '-'}</TableCell>
                             <TableCell className="py-2"><HighRiskBadge value={r.highRiskWork} /></TableCell>
                             <TableCell className="py-2"><PermitBadge value={r.safetyPermit} highRisk={r.highRiskWork} /></TableCell>
-                            <TableCell className="py-2 whitespace-nowrap"><RegBadge value={r.tbmResult} onClick={r.tbmResult === '미등록' && !isCancelled(r.workStatus) ? () => openTbmUnregNote(r) : undefined} hasNote={r.tbmResult === '미등록' && !!(r.workOrderNo ? tbmNoteByWorkOrder[r.workOrderNo] : tbmNoteMap[r.id])} /></TableCell>
-                            <TableCell className="py-2"><StatusBadge value={r.tbmAiResult} onClick={r.tbmAiResult === '부적합' ? () => openTbmNote(r) : undefined} hasNote={r.tbmAiResult === '부적합' && !!(r.workOrderNo ? tbmNoteByWorkOrder[r.workOrderNo] : tbmNoteMap[r.id])} /></TableCell>
+                            <TableCell className="py-2 whitespace-nowrap"><RegBadge value={r.tbmResult} onClick={r.tbmResult === '미등록' && !isCancelled(r.workStatus) ? () => openTbmUnregNote(r) : undefined} hasNote={r.tbmResult === '미등록' && !!(r.workOrderNo ? tbmNoteByWorkOrder[r.workOrderNo] : tbmNoteMap[r.id])} justificationStatus={r.tbmResult === '미등록' ? (r.workOrderNo ? tbmNoteByWorkOrder[r.workOrderNo] : tbmNoteMap[r.id])?.justificationStatus : null} /></TableCell>
+                            <TableCell className="py-2"><StatusBadge value={r.tbmAiResult} onClick={r.tbmAiResult === '부적합' ? () => openTbmNote(r) : undefined} hasNote={r.tbmAiResult === '부적합' && !!(r.workOrderNo ? tbmNoteByWorkOrder[r.workOrderNo] : tbmNoteMap[r.id])} justificationStatus={r.tbmAiResult === '부적합' ? (r.workOrderNo ? tbmNoteByWorkOrder[r.workOrderNo] : tbmNoteMap[r.id])?.justificationStatus : null} /></TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
