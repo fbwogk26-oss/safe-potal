@@ -572,10 +572,9 @@ export default function AisSafetyRate() {
     const tbmRegRate = nonCancelled.length > 0
       ? Math.round((nonCancelled.filter(r => r.tbmResult === '등록' || (r.tbmResult === '미등록' && justifiedRecordIds.has(r.id))).length / nonCancelled.length) * 100)
       : 100;
-    // TBM AI 적합 이행률 (분석전 제외, 소명완료 포함)
-    const analyzed = nonCancelled.filter(r => r.tbmResult === '등록');
-    const tbmAiRate = analyzed.length > 0
-      ? Math.round((analyzed.filter(r => r.tbmAiResult === '적합' || justifiedRecordIds.has(r.id)).length / analyzed.length) * 100)
+    // TBM AI 적합 이행률: 전체 건 기준, 소명완료(미등록/부적합 무관) 모두 적합으로 포함
+    const tbmAiRate = nonCancelled.length > 0
+      ? Math.round((nonCancelled.filter(r => r.tbmAiResult === '적합' || justifiedRecordIds.has(r.id)).length / nonCancelled.length) * 100)
       : 100;
     return { team: team?.replace('운용팀', '').replace('팀', '') || '미지정', fullTeam: team || '', rate: c.rate, count: tr.length, issueCount, issueList, tbmRegRate, tbmAiRate };
   }).sort((a, b) => b.rate - a.rate);
