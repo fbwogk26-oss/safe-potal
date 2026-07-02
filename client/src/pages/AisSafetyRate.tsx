@@ -288,6 +288,10 @@ export default function AisSafetyRate() {
   const [tbmNotePhoto, setTbmNotePhoto] = useState<File | null>(null);
   const [tbmNotePhotoPreview, setTbmNotePhotoPreview] = useState<string | null>(null);
   const [tbmNoteSaving, setTbmNoteSaving] = useState(false);
+  const [justifRecord, setJustifRecord] = useState<AisSafetyRecord | null>(null);
+  const [justifStatus, setJustifStatus] = useState<'소명완료'|'소명불가'|null>(null);
+  const [justifReason, setJustifReason] = useState('');
+  const [justifSaving, setJustifSaving] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
   const { data: uploads = [] } = useQuery<AisSafetyUpload[]>({
@@ -597,6 +601,33 @@ export default function AisSafetyRate() {
       toast({ title: '저장에 실패했습니다', variant: 'destructive' });
     } finally {
       setTbmNoteSaving(false);
+    }
+  };
+
+  const openJustifDialog = (r: AisSafetyRecord) => {
+    const note = (r.workOrderNo ? tbmNoteByWorkOrder[r.workOrderNo] : null) ?? tbmNoteMap[r.id];
+    setJustifRecord(r);
+    setJustifStatus((note?.justificationStatus as '소명완료'|'소명불가'|null) ?? null);
+    setJustifReason(note?.justificationReason || '');
+  };
+
+  const handleJustifSave = async () => {
+    if (!justifRecord) return;
+    setJustifSaving(true);
+    try {
+      await fetch(`/api/ais-safety/records/${justifRecord.id}/justification`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ justificationStatus: justifStatus, justificationReason: justifReason }),
+      });
+      await queryClient.invalidateQueries({ queryKey: ['/api/ais-safety/tbm-notes'] });
+      toast({ title: justifStatus === '소명완료' ? '소명 완료 처리되었습니다 ✓' : justifStatus === '소명불가' ? '소명 불가 처리되었습니다' : '소명 취소되었습니다' });
+      setJustifRecord(null);
+    } catch {
+      toast({ title: '소명 저장에 실패했습니다', variant: 'destructive' });
+    } finally {
+      setJustifSaving(false);
     }
   };
 
@@ -1749,11 +1780,16 @@ export default function AisSafetyRate() {
                           <TableHead className="text-xs w-[80px] whitespace-nowrap">안전허가서</TableHead>
                           <TableHead className="text-xs w-[70px] whitespace-nowrap">TBM</TableHead>
                           <TableHead className="text-xs w-[80px] whitespace-nowrap">TBM AI</TableHead>
+                          <TableHead className="text-xs w-[90px] whitespace-nowrap">소명</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {g.records.map(r => (
-                          <TableRow key={r.id}>
+                        {g.records.map(r => {
+                          const rNote = (r.workOrderNo ? tbmNoteByWorkOrder[r.workOrderNo] : null) ?? tbmNoteMap[r.id];
+                          const jStatus = rNote?.justificationStatus;
+                          const rowBg = jStatus === '소명완료' ? 'bg-emerald-50 dark:bg-emerald-950/20' : jStatus === '소명불가' ? 'bg-red-50 dark:bg-red-950/20' : '';
+                          return (
+                          <TableRow key={r.id} className={rowBg}>
                             <TableCell className="text-xs font-mono py-2"><span className="block truncate" title={r.workOrderNo || ''}>{r.workOrderNo || '-'}</span></TableCell>
                             <TableCell className="text-xs py-2"><span className="block" title={r.workName || ''}>{r.workName || '-'}</span></TableCell>
                             <TableCell className="text-xs whitespace-nowrap py-2">{r.team || '-'}</TableCell>
@@ -1761,8 +1797,21 @@ export default function AisSafetyRate() {
                             <TableCell className="py-2"><PermitBadge value={r.safetyPermit} highRisk={r.highRiskWork} /></TableCell>
                             <TableCell className="py-2 whitespace-nowrap"><RegBadge value={r.tbmResult} onClick={r.tbmResult === '미등록' && !isCancelled(r.workStatus) ? () => openTbmUnregNote(r) : undefined} hasNote={r.tbmResult === '미등록' && !!(r.workOrderNo ? tbmNoteByWorkOrder[r.workOrderNo] : tbmNoteMap[r.id])} /></TableCell>
                             <TableCell className="py-2"><StatusBadge value={r.tbmAiResult} onClick={r.tbmAiResult === '부적합' ? () => openTbmNote(r) : undefined} hasNote={r.tbmAiResult === '부적합' && !!(r.workOrderNo ? tbmNoteByWorkOrder[r.workOrderNo] : tbmNoteMap[r.id])} /></TableCell>
+                            <TableCell className="py-2">
+                              <button
+                                onClick={() => openJustifDialog(r)}
+                                className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border transition-colors whitespace-nowrap ${
+                                  jStatus === '소명완료' ? 'bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-700' :
+                                  jStatus === '소명불가' ? 'bg-red-100 text-red-700 border-red-300 dark:bg-red-900/40 dark:text-red-300 dark:border-red-700' :
+                                  'bg-muted text-muted-foreground border-border hover:bg-accent'
+                                }`}
+                              >
+                                {jStatus === '소명완료' ? '✓ 소명완료' : jStatus === '소명불가' ? '✗ 소명불가' : '소명 입력'}
+                              </button>
+                            </TableCell>
                           </TableRow>
-                        ))}
+                          );
+                        })}
                       </TableBody>
                     </Table>
                   </div>
@@ -1770,6 +1819,53 @@ export default function AisSafetyRate() {
               </div>
             );
           })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* 소명 입력 다이얼로그 */}
+      <Dialog open={!!justifRecord} onOpenChange={open => { if (!open) setJustifRecord(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-sm">소명 사유 입력</DialogTitle>
+          </DialogHeader>
+          {justifRecord && (
+            <div className="space-y-4">
+              <div className="rounded-lg bg-muted/50 border p-3 text-xs space-y-1">
+                <p className="font-semibold text-foreground">{justifRecord.workName || '-'}</p>
+                <p className="text-muted-foreground">{justifRecord.workOrderNo} · {justifRecord.team} · {justifRecord.startDate}</p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setJustifStatus(justifStatus === '소명완료' ? null : '소명완료')}
+                  className={`flex-1 py-2 rounded-lg text-sm font-semibold border transition-all ${justifStatus === '소명완료' ? 'bg-emerald-500 text-white border-emerald-500' : 'border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-400 dark:hover:bg-emerald-950/30'}`}
+                >✓ 소명 가능</button>
+                <button
+                  onClick={() => setJustifStatus(justifStatus === '소명불가' ? null : '소명불가')}
+                  className={`flex-1 py-2 rounded-lg text-sm font-semibold border transition-all ${justifStatus === '소명불가' ? 'bg-red-500 text-white border-red-500' : 'border-red-300 text-red-700 hover:bg-red-50 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-950/30'}`}
+                >✗ 소명 불가</button>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">소명 사유</label>
+                <textarea
+                  value={justifReason}
+                  onChange={e => setJustifReason(e.target.value)}
+                  placeholder="소명 사유를 입력하세요..."
+                  rows={3}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-1">
+                <button onClick={() => setJustifRecord(null)} className="px-4 py-1.5 rounded-md text-sm border border-border hover:bg-muted transition-colors">취소</button>
+                <button
+                  onClick={handleJustifSave}
+                  disabled={justifSaving || !justifStatus}
+                  className="px-4 py-1.5 rounded-md text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                >
+                  {justifSaving ? '저장 중...' : '저장'}
+                </button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

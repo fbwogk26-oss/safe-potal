@@ -4105,6 +4105,21 @@ ${buildEmailFooter()}
     }
   });
 
+  app.put('/api/ais-safety/records/:id/justification', isAuthenticated, async (req: any, res) => {
+    try {
+      const recordId = Number(req.params.id);
+      const { justificationStatus, justificationReason } = req.body;
+      const note = await storage.upsertAisTbmBadNote(recordId, {
+        justificationStatus: justificationStatus ?? null,
+        justificationReason: justificationReason ?? null,
+        justificationBy: req.user?.username,
+      });
+      res.json(note);
+    } catch (error) {
+      res.status(500).json({ message: "소명 상태 저장에 실패했습니다" });
+    }
+  });
+
   app.get('/api/musculoskeletal-assessments', isAuthenticated, async (req: any, res) => {
     try {
       const headquarters = req.query.headquarters as string | undefined;
