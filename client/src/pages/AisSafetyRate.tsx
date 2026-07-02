@@ -1306,6 +1306,48 @@ export default function AisSafetyRate() {
                           <p className="text-[11px] text-muted-foreground">이슈 없음</p>
                         )}
                       </div>
+                      {/* TBM AI 분析결과 */}
+                      <div className="p-3 flex flex-col gap-2">
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-6 h-6 rounded-md bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center flex-shrink-0">
+                            <Users className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                          </div>
+                          <span className="text-xs font-semibold text-muted-foreground">TBM AI 분析결과</span>
+                        </div>
+                        {(() => {
+                          const total = tbmAiData.reduce((s, d) => s + d.value, 0);
+                          const fit = tbmAiData.find(d => d.name === '적합')?.value ?? 0;
+                          const bad = tbmAiData.find(d => d.name === '부적합')?.value ?? 0;
+                          const analyzing = tbmAiData.find(d => d.name === '분析중')?.value ?? 0;
+                          const pending = tbmAiData.find(d => d.name === '분析전')?.value ?? 0;
+                          const justified = justifiedBadCount;
+                          const stackData = [
+                            { name: '적합', value: fit, color: '#22c55e' },
+                            { name: '소명완료', value: justified, color: '#f59e0b' },
+                            { name: '부적합', value: bad, color: '#ef4444' },
+                            { name: '분析전', value: pending + analyzing, color: '#94a3b8' },
+                          ].filter(d => d.value > 0);
+                          return (
+                            <div className="flex flex-col gap-1.5">
+                              <p className="text-2xl font-black leading-none">{total}<span className="text-sm font-normal text-muted-foreground ml-1">건</span></p>
+                              <div className="w-full h-2.5 rounded-full overflow-hidden flex">
+                                {stackData.map(d => (
+                                  <div key={d.name} style={{ width:`${total > 0 ? (d.value/total)*100 : 0}%`, backgroundColor:d.color }}
+                                    className="h-full" title={`${d.name}: ${d.value}건`} />
+                                ))}
+                              </div>
+                              <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-[9px]">
+                                {stackData.map(d => (
+                                  <span key={d.name} className="flex items-center gap-0.5">
+                                    <span className="w-1.5 h-1.5 rounded-sm inline-block" style={{ backgroundColor: d.color }} />
+                                    {d.name} {d.value}건
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </div>
                       </div>
                     </div>
                   </div>
@@ -1317,75 +1359,7 @@ export default function AisSafetyRate() {
               {/* Charts row */}
               {/* Charts row */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-stretch">
-                <Card className="border-0 shadow-sm bg-card/60 flex flex-col">
-                  <CardHeader className="pb-2 pt-3 px-4">
-                    <CardTitle className="text-sm font-bold flex items-center gap-2">
-                      <span className="flex items-center justify-center w-5 h-5 rounded bg-blue-100 dark:bg-blue-900/40">
-                        <Users className="w-3 h-3 text-blue-600 dark:text-blue-400" />
-                      </span>
-                      TBM AI 분석결과
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="px-4 pb-4 pt-1 flex-1 flex flex-col justify-center">
-                    {(() => {
-                      const total = tbmAiData.reduce((s, d) => s + d.value, 0);
-                      const fit = tbmAiData.find(d => d.name === '적합')?.value ?? 0;
-                      const bad = tbmAiData.find(d => d.name === '부적합')?.value ?? 0;
-                      const analyzing = tbmAiData.find(d => d.name === '분석중')?.value ?? 0;
-                      const pending = tbmAiData.find(d => d.name === '분析전')?.value ?? 0;
-                      const justified = justifiedBadCount;
-                      const stackData = [
-                        { name: '적합', value: fit, color: '#22c55e' },
-                        { name: '소명완료', value: justified, color: '#f59e0b' },
-                        { name: '부적합', value: bad, color: '#ef4444' },
-                        { name: '분석전', value: pending + analyzing, color: '#94a3b8' },
-                      ].filter(d => d.value > 0);
-                      return (
-                        <div className="flex flex-col gap-4 w-full">
-                          <div className="flex items-baseline gap-1.5">
-                            <span className="text-4xl font-black">{total}</span>
-                            <span className="text-sm text-muted-foreground font-semibold">전체 건</span>
-                          </div>
-                          {/* 수평 스택바 */}
-                          <div className="w-full h-9 rounded-xl overflow-hidden flex shadow-inner">
-                            {stackData.map((d) => {
-                              const pct = total > 0 ? (d.value / total) * 100 : 0;
-                              return (
-                                <div key={d.name} style={{ width:`${pct}%`, backgroundColor:d.color, opacity:0.88 }}
-                                  className="h-full relative flex items-center justify-center transition-all duration-700"
-                                  title={`${d.name}: ${d.value}건 (${Math.round(pct)}%)`}>
-                                  {pct > 9 && <span className="text-white text-[10px] font-black drop-shadow">{d.value}건</span>}
-                                </div>
-                              );
-                            })}
-                          </div>
-                          {/* 항목 breakdown */}
-                          <div className="grid grid-cols-2 gap-2 w-full">
-                            {[
-                              { name: '적합', value: fit, color: '#22c55e' },
-                              { name: '소명완료', value: justified, color: '#f59e0b' },
-                              { name: '부적합', value: bad, color: '#ef4444' },
-                              { name: '분析전', value: pending + analyzing, color: '#94a3b8' },
-                            ].map(d => {
-                              const pct = total > 0 ? Math.round(d.value / total * 100) : 0;
-                              return (
-                                <div key={d.name} className="flex items-center gap-2 p-2.5 rounded-xl bg-muted/40">
-                                  <div className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: d.color }} />
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-[11px] font-semibold leading-none">{d.name}</p>
-                                    <p className="text-[10px] text-muted-foreground mt-0.5">{pct}%</p>
-                                  </div>
-                                  <span className="text-base font-black flex-shrink-0" style={{ color: d.color }}>{d.value}건</span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })()}
-                  </CardContent>
-                </Card>
-                <Card className="border-0 shadow-sm bg-card/60 lg:col-span-2">
+                <Card className="border-0 shadow-sm bg-card/60 lg:col-span-3">
                   <CardHeader className="pb-2 pt-3 px-4">
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <CardTitle className="text-sm font-bold flex items-center gap-2">
