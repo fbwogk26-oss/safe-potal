@@ -1108,31 +1108,31 @@ export default function AisSafetyRate() {
                         const barColor = rate >= 90 ? '#22c55e' : rate >= 70 ? '#f59e0b' : '#ef4444';
                         const hasIssue = item.total > 0 && rate < 90;
                         return (
-                          <div key={item.label} className="p-3">
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-1.5">
-                                <div className={`w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 ${hasIssue ? 'bg-red-100 dark:bg-red-900/30' : 'bg-emerald-100 dark:bg-emerald-900/30'}`}>
-                                  <Icon className={`w-3.5 h-3.5 ${hasIssue ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`} />
+                          <div key={item.label} className="p-4">
+                            <div className="flex items-center justify-between mb-3">
+                              <div className="flex items-center gap-2">
+                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${hasIssue ? 'bg-red-100 dark:bg-red-900/30' : 'bg-emerald-100 dark:bg-emerald-900/30'}`}>
+                                  <Icon className={`w-4.5 h-4.5 ${hasIssue ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`} />
                                 </div>
-                                <span className="text-xs font-semibold text-muted-foreground">{item.label}</span>
+                                <span className="text-sm font-semibold text-muted-foreground">{item.label}</span>
                               </div>
                               <div className="flex items-center gap-2">
-                                {fail > 0 && <span className="text-[11px] font-bold text-red-500">미이행 {fail}건</span>}
+                                {fail > 0 && <span className="text-xs font-bold text-red-500">미이행 {fail}건</span>}
                                 {item.total > 0 && <RateBadge value={rate} />}
                               </div>
                             </div>
                             {item.total === 0 ? (
-                              <p className="text-xs text-muted-foreground">{item.emptyLabel}</p>
+                              <p className="text-sm text-muted-foreground">{item.emptyLabel}</p>
                             ) : (
                               <>
-                                <div className="flex items-baseline gap-1.5 mb-1.5">
-                                  <span className="text-xl font-black" style={{ color: barColor }}>{item.pass}</span>
-                                  <span className="text-xs text-muted-foreground">/ {item.total}건</span>
-                                  <span className="text-[11px] text-muted-foreground ml-auto">{item.description}</span>
+                                <div className="flex items-baseline gap-2 mb-2">
+                                  <span className="text-3xl font-black" style={{ color: barColor }}>{item.pass}</span>
+                                  <span className="text-sm text-muted-foreground">/ {item.total}건</span>
+                                  <span className="text-xs text-muted-foreground ml-auto">{item.description}</span>
                                 </div>
-                                <div className="w-full h-2.5 bg-muted/40 rounded-full overflow-hidden">
+                                <div className="w-full h-3.5 bg-muted/40 rounded-full overflow-hidden">
                                   <div className="h-full rounded-full transition-all duration-700"
-                                    style={{ width:`${rate}%`, background:`linear-gradient(90deg,${barColor}88,${barColor})`, boxShadow:`0 0 6px ${barColor}55` }} />
+                                    style={{ width:`${rate}%`, background:`linear-gradient(90deg,${barColor}88,${barColor})`, boxShadow:`0 0 8px ${barColor}55` }} />
                                 </div>
                               </>
                             )}
