@@ -1156,13 +1156,13 @@ export default function AisSafetyRate() {
                     {tbmAiData.length > 0 ? (() => {
                       const total = tbmAiData.reduce((s, d) => s + d.value, 0);
                       return (
-                        <div className="flex flex-row items-center gap-3">
-                          {/* 도넛 차트 */}
-                          <div className="relative flex-shrink-0" style={{ width: 120, height: 120 }}>
-                            <PieChart width={120} height={120}>
-                              <Pie data={tbmAiData} cx="50%" cy="50%" innerRadius={38} outerRadius={54}
-                                dataKey="value" labelLine={false} paddingAngle={2} stroke="none">
-                                {tbmAiData.map((d, i) => <Cell key={i} fill={d.color} fillOpacity={0.88} />)}
+                        <div className="flex flex-col items-center gap-4 w-full">
+                          {/* 도넛 차트 — 상단 중앙 */}
+                          <div className="relative flex-shrink-0" style={{ width: 180, height: 180 }}>
+                            <PieChart width={180} height={180}>
+                              <Pie data={tbmAiData} cx="50%" cy="50%" innerRadius={58} outerRadius={80}
+                                dataKey="value" labelLine={false} paddingAngle={3} stroke="none">
+                                {tbmAiData.map((d, i) => <Cell key={i} fill={d.color} fillOpacity={0.9} />)}
                               </Pie>
                               <ReTooltip
                                 contentStyle={{ borderRadius: 8, border: 'none', boxShadow: '0 4px 16px rgba(0,0,0,0.12)', fontSize: 12 }}
@@ -1170,27 +1170,22 @@ export default function AisSafetyRate() {
                               />
                             </PieChart>
                             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                              <span className="text-xl font-black">{total}</span>
-                              <span className="text-[10px] font-semibold text-muted-foreground">전체 건</span>
+                              <span className="text-3xl font-black">{total}</span>
+                              <span className="text-[11px] font-semibold text-muted-foreground">전체 건</span>
                             </div>
                           </div>
-                          {/* 카드 2x2 */}
-                          <div className="flex flex-col gap-2 flex-1 w-full">
+                          {/* 항목 3열 가로 배치 */}
+                          <div className="grid grid-cols-3 gap-2 w-full">
                             {tbmAiData.map(d => {
                               const pct = total > 0 ? Math.round(d.value / total * 100) : 0;
                               return (
-                                <div key={d.name} className="flex flex-col gap-0.5 p-2 rounded-xl border transition-all hover:shadow-sm" style={{ borderColor: `${d.color}40`, backgroundColor: `${d.color}0d` }}>
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-1">
-                                      <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: d.color }} />
-                                      <span className="text-[11px] font-semibold">{d.name}</span>
-                                    </div>
-                                    <span className="text-[11px] font-bold" style={{ color: d.color }}>{pct}%</span>
+                                <div key={d.name} className="flex flex-col items-center gap-1 p-2.5 rounded-xl border transition-all hover:shadow-sm" style={{ borderColor: `${d.color}40`, backgroundColor: `${d.color}0d` }}>
+                                  <div className="flex items-center gap-1">
+                                    <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: d.color }} />
+                                    <span className="text-[11px] font-semibold">{d.name}</span>
                                   </div>
-                                  <div className="flex items-baseline gap-0.5">
-                                    <span className="text-base font-black" style={{ color: d.color }}>{d.value}</span>
-                                    <span className="text-[10px] text-muted-foreground">건</span>
-                                  </div>
+                                  <span className="text-xl font-black" style={{ color: d.color }}>{d.value}<span className="text-[10px] font-normal text-muted-foreground ml-0.5">건</span></span>
+                                  <span className="text-xs font-bold" style={{ color: d.color }}>{pct}%</span>
                                   <div className="w-full h-1 bg-muted/40 rounded-full overflow-hidden">
                                     <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, backgroundColor: d.color }} />
                                   </div>
