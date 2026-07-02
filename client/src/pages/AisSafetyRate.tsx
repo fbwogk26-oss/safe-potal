@@ -1307,7 +1307,7 @@ export default function AisSafetyRate() {
                         )}
                       </div>
                       {/* TBM AI 분析결과 */}
-                      <div className="p-3 flex flex-col gap-2">
+                      <div className="p-3 flex flex-col gap-2.5">
                         <div className="flex items-center gap-1.5">
                           <div className="w-6 h-6 rounded-md bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center flex-shrink-0">
                             <Users className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
@@ -1321,28 +1321,41 @@ export default function AisSafetyRate() {
                           const analyzing = tbmAiData.find(d => d.name === '분析중')?.value ?? 0;
                           const pending = tbmAiData.find(d => d.name === '분析전')?.value ?? 0;
                           const justified = justifiedBadCount;
-                          const stackData = [
+                          const items = [
                             { name: '적합', value: fit, color: '#22c55e' },
                             { name: '소명완료', value: justified, color: '#f59e0b' },
                             { name: '부적합', value: bad, color: '#ef4444' },
-                            { name: '분析전', value: pending + analyzing, color: '#94a3b8' },
+                            { name: '分析전', value: pending + analyzing, color: '#94a3b8' },
                           ].filter(d => d.value > 0);
                           return (
-                            <div className="flex flex-col gap-1.5">
-                              <p className="text-2xl font-black leading-none">{total}<span className="text-sm font-normal text-muted-foreground ml-1">건</span></p>
-                              <div className="w-full h-2.5 rounded-full overflow-hidden flex">
-                                {stackData.map(d => (
-                                  <div key={d.name} style={{ width:`${total > 0 ? (d.value/total)*100 : 0}%`, backgroundColor:d.color }}
-                                    className="h-full" title={`${d.name}: ${d.value}건`} />
-                                ))}
+                            <div className="flex flex-col gap-2">
+                              {/* 건수 */}
+                              <p className="text-2xl font-black leading-none">{total}<span className="text-sm font-normal text-muted-foreground ml-1">전체 건</span></p>
+                              {/* 스택바 */}
+                              <div className="w-full h-5 rounded-lg overflow-hidden flex shadow-inner">
+                                {items.map(d => {
+                                  const pct = total > 0 ? (d.value / total) * 100 : 0;
+                                  return (
+                                    <div key={d.name} style={{ width:`${pct}%`, backgroundColor:d.color, opacity:0.9 }}
+                                      className="h-full relative flex items-center justify-center"
+                                      title={`${d.name}: ${d.value}건`}>
+                                      {pct > 12 && <span className="text-white text-[9px] font-black drop-shadow">{d.value}</span>}
+                                    </div>
+                                  );
+                                })}
                               </div>
-                              <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-[9px]">
-                                {stackData.map(d => (
-                                  <span key={d.name} className="flex items-center gap-0.5">
-                                    <span className="w-1.5 h-1.5 rounded-sm inline-block" style={{ backgroundColor: d.color }} />
-                                    {d.name} {d.value}건
-                                  </span>
-                                ))}
+                              {/* 범례 2열 */}
+                              <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                                {items.map(d => {
+                                  const pct = total > 0 ? Math.round(d.value / total * 100) : 0;
+                                  return (
+                                    <div key={d.name} className="flex items-center gap-1.5">
+                                      <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: d.color }} />
+                                      <span className="text-[10px] text-muted-foreground truncate">{d.name}</span>
+                                      <span className="text-[10px] font-bold ml-auto" style={{ color: d.color }}>{d.value}건</span>
+                                    </div>
+                                  );
+                                })}
                               </div>
                             </div>
                           );
