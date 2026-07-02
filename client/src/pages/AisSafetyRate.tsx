@@ -128,8 +128,8 @@ function StatusBadge({ value, onClick, hasNote, justificationStatus }: { value: 
       </Badge>
     );
   }
-  if (v === '분析중' || v === '분析中' || v === '분석중') return <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 border-0 text-xs font-semibold"><Loader2 className="w-3 h-3 mr-1 animate-spin" />분석중</Badge>;
-  return <Badge className="bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 border-0 text-xs"><Clock className="w-3 h-3 mr-1" />분析전</Badge>;
+  if (v === '분석중' || v === '분석중' || v === '분석중') return <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 border-0 text-xs font-semibold"><Loader2 className="w-3 h-3 mr-1 animate-spin" />분석중</Badge>;
+  return <Badge className="bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 border-0 text-xs"><Clock className="w-3 h-3 mr-1" />분석전</Badge>;
 }
 
 function PermitBadge({ value, highRisk }: { value: string | null; highRisk: string | null }) {
@@ -551,14 +551,14 @@ export default function AisSafetyRate() {
   // 필터 변경 시 첫 페이지로
   const resetPage = () => setCurrentPage(1);
 
-  // TBM AI 분析결과 — 소명완료 건은 부적합에서 분리해 별도 집계
+  // TBM AI 분석결과 — 소명완료 건은 부적합에서 분리해 별도 집계
   const justifiedBadCount = activeRecords.filter(r => r.tbmAiResult === '부적합' && justifiedRecordIds.has(r.id)).length;
   const tbmAiData = [
     { name: '적합', value: activeRecords.filter(r => r.tbmAiResult === '적합').length, color: '#22c55e' },
     { name: '소명완료', value: justifiedBadCount, color: '#10b981' },
     { name: '부적합', value: activeRecords.filter(r => r.tbmAiResult === '부적합' && !justifiedRecordIds.has(r.id)).length, color: '#ef4444' },
-    { name: '분析중', value: activeRecords.filter(r => r.tbmAiResult === '분석중').length, color: '#f59e0b' },
-    { name: '분析전', value: activeRecords.filter(r => !r.tbmAiResult || r.tbmAiResult === '분석전').length, color: '#94a3b8' },
+    { name: '분석중', value: activeRecords.filter(r => r.tbmAiResult === '분석중').length, color: '#f59e0b' },
+    { name: '분석전', value: activeRecords.filter(r => !r.tbmAiResult || r.tbmAiResult === '분석전').length, color: '#94a3b8' },
   ].filter(d => d.value > 0);
 
   const teamData = teams.map(team => {
@@ -572,7 +572,7 @@ export default function AisSafetyRate() {
     const tbmRegRate = nonCancelled.length > 0
       ? Math.round((nonCancelled.filter(r => r.tbmResult === '등록').length / nonCancelled.length) * 100)
       : 100;
-    // TBM AI 적합 이행률 (분析전 제외, 소명완료 포함)
+    // TBM AI 적합 이행률 (분석전 제외, 소명완료 포함)
     const analyzed = nonCancelled.filter(r => r.tbmResult === '등록');
     const tbmAiRate = analyzed.length > 0
       ? Math.round((analyzed.filter(r => r.tbmAiResult === '적합' || justifiedRecordIds.has(r.id)).length / analyzed.length) * 100)
@@ -1243,7 +1243,7 @@ export default function AisSafetyRate() {
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-stretch">
                 <Card className="border-0 shadow-sm bg-card/60 flex flex-col">
                   <CardHeader className="pb-2 pt-3 px-4">
-                    <CardTitle className="text-sm font-bold">TBM AI 분析결과</CardTitle>
+                    <CardTitle className="text-sm font-bold">TBM AI 분석결과</CardTitle>
                   </CardHeader>
                   <CardContent className="px-4 pb-4 pt-1 flex-1 flex flex-col justify-center">
                     {tbmAiData.length > 0 ? (() => {
