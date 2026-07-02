@@ -87,10 +87,28 @@ function RateBadge({ value }: { value: number }) {
   return <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${color}`}>{value}%</span>;
 }
 
-function StatusBadge({ value, onClick, hasNote }: { value: string | null; onClick?: () => void; hasNote?: boolean }) {
+function StatusBadge({ value, onClick, hasNote, justificationStatus }: { value: string | null; onClick?: () => void; hasNote?: boolean; justificationStatus?: string | null }) {
   const v = value || '';
   if (v === '적합') return <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 border-0 text-xs font-semibold"><CheckCircle2 className="w-3 h-3 mr-1" />적합</Badge>;
   if (v === '부적합') {
+    if (justificationStatus === '소명완료') return (
+      <Badge
+        className={`bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 text-xs font-semibold gap-1 ${onClick ? 'cursor-pointer hover:bg-emerald-200 dark:hover:bg-emerald-900/60' : ''}`}
+        onClick={onClick}
+        title="소명완료 — 클릭하여 수정"
+      >
+        <CheckCircle2 className="w-3 h-3" />소명완료
+      </Badge>
+    );
+    if (justificationStatus === '소명불가') return (
+      <Badge
+        className={`bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 border border-red-300 dark:border-red-700 text-xs font-semibold gap-1 ${onClick ? 'cursor-pointer hover:bg-red-200 dark:hover:bg-red-900/60' : ''}`}
+        onClick={onClick}
+        title="소명불가 — 클릭하여 수정"
+      >
+        <XCircle className="w-3 h-3" />부적합
+      </Badge>
+    );
     if (hasNote) return (
       <Badge
         className={`bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 border border-amber-300 dark:border-amber-700 text-xs font-semibold gap-1 ${onClick ? 'cursor-pointer hover:bg-amber-200 dark:hover:bg-amber-900/60' : ''}`}
@@ -111,7 +129,7 @@ function StatusBadge({ value, onClick, hasNote }: { value: string | null; onClic
     );
   }
   if (v === '분析중' || v === '분析中' || v === '분석중') return <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 border-0 text-xs font-semibold"><Loader2 className="w-3 h-3 mr-1 animate-spin" />분석중</Badge>;
-  return <Badge className="bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 border-0 text-xs"><Clock className="w-3 h-3 mr-1" />분석전</Badge>;
+  return <Badge className="bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 border-0 text-xs"><Clock className="w-3 h-3 mr-1" />분析전</Badge>;
 }
 
 function PermitBadge({ value, highRisk }: { value: string | null; highRisk: string | null }) {
@@ -134,11 +152,11 @@ function RegBadge({ value, onClick, hasNote, justificationStatus }: { value: str
   );
   if (justificationStatus === '소명불가') return (
     <Badge
-      className={`bg-red-200 text-red-800 dark:bg-red-900/60 dark:text-red-300 border border-red-400 dark:border-red-700 text-xs font-semibold gap-1 ${onClick ? 'cursor-pointer hover:bg-red-300 dark:hover:bg-red-900/80 transition-colors' : ''}`}
+      className={`bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 border border-red-300 dark:border-red-700 text-xs font-semibold gap-1 ${onClick ? 'cursor-pointer hover:bg-red-200 dark:hover:bg-red-900/60 transition-colors' : ''}`}
       onClick={onClick}
       title="소명불가 — 클릭하여 수정"
     >
-      <XCircle className="w-3 h-3" />미등록·소명불가
+      <XCircle className="w-3 h-3" />미등록
     </Badge>
   );
   if (hasNote) return (
