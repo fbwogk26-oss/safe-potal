@@ -1147,12 +1147,12 @@ export default function AisSafetyRate() {
 
 
               {/* Charts row */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
-                <Card className="border-0 shadow-sm bg-card/60">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-stretch">
+                <Card className="border-0 shadow-sm bg-card/60 flex flex-col">
                   <CardHeader className="pb-1 pt-3 px-4">
                     <CardTitle className="text-sm font-bold">TBM AI 분석결과</CardTitle>
                   </CardHeader>
-                  <CardContent className="px-4 pb-4 pt-2">
+                  <CardContent className="px-4 pb-4 pt-2 flex-1 flex flex-col justify-center">
                     {tbmAiData.length > 0 ? (() => {
                       const total = tbmAiData.reduce((s, d) => s + d.value, 0);
                       return (
