@@ -1070,7 +1070,7 @@ export default function AisSafetyRate() {
                         )}
                       </div>
                       {/* 이슈사항 */}
-                      <div className="p-3 flex flex-col gap-1">
+                      <div className="p-3 flex flex-col gap-1.5">
                         <div className="flex items-center gap-1.5">
                           <div className="w-6 h-6 rounded-md bg-red-100 dark:bg-red-900/40 flex items-center justify-center flex-shrink-0">
                             <XCircle className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
@@ -1078,7 +1078,20 @@ export default function AisSafetyRate() {
                           <span className="text-xs font-semibold text-muted-foreground truncate">이슈사항</span>
                         </div>
                         <p className="text-2xl font-black leading-none">{(comp.issues || []).reduce((a, b) => a + b.count, 0)}<span className="text-xs font-normal text-muted-foreground ml-1">건</span></p>
-                        <p className="text-[11px] text-muted-foreground">{(comp.issues || []).length}개 항목</p>
+                        {(comp.issues || []).length > 0 ? (
+                          <div className="flex flex-col gap-1 mt-0.5">
+                            {(comp.issues || []).map(issue => (
+                              <button key={issue.label} onClick={() => setActiveIssue(issue)}
+                                className="flex items-center justify-between px-2 py-1 rounded-lg bg-red-50/80 dark:bg-red-950/20 border border-red-200/50 dark:border-red-800/40 hover:border-red-400 dark:hover:border-red-600 transition-all group"
+                                data-testid={`button-issue-top-${issue.label}`}>
+                                <span className="text-[10px] font-semibold text-muted-foreground truncate">{issue.label}</span>
+                                <span className="text-xs font-black text-red-600 dark:text-red-400 ml-1 flex-shrink-0">{issue.count}</span>
+                              </button>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-[11px] text-muted-foreground">이슈 없음</p>
+                        )}
                       </div>
                     </div>
 
@@ -1171,7 +1184,7 @@ export default function AisSafetyRate() {
               )}
 
               {/* Charts row */}
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-start">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
                 <Card className="border-0 shadow-sm bg-card/60">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm font-bold">TBM AI 분석결과</CardTitle>
@@ -1308,42 +1321,6 @@ export default function AisSafetyRate() {
                   </CardContent>
                 </Card>
 
-                {/* 이슈 현황 — 3번째 컬럼 카드 */}
-                {(comp.issues || []).length > 0 && (
-                  <Card className="border-0 shadow-sm overflow-hidden" style={{ background: 'linear-gradient(135deg,rgba(239,68,68,0.05) 0%,rgba(239,68,68,0.02) 100%)' }}>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-sm font-bold flex items-center gap-2">
-                        <div className="w-5 h-5 rounded-lg bg-red-100 dark:bg-red-900/40 flex items-center justify-center">
-                          <AlertTriangle className="w-3 h-3 text-red-500" />
-                        </div>
-                        이슈 현황
-                        <span className="ml-auto text-[10px] font-normal text-muted-foreground">클릭하여 상세 확인</span>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="pt-0">
-                      <div className="flex flex-col gap-2">
-                        {(comp.issues || []).map((issue) => {
-                          const total = records.length;
-                          const pct = total > 0 ? Math.round(issue.count / total * 100) : 0;
-                          return (
-                            <button key={issue.label} onClick={() => setActiveIssue(issue)}
-                              className="text-left px-3 py-3 rounded-xl border border-red-200/60 dark:border-red-800/60 hover:border-red-400 dark:hover:border-red-600 bg-card/80 hover:shadow-sm transition-all group"
-                              data-testid={`button-issue-${issue.label}`}>
-                              <div className="flex items-center justify-between mb-2">
-                                <span className="text-[11px] font-semibold text-muted-foreground leading-snug">{issue.label}</span>
-                                <span className="text-2xl font-black text-red-600 dark:text-red-400 leading-none">{issue.count}</span>
-                              </div>
-                              <div className="w-full h-1.5 bg-red-100 dark:bg-red-900/30 rounded-full overflow-hidden mb-1.5">
-                                <div className="h-full rounded-full bg-gradient-to-r from-red-500 to-red-400 transition-all duration-700" style={{ width: `${Math.min(pct * 3, 100)}%` }} />
-                              </div>
-                              <p className="text-[10px] text-red-500/70 dark:text-red-400/70 group-hover:text-red-600 transition-colors">전체의 {pct}% · 상세 보기 →</p>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
               </div>
 
               {/* High risk table */}
