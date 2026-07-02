@@ -45,15 +45,15 @@ function isCancelled(r: AisSafetyRecord) {
   return status.includes('취소') || status === '중단' || status === '반납';
 }
 
-function calcCompliance(records: AisSafetyRecord[]) {
+function calcCompliance(records: AisSafetyRecord[], justifiedIds: Set<number> = new Set()) {
   const active = records.filter(r => !isCancelled(r));
   if (!active.length) return { rate: 0, issues: [], highRiskNoPermit: [], tbmUnreg: [], tbmBad: [] };
-  const highRiskNoPermit = active.filter(r => isHighRiskWork(r.highRiskWork) && r.safetyPermit !== 'Y');
+  const highRiskNoPermit = active.filter(r => isHighRiskWork(r.highRiskWork) && r.safetyPermit !== 'Y' && !justifiedIds.has(r.id));
   // TBM 미등록: 취소된 작업은 반드시 제외 (workStatus null 등 예외 상황 대비 이중 확인)
   const tbmUnreg = active.filter(r =>
-    r.tbmResult === '미등록' && !(r.workStatus ?? '').includes('취소')
+    r.tbmResult === '미등록' && !(r.workStatus ?? '').includes('취소') && !justifiedIds.has(r.id)
   );
-  const tbmBad = active.filter(r => r.tbmAiResult === '부적합');
+  const tbmBad = active.filter(r => r.tbmAiResult === '부적합' && !justifiedIds.has(r.id));
   const allItems = [
     { label: '고위험작업 안전허가서 미등록', list: highRiskNoPermit },
     { label: 'TBM 활동 미등록', list: tbmUnreg },
@@ -196,16 +196,17 @@ function CircleGauge({ rate, total, pass: passCount, size = 'lg' }: { rate: numb
 }
 
 // 팀별 현황 카드
-function TeamBreakdown({ records, title, onIssueClick }: {
+function TeamBreakdown({ records, title, onIssueClick, justifiedIds = new Set() }: {
   records: AisSafetyRecord[];
   title: string;
   onIssueClick?: (label: string, list: AisSafetyRecord[]) => void;
+  justifiedIds?: Set<number>;
 }) {
   const teams = [...new Set(records.map(r => r.team).filter(Boolean))] as string[];
   if (teams.length === 0) return null;
   const teamStats = teams.map(team => {
     const tr = records.filter(r => r.team === team);
-    const c = calcCompliance(tr);
+    const c = calcCompliance(tr, justifiedIds);
     const issueList = c.issues.flatMap(i => i.list);
     return { team, count: tr.length, rate: c.rate, issueCount: issueList.length, issueList };
   }).sort((a, b) => b.count - a.count);
@@ -368,6 +369,21 @@ export default function AisSafetyRate() {
     return map;
   }, [allTbmNotes, allRecords]);
 
+  // 소명 완료된 레코드 ID Set (같은 workOrderNo 레코드도 포함)
+  const justifiedRecordIds = useMemo(() => {
+    const ids = new Set<number>();
+    allTbmNotes.forEach(n => {
+      if (n.justificationStatus === '소명완료') {
+        ids.add(n.recordId);
+        const rec = allRecords.find(r => r.id === n.recordId);
+        if (rec?.workOrderNo) {
+          allRecords.filter(r => r.workOrderNo === rec.workOrderNo).forEach(r => ids.add(r.id));
+        }
+      }
+    });
+    return ids;
+  }, [allTbmNotes, allRecords]);
+
   const openTbmNote = (r: AisSafetyRecord) => {
     setTbmNoteType('bad');
     setTbmNoteRecord(r);
@@ -447,7 +463,7 @@ export default function AisSafetyRate() {
     }
   };
 
-  const comp = calcCompliance(activeRecords);
+  const comp = calcCompliance(activeRecords, justifiedRecordIds);
   const teams = [...new Set(records.map(r => r.team).filter(Boolean))];
   const highRiskRecords = activeRecords
     .filter(r => isHighRiskWork(r.highRiskWork))
@@ -509,7 +525,7 @@ export default function AisSafetyRate() {
 
   const teamData = teams.map(team => {
     const tr = activeRecords.filter(r => r.team === team);
-    const c = calcCompliance(tr);
+    const c = calcCompliance(tr, justifiedRecordIds);
     const issueCount = (c.issues || []).reduce((s, i) => s + i.list.length, 0);
     const issueList = (c.issues || []).flatMap(i => i.list);
     return { team: team?.replace('운용팀', '').replace('팀', '') || '미지정', fullTeam: team || '', rate: c.rate, count: tr.length, issueCount, issueList };
@@ -1040,7 +1056,7 @@ export default function AisSafetyRate() {
             <>
               {/* 일단위/월단위 드릴다운 시 팀별 현황 먼저 표시 */}
               {drilldownLabel && (
-                <TeamBreakdown records={records} title={drilldownLabel} onIssueClick={(label, list) => setActiveIssue({ label, list })} />
+                <TeamBreakdown records={records} title={drilldownLabel} onIssueClick={(label, list) => setActiveIssue({ label, list })} justifiedIds={justifiedRecordIds} />
               )}
 
               {/* 통합 KPI 패널 */}
