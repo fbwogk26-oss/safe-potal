@@ -1171,7 +1171,7 @@ export default function AisSafetyRate() {
               )}
 
               {/* Charts row */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
                 <Card className="border-0 shadow-sm bg-card/60">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm font-bold">TBM AI 분석결과</CardTitle>
