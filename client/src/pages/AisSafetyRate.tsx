@@ -1134,26 +1134,34 @@ export default function AisSafetyRate() {
                     <CardTitle className="text-sm font-bold flex items-center gap-2"><ShieldAlert className="w-4 h-4 text-orange-500" />고위험작업 유형별 현황</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-3">
+                    <div className="flex flex-wrap gap-2">
                       {highRiskBreakdown.map(d => {
                         if (d.isNone) return (
-                          <div key="해당없음" className="p-3 rounded-lg border border-dashed border-muted bg-muted/20 text-center">
-                            <p className="text-xs font-semibold text-muted-foreground mb-1">해당없음</p>
-                            <p className="text-2xl font-black text-muted-foreground">{d.total}</p>
-                            <p className="text-xs text-muted-foreground mt-1">일반작업</p>
+                          <div key="해당없음" className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-muted bg-muted/20 min-w-[120px] flex-1">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[10px] font-semibold text-muted-foreground">해당없음</p>
+                              <p className="text-lg font-black text-muted-foreground leading-tight">{d.total}<span className="text-[10px] font-normal ml-0.5">건</span></p>
+                            </div>
+                            <span className="text-[10px] text-muted-foreground">일반작업</span>
                           </div>
                         );
                         const rate = d.total === 0 ? 100 : Math.round((d.permit / d.total) * 100);
+                        if (d.total === 0) return (
+                          <div key={d.type} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-dashed border-muted bg-muted/10 opacity-50">
+                            <span className="text-[10px] font-semibold text-muted-foreground">{d.type}</span>
+                            <span className="text-xs font-black text-muted-foreground">0</span>
+                          </div>
+                        );
                         return (
-                          <div key={d.type} className={`p-3 rounded-lg border bg-card/80 text-center ${d.total === 0 ? 'border-dashed border-muted opacity-50' : ''}`}>
-                            <p className="text-xs font-semibold text-muted-foreground mb-1">{d.type}</p>
-                            <p className={`text-2xl font-black ${d.total === 0 ? 'text-muted-foreground' : ''}`}>{d.total}</p>
-                            {d.total > 0 ? (
-                              <>
-                                <div className="flex items-center justify-center gap-1 mt-1"><RateBadge value={rate} /></div>
-                                {d.noPermit > 0 && <p className="text-xs text-red-600 font-semibold mt-1">미발급 {d.noPermit}</p>}
-                              </>
-                            ) : <p className="text-xs text-muted-foreground mt-1">해당없음</p>}
+                          <div key={d.type} className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-card/80 min-w-[100px] flex-1">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[10px] font-semibold text-muted-foreground">{d.type}</p>
+                              <p className="text-lg font-black leading-tight">{d.total}<span className="text-[10px] font-normal text-muted-foreground ml-0.5">건</span></p>
+                            </div>
+                            <div className="flex flex-col items-end gap-0.5">
+                              <RateBadge value={rate} />
+                              {d.noPermit > 0 && <span className="text-[10px] text-red-600 font-bold">미발급 {d.noPermit}</span>}
+                            </div>
                           </div>
                         );
                       })}
@@ -1172,43 +1180,42 @@ export default function AisSafetyRate() {
                     {tbmAiData.length > 0 ? (() => {
                       const total = tbmAiData.reduce((s, d) => s + d.value, 0);
                       return (
-                        <div className="flex flex-col items-center gap-4">
-                          <div className="relative w-full" style={{ height: 220 }}>
-                            <ResponsiveContainer width="100%" height={220}>
-                              <PieChart>
-                                <Pie data={tbmAiData} cx="50%" cy="50%" innerRadius={68} outerRadius={95}
-                                  dataKey="value" labelLine={false} paddingAngle={2} stroke="none">
-                                  {tbmAiData.map((d, i) => <Cell key={i} fill={d.color} fillOpacity={0.88} />)}
-                                </Pie>
-                                <ReTooltip
-                                  contentStyle={{ borderRadius: 8, border: 'none', boxShadow: '0 4px 16px rgba(0,0,0,0.12)', fontSize: 12 }}
-                                  formatter={(v: any, name: any) => [`${v}건 (${total > 0 ? Math.round(v/total*100) : 0}%)`, name]}
-                                />
-                              </PieChart>
-                            </ResponsiveContainer>
-                            {/* 도넛 중앙 텍스트 */}
+                        <div className="flex flex-col sm:flex-row items-center gap-3">
+                          {/* 도넛 차트 */}
+                          <div className="relative flex-shrink-0" style={{ width: 160, height: 160 }}>
+                            <PieChart width={160} height={160}>
+                              <Pie data={tbmAiData} cx="50%" cy="50%" innerRadius={52} outerRadius={72}
+                                dataKey="value" labelLine={false} paddingAngle={2} stroke="none">
+                                {tbmAiData.map((d, i) => <Cell key={i} fill={d.color} fillOpacity={0.88} />)}
+                              </Pie>
+                              <ReTooltip
+                                contentStyle={{ borderRadius: 8, border: 'none', boxShadow: '0 4px 16px rgba(0,0,0,0.12)', fontSize: 12 }}
+                                formatter={(v: any, name: any) => [`${v}건 (${total > 0 ? Math.round(v/total*100) : 0}%)`, name]}
+                              />
+                            </PieChart>
                             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                              <span className="text-3xl font-black">{total}</span>
-                              <span className="text-xs font-semibold text-muted-foreground">전체 건</span>
+                              <span className="text-2xl font-black">{total}</span>
+                              <span className="text-[10px] font-semibold text-muted-foreground">전체 건</span>
                             </div>
                           </div>
-                          <div className="grid grid-cols-2 gap-2 w-full">
+                          {/* 카드 2x2 */}
+                          <div className="grid grid-cols-2 gap-2 flex-1 w-full">
                             {tbmAiData.map(d => {
                               const pct = total > 0 ? Math.round(d.value / total * 100) : 0;
                               return (
-                                <div key={d.name} className="flex flex-col gap-1.5 p-3 rounded-xl border transition-all hover:shadow-sm" style={{ borderColor: `${d.color}40`, backgroundColor: `${d.color}0d` }}>
+                                <div key={d.name} className="flex flex-col gap-1 p-2.5 rounded-xl border transition-all hover:shadow-sm" style={{ borderColor: `${d.color}40`, backgroundColor: `${d.color}0d` }}>
                                   <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-1.5">
-                                      <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: d.color }} />
-                                      <span className="text-xs font-semibold">{d.name}</span>
+                                    <div className="flex items-center gap-1">
+                                      <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: d.color }} />
+                                      <span className="text-[11px] font-semibold">{d.name}</span>
                                     </div>
-                                    <span className="text-xs font-bold" style={{ color: d.color }}>{pct}%</span>
+                                    <span className="text-[11px] font-bold" style={{ color: d.color }}>{pct}%</span>
                                   </div>
-                                  <div className="flex items-baseline gap-1">
-                                    <span className="text-xl font-black" style={{ color: d.color }}>{d.value}</span>
-                                    <span className="text-xs text-muted-foreground">건</span>
+                                  <div className="flex items-baseline gap-0.5">
+                                    <span className="text-lg font-black" style={{ color: d.color }}>{d.value}</span>
+                                    <span className="text-[10px] text-muted-foreground">건</span>
                                   </div>
-                                  <div className="w-full h-1.5 bg-muted/40 rounded-full overflow-hidden">
+                                  <div className="w-full h-1 bg-muted/40 rounded-full overflow-hidden">
                                     <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, backgroundColor: d.color }} />
                                   </div>
                                 </div>
@@ -1298,46 +1305,39 @@ export default function AisSafetyRate() {
                         <p className="text-[10px] text-muted-foreground text-right pt-1">점선 = 90% 기준선</p>
                       </div>
                     ) : <p className="text-center text-sm text-muted-foreground py-12">데이터 없음</p>}
+                    {/* 이슈 현황 — 팀별 이행률 카드 하단에 인라인 통합 */}
+                    {(comp.issues || []).length > 0 && (
+                      <div className="mt-4 pt-3 border-t">
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
+                          <span className="text-xs font-bold">이슈 현황</span>
+                          <span className="ml-auto text-[10px] text-muted-foreground">클릭하여 상세 확인</span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {(comp.issues || []).map((issue) => {
+                            const total = records.length;
+                            const pct = total > 0 ? Math.round(issue.count / total * 100) : 0;
+                            return (
+                              <button key={issue.label} onClick={() => setActiveIssue(issue)}
+                                className="text-left px-3 py-2.5 rounded-xl border border-red-200/60 dark:border-red-800/60 hover:border-red-400 dark:hover:border-red-600 bg-red-50/40 dark:bg-red-950/10 hover:shadow-sm transition-all group"
+                                data-testid={`button-issue-${issue.label}`}>
+                                <div className="flex items-center justify-between mb-1.5">
+                                  <span className="text-[11px] font-semibold text-muted-foreground leading-snug">{issue.label}</span>
+                                  <span className="text-xl font-black text-red-600 dark:text-red-400 leading-none">{issue.count}</span>
+                                </div>
+                                <div className="w-full h-1 bg-red-100 dark:bg-red-900/30 rounded-full overflow-hidden mb-1">
+                                  <div className="h-full rounded-full bg-gradient-to-r from-red-500 to-red-400 transition-all duration-700" style={{ width: `${Math.min(pct * 3, 100)}%` }} />
+                                </div>
+                                <p className="text-[10px] text-red-500/70 dark:text-red-400/70 group-hover:text-red-600 transition-colors">전체의 {pct}% · 상세 보기 →</p>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </div>
-
-              {/* Issue cards */}
-              {(comp.issues || []).length > 0 && (
-                <Card className="border-0 shadow-sm overflow-hidden" style={{ background: 'linear-gradient(135deg,rgba(239,68,68,0.05) 0%,rgba(239,68,68,0.02) 100%)' }}>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-bold flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-lg bg-red-100 dark:bg-red-900/40 flex items-center justify-center">
-                        <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
-                      </div>
-                      이슈 현황
-                      <span className="ml-auto text-xs font-normal text-muted-foreground">클릭하여 상세 확인</span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                      {(comp.issues || []).map((issue, idx) => {
-                        const total = records.length;
-                        const pct = total > 0 ? Math.round(issue.count / total * 100) : 0;
-                        return (
-                          <button key={issue.label} onClick={() => setActiveIssue(issue)}
-                            className="text-left p-4 rounded-xl border border-red-200/60 dark:border-red-800/60 hover:border-red-400 dark:hover:border-red-600 bg-card/80 hover:shadow-md transition-all group"
-                            data-testid={`button-issue-${issue.label}`}>
-                            <div className="flex items-start justify-between mb-2">
-                              <span className="text-xs font-semibold text-muted-foreground leading-snug">{issue.label}</span>
-                              <span className="text-2xl font-black text-red-600 dark:text-red-400 leading-none">{issue.count}</span>
-                            </div>
-                            <div className="w-full h-1.5 bg-red-100 dark:bg-red-900/30 rounded-full overflow-hidden mb-2">
-                              <div className="h-full rounded-full bg-gradient-to-r from-red-500 to-red-400 transition-all duration-700" style={{ width: `${Math.min(pct * 3, 100)}%` }} />
-                            </div>
-                            <p className="text-xs text-red-500/70 dark:text-red-400/70 group-hover:text-red-600 dark:group-hover:text-red-300 transition-colors">전체의 {pct}% · 상세 보기 →</p>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
 
               {/* High risk table */}
               {highRiskRecords.length > 0 && (() => {
