@@ -519,11 +519,15 @@ export default function AisSafetyRate() {
 
   const dailyTrendData = useMemo(() => {
     const valid = dailyGroups.filter(g => g.date !== '날짜 미상' && /^\d{4}-\d{2}-\d{2}$/.test(g.date));
-    if (!valid.length) return [];
-    return valid
-      .filter(g => g.date.startsWith(calendarMonth))
-      .reverse()
-      .map(g => ({ date: g.date.replace(/^\d{4}-\d{2}-/, ''), rate: g.rate, count: g.records.length, fullDate: g.date }));
+    const [yr, mo] = calendarMonth.split('-').map(Number);
+    const daysInMonth = new Date(yr, mo, 0).getDate();
+    const dataMap = new Map(valid.filter(g => g.date.startsWith(calendarMonth)).map(g => [g.date, g]));
+    return Array.from({ length: daysInMonth }, (_, i) => {
+      const d = i + 1;
+      const dateStr = `${yr}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const g = dataMap.get(dateStr);
+      return { date: String(d), rate: g ? g.rate : null as any, count: g ? g.records.length : 0, fullDate: dateStr, hasData: !!g };
+    });
   }, [dailyGroups, calendarMonth]);
 
   const monthlyTrendData = monthlyGroups.filter(g => g.month !== '월 미상').slice(0, 12).reverse()
@@ -778,7 +782,7 @@ export default function AisSafetyRate() {
                   </div>
                 ) : (
                   <>
-                    {dailyTrendData.length > 1 && (
+                    {dailyTrendData.length > 0 && (
                       <div>
                         <p className="text-xs font-semibold text-muted-foreground mb-2">
                           일별 이행률 추세 ({calendarMonth} — {dailyTrendData.length}일 데이터)
@@ -788,22 +792,22 @@ export default function AisSafetyRate() {
                             <span className="inline-block w-6 border-t-2 border-dashed border-indigo-400" />목표 90%
                           </span>
                         </div>
-                        <ResponsiveContainer width="100%" height={165}>
-                          <BarChart data={dailyTrendData} margin={{ left: -15, right: 12, top: 4, bottom: 0 }} barCategoryGap="30%">
+                        <ResponsiveContainer width="100%" height={190}>
+                          <BarChart data={dailyTrendData} margin={{ left: -15, right: 12, top: 20, bottom: 0 }} barCategoryGap="30%">
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="currentColor" strokeOpacity={0.08} />
-                            <XAxis dataKey="date" tick={{ fontSize: 9, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                            <YAxis domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 9, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={36} />
+                            <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} interval={1} />
+                            <YAxis domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} width={36} />
                             <ReTooltip
                               contentStyle={{ borderRadius: 8, border: 'none', boxShadow: '0 4px 16px rgba(0,0,0,0.12)', fontSize: 12 }}
                               formatter={(v: any, _: any, p: any) => [`${v}% · ${p.payload.count}건`, '이행률']}
                               cursor={{ fill: 'rgba(99,102,241,0.06)' }}
                             />
                             <ReferenceLine y={90} stroke="#6366f1" strokeDasharray="4 3" strokeWidth={1.5} />
-                            <Bar dataKey="rate" radius={[4, 4, 2, 2]} maxBarSize={28} onClick={(d) => setSelectedDate(d.fullDate)} cursor="pointer">
+                            <Bar dataKey="rate" radius={[4, 4, 2, 2]} maxBarSize={28} onClick={(d) => d.hasData && setSelectedDate(d.fullDate)} cursor="pointer">
                               {dailyTrendData.map((entry, i) => (
-                                <Cell key={i} fill={entry.rate >= 90 ? '#22c55e' : entry.rate >= 70 ? '#f59e0b' : '#ef4444'} fillOpacity={0.85} />
+                                <Cell key={i} fill={entry.hasData ? (entry.rate >= 90 ? '#22c55e' : entry.rate >= 70 ? '#f59e0b' : '#ef4444') : '#e2e8f0'} fillOpacity={entry.hasData ? 0.85 : 0.5} />
                               ))}
-                              <LabelList dataKey="rate" position="insideTop" formatter={(v: any) => v >= 50 ? `${v}` : ''} style={{ fontSize: 8, fontWeight: 700, fill: '#fff' }} />
+                              <LabelList dataKey="rate" position="top" formatter={(v: any) => v !== null && v !== undefined ? `${v}%` : ''} style={{ fontSize: 9, fontWeight: 700, fill: '#475569' }} />
                             </Bar>
                           </BarChart>
                         </ResponsiveContainer>
@@ -928,11 +932,11 @@ export default function AisSafetyRate() {
                             <span className="inline-block w-6 border-t-2 border-dashed border-indigo-400" />목표 90%
                           </span>
                         </div>
-                        <ResponsiveContainer width="100%" height={165}>
+                        <ResponsiveContainer width="100%" height={190}>
                           <BarChart data={monthlyTrendData} margin={{ left: -15, right: 12, top: 4, bottom: 0 }} barCategoryGap="35%">
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="currentColor" strokeOpacity={0.08} />
                             <XAxis dataKey="month" tick={{ fontSize: 9, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                            <YAxis domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 9, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={36} />
+                            <YAxis domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} width={36} />
                             <ReTooltip
                               contentStyle={{ borderRadius: 8, border: 'none', boxShadow: '0 4px 16px rgba(0,0,0,0.12)', fontSize: 12 }}
                               formatter={(v: any, _: any, p: any) => [`${v}% · ${p.payload.count}건`, '이행률']}
@@ -941,7 +945,7 @@ export default function AisSafetyRate() {
                             <ReferenceLine y={90} stroke="#6366f1" strokeDasharray="4 3" strokeWidth={1.5} />
                             <Bar dataKey="rate" radius={[6, 6, 2, 2]} maxBarSize={52} onClick={(d) => setSelectedMonth(d.month)} cursor="pointer">
                               {monthlyTrendData.map((entry, i) => (
-                                <Cell key={i} fill={entry.rate >= 90 ? '#22c55e' : entry.rate >= 70 ? '#f59e0b' : '#ef4444'} fillOpacity={0.85} />
+                                <Cell key={i} fill={entry.hasData ? (entry.rate >= 90 ? '#22c55e' : entry.rate >= 70 ? '#f59e0b' : '#ef4444') : '#e2e8f0'} fillOpacity={entry.hasData ? 0.85 : 0.5} />
                               ))}
                               <LabelList dataKey="rate" position="insideTop" formatter={(v: any) => `${v}%`} style={{ fontSize: 10, fontWeight: 700, fill: '#fff' }} />
                             </Bar>
