@@ -1306,51 +1306,6 @@ export default function AisSafetyRate() {
                           <p className="text-[11px] text-muted-foreground">이슈 없음</p>
                         )}
                       </div>
-                      {/* TBM 등록률 + AI 적합률 바 */}
-                      <div className="p-4 flex flex-col justify-center gap-3">
-                        <div className="flex items-center gap-2 mb-1">
-                          <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 bg-blue-100 dark:bg-blue-900/40">
-                            <Users className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                          </div>
-                          <span className="text-sm font-semibold text-muted-foreground">TBM 분석결과</span>
-                        </div>
-                        {(() => {
-                          const item = complianceItems[1];
-                          const r = item.total === 0 ? 100 : Math.round((item.pass / item.total) * 100);
-                          const bc = r >= 90 ? '#22c55e' : r >= 70 ? '#f59e0b' : '#ef4444';
-                          return (
-                            <div>
-                              <div className="flex justify-between mb-1">
-                                <span className="text-xs text-muted-foreground">TBM 등록</span>
-                                <div className="flex items-center gap-1">
-                                  {item.total - item.pass > 0 && <span className="text-[10px] font-bold text-red-500">미이행 {item.total - item.pass}건</span>}
-                                  <span className="text-xs font-bold" style={{ color: bc }}>{r}%</span>
-                                </div>
-                              </div>
-                              <div className="w-full h-3 bg-muted/40 rounded-full overflow-hidden">
-                                <div className="h-full rounded-full transition-all duration-700"
-                                  style={{ width:`${r}%`, background:`linear-gradient(90deg,${bc}88,${bc})` }} />
-                              </div>
-                            </div>
-                          );
-                        })()}
-                        {(() => {
-                          const r = tbmOverallAiRate;
-                          const bc = r >= 90 ? '#0ea5e9' : r >= 70 ? '#f59e0b' : '#ef4444';
-                          return (
-                            <div>
-                              <div className="flex justify-between mb-1">
-                                <span className="text-xs text-muted-foreground">AI 적합</span>
-                                <span className="text-xs font-bold" style={{ color: bc }}>{r}%</span>
-                              </div>
-                              <div className="w-full h-3 bg-muted/40 rounded-full overflow-hidden">
-                                <div className="h-full rounded-full transition-all duration-700"
-                                  style={{ width:`${r}%`, background:`linear-gradient(90deg,${bc}88,${bc})` }} />
-                              </div>
-                            </div>
-                          );
-                        })()}
-                      </div>
                       </div>
                     </div>
                   </div>
@@ -1364,45 +1319,53 @@ export default function AisSafetyRate() {
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-stretch">
                 <Card className="border-0 shadow-sm bg-card/60 flex flex-col">
                   <CardHeader className="pb-2 pt-3 px-4">
-                    <CardTitle className="text-sm font-bold">TBM 이행률</CardTitle>
+                    <CardTitle className="text-sm font-bold flex items-center gap-2">
+                      <span className="flex items-center justify-center w-5 h-5 rounded bg-blue-100 dark:bg-blue-900/40">
+                        <Users className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+                      </span>
+                      TBM AI 분석결과
+                    </CardTitle>
                   </CardHeader>
                   <CardContent className="px-4 pb-4 pt-1 flex-1 flex flex-col justify-center">
                     {(() => {
-                      const purePass = tbmBase.filter(r => r.tbmResult === '등록').length;
-                      const justified = tbmBase.filter(r => r.tbmResult !== '등록' && justifiedRecordIds.has(r.id)).length;
-                      const total = tbmBase.length;
-                      const fail = Math.max(0, total - purePass - justified);
-                      const rate = total === 0 ? 100 : Math.round(((purePass + justified) / total) * 100);
-                      const donutData = total === 0
-                        ? [{ name: '데이터없음', value: 1, color: '#6366f1' }]
-                        : [
-                            { name: '이행', value: purePass, color: '#22c55e' },
-                            { name: '소명완료', value: justified, color: '#f59e0b' },
-                            { name: '미이행', value: fail, color: '#ef4444' },
-                          ].filter(d => d.value > 0);
+                      const total = tbmAiData.reduce((s, d) => s + d.value, 0);
+                      const fit = tbmAiData.find(d => d.name === '적합')?.value ?? 0;
+                      const bad = tbmAiData.find(d => d.name === '부적합')?.value ?? 0;
+                      const analyzing = tbmAiData.find(d => d.name === '분석중')?.value ?? 0;
+                      const pending = tbmAiData.find(d => d.name === '분析전')?.value ?? 0;
+                      const justified = justifiedBadCount;
+                      const stackData = [
+                        { name: '적합', value: fit, color: '#22c55e' },
+                        { name: '소명완료', value: justified, color: '#f59e0b' },
+                        { name: '부적합', value: bad, color: '#ef4444' },
+                        { name: '분석전', value: pending + analyzing, color: '#94a3b8' },
+                      ].filter(d => d.value > 0);
                       return (
                         <div className="flex flex-col gap-4 w-full">
                           <div className="flex items-baseline gap-1.5">
                             <span className="text-4xl font-black">{total}</span>
                             <span className="text-sm text-muted-foreground font-semibold">전체 건</span>
                           </div>
+                          {/* 수평 스택바 */}
                           <div className="w-full h-9 rounded-xl overflow-hidden flex shadow-inner">
-                            {donutData.map((d) => {
+                            {stackData.map((d) => {
                               const pct = total > 0 ? (d.value / total) * 100 : 0;
                               return (
                                 <div key={d.name} style={{ width:`${pct}%`, backgroundColor:d.color, opacity:0.88 }}
                                   className="h-full relative flex items-center justify-center transition-all duration-700"
                                   title={`${d.name}: ${d.value}건 (${Math.round(pct)}%)`}>
-                                  {pct > 9 && <span className="text-white text-[10px] font-black drop-shadow">{d.value}</span>}
+                                  {pct > 9 && <span className="text-white text-[10px] font-black drop-shadow">{d.value}건</span>}
                                 </div>
                               );
                             })}
                           </div>
+                          {/* 항목 breakdown */}
                           <div className="grid grid-cols-2 gap-2 w-full">
                             {[
-                              { name: '이행', value: purePass, color: '#22c55e' },
+                              { name: '적합', value: fit, color: '#22c55e' },
                               { name: '소명완료', value: justified, color: '#f59e0b' },
-                              { name: '미이행', value: fail, color: '#ef4444' },
+                              { name: '부적합', value: bad, color: '#ef4444' },
+                              { name: '분析전', value: pending + analyzing, color: '#94a3b8' },
                             ].map(d => {
                               const pct = total > 0 ? Math.round(d.value / total * 100) : 0;
                               return (
