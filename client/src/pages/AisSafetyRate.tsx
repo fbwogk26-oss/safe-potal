@@ -1166,17 +1166,17 @@ export default function AisSafetyRate() {
                     <div className="flex flex-col items-center justify-center py-4 px-4 gap-2 flex-1">
                       <p className="text-[10px] font-bold text-blue-200 uppercase tracking-widest">TBM 이행률</p>
                       {(() => {
-                        const purePass = tbmBase.filter(r => r.tbmResult === '등록' && r.tbmAiResult === '적합').length;
-                        const justified = tbmBase.filter(r => justifiedRecordIds.has(r.id) && !(r.tbmResult === '등록' && r.tbmAiResult === '적합')).length;
+                        const purePass = tbmBase.filter(r => r.tbmResult === '등록').length;
+                        const justified = tbmBase.filter(r => r.tbmResult !== '등록' && justifiedRecordIds.has(r.id)).length;
                         const total = tbmBase.length;
                         const fail = Math.max(0, total - purePass - justified);
                         const rate = total === 0 ? 100 : Math.round(((purePass + justified) / total) * 100);
                         const donutData = total === 0
                           ? [{ name: '데이터없음', value: 1, color: '#6366f1' }]
                           : [
-                              { name: '이행', value: purePass, color: '#22c55e' },
+                              { name: '이행(등록)', value: purePass, color: '#22c55e' },
                               { name: '소명완료', value: justified, color: '#f59e0b' },
-                              { name: '미이행', value: fail, color: '#ef4444' },
+                              { name: '미이행(미등록)', value: fail, color: '#ef4444' },
                             ].filter(d => d.value > 0);
                         return (
                           <div className="flex flex-col items-center gap-2 w-full">
