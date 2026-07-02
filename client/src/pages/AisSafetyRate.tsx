@@ -1161,10 +1161,21 @@ export default function AisSafetyRate() {
                     })()}
                   </div>
 
+                  {/* TBM 전체 이행률 */}
+                  <div className="lg:w-52 flex-shrink-0 flex flex-col items-center justify-center py-4 px-4 text-white gap-2"
+                    style={{ background:'linear-gradient(160deg,#1d4ed8 0%,#2563eb 55%,#4f46e5 100%)', boxShadow:'inset -4px 0 16px rgba(0,0,0,0.15)' }}>
+                    <p className="text-[10px] font-bold text-blue-200 uppercase tracking-widest">TBM 이행률</p>
+                    <CircleGauge rate={tbmFullRate} size="sm" />
+                    <p className="text-[11px] text-blue-200 mt-1 text-center leading-tight">
+                      {tbmBase.filter(r => (r.tbmResult === '등록' || justifiedRecordIds.has(r.id)) && (r.tbmAiResult === '적합' || justifiedRecordIds.has(r.id))).length}건 / {tbmBase.length}건
+                    </p>
+                    <p className="text-[9px] text-blue-300/70 text-center">등록·AI 적합 모두 충족</p>
+                  </div>
+
                   {/* 오른쪽: KPI + Compliance 통합 */}
                   <div className="flex-1 divide-y divide-border/60">
                     {/* 상단: KPI 2열 */}
-                    <div className="grid grid-cols-2 divide-x divide-border/60">
+                    <div className="grid grid-cols-[minmax(0,210px)_1fr] divide-x divide-border/60">
                       {/* 6대 고위험 */}
                       <div className="p-3 flex flex-col gap-1.5">
                         <div className="flex items-center gap-1.5">
@@ -1224,7 +1235,7 @@ export default function AisSafetyRate() {
 
 
                     {/* 하단: 안전허가서 정보 | TBM 파란 게이지 | TBM 등록/AI 바 */}
-                    <div className="grid grid-cols-[1fr_auto_1fr] divide-x divide-border/60">
+                    <div className="grid grid-cols-2 divide-x divide-border/60">
                       {/* 안전허가서 매칭 정보 */}
                       {(() => {
                         const item = complianceItems[0];
@@ -1265,16 +1276,6 @@ export default function AisSafetyRate() {
                           </div>
                         );
                       })()}
-                      {/* TBM 전체 이행률 - 왼쪽 게이지와 동일한 파란 배경 스타일 */}
-                      <div className="flex flex-col items-center justify-center py-3 px-3 text-white gap-1.5 w-36 h-full"
-                        style={{ background:'linear-gradient(160deg,#1d4ed8 0%,#2563eb 55%,#4f46e5 100%)', boxShadow:'inset -4px 0 16px rgba(0,0,0,0.15)' }}>
-                        <p className="text-[10px] font-bold text-blue-200 uppercase tracking-widest">TBM 이행률</p>
-                        <CircleGauge rate={tbmFullRate} size="xs" />
-                        <p className="text-[11px] text-blue-200 mt-0.5 text-center leading-tight">
-                          {tbmBase.filter(r => (r.tbmResult === '등록' || justifiedRecordIds.has(r.id)) && (r.tbmAiResult === '적합' || justifiedRecordIds.has(r.id))).length}건 / {tbmBase.length}건
-                        </p>
-                        <p className="text-[9px] text-blue-300/70 text-center">등록·AI 적합 모두 충족</p>
-                      </div>
                       {/* TBM 등록률 + AI 적합률 바 */}
                       <div className="p-4 flex flex-col justify-center gap-3">
                         <div className="flex items-center gap-2 mb-1">
