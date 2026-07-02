@@ -197,14 +197,14 @@ function getHighRiskBreakdown(records: AisSafetyRecord[]) {
   return types;
 }
 
-function CircleGauge({ rate, total, pass: passCount, size = 'lg' }: { rate: number; total?: number; pass?: number; size?: 'lg' | 'sm' }) {
+function CircleGauge({ rate, total, pass: passCount, size = 'lg' }: { rate: number; total?: number; pass?: number; size?: 'lg' | 'sm' | 'xs' }) {
   const r = 50, circ = 2 * Math.PI * r, dash = (rate / 100) * circ;
   const color = rate >= 90 ? '#22c55e' : rate >= 70 ? '#f59e0b' : '#ef4444';
   const label = rate >= 90 ? '우수' : rate >= 70 ? '양호' : '주의';
   const gid = `cg-grad-${rate}-${size}`;
-  const wh = size === 'sm' ? 'w-24 h-24' : 'w-44 h-44';
-  const numSz = size === 'sm' ? 'text-3xl' : 'text-5xl';
-  const pctSz = size === 'sm' ? 'text-xs' : 'text-base';
+  const wh = size === 'xs' ? 'w-16 h-16' : size === 'sm' ? 'w-24 h-24' : 'w-44 h-44';
+  const numSz = size === 'xs' ? 'text-xl' : size === 'sm' ? 'text-3xl' : 'text-5xl';
+  const pctSz = size === 'xs' ? 'text-[9px]' : size === 'sm' ? 'text-xs' : 'text-base';
   return (
     <div className="flex flex-col items-center gap-1.5">
       <div className={`relative ${wh}`}>
@@ -583,6 +583,18 @@ export default function AisSafetyRate() {
     { label: '안전허가서 매칭', icon: ShieldCheck, total: highRiskRecords.length, pass: highRiskRecords.filter(r => r.safetyPermit === 'Y').length, description: '고위험작업 시 안전허가서 등록', emptyLabel: '고위험작업 없음' },
     { label: 'TBM 등록률', icon: Users, total: activeRecords.filter(r => !isCancelled(r)).length, pass: activeRecords.filter(r => !isCancelled(r) && (r.tbmResult === '등록' || (r.tbmResult === '미등록' && justifiedRecordIds.has(r.id)))).length, description: 'TBM 활동 등록 여부 (소명완료 포함)', emptyLabel: '데이터 없음' },
   ];
+
+  // TBM 종합 이행률 (등록 AND AI적합 모두 충족)
+  const tbmBase = activeRecords.filter(r => !isCancelled(r));
+  const tbmFullRate = tbmBase.length > 0
+    ? Math.round(tbmBase.filter(r =>
+        (r.tbmResult === '등록' || justifiedRecordIds.has(r.id)) &&
+        (r.tbmAiResult === '적합' || justifiedRecordIds.has(r.id))
+      ).length / tbmBase.length * 100)
+    : 100;
+  const tbmOverallAiRate = tbmBase.length > 0
+    ? Math.round(tbmBase.filter(r => r.tbmAiResult === '적합' || justifiedRecordIds.has(r.id)).length / tbmBase.length * 100)
+    : 100;
 
   const dailyTrendData = useMemo(() => {
     const valid = dailyGroups.filter(g => g.date !== '날짜 미상' && /^\d{4}-\d{2}-\d{2}$/.test(g.date));
@@ -1110,23 +1122,44 @@ export default function AisSafetyRate() {
               {/* 통합 KPI 패널 */}
               <Card className="overflow-hidden border-0 shadow-md">
                 <div className="flex flex-col lg:flex-row">
-                  {/* 왼쪽: 원형 게이지 */}
-                  <div className="lg:w-44 flex-shrink-0 flex flex-row lg:flex-col items-center justify-center py-3 px-4 lg:py-4 lg:px-5 text-white gap-2 lg:gap-1"
+                  {/* 왼쪽: 6대 고위험 안전허가서 매칭 그래프 */}
+                  <div className="lg:w-56 flex-shrink-0 flex flex-col justify-center py-3 px-4 lg:py-4 lg:px-5 text-white gap-2"
                     style={{ background:'linear-gradient(160deg,#1d4ed8 0%,#2563eb 55%,#4f46e5 100%)', boxShadow:'inset -4px 0 16px rgba(0,0,0,0.15)' }}>
-                    <p className="text-[10px] font-bold text-blue-200 uppercase tracking-widest mb-1 hidden lg:block">전체 이행률</p>
-                    <CircleGauge rate={comp.rate} size="sm" />
-                    <p className="text-[11px] text-blue-200 mt-1 text-center leading-tight">
-                      {records.length - (comp.issues||[]).reduce((a,b)=>a+b.count,0)}건 이행 / {records.length}건
-                    </p>
-                    {(comp.issues||[]).length > 0 && (
-                      <div className="flex flex-wrap gap-1 justify-center mt-1">
-                        {(comp.issues||[]).map(issue => (
-                          <span key={issue.label} className="text-[10px] bg-white/10 text-blue-100 px-1.5 py-0.5 rounded-full whitespace-nowrap">
-                            {issue.label} <span className="font-bold text-white">{issue.count}</span>
-                          </span>
-                        ))}
-                      </div>
-                    )}
+                    <p className="text-[10px] font-bold text-blue-200 uppercase tracking-widest">고위험 안전허가서</p>
+                    <div className="flex flex-col gap-1.5">
+                      {highRiskBreakdown.filter(d => !d.isNone).map(d => {
+                        const pRate = d.total === 0 ? 0 : Math.round((d.permit / d.total) * 100);
+                        const bc = d.total === 0 ? '#6366f1' : pRate === 100 ? '#22c55e' : pRate >= 70 ? '#f59e0b' : '#ef4444';
+                        return (
+                          <div key={d.type}>
+                            <div className="flex items-center justify-between mb-0.5">
+                              <span className="text-[10px] font-semibold text-blue-100">{d.type}</span>
+                              {d.total > 0 ? (
+                                <div className="flex items-center gap-1">
+                                  <span className="text-[9px] text-blue-200">{d.permit}/{d.total}</span>
+                                  <span className="text-[9px] font-bold" style={{ color: bc }}>{pRate}%</span>
+                                </div>
+                              ) : (
+                                <span className="text-[9px] text-blue-300/50">없음</span>
+                              )}
+                            </div>
+                            <div className="w-full h-1.5 rounded-full bg-white/10 overflow-hidden">
+                              <div className="h-full rounded-full transition-all duration-700"
+                                style={{ width: `${d.total === 0 ? 0 : pRate}%`, backgroundColor: bc, opacity: 0.9 }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {(() => {
+                      const noP = highRiskBreakdown.filter(d => !d.isNone).reduce((s, d) => s + d.noPermit, 0);
+                      const tot = highRiskBreakdown.filter(d => !d.isNone).reduce((s, d) => s + d.total, 0);
+                      return tot > 0 ? (
+                        <p className="text-[10px] text-blue-200 mt-0.5">
+                          전체 {tot}건 · 미매칭 <span className={`font-bold ${noP > 0 ? 'text-red-300' : 'text-emerald-300'}`}>{noP}건</span>
+                        </p>
+                      ) : <p className="text-[10px] text-blue-300/60">고위험작업 없음</p>;
+                    })()}
                   </div>
 
                   {/* 오른쪽: KPI + Compliance 통합 */}
@@ -1190,9 +1223,12 @@ export default function AisSafetyRate() {
                       </div>
                     </div>
 
-                    {/* 하단: Compliance 2열 */}
+
+                    {/* 하단: Compliance - 안전허가서 + TBM 영역 */}
                     <div className="grid grid-cols-2 divide-x divide-border/60">
-                      {complianceItems.map(item => {
+                      {/* 안전허가서 매칭 */}
+                      {(() => {
+                        const item = complianceItems[0];
                         const rate = item.total === 0 ? 100 : Math.round((item.pass / item.total) * 100);
                         const fail = item.total - item.pass;
                         const Icon = item.icon;
@@ -1229,7 +1265,59 @@ export default function AisSafetyRate() {
                             )}
                           </div>
                         );
-                      })}
+                      })()}
+                      {/* TBM 영역: 전체 이행률 게이지 + 등록률/AI적합 바 */}
+                      <div className="p-3 flex flex-col gap-2">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 bg-blue-100 dark:bg-blue-900/30">
+                            <Users className="w-4.5 h-4.5 text-blue-600 dark:text-blue-400" />
+                          </div>
+                          <span className="text-sm font-semibold text-muted-foreground">TBM 이행률</span>
+                          <span className="ml-auto"><RateBadge value={tbmFullRate} /></span>
+                        </div>
+                        {/* TBM 전체 이행률 게이지 */}
+                        <div className="flex items-center gap-3">
+                          <CircleGauge rate={tbmFullRate} size="xs" />
+                          <div className="flex-1 flex flex-col gap-2">
+                            {/* TBM 등록률 바 */}
+                            {(() => {
+                              const item = complianceItems[1];
+                              const r = item.total === 0 ? 100 : Math.round((item.pass / item.total) * 100);
+                              const bc = r >= 90 ? '#22c55e' : r >= 70 ? '#f59e0b' : '#ef4444';
+                              return (
+                                <div>
+                                  <div className="flex justify-between mb-0.5">
+                                    <span className="text-[10px] text-muted-foreground">TBM 등록</span>
+                                    <span className="text-[10px] font-bold" style={{ color: bc }}>{r}%</span>
+                                  </div>
+                                  <div className="w-full h-2.5 bg-muted/40 rounded-full overflow-hidden">
+                                    <div className="h-full rounded-full transition-all duration-700"
+                                      style={{ width:`${r}%`, background:`linear-gradient(90deg,${bc}88,${bc})` }} />
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                            {/* TBM AI 적합률 바 */}
+                            {(() => {
+                              const r = tbmOverallAiRate;
+                              const bc = r >= 90 ? '#0ea5e9' : r >= 70 ? '#f59e0b' : '#ef4444';
+                              return (
+                                <div>
+                                  <div className="flex justify-between mb-0.5">
+                                    <span className="text-[10px] text-muted-foreground">AI 적합</span>
+                                    <span className="text-[10px] font-bold" style={{ color: bc }}>{r}%</span>
+                                  </div>
+                                  <div className="w-full h-2.5 bg-muted/40 rounded-full overflow-hidden">
+                                    <div className="h-full rounded-full transition-all duration-700"
+                                      style={{ width:`${r}%`, background:`linear-gradient(90deg,${bc}88,${bc})` }} />
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground">TBM 등록·AI 적합 모두 충족 기준</p>
+                      </div>
                     </div>
                   </div>
                 </div>
