@@ -1035,9 +1035,9 @@ export default function AisSafetyRate() {
                   </div>
 
                   {/* 오른쪽: KPI + Compliance 통합 */}
-                  <div className="flex-1 divide-y divide-border/60">
-                    {/* 상단: 3개 KPI 수치 */}
-                    <div className="grid grid-cols-2 divide-x divide-border/60">
+                  <div className="flex-1">
+                    {/* KPI 4열 단일 그리드 */}
+                    <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-y lg:divide-y-0 divide-border/60">
                       {/* 6대 고위험 */}
                       <div className="p-3 flex flex-col gap-1.5">
                         <div className="flex items-center gap-1.5">
@@ -1053,7 +1053,7 @@ export default function AisSafetyRate() {
                         )}
                         {highRiskBreakdown.length > 0 && (
                           <div className="flex flex-col gap-0.5 mt-0.5">
-                            {highRiskBreakdown.filter(d => !d.isNone).map(d => {
+                            {highRiskBreakdown.filter(d => !d.isNone && d.total > 0).map(d => {
                               const rate = d.total === 0 ? 100 : Math.round((d.permit / d.total) * 100);
                               return (
                                 <div key={d.type} className={`flex items-center justify-between px-2 py-0.5 rounded-md ${d.total === 0 ? 'opacity-40' : 'bg-orange-50/60 dark:bg-orange-950/20'}`}>
@@ -1093,10 +1093,7 @@ export default function AisSafetyRate() {
                           <p className="text-[11px] text-muted-foreground">이슈 없음</p>
                         )}
                       </div>
-                    </div>
 
-                    {/* 하단: Compliance 진행바 */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 divide-x divide-border/60">
                       {complianceItems.map(item => {
                         const rate = item.total === 0 ? 100 : Math.round((item.pass / item.total) * 100);
                         const fail = item.total - item.pass;
