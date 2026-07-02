@@ -1122,60 +1122,27 @@ export default function AisSafetyRate() {
               {/* 통합 KPI 패널 */}
               <Card className="overflow-hidden border-0 shadow-md">
                 <div className="flex flex-col lg:flex-row">
-                  {/* 왼쪽: 안전허가서 매칭 도넛 그래프 */}
+                  {/* 왼쪽: 전체 이행률 */}
                   <div className="lg:w-52 flex-shrink-0 flex flex-col items-center justify-center py-4 px-4 text-white gap-2"
                     style={{ background:'linear-gradient(160deg,#1d4ed8 0%,#2563eb 55%,#4f46e5 100%)', boxShadow:'inset -4px 0 16px rgba(0,0,0,0.15)' }}>
-                    <p className="text-[10px] font-bold text-blue-200 uppercase tracking-widest">안전허가서 매칭</p>
+                    <p className="text-[10px] font-bold text-blue-200 uppercase tracking-widest">전체 이행률</p>
+                    <CircleGauge rate={tbmFullRate} size="sm" />
+                    <p className="text-[11px] text-blue-200 mt-1 text-center leading-tight">
+                      {tbmBase.filter(r => (r.tbmResult === '등록' || justifiedRecordIds.has(r.id)) && (r.tbmAiResult === '적합' || justifiedRecordIds.has(r.id))).length}건 이행 / {tbmBase.length}건
+                    </p>
                     {(() => {
-                      const total = highRiskRecords.length;
-                      const pass = highRiskRecords.filter(r => r.safetyPermit === 'Y').length;
-                      const fail = total - pass;
-                      const rate = total === 0 ? 100 : Math.round((pass / total) * 100);
-                      const color = rate >= 90 ? '#22c55e' : rate >= 70 ? '#f59e0b' : '#ef4444';
-                      const donutData = total === 0
-                        ? [{ name: '데이터없음', value: 1, color: '#6366f1' }]
-                        : [
-                            { name: '매칭', value: pass, color: '#22c55e' },
-                            { name: '미매칭', value: fail > 0 ? fail : 0, color: '#ef4444' },
-                          ].filter(d => d.value > 0);
-                      return (
-                        <div className="flex flex-col items-center gap-2 w-full">
-                          <div className="relative">
-                            <PieChart width={104} height={104}>
-                              <Pie data={donutData} cx={47} cy={47} innerRadius={30} outerRadius={46} paddingAngle={fail > 0 ? 3 : 0} dataKey="value" startAngle={90} endAngle={-270}>
-                                {donutData.map((entry, idx) => <Cell key={idx} fill={entry.color} opacity={0.9} />)}
-                              </Pie>
-                            </PieChart>
-                            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                              <span className="text-2xl font-black text-white leading-none">{rate}</span>
-                              <span className="text-[9px] text-white/70 font-bold">%</span>
-                            </div>
-                          </div>
-                          <div className="flex gap-3 text-[9px]">
-                            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-emerald-400 inline-block"></span>매칭 {pass}건</span>
-                            {fail > 0 && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-red-400 inline-block"></span>미매칭 {fail}건</span>}
-                          </div>
-                          {total === 0 && <p className="text-[10px] text-blue-300/60">고위험작업 없음</p>}
-                        </div>
-                      );
+                      const aiIssue = (comp.issues || []).find(i => i.label.includes('TBM AI'));
+                      return aiIssue && aiIssue.count > 0 ? (
+                        <p className="text-[10px] text-red-300 font-bold">TBM AI 부적합 {aiIssue.count}</p>
+                      ) : null;
                     })()}
                   </div>
 
-                  {/* TBM 전체 이행률 */}
-                  <div className="lg:w-52 flex-shrink-0 flex flex-col items-center justify-center py-4 px-4 text-white gap-2"
-                    style={{ background:'linear-gradient(160deg,#1d4ed8 0%,#2563eb 55%,#4f46e5 100%)', boxShadow:'inset -4px 0 16px rgba(0,0,0,0.15)' }}>
-                    <p className="text-[10px] font-bold text-blue-200 uppercase tracking-widest">TBM 이행률</p>
-                    <CircleGauge rate={tbmFullRate} size="sm" />
-                    <p className="text-[11px] text-blue-200 mt-1 text-center leading-tight">
-                      {tbmBase.filter(r => (r.tbmResult === '등록' || justifiedRecordIds.has(r.id)) && (r.tbmAiResult === '적합' || justifiedRecordIds.has(r.id))).length}건 / {tbmBase.length}건
-                    </p>
-                    <p className="text-[9px] text-blue-300/70 text-center">등록·AI 적합 모두 충족</p>
-                  </div>
-
                   {/* 오른쪽: KPI + Compliance 통합 */}
-                  <div className="flex-1 divide-y divide-border/60">
-                    {/* 상단: KPI 2열 */}
-                    <div className="grid grid-cols-[minmax(0,210px)_1fr] divide-x divide-border/60">
+                  <div className="flex-1">
+                    <div className="grid grid-cols-[minmax(0,220px)_auto_1fr] divide-x divide-border/60 h-full">
+                      {/* 1열: 6대 고위험 + 안전허가서 매칭 */}
+                      <div className="flex flex-col divide-y divide-border/60">
                       {/* 6대 고위험 */}
                       <div className="p-3 flex flex-col gap-1.5">
                         <div className="flex items-center gap-1.5">
@@ -1207,35 +1174,6 @@ export default function AisSafetyRate() {
                           </div>
                         )}
                       </div>
-                      {/* 이슈사항 */}
-                      <div className="p-3 flex flex-col gap-1.5">
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-6 h-6 rounded-md bg-red-100 dark:bg-red-900/40 flex items-center justify-center flex-shrink-0">
-                            <XCircle className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
-                          </div>
-                          <span className="text-xs font-semibold text-muted-foreground truncate">이슈사항</span>
-                        </div>
-                        <p className="text-2xl font-black leading-none">{(comp.issues || []).reduce((a, b) => a + b.count, 0)}<span className="text-xs font-normal text-muted-foreground ml-1">건</span></p>
-                        {(comp.issues || []).length > 0 ? (
-                          <div className="flex flex-col gap-1 mt-0.5">
-                            {(comp.issues || []).map(issue => (
-                              <button key={issue.label} onClick={() => setActiveIssue(issue)}
-                                className="flex items-center justify-between px-2 py-1 rounded-lg bg-red-50/80 dark:bg-red-950/20 border border-red-200/50 dark:border-red-800/40 hover:border-red-400 dark:hover:border-red-600 transition-all group"
-                                data-testid={`button-issue-top-${issue.label}`}>
-                                <span className="text-[10px] font-semibold text-muted-foreground truncate">{issue.label}</span>
-                                <span className="text-xs font-black text-red-600 dark:text-red-400 ml-1 flex-shrink-0">{issue.count}</span>
-                              </button>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="text-[11px] text-muted-foreground">이슈 없음</p>
-                        )}
-                      </div>
-                    </div>
-
-
-                    {/* 하단: 안전허가서 정보 | TBM 파란 게이지 | TBM 등록/AI 바 */}
-                    <div className="grid grid-cols-[1fr_auto_1fr] divide-x divide-border/60">
                       {/* 안전허가서 매칭 정보 */}
                       {(() => {
                         const item = complianceItems[0];
@@ -1276,6 +1214,7 @@ export default function AisSafetyRate() {
                           </div>
                         );
                       })()}
+                      </div>
                       {/* TBM 전체 이행률 */}
                       <div className="flex flex-col items-center justify-center py-4 px-4 text-white gap-2 w-44 self-stretch"
                         style={{ background:'linear-gradient(160deg,#1d4ed8 0%,#2563eb 55%,#4f46e5 100%)', boxShadow:'inset -4px 0 16px rgba(0,0,0,0.15)' }}>
@@ -1285,6 +1224,32 @@ export default function AisSafetyRate() {
                           {tbmBase.filter(r => (r.tbmResult === '등록' || justifiedRecordIds.has(r.id)) && (r.tbmAiResult === '적합' || justifiedRecordIds.has(r.id))).length}건 / {tbmBase.length}건
                         </p>
                         <p className="text-[9px] text-blue-300/70 text-center">등록·AI 적합 모두 충족</p>
+                      </div>
+                      {/* 3열: 이슈사항 + TBM 분석결과 */}
+                      <div className="flex flex-col divide-y divide-border/60">
+                      {/* 이슈사항 */}
+                      <div className="p-3 flex flex-col gap-1.5">
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-6 h-6 rounded-md bg-red-100 dark:bg-red-900/40 flex items-center justify-center flex-shrink-0">
+                            <XCircle className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
+                          </div>
+                          <span className="text-xs font-semibold text-muted-foreground truncate">이슈사항</span>
+                        </div>
+                        <p className="text-2xl font-black leading-none">{(comp.issues || []).reduce((a, b) => a + b.count, 0)}<span className="text-xs font-normal text-muted-foreground ml-1">건</span></p>
+                        {(comp.issues || []).length > 0 ? (
+                          <div className="flex flex-col gap-1 mt-0.5">
+                            {(comp.issues || []).map(issue => (
+                              <button key={issue.label} onClick={() => setActiveIssue(issue)}
+                                className="flex items-center justify-between px-2 py-1 rounded-lg bg-red-50/80 dark:bg-red-950/20 border border-red-200/50 dark:border-red-800/40 hover:border-red-400 dark:hover:border-red-600 transition-all group"
+                                data-testid={`button-issue-top-${issue.label}`}>
+                                <span className="text-[10px] font-semibold text-muted-foreground truncate">{issue.label}</span>
+                                <span className="text-xs font-black text-red-600 dark:text-red-400 ml-1 flex-shrink-0">{issue.count}</span>
+                              </button>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-[11px] text-muted-foreground">이슈 없음</p>
+                        )}
                       </div>
                       {/* TBM 등록률 + AI 적합률 바 */}
                       <div className="p-4 flex flex-col justify-center gap-3">
@@ -1332,6 +1297,7 @@ export default function AisSafetyRate() {
                             </div>
                           );
                         })()}
+                      </div>
                       </div>
                     </div>
                   </div>
