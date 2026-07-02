@@ -1162,7 +1162,7 @@ export default function AisSafetyRate() {
 
                   {/* 오른쪽: KPI + Compliance 통합 */}
                   <div className="flex-1">
-                    <div className="grid grid-cols-[minmax(0,320px)_auto_1fr] divide-x divide-border/60 h-full">
+                    <div className="grid grid-cols-[minmax(0,400px)_auto_1fr] divide-x divide-border/60 h-full">
                       {/* 1열: 6대 고위험 + 안전허가서 매칭 */}
                       <div className="flex flex-col divide-y divide-border/60">
                       {/* 6대 고위험 */}
@@ -1238,7 +1238,7 @@ export default function AisSafetyRate() {
                       })()}
                       </div>
                       {/* TBM 전체 이행률 */}
-                      <div className="flex flex-col items-center justify-center py-4 px-4 text-white gap-2 w-44 self-stretch"
+                      <div className="flex flex-col items-center justify-center py-4 px-4 text-white gap-2 w-56 self-stretch"
                         style={{ background:'linear-gradient(160deg,#1d4ed8 0%,#2563eb 55%,#4f46e5 100%)', boxShadow:'inset -4px 0 16px rgba(0,0,0,0.15)' }}>
                         <p className="text-[10px] font-bold text-blue-200 uppercase tracking-widest">TBM 이행률</p>
                         <CircleGauge rate={tbmFullRate} size="sm" />
