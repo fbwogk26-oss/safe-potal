@@ -574,7 +574,7 @@ export default function AisSafetyRate() {
       : 100;
     // TBM AI 적합 이행률: 전체 건 기준, 소명완료(미등록/부적합 무관) 모두 적합으로 포함
     const tbmAiRate = nonCancelled.length > 0
-      ? Math.round((nonCancelled.filter(r => r.tbmAiResult === '적합' || justifiedRecordIds.has(r.id)).length / nonCancelled.length) * 100)
+      ? Math.round((nonCancelled.filter(r => r.tbmAiResult === '적합' || (r.tbmAiResult === '부적합' && justifiedRecordIds.has(r.id))).length / nonCancelled.length) * 100)
       : 100;
     return { team: team?.replace('운용팀', '').replace('팀', '') || '미지정', fullTeam: team || '', rate: c.rate, count: tr.length, issueCount, issueList, tbmRegRate, tbmAiRate };
   }).sort((a, b) => b.rate - a.rate);
@@ -593,7 +593,7 @@ export default function AisSafetyRate() {
       ).length / tbmBase.length * 100)
     : 100;
   const tbmOverallAiRate = tbmBase.length > 0
-    ? Math.round(tbmBase.filter(r => r.tbmAiResult === '적합' || justifiedRecordIds.has(r.id)).length / tbmBase.length * 100)
+    ? Math.round(tbmBase.filter(r => r.tbmAiResult === '적합' || (r.tbmAiResult === '부적합' && justifiedRecordIds.has(r.id))).length / tbmBase.length * 100)
     : 100;
 
   const dailyTrendData = useMemo(() => {
@@ -1123,10 +1123,10 @@ export default function AisSafetyRate() {
               <Card className="overflow-hidden border-0 shadow-md">
                 <div className="flex flex-col lg:flex-row">
                   {/* 왼쪽: 안전허가서 매칭 도넛 그래프 */}
-                  <div className="lg:w-52 flex-shrink-0 flex flex-col items-center justify-center text-white"
+                  <div className="lg:w-52 flex-shrink-0 flex flex-row lg:flex-col items-center justify-center text-white"
                     style={{ background:'linear-gradient(160deg,#1d4ed8 0%,#2563eb 55%,#4f46e5 100%)', boxShadow:'inset -4px 0 16px rgba(0,0,0,0.15)' }}>
                     {/* 안전허가서 매칭 도넛 */}
-                    <div className="flex flex-col items-center justify-center py-4 px-4 gap-2 flex-1">
+                    <div className="flex flex-col items-center justify-center py-2 lg:py-4 px-3 lg:px-4 gap-1 lg:gap-2 flex-1">
                       <p className="text-[10px] font-bold text-blue-200 uppercase tracking-widest">안전허가서 매칭</p>
                       {(() => {
                         const total = highRiskRecords.length;
@@ -1165,7 +1165,7 @@ export default function AisSafetyRate() {
 
                   {/* 오른쪽: KPI + Compliance 통합 */}
                   <div className="flex-1">
-                    <div className="grid grid-cols-[minmax(0,400px)_auto_1fr] divide-x divide-border/60 h-full">
+                    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,400px)_auto_1fr] divide-y lg:divide-y-0 lg:divide-x divide-border/60">
                       {/* 1열: 6대 고위험 + 안전허가서 매칭 */}
                       <div className="flex flex-col divide-y divide-border/60">
                       {/* 6대 고위험 */}
@@ -1241,7 +1241,7 @@ export default function AisSafetyRate() {
                       })()}
                       </div>
                       {/* TBM 전체 이행률 */}
-                      <div className="flex flex-col items-center justify-center py-4 px-4 text-white gap-2 w-56 self-stretch"
+                      <div className="flex flex-col items-center justify-center py-4 px-4 text-white gap-2 lg:w-56 w-full self-stretch"
                         style={{ background:'linear-gradient(160deg,#1d4ed8 0%,#2563eb 55%,#4f46e5 100%)', boxShadow:'inset -4px 0 16px rgba(0,0,0,0.15)' }}>
                         <p className="text-[10px] font-bold text-blue-200 uppercase tracking-widest">TBM 이행률</p>
                         {(() => {
