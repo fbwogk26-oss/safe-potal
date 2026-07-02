@@ -551,12 +551,14 @@ export default function AisSafetyRate() {
   // 필터 변경 시 첫 페이지로
   const resetPage = () => setCurrentPage(1);
 
-  // TBM AI 분석결과 — 분석전/적합/부적합/분석중 순 (취소 제외)
+  // TBM AI 분析결과 — 소명완료 건은 부적합에서 분리해 별도 집계
+  const justifiedBadCount = activeRecords.filter(r => r.tbmAiResult === '부적합' && justifiedRecordIds.has(r.id)).length;
   const tbmAiData = [
-    { name: '분석전', value: activeRecords.filter(r => !r.tbmAiResult || r.tbmAiResult === '분석전').length, color: '#94a3b8' },
     { name: '적합', value: activeRecords.filter(r => r.tbmAiResult === '적합').length, color: '#22c55e' },
-    { name: '부적합', value: activeRecords.filter(r => r.tbmAiResult === '부적합').length, color: '#ef4444' },
-    { name: '분석중', value: activeRecords.filter(r => r.tbmAiResult === '분석중').length, color: '#f59e0b' },
+    { name: '소명완료', value: justifiedBadCount, color: '#10b981' },
+    { name: '부적합', value: activeRecords.filter(r => r.tbmAiResult === '부적합' && !justifiedRecordIds.has(r.id)).length, color: '#ef4444' },
+    { name: '분析중', value: activeRecords.filter(r => r.tbmAiResult === '분석중').length, color: '#f59e0b' },
+    { name: '분析전', value: activeRecords.filter(r => !r.tbmAiResult || r.tbmAiResult === '분석전').length, color: '#94a3b8' },
   ].filter(d => d.value > 0);
 
   const teamData = teams.map(team => {
@@ -1237,48 +1239,52 @@ export default function AisSafetyRate() {
 
 
               {/* Charts row */}
+              {/* Charts row */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-stretch">
                 <Card className="border-0 shadow-sm bg-card/60 flex flex-col">
-                  <CardHeader className="pb-1 pt-3 px-4">
-                    <CardTitle className="text-sm font-bold">TBM AI 분석결과</CardTitle>
+                  <CardHeader className="pb-2 pt-3 px-4">
+                    <CardTitle className="text-sm font-bold">TBM AI 분析결과</CardTitle>
                   </CardHeader>
-                  <CardContent className="px-4 pb-4 pt-2 flex-1 flex flex-col justify-center">
+                  <CardContent className="px-4 pb-4 pt-1 flex-1 flex flex-col justify-center">
                     {tbmAiData.length > 0 ? (() => {
                       const total = tbmAiData.reduce((s, d) => s + d.value, 0);
                       return (
-                        <div className="flex flex-col items-center gap-4 w-full">
-                          {/* 도넛 차트 — 상단 중앙 */}
-                          <div className="relative flex-shrink-0" style={{ width: 180, height: 180 }}>
-                            <PieChart width={180} height={180}>
-                              <Pie data={tbmAiData} cx="50%" cy="50%" innerRadius={58} outerRadius={80}
-                                dataKey="value" labelLine={false} paddingAngle={3} stroke="none">
-                                {tbmAiData.map((d, i) => <Cell key={i} fill={d.color} fillOpacity={0.9} />)}
-                              </Pie>
-                              <ReTooltip
-                                contentStyle={{ borderRadius: 8, border: 'none', boxShadow: '0 4px 16px rgba(0,0,0,0.12)', fontSize: 12 }}
-                                formatter={(v: any, name: any) => [`${v}건 (${total > 0 ? Math.round(v/total*100) : 0}%)`, name]}
-                              />
-                            </PieChart>
-                            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                              <span className="text-3xl font-black">{total}</span>
-                              <span className="text-[11px] font-semibold text-muted-foreground">전체 건</span>
-                            </div>
+                        <div className="flex flex-col gap-4 w-full">
+                          {/* 전체 건수 */}
+                          <div className="flex items-baseline gap-1.5">
+                            <span className="text-4xl font-black">{total}</span>
+                            <span className="text-sm text-muted-foreground font-semibold">전체 건</span>
                           </div>
-                          {/* 항목 3열 가로 배치 */}
-                          <div className="grid grid-cols-3 gap-2 w-full">
+                          {/* 수평 스택 바 */}
+                          <div className="w-full h-9 rounded-xl overflow-hidden flex shadow-inner">
+                            {tbmAiData.map((d) => {
+                              const pct = total > 0 ? (d.value / total) * 100 : 0;
+                              return (
+                                <div
+                                  key={d.name}
+                                  style={{ width: `${pct}%`, backgroundColor: d.color, opacity: 0.88 }}
+                                  className="h-full relative flex items-center justify-center transition-all"
+                                  title={`${d.name}: ${d.value}건 (${Math.round(pct)}%)`}
+                                >
+                                  {pct > 9 && (
+                                    <span className="text-white text-[10px] font-black drop-shadow select-none">{d.value}건</span>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                          {/* 항목 목록 */}
+                          <div className="grid grid-cols-2 gap-2 w-full">
                             {tbmAiData.map(d => {
                               const pct = total > 0 ? Math.round(d.value / total * 100) : 0;
                               return (
-                                <div key={d.name} className="flex flex-col items-center gap-1 p-2.5 rounded-xl border transition-all hover:shadow-sm" style={{ borderColor: `${d.color}40`, backgroundColor: `${d.color}0d` }}>
-                                  <div className="flex items-center gap-1">
-                                    <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: d.color }} />
-                                    <span className="text-[11px] font-semibold">{d.name}</span>
+                                <div key={d.name} className="flex items-center gap-2 p-2.5 rounded-xl border transition-all hover:shadow-sm" style={{ borderColor: `${d.color}40`, backgroundColor: `${d.color}0d` }}>
+                                  <div className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: d.color }} />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-[11px] font-semibold leading-none">{d.name}</p>
+                                    <p className="text-[10px] text-muted-foreground mt-0.5">{pct}%</p>
                                   </div>
-                                  <span className="text-xl font-black" style={{ color: d.color }}>{d.value}<span className="text-[10px] font-normal text-muted-foreground ml-0.5">건</span></span>
-                                  <span className="text-xs font-bold" style={{ color: d.color }}>{pct}%</span>
-                                  <div className="w-full h-1 bg-muted/40 rounded-full overflow-hidden">
-                                    <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, backgroundColor: d.color }} />
-                                  </div>
+                                  <span className="text-base font-black flex-shrink-0" style={{ color: d.color }}>{d.value}<span className="text-[10px] font-normal text-muted-foreground ml-0.5">건</span></span>
                                 </div>
                               );
                             })}
@@ -1288,91 +1294,82 @@ export default function AisSafetyRate() {
                     })() : <p className="text-center text-sm text-muted-foreground py-12">데이터 없음</p>}
                   </CardContent>
                 </Card>
-
                 <Card className="border-0 shadow-sm bg-card/60 lg:col-span-2">
-                  <CardHeader className="pb-3">
+                  <CardHeader className="pb-2 pt-3 px-4">
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <CardTitle className="text-sm font-bold flex items-center gap-2">
                         <TrendingUp className="w-4 h-4 text-blue-500" />팀별 이행률
                       </CardTitle>
                       {teamData.length > 0 && (
-                        <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                          <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-emerald-500"></span>90% 이상</span>
-                          <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-amber-500"></span>70~89%</span>
-                          <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-red-500"></span>70% 미만</span>
+                        <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm inline-block bg-emerald-500"></span>90%+</span>
+                          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm inline-block bg-amber-500"></span>70~89%</span>
+                          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm inline-block bg-red-500"></span>~70%</span>
+                          <span className="text-muted-foreground/60">· TBM등록 <span className="text-emerald-500 font-bold">■</span> AI적합 <span className="text-sky-500 font-bold">■</span></span>
                         </div>
                       )}
                     </div>
                   </CardHeader>
-                  <CardContent className="pt-0">
+                  <CardContent className="pt-0 px-4 pb-3">
                     {teamData.length > 0 ? (
-                      <div className="space-y-2">
+                      <div className="space-y-1.5">
                         {teamData.map((entry, i) => {
-                          const regColor = entry.tbmRegRate >= 90 ? { grad: 'linear-gradient(90deg,#16a34a,#22c55e)', glow: '#22c55e55', text: 'text-emerald-600 dark:text-emerald-400' }
-                            : entry.tbmRegRate >= 70 ? { grad: 'linear-gradient(90deg,#d97706,#f59e0b)', glow: '#f59e0b55', text: 'text-amber-600 dark:text-amber-400' }
-                            : { grad: 'linear-gradient(90deg,#dc2626,#ef4444)', glow: '#ef444455', text: 'text-red-600 dark:text-red-400' };
-                          const aiColor = entry.tbmAiRate >= 90 ? { grad: 'linear-gradient(90deg,#0369a1,#0ea5e9)', glow: '#0ea5e955', text: 'text-sky-600 dark:text-sky-400' }
-                            : entry.tbmAiRate >= 70 ? { grad: 'linear-gradient(90deg,#d97706,#f59e0b)', glow: '#f59e0b55', text: 'text-amber-600 dark:text-amber-400' }
-                            : { grad: 'linear-gradient(90deg,#dc2626,#ef4444)', glow: '#ef444455', text: 'text-red-600 dark:text-red-400' };
+                          const regColor = entry.tbmRegRate >= 90
+                            ? { grad: 'linear-gradient(90deg,#16a34a,#22c55e)', text: 'text-emerald-600 dark:text-emerald-400' }
+                            : entry.tbmRegRate >= 70
+                            ? { grad: 'linear-gradient(90deg,#d97706,#f59e0b)', text: 'text-amber-600 dark:text-amber-400' }
+                            : { grad: 'linear-gradient(90deg,#dc2626,#ef4444)', text: 'text-red-600 dark:text-red-400' };
+                          const aiColor = entry.tbmAiRate >= 90
+                            ? { grad: 'linear-gradient(90deg,#0369a1,#0ea5e9)', text: 'text-sky-600 dark:text-sky-400' }
+                            : entry.tbmAiRate >= 70
+                            ? { grad: 'linear-gradient(90deg,#d97706,#f59e0b)', text: 'text-amber-600 dark:text-amber-400' }
+                            : { grad: 'linear-gradient(90deg,#dc2626,#ef4444)', text: 'text-red-600 dark:text-red-400' };
                           return (
-                            <div key={entry.team} className="group rounded-xl border bg-card/90 hover:shadow-md hover:border-border/80 transition-all overflow-hidden">
-                              <div className="flex items-start gap-3 px-3 py-3">
-                                {/* 순위 */}
-                                <span className={`text-xs font-black w-5 text-center flex-shrink-0 mt-1 ${i < 3 ? ['text-amber-500','text-slate-400','text-orange-400'][i] : 'text-muted-foreground/50'}`}>{i + 1}</span>
-                                {/* 팀명 */}
-                                <span className="text-xs font-bold w-20 flex-shrink-0 truncate mt-1" title={entry.fullTeam}>{entry.team}</span>
-                                {/* 진행바 2개 */}
-                                <div className="flex-1 flex flex-col gap-1.5">
-                                  {/* TBM 등록 이행률 */}
-                                  <div>
-                                    <div className="flex items-center justify-between mb-0.5">
-                                      <span className="text-[10px] text-muted-foreground font-medium">TBM 등록</span>
-                                      <span className={`text-[10px] font-bold ${regColor.text}`}>{entry.tbmRegRate}%</span>
-                                    </div>
-                                    <div className="relative w-full h-4 rounded-full bg-muted/40 overflow-visible">
-                                      <div
-                                        className="h-full rounded-full transition-all duration-700"
-                                        style={{ width: `${Math.max(entry.tbmRegRate, 2)}%`, background: regColor.grad, boxShadow: `0 0 6px ${regColor.glow}` }}
-                                      />
-                                      <div className="absolute top-0 bottom-0 border-l-2 border-dashed border-indigo-400/50 dark:border-indigo-500/40" style={{ left: '90%' }} />
-                                    </div>
+                            <div key={entry.team} className="rounded-lg border bg-card/90 hover:shadow-sm transition-all px-3 py-2">
+                              {/* 상단: 순위 · 팀명 · 건수 · 이슈 */}
+                              <div className="flex items-center gap-2 mb-1.5">
+                                <span className={`text-[10px] font-black w-4 text-center flex-shrink-0 ${i < 3 ? ['text-amber-500','text-slate-400','text-orange-400'][i] : 'text-muted-foreground/40'}`}>{i + 1}</span>
+                                <span className="text-xs font-bold flex-1 truncate" title={entry.fullTeam}>{entry.team}</span>
+                                <span className="text-[10px] text-muted-foreground flex-shrink-0">{entry.count}건</span>
+                                {entry.issueCount > 0 ? (
+                                  <button
+                                    onClick={() => setActiveIssue({ label: `${entry.fullTeam} 이슈 목록`, list: entry.issueList })}
+                                    className="flex items-center gap-0.5 text-[10px] font-bold bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400 px-1.5 py-0.5 rounded-full hover:bg-red-200 transition-colors border border-red-200 dark:border-red-800 flex-shrink-0"
+                                  >
+                                    <AlertTriangle className="w-2.5 h-2.5" />{entry.issueCount}
+                                  </button>
+                                ) : (
+                                  <span className="flex items-center gap-0.5 text-[10px] font-bold text-emerald-500 flex-shrink-0">
+                                    <CheckCircle2 className="w-2.5 h-2.5" />
+                                  </span>
+                                )}
+                              </div>
+                              {/* 두 개의 바 — 한 화면에 나란히 */}
+                              <div className="grid grid-cols-2 gap-1.5">
+                                <div>
+                                  <div className="flex justify-between mb-0.5">
+                                    <span className="text-[9px] text-muted-foreground">TBM 등록</span>
+                                    <span className={`text-[9px] font-bold ${regColor.text}`}>{entry.tbmRegRate}%</span>
                                   </div>
-                                  {/* TBM AI 적합 이행률 */}
-                                  <div>
-                                    <div className="flex items-center justify-between mb-0.5">
-                                      <span className="text-[10px] text-muted-foreground font-medium">AI 적합</span>
-                                      <span className={`text-[10px] font-bold ${aiColor.text}`}>{entry.tbmAiRate}%</span>
-                                    </div>
-                                    <div className="relative w-full h-4 rounded-full bg-muted/40 overflow-visible">
-                                      <div
-                                        className="h-full rounded-full transition-all duration-700"
-                                        style={{ width: `${Math.max(entry.tbmAiRate, 2)}%`, background: aiColor.grad, boxShadow: `0 0 6px ${aiColor.glow}` }}
-                                      />
-                                      <div className="absolute top-0 bottom-0 border-l-2 border-dashed border-indigo-400/50 dark:border-indigo-500/40" style={{ left: '90%' }} />
-                                    </div>
+                                  <div className="relative w-full h-2.5 rounded-full bg-muted/40 overflow-hidden">
+                                    <div className="h-full rounded-full transition-all duration-700" style={{ width: `${Math.max(entry.tbmRegRate, 2)}%`, background: regColor.grad }} />
+                                    <div className="absolute top-0 bottom-0 border-l border-dashed border-indigo-400/60" style={{ left: '90%' }} />
                                   </div>
                                 </div>
-                                {/* 건수 + 이슈 */}
-                                <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                                  <span className="text-xs font-semibold text-muted-foreground">{entry.count}건</span>
-                                  {entry.issueCount > 0 ? (
-                                    <button
-                                      onClick={() => setActiveIssue({ label: `${entry.fullTeam} 이슈 목록`, list: entry.issueList })}
-                                      className="flex items-center gap-0.5 text-[10px] font-bold bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400 px-2 py-1 rounded-full hover:bg-red-200 dark:hover:bg-red-900/60 transition-colors border border-red-200 dark:border-red-800"
-                                    >
-                                      <AlertTriangle className="w-2.5 h-2.5" />{entry.issueCount}
-                                    </button>
-                                  ) : (
-                                    <span className="flex items-center gap-0.5 text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 px-2 py-1 rounded-full border border-emerald-200 dark:border-emerald-800">
-                                      <CheckCircle2 className="w-2.5 h-2.5" />적합
-                                    </span>
-                                  )}
+                                <div>
+                                  <div className="flex justify-between mb-0.5">
+                                    <span className="text-[9px] text-muted-foreground">AI 적합</span>
+                                    <span className={`text-[9px] font-bold ${aiColor.text}`}>{entry.tbmAiRate}%</span>
+                                  </div>
+                                  <div className="relative w-full h-2.5 rounded-full bg-muted/40 overflow-hidden">
+                                    <div className="h-full rounded-full transition-all duration-700" style={{ width: `${Math.max(entry.tbmAiRate, 2)}%`, background: aiColor.grad }} />
+                                    <div className="absolute top-0 bottom-0 border-l border-dashed border-indigo-400/60" style={{ left: '90%' }} />
+                                  </div>
                                 </div>
                               </div>
                             </div>
                           );
                         })}
-                        <p className="text-[10px] text-muted-foreground text-right pt-1">점선 = 90% 기준선 · TBM 등록 <span className="text-emerald-500 font-bold">■</span> · AI 적합 <span className="text-sky-500 font-bold">■</span></p>
                       </div>
                     ) : <p className="text-center text-sm text-muted-foreground py-12">데이터 없음</p>}
                   </CardContent>
