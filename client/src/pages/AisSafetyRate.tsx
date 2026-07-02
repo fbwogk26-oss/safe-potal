@@ -1752,7 +1752,7 @@ export default function AisSafetyRate() {
           {activeIssue && (() => {
             const sortByDate = (arr: AisSafetyRecord[]) =>
               [...arr].sort((a, b) => (b.startDate ?? '').localeCompare(a.startDate ?? ''));
-            const list = sortByDate(activeIssue.list.filter(r => !isCancelled(r)));
+            const list = sortByDate(activeIssue.list.filter(r => !isCancelled(r) && !justifiedRecordIds.has(r.id)));
             const noPermit = sortByDate(list.filter(r => isHighRiskWork(r.highRiskWork) && r.safetyPermit !== 'Y'));
             const tbmUnreg = sortByDate(list.filter(r => r.tbmResult === '미등록'));
             const tbmBad = sortByDate(list.filter(r => r.tbmAiResult === '부적합'));

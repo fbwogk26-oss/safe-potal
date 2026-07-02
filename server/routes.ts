@@ -4109,12 +4109,13 @@ ${buildEmailFooter()}
     try {
       const recordId = Number(req.params.id);
       const { justificationStatus, justificationReason } = req.body;
-      const note = await storage.upsertAisTbmBadNote(recordId, {
-        justificationStatus: justificationStatus ?? null,
-        justificationReason: justificationReason ?? null,
-        justificationBy: req.user?.username,
-      });
-      res.json(note);
+      await storage.updateAisTbmJustification(
+        recordId,
+        justificationStatus ?? null,
+        justificationReason ?? null,
+        req.user?.username ?? null
+      );
+      res.json({ success: true });
     } catch (error) {
       res.status(500).json({ message: "소명 상태 저장에 실패했습니다" });
     }

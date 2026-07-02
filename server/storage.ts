@@ -1,4 +1,4 @@
-import { db } from "./db";
+import { db, pool } from "./db";
 import {
   teams, notices, settings, safetyEquipment, safetyInspections,
   educationSessions, educationSignatures,
@@ -175,7 +175,8 @@ export interface IStorage {
   deleteAisSafetyRecordsByUpload(uploadId: number): Promise<void>;
   getAllAisTbmBadNotes(): Promise<AisTbmBadNote[]>;
   getAisTbmBadNote(recordId: number): Promise<AisTbmBadNote | null>;
-  upsertAisTbmBadNote(recordId: number, data: { noteType?: string; reason?: string; photoUrl?: string; photoFileName?: string; createdBy?: string; justificationStatus?: string | null; justificationReason?: string | null; justificationBy?: string | null }): Promise<AisTbmBadNote>;
+  upsertAisTbmBadNote(recordId: number, data: { noteType?: string; reason?: string; photoUrl?: string; photoFileName?: string; createdBy?: string; }): Promise<AisTbmBadNote>;
+  updateAisTbmJustification(recordId: number, justificationStatus: string | null, justificationReason: string | null, justificationBy: string | null): Promise<void>;
 
   // Heat Wave Checklists
   getHeatWaveChecklists(): Promise<HeatWaveChecklist[]>;
@@ -1442,14 +1443,24 @@ export class DatabaseStorage implements IStorage {
     const [row] = await db.select().from(aisTbmBadNotes).where(eq(aisTbmBadNotes.recordId, recordId));
     return row ?? null;
   }
-  async upsertAisTbmBadNote(recordId: number, data: { noteType?: string; reason?: string; photoUrl?: string; photoFileName?: string; createdBy?: string; justificationStatus?: string | null; justificationReason?: string | null; justificationBy?: string | null }): Promise<AisTbmBadNote> {
+  async upsertAisTbmBadNote(recordId: number, data: { noteType?: string; reason?: string; photoUrl?: string; photoFileName?: string; createdBy?: string; }): Promise<AisTbmBadNote> {
     const existing = await this.getAisTbmBadNote(recordId);
     if (existing) {
-      const [row] = await db.update(aisTbmBadNotes).set({ ...data, updatedAt: new Date() }).where(eq(aisTbmBadNotes.recordId, recordId)).returning();
-      return row;
+      await pool.query(
+        `UPDATE ais_tbm_bad_notes SET note_type = COALESCE($1, note_type), reason = $2, photo_url = $3, photo_file_name = $4, created_by = COALESCE($5, created_by), updated_at = NOW() WHERE record_id = $6`,
+        [data.noteType ?? null, data.reason ?? null, data.photoUrl ?? null, data.photoFileName ?? null, data.createdBy ?? null, recordId]
+      );
+      return (await this.getAisTbmBadNote(recordId))!;
     }
-    const [row] = await db.insert(aisTbmBadNotes).values({ recordId, ...data }).returning();
+    const [row] = await db.insert(aisTbmBadNotes).values({ recordId, noteType: data.noteType ?? 'bad', reason: data.reason, photoUrl: data.photoUrl, photoFileName: data.photoFileName, createdBy: data.createdBy }).returning();
     return row;
+  }
+
+  async updateAisTbmJustification(recordId: number, justificationStatus: string | null, justificationReason: string | null, justificationBy: string | null): Promise<void> {
+    await pool.query(
+      `UPDATE ais_tbm_bad_notes SET justification_status = $1, justification_reason = $2, justification_by = $3, updated_at = NOW() WHERE record_id = $4`,
+      [justificationStatus, justificationReason, justificationBy, recordId]
+    );
   }
 
   // Heat Wave Checklists
