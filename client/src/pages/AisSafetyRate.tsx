@@ -1171,7 +1171,7 @@ export default function AisSafetyRate() {
               )}
 
               {/* Charts row */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-start">
                 <Card className="border-0 shadow-sm bg-card/60">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm font-bold">TBM AI 분석결과</CardTitle>
@@ -1180,7 +1180,7 @@ export default function AisSafetyRate() {
                     {tbmAiData.length > 0 ? (() => {
                       const total = tbmAiData.reduce((s, d) => s + d.value, 0);
                       return (
-                        <div className="flex flex-col sm:flex-row items-start gap-3">
+                        <div className="flex flex-col sm:flex-row items-center gap-3">
                           {/* 도넛 차트 */}
                           <div className="relative flex-shrink-0" style={{ width: 160, height: 160 }}>
                             <PieChart width={160} height={160}>
@@ -1305,38 +1305,45 @@ export default function AisSafetyRate() {
                         <p className="text-[10px] text-muted-foreground text-right pt-1">점선 = 90% 기준선</p>
                       </div>
                     ) : <p className="text-center text-sm text-muted-foreground py-12">데이터 없음</p>}
-                    {/* 이슈 현황 — 팀별 이행률 카드 하단에 인라인 통합 */}
-                    {(comp.issues || []).length > 0 && (
-                      <div className="mt-4 pt-3 border-t">
-                        <div className="flex items-center gap-1.5 mb-2">
-                          <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
-                          <span className="text-xs font-bold">이슈 현황</span>
-                          <span className="ml-auto text-[10px] text-muted-foreground">클릭하여 상세 확인</span>
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          {(comp.issues || []).map((issue) => {
-                            const total = records.length;
-                            const pct = total > 0 ? Math.round(issue.count / total * 100) : 0;
-                            return (
-                              <button key={issue.label} onClick={() => setActiveIssue(issue)}
-                                className="text-left px-3 py-2.5 rounded-xl border border-red-200/60 dark:border-red-800/60 hover:border-red-400 dark:hover:border-red-600 bg-red-50/40 dark:bg-red-950/10 hover:shadow-sm transition-all group"
-                                data-testid={`button-issue-${issue.label}`}>
-                                <div className="flex items-center justify-between mb-1.5">
-                                  <span className="text-[11px] font-semibold text-muted-foreground leading-snug">{issue.label}</span>
-                                  <span className="text-xl font-black text-red-600 dark:text-red-400 leading-none">{issue.count}</span>
-                                </div>
-                                <div className="w-full h-1 bg-red-100 dark:bg-red-900/30 rounded-full overflow-hidden mb-1">
-                                  <div className="h-full rounded-full bg-gradient-to-r from-red-500 to-red-400 transition-all duration-700" style={{ width: `${Math.min(pct * 3, 100)}%` }} />
-                                </div>
-                                <p className="text-[10px] text-red-500/70 dark:text-red-400/70 group-hover:text-red-600 transition-colors">전체의 {pct}% · 상세 보기 →</p>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
                   </CardContent>
                 </Card>
+
+                {/* 이슈 현황 — 3번째 컬럼 카드 */}
+                {(comp.issues || []).length > 0 && (
+                  <Card className="border-0 shadow-sm overflow-hidden" style={{ background: 'linear-gradient(135deg,rgba(239,68,68,0.05) 0%,rgba(239,68,68,0.02) 100%)' }}>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm font-bold flex items-center gap-2">
+                        <div className="w-5 h-5 rounded-lg bg-red-100 dark:bg-red-900/40 flex items-center justify-center">
+                          <AlertTriangle className="w-3 h-3 text-red-500" />
+                        </div>
+                        이슈 현황
+                        <span className="ml-auto text-[10px] font-normal text-muted-foreground">클릭하여 상세 확인</span>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="pt-0">
+                      <div className="flex flex-col gap-2">
+                        {(comp.issues || []).map((issue) => {
+                          const total = records.length;
+                          const pct = total > 0 ? Math.round(issue.count / total * 100) : 0;
+                          return (
+                            <button key={issue.label} onClick={() => setActiveIssue(issue)}
+                              className="text-left px-3 py-3 rounded-xl border border-red-200/60 dark:border-red-800/60 hover:border-red-400 dark:hover:border-red-600 bg-card/80 hover:shadow-sm transition-all group"
+                              data-testid={`button-issue-${issue.label}`}>
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-[11px] font-semibold text-muted-foreground leading-snug">{issue.label}</span>
+                                <span className="text-2xl font-black text-red-600 dark:text-red-400 leading-none">{issue.count}</span>
+                              </div>
+                              <div className="w-full h-1.5 bg-red-100 dark:bg-red-900/30 rounded-full overflow-hidden mb-1.5">
+                                <div className="h-full rounded-full bg-gradient-to-r from-red-500 to-red-400 transition-all duration-700" style={{ width: `${Math.min(pct * 3, 100)}%` }} />
+                              </div>
+                              <p className="text-[10px] text-red-500/70 dark:text-red-400/70 group-hover:text-red-600 transition-colors">전체의 {pct}% · 상세 보기 →</p>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
               </div>
 
               {/* High risk table */}
