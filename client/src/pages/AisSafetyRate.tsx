@@ -1241,11 +1241,38 @@ export default function AisSafetyRate() {
                       <div className="flex flex-col items-center justify-center py-4 px-4 text-white gap-2 w-56 self-stretch"
                         style={{ background:'linear-gradient(160deg,#1d4ed8 0%,#2563eb 55%,#4f46e5 100%)', boxShadow:'inset -4px 0 16px rgba(0,0,0,0.15)' }}>
                         <p className="text-[10px] font-bold text-blue-200 uppercase tracking-widest">TBM 이행률</p>
-                        <CircleGauge rate={tbmFullRate} size="sm" />
-                        <p className="text-[11px] text-blue-200 mt-1 text-center leading-tight">
-                          {tbmBase.filter(r => (r.tbmResult === '등록' || justifiedRecordIds.has(r.id)) && (r.tbmAiResult === '적합' || justifiedRecordIds.has(r.id))).length}건 / {tbmBase.length}건
-                        </p>
-                        <p className="text-[9px] text-blue-300/70 text-center">등록·AI 적합 모두 충족</p>
+                        {(() => {
+                          const pass = tbmBase.filter(r => (r.tbmResult === '등록' || justifiedRecordIds.has(r.id)) && (r.tbmAiResult === '적합' || justifiedRecordIds.has(r.id))).length;
+                          const total = tbmBase.length;
+                          const fail = total - pass;
+                          const rate = total === 0 ? 100 : Math.round((pass / total) * 100);
+                          const donutData = total === 0
+                            ? [{ name: '데이터없음', value: 1, color: '#6366f1' }]
+                            : [
+                                { name: '이행', value: pass, color: '#22c55e' },
+                                { name: '미이행', value: fail > 0 ? fail : 0, color: '#ef4444' },
+                              ].filter(d => d.value > 0);
+                          return (
+                            <div className="flex flex-col items-center gap-2 w-full">
+                              <div className="relative">
+                                <PieChart width={104} height={104}>
+                                  <Pie data={donutData} cx={47} cy={47} innerRadius={30} outerRadius={46} paddingAngle={fail > 0 ? 2 : 0} dataKey="value">
+                                    {donutData.map((entry, idx) => <Cell key={idx} fill={entry.color} opacity={0.9} />)}
+                                  </Pie>
+                                </PieChart>
+                                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                                  <span className="text-2xl font-black text-white leading-none">{rate}</span>
+                                  <span className="text-[9px] text-white/70 font-bold">%</span>
+                                </div>
+                              </div>
+                              <div className="flex gap-3 text-[9px]">
+                                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-emerald-400 inline-block" />이행 {pass}건</span>
+                                {fail > 0 && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-red-400 inline-block" />미이행 {fail}건</span>}
+                              </div>
+                              {total === 0 && <p className="text-[10px] text-blue-300/60">TBM 없음</p>}
+                            </div>
+                          );
+                        })()}
                       </div>
                       {/* 3열: 이슈사항 + TBM 분석결과 */}
                       <div className="flex flex-col divide-y divide-border/60">
