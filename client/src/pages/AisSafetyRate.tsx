@@ -1167,9 +1167,9 @@ export default function AisSafetyRate() {
                   <div className="flex-1">
                     <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,400px)_auto_1fr] divide-y lg:divide-y-0 lg:divide-x divide-border/60">
                       {/* 1열: 6대 고위험 + 안전허가서 매칭 */}
-                      <div className="flex flex-col divide-y divide-border/60">
+                      <div className="flex flex-col divide-y divide-border/60 h-full">
                       {/* 6대 고위험 */}
-                      <div className="p-3 flex flex-col gap-1.5">
+                      <div className="p-3 flex flex-col gap-1.5 flex-1 justify-center">
                         <div className="flex items-center gap-1.5">
                           <div className="w-6 h-6 rounded-md bg-orange-100 dark:bg-orange-900/40 flex items-center justify-center flex-shrink-0">
                             <AlertTriangle className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />
@@ -1208,7 +1208,7 @@ export default function AisSafetyRate() {
                         const barColor = rate >= 90 ? '#22c55e' : rate >= 70 ? '#f59e0b' : '#ef4444';
                         const hasIssue = item.total > 0 && rate < 90;
                         return (
-                          <div key={item.label} className="p-4">
+                          <div key={item.label} className="p-4 flex flex-col flex-1 justify-center">
                             <div className="flex items-center justify-between mb-3">
                               <div className="flex items-center gap-2">
                                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${hasIssue ? 'bg-red-100 dark:bg-red-900/30' : 'bg-emerald-100 dark:bg-emerald-900/30'}`}>
@@ -1281,9 +1281,9 @@ export default function AisSafetyRate() {
                         })()}
                       </div>
                       {/* 3열: 이슈사항 + TBM 분석결과 */}
-                      <div className="flex flex-col divide-y divide-border/60">
+                      <div className="flex flex-col divide-y divide-border/60 h-full">
                       {/* 이슈사항 */}
-                      <div className="p-3 flex flex-col gap-1.5">
+                      <div className="p-3 flex flex-col gap-1.5 flex-1 justify-center">
                         <div className="flex items-center gap-1.5">
                           <div className="w-6 h-6 rounded-md bg-red-100 dark:bg-red-900/40 flex items-center justify-center flex-shrink-0">
                             <XCircle className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
@@ -1306,26 +1306,26 @@ export default function AisSafetyRate() {
                           <p className="text-[11px] text-muted-foreground">이슈 없음</p>
                         )}
                       </div>
-                      {/* TBM AI 분析결과 */}
-                      <div className="p-3 flex flex-col gap-2.5">
+                      {/* TBM AI 분석결과 */}
+                      <div className="p-3 flex flex-col gap-2.5 flex-1 justify-center">
                         <div className="flex items-center gap-1.5">
                           <div className="w-6 h-6 rounded-md bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center flex-shrink-0">
                             <Users className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
                           </div>
-                          <span className="text-xs font-semibold text-muted-foreground">TBM AI 분析결과</span>
+                          <span className="text-xs font-semibold text-muted-foreground">TBM AI 분석결과</span>
                         </div>
                         {(() => {
                           const total = tbmAiData.reduce((s, d) => s + d.value, 0);
                           const fit = tbmAiData.find(d => d.name === '적합')?.value ?? 0;
                           const bad = tbmAiData.find(d => d.name === '부적합')?.value ?? 0;
-                          const analyzing = tbmAiData.find(d => d.name === '분析중')?.value ?? 0;
-                          const pending = tbmAiData.find(d => d.name === '분析전')?.value ?? 0;
+                          const analyzing = tbmAiData.find(d => d.name === '분석중')?.value ?? 0;
+                          const pending = tbmAiData.find(d => d.name === '분석전')?.value ?? 0;
                           const justified = justifiedBadCount;
                           const items = [
                             { name: '적합', value: fit, color: '#22c55e' },
                             { name: '소명완료', value: justified, color: '#f59e0b' },
                             { name: '부적합', value: bad, color: '#ef4444' },
-                            { name: '分析전', value: pending + analyzing, color: '#94a3b8' },
+                            { name: '분석전', value: pending + analyzing, color: '#94a3b8' },
                           ].filter(d => d.value > 0);
                           return (
                             <div className="flex flex-col gap-2">
