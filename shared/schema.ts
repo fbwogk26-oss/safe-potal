@@ -1011,6 +1011,8 @@ export const aisTbmBadNotes = pgTable("ais_tbm_bad_notes", {
   reason: text("reason"),
   photoUrl: text("photo_url"),
   photoFileName: text("photo_file_name"),
+  photoUrls: text("photo_urls").array(),
+  photoFileNames: text("photo_file_names").array(),
   createdBy: text("created_by"),
   justificationStatus: text("justification_status"),
   justificationReason: text("justification_reason"),

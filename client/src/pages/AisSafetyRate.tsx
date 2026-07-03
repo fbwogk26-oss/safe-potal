@@ -821,16 +821,18 @@ export default function AisSafetyRate() {
         });
       }
       await Promise.all(targets.map(id =>
-        fetch(`/api/ais-safety/records/${id}/justification`, {
-          method: 'PUT',
+        fetch(`/api/ais-safety/records/${id}/tbm-note`, {
+          method: 'DELETE',
           credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ justificationStatus: null, justificationReason: null }),
         })
       ));
       setJustifStatus(null);
+      setTbmNoteReason('');
+      setTbmNoteReasonPreset('');
+      setTbmNotePhoto(null);
+      setTbmNotePhotoPreview(null);
       await queryClient.invalidateQueries({ queryKey: ['/api/ais-safety/tbm-notes'] });
-      toast({ title: '부적합 상태로 되돌렸습니다', description: targets.length > 1 ? `동일 작업번호 ${targets.length}건 반영` : undefined });
+      toast({ title: '부적합 상태로 초기화했습니다', description: targets.length > 1 ? `동일 작업번호 ${targets.length}건 반영` : undefined });
       setTbmNoteRecord(null);
     } catch {
       toast({ title: '되돌리기에 실패했습니다', variant: 'destructive' });
@@ -854,16 +856,25 @@ export default function AisSafetyRate() {
                 <p className="font-semibold text-sm text-foreground">{tbmNoteRecord.workName || '-'}</p>
                 <p className="text-muted-foreground">{tbmNoteRecord.workOrderNo} · {tbmNoteRecord.team} · {tbmNoteRecord.startDate}</p>
               </div>
-              {/* 기존 사유 기록 미리보기 */}
+              {/* 기존 사유/사진 기록 미리보기 */}
               {(tbmNoteRecord.workOrderNo ? tbmNoteByWorkOrder[tbmNoteRecord.workOrderNo] : tbmNoteMap[tbmNoteRecord.id]) && (
-                <div className="rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 p-3 text-xs space-y-1">
-                  <p className="flex items-center gap-1 font-bold text-amber-700 dark:text-amber-400"><FileEdit className="w-3.5 h-3.5" />기존 사유 기록됨</p>
+                <div className="rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 p-3 text-xs space-y-2">
+                  <p className="flex items-center gap-1 font-bold text-amber-700 dark:text-amber-400"><FileEdit className="w-3.5 h-3.5" />기존 사유/사진 기록됨</p>
                   {(() => {
                     const en = tbmNoteRecord.workOrderNo ? tbmNoteByWorkOrder[tbmNoteRecord.workOrderNo] : tbmNoteMap[tbmNoteRecord.id];
+                    const photos = en?.photoUrls && en.photoUrls.length > 0 ? en.photoUrls : (en?.photoUrl ? [en.photoUrl] : []);
                     return (
                       <>
                         {en?.reason && <p className="text-muted-foreground whitespace-pre-line">{en.reason}</p>}
-                        {en?.photoUrl && <p className="text-amber-600 dark:text-amber-400">📷 사진 첨부됨</p>}
+                        {photos.length > 0 && (
+                          <div className="flex gap-1.5 flex-wrap">
+                            {photos.map((url, i) => (
+                              <a key={i} href={url} target="_blank" rel="noopener noreferrer">
+                                <img src={url} alt={`부적합 사진 ${i + 1}`} className="w-14 h-14 object-cover rounded border border-amber-300 dark:border-amber-700" />
+                              </a>
+                            ))}
+                          </div>
+                        )}
                         <p className="text-muted-foreground/60">수정하려면 아래에서 다시 작성 후 저장</p>
                       </>
                     );

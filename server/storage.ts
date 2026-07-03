@@ -175,7 +175,8 @@ export interface IStorage {
   deleteAisSafetyRecordsByUpload(uploadId: number): Promise<void>;
   getAllAisTbmBadNotes(): Promise<AisTbmBadNote[]>;
   getAisTbmBadNote(recordId: number): Promise<AisTbmBadNote | null>;
-  upsertAisTbmBadNote(recordId: number, data: { noteType?: string; reason?: string; photoUrl?: string; photoFileName?: string; createdBy?: string; }): Promise<AisTbmBadNote>;
+  upsertAisTbmBadNote(recordId: number, data: { noteType?: string; reason?: string; photoUrl?: string; photoFileName?: string; photoUrls?: string[]; photoFileNames?: string[]; createdBy?: string; }): Promise<AisTbmBadNote>;
+  deleteAisTbmBadNote(recordId: number): Promise<void>;
   updateAisTbmJustification(recordId: number, justificationStatus: string | null, justificationReason: string | null, justificationBy: string | null): Promise<void>;
 
   // Heat Wave Checklists
@@ -1443,17 +1444,46 @@ export class DatabaseStorage implements IStorage {
     const [row] = await db.select().from(aisTbmBadNotes).where(eq(aisTbmBadNotes.recordId, recordId));
     return row ?? null;
   }
-  async upsertAisTbmBadNote(recordId: number, data: { noteType?: string; reason?: string; photoUrl?: string; photoFileName?: string; createdBy?: string; }): Promise<AisTbmBadNote> {
+  async upsertAisTbmBadNote(recordId: number, data: { noteType?: string; reason?: string; photoUrl?: string; photoFileName?: string; photoUrls?: string[]; photoFileNames?: string[]; createdBy?: string; }): Promise<AisTbmBadNote> {
     const existing = await this.getAisTbmBadNote(recordId);
+    const MAX_PHOTOS = 3;
     if (existing) {
+      let photoUrls: string[] | undefined;
+      let photoFileNames: string[] | undefined;
+      if (data.photoUrls !== undefined) {
+        photoUrls = data.photoUrls.slice(0, MAX_PHOTOS);
+        photoFileNames = (data.photoFileNames ?? []).slice(0, MAX_PHOTOS);
+      } else if (data.photoUrl) {
+        const baseUrls = existing.photoUrls && existing.photoUrls.length > 0 ? existing.photoUrls : (existing.photoUrl ? [existing.photoUrl] : []);
+        const baseNames = existing.photoFileNames && existing.photoFileNames.length > 0 ? existing.photoFileNames : (existing.photoFileName ? [existing.photoFileName] : []);
+        photoUrls = [...baseUrls, data.photoUrl].slice(0, MAX_PHOTOS);
+        photoFileNames = [...baseNames, data.photoFileName ?? ''].slice(0, MAX_PHOTOS);
+      }
+      const finalPhotoUrl = photoUrls ? (photoUrls[0] ?? null) : (data.photoUrl ?? null);
+      const finalPhotoFileName = photoFileNames ? (photoFileNames[0] ?? null) : (data.photoFileName ?? null);
       await pool.query(
-        `UPDATE ais_tbm_bad_notes SET note_type = COALESCE($1, note_type), reason = COALESCE($2, reason), photo_url = COALESCE($3, photo_url), photo_file_name = COALESCE($4, photo_file_name), created_by = COALESCE($5, created_by), updated_at = NOW() WHERE record_id = $6`,
-        [data.noteType ?? null, data.reason ?? null, data.photoUrl ?? null, data.photoFileName ?? null, data.createdBy ?? null, recordId]
+        `UPDATE ais_tbm_bad_notes SET note_type = COALESCE($1, note_type), reason = COALESCE($2, reason), photo_url = COALESCE($3, photo_url), photo_file_name = COALESCE($4, photo_file_name), photo_urls = COALESCE($5, photo_urls), photo_file_names = COALESCE($6, photo_file_names), created_by = COALESCE($7, created_by), updated_at = NOW() WHERE record_id = $8`,
+        [data.noteType ?? null, data.reason ?? null, finalPhotoUrl, finalPhotoFileName, photoUrls ?? null, photoFileNames ?? null, data.createdBy ?? null, recordId]
       );
       return (await this.getAisTbmBadNote(recordId))!;
     }
-    const [row] = await db.insert(aisTbmBadNotes).values({ recordId, noteType: data.noteType ?? 'bad', reason: data.reason, photoUrl: data.photoUrl, photoFileName: data.photoFileName, createdBy: data.createdBy }).returning();
+    const photoUrls = (data.photoUrls ?? (data.photoUrl ? [data.photoUrl] : [])).slice(0, MAX_PHOTOS);
+    const photoFileNames = (data.photoFileNames ?? (data.photoFileName ? [data.photoFileName] : [])).slice(0, MAX_PHOTOS);
+    const [row] = await db.insert(aisTbmBadNotes).values({
+      recordId,
+      noteType: data.noteType ?? 'bad',
+      reason: data.reason,
+      photoUrl: photoUrls[0] ?? data.photoUrl,
+      photoFileName: photoFileNames[0] ?? data.photoFileName,
+      photoUrls: photoUrls.length > 0 ? photoUrls : undefined,
+      photoFileNames: photoFileNames.length > 0 ? photoFileNames : undefined,
+      createdBy: data.createdBy,
+    }).returning();
     return row;
+  }
+
+  async deleteAisTbmBadNote(recordId: number): Promise<void> {
+    await pool.query(`DELETE FROM ais_tbm_bad_notes WHERE record_id = $1`, [recordId]);
   }
 
   async updateAisTbmJustification(recordId: number, justificationStatus: string | null, justificationReason: string | null, justificationBy: string | null): Promise<void> {

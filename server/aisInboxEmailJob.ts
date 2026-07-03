@@ -16,6 +16,7 @@ const GMAIL_USER = process.env.GMAIL_SENDER;
 const LAST_UID_SETTING_KEY = "ais_inbox_last_uid";
 const ALLOWED_IMG_EXTS = ["jpeg", "jpg", "png", "gif", "webp"];
 const uploadDir = path.join(process.cwd(), "uploads");
+const MAX_AUTO_PHOTOS = 3;
 
 export interface AisInboxJobStatus {
   lastRun: string | null;
@@ -151,24 +152,24 @@ export async function runAisInboxEmailJob(): Promise<void> {
 
           const imageAttachments = (parsed.attachments || []).filter(a =>
             (a.contentType || "").startsWith("image/") && a.content && a.content.length > 0
-          );
+          ).slice(0, MAX_AUTO_PHOTOS);
 
-          let photoUrl: string | undefined;
-          let photoFileName: string | undefined;
-          if (imageAttachments.length > 0) {
-            const first = imageAttachments[0];
+          const photoUrls: string[] = [];
+          const photoFileNames: string[] = [];
+          for (const att of imageAttachments) {
             const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-            const ext = safeExt(first.filename || "photo.jpg", ALLOWED_IMG_EXTS) || ".jpg";
+            const ext = safeExt(att.filename || "photo.jpg", ALLOWED_IMG_EXTS) || ".jpg";
             const filename = `email-${uniqueSuffix}${ext}`;
             try {
-              photoUrl = await uploadAttachmentBuffer(first.content as Buffer, filename, first.contentType || "image/jpeg");
-              photoFileName = first.filename || filename;
+              const url = await uploadAttachmentBuffer(att.content as Buffer, filename, att.contentType || "image/jpeg");
+              photoUrls.push(url);
+              photoFileNames.push(att.filename || filename);
             } catch (e: any) {
               console.error("[AisInboxEmail] 사진 업로드 실패:", e?.message);
             }
           }
 
-          if (!photoUrl) {
+          if (photoUrls.length === 0) {
             console.log(`[AisInboxEmail] 작업번호(${matchedWorkOrder}) 일치하나 첨부 사진이 없어 건너뜀`);
             continue;
           }
@@ -177,11 +178,16 @@ export async function runAisInboxEmailJob(): Promise<void> {
 
           for (const rec of targetRecords) {
             try {
-              // 사진만 자동 등록한다 — 사유(reason)는 담당자가 화면에서 직접 확인/작성하도록 건드리지 않음
+              // 사진만 자동 등록한다(최대 3장) — 사유(reason)는 담당자가 화면에서 직접 확인/작성하도록 건드리지 않음
+              const existing = await storage.getAisTbmBadNote(rec.id);
+              const baseUrls = existing?.photoUrls && existing.photoUrls.length > 0 ? existing.photoUrls : (existing?.photoUrl ? [existing.photoUrl] : []);
+              const baseNames = existing?.photoFileNames && existing.photoFileNames.length > 0 ? existing.photoFileNames : (existing?.photoFileName ? [existing.photoFileName] : []);
+              const mergedUrls = [...baseUrls, ...photoUrls].slice(0, MAX_AUTO_PHOTOS);
+              const mergedNames = [...baseNames, ...photoFileNames].slice(0, MAX_AUTO_PHOTOS);
               await storage.upsertAisTbmBadNote(rec.id, {
                 noteType: "bad",
-                photoUrl,
-                photoFileName,
+                photoUrls: mergedUrls,
+                photoFileNames: mergedNames,
                 createdBy: `email:${fromAddr}`,
               });
             } catch (e: any) {
@@ -189,7 +195,7 @@ export async function runAisInboxEmailJob(): Promise<void> {
             }
           }
           matchedCount++;
-          console.log(`[AisInboxEmail] 매칭 완료: 작업번호=${matchedWorkOrder} (${targetRecords.length}건 사진 반영)`);
+          console.log(`[AisInboxEmail] 매칭 완료: 작업번호=${matchedWorkOrder} (${targetRecords.length}건, 사진 ${photoUrls.length}장 반영)`);
         }
       }
     } finally {

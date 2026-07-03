@@ -130,11 +130,13 @@ shared/
 ### AIS TBM 부적합 소명 메일 자동접수 (2026-07-03)
 - **Job**: `server/aisInboxEmailJob.ts` — Gmail INBOX(GMAIL_SENDER/GMAIL_APP_PASSWORD)를 10분 간격(cron)으로 ImapFlow+mailparser로 폴링
 - **매칭 방식**: 이메일 제목/본문에 AIS 기록의 작업번호(workOrderNo, 예: "직영-무선기지국-20260702-0224")가 문자열로 그대로 포함되어 있는지 확인 (AI 추론 아님, 정확한 문자열 포함 매칭)
-- **처리 내용**: 작업번호가 매칭되고 이미지 첨부파일이 있는 경우 **사진만** `storage.upsertAisTbmBadNote()`로 자동 등록 (사진은 오브젝트스토리지 우선, 실패 시 `/uploads` 로컬 저장). 사유(reason)는 본문에서 추출하지 않으며, 담당자가 화면에서 직접 입력함
-- **부분 업데이트 안전성**: `upsertAisTbmBadNote`는 넘기지 않은 필드(reason/photoUrl/photoFileName)를 COALESCE로 기존 값 유지 — 사진만 등록해도 기존 사유가 지워지지 않음
+- **처리 내용**: 작업번호가 매칭되고 이미지 첨부파일이 있는 경우 **사진만(최대 3장)** `storage.upsertAisTbmBadNote()`로 자동 등록 (사진은 오브젝트스토리지 우선, 실패 시 `/uploads` 로컬 저장). 사유(reason)는 본문에서 추출하지 않으며, 담당자가 화면에서 직접 입력함
+- **다중 사진 지원**: `ais_tbm_bad_notes` 테이블에 `photo_urls`/`photo_file_names`(text array, 최대 3장) 컬럼 추가; 기존 단일 `photo_url`/`photo_file_name`은 배열의 첫 번째 값과 동기화되어 하위호환 유지. 이메일 자동접수·수동 사진 첨부 모두 기존 사진에 추가(append)되며 3장을 초과하면 앞의 것부터 유지
+- **부분 업데이트 안전성**: `upsertAisTbmBadNote`는 넘기지 않은 필드(reason/photo)를 COALESCE로 기존 값 유지 — 사진만 등록해도 기존 사유가 지워지지 않음
+- **부적합으로 되돌리기**: TBM 부적합 사유 다이얼로그에 소명 상태(소명완료/소명불가)가 있는 경우 "부적합 상태로 되돌리기" 버튼 표시 → `DELETE /api/ais-safety/records/:id/tbm-note`로 사진/사유/소명상태를 모두 삭제하여 완전히 초기화(동일 작업번호 연동 건도 함께 처리); 초기화 후에는 배지가 다시 빨간색 "부적합"으로 표시됨
 - **중복 방지**: 마지막으로 처리한 IMAP UID를 `settings` 테이블(`ais_inbox_last_uid`)에 저장해 재확인 시 이후 메일만 스캔
 - **중요**: 소명완료(justificationStatus) 처리는 자동으로 하지 않음 — 담당자가 화면에서 사진 확인 후 사유 입력 및 승인까지 직접 진행해야 함
-- **API**: `GET /api/ais-inbox-email/status`, `POST /api/ais-inbox-email/run-now` (수동 확인)
+- **API**: `GET /api/ais-inbox-email/status`, `POST /api/ais-inbox-email/run-now` (수동 확인), `DELETE /api/ais-safety/records/:id/tbm-note` (초기화)
 - **UI**: `AisSafetyRate.tsx` 상단 "소명 메일 자동접수" 버튼 → 상태 확인 및 수동 실행 다이얼로그
 
 ## External Dependencies

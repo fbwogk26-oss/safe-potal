@@ -4121,6 +4121,16 @@ ${buildEmailFooter()}
     }
   });
 
+  app.delete('/api/ais-safety/records/:id/tbm-note', isAuthenticated, async (req: any, res) => {
+    try {
+      const recordId = Number(req.params.id);
+      await storage.deleteAisTbmBadNote(recordId);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ message: "초기화에 실패했습니다" });
+    }
+  });
+
   app.get('/api/musculoskeletal-assessments', isAuthenticated, async (req: any, res) => {
     try {
       const headquarters = req.query.headquarters as string | undefined;
