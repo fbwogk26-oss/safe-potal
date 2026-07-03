@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -325,6 +325,8 @@ export default function AisSafetyRate() {
   const [tbmNoteReason, setTbmNoteReason] = useState('');
   const [tbmNotePhoto, setTbmNotePhoto] = useState<File | null>(null);
   const [showEmailDialog, setShowEmailDialog] = useState(false);
+  const [recipientsInput, setRecipientsInput] = useState('');
+  const [recipientsInitialized, setRecipientsInitialized] = useState(false);
   const [tbmNotePhotoPreview, setTbmNotePhotoPreview] = useState<string | null>(null);
   const [tbmNoteSaving, setTbmNoteSaving] = useState(false);
   const [justifStatus, setJustifStatus] = useState<'소명완료'|'소명불가'|null>(null);
@@ -349,11 +351,23 @@ export default function AisSafetyRate() {
   const { data: emailStatus } = useQuery<{
     lastRun: string | null; lastResult: string | null; lastMessage: string | null;
     lastSentTo: string | null; lastRecordCount: number | null; nextRun: string; running: boolean;
+    recipients: string;
   }>({
     queryKey: ['/api/ais-daily-email/status'],
     enabled: showEmailDialog,
     refetchInterval: showEmailDialog ? 5000 : false,
   });
+
+  useEffect(() => {
+    if (emailStatus && !recipientsInitialized) {
+      setRecipientsInput(emailStatus.recipients || '');
+      setRecipientsInitialized(true);
+    }
+  }, [emailStatus, recipientsInitialized]);
+
+  useEffect(() => {
+    if (!showEmailDialog) setRecipientsInitialized(false);
+  }, [showEmailDialog]);
 
   const { data: emailPreview, isLoading: emailPreviewLoading } = useQuery<{ subject: string; html: string }>({
     queryKey: ['/api/ais-daily-email/preview'],
@@ -371,6 +385,21 @@ export default function AisSafetyRate() {
     },
     onError: (e: any) => {
       toast({ title: '발송 실패', description: e.message, variant: 'destructive' });
+    },
+  });
+
+  const saveRecipientsMutation = useMutation({
+    mutationFn: async (recipients: string) => {
+      const res = await apiRequest('PUT', '/api/ais-daily-email/recipients', { recipients });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      toast({ title: '저장 완료', description: '수신 이메일이 저장되었습니다.' });
+      setRecipientsInput(data.recipients || '');
+      queryClient.invalidateQueries({ queryKey: ['/api/ais-daily-email/status'] });
+    },
+    onError: (e: any) => {
+      toast({ title: '저장 실패', description: e.message, variant: 'destructive' });
     },
   });
 
@@ -860,6 +889,32 @@ export default function AisSafetyRate() {
                   )}
                 </>
               )}
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="ais-email-recipients" className="text-xs font-semibold text-muted-foreground">
+                수신 이메일 (쉼표로 구분하여 여러 명 입력 가능)
+              </Label>
+              <div className="flex gap-2">
+                <input
+                  id="ais-email-recipients"
+                  type="text"
+                  className="flex-1 h-9 rounded-md border border-input bg-background px-3 text-sm"
+                  placeholder="example@company.com, example2@company.com"
+                  value={recipientsInput}
+                  onChange={(e) => setRecipientsInput(e.target.value)}
+                  data-testid="input-email-recipients"
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={saveRecipientsMutation.isPending || !recipientsInput.trim()}
+                  onClick={() => saveRecipientsMutation.mutate(recipientsInput)}
+                  data-testid="button-save-recipients"
+                >
+                  {saveRecipientsMutation.isPending ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
+                  저장
+                </Button>
+              </div>
             </div>
             <div className="flex justify-end">
               <Button

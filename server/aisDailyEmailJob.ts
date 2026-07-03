@@ -8,6 +8,27 @@ import { storage } from "./storage";
 import type { AisSafetyRecord, AisTbmBadNote } from "@shared/schema";
 
 const AIS_DAILY_EMAIL_SETTING_KEY = "ais_daily_email_sent_date";
+const AIS_DAILY_EMAIL_RECIPIENTS_KEY = "ais_daily_email_recipients";
+
+export async function getAisDailyEmailRecipients(): Promise<string> {
+  try {
+    const setting = await storage.getSetting(AIS_DAILY_EMAIL_RECIPIENTS_KEY);
+    if (setting?.value && setting.value.trim()) return setting.value.trim();
+  } catch (e) {
+    console.warn("[AisDailyEmail] 수신자 설정 조회 오류:", e);
+  }
+  return (process.env.GMAIL_RECIPIENTS || "").trim();
+}
+
+export async function setAisDailyEmailRecipients(value: string): Promise<string> {
+  const cleaned = value
+    .split(",")
+    .map(s => s.trim())
+    .filter(Boolean)
+    .join(", ");
+  await storage.setSetting(AIS_DAILY_EMAIL_RECIPIENTS_KEY, cleaned);
+  return cleaned;
+}
 
 export interface AisDailyEmailStatus {
   lastRun: string | null;
@@ -207,11 +228,11 @@ export async function runAisDailyEmailJob(opts?: { force?: boolean }): Promise<v
   try {
     const sender = process.env.GMAIL_SENDER;
     const appPassword = process.env.GMAIL_APP_PASSWORD;
-    const recipientsRaw = process.env.GMAIL_RECIPIENTS;
+    const recipientsRaw = await getAisDailyEmailRecipients();
 
     if (!sender || !appPassword || !recipientsRaw) {
       status.lastResult = "error";
-      status.lastMessage = "GMAIL_SENDER / GMAIL_APP_PASSWORD / GMAIL_RECIPIENTS 환경변수가 설정되지 않았습니다.";
+      status.lastMessage = "발신 계정(GMAIL_SENDER/GMAIL_APP_PASSWORD) 또는 수신자가 설정되지 않았습니다.";
       console.error("[AisDailyEmail]", status.lastMessage);
       return;
     }
@@ -219,7 +240,7 @@ export async function runAisDailyEmailJob(opts?: { force?: boolean }): Promise<v
     const recipients = recipientsRaw.split(",").map(s => s.trim()).filter(Boolean);
     if (recipients.length === 0) {
       status.lastResult = "error";
-      status.lastMessage = "GMAIL_RECIPIENTS에 유효한 수신자가 없습니다.";
+      status.lastMessage = "유효한 수신자가 없습니다. 수신 이메일을 설정해주세요.";
       return;
     }
 

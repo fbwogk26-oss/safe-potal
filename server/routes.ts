@@ -10100,8 +10100,32 @@ ${htmlDraft}
 
   // ─── AIS 안전이행률 일일 보고 메일 상태/미리보기/테스트발송 ──────────────────────
   app.get('/api/ais-daily-email/status', isAuthenticated, async (_req, res) => {
-    const { getAisDailyEmailStatus } = await import('./aisDailyEmailJob');
-    res.json(getAisDailyEmailStatus());
+    const { getAisDailyEmailStatus, getAisDailyEmailRecipients } = await import('./aisDailyEmailJob');
+    const [status, recipients] = await Promise.all([
+      getAisDailyEmailStatus(),
+      getAisDailyEmailRecipients(),
+    ]);
+    res.json({ ...status, recipients });
+  });
+
+  app.put('/api/ais-daily-email/recipients', requireEditor, async (req, res) => {
+    try {
+      const { setAisDailyEmailRecipients } = await import('./aisDailyEmailJob');
+      const { recipients } = req.body || {};
+      if (typeof recipients !== 'string' || !recipients.trim()) {
+        return res.status(400).json({ message: "수신 이메일을 입력해주세요." });
+      }
+      const emails = recipients.split(",").map((s: string) => s.trim()).filter(Boolean);
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const invalid = emails.filter((e: string) => !emailRegex.test(e));
+      if (invalid.length > 0) {
+        return res.status(400).json({ message: `유효하지 않은 이메일 형식: ${invalid.join(", ")}` });
+      }
+      const saved = await setAisDailyEmailRecipients(recipients);
+      res.json({ message: "수신 이메일이 저장되었습니다.", recipients: saved });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
   });
 
   app.get('/api/ais-daily-email/preview', isAuthenticated, async (req, res) => {
