@@ -129,6 +129,7 @@ function renderPeriodTeamTable(
   teams: string[],
   justifiedIds: Set<number>,
   barColor: string,
+  labelFn?: (p: string) => string,
 ): number {
   ws.getCell(`A${startRow}`).value = title;
   ws.getCell(`A${startRow}`).font = { bold: true, size: 12, color: { argb: 'FF1E3A8A' } };
@@ -136,7 +137,7 @@ function renderPeriodTeamTable(
   const headerRowIdx = startRow + 1;
   const headerRow = ws.getRow(headerRowIdx);
   headerRow.getCell(1).value = "부서";
-  periods.forEach((p, i) => { headerRow.getCell(i + 2).value = p; });
+  periods.forEach((p, i) => { headerRow.getCell(i + 2).value = labelFn ? labelFn(p) : p; });
   headerRow.getCell(periods.length + 2).value = "합계";
   styleHeaderRow(headerRow);
 
@@ -211,14 +212,20 @@ interface BuildResult {
   badCount: number;
 }
 
-export async function buildAisExcelReportBuffer(): Promise<BuildResult> {
+export async function buildAisExcelReportBuffer(opts?: { startDate?: string; endDate?: string }): Promise<BuildResult> {
   const [uploads, allRecordsRaw, badNotesRaw] = await Promise.all([
     storage.getAisSafetyUploads(),
     storage.getAllAisSafetyRecords(),
     storage.getAllAisTbmBadNotes(),
   ]);
 
-  const allRecords = allRecordsRaw.filter(r => !isCancelled(r));
+  const { startDate, endDate } = opts || {};
+  const allRecords = allRecordsRaw.filter(r => {
+    if (isCancelled(r)) return false;
+    if (startDate && (!r.startDate || r.startDate < startDate)) return false;
+    if (endDate && (!r.startDate || r.startDate > endDate)) return false;
+    return true;
+  });
   const noteByRecordId = new Map<number, AisTbmBadNote>(badNotesRaw.map(n => [n.recordId, n]));
 
   // 소명완료 레코드(동일 작업번호 포함)는 부적합(평가대상)에서 제외
@@ -242,8 +249,8 @@ export async function buildAisExcelReportBuffer(): Promise<BuildResult> {
   // ══════════════════════════════════════════════════════════
   const wsSummary = wb.addWorksheet("현황", { views: [{ state: 'frozen', ySplit: 0 }] });
   wsSummary.columns = [
-    { width: 20 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 14 },
-    { width: 14 }, { width: 14 }, { width: 14 }, { width: 14 },
+    { width: 20 }, { width: 14 }, { width: 16 }, { width: 14 }, { width: 14 },
+    { width: 12 }, { width: 18 }, { width: 16 }, { width: 16 },
   ];
 
   const teams = Array.from(new Set(allRecords.map(r => r.team).filter(Boolean))) as string[];
@@ -296,44 +303,40 @@ export async function buildAisExcelReportBuffer(): Promise<BuildResult> {
   wsSummary.getCell('A3').font = { size: 10, color: { argb: 'FF64748B' } };
 
   wsSummary.getCell('A5').value = "핵심 지표";
-  wsSummary.getCell('A5').font = { bold: true, size: 12, color: { argb: 'FF1E3A8A' } };
+  wsSummary.getCell('A5').font = { bold: true, size: 13, color: { argb: 'FF1E3A8A' } };
+
+  const kpiCols = [
+    { header: "전체 이행률", value: `${complianceRate}%`, color: 'FF2563EB' },
+    { header: "안전허가서 매칭률", value: `${permitRate}%`, color: 'FF16A34A' },
+    { header: "TBM 이행률", value: `${tbmImplRate}%`, color: 'FFD97706' },
+    { header: "총 작업건수", value: totalActive, color: 'FF475569' },
+    { header: "이슈건수", value: issueCount, color: 'FFDC2626' },
+    { header: "└ 고위험허가서미등록", value: `${highRiskNoPermit.length}건`, color: 'FFDC2626', sub: true },
+    { header: "└ TBM 미등록", value: `${tbmUnreg.length}건`, color: 'FFDC2626', sub: true },
+    { header: "└ TBM AI 부적합", value: `${tbmBadEvalRecords.length}건`, color: 'FFDC2626', sub: true },
+  ];
 
   const kpiHeaderRow = wsSummary.getRow(6);
-  kpiHeaderRow.getCell(1).value = "전체 이행률";
-  kpiHeaderRow.getCell(2).value = "안전허가서 매칭률";
-  kpiHeaderRow.getCell(3).value = "TBM 이행률";
-  kpiHeaderRow.getCell(4).value = "총 작업건수";
-  kpiHeaderRow.getCell(5).value = "이슈건수";
-  for (let c = 1; c <= 5; c++) wsSummary.getRow(6).getCell(c).width;
-  styleHeaderRow(kpiHeaderRow);
-
   const kpiValueRow = wsSummary.getRow(7);
-  kpiValueRow.getCell(1).value = `${complianceRate}%`;
-  kpiValueRow.getCell(2).value = `${permitRate}%`;
-  kpiValueRow.getCell(3).value = `${tbmImplRate}%`;
-  kpiValueRow.getCell(4).value = totalActive;
-  kpiValueRow.getCell(5).value = issueCount;
-  styleDataRow(kpiValueRow);
-  kpiValueRow.eachCell(c => { c.font = { bold: true, size: 12 }; });
+  kpiHeaderRow.height = 20;
+  kpiValueRow.height = 30;
+  kpiCols.forEach((k, i) => {
+    const col = i + 1;
+    const hCell = kpiHeaderRow.getCell(col);
+    const vCell = kpiValueRow.getCell(col);
+    hCell.value = k.header;
+    vCell.value = k.value;
+    hCell.font = { bold: true, size: k.sub ? 9 : 10, color: { argb: k.sub ? 'FF64748B' : 'FFFFFFFF' } };
+    hCell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+    hCell.border = THIN_BORDER;
+    hCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: k.sub ? 'FFF1F5F9' : 'FF1E3A8A' } };
+    vCell.font = { bold: true, size: k.sub ? 13 : 16, color: { argb: k.color } };
+    vCell.alignment = { vertical: 'middle', horizontal: 'center' };
+    vCell.border = THIN_BORDER;
+    vCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: k.sub ? 'FFFEF2F2' : 'FFEFF6FF' } };
+  });
 
-  const issueDetailHeaderRow = wsSummary.getRow(8);
-  issueDetailHeaderRow.getCell(1).value = "이슈 상세 (소명완료 건 제외)";
-  issueDetailHeaderRow.getCell(1).font = { bold: true, size: 10, color: { argb: 'FF64748B' } };
-  issueDetailHeaderRow.getCell(2).value = "고위험작업 허가서 미등록";
-  issueDetailHeaderRow.getCell(3).value = "TBM 미등록";
-  issueDetailHeaderRow.getCell(4).value = "TBM AI 부적합";
-  const issueDetailValueRow = wsSummary.getRow(9);
-  issueDetailValueRow.getCell(2).value = `${highRiskNoPermit.length}건`;
-  issueDetailValueRow.getCell(3).value = `${tbmUnreg.length}건`;
-  issueDetailValueRow.getCell(4).value = `${tbmBadEvalRecords.length}건`;
-  for (let c = 2; c <= 4; c++) {
-    issueDetailHeaderRow.getCell(c).font = { bold: true, size: 10, color: { argb: 'FF64748B' } };
-    issueDetailHeaderRow.getCell(c).alignment = { horizontal: 'center' };
-    issueDetailValueRow.getCell(c).font = { bold: true, size: 11 };
-    issueDetailValueRow.getCell(c).alignment = { horizontal: 'center' };
-  }
-
-  const teamTableStartRow = 12;
+  const teamTableStartRow = 10;
   wsSummary.getCell(`A${teamTableStartRow - 1}`).value = "운용팀별 TBM 활동 내역";
   wsSummary.getCell(`A${teamTableStartRow - 1}`).font = { bold: true, size: 12, color: { argb: 'FF1E3A8A' } };
 
@@ -388,10 +391,13 @@ export async function buildAisExcelReportBuffer(): Promise<BuildResult> {
 
   let curRow = rateRowIdx + 3;
   const monthPeriods = Array.from(monthlyMap.keys()).sort();
-  curRow = renderPeriodTeamTable(wsSummary, curRow, "월별 이행률 현황 (부서별 건수)", monthPeriods, monthlyMap, teams, justifiedRecordIds, 'FF3B82F6');
+  curRow = renderPeriodTeamTable(wsSummary, curRow, "월별 이행률 현황 (부서별 건수)", monthPeriods, monthlyMap, teams, justifiedRecordIds, 'FF3B82F6', (p) => p.replace(/^\d{4}-/, "") + "월");
 
   const dayPeriods = Array.from(dailyMap.keys()).sort();
-  curRow = renderPeriodTeamTable(wsSummary, curRow, "일자별 이행률 현황 (부서별 건수)", dayPeriods, dailyMap, teams, justifiedRecordIds, 'FF22C55E');
+  curRow = renderPeriodTeamTable(wsSummary, curRow, "일자별 이행률 현황 (부서별 건수)", dayPeriods, dailyMap, teams, justifiedRecordIds, 'FF22C55E', (p) => {
+    const parts = p.split("-");
+    return parts.length === 3 ? `${parts[1]}/${parts[2]}` : p;
+  });
 
   // ══════════════════════════════════════════════════════════
   // 시트 2: 세부내역
@@ -590,7 +596,10 @@ export async function buildAisExcelReportBuffer(): Promise<BuildResult> {
   const buffer = await wb.xlsx.writeBuffer();
   const now = new Date();
   const kstDate = new Date(now.getTime() + 9 * 3600 * 1000).toISOString().slice(0, 10);
-  const fileName = `AIS_안전이행률_종합리포트_${kstDate}.xlsx`;
+  const periodSuffix = startDate && endDate
+    ? (startDate === endDate ? startDate : `${startDate}_${endDate}`)
+    : kstDate;
+  const fileName = `AIS_안전이행률_종합리포트_${periodSuffix}.xlsx`;
 
   return { buffer: buffer as Buffer, fileName, recordCount: allRecords.length, badCount: badRecords.length };
 }

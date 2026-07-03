@@ -343,6 +343,11 @@ export default function AisSafetyRate() {
   const [hrSearch, setHrSearch] = useState('');
   const [hrFilterTbm, setHrFilterTbm] = useState('all');
   const [cumulativeMonth, setCumulativeMonth] = useState<string>('all');
+  const [exportStartDate, setExportStartDate] = useState<string>(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+  });
+  const [exportEndDate, setExportEndDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
   const [calendarMonth, setCalendarMonth] = useState<string>(() => new Date().toISOString().substring(0, 7));
   const [editingRecord, setEditingRecord] = useState<AisSafetyRecord | null>(null);
   const [editForm, setEditForm] = useState<Partial<AisSafetyRecord>>({});
@@ -1136,11 +1141,38 @@ export default function AisSafetyRate() {
                 </Button>
               </div>
             </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-muted-foreground">
+                엑셀 리포트 기간 (기본값: 이번 달)
+              </Label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                  value={exportStartDate}
+                  onChange={(e) => setExportStartDate(e.target.value)}
+                  data-testid="input-export-start-date"
+                />
+                <span className="text-muted-foreground text-sm">~</span>
+                <input
+                  type="date"
+                  className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                  value={exportEndDate}
+                  onChange={(e) => setExportEndDate(e.target.value)}
+                  data-testid="input-export-end-date"
+                />
+              </div>
+            </div>
             <div className="flex justify-end gap-2">
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => window.open('/api/ais-daily-email/export-excel', '_blank')}
+                onClick={() => {
+                  const params = new URLSearchParams();
+                  if (exportStartDate) params.set('startDate', exportStartDate);
+                  if (exportEndDate) params.set('endDate', exportEndDate);
+                  window.open(`/api/ais-daily-email/export-excel?${params.toString()}`, '_blank');
+                }}
                 data-testid="button-download-excel-report"
               >
                 <FileSpreadsheet className="w-4 h-4 mr-2" />

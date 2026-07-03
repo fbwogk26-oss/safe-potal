@@ -10183,10 +10183,19 @@ ${htmlDraft}
     }
   });
 
-  app.get('/api/ais-daily-email/export-excel', isAuthenticated, async (_req, res) => {
+  app.get('/api/ais-daily-email/export-excel', isAuthenticated, async (req, res) => {
     try {
       const { buildAisExcelReportBuffer } = await import('./aisExcelReport');
-      const { buffer, fileName } = await buildAisExcelReportBuffer();
+      let { startDate, endDate } = req.query as { startDate?: string; endDate?: string };
+      if (!startDate || !endDate) {
+        const now = new Date();
+        const kst = new Date(now.getTime() + 9 * 3600 * 1000);
+        const y = kst.getUTCFullYear();
+        const m = kst.getUTCMonth();
+        startDate = `${y}-${String(m + 1).padStart(2, '0')}-01`;
+        endDate = kst.toISOString().slice(0, 10);
+      }
+      const { buffer, fileName } = await buildAisExcelReportBuffer({ startDate, endDate });
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);
       res.send(buffer);
