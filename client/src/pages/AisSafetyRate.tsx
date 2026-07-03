@@ -576,7 +576,12 @@ export default function AisSafetyRate() {
     const tbmAiRate = nonCancelled.length > 0
       ? Math.round((nonCancelled.filter(r => r.tbmAiResult === '적합' || (r.tbmAiResult === '부적합' && justifiedRecordIds.has(r.id))).length / nonCancelled.length) * 100)
       : 100;
-    return { team: team?.replace('운용팀', '').replace('팀', '') || '미지정', fullTeam: team || '', rate: c.rate, count: tr.length, issueCount, issueList, tbmRegRate, tbmAiRate };
+    // AI 적합 세부 분해: 적합 / 소명완료 / 분석전(대기) / 부적합
+    const aiPass = nonCancelled.filter(r => r.tbmAiResult === '적합').length;
+    const aiJustified = nonCancelled.filter(r => r.tbmAiResult === '부적합' && justifiedRecordIds.has(r.id)).length;
+    const aiPending = nonCancelled.filter(r => !r.tbmAiResult || r.tbmAiResult === '분석전' || r.tbmAiResult === '분석중').length;
+    const aiFail = nonCancelled.filter(r => r.tbmAiResult === '부적합' && !justifiedRecordIds.has(r.id)).length;
+    return { team: team?.replace('운용팀', '').replace('팀', '') || '미지정', fullTeam: team || '', rate: c.rate, count: tr.length, issueCount, issueList, tbmRegRate, tbmAiRate, aiTotal: nonCancelled.length, aiPass, aiJustified, aiPending, aiFail };
   }).sort((a, b) => b.rate - a.rate);
 
   const complianceItems = [
@@ -1127,7 +1132,7 @@ export default function AisSafetyRate() {
                     style={{ background:'linear-gradient(160deg,#1d4ed8 0%,#2563eb 55%,#4f46e5 100%)', boxShadow:'inset -4px 0 16px rgba(0,0,0,0.15)' }}>
                     {/* 안전허가서 매칭 도넛 */}
                     <div className="flex flex-col items-center justify-center py-2 lg:py-4 px-3 lg:px-4 gap-1 lg:gap-2 flex-1">
-                      <p className="text-[10px] font-bold text-blue-200 uppercase tracking-widest">안전허가서 매칭</p>
+                      <p className="text-xs font-bold text-blue-200 uppercase tracking-widest">안전허가서 매칭</p>
                       {(() => {
                         const total = highRiskRecords.length;
                         const pass = highRiskRecords.filter(r => r.safetyPermit === 'Y').length;
@@ -1142,21 +1147,21 @@ export default function AisSafetyRate() {
                         return (
                           <div className="flex flex-col items-center gap-2 w-full">
                             <div className="relative">
-                              <PieChart width={104} height={104}>
-                                <Pie data={donutData} cx={47} cy={47} innerRadius={30} outerRadius={46} paddingAngle={fail > 0 ? 2 : 0} dataKey="value">
+                              <PieChart width={140} height={140}>
+                                <Pie data={donutData} cx={66} cy={66} innerRadius={40} outerRadius={62} paddingAngle={fail > 0 ? 2 : 0} dataKey="value">
                                   {donutData.map((entry, idx) => <Cell key={idx} fill={entry.color} opacity={0.9} />)}
                                 </Pie>
                               </PieChart>
                               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                                <span className="text-2xl font-black text-white leading-none">{rate}</span>
-                                <span className="text-[9px] text-white/70 font-bold">%</span>
+                                <span className="text-3xl font-black text-white leading-none">{rate}</span>
+                                <span className="text-xs text-white/70 font-bold">%</span>
                               </div>
                             </div>
-                            <div className="flex gap-3 text-[9px]">
-                              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-emerald-400 inline-block" />매칭 {pass}건</span>
-                              {fail > 0 && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-red-400 inline-block" />미매칭 {fail}건</span>}
+                            <div className="flex gap-3 text-xs">
+                              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-400 inline-block" />매칭 {pass}건</span>
+                              {fail > 0 && <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-red-400 inline-block" />미매칭 {fail}건</span>}
                             </div>
-                            {total === 0 && <p className="text-[10px] text-blue-300/60">고위험작업 없음</p>}
+                            {total === 0 && <p className="text-xs text-blue-300/60">고위험작업 없음</p>}
                           </div>
                         );
                       })()}
@@ -1169,29 +1174,29 @@ export default function AisSafetyRate() {
                       {/* 1열: 6대 고위험 + 안전허가서 매칭 */}
                       <div className="flex flex-col divide-y divide-border/60 h-full">
                       {/* 6대 고위험 */}
-                      <div className="p-3 flex flex-col gap-1.5 flex-1 justify-center">
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-6 h-6 rounded-md bg-orange-100 dark:bg-orange-900/40 flex items-center justify-center flex-shrink-0">
-                            <AlertTriangle className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />
+                      <div className="p-4 flex flex-col gap-2 flex-1 justify-center">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-md bg-orange-100 dark:bg-orange-900/40 flex items-center justify-center flex-shrink-0">
+                            <AlertTriangle className="w-5 h-5 text-orange-600 dark:text-orange-400" />
                           </div>
-                          <span className="text-xs font-semibold text-muted-foreground truncate">6대 고위험작업</span>
+                          <span className="text-sm font-semibold text-muted-foreground truncate">6대 고위험작업</span>
                         </div>
-                        <p className="text-2xl font-black leading-none">{highRiskRecords.length}<span className="text-xs font-normal text-muted-foreground ml-1">건</span></p>
-                        <p className="text-[11px] text-muted-foreground">허가서 <span className="font-bold text-emerald-600">{highRiskRecords.filter(r => r.safetyPermit === 'Y').length}건</span></p>
+                        <p className="text-3xl font-black leading-none">{highRiskRecords.length}<span className="text-sm font-normal text-muted-foreground ml-1">건</span></p>
+                        <p className="text-sm text-muted-foreground">허가서 <span className="font-bold text-emerald-600">{highRiskRecords.filter(r => r.safetyPermit === 'Y').length}건</span></p>
                         {comp.highRiskNoPermit && comp.highRiskNoPermit.length > 0 && (
-                          <p className="text-[11px] text-red-600 font-semibold">⚠ 미매칭 {comp.highRiskNoPermit.length}건</p>
+                          <p className="text-sm text-red-600 font-semibold">⚠ 미매칭 {comp.highRiskNoPermit.length}건</p>
                         )}
                         {highRiskBreakdown.length > 0 && (
-                          <div className="flex flex-col gap-0.5 mt-0.5">
+                          <div className="flex flex-col gap-1 mt-0.5">
                             {highRiskBreakdown.filter(d => !d.isNone && d.total > 0).map(d => {
                               const rate = d.total === 0 ? 100 : Math.round((d.permit / d.total) * 100);
                               return (
-                                <div key={d.type} className={`flex items-center justify-between px-2 py-0.5 rounded-md ${d.total === 0 ? 'opacity-40' : 'bg-orange-50/60 dark:bg-orange-950/20'}`}>
-                                  <span className="text-[10px] font-semibold text-muted-foreground">{d.type}</span>
-                                  <div className="flex items-center gap-1">
-                                    <span className={`text-[10px] font-black ${d.total === 0 ? 'text-muted-foreground' : ''}`}>{d.total}</span>
+                                <div key={d.type} className={`flex items-center justify-between px-2 py-1 rounded-md ${d.total === 0 ? 'opacity-40' : 'bg-orange-50/60 dark:bg-orange-950/20'}`}>
+                                  <span className="text-xs font-semibold text-muted-foreground">{d.type}</span>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className={`text-xs font-black ${d.total === 0 ? 'text-muted-foreground' : ''}`}>{d.total}</span>
                                     {d.total > 0 && <RateBadge value={rate} />}
-                                    {d.noPermit > 0 && <span className="text-[9px] text-red-600 font-bold">미{d.noPermit}</span>}
+                                    {d.noPermit > 0 && <span className="text-[11px] text-red-600 font-bold">미{d.noPermit}</span>}
                                   </div>
                                 </div>
                               );
@@ -1241,9 +1246,9 @@ export default function AisSafetyRate() {
                       })()}
                       </div>
                       {/* TBM 전체 이행률 */}
-                      <div className="flex flex-col items-center justify-center py-4 px-4 text-white gap-2 lg:w-56 w-full self-stretch"
+                      <div className="flex flex-col items-center justify-center py-4 px-4 text-white gap-2 lg:w-64 w-full self-stretch"
                         style={{ background:'linear-gradient(160deg,#1d4ed8 0%,#2563eb 55%,#4f46e5 100%)', boxShadow:'inset -4px 0 16px rgba(0,0,0,0.15)' }}>
-                        <p className="text-[10px] font-bold text-blue-200 uppercase tracking-widest">TBM 이행률</p>
+                        <p className="text-xs font-bold text-blue-200 uppercase tracking-widest">TBM 이행률</p>
                         {(() => {
                           // 등록 AND AI적합을 모두 충족해야 순수 이행(purePass), 둘 중 하나라도 소명완료로 대체되면 소명
                           const purePass = tbmBase.filter(r => r.tbmResult === '등록' && r.tbmAiResult === '적합').length;
@@ -1273,23 +1278,23 @@ export default function AisSafetyRate() {
                           return (
                             <div className="flex flex-col items-center gap-2 w-full">
                               <div className="relative">
-                                <PieChart width={104} height={104}>
-                                  <Pie data={donutData} cx={47} cy={47} innerRadius={30} outerRadius={46} paddingAngle={2} dataKey="value">
+                                <PieChart width={140} height={140}>
+                                  <Pie data={donutData} cx={66} cy={66} innerRadius={40} outerRadius={62} paddingAngle={2} dataKey="value">
                                     {donutData.map((entry, idx) => <Cell key={idx} fill={entry.color} opacity={0.9} />)}
                                   </Pie>
                                 </PieChart>
                                 <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                                  <span className="text-2xl font-black text-white leading-none">{rate}</span>
-                                  <span className="text-[9px] text-white/70 font-bold">%</span>
+                                  <span className="text-3xl font-black text-white leading-none">{rate}</span>
+                                  <span className="text-xs text-white/70 font-bold">%</span>
                                 </div>
                               </div>
-                              <div className="flex flex-wrap justify-center gap-x-2 gap-y-0.5 text-[9px]">
-                                {purePass > 0 && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-emerald-400 inline-block" />이행 {purePass}건</span>}
-                                {justified > 0 && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-amber-400 inline-block" />소명 {justified}건</span>}
-                                {pending > 0 && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-slate-400 inline-block" />분석전 {pending}건</span>}
-                                {fail > 0 && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-red-400 inline-block" />부적합 {fail}건</span>}
+                              <div className="flex flex-wrap justify-center gap-x-2.5 gap-y-1 text-xs">
+                                {purePass > 0 && <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-400 inline-block" />이행 {purePass}건</span>}
+                                {justified > 0 && <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-amber-400 inline-block" />소명 {justified}건</span>}
+                                {pending > 0 && <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-slate-400 inline-block" />분석전 {pending}건</span>}
+                                {fail > 0 && <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-red-400 inline-block" />부적합 {fail}건</span>}
                               </div>
-                              {total === 0 && <p className="text-[10px] text-blue-300/60">TBM 없음</p>}
+                              {total === 0 && <p className="text-xs text-blue-300/60">TBM 없음</p>}
                             </div>
                           );
                         })()}
@@ -1297,36 +1302,36 @@ export default function AisSafetyRate() {
                       {/* 3열: 이슈사항 + TBM 분석결과 */}
                       <div className="flex flex-col divide-y divide-border/60 h-full">
                       {/* 이슈사항 */}
-                      <div className="p-3 flex flex-col gap-1.5 flex-1 justify-center">
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-6 h-6 rounded-md bg-red-100 dark:bg-red-900/40 flex items-center justify-center flex-shrink-0">
-                            <XCircle className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
+                      <div className="p-4 flex flex-col gap-2 flex-1 justify-center">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-md bg-red-100 dark:bg-red-900/40 flex items-center justify-center flex-shrink-0">
+                            <XCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
                           </div>
-                          <span className="text-xs font-semibold text-muted-foreground truncate">이슈사항</span>
+                          <span className="text-sm font-semibold text-muted-foreground truncate">이슈사항</span>
                         </div>
-                        <p className="text-2xl font-black leading-none">{(comp.issues || []).reduce((a, b) => a + b.count, 0)}<span className="text-xs font-normal text-muted-foreground ml-1">건</span></p>
+                        <p className="text-3xl font-black leading-none">{(comp.issues || []).reduce((a, b) => a + b.count, 0)}<span className="text-sm font-normal text-muted-foreground ml-1">건</span></p>
                         {(comp.issues || []).length > 0 ? (
-                          <div className="flex flex-col gap-1 mt-0.5">
+                          <div className="flex flex-col gap-1.5 mt-0.5">
                             {(comp.issues || []).map(issue => (
                               <button key={issue.label} onClick={() => setActiveIssue(issue)}
-                                className="flex items-center justify-between px-2 py-1 rounded-lg bg-red-50/80 dark:bg-red-950/20 border border-red-200/50 dark:border-red-800/40 hover:border-red-400 dark:hover:border-red-600 transition-all group"
+                                className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-red-50/80 dark:bg-red-950/20 border border-red-200/50 dark:border-red-800/40 hover:border-red-400 dark:hover:border-red-600 transition-all group"
                                 data-testid={`button-issue-top-${issue.label}`}>
-                                <span className="text-[10px] font-semibold text-muted-foreground truncate">{issue.label}</span>
-                                <span className="text-xs font-black text-red-600 dark:text-red-400 ml-1 flex-shrink-0">{issue.count}</span>
+                                <span className="text-xs font-semibold text-muted-foreground truncate">{issue.label}</span>
+                                <span className="text-sm font-black text-red-600 dark:text-red-400 ml-1 flex-shrink-0">{issue.count}</span>
                               </button>
                             ))}
                           </div>
                         ) : (
-                          <p className="text-[11px] text-muted-foreground">이슈 없음</p>
+                          <p className="text-sm text-muted-foreground">이슈 없음</p>
                         )}
                       </div>
                       {/* TBM AI 분석결과 */}
-                      <div className="p-3 flex flex-col gap-2.5 flex-1 justify-center">
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-6 h-6 rounded-md bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center flex-shrink-0">
-                            <Users className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                      <div className="p-4 flex flex-col gap-3 flex-1 justify-center">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-md bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center flex-shrink-0">
+                            <Users className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                           </div>
-                          <span className="text-xs font-semibold text-muted-foreground">TBM AI 분석결과</span>
+                          <span className="text-sm font-semibold text-muted-foreground">TBM AI 분석결과</span>
                         </div>
                         {(() => {
                           const total = tbmAiData.reduce((s, d) => s + d.value, 0);
@@ -1342,31 +1347,31 @@ export default function AisSafetyRate() {
                             { name: '분석전', value: pending + analyzing, color: '#94a3b8' },
                           ].filter(d => d.value > 0);
                           return (
-                            <div className="flex flex-col gap-2">
+                            <div className="flex flex-col gap-2.5">
                               {/* 건수 */}
-                              <p className="text-2xl font-black leading-none">{total}<span className="text-sm font-normal text-muted-foreground ml-1">전체 건</span></p>
+                              <p className="text-3xl font-black leading-none">{total}<span className="text-base font-normal text-muted-foreground ml-1">전체 건</span></p>
                               {/* 스택바 */}
-                              <div className="w-full h-5 rounded-lg overflow-hidden flex shadow-inner">
+                              <div className="w-full h-7 rounded-lg overflow-hidden flex shadow-inner">
                                 {items.map(d => {
                                   const pct = total > 0 ? (d.value / total) * 100 : 0;
                                   return (
                                     <div key={d.name} style={{ width:`${pct}%`, backgroundColor:d.color, opacity:0.9 }}
                                       className="h-full relative flex items-center justify-center"
                                       title={`${d.name}: ${d.value}건`}>
-                                      {pct > 12 && <span className="text-white text-[9px] font-black drop-shadow">{d.value}</span>}
+                                      {pct > 12 && <span className="text-white text-xs font-black drop-shadow">{d.value}</span>}
                                     </div>
                                   );
                                 })}
                               </div>
                               {/* 범례 2열 */}
-                              <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                              <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
                                 {items.map(d => {
                                   const pct = total > 0 ? Math.round(d.value / total * 100) : 0;
                                   return (
-                                    <div key={d.name} className="flex items-center gap-1.5">
-                                      <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: d.color }} />
-                                      <span className="text-[10px] text-muted-foreground truncate">{d.name}</span>
-                                      <span className="text-[10px] font-bold ml-auto" style={{ color: d.color }}>{d.value}건</span>
+                                    <div key={d.name} className="flex items-center gap-2">
+                                      <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: d.color }} />
+                                      <span className="text-xs text-muted-foreground truncate">{d.name}</span>
+                                      <span className="text-xs font-bold ml-auto" style={{ color: d.color }}>{d.value}건</span>
                                     </div>
                                   );
                                 })}
@@ -1389,14 +1394,14 @@ export default function AisSafetyRate() {
                 <Card className="border-0 shadow-sm bg-card/60 lg:col-span-3">
                   <CardHeader className="pb-2 pt-3 px-4">
                     <div className="flex items-center justify-between flex-wrap gap-2">
-                      <CardTitle className="text-sm font-bold flex items-center gap-2">
-                        <TrendingUp className="w-4 h-4 text-blue-500" />팀별 이행률
+                      <CardTitle className="text-base font-bold flex items-center gap-2">
+                        <TrendingUp className="w-5 h-5 text-blue-500" />팀별 이행률
                       </CardTitle>
                       {teamData.length > 0 && (
-                        <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
-                          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm inline-block bg-emerald-500"></span>90%+</span>
-                          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm inline-block bg-amber-500"></span>70~89%</span>
-                          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm inline-block bg-red-500"></span>~70%</span>
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm inline-block bg-emerald-500"></span>90%+</span>
+                          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm inline-block bg-amber-500"></span>70~89%</span>
+                          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm inline-block bg-red-500"></span>~70%</span>
                           <span className="text-muted-foreground/60">· TBM등록 <span className="text-emerald-500 font-bold">■</span> AI적합 <span className="text-sky-500 font-bold">■</span></span>
                         </div>
                       )}
@@ -1417,22 +1422,22 @@ export default function AisSafetyRate() {
                             ? { grad: 'linear-gradient(90deg,#d97706,#f59e0b)', text: 'text-amber-600 dark:text-amber-400' }
                             : { grad: 'linear-gradient(90deg,#dc2626,#ef4444)', text: 'text-red-600 dark:text-red-400' };
                           return (
-                            <div key={entry.team} className="rounded-lg border bg-card/90 hover:shadow-sm transition-all px-3 py-2">
+                            <div key={entry.team} className="rounded-lg border bg-card/90 hover:shadow-sm transition-all px-4 py-3">
                               {/* 상단: 순위 · 팀명 · 건수 · 이슈 */}
-                              <div className="flex items-center gap-2 mb-1.5">
-                                <span className={`text-[10px] font-black w-4 text-center flex-shrink-0 ${i < 3 ? ['text-amber-500','text-slate-400','text-orange-400'][i] : 'text-muted-foreground/40'}`}>{i + 1}</span>
-                                <span className="text-xs font-bold flex-1 truncate" title={entry.fullTeam}>{entry.team}</span>
-                                <span className="text-[10px] text-muted-foreground flex-shrink-0">{entry.count}건</span>
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className={`text-sm font-black w-5 text-center flex-shrink-0 ${i < 3 ? ['text-amber-500','text-slate-400','text-orange-400'][i] : 'text-muted-foreground/40'}`}>{i + 1}</span>
+                                <span className="text-base font-bold flex-1 truncate" title={entry.fullTeam}>{entry.team}</span>
+                                <span className="text-xs text-muted-foreground flex-shrink-0">{entry.count}건</span>
                                 {entry.issueCount > 0 ? (
                                   <button
                                     onClick={() => setActiveIssue({ label: `${entry.fullTeam} 이슈 목록`, list: entry.issueList })}
-                                    className="flex items-center gap-0.5 text-[10px] font-bold bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400 px-1.5 py-0.5 rounded-full hover:bg-red-200 transition-colors border border-red-200 dark:border-red-800 flex-shrink-0"
+                                    className="flex items-center gap-0.5 text-xs font-bold bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400 px-2 py-0.5 rounded-full hover:bg-red-200 transition-colors border border-red-200 dark:border-red-800 flex-shrink-0"
                                   >
-                                    <AlertTriangle className="w-2.5 h-2.5" />{entry.issueCount}
+                                    <AlertTriangle className="w-3 h-3" />{entry.issueCount}
                                   </button>
                                 ) : (
-                                  <span className="flex items-center gap-0.5 text-[10px] font-bold text-emerald-500 flex-shrink-0">
-                                    <CheckCircle2 className="w-2.5 h-2.5" />
+                                  <span className="flex items-center gap-0.5 text-xs font-bold text-emerald-500 flex-shrink-0">
+                                    <CheckCircle2 className="w-3 h-3" />
                                   </span>
                                 )}
                               </div>
@@ -1440,21 +1445,31 @@ export default function AisSafetyRate() {
                               <div className="grid grid-cols-2 gap-1.5">
                                 <div>
                                   <div className="flex justify-between mb-0.5">
-                                    <span className="text-[9px] text-muted-foreground">TBM 등록</span>
-                                    <span className={`text-[9px] font-bold ${regColor.text}`}>{entry.tbmRegRate}%</span>
+                                    <span className="text-sm text-muted-foreground">TBM 등록</span>
+                                    <span className={`text-sm font-bold ${regColor.text}`}>{entry.tbmRegRate}%</span>
                                   </div>
-                                  <div className="relative w-full h-2.5 rounded-full bg-muted/40 overflow-hidden">
+                                  <div className="relative w-full h-3.5 rounded-full bg-muted/40 overflow-hidden">
                                     <div className="h-full rounded-full transition-all duration-700" style={{ width: `${Math.max(entry.tbmRegRate, 2)}%`, background: regColor.grad }} />
                                     <div className="absolute top-0 bottom-0 border-l border-dashed border-indigo-400/60" style={{ left: '90%' }} />
                                   </div>
                                 </div>
                                 <div>
                                   <div className="flex justify-between mb-0.5">
-                                    <span className="text-[9px] text-muted-foreground">AI 적합</span>
-                                    <span className={`text-[9px] font-bold ${aiColor.text}`}>{entry.tbmAiRate}%</span>
+                                    <span className="text-sm text-muted-foreground">AI 적합</span>
+                                    <span className={`text-sm font-bold ${aiColor.text}`}>{entry.tbmAiRate}%</span>
                                   </div>
-                                  <div className="relative w-full h-2.5 rounded-full bg-muted/40 overflow-hidden">
-                                    <div className="h-full rounded-full transition-all duration-700" style={{ width: `${Math.max(entry.tbmAiRate, 2)}%`, background: aiColor.grad }} />
+                                  <div className="relative w-full h-3.5 rounded-full bg-muted/40 overflow-hidden flex"
+                                    title={`적합 ${entry.aiPass}건 · 소명완료 ${entry.aiJustified}건 · 분석전 ${entry.aiPending}건 · 부적합 ${entry.aiFail}건`}>
+                                    {entry.aiTotal === 0 ? (
+                                      <div className="h-full w-full bg-muted/40" />
+                                    ) : (
+                                      <>
+                                        {entry.aiPass > 0 && <div className="h-full" style={{ width: `${(entry.aiPass / entry.aiTotal) * 100}%`, background: '#22c55e' }} />}
+                                        {entry.aiJustified > 0 && <div className="h-full" style={{ width: `${(entry.aiJustified / entry.aiTotal) * 100}%`, background: '#f59e0b' }} />}
+                                        {entry.aiPending > 0 && <div className="h-full" style={{ width: `${(entry.aiPending / entry.aiTotal) * 100}%`, background: '#94a3b8' }} />}
+                                        {entry.aiFail > 0 && <div className="h-full" style={{ width: `${(entry.aiFail / entry.aiTotal) * 100}%`, background: '#ef4444' }} />}
+                                      </>
+                                    )}
                                     <div className="absolute top-0 bottom-0 border-l border-dashed border-indigo-400/60" style={{ left: '90%' }} />
                                   </div>
                                 </div>
