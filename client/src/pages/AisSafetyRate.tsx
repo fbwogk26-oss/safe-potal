@@ -1409,7 +1409,7 @@ export default function AisSafetyRate() {
                   </CardHeader>
                   <CardContent className="pt-0 px-4 pb-3">
                     {teamData.length > 0 ? (
-                      <div className="space-y-1.5">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
                         {teamData.map((entry, i) => {
                           const regColor = entry.tbmRegRate >= 90
                             ? { grad: 'linear-gradient(90deg,#16a34a,#22c55e)', text: 'text-emerald-600 dark:text-emerald-400' }
@@ -1422,22 +1422,22 @@ export default function AisSafetyRate() {
                             ? { grad: 'linear-gradient(90deg,#d97706,#f59e0b)', text: 'text-amber-600 dark:text-amber-400' }
                             : { grad: 'linear-gradient(90deg,#dc2626,#ef4444)', text: 'text-red-600 dark:text-red-400' };
                           return (
-                            <div key={entry.team} className="rounded-lg border bg-card/90 hover:shadow-sm transition-all px-4 py-3">
+                            <div key={entry.team} className="rounded-lg border bg-card/90 hover:shadow-sm transition-all px-3 py-2">
                               {/* 상단: 순위 · 팀명 · 건수 · 이슈 */}
-                              <div className="flex items-center gap-2 mb-2">
-                                <span className={`text-sm font-black w-5 text-center flex-shrink-0 ${i < 3 ? ['text-amber-500','text-slate-400','text-orange-400'][i] : 'text-muted-foreground/40'}`}>{i + 1}</span>
-                                <span className="text-base font-bold flex-1 truncate" title={entry.fullTeam}>{entry.team}</span>
-                                <span className="text-xs text-muted-foreground flex-shrink-0">{entry.count}건</span>
+                              <div className="flex items-center gap-1.5 mb-1">
+                                <span className={`text-xs font-black w-4 text-center flex-shrink-0 ${i < 3 ? ['text-amber-500','text-slate-400','text-orange-400'][i] : 'text-muted-foreground/40'}`}>{i + 1}</span>
+                                <span className="text-sm font-bold flex-1 truncate" title={entry.fullTeam}>{entry.team}</span>
+                                <span className="text-[11px] text-muted-foreground flex-shrink-0">{entry.count}건</span>
                                 {entry.issueCount > 0 ? (
                                   <button
                                     onClick={() => setActiveIssue({ label: `${entry.fullTeam} 이슈 목록`, list: entry.issueList })}
-                                    className="flex items-center gap-0.5 text-xs font-bold bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400 px-2 py-0.5 rounded-full hover:bg-red-200 transition-colors border border-red-200 dark:border-red-800 flex-shrink-0"
+                                    className="flex items-center gap-0.5 text-[11px] font-bold bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400 px-1.5 py-0.5 rounded-full hover:bg-red-200 transition-colors border border-red-200 dark:border-red-800 flex-shrink-0"
                                   >
-                                    <AlertTriangle className="w-3 h-3" />{entry.issueCount}
+                                    <AlertTriangle className="w-2.5 h-2.5" />{entry.issueCount}
                                   </button>
                                 ) : (
-                                  <span className="flex items-center gap-0.5 text-xs font-bold text-emerald-500 flex-shrink-0">
-                                    <CheckCircle2 className="w-3 h-3" />
+                                  <span className="flex items-center gap-0.5 text-[11px] font-bold text-emerald-500 flex-shrink-0">
+                                    <CheckCircle2 className="w-2.5 h-2.5" />
                                   </span>
                                 )}
                               </div>
@@ -1445,20 +1445,20 @@ export default function AisSafetyRate() {
                               <div className="grid grid-cols-2 gap-1.5">
                                 <div>
                                   <div className="flex justify-between mb-0.5">
-                                    <span className="text-sm text-muted-foreground">TBM 등록</span>
-                                    <span className={`text-sm font-bold ${regColor.text}`}>{entry.tbmRegRate}%</span>
+                                    <span className="text-[11px] text-muted-foreground">TBM 등록</span>
+                                    <span className={`text-[11px] font-bold ${regColor.text}`}>{entry.tbmRegRate}%</span>
                                   </div>
-                                  <div className="relative w-full h-3.5 rounded-full bg-muted/40 overflow-hidden">
+                                  <div className="relative w-full h-2.5 rounded-full bg-muted/40 overflow-hidden">
                                     <div className="h-full rounded-full transition-all duration-700" style={{ width: `${Math.max(entry.tbmRegRate, 2)}%`, background: regColor.grad }} />
                                     <div className="absolute top-0 bottom-0 border-l border-dashed border-indigo-400/60" style={{ left: '90%' }} />
                                   </div>
                                 </div>
                                 <div>
                                   <div className="flex justify-between mb-0.5">
-                                    <span className="text-sm text-muted-foreground">AI 적합</span>
-                                    <span className={`text-sm font-bold ${aiColor.text}`}>{entry.tbmAiRate}%</span>
+                                    <span className="text-[11px] text-muted-foreground">AI 적합</span>
+                                    <span className={`text-[11px] font-bold ${aiColor.text}`}>{entry.tbmAiRate}%</span>
                                   </div>
-                                  <div className="relative w-full h-3.5 rounded-full bg-muted/40 overflow-hidden flex"
+                                  <div className="relative w-full h-2.5 rounded-full bg-muted/40 overflow-hidden flex"
                                     title={`적합 ${entry.aiPass}건 · 소명완료 ${entry.aiJustified}건 · 분석전 ${entry.aiPending}건 · 부적합 ${entry.aiFail}건`}>
                                     {entry.aiTotal === 0 ? (
                                       <div className="h-full w-full bg-muted/40" />
