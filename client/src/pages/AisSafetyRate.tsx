@@ -1252,14 +1252,22 @@ export default function AisSafetyRate() {
                             (r.tbmResult === '등록' || justifiedRecordIds.has(r.id)) &&
                             (r.tbmAiResult === '적합' || justifiedRecordIds.has(r.id))
                           ).length;
+                          // 등록은 됐지만 AI 분석이 아직 안 끝난 건 = 미이행이 아니라 분석전(대기)
+                          const pending = tbmBase.filter(r =>
+                            !(r.tbmResult === '등록' && r.tbmAiResult === '적합') &&
+                            !((r.tbmResult === '등록' || justifiedRecordIds.has(r.id)) && (r.tbmAiResult === '적합' || justifiedRecordIds.has(r.id))) &&
+                            r.tbmResult === '등록' &&
+                            (!r.tbmAiResult || r.tbmAiResult === '분석전' || r.tbmAiResult === '분석중')
+                          ).length;
                           const total = tbmBase.length;
-                          const fail = Math.max(0, total - purePass - justified);
+                          const fail = Math.max(0, total - purePass - justified - pending);
                           const rate = total === 0 ? 100 : Math.round(((purePass + justified) / total) * 100);
                           const donutData = total === 0
                             ? [{ name: '데이터없음', value: 1, color: '#6366f1' }]
                             : [
                                 { name: '이행', value: purePass, color: '#22c55e' },
                                 { name: '소명완료', value: justified, color: '#f59e0b' },
+                                { name: '분석전', value: pending, color: '#94a3b8' },
                                 { name: '미이행', value: fail, color: '#ef4444' },
                               ].filter(d => d.value > 0);
                           return (
@@ -1278,6 +1286,7 @@ export default function AisSafetyRate() {
                               <div className="flex flex-wrap justify-center gap-x-2 gap-y-0.5 text-[9px]">
                                 {purePass > 0 && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-emerald-400 inline-block" />이행 {purePass}건</span>}
                                 {justified > 0 && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-amber-400 inline-block" />소명 {justified}건</span>}
+                                {pending > 0 && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-slate-400 inline-block" />분석전 {pending}건</span>}
                                 {fail > 0 && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-red-400 inline-block" />미이행 {fail}건</span>}
                               </div>
                               {total === 0 && <p className="text-[10px] text-blue-300/60">TBM 없음</p>}
