@@ -1036,8 +1036,8 @@ export default function AisSafetyRate() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="rounded-lg border bg-muted/30 p-3 text-sm space-y-1">
-              <p>10분마다 메일함을 확인하여, 제목이나 본문에 <span className="font-semibold">작업지시번호</span>가 포함된 메일을 받으면 첨부된 사진과 본문 내용을 해당 작업의 TBM 부적합 소명 자료로 자동 등록합니다.</p>
-              <p className="text-xs text-muted-foreground">자동 등록 후에도 소명완료 처리는 담당자가 화면에서 직접 확인 후 진행해야 합니다.</p>
+              <p>10분마다 메일함을 확인하여, 제목이나 본문에 <span className="font-semibold">작업번호</span>가 적힌 메일에 사진이 첨부되어 있으면 해당 작업의 TBM 부적합 소명 사진으로 자동 등록합니다.</p>
+              <p className="text-xs text-muted-foreground">사진만 자동 등록되며, 사유 입력과 소명완료 처리는 담당자가 화면에서 직접 확인 후 진행해야 합니다.</p>
             </div>
             {inboxStatus && (
               <div className="rounded-lg border p-3 text-xs space-y-1">

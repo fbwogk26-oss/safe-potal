@@ -72,17 +72,6 @@ async function uploadAttachmentBuffer(buffer: Buffer, filename: string, contentT
   return `/uploads/${filename}`;
 }
 
-/** 이메일 본문(텍스트)에서 서명/인용 등 불필요한 부분을 어느 정도 정리 */
-function cleanReasonText(text: string): string {
-  return (text || "")
-    .split(/\r?\n/)
-    .filter(line => !/^>/.test(line.trim()))
-    .join("\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim()
-    .slice(0, 1000);
-}
-
 export async function runAisInboxEmailJob(): Promise<void> {
   if (status.running) {
     console.log("[AisInboxEmail] 이미 실행 중 - 건너뜀");
@@ -179,14 +168,18 @@ export async function runAisInboxEmailJob(): Promise<void> {
             }
           }
 
-          const reason = cleanReasonText(bodyText);
+          if (!photoUrl) {
+            console.log(`[AisInboxEmail] 작업번호(${matchedWorkOrder}) 일치하나 첨부 사진이 없어 건너뜀`);
+            continue;
+          }
+
           const fromAddr = parsed.from?.value?.[0]?.address || "메일자동접수";
 
           for (const rec of targetRecords) {
             try {
+              // 사진만 자동 등록한다 — 사유(reason)는 담당자가 화면에서 직접 확인/작성하도록 건드리지 않음
               await storage.upsertAisTbmBadNote(rec.id, {
                 noteType: "bad",
-                reason: reason || undefined,
                 photoUrl,
                 photoFileName,
                 createdBy: `email:${fromAddr}`,
@@ -196,7 +189,7 @@ export async function runAisInboxEmailJob(): Promise<void> {
             }
           }
           matchedCount++;
-          console.log(`[AisInboxEmail] 매칭 완료: 작업지시번호=${matchedWorkOrder} (${targetRecords.length}건 반영), 첨부사진=${imageAttachments.length}개`);
+          console.log(`[AisInboxEmail] 매칭 완료: 작업번호=${matchedWorkOrder} (${targetRecords.length}건 사진 반영)`);
         }
       }
     } finally {

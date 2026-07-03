@@ -1447,7 +1447,7 @@ export class DatabaseStorage implements IStorage {
     const existing = await this.getAisTbmBadNote(recordId);
     if (existing) {
       await pool.query(
-        `UPDATE ais_tbm_bad_notes SET note_type = COALESCE($1, note_type), reason = $2, photo_url = $3, photo_file_name = $4, created_by = COALESCE($5, created_by), updated_at = NOW() WHERE record_id = $6`,
+        `UPDATE ais_tbm_bad_notes SET note_type = COALESCE($1, note_type), reason = COALESCE($2, reason), photo_url = COALESCE($3, photo_url), photo_file_name = COALESCE($4, photo_file_name), created_by = COALESCE($5, created_by), updated_at = NOW() WHERE record_id = $6`,
         [data.noteType ?? null, data.reason ?? null, data.photoUrl ?? null, data.photoFileName ?? null, data.createdBy ?? null, recordId]
       );
       return (await this.getAisTbmBadNote(recordId))!;

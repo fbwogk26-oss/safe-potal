@@ -129,10 +129,11 @@ shared/
 
 ### AIS TBM 부적합 소명 메일 자동접수 (2026-07-03)
 - **Job**: `server/aisInboxEmailJob.ts` — Gmail INBOX(GMAIL_SENDER/GMAIL_APP_PASSWORD)를 10분 간격(cron)으로 ImapFlow+mailparser로 폴링
-- **매칭 방식**: 이메일 제목/본문에 AIS 기록의 작업지시번호(workOrderNo)가 문자열로 포함되어 있는지 확인 (AI 추론 아님, 정확한 문자열 포함 매칭)
-- **처리 내용**: 매칭된 메일의 첫 번째 이미지 첨부파일 + 본문 텍스트(사유)를 `storage.upsertAisTbmBadNote()`로 저장 (사진은 오브젝트스토리지 우선, 실패 시 `/uploads` 로컬 저장)
+- **매칭 방식**: 이메일 제목/본문에 AIS 기록의 작업번호(workOrderNo, 예: "직영-무선기지국-20260702-0224")가 문자열로 그대로 포함되어 있는지 확인 (AI 추론 아님, 정확한 문자열 포함 매칭)
+- **처리 내용**: 작업번호가 매칭되고 이미지 첨부파일이 있는 경우 **사진만** `storage.upsertAisTbmBadNote()`로 자동 등록 (사진은 오브젝트스토리지 우선, 실패 시 `/uploads` 로컬 저장). 사유(reason)는 본문에서 추출하지 않으며, 담당자가 화면에서 직접 입력함
+- **부분 업데이트 안전성**: `upsertAisTbmBadNote`는 넘기지 않은 필드(reason/photoUrl/photoFileName)를 COALESCE로 기존 값 유지 — 사진만 등록해도 기존 사유가 지워지지 않음
 - **중복 방지**: 마지막으로 처리한 IMAP UID를 `settings` 테이블(`ais_inbox_last_uid`)에 저장해 재확인 시 이후 메일만 스캔
-- **중요**: 소명완료(justificationStatus) 처리는 자동으로 하지 않음 — 담당자가 화면에서 사진/사유 확인 후 직접 승인해야 함
+- **중요**: 소명완료(justificationStatus) 처리는 자동으로 하지 않음 — 담당자가 화면에서 사진 확인 후 사유 입력 및 승인까지 직접 진행해야 함
 - **API**: `GET /api/ais-inbox-email/status`, `POST /api/ais-inbox-email/run-now` (수동 확인)
 - **UI**: `AisSafetyRate.tsx` 상단 "소명 메일 자동접수" 버튼 → 상태 확인 및 수동 실행 다이얼로그
 
