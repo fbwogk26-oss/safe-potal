@@ -430,31 +430,6 @@ export default function AisSafetyRate() {
     },
   });
 
-  const dailyGroups = useMemo(() => {
-    const groups: Record<string, AisSafetyRecord[]> = {};
-    for (const r of allRecords) {
-      if (!r.startDate) continue;
-      if (!groups[r.startDate]) groups[r.startDate] = [];
-      groups[r.startDate].push(r);
-    }
-    return Object.entries(groups)
-      .sort((a, b) => b[0].localeCompare(a[0]))
-      .map(([date, recs]) => ({ date, records: recs, ...calcCompliance(recs.filter(r => r.workStatus !== '취소')) }));
-  }, [allRecords]);
-
-  const monthlyGroups = useMemo(() => {
-    const groups: Record<string, AisSafetyRecord[]> = {};
-    for (const r of allRecords) {
-      if (!r.startDate || r.startDate.length < 7) continue;
-      const month = r.startDate.substring(0, 7);
-      if (!groups[month]) groups[month] = [];
-      groups[month].push(r);
-    }
-    return Object.entries(groups)
-      .sort((a, b) => b[0].localeCompare(a[0]))
-      .map(([month, recs]) => ({ month, records: recs, ...calcCompliance(recs.filter(r => r.workStatus !== '취소')) }));
-  }, [allRecords]);
-
   const records = useMemo(() => {
     if (viewMode === 'cumulative') {
       if (cumulativeMonth === 'all') return allRecords;
@@ -505,6 +480,31 @@ export default function AisSafetyRate() {
     });
     return ids;
   }, [allTbmNotes, allRecords]);
+
+  const dailyGroups = useMemo(() => {
+    const groups: Record<string, AisSafetyRecord[]> = {};
+    for (const r of allRecords) {
+      if (!r.startDate) continue;
+      if (!groups[r.startDate]) groups[r.startDate] = [];
+      groups[r.startDate].push(r);
+    }
+    return Object.entries(groups)
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .map(([date, recs]) => ({ date, records: recs, ...calcCompliance(recs.filter(r => r.workStatus !== '취소'), justifiedRecordIds) }));
+  }, [allRecords, justifiedRecordIds]);
+
+  const monthlyGroups = useMemo(() => {
+    const groups: Record<string, AisSafetyRecord[]> = {};
+    for (const r of allRecords) {
+      if (!r.startDate || r.startDate.length < 7) continue;
+      const month = r.startDate.substring(0, 7);
+      if (!groups[month]) groups[month] = [];
+      groups[month].push(r);
+    }
+    return Object.entries(groups)
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .map(([month, recs]) => ({ month, records: recs, ...calcCompliance(recs.filter(r => r.workStatus !== '취소'), justifiedRecordIds) }));
+  }, [allRecords, justifiedRecordIds]);
 
   const openTbmNote = (r: AisSafetyRecord) => {
     setTbmNoteType('bad');
