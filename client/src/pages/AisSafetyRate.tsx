@@ -989,7 +989,7 @@ export default function AisSafetyRate() {
             </div>
             <div>
               <Label className="text-xs font-semibold text-muted-foreground">메일 미리보기</Label>
-              <div className="mt-2 rounded-lg border bg-white dark:bg-slate-950 overflow-hidden">
+              <div className="mt-2 rounded-lg border bg-white dark:bg-slate-950 overflow-x-auto overflow-y-visible">
                 {emailPreviewLoading ? (
                   <div className="p-6 flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
                 ) : emailPreview ? (
