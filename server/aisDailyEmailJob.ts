@@ -87,92 +87,131 @@ export function buildAisDailyReportHtml(targetDate: string, allRecords: AisSafet
   const dayRecords = allRecords.filter(r => r.startDate === targetDate && !isCancelled(r));
   const noteMap = new Map(badNotes.map(n => [n.recordId, n]));
 
+  // 소명완료된 레코드 ID (같은 workOrderNo 레코드도 포함) — 부적합(평가대상) 집계에서 제외
+  const justifiedRecordIds = new Set<number>();
+  for (const n of badNotes) {
+    if (n.justificationStatus === "소명완료") {
+      justifiedRecordIds.add(n.recordId);
+      const rec = allRecords.find(r => r.id === n.recordId);
+      if (rec?.workOrderNo) {
+        allRecords.filter(r => r.workOrderNo === rec.workOrderNo).forEach(r => justifiedRecordIds.add(r.id));
+      }
+    }
+  }
+
   const teams = Array.from(new Set(dayRecords.map(r => r.team).filter(Boolean))) as string[];
 
-  type TeamStat = { team: string; direct: number; contract: number; bad: number; total: number; rate: number };
+  type TeamStat = { team: string; direct: number; contract: number; bad: number; badEval: number; total: number; rate: number };
   const teamStats: TeamStat[] = teams.map(team => {
     const tr = dayRecords.filter(r => r.team === team);
     const direct = tr.filter(r => (r.workType || "").includes("직영")).length;
     const contract = tr.filter(r => (r.workType || "").includes("도급")).length;
     const bad = tr.filter(r => r.tbmAiResult === "부적합").length;
+    const badEval = tr.filter(r => r.tbmAiResult === "부적합" && !justifiedRecordIds.has(r.id)).length;
     const total = tr.length;
-    const rate = total > 0 ? Math.round((bad / total) * 1000) / 10 : 0;
-    return { team, direct, contract, bad, total, rate };
+    const rate = total > 0 ? Math.round((badEval / total) * 1000) / 10 : 0;
+    return { team, direct, contract, bad, badEval, total, rate };
   });
 
   const totalDirect = teamStats.reduce((s, t) => s + t.direct, 0);
   const totalContract = teamStats.reduce((s, t) => s + t.contract, 0);
   const totalBad = teamStats.reduce((s, t) => s + t.bad, 0);
+  const totalBadEval = teamStats.reduce((s, t) => s + t.badEval, 0);
   const totalAll = teamStats.reduce((s, t) => s + t.total, 0);
-  const totalRate = totalAll > 0 ? Math.round((totalBad / totalAll) * 1000) / 10 : 0;
+  const totalRate = totalAll > 0 ? Math.round((totalBadEval / totalAll) * 1000) / 10 : 0;
 
   const highRiskNoPermit = dayRecords.filter(r => isHighRiskWork(r.highRiskWork) && r.safetyPermit !== "Y");
   const tbmUnreg = dayRecords.filter(r => r.tbmResult === "미등록");
   const tbmBadRecords = dayRecords.filter(r => r.tbmAiResult === "부적합");
+  const tbmBadEvalRecords = tbmBadRecords.filter(r => !justifiedRecordIds.has(r.id));
 
   const totalActive = dayRecords.length;
-  const issueCount = highRiskNoPermit.length + tbmUnreg.length + tbmBadRecords.length;
+  const issueCount = highRiskNoPermit.length + tbmUnreg.length + tbmBadEvalRecords.length;
   const passCount = totalActive * 3 - issueCount;
   const complianceRate = totalActive > 0 ? Math.round((passCount / (totalActive * 3)) * 100) : 100;
 
-  const thStyle = `border:1px solid #999;padding:7px 10px;background:#f0f0f0;white-space:nowrap;font-size:13px;text-align:center;font-weight:bold`;
-  const tdStyle = `border:1px solid #999;padding:7px 10px;font-size:13px;white-space:nowrap;text-align:center`;
+  // ── 시각적 가독성 개선 스타일 ──
+  const ACCENT = "#2563eb";
+  const ACCENT_DARK = "#1e3a8a";
+  const thStyle = `border:1px solid #cbd5e1;padding:9px 12px;background:${ACCENT};color:#ffffff;white-space:nowrap;font-size:13px;text-align:center;font-weight:700;letter-spacing:0.2px`;
+  const tdStyle = (bg: string) => `border:1px solid #dbe3ef;padding:9px 12px;font-size:13px;white-space:nowrap;text-align:center;background:${bg}`;
 
-  const teamHeaderRow = `<tr><th style="${thStyle}">구분</th>${teamStats.map(t => `<th style="${thStyle}">${t.team}</th>`).join("")}<th style="${thStyle}">합계</th></tr>`;
-  const rowHtml = (label: string, values: (string | number)[], total: string | number) =>
-    `<tr><td style="${tdStyle};background:#f7f7f7;font-weight:bold">${label}</td>${values.map(v => `<td style="${tdStyle}">${v}</td>`).join("")}<td style="${tdStyle};font-weight:bold">${total}</td></tr>`;
+  const teamHeaderRow = `<tr><th style="${thStyle}">구분</th>${teamStats.map(t => `<th style="${thStyle}">${t.team}</th>`).join("")}<th style="${thStyle};background:${ACCENT_DARK}">합계</th></tr>`;
+  const rowHtml = (label: string, values: (string | number)[], total: string | number, opts?: { rowBg?: string; highlight?: boolean }) => {
+    const rowBg = opts?.rowBg ?? "#ffffff";
+    const cellStyle = tdStyle(rowBg);
+    const valueCell = opts?.highlight
+      ? `border:1px solid #fca5a5;padding:9px 12px;font-size:13px;white-space:nowrap;text-align:center;background:#fef2f2;color:#dc2626;font-weight:700`
+      : cellStyle;
+    const labelCellStyle = `border:1px solid #dbe3ef;padding:9px 12px;font-size:13px;white-space:nowrap;text-align:left;background:#eff4fc;font-weight:700;color:${ACCENT_DARK}`;
+    return `<tr><td style="${labelCellStyle}">${label}</td>${values.map(v => `<td style="${valueCell}">${v}</td>`).join("")}<td style="border:1px solid #cbd5e1;padding:9px 12px;font-size:13px;white-space:nowrap;text-align:center;background:#e2e8f0;font-weight:800">${total}</td></tr>`;
+  };
 
   const teamTableHtml = teamStats.length === 0 ? `<p style="font-size:13px;color:#888">${displayDate} 등록된 AIS 데이터가 없습니다.</p>` : [
-    `<table style="border-collapse:collapse;border-spacing:0;font-family:맑은고딕,sans-serif;font-size:13px;background:#fff">`,
+    `<table style="border-collapse:collapse;border-spacing:0;font-family:맑은고딕,sans-serif;font-size:13px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,0.08)">`,
     `<thead>${teamHeaderRow}</thead>`,
     `<tbody>`,
     rowHtml("직영공사", teamStats.map(t => t.direct), totalDirect),
-    rowHtml("도급공사", teamStats.map(t => t.contract), totalContract),
+    rowHtml("도급공사", teamStats.map(t => t.contract), totalContract, { rowBg: "#f8fafc" }),
     rowHtml("TBM AI 부적합", teamStats.map(t => t.bad), totalBad),
-    rowHtml("불량율", teamStats.map(t => `${t.rate}%`), `${totalRate}%`),
+    rowHtml("부적합(평가대상)", teamStats.map(t => t.badEval), totalBadEval, { rowBg: "#fef2f2", highlight: true }),
+    rowHtml("불량율", teamStats.map(t => `${t.rate}%`), `${totalRate}%`, { rowBg: "#f8fafc" }),
     `</tbody></table>`,
+    `<p style="margin:6px 2px 0;font-size:11px;color:#64748b;font-family:맑은고딕,sans-serif">※ 부적합(평가대상)은 TBM AI 부적합 건 중 소명완료 처리된 건을 제외한 실제 평가 대상 건수입니다.</p>`,
   ].join("\n");
 
   const issueItems: string[] = [];
   for (const r of highRiskNoPermit) {
-    issueItems.push(`&nbsp;- ${displayDate} ${r.team || ""} ${r.workName || r.workLocation || ""} 고위험작업(${r.highRiskWork}) 안전허가서 미등록`);
+    issueItems.push(`<span style="color:#dc2626;font-weight:700">⚠ 고위험작업 안전허가서 미등록</span> — ${displayDate} ${r.team || ""} ${r.workName || r.workLocation || ""} (${r.highRiskWork})`);
   }
   for (const r of tbmUnreg) {
-    issueItems.push(`&nbsp;- ${displayDate} ${r.team || ""} ${r.workName || r.workLocation || ""} TBM 활동 미등록`);
+    issueItems.push(`<span style="color:#d97706;font-weight:700">⚠ TBM 활동 미등록</span> — ${displayDate} ${r.team || ""} ${r.workName || r.workLocation || ""}`);
   }
-  for (const r of tbmBadRecords) {
+  for (const r of tbmBadEvalRecords) {
     const note = noteMap.get(r.id);
     const reason = note?.reason ? ` — ${note.reason}` : "";
-    issueItems.push(`&nbsp;- ${displayDate} ${r.team || ""} ${r.workName || r.workLocation || ""} TBM AI 부적합 발생${reason}`);
+    issueItems.push(`<span style="color:#ea580c;font-weight:700">⚠ TBM AI 부적합 발생</span> — ${displayDate} ${r.team || ""} ${r.workName || r.workLocation || ""}${reason}`);
   }
 
   const issuesHtml = issueItems.length
-    ? issueItems.map(t => `<p style="margin:4px 0;font-family:맑은고딕,sans-serif;font-size:12pt;line-height:1.6">${t}</p>`).join("\n")
-    : `<p style="margin:4px 0;font-family:맑은고딕,sans-serif;font-size:12pt;line-height:1.6">&nbsp;- 특이사항 없음</p>`;
+    ? `<div style="border:1px solid #fde68a;background:#fffbeb;border-radius:6px;padding:12px 14px">` +
+      issueItems.map(t => `<p style="margin:5px 0;font-family:맑은고딕,sans-serif;font-size:12pt;line-height:1.6">${t}</p>`).join("\n") +
+      `</div>`
+    : `<div style="border:1px solid #bbf7d0;background:#f0fdf4;border-radius:6px;padding:12px 14px">` +
+      `<p style="margin:0;font-family:맑은고딕,sans-serif;font-size:12pt;line-height:1.6;color:#16a34a;font-weight:700">✅ 특이사항 없음</p>` +
+      `</div>`;
 
   const p = (text: string, opts?: string) => `<p style="margin:3px 0;font-family:맑은고딕,sans-serif;font-size:12pt;line-height:1.6;${opts || ""}">${text}</p>`;
 
+  const rateColor = complianceRate >= 90 ? "#16a34a" : complianceRate >= 70 ? "#d97706" : "#dc2626";
+
   const html = [
-    `<div style="font-family:맑은고딕,sans-serif;font-size:12pt;line-height:1.6;color:#111">`,
+    `<div style="font-family:맑은고딕,sans-serif;font-size:12pt;line-height:1.6;color:#111;max-width:820px">`,
     p("안녕하십니까."),
     p("사업지원팀입니다."),
     `<p style="margin:8px 0"></p>`,
     p(`All-in Safety TBM 이행 실적 및 AI 활용 결과(${displayDate})를 아래와 같이 공유드립니다.`),
     `<p style="margin:16px 0"></p>`,
-    p(`전체 이행률: <b>${complianceRate}%</b> (총 ${totalActive}건 중 이슈 ${issueCount}건)`, "font-weight:bold"),
-    `<p style="margin:16px 0"></p>`,
-    `<p style="margin:8px 0 6px;font-family:맑은고딕,sans-serif;font-size:12pt;font-weight:bold">1. 운용팀별 TBM 활동 내역</p>`,
+    `<div style="background:${rateColor};color:#fff;border-radius:8px;padding:14px 18px;display:inline-block;min-width:280px">`,
+    `<p style="margin:0;font-family:맑은고딕,sans-serif;font-size:11pt;opacity:0.9">전체 이행률</p>`,
+    `<p style="margin:2px 0 0;font-family:맑은고딕,sans-serif;font-size:22pt;font-weight:800">${complianceRate}%</p>`,
+    `<p style="margin:4px 0 0;font-family:맑은고딕,sans-serif;font-size:10.5pt;opacity:0.9">총 ${totalActive}건 중 이슈 ${issueCount}건</p>`,
+    `</div>`,
+    `<p style="margin:20px 0"></p>`,
+    `<p style="margin:8px 0 8px;font-family:맑은고딕,sans-serif;font-size:13pt;font-weight:800;color:${ACCENT_DARK};border-left:4px solid ${ACCENT};padding-left:8px">1. 운용팀별 TBM 활동 내역</p>`,
     `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch">`,
     teamTableHtml,
     `</div>`,
-    `<p style="margin:20px 0"></p>`,
-    `<p style="margin:8px 0 6px;font-family:맑은고딕,sans-serif;font-size:12pt;font-weight:bold">2. 특이사항</p>`,
+    `<p style="margin:22px 0"></p>`,
+    `<p style="margin:8px 0 8px;font-family:맑은고딕,sans-serif;font-size:13pt;font-weight:800;color:${ACCENT_DARK};border-left:4px solid ${ACCENT};padding-left:8px">2. 특이사항</p>`,
     issuesHtml,
-    `<p style="margin:20px 0"></p>`,
-    `<p style="margin:8px 0 6px;font-family:맑은고딕,sans-serif;font-size:12pt;font-weight:bold">3. 협조 요청사항</p>`,
+    `<p style="margin:22px 0"></p>`,
+    `<p style="margin:8px 0 8px;font-family:맑은고딕,sans-serif;font-size:13pt;font-weight:800;color:${ACCENT_DARK};border-left:4px solid ${ACCENT};padding-left:8px">3. 협조 요청사항</p>`,
+    `<div style="border:1px solid #dbeafe;background:#eff6ff;border-radius:6px;padding:12px 14px">`,
     p("- TBM 활동 시 필수 항목(활선경보기, 검전기, 안전보호구 착용)이 누락되지 않게 철저한 관리 요청"),
     p("- 고위험작업 시 안전허가서 사전 등록 부탁드립니다."),
-    `<p style="margin:16px 0"></p>`,
+    `</div>`,
+    `<p style="margin:18px 0"></p>`,
     p("감사합니다."),
     `</div>`,
   ].join("\n");
