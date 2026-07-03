@@ -315,14 +315,20 @@ export function buildAisDailyReportHtml(targetDate: string, allRecords: AisSafet
 }
 
 function getTargetDate(): string {
-  // 전일(어제) 기준 — 당일 09:30에 전일 데이터를 집계하여 발송
+  // 전일(어제) 기준 — 당일 09:30 자동 스케줄 발송 시 전일 데이터를 집계
   const kstNow = new Date(Date.now() + 9 * 3600 * 1000);
   kstNow.setUTCDate(kstNow.getUTCDate() - 1);
   return kstNow.toISOString().slice(0, 10);
 }
 
+function getTodayDateKST(): string {
+  // 오늘(당일) 기준 — 수동 미리보기/테스트 발송 시 최신 입력 데이터까지 반영
+  const kstNow = new Date(Date.now() + 9 * 3600 * 1000);
+  return kstNow.toISOString().slice(0, 10);
+}
+
 export async function generateAisDailyPreview(targetDate?: string) {
-  const date = targetDate || getTargetDate();
+  const date = targetDate || getTodayDateKST();
   const [allRecords, badNotes] = await Promise.all([
     storage.getAllAisSafetyRecords(),
     storage.getAllAisTbmBadNotes(),
@@ -330,13 +336,14 @@ export async function generateAisDailyPreview(targetDate?: string) {
   return buildAisDailyReportHtml(date, allRecords, badNotes);
 }
 
-export async function runAisDailyEmailJob(opts?: { force?: boolean }): Promise<void> {
+export async function runAisDailyEmailJob(opts?: { force?: boolean; targetDate?: string }): Promise<void> {
   if (status.running) {
     console.log("[AisDailyEmail] 이미 실행 중 - 건너뜀");
     return;
   }
 
-  const targetDate = getTargetDate();
+  // 수동 강제 발송(force)은 오늘 날짜까지 최신 데이터를 반영, 자동 스케줄 발송은 전일 기준 유지
+  const targetDate = opts?.targetDate || (opts?.force ? getTodayDateKST() : getTargetDate());
 
   if (!opts?.force) {
     try {

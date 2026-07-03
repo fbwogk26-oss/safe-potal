@@ -406,6 +406,14 @@ export default function AisSafetyRate() {
     if (!showEmailDialog) setRecipientsInitialized(false);
   }, [showEmailDialog]);
 
+  useEffect(() => {
+    if (showEmailDialog) {
+      const now = new Date();
+      setExportStartDate(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`);
+      setExportEndDate(now.toISOString().slice(0, 10));
+    }
+  }, [showEmailDialog]);
+
   const { data: emailPreview, isLoading: emailPreviewLoading } = useQuery<{ subject: string; html: string }>({
     queryKey: ['/api/ais-daily-email/preview'],
     enabled: showEmailDialog,

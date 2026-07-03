@@ -10173,10 +10173,11 @@ ${htmlDraft}
     }
   });
 
-  app.post('/api/ais-daily-email/test-send', requireEditor, async (_req, res) => {
+  app.post('/api/ais-daily-email/test-send', requireEditor, async (req, res) => {
     try {
       const { runAisDailyEmailJob, getAisDailyEmailStatus } = await import('./aisDailyEmailJob');
-      await runAisDailyEmailJob({ force: true });
+      const targetDate = typeof req.body?.targetDate === 'string' ? req.body.targetDate : undefined;
+      await runAisDailyEmailJob({ force: true, targetDate });
       res.json({ message: "발송 완료", status: getAisDailyEmailStatus() });
     } catch (e: any) {
       res.status(500).json({ message: e.message });
