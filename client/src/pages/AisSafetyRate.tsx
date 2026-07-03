@@ -1268,7 +1268,7 @@ export default function AisSafetyRate() {
                                 { name: '이행', value: purePass, color: '#22c55e' },
                                 { name: '소명완료', value: justified, color: '#f59e0b' },
                                 { name: '분석전', value: pending, color: '#94a3b8' },
-                                { name: '미이행', value: fail, color: '#ef4444' },
+                                { name: '부적합', value: fail, color: '#ef4444' },
                               ].filter(d => d.value > 0);
                           return (
                             <div className="flex flex-col items-center gap-2 w-full">
@@ -1287,7 +1287,7 @@ export default function AisSafetyRate() {
                                 {purePass > 0 && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-emerald-400 inline-block" />이행 {purePass}건</span>}
                                 {justified > 0 && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-amber-400 inline-block" />소명 {justified}건</span>}
                                 {pending > 0 && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-slate-400 inline-block" />분석전 {pending}건</span>}
-                                {fail > 0 && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-red-400 inline-block" />미이행 {fail}건</span>}
+                                {fail > 0 && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-red-400 inline-block" />부적합 {fail}건</span>}
                               </div>
                               {total === 0 && <p className="text-[10px] text-blue-300/60">TBM 없음</p>}
                             </div>
