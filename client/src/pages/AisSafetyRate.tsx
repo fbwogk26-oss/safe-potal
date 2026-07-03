@@ -359,6 +359,9 @@ export default function AisSafetyRate() {
   const [tbmNoteSaving, setTbmNoteSaving] = useState(false);
   const [justifStatus, setJustifStatus] = useState<'소명완료'|'소명불가'|null>(null);
   const [justifReverting, setJustifReverting] = useState(false);
+  const [justifyQueue, setJustifyQueue] = useState<number[]>([]);
+  const [justifyDeciding, setJustifyDeciding] = useState(false);
+  const processedInboxRunRef = useRef<string | null>(null);
 
   const photoInputRef = useRef<HTMLInputElement>(null);
 
@@ -434,11 +437,12 @@ export default function AisSafetyRate() {
 
   const { data: inboxStatus } = useQuery<{
     lastRun: string | null; lastResult: string | null; lastMessage: string | null;
-    lastMatchedCount: number | null; lastScannedCount: number | null; running: boolean;
+    lastMatchedCount: number | null; lastScannedCount: number | null;
+    lastMatchedRecordIds?: number[]; running: boolean;
   }>({
     queryKey: ['/api/ais-inbox-email/status'],
     enabled: showInboxDialog,
-    refetchInterval: showInboxDialog ? 5000 : false,
+    refetchInterval: showInboxDialog ? 3000 : false,
   });
 
   const runInboxNowMutation = useMutation({
@@ -454,6 +458,81 @@ export default function AisSafetyRate() {
       toast({ title: '실행 실패', description: e.message, variant: 'destructive' });
     },
   });
+
+  // 소명 메일 자동접수 실행 완료 시, 새로 매칭된 건에 대해 소명가능/불가능 선택 팝업을 하나씩 띄운다
+  useEffect(() => {
+    if (!inboxStatus || inboxStatus.running || !inboxStatus.lastRun) return;
+    if (processedInboxRunRef.current === inboxStatus.lastRun) return;
+    const ids = inboxStatus.lastMatchedRecordIds || [];
+    processedInboxRunRef.current = inboxStatus.lastRun;
+    if (ids.length === 0) return;
+    (async () => {
+      await queryClient.invalidateQueries({ queryKey: ['/api/ais-safety/tbm-notes'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/ais-safety/records/all'] });
+      const freshRecords = queryClient.getQueryData<AisSafetyRecord[]>(['/api/ais-safety/records/all']) || allRecords;
+      const freshNotes = queryClient.getQueryData<AisTbmBadNote[]>(['/api/ais-safety/tbm-notes']) || allTbmNotes;
+      const noteByWorkOrder: Record<string, AisTbmBadNote> = {};
+      freshNotes.forEach(n => {
+        const rec = freshRecords.find(r => r.id === n.recordId);
+        if (rec?.workOrderNo) noteByWorkOrder[rec.workOrderNo] = n;
+      });
+      const noteByRecordId = Object.fromEntries(freshNotes.map(n => [n.recordId, n]));
+      const seen = new Set<string>();
+      const queue: number[] = [];
+      for (const id of ids) {
+        const rec = freshRecords.find(r => r.id === id);
+        if (!rec) continue;
+        const key = rec.workOrderNo || `id:${id}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const note = rec.workOrderNo ? noteByWorkOrder[rec.workOrderNo] : noteByRecordId[id];
+        if (note?.justificationStatus) continue;
+        queue.push(id);
+      }
+      if (queue.length > 0) {
+        setJustifyQueue(queue);
+        setShowInboxDialog(false);
+      }
+    })();
+  }, [inboxStatus?.lastRun, inboxStatus?.running]);
+
+  const currentJustifyRecord = justifyQueue.length > 0 ? allRecords.find(r => r.id === justifyQueue[0]) : null;
+
+  const handleJustifyQueueDecision = async (decision: '소명완료' | '소명불가' | 'skip') => {
+    const rec = currentJustifyRecord;
+    if (!rec) { setJustifyQueue(q => q.slice(1)); return; }
+    if (decision === 'skip') {
+      setJustifyQueue(q => q.slice(1));
+      return;
+    }
+    setJustifyDeciding(true);
+    try {
+      const targets = [rec.id];
+      if (rec.workOrderNo) {
+        allRecords.forEach(r => {
+          if (r.id !== rec.id && r.workOrderNo === rec.workOrderNo) targets.push(r.id);
+        });
+      }
+      await Promise.all(targets.map(id =>
+        fetch(`/api/ais-safety/records/${id}/justification`, {
+          method: 'PUT',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ justificationStatus: decision, justificationReason: null }),
+        })
+      ));
+      await queryClient.invalidateQueries({ queryKey: ['/api/ais-safety/tbm-notes'] });
+      toast({
+        title: decision === '소명완료' ? '소명완료 처리됨' : '소명불가 처리됨',
+        description: rec.workName || rec.workOrderNo || undefined,
+      });
+    } catch {
+      toast({ title: '처리에 실패했습니다', variant: 'destructive' });
+    } finally {
+      setJustifyDeciding(false);
+      setJustifyQueue(q => q.slice(1));
+    }
+  };
 
   const records = useMemo(() => {
     if (viewMode === 'cumulative') {
@@ -1121,6 +1200,57 @@ export default function AisSafetyRate() {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 소명 메일 자동접수 후 소명가능/불가능 선택 팝업 (하나씩 순차 처리) */}
+      <Dialog open={!!currentJustifyRecord} onOpenChange={open => { if (!open) setJustifyQueue([]); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-blue-600"><Mail className="w-4 h-4" />소명 자동접수 확인</DialogTitle>
+          </DialogHeader>
+          {currentJustifyRecord && (
+            <div className="space-y-4">
+              <p className="text-xs text-muted-foreground">메일함에서 사진이 자동 접수되었습니다. 확인 후 소명 처리를 선택해주세요. ({justifyQueue.length}건 남음)</p>
+              <div className="rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/30 p-3 text-xs space-y-1">
+                <p className="font-semibold text-sm text-foreground">{currentJustifyRecord.workName || '-'}</p>
+                <p className="text-muted-foreground">{currentJustifyRecord.workOrderNo} · {currentJustifyRecord.team} · {currentJustifyRecord.startDate}</p>
+              </div>
+              {(() => {
+                const note = currentJustifyRecord.workOrderNo ? tbmNoteByWorkOrder[currentJustifyRecord.workOrderNo] : tbmNoteMap[currentJustifyRecord.id];
+                const photos = note?.photoUrls && note.photoUrls.length > 0 ? note.photoUrls : (note?.photoUrl ? [note.photoUrl] : []);
+                return (
+                  <div className="space-y-2">
+                    {note?.reason && <p className="text-xs text-muted-foreground whitespace-pre-line">{note.reason}</p>}
+                    {photos.length > 0 ? (
+                      <div className="flex gap-1.5 flex-wrap">
+                        {photos.map((url, i) => (
+                          <a key={i} href={url} target="_blank" rel="noopener noreferrer">
+                            <img src={url} alt={`부적합 사진 ${i + 1}`} className="w-20 h-20 object-cover rounded border" />
+                          </a>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">첨부된 사진이 없습니다.</p>
+                    )}
+                  </div>
+                );
+              })()}
+              <div className="flex items-center justify-between gap-2 pt-2">
+                <Button variant="ghost" size="sm" disabled={justifyDeciding} onClick={() => handleJustifyQueueDecision('skip')} data-testid="button-justify-skip">
+                  건너뛰기
+                </Button>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" className="border-red-300 text-red-600 hover:bg-red-50" disabled={justifyDeciding} onClick={() => handleJustifyQueueDecision('소명불가')} data-testid="button-justify-impossible">
+                    소명불가
+                  </Button>
+                  <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" disabled={justifyDeciding} onClick={() => handleJustifyQueueDecision('소명완료')} data-testid="button-justify-complete">
+                    {justifyDeciding ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : null}소명가능
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

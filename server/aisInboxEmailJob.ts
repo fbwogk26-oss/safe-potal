@@ -24,6 +24,7 @@ export interface AisInboxJobStatus {
   lastMessage: string | null;
   lastMatchedCount: number | null;
   lastScannedCount: number | null;
+  lastMatchedRecordIds: number[];
   running: boolean;
   enabled: boolean;
 }
@@ -34,6 +35,7 @@ const status: AisInboxJobStatus = {
   lastMessage: null,
   lastMatchedCount: null,
   lastScannedCount: null,
+  lastMatchedRecordIds: [],
   running: false,
   enabled: true,
 };
@@ -86,6 +88,7 @@ export async function runAisInboxEmailJob(): Promise<void> {
 
   status.running = true;
   status.lastRun = new Date().toISOString();
+  status.lastMatchedRecordIds = [];
   console.log("[AisInboxEmail] AIS TBM 소명 메일 자동 확인 시작...");
 
   try {
@@ -195,6 +198,7 @@ export async function runAisInboxEmailJob(): Promise<void> {
             }
           }
           matchedCount++;
+          status.lastMatchedRecordIds.push(...targetRecords.map(r => r.id));
           console.log(`[AisInboxEmail] 매칭 완료: 작업번호=${matchedWorkOrder} (${targetRecords.length}건, 사진 ${photoUrls.length}장 반영)`);
         }
       }
