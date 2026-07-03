@@ -139,6 +139,15 @@ shared/
 - **API**: `GET /api/ais-inbox-email/status`, `POST /api/ais-inbox-email/run-now` (수동 확인), `DELETE /api/ais-safety/records/:id/tbm-note` (초기화)
 - **UI**: `AisSafetyRate.tsx` 상단 "소명 메일 자동접수" 버튼 → 상태 확인 및 수동 실행 다이얼로그
 
+### AIS 안전이행률 4-시트 엑셀 리포트 (2026-07-03)
+- **Module**: `server/aisExcelReport.ts` — `buildAisExcelReportBuffer()`가 4개 시트로 구성된 ExcelJS 워크북 생성
+  - **1.종합**: 준수율/TBM 이행률/허가서 발급률 등 누적 통계 요약 (전체 비취소 기록 기준)
+  - **2.moswork파일 누적**: 업로드된 모든 mosWork 원본 레코드 누적 목록
+  - **3.부적합 내용(소명포함)**: 부적합 사유 + 소명내용/소명여부(justificationStatus)
+  - **4.작업번호별 사진내역**: 작업번호별 부적합 사진(최대 3장) 임베딩 (오브젝트스토리지 우선, `/uploads` 폴백, sharp로 리사이즈/압축)
+- **일일 메일 자동첨부**: `server/aisDailyEmailJob.ts`의 `runAisDailyEmailJob`이 발송 시마다 이 엑셀 파일을 생성하여 nodemailer 첨부파일로 함께 발송 (엑셀 생성 실패 시에도 본문 메일은 정상 발송, 콘솔에 경고만 기록)
+- **수동 다운로드**: `GET /api/ais-daily-email/export-excel` (인증 필요) — `AisSafetyRate.tsx` 메일 다이얼로그에 "엑셀 리포트 다운로드" 버튼으로 즉시 다운로드 가능
+
 ## External Dependencies
 
 ### Database

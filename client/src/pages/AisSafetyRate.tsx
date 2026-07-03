@@ -26,7 +26,7 @@ import {
   Clock, XCircle, ShieldCheck, ShieldAlert, FileWarning,
   TrendingUp, Users, Loader2, Eye, ChevronUp, Layers,
   CalendarDays, Calendar, ChevronLeft, ChevronRight,
-  ImageIcon, Save, FileEdit, Pencil, Mail, Send, RotateCcw,
+  ImageIcon, Save, FileEdit, Pencil, Mail, Send, RotateCcw, FileSpreadsheet,
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { Textarea } from "@/components/ui/textarea";
@@ -1094,6 +1094,7 @@ export default function AisSafetyRate() {
           <div className="space-y-4">
             <div className="rounded-lg border bg-muted/30 p-3 text-sm space-y-1">
               <p><span className="font-semibold">자동 발송:</span> 매일 09:30(KST)에 전일자 데이터를 자동 집계하여 지정된 수신자에게 발송합니다.</p>
+              <p className="text-xs text-muted-foreground">메일 발송 시 종합/누적 데이터/부적합 내용/사진내역이 담긴 엑셀 파일이 자동으로 첨부됩니다.</p>
               {emailStatus && (
                 <>
                   <p className="text-xs text-muted-foreground">
@@ -1135,7 +1136,16 @@ export default function AisSafetyRate() {
                 </Button>
               </div>
             </div>
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => window.open('/api/ais-daily-email/export-excel', '_blank')}
+                data-testid="button-download-excel-report"
+              >
+                <FileSpreadsheet className="w-4 h-4 mr-2" />
+                엑셀 리포트 다운로드
+              </Button>
               <Button
                 size="sm"
                 className="bg-blue-600 hover:bg-blue-700 text-white"

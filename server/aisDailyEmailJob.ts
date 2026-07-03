@@ -406,11 +406,21 @@ ${html}
       auth: { user: sender, pass: appPassword },
     });
 
+    let attachments: { filename: string; content: Buffer }[] = [];
+    try {
+      const { buildAisExcelReportBuffer } = await import("./aisExcelReport");
+      const { buffer, fileName } = await buildAisExcelReportBuffer();
+      attachments = [{ filename: fileName, content: buffer }];
+    } catch (excelErr: any) {
+      console.warn("[AisDailyEmail] 엑셀 첨부파일 생성 실패 (본문만 발송):", excelErr.message);
+    }
+
     await transporter.sendMail({
       from: `"사업지원팀" <${sender}>`,
       to: recipients.join(", "),
       subject,
       html: mobileReadyHtml,
+      attachments,
     });
 
     status.lastResult = "sent";

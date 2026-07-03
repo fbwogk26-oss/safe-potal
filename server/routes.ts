@@ -10183,6 +10183,19 @@ ${htmlDraft}
     }
   });
 
+  app.get('/api/ais-daily-email/export-excel', isAuthenticated, async (_req, res) => {
+    try {
+      const { buildAisExcelReportBuffer } = await import('./aisExcelReport');
+      const { buffer, fileName } = await buildAisExcelReportBuffer();
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);
+      res.send(buffer);
+    } catch (e: any) {
+      console.error('[export-excel] 오류:', e);
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   // ─── AIS TBM 부적합 소명 메일 자동 접수 상태/수동실행 ──────────────────────
   app.get('/api/ais-inbox-email/status', isAuthenticated, async (_req, res) => {
     const { getAisInboxJobStatus } = await import('./aisInboxEmailJob');
