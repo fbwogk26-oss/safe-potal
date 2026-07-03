@@ -474,6 +474,7 @@ export default function AisSafetyRate() {
     (async () => {
       await queryClient.invalidateQueries({ queryKey: ['/api/ais-safety/tbm-notes'] });
       await queryClient.invalidateQueries({ queryKey: ['/api/ais-safety/records/all'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/ais-daily-email/preview'] });
       const freshRecords = queryClient.getQueryData<AisSafetyRecord[]>(['/api/ais-safety/records/all']) || allRecords;
       const freshNotes = queryClient.getQueryData<AisTbmBadNote[]>(['/api/ais-safety/tbm-notes']) || allTbmNotes;
       const noteByWorkOrder: Record<string, AisTbmBadNote> = {};
@@ -626,6 +627,7 @@ export default function AisSafetyRate() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/ais-safety/uploads'] });
       queryClient.invalidateQueries({ queryKey: ['/api/ais-safety/records/all'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/ais-daily-email/preview'] });
       toast({ title: '삭제되었습니다' });
     },
   });
@@ -643,6 +645,7 @@ export default function AisSafetyRate() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/ais-safety/records/all'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/ais-daily-email/preview'] });
       toast({ title: '수정되었습니다' });
       setEditingRecord(null);
     },
@@ -670,6 +673,7 @@ export default function AisSafetyRate() {
       if (!res.ok) throw new Error(data.message || '업로드 실패');
       queryClient.invalidateQueries({ queryKey: ['/api/ais-safety/uploads'] });
       queryClient.invalidateQueries({ queryKey: ['/api/ais-safety/records/all'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/ais-daily-email/preview'] });
       setViewMode('cumulative');
       toast({ title: `${data.recordCount}건 누적 데이터에 추가되었습니다` });
     } catch (err: any) {
@@ -861,6 +865,7 @@ export default function AisSafetyRate() {
         });
       }
       await queryClient.invalidateQueries({ queryKey: ['/api/ais-safety/tbm-notes'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/ais-daily-email/preview'] });
       const linkedCount = tbmNoteRecord.workOrderNo
         ? allRecords.filter(r => r.id !== tbmNoteRecord.id && r.workOrderNo === tbmNoteRecord.workOrderNo && (tbmNoteType === 'bad' ? r.tbmAiResult === '부적합' : r.tbmResult === '미등록')).length
         : 0;
@@ -901,6 +906,7 @@ export default function AisSafetyRate() {
       setTbmNoteNewPhotos([]);
       setTbmNoteNewPreviews([]);
       await queryClient.invalidateQueries({ queryKey: ['/api/ais-safety/tbm-notes'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/ais-daily-email/preview'] });
       toast({ title: '부적합 상태로 초기화했습니다', description: targets.length > 1 ? `동일 작업번호 ${targets.length}건 반영` : undefined });
       closeTbmNoteDialog();
     } catch {
