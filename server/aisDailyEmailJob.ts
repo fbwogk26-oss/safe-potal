@@ -124,11 +124,35 @@ export function buildAisDailyReportHtml(targetDate: string, allRecords: AisSafet
   const tbmUnreg = dayRecords.filter(r => r.tbmResult === "미등록");
   const tbmBadRecords = dayRecords.filter(r => r.tbmAiResult === "부적합");
   const tbmBadEvalRecords = tbmBadRecords.filter(r => !justifiedRecordIds.has(r.id));
+  const tbmBadJustifiedRecords = tbmBadRecords.filter(r => justifiedRecordIds.has(r.id));
 
   const totalActive = dayRecords.length;
   const issueCount = highRiskNoPermit.length + tbmUnreg.length + tbmBadEvalRecords.length;
   const passCount = totalActive * 3 - issueCount;
   const complianceRate = totalActive > 0 ? Math.round((passCount / (totalActive * 3)) * 100) : 100;
+
+  // ── 안전허가서 매칭 (고위험작업 대상) ──
+  const highRiskRecords = dayRecords.filter(r => isHighRiskWork(r.highRiskWork));
+  const permitPass = highRiskRecords.filter(r => r.safetyPermit === "Y").length;
+  const permitFail = highRiskRecords.length - permitPass;
+  const permitRate = highRiskRecords.length > 0 ? Math.round((permitPass / highRiskRecords.length) * 100) : 100;
+
+  // ── TBM 이행률 (등록 AND AI적합을 모두 충족해야 순수 이행, 소명완료는 대체 충족) ──
+  const tbmBase = dayRecords;
+  const tbmPurePass = tbmBase.filter(r => r.tbmResult === "등록" && r.tbmAiResult === "적합").length;
+  const tbmJustified = tbmBase.filter(r =>
+    !(r.tbmResult === "등록" && r.tbmAiResult === "적합") &&
+    (r.tbmResult === "등록" || justifiedRecordIds.has(r.id)) &&
+    (r.tbmAiResult === "적합" || justifiedRecordIds.has(r.id))
+  ).length;
+  const tbmPending = tbmBase.filter(r =>
+    !(r.tbmResult === "등록" && r.tbmAiResult === "적합") &&
+    !((r.tbmResult === "등록" || justifiedRecordIds.has(r.id)) && (r.tbmAiResult === "적합" || justifiedRecordIds.has(r.id))) &&
+    r.tbmResult === "등록" &&
+    (!r.tbmAiResult || r.tbmAiResult === "분석전" || r.tbmAiResult === "분석중")
+  ).length;
+  const tbmFail = Math.max(0, tbmBase.length - tbmPurePass - tbmJustified - tbmPending);
+  const tbmImplRate = tbmBase.length > 0 ? Math.round(((tbmPurePass + tbmJustified) / tbmBase.length) * 100) : 100;
 
   // ── 시각적 가독성 개선 스타일 ──
   const ACCENT = "#2563eb";
@@ -172,6 +196,12 @@ export function buildAisDailyReportHtml(targetDate: string, allRecords: AisSafet
     const reason = note?.reason ? ` — ${note.reason}` : "";
     issueItems.push(`<span style="color:#ea580c;font-weight:700">⚠ TBM AI 부적합 발생</span> — ${displayDate} ${r.team || ""} ${r.workName || r.workLocation || ""}${reason}`);
   }
+  for (const r of tbmBadJustifiedRecords) {
+    const note = noteMap.get(r.id);
+    const reason = note?.reason ? ` — ${note.reason}` : "";
+    const justReason = note?.justificationReason ? ` (소명사유: ${note.justificationReason})` : "";
+    issueItems.push(`<span style="color:#16a34a;font-weight:700">✅ TBM AI 부적합 (소명완료)</span> — ${displayDate} ${r.team || ""} ${r.workName || r.workLocation || ""}${reason}${justReason}`);
+  }
 
   const issuesHtml = issueItems.length
     ? `<div style="border:1px solid #fde68a;background:#fffbeb;border-radius:6px;padding:12px 14px">` +
@@ -180,6 +210,66 @@ export function buildAisDailyReportHtml(targetDate: string, allRecords: AisSafet
     : `<div style="border:1px solid #bbf7d0;background:#f0fdf4;border-radius:6px;padding:12px 14px">` +
       `<p style="margin:0;font-family:맑은고딕,sans-serif;font-size:12pt;line-height:1.6;color:#16a34a;font-weight:700">✅ 특이사항 없음</p>` +
       `</div>`;
+
+  // ── 막대 그래프 HTML 생성 헬퍼 (이메일 클라이언트 호환을 위해 순수 CSS/div 사용) ──
+  const barChart = (
+    segments: { label: string; value: number; color: string }[],
+    total: number,
+    rate: number,
+    emptyLabel: string
+  ) => {
+    if (total === 0) {
+      return `<div style="text-align:center;padding:14px 0"><span style="font-size:12px;color:#94a3b8">${emptyLabel}</span></div>`;
+    }
+    const visible = segments.filter(s => s.value > 0);
+    const barSegmentsHtml = visible.map(s => {
+      const pct = Math.max((s.value / total) * 100, 0.5);
+      return `<td style="width:${pct}%;background:${s.color};padding:0;height:16px;font-size:0;line-height:0">&nbsp;</td>`;
+    }).join("");
+    const legendHtml = visible.map(s =>
+      `<span style="display:inline-flex;align-items:center;gap:4px;margin-right:12px;font-size:11.5px;color:#334155">` +
+      `<span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${s.color}"></span>${s.label} ${s.value}건</span>`
+    ).join("");
+    return [
+      `<table style="width:100%;border-collapse:collapse;border-spacing:0;table-layout:fixed"><tbody><tr>${barSegmentsHtml}</tr></tbody></table>`,
+      `<div style="margin-top:8px">${legendHtml}</div>`,
+    ].join("\n");
+  };
+
+  const permitRateColor = permitRate >= 90 ? "#16a34a" : permitRate >= 70 ? "#d97706" : "#dc2626";
+  const tbmRateColor = tbmImplRate >= 90 ? "#16a34a" : tbmImplRate >= 70 ? "#d97706" : "#dc2626";
+
+  const gaugeCard = (title: string, rate: number, rateColor: string, chartHtml: string) => `
+<div style="flex:1;min-width:260px;border:1px solid #e2e8f0;border-radius:8px;padding:14px 16px;background:#fff">
+<div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:10px">
+<span style="font-size:12.5px;font-weight:700;color:${ACCENT_DARK}">${title}</span>
+<span style="font-size:19px;font-weight:800;color:${rateColor}">${rate}%</span>
+</div>
+${chartHtml}
+</div>`;
+
+  const permitChartHtml = barChart(
+    [{ label: "매칭", value: permitPass, color: "#22c55e" }, { label: "미매칭", value: permitFail, color: "#ef4444" }],
+    highRiskRecords.length,
+    permitRate,
+    "고위험작업 없음"
+  );
+  const tbmChartHtml = barChart(
+    [
+      { label: "이행", value: tbmPurePass, color: "#22c55e" },
+      { label: "소명완료", value: tbmJustified, color: "#f59e0b" },
+      { label: "분석전", value: tbmPending, color: "#94a3b8" },
+      { label: "부적합", value: tbmFail, color: "#ef4444" },
+    ],
+    tbmBase.length,
+    tbmImplRate,
+    "TBM 데이터 없음"
+  );
+
+  const gaugeSectionHtml = `<div style="display:flex;gap:14px;flex-wrap:wrap">` +
+    gaugeCard("안전허가서 매칭", permitRate, permitRateColor, permitChartHtml) +
+    gaugeCard("TBM 이행률", tbmImplRate, tbmRateColor, tbmChartHtml) +
+    `</div>`;
 
   const p = (text: string, opts?: string) => `<p style="margin:3px 0;font-family:맑은고딕,sans-serif;font-size:12pt;line-height:1.6;${opts || ""}">${text}</p>`;
 
@@ -203,10 +293,13 @@ export function buildAisDailyReportHtml(targetDate: string, allRecords: AisSafet
     teamTableHtml,
     `</div>`,
     `<p style="margin:22px 0"></p>`,
-    `<p style="margin:8px 0 8px;font-family:맑은고딕,sans-serif;font-size:13pt;font-weight:800;color:${ACCENT_DARK};border-left:4px solid ${ACCENT};padding-left:8px">2. 특이사항</p>`,
+    `<p style="margin:8px 0 8px;font-family:맑은고딕,sans-serif;font-size:13pt;font-weight:800;color:${ACCENT_DARK};border-left:4px solid ${ACCENT};padding-left:8px">2. 안전허가서 매칭 &amp; TBM 이행률</p>`,
+    gaugeSectionHtml,
+    `<p style="margin:22px 0"></p>`,
+    `<p style="margin:8px 0 8px;font-family:맑은고딕,sans-serif;font-size:13pt;font-weight:800;color:${ACCENT_DARK};border-left:4px solid ${ACCENT};padding-left:8px">3. 특이사항</p>`,
     issuesHtml,
     `<p style="margin:22px 0"></p>`,
-    `<p style="margin:8px 0 8px;font-family:맑은고딕,sans-serif;font-size:13pt;font-weight:800;color:${ACCENT_DARK};border-left:4px solid ${ACCENT};padding-left:8px">3. 협조 요청사항</p>`,
+    `<p style="margin:8px 0 8px;font-family:맑은고딕,sans-serif;font-size:13pt;font-weight:800;color:${ACCENT_DARK};border-left:4px solid ${ACCENT};padding-left:8px">4. 협조 요청사항</p>`,
     `<div style="border:1px solid #dbeafe;background:#eff6ff;border-radius:6px;padding:12px 14px">`,
     p("- TBM 활동 시 필수 항목(활선경보기, 검전기, 안전보호구 착용)이 누락되지 않게 철저한 관리 요청"),
     p("- 고위험작업 시 안전허가서 사전 등록 부탁드립니다."),
