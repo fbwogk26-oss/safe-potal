@@ -207,14 +207,19 @@ export function buildAisDailyReportHtml(targetDate: string, allRecords: AisSafet
 
   // ── 특이사항: 팀별로 묶어서 팀명 중복 없이 표시 ──
   type TeamIssue = { icon: string; label: string; color: string; detail: string };
-  type TeamGroup = { team: string; issues: TeamIssue[] };
+  type CategoryGroup = { icon: string; label: string; color: string; details: string[] };
+  type TeamGroup = { team: string; categories: CategoryGroup[]; total: number };
   const buildTeamGroupsForDate = (dateStr: string): TeamGroup[] => {
     const order: string[] = [];
-    const map = new Map<string, TeamIssue[]>();
+    const map = new Map<string, Map<string, CategoryGroup>>();
     const push = (rawTeam: string | null | undefined, issue: TeamIssue) => {
       const team = shortTeam(rawTeam) || "미지정";
-      if (!map.has(team)) { map.set(team, []); order.push(team); }
-      map.get(team)!.push(issue);
+      if (!map.has(team)) { map.set(team, new Map()); order.push(team); }
+      const catMap = map.get(team)!;
+      if (!catMap.has(issue.label)) {
+        catMap.set(issue.label, { icon: issue.icon, label: issue.label, color: issue.color, details: [] });
+      }
+      catMap.get(issue.label)!.details.push(issue.detail);
     };
     for (const r of highRiskNoPermit.filter(r => r.startDate === dateStr)) {
       push(r.team, { icon: "⚠", label: "고위험작업 안전허가서 미등록", color: "#dc2626", detail: `${r.workName || r.workLocation || ""} (${r.highRiskWork})` });
@@ -233,7 +238,11 @@ export function buildAisDailyReportHtml(targetDate: string, allRecords: AisSafet
       const justReason = note?.justificationReason ? ` (소명사유: ${note.justificationReason})` : "";
       push(r.team, { icon: "✅", label: "TBM AI 부적합 (소명완료)", color: "#16a34a", detail: `${r.workName || r.workLocation || ""}${reason}${justReason}` });
     }
-    return order.map(team => ({ team, issues: map.get(team)! }));
+    return order.map(team => {
+      const categories = Array.from(map.get(team)!.values());
+      const total = categories.reduce((s, c) => s + c.details.length, 0);
+      return { team, categories, total };
+    });
   };
 
   const issuesHtml = monthDates.map(dateStr => {
@@ -241,8 +250,10 @@ export function buildAisDailyReportHtml(targetDate: string, allRecords: AisSafet
     const label = formatDisplayDate(dateStr);
     const bodyHtml = groups.length
       ? groups.map(g => `<div style="margin:0 0 6px;padding:6px 8px;background:#f1f5f9;border:1px solid #dbe3ef;border-radius:5px">` +
-          `<p style="margin:0 0 3px;font-family:맑은고딕,sans-serif;font-size:11px;font-weight:800;color:${ACCENT_DARK}">${g.team} (${g.issues.length}건)</p>` +
-          g.issues.map(i => `<p style="margin:1px 0;padding-left:10px;font-family:맑은고딕,sans-serif;font-size:11px;line-height:1.5;color:#334155"><span style="color:${i.color};font-weight:700">${i.icon} ${i.label}</span> — ${i.detail}</p>`).join("\n") +
+          `<p style="margin:0 0 4px;font-family:맑은고딕,sans-serif;font-size:11px;font-weight:800;color:${ACCENT_DARK}">${g.team} (${g.total}건)</p>` +
+          g.categories.map(c => `<p style="margin:2px 0 1px;padding-left:10px;font-family:맑은고딕,sans-serif;font-size:11px;line-height:1.5"><span style="color:${c.color};font-weight:700">${c.icon} ${c.label} (${c.details.length}건)</span></p>` +
+            c.details.map(d => `<p style="margin:0 0 1px;padding-left:20px;font-family:맑은고딕,sans-serif;font-size:11px;line-height:1.5;color:#334155">- ${d}</p>`).join("\n")
+          ).join("\n") +
           `</div>`).join("\n")
       : `<p style="margin:0;font-family:맑은고딕,sans-serif;font-size:11pt;line-height:1.6;color:#16a34a;font-weight:700">✅ 특이사항 없음</p>`;
     const border = groups.length ? "#e2e8f0" : "#bbf7d0";
