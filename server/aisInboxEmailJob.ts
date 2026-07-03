@@ -145,7 +145,25 @@ export async function runAisInboxEmailJob(): Promise<void> {
             continue;
           }
 
-          const bodyText = parsed.text || "";
+          // "Web발신" SMS 알림 메일 등 일부 메일은 text/plain 파트가 없고 HTML만 있는 경우가 있어,
+          // parsed.text가 비어있으면 HTML/텍스트-HTML 변환본에서 태그를 제거해 본문 텍스트를 추출한다.
+          const stripHtml = (html: string) =>
+            html
+              .replace(/<(script|style)[\s\S]*?<\/\1>/gi, " ")
+              .replace(/<br\s*\/?>/gi, "\n")
+              .replace(/<\/(p|div|tr|li)>/gi, "\n")
+              .replace(/<[^>]+>/g, " ")
+              .replace(/&nbsp;/gi, " ")
+              .replace(/&amp;/gi, "&")
+              .replace(/&lt;/gi, "<")
+              .replace(/&gt;/gi, ">")
+              .replace(/[ \t]+/g, " ")
+              .trim();
+          let bodyText = parsed.text || "";
+          if (!bodyText.trim()) {
+            if (parsed.html) bodyText = stripHtml(parsed.html as string);
+            else if (parsed.textAsHtml) bodyText = stripHtml(parsed.textAsHtml as string);
+          }
           const haystack = `${subject}\n${bodyText}`;
           const matchedWorkOrder = uniqueWorkOrders.find(wo => haystack.includes(wo));
           if (!matchedWorkOrder) continue;
