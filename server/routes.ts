@@ -10098,6 +10098,33 @@ ${htmlDraft}
     res.json({ message: "수동 실행 시작됨", status: getAutoJobStatus() });
   });
 
+  // ─── AIS 안전이행률 일일 보고 메일 상태/미리보기/테스트발송 ──────────────────────
+  app.get('/api/ais-daily-email/status', isAuthenticated, async (_req, res) => {
+    const { getAisDailyEmailStatus } = await import('./aisDailyEmailJob');
+    res.json(getAisDailyEmailStatus());
+  });
+
+  app.get('/api/ais-daily-email/preview', isAuthenticated, async (req, res) => {
+    try {
+      const { generateAisDailyPreview } = await import('./aisDailyEmailJob');
+      const date = typeof req.query.date === 'string' ? req.query.date : undefined;
+      const result = await generateAisDailyPreview(date);
+      res.json(result);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post('/api/ais-daily-email/test-send', requireEditor, async (_req, res) => {
+    try {
+      const { runAisDailyEmailJob, getAisDailyEmailStatus } = await import('./aisDailyEmailJob');
+      await runAisDailyEmailJob({ force: true });
+      res.json({ message: "발송 완료", status: getAisDailyEmailStatus() });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   // === EDUCATION TASKS (교육업무 관리) ===
 
   // 교육일지 서명률 → 업무 완료율 자동 동기화 헬퍼

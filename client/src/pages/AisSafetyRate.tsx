@@ -26,8 +26,9 @@ import {
   Clock, XCircle, ShieldCheck, ShieldAlert, FileWarning,
   TrendingUp, Users, Loader2, Eye, ChevronUp, Layers,
   CalendarDays, Calendar, ChevronLeft, ChevronRight,
-  Camera, ImageIcon, Save, FileEdit, Pencil,
+  Camera, ImageIcon, Save, FileEdit, Pencil, Mail, Send,
 } from "lucide-react";
+import { apiRequest } from "@/lib/queryClient";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import type { AisSafetyUpload, AisSafetyRecord, AisTbmBadNote } from "@shared/schema";
@@ -323,6 +324,7 @@ export default function AisSafetyRate() {
   const [tbmNoteType, setTbmNoteType] = useState<'bad'|'unreg'>('bad');
   const [tbmNoteReason, setTbmNoteReason] = useState('');
   const [tbmNotePhoto, setTbmNotePhoto] = useState<File | null>(null);
+  const [showEmailDialog, setShowEmailDialog] = useState(false);
   const [tbmNotePhotoPreview, setTbmNotePhotoPreview] = useState<string | null>(null);
   const [tbmNoteSaving, setTbmNoteSaving] = useState(false);
   const [justifStatus, setJustifStatus] = useState<'소명완료'|'소명불가'|null>(null);
@@ -341,6 +343,34 @@ export default function AisSafetyRate() {
       if (!res.ok) throw new Error('레코드 조회 실패');
       const data = await res.json();
       return Array.isArray(data) ? data : [];
+    },
+  });
+
+  const { data: emailStatus } = useQuery<{
+    lastRun: string | null; lastResult: string | null; lastMessage: string | null;
+    lastSentTo: string | null; lastRecordCount: number | null; nextRun: string; running: boolean;
+  }>({
+    queryKey: ['/api/ais-daily-email/status'],
+    enabled: showEmailDialog,
+    refetchInterval: showEmailDialog ? 5000 : false,
+  });
+
+  const { data: emailPreview, isLoading: emailPreviewLoading } = useQuery<{ subject: string; html: string }>({
+    queryKey: ['/api/ais-daily-email/preview'],
+    enabled: showEmailDialog,
+  });
+
+  const testSendMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest('POST', '/api/ais-daily-email/test-send', {});
+      return res.json();
+    },
+    onSuccess: (data) => {
+      toast({ title: '발송 완료', description: data.status?.lastMessage || '테스트 메일을 발송했습니다.' });
+      queryClient.invalidateQueries({ queryKey: ['/api/ais-daily-email/status'] });
+    },
+    onError: (e: any) => {
+      toast({ title: '발송 실패', description: e.message, variant: 'destructive' });
     },
   });
 
@@ -798,12 +828,69 @@ export default function AisSafetyRate() {
               {showDetail ? '대시보드' : '상세 목록'}
             </Button>
           )}
+          <Button variant="outline" size="sm" onClick={() => setShowEmailDialog(true)} data-testid="button-open-email-report">
+            <Mail className="w-4 h-4 sm:mr-2" /><span className="hidden sm:inline">일일 보고 메일</span>
+          </Button>
           <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={handleUpload} data-testid="input-csv" />
           <Button onClick={() => fileInputRef.current?.click()} disabled={uploading} data-testid="button-upload-csv" className="bg-blue-600 hover:bg-blue-700 text-white">
             {uploading ? <><Loader2 className="w-4 h-4 sm:mr-2 animate-spin" /><span className="hidden sm:inline">업로드 중...</span></> : <><Upload className="w-4 h-4 sm:mr-2" /><span className="hidden sm:inline">CSV 업로드</span></>}
           </Button>
         </div>
       </div>
+
+      <Dialog open={showEmailDialog} onOpenChange={setShowEmailDialog}>
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Mail className="w-5 h-5 text-blue-600" />AIS 일일 보고 메일</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-lg border bg-muted/30 p-3 text-sm space-y-1">
+              <p><span className="font-semibold">자동 발송:</span> 매일 09:30(KST)에 전일자 데이터를 자동 집계하여 지정된 수신자에게 발송합니다.</p>
+              {emailStatus && (
+                <>
+                  <p className="text-xs text-muted-foreground">
+                    다음 발송 예정: {emailStatus.nextRun ? new Date(emailStatus.nextRun).toLocaleString('ko-KR') : '-'}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    마지막 실행: {emailStatus.lastRun ? new Date(emailStatus.lastRun).toLocaleString('ko-KR') : '없음'}
+                    {emailStatus.lastResult && ` · 결과: ${emailStatus.lastResult}`}
+                  </p>
+                  {emailStatus.lastMessage && (
+                    <p className="text-xs text-muted-foreground break-words">{emailStatus.lastMessage}</p>
+                  )}
+                </>
+              )}
+            </div>
+            <div className="flex justify-end">
+              <Button
+                size="sm"
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+                disabled={testSendMutation.isPending}
+                onClick={() => testSendMutation.mutate()}
+                data-testid="button-test-send-email"
+              >
+                {testSendMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
+                지금 테스트 발송
+              </Button>
+            </div>
+            <div>
+              <Label className="text-xs font-semibold text-muted-foreground">메일 미리보기</Label>
+              <div className="mt-2 rounded-lg border bg-white dark:bg-slate-950 overflow-hidden">
+                {emailPreviewLoading ? (
+                  <div className="p-6 flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+                ) : emailPreview ? (
+                  <div className="p-4">
+                    <p className="text-sm font-semibold mb-3 pb-2 border-b">{emailPreview.subject}</p>
+                    <div dangerouslySetInnerHTML={{ __html: emailPreview.html }} />
+                  </div>
+                ) : (
+                  <p className="p-6 text-sm text-muted-foreground text-center">미리보기를 불러올 수 없습니다.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Empty state */}
       {uploads.length === 0 && (

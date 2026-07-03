@@ -2,3 +2,4 @@
 - [fetch credentials 누락 패턴](fetch-credentials.md) — FormData fetch 요청에 credentials:"include" 필수, 누락 시 401
 - [ExcelJS shared formula 주입 패턴](exceljs-shared-formula.md) — 셀에 숫자 직접 주입 시 shared formula master 손상; setCached로 result만 업데이트해야 함
 - [PDF 결재란/표 좌표 오버레이 보정](pdf-overlay-coordinate-calibration.md) — 하드코딩 %좌표 어긋나면 실제 파일 렌더링+픽셀스캔으로 재보정, 문서유형별 분리 필요
+- [백엔드 라우트 추가 후 HMR 착각](backend-route-hmr-trap.md) — routes.ts 수정은 Vite HMR로 반영 안 됨; API가 index.html을 반환하면 워크플로 재시작 필요
