@@ -1245,8 +1245,13 @@ export default function AisSafetyRate() {
                         style={{ background:'linear-gradient(160deg,#1d4ed8 0%,#2563eb 55%,#4f46e5 100%)', boxShadow:'inset -4px 0 16px rgba(0,0,0,0.15)' }}>
                         <p className="text-[10px] font-bold text-blue-200 uppercase tracking-widest">TBM 이행률</p>
                         {(() => {
-                          const purePass = tbmBase.filter(r => r.tbmResult === '등록').length;
-                          const justified = tbmBase.filter(r => r.tbmResult !== '등록' && justifiedRecordIds.has(r.id)).length;
+                          // 등록 AND AI적합을 모두 충족해야 순수 이행(purePass), 둘 중 하나라도 소명완료로 대체되면 소명
+                          const purePass = tbmBase.filter(r => r.tbmResult === '등록' && r.tbmAiResult === '적합').length;
+                          const justified = tbmBase.filter(r =>
+                            !(r.tbmResult === '등록' && r.tbmAiResult === '적합') &&
+                            (r.tbmResult === '등록' || justifiedRecordIds.has(r.id)) &&
+                            (r.tbmAiResult === '적합' || justifiedRecordIds.has(r.id))
+                          ).length;
                           const total = tbmBase.length;
                           const fail = Math.max(0, total - purePass - justified);
                           const rate = total === 0 ? 100 : Math.round(((purePass + justified) / total) * 100);
