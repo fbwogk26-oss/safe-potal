@@ -205,54 +205,48 @@ export function buildAisDailyReportHtml(targetDate: string, allRecords: AisSafet
     `<p style="margin:6px 2px 0;font-size:10px;color:#64748b;font-family:맑은고딕,sans-serif">※ 부적합(평가대상)은 TBM AI 부적합 건 중 소명완료 처리된 건을 제외한 실제 평가 대상 건수입니다.</p>`,
   ].join("\n");
 
-  // ── 특이사항: 유형별로 묶어서 라벨 중복 없이 표시 ──
-  type IssueCategory = { icon: string; label: string; color: string; bg: string; border: string; items: string[] };
-  const buildCategoriesForDate = (dateStr: string): IssueCategory[] => {
-    const categories: IssueCategory[] = [
-      {
-        icon: "⚠", label: "고위험작업 안전허가서 미등록", color: "#dc2626", bg: "#fef2f2", border: "#fecaca",
-        items: highRiskNoPermit.filter(r => r.startDate === dateStr).map(r =>
-          `${shortTeam(r.team)} · ${r.workName || r.workLocation || ""} (${r.highRiskWork})`
-        ),
-      },
-      {
-        icon: "⚠", label: "TBM 활동 미등록", color: "#d97706", bg: "#fffbeb", border: "#fde68a",
-        items: tbmUnreg.filter(r => r.startDate === dateStr).map(r =>
-          `${shortTeam(r.team)} · ${r.workName || r.workLocation || ""}`
-        ),
-      },
-      {
-        icon: "⚠", label: "TBM AI 부적합 발생", color: "#ea580c", bg: "#fff7ed", border: "#fed7aa",
-        items: tbmBadEvalRecords.filter(r => r.startDate === dateStr).map(r => {
-          const note = noteMap.get(r.id);
-          const reason = note?.reason ? ` — ${note.reason}` : "";
-          return `${shortTeam(r.team)} · ${r.workName || r.workLocation || ""}${reason}`;
-        }),
-      },
-      {
-        icon: "✅", label: "TBM AI 부적합 (소명완료)", color: "#16a34a", bg: "#f0fdf4", border: "#bbf7d0",
-        items: tbmBadJustifiedRecords.filter(r => r.startDate === dateStr).map(r => {
-          const note = noteMap.get(r.id);
-          const reason = note?.reason ? ` — ${note.reason}` : "";
-          const justReason = note?.justificationReason ? ` (소명사유: ${note.justificationReason})` : "";
-          return `${shortTeam(r.team)} · ${r.workName || r.workLocation || ""}${reason}${justReason}`;
-        }),
-      },
-    ];
-    return categories.filter(c => c.items.length > 0);
+  // ── 특이사항: 팀별로 묶어서 팀명 중복 없이 표시 ──
+  type TeamIssue = { icon: string; label: string; color: string; detail: string };
+  type TeamGroup = { team: string; issues: TeamIssue[] };
+  const buildTeamGroupsForDate = (dateStr: string): TeamGroup[] => {
+    const order: string[] = [];
+    const map = new Map<string, TeamIssue[]>();
+    const push = (rawTeam: string | null | undefined, issue: TeamIssue) => {
+      const team = shortTeam(rawTeam) || "미지정";
+      if (!map.has(team)) { map.set(team, []); order.push(team); }
+      map.get(team)!.push(issue);
+    };
+    for (const r of highRiskNoPermit.filter(r => r.startDate === dateStr)) {
+      push(r.team, { icon: "⚠", label: "고위험작업 안전허가서 미등록", color: "#dc2626", detail: `${r.workName || r.workLocation || ""} (${r.highRiskWork})` });
+    }
+    for (const r of tbmUnreg.filter(r => r.startDate === dateStr)) {
+      push(r.team, { icon: "⚠", label: "TBM 활동 미등록", color: "#d97706", detail: `${r.workName || r.workLocation || ""}` });
+    }
+    for (const r of tbmBadEvalRecords.filter(r => r.startDate === dateStr)) {
+      const note = noteMap.get(r.id);
+      const reason = note?.reason ? ` — ${note.reason}` : "";
+      push(r.team, { icon: "⚠", label: "TBM AI 부적합 발생", color: "#ea580c", detail: `${r.workName || r.workLocation || ""}${reason}` });
+    }
+    for (const r of tbmBadJustifiedRecords.filter(r => r.startDate === dateStr)) {
+      const note = noteMap.get(r.id);
+      const reason = note?.reason ? ` — ${note.reason}` : "";
+      const justReason = note?.justificationReason ? ` (소명사유: ${note.justificationReason})` : "";
+      push(r.team, { icon: "✅", label: "TBM AI 부적합 (소명완료)", color: "#16a34a", detail: `${r.workName || r.workLocation || ""}${reason}${justReason}` });
+    }
+    return order.map(team => ({ team, issues: map.get(team)! }));
   };
 
   const issuesHtml = monthDates.map(dateStr => {
-    const categories = buildCategoriesForDate(dateStr);
+    const groups = buildTeamGroupsForDate(dateStr);
     const label = formatDisplayDate(dateStr);
-    const bodyHtml = categories.length
-      ? categories.map(c => `<div style="margin:0 0 6px;padding:6px 8px;background:${c.bg};border:1px solid ${c.border};border-radius:5px">` +
-          `<p style="margin:0 0 3px;font-family:맑은고딕,sans-serif;font-size:11px;font-weight:700;color:${c.color}">${c.icon} ${c.label} (${c.items.length}건)</p>` +
-          c.items.map(t => `<p style="margin:1px 0;padding-left:10px;font-family:맑은고딕,sans-serif;font-size:11px;line-height:1.5;color:#334155">- ${t}</p>`).join("\n") +
+    const bodyHtml = groups.length
+      ? groups.map(g => `<div style="margin:0 0 6px;padding:6px 8px;background:#f1f5f9;border:1px solid #dbe3ef;border-radius:5px">` +
+          `<p style="margin:0 0 3px;font-family:맑은고딕,sans-serif;font-size:11px;font-weight:800;color:${ACCENT_DARK}">${g.team} (${g.issues.length}건)</p>` +
+          g.issues.map(i => `<p style="margin:1px 0;padding-left:10px;font-family:맑은고딕,sans-serif;font-size:11px;line-height:1.5;color:#334155"><span style="color:${i.color};font-weight:700">${i.icon} ${i.label}</span> — ${i.detail}</p>`).join("\n") +
           `</div>`).join("\n")
       : `<p style="margin:0;font-family:맑은고딕,sans-serif;font-size:11pt;line-height:1.6;color:#16a34a;font-weight:700">✅ 특이사항 없음</p>`;
-    const border = categories.length ? "#e2e8f0" : "#bbf7d0";
-    const bg = categories.length ? "#f8fafc" : "#f0fdf4";
+    const border = groups.length ? "#e2e8f0" : "#bbf7d0";
+    const bg = groups.length ? "#f8fafc" : "#f0fdf4";
     return `<div style="border:1px solid ${border};background:${bg};border-radius:6px;padding:9px 12px;margin-bottom:7px">` +
       `<p style="margin:0 0 6px;font-family:맑은고딕,sans-serif;font-size:11.5px;font-weight:800;color:${ACCENT_DARK}">${label}</p>` +
       bodyHtml +
