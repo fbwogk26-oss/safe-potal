@@ -294,31 +294,25 @@ function TeamBreakdown({ records, title, onIssueClick, justifiedIds = new Set() 
 }
 
 const TBM_BAD_REASON_PRESETS = [
-  '안전모 미착용',
-  '안전대 미착용',
-  '안전화 미착용',
-  '보호구 미착용',
-  '작업허가서 내용 불일치',
+  '보호구 착용 사진 누락(활선경보기)',
+  '보호구 착용 사진 누락(검전기 사용)',
+  '보호구 착용 사진 누락(양팔을 펴고)',
+  '보호구 미착용(안전화)',
+  '보호구 미착용(안전대)',
+  '보호구 미착용(안전모)',
+  '사다리 아웃트리거 미사용',
+  '안전모 착용 했으나 AI 분석 결과 오류',
+  '사진촬영불가국소',
+  '옥상 작업 안전대 미착용(사내지침상 안전대 착용대상 아님)',
   '작업인원 불일치',
-  '위험성평가 내용 누락',
-  '작업장소 불일치',
-  'TBM 참석자 서명 누락',
-  '활선경보기 미소지',
-  '검전기 미소지',
-  '절연장갑 미착용',
-  '작업계획서 미부합',
-  '고소작업 안전대 미체결',
+  'AIS 오류',
 ];
 
 const TBM_UNREG_REASON_PRESETS = [
-  '작업 시작 전 TBM 미실시',
-  '담당자 부재',
-  '긴급작업으로 사전등록 누락',
-  '시스템 오류로 등록 실패',
-  '작업 취소 후 미삭제',
-  '단순 누락',
-  '현장 사정으로 작업 일정 변경',
-  '협력업체 등록 지연',
+  '작업전 TBM 미실시',
+  '시스템 오류로 미등록',
+  '작업취소',
+  '단순누락',
 ];
 
 const CUSTOM_REASON_VALUE = '__custom__';
@@ -871,7 +865,7 @@ export default function AisSafetyRate() {
                 </Select>
                 {tbmNoteReasonPreset === CUSTOM_REASON_VALUE && (
                   <Textarea
-                    placeholder={tbmNoteType === 'unreg' ? 'TBM 미등록 사유를 작성해주세요. (예: 작업 시작 전 TBM 미실시, 담당자 부재 등)' : 'TBM AI가 부적합으로 판정한 사유를 작성해주세요. (예: 안전모 미착용, 안전대 미착용, 작업허가서 내용 불일치 등)'}
+                    placeholder={tbmNoteType === 'unreg' ? 'TBM 미등록 사유를 작성해주세요. (예: 작업전 TBM 미실시, 시스템 오류로 미등록 등)' : 'TBM AI가 부적합으로 판정한 사유를 작성해주세요. (예: 보호구 미착용(안전모), 사다리 아웃트리거 미사용 등)'}
                     value={tbmNoteReason}
                     onChange={e => setTbmNoteReason(e.target.value)}
                     className="min-h-[100px] text-sm resize-none"
