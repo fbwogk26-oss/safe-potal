@@ -26,7 +26,7 @@ import {
   Clock, XCircle, ShieldCheck, ShieldAlert, FileWarning,
   TrendingUp, Users, Loader2, Eye, ChevronUp, Layers,
   CalendarDays, Calendar, ChevronLeft, ChevronRight,
-  Camera, ImageIcon, Save, FileEdit, Pencil, Mail, Send,
+  Camera, ImageIcon, Save, FileEdit, Pencil, Mail, Send, RotateCcw,
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { Textarea } from "@/components/ui/textarea";
@@ -358,6 +358,7 @@ export default function AisSafetyRate() {
   const [tbmNotePhotoPreview, setTbmNotePhotoPreview] = useState<string | null>(null);
   const [tbmNoteSaving, setTbmNoteSaving] = useState(false);
   const [justifStatus, setJustifStatus] = useState<'소명완료'|'소명불가'|null>(null);
+  const [justifReverting, setJustifReverting] = useState(false);
 
   const photoInputRef = useRef<HTMLInputElement>(null);
 
@@ -807,6 +808,37 @@ export default function AisSafetyRate() {
     }
   };
 
+  const handleRevertJustification = async () => {
+    if (!tbmNoteRecord) return;
+    setJustifReverting(true);
+    try {
+      const targets = [tbmNoteRecord.id];
+      if (tbmNoteRecord.workOrderNo) {
+        allRecords.forEach(r => {
+          if (r.id !== tbmNoteRecord.id && r.workOrderNo === tbmNoteRecord.workOrderNo) {
+            targets.push(r.id);
+          }
+        });
+      }
+      await Promise.all(targets.map(id =>
+        fetch(`/api/ais-safety/records/${id}/justification`, {
+          method: 'PUT',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ justificationStatus: null, justificationReason: null }),
+        })
+      ));
+      setJustifStatus(null);
+      await queryClient.invalidateQueries({ queryKey: ['/api/ais-safety/tbm-notes'] });
+      toast({ title: '부적합 상태로 되돌렸습니다', description: targets.length > 1 ? `동일 작업번호 ${targets.length}건 반영` : undefined });
+      setTbmNoteRecord(null);
+    } catch {
+      toast({ title: '되돌리기에 실패했습니다', variant: 'destructive' });
+    } finally {
+      setJustifReverting(false);
+    }
+  };
+
 
   return (
     <div className="space-y-6 pb-10">
@@ -912,6 +944,20 @@ export default function AisSafetyRate() {
                     className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border transition-all ${justifStatus === '소명불가' ? 'bg-red-500 text-white border-red-500' : 'border-red-300 text-red-700 hover:bg-red-50 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-950/30'}`}
                   >✗ 소명 불가</button>
                 </div>
+                {(tbmNoteRecord.workOrderNo ? tbmNoteByWorkOrder[tbmNoteRecord.workOrderNo] : tbmNoteMap[tbmNoteRecord.id])?.justificationStatus && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full mt-1 text-muted-foreground hover:text-red-600 hover:border-red-300"
+                    disabled={justifReverting}
+                    onClick={handleRevertJustification}
+                    data-testid="button-revert-justification"
+                  >
+                    {justifReverting ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5 mr-1" />}
+                    부적합 상태로 되돌리기
+                  </Button>
+                )}
               </div>
               <div className="flex justify-end gap-2 pt-1">
                 <Button variant="outline" size="sm" onClick={() => setTbmNoteRecord(null)}>취소</Button>
