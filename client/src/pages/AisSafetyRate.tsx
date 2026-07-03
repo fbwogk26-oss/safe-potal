@@ -1441,20 +1441,18 @@ export default function AisSafetyRate() {
                                   </span>
                                 )}
                               </div>
-                              {/* 등록/AI 바 — 라벨을 좌측에 인라인 배치해 헤더 중복 제거 */}
-                              <div className="space-y-1">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-[11px] text-muted-foreground w-8 flex-shrink-0">등록</span>
+                              {/* 등록/AI 바 — 라벨 제거, 한 줄에 나란히 배치 (상단 범례로 구분) */}
+                              <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-1.5 flex-1" title="TBM 등록률">
                                   <div className="relative flex-1 h-2.5 rounded-full bg-muted/40 overflow-hidden">
                                     <div className="h-full rounded-full transition-all duration-700" style={{ width: `${Math.max(entry.tbmRegRate, 2)}%`, background: regColor.grad }} />
                                     <div className="absolute top-0 bottom-0 border-l border-dashed border-indigo-400/60" style={{ left: '90%' }} />
                                   </div>
                                   <span className={`text-xs font-bold w-9 text-right flex-shrink-0 ${regColor.text}`}>{entry.tbmRegRate}%</span>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                  <span className="text-[11px] text-muted-foreground w-8 flex-shrink-0">AI</span>
+                                <div className="flex items-center gap-1.5 flex-1">
                                   <div className="relative flex-1 h-2.5 rounded-full bg-muted/40 overflow-hidden flex"
-                                    title={`적합 ${entry.aiPass}건 · 소명완료 ${entry.aiJustified}건 · 분석전 ${entry.aiPending}건 · 부적합 ${entry.aiFail}건`}>
+                                    title={`AI 적합 · 적합 ${entry.aiPass}건 · 소명완료 ${entry.aiJustified}건 · 분석전 ${entry.aiPending}건 · 부적합 ${entry.aiFail}건`}>
                                     {entry.aiTotal === 0 ? (
                                       <div className="h-full w-full bg-muted/40" />
                                     ) : (
