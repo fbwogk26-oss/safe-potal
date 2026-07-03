@@ -1,3 +1,4 @@
 - [pdf-parse import 방법](pdf-parse-import.md) — 기본 import는 test/data ENOENT 오류; lib 직접 import 필요
 - [fetch credentials 누락 패턴](fetch-credentials.md) — FormData fetch 요청에 credentials:"include" 필수, 누락 시 401
 - [ExcelJS shared formula 주입 패턴](exceljs-shared-formula.md) — 셀에 숫자 직접 주입 시 shared formula master 손상; setCached로 result만 업데이트해야 함
+- [PDF 결재란/표 좌표 오버레이 보정](pdf-overlay-coordinate-calibration.md) — 하드코딩 %좌표 어긋나면 실제 파일 렌더링+픽셀스캔으로 재보정, 문서유형별 분리 필요

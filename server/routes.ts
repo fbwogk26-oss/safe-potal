@@ -9610,20 +9610,29 @@ ${htmlDraft}
     if (sigBufs.every(b => !b)) return buffer;
 
     // ── 결재란 위치 ────────────────────────────────────────────────────────
-    // 스크린샷 분석:
-    //   보건관리자: 결재란에 헤더행 없음, 셀이 페이지 최상단 (~1~5%)
-    //   안전관리자: 담당/검토/승인 헤더행(~0~4%) + 서명행(~4~8%)
-    // X: 담당 63~75%, 검토 75~87%, 승인 87~99%
+    // 실제 업로드된 보고서 PDF를 150dpi로 렌더링 후 표 테두리 픽셀을 직접 스캔하여 산출한 값
+    // (page 기준 1240×1755px @150dpi, A4 595×842pt)
     // sigTopPct  = 서명행 상단 (image top-down %)
     // sigHPct    = 서명행 높이 (%)
-    // sigYBotPct = pdf-lib 기준 (하단 기준) = 1 - sigTopPct - sigHPct
+    // sigYBotPct = pdf-lib 기준 (하단 기준) = 1 - (서명행 하단의 top-down %)
     const isHealth = reportType === 'health';
-    // 스크린샷 확인(3차):
-    //   보건: 헤더(0~3%) → 서명칸(3~8%)  ← sigTopPct=0.040
-    //   안전: 헤더(4~8%) → 서명칸(8~13%) ← sigTopPct=0.090
-    const sigTopPct  = isHealth ? 0.040 : 0.090;
-    const sigHPct    = isHealth ? 0.040 : 0.042;
-    const sigYBotPct = isHealth ? 0.920 : 0.868;   // pdf-lib 하단 기준
+    // 안전관리자: 표 x=[838,885,982,1079,1174], y=[100,127,212] (담당/검토/승인)
+    // 보건관리자: 표 x=[697,736,855,974,1092,1211], y=[47,80,146] (담당자/검토/결재, 라벨 다음 빈 칸 1개 존재)
+    const sigTopPct  = isHealth ? 0.0456 : 0.0724;
+    const sigHPct    = isHealth ? 0.0376 : 0.0484;
+    const sigYBotPct = isHealth ? 0.9168 : 0.8792;   // pdf-lib 하단 기준
+    // 컬럼별 (left%, width%) - 안전: 담당/검토/승인, 보건: 담당자/검토/결재
+    const columns = isHealth
+      ? [
+          { left: 0.6895, w: 0.0960 }, // 담당자
+          { left: 0.7855, w: 0.0952 }, // 검토
+          { left: 0.8807, w: 0.0960 }, // 결재
+        ]
+      : [
+          { left: 0.7137, w: 0.0782 }, // 담당
+          { left: 0.7919, w: 0.0782 }, // 검토
+          { left: 0.8702, w: 0.0766 }, // 승인
+        ];
 
     // ── 이미지 파일 (sharp 합성) ─────────────────────
     if (['.jpg', '.jpeg', '.png'].includes(ext)) {
@@ -9632,11 +9641,9 @@ ${htmlDraft}
       const W = meta.width || 1000;
       const H = meta.height || 1400;
 
-      const cells = [
-        { left: Math.round(W * 0.630), top: Math.round(H * sigTopPct), w: Math.round(W * 0.120), h: Math.round(H * sigHPct) },
-        { left: Math.round(W * 0.750), top: Math.round(H * sigTopPct), w: Math.round(W * 0.120), h: Math.round(H * sigHPct) },
-        { left: Math.round(W * 0.870), top: Math.round(H * sigTopPct), w: Math.round(W * 0.120), h: Math.round(H * sigHPct) },
-      ];
+      const cells = columns.map(c => ({
+        left: Math.round(W * c.left), top: Math.round(H * sigTopPct), w: Math.round(W * c.w), h: Math.round(H * sigHPct),
+      }));
       const composites: any[] = [];
       for (let i = 0; i < 3; i++) {
         if (!sigBufs[i]) continue;
@@ -9667,11 +9674,9 @@ ${htmlDraft}
       const { width: W, height: H } = firstPage.getSize();
 
       // pdf-lib 좌표: 좌측 하단 기준 (y=0 이 아래)
-      const cells = [
-        { x: W * 0.630, yBottom: H * sigYBotPct, w: W * 0.120, h: H * sigHPct },  // 담당
-        { x: W * 0.750, yBottom: H * sigYBotPct, w: W * 0.120, h: H * sigHPct },  // 검토
-        { x: W * 0.870, yBottom: H * sigYBotPct, w: W * 0.120, h: H * sigHPct },  // 승인
-      ];
+      const cells = columns.map(c => ({
+        x: W * c.left, yBottom: H * sigYBotPct, w: W * c.w, h: H * sigHPct,
+      }));
       for (let i = 0; i < 3; i++) {
         if (!sigBufs[i]) continue;
         // 셀의 75%로 제한하여 여백 확보
