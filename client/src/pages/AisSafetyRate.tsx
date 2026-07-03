@@ -1497,9 +1497,9 @@ export default function AisSafetyRate() {
                         <ShieldCheck className="w-4 h-4 text-orange-500" />
                         고위험작업 안전허가서 매칭 현황
                       </CardTitle>
-                      <span className="text-xs font-normal text-muted-foreground">6대 고위험작업(고소·전기·중장비·굴착·밀폐·화기)</span>
+                      <span className="text-xs font-normal text-muted-foreground">6대 고위험작업(고소·전기·중장비·굴착·밀폐·화기){drilldownLabel ? ` · ${drilldownLabel}` : ''}</span>
                       <div className="ml-auto flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">{filteredHighRiskRecords.length === highRiskRecords.length ? `전체 ${highRiskRecords.length}건` : `${filteredHighRiskRecords.length} / ${highRiskRecords.length}건`}</span>
+                        <span className="text-xs text-muted-foreground">{filteredHighRiskRecords.length === highRiskRecords.length ? `${drilldownLabel ? drilldownLabel + ' ' : '전체 '}${highRiskRecords.length}건` : `${filteredHighRiskRecords.length} / ${highRiskRecords.length}건`}</span>
                         <Select value={String(highRiskPageSize)} onValueChange={v => { setHighRiskPageSize(Number(v)); setHighRiskPage(1); }}>
                           <SelectTrigger className="h-7 text-xs w-20" data-testid="select-hr-pagesize"><SelectValue /></SelectTrigger>
                           <SelectContent>
