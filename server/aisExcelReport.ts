@@ -537,8 +537,10 @@ export async function buildAisExcelReportBuffer(opts?: { startDate?: string; end
   ];
   styleHeaderRow(wsPhoto.getRow(1));
 
-  const notesWithPhotos = badNotesRaw.filter(n => (n.photoUrls && n.photoUrls.length > 0) || n.photoUrl);
   const recordById = new Map<number, AisSafetyRecord>(allRecordsRaw.map(r => [r.id, r]));
+  const notesWithPhotos = badNotesRaw.filter(n =>
+    ((n.photoUrls && n.photoUrls.length > 0) || n.photoUrl) && recordById.has(n.recordId)
+  );
 
   // 사진 URL 사전 로드 (병렬)
   const allPhotoUrls = new Set<string>();

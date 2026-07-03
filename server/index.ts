@@ -64,6 +64,13 @@ import { setupSecurity } from "./security";
 import "./autoEmailJob";
 import "./aisDailyEmailJob";
 import "./aisInboxEmailJob";
+import { storage } from "./storage";
+
+storage.cleanupOrphanedAisTbmBadNotes()
+  .then((count) => {
+    if (count > 0) console.log(`[Startup] AIS TBM 부적합 소명 고아 레코드 ${count}건 정리 완료`);
+  })
+  .catch((e) => console.error("[Startup] AIS TBM 부적합 소명 고아 레코드 정리 오류:", e));
 
 const app = express();
 const httpServer = createServer(app);

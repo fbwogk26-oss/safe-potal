@@ -1417,6 +1417,11 @@ export class DatabaseStorage implements IStorage {
     return row;
   }
   async deleteAisSafetyUpload(id: number): Promise<void> {
+    const recordsToDelete = await db.select({ id: aisSafetyRecords.id }).from(aisSafetyRecords).where(eq(aisSafetyRecords.uploadId, id));
+    const recordIds = recordsToDelete.map(r => r.id);
+    if (recordIds.length > 0) {
+      await db.delete(aisTbmBadNotes).where(inArray(aisTbmBadNotes.recordId, recordIds));
+    }
     await db.delete(aisSafetyRecords).where(eq(aisSafetyRecords.uploadId, id));
     await db.delete(aisSafetyUploads).where(eq(aisSafetyUploads.id, id));
   }
@@ -1439,6 +1444,17 @@ export class DatabaseStorage implements IStorage {
   }
   async getAllAisTbmBadNotes(): Promise<AisTbmBadNote[]> {
     return await db.select().from(aisTbmBadNotes);
+  }
+  async cleanupOrphanedAisTbmBadNotes(): Promise<number> {
+    const orphaned = await db
+      .select({ id: aisTbmBadNotes.id })
+      .from(aisTbmBadNotes)
+      .leftJoin(aisSafetyRecords, eq(aisTbmBadNotes.recordId, aisSafetyRecords.id))
+      .where(sql`${aisSafetyRecords.id} IS NULL`);
+    if (orphaned.length === 0) return 0;
+    const ids = orphaned.map(o => o.id);
+    await db.delete(aisTbmBadNotes).where(inArray(aisTbmBadNotes.id, ids));
+    return ids.length;
   }
   async getAisTbmBadNote(recordId: number): Promise<AisTbmBadNote | null> {
     const [row] = await db.select().from(aisTbmBadNotes).where(eq(aisTbmBadNotes.recordId, recordId));
