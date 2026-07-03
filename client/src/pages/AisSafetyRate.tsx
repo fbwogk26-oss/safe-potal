@@ -26,7 +26,7 @@ import {
   Clock, XCircle, ShieldCheck, ShieldAlert, FileWarning,
   TrendingUp, Users, Loader2, Eye, ChevronUp, Layers,
   CalendarDays, Calendar, ChevronLeft, ChevronRight,
-  Camera, ImageIcon, Save, FileEdit, Pencil, Mail, Send, RotateCcw,
+  ImageIcon, Save, FileEdit, Pencil, Mail, Send, RotateCcw,
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { Textarea } from "@/components/ui/textarea";
@@ -350,17 +350,17 @@ export default function AisSafetyRate() {
   const [tbmNoteType, setTbmNoteType] = useState<'bad'|'unreg'>('bad');
   const [tbmNoteReason, setTbmNoteReason] = useState('');
   const [tbmNoteReasonPreset, setTbmNoteReasonPreset] = useState<string>(CUSTOM_REASON_VALUE);
-  const [tbmNotePhoto, setTbmNotePhoto] = useState<File | null>(null);
+  const [tbmNoteExistingPhotos, setTbmNoteExistingPhotos] = useState<{ url: string; name: string }[]>([]);
+  const [tbmNoteNewPhotos, setTbmNoteNewPhotos] = useState<File[]>([]);
+  const [tbmNoteNewPreviews, setTbmNoteNewPreviews] = useState<string[]>([]);
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   const [showInboxDialog, setShowInboxDialog] = useState(false);
   const [recipientsInput, setRecipientsInput] = useState('');
   const [recipientsInitialized, setRecipientsInitialized] = useState(false);
-  const [tbmNotePhotoPreview, setTbmNotePhotoPreview] = useState<string | null>(null);
   const [tbmNoteSaving, setTbmNoteSaving] = useState(false);
   const [justifStatus, setJustifStatus] = useState<'소명완료'|'소명불가'|null>(null);
   const [justifReverting, setJustifReverting] = useState(false);
   const [justifyQueue, setJustifyQueue] = useState<number[]>([]);
-  const [justifyDeciding, setJustifyDeciding] = useState(false);
   const processedInboxRunRef = useRef<string | null>(null);
 
   const photoInputRef = useRef<HTMLInputElement>(null);
@@ -496,42 +496,18 @@ export default function AisSafetyRate() {
     })();
   }, [inboxStatus?.lastRun, inboxStatus?.running]);
 
-  const currentJustifyRecord = justifyQueue.length > 0 ? allRecords.find(r => r.id === justifyQueue[0]) : null;
-
-  const handleJustifyQueueDecision = async (decision: '소명완료' | '소명불가' | 'skip') => {
-    const rec = currentJustifyRecord;
+  // 소명 메일 자동접수 대기열: 사용자가 다이얼로그를 닫거나 저장을 완료하면 다음 건을 자동으로 연다
+  useEffect(() => {
+    if (justifyQueue.length === 0 || tbmNoteRecord) return;
+    const nextId = justifyQueue[0];
+    const rec = allRecords.find(r => r.id === nextId);
     if (!rec) { setJustifyQueue(q => q.slice(1)); return; }
-    if (decision === 'skip') {
-      setJustifyQueue(q => q.slice(1));
-      return;
-    }
-    setJustifyDeciding(true);
-    try {
-      const targets = [rec.id];
-      if (rec.workOrderNo) {
-        allRecords.forEach(r => {
-          if (r.id !== rec.id && r.workOrderNo === rec.workOrderNo) targets.push(r.id);
-        });
-      }
-      await Promise.all(targets.map(id =>
-        fetch(`/api/ais-safety/records/${id}/justification`, {
-          method: 'PUT',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ justificationStatus: decision, justificationReason: null }),
-        })
-      ));
-      await queryClient.invalidateQueries({ queryKey: ['/api/ais-safety/tbm-notes'] });
-      toast({
-        title: decision === '소명완료' ? '소명완료 처리됨' : '소명불가 처리됨',
-        description: rec.workName || rec.workOrderNo || undefined,
-      });
-    } catch {
-      toast({ title: '처리에 실패했습니다', variant: 'destructive' });
-    } finally {
-      setJustifyDeciding(false);
-      setJustifyQueue(q => q.slice(1));
-    }
+    openTbmNote(rec);
+  }, [justifyQueue, tbmNoteRecord, allRecords]);
+
+  const closeTbmNoteDialog = () => {
+    setJustifyQueue(q => (tbmNoteRecord && q.length > 0 && q[0] === tbmNoteRecord.id) ? q.slice(1) : q);
+    setTbmNoteRecord(null);
   };
 
   const records = useMemo(() => {
@@ -610,6 +586,14 @@ export default function AisSafetyRate() {
       .map(([month, recs]) => ({ month, records: recs, ...calcCompliance(recs.filter(r => r.workStatus !== '취소'), justifiedRecordIds) }));
   }, [allRecords, justifiedRecordIds]);
 
+  const loadExistingPhotos = (existing: AisTbmBadNote | undefined | null) => {
+    const urls = existing?.photoUrls && existing.photoUrls.length > 0 ? existing.photoUrls : (existing?.photoUrl ? [existing.photoUrl] : []);
+    const names = existing?.photoFileNames && existing.photoFileNames.length > 0 ? existing.photoFileNames : (existing?.photoFileName ? [existing.photoFileName] : []);
+    setTbmNoteExistingPhotos(urls.map((url, i) => ({ url, name: names[i] || '' })));
+    setTbmNoteNewPhotos([]);
+    setTbmNoteNewPreviews([]);
+  };
+
   const openTbmNote = (r: AisSafetyRecord) => {
     setTbmNoteType('bad');
     setTbmNoteRecord(r);
@@ -617,8 +601,7 @@ export default function AisSafetyRate() {
     const reason = existing?.reason || '';
     setTbmNoteReason(reason);
     setTbmNoteReasonPreset(reason && TBM_BAD_REASON_PRESETS.includes(reason) ? reason : CUSTOM_REASON_VALUE);
-    setTbmNotePhotoPreview(existing?.photoUrl || null);
-    setTbmNotePhoto(null);
+    loadExistingPhotos(existing);
     setJustifStatus((existing?.justificationStatus as '소명완료'|'소명불가'|null) ?? null);
   };
   const openTbmUnregNote = (r: AisSafetyRecord) => {
@@ -628,8 +611,7 @@ export default function AisSafetyRate() {
     const reason = existing?.reason || '';
     setTbmNoteReason(reason);
     setTbmNoteReasonPreset(reason && TBM_UNREG_REASON_PRESETS.includes(reason) ? reason : CUSTOM_REASON_VALUE);
-    setTbmNotePhotoPreview(existing?.photoUrl || null);
-    setTbmNotePhoto(null);
+    loadExistingPhotos(existing);
   };
 
   const deleteMutation = useMutation({
@@ -838,7 +820,9 @@ export default function AisSafetyRate() {
       const formData = new FormData();
       formData.append('noteType', tbmNoteType);
       formData.append('reason', tbmNoteReason);
-      if (tbmNotePhoto) formData.append('photo', tbmNotePhoto);
+      formData.append('existingPhotoUrls', JSON.stringify(tbmNoteExistingPhotos.map(p => p.url)));
+      formData.append('existingPhotoFileNames', JSON.stringify(tbmNoteExistingPhotos.map(p => p.name)));
+      tbmNoteNewPhotos.forEach(file => formData.append('photos', file));
       await fetch(`/api/ais-safety/records/${tbmNoteRecord.id}/tbm-note`, {
         method: 'POST',
         credentials: 'include',
@@ -879,7 +863,7 @@ export default function AisSafetyRate() {
         title: tbmNoteType === 'unreg' ? 'TBM 미등록 사유가 저장되었습니다 ✎' : 'TBM AI 부적합 사유가 저장되었습니다 ✎',
         description: linkedCount > 0 ? `동일 작업번호 ${linkedCount}건에도 연동 저장됨` : (tbmNoteReason ? `사유: ${tbmNoteReason.slice(0, 40)}${tbmNoteReason.length > 40 ? '...' : ''}` : undefined),
       });
-      setTbmNoteRecord(null);
+      closeTbmNoteDialog();
     } catch {
       toast({ title: '저장에 실패했습니다', variant: 'destructive' });
     } finally {
@@ -908,11 +892,12 @@ export default function AisSafetyRate() {
       setJustifStatus(null);
       setTbmNoteReason('');
       setTbmNoteReasonPreset('');
-      setTbmNotePhoto(null);
-      setTbmNotePhotoPreview(null);
+      setTbmNoteExistingPhotos([]);
+      setTbmNoteNewPhotos([]);
+      setTbmNoteNewPreviews([]);
       await queryClient.invalidateQueries({ queryKey: ['/api/ais-safety/tbm-notes'] });
       toast({ title: '부적합 상태로 초기화했습니다', description: targets.length > 1 ? `동일 작업번호 ${targets.length}건 반영` : undefined });
-      setTbmNoteRecord(null);
+      closeTbmNoteDialog();
     } catch {
       toast({ title: '되돌리기에 실패했습니다', variant: 'destructive' });
     } finally {
@@ -924,13 +909,19 @@ export default function AisSafetyRate() {
   return (
     <div className="space-y-6 pb-10">
       {/* TBM 부적합 사유 다이얼로그 */}
-      <Dialog open={!!tbmNoteRecord} onOpenChange={open => { if (!open) setTbmNoteRecord(null); }}>
+      <Dialog open={!!tbmNoteRecord} onOpenChange={open => { if (!open) closeTbmNoteDialog(); }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-red-600"><XCircle className="w-4 h-4" />{tbmNoteType === 'unreg' ? 'TBM 미등록 사유/사진 기록' : 'TBM AI 부적합 사유 기록'}</DialogTitle>
           </DialogHeader>
           {tbmNoteRecord && (
             <div className="space-y-4">
+              {justifyQueue.length > 0 && justifyQueue[0] === tbmNoteRecord.id && (
+                <div className="rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/30 px-3 py-2 text-xs flex items-center gap-1.5 text-blue-700 dark:text-blue-400">
+                  <Mail className="w-3.5 h-3.5 flex-shrink-0" />
+                  메일함에서 사진이 자동 접수되었습니다. 확인 후 사유/소명을 입력해주세요. (남은 {justifyQueue.length}건)
+                </div>
+              )}
               <div className="rounded-lg bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/30 p-3 text-xs space-y-1">
                 <p className="font-semibold text-sm text-foreground">{tbmNoteRecord.workName || '-'}</p>
                 <p className="text-muted-foreground">{tbmNoteRecord.workOrderNo} · {tbmNoteRecord.team} · {tbmNoteRecord.startDate}</p>
@@ -961,30 +952,40 @@ export default function AisSafetyRate() {
                 </div>
               )}
               <div className="space-y-2">
-                <Label className="text-sm font-medium">{tbmNoteType === 'unreg' ? '미등록 사유 사진' : '부적합 사진'}</Label>
-                <div className="flex items-start gap-3">
-                  {tbmNotePhotoPreview ? (
-                    <div className="relative">
-                      <img src={tbmNotePhotoPreview} alt="부적합 사진" className="w-28 h-28 object-cover rounded-lg border" />
-                      <button className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600"
-                        onClick={() => { setTbmNotePhotoPreview(null); setTbmNotePhoto(null); }}>×</button>
+                <Label className="text-sm font-medium">{tbmNoteType === 'unreg' ? '미등록 사유 사진' : '부적합 사진'} ({tbmNoteExistingPhotos.length + tbmNoteNewPhotos.length}/3)</Label>
+                <div className="flex items-start gap-2 flex-wrap">
+                  {tbmNoteExistingPhotos.map((p, i) => (
+                    <div key={`existing-${i}`} className="relative">
+                      <img src={p.url} alt={`부적합 사진 ${i + 1}`} className="w-24 h-24 object-cover rounded-lg border" />
+                      <button type="button" className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600"
+                        onClick={() => setTbmNoteExistingPhotos(prev => prev.filter((_, idx) => idx !== i))}>×</button>
                     </div>
-                  ) : (
-                    <div className="w-28 h-28 border-2 border-dashed border-muted-foreground/30 rounded-lg flex flex-col items-center justify-center gap-1 cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-colors"
+                  ))}
+                  {tbmNoteNewPreviews.map((url, i) => (
+                    <div key={`new-${i}`} className="relative">
+                      <img src={url} alt={`새 사진 ${i + 1}`} className="w-24 h-24 object-cover rounded-lg border border-blue-300" />
+                      <button type="button" className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600"
+                        onClick={() => {
+                          setTbmNoteNewPhotos(prev => prev.filter((_, idx) => idx !== i));
+                          setTbmNoteNewPreviews(prev => prev.filter((_, idx) => idx !== i));
+                        }}>×</button>
+                    </div>
+                  ))}
+                  {(tbmNoteExistingPhotos.length + tbmNoteNewPhotos.length) < 3 && (
+                    <div className="w-24 h-24 border-2 border-dashed border-muted-foreground/30 rounded-lg flex flex-col items-center justify-center gap-1 cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-colors"
                       onClick={() => photoInputRef.current?.click()}>
                       <ImageIcon className="w-6 h-6 text-muted-foreground/50" />
                       <span className="text-xs text-muted-foreground">사진 추가</span>
                     </div>
                   )}
-                  <Button variant="outline" size="sm" className="mt-1" onClick={() => photoInputRef.current?.click()}>
-                    <Camera className="w-3.5 h-3.5 mr-1" />{tbmNotePhotoPreview ? '사진 변경' : '사진 선택'}
-                  </Button>
-                  <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={e => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      setTbmNotePhoto(file);
-                      setTbmNotePhotoPreview(URL.createObjectURL(file));
-                    }
+                  <input ref={photoInputRef} type="file" accept="image/*" multiple className="hidden" onChange={e => {
+                    const files = Array.from(e.target.files || []);
+                    if (files.length === 0) return;
+                    const remaining = 3 - (tbmNoteExistingPhotos.length + tbmNoteNewPhotos.length);
+                    const toAdd = files.slice(0, Math.max(0, remaining));
+                    setTbmNoteNewPhotos(prev => [...prev, ...toAdd]);
+                    setTbmNoteNewPreviews(prev => [...prev, ...toAdd.map(f => URL.createObjectURL(f))]);
+                    e.target.value = '';
                   }} />
                 </div>
               </div>
@@ -1050,7 +1051,7 @@ export default function AisSafetyRate() {
                 )}
               </div>
               <div className="flex justify-end gap-2 pt-1">
-                <Button variant="outline" size="sm" onClick={() => setTbmNoteRecord(null)}>취소</Button>
+                <Button variant="outline" size="sm" onClick={closeTbmNoteDialog}>취소</Button>
                 <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white" disabled={tbmNoteSaving} onClick={handleTbmNoteSave}>
                   {tbmNoteSaving ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Save className="w-3.5 h-3.5 mr-1" />}저장
                 </Button>
@@ -1200,57 +1201,6 @@ export default function AisSafetyRate() {
               </Button>
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* 소명 메일 자동접수 후 소명가능/불가능 선택 팝업 (하나씩 순차 처리) */}
-      <Dialog open={!!currentJustifyRecord} onOpenChange={open => { if (!open) setJustifyQueue([]); }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-blue-600"><Mail className="w-4 h-4" />소명 자동접수 확인</DialogTitle>
-          </DialogHeader>
-          {currentJustifyRecord && (
-            <div className="space-y-4">
-              <p className="text-xs text-muted-foreground">메일함에서 사진이 자동 접수되었습니다. 확인 후 소명 처리를 선택해주세요. ({justifyQueue.length}건 남음)</p>
-              <div className="rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/30 p-3 text-xs space-y-1">
-                <p className="font-semibold text-sm text-foreground">{currentJustifyRecord.workName || '-'}</p>
-                <p className="text-muted-foreground">{currentJustifyRecord.workOrderNo} · {currentJustifyRecord.team} · {currentJustifyRecord.startDate}</p>
-              </div>
-              {(() => {
-                const note = currentJustifyRecord.workOrderNo ? tbmNoteByWorkOrder[currentJustifyRecord.workOrderNo] : tbmNoteMap[currentJustifyRecord.id];
-                const photos = note?.photoUrls && note.photoUrls.length > 0 ? note.photoUrls : (note?.photoUrl ? [note.photoUrl] : []);
-                return (
-                  <div className="space-y-2">
-                    {note?.reason && <p className="text-xs text-muted-foreground whitespace-pre-line">{note.reason}</p>}
-                    {photos.length > 0 ? (
-                      <div className="flex gap-1.5 flex-wrap">
-                        {photos.map((url, i) => (
-                          <a key={i} href={url} target="_blank" rel="noopener noreferrer">
-                            <img src={url} alt={`부적합 사진 ${i + 1}`} className="w-20 h-20 object-cover rounded border" />
-                          </a>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-xs text-muted-foreground">첨부된 사진이 없습니다.</p>
-                    )}
-                  </div>
-                );
-              })()}
-              <div className="flex items-center justify-between gap-2 pt-2">
-                <Button variant="ghost" size="sm" disabled={justifyDeciding} onClick={() => handleJustifyQueueDecision('skip')} data-testid="button-justify-skip">
-                  건너뛰기
-                </Button>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" className="border-red-300 text-red-600 hover:bg-red-50" disabled={justifyDeciding} onClick={() => handleJustifyQueueDecision('소명불가')} data-testid="button-justify-impossible">
-                    소명불가
-                  </Button>
-                  <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" disabled={justifyDeciding} onClick={() => handleJustifyQueueDecision('소명완료')} data-testid="button-justify-complete">
-                    {justifyDeciding ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : null}소명가능
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
         </DialogContent>
       </Dialog>
 

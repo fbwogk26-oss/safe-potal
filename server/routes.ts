@@ -4073,30 +4073,54 @@ ${buildEmailFooter()}
     }
   });
 
-  app.post('/api/ais-safety/records/:id/tbm-note', isAuthenticated, upload.single('photo'), async (req: any, res) => {
+  app.post('/api/ais-safety/records/:id/tbm-note', isAuthenticated, upload.fields([{ name: 'photo', maxCount: 1 }, { name: 'photos', maxCount: 3 }]), async (req: any, res) => {
     try {
       const recordId = Number(req.params.id);
-      let photoUrl: string | undefined;
-      let photoFileName: string | undefined;
-      if (req.file) {
+      const filesMap = (req.files as Record<string, Express.Multer.File[]>) || {};
+      const files = [...(filesMap.photo || []), ...(filesMap.photos || [])].slice(0, 3);
+
+      const newPhotoUrls: string[] = [];
+      const newPhotoFileNames: string[] = [];
+      for (const file of files) {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        const ext = safeExt(req.file.originalname, ALLOWED_IMG_EXTS);
+        const ext = safeExt(file.originalname, ALLOWED_IMG_EXTS);
         const filename = uniqueSuffix + ext;
-        const objUrl = await uploadToObjectStorage(req.file.buffer, filename, req.file.mimetype);
+        const objUrl = await uploadToObjectStorage(file.buffer, filename, file.mimetype);
+        let url: string;
         if (objUrl) {
-          photoUrl = objUrl;
+          url = objUrl;
         } else {
-          const localPath = path.join(uploadDir, filename);
-          fs.writeFileSync(localPath, req.file.buffer);
-          photoUrl = `/uploads/${filename}`;
+          fs.writeFileSync(path.join(uploadDir, filename), file.buffer);
+          url = `/uploads/${filename}`;
         }
-        photoFileName = req.file.originalname;
+        newPhotoUrls.push(url);
+        newPhotoFileNames.push(file.originalname);
       }
+
+      // existingPhotoUrls/existingPhotoFileNames가 전달되면(JSON 배열) 유지할 기존 사진 목록을 의미하며,
+      // 여기에 새로 업로드된 사진을 이어붙여 최종 배열(최대 3장)로 교체 저장한다.
+      let existingPhotoUrls: string[] = [];
+      let existingPhotoFileNames: string[] = [];
+      let hasExisting = false;
+      try {
+        if (req.body.existingPhotoUrls !== undefined) {
+          existingPhotoUrls = JSON.parse(req.body.existingPhotoUrls) || [];
+          hasExisting = true;
+        }
+        if (req.body.existingPhotoFileNames !== undefined) {
+          existingPhotoFileNames = JSON.parse(req.body.existingPhotoFileNames) || [];
+        }
+      } catch { /* ignore malformed JSON */ }
+
+      const hasPhotoUpdate = hasExisting || newPhotoUrls.length > 0;
+      const finalPhotoUrls = hasPhotoUpdate ? [...existingPhotoUrls, ...newPhotoUrls].slice(0, 3) : undefined;
+      const finalPhotoFileNames = hasPhotoUpdate ? [...existingPhotoFileNames, ...newPhotoFileNames].slice(0, 3) : undefined;
+
       const note = await storage.upsertAisTbmBadNote(recordId, {
         noteType: req.body.noteType || 'bad',
         reason: req.body.reason || undefined,
-        photoUrl,
-        photoFileName,
+        photoUrls: finalPhotoUrls,
+        photoFileNames: finalPhotoFileNames,
         createdBy: req.user?.username,
       });
       res.json(note);

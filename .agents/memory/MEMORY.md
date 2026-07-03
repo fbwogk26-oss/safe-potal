@@ -4,3 +4,4 @@
 - [PDF 결재란/표 좌표 오버레이 보정](pdf-overlay-coordinate-calibration.md) — 하드코딩 %좌표 어긋나면 실제 파일 렌더링+픽셀스캔으로 재보정, 문서유형별 분리 필요
 - [백엔드 라우트 추가 후 HMR 착각](backend-route-hmr-trap.md) — routes.ts 수정은 Vite HMR로 반영 안 됨; API가 index.html을 반환하면 워크플로 재시작 필요
 - [Gmail INBOX 폴링으로 자동 데이터 등록](gmail-inbox-polling-auto-register.md) — ImapFlow+mailparser cron 폴링, UID 기반 중복방지, 자동화는 등록까지만 하고 최종 승인/완료 처리는 사람이 하도록 분리
+- [자동 등록 후속 조치는 기존 다이얼로그 재사용](auto-queue-reuses-existing-dialog.md) — 새 경량 팝업 대신 큐+기존 전체 편집 다이얼로그 자동 열기 패턴 사용
