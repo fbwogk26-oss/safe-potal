@@ -96,6 +96,32 @@ function shortTeam(t: string | null | undefined): string {
   return (t || "").replace(/운용팀$/, "T");
 }
 
+function addRateDataBar(ws: ExcelJS.Worksheet, ref: string, color = 'FF22C55E') {
+  ws.addConditionalFormatting({
+    ref,
+    rules: [{
+      type: 'dataBar',
+      minLength: 0,
+      maxLength: 100,
+      gradient: false,
+      color: { argb: color },
+      cfvo: [{ type: 'num', val: 0 }, { type: 'num', val: 100 }],
+    } as any],
+  });
+}
+
+function calcGroupCompliance(records: AisSafetyRecord[], justifiedIds: Set<number>): { rate: number; total: number; badCount: number } {
+  const active = records.filter(r => !isCancelled(r));
+  if (!active.length) return { rate: 0, total: 0, badCount: 0 };
+  const highRiskNoPermit = active.filter(r => isHighRiskWork(r.highRiskWork) && r.safetyPermit !== 'Y' && !justifiedIds.has(r.id));
+  const tbmUnreg = active.filter(r => r.tbmResult === '미등록' && !justifiedIds.has(r.id));
+  const tbmBad = active.filter(r => r.tbmAiResult === '부적합' && !justifiedIds.has(r.id));
+  const total = active.length * 3;
+  const pass = total - (highRiskNoPermit.length + tbmUnreg.length + tbmBad.length);
+  const rate = total > 0 ? Math.round((pass / total) * 100) : 100;
+  return { rate, total: active.length, badCount: tbmBad.length };
+}
+
 interface BuildResult {
   buffer: Buffer;
   fileName: string;
@@ -130,9 +156,9 @@ export async function buildAisExcelReportBuffer(): Promise<BuildResult> {
   wb.created = new Date();
 
   // ══════════════════════════════════════════════════════════
-  // 시트 1: 종합
+  // 시트 1: 현황
   // ══════════════════════════════════════════════════════════
-  const wsSummary = wb.addWorksheet("종합", { views: [{ state: 'frozen', ySplit: 0 }] });
+  const wsSummary = wb.addWorksheet("현황", { views: [{ state: 'frozen', ySplit: 0 }] });
   wsSummary.columns = [
     { width: 20 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 14 },
     { width: 14 }, { width: 14 }, { width: 14 }, { width: 14 },
@@ -246,10 +272,81 @@ export async function buildAisExcelReportBuffer(): Promise<BuildResult> {
   rateRow.getCell(1).font = { bold: true, size: 10 };
   rateRow.getCell(1).alignment = { vertical: 'middle', horizontal: 'left' };
 
+  // ── 일자별/월별 현황 (대시보드 그래프 데이터 반영) ──
+  const dailyMap = new Map<string, AisSafetyRecord[]>();
+  for (const r of allRecords) {
+    if (!r.startDate) continue;
+    if (!dailyMap.has(r.startDate)) dailyMap.set(r.startDate, []);
+    dailyMap.get(r.startDate)!.push(r);
+  }
+  const dailyRows = Array.from(dailyMap.entries())
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .map(([date, recs]) => ({ date, ...calcGroupCompliance(recs, justifiedRecordIds) }));
+
+  const monthlyMap = new Map<string, AisSafetyRecord[]>();
+  for (const r of allRecords) {
+    if (!r.startDate || r.startDate.length < 7) continue;
+    const month = r.startDate.slice(0, 7);
+    if (!monthlyMap.has(month)) monthlyMap.set(month, []);
+    monthlyMap.get(month)!.push(r);
+  }
+  const monthlyRows = Array.from(monthlyMap.entries())
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .map(([month, recs]) => ({ month, ...calcGroupCompliance(recs, justifiedRecordIds) }));
+
+  let curRow = rateRowIdx + 3;
+  wsSummary.getCell(`A${curRow}`).value = "월별 이행률 현황";
+  wsSummary.getCell(`A${curRow}`).font = { bold: true, size: 12, color: { argb: 'FF1E3A8A' } };
+  curRow += 1;
+  const monthlyHeaderRow = wsSummary.getRow(curRow);
+  monthlyHeaderRow.getCell(1).value = "월";
+  monthlyHeaderRow.getCell(2).value = "총 작업건수";
+  monthlyHeaderRow.getCell(3).value = "부적합건수";
+  monthlyHeaderRow.getCell(4).value = "이행률(%)";
+  styleHeaderRow(monthlyHeaderRow);
+  const monthlyDataStartRow = curRow + 1;
+  monthlyRows.forEach((m, idx) => {
+    const row = wsSummary.getRow(monthlyDataStartRow + idx);
+    row.getCell(1).value = m.month;
+    row.getCell(2).value = m.total;
+    row.getCell(3).value = m.badCount;
+    row.getCell(4).value = m.rate;
+    styleDataRow(row);
+  });
+  if (monthlyRows.length > 0) {
+    addRateDataBar(wsSummary, `D${monthlyDataStartRow}:D${monthlyDataStartRow + monthlyRows.length - 1}`, 'FF3B82F6');
+  }
+  curRow = monthlyDataStartRow + monthlyRows.length + 2;
+
+  wsSummary.getCell(`A${curRow}`).value = "일자별 이행률 현황";
+  wsSummary.getCell(`A${curRow}`).font = { bold: true, size: 12, color: { argb: 'FF1E3A8A' } };
+  curRow += 1;
+  const dailyHeaderRow = wsSummary.getRow(curRow);
+  dailyHeaderRow.getCell(1).value = "날짜";
+  dailyHeaderRow.getCell(2).value = "총 작업건수";
+  dailyHeaderRow.getCell(3).value = "부적합건수";
+  dailyHeaderRow.getCell(4).value = "이행률(%)";
+  styleHeaderRow(dailyHeaderRow);
+  const dailyDataStartRow = curRow + 1;
+  dailyRows.forEach((d, idx) => {
+    const row = wsSummary.getRow(dailyDataStartRow + idx);
+    row.getCell(1).value = d.date;
+    row.getCell(2).value = d.total;
+    row.getCell(3).value = d.badCount;
+    row.getCell(4).value = d.rate;
+    styleDataRow(row);
+    if (d.rate < 90) {
+      row.eachCell(c => { c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: d.rate < 70 ? 'FFFEF2F2' : 'FFFFFBEB' } }; });
+    }
+  });
+  if (dailyRows.length > 0) {
+    addRateDataBar(wsSummary, `D${dailyDataStartRow}:D${dailyDataStartRow + dailyRows.length - 1}`, 'FF22C55E');
+  }
+
   // ══════════════════════════════════════════════════════════
-  // 시트 2: moswork파일 누적
+  // 시트 2: 세부내역
   // ══════════════════════════════════════════════════════════
-  const wsRaw = wb.addWorksheet("moswork파일 누적", { views: [{ state: 'frozen', ySplit: 1 }] });
+  const wsRaw = wb.addWorksheet("세부내역", { views: [{ state: 'frozen', ySplit: 1 }] });
   const uploadById = new Map<number, AisSafetyUpload>(uploads.map(u => [u.id, u]));
   const rawColumns: { header: string; key: string; width: number }[] = [
     { header: "업로드파일", key: "uploadFile", width: 22 },
