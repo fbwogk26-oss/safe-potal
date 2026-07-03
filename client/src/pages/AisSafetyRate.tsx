@@ -293,6 +293,36 @@ function TeamBreakdown({ records, title, onIssueClick, justifiedIds = new Set() 
   );
 }
 
+const TBM_BAD_REASON_PRESETS = [
+  '안전모 미착용',
+  '안전대 미착용',
+  '안전화 미착용',
+  '보호구 미착용',
+  '작업허가서 내용 불일치',
+  '작업인원 불일치',
+  '위험성평가 내용 누락',
+  '작업장소 불일치',
+  'TBM 참석자 서명 누락',
+  '활선경보기 미소지',
+  '검전기 미소지',
+  '절연장갑 미착용',
+  '작업계획서 미부합',
+  '고소작업 안전대 미체결',
+];
+
+const TBM_UNREG_REASON_PRESETS = [
+  '작업 시작 전 TBM 미실시',
+  '담당자 부재',
+  '긴급작업으로 사전등록 누락',
+  '시스템 오류로 등록 실패',
+  '작업 취소 후 미삭제',
+  '단순 누락',
+  '현장 사정으로 작업 일정 변경',
+  '협력업체 등록 지연',
+];
+
+const CUSTOM_REASON_VALUE = '__custom__';
+
 type ViewMode = 'cumulative' | 'daily' | 'monthly';
 
 export default function AisSafetyRate() {
@@ -323,6 +353,7 @@ export default function AisSafetyRate() {
   const [tbmNoteRecord, setTbmNoteRecord] = useState<AisSafetyRecord | null>(null);
   const [tbmNoteType, setTbmNoteType] = useState<'bad'|'unreg'>('bad');
   const [tbmNoteReason, setTbmNoteReason] = useState('');
+  const [tbmNoteReasonPreset, setTbmNoteReasonPreset] = useState<string>(CUSTOM_REASON_VALUE);
   const [tbmNotePhoto, setTbmNotePhoto] = useState<File | null>(null);
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   const [recipientsInput, setRecipientsInput] = useState('');
@@ -483,7 +514,9 @@ export default function AisSafetyRate() {
     setTbmNoteType('bad');
     setTbmNoteRecord(r);
     const existing = (r.workOrderNo ? tbmNoteByWorkOrder[r.workOrderNo] : null) ?? tbmNoteMap[r.id];
-    setTbmNoteReason(existing?.reason || '');
+    const reason = existing?.reason || '';
+    setTbmNoteReason(reason);
+    setTbmNoteReasonPreset(reason && TBM_BAD_REASON_PRESETS.includes(reason) ? reason : CUSTOM_REASON_VALUE);
     setTbmNotePhotoPreview(existing?.photoUrl || null);
     setTbmNotePhoto(null);
     setJustifStatus((existing?.justificationStatus as '소명완료'|'소명불가'|null) ?? null);
@@ -492,7 +525,9 @@ export default function AisSafetyRate() {
     setTbmNoteType('unreg');
     setTbmNoteRecord(r);
     const existing = (r.workOrderNo ? tbmNoteByWorkOrder[r.workOrderNo] : null) ?? tbmNoteMap[r.id];
-    setTbmNoteReason(existing?.reason || '');
+    const reason = existing?.reason || '';
+    setTbmNoteReason(reason);
+    setTbmNoteReasonPreset(reason && TBM_UNREG_REASON_PRESETS.includes(reason) ? reason : CUSTOM_REASON_VALUE);
     setTbmNotePhotoPreview(existing?.photoUrl || null);
     setTbmNotePhoto(null);
   };
@@ -813,12 +848,36 @@ export default function AisSafetyRate() {
               </div>
               <div className="space-y-2">
                 <Label className="text-sm font-medium">{tbmNoteType === 'unreg' ? '미등록 사유' : '부적합 사유'}</Label>
-                <Textarea
-                  placeholder={tbmNoteType === 'unreg' ? 'TBM 미등록 사유를 작성해주세요. (예: 작업 시작 전 TBM 미실시, 담당자 부재 등)' : 'TBM AI가 부적합으로 판정한 사유를 작성해주세요. (예: 안전모 미착용, 안전대 미착용, 작업허가서 내용 불일치 등)'}
-                  value={tbmNoteReason}
-                  onChange={e => setTbmNoteReason(e.target.value)}
-                  className="min-h-[100px] text-sm resize-none"
-                />
+                <Select
+                  value={tbmNoteReasonPreset}
+                  onValueChange={(v) => {
+                    setTbmNoteReasonPreset(v);
+                    if (v === CUSTOM_REASON_VALUE) {
+                      setTbmNoteReason(prev => (TBM_BAD_REASON_PRESETS.includes(prev) || TBM_UNREG_REASON_PRESETS.includes(prev)) ? '' : prev);
+                    } else {
+                      setTbmNoteReason(v);
+                    }
+                  }}
+                >
+                  <SelectTrigger className="h-9 text-sm" data-testid="select-tbm-note-reason">
+                    <SelectValue placeholder="사유 선택" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(tbmNoteType === 'unreg' ? TBM_UNREG_REASON_PRESETS : TBM_BAD_REASON_PRESETS).map(reason => (
+                      <SelectItem key={reason} value={reason}>{reason}</SelectItem>
+                    ))}
+                    <SelectItem value={CUSTOM_REASON_VALUE}>직접입력</SelectItem>
+                  </SelectContent>
+                </Select>
+                {tbmNoteReasonPreset === CUSTOM_REASON_VALUE && (
+                  <Textarea
+                    placeholder={tbmNoteType === 'unreg' ? 'TBM 미등록 사유를 작성해주세요. (예: 작업 시작 전 TBM 미실시, 담당자 부재 등)' : 'TBM AI가 부적합으로 판정한 사유를 작성해주세요. (예: 안전모 미착용, 안전대 미착용, 작업허가서 내용 불일치 등)'}
+                    value={tbmNoteReason}
+                    onChange={e => setTbmNoteReason(e.target.value)}
+                    className="min-h-[100px] text-sm resize-none"
+                    data-testid="textarea-tbm-note-reason-custom"
+                  />
+                )}
               </div>
               {/* 소명 */}
               <div className="space-y-1.5 pt-1 border-t border-border">
