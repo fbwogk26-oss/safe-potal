@@ -189,8 +189,8 @@ export async function buildAisExcelReportBuffer(): Promise<BuildResult> {
   ).length;
   const tbmImplRate = allRecords.length > 0 ? Math.round(((tbmPurePass + tbmJustified) / allRecords.length) * 100) : 100;
 
-  const tbmUnreg = allRecords.filter(r => r.tbmResult === "미등록");
-  const highRiskNoPermit = highRiskRecords.filter(r => r.safetyPermit !== "Y");
+  const tbmUnreg = allRecords.filter(r => r.tbmResult === "미등록" && !justifiedRecordIds.has(r.id));
+  const highRiskNoPermit = highRiskRecords.filter(r => r.safetyPermit !== "Y" && !justifiedRecordIds.has(r.id));
   const tbmBadEvalRecords = allRecords.filter(r => r.tbmAiResult === "부적합" && !justifiedRecordIds.has(r.id));
   const issueCount = highRiskNoPermit.length + tbmUnreg.length + tbmBadEvalRecords.length;
   const totalActive = allRecords.length;
@@ -234,7 +234,24 @@ export async function buildAisExcelReportBuffer(): Promise<BuildResult> {
   styleDataRow(kpiValueRow);
   kpiValueRow.eachCell(c => { c.font = { bold: true, size: 12 }; });
 
-  const teamTableStartRow = 10;
+  const issueDetailHeaderRow = wsSummary.getRow(8);
+  issueDetailHeaderRow.getCell(1).value = "이슈 상세 (소명완료 건 제외)";
+  issueDetailHeaderRow.getCell(1).font = { bold: true, size: 10, color: { argb: 'FF64748B' } };
+  issueDetailHeaderRow.getCell(2).value = "고위험작업 허가서 미등록";
+  issueDetailHeaderRow.getCell(3).value = "TBM 미등록";
+  issueDetailHeaderRow.getCell(4).value = "TBM AI 부적합";
+  const issueDetailValueRow = wsSummary.getRow(9);
+  issueDetailValueRow.getCell(2).value = `${highRiskNoPermit.length}건`;
+  issueDetailValueRow.getCell(3).value = `${tbmUnreg.length}건`;
+  issueDetailValueRow.getCell(4).value = `${tbmBadEvalRecords.length}건`;
+  for (let c = 2; c <= 4; c++) {
+    issueDetailHeaderRow.getCell(c).font = { bold: true, size: 10, color: { argb: 'FF64748B' } };
+    issueDetailHeaderRow.getCell(c).alignment = { horizontal: 'center' };
+    issueDetailValueRow.getCell(c).font = { bold: true, size: 11 };
+    issueDetailValueRow.getCell(c).alignment = { horizontal: 'center' };
+  }
+
+  const teamTableStartRow = 12;
   wsSummary.getCell(`A${teamTableStartRow - 1}`).value = "운용팀별 TBM 활동 내역";
   wsSummary.getCell(`A${teamTableStartRow - 1}`).font = { bold: true, size: 12, color: { argb: 'FF1E3A8A' } };
 
@@ -425,11 +442,12 @@ export async function buildAisExcelReportBuffer(): Promise<BuildResult> {
   // ══════════════════════════════════════════════════════════
   const wsBad = wb.addWorksheet("부적합 내용(소명포함)", { views: [{ state: 'frozen', ySplit: 1 }] });
   const badColumns: { header: string; key: string; width: number }[] = [
+    { header: "구분", key: "issueType", width: 14 },
     { header: "작업번호", key: "workOrderNo", width: 24 },
     { header: "운용팀", key: "team", width: 10 },
     { header: "작업명", key: "workName", width: 22 },
     { header: "작업일", key: "startDate", width: 12 },
-    { header: "부적합 사유", key: "reason", width: 30 },
+    { header: "부적합/미등록 사유", key: "reason", width: 30 },
     { header: "소명 상태", key: "justificationStatus", width: 12 },
     { header: "소명 사유", key: "justificationReason", width: 30 },
     { header: "소명 처리자", key: "justificationBy", width: 12 },
@@ -438,11 +456,14 @@ export async function buildAisExcelReportBuffer(): Promise<BuildResult> {
   wsBad.columns = badColumns.map(c => ({ header: c.header, key: c.key, width: c.width }));
   styleHeaderRow(wsBad.getRow(1));
 
-  const badRecords = allRecords.filter(r => r.tbmAiResult === "부적합");
-  badRecords.forEach(r => {
+  const badAiRecords = allRecords.filter(r => r.tbmAiResult === "부적합").map(r => ({ record: r, issueType: "TBM AI 부적합" as const }));
+  const unregRecords = allRecords.filter(r => r.tbmResult === "미등록").map(r => ({ record: r, issueType: "TBM 미등록" as const }));
+  const badRecords = [...badAiRecords, ...unregRecords].sort((a, b) => (b.record.startDate || "").localeCompare(a.record.startDate || ""));
+  badRecords.forEach(({ record: r, issueType }) => {
     const note = noteByRecordId.get(r.id);
     const photoCount = note ? (note.photoUrls && note.photoUrls.length > 0 ? note.photoUrls.length : (note.photoUrl ? 1 : 0)) : 0;
     const row = wsBad.addRow({
+      issueType,
       workOrderNo: r.workOrderNo || "",
       team: shortTeam(r.team),
       workName: r.workName || "",
