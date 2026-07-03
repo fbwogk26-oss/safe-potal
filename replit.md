@@ -127,6 +127,15 @@ shared/
 - **Features**: 9개 항목별 분류, 월별/항목별 요약 탭, 견적서/거래명세서 업로드 → GPT-4o Vision으로 자동 내용 추출, 다중 품목 선택, 수량×단가 자동계산
 - **Sidebar**: 안전관리 메뉴 하위 "산업안전보건관리비" 항목 추가 (Receipt 아이콘)
 
+### AIS TBM 부적합 소명 메일 자동접수 (2026-07-03)
+- **Job**: `server/aisInboxEmailJob.ts` — Gmail INBOX(GMAIL_SENDER/GMAIL_APP_PASSWORD)를 10분 간격(cron)으로 ImapFlow+mailparser로 폴링
+- **매칭 방식**: 이메일 제목/본문에 AIS 기록의 작업지시번호(workOrderNo)가 문자열로 포함되어 있는지 확인 (AI 추론 아님, 정확한 문자열 포함 매칭)
+- **처리 내용**: 매칭된 메일의 첫 번째 이미지 첨부파일 + 본문 텍스트(사유)를 `storage.upsertAisTbmBadNote()`로 저장 (사진은 오브젝트스토리지 우선, 실패 시 `/uploads` 로컬 저장)
+- **중복 방지**: 마지막으로 처리한 IMAP UID를 `settings` 테이블(`ais_inbox_last_uid`)에 저장해 재확인 시 이후 메일만 스캔
+- **중요**: 소명완료(justificationStatus) 처리는 자동으로 하지 않음 — 담당자가 화면에서 사진/사유 확인 후 직접 승인해야 함
+- **API**: `GET /api/ais-inbox-email/status`, `POST /api/ais-inbox-email/run-now` (수동 확인)
+- **UI**: `AisSafetyRate.tsx` 상단 "소명 메일 자동접수" 버튼 → 상태 확인 및 수동 실행 다이얼로그
+
 ## External Dependencies
 
 ### Database

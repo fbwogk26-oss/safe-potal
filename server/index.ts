@@ -63,6 +63,7 @@ import { authStorage } from "./replit_integrations/auth/storage";
 import { setupSecurity } from "./security";
 import "./autoEmailJob";
 import "./aisDailyEmailJob";
+import "./aisInboxEmailJob";
 
 const app = express();
 const httpServer = createServer(app);

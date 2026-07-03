@@ -352,6 +352,7 @@ export default function AisSafetyRate() {
   const [tbmNoteReasonPreset, setTbmNoteReasonPreset] = useState<string>(CUSTOM_REASON_VALUE);
   const [tbmNotePhoto, setTbmNotePhoto] = useState<File | null>(null);
   const [showEmailDialog, setShowEmailDialog] = useState(false);
+  const [showInboxDialog, setShowInboxDialog] = useState(false);
   const [recipientsInput, setRecipientsInput] = useState('');
   const [recipientsInitialized, setRecipientsInitialized] = useState(false);
   const [tbmNotePhotoPreview, setTbmNotePhotoPreview] = useState<string | null>(null);
@@ -427,6 +428,29 @@ export default function AisSafetyRate() {
     },
     onError: (e: any) => {
       toast({ title: '저장 실패', description: e.message, variant: 'destructive' });
+    },
+  });
+
+  const { data: inboxStatus } = useQuery<{
+    lastRun: string | null; lastResult: string | null; lastMessage: string | null;
+    lastMatchedCount: number | null; lastScannedCount: number | null; running: boolean;
+  }>({
+    queryKey: ['/api/ais-inbox-email/status'],
+    enabled: showInboxDialog,
+    refetchInterval: showInboxDialog ? 5000 : false,
+  });
+
+  const runInboxNowMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest('POST', '/api/ais-inbox-email/run-now', {});
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: '확인 시작됨', description: '메일함을 확인하는 중입니다. 잠시 후 결과가 갱신됩니다.' });
+      setTimeout(() => queryClient.invalidateQueries({ queryKey: ['/api/ais-inbox-email/status'] }), 3000);
+    },
+    onError: (e: any) => {
+      toast({ title: '실행 실패', description: e.message, variant: 'destructive' });
     },
   });
 
@@ -915,6 +939,9 @@ export default function AisSafetyRate() {
           <Button variant="outline" size="sm" onClick={() => setShowEmailDialog(true)} data-testid="button-open-email-report">
             <Mail className="w-4 h-4 sm:mr-2" /><span className="hidden sm:inline">일일 보고 메일</span>
           </Button>
+          <Button variant="outline" size="sm" onClick={() => setShowInboxDialog(true)} data-testid="button-open-inbox-report">
+            <Mail className="w-4 h-4 sm:mr-2" /><span className="hidden sm:inline">소명 메일 자동접수</span>
+          </Button>
           <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={handleUpload} data-testid="input-csv" />
           <Button onClick={() => fileInputRef.current?.click()} disabled={uploading} data-testid="button-upload-csv" className="bg-blue-600 hover:bg-blue-700 text-white">
             {uploading ? <><Loader2 className="w-4 h-4 sm:mr-2 animate-spin" /><span className="hidden sm:inline">업로드 중...</span></> : <><Upload className="w-4 h-4 sm:mr-2" /><span className="hidden sm:inline">CSV 업로드</span></>}
@@ -997,6 +1024,44 @@ export default function AisSafetyRate() {
                   <p className="p-6 text-sm text-muted-foreground text-center">미리보기를 불러올 수 없습니다.</p>
                 )}
               </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showInboxDialog} onOpenChange={setShowInboxDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Mail className="w-5 h-5 text-blue-600" />TBM 부적합 소명 메일 자동접수</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-lg border bg-muted/30 p-3 text-sm space-y-1">
+              <p>10분마다 메일함을 확인하여, 제목이나 본문에 <span className="font-semibold">작업지시번호</span>가 포함된 메일을 받으면 첨부된 사진과 본문 내용을 해당 작업의 TBM 부적합 소명 자료로 자동 등록합니다.</p>
+              <p className="text-xs text-muted-foreground">자동 등록 후에도 소명완료 처리는 담당자가 화면에서 직접 확인 후 진행해야 합니다.</p>
+            </div>
+            {inboxStatus && (
+              <div className="rounded-lg border p-3 text-xs space-y-1">
+                <p>실행 상태: {inboxStatus.running ? '확인 중...' : '대기 중'}</p>
+                <p className="text-muted-foreground">
+                  마지막 확인: {inboxStatus.lastRun ? new Date(inboxStatus.lastRun).toLocaleString('ko-KR') : '없음'}
+                  {inboxStatus.lastResult && ` · 결과: ${inboxStatus.lastResult}`}
+                </p>
+                {inboxStatus.lastMessage && (
+                  <p className="text-muted-foreground break-words">{inboxStatus.lastMessage}</p>
+                )}
+              </div>
+            )}
+            <div className="flex justify-end">
+              <Button
+                size="sm"
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+                disabled={runInboxNowMutation.isPending || inboxStatus?.running}
+                onClick={() => runInboxNowMutation.mutate()}
+                data-testid="button-run-inbox-now"
+              >
+                {(runInboxNowMutation.isPending || inboxStatus?.running) ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
+                지금 메일함 확인
+              </Button>
             </div>
           </div>
         </DialogContent>

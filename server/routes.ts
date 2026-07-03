@@ -10149,6 +10149,18 @@ ${htmlDraft}
     }
   });
 
+  // ─── AIS TBM 부적합 소명 메일 자동 접수 상태/수동실행 ──────────────────────
+  app.get('/api/ais-inbox-email/status', isAuthenticated, async (_req, res) => {
+    const { getAisInboxJobStatus } = await import('./aisInboxEmailJob');
+    res.json(getAisInboxJobStatus());
+  });
+
+  app.post('/api/ais-inbox-email/run-now', requireEditor, async (_req, res) => {
+    const { runAisInboxEmailJob, getAisInboxJobStatus } = await import('./aisInboxEmailJob');
+    runAisInboxEmailJob().catch(console.error);
+    res.json({ message: "수동 확인 시작됨", status: getAisInboxJobStatus() });
+  });
+
   // === EDUCATION TASKS (교육업무 관리) ===
 
   // 교육일지 서명률 → 업무 완료율 자동 동기화 헬퍼
