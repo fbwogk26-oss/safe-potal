@@ -63,6 +63,7 @@ import { useRealtime } from "@/hooks/use-realtime";
 import { useIdleTimeout } from "@/hooks/use-idle-timeout";
 import { ShieldOff } from "lucide-react";
 import { HeadquartersProvider } from "@/contexts/HeadquartersContext";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 function AccessDenied() {
   return (
@@ -160,6 +161,7 @@ function MainLayout() {
   useRealtime();
   useIdleTimeout();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [location] = useLocation();
   return (
     <div className="flex min-h-screen bg-background text-foreground font-body">
       <Sidebar mobileOpen={mobileMenuOpen} onMobileClose={() => setMobileMenuOpen(false)} />
@@ -167,7 +169,9 @@ function MainLayout() {
         <div className="fixed top-0 left-0 w-full h-96 bg-primary/5 blur-3xl pointer-events-none -z-10" />
         <Topbar onMenuClick={() => setMobileMenuOpen(true)} />
         <div className="flex-1 px-3 sm:px-5 md:px-8 pt-4 pb-24 max-w-[1600px] mx-auto w-full animate-in fade-in duration-500">
-          <RouterContent />
+          <ErrorBoundary key={location} fallbackLabel="페이지를 표시하는 중 오류가 발생했습니다">
+            <RouterContent />
+          </ErrorBoundary>
         </div>
       </main>
       <MusicPlayer />

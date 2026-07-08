@@ -1763,12 +1763,22 @@ export default function DrillTraining() {
 
   const { data: sessions = [], isLoading } = useQuery<DrillSession[]>({
     queryKey: ["/api/drill-sessions", headquarters],
-    queryFn: () => fetch(`/api/drill-sessions?headquarters=${encodeURIComponent(headquarters)}`, { credentials: "include" }).then(r => r.json()),
+    queryFn: async () => {
+      const r = await fetch(`/api/drill-sessions?headquarters=${encodeURIComponent(headquarters)}`, { credentials: "include" });
+      const body = await r.json();
+      if (!r.ok) throw new Error(body?.message ?? "훈련 세션을 불러오지 못했습니다");
+      return Array.isArray(body) ? body : [];
+    },
   });
 
   const { data: assignments = [] } = useQuery<DrillAssignment[]>({
     queryKey: ["/api/drill-sessions", selectedSession, "assignments"],
-    queryFn: () => fetch(`/api/drill-sessions/${selectedSession}/assignments`, { credentials: "include" }).then(r => r.json()),
+    queryFn: async () => {
+      const r = await fetch(`/api/drill-sessions/${selectedSession}/assignments`, { credentials: "include" });
+      const body = await r.json();
+      if (!r.ok) throw new Error(body?.message ?? "부서 배정 내역을 불러오지 못했습니다");
+      return Array.isArray(body) ? body : [];
+    },
     enabled: !!selectedSession,
   });
 
