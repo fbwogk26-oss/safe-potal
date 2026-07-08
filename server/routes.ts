@@ -1363,7 +1363,7 @@ export async function registerRoutes(
         return res.status(400).json({ message: "등록할 데이터가 없습니다" });
       let created = 0;
       for (const item of items) {
-        console.log(`[bulk-create] title="${item.title}" images=${JSON.stringify(item.images?.length ?? 0)}개`);
+        console.log('[bulk-create] title=', item.title, 'images=', item.images?.length ?? 0, '개');
         await storage.createSafetyInspection({ ...item, createdBy: req.user?.username || null });
         created++;
       }
@@ -2236,7 +2236,6 @@ ${L("감사합니다.")}`;
     const t = nodemailer.createTransport({
       host: "smtp.gmail.com", port: 587, secure: false,
       auth: { user: "fbwogk26@gmail.com", pass: appPassword },
-      tls: { rejectUnauthorized: false },
       connectionTimeout: 15000, greetingTimeout: 10000, socketTimeout: 30000,
     });
     await t.verify();
@@ -3014,7 +3013,8 @@ ${buildEmailFooter()}
     let combined = "";
     for (const t of BACKUP_ALL_TABLES) {
       try {
-        const r = await db.execute(sql.raw(`SELECT string_agg(to_jsonb(${t})::text, ' ') FROM ${t}`));
+        const tableIdent = sql.identifier(t);
+        const r = await db.execute(sql`SELECT string_agg(to_jsonb(${tableIdent})::text, ' ') FROM ${tableIdent}`);
         combined += (r.rows[0] as any)?.string_agg || "";
       } catch (_) {}
     }
@@ -9773,7 +9773,11 @@ ${htmlDraft}
         }
       }
       // local uploads 폴백
-      const localPath = path.join(uploadDir, fileUrl.split('/').pop()!);
+      const safeName = path.basename(fileUrl);
+      const localPath = path.join(uploadDir, safeName);
+      if (!localPath.startsWith(path.resolve(uploadDir))) {
+        return res.status(400).json({ message: "잘못된 파일 경로입니다" });
+      }
       if (fs.existsSync(localPath)) return res.sendFile(localPath);
       res.status(404).json({ message: "파일을 찾을 수 없습니다" });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
@@ -12423,11 +12427,9 @@ ${htmlDraft}
           [...new Set([...Object.keys(h1), ...Object.keys(h2)])].forEach(k => {
             budgets[k] = (Number(h1[k]) || 0) + (Number(h2[k]) || 0);
           });
-          console.log(`[export-template] 예산 h1+h2 합산:`, JSON.stringify(budgets));
         } else {
           const legacyS = await storage.getSetting(`safety_cost_budgets_${year}`);
           budgets = legacyS ? JSON.parse(legacyS.value) : {};
-          console.log(`[export-template] 예산 legacy:`, JSON.stringify(budgets));
         }
         // ── 수식/sharedFormula 구조 유지하며 cachedValue(result)만 업데이트 ──────
         // 셀에 숫자를 직접 주입하면 shared formula master가 손상되어 writeBuffer 오류 발생
@@ -13939,7 +13941,6 @@ async function sendCardNewsEmail(preloadedArticles?: any[] | null) {
   const transporter = nodemailer.createTransport({
     host: "smtp.gmail.com", port: 587, secure: false,
     auth: { user: "fbwogk26@gmail.com", pass: process.env.GMAIL_APP_PASSWORD },
-    tls: { rejectUnauthorized: false },
   });
   // SMTP 연결 확인
   await transporter.verify();

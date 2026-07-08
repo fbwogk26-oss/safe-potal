@@ -6,3 +6,4 @@
 - [Gmail INBOX 폴링으로 자동 데이터 등록](gmail-inbox-polling-auto-register.md) — ImapFlow+mailparser cron 폴링, UID 기반 중복방지, 자동화는 등록까지만 하고 최종 승인/완료 처리는 사람이 하도록 분리
 - [자동 등록 후속 조치는 기존 다이얼로그 재사용](auto-queue-reuses-existing-dialog.md) — 새 경량 팝업 대신 큐+기존 전체 편집 다이얼로그 자동 열기 패턴 사용
 - [장시간 열린 SPA "오늘 날짜" 고정 문제](stale-date-state-in-long-lived-spa.md) — 마운트 시 1회 계산된 날짜 state는 갱신 안 됨; 다이얼로그 open 시 재계산 필요
+- [보안 스캔 시 잔존 리스크 처리 기준](security-scan-residual-risk.md) — pinned 하위의존성/빌드전용 패키지/무패치 패키지는 실사용 경로 확인 후 문서화로 종결, 무조건 강제 업그레이드 금지

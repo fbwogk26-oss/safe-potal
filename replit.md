@@ -118,6 +118,11 @@ shared/
 ├── routes.ts       # API route type definitions
 ```
 
+### 정보보안 점검 및 개선 (2026-07-08)
+- **의존성 취약점**: npm 패키지 감사(95건) 중 axios/drizzle-orm/lodash/multer/nodemailer/ws/vite/tmp 및 다수 하위 의존성을 패치된 버전으로 업그레이드(치명적 0건 유지). `xlsx`는 상류 패치 없음(리스크 인지, 신뢰 가능한 내부 엑셀 파일만 처리), `tar`(canvas 빌드 도구, 개발 시점 전용)와 일부 pinned 하위 의존성(nodemailer/linkify-it은 imapflow·mailparser 내부에 자체 버전 고정)은 실질적 런타임 노출 없어 잔존 리스크로 문서화
+- **코드 취약점**: nodemailer TLS 검증 우회(`rejectUnauthorized:false`) 제거 2건, `db.execute(sql.raw(...))` 동적 테이블명 SQL 조합을 `sql.identifier()` 기반 파라미터화로 교체, 파일 다운로드 프록시에 `path.basename`+경로 검증 추가(경로 탈출 방어), 예산 금액을 콘솔에 출력하던 로그 2건 삭제(HoundDog 개인정보/민감정보 노출 경고 해소)
+- Replit 오브젝트스토리지 사이드카 호출(`http://127.0.0.1:.../object-storage/...`)은 컨테이너 내부 로컬 통신으로 외부 노출이 없어 HTTP 사용이 의도된 설계이며 수정하지 않음(스캐너 경고는 허용된 리스크로 판단)
+
 ## Recent Features Added
 
 ### 산업안전보건관리비 사용내역 관리 (2026-04-28)
