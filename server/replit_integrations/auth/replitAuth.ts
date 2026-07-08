@@ -23,7 +23,7 @@ async function loadOrCreateSessionSecret(): Promise<string> {
 }
 
 function buildSession(secret: string) {
-  const sessionTtl = 7 * 24 * 60 * 60 * 1000;
+  const sessionTtl = 60 * 60 * 1000; // 1시간 무활동 시 자동 세션 만료 (rolling: 활동 중에는 갱신됨)
   const pgStore = connectPg(session);
   const sessionStore = new pgStore({
     conString: process.env.DATABASE_URL,

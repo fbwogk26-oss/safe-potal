@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 
-const IDLE_LIMIT_MS = 30 * 60 * 1000; // 30분 무활동 시 자동 로그아웃
+const IDLE_LIMIT_MS = 60 * 60 * 1000; // 1시간 무활동 시 자동 로그아웃
 const ACTIVITY_EVENTS = ["mousemove", "mousedown", "keydown", "scroll", "touchstart", "click"];
 
 export function useIdleTimeout() {
