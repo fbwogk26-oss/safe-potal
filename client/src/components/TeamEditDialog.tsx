@@ -128,32 +128,32 @@ export function TeamEditDialog({ team, disabled }: Props) {
           <Edit2 className="w-4 h-4" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0">
-        <DialogHeader className="p-6 pb-2">
-          <DialogTitle className="text-xl font-display text-primary flex items-center gap-2">
-            <Edit2 className="w-5 h-5" />
-            팀 편집: {team.name}
+      <DialogContent className="w-[92vw] max-w-2xl max-h-[88vh] flex flex-col p-0 gap-0 rounded-xl">
+        <DialogHeader className="p-4 sm:p-6 pb-2">
+          <DialogTitle className="text-base sm:text-xl font-display text-primary flex items-center gap-2">
+            <Edit2 className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+            <span className="truncate">팀 편집: {team.name}</span>
           </DialogTitle>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 px-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
+        <ScrollArea className="flex-1 px-4 sm:px-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6 py-4">
             {/* Basic Info */}
-            <div className="space-y-4 border rounded-xl p-4 bg-muted/20">
-              <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">기본 정보</h3>
+            <div className="space-y-3 sm:space-y-4 border rounded-xl p-3 sm:p-4 bg-muted/20">
+              <h3 className="font-semibold text-xs sm:text-sm text-muted-foreground uppercase tracking-wider">기본 정보</h3>
               <div className="grid gap-2">
-                <Label>차량 수</Label>
+                <Label className="text-xs sm:text-sm">차량 수</Label>
                 <Input type="number" {...form.register("vehicleCount", { valueAsNumber: true })} />
               </div>
             </div>
 
             {/* Deductions - Major */}
             {(workAccidentItem || inspectionItem) && (
-              <div className="space-y-4 border rounded-xl p-4 bg-red-50/50 border-red-100 dark:bg-red-900/10 dark:border-red-900/30">
-                <h3 className="font-semibold text-sm text-red-600 uppercase tracking-wider">주요 감점</h3>
+              <div className="space-y-3 sm:space-y-4 border rounded-xl p-3 sm:p-4 bg-red-50/50 border-red-100 dark:bg-red-900/10 dark:border-red-900/30">
+                <h3 className="font-semibold text-xs sm:text-sm text-red-600 uppercase tracking-wider">주요 감점</h3>
                 {workAccidentItem && (
                   <div className="grid gap-2">
-                    <Label>
+                    <Label className="text-xs sm:text-sm">
                       {workAccidentItem.label} ({pointsLabel(workAccidentItem.points)})
                     </Label>
                     <Input
@@ -165,7 +165,7 @@ export function TeamEditDialog({ team, disabled }: Props) {
                 )}
                 {inspectionItem && (
                   <div className="grid gap-2">
-                    <Label>
+                    <Label className="text-xs sm:text-sm">
                       {inspectionItem.label} ({pointsLabel(inspectionItem.points)})
                     </Label>
                     <Input
@@ -180,13 +180,13 @@ export function TeamEditDialog({ team, disabled }: Props) {
 
             {/* Fines */}
             {fineItems.length > 0 && (
-              <div className="space-y-4 border rounded-xl p-4 bg-orange-50/50 border-orange-100 dark:bg-orange-900/10 dark:border-orange-900/30">
-                <h3 className="font-semibold text-sm text-orange-600 uppercase tracking-wider">교통 벌금</h3>
-                <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-3 sm:space-y-4 border rounded-xl p-3 sm:p-4 bg-orange-50/50 border-orange-100 dark:bg-orange-900/10 dark:border-orange-900/30">
+                <h3 className="font-semibold text-xs sm:text-sm text-orange-600 uppercase tracking-wider">교통 벌금</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
                   {fineItems.map((item) => (
                     <div key={item.key}>
-                      <Label className="text-xs">
-                        {item.label} ({pointsLabel(item.points)})
+                      <Label className="text-xs block truncate" title={`${item.label} (${pointsLabel(item.points)})`}>
+                        {item.label} <span className="text-orange-600">({pointsLabel(item.points)})</span>
                       </Label>
                       <Input
                         type="number"
@@ -200,13 +200,13 @@ export function TeamEditDialog({ team, disabled }: Props) {
 
             {/* Bonus */}
             {bonusItems.length > 0 && (
-              <div className="space-y-4 border rounded-xl p-4 bg-green-50/50 border-green-100 dark:bg-green-900/10 dark:border-green-900/30">
-                <h3 className="font-semibold text-sm text-green-600 uppercase tracking-wider">가점</h3>
-                <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-3 sm:space-y-4 border rounded-xl p-3 sm:p-4 bg-green-50/50 border-green-100 dark:bg-green-900/10 dark:border-green-900/30">
+                <h3 className="font-semibold text-xs sm:text-sm text-green-600 uppercase tracking-wider">가점</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
                   {bonusItems.map((item) => (
                     <div key={item.key}>
-                      <Label className="text-xs">
-                        {item.label} ({pointsLabel(item.points)})
+                      <Label className="text-xs block truncate" title={`${item.label} (${pointsLabel(item.points)})`}>
+                        {item.label} <span className="text-green-600">({pointsLabel(item.points)})</span>
                       </Label>
                       <Input
                         type="number"
@@ -220,17 +220,20 @@ export function TeamEditDialog({ team, disabled }: Props) {
 
             {/* Vehicle Accidents Detail */}
             {vehicleAccidentItems.length > 0 && (
-              <div className="col-span-1 md:col-span-2 space-y-4 border rounded-xl p-4 bg-slate-50 border-slate-200 dark:bg-slate-900/20 dark:border-slate-800">
-                <h3 className="font-semibold text-sm flex items-center gap-2">
+              <div className="col-span-1 sm:col-span-2 space-y-3 sm:space-y-4 border rounded-xl p-3 sm:p-4 bg-slate-50 border-slate-200 dark:bg-slate-900/20 dark:border-slate-800">
+                <h3 className="font-semibold text-xs sm:text-sm flex items-center gap-2">
                   <Car className="w-4 h-4" />
                   차량사고 상세
                 </h3>
-                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
                   {vehicleAccidentItems.map((item) => {
                     const bandKey = item.key.replace("accident_", "");
                     return (
                       <div key={item.key}>
-                        <Label className="text-[10px] text-muted-foreground mb-1 block">
+                        <Label
+                          className="text-[10px] text-muted-foreground mb-1 block truncate"
+                          title={`${item.label} (${pointsLabel(item.points)})`}
+                        >
                           {item.label} <span className="text-red-500">({pointsLabel(item.points)})</span>
                         </Label>
                         <Input
@@ -249,12 +252,12 @@ export function TeamEditDialog({ team, disabled }: Props) {
 
             {/* Custom Items */}
             {customItems.length > 0 && (
-              <div className="col-span-1 md:col-span-2 space-y-4 border rounded-xl p-4 bg-blue-50/50 border-blue-100 dark:bg-blue-900/10 dark:border-blue-900/30">
-                <h3 className="font-semibold text-sm text-blue-600 uppercase tracking-wider">추가 평가항목</h3>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <div className="col-span-1 sm:col-span-2 space-y-3 sm:space-y-4 border rounded-xl p-3 sm:p-4 bg-blue-50/50 border-blue-100 dark:bg-blue-900/10 dark:border-blue-900/30">
+                <h3 className="font-semibold text-xs sm:text-sm text-blue-600 uppercase tracking-wider">추가 평가항목</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3">
                   {customItems.map((item) => (
                     <div key={item.key}>
-                      <Label className="text-xs">
+                      <Label className="text-xs block truncate" title={`${item.label} (${pointsLabel(item.points)})`}>
                         {item.label} ({pointsLabel(item.points)})
                       </Label>
                       <Input
@@ -272,11 +275,11 @@ export function TeamEditDialog({ team, disabled }: Props) {
           </div>
         </ScrollArea>
 
-        <div className="p-6 border-t bg-muted/10 flex justify-end gap-3">
-          <Button variant="outline" onClick={() => setOpen(false)}>
+        <div className="p-3 sm:p-6 border-t bg-muted/10 flex justify-end gap-2 sm:gap-3">
+          <Button variant="outline" size="sm" className="sm:h-10 sm:px-4 sm:text-sm" onClick={() => setOpen(false)}>
             취소
           </Button>
-          <Button onClick={form.handleSubmit(onSubmit)} disabled={updateTeam.isPending}>
+          <Button size="sm" className="sm:h-10 sm:px-4 sm:text-sm" onClick={form.handleSubmit(onSubmit)} disabled={updateTeam.isPending}>
             {updateTeam.isPending ? "저장 중..." : "변경 사항 저장"}
           </Button>
         </div>

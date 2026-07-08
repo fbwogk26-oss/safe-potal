@@ -32,6 +32,8 @@ import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePermissions } from "@/hooks/use-permissions";
 import html2canvas from "html2canvas";
+import { Link } from "wouter";
+import { ListChecks } from "lucide-react";
 
 export default function Dashboard() {
   const { headquarters, departments } = useHeadquarters();
@@ -331,6 +333,19 @@ export default function Dashboard() {
                     />
                     <span className="text-muted-foreground">대</span>
                   </div>
+                  {canEditSafetyScores && (
+                    <Link href="/safety-score-items">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="h-7 text-xs px-2"
+                        data-testid="link-safety-score-items"
+                      >
+                        <ListChecks className="w-3 h-3 sm:mr-1" />
+                        평가항목 관리
+                      </Button>
+                    </Link>
+                  )}
                   {canEditSafetyScores && (
                     <Button 
                       variant="outline" 
