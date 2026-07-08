@@ -8,7 +8,7 @@ export interface IAuthStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(username: string, password: string, name: string, role?: string, department?: string, permissions?: UserPermissions): Promise<User>;
-  updateUser(id: string, data: Partial<{ name: string; role: string; password: string; department: string; permissions: UserPermissions; mustChangePassword: boolean }>): Promise<User | undefined>;
+  updateUser(id: string, data: Partial<{ name: string; role: string; password: string; department: string; permissions: UserPermissions; mustChangePassword: boolean; isActive: boolean }>): Promise<User | undefined>;
   deleteUser(id: string): Promise<void>;
   getAllUsers(): Promise<User[]>;
   verifyPassword(password: string, hashedPassword: string): Promise<boolean>;
@@ -43,9 +43,10 @@ class AuthStorage implements IAuthStorage {
     return user;
   }
 
-  async updateUser(id: string, data: Partial<{ name: string; role: string; password: string; department: string; permissions: UserPermissions; mustChangePassword: boolean }>): Promise<User | undefined> {
+  async updateUser(id: string, data: Partial<{ name: string; role: string; password: string; department: string; permissions: UserPermissions; mustChangePassword: boolean; isActive: boolean }>): Promise<User | undefined> {
     const updateData: any = { updatedAt: new Date() };
     if (data.name !== undefined) updateData.name = data.name;
+    if (data.isActive !== undefined) updateData.isActive = data.isActive;
     if (data.role !== undefined) {
       updateData.role = data.role;
       if (data.role === "admin") {

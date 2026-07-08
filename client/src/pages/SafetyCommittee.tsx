@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import DOMPurify from "dompurify";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -314,7 +315,7 @@ export default function SafetyCommitteePage() {
                 <Loader2 className="w-6 h-6 animate-spin" />불러오는 중...
               </div>
             ) : (
-              <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: docHtml || "" }} />
+              <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(docHtml || "") }} />
             )}
           </div>
         </DialogContent>

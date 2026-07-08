@@ -73,6 +73,11 @@ export async function setupAuth(app: Express) {
         return res.status(401).json({ message: "아이디 또는 비밀번호가 올바르지 않습니다" });
       }
 
+      if (user.isActive === false) {
+        await logSecurityEvent("LOGIN_BLOCKED", req, "비활성화된 계정", false, user.id, user.username);
+        return res.status(403).json({ message: "비활성화된 계정입니다. 관리자에게 문의하세요." });
+      }
+
       if (user.lockedUntil && new Date(user.lockedUntil) > new Date()) {
         const remainMin = Math.ceil((new Date(user.lockedUntil).getTime() - Date.now()) / 60000);
         await logSecurityEvent("LOGIN_BLOCKED", req, `계정 잠금 상태 (${remainMin}분 남음)`, false, user.id, user.username);

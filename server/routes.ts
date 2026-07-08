@@ -28,6 +28,7 @@ import { getKoshaMajorAccidents, clearKoshaCache } from "./kosha";
 import { fetchWeather, generateSafetyMessage, clearWeatherCache } from "./weather";
 import { setupAuth, registerAuthRoutes, isAuthenticated, authStorage } from "./replit_integrations/auth";
 import { ALL_PERMISSIONS, type UserPermissions } from "@shared/models/auth";
+import { logSecurityEvent } from "./security";
 
 const uploadDir = path.join(process.cwd(), "uploads");
 if (!fs.existsSync(uploadDir)) {
@@ -101,6 +102,22 @@ async function uploadToObjectStorage(buffer: Buffer, filename: string, contentTy
 
 const ALLOWED_IMG_EXTS = ["jpeg", "jpg", "png", "gif", "webp"];
 const ALLOWED_EXCEL_EXTS = ["xlsx", "xls", "csv"];
+
+// 실행/스크립트 계열 확장자 차단 블록리스트 — 허용 포맷을 좁히지 않고 위험 확장자만 방어
+const DANGEROUS_UPLOAD_EXTS = new Set([
+  ".exe", ".sh", ".bat", ".cmd", ".com", ".msi", ".scr", ".vbs", ".vbe",
+  ".ps1", ".psm1", ".jar", ".jsp", ".jspx", ".php", ".php3", ".php4", ".php5",
+  ".phtml", ".asp", ".aspx", ".cer", ".cgi", ".pl", ".py", ".rb", ".dll",
+  ".so", ".html", ".htm", ".svg", ".js", ".mjs", ".wsf", ".hta", ".apk",
+]);
+function blockDangerousExtFilter(req: any, file: any, cb: any) {
+  const cleanName = String(file.originalname || "").replace(/\0/g, "");
+  const ext = path.extname(cleanName).toLowerCase();
+  if (DANGEROUS_UPLOAD_EXTS.has(ext)) {
+    return cb(new Error("허용되지 않는 파일 형식입니다"));
+  }
+  cb(null, true);
+}
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -455,6 +472,18 @@ export async function registerRoutes(
         referer,
         timestamp: new Date().toISOString(),
       });
+
+      // ── 보안 감사 로그 영구 기록 (중요 데이터 삭제/다운로드/업로드) ──
+      if (res.statusCode < 400) {
+        const method = req.method;
+        if (method === 'DELETE') {
+          logSecurityEvent('DATA_DELETE', req, `${method} ${p}`, true, req.user?.id, req.user?.username);
+        } else if (method === 'GET' && /export|excel|download/i.test(p)) {
+          logSecurityEvent('DATA_DOWNLOAD', req, `${method} ${p}`, true, req.user?.id, req.user?.username);
+        } else if (method === 'POST' && /upload|import|bulk/i.test(p)) {
+          logSecurityEvent('DATA_UPLOAD', req, `${method} ${p}`, true, req.user?.id, req.user?.username);
+        }
+      }
     });
     next();
   });
@@ -615,10 +644,14 @@ export async function registerRoutes(
   // Admin: Update user
   app.put("/api/users/:id", requireAdmin, async (req: any, res) => {
     try {
-      const { name, department, role, password, permissions } = req.body;
+      const { name, department, role, password, permissions, isActive } = req.body;
+      if (isActive === false && req.params.id === req.session?.userId) {
+        return res.status(400).json({ message: "자기 자신은 비활성화할 수 없습니다" });
+      }
       const updateData: any = {};
       if (name !== undefined) updateData.name = name;
       if (department !== undefined) updateData.department = department;
+      if (isActive !== undefined) updateData.isActive = !!isActive;
       if (role !== undefined) {
         if (!["admin", "manager", "user"].includes(role)) {
           return res.status(400).json({ message: "유효하지 않은 역할입니다" });
@@ -638,12 +671,29 @@ export async function registerRoutes(
       if (!user) {
         return res.status(404).json({ message: "사용자를 찾을 수 없습니다" });
       }
+      if (isActive !== undefined) {
+        await logSecurityEvent(
+          isActive ? "USER_ACTIVATED" : "USER_DEACTIVATED",
+          req,
+          `관리자가 ${user.username} 계정을 ${isActive ? "활성화" : "비활성화"}함`,
+          true,
+          req.user?.id,
+          req.user?.username
+        );
+      }
+      if (role !== undefined) {
+        await logSecurityEvent("USER_ROLE_CHANGED", req, `${user.username}의 역할을 ${role}(으)로 변경`, true, req.user?.id, req.user?.username);
+      }
+      if (permissions !== undefined) {
+        await logSecurityEvent("USER_PERMISSIONS_CHANGED", req, `${user.username}의 권한 변경`, true, req.user?.id, req.user?.username);
+      }
       res.json({
         id: user.id,
         username: user.username,
         name: user.name,
         department: user.department,
         role: user.role,
+        isActive: user.isActive,
       });
     } catch (error) {
       res.status(500).json({ message: "사용자 정보 변경에 실패했습니다" });
@@ -689,6 +739,8 @@ export async function registerRoutes(
         createdAt: u.createdAt,
         failedLoginAttempts: u.failedLoginAttempts || 0,
         lockedUntil: u.lockedUntil,
+        isActive: u.isActive,
+        lastLoginAt: u.lastLoginAt,
       })));
     } catch (error) {
       res.status(500).json({ message: "사용자 목록을 불러올 수 없습니다" });
@@ -913,13 +965,13 @@ export async function registerRoutes(
   });
 
   // 공개 정적 에셋 (이메일 삽입 이미지 등 - 인증 불필요)
-  app.use('/public-assets', (await import('express')).default.static(path.join(process.cwd(), 'server', 'assets')));
+  app.use('/public-assets', (await import('express')).default.static(path.join(process.cwd(), 'server', 'assets'), { index: false, dotfiles: 'deny' }));
 
   // 공개 파일 업로드 (회의자료/회의록 미리보기용 - 인증 불필요, UUID 파일명으로 보안)
-  app.use('/public-uploads', (await import('express')).default.static(publicUploadsDir));
+  app.use('/public-uploads', (await import('express')).default.static(publicUploadsDir, { index: false, dotfiles: 'deny' }));
 
   // === IMAGE UPLOAD ===
-  app.use('/uploads', isAuthenticated, (await import('express')).default.static(uploadDir));
+  app.use('/uploads', isAuthenticated, (await import('express')).default.static(uploadDir, { index: false, dotfiles: 'deny' }));
   
   // Register Object Storage routes for persistent file uploads
   registerObjectStorageRoutes(app);
@@ -986,8 +1038,8 @@ export async function registerRoutes(
   });
 
   // === PDF INSPECTION PARSE ===
-  const inspectionPdfUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
-  const inspectionPhotoUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+  const inspectionPdfUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 }, fileFilter: blockDangerousExtFilter });
+  const inspectionPhotoUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 }, fileFilter: blockDangerousExtFilter });
 
   // 단건 점검 사진 업로드 + GPT-4o Vision 자동 분석
   app.post('/api/safety-inspections/analyze-photo', isAuthenticated, inspectionPhotoUpload.single('photo'), async (req: any, res: any) => {
@@ -3741,7 +3793,7 @@ ${buildEmailFooter()}
 
   // === MUSCULOSKELETAL ASSESSMENTS ===
   // === 폭염 일일 체크리스트 ===
-  const emlUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+  const emlUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 }, fileFilter: blockDangerousExtFilter });
 
   app.post('/api/heat-wave-checklists/parse-email', isAuthenticated, emlUpload.single('eml'), async (req: any, res) => {
     try {
@@ -3854,7 +3906,7 @@ ${buildEmailFooter()}
   });
 
   // === AIS 안전이행률 ===
-  const aisUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+  const aisUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 }, fileFilter: blockDangerousExtFilter });
 
   app.get('/api/ais-safety/uploads', isAuthenticated, async (req: any, res) => {
     try {
@@ -5324,7 +5376,7 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
   });
 
   // === 사고보고 PDF 파싱 ===
-  const accidentPdfUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
+  const accidentPdfUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 }, fileFilter: blockDangerousExtFilter });
   app.post('/api/accidents/parse-pdf', isAuthenticated, accidentPdfUpload.single('pdf'), async (req: any, res: any) => {
     if (!req.file) return res.status(400).json({ message: "PDF 파일이 필요합니다" });
     try {
@@ -5419,7 +5471,7 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
   });
 
   // === 사고보고 Word(docx) 파싱 ===
-  const accidentDocxUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
+  const accidentDocxUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 }, fileFilter: blockDangerousExtFilter });
   app.post('/api/accidents/parse-docx', isAuthenticated, accidentDocxUpload.single('docx'), async (req: any, res: any) => {
     if (!req.file) return res.status(400).json({ message: "Word 파일이 필요합니다" });
     try {
@@ -6859,7 +6911,7 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
   });
 
   // .eml 파일 업로드 → 하도급 작업계획 이메일 HTML 생성
-  const workPlanEmlUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+  const workPlanEmlUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 }, fileFilter: blockDangerousExtFilter });
 
   function extractEmlText(emlBuffer: Buffer): string {
     const raw = emlBuffer.toString("latin1");
@@ -7616,7 +7668,7 @@ ${htmlDraft}
   });
 
   // ===== 입회 관리 =====
-  const attendanceUploadMiddleware = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+  const attendanceUploadMiddleware = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 }, fileFilter: blockDangerousExtFilter });
 
   app.get('/api/attendance/records', isAuthenticated, async (req: any, res) => {
     try {
@@ -7869,7 +7921,7 @@ ${htmlDraft}
   });
 
   // ── 온라인 교육 진도율 ──────────────────────────────────────────
-  const onlineEduUploadMw = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+  const onlineEduUploadMw = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 }, fileFilter: blockDangerousExtFilter });
 
   app.get('/api/online-edu/uploads', isAuthenticated, async (req: any, res) => {
     try {
@@ -8374,7 +8426,7 @@ ${htmlDraft}
   });
 
   // 엑셀 업로드 (템플릿 파싱)
-  const supplyImportMw = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+  const supplyImportMw = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 }, fileFilter: blockDangerousExtFilter });
   app.post('/api/safety-supply/surveys/:id/import', isAuthenticated, (req: any, res: any, _next: any) => {
     supplyImportMw.single('file')(req, res, async (err: any) => {
       if (err) return res.status(400).json({ message: '파일 업로드 오류: ' + err.message });
@@ -9060,7 +9112,7 @@ ${htmlDraft}
   });
 
   // POST /api/fuel-records/upload - Excel 파일 업로드 및 파싱
-  const fuelUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 30 * 1024 * 1024 } });
+  const fuelUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 30 * 1024 * 1024 }, fileFilter: blockDangerousExtFilter });
   app.post("/api/fuel-records/upload", requireAdmin, fuelUpload.single("file"), async (req: any, res) => {
     try {
       if (!req.file) return res.status(400).json({ message: "파일이 없습니다." });
@@ -10793,6 +10845,7 @@ ${htmlDraft}
   const eduTaskAttachmentUpload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 20 * 1024 * 1024 },
+    fileFilter: blockDangerousExtFilter,
   });
 
   app.post('/api/education-tasks/:id/attachment', requireEditor, eduTaskAttachmentUpload.single('file'), async (req: any, res) => {
@@ -12604,7 +12657,7 @@ ${htmlDraft}
   });
 
   // AI 자동 추출 — 견적서/거래명세서 이미지 업로드 → GPT-4o Vision
-  const safetyCostUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+  const safetyCostUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 }, fileFilter: blockDangerousExtFilter });
   app.post('/api/safety-cost-records/extract', requireEditor, safetyCostUpload.single('file'), async (req: any, res) => {
     try {
       if (!req.file) return res.status(400).json({ message: "파일이 없습니다" });
@@ -13095,8 +13148,8 @@ ${htmlDraft}
   });
 
   // ─── 안전사고 발생 대응훈련 API ─────────────────────────────────────
-  const drillPhotoUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
-  const drillDocxUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+  const drillPhotoUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 }, fileFilter: blockDangerousExtFilter });
+  const drillDocxUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 }, fileFilter: blockDangerousExtFilter });
 
   // 워드 파일 파싱 (시나리오 HTML 추출)
   app.post('/api/drill-docx/parse', requireEditor, drillDocxUpload.array('files', 20), async (req: any, res) => {
@@ -13494,6 +13547,11 @@ ${result.value}
     } catch (e: any) {
       res.status(500).json({ message: '이메일 발송 실패: ' + e.message });
     }
+  });
+
+  // 정의되지 않은 /api 경로 → SPA index.html로 폴백되지 않도록 명시적 JSON 404 반환
+  app.use('/api', (req, res) => {
+    res.status(404).json({ message: '요청하신 API를 찾을 수 없습니다' });
   });
 
   return httpServer;

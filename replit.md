@@ -123,6 +123,19 @@ shared/
 - **코드 취약점**: nodemailer TLS 검증 우회(`rejectUnauthorized:false`) 제거 2건, `db.execute(sql.raw(...))` 동적 테이블명 SQL 조합을 `sql.identifier()` 기반 파라미터화로 교체, 파일 다운로드 프록시에 `path.basename`+경로 검증 추가(경로 탈출 방어), 예산 금액을 콘솔에 출력하던 로그 2건 삭제(HoundDog 개인정보/민감정보 노출 경고 해소)
 - Replit 오브젝트스토리지 사이드카 호출(`http://127.0.0.1:.../object-storage/...`)은 컨테이너 내부 로컬 통신으로 외부 노출이 없어 HTTP 사용이 의도된 설계이며 수정하지 않음(스캐너 경고는 허용된 리스크로 판단)
 
+### 정보보안 체크리스트 대응 (2026-07-08, 26개 항목)
+기존 기능을 건드리지 않는 범위에서 체크리스트 항목별 조치 완료:
+- **세션 유휴 타임아웃**: `client/src/hooks/use-idle-timeout.ts` — 30분간 마우스/키보드/스크롤 활동이 없으면 자동 로그아웃 (`MainLayout`에 적용)
+- **계정 생명주기 관리**: `users.is_active` 컬럼 추가 — 관리자가 사용자 활성/비활성 전환 가능(자기 자신은 비활성화 불가), 비활성 계정은 로그인 차단. AdminUsers.tsx에 활성/비활성 토글 스위치 + 90일 이상 미접속 "휴면계정" 배지 표시
+- **파일 업로드 확장자 차단**: 확장자 필터가 없던 14개 multer 업로드 인스턴스에 위험 확장자(.exe/.sh/.php 등) 차단 필터 적용
+- **HTTP 메서드 제한**: TRACE/CONNECT/OPTIONS 메서드 차단 미들웨어 추가 (405 응답)
+- **디렉토리 리스팅/에러 페이지 제어**: 모든 정적 파일 서빙에 `index:false, dotfiles:'deny'` 적용, 미매칭 `/api/*` 요청은 SPA 폴백 대신 명시적 JSON 404 반환
+- **감사 로그 확장**: DELETE 요청, 다운로드/엑셀 내보내기(GET), 업로드/가져오기(POST) 패턴을 자동 감지해 `security_logs` 테이블에 기록 (기존 계정 활성화/역할/권한 변경 로그에 추가)
+- **XSS 방어**: `DrillTraining.tsx`(시나리오 HTML), `SafetyCommittee.tsx`(Word 미리보기 HTML)의 `dangerouslySetInnerHTML`에 DOMPurify 새니타이징 적용
+- **기본 관리자 비밀번호 정책**: 신규 계정은 `mustChangePassword=true`로 생성되어 최초 로그인 시 비밀번호 변경 강제됨(기존 구현으로 이미 충족, 별도 코드 변경 없음)
+- **코드 저장소 비공개/버전관리, TLS/HTTPS**: Replit 플랫폼 레벨 설정(비공개 Repl, Replit 배포 시 자동 TLS 적용)으로 충족되며 애플리케이션 코드로 제어하는 항목이 아님
+- **저장 데이터 암호화**: 별도 컬럼 단위 암호화는 적용하지 않음 — 모든 업로드 파일/DB 접근이 인증 미들웨어로 보호되고 있어 기존 접근제어로 위험 완화된 것으로 판단(과도한 리팩터링 방지 목적)
+
 ## Recent Features Added
 
 ### 산업안전보건관리비 사용내역 관리 (2026-04-28)

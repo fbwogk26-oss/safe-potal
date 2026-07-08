@@ -13,10 +13,10 @@ export function serveStatic(app: Express) {
   // Serve the local uploads directory (fallback for any remaining local files)
   const uploadsPath = path.resolve(process.cwd(), "uploads");
   if (fs.existsSync(uploadsPath)) {
-    app.use("/uploads", express.static(uploadsPath));
+    app.use("/uploads", express.static(uploadsPath, { index: false, dotfiles: "deny" }));
   }
 
-  app.use(express.static(distPath));
+  app.use(express.static(distPath, { index: "index.html", dotfiles: "deny" }));
 
   // fall through to index.html if the file doesn't exist
   app.use("/{*path}", (_req, res) => {

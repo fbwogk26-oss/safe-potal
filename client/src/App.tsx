@@ -60,6 +60,7 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { ForcePasswordChange } from "@/components/ForcePasswordChange";
 import { MusicPlayer } from "@/components/MusicPlayer";
 import { useRealtime } from "@/hooks/use-realtime";
+import { useIdleTimeout } from "@/hooks/use-idle-timeout";
 import { ShieldOff } from "lucide-react";
 import { HeadquartersProvider } from "@/contexts/HeadquartersContext";
 
@@ -157,6 +158,7 @@ function RouterContent() {
 
 function MainLayout() {
   useRealtime();
+  useIdleTimeout();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   return (
     <div className="flex min-h-screen bg-background text-foreground font-body">

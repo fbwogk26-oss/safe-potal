@@ -23,9 +23,19 @@ function makeKeyGenerator() {
   return (req: Request) => getClientIp(req);
 }
 
+const BLOCKED_METHODS = new Set(["TRACE", "CONNECT", "OPTIONS"]);
+
 export function setupSecurity(app: Express) {
   const isProduction = process.env.NODE_ENV === "production";
-  
+
+  // 불필요한 HTTP 메소드 차단 (TRACE/CONNECT/OPTIONS) — 동일 출처 앱이라 CORS preflight 불필요
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (BLOCKED_METHODS.has(req.method)) {
+      return res.status(405).json({ message: "허용되지 않는 HTTP 메소드입니다" });
+    }
+    next();
+  });
+
   app.use(
     helmet({
       contentSecurityPolicy: {

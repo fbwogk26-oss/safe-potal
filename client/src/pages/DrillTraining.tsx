@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import DOMPurify from "dompurify";
 import { useHeadquarters } from "@/contexts/HeadquartersContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
@@ -115,7 +116,7 @@ function ScenarioFull({ text, className = "" }: { text: string; className?: stri
     return (
       <div className={className}>
         <style>{SCENARIO_STYLE}</style>
-        <div className="scn-body" dangerouslySetInnerHTML={{ __html: wrapped }} />
+        <div className="scn-body" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(wrapped) }} />
       </div>
     );
   }

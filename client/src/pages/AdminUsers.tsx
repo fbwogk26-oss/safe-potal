@@ -67,6 +67,8 @@ interface UserData {
   createdAt: string | null;
   failedLoginAttempts?: number;
   lockedUntil?: string | null;
+  isActive?: boolean;
+  lastLoginAt?: string | null;
 }
 
 interface RolePresets {
@@ -149,6 +151,25 @@ export default function AdminUsers() {
       toast({ variant: "destructive", title: "계정 잠금 해제에 실패했습니다." });
     },
   });
+
+  const toggleActiveMutation = useMutation({
+    mutationFn: async ({ userId, isActive }: { userId: string; isActive: boolean }) => {
+      return apiRequest("PUT", `/api/users/${userId}`, { isActive });
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      toast({ title: variables.isActive ? "계정이 활성화되었습니다." : "계정이 비활성화되었습니다." });
+    },
+    onError: () => {
+      toast({ variant: "destructive", title: "계정 상태 변경에 실패했습니다." });
+    },
+  });
+
+  const isDormant = (user: UserData) => {
+    if (!user.lastLoginAt) return false;
+    const days = (Date.now() - new Date(user.lastLoginAt).getTime()) / (1000 * 60 * 60 * 24);
+    return days >= 90;
+  };
 
   const togglePermission = (user: UserData, permKey: keyof UserPermissions) => {
     const current = user.permissions || DEFAULT_PERMISSIONS;
@@ -283,6 +304,16 @@ export default function AdminUsers() {
                                 <Lock className="w-3 h-3" />잠김
                               </Badge>
                             )}
+                            {user.isActive === false && (
+                              <Badge variant="secondary" className="gap-1 text-xs shrink-0 bg-muted text-muted-foreground">
+                                비활성
+                              </Badge>
+                            )}
+                            {isDormant(user) && (
+                              <Badge variant="outline" className="gap-1 text-xs shrink-0 text-amber-600 border-amber-300">
+                                휴면계정
+                              </Badge>
+                            )}
                           </div>
                           <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap mt-0.5">
                             <span>@{user.username}</span>
@@ -329,6 +360,22 @@ export default function AdminUsers() {
                             </Button>
                           )}
                           <ResetPasswordDialog user={user} />
+                          {!isUserAdmin && (
+                            <div className="flex items-center gap-1 h-7 px-1.5 rounded-md border">
+                              <Switch
+                                checked={user.isActive !== false}
+                                onCheckedChange={(checked) =>
+                                  toggleActiveMutation.mutate({ userId: user.id, isActive: checked })
+                                }
+                                disabled={toggleActiveMutation.isPending}
+                                className="scale-75"
+                                data-testid={`switch-active-${user.id}`}
+                              />
+                              <span className="text-[11px] text-muted-foreground whitespace-nowrap">
+                                {user.isActive !== false ? "활성" : "비활성"}
+                              </span>
+                            </div>
+                          )}
                           {user.lockedUntil && new Date(user.lockedUntil) > new Date() && (
                             <Button
                               variant="outline"
