@@ -7,7 +7,7 @@ import { z } from "zod";
 import rateLimit from "express-rate-limit";
 import { createHash } from "crypto";
 import { db } from "./db";
-import { teams, trafficFines, accidentReports, educationSignatures, safetyInspections, educationTasks, safetyCostRecords, insertSafetyScoreItemSchema, type SafetyScoreItem } from "@shared/schema";
+import { teams, trafficFines, accidentReports, educationSignatures, safetyInspections, educationTasks, safetyCostRecords, insertSafetyScoreItemSchema, type SafetyScoreItem, type InsertSafetyScoreItem } from "@shared/schema";
 import { eq, and, count, sql, inArray } from "drizzle-orm";
 import multer from "multer";
 import path from "path";
@@ -2598,6 +2598,7 @@ ${buildEmailFooter()}
 
   // Seed Data
   await seedDatabase();
+  await seedSafetyScoreItems();
 
   // === EDUCATION SESSIONS (교육일지) ===
   app.get("/api/education-sessions", isAuthenticated, async (req: any, res) => {
@@ -14178,4 +14179,34 @@ async function seedDatabase() {
     await storage.createNotice({ category: "rule", title: "작업 전 TBM 실시", content: "작업 전 위험요인 3가지를 확인하고 공유한다." });
     await storage.createNotice({ category: "edu", title: "추락/낙하 예방 교육", content: "고소작업 시 안전대 착용 필수. 안전모 착용 철저." });
   }
+}
+
+// 기본 제공 평가항목 시드: 배포 환경 등 safety_score_items 테이블이 비어있는 경우
+// 팀 편집/현황관리 화면에서 사용하는 13개 기본 항목을 자동으로 채워넣는다.
+// (개발 DB에서 수기로 등록했던 항목이 배포 시 자동 반영되지 않는 문제 방지)
+async function seedSafetyScoreItems() {
+  const existing = await storage.getSafetyScoreItems();
+  if (existing.length > 0) return;
+
+  const defaultItems: InsertSafetyScoreItem[] = [
+    { key: "workAccident", label: "작업사고", points: -40, isBuiltIn: true, isActive: true, sortOrder: 10 },
+    { key: "fineSpeed", label: "과속(과태료)", points: -1, isBuiltIn: true, isActive: true, sortOrder: 20 },
+    { key: "fineSignal", label: "신호위반(과태료)", points: -1, isBuiltIn: true, isActive: true, sortOrder: 21 },
+    { key: "fineLane", label: "법규/차선위반(과태료)", points: -1, isBuiltIn: true, isActive: true, sortOrder: 22 },
+    { key: "inspectionMiss", label: "점검 미준수", points: -3, isBuiltIn: true, isActive: true, sortOrder: 30 },
+    { key: "suggestion", label: "우수제안", points: 3, isBuiltIn: true, isActive: true, sortOrder: 40 },
+    { key: "activity", label: "우수활동", points: 3, isBuiltIn: true, isActive: true, sortOrder: 41 },
+    { key: "accident_p50_59", label: "차량사고 과실 50-59%", points: -5, isBuiltIn: true, isActive: true, sortOrder: 50 },
+    { key: "accident_p60_69", label: "차량사고 과실 60-69%", points: -6, isBuiltIn: true, isActive: true, sortOrder: 51 },
+    { key: "accident_p70_79", label: "차량사고 과실 70-79%", points: -7, isBuiltIn: true, isActive: true, sortOrder: 52 },
+    { key: "accident_p80_89", label: "차량사고 과실 80-89%", points: -8, isBuiltIn: true, isActive: true, sortOrder: 53 },
+    { key: "accident_p90_99", label: "차량사고 과실 90-99%", points: -9, isBuiltIn: true, isActive: true, sortOrder: 54 },
+    { key: "accident_p100", label: "차량사고 과실 100%", points: -10, isBuiltIn: true, isActive: true, sortOrder: 55 },
+  ];
+
+  for (const item of defaultItems) {
+    await storage.createSafetyScoreItem(item);
+  }
+  console.log("[SeedSafetyScoreItems] 기본 평가항목 13개 자동 등록 완료");
+  await recalculateAllTeamScores();
 }
