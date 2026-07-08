@@ -51,6 +51,7 @@ import HealthManagerReports from "@/pages/HealthManagerReports";
 import HeatWaveChecklist from "@/pages/HeatWaveChecklist";
 import AisSafetyRate from "@/pages/AisSafetyRate";
 import SafetyCostBudget from "@/pages/SafetyCostBudget";
+import SafetyScoreItems from "@/pages/SafetyScoreItems";
 import DrillTraining from "@/pages/DrillTraining";
 import Login from "@/pages/Login";
 import NotFound from "@/pages/NotFound";
@@ -105,6 +106,7 @@ function RouterContent() {
     canViewVehicleLogs,
     canViewDigitalBoard,
     canManageUsers,
+    canEditSafetyScores,
   } = usePermissions();
 
   if (isLoading) return null;
@@ -148,6 +150,7 @@ function RouterContent() {
       <Route path="/health-manager-reports">{() => <G canAccess={canViewInspections} component={HealthManagerReports} />}</Route>
       <Route path="/heat-wave-checklist">{() => <G canAccess={canViewMusculoskeletal} component={HeatWaveChecklist} />}</Route>
       <Route path="/safety-cost-budget">{() => <G canAccess={canViewInspections} component={SafetyCostBudget} />}</Route>
+      <Route path="/safety-score-items">{() => <G canAccess={canEditSafetyScores} component={SafetyScoreItems} />}</Route>
       <Route path="/ais-safety-rate">{() => <AisSafetyRate />}</Route>
       <Route path="/drill-training">{() => <G canAccess={canViewAccidents} component={DrillTraining} />}</Route>
       <Route path="/weather-safety" component={WeatherSafetyMessage} />

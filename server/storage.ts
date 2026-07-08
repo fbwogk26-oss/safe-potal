@@ -71,6 +71,8 @@ import {
   type AisSafetyUpload, type InsertAisSafetyUpload,
   aisSafetyRecords,
   type AisSafetyRecord, type InsertAisSafetyRecord,
+  safetyScoreItems,
+  type SafetyScoreItem, type InsertSafetyScoreItem, type UpdateSafetyScoreItem,
 } from "@shared/schema";
 import { eq, desc, asc, and, ilike, or, sql, inArray, isNotNull, gte, lte } from "drizzle-orm";
 
@@ -78,9 +80,17 @@ export interface IStorage {
   // Teams
   getTeams(year?: number, headquarters?: string): Promise<Team[]>;
   getTeam(id: number): Promise<Team | undefined>;
+  getAllTeamsRaw(): Promise<Team[]>;
   createTeam(team: InsertTeam): Promise<Team>;
   updateTeam(id: number, updates: UpdateTeamRequest): Promise<Team>;
   deleteTeam(id: number): Promise<void>;
+
+  // Safety Score Items (안전점수 평가항목)
+  getSafetyScoreItems(): Promise<SafetyScoreItem[]>;
+  getSafetyScoreItem(id: number): Promise<SafetyScoreItem | undefined>;
+  createSafetyScoreItem(item: InsertSafetyScoreItem): Promise<SafetyScoreItem>;
+  updateSafetyScoreItem(id: number, updates: UpdateSafetyScoreItem): Promise<SafetyScoreItem>;
+  deleteSafetyScoreItem(id: number): Promise<void>;
 
   // Notices
   getNotices(category?: string, headquarters?: string): Promise<Notice[]>;
@@ -339,6 +349,10 @@ export class DatabaseStorage implements IStorage {
     return team;
   }
 
+  async getAllTeamsRaw(): Promise<Team[]> {
+    return await db.select().from(teams);
+  }
+
   async createTeam(insertTeam: InsertTeam): Promise<Team> {
     const [team] = await db.insert(teams).values(insertTeam).returning();
     return team;
@@ -351,6 +365,30 @@ export class DatabaseStorage implements IStorage {
 
   async deleteTeam(id: number): Promise<void> {
     await db.delete(teams).where(eq(teams.id, id));
+  }
+
+  // === SAFETY SCORE ITEMS ===
+  async getSafetyScoreItems(): Promise<SafetyScoreItem[]> {
+    return await db.select().from(safetyScoreItems).orderBy(asc(safetyScoreItems.sortOrder), asc(safetyScoreItems.id));
+  }
+
+  async getSafetyScoreItem(id: number): Promise<SafetyScoreItem | undefined> {
+    const [item] = await db.select().from(safetyScoreItems).where(eq(safetyScoreItems.id, id));
+    return item;
+  }
+
+  async createSafetyScoreItem(item: InsertSafetyScoreItem): Promise<SafetyScoreItem> {
+    const [created] = await db.insert(safetyScoreItems).values(item).returning();
+    return created;
+  }
+
+  async updateSafetyScoreItem(id: number, updates: UpdateSafetyScoreItem): Promise<SafetyScoreItem> {
+    const [updated] = await db.update(safetyScoreItems).set(updates).where(eq(safetyScoreItems.id, id)).returning();
+    return updated;
+  }
+
+  async deleteSafetyScoreItem(id: number): Promise<void> {
+    await db.delete(safetyScoreItems).where(eq(safetyScoreItems.id, id));
   }
 
   // === NOTICES ===

@@ -7,7 +7,7 @@ import { z } from "zod";
 import rateLimit from "express-rate-limit";
 import { createHash } from "crypto";
 import { db } from "./db";
-import { teams, trafficFines, accidentReports, educationSignatures, safetyInspections, educationTasks, safetyCostRecords } from "@shared/schema";
+import { teams, trafficFines, accidentReports, educationSignatures, safetyInspections, educationTasks, safetyCostRecords, insertSafetyScoreItemSchema, type SafetyScoreItem } from "@shared/schema";
 import { eq, and, count, sql, inArray } from "drizzle-orm";
 import multer from "multer";
 import path from "path";
@@ -174,34 +174,51 @@ const vehicleExcelUpload = multer({
   }
 });
 
-function calculateScore(team: any) {
-  let score = 100;
-  
-  // Work Accident (-40)
-  score -= (team.workAccident || 0) * 40;
-  
-  // Fines (-1 each)
-  score -= (team.fineSpeed || 0);
-  score -= (team.fineSignal || 0);
-  score -= (team.fineLane || 0);
-  
-  // Inspection Miss (-3)
-  score -= (team.inspectionMiss || 0) * 3;
-  
-  // Bonuses (+3)
-  score += (team.suggestion || 0) * 3;
-  score += (team.activity || 0) * 3;
-  
-  // Vehicle Accidents
+// 안전점수 평가항목별 건수를 team 레코드에서 읽어오는 매핑
+// 기본 제공(built-in) 항목은 전용 컬럼에서, 관리자가 추가한 커스텀 항목은 customItemValues에서 읽는다.
+function getItemCount(team: any, key: string): number {
   const accidents = team.vehicleAccidents || {};
-  score += (accidents.p50_59 || 0) * -5;
-  score += (accidents.p60_69 || 0) * -6;
-  score += (accidents.p70_79 || 0) * -7;
-  score += (accidents.p80_89 || 0) * -8;
-  score += (accidents.p90_99 || 0) * -9;
-  score += (accidents.p100 || 0) * -10;
-  
+  switch (key) {
+    case "workAccident": return team.workAccident || 0;
+    case "fineSpeed": return team.fineSpeed || 0;
+    case "fineSignal": return team.fineSignal || 0;
+    case "fineLane": return team.fineLane || 0;
+    case "inspectionMiss": return team.inspectionMiss || 0;
+    case "suggestion": return team.suggestion || 0;
+    case "activity": return team.activity || 0;
+    case "accident_p50_59": return accidents.p50_59 || 0;
+    case "accident_p60_69": return accidents.p60_69 || 0;
+    case "accident_p70_79": return accidents.p70_79 || 0;
+    case "accident_p80_89": return accidents.p80_89 || 0;
+    case "accident_p90_99": return accidents.p90_99 || 0;
+    case "accident_p100": return accidents.p100 || 0;
+    default: return (team.customItemValues || {})[key] || 0;
+  }
+}
+
+// 안전점수는 100점 기본값에서 관리자가 설정한 평가항목(safety_score_items) 목록을 기준으로 동적으로 가감된다.
+// items를 넘기지 않으면 매 호출마다 DB에서 최신 평가항목 목록을 조회한다.
+async function calculateScore(team: any, items?: SafetyScoreItem[]): Promise<number> {
+  const scoreItems = items ?? (await storage.getSafetyScoreItems());
+  let score = 100;
+  for (const item of scoreItems) {
+    if (!item.isActive) continue;
+    score += getItemCount(team, item.key) * item.points;
+  }
   return score;
+}
+
+// 평가항목이 추가/삭제/변경될 때 모든 팀의 점수를 다시 계산해 저장한다.
+async function recalculateAllTeamScores(): Promise<number> {
+  const items = await storage.getSafetyScoreItems();
+  const allTeams = await storage.getAllTeamsRaw();
+  for (const team of allTeams) {
+    const totalScore = await calculateScore(team, items);
+    if (totalScore !== team.totalScore) {
+      await storage.updateTeam(team.id, { totalScore });
+    }
+  }
+  return allTeams.length;
 }
 
 async function syncTrafficFineToTeamScore(department: string | null | undefined, violationDate: string | null | undefined) {
@@ -217,7 +234,7 @@ async function syncTrafficFineToTeamScore(department: string | null | undefined,
     const fineSignal = yearFines.filter(f => f.violationType === "신호위반").length;
     const fineLane = yearFines.filter(f => f.violationType === "법규위반").length;
     const merged = { ...team, fineSpeed, fineSignal, fineLane };
-    const totalScore = calculateScore(merged);
+    const totalScore = await calculateScore(merged);
     await db.update(teams).set({ fineSpeed, fineSignal, fineLane, totalScore }).where(eq(teams.id, team.id));
   } catch (e) {
     console.error("[과태료 점수 동기화 오류]", e);
@@ -236,7 +253,7 @@ async function syncWorkAccidentToTeamScore(department: string | null | undefined
       a.occurredAt?.startsWith(String(year)) && a.accidentType !== "교통사고"
     ).length;
     const merged = { ...team, workAccident };
-    const totalScore = calculateScore(merged);
+    const totalScore = await calculateScore(merged);
     await db.update(teams).set({ workAccident, totalScore }).where(eq(teams.id, team.id));
   } catch (e) {
     console.error("[산재 점수 동기화 오류]", e);
@@ -266,7 +283,7 @@ async function syncAccidentToTeamScore(department: string | null | undefined, oc
       else if (rate >= 100) vehicleAccidents.p100++;
     }
     const merged = { ...team, vehicleAccidents };
-    const totalScore = calculateScore(merged);
+    const totalScore = await calculateScore(merged);
     await db.update(teams).set({ vehicleAccidents, totalScore }).where(eq(teams.id, team.id));
   } catch (e) {
     console.error("[사고 점수 동기화 오류]", e);
@@ -764,7 +781,7 @@ export async function registerRoutes(
     try {
       const input = api.teams.create.input.parse(req.body);
       // Calculate score
-      const totalScore = calculateScore(input);
+      const totalScore = await calculateScore(input);
       const team = await storage.createTeam({ ...input, totalScore });
       res.status(201).json(team);
     } catch (err) {
@@ -784,7 +801,7 @@ export async function registerRoutes(
       const input = api.teams.update.input.parse(req.body);
       // Merge for calculation
       const merged = { ...existing, ...input };
-      const totalScore = calculateScore(merged);
+      const totalScore = await calculateScore(merged);
       
       const team = await storage.updateTeam(id, { ...input, totalScore });
       res.json(team);
@@ -798,6 +815,64 @@ export async function registerRoutes(
 
   app.delete(api.teams.delete.path, requireEditor, async (req: any, res) => {
     await storage.deleteTeam(Number(req.params.id));
+    res.status(204).send();
+  });
+
+  // === 안전점수 평가항목 (동적 관리) ===
+  app.get('/api/safety-score-items', isAuthenticated, async (req: any, res) => {
+    try {
+      const items = await storage.getSafetyScoreItems();
+      res.json(items);
+    } catch (error) {
+      res.status(500).json({ message: "평가항목을 불러올 수 없습니다" });
+    }
+  });
+
+  app.post('/api/safety-score-items', requirePermission('editSafetyScores'), async (req: any, res) => {
+    try {
+      const input = insertSafetyScoreItemSchema.parse({ ...req.body, isBuiltIn: false });
+      const existing = await storage.getSafetyScoreItems();
+      if (existing.some(i => i.key === input.key)) {
+        return res.status(400).json({ message: "이미 존재하는 항목 키입니다" });
+      }
+      const item = await storage.createSafetyScoreItem(input);
+      await recalculateAllTeamScores();
+      res.status(201).json(item);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      throw err;
+    }
+  });
+
+  app.put('/api/safety-score-items/:id', requirePermission('editSafetyScores'), async (req: any, res) => {
+    try {
+      const id = Number(req.params.id);
+      const existing = await storage.getSafetyScoreItem(id);
+      if (!existing) return res.status(404).json({ message: "평가항목을 찾을 수 없습니다" });
+
+      const input = insertSafetyScoreItemSchema.partial().omit({ key: true, isBuiltIn: true }).parse(req.body);
+      const item = await storage.updateSafetyScoreItem(id, input);
+      await recalculateAllTeamScores();
+      res.json(item);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      throw err;
+    }
+  });
+
+  app.delete('/api/safety-score-items/:id', requirePermission('editSafetyScores'), async (req: any, res) => {
+    const id = Number(req.params.id);
+    const existing = await storage.getSafetyScoreItem(id);
+    if (!existing) return res.status(404).json({ message: "평가항목을 찾을 수 없습니다" });
+    if (existing.isBuiltIn) {
+      return res.status(400).json({ message: "기본 제공 항목은 삭제할 수 없습니다. 대신 비활성화할 수 있습니다." });
+    }
+    await storage.deleteSafetyScoreItem(id);
+    await recalculateAllTeamScores();
     res.status(204).send();
   });
 
@@ -876,7 +951,7 @@ export async function registerRoutes(
             activity: row.activity ?? team.activity,
             vehicleAccidents: team.vehicleAccidents ?? {},
           };
-          const totalScore = calculateScore(merged);
+          const totalScore = await calculateScore(merged);
           await storage.updateTeam(team.id, { 
             vehicleCount: merged.vehicleCount,
             workAccident: merged.workAccident,
@@ -903,7 +978,7 @@ export async function registerRoutes(
             activity: row.activity ?? 0,
             vehicleAccidents: {},
           };
-          const totalScore = calculateScore(newTeam);
+          const totalScore = await calculateScore(newTeam);
           await storage.createTeam({ ...newTeam, totalScore });
           updated++;
         }
@@ -14081,7 +14156,7 @@ async function seedDatabase() {
     ];
     
     for (const t of seedTeams) {
-      const score = calculateScore(t);
+      const score = await calculateScore(t);
       await storage.createTeam({ 
         ...t, 
         year: 2025, 

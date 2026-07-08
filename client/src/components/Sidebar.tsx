@@ -160,6 +160,7 @@ const NAV_SECTIONS: NavSection[] = [
           { label: "음악 관리", href: "/admin/music", icon: Music2, adminOnly: true },
           { label: "서명 관리 로그", href: "/admin/signatures", icon: FileSignature, adminOnly: true },
           { label: "출입신청", href: "/access", icon: DoorOpen, permissionKey: "canViewAccess" },
+          { label: "안전점수 평가항목 관리", href: "/safety-score-items", icon: ClipboardList, permissionKey: "canEditSafetyScores" },
           { label: "데이터 백업", href: "/admin/backup", icon: HardDrive, adminOnly: true },
           { label: "음주운전 카드뉴스", href: "/admin/card-news", icon: Newspaper, adminOnly: true },
         ],

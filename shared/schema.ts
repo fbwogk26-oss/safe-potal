@@ -26,10 +26,25 @@ export const teams = pgTable("teams", {
   // { p50_59: 0, p60_69: 0, ... }
   vehicleAccidents: jsonb("vehicle_accidents").$type<Record<string, number>>().notNull().default({}),
   
+  // 관리자가 자유롭게 추가한 평가항목별 건수 { [itemKey]: count }
+  customItemValues: jsonb("custom_item_values").$type<Record<string, number>>().notNull().default({}),
+  
   // Calculated Score (Stored or calculated on fly? Stored is easier for sorting)
   totalScore: integer("total_score").notNull().default(100),
   rank: integer("rank").default(0),
   headquarters: text("headquarters").notNull().default("대구본부"),
+});
+
+// === 안전점수 평가항목 (동적 구성 가능) ===
+export const safetyScoreItems = pgTable("safety_score_items", {
+  id: serial("id").primaryKey(),
+  key: text("key").unique().notNull(), // 고정 항목: workAccident, fineSpeed 등 / 커스텀 항목: custom_xxx
+  label: text("label").notNull(), // 표시 이름 (예: "작업사고")
+  points: integer("points").notNull(), // 건당 가감점 (음수=감점, 양수=가점)
+  isBuiltIn: boolean("is_built_in").notNull().default(false), // true면 자동연동(사고/과태료 등)이 걸려있어 삭제 불가
+  isActive: boolean("is_active").notNull().default(true), // false면 점수 계산에서 제외
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 // === NOTICES / RULES / EDUCATION ===
@@ -91,10 +106,14 @@ export const insertTeamSchema = createInsertSchema(teams).omit({ id: true, total
 export const insertNoticeSchema = createInsertSchema(notices).omit({ id: true, createdAt: true });
 export const insertSettingSchema = createInsertSchema(settings).omit({ id: true });
 export const insertVehicleSchema = createInsertSchema(vehicles).omit({ id: true, createdAt: true });
+export const insertSafetyScoreItemSchema = createInsertSchema(safetyScoreItems).omit({ id: true, createdAt: true });
 
 // === TYPES ===
 export type Team = typeof teams.$inferSelect;
 export type InsertTeam = z.infer<typeof insertTeamSchema>;
+export type SafetyScoreItem = typeof safetyScoreItems.$inferSelect;
+export type InsertSafetyScoreItem = z.infer<typeof insertSafetyScoreItemSchema>;
+export type UpdateSafetyScoreItem = Partial<InsertSafetyScoreItem>;
 export type Notice = typeof notices.$inferSelect;
 export type InsertNotice = z.infer<typeof insertNoticeSchema>;
 export type Setting = typeof settings.$inferSelect;
