@@ -8,3 +8,4 @@
 - [장시간 열린 SPA "오늘 날짜" 고정 문제](stale-date-state-in-long-lived-spa.md) — 마운트 시 1회 계산된 날짜 state는 갱신 안 됨; 다이얼로그 open 시 재계산 필요
 - [보안 스캔 시 잔존 리스크 처리 기준](security-scan-residual-risk.md) — pinned 하위의존성/빌드전용 패키지/무패치 패키지는 실사용 경로 확인 후 문서화로 종결, 무조건 강제 업그레이드 금지
 - [drizzle-kit push 인터랙티브 프롬프트 회피](drizzle-push-interactive-prompt.md) — 무관한 스키마 drift(예: 기존 unique 제약)로 대화형 프롬프트가 뜨면 파이핑으로 우회 불가; 범위 밖 변경 피하려면 컬럼 추가는 직접 SQL(ALTER TABLE) 실행
+- [로컬 const를 다른 함수 컴포넌트가 참조하는 스코프 버그](scoped-const-cross-component-bug.md) — esbuild/vite는 타입체크 안 해서 컴파일은 통과하지만 런타임에 "X is not defined"로 크래시; ErrorBoundary 없으면 흰 화면

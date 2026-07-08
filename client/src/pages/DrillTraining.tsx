@@ -378,6 +378,8 @@ function progressCount(a: DrillAssignment) {
 function Step1Form({ assignment, onClose }: { assignment: DrillAssignment; onClose: () => void }) {
   const { toast } = useToast();
   const qc = useQueryClient();
+  const { departments } = useHeadquarters();
+  const DEPT_LIST = ["스탭", ...departments];
   const scenarioPlain = isHtml(assignment.scenario) ? stripHtml(assignment.scenario) : assignment.scenario;
   const [form, setForm] = useState({
     victimName: "", victimPosition: "",
@@ -1307,6 +1309,8 @@ function CreateSessionDialog({ open, onClose }: { open: boolean; onClose: () => 
 function AddAssignmentDialog({ open, sessionId, onClose }: { open: boolean; sessionId: number; onClose: () => void }) {
   const { toast } = useToast();
   const qc = useQueryClient();
+  const { departments } = useHeadquarters();
+  const DEPT_LIST = ["스탭", ...departments];
   const [dept, setDept] = useState("");
   const [scenario, setScenario] = useState("");
   const [accidentType, setAccidentType] = useState("");
@@ -1413,6 +1417,8 @@ function AssignPreviewTable({ assignments, onBack, onSubmit, isPending, backLabe
 function BulkAssignDialog({ open, sessionId, onClose }: { open: boolean; sessionId: number; onClose: () => void }) {
   const { toast } = useToast();
   const qc = useQueryClient();
+  const { departments } = useHeadquarters();
+  const DEPT_LIST = ["스탭", ...departments];
 
   const [mode, setMode] = useState<"plan" | "random">("plan");
   // plan mode
