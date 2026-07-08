@@ -2,7 +2,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Team, UpdateTeamRequest } from "@shared/schema";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -136,7 +135,7 @@ export function TeamEditDialog({ team, disabled }: Props) {
           </DialogTitle>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 px-4 sm:px-6">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 sm:px-6" style={{ WebkitOverflowScrolling: "touch" }}>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6 py-4">
             {/* Basic Info */}
             <div className="space-y-3 sm:space-y-4 border rounded-xl p-3 sm:p-4 bg-muted/20">
@@ -273,7 +272,7 @@ export function TeamEditDialog({ team, disabled }: Props) {
               </div>
             )}
           </div>
-        </ScrollArea>
+        </div>
 
         <div className="p-3 sm:p-6 border-t bg-muted/10 flex justify-end gap-2 sm:gap-3">
           <Button variant="outline" size="sm" className="sm:h-10 sm:px-4 sm:text-sm" onClick={() => setOpen(false)}>

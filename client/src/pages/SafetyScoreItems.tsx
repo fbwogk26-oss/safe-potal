@@ -131,34 +131,34 @@ export default function SafetyScoreItems() {
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6">
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => setLocation("/safety-scores")} data-testid="button-back">
+    <div className="p-3 sm:p-6 max-w-4xl mx-auto space-y-4 sm:space-y-6">
+      <div className="flex items-center gap-2 sm:gap-3">
+        <Button variant="ghost" size="icon" onClick={() => setLocation("/safety-scores")} data-testid="button-back" className="flex-shrink-0">
           <ArrowLeft className="w-5 h-5" />
         </Button>
-        <div>
-          <h1 className="text-2xl font-display font-bold flex items-center gap-2">
-            <ListChecks className="w-6 h-6 text-primary" />
-            안전점수 평가항목 관리
+        <div className="min-w-0">
+          <h1 className="text-lg sm:text-2xl font-display font-bold flex items-center gap-2">
+            <ListChecks className="w-5 h-5 sm:w-6 sm:h-6 text-primary flex-shrink-0" />
+            <span className="truncate">안전점수 평가항목 관리</span>
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1">
             항목을 추가/수정/삭제하면 모든 부서의 안전점수가 자동으로 다시 계산됩니다.
           </p>
         </div>
       </div>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <CardTitle>평가항목 목록</CardTitle>
-            <CardDescription>기본 제공 항목은 이름/점수만 수정 가능하며 삭제할 수 없습니다.</CardDescription>
+            <CardTitle className="text-base sm:text-lg">평가항목 목록</CardTitle>
+            <CardDescription className="text-xs sm:text-sm">기본 제공 항목은 이름/점수만 수정 가능하며 삭제할 수 없습니다.</CardDescription>
           </div>
-          <Button onClick={openCreate} data-testid="button-add-item">
+          <Button onClick={openCreate} data-testid="button-add-item" size="sm" className="w-full sm:w-auto">
             <Plus className="w-4 h-4 mr-1" />
             항목 추가
           </Button>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-3 sm:px-6">
           {isLoading ? (
             <div className="text-sm text-muted-foreground py-8 text-center">불러오는 중...</div>
           ) : sorted.length === 0 ? (
@@ -168,18 +168,18 @@ export default function SafetyScoreItems() {
               {sorted.map((item) => (
                 <div
                   key={item.id}
-                  className="flex items-center justify-between gap-3 border rounded-lg p-3 bg-muted/10"
+                  className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 border rounded-lg p-3 bg-muted/10"
                   data-testid={`row-item-${item.id}`}
                 >
-                  <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex items-start gap-2 min-w-0">
                     {item.isBuiltIn ? (
-                      <Lock className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                      <Lock className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
                     ) : (
-                      <ShieldCheck className="w-4 h-4 text-primary flex-shrink-0" />
+                      <ShieldCheck className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
                     )}
                     <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium truncate" data-testid={`text-label-${item.id}`}>{item.label}</span>
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span className="font-medium break-words" data-testid={`text-label-${item.id}`}>{item.label}</span>
                         {item.isBuiltIn && (
                           <Badge variant="secondary" className="text-[10px]">기본항목</Badge>
                         )}
@@ -196,7 +196,7 @@ export default function SafetyScoreItems() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 flex-shrink-0">
+                  <div className="flex items-center gap-2 flex-shrink-0 self-end sm:self-auto">
                     <Switch
                       checked={item.isActive}
                       onCheckedChange={(v) => handleToggleActive(item, v)}
@@ -212,7 +212,7 @@ export default function SafetyScoreItems() {
                             <Trash2 className="w-4 h-4" />
                           </Button>
                         </AlertDialogTrigger>
-                        <AlertDialogContent>
+                        <AlertDialogContent className="w-[92vw] max-w-lg rounded-xl">
                           <AlertDialogHeader>
                             <AlertDialogTitle>평가항목 삭제</AlertDialogTitle>
                             <AlertDialogDescription>
@@ -237,7 +237,7 @@ export default function SafetyScoreItems() {
       </Card>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+        <DialogContent className="w-[92vw] max-w-lg rounded-xl">
           <DialogHeader>
             <DialogTitle>{editing ? "평가항목 수정" : "평가항목 추가"}</DialogTitle>
             <DialogDescription>
