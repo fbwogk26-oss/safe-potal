@@ -480,8 +480,13 @@ export async function registerRoutes(
           logSecurityEvent('DATA_DELETE', req, `${method} ${p}`, true, req.user?.id, req.user?.username);
         } else if (method === 'GET' && /export|excel|download/i.test(p)) {
           logSecurityEvent('DATA_DOWNLOAD', req, `${method} ${p}`, true, req.user?.id, req.user?.username);
-        } else if (method === 'POST' && /upload|import|bulk/i.test(p)) {
+        } else if ((method === 'POST') && /upload|import|bulk/i.test(p)) {
           logSecurityEvent('DATA_UPLOAD', req, `${method} ${p}`, true, req.user?.id, req.user?.username);
+        } else if (method === 'PUT' || method === 'PATCH') {
+          // 사용자 계정 변경(활성/역할/권한)은 별도 상세 로그가 있으므로 중복 기록 방지
+          if (!/^\/api\/users\//.test(p)) {
+            logSecurityEvent('DATA_UPDATE', req, `${method} ${p}`, true, req.user?.id, req.user?.username);
+          }
         }
       }
     });

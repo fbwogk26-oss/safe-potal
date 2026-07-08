@@ -130,7 +130,7 @@ shared/
 - **파일 업로드 확장자 차단**: 확장자 필터가 없던 14개 multer 업로드 인스턴스에 위험 확장자(.exe/.sh/.php 등) 차단 필터 적용
 - **HTTP 메서드 제한**: TRACE/CONNECT/OPTIONS 메서드 차단 미들웨어 추가 (405 응답)
 - **디렉토리 리스팅/에러 페이지 제어**: 모든 정적 파일 서빙에 `index:false, dotfiles:'deny'` 적용, 미매칭 `/api/*` 요청은 SPA 폴백 대신 명시적 JSON 404 반환
-- **감사 로그 확장**: DELETE 요청, 다운로드/엑셀 내보내기(GET), 업로드/가져오기(POST) 패턴을 자동 감지해 `security_logs` 테이블에 기록 (기존 계정 활성화/역할/권한 변경 로그에 추가)
+- **감사 로그 확장**: DELETE 요청, 수정(PUT/PATCH), 다운로드/엑셀 내보내기(GET), 업로드/가져오기(POST) 패턴을 자동 감지해 `security_logs` 테이블에 기록 (기존 계정 활성화/역할/권한 변경 로그에 추가). 사용자 계정 변경(`/api/users/*`)은 기존 상세 로그(USER_ROLE_CHANGED 등)와 중복 방지 처리
 - **XSS 방어**: `DrillTraining.tsx`(시나리오 HTML), `SafetyCommittee.tsx`(Word 미리보기 HTML)의 `dangerouslySetInnerHTML`에 DOMPurify 새니타이징 적용
 - **기본 관리자 비밀번호 정책**: 신규 계정은 `mustChangePassword=true`로 생성되어 최초 로그인 시 비밀번호 변경 강제됨(기존 구현으로 이미 충족, 별도 코드 변경 없음)
 - **코드 저장소 비공개/버전관리, TLS/HTTPS**: Replit 플랫폼 레벨 설정(비공개 Repl, Replit 배포 시 자동 TLS 적용)으로 충족되며 애플리케이션 코드로 제어하는 항목이 아님
