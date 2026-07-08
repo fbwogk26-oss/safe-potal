@@ -278,6 +278,7 @@ export interface IStorage {
   createVehicleLogErrors(records: InsertVehicleLogError[]): Promise<number>;
   updateVehicleLogError(id: number, data: Partial<VehicleLogError>): Promise<VehicleLogError | undefined>;
   deleteVehicleLogErrorsByBatch(batchId: string): Promise<void>;
+  deleteVehicleLogErrorsByYearMonth(year: number, month: number): Promise<void>;
 
   // Safety Manager Reports
   getSafetyManagerReports(yearMonth?: string, year?: string, headquarters?: string): Promise<SafetyManagerReport[]>;
@@ -1045,6 +1046,10 @@ export class DatabaseStorage implements IStorage {
 
   async deleteVehicleLogErrorsByBatch(batchId: string): Promise<void> {
     await db.delete(vehicleLogErrors).where(eq(vehicleLogErrors.uploadBatch, batchId));
+  }
+
+  async deleteVehicleLogErrorsByYearMonth(year: number, month: number): Promise<void> {
+    await db.delete(vehicleLogErrors).where(and(eq(vehicleLogErrors.year, year), eq(vehicleLogErrors.month, month)));
   }
 
   // === SAFETY MANAGER REPORTS ===

@@ -9052,6 +9052,7 @@ ${htmlDraft}
     try {
       const batchId = decodeURIComponent(req.params.batchId);
       await storage.deleteFuelRecordsByBatch(batchId);
+      await storage.deleteVehicleLogErrorsByBatch(batchId);
       res.json({ success: true });
     } catch (e: any) {
       res.status(500).json({ message: e.message });
@@ -9519,8 +9520,8 @@ ${htmlDraft}
       for (const ymKey of processedYMs) {
         const [yr, mo] = ymKey.split("-").map(Number);
         await storage.deleteFuelRecordsByYearMonth(yr, mo, uploadHq);
+        await storage.deleteVehicleLogErrorsByYearMonth(yr, mo);
       }
-      await storage.deleteVehicleLogErrorsByBatch(batchId);
       const inserted = await storage.insertFuelRecords(allRecordsToInsert);
       const errorInserted = await storage.createVehicleLogErrors(allErrors);
       const ymLabels = [...processedYMs].map(k => { const [y,m]=k.split("-"); return `${y}년 ${m}월`; });
