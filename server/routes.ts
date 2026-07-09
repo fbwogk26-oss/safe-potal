@@ -11945,13 +11945,19 @@ ${htmlDraft}
               const left = mTaxes[i] as any;
               const right = mTaxes[i + 1] as any;
 
+              // 세금계산서 금액 보정: totalAmount가 0이면 supplyAmount+vatAmount 폴백
+              function taxAmt(t: any): number {
+                const total = Number(t.totalAmount) || 0;
+                if (total > 0) return total;
+                return (Number(t.supplyAmount) || 0) + (Number(t.vatAmount) || 0);
+              }
               if (right) {
                 // 좌/우 info 행: 업체 | 금액
                 const lRow = ws5.getRow(r5);
                 lRow.height = INFO_H;
                 // 좌측 정보
                 const lLabel = ws5.getRow(r5).getCell(1);
-                lLabel.value = `${left.vendorName || "업체명 없음"}  |  ${Number(left.totalAmount || 0).toLocaleString()}원`;
+                lLabel.value = `${left.vendorName || "업체명 없음"}  |  ${taxAmt(left).toLocaleString()}원`;
                 lLabel.font = { bold: true, size: 12 };
                 lLabel.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE8F0FE" } };
                 lLabel.alignment = { horizontal: "center", vertical: "middle" };
@@ -11959,7 +11965,7 @@ ${htmlDraft}
                 ws5.mergeCells(`A${r5}:${MID_LETTER_L}${r5}`);
                 // 우측 정보
                 const rLabel = ws5.getRow(r5).getCell(MID_IDX + 1);
-                rLabel.value = `${right.vendorName || "업체명 없음"}  |  ${Number(right.totalAmount || 0).toLocaleString()}원`;
+                rLabel.value = `${right.vendorName || "업체명 없음"}  |  ${taxAmt(right).toLocaleString()}원`;
                 rLabel.font = { bold: true, size: 12 };
                 rLabel.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE8F5EE" } };
                 rLabel.alignment = { horizontal: "center", vertical: "middle" };
@@ -11973,7 +11979,7 @@ ${htmlDraft}
               } else {
                 // 홀수 마지막 → 전체 너비
                 r5 = addInfoLabel(ws5, r5,
-                  `  ${left.vendorName || "업체명 없음"}  |  ${Number(left.totalAmount || 0).toLocaleString()}원${left.notes ? "  |  " + left.notes : ""}`,
+                  `  ${left.vendorName || "업체명 없음"}  |  ${taxAmt(left).toLocaleString()}원${left.notes ? "  |  " + left.notes : ""}`,
                   "FFE8F0FE");
                 r5 = addFullImg(ws5, r5, getPages(left.fileUrl), !!left.fileUrl);
               }
@@ -12148,7 +12154,10 @@ ${htmlDraft}
           const day = rec.purchaseDate ? (rec.purchaseDate.split('-')[2] || '') : '';
           const qty = rec.quantity ? Number(rec.quantity) : null;
           const unit = rec.unitPrice ? Number(rec.unitPrice) : null;
-          const amt = rec.totalAmount ? Number(rec.totalAmount) : 0;
+          // 합계금액(totalAmount) 우선; 0이면 공급가액+VAT 폴백
+          const supplyAmt7 = Number(rec.supplyAmount) || 0;
+          const vatAmt7 = Number(rec.vatAmount) || 0;
+          const amt = (Number(rec.totalAmount) || 0) || (supplyAmt7 + vatAmt7);
           const rowBg = dataRowIdx % 2 === 0 ? C_ROW_ODD : C_ROW_EVEN;
           dataRowIdx++;
 
@@ -12175,10 +12184,10 @@ ${htmlDraft}
           { const c = ws7.getRow(r7).getCell(5); c.value = qty; t7Style(c, rowBg, "FF000000", false, 9, "center"); }
           // F: 단가
           { const c = ws7.getRow(r7).getCell(6); c.value = unit; c.numFmt = '#,##0'; t7Style(c, rowBg, "FF000000", false, 9, "right"); }
-          // G: 금액 = 수량×단가 수식 (cached result로 기존 값 보존)
+          // G: 금액 = 합계금액(totalAmount) 직접 입력 — 수식(E*F=공급가액)이 아닌 실제 합계금액
           {
             const c = ws7.getRow(r7).getCell(7);
-            c.value = { formula: `IFERROR(E${r7}*F${r7},0)`, result: amt };
+            c.value = amt;
             c.numFmt = '#,##0';
             t7Style(c, rowBg, "FF000000", false, 9, "right");
           }
