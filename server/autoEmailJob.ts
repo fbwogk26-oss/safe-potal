@@ -353,11 +353,22 @@ ${htmlDraft}
       auth: { user: GMAIL_USER, pass: process.env.GMAIL_APP_PASSWORD },
     });
 
+    let mailAttachments: { filename: string; content: Buffer }[] = [];
+    try {
+      const { readFileSync } = await import("fs");
+      const { join } = await import("path");
+      const pdfPath = join(process.cwd(), "attached_assets", "MOSS_순회점검_등록방법_안내_1783556087131.pdf");
+      mailAttachments = [{ filename: "MOSS_순회점검_등록방법_안내.pdf", content: readFileSync(pdfPath) }];
+    } catch (pdfErr: any) {
+      console.warn("[AutoEmail] PDF 첨부 실패 (본문만 발송):", pdfErr.message);
+    }
+
     await transporter.sendMail({
       from: '"현장경영팀" <fbwogk26@gmail.com>',
       to: AUTO_SEND_TO,
       subject,
       html: mobileReadyHtml,
+      attachments: mailAttachments,
     });
 
     status.lastResult = "sent";
