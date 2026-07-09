@@ -277,7 +277,8 @@ async function syncAccidentToTeamScore(department: string | null | undefined, oc
     const vehicleAccidents: Record<string, number> = { p50_59: 0, p60_69: 0, p70_79: 0, p80_89: 0, p90_99: 0, p100: 0 };
     for (const acc of yearAccidents) {
       const rate = (acc as any).faultRate;
-      if (!rate || rate <= 0) continue;
+      // faultRate 미입력(null/0) → p100으로 기본 분류 (우리과실로 간주)
+      if (!rate || rate <= 0) { vehicleAccidents.p100++; continue; }
       if (rate >= 50 && rate <= 59) vehicleAccidents.p50_59++;
       else if (rate >= 60 && rate <= 69) vehicleAccidents.p60_69++;
       else if (rate >= 70 && rate <= 79) vehicleAccidents.p70_79++;
