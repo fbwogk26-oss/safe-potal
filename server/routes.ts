@@ -660,6 +660,7 @@ export async function registerRoutes(
         }
       }
 
+      await logSecurityEvent('DATA_UPLOAD', req, `사용자 일괄등록 성공 ${successCount}건 (스킵 ${skipCount}건)`, true, req.user?.id, req.user?.username);
       res.json({ successCount, skipCount });
     } catch (error) {
       console.error("Bulk upload error:", error);
@@ -1008,6 +1009,7 @@ export async function registerRoutes(
         }
       }
       
+      await logSecurityEvent('DATA_UPLOAD', req, `팀 데이터 가져오기 ${updated}건`, true, req.user?.id, req.user?.username);
       res.json({ success: true, count: updated });
     } catch (err) {
       console.error('Team import error:', err);
@@ -1062,7 +1064,7 @@ export async function registerRoutes(
     
     const buffer = await workbook.xlsx.writeBuffer();
     const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-    
+    await logSecurityEvent('DATA_DOWNLOAD', req, `팀안전점수 엑셀 다운로드 ${teams.length}건`, true, req.user?.id, req.user?.username);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename=team_scores_${today}.xlsx`);
     res.send(buffer);
@@ -6013,6 +6015,7 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
         });
       }
       const buf = await wb.xlsx.writeBuffer();
+      await logSecurityEvent('DATA_DOWNLOAD', req, `아차사고 엑셀 다운로드 ${reports.length}건`, true, req.user?.id, req.user?.username);
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', `attachment; filename="near_miss_${new Date().toISOString().slice(0,10)}.xlsx"`);
       res.send(buf);
@@ -6573,6 +6576,7 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
         });
         inserted++;
       }
+      await logSecurityEvent('DATA_UPLOAD', req, `차량 엑셀 업로드 ${inserted}건 등록`, true, req.user?.id, req.user?.username);
       res.json({ success: true, inserted });
     } catch (e: any) {
       console.error("차량 엑셀 업로드 오류:", e);
@@ -6618,6 +6622,7 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
         inserted++;
       }
 
+      await logSecurityEvent('DATA_UPLOAD', req, `차량 fuel 임포트 ${inserted}건 신규등록 (전체 ${Object.keys(metaMap).length}건)`, true, req.user?.id, req.user?.username);
       res.json({ success: true, inserted, total: Object.keys(metaMap).length, skipped: existingPlates.size });
     } catch (e: any) {
       console.error("차량 임포트 오류:", e);
@@ -8524,6 +8529,7 @@ ${htmlDraft}
       // ── 출력 ─────────────────────────────────────────
       const buf = await wb.xlsx.writeBuffer();
       const fileName = encodeURIComponent(`${titleStr}.xlsx`);
+      await logSecurityEvent('DATA_DOWNLOAD', req, `안전용품조사 엑셀 다운로드 (물품 ${items.length}건, 부서 ${depts.length}건)`, true, req.user?.id, req.user?.username);
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${fileName}`);
       res.send(buf);
@@ -8603,6 +8609,7 @@ ${htmlDraft}
         if (entries.length === 0) throw new Error('부서 데이터가 없습니다. 파일 형식을 확인해주세요.');
 
         await storage.upsertSafetySupplyDeptEntries(surveyId, entries);
+        await logSecurityEvent('DATA_UPLOAD', req, `안전용품조사 엑셀 업로드 (물품 ${savedItems.length}건, 부서 ${entries.length}건)`, true, req.user?.id, req.user?.username);
         res.json({ items: savedItems.length, depts: entries.length });
       } catch (e: any) {
         res.status(500).json({ message: '파싱 오류: ' + e.message });
@@ -8891,6 +8898,7 @@ ${htmlDraft}
       // ── 전송 ──
       const now2 = new Date();
       const fname = `순회점검보고서_${now2.getFullYear()}${String(now2.getMonth()+1).padStart(2,"0")}${String(now2.getDate()).padStart(2,"0")}.xlsx`;
+      await logSecurityEvent('DATA_DOWNLOAD', req, `순회점검보고서 엑셀 다운로드 ${records.length}건`, true, req.user?.id, req.user?.username);
       res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
       res.setHeader("Content-Disposition", `attachment; filename*=UTF-8''${encodeURIComponent(fname)}`);
       await workbook.xlsx.write(res);
@@ -10359,6 +10367,7 @@ ${htmlDraft}
         endDate = kst.toISOString().slice(0, 10);
       }
       const { buffer, fileName } = await buildAisExcelReportBuffer({ startDate, endDate });
+      await logSecurityEvent('DATA_DOWNLOAD', req, `AIS 안전이행률 엑셀 리포트 다운로드 (${startDate}~${endDate})`, true, (req as any).user?.id, (req as any).user?.username);
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);
       res.send(buffer);
@@ -10978,7 +10987,7 @@ ${htmlDraft}
   });
 
   // Excel 다운로드
-  app.get('/api/education-tasks/export', isAuthenticated, async (_req, res) => {
+  app.get('/api/education-tasks/export', isAuthenticated, async (req: any, res) => {
     try {
       const tasks = await storage.getEducationTasks();
       const wb = new ExcelJS.Workbook();
@@ -11021,6 +11030,7 @@ ${htmlDraft}
       }
       const buf = await wb.xlsx.writeBuffer();
       const today = new Date().toISOString().slice(0, 10);
+      await logSecurityEvent('DATA_DOWNLOAD', req, `교육업무 엑셀 다운로드 ${tasks.length}건`, true, req.user?.id, req.user?.username);
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', `attachment; filename=education_tasks_${today}.xlsx`);
       res.send(buf);
@@ -12339,6 +12349,7 @@ ${htmlDraft}
         console.log(`[export] 텍스트 전용 workbook 빌드 완료`);
       }
 
+      await logSecurityEvent('DATA_DOWNLOAD', req, `법정경비 엑셀 다운로드 (사용내역 ${records.length}건, 세금계산서 ${taxInvoices.length}건)`, true, req.user?.id, req.user?.username);
       res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
       res.setHeader("Content-Disposition", `attachment; filename*=UTF-8''${encodeURIComponent(`산업안전보건관리비_법정경비_${fileLabel}.xlsx`)}`);
       console.log(`[export] 스트리밍 전송 시작`);
@@ -12761,6 +12772,7 @@ ${htmlDraft}
       console.log(`[export-template] writeBuffer 시작 (records=${records.length})`);
       const buffer = await wb.xlsx.writeBuffer();
       console.log(`[export-template] writeBuffer 완료, size=${Buffer.isBuffer(buffer) ? buffer.length : (buffer as any).byteLength}`);
+      await logSecurityEvent('DATA_DOWNLOAD', req, `산업안전보건관리비 사용내역 엑셀 다운로드 ${records.length}건 (${year}년)`, true, req.user?.id, req.user?.username);
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(`${year}년_산업안전보건관리비_사용내역.xlsx`)}`);
       res.send(Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer as ArrayBuffer));
