@@ -270,11 +270,14 @@ async function syncAccidentToTeamScore(department: string | null | undefined, oc
     const allAccidents = await db.select().from(accidentReports).where(
       and(eq(accidentReports.department, department), eq(accidentReports.accidentType, "교통사고"))
     );
-    const yearAccidents = allAccidents.filter(a => a.occurredAt?.startsWith(String(year)) && (a as any).kpiTarget === true);
+    // 상대방과실(kpiTarget===false)만 제외, 미설정·우리과실 모두 포함
+    const yearAccidents = allAccidents.filter(a =>
+      a.occurredAt?.startsWith(String(year)) && (a as any).kpiTarget !== false
+    );
     const vehicleAccidents: Record<string, number> = { p50_59: 0, p60_69: 0, p70_79: 0, p80_89: 0, p90_99: 0, p100: 0 };
     for (const acc of yearAccidents) {
       const rate = (acc as any).faultRate;
-      if (!rate) continue;
+      if (!rate || rate <= 0) continue;
       if (rate >= 50 && rate <= 59) vehicleAccidents.p50_59++;
       else if (rate >= 60 && rate <= 69) vehicleAccidents.p60_69++;
       else if (rate >= 70 && rate <= 79) vehicleAccidents.p70_79++;
@@ -898,6 +901,26 @@ export async function registerRoutes(
   });
 
   // Reset all teams for a year
+  // 과태료·사고 데이터로부터 모든 팀 점수 재동기화 (기존 수기 데이터 무시하고 DB 레코드 기준 재산정)
+  app.post('/api/teams/sync-from-records', requireEditor, async (req: any, res) => {
+    try {
+      const { year: reqYear } = req.body;
+      const targetYear = reqYear ?? new Date().getFullYear();
+      const allTeams = await storage.getTeams(targetYear);
+      let synced = 0;
+      for (const team of allTeams) {
+        await syncTrafficFineToTeamScore(team.name, `${targetYear}-01-01`);
+        await syncAccidentToTeamScore(team.name, `${targetYear}-01-01`);
+        await syncWorkAccidentToTeamScore(team.name, `${targetYear}-01-01`);
+        synced++;
+      }
+      res.json({ success: true, synced });
+    } catch (e: any) {
+      console.error("[전체 재동기화 오류]", e);
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   app.post('/api/teams/reset-all', requireEditor, async (req: any, res) => {
     const { year } = req.body;
     const teams = await storage.getTeams(year);

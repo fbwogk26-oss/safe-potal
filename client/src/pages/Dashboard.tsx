@@ -26,7 +26,7 @@ import { Input } from "@/components/ui/input";
 import { useState, useRef, useMemo, useCallback, useEffect } from "react";
 import ExcelJS from "exceljs";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Download, RefreshCw, AlertTriangle, Trophy, ShieldCheck, RotateCcw, Upload, Settings2, Medal, TrendingUp, Users, Copy, Check } from "lucide-react";
+import { Download, RefreshCw, AlertTriangle, Trophy, ShieldCheck, RotateCcw, Upload, Settings2, Medal, TrendingUp, Users, Copy, Check, DatabaseZap } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { TeamEditDialog } from "@/components/TeamEditDialog";
 import { cn } from "@/lib/utils";
@@ -83,6 +83,7 @@ export default function Dashboard() {
   const [isUploading, setIsUploading] = useState(false);
   const [isCopying, setIsCopying] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [nowStr, setNowStr] = useState(() => {
     const d = new Date();
     return d.toLocaleDateString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit" }).replace(/\. /g, ".").replace(/\.$/, "") +
@@ -174,6 +175,21 @@ export default function Dashboard() {
           toast({ title: "초기화 완료", description: `${name}의 점수가 초기화되었습니다.` });
         }
       });
+    }
+  };
+
+  const handleSyncFromRecords = async () => {
+    if (!confirm(`과태료·사고 현황 데이터를 기준으로 ${year}년 모든 팀 점수를 재동기화하시겠습니까?\n(수기 입력 값은 실제 등록된 레코드 건수로 덮어씁니다)`)) return;
+    setIsSyncing(true);
+    try {
+      const res = await apiRequest("POST", "/api/teams/sync-from-records", { year });
+      const data = await res.json();
+      toast({ title: "재동기화 완료", description: `${data.synced}개 팀의 점수가 과태료·사고 데이터와 동기화되었습니다.` });
+      queryClient.invalidateQueries({ queryKey: ["/api/teams"] });
+    } catch (e: any) {
+      toast({ title: "오류", description: e.message, variant: "destructive" });
+    } finally {
+      setIsSyncing(false);
     }
   };
 
@@ -571,6 +587,20 @@ export default function Dashboard() {
                       <Settings2 className="w-3.5 h-3.5" />
                       현황관리
                     </Button>
+                    {canEditSafetyScores && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5 border-blue-300 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                        onClick={handleSyncFromRecords}
+                        disabled={isSyncing}
+                        title="과태료·사고 현황에서 팀 점수 자동 동기화"
+                        data-testid="button-sync-from-records"
+                      >
+                        {isSyncing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <DatabaseZap className="w-3.5 h-3.5" />}
+                        데이터 연동
+                      </Button>
+                    )}
                   </div>
                 </CardHeader>
               <CardContent className="p-2 sm:p-4 md:p-6 pt-2">
