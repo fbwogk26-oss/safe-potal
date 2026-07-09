@@ -1,4 +1,5 @@
 import { useTeams, useResetTeam, useResetAllTeams } from "@/hooks/use-teams";
+import { useSafetyScoreItems } from "@/hooks/use-safety-score-items";
 import { useHeadquarters } from "@/contexts/HeadquartersContext";
 import { 
   BarChart, 
@@ -35,8 +36,47 @@ import html2canvas from "html2canvas";
 import { Link } from "wouter";
 import { ListChecks } from "lucide-react";
 
+function getTeamItemCount(team: any, key: string): number {
+  const accidents = team.vehicleAccidents || {};
+  switch (key) {
+    case "workAccident": return team.workAccident || 0;
+    case "fineSpeed": return team.fineSpeed || 0;
+    case "fineSignal": return team.fineSignal || 0;
+    case "fineLane": return team.fineLane || 0;
+    case "inspectionMiss": return team.inspectionMiss || 0;
+    case "suggestion": return team.suggestion || 0;
+    case "activity": return team.activity || 0;
+    case "accident_p50_59": return accidents.p50_59 || 0;
+    case "accident_p60_69": return accidents.p60_69 || 0;
+    case "accident_p70_79": return accidents.p70_79 || 0;
+    case "accident_p80_89": return accidents.p80_89 || 0;
+    case "accident_p90_99": return accidents.p90_99 || 0;
+    case "accident_p100": return accidents.p100 || 0;
+    default: return (team.customItemValues || {})[key] || 0;
+  }
+}
+
+function getItemHeadColor(points: number): string {
+  if (points <= -5) return "text-red-600";
+  if (points < 0) return "text-orange-600";
+  if (points > 0) return "text-green-600";
+  return "text-foreground";
+}
+
+function getItemCellColor(points: number): string {
+  if (points <= -5) return "text-red-600 font-bold";
+  if (points < 0) return "text-orange-500";
+  if (points > 0) return "text-green-600 font-medium";
+  return "";
+}
+
 export default function Dashboard() {
   const { headquarters, departments } = useHeadquarters();
+  const { data: scoreItems = [] } = useSafetyScoreItems();
+  const activeItems = useMemo(
+    () => [...scoreItems].filter(i => i.isActive).sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id),
+    [scoreItems]
+  );
   const [showDetailTable, setShowDetailTable] = useState(false);
   const [year, setYear] = useState(2026);
   const [baseVehicleCount, setBaseVehicleCount] = useState(15);
@@ -623,14 +663,16 @@ export default function Dashboard() {
                         <TableRow className="hover:bg-transparent">
                           <TableHead className="w-[80px] sm:w-[100px] font-bold text-foreground py-2 text-xs sm:text-sm sticky left-0 bg-muted/50 z-10">부서</TableHead>
                           <TableHead className="text-center font-bold text-foreground text-xs sm:text-sm py-2 w-12">차량</TableHead>
-                          <TableHead className="text-center font-bold text-red-600 text-xs sm:text-sm py-2 w-16">작업사고</TableHead>
-                          <TableHead className="text-center font-bold text-orange-600 text-xs sm:text-sm py-2 w-16">차량사고</TableHead>
-                          <TableHead className="text-center font-bold text-orange-600 text-xs sm:text-sm py-2 w-16">과속위반</TableHead>
-                          <TableHead className="text-center font-bold text-orange-600 text-xs sm:text-sm py-2 w-16">신호위반</TableHead>
-                          <TableHead className="text-center font-bold text-orange-600 text-xs sm:text-sm py-2 w-16">법규위반</TableHead>
-                          <TableHead className="text-center font-bold text-red-600 text-xs sm:text-sm py-2 w-16">현장점검</TableHead>
-                          <TableHead className="text-center font-bold text-green-600 text-xs sm:text-sm py-2 w-16">우수제안</TableHead>
-                          <TableHead className="text-center font-bold text-green-600 text-xs sm:text-sm py-2 w-16">우수활동</TableHead>
+                          {activeItems.map(item => (
+                            <TableHead
+                              key={item.id}
+                              className={cn("text-center font-bold text-xs sm:text-sm py-2 w-16 leading-tight", getItemHeadColor(item.points))}
+                              title={`${item.label} (${item.points > 0 ? "+" : ""}${item.points}점/건)`}
+                            >
+                              <span className="block truncate max-w-[72px]">{item.label}</span>
+                              <span className="block text-[9px] font-normal opacity-70">{item.points > 0 ? "+" : ""}{item.points}점</span>
+                            </TableHead>
+                          ))}
                           <TableHead className="text-center font-black text-primary text-xs sm:text-sm py-2 w-14">점수</TableHead>
                           <TableHead className="w-[60px] py-2"></TableHead>
                         </TableRow>
@@ -648,16 +690,14 @@ export default function Dashboard() {
                               <span className="text-purple-600 dark:text-purple-400">{team.name.replace('운용팀', 'T')}</span>
                             </TableCell>
                             <TableCell className="text-center font-medium text-sm sm:text-base py-2">{team.vehicleCount}</TableCell>
-                            <TableCell className="text-center text-red-600 font-bold text-sm sm:text-base py-2">{team.workAccident}</TableCell>
-                            <TableCell className="text-center text-orange-600 font-medium text-sm sm:text-base py-2">
-                              {calculateVehicleAccidentCount(team.vehicleAccidents)}
-                            </TableCell>
-                            <TableCell className="text-center text-orange-500 text-sm sm:text-base py-2">{team.fineSpeed}</TableCell>
-                            <TableCell className="text-center text-orange-500 text-sm sm:text-base py-2">{team.fineSignal}</TableCell>
-                            <TableCell className="text-center text-orange-500 text-sm sm:text-base py-2">{team.fineLane}</TableCell>
-                            <TableCell className="text-center text-red-500 font-medium text-sm sm:text-base py-2">{team.inspectionMiss}</TableCell>
-                            <TableCell className="text-center text-green-600 font-medium text-sm sm:text-base py-2">{team.suggestion}</TableCell>
-                            <TableCell className="text-center text-green-600 font-medium text-sm sm:text-base py-2">{team.activity}</TableCell>
+                            {activeItems.map(item => (
+                              <TableCell
+                                key={item.id}
+                                className={cn("text-center text-sm sm:text-base py-2", getItemCellColor(item.points))}
+                              >
+                                {getTeamItemCount(team, item.key)}
+                              </TableCell>
+                            ))}
                             <TableCell className="text-center py-2">
                               <span className={cn(
                                 "inline-flex items-center justify-center w-12 sm:w-14 h-7 rounded-md font-bold text-sm sm:text-base shadow-sm border",
