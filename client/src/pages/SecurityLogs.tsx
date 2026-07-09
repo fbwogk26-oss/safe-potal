@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Shield, Search, RefreshCw, AlertTriangle, CheckCircle, XCircle, Lock, Unlock, Key, LogIn, LogOut } from "lucide-react";
+import { Shield, Search, RefreshCw, AlertTriangle, CheckCircle, XCircle, Lock, Unlock, Key, LogIn, LogOut, Download, Upload, Trash2, Pencil } from "lucide-react";
 
 interface SecurityLog {
   id: string;
@@ -30,6 +30,10 @@ const EVENT_TYPE_LABELS: Record<string, { label: string; icon: typeof Shield; co
   PASSWORD_FORCE_CHANGED: { label: "초기 비밀번호 변경", icon: Key, color: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" },
   PASSWORD_CHANGE_FAILED: { label: "비밀번호 변경 실패", icon: XCircle, color: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200" },
   PASSWORD_ADMIN_RESET: { label: "관리자 비밀번호 초기화", icon: Key, color: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200" },
+  DATA_DOWNLOAD: { label: "데이터 다운로드", icon: Download, color: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200" },
+  DATA_UPLOAD: { label: "데이터 업로드", icon: Upload, color: "bg-violet-100 text-violet-800 dark:bg-violet-900 dark:text-violet-200" },
+  DATA_DELETE: { label: "데이터 삭제", icon: Trash2, color: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200" },
+  DATA_UPDATE: { label: "데이터 수정", icon: Pencil, color: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200" },
 };
 
 export default function SecurityLogs() {
@@ -127,6 +131,10 @@ export default function SecurityLogs() {
             <SelectItem value="ACCOUNT_LOCKED">계정 잠금</SelectItem>
             <SelectItem value="PASSWORD_CHANGED">비밀번호 변경</SelectItem>
             <SelectItem value="PASSWORD_ADMIN_RESET">관리자 초기화</SelectItem>
+            <SelectItem value="DATA_DOWNLOAD">데이터 다운로드</SelectItem>
+            <SelectItem value="DATA_UPLOAD">데이터 업로드</SelectItem>
+            <SelectItem value="DATA_DELETE">데이터 삭제</SelectItem>
+            <SelectItem value="DATA_UPDATE">데이터 수정</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -190,7 +198,7 @@ export default function SecurityLogs() {
                         )}
                       </div>
                       {log.details && (
-                        <p className="text-xs text-muted-foreground mt-0.5 truncate">{log.details}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5 break-all">{log.details}</p>
                       )}
                     </div>
                     <div className="text-right shrink-0">
