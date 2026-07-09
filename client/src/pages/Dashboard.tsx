@@ -688,23 +688,63 @@ export default function Dashboard() {
                     <span className="text-[10px] sm:text-xs text-muted-foreground font-medium">단위: 건수</span>
                   </div>
                   <div className="overflow-x-auto">
-                    <Table className="min-w-[600px]">
-                      <TableHeader className="bg-muted/50">
-                        <TableRow className="hover:bg-transparent">
-                          <TableHead className="w-[80px] sm:w-[100px] font-bold text-foreground py-2 text-xs sm:text-sm sticky left-0 bg-muted/50 z-10">부서</TableHead>
-                          <TableHead className="text-center font-bold text-foreground text-xs sm:text-sm py-2 w-12">차량</TableHead>
-                          {activeItems.map(item => (
-                            <TableHead
-                              key={item.id}
-                              className={cn("text-center font-bold text-xs sm:text-sm py-2 w-16 leading-tight", getItemHeadColor(item.points))}
-                              title={`${item.label} (${item.points > 0 ? "+" : ""}${item.points}점/건)`}
-                            >
-                              <span className="block truncate max-w-[72px]">{item.label}</span>
-                              <span className="block text-[9px] font-normal opacity-70">{item.points > 0 ? "+" : ""}{item.points}점</span>
-                            </TableHead>
-                          ))}
-                          <TableHead className="text-center font-black text-primary text-xs sm:text-sm py-2 w-14">점수</TableHead>
-                          <TableHead className="w-[60px] py-2"></TableHead>
+                    <Table className="min-w-[640px]">
+                      <TableHeader>
+                        <TableRow className="hover:bg-transparent border-b-2 border-border">
+                          {/* 부서 */}
+                          <TableHead className="font-bold text-foreground py-3 px-3 text-xs sm:text-sm sticky left-0 bg-muted/60 z-10 border-r border-border min-w-[72px]">
+                            부서
+                          </TableHead>
+                          {/* 차량 */}
+                          <TableHead className="text-center font-bold text-foreground text-xs py-3 px-1 bg-muted/60 min-w-[36px]">
+                            차량
+                          </TableHead>
+                          {/* 동적 항목 */}
+                          {activeItems.map(item => {
+                            const isNeg = item.points < 0;
+                            const isStrongNeg = item.points <= -5;
+                            const isPos = item.points > 0;
+                            const bgCls = isStrongNeg
+                              ? "bg-red-50 dark:bg-red-950/30"
+                              : isNeg
+                              ? "bg-orange-50 dark:bg-orange-950/20"
+                              : isPos
+                              ? "bg-green-50 dark:bg-green-950/20"
+                              : "bg-muted/60";
+                            const textCls = isStrongNeg
+                              ? "text-red-700 dark:text-red-400"
+                              : isNeg
+                              ? "text-orange-700 dark:text-orange-400"
+                              : isPos
+                              ? "text-green-700 dark:text-green-400"
+                              : "text-foreground";
+                            const ptsCls = isStrongNeg
+                              ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
+                              : isNeg
+                              ? "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300"
+                              : isPos
+                              ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
+                              : "bg-muted text-muted-foreground";
+                            return (
+                              <TableHead
+                                key={item.id}
+                                className={cn("text-center py-3 px-1.5 min-w-[60px]", bgCls)}
+                                title={`${item.label} (${item.points > 0 ? "+" : ""}${item.points}점/건)`}
+                              >
+                                <div className={cn("text-[11px] font-bold leading-tight whitespace-normal break-keep mb-1", textCls)}>
+                                  {item.label}
+                                </div>
+                                <span className={cn("inline-block rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none", ptsCls)}>
+                                  {item.points > 0 ? "+" : ""}{item.points}점
+                                </span>
+                              </TableHead>
+                            );
+                          })}
+                          {/* 점수 */}
+                          <TableHead className="text-center font-black text-primary text-xs sm:text-sm py-3 px-2 bg-primary/5 min-w-[52px] border-l border-border">
+                            점수
+                          </TableHead>
+                          <TableHead className="min-w-[56px] py-3 bg-muted/60"></TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -714,29 +754,46 @@ export default function Dashboard() {
                             initial={{ opacity: 0, x: -10 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ delay: idx * 0.05 }}
-                            className="group border-b last:border-0 hover:bg-muted/20 transition-colors"
+                            className="group border-b last:border-0 hover:bg-muted/30 transition-colors"
                           >
-                            <TableCell className="font-bold py-2 text-sm sm:text-base sticky left-0 bg-card z-10">
-                              <span className="text-purple-600 dark:text-purple-400">{team.name.replace('운용팀', 'T')}</span>
+                            <TableCell className="font-bold py-2.5 px-3 text-sm sticky left-0 bg-card group-hover:bg-muted/30 z-10 border-r border-border transition-colors">
+                              <span className="text-purple-600 dark:text-purple-400 whitespace-nowrap">{team.name.replace('운용팀', 'T')}</span>
                             </TableCell>
-                            <TableCell className="text-center font-medium text-sm sm:text-base py-2">{team.vehicleCount}</TableCell>
-                            {activeItems.map(item => (
-                              <TableCell
-                                key={item.id}
-                                className={cn("text-center text-sm sm:text-base py-2", getItemCellColor(item.points))}
-                              >
-                                {getTeamItemCount(team, item.key)}
-                              </TableCell>
-                            ))}
-                            <TableCell className="text-center py-2">
+                            <TableCell className="text-center font-medium text-sm py-2.5 px-1 text-muted-foreground">{team.vehicleCount}</TableCell>
+                            {activeItems.map(item => {
+                              const count = getTeamItemCount(team, item.key);
+                              const hasValue = count !== 0;
+                              const isNeg = item.points < 0;
+                              const isStrongNeg = item.points <= -5;
+                              const isPos = item.points > 0;
+                              const cellCls = hasValue
+                                ? isStrongNeg
+                                  ? "text-red-600 dark:text-red-400 font-bold bg-red-50/60 dark:bg-red-950/20"
+                                  : isNeg
+                                  ? "text-orange-600 dark:text-orange-400 font-semibold bg-orange-50/40 dark:bg-orange-950/10"
+                                  : isPos
+                                  ? "text-green-600 dark:text-green-400 font-semibold bg-green-50/40 dark:bg-green-950/10"
+                                  : ""
+                                : "text-muted-foreground/50";
+                              return (
+                                <TableCell
+                                  key={item.id}
+                                  className={cn("text-center text-sm py-2.5 px-1 tabular-nums transition-colors", cellCls)}
+                                >
+                                  {count}
+                                </TableCell>
+                              );
+                            })}
+                            <TableCell className="text-center py-2.5 px-2 border-l border-border">
                               <span className={cn(
-                                "inline-flex items-center justify-center w-12 sm:w-14 h-7 rounded-md font-bold text-sm sm:text-base shadow-sm border",
+                                "inline-flex items-center justify-center min-w-[44px] h-7 rounded-lg font-black text-sm shadow-sm border-2",
                                 getScoreBadge(team.totalScore)
                               )}>
                                 {team.totalScore}
                               </span>
                             </TableCell>
-                            <TableCell className="pr-2 text-right flex items-center justify-end gap-0.5">
+                            <TableCell className="pr-2 py-2.5">
+                              <div className="flex items-center justify-end gap-0.5">
                               {canEditSafetyScores && (
                                 <>
                                   <Button 
@@ -752,6 +809,7 @@ export default function Dashboard() {
                                   <TeamEditDialog team={team} disabled={false} />
                                 </>
                               )}
+                              </div>
                             </TableCell>
                           </motion.tr>
                         ))}
