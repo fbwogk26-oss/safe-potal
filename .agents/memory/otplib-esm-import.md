@@ -1,22 +1,27 @@
 ---
-name: otplib ESM import 방법
-description: otplib 패키지를 ESM(tsx/Node ESM) 환경에서 사용하는 방법
+name: otplib v12 API 변경 및 import 방법
+description: otplib 새 버전의 API 변경점과 ESM/CJS 호환 import 방법
 ---
 
-# otplib ESM import 방법
+# otplib v12+ API 및 import
 
 ## 규칙
 
-`import { authenticator } from "otplib"` 및 `import otplib from "otplib"` 모두 ESM 모드에서 오류 발생.
+`authenticator` 객체는 otplib 새 버전에서 **완전 제거**됨. 함수형 API로 교체 필요.
 
-올바른 방법은 `createRequire`를 사용해 CJS 방식으로 로드:
-
+올바른 import (ESM tsx dev + esbuild CJS prod 모두 동작):
 ```ts
-import { createRequire } from "module";
-const _require = createRequire(import.meta.url);
-const { authenticator } = _require("otplib") as { authenticator: typeof import("otplib").authenticator };
+import { verifySync as totpVerifySync, generateSecret as totpGenerateSecret, generateURI as totpGenerateURI } from "otplib";
 ```
 
-**Why:** otplib은 CommonJS 패키지로, ESM named export / default export를 제공하지 않음. tsx가 ESM 모드로 실행하면 `SyntaxError: The requested module 'otplib' does not provide an export named ...` 오류 발생.
+## API 매핑 (구 → 신)
 
-**How to apply:** otplib의 authenticator, totp, hotp 등 어떤 export를 쓰든 동일하게 createRequire 패턴 사용.
+| 구 API | 신 API |
+|--------|--------|
+| `authenticator.verify({ token, secret })` | `totpVerifySync({ strategy: "totp", token, secret })` |
+| `authenticator.generateSecret()` | `totpGenerateSecret()` |
+| `authenticator.keyuri(user, issuer, secret)` | `totpGenerateURI({ strategy: "totp", issuer, label: user, secret })` |
+
+**Why:** `createRequire(import.meta.url)` 방식은 esbuild CJS 번들에서 `import.meta.url`이 undefined가 되어 `ERR_INVALID_ARG_VALUE`로 실패함. 또한 `authenticator` 자체가 새 버전에서 제거됨. Named import로 직접 쓰면 esbuild가 자동으로 CJS require로 변환해서 양쪽 모두 동작.
+
+**How to apply:** TOTP 관련 로직 어디서든 위 함수형 API를 사용. strategy: "totp" 는 항상 명시.

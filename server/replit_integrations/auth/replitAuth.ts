@@ -7,9 +7,7 @@ import crypto from "crypto";
 import { db } from "../../db";
 import { settings } from "@shared/schema";
 import { eq } from "drizzle-orm";
-import { createRequire } from "module";
-const _require = createRequire(import.meta.url);
-const { authenticator } = _require("otplib") as { authenticator: typeof import("otplib").authenticator };
+import { verifySync as totpVerifySync, generateSecret as totpGenerateSecret, generateURI as totpGenerateURI } from "otplib";
 import QRCode from "qrcode";
 
 async function loadOrCreateSessionSecret(): Promise<string> {
@@ -178,7 +176,7 @@ export async function setupAuth(app: Express) {
         return res.status(401).json({ message: "2차 인증 정보가 없습니다" });
       }
 
-      const isValid = authenticator.verify({ token: String(code).replace(/\s/g, ""), secret: user.totpSecret });
+      const isValid = totpVerifySync({ strategy: "totp", token: String(code).replace(/\s/g, ""), secret: user.totpSecret });
       if (!isValid) {
         await logSecurityEvent("TOTP_VERIFY_FAILED", req, "2차 인증 코드 오류", false, user.id, user.username);
         return res.status(401).json({ message: "인증 코드가 올바르지 않습니다" });
@@ -220,8 +218,8 @@ export async function setupAuth(app: Express) {
     try {
       const user = await authStorage.getUser(session.userId);
       if (!user) return res.status(401).json({ message: "사용자를 찾을 수 없습니다" });
-      const secret = authenticator.generateSecret();
-      const otpauth = authenticator.keyuri(user.username, "SafeBoard", secret);
+      const secret = totpGenerateSecret();
+      const otpauth = totpGenerateURI({ strategy: "totp", issuer: "SafeBoard", label: user.username, secret });
       const qrDataUrl = await QRCode.toDataURL(otpauth);
       await authStorage.updateUser(user.id, { totpSecret: secret, totpEnabled: false });
       res.json({ secret, qrDataUrl });
@@ -240,7 +238,7 @@ export async function setupAuth(app: Express) {
       if (!code) return res.status(400).json({ message: "인증 코드를 입력해주세요" });
       const user = await authStorage.getUser(session.userId);
       if (!user || !user.totpSecret) return res.status(400).json({ message: "먼저 2차 인증을 설정해주세요" });
-      const isValid = authenticator.verify({ token: String(code).replace(/\s/g, ""), secret: user.totpSecret });
+      const isValid = totpVerifySync({ strategy: "totp", token: String(code).replace(/\s/g, ""), secret: user.totpSecret });
       if (!isValid) return res.status(400).json({ message: "인증 코드가 올바르지 않습니다" });
       await authStorage.updateUser(user.id, { totpEnabled: true });
       await logSecurityEvent("TOTP_ENABLED", req, "2차 인증 활성화", true, user.id, user.username);
