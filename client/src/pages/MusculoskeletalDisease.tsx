@@ -633,6 +633,11 @@ export default function MusculoskeletalDisease() {
       toast({ variant: "destructive", title: "부서를 선택하세요." });
       return;
     }
+    // 중간/높음이면 스크리닝 필수
+    if (form.riskLevel !== "낮음" && form.hasSymptoms === null) {
+      toast({ variant: "destructive", title: "1단계 완료 스크리닝을 선택하세요. (예/아니오)" });
+      return;
+    }
     // 스크리닝 질문에 답했을 때 상태 자동 전이
     let finalForm = { ...form };
     if (form.hasSymptoms === false) {
@@ -1324,7 +1329,15 @@ export default function MusculoskeletalDisease() {
               <div className="flex gap-1.5">
                 <Select
                   value={form.riskLevel}
-                  onValueChange={v => { updateField("riskLevel", v); setRiskManual(true); }}
+                  onValueChange={v => {
+                    setRiskManual(true);
+                    setForm(prev => ({
+                      ...prev,
+                      riskLevel: v,
+                      // 낮음이면 자동으로 증상없음, 중간/높음이면 자동 설정 해제
+                      hasSymptoms: v === "낮음" ? false : (prev.hasSymptoms === false && prev.riskLevel === "낮음" ? null : prev.hasSymptoms),
+                    }));
+                  }}
                 >
                   <SelectTrigger data-testid="select-risk-level" className="flex-1 h-9">
                     <SelectValue placeholder="위험수준 선택" />
@@ -1342,8 +1355,8 @@ export default function MusculoskeletalDisease() {
               </div>
             </div>
 
-            {/* 평가자 / 평가일 / 상태 — 한 줄 */}
-            <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {/* 평가자 / 평가일 — 한 줄 */}
+            <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-sm">평가자</Label>
                 <Input
@@ -1368,52 +1381,46 @@ export default function MusculoskeletalDisease() {
                   data-testid="input-assessment-date"
                 />
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-sm">상태</Label>
-                <Select value={form.status} onValueChange={v => updateField("status", v)}>
-                  <SelectTrigger data-testid="select-status" className="h-9">
-                    <SelectValue placeholder="상태 선택" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {/* 수동 편집 가능 상태만 표시 (나머지는 자동 전이) */}
-                    {STATUS_MANUAL_OPTIONS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                    {/* 자동 전이 상태도 수정 모드에서 현재 상태 유지를 위해 포함 */}
-                    {!STATUS_MANUAL_OPTIONS.includes(form.status) && (
-                      <SelectItem value={form.status}>{form.status}</SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
           </div>
 
           {/* ── 1단계 완료 스크리닝 질문 ─────────────────────────────── */}
           <div className="border-t border-border pt-3 mt-1 space-y-3">
             <Label className="text-sm font-semibold flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-orange-500" />
-              1단계 완료 스크리닝 (선택)
+              <AlertTriangle className={`w-4 h-4 ${form.riskLevel === "낮음" ? "text-green-500" : "text-orange-500"}`} />
+              1단계 완료 스크리닝
+              {form.riskLevel === "낮음" ? (
+                <span className="text-xs font-normal text-green-600 dark:text-green-400">(위험수준 낮음 — 자동 종결)</span>
+              ) : (
+                <span className="text-xs font-normal text-red-500">* 필수</span>
+              )}
             </Label>
             <p className="text-xs text-muted-foreground">
               해당 작업 근로자 중 근골격계 증상(통증·저림 등)을 호소하는 인원이 있습니까?
             </p>
             <div className="flex gap-2">
               <Button
-                type="button" variant={form.hasSymptoms === false ? "default" : "outline"}
+                type="button"
+                variant={form.hasSymptoms === false ? "default" : "outline"}
                 className={`h-8 text-xs px-4 ${form.hasSymptoms === false ? "bg-green-600 text-white" : ""}`}
                 onClick={() => updateField("hasSymptoms", false)}
+                disabled={form.riskLevel === "낮음"}
                 data-testid="button-no-symptoms"
               >
                 아니오 (증상 없음 → 종결)
               </Button>
-              <Button
-                type="button" variant={form.hasSymptoms === true ? "default" : "outline"}
-                className={`h-8 text-xs px-4 ${form.hasSymptoms === true ? "bg-orange-600 text-white" : ""}`}
-                onClick={() => updateField("hasSymptoms", true)}
-                data-testid="button-has-symptoms"
-              >
-                예 (증상 있음 → 2단계 진행)
-              </Button>
-              {form.hasSymptoms !== null && (
+              {form.riskLevel !== "낮음" && (
+                <Button
+                  type="button"
+                  variant={form.hasSymptoms === true ? "default" : "outline"}
+                  className={`h-8 text-xs px-4 ${form.hasSymptoms === true ? "bg-orange-600 text-white" : ""}`}
+                  onClick={() => updateField("hasSymptoms", true)}
+                  data-testid="button-has-symptoms"
+                >
+                  예 (증상 있음 → 2단계 진행)
+                </Button>
+              )}
+              {form.hasSymptoms !== null && form.riskLevel !== "낮음" && (
                 <Button type="button" variant="ghost" className="h-8 text-xs"
                   onClick={() => updateField("hasSymptoms", null)}>
                   <X className="w-3.5 h-3.5 mr-1" />미선택
