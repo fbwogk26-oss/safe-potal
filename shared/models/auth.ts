@@ -65,6 +65,17 @@ export interface UserPermissions {
   editSubcontract: boolean;
   viewAttendance: boolean;
   editAttendance: boolean;
+  viewNearMiss: boolean;
+  viewDrillTraining: boolean;
+  viewSafetyManagerReports: boolean;
+  viewSafetyCostBudget: boolean;
+  viewAisSafetyRate: boolean;
+  viewHealthManagerReports: boolean;
+  viewHeatWaveChecklist: boolean;
+  viewWorkPlan: boolean;
+  viewSafetyCommittee: boolean;
+  viewJointInspection: boolean;
+  viewTrafficFines: boolean;
 }
 
 export const DEFAULT_PERMISSIONS: UserPermissions = {
@@ -121,6 +132,17 @@ export const DEFAULT_PERMISSIONS: UserPermissions = {
   editSubcontract: false,
   viewAttendance: true,
   editAttendance: false,
+  viewNearMiss: true,
+  viewDrillTraining: true,
+  viewSafetyManagerReports: true,
+  viewSafetyCostBudget: true,
+  viewAisSafetyRate: true,
+  viewHealthManagerReports: true,
+  viewHeatWaveChecklist: true,
+  viewWorkPlan: true,
+  viewSafetyCommittee: true,
+  viewJointInspection: true,
+  viewTrafficFines: true,
 };
 
 export const ALL_PERMISSIONS: UserPermissions = {
@@ -177,6 +199,17 @@ export const ALL_PERMISSIONS: UserPermissions = {
   editSubcontract: true,
   viewAttendance: true,
   editAttendance: true,
+  viewNearMiss: true,
+  viewDrillTraining: true,
+  viewSafetyManagerReports: true,
+  viewSafetyCostBudget: true,
+  viewAisSafetyRate: true,
+  viewHealthManagerReports: true,
+  viewHeatWaveChecklist: true,
+  viewWorkPlan: true,
+  viewSafetyCommittee: true,
+  viewJointInspection: true,
+  viewTrafficFines: true,
 };
 
 export const users = pgTable("users", {

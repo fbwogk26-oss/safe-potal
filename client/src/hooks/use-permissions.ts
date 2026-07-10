@@ -62,6 +62,17 @@ export interface Permissions {
   canEditSubcontract: boolean;
   canViewAttendance: boolean;
   canEditAttendance: boolean;
+  canViewNearMiss: boolean;
+  canViewDrillTraining: boolean;
+  canViewSafetyManagerReports: boolean;
+  canViewSafetyCostBudget: boolean;
+  canViewAisSafetyRate: boolean;
+  canViewHealthManagerReports: boolean;
+  canViewHeatWaveChecklist: boolean;
+  canViewWorkPlan: boolean;
+  canViewSafetyCommittee: boolean;
+  canViewJointInspection: boolean;
+  canViewTrafficFines: boolean;
 }
 
 interface PermissionsResponse {
@@ -139,6 +150,17 @@ export function usePermissions(): Permissions & { isLoading: boolean } {
     canEditSubcontract: isAdmin || !!perms?.editSubcontract,
     canViewAttendance: isAdmin || !!perms?.viewAttendance,
     canEditAttendance: isAdmin || !!perms?.editAttendance,
+    canViewNearMiss: isAdmin || (perms?.viewNearMiss !== undefined ? !!perms.viewNearMiss : !!perms?.viewAccidents),
+    canViewDrillTraining: isAdmin || (perms?.viewDrillTraining !== undefined ? !!perms.viewDrillTraining : !!perms?.viewAccidents),
+    canViewSafetyManagerReports: isAdmin || (perms?.viewSafetyManagerReports !== undefined ? !!perms.viewSafetyManagerReports : !!perms?.viewInspections),
+    canViewSafetyCostBudget: isAdmin || (perms?.viewSafetyCostBudget !== undefined ? !!perms.viewSafetyCostBudget : !!perms?.viewInspections),
+    canViewAisSafetyRate: isAdmin || (perms?.viewAisSafetyRate !== undefined ? !!perms.viewAisSafetyRate : true),
+    canViewHealthManagerReports: isAdmin || (perms?.viewHealthManagerReports !== undefined ? !!perms.viewHealthManagerReports : !!perms?.viewMusculoskeletal),
+    canViewHeatWaveChecklist: isAdmin || (perms?.viewHeatWaveChecklist !== undefined ? !!perms.viewHeatWaveChecklist : !!perms?.viewMusculoskeletal),
+    canViewWorkPlan: isAdmin || (perms?.viewWorkPlan !== undefined ? !!perms.viewWorkPlan : !!perms?.viewSubcontract),
+    canViewSafetyCommittee: isAdmin || (perms?.viewSafetyCommittee !== undefined ? !!perms.viewSafetyCommittee : !!perms?.viewSubcontract),
+    canViewJointInspection: isAdmin || (perms?.viewJointInspection !== undefined ? !!perms.viewJointInspection : !!perms?.viewSubcontract),
+    canViewTrafficFines: isAdmin || (perms?.viewTrafficFines !== undefined ? !!perms.viewTrafficFines : !!perms?.viewVehicle),
   };
 }
 
@@ -196,17 +218,45 @@ export const PERMISSION_LABELS: Record<keyof UserPermissions, string> = {
   editSubcontract: "하도급 작업계획 편집",
   viewAttendance: "입회 관리",
   editAttendance: "입회 관리 편집",
+  viewNearMiss: "아차사고 관리",
+  viewDrillTraining: "비상사태 대응훈련",
+  viewSafetyManagerReports: "안전관리자 보고서",
+  viewSafetyCostBudget: "산업안전보건관리비",
+  viewAisSafetyRate: "AIS 안전이행률",
+  viewHealthManagerReports: "보건관리자 보고서",
+  viewHeatWaveChecklist: "폭염 일일 체크리스트",
+  viewWorkPlan: "하도급 작업계획",
+  viewSafetyCommittee: "산업안전보건협의체",
+  viewJointInspection: "합동안전보건점검",
+  viewTrafficFines: "과태료 현황",
 };
 
 export const PERMISSION_CATEGORIES: { label: string; keys: (keyof UserPermissions)[] }[] = [
   {
-    label: "메뉴 표시",
+    label: "안전관리 메뉴",
     keys: [
-      "viewDashboard", "viewNotices", "viewDigitalBoard", "viewRules",
-      "viewAccidents", "viewEquipmentStatus", "viewEquipment", "viewEducation",
-      "viewEducationLogs", "viewInspections", "viewRiskAssessment", "viewMsds",
-      "viewMusculoskeletal", "viewVehicle", "viewVehicleLogs", "viewAccess",
-      "viewSubcontract", "viewAttendance",
+      "viewDashboard", "viewAccidents", "viewNearMiss", "viewRiskAssessment",
+      "viewInspections", "viewEquipmentStatus", "viewEquipment",
+      "viewSafetyManagerReports", "viewSafetyCostBudget", "viewAisSafetyRate", "viewDrillTraining",
+    ],
+  },
+  {
+    label: "교육/공지 메뉴",
+    keys: [
+      "viewNotices", "viewDigitalBoard", "viewRules", "viewEducation", "viewEducationLogs",
+    ],
+  },
+  {
+    label: "보건관리 메뉴",
+    keys: [
+      "viewMsds", "viewMusculoskeletal", "viewHealthManagerReports", "viewHeatWaveChecklist",
+    ],
+  },
+  {
+    label: "하도급/차량 메뉴",
+    keys: [
+      "viewSubcontract", "viewWorkPlan", "viewSafetyCommittee", "viewJointInspection",
+      "viewAttendance", "viewVehicle", "viewVehicleLogs", "viewTrafficFines", "viewAccess",
     ],
   },
   {
