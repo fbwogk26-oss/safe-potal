@@ -3,12 +3,10 @@ import type { Express, RequestHandler } from "express";
 import connectPg from "connect-pg-simple";
 import { authStorage } from "./storage";
 import { logSecurityEvent, MAX_LOGIN_ATTEMPTS, LOCK_DURATION_MINUTES, generateSessionSecret } from "../../security";
-import crypto from "crypto";
 import { db } from "../../db";
 import { settings } from "@shared/schema";
 import { eq } from "drizzle-orm";
-import { verifySync as totpVerifySync, generateSecret as totpGenerateSecret, generateURI as totpGenerateURI } from "otplib";
-import QRCode from "qrcode";
+import bcrypt from "bcryptjs";
 
 async function loadOrCreateSessionSecret(): Promise<string> {
   if (process.env.SESSION_SECRET) return process.env.SESSION_SECRET;
@@ -25,7 +23,7 @@ async function loadOrCreateSessionSecret(): Promise<string> {
 }
 
 function buildSession(secret: string) {
-  const sessionTtl = 60 * 60 * 1000; // 1시간 무활동 시 자동 세션 만료 (rolling: 활동 중에는 갱신됨)
+  const sessionTtl = 60 * 60 * 1000;
   const pgStore = connectPg(session);
   const sessionStore = new pgStore({
     conString: process.env.DATABASE_URL,
@@ -115,7 +113,7 @@ export async function setupAuth(app: Express) {
         }
       }
 
-      // 2차 인증(TOTP)이 활성화된 경우, pending 상태로 전환
+      // 2차 인증(PIN)이 활성화된 경우 pending 상태로 전환
       if (user.totpEnabled && user.totpSecret) {
         req.session.regenerate((err) => {
           if (err) return res.status(500).json({ message: "로그인에 실패했습니다" });
@@ -161,7 +159,7 @@ export async function setupAuth(app: Express) {
     }
   });
 
-  // TOTP 2차 인증 검증 (로그인 중 pending 상태에서 호출)
+  // 2차 인증 PIN 검증 (로그인 중 pending 상태에서 호출)
   app.post("/api/auth/totp/verify-login", async (req, res) => {
     const pendingUserId = (req.session as any).pendingTotpUserId;
     if (!pendingUserId) {
@@ -169,17 +167,18 @@ export async function setupAuth(app: Express) {
     }
     try {
       const { code } = req.body;
-      if (!code) return res.status(400).json({ message: "인증 코드를 입력해주세요" });
+      if (!code) return res.status(400).json({ message: "PIN을 입력해주세요" });
 
       const user = await authStorage.getUser(pendingUserId);
       if (!user || !user.totpEnabled || !user.totpSecret) {
         return res.status(401).json({ message: "2차 인증 정보가 없습니다" });
       }
 
-      const isValid = totpVerifySync({ strategy: "totp", token: String(code).replace(/\s/g, ""), secret: user.totpSecret });
+      const pin = String(code).replace(/\D/g, "");
+      const isValid = await bcrypt.compare(pin, user.totpSecret);
       if (!isValid) {
-        await logSecurityEvent("TOTP_VERIFY_FAILED", req, "2차 인증 코드 오류", false, user.id, user.username);
-        return res.status(401).json({ message: "인증 코드가 올바르지 않습니다" });
+        await logSecurityEvent("TOTP_VERIFY_FAILED", req, "2차 인증 PIN 오류", false, user.id, user.username);
+        return res.status(401).json({ message: "PIN이 올바르지 않습니다" });
       }
 
       await authStorage.updateLoginAttempts(user.id, {
@@ -206,50 +205,35 @@ export async function setupAuth(app: Express) {
         mustChangePassword: user.mustChangePassword,
       });
     } catch (error) {
-      console.error("TOTP verify error:", error);
+      console.error("PIN verify error:", error);
       res.status(500).json({ message: "2차 인증에 실패했습니다" });
     }
   });
 
-  // TOTP 설정 준비 (QR 코드 생성)
-  app.get("/api/auth/totp/setup", async (req, res) => {
-    const session = req.session as any;
-    if (!session.userId) return res.status(401).json({ message: "로그인이 필요합니다" });
-    try {
-      const user = await authStorage.getUser(session.userId);
-      if (!user) return res.status(401).json({ message: "사용자를 찾을 수 없습니다" });
-      const secret = totpGenerateSecret();
-      const otpauth = totpGenerateURI({ strategy: "totp", issuer: "SafeBoard", label: user.username, secret });
-      const qrDataUrl = await QRCode.toDataURL(otpauth);
-      await authStorage.updateUser(user.id, { totpSecret: secret, totpEnabled: false });
-      res.json({ secret, qrDataUrl });
-    } catch (error) {
-      console.error("TOTP setup error:", error);
-      res.status(500).json({ message: "2차 인증 설정에 실패했습니다" });
-    }
-  });
-
-  // TOTP 활성화 (코드 검증 후)
+  // 2차 인증 PIN 활성화 (6자리 PIN을 bcrypt 해시로 저장)
   app.post("/api/auth/totp/enable", async (req, res) => {
     const session = req.session as any;
     if (!session.userId) return res.status(401).json({ message: "로그인이 필요합니다" });
     try {
       const { code } = req.body;
-      if (!code) return res.status(400).json({ message: "인증 코드를 입력해주세요" });
+      if (!code) return res.status(400).json({ message: "PIN을 입력해주세요" });
+      const pin = String(code).replace(/\D/g, "");
+      if (pin.length !== 6) return res.status(400).json({ message: "6자리 숫자 PIN을 입력해주세요" });
+
       const user = await authStorage.getUser(session.userId);
-      if (!user || !user.totpSecret) return res.status(400).json({ message: "먼저 2차 인증을 설정해주세요" });
-      const isValid = totpVerifySync({ strategy: "totp", token: String(code).replace(/\s/g, ""), secret: user.totpSecret });
-      if (!isValid) return res.status(400).json({ message: "인증 코드가 올바르지 않습니다" });
-      await authStorage.updateUser(user.id, { totpEnabled: true });
-      await logSecurityEvent("TOTP_ENABLED", req, "2차 인증 활성화", true, user.id, user.username);
+      if (!user) return res.status(401).json({ message: "사용자를 찾을 수 없습니다" });
+
+      const hashedPin = await bcrypt.hash(pin, 10);
+      await authStorage.updateUser(user.id, { totpSecret: hashedPin, totpEnabled: true });
+      await logSecurityEvent("TOTP_ENABLED", req, "2차 인증(PIN) 활성화", true, user.id, user.username);
       res.json({ message: "2차 인증이 활성화되었습니다" });
     } catch (error) {
-      console.error("TOTP enable error:", error);
+      console.error("PIN enable error:", error);
       res.status(500).json({ message: "2차 인증 활성화에 실패했습니다" });
     }
   });
 
-  // TOTP 비활성화
+  // 2차 인증 비활성화
   app.post("/api/auth/totp/disable", async (req, res) => {
     const session = req.session as any;
     if (!session.userId) return res.status(401).json({ message: "로그인이 필요합니다" });
@@ -261,15 +245,15 @@ export async function setupAuth(app: Express) {
       const isValid = await authStorage.verifyPassword(password, user.password);
       if (!isValid) return res.status(400).json({ message: "비밀번호가 올바르지 않습니다" });
       await authStorage.updateUser(user.id, { totpEnabled: false, totpSecret: null });
-      await logSecurityEvent("TOTP_DISABLED", req, "2차 인증 비활성화", true, user.id, user.username);
+      await logSecurityEvent("TOTP_DISABLED", req, "2차 인증(PIN) 비활성화", true, user.id, user.username);
       res.json({ message: "2차 인증이 비활성화되었습니다" });
     } catch (error) {
-      console.error("TOTP disable error:", error);
+      console.error("PIN disable error:", error);
       res.status(500).json({ message: "2차 인증 비활성화에 실패했습니다" });
     }
   });
 
-  // 현재 사용자 TOTP 상태 조회
+  // 현재 사용자 2차 인증 상태 조회
   app.get("/api/auth/totp/status", async (req, res) => {
     const session = req.session as any;
     if (!session.userId) return res.status(401).json({ message: "로그인이 필요합니다" });

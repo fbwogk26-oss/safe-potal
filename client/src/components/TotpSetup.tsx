@@ -8,37 +8,24 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter,
   DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
-import { Shield, ShieldCheck, ShieldOff, Loader2, Copy, CheckCircle } from "lucide-react";
+import { Shield, ShieldCheck, ShieldOff, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function TotpSetup() {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<"status" | "setup" | "disable">("status");
-  const [code, setCode] = useState("");
+  const [pin, setPin] = useState("");
+  const [pinConfirm, setPinConfirm] = useState("");
   const [password, setPassword] = useState("");
-  const [setupData, setSetupData] = useState<{ secret: string; qrDataUrl: string } | null>(null);
-  const [copied, setCopied] = useState(false);
 
   const { data: totpStatus, isLoading } = useQuery<{ totpEnabled: boolean }>({
     queryKey: ["/api/auth/totp/status"],
   });
 
-  const setupMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("GET", "/api/auth/totp/setup");
-      return res.json() as Promise<{ secret: string; qrDataUrl: string }>;
-    },
-    onSuccess: (data) => {
-      setSetupData(data);
-      setStep("setup");
-    },
-    onError: () => toast({ variant: "destructive", title: "설정 준비에 실패했습니다" }),
-  });
-
   const enableMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/auth/totp/enable", { code: code.trim() });
+      const res = await apiRequest("POST", "/api/auth/totp/enable", { code: pin });
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.message);
@@ -72,20 +59,14 @@ export default function TotpSetup() {
 
   function resetState() {
     setStep("status");
-    setCode("");
+    setPin("");
+    setPinConfirm("");
     setPassword("");
-    setSetupData(null);
-    setCopied(false);
-  }
-
-  function copySecret() {
-    if (!setupData) return;
-    navigator.clipboard.writeText(setupData.secret);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
   }
 
   const totpEnabled = totpStatus?.totpEnabled ?? false;
+  const pinMismatch = pinConfirm.length === 6 && pin !== pinConfirm;
+  const canEnable = pin.length === 6 && pinConfirm.length === 6 && pin === pinConfirm && !enableMutation.isPending;
 
   return (
     <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetState(); }}>
@@ -100,9 +81,9 @@ export default function TotpSetup() {
       </DialogTrigger>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>2차 인증 (TOTP)</DialogTitle>
+          <DialogTitle>2차 인증 (PIN)</DialogTitle>
           <DialogDescription>
-            Google Authenticator 등의 앱으로 로그인 시 추가 보안을 적용합니다
+            로그인 시 6자리 PIN으로 추가 보안을 적용합니다
           </DialogDescription>
         </DialogHeader>
 
@@ -121,7 +102,7 @@ export default function TotpSetup() {
                   현재 상태: {totpEnabled ? "활성화됨" : "비활성화"}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {totpEnabled ? "로그인 시 2차 인증 코드가 필요합니다" : "비밀번호만으로 로그인됩니다"}
+                  {totpEnabled ? "로그인 시 PIN 입력이 필요합니다" : "비밀번호만으로 로그인됩니다"}
                 </p>
               </div>
               <Badge variant={totpEnabled ? "default" : "secondary"} className="ml-auto">
@@ -134,45 +115,53 @@ export default function TotpSetup() {
                   2차 인증 비활성화
                 </Button>
               ) : (
-                <Button onClick={() => setupMutation.mutate()} disabled={setupMutation.isPending}>
-                  {setupMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                <Button onClick={() => setStep("setup")}>
                   2차 인증 설정 시작
                 </Button>
               )}
             </DialogFooter>
           </div>
-        ) : step === "setup" && setupData ? (
+        ) : step === "setup" ? (
           <div className="space-y-4 py-2">
             <p className="text-sm text-muted-foreground">
-              Google Authenticator 앱으로 아래 QR 코드를 스캔하거나, 비밀키를 직접 입력하세요.
+              로그인 시 사용할 6자리 PIN을 설정하세요. 숫자만 입력 가능합니다.
             </p>
-            <div className="flex justify-center">
-              <img src={setupData.qrDataUrl} alt="QR 코드" className="w-44 h-44 rounded-lg border" />
-            </div>
-            <div className="flex items-center gap-2 p-2 bg-muted rounded text-xs font-mono break-all">
-              <span className="flex-1">{setupData.secret}</span>
-              <Button variant="ghost" size="icon" className="h-6 w-6 flex-shrink-0" onClick={copySecret}>
-                {copied ? <CheckCircle className="w-3 h-3 text-green-600" /> : <Copy className="w-3 h-3" />}
-              </Button>
-            </div>
             <div className="space-y-2">
-              <p className="text-sm font-medium">앱에 표시된 6자리 코드 입력</p>
+              <p className="text-sm font-medium">새 PIN (6자리)</p>
               <Input
-                type="text"
+                type="password"
                 inputMode="numeric"
-                placeholder="000000"
-                value={code}
-                onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                placeholder="••••••"
+                value={pin}
+                onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
                 className="text-center text-xl tracking-widest font-mono"
                 maxLength={6}
-                data-testid="input-totp-enable-code"
+                autoFocus
+                data-testid="input-totp-pin"
               />
+            </div>
+            <div className="space-y-2">
+              <p className="text-sm font-medium">PIN 확인</p>
+              <Input
+                type="password"
+                inputMode="numeric"
+                placeholder="••••••"
+                value={pinConfirm}
+                onChange={(e) => setPinConfirm(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                className={`text-center text-xl tracking-widest font-mono ${pinMismatch ? "border-red-500" : ""}`}
+                maxLength={6}
+                data-testid="input-totp-pin-confirm"
+              />
+              {pinMismatch && (
+                <p className="text-xs text-red-500">PIN이 일치하지 않습니다</p>
+              )}
             </div>
             <DialogFooter className="gap-2 sm:gap-0">
               <Button variant="outline" onClick={() => setStep("status")}>취소</Button>
               <Button
                 onClick={() => enableMutation.mutate()}
-                disabled={code.length !== 6 || enableMutation.isPending}
+                disabled={!canEnable}
+                data-testid="button-totp-enable"
               >
                 {enableMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
                 활성화
@@ -182,7 +171,7 @@ export default function TotpSetup() {
         ) : step === "disable" ? (
           <div className="space-y-4 py-2">
             <p className="text-sm text-muted-foreground">
-              2차 인증을 비활성화하려면 현재 비밀번호를 입력하세요.
+              2차 인증을 비활성화하려면 현재 로그인 비밀번호를 입력하세요.
             </p>
             <Input
               type="password"

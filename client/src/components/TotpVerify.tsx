@@ -13,14 +13,14 @@ export default function TotpVerify() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!code.trim()) return;
+    if (code.length !== 6) return;
     try {
       await totpVerify({ code: code.trim() });
     } catch (err: any) {
       toast({
         variant: "destructive",
         title: "인증 실패",
-        description: err?.message || "인증 코드가 올바르지 않습니다",
+        description: err?.message || "PIN이 올바르지 않습니다",
       });
       setCode("");
     }
@@ -37,15 +37,15 @@ export default function TotpVerify() {
           </div>
           <CardTitle>2차 인증</CardTitle>
           <CardDescription>
-            Google Authenticator 앱의 6자리 코드를 입력하세요
+            설정한 6자리 PIN을 입력하세요
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <Input
-              type="text"
+              type="password"
               inputMode="numeric"
-              placeholder="000000"
+              placeholder="••••••"
               value={code}
               onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
               className="text-center text-2xl tracking-widest font-mono"
