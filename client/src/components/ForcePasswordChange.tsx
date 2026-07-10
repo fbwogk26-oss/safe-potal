@@ -2,10 +2,11 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { Lock, Eye, EyeOff, ShieldAlert, Check, X } from "lucide-react";
-import { motion } from "framer-motion";
+import { Lock, Eye, EyeOff, ShieldAlert, Check, X, Shield, ShieldCheck, ArrowRight } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
+import { useToast } from "@/hooks/use-toast";
 
 function PasswordStrength({ password }: { password: string }) {
   const checks = [
@@ -15,18 +16,16 @@ function PasswordStrength({ password }: { password: string }) {
     { label: "특수문자 포함", pass: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password) },
   ];
   const passCount = checks.filter(c => c.pass).length;
-  
   if (!password) return null;
-  
   return (
     <div className="space-y-1.5 mt-2">
       <div className="flex gap-1">
         {[0,1,2,3].map(i => (
           <div key={i} className={`h-1 flex-1 rounded-full transition-colors ${
-            i < passCount 
-              ? passCount <= 1 ? "bg-red-500" 
-              : passCount <= 2 ? "bg-orange-500" 
-              : passCount <= 3 ? "bg-yellow-500" 
+            i < passCount
+              ? passCount <= 1 ? "bg-red-500"
+              : passCount <= 2 ? "bg-orange-500"
+              : passCount <= 3 ? "bg-yellow-500"
               : "bg-green-500"
               : "bg-muted"
           }`} />
@@ -45,56 +44,63 @@ function PasswordStrength({ password }: { password: string }) {
 }
 
 export function ForcePasswordChange() {
+  const [step, setStep] = useState<"password" | "totp">("password");
+
+  // 비밀번호 변경 state
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [error, setError] = useState("");
+  const [pwError, setPwError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isPwSubmitting, setIsPwSubmitting] = useState(false);
+
+  // 2FA PIN 설정 state
+  const [pin, setPin] = useState("");
+  const [pinConfirm, setPinConfirm] = useState("");
+  const [pinError, setPinError] = useState("");
+  const [isPinSubmitting, setIsPinSubmitting] = useState(false);
+
   const { clearMustChangePassword } = useAuth();
+  const { toast } = useToast();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError("");
-
-    if (!newPassword || !confirmPassword) {
-      setError("새 비밀번호를 입력해주세요");
-      return;
-    }
-    if (newPassword.length < 8) {
-      setError("비밀번호는 8자 이상이어야 합니다");
-      return;
-    }
-    if (!/[A-Za-z]/.test(newPassword)) {
-      setError("비밀번호에 영문자가 포함되어야 합니다");
-      return;
-    }
-    if (!/[0-9]/.test(newPassword)) {
-      setError("비밀번호에 숫자가 포함되어야 합니다");
-      return;
-    }
-    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(newPassword)) {
-      setError("비밀번호에 특수문자가 포함되어야 합니다");
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setError("비밀번호가 일치하지 않습니다");
-      return;
-    }
-
+    setPwError("");
+    if (!newPassword || !confirmPassword) { setPwError("새 비밀번호를 입력해주세요"); return; }
+    if (newPassword.length < 8) { setPwError("비밀번호는 8자 이상이어야 합니다"); return; }
+    if (!/[A-Za-z]/.test(newPassword)) { setPwError("비밀번호에 영문자가 포함되어야 합니다"); return; }
+    if (!/[0-9]/.test(newPassword)) { setPwError("비밀번호에 숫자가 포함되어야 합니다"); return; }
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(newPassword)) { setPwError("비밀번호에 특수문자가 포함되어야 합니다"); return; }
+    if (newPassword !== confirmPassword) { setPwError("비밀번호가 일치하지 않습니다"); return; }
     try {
-      setIsSubmitting(true);
+      setIsPwSubmitting(true);
       const res = await apiRequest("POST", "/api/auth/force-change-password", { newPassword });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.message);
-      }
-      clearMustChangePassword();
+      if (!res.ok) { const d = await res.json(); throw new Error(d.message); }
+      setStep("totp");
     } catch (err: any) {
-      setError(err.message || "비밀번호 변경에 실패했습니다");
+      setPwError(err.message || "비밀번호 변경에 실패했습니다");
     } finally {
-      setIsSubmitting(false);
+      setIsPwSubmitting(false);
     }
   };
+
+  const handlePinSetup = async () => {
+    setPinError("");
+    if (pin.length !== 6) { setPinError("6자리 PIN을 입력해주세요"); return; }
+    if (pin !== pinConfirm) { setPinError("PIN이 일치하지 않습니다"); return; }
+    try {
+      setIsPinSubmitting(true);
+      const res = await apiRequest("POST", "/api/auth/totp/enable", { code: pin });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.message); }
+      toast({ title: "2차 인증이 설정되었습니다" });
+      clearMustChangePassword();
+    } catch (err: any) {
+      setPinError(err.message || "PIN 설정에 실패했습니다");
+    } finally {
+      setIsPinSubmitting(false);
+    }
+  };
+
+  const pinMismatch = pinConfirm.length === 6 && pin !== pinConfirm;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 via-background to-primary/10 p-4">
@@ -103,110 +109,191 @@ export function ForcePasswordChange() {
         <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-primary/5 rounded-full blur-3xl" />
       </div>
 
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="w-full max-w-md relative z-10"
-      >
-        <div className="text-center mb-8">
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-            className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-amber-500 shadow-lg shadow-amber-500/25 mb-4 text-white"
-          >
-            <ShieldAlert className="w-10 h-10" />
-          </motion.div>
-          <motion.h1
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.3 }}
-            className="text-2xl font-bold tracking-tight"
-          >
-            비밀번호 변경 필요
-          </motion.h1>
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.4 }}
-            className="text-muted-foreground mt-1"
-          >
-            보안을 위해 최초 로그인 시 비밀번호를 변경해주세요
-          </motion.p>
+      {/* 단계 표시 */}
+      <div className="absolute top-6 left-1/2 -translate-x-1/2 flex items-center gap-2 z-10">
+        <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-colors ${step === "password" ? "bg-primary text-primary-foreground" : "bg-green-500 text-white"}`}>
+          {step === "password" ? "1" : <Check className="w-3 h-3" />}
+          <span>비밀번호 변경</span>
         </div>
+        <ArrowRight className="w-3 h-3 text-muted-foreground" />
+        <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-colors ${step === "totp" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
+          2
+          <span>2차 인증 설정</span>
+        </div>
+      </div>
 
-        <Card className="border-0 shadow-xl shadow-black/5 bg-card/80 backdrop-blur-sm">
-          <CardContent className="p-6 sm:p-8">
-            <form onSubmit={handleSubmit} className="space-y-5">
-              <div className="space-y-2">
-                <label className="text-sm font-medium flex items-center gap-2">
-                  <Lock className="w-4 h-4 text-muted-foreground" />
-                  새 비밀번호
-                </label>
-                <div className="relative">
-                  <Input
-                    type={showPassword ? "text" : "password"}
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="새 비밀번호를 입력하세요"
-                    autoComplete="new-password"
-                    className="h-12 bg-background/50 border-border/50 focus:border-primary transition-colors pr-12"
-                    data-testid="input-new-password"
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="absolute right-1 top-1/2 -translate-y-1/2 h-10 w-10 text-muted-foreground hover:text-foreground"
-                    onClick={() => setShowPassword(!showPassword)}
-                    tabIndex={-1}
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </Button>
-                </div>
-                <PasswordStrength password={newPassword} />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium flex items-center gap-2">
-                  <Lock className="w-4 h-4 text-muted-foreground" />
-                  비밀번호 확인
-                </label>
-                <Input
-                  type={showPassword ? "text" : "password"}
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="비밀번호를 한 번 더 입력하세요"
-                  autoComplete="new-password"
-                  className="h-12 bg-background/50 border-border/50 focus:border-primary transition-colors"
-                  data-testid="input-confirm-password"
-                />
-              </div>
-
-              {error && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="p-3 rounded-lg bg-destructive/10 border border-destructive/20"
-                >
-                  <p className="text-sm text-destructive text-center" data-testid="text-error">
-                    {error}
-                  </p>
-                </motion.div>
-              )}
-
-              <Button
-                type="submit"
-                className="w-full h-12 text-base font-medium shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 transition-all"
-                disabled={isSubmitting}
-                data-testid="button-change-password"
+      <AnimatePresence mode="wait">
+        {step === "password" ? (
+          <motion.div
+            key="password"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.4 }}
+            className="w-full max-w-md relative z-10"
+          >
+            <div className="text-center mb-8">
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+                className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-amber-500 shadow-lg shadow-amber-500/25 mb-4 text-white"
               >
-                {isSubmitting ? "변경 중..." : "비밀번호 변경"}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-      </motion.div>
+                <ShieldAlert className="w-10 h-10" />
+              </motion.div>
+              <h1 className="text-2xl font-bold tracking-tight">비밀번호 변경 필요</h1>
+              <p className="text-muted-foreground mt-1">보안을 위해 최초 로그인 시 비밀번호를 변경해주세요</p>
+            </div>
+
+            <Card className="border-0 shadow-xl shadow-black/5 bg-card/80 backdrop-blur-sm">
+              <CardContent className="p-6 sm:p-8">
+                <form onSubmit={handlePasswordSubmit} className="space-y-5">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium flex items-center gap-2">
+                      <Lock className="w-4 h-4 text-muted-foreground" />새 비밀번호
+                    </label>
+                    <div className="relative">
+                      <Input
+                        type={showPassword ? "text" : "password"}
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="새 비밀번호를 입력하세요"
+                        autoComplete="new-password"
+                        className="h-12 bg-background/50 border-border/50 focus:border-primary transition-colors pr-12"
+                        data-testid="input-new-password"
+                      />
+                      <Button type="button" variant="ghost" size="icon"
+                        className="absolute right-1 top-1/2 -translate-y-1/2 h-10 w-10 text-muted-foreground hover:text-foreground"
+                        onClick={() => setShowPassword(!showPassword)} tabIndex={-1}>
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </Button>
+                    </div>
+                    <PasswordStrength password={newPassword} />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium flex items-center gap-2">
+                      <Lock className="w-4 h-4 text-muted-foreground" />비밀번호 확인
+                    </label>
+                    <Input
+                      type={showPassword ? "text" : "password"}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="비밀번호를 한 번 더 입력하세요"
+                      autoComplete="new-password"
+                      className="h-12 bg-background/50 border-border/50 focus:border-primary transition-colors"
+                      data-testid="input-confirm-password"
+                    />
+                  </div>
+                  {pwError && (
+                    <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+                      className="p-3 rounded-lg bg-destructive/10 border border-destructive/20">
+                      <p className="text-sm text-destructive text-center" data-testid="text-error">{pwError}</p>
+                    </motion.div>
+                  )}
+                  <Button type="submit"
+                    className="w-full h-12 text-base font-medium shadow-lg shadow-primary/25"
+                    disabled={isPwSubmitting} data-testid="button-change-password">
+                    {isPwSubmitting ? "변경 중..." : "비밀번호 변경 →"}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="totp"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.4 }}
+            className="w-full max-w-md relative z-10"
+          >
+            <div className="text-center mb-8">
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ delay: 0.1, type: "spring", stiffness: 200 }}
+                className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-blue-500 shadow-lg shadow-blue-500/25 mb-4 text-white"
+              >
+                <Shield className="w-10 h-10" />
+              </motion.div>
+              <h1 className="text-2xl font-bold tracking-tight">2차 인증 설정</h1>
+              <p className="text-muted-foreground mt-1">로그인 시 사용할 6자리 PIN을 설정하세요</p>
+            </div>
+
+            <Card className="border-0 shadow-xl shadow-black/5 bg-card/80 backdrop-blur-sm">
+              <CardContent className="p-6 sm:p-8 space-y-5">
+                <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
+                  <p className="text-xs text-blue-700 dark:text-blue-300">
+                    숫자 6자리 PIN을 설정하면 다음 로그인부터 비밀번호 입력 후 PIN 확인이 필요합니다.
+                    지금 설정하지 않아도 나중에 언제든지 설정할 수 있습니다.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium flex items-center gap-2">
+                    <Lock className="w-4 h-4 text-muted-foreground" />새 PIN (6자리 숫자)
+                  </label>
+                  <Input
+                    type="password"
+                    inputMode="numeric"
+                    placeholder="••••••"
+                    value={pin}
+                    onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    className="h-12 text-center text-2xl tracking-widest font-mono bg-background/50"
+                    maxLength={6}
+                    autoFocus
+                    data-testid="input-pin"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium flex items-center gap-2">
+                    <Lock className="w-4 h-4 text-muted-foreground" />PIN 확인
+                  </label>
+                  <Input
+                    type="password"
+                    inputMode="numeric"
+                    placeholder="••••••"
+                    value={pinConfirm}
+                    onChange={(e) => setPinConfirm(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    className={`h-12 text-center text-2xl tracking-widest font-mono bg-background/50 ${pinMismatch ? "border-red-500" : ""}`}
+                    maxLength={6}
+                    data-testid="input-pin-confirm"
+                  />
+                  {pinMismatch && <p className="text-xs text-red-500">PIN이 일치하지 않습니다</p>}
+                </div>
+
+                {pinError && (
+                  <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+                    className="p-3 rounded-lg bg-destructive/10 border border-destructive/20">
+                    <p className="text-sm text-destructive text-center">{pinError}</p>
+                  </motion.div>
+                )}
+
+                <Button
+                  onClick={handlePinSetup}
+                  className="w-full h-12 text-base font-medium shadow-lg shadow-blue-500/25 bg-blue-600 hover:bg-blue-700"
+                  disabled={pin.length !== 6 || pinConfirm.length !== 6 || pin !== pinConfirm || isPinSubmitting}
+                  data-testid="button-setup-pin"
+                >
+                  {isPinSubmitting ? "설정 중..." : (
+                    <><ShieldCheck className="w-4 h-4 mr-2" />PIN 설정 완료</>
+                  )}
+                </Button>
+
+                <Button
+                  variant="ghost"
+                  className="w-full text-muted-foreground"
+                  onClick={() => clearMustChangePassword()}
+                  data-testid="button-skip-pin"
+                >
+                  나중에 설정하기
+                </Button>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

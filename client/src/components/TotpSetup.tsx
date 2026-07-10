@@ -71,11 +71,11 @@ export default function TotpSetup() {
   return (
     <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetState(); }}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-1.5" data-testid="button-totp-setup">
+        <Button variant="outline" size="sm" className="gap-1.5 px-2 sm:px-3" data-testid="button-totp-setup">
           {totpEnabled ? (
-            <><ShieldCheck className="w-4 h-4 text-green-600" />2차 인증 관리</>
+            <><ShieldCheck className="w-4 h-4 text-green-600" /><span className="hidden sm:inline">2차 인증 관리</span></>
           ) : (
-            <><Shield className="w-4 h-4" />2차 인증 설정</>
+            <><Shield className="w-4 h-4" /><span className="hidden sm:inline">2차 인증 설정</span></>
           )}
         </Button>
       </DialogTrigger>
