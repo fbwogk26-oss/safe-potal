@@ -24,6 +24,171 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { useAuth } from "@/hooks/use-auth";
 import type { MusculoskeletalAssessment } from "@shared/schema";
 
+// ── 부담작업 SVG 아이콘 (자세 일러스트) ─────────────────────────────────────
+const BURDEN_ICONS: React.ReactNode[] = [
+  /* 1호: 키보드·마우스 4시간+ */
+  <svg viewBox="0 0 44 52" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
+    <circle cx="22" cy="6" r="5" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="22" y1="11" x2="22" y2="26" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="10" y1="26" x2="34" y2="26" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="14" y1="26" x2="14" y2="38" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="30" y1="26" x2="30" y2="38" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="22" y1="16" x2="10" y2="22" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="22" y1="16" x2="34" y2="22" stroke="#94a3b8" strokeWidth="1.5"/>
+    <circle cx="10" cy="22" r="2.5" fill="#ef4444"/>
+    <circle cx="34" cy="22" r="2.5" fill="#ef4444"/>
+    <rect x="5" y="40" width="34" height="8" rx="2" stroke="#93c5fd" strokeWidth="1.5" fill="#dbeafe" fillOpacity="0.4"/>
+    <line x1="9" y1="43" x2="35" y2="43" stroke="#93c5fd" strokeWidth="0.8"/>
+    <line x1="9" y1="46" x2="35" y2="46" stroke="#93c5fd" strokeWidth="0.8"/>
+  </svg>,
+  /* 2호: 반복동작 2시간+ */
+  <svg viewBox="0 0 44 52" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
+    <circle cx="20" cy="6" r="5" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="20" y1="11" x2="20" y2="30" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="20" y1="30" x2="14" y2="44" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="20" y1="30" x2="26" y2="44" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="20" y1="17" x2="10" y2="24" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="10" y1="24" x2="8" y2="31" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="20" y1="17" x2="33" y2="13" stroke="#ef4444" strokeWidth="1.8"/>
+    <line x1="33" y1="13" x2="39" y2="20" stroke="#ef4444" strokeWidth="1.8"/>
+    <path d="M 36 9 A 8 8 0 0 1 41 22" stroke="#ef4444" strokeWidth="1.4" strokeDasharray="2,1.5" fill="none"/>
+    <polygon points="41,22 38,18 43,18" fill="#ef4444"/>
+    <circle cx="20" cy="17" r="3.5" fill="#ef4444" fillOpacity="0.25" stroke="#ef4444" strokeWidth="1"/>
+  </svg>,
+  /* 3호: 팔꿈치·손이 어깨 위 */
+  <svg viewBox="0 0 44 52" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
+    <circle cx="22" cy="9" r="5" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="22" y1="14" x2="22" y2="34" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="22" y1="34" x2="15" y2="48" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="22" y1="34" x2="29" y2="48" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="22" y1="20" x2="9" y2="10" stroke="#ef4444" strokeWidth="1.8"/>
+    <line x1="9" y1="10" x2="5" y2="4" stroke="#ef4444" strokeWidth="1.8"/>
+    <line x1="22" y1="20" x2="35" y2="10" stroke="#ef4444" strokeWidth="1.8"/>
+    <line x1="35" y1="10" x2="39" y2="4" stroke="#ef4444" strokeWidth="1.8"/>
+    <line x1="12" y1="14" x2="32" y2="14" stroke="#94a3b8" strokeWidth="0.8" strokeDasharray="2,1.5"/>
+    <line x1="5" y1="4" x2="3" y2="7" stroke="#ef4444" strokeWidth="1"/>
+    <line x1="5" y1="4" x2="8" y2="6" stroke="#ef4444" strokeWidth="1"/>
+    <line x1="39" y1="4" x2="36" y2="6" stroke="#ef4444" strokeWidth="1"/>
+    <line x1="39" y1="4" x2="41" y2="7" stroke="#ef4444" strokeWidth="1"/>
+  </svg>,
+  /* 4호: 목·허리 굽히기·비틀기 */
+  <svg viewBox="0 0 44 52" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
+    <circle cx="12" cy="8" r="5" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="12" y1="13" x2="15" y2="20" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="15" y1="20" x2="34" y2="25" stroke="#ef4444" strokeWidth="2"/>
+    <line x1="17" y1="22" x2="16" y2="38" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="20" y1="23" x2="25" y2="38" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="28" y1="24" x2="30" y2="34" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="33" y1="25" x2="37" y2="35" stroke="#94a3b8" strokeWidth="1.5"/>
+    <circle cx="17" cy="22" r="3.5" fill="#ef4444" fillOpacity="0.3" stroke="#ef4444" strokeWidth="1.2"/>
+    <path d="M 22 36 A 13 13 0 0 0 34 22" stroke="#f97316" strokeWidth="1" strokeDasharray="2,1.5" fill="none"/>
+    <text x="38" y="44" fontSize="7" fill="#ef4444" textAnchor="middle" fontWeight="bold">90°</text>
+  </svg>,
+  /* 5호: 쪼그리기·무릎 굽히기 */
+  <svg viewBox="0 0 44 52" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
+    <circle cx="22" cy="6" r="5" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="22" y1="11" x2="22" y2="24" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="22" y1="17" x2="10" y2="21" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="22" y1="17" x2="34" y2="21" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="22" y1="24" x2="10" y2="29" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="22" y1="24" x2="34" y2="29" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="10" y1="29" x2="8" y2="41" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="34" y1="29" x2="36" y2="41" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="4" y1="41" x2="13" y2="41" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="32" y1="41" x2="41" y2="41" stroke="#94a3b8" strokeWidth="1.5"/>
+    <circle cx="10" cy="29" r="3.5" fill="#ef4444" fillOpacity="0.3" stroke="#ef4444" strokeWidth="1.2"/>
+    <circle cx="34" cy="29" r="3.5" fill="#ef4444" fillOpacity="0.3" stroke="#ef4444" strokeWidth="1.2"/>
+  </svg>,
+  /* 6호: 손가락 집기·쥐기 (1kg↑) */
+  <svg viewBox="0 0 44 52" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
+    <path d="M 12 38 Q 10 28 12 18 Q 13 14 17 14 Q 21 14 21 19 L 21 28" stroke="#94a3b8" strokeWidth="1.5" fill="none"/>
+    <path d="M 21 19 Q 21 11 25 11 Q 29 11 29 19 L 29 28" stroke="#94a3b8" strokeWidth="1.5" fill="none"/>
+    <path d="M 29 21 Q 29 13 33 13 Q 36 13 36 21 L 35 28" stroke="#94a3b8" strokeWidth="1.5" fill="none"/>
+    <path d="M 35 24 Q 37 17 40 18 Q 42 21 40 27 L 37 30" stroke="#94a3b8" strokeWidth="1.5" fill="none"/>
+    <path d="M 12 32 Q 5 30 5 25 Q 5 20 10 20 Q 13 20 14 24" stroke="#94a3b8" strokeWidth="1.5" fill="none"/>
+    <line x1="21" y1="28" x2="13" y2="37" stroke="#ef4444" strokeWidth="2"/>
+    <circle cx="16" cy="34" r="4" fill="#ef4444" fillOpacity="0.35" stroke="#ef4444" strokeWidth="1.2"/>
+    <text x="22" y="49" fontSize="7" fill="#ef4444" textAnchor="middle" fontWeight="bold">1 kg↑</text>
+  </svg>,
+  /* 7호: 한 손으로 들기·쥐기 (4.5kg↑) */
+  <svg viewBox="0 0 44 52" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
+    <circle cx="19" cy="6" r="5" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="19" y1="11" x2="19" y2="30" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="19" y1="30" x2="13" y2="44" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="19" y1="30" x2="25" y2="44" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="19" y1="18" x2="9" y2="25" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="9" y1="25" x2="8" y2="32" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="19" y1="18" x2="32" y2="19" stroke="#ef4444" strokeWidth="1.8"/>
+    <line x1="32" y1="19" x2="35" y2="29" stroke="#ef4444" strokeWidth="1.8"/>
+    <circle cx="35" cy="30" r="2" fill="#ef4444"/>
+    <rect x="31" y="30" width="10" height="13" rx="1" fill="#fef3c7" stroke="#f59e0b" strokeWidth="1.5"/>
+    <line x1="34" y1="30" x2="34" y2="43" stroke="#f59e0b" strokeWidth="0.5"/>
+    <line x1="37" y1="30" x2="37" y2="43" stroke="#f59e0b" strokeWidth="0.5"/>
+    <text x="36" y="50" fontSize="6" fill="#92400e" textAnchor="middle" fontWeight="bold">4.5kg</text>
+  </svg>,
+  /* 8호: 25kg 이상 들기 10회+ */
+  <svg viewBox="0 0 44 52" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
+    <circle cx="22" cy="5" r="5" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="22" y1="10" x2="22" y2="28" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="22" y1="28" x2="15" y2="42" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="22" y1="28" x2="29" y2="42" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="22" y1="16" x2="10" y2="12" stroke="#ef4444" strokeWidth="1.8"/>
+    <line x1="22" y1="16" x2="34" y2="12" stroke="#ef4444" strokeWidth="1.8"/>
+    <rect x="8" y="3" width="28" height="16" rx="2" fill="#fef3c7" stroke="#f59e0b" strokeWidth="1.5"/>
+    <text x="22" y="13.5" fontSize="8" fill="#92400e" textAnchor="middle" fontWeight="bold">25kg</text>
+    <ellipse cx="22" cy="22" rx="4" ry="5" fill="#ef4444" fillOpacity="0.2" stroke="#ef4444" strokeWidth="1"/>
+    <text x="38" y="30" fontSize="7" fill="#ef4444" textAnchor="middle" fontWeight="bold">×10</text>
+  </svg>,
+  /* 9호: 10kg 들기 25회+ (특정 위치) */
+  <svg viewBox="0 0 44 52" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
+    <circle cx="14" cy="7" r="5" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="14" y1="12" x2="16" y2="18" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="16" y1="18" x2="30" y2="27" stroke="#ef4444" strokeWidth="2"/>
+    <line x1="18" y1="20" x2="16" y2="36" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="20" y1="21" x2="24" y2="36" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="26" y1="24" x2="33" y2="34" stroke="#ef4444" strokeWidth="1.8"/>
+    <line x1="31" y1="25" x2="39" y2="35" stroke="#ef4444" strokeWidth="1.8"/>
+    <rect x="30" y="34" width="13" height="9" rx="1" fill="#fef3c7" stroke="#f59e0b" strokeWidth="1.5"/>
+    <text x="36" y="41" fontSize="6.5" fill="#92400e" textAnchor="middle" fontWeight="bold">10kg</text>
+    <text x="8" y="50" fontSize="7" fill="#ef4444" textAnchor="middle" fontWeight="bold">×25</text>
+    <circle cx="18" cy="20" r="3.5" fill="#ef4444" fillOpacity="0.25" stroke="#ef4444" strokeWidth="1"/>
+  </svg>,
+  /* 10호: 4.5kg 분당 2회↑ 2시간+ */
+  <svg viewBox="0 0 44 52" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
+    <circle cx="22" cy="6" r="5" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="22" y1="11" x2="22" y2="28" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="22" y1="28" x2="16" y2="42" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="22" y1="28" x2="28" y2="42" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="22" y1="17" x2="33" y2="19" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="33" y1="19" x2="35" y2="27" stroke="#94a3b8" strokeWidth="1.5"/>
+    <rect x="31" y="27" width="11" height="8" rx="1" fill="#fef3c7" stroke="#f59e0b" strokeWidth="1.5"/>
+    <text x="36.5" y="34" fontSize="5.5" fill="#92400e" textAnchor="middle" fontWeight="bold">4.5kg</text>
+    <path d="M 8 12 L 8 6 L 14 6" stroke="#ef4444" strokeWidth="1.5" fill="none"/>
+    <polygon points="14,3 14,9 18,6" fill="#ef4444"/>
+    <path d="M 8 34 L 8 40 L 14 40" stroke="#ef4444" strokeWidth="1.5" fill="none"/>
+    <polygon points="14,37 14,43 18,40" fill="#ef4444"/>
+    <text x="5" y="25" fontSize="6" fill="#ef4444" textAnchor="middle" fontWeight="bold">2회</text>
+    <text x="5" y="32" fontSize="5.5" fill="#ef4444" textAnchor="middle">/분</text>
+  </svg>,
+  /* 11호: 손·무릎 충격 2시간+ */
+  <svg viewBox="0 0 44 52" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
+    <circle cx="20" cy="6" r="5" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="20" y1="11" x2="20" y2="29" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="20" y1="29" x2="13" y2="42" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="20" y1="29" x2="27" y2="42" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="20" y1="17" x2="10" y2="22" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="10" y1="22" x2="9" y2="29" stroke="#94a3b8" strokeWidth="1.5"/>
+    <line x1="20" y1="17" x2="33" y2="15" stroke="#ef4444" strokeWidth="1.8"/>
+    <line x1="33" y1="15" x2="37" y2="28" stroke="#ef4444" strokeWidth="1.8"/>
+    <circle cx="37" cy="30" r="4" fill="#ef4444" fillOpacity="0.3" stroke="#ef4444" strokeWidth="1.5"/>
+    <line x1="26" y1="38" x2="44" y2="38" stroke="#64748b" strokeWidth="2"/>
+    <line x1="33" y1="36" x2="31" y2="32" stroke="#ef4444" strokeWidth="1" strokeDasharray="1.5,1"/>
+    <line x1="37" y1="36" x2="37" y2="32" stroke="#ef4444" strokeWidth="1" strokeDasharray="1.5,1"/>
+    <line x1="41" y1="36" x2="43" y2="32" stroke="#ef4444" strokeWidth="1" strokeDasharray="1.5,1"/>
+    <text x="14" y="50" fontSize="6" fill="#ef4444" textAnchor="middle" fontWeight="bold">10회↑/h</text>
+  </svg>,
+];
+
 // ── 산업안전보건법 고시 근골격계부담작업 11호 ─────────────────────────────────
 const BURDEN_WORKS = [
   { no: 1, short: "키보드·마우스 조작 4시간 이상",           desc: "하루에 4시간 이상 집중적으로 키보드 또는 마우스를 조작하는 작업" },
@@ -666,15 +831,19 @@ export default function MusculoskeletalDisease() {
                   return (
                     <label
                       key={bw.no}
-                      className={`flex items-start gap-3 px-3 py-2.5 cursor-pointer transition-colors border-b border-purple-100 dark:border-purple-900/60 last:border-0 ${checked ? "bg-purple-50 dark:bg-purple-900/30" : "hover:bg-gray-50 dark:hover:bg-gray-800/30"}`}
+                      className={`flex items-start gap-3 px-3 py-2 cursor-pointer transition-colors border-b border-purple-100 dark:border-purple-900/60 last:border-0 ${checked ? "bg-purple-50 dark:bg-purple-900/30" : "hover:bg-gray-50 dark:hover:bg-gray-800/30"}`}
                       data-testid={`label-burden-${bw.no}`}
                     >
                       <Checkbox
                         checked={checked}
                         onCheckedChange={() => toggleBurdenWork(bw.no)}
-                        className="mt-0.5 shrink-0"
+                        className="mt-1 shrink-0"
                         data-testid={`checkbox-burden-${bw.no}`}
                       />
+                      {/* SVG 자세 일러스트 */}
+                      <div className={`w-10 h-12 shrink-0 rounded p-0.5 ${checked ? "bg-purple-100 dark:bg-purple-800/40" : "bg-gray-100 dark:bg-gray-800/40"}`}>
+                        {BURDEN_ICONS[bw.no - 1]}
+                      </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-baseline gap-2">
                           <span className="text-xs font-bold text-purple-700 dark:text-purple-300 shrink-0">{bw.no}호</span>
