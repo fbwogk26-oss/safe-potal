@@ -196,4 +196,29 @@ export function registerAuthRoutes(app: Express): void {
       res.status(500).json({ message: "계정 잠금 해제에 실패했습니다" });
     }
   });
+
+  // 관리자가 사용자 2차 인증(PIN) 초기화
+  app.post("/api/auth/reset-totp", async (req, res) => {
+    const session = req.session as any;
+    if (!session.userId) {
+      return res.status(401).json({ message: "로그인이 필요합니다" });
+    }
+    try {
+      const adminUser = await authStorage.getUser(session.userId);
+      if (!adminUser || adminUser.role !== "admin") {
+        return res.status(403).json({ message: "관리자만 2차 인증을 초기화할 수 있습니다" });
+      }
+      const { userId } = req.body;
+      if (!userId) {
+        return res.status(400).json({ message: "사용자 ID를 입력해주세요" });
+      }
+      await authStorage.updateUser(userId, { totpEnabled: false, totpSecret: null });
+      const targetUser = await authStorage.getUser(userId);
+      await logSecurityEvent("TOTP_DISABLED", req, `관리자가 ${targetUser?.username || userId} 의 2차 인증 초기화`, true, adminUser.id, adminUser.username);
+      res.json({ message: "2차 인증이 초기화되었습니다" });
+    } catch (error) {
+      console.error("Reset TOTP error:", error);
+      res.status(500).json({ message: "2차 인증 초기화에 실패했습니다" });
+    }
+  });
 }

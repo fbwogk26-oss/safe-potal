@@ -158,6 +158,19 @@ export default function AdminUsers() {
     },
   });
 
+  const resetTotpMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      return apiRequest("POST", "/api/auth/reset-totp", { userId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      toast({ title: "2차 인증이 초기화되었습니다." });
+    },
+    onError: () => {
+      toast({ variant: "destructive", title: "2차 인증 초기화에 실패했습니다." });
+    },
+  });
+
   const toggleActiveMutation = useMutation({
     mutationFn: async ({ userId, isActive }: { userId: string; isActive: boolean }) => {
       return apiRequest("PUT", `/api/users/${userId}`, { isActive });
@@ -431,6 +444,23 @@ export default function AdminUsers() {
                               data-testid={`button-unlock-${user.id}`}
                             >
                               <Unlock className="w-3 h-3" />
+                            </Button>
+                          )}
+                          {user.totpEnabled && (
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-7 w-7 text-blue-600 border-blue-300 hover:bg-blue-50"
+                              onClick={() => {
+                                if (confirm(`${user.name || user.username}의 2차 인증(PIN)을 초기화하시겠습니까?\n초기화 후 해당 사용자는 2차 인증 없이 로그인할 수 있습니다.`)) {
+                                  resetTotpMutation.mutate(user.id);
+                                }
+                              }}
+                              disabled={resetTotpMutation.isPending}
+                              title="2차 인증 초기화"
+                              data-testid={`button-reset-totp-${user.id}`}
+                            >
+                              <Shield className="w-3 h-3" />
                             </Button>
                           )}
                           {!user.resignedAt && (
