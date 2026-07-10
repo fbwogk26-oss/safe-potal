@@ -511,7 +511,8 @@ export async function registerRoutes(
         const method = req.method;
         if (method === 'DELETE') {
           logSecurityEvent('DATA_DELETE', req, `${method} ${p}`, true, req.user?.id, req.user?.username);
-        } else if (method === 'GET' && /export|excel|download/i.test(p)) {
+        } else if (method === 'GET' && /export|excel|download/i.test(p) && p !== '/api/download') {
+          // /api/download 는 이미지 표시용 서명 URL 발급 엔드포인트 → 감사 로그 제외
           logSecurityEvent('DATA_DOWNLOAD', req, `${method} ${p}`, true, req.user?.id, req.user?.username);
         } else if ((method === 'POST') && /upload|import|bulk/i.test(p)) {
           logSecurityEvent('DATA_UPLOAD', req, `${method} ${p}`, true, req.user?.id, req.user?.username);
