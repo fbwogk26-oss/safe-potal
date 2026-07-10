@@ -300,6 +300,11 @@ export const musculoskeletalAssessments = pgTable("musculoskeletal_assessments",
   // 2단계 워크플로우 스크리닝
   hasSymptoms: boolean("has_symptoms").default(false),
   symptomWorkers: text("symptom_workers").default("[]"),
+  // 1차 개선 관리 (증상조사 완료 후 부서장 확인)
+  postImprovementContent: text("post_improvement_content"),
+  postImprovementDueDate: text("post_improvement_due_date"),
+  postImprovementChecker: text("post_improvement_checker"),
+  postImprovementStatus: text("post_improvement_status").default("미완료"),
 });
 
 export const musculoskeletalAssessmentHistory = pgTable("musculoskeletal_assessment_history", {
@@ -345,6 +350,16 @@ export const musculoskeletalSymptomSurveys = pgTable("musculoskeletal_symptom_su
   legDuration: text("leg_duration"),
   // 업무 지장
   workInterference: text("work_interference"),
+  neckInterference: text("neck_interference"),
+  shoulderInterference: text("shoulder_interference"),
+  elbowInterference: text("elbow_interference"),
+  wristInterference: text("wrist_interference"),
+  backInterference: text("back_interference"),
+  legInterference: text("leg_interference"),
+  workerDept: text("worker_dept"),
+  surveyDate: text("survey_date"),
+  completed: boolean("completed").default(false),
+  workRelated: text("work_related"),
   notes: text("notes"),
   status: text("status").default("대기"),
   createdAt: timestamp("created_at").defaultNow(),

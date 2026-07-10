@@ -4596,8 +4596,10 @@ ${buildEmailFooter()}
       const created = await storage.createSymptomSurvey({ ...req.body, assessmentId });
       // 해당 assessment 상태를 증상조사 진행중으로 업데이트
       const surveys = await storage.getSymptomSurveys(assessmentId);
-      const allDone = surveys.every(s => s.status === '완료');
-      if (!allDone) {
+      const allDone = surveys.length > 0 && surveys.every((s: any) => s.completed === true);
+      if (allDone) {
+        await storage.updateMusculoskeletalAssessment(assessmentId, { status: '개선 대기' } as any);
+      } else {
         await storage.updateMusculoskeletalAssessment(assessmentId, { status: '증상조사 진행중' } as any);
       }
       res.json(created);
@@ -4608,16 +4610,33 @@ ${buildEmailFooter()}
   app.put('/api/symptom-surveys/:id', requireEditor, async (req: any, res) => {
     try {
       const updated = await storage.updateSymptomSurvey(Number(req.params.id), req.body);
-      // 같은 assessment의 모든 증상조사가 완료인지 확인 → 완료면 assessment 종결
+      // 같은 assessment의 모든 증상조사가 완료인지 확인 → 완료면 개선 대기로 전환
       const surveys = await storage.getSymptomSurveys(updated.assessmentId);
-      const allDone = surveys.length > 0 && surveys.every(s => s.status === '완료');
+      const allDone = surveys.length > 0 && surveys.every((s: any) => s.completed === true);
       if (allDone) {
-        await storage.updateMusculoskeletalAssessment(updated.assessmentId, { status: '종결' } as any);
+        await storage.updateMusculoskeletalAssessment(updated.assessmentId, { status: '개선 대기' } as any);
       } else {
         await storage.updateMusculoskeletalAssessment(updated.assessmentId, { status: '증상조사 진행중' } as any);
       }
       res.json(updated);
     } catch { res.status(500).json({ message: "수정 실패" }); }
+  });
+
+  // 1차 개선 등록 (증상조사 완료 후 부서장 확인)
+  app.put('/api/musculoskeletal-assessments/:id/improvement', requireEditor, async (req: any, res) => {
+    try {
+      const id = Number(req.params.id);
+      const { postImprovementContent, postImprovementDueDate, postImprovementChecker, postImprovementStatus } = req.body;
+      const updated = await storage.updateMusculoskeletalAssessment(id, {
+        postImprovementContent,
+        postImprovementDueDate,
+        postImprovementChecker,
+        postImprovementStatus: postImprovementStatus || '완료',
+        status: '종결',
+      } as any);
+      await storage.addMusculoskeletalHistory(id, req.user?.username, JSON.stringify({ '1차개선': { before: '개선 대기', after: '종결' } }));
+      res.json(updated);
+    } catch { res.status(500).json({ message: "개선 등록 실패" }); }
   });
 
   // 증상조사표 삭제

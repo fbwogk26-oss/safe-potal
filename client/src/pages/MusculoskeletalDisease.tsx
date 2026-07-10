@@ -13,9 +13,20 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Bone, Plus, Trash2, Pencil, Search, CheckSquare, X,
-  ChevronDown, ChevronUp, History, Save, AlertTriangle, Layers,
-  FileDown, FileUp, Paperclip, Clock, LayoutGrid, List, ImageIcon
+  ChevronDown, ChevronUp, History, Save, AlertTriangle,
+  FileDown, FileUp, Paperclip, Clock, LayoutGrid, List, Wrench, ImageIcon, CheckCircle2
 } from "lucide-react";
+import img1 from "@assets/그림1_1783672853543.png";
+import img2 from "@assets/그림2_1783672853544.png";
+import img3 from "@assets/그림3_1783672853545.png";
+import img4 from "@assets/그림4_1783672853545.png";
+import img5 from "@assets/그림5_1783672853546.png";
+import img6 from "@assets/그림6_1783672853547.png";
+import img7 from "@assets/그림7_1783672853548.png";
+import img8 from "@assets/그림8_1783672853549.png";
+import img9 from "@assets/그림9_1783672853549.png";
+import img10 from "@assets/그림10_1783672853550.png";
+import img11 from "@assets/그림11_1783672853551.png";
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -25,8 +36,11 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { useAuth } from "@/hooks/use-auth";
 import type { MusculoskeletalAssessment } from "@shared/schema";
 
-// ── 부담작업 SVG 아이콘 (자세 일러스트) ─────────────────────────────────────
-const BURDEN_ICONS: React.ReactNode[] = [
+// ── 부담작업 실제 이미지 (고시 삽화) ─────────────────────────────────────
+const BURDEN_IMAGES = [img1, img2, img3, img4, img5, img6, img7, img8, img9, img10, img11];
+
+// (레거시 placeholder - 실제 이미지로 교체됨)
+const BURDEN_ICONS_UNUSED: React.ReactNode[] = [
   /* 1호: 키보드·마우스 4시간+ */
   <svg viewBox="0 0 44 52" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
     <circle cx="22" cy="6" r="5" stroke="#94a3b8" strokeWidth="1.5"/>
@@ -218,6 +232,7 @@ const STATUS_OPTIONS = [
   "유해요인조사 완료",
   "증상조사 대기",
   "증상조사 진행중",
+  "개선 대기",
   "조사완료(증상없음)",
   "종결",
   "보류",
@@ -256,6 +271,7 @@ function getStatusBadgeClass(status: string) {
     case "유해요인조사 완료":  return "bg-cyan-600 text-white dark:bg-cyan-700";
     case "증상조사 대기":      return "bg-orange-500 text-white dark:bg-orange-600";
     case "증상조사 진행중":    return "bg-purple-600 text-white dark:bg-purple-700";
+    case "개선 대기":          return "bg-amber-600 text-white dark:bg-amber-700";
     case "보류":               return "bg-gray-500 text-white dark:bg-gray-600";
     default:                   return "bg-blue-500 text-white dark:bg-blue-600";
   }
@@ -274,7 +290,6 @@ interface FormState {
   burdenWorkChecklist: number[];
   // 2단계 스크리닝
   hasSymptoms: boolean | null;   // null = 미선택
-  symptomWorkers: string[];      // 증상 호소 근로자 명단
 }
 const defaultForm = (): FormState => ({
   department: "",
@@ -288,24 +303,6 @@ const defaultForm = (): FormState => ({
   status: "진행중",
   burdenWorkChecklist: [],
   hasSymptoms: null,
-  symptomWorkers: [],
-});
-
-interface BulkRow {
-  department: string;
-  task: string;
-  hazardFactor: string;
-  riskLevel: string;
-  assessor: string;
-  assessmentDate: string;
-}
-const defaultBulkRow = (): BulkRow => ({
-  department: "",
-  task: "",
-  hazardFactor: "",
-  riskLevel: "중간",
-  assessor: "",
-  assessmentDate: format(new Date(), "yyyy-MM-dd"),
 });
 
 function parseChecklist(raw: string | null | undefined): number[] {
@@ -334,20 +331,21 @@ export default function MusculoskeletalDisease() {
   const [checklistOpen, setChecklistOpen] = useState(true);
   const [hasDraft, setHasDraft]           = useState(false);
   const [showLoadPrev, setShowLoadPrev]   = useState(false);
-  const [showBulk, setShowBulk]           = useState(false);
-  const [bulkRows, setBulkRows]           = useState<BulkRow[]>([defaultBulkRow()]);
   const [riskManual, setRiskManual]       = useState(false);
 
   // ── Stage 2: 데이터 관리 상태 ─────────────────────────────────────────
-  const [showImport, setShowImport]       = useState(false);
-  const [importFile, setImportFile]       = useState<File | null>(null);
-  const [importPending, setImportPending] = useState(false);
   const [historyId, setHistoryId]         = useState<number | null>(null);
   const [groupView, setGroupView]         = useState(false);
   const [groupBy, setGroupBy]             = useState<"dept" | "year">("dept");
   const [attachUploadId, setAttachUploadId] = useState<number | null>(null);
-  const importFileRef = useRef<HTMLInputElement>(null);
   const attachFileRef = useRef<HTMLInputElement>(null);
+
+  // ── 1차 개선 상태 ─────────────────────────────────────────────────────
+  const [improvementForm, setImprovementForm] = useState({
+    postImprovementContent: "",
+    postImprovementDueDate: "",
+    postImprovementChecker: "",
+  });
 
   // ── 필터/정렬 ────────────────────────────────────────────────────────
   const [filterRisk,   setFilterRisk]   = useState("all");
@@ -375,6 +373,28 @@ export default function MusculoskeletalDisease() {
     queryKey: ["/api/musculoskeletal-assessments", surveyAssessmentId, "symptom-surveys"],
     queryFn: () => fetch(`/api/musculoskeletal-assessments/${surveyAssessmentId}/symptom-surveys`, { credentials: "include" }).then(r => r.json()),
     enabled: surveyAssessmentId !== null,
+  });
+
+  // ── 사용자 목록 (근로자 선택용) ───────────────────────────────────────
+  const { data: users } = useQuery<any[]>({
+    queryKey: ["/api/users/names"],
+    queryFn: () => fetch("/api/users/names", { credentials: "include" }).then(r => r.json()),
+  });
+
+  // ── 1차 개선 mutation ─────────────────────────────────────────────────
+  const improvementMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: any }) =>
+      fetch(`/api/musculoskeletal-assessments/${id}/improvement`, {
+        method: "PUT", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }).then(async r => { if (!r.ok) throw new Error(await r.text()); return r.json(); }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments"] });
+      setImprovementForm({ postImprovementContent: "", postImprovementDueDate: "", postImprovementChecker: "" });
+      toast({ title: "개선내용이 등록되었습니다. 조사가 종결 처리됩니다." });
+    },
+    onError: () => toast({ variant: "destructive", title: "개선 등록에 실패했습니다." }),
   });
 
   // 증상조사 다이얼로그 내부 상태
@@ -470,7 +490,6 @@ export default function MusculoskeletalDisease() {
         ...data,
         headquarters,
         burdenWorkChecklist: JSON.stringify(data.burdenWorkChecklist),
-        symptomWorkers: JSON.stringify(data.symptomWorkers),
         // hasSymptoms null → false(저장 전 미선택)
         hasSymptoms: data.hasSymptoms ?? false,
       } as unknown as Record<string, unknown>),
@@ -488,7 +507,6 @@ export default function MusculoskeletalDisease() {
       apiRequest("PUT", `/api/musculoskeletal-assessments/${id}`, {
         ...data,
         burdenWorkChecklist: JSON.stringify(data.burdenWorkChecklist),
-        symptomWorkers: JSON.stringify(data.symptomWorkers),
         hasSymptoms: data.hasSymptoms ?? false,
       } as unknown as Record<string, unknown>),
     onSuccess: () => {
@@ -528,29 +546,6 @@ export default function MusculoskeletalDisease() {
         .then(r => r.json()),
     enabled: historyId !== null,
   });
-
-  // ── Stage 2: 엑셀 임포트 ────────────────────────────────────────────
-  async function handleImport() {
-    if (!importFile) return;
-    setImportPending(true);
-    try {
-      const fd = new FormData();
-      fd.append("file", importFile);
-      const res = await fetch(
-        `/api/musculoskeletal-assessments/import?headquarters=${encodeURIComponent(headquarters)}`,
-        { method: "POST", body: fd, credentials: "include" }
-      );
-      const data = await res.json();
-      queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments"] });
-      toast({ title: `${data.imported}건 임포트 완료 (오류 ${data.errors}건)` });
-      setShowImport(false);
-      setImportFile(null);
-    } catch {
-      toast({ variant: "destructive", title: "임포트 실패" });
-    } finally {
-      setImportPending(false);
-    }
-  }
 
   // ── Stage 2: 첨부파일 업로드 ─────────────────────────────────────────
   async function handleAttachUpload(id: number, files: FileList) {
@@ -658,7 +653,6 @@ export default function MusculoskeletalDisease() {
   };
 
   const handleEdit = (item: MusculoskeletalAssessment) => {
-    const workers: string[] = (() => { try { return JSON.parse((item as any).symptomWorkers || "[]"); } catch { return []; } })();
     setForm({
       department:          item.department,
       task:                item.task,
@@ -671,7 +665,6 @@ export default function MusculoskeletalDisease() {
       status:              item.status,
       burdenWorkChecklist: parseChecklist((item as any).burdenWorkChecklist),
       hasSymptoms:         (item as any).hasSymptoms ?? null,
-      symptomWorkers:      workers,
     });
     setEditingId(item.id);
     setRiskManual(true);
@@ -691,7 +684,6 @@ export default function MusculoskeletalDisease() {
       status:              "진행중",
       burdenWorkChecklist: parseChecklist((item as any).burdenWorkChecklist),
       hasSymptoms:         null,
-      symptomWorkers:      [],
     });
     setEditingId(null);
     setRiskManual(false);
@@ -759,36 +751,6 @@ export default function MusculoskeletalDisease() {
     return counts;
   }, [assessments]);
 
-  // ── 일괄 등록 ─────────────────────────────────────────────────────────
-  const [bulkPending, setBulkPending] = useState(false);
-  const handleBulkSubmit = async () => {
-    const validRows = bulkRows.filter(r => r.department && r.task && r.hazardFactor);
-    if (validRows.length === 0) {
-      toast({ variant: "destructive", title: "최소 1건 이상 필수항목을 입력하세요" });
-      return;
-    }
-    setBulkPending(true);
-    try {
-      await Promise.all(validRows.map(r =>
-        apiRequest("POST", "/api/musculoskeletal-assessments", {
-          ...r, headquarters,
-          currentMeasures: "", improvementPlan: "", status: "진행중",
-          burdenWorkChecklist: "[]",
-        } as unknown as Record<string, unknown>)
-      ));
-      queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments"] });
-      setShowBulk(false);
-      setBulkRows([defaultBulkRow()]);
-      toast({ title: `${validRows.length}건 일괄 등록되었습니다.` });
-    } catch {
-      toast({ variant: "destructive", title: "일괄 등록 실패" });
-    } finally {
-      setBulkPending(false);
-    }
-  };
-
-  const validBulkCount = bulkRows.filter(r => r.department && r.task && r.hazardFactor).length;
-
   // ─────────────────────────────────────────────────────────────────────
   return (
     <div className="max-w-6xl mx-auto space-y-4 sm:space-y-6">
@@ -821,15 +783,6 @@ export default function MusculoskeletalDisease() {
           </Button>
           {canEdit && (
             <>
-              {/* 엑셀 업로드 */}
-              <Button
-                variant="outline" size="sm" className="gap-1.5"
-                onClick={() => setShowImport(true)}
-                data-testid="button-excel-import"
-              >
-                <FileUp className="w-4 h-4" />
-                가져오기
-              </Button>
               {/* 그룹뷰 토글 */}
               <Button
                 variant={groupView ? "default" : "outline"} size="sm" className="gap-1.5"
@@ -847,14 +800,6 @@ export default function MusculoskeletalDisease() {
               >
                 <CheckSquare className="w-4 h-4" />
                 {selectionMode ? "취소" : "선택"}
-              </Button>
-              <Button
-                variant="outline" size="sm" className="gap-1.5"
-                onClick={() => setShowBulk(true)}
-                data-testid="button-bulk-add"
-              >
-                <Layers className="w-4 h-4" />
-                일괄 등록
               </Button>
               <Button
                 onClick={() => { setForm({ ...defaultForm(), department: user?.department || "" }); setEditingId(null); setRiskManual(false); setShowForm(true); }}
@@ -1274,7 +1219,7 @@ export default function MusculoskeletalDisease() {
                       />
                       {/* SVG 자세 일러스트 */}
                       <div className={`w-10 h-12 shrink-0 rounded p-0.5 ${checked ? "bg-purple-100 dark:bg-purple-800/40" : "bg-gray-100 dark:bg-gray-800/40"}`}>
-                        {BURDEN_ICONS[bw.no - 1]}
+                        <img src={BURDEN_IMAGES[bw.no - 1]} alt={`${bw.no}호`} className="w-full h-full object-contain" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-baseline gap-2">
@@ -1427,48 +1372,12 @@ export default function MusculoskeletalDisease() {
                 </Button>
               )}
             </div>
-            {/* 증상 있음: 근로자 명단 */}
-            {form.hasSymptoms === true && (
-              <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground">증상 호소 근로자 명단 (Enter로 추가)</Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="worker-input"
-                    placeholder="근로자명 입력 후 Enter"
-                    className="h-8 text-sm"
-                    onKeyDown={e => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        const val = (e.target as HTMLInputElement).value.trim();
-                        if (val && !form.symptomWorkers.includes(val)) {
-                          updateField("symptomWorkers", [...form.symptomWorkers, val]);
-                          (e.target as HTMLInputElement).value = "";
-                        }
-                      }
-                    }}
-                    data-testid="input-worker-name"
-                  />
-                </div>
-                {form.symptomWorkers.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
-                    {form.symptomWorkers.map((w, i) => (
-                      <Badge key={i} className="bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200 text-xs no-default-hover-elevate no-default-active-elevate gap-1">
-                        {w}
-                        <button onClick={() => updateField("symptomWorkers", form.symptomWorkers.filter((_, j) => j !== i))}>
-                          <X className="w-3 h-3" />
-                        </button>
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
             {/* 미리보기 상태 전이 안내 */}
             {form.hasSymptoms !== null && (
               <p className="text-xs rounded px-2 py-1 bg-muted text-muted-foreground">
                 {form.hasSymptoms === false
                   ? "저장 시 상태: 조사완료(증상없음) — 바로 종결됩니다."
-                  : `저장 시 상태: 증상조사 대기 — ${form.symptomWorkers.length}명의 2단계 증상조사표 입력이 필요합니다.`}
+                  : "저장 시 상태: 증상조사 대기 — 2단계 증상조사표 입력이 필요합니다."}
               </p>
             )}
           </div>
@@ -1592,145 +1501,6 @@ export default function MusculoskeletalDisease() {
         </DialogContent>
       </Dialog>
 
-      {/* ─── 일괄 등록 다이얼로그 ──────────────────────────────────── */}
-      <Dialog open={showBulk} onOpenChange={setShowBulk}>
-        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>일괄 등록</DialogTitle>
-            <DialogDescription>
-              여러 근로자/작업을 한 번에 등록합니다. 부서·작업내용·유해요인이 입력된 행만 등록됩니다.
-            </DialogDescription>
-          </DialogHeader>
-
-          {/* 공통 자동완성 datalist (다이얼로그 안에서도 공유) */}
-          <datalist id="bulk-task-suggestions">
-            {taskSuggestions.map(s => <option key={s} value={s} />)}
-          </datalist>
-          <datalist id="bulk-hazard-suggestions">
-            {hazardSuggestions.map(s => <option key={s} value={s} />)}
-          </datalist>
-          <datalist id="bulk-assessor-suggestions">
-            {assessorSuggestions.map(s => <option key={s} value={s!} />)}
-          </datalist>
-
-          <div className="overflow-x-auto -mx-1">
-            <table className="w-full text-sm border-collapse min-w-[700px]">
-              <thead>
-                <tr className="bg-muted text-left">
-                  <th className="p-2 border border-border font-medium w-8 text-center">#</th>
-                  <th className="p-2 border border-border font-medium min-w-[130px]">부서 *</th>
-                  <th className="p-2 border border-border font-medium min-w-[160px]">작업내용 *</th>
-                  <th className="p-2 border border-border font-medium min-w-[150px]">유해요인 *</th>
-                  <th className="p-2 border border-border font-medium w-24">위험수준</th>
-                  <th className="p-2 border border-border font-medium min-w-[110px]">평가자</th>
-                  <th className="p-2 border border-border font-medium w-32">평가일</th>
-                  <th className="p-2 border border-border w-8"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {bulkRows.map((row, i) => (
-                  <tr key={i} className={i % 2 === 0 ? "bg-background" : "bg-muted/20"}>
-                    <td className="p-1 border border-border text-center text-xs text-muted-foreground">{i + 1}</td>
-                    <td className="p-1 border border-border">
-                      <select
-                        className="w-full h-8 px-1.5 text-sm rounded border border-input bg-background focus:outline-none focus:ring-1 focus:ring-purple-500"
-                        value={row.department}
-                        onChange={e => setBulkRows(prev => { const n = [...prev]; n[i] = { ...n[i], department: e.target.value }; return n; })}
-                      >
-                        <option value="">선택</option>
-                        {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
-                      </select>
-                    </td>
-                    <td className="p-1 border border-border">
-                      <input
-                        className="w-full h-8 px-1.5 text-sm rounded border border-input bg-background focus:outline-none focus:ring-1 focus:ring-purple-500"
-                        list="bulk-task-suggestions"
-                        value={row.task}
-                        onChange={e => setBulkRows(prev => { const n = [...prev]; n[i] = { ...n[i], task: e.target.value }; return n; })}
-                        placeholder="작업내용"
-                      />
-                    </td>
-                    <td className="p-1 border border-border">
-                      <input
-                        className="w-full h-8 px-1.5 text-sm rounded border border-input bg-background focus:outline-none focus:ring-1 focus:ring-purple-500"
-                        list="bulk-hazard-suggestions"
-                        value={row.hazardFactor}
-                        onChange={e => setBulkRows(prev => { const n = [...prev]; n[i] = { ...n[i], hazardFactor: e.target.value }; return n; })}
-                        placeholder="유해요인"
-                      />
-                    </td>
-                    <td className="p-1 border border-border">
-                      <select
-                        className="w-full h-8 px-1.5 text-sm rounded border border-input bg-background focus:outline-none focus:ring-1 focus:ring-purple-500"
-                        value={row.riskLevel}
-                        onChange={e => setBulkRows(prev => { const n = [...prev]; n[i] = { ...n[i], riskLevel: e.target.value }; return n; })}
-                      >
-                        {RISK_LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
-                      </select>
-                    </td>
-                    <td className="p-1 border border-border">
-                      <input
-                        className="w-full h-8 px-1.5 text-sm rounded border border-input bg-background focus:outline-none focus:ring-1 focus:ring-purple-500"
-                        list="bulk-assessor-suggestions"
-                        value={row.assessor}
-                        onChange={e => setBulkRows(prev => { const n = [...prev]; n[i] = { ...n[i], assessor: e.target.value }; return n; })}
-                        placeholder="평가자"
-                      />
-                    </td>
-                    <td className="p-1 border border-border">
-                      <input
-                        type="date"
-                        className="w-full h-8 px-1.5 text-sm rounded border border-input bg-background focus:outline-none focus:ring-1 focus:ring-purple-500"
-                        value={row.assessmentDate}
-                        onChange={e => setBulkRows(prev => { const n = [...prev]; n[i] = { ...n[i], assessmentDate: e.target.value }; return n; })}
-                      />
-                    </td>
-                    <td className="p-1 border border-border text-center">
-                      <button
-                        className="text-muted-foreground hover:text-red-500 transition-colors disabled:opacity-30"
-                        onClick={() => setBulkRows(prev => prev.filter((_, j) => j !== i))}
-                        disabled={bulkRows.length === 1}
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="flex gap-2 mt-1">
-            <Button variant="outline" size="sm" className="gap-1.5"
-              onClick={() => setBulkRows(prev => [...prev, defaultBulkRow()])}
-              data-testid="button-add-bulk-row"
-            >
-              <Plus className="w-3.5 h-3.5" />행 추가
-            </Button>
-            <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground"
-              onClick={() => setBulkRows(prev => [...prev, ...Array.from({ length: 5 }, defaultBulkRow)])}
-            >
-              +5행
-            </Button>
-            <span className="ml-auto text-xs text-muted-foreground self-center">
-              {validBulkCount > 0 ? `${validBulkCount}건 등록 예정` : "부서·작업내용·유해요인 입력 필요"}
-            </span>
-          </div>
-
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => { setShowBulk(false); setBulkRows([defaultBulkRow()]); }}>취소</Button>
-            <Button
-              className="bg-purple-600 text-white"
-              onClick={handleBulkSubmit}
-              disabled={bulkPending || validBulkCount === 0}
-              data-testid="button-bulk-submit"
-            >
-              {bulkPending ? "등록 중..." : `${validBulkCount}건 일괄 등록`}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       {/* ─── 플로팅 벌크 삭제 바 ───────────────────────────────────── */}
       {selectionMode && selectedIds.size > 0 && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-background border border-border shadow-xl rounded-full px-5 py-3">
@@ -1752,54 +1522,6 @@ export default function MusculoskeletalDisease() {
           </Button>
         </div>
       )}
-
-      {/* ─── 엑셀 가져오기 다이얼로그 ───────────────────────────────── */}
-      <Dialog open={showImport} onOpenChange={o => { if (!o) { setShowImport(false); setImportFile(null); } }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>엑셀 가져오기</DialogTitle>
-            <DialogDescription>
-              다운로드한 양식과 동일한 컬럼 구조의 xlsx 파일을 업로드하면 자동으로 등록됩니다.
-              헤더 행(1번 행)은 건너뜁니다.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div
-              className="border-2 border-dashed border-border rounded-lg p-8 text-center cursor-pointer hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/10 transition-colors"
-              onClick={() => importFileRef.current?.click()}
-            >
-              <FileUp className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
-              {importFile ? (
-                <p className="text-sm font-medium">{importFile.name}</p>
-              ) : (
-                <p className="text-sm text-muted-foreground">클릭하여 xlsx 파일 선택</p>
-              )}
-            </div>
-            <input
-              ref={importFileRef}
-              type="file"
-              accept=".xlsx,.xls"
-              className="hidden"
-              onChange={e => setImportFile(e.target.files?.[0] ?? null)}
-            />
-            <div className="text-xs text-muted-foreground bg-muted rounded-lg p-3 space-y-1">
-              <p className="font-medium">필수 컬럼 (엑셀 헤더명):</p>
-              <p>부서, 작업명, 유해요인, 위험수준, 현재 조치사항, 개선계획, 평가일, 평가자, 상태</p>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setShowImport(false); setImportFile(null); }}>취소</Button>
-            <Button
-              className="bg-purple-600 text-white"
-              disabled={!importFile || importPending}
-              onClick={handleImport}
-              data-testid="button-import-submit"
-            >
-              {importPending ? "가져오는 중..." : "가져오기"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* ─── 2단계 증상조사표 다이얼로그 ────────────────────────────── */}
       <Dialog open={surveyAssessmentId !== null} onOpenChange={o => { if (!o) { setSurveyAssessmentId(null); resetSurveyForm(); } }}>
@@ -1867,8 +1589,22 @@ export default function MusculoskeletalDisease() {
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               <div className="space-y-1">
                 <Label className="text-xs">근로자명 *</Label>
-                <Input value={surveyForm.workerName} onChange={e => setSurveyForm(f => ({ ...f, workerName: e.target.value }))}
-                  className="h-8 text-sm" placeholder="이름" data-testid="input-survey-worker-name" />
+                <Select
+                  value={surveyForm.workerName}
+                  onValueChange={val => {
+                    const found = (users || []).find((u: any) => u.name === val);
+                    setSurveyForm(f => ({ ...f, workerName: val, workerDept: found?.department || f.workerDept }));
+                  }}
+                >
+                  <SelectTrigger className="h-8 text-sm" data-testid="input-survey-worker-name">
+                    <SelectValue placeholder="근로자 선택" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(users || []).map((u: any) => (
+                      <SelectItem key={u.id} value={u.name}>{u.name} ({u.department || "부서없음"})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">소속부서</Label>
@@ -2000,6 +1736,65 @@ export default function MusculoskeletalDisease() {
                 : surveyEditingId ? "수정 저장" : "조사표 등록"}
             </Button>
           </DialogFooter>
+
+          {/* ── 1차 개선 섹션 (개선 대기 상태일 때만 표시) ── */}
+          {(() => {
+            const item = (assessments || []).find(a => a.id === surveyAssessmentId);
+            if (!item || item.status !== "개선 대기") return null;
+            return (
+              <div className="border-t border-amber-200 dark:border-amber-800 mt-4 pt-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-amber-600" />
+                  <Label className="text-sm font-semibold text-amber-700 dark:text-amber-400">1차 개선 등록 (부서장 확인 후 종결)</Label>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">개선 완료일</Label>
+                    <Input
+                      type="date"
+                      value={improvementForm.postImprovementDueDate}
+                      onChange={e => setImprovementForm(f => ({ ...f, postImprovementDueDate: e.target.value }))}
+                      className="h-8 text-sm"
+                      data-testid="input-improvement-due-date"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">확인자 (부서장)</Label>
+                    <Input
+                      value={improvementForm.postImprovementChecker}
+                      onChange={e => setImprovementForm(f => ({ ...f, postImprovementChecker: e.target.value }))}
+                      className="h-8 text-sm"
+                      placeholder="부서장명 입력"
+                      data-testid="input-improvement-checker"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">개선 내용 *</Label>
+                  <Textarea
+                    value={improvementForm.postImprovementContent}
+                    onChange={e => setImprovementForm(f => ({ ...f, postImprovementContent: e.target.value }))}
+                    placeholder="시행된 개선조치 내용을 입력하세요"
+                    className="text-sm min-h-[80px]"
+                    data-testid="textarea-improvement-content"
+                  />
+                </div>
+                <Button
+                  className="w-full bg-amber-600 hover:bg-amber-700 text-white gap-2"
+                  disabled={!improvementForm.postImprovementContent.trim() || improvementMutation.isPending}
+                  onClick={() => {
+                    if (surveyAssessmentId !== null) {
+                      improvementMutation.mutate({ id: surveyAssessmentId, data: improvementForm });
+                    }
+                  }}
+                  data-testid="button-improvement-submit"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  {improvementMutation.isPending ? "등록 중..." : "개선 등록 (종결 처리)"}
+                </Button>
+              </div>
+            );
+          })()}
         </DialogContent>
       </Dialog>
 
