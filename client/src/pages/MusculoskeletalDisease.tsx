@@ -212,8 +212,34 @@ function calcRiskFromChecklist(checked: number[]): string {
 }
 
 const RISK_LEVELS = ["높음", "중간", "낮음"];
-const STATUS_OPTIONS = ["진행중", "완료", "보류"];
+// 2단계 워크플로우 상태 세분화
+const STATUS_OPTIONS = [
+  "진행중",
+  "유해요인조사 완료",
+  "증상조사 대기",
+  "증상조사 진행중",
+  "조사완료(증상없음)",
+  "종결",
+  "보류",
+];
+// 수동 편집 가능한 상태만 (자동 전이 상태 제외)
+const STATUS_MANUAL_OPTIONS = ["진행중", "유해요인조사 완료", "보류"];
+
 const DRAFT_KEY = "musculoskeletal_draft";
+
+const BODY_PARTS = [
+  { key: "neck",     label: "목" },
+  { key: "shoulder", label: "어깨" },
+  { key: "elbow",    label: "팔꿈치" },
+  { key: "wrist",    label: "손목·손" },
+  { key: "back",     label: "허리" },
+  { key: "leg",      label: "다리·발" },
+] as const;
+
+const FREQUENCY_OPTIONS = ["가끔(월 1회 미만)", "자주(월 1회~주 1회)", "항상(주 1회 이상)"];
+const DURATION_OPTIONS  = ["1주일 미만", "1주~1개월", "1개월~3개월", "3개월 이상"];
+const INTENSITY_LABELS  = ["","약함","약간","보통","심함","매우심함"];
+const INTERFERENCE_OPTIONS = ["없음","약간 지장","심한 지장"];
 
 function getRiskBadgeClass(level: string) {
   switch (level) {
@@ -225,9 +251,13 @@ function getRiskBadgeClass(level: string) {
 }
 function getStatusBadgeClass(status: string) {
   switch (status) {
-    case "완료": return "bg-green-500 text-white dark:bg-green-600";
-    case "보류": return "bg-orange-500 text-white dark:bg-orange-600";
-    default:     return "bg-blue-500 text-white dark:bg-blue-600";
+    case "종결":
+    case "조사완료(증상없음)": return "bg-green-500 text-white dark:bg-green-600";
+    case "유해요인조사 완료":  return "bg-cyan-600 text-white dark:bg-cyan-700";
+    case "증상조사 대기":      return "bg-orange-500 text-white dark:bg-orange-600";
+    case "증상조사 진행중":    return "bg-purple-600 text-white dark:bg-purple-700";
+    case "보류":               return "bg-gray-500 text-white dark:bg-gray-600";
+    default:                   return "bg-blue-500 text-white dark:bg-blue-600";
   }
 }
 
@@ -242,6 +272,9 @@ interface FormState {
   assessor: string;
   status: string;
   burdenWorkChecklist: number[];
+  // 2단계 스크리닝
+  hasSymptoms: boolean | null;   // null = 미선택
+  symptomWorkers: string[];      // 증상 호소 근로자 명단
 }
 const defaultForm = (): FormState => ({
   department: "",
@@ -254,6 +287,8 @@ const defaultForm = (): FormState => ({
   assessor: "",
   status: "진행중",
   burdenWorkChecklist: [],
+  hasSymptoms: null,
+  symptomWorkers: [],
 });
 
 interface BulkRow {
@@ -327,12 +362,117 @@ export default function MusculoskeletalDisease() {
         .then(r => r.json()),
   });
 
+  // ── 증상조사표 (2단계) ────────────────────────────────────────────────
+  const [surveyAssessmentId, setSurveyAssessmentId] = useState<number | null>(null);
+
+  const { data: pendingCount } = useQuery<{ count: number }>({
+    queryKey: ["/api/musculoskeletal-assessments/pending-symptom-count", headquarters],
+    queryFn: () => fetch(`/api/musculoskeletal-assessments/pending-symptom-count?headquarters=${encodeURIComponent(headquarters)}`, { credentials: "include" }).then(r => r.json()),
+    refetchInterval: 30000,
+  });
+
+  const { data: surveyList, isLoading: surveysLoading } = useQuery<any[]>({
+    queryKey: ["/api/musculoskeletal-assessments", surveyAssessmentId, "symptom-surveys"],
+    queryFn: () => fetch(`/api/musculoskeletal-assessments/${surveyAssessmentId}/symptom-surveys`, { credentials: "include" }).then(r => r.json()),
+    enabled: surveyAssessmentId !== null,
+  });
+
+  // 증상조사 다이얼로그 내부 상태
+  const [surveyEditingId, setSurveyEditingId] = useState<number | null>(null);
+  const [surveyForm, setSurveyForm] = useState<Record<string, any>>({
+    workerName: "", workerDept: "", surveyDate: new Date().toISOString().split("T")[0],
+    // 신체부위별 필드 초기값
+    ...Object.fromEntries(BODY_PARTS.flatMap(bp => [
+      [`${bp.key}Pain`, false], [`${bp.key}Intensity`, 0],
+      [`${bp.key}Frequency`, ""], [`${bp.key}Duration`, ""], [`${bp.key}Interference`, ""],
+    ])),
+    workRelated: "", notes: "", completed: false,
+  });
+  const resetSurveyForm = () => {
+    setSurveyEditingId(null);
+    setSurveyForm({
+      workerName: "", workerDept: "", surveyDate: new Date().toISOString().split("T")[0],
+      ...Object.fromEntries(BODY_PARTS.flatMap(bp => [
+        [`${bp.key}Pain`, false], [`${bp.key}Intensity`, 0],
+        [`${bp.key}Frequency`, ""], [`${bp.key}Duration`, ""], [`${bp.key}Interference`, ""],
+      ])),
+      workRelated: "", notes: "", completed: false,
+    });
+  };
+
+  const createSurveyMutation = useMutation({
+    mutationFn: (data: Record<string, any>) =>
+      fetch(`/api/musculoskeletal-assessments/${surveyAssessmentId}/symptom-surveys`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }).then(async r => { if (!r.ok) throw new Error(await r.text()); return r.json(); }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments", surveyAssessmentId, "symptom-surveys"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments/pending-symptom-count"] });
+      resetSurveyForm();
+      toast({ title: "증상조사표가 등록되었습니다." });
+    },
+    onError: () => toast({ variant: "destructive", title: "등록에 실패했습니다." }),
+  });
+
+  const updateSurveyMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: Record<string, any> }) =>
+      fetch(`/api/symptom-surveys/${id}`, {
+        method: "PUT", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }).then(async r => { if (!r.ok) throw new Error(await r.text()); return r.json(); }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments", surveyAssessmentId, "symptom-surveys"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments/pending-symptom-count"] });
+      resetSurveyForm();
+      toast({ title: "증상조사표가 수정되었습니다." });
+    },
+    onError: () => toast({ variant: "destructive", title: "수정에 실패했습니다." }),
+  });
+
+  const deleteSurveyMutation = useMutation({
+    mutationFn: (id: number) =>
+      fetch(`/api/symptom-surveys/${id}`, { method: "DELETE", credentials: "include" })
+        .then(async r => { if (!r.ok) throw new Error(await r.text()); }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments", surveyAssessmentId, "symptom-surveys"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments/pending-symptom-count"] });
+      toast({ title: "증상조사표가 삭제되었습니다." });
+    },
+    onError: () => toast({ variant: "destructive", title: "삭제에 실패했습니다." }),
+  });
+
+  const handleSurveyEdit = (s: any) => {
+    setSurveyEditingId(s.id);
+    setSurveyForm({ ...s });
+  };
+
+  const handleSurveySubmit = () => {
+    if (!surveyForm.workerName) {
+      toast({ variant: "destructive", title: "근로자명을 입력하세요." });
+      return;
+    }
+    if (surveyEditingId) {
+      updateSurveyMutation.mutate({ id: surveyEditingId, data: surveyForm });
+    } else {
+      createSurveyMutation.mutate(surveyForm);
+    }
+  };
+
   const createMutation = useMutation({
     mutationFn: (data: FormState) =>
       apiRequest("POST", "/api/musculoskeletal-assessments", {
         ...data,
         headquarters,
         burdenWorkChecklist: JSON.stringify(data.burdenWorkChecklist),
+        symptomWorkers: JSON.stringify(data.symptomWorkers),
+        // hasSymptoms null → false(저장 전 미선택)
+        hasSymptoms: data.hasSymptoms ?? false,
       } as unknown as Record<string, unknown>),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments"] });
@@ -348,6 +488,8 @@ export default function MusculoskeletalDisease() {
       apiRequest("PUT", `/api/musculoskeletal-assessments/${id}`, {
         ...data,
         burdenWorkChecklist: JSON.stringify(data.burdenWorkChecklist),
+        symptomWorkers: JSON.stringify(data.symptomWorkers),
+        hasSymptoms: data.hasSymptoms ?? false,
       } as unknown as Record<string, unknown>),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments"] });
@@ -491,14 +633,27 @@ export default function MusculoskeletalDisease() {
       toast({ variant: "destructive", title: "부서, 작업내용, 유해요인은 필수입니다." });
       return;
     }
+    // 스크리닝 질문에 답했을 때 상태 자동 전이
+    let finalForm = { ...form };
+    if (form.hasSymptoms === false) {
+      // 증상 없음 → 종결
+      finalForm.status = "조사완료(증상없음)";
+    } else if (form.hasSymptoms === true) {
+      // 증상 있음 → 증상조사 대기 (이미 증상조사가 진행된 경우는 유지)
+      const currentStatus = form.status;
+      if (!["증상조사 진행중", "종결"].includes(currentStatus)) {
+        finalForm.status = "증상조사 대기";
+      }
+    }
     if (editingId) {
-      updateMutation.mutate({ id: editingId, data: form });
+      updateMutation.mutate({ id: editingId, data: finalForm });
     } else {
-      createMutation.mutate(form);
+      createMutation.mutate(finalForm);
     }
   };
 
   const handleEdit = (item: MusculoskeletalAssessment) => {
+    const workers: string[] = (() => { try { return JSON.parse((item as any).symptomWorkers || "[]"); } catch { return []; } })();
     setForm({
       department:          item.department,
       task:                item.task,
@@ -510,6 +665,8 @@ export default function MusculoskeletalDisease() {
       assessor:            item.assessor || "",
       status:              item.status,
       burdenWorkChecklist: parseChecklist((item as any).burdenWorkChecklist),
+      hasSymptoms:         (item as any).hasSymptoms ?? null,
+      symptomWorkers:      workers,
     });
     setEditingId(item.id);
     setRiskManual(true);
@@ -528,6 +685,8 @@ export default function MusculoskeletalDisease() {
       assessor:            item.assessor || "",
       status:              "진행중",
       burdenWorkChecklist: parseChecklist((item as any).burdenWorkChecklist),
+      hasSymptoms:         null,
+      symptomWorkers:      [],
     });
     setEditingId(null);
     setRiskManual(false);
@@ -552,7 +711,9 @@ export default function MusculoskeletalDisease() {
     const riskOrder: Record<string, number> = { "높음": 0, "중간": 1, "낮음": 2 };
     let list = assessments.filter(a => {
       if (filterRisk !== "all" && a.riskLevel !== filterRisk) return false;
-      if (filterStatus !== "all" && a.status !== filterStatus) return false;
+      if (filterStatus === "pending_symptom") {
+        if (!["증상조사 대기", "증상조사 진행중"].includes(a.status)) return false;
+      } else if (filterStatus !== "all" && a.status !== filterStatus) return false;
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
         return (
@@ -706,6 +867,20 @@ export default function MusculoskeletalDisease() {
         </div>
       </div>
 
+      {/* ─── 증상조사 대기 알림 배너 ─────────────────────────────── */}
+      {(pendingCount?.count ?? 0) > 0 && (
+        <div
+          className="flex items-center gap-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg px-4 py-2.5 cursor-pointer hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors"
+          onClick={() => setFilterStatus("증상조사 대기")}
+          data-testid="banner-pending-symptom"
+        >
+          <AlertTriangle className="w-4 h-4 text-orange-500 shrink-0" />
+          <span className="text-sm font-medium text-orange-700 dark:text-orange-300">
+            증상조사 대기 중인 건이 <strong>{pendingCount!.count}건</strong> 있습니다. 클릭해서 필터링하세요.
+          </span>
+        </div>
+      )}
+
       {/* ─── 통계 배지 ─────────────────────────────────────────────── */}
       {riskStats && (
         <div className="flex flex-wrap gap-2 items-center">
@@ -747,12 +922,13 @@ export default function MusculoskeletalDisease() {
           </SelectContent>
         </Select>
         <Select value={filterStatus} onValueChange={setFilterStatus}>
-          <SelectTrigger className="w-24" data-testid="select-filter-status">
+          <SelectTrigger className="w-36" data-testid="select-filter-status">
             <SelectValue placeholder="상태" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">전체 상태</SelectItem>
             {STATUS_OPTIONS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+            <SelectItem value="pending_symptom">증상조사 대기+진행중</SelectItem>
           </SelectContent>
         </Select>
         <Select value={sortBy} onValueChange={v => setSortBy(v as "date" | "risk" | "dept")}>
@@ -970,6 +1146,17 @@ export default function MusculoskeletalDisease() {
                               <Clock className="w-3.5 h-3.5 text-muted-foreground" />
                             </Button>
                             {/* 첨부파일 추가 (owner) */}
+                            {/* 2단계 증상조사 버튼 — 증상조사 대기/진행중 상태일 때 강조 */}
+                            {["증상조사 대기", "증상조사 진행중"].includes(item.status) && (
+                              <Button
+                                variant="ghost" size="sm"
+                                className="h-7 text-xs px-2 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20"
+                                onClick={() => setSurveyAssessmentId(item.id)}
+                                data-testid={`button-survey-${item.id}`}
+                              >
+                                <History className="w-3 h-3 mr-1" />증상조사
+                              </Button>
+                            )}
                             {canEdit && isOwner(item.createdBy) && (
                               <>
                                 <Button variant="ghost" size="icon" className="h-7 w-7"
@@ -1237,11 +1424,95 @@ export default function MusculoskeletalDisease() {
                     <SelectValue placeholder="상태 선택" />
                   </SelectTrigger>
                   <SelectContent>
-                    {STATUS_OPTIONS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                    {/* 수동 편집 가능 상태만 표시 (나머지는 자동 전이) */}
+                    {STATUS_MANUAL_OPTIONS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                    {/* 자동 전이 상태도 수정 모드에서 현재 상태 유지를 위해 포함 */}
+                    {!STATUS_MANUAL_OPTIONS.includes(form.status) && (
+                      <SelectItem value={form.status}>{form.status}</SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
             </div>
+          </div>
+
+          {/* ── 1단계 완료 스크리닝 질문 ─────────────────────────────── */}
+          <div className="border-t border-border pt-3 mt-1 space-y-3">
+            <Label className="text-sm font-semibold flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-orange-500" />
+              1단계 완료 스크리닝 (선택)
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              해당 작업 근로자 중 근골격계 증상(통증·저림 등)을 호소하는 인원이 있습니까?
+            </p>
+            <div className="flex gap-2">
+              <Button
+                type="button" variant={form.hasSymptoms === false ? "default" : "outline"}
+                className={`h-8 text-xs px-4 ${form.hasSymptoms === false ? "bg-green-600 text-white" : ""}`}
+                onClick={() => updateField("hasSymptoms", false)}
+                data-testid="button-no-symptoms"
+              >
+                아니오 (증상 없음 → 종결)
+              </Button>
+              <Button
+                type="button" variant={form.hasSymptoms === true ? "default" : "outline"}
+                className={`h-8 text-xs px-4 ${form.hasSymptoms === true ? "bg-orange-600 text-white" : ""}`}
+                onClick={() => updateField("hasSymptoms", true)}
+                data-testid="button-has-symptoms"
+              >
+                예 (증상 있음 → 2단계 진행)
+              </Button>
+              {form.hasSymptoms !== null && (
+                <Button type="button" variant="ghost" className="h-8 text-xs"
+                  onClick={() => updateField("hasSymptoms", null)}>
+                  <X className="w-3.5 h-3.5 mr-1" />미선택
+                </Button>
+              )}
+            </div>
+            {/* 증상 있음: 근로자 명단 */}
+            {form.hasSymptoms === true && (
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">증상 호소 근로자 명단 (Enter로 추가)</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="worker-input"
+                    placeholder="근로자명 입력 후 Enter"
+                    className="h-8 text-sm"
+                    onKeyDown={e => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        const val = (e.target as HTMLInputElement).value.trim();
+                        if (val && !form.symptomWorkers.includes(val)) {
+                          updateField("symptomWorkers", [...form.symptomWorkers, val]);
+                          (e.target as HTMLInputElement).value = "";
+                        }
+                      }
+                    }}
+                    data-testid="input-worker-name"
+                  />
+                </div>
+                {form.symptomWorkers.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {form.symptomWorkers.map((w, i) => (
+                      <Badge key={i} className="bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200 text-xs no-default-hover-elevate no-default-active-elevate gap-1">
+                        {w}
+                        <button onClick={() => updateField("symptomWorkers", form.symptomWorkers.filter((_, j) => j !== i))}>
+                          <X className="w-3 h-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            {/* 미리보기 상태 전이 안내 */}
+            {form.hasSymptoms !== null && (
+              <p className="text-xs rounded px-2 py-1 bg-muted text-muted-foreground">
+                {form.hasSymptoms === false
+                  ? "저장 시 상태: 조사완료(증상없음) — 바로 종결됩니다."
+                  : `저장 시 상태: 증상조사 대기 — ${form.symptomWorkers.length}명의 2단계 증상조사표 입력이 필요합니다.`}
+              </p>
+            )}
           </div>
 
           {/* ── 수정 모드일 때: 첨부파일 섹션 ─────────────────────── */}
@@ -1567,6 +1838,208 @@ export default function MusculoskeletalDisease() {
               data-testid="button-import-submit"
             >
               {importPending ? "가져오는 중..." : "가져오기"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── 2단계 증상조사표 다이얼로그 ────────────────────────────── */}
+      <Dialog open={surveyAssessmentId !== null} onOpenChange={o => { if (!o) { setSurveyAssessmentId(null); resetSurveyForm(); } }}>
+        <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-orange-500" />
+              2단계 근로자별 증상조사표
+            </DialogTitle>
+            <DialogDescription>
+              {(() => {
+                const item = (assessments || []).find(a => a.id === surveyAssessmentId);
+                return item ? `${item.department} — ${item.task}` : "";
+              })()}
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* ── 이미 입력된 조사표 목록 ── */}
+          {surveysLoading ? (
+            <div className="py-4 text-center text-muted-foreground text-sm">로딩 중...</div>
+          ) : (surveyList || []).length === 0 ? (
+            <div className="py-4 text-center text-muted-foreground text-sm">아직 등록된 증상조사표가 없습니다.</div>
+          ) : (
+            <div className="space-y-2 mb-4">
+              <Label className="text-sm font-semibold">등록된 조사표 ({surveyList!.length}건)</Label>
+              {surveyList!.map((s: any) => {
+                const painParts = BODY_PARTS.filter(bp => s[`${bp.key}Pain`]).map(bp => bp.label);
+                return (
+                  <div key={s.id} className={`flex items-center justify-between border rounded-lg px-3 py-2 text-sm ${s.completed ? "border-green-300 bg-green-50 dark:bg-green-900/10" : "border-border"}`}>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium">{s.workerName}</span>
+                      {s.workerDept && <span className="text-muted-foreground text-xs">({s.workerDept})</span>}
+                      <span className="text-xs text-muted-foreground">{s.surveyDate}</span>
+                      {painParts.length > 0 && (
+                        <span className="text-xs text-orange-600">통증: {painParts.join(", ")}</span>
+                      )}
+                      {s.completed && (
+                        <Badge className="bg-green-600 text-white text-xs no-default-hover-elevate no-default-active-elevate">완료</Badge>
+                      )}
+                    </div>
+                    <div className="flex gap-1">
+                      <Button variant="ghost" size="icon" className="h-7 w-7"
+                        onClick={() => handleSurveyEdit(s)} data-testid={`button-survey-edit-${s.id}`}>
+                        <Pencil className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7"
+                        onClick={() => { if (confirm("삭제하시겠습니까?")) deleteSurveyMutation.mutate(s.id); }}
+                        data-testid={`button-survey-delete-${s.id}`}>
+                        <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* ── 새 조사표 / 수정 폼 ── */}
+          <div className="border-t border-border pt-4 space-y-4">
+            <Label className="text-sm font-semibold">
+              {surveyEditingId ? "조사표 수정" : "새 조사표 입력"}
+            </Label>
+
+            {/* 근로자 정보 */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">근로자명 *</Label>
+                <Input value={surveyForm.workerName} onChange={e => setSurveyForm(f => ({ ...f, workerName: e.target.value }))}
+                  className="h-8 text-sm" placeholder="이름" data-testid="input-survey-worker-name" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">소속부서</Label>
+                <Input value={surveyForm.workerDept} onChange={e => setSurveyForm(f => ({ ...f, workerDept: e.target.value }))}
+                  className="h-8 text-sm" placeholder="부서" data-testid="input-survey-worker-dept" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">조사일</Label>
+                <Input type="date" value={surveyForm.surveyDate} onChange={e => setSurveyForm(f => ({ ...f, surveyDate: e.target.value }))}
+                  className="h-8 text-sm" data-testid="input-survey-date" />
+              </div>
+            </div>
+
+            {/* 신체부위별 증상 */}
+            <div className="space-y-3">
+              <Label className="text-xs font-medium text-muted-foreground">신체부위별 증상</Label>
+              {BODY_PARTS.map(bp => (
+                <div key={bp.key} className={`rounded-lg border p-3 space-y-2 transition-colors ${surveyForm[`${bp.key}Pain`] ? "border-orange-300 bg-orange-50/50 dark:bg-orange-900/10" : "border-border"}`}>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setSurveyForm(f => ({
+                        ...f,
+                        [`${bp.key}Pain`]: !f[`${bp.key}Pain`],
+                        ...(!f[`${bp.key}Pain`] ? {} : { [`${bp.key}Intensity`]: 0, [`${bp.key}Frequency`]: "", [`${bp.key}Duration`]: "", [`${bp.key}Interference`]: "" }),
+                      }))}
+                      className={`w-8 h-8 rounded border-2 flex items-center justify-center transition-colors ${surveyForm[`${bp.key}Pain`] ? "border-orange-500 bg-orange-500 text-white" : "border-border"}`}
+                      data-testid={`checkbox-${bp.key}-pain`}
+                    >
+                      {surveyForm[`${bp.key}Pain`] && <span className="text-xs font-bold">✓</span>}
+                    </button>
+                    <span className="font-medium text-sm w-16">{bp.label}</span>
+                    {!surveyForm[`${bp.key}Pain`] && (
+                      <span className="text-xs text-muted-foreground">통증 없음</span>
+                    )}
+                  </div>
+                  {surveyForm[`${bp.key}Pain`] && (
+                    <div className="pl-11 grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {/* 통증 강도 1~5 */}
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">강도</Label>
+                        <div className="flex gap-1">
+                          {[1,2,3,4,5].map(n => (
+                            <button key={n} type="button"
+                              onClick={() => setSurveyForm(f => ({ ...f, [`${bp.key}Intensity`]: n }))}
+                              className={`w-6 h-6 text-xs rounded border ${surveyForm[`${bp.key}Intensity`] === n ? "bg-orange-500 border-orange-500 text-white" : "border-border text-muted-foreground"}`}
+                            >{n}</button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">빈도</Label>
+                        <Select value={surveyForm[`${bp.key}Frequency`]} onValueChange={v => setSurveyForm(f => ({ ...f, [`${bp.key}Frequency`]: v }))}>
+                          <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="선택" /></SelectTrigger>
+                          <SelectContent>{FREQUENCY_OPTIONS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">지속기간</Label>
+                        <Select value={surveyForm[`${bp.key}Duration`]} onValueChange={v => setSurveyForm(f => ({ ...f, [`${bp.key}Duration`]: v }))}>
+                          <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="선택" /></SelectTrigger>
+                          <SelectContent>{DURATION_OPTIONS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">업무지장</Label>
+                        <Select value={surveyForm[`${bp.key}Interference`]} onValueChange={v => setSurveyForm(f => ({ ...f, [`${bp.key}Interference`]: v }))}>
+                          <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="선택" /></SelectTrigger>
+                          <SelectContent>{INTERFERENCE_OPTIONS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* 업무관련성 + 비고 */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">업무관련성 소견</Label>
+                <Select value={surveyForm.workRelated} onValueChange={v => setSurveyForm(f => ({ ...f, workRelated: v }))}>
+                  <SelectTrigger className="h-8 text-sm" data-testid="select-work-related"><SelectValue placeholder="선택" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="관련있음">관련있음</SelectItem>
+                    <SelectItem value="관련없음">관련없음</SelectItem>
+                    <SelectItem value="판단불가">판단불가</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">비고</Label>
+                <Input value={surveyForm.notes || ""} onChange={e => setSurveyForm(f => ({ ...f, notes: e.target.value }))}
+                  className="h-8 text-sm" placeholder="특이사항" data-testid="input-survey-notes" />
+              </div>
+            </div>
+
+            {/* 조사 완료 여부 */}
+            <div className="flex items-center gap-2">
+              <button type="button"
+                onClick={() => setSurveyForm(f => ({ ...f, completed: !f.completed }))}
+                className={`w-8 h-8 rounded border-2 flex items-center justify-center transition-colors ${surveyForm.completed ? "border-green-500 bg-green-500 text-white" : "border-border"}`}
+                data-testid="checkbox-survey-completed"
+              >
+                {surveyForm.completed && <span className="text-xs font-bold">✓</span>}
+              </button>
+              <Label className="text-sm cursor-pointer" onClick={() => setSurveyForm(f => ({ ...f, completed: !f.completed }))}>
+                조사 완료 (모든 신체부위 확인 완료 시 체크)
+              </Label>
+            </div>
+          </div>
+
+          <DialogFooter className="flex-col-reverse sm:flex-row gap-2 pt-2">
+            {surveyEditingId && (
+              <Button variant="outline" onClick={resetSurveyForm} className="sm:mr-auto">
+                취소
+              </Button>
+            )}
+            <Button variant="outline" onClick={() => { setSurveyAssessmentId(null); resetSurveyForm(); }}>
+              닫기
+            </Button>
+            <Button
+              onClick={handleSurveySubmit}
+              disabled={createSurveyMutation.isPending || updateSurveyMutation.isPending}
+              data-testid="button-survey-submit"
+            >
+              {createSurveyMutation.isPending || updateSurveyMutation.isPending
+                ? "저장 중..."
+                : surveyEditingId ? "수정 저장" : "조사표 등록"}
             </Button>
           </DialogFooter>
         </DialogContent>

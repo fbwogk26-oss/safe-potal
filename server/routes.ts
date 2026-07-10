@@ -4572,6 +4572,69 @@ ${buildEmailFooter()}
     }
   });
 
+  // 증상조사 대기 건수
+  app.get('/api/musculoskeletal-assessments/pending-symptom-count', isAuthenticated, async (req: any, res) => {
+    try {
+      const hq = req.query.headquarters as string | undefined;
+      const count = await storage.getPendingSymptomCount(hq);
+      res.json({ count });
+    } catch { res.status(500).json({ message: "조회 실패" }); }
+  });
+
+  // 특정 조사의 증상조사표 목록
+  app.get('/api/musculoskeletal-assessments/:id/symptom-surveys', isAuthenticated, async (req: any, res) => {
+    try {
+      const surveys = await storage.getSymptomSurveys(Number(req.params.id));
+      res.json(surveys);
+    } catch { res.status(500).json({ message: "조회 실패" }); }
+  });
+
+  // 증상조사표 생성
+  app.post('/api/musculoskeletal-assessments/:id/symptom-surveys', requireEditor, async (req: any, res) => {
+    try {
+      const assessmentId = Number(req.params.id);
+      const created = await storage.createSymptomSurvey({ ...req.body, assessmentId });
+      // 해당 assessment 상태를 증상조사 진행중으로 업데이트
+      const surveys = await storage.getSymptomSurveys(assessmentId);
+      const allDone = surveys.every(s => s.status === '완료');
+      if (!allDone) {
+        await storage.updateMusculoskeletalAssessment(assessmentId, { status: '증상조사 진행중' } as any);
+      }
+      res.json(created);
+    } catch { res.status(500).json({ message: "저장 실패" }); }
+  });
+
+  // 증상조사표 수정
+  app.put('/api/symptom-surveys/:id', requireEditor, async (req: any, res) => {
+    try {
+      const updated = await storage.updateSymptomSurvey(Number(req.params.id), req.body);
+      // 같은 assessment의 모든 증상조사가 완료인지 확인 → 완료면 assessment 종결
+      const surveys = await storage.getSymptomSurveys(updated.assessmentId);
+      const allDone = surveys.length > 0 && surveys.every(s => s.status === '완료');
+      if (allDone) {
+        await storage.updateMusculoskeletalAssessment(updated.assessmentId, { status: '종결' } as any);
+      } else {
+        await storage.updateMusculoskeletalAssessment(updated.assessmentId, { status: '증상조사 진행중' } as any);
+      }
+      res.json(updated);
+    } catch { res.status(500).json({ message: "수정 실패" }); }
+  });
+
+  // 증상조사표 삭제
+  app.delete('/api/symptom-surveys/:id', requireEditor, async (req: any, res) => {
+    try {
+      const survey = await storage.getSymptomSurvey(Number(req.params.id));
+      if (!survey) return res.status(404).json({ message: "없음" });
+      await storage.deleteSymptomSurvey(Number(req.params.id));
+      // 남은 증상조사 확인
+      const remaining = await storage.getSymptomSurveys(survey.assessmentId);
+      if (remaining.length === 0) {
+        await storage.updateMusculoskeletalAssessment(survey.assessmentId, { status: '증상조사 대기' } as any);
+      }
+      res.json({ success: true });
+    } catch { res.status(500).json({ message: "삭제 실패" }); }
+  });
+
   // === RISK ASSESSMENTS ===
 
   // 위험성평가 엑셀 다운로드 (사진 포함)

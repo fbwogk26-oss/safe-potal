@@ -297,6 +297,9 @@ export const musculoskeletalAssessments = pgTable("musculoskeletal_assessments",
   createdAt: timestamp("created_at").defaultNow(),
   burdenWorkChecklist: text("burden_work_checklist"),
   attachments: text("attachments"),
+  // 2단계 워크플로우 스크리닝
+  hasSymptoms: boolean("has_symptoms").default(false),
+  symptomWorkers: text("symptom_workers").default("[]"),
 });
 
 export const musculoskeletalAssessmentHistory = pgTable("musculoskeletal_assessment_history", {
@@ -307,9 +310,54 @@ export const musculoskeletalAssessmentHistory = pgTable("musculoskeletal_assessm
   changes: text("changes"),
 });
 
+// 2단계: 근골격계 증상조사표
+export const musculoskeletalSymptomSurveys = pgTable("musculoskeletal_symptom_surveys", {
+  id: serial("id").primaryKey(),
+  assessmentId: integer("assessment_id").notNull(),
+  workerName: text("worker_name").notNull(),
+  // 신체부위별 통증유무
+  neckPain: boolean("neck_pain").default(false),
+  shoulderPain: boolean("shoulder_pain").default(false),
+  elbowPain: boolean("elbow_pain").default(false),
+  wristPain: boolean("wrist_pain").default(false),
+  backPain: boolean("back_pain").default(false),
+  legPain: boolean("leg_pain").default(false),
+  // 통증 강도 (1~5)
+  neckIntensity: integer("neck_intensity"),
+  shoulderIntensity: integer("shoulder_intensity"),
+  elbowIntensity: integer("elbow_intensity"),
+  wristIntensity: integer("wrist_intensity"),
+  backIntensity: integer("back_intensity"),
+  legIntensity: integer("leg_intensity"),
+  // 통증 빈도
+  neckFrequency: text("neck_frequency"),
+  shoulderFrequency: text("shoulder_frequency"),
+  elbowFrequency: text("elbow_frequency"),
+  wristFrequency: text("wrist_frequency"),
+  backFrequency: text("back_frequency"),
+  legFrequency: text("leg_frequency"),
+  // 통증 지속기간
+  neckDuration: text("neck_duration"),
+  shoulderDuration: text("shoulder_duration"),
+  elbowDuration: text("elbow_duration"),
+  wristDuration: text("wrist_duration"),
+  backDuration: text("back_duration"),
+  legDuration: text("leg_duration"),
+  // 업무 지장
+  workInterference: text("work_interference"),
+  notes: text("notes"),
+  status: text("status").default("대기"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const insertMusculoskeletalAssessmentSchema = createInsertSchema(musculoskeletalAssessments).omit({ id: true, createdAt: true });
 export type MusculoskeletalAssessment = typeof musculoskeletalAssessments.$inferSelect;
 export type InsertMusculoskeletalAssessment = z.infer<typeof insertMusculoskeletalAssessmentSchema>;
+
+export const insertMusculoskeletalSymptomSurveySchema = createInsertSchema(musculoskeletalSymptomSurveys).omit({ id: true, createdAt: true, updatedAt: true });
+export type MusculoskeletalSymptomSurvey = typeof musculoskeletalSymptomSurveys.$inferSelect;
+export type InsertMusculoskeletalSymptomSurvey = z.infer<typeof insertMusculoskeletalSymptomSurveySchema>;
 
 // === 위험성평가 (Risk Assessment - KRAS) ===
 export const riskAssessments = pgTable("risk_assessments", {

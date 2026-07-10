@@ -3,7 +3,7 @@ import {
   teams, notices, settings, safetyEquipment, safetyInspections,
   educationSessions, educationSignatures,
   users, vehicles,
-  chemicals, riskAssessments, accidentReports, newEquipmentRequests, musculoskeletalAssessments, trafficFines,
+  chemicals, riskAssessments, accidentReports, newEquipmentRequests, musculoskeletalAssessments, musculoskeletalSymptomSurveys, trafficFines,
   type Team, type InsertTeam, type UpdateTeamRequest,
   type Notice, type InsertNotice,
   type Setting,
@@ -17,6 +17,7 @@ import {
   type AccidentReport, type InsertAccidentReport,
   type NewEquipmentRequest, type InsertNewEquipmentRequest,
   type MusculoskeletalAssessment, type InsertMusculoskeletalAssessment,
+  type MusculoskeletalSymptomSurvey, type InsertMusculoskeletalSymptomSurvey,
   type TrafficFine, type InsertTrafficFine,
   drillSessions, drillAssignments,
   type DrillSession, type InsertDrillSession,
@@ -204,6 +205,13 @@ export interface IStorage {
   deleteMusculoskeletalAssessment(id: number): Promise<void>;
   getMusculoskeletalHistory(assessmentId: number): Promise<any[]>;
   addMusculoskeletalHistory(assessmentId: number, changedBy: string | undefined, changes: string): Promise<void>;
+  // Symptom Surveys (2단계)
+  getSymptomSurveys(assessmentId: number): Promise<MusculoskeletalSymptomSurvey[]>;
+  getSymptomSurvey(id: number): Promise<MusculoskeletalSymptomSurvey | undefined>;
+  createSymptomSurvey(data: InsertMusculoskeletalSymptomSurvey): Promise<MusculoskeletalSymptomSurvey>;
+  updateSymptomSurvey(id: number, data: Partial<InsertMusculoskeletalSymptomSurvey>): Promise<MusculoskeletalSymptomSurvey>;
+  deleteSymptomSurvey(id: number): Promise<void>;
+  getPendingSymptomCount(headquarters?: string): Promise<number>;
 
   // Vehicles
   getVehicles(headquarters?: string): Promise<any[]>;
@@ -783,6 +791,45 @@ export class DatabaseStorage implements IStorage {
       INSERT INTO musculoskeletal_assessment_history (assessment_id, changed_by, changes)
       VALUES (${assessmentId}, ${changedBy ?? null}, ${changes})
     `);
+  }
+
+  // === SYMPTOM SURVEYS (2단계) ===
+  async getSymptomSurveys(assessmentId: number): Promise<MusculoskeletalSymptomSurvey[]> {
+    return await db.select().from(musculoskeletalSymptomSurveys)
+      .where(eq(musculoskeletalSymptomSurveys.assessmentId, assessmentId))
+      .orderBy(musculoskeletalSymptomSurveys.workerName);
+  }
+
+  async getSymptomSurvey(id: number): Promise<MusculoskeletalSymptomSurvey | undefined> {
+    const [r] = await db.select().from(musculoskeletalSymptomSurveys)
+      .where(eq(musculoskeletalSymptomSurveys.id, id));
+    return r;
+  }
+
+  async createSymptomSurvey(data: InsertMusculoskeletalSymptomSurvey): Promise<MusculoskeletalSymptomSurvey> {
+    const [created] = await db.insert(musculoskeletalSymptomSurveys).values(data).returning();
+    return created;
+  }
+
+  async updateSymptomSurvey(id: number, data: Partial<InsertMusculoskeletalSymptomSurvey>): Promise<MusculoskeletalSymptomSurvey> {
+    const [updated] = await db.update(musculoskeletalSymptomSurveys)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(musculoskeletalSymptomSurveys.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteSymptomSurvey(id: number): Promise<void> {
+    await db.delete(musculoskeletalSymptomSurveys).where(eq(musculoskeletalSymptomSurveys.id, id));
+  }
+
+  async getPendingSymptomCount(headquarters?: string): Promise<number> {
+    const result = await db.execute(sql`
+      SELECT COUNT(*) as cnt FROM musculoskeletal_assessments
+      WHERE status IN ('증상조사 대기', '증상조사 진행중')
+      ${headquarters ? sql`AND headquarters = ${headquarters}` : sql``}
+    `);
+    return Number((result.rows[0] as any)?.cnt ?? 0);
   }
 
   // === TRAFFIC FINES ===
