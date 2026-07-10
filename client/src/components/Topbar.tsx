@@ -1,4 +1,5 @@
 import { Bell, LogOut, Users, Shield, KeyRound, Eye, EyeOff, Menu, Sun, Moon, Building2, ChevronDown } from "lucide-react";
+import TotpSetup from "@/components/TotpSetup";
 import { useHeadquarters } from "@/contexts/HeadquartersContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -186,6 +187,11 @@ export function Topbar({ onMenuClick }: TopbarProps) {
               </span>
             )}
           </button>
+        )}
+
+        {/* 2차 인증 설정 */}
+        {!authLoading && isAuthenticated && user && (
+          <TotpSetup />
         )}
 
         {/* User button on right */}

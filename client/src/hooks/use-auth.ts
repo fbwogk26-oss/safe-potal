@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -8,6 +9,7 @@ interface AuthUser {
   role: string;
   department: string;
   mustChangePassword?: boolean;
+  requireTotp?: boolean;
 }
 
 async function fetchUser(): Promise<AuthUser | null> {
@@ -28,7 +30,8 @@ async function fetchUser(): Promise<AuthUser | null> {
 
 export function useAuth() {
   const queryClient = useQueryClient();
-  
+  const [pendingTotp, setPendingTotp] = useState(false);
+
   const { data: user, isLoading } = useQuery<AuthUser | null>({
     queryKey: ["/api/auth/user"],
     queryFn: fetchUser,
@@ -42,6 +45,22 @@ export function useAuth() {
       return response.json() as Promise<AuthUser>;
     },
     onSuccess: (data) => {
+      if ((data as any).requireTotp) {
+        setPendingTotp(true);
+      } else {
+        setPendingTotp(false);
+        queryClient.setQueryData(["/api/auth/user"], data);
+      }
+    },
+  });
+
+  const totpVerifyMutation = useMutation({
+    mutationFn: async ({ code }: { code: string }) => {
+      const response = await apiRequest("POST", "/api/auth/totp/verify-login", { code });
+      return response.json() as Promise<AuthUser>;
+    },
+    onSuccess: (data) => {
+      setPendingTotp(false);
       queryClient.setQueryData(["/api/auth/user"], data);
     },
   });
@@ -51,6 +70,7 @@ export function useAuth() {
       await apiRequest("POST", "/api/logout");
     },
     onSuccess: () => {
+      setPendingTotp(false);
       queryClient.setQueryData(["/api/auth/user"], null);
     },
   });
@@ -67,11 +87,16 @@ export function useAuth() {
     isLoading,
     isAuthenticated: !!user,
     mustChangePassword: user?.mustChangePassword ?? false,
+    pendingTotp,
     clearMustChangePassword,
     login: loginMutation.mutateAsync,
     loginError: loginMutation.error,
     isLoggingIn: loginMutation.isPending,
+    totpVerify: totpVerifyMutation.mutateAsync,
+    totpVerifyError: totpVerifyMutation.error,
+    isTotpVerifying: totpVerifyMutation.isPending,
     logout: logoutMutation.mutate,
     isLoggingOut: logoutMutation.isPending,
+    cancelTotp: () => setPendingTotp(false),
   };
 }

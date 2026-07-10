@@ -294,6 +294,18 @@ async function syncAccidentToTeamScore(department: string | null | undefined, oc
   }
 }
 
+// 조직정보 마스킹 헬퍼 함수
+function maskName(name: string): string {
+  if (!name) return name;
+  if (name.length <= 1) return name;
+  if (name.length === 2) return name[0] + "*";
+  return name[0] + "*".repeat(name.length - 2) + name[name.length - 1];
+}
+function maskDept(dept: string): string {
+  if (!dept || dept.length <= 3) return dept;
+  return dept.slice(0, 2) + "**" + dept.slice(-1);
+}
+
 // Admin-only middleware (session-based)
 const requireAdmin: any = async (req: any, res: any, next: any) => {
   try {
@@ -746,7 +758,14 @@ export async function registerRoutes(
   app.get("/api/users/names", isAuthenticated, async (req: any, res) => {
     try {
       const users = await authStorage.getAllUsers();
-      const names = users.map((u: any) => ({ id: u.id, name: u.name || u.username, username: u.username, department: u.department || "" }));
+      const isAdmin = req.user?.role === "admin";
+      const names = users.filter((u: any) => u.isActive !== false).map((u: any) => ({
+        id: u.id,
+        // 비관리자에게는 이름 첫 글자 외 마스킹, 부서 일부 마스킹
+        name: isAdmin ? (u.name || u.username) : maskName(u.name || u.username),
+        username: u.username,
+        department: isAdmin ? (u.department || "") : maskDept(u.department || ""),
+      }));
       res.json(names);
     } catch (error) {
       res.status(500).json({ message: "사용자 목록 조회 실패" });
@@ -768,9 +787,67 @@ export async function registerRoutes(
         lockedUntil: u.lockedUntil,
         isActive: u.isActive,
         lastLoginAt: u.lastLoginAt,
+        resignedAt: u.resignedAt,
+        deactivationReason: u.deactivationReason,
+        totpEnabled: u.totpEnabled,
       })));
     } catch (error) {
       res.status(500).json({ message: "사용자 목록을 불러올 수 없습니다" });
+    }
+  });
+
+  // Admin: 장기 미사용 계정 목록 (90일 이상 미접속, 활성 계정)
+  app.get("/api/admin/dormant-accounts", requireAdmin, async (req: any, res) => {
+    try {
+      const days = req.query.days ? Number(req.query.days) : 90;
+      const dormant = await authStorage.getDormantUsers(days);
+      res.json(dormant.map(u => ({
+        id: u.id,
+        username: u.username,
+        name: u.name,
+        department: u.department,
+        role: u.role,
+        lastLoginAt: u.lastLoginAt,
+        createdAt: u.createdAt,
+        isActive: u.isActive,
+      })));
+    } catch (error) {
+      res.status(500).json({ message: "휴면 계정 목록 조회 실패" });
+    }
+  });
+
+  // Admin: 퇴사 처리
+  app.post("/api/admin/users/:id/resign", requireAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      if (req.session?.userId === id) {
+        return res.status(400).json({ message: "자기 자신은 퇴사 처리할 수 없습니다" });
+      }
+      const { reason } = req.body;
+      const user = await authStorage.resignUser(id, reason);
+      if (!user) return res.status(404).json({ message: "사용자를 찾을 수 없습니다" });
+      await logSecurityEvent("USER_RESIGNED", req, `관리자가 ${user.username} 퇴사 처리`, true, req.user?.id, req.user?.username);
+      res.json({ message: "퇴사 처리되었습니다" });
+    } catch (error) {
+      res.status(500).json({ message: "퇴사 처리에 실패했습니다" });
+    }
+  });
+
+  // Admin: 장기 미사용 계정 일괄 비활성화 (90일 기준)
+  app.post("/api/admin/dormant-accounts/deactivate", requireAdmin, async (req: any, res) => {
+    try {
+      const days = req.body.days ? Number(req.body.days) : 90;
+      const dormant = await authStorage.getDormantUsers(days);
+      let count = 0;
+      for (const u of dormant) {
+        if (u.id === req.session?.userId) continue;
+        await authStorage.updateUser(u.id, { isActive: false, deactivationReason: `${days}일 이상 미접속 자동 비활성화` });
+        count++;
+      }
+      await logSecurityEvent("DORMANT_DEACTIVATED", req, `휴면계정 ${count}건 일괄 비활성화`, true, req.user?.id, req.user?.username);
+      res.json({ message: `${count}개 계정이 비활성화되었습니다`, count });
+    } catch (error) {
+      res.status(500).json({ message: "일괄 비활성화에 실패했습니다" });
     }
   });
 
@@ -3439,9 +3516,18 @@ ${buildEmailFooter()}
     }
   });
 
-  app.get("/api/admin/backup/database", isAuthenticated, async (req: any, res) => {
+  app.post("/api/admin/backup/database", isAuthenticated, async (req: any, res) => {
     if (req.user?.role !== "admin") return res.status(403).json({ message: "관리자만 접근 가능합니다." });
+    const { password } = req.body || {};
+    if (!password) return res.status(400).json({ message: "비밀번호를 입력해주세요." });
     try {
+      // 비밀번호 재인증
+      const userRow = await db.select().from(users).where(eq(users.id, req.user.id)).limit(1);
+      if (!userRow.length) return res.status(401).json({ message: "사용자 정보를 확인할 수 없습니다." });
+      const bcrypt = await import("bcryptjs");
+      const valid = await bcrypt.compare(password, userRow[0].passwordHash || "");
+      if (!valid) return res.status(401).json({ message: "비밀번호가 올바르지 않습니다." });
+
       const { exec } = await import("child_process");
       const { promisify } = await import("util");
       const execAsync = promisify(exec);

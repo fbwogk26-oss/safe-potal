@@ -2,10 +2,13 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import {
   Database, Images, Download, CheckCircle, AlertCircle, Loader2,
-  HardDrive, RefreshCw, Trash2, Eye, FileImage, FileVideo, File, FileText, ImageOff, WandSparkles
+  HardDrive, RefreshCw, Trash2, Eye, FileImage, FileVideo, File, FileText, ImageOff, WandSparkles, KeyRound, ShieldCheck
 } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -64,6 +67,8 @@ export default function AdminBackup() {
   const [dbDownloading, setDbDownloading] = useState(false);
   const [filesDownloading, setFilesDownloading] = useState(false);
   const [showOrphans, setShowOrphans] = useState(false);
+  const [dbPasswordOpen, setDbPasswordOpen] = useState(false);
+  const [dbPassword, setDbPassword] = useState("");
 
   const { data: info, isLoading: infoLoading, refetch } = useQuery<BackupInfo>({
     queryKey: ["/api/admin/backup/info"],
@@ -128,6 +133,39 @@ export default function AdminBackup() {
       toast({ title: "백업 실패", description: e.message, variant: "destructive" });
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function downloadDbWithPassword() {
+    if (!dbPassword.trim()) return;
+    setDbDownloading(true);
+    setDbPasswordOpen(false);
+    try {
+      const res = await fetch("/api/admin/backup/database", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: dbPassword }),
+      });
+      setDbPassword("");
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: "오류 발생" }));
+        throw new Error(err.message || "다운로드 실패");
+      }
+      const blob = await res.blob();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `backup_db_${stamp}.sql`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(a.href);
+      toast({ title: "DB 백업 다운로드 완료" });
+      refetch();
+    } catch (e: any) {
+      toast({ title: "백업 실패", description: e.message, variant: "destructive" });
+    } finally {
+      setDbDownloading(false);
     }
   }
 
@@ -347,18 +385,54 @@ export default function AdminBackup() {
               마지막 백업: {info.lastDbBackup}
             </div>
           )}
+          <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg p-3 text-sm flex gap-2">
+            <ShieldCheck className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+            <span className="text-amber-700 dark:text-amber-300">
+              DB 백업 다운로드는 보안을 위해 현재 비밀번호 재입력이 필요합니다.
+            </span>
+          </div>
           <Button
             data-testid="button-db-backup"
-            onClick={() => downloadFile("/api/admin/backup/database", `backup_db_${stamp}.sql`, setDbDownloading)}
+            onClick={() => { setDbPassword(""); setDbPasswordOpen(true); }}
             disabled={dbDownloading}
             className="w-full"
           >
             {dbDownloading ? (
               <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> 백업 생성 중...</>
             ) : (
-              <><Download className="w-4 h-4 mr-2" /> DB 백업 다운로드 (.sql)</>
+              <><KeyRound className="w-4 h-4 mr-2" /> DB 백업 다운로드 (.sql)</>
             )}
           </Button>
+
+          <Dialog open={dbPasswordOpen} onOpenChange={(o) => { setDbPasswordOpen(o); if (!o) setDbPassword(""); }}>
+            <DialogContent className="max-w-sm">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <ShieldCheck className="w-5 h-5 text-amber-500" />
+                  DB 백업 다운로드 — 비밀번호 재인증
+                </DialogTitle>
+              </DialogHeader>
+              <div className="py-2 space-y-2">
+                <Label htmlFor="db-backup-password">현재 비밀번호</Label>
+                <Input
+                  id="db-backup-password"
+                  type="password"
+                  value={dbPassword}
+                  onChange={e => setDbPassword(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && downloadDbWithPassword()}
+                  placeholder="비밀번호를 입력하세요"
+                  autoFocus
+                  data-testid="input-db-backup-password"
+                />
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setDbPasswordOpen(false)}>취소</Button>
+                <Button onClick={downloadDbWithPassword} disabled={!dbPassword.trim() || dbDownloading}>
+                  <Download className="w-4 h-4 mr-1" />확인 후 다운로드
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </CardContent>
       </Card>
 

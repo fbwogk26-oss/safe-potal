@@ -817,6 +817,86 @@ export default function MusculoskeletalDisease() {
         </div>
       </div>
 
+      {/* ─── 대시보드 통계 카드 ─────────────────────────────────────── */}
+      {assessments && assessments.length > 0 && (() => {
+        const total = assessments.length;
+        const riskCounts = { "높음": 0, "중간": 0, "낮음": 0 };
+        const statusCounts: Record<string, number> = {};
+        const deptCounts: Record<string, number> = {};
+        for (const a of assessments) {
+          if (a.riskLevel in riskCounts) riskCounts[a.riskLevel as keyof typeof riskCounts]++;
+          statusCounts[a.status] = (statusCounts[a.status] || 0) + 1;
+          deptCounts[a.department] = (deptCounts[a.department] || 0) + 1;
+        }
+        const topDepts = Object.entries(deptCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+        return (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <Card className="border-purple-200 dark:border-purple-800">
+              <CardContent className="pt-4 pb-3 px-4">
+                <div className="text-xs text-muted-foreground mb-1 font-medium">위험수준별</div>
+                <div className="flex items-end gap-3 flex-wrap">
+                  <div className="text-center">
+                    <div className="text-xl font-bold text-red-600">{riskCounts["높음"]}</div>
+                    <div className="text-[10px] text-red-500">높음</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xl font-bold text-amber-500">{riskCounts["중간"]}</div>
+                    <div className="text-[10px] text-amber-500">중간</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xl font-bold text-green-600">{riskCounts["낮음"]}</div>
+                    <div className="text-[10px] text-green-500">낮음</div>
+                  </div>
+                  <div className="ml-auto text-right">
+                    <div className="text-2xl font-bold text-foreground">{total}</div>
+                    <div className="text-[10px] text-muted-foreground">전체</div>
+                  </div>
+                </div>
+                <div className="mt-2 flex gap-0.5 h-2 rounded-full overflow-hidden">
+                  {riskCounts["높음"] > 0 && <div className="bg-red-500" style={{ width: `${(riskCounts["높음"] / total) * 100}%` }} />}
+                  {riskCounts["중간"] > 0 && <div className="bg-amber-400" style={{ width: `${(riskCounts["중간"] / total) * 100}%` }} />}
+                  {riskCounts["낮음"] > 0 && <div className="bg-green-500" style={{ width: `${(riskCounts["낮음"] / total) * 100}%` }} />}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-blue-200 dark:border-blue-800">
+              <CardContent className="pt-4 pb-3 px-4">
+                <div className="text-xs text-muted-foreground mb-2 font-medium">진행 상태별</div>
+                <div className="space-y-1">
+                  {Object.entries(statusCounts).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([status, cnt]) => (
+                    <div key={status} className="flex items-center gap-2">
+                      <div className="text-xs text-muted-foreground w-20 truncate">{status}</div>
+                      <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                        <div className="h-full bg-blue-500 rounded-full" style={{ width: `${(cnt / total) * 100}%` }} />
+                      </div>
+                      <div className="text-xs font-medium w-5 text-right">{cnt}</div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-green-200 dark:border-green-800">
+              <CardContent className="pt-4 pb-3 px-4">
+                <div className="text-xs text-muted-foreground mb-2 font-medium">부서별 상위 5개</div>
+                <div className="space-y-1">
+                  {topDepts.map(([dept, cnt]) => (
+                    <div key={dept} className="flex items-center gap-2">
+                      <div className="text-xs text-muted-foreground flex-1 truncate">{dept}</div>
+                      <div className="flex-shrink-0 h-1.5 w-16 bg-muted rounded-full overflow-hidden">
+                        <div className="h-full bg-purple-500 rounded-full" style={{ width: `${(cnt / topDepts[0][1]) * 100}%` }} />
+                      </div>
+                      <div className="text-xs font-medium w-5 text-right">{cnt}</div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        );
+      })()}
+
       {/* ─── 증상조사 대기 알림 배너 ─────────────────────────────── */}
       {(pendingCount?.count ?? 0) > 0 && (
         <div

@@ -34,7 +34,10 @@ import {
   Copy,
   AlertTriangle,
   Unlock,
-  Lock
+  Lock,
+  UserX,
+  Clock,
+  UserCheck,
 } from "lucide-react";
 import { Link } from "wouter";
 import {
@@ -69,6 +72,9 @@ interface UserData {
   lockedUntil?: string | null;
   isActive?: boolean;
   lastLoginAt?: string | null;
+  resignedAt?: string | null;
+  deactivationReason?: string | null;
+  totpEnabled?: boolean;
 }
 
 interface RolePresets {
@@ -87,7 +93,7 @@ export default function AdminUsers() {
   const isAdmin = roleData?.role === "admin";
   const [expandedUser, setExpandedUser] = useState<string | null>(null);
   const [presetTab, setPresetTab] = useState<"user" | "manager" | "deptHead">("user");
-  const [mainTab, setMainTab] = useState<"users" | "permissions">("users");
+  const [mainTab, setMainTab] = useState<"users" | "permissions" | "dormant">("users");
 
   const { data: users, isLoading } = useQuery<UserData[]>({
     queryKey: ["/api/users"],
@@ -165,6 +171,40 @@ export default function AdminUsers() {
     },
   });
 
+  const resignMutation = useMutation({
+    mutationFn: async ({ userId, reason }: { userId: string; reason?: string }) => {
+      return apiRequest("POST", `/api/admin/users/${userId}/resign`, { reason });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/dormant-accounts"] });
+      toast({ title: "퇴사 처리되었습니다." });
+    },
+    onError: () => {
+      toast({ variant: "destructive", title: "퇴사 처리에 실패했습니다." });
+    },
+  });
+
+  const deactivateDormantMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/admin/dormant-accounts/deactivate", { days: 90 });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/dormant-accounts"] });
+      toast({ title: `${data.count}개 휴면계정이 비활성화되었습니다.` });
+    },
+    onError: () => {
+      toast({ variant: "destructive", title: "일괄 비활성화에 실패했습니다." });
+    },
+  });
+
+  const { data: dormantUsers, isLoading: isDormantLoading } = useQuery<UserData[]>({
+    queryKey: ["/api/admin/dormant-accounts"],
+    enabled: isAdmin && mainTab === "dormant",
+  });
+
   const isDormant = (user: UserData) => {
     if (!user.lastLoginAt) return false;
     const days = (Date.now() - new Date(user.lastLoginAt).getTime()) / (1000 * 60 * 60 * 24);
@@ -239,11 +279,15 @@ export default function AdminUsers() {
         </div>
       </div>
 
-      <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as "users" | "permissions")}>
+      <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as "users" | "permissions" | "dormant")}>
         <TabsList className="mb-4">
           <TabsTrigger value="users" className="gap-2" data-testid="tab-users">
             <Users className="w-4 h-4" />
             사용자 목록
+          </TabsTrigger>
+          <TabsTrigger value="dormant" className="gap-2" data-testid="tab-dormant">
+            <Clock className="w-4 h-4" />
+            휴면/퇴사 계정
           </TabsTrigger>
           <TabsTrigger value="permissions" className="gap-2" data-testid="tab-permissions">
             <ShieldCheck className="w-4 h-4" />
@@ -389,6 +433,24 @@ export default function AdminUsers() {
                               <Unlock className="w-3 h-3" />
                             </Button>
                           )}
+                          {!user.resignedAt && (
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-7 w-7 text-orange-600 border-orange-300 hover:bg-orange-50"
+                              onClick={() => {
+                                const reason = prompt("퇴사 사유를 입력하세요 (선택사항):", "퇴사");
+                                if (reason !== null) {
+                                  resignMutation.mutate({ userId: user.id, reason: reason || "퇴사 처리" });
+                                }
+                              }}
+                              disabled={resignMutation.isPending}
+                              title="퇴사 처리"
+                              data-testid={`button-resign-${user.id}`}
+                            >
+                              <UserX className="w-3 h-3" />
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="icon"
@@ -498,6 +560,120 @@ export default function AdminUsers() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="dormant">
+          <div className="space-y-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between gap-2 py-4">
+                <div>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-amber-500" />
+                    휴면 계정 (90일 이상 미접속 활성 계정)
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground mt-0.5">마지막 접속 후 90일이 지난 활성 계정입니다. 일괄 비활성화하거나 퇴사 처리할 수 있습니다.</p>
+                </div>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="gap-1.5 shrink-0"
+                  onClick={() => {
+                    if (confirm("90일 이상 미접속한 모든 계정을 비활성화하시겠습니까?")) {
+                      deactivateDormantMutation.mutate();
+                    }
+                  }}
+                  disabled={deactivateDormantMutation.isPending || !dormantUsers?.length}
+                  data-testid="button-deactivate-all-dormant"
+                >
+                  <UserX className="w-3.5 h-3.5" />
+                  일괄 비활성화
+                </Button>
+              </CardHeader>
+              <CardContent>
+                {isDormantLoading ? (
+                  <div className="py-6 text-center text-muted-foreground text-sm">조회 중...</div>
+                ) : !dormantUsers?.length ? (
+                  <div className="py-6 text-center text-muted-foreground text-sm flex flex-col items-center gap-2">
+                    <UserCheck className="w-8 h-8 text-green-500" />
+                    90일 이상 미접속 계정이 없습니다
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {dormantUsers.map((u) => {
+                      const daysSince = u.lastLoginAt
+                        ? Math.floor((Date.now() - new Date(u.lastLoginAt).getTime()) / (1000 * 60 * 60 * 24))
+                        : null;
+                      return (
+                        <div key={u.id} className="flex items-center gap-3 p-3 rounded-lg border bg-amber-50/50 dark:bg-amber-900/10">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm">{u.name || u.username} <span className="text-xs text-muted-foreground">@{u.username}</span></p>
+                            <p className="text-xs text-muted-foreground">
+                              {u.department && <span>{u.department} · </span>}
+                              {daysSince !== null ? `${daysSince}일 미접속` : "접속 기록 없음"}
+                            </p>
+                          </div>
+                          <div className="flex gap-1.5 shrink-0">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-xs gap-1 text-orange-600 border-orange-300"
+                              onClick={() => {
+                                const reason = prompt("퇴사 사유:", "퇴사");
+                                if (reason !== null) resignMutation.mutate({ userId: u.id, reason: reason || "퇴사 처리" });
+                              }}
+                              disabled={resignMutation.isPending}
+                            >
+                              <UserX className="w-3 h-3" />퇴사
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-xs gap-1"
+                              onClick={() => toggleActiveMutation.mutate({ userId: u.id, isActive: false })}
+                              disabled={toggleActiveMutation.isPending}
+                            >
+                              비활성화
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="py-4">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <UserX className="w-4 h-4 text-red-500" />
+                  퇴사 처리된 계정
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {!users ? (
+                  <div className="py-4 text-center text-sm text-muted-foreground">로딩 중...</div>
+                ) : users.filter(u => u.resignedAt).length === 0 ? (
+                  <div className="py-4 text-center text-sm text-muted-foreground">퇴사 처리된 계정이 없습니다</div>
+                ) : (
+                  <div className="space-y-2">
+                    {users.filter(u => u.resignedAt).map(u => (
+                      <div key={u.id} className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm text-muted-foreground line-through">{u.name || u.username}</p>
+                          <p className="text-xs text-muted-foreground">
+                            퇴사일: {u.resignedAt ? new Date(u.resignedAt).toLocaleDateString("ko-KR") : "-"}
+                            {u.deactivationReason && ` · ${u.deactivationReason}`}
+                          </p>
+                        </div>
+                        <Badge variant="secondary" className="text-xs shrink-0">퇴사</Badge>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         <TabsContent value="permissions">

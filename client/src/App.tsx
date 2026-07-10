@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -59,6 +58,7 @@ import UiMockupPreview from "@/pages/UiMockupPreview";
 import { useAuth } from "@/hooks/use-auth";
 import { usePermissions } from "@/hooks/use-permissions";
 import { ForcePasswordChange } from "@/components/ForcePasswordChange";
+import TotpVerify from "@/components/TotpVerify";
 import { MusicPlayer } from "@/components/MusicPlayer";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useIdleTimeout } from "@/hooks/use-idle-timeout";
@@ -183,7 +183,7 @@ function MainLayout() {
 }
 
 function AppContent() {
-  const { isAuthenticated, isLoading, mustChangePassword } = useAuth();
+  const { isAuthenticated, isLoading, mustChangePassword, pendingTotp } = useAuth();
   const [location] = useLocation();
 
   if (location.startsWith("/near-miss/submit")) {
@@ -205,6 +205,10 @@ function AppContent() {
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     );
+  }
+
+  if (pendingTotp) {
+    return <TotpVerify />;
   }
 
   if (!isAuthenticated) {

@@ -192,6 +192,12 @@ export const users = pgTable("users", {
   lockedUntil: timestamp("locked_until"),
   lastLoginAt: timestamp("last_login_at"),
   isActive: boolean("is_active").notNull().default(true),
+  // 2차 인증 (TOTP)
+  totpSecret: varchar("totp_secret", { length: 64 }),
+  totpEnabled: boolean("totp_enabled").notNull().default(false),
+  // 퇴사자/장기미사용 관리
+  resignedAt: timestamp("resigned_at"),
+  deactivationReason: varchar("deactivation_reason", { length: 200 }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
