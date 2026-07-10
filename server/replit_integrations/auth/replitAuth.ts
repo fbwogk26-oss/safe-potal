@@ -7,7 +7,9 @@ import crypto from "crypto";
 import { db } from "../../db";
 import { settings } from "@shared/schema";
 import { eq } from "drizzle-orm";
-import { authenticator } from "otplib";
+import { createRequire } from "module";
+const _require = createRequire(import.meta.url);
+const { authenticator } = _require("otplib") as { authenticator: typeof import("otplib").authenticator };
 import QRCode from "qrcode";
 
 async function loadOrCreateSessionSecret(): Promise<string> {
