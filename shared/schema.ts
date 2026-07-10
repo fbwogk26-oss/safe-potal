@@ -295,6 +295,7 @@ export const musculoskeletalAssessments = pgTable("musculoskeletal_assessments",
   headquarters: text("headquarters").notNull().default("대구본부"),
   createdBy: text("created_by"),
   createdAt: timestamp("created_at").defaultNow(),
+  burdenWorkChecklist: text("burden_work_checklist"),
 });
 
 export const insertMusculoskeletalAssessmentSchema = createInsertSchema(musculoskeletalAssessments).omit({ id: true, createdAt: true });
