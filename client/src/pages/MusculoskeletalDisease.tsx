@@ -629,8 +629,8 @@ export default function MusculoskeletalDisease() {
   };
 
   const handleSubmit = () => {
-    if (!form.department || !form.task || !form.hazardFactor) {
-      toast({ variant: "destructive", title: "부서, 작업내용, 유해요인은 필수입니다." });
+    if (!form.department) {
+      toast({ variant: "destructive", title: "부서를 선택하세요." });
       return;
     }
     // 스크리닝 질문에 답했을 때 상태 자동 전이
@@ -852,7 +852,7 @@ export default function MusculoskeletalDisease() {
                 일괄 등록
               </Button>
               <Button
-                onClick={() => { setForm(defaultForm()); setEditingId(null); setRiskManual(false); setShowForm(true); }}
+                onClick={() => { setForm({ ...defaultForm(), department: user?.department || "" }); setEditingId(null); setRiskManual(false); setShowForm(true); }}
                 className="bg-purple-600 text-white gap-2"
                 data-testid="button-add-assessment"
               >
@@ -1298,7 +1298,12 @@ export default function MusculoskeletalDisease() {
           {/* 기본 정보 */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-sm">부서 *</Label>
+              <Label className="text-sm flex items-center gap-1.5">
+                부서 *
+                {form.department && !editingId && (
+                  <span className="text-xs font-normal text-purple-600 dark:text-purple-400">(자동입력)</span>
+                )}
+              </Label>
               <Select value={form.department} onValueChange={v => updateField("department", v)}>
                 <SelectTrigger data-testid="select-department" className="h-9">
                   <SelectValue placeholder="부서 선택" />
@@ -1335,60 +1340,6 @@ export default function MusculoskeletalDisease() {
                   >자동</Button>
                 )}
               </div>
-            </div>
-
-            <div className="sm:col-span-2 space-y-1.5">
-              <Label className="text-sm">작업내용 *</Label>
-              <Input
-                list="task-suggestions-list"
-                value={form.task}
-                onChange={e => updateField("task", e.target.value)}
-                placeholder="작업내용 입력 (자동완성 지원)"
-                className="h-9"
-                data-testid="input-task"
-              />
-              <datalist id="task-suggestions-list">
-                {taskSuggestions.map(s => <option key={s} value={s} />)}
-              </datalist>
-            </div>
-
-            <div className="sm:col-span-2 space-y-1.5">
-              <Label className="text-sm">유해요인 *</Label>
-              <Input
-                list="hazard-suggestions-list"
-                value={form.hazardFactor}
-                onChange={e => updateField("hazardFactor", e.target.value)}
-                placeholder="유해요인 입력 (자동완성 지원)"
-                className="h-9"
-                data-testid="input-hazard-factor"
-              />
-              <datalist id="hazard-suggestions-list">
-                {hazardSuggestions.map(s => <option key={s} value={s} />)}
-              </datalist>
-            </div>
-
-            <div className="sm:col-span-2 space-y-1.5">
-              <Label className="text-sm">현재 조치사항</Label>
-              <Textarea
-                value={form.currentMeasures}
-                onChange={e => updateField("currentMeasures", e.target.value)}
-                placeholder="현재 시행 중인 조치사항"
-                rows={2}
-                className="resize-none"
-                data-testid="input-current-measures"
-              />
-            </div>
-
-            <div className="sm:col-span-2 space-y-1.5">
-              <Label className="text-sm">개선계획</Label>
-              <Textarea
-                value={form.improvementPlan}
-                onChange={e => updateField("improvementPlan", e.target.value)}
-                placeholder="개선계획을 입력하세요"
-                rows={2}
-                className="resize-none"
-                data-testid="input-improvement-plan"
-              />
             </div>
 
             {/* 평가자 / 평가일 / 상태 — 한 줄 */}
