@@ -114,7 +114,9 @@ export async function setupAuth(app: Express) {
       }
 
       // 2차 인증(PIN)이 활성화된 경우 pending 상태로 전환
-      if (user.totpEnabled && user.totpSecret) {
+      // totpSecret이 bcrypt 해시($2b$ 또는 $2a$)가 아니면 구 TOTP 시크릿이므로 무시
+      const isPinHash = user.totpSecret?.startsWith("$2b$") || user.totpSecret?.startsWith("$2a$");
+      if (user.totpEnabled && user.totpSecret && isPinHash) {
         req.session.regenerate((err) => {
           if (err) return res.status(500).json({ message: "로그인에 실패했습니다" });
           (req.session as any).pendingTotpUserId = user.id;
