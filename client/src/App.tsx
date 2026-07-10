@@ -224,16 +224,18 @@ function AppContent() {
 
 function App() {
   return (
-    <ThemeProvider>
-      <HeadquartersProvider>
-        <QueryClientProvider client={queryClient}>
-          <TooltipProvider>
-            <AppContent />
-            <Toaster />
-          </TooltipProvider>
-        </QueryClientProvider>
-      </HeadquartersProvider>
-    </ThemeProvider>
+    <ErrorBoundary fullScreen fallbackLabel="앱 로딩 중 오류가 발생했습니다. 새로고침 해주세요.">
+      <ThemeProvider>
+        <HeadquartersProvider>
+          <QueryClientProvider client={queryClient}>
+            <TooltipProvider>
+              <AppContent />
+              <Toaster />
+            </TooltipProvider>
+          </QueryClientProvider>
+        </HeadquartersProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }
 

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 interface Props {
   children: ReactNode;
   fallbackLabel?: string;
+  fullScreen?: boolean;
 }
 
 interface State {
@@ -29,9 +30,10 @@ export class ErrorBoundary extends Component<Props, State> {
 
   render() {
     if (this.state.hasError) {
+      const isFullScreen = this.props.fullScreen;
       return (
         <div
-          className="flex flex-col items-center justify-center gap-3 py-16 px-4 text-center"
+          className={`flex flex-col items-center justify-center gap-3 px-4 text-center ${isFullScreen ? "min-h-screen bg-background" : "py-16"}`}
           data-testid="error-boundary-fallback"
         >
           <div className="w-14 h-14 rounded-full bg-red-50 dark:bg-red-950/40 flex items-center justify-center">
@@ -50,8 +52,8 @@ export class ErrorBoundary extends Component<Props, State> {
               </p>
             )}
           </div>
-          <Button variant="outline" size="sm" onClick={this.handleReset} data-testid="button-error-retry">
-            다시 시도
+          <Button variant="outline" size="sm" onClick={() => window.location.reload()} data-testid="button-error-retry">
+            새로고침
           </Button>
         </div>
       );
