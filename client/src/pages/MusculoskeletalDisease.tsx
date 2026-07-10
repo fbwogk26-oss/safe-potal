@@ -700,11 +700,11 @@ export default function MusculoskeletalDisease() {
           </Collapsible>
 
           {/* 기본 정보 */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>부서 *</Label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-sm">부서 *</Label>
               <Select value={form.department} onValueChange={v => updateField("department", v)}>
-                <SelectTrigger data-testid="select-department">
+                <SelectTrigger data-testid="select-department" className="h-9">
                   <SelectValue placeholder="부서 선택" />
                 </SelectTrigger>
                 <SelectContent>
@@ -713,19 +713,19 @@ export default function MusculoskeletalDisease() {
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label className="flex items-center gap-2">
+            <div className="space-y-1.5">
+              <Label className="text-sm flex items-center gap-1.5">
                 위험수준 *
                 {!riskManual && form.burdenWorkChecklist.length > 0 && (
-                  <span className="text-xs font-normal text-purple-600 dark:text-purple-400">(체크리스트 자동 산출)</span>
+                  <span className="text-xs font-normal text-purple-600 dark:text-purple-400">(자동 산출)</span>
                 )}
               </Label>
-              <div className="flex gap-2">
+              <div className="flex gap-1.5">
                 <Select
                   value={form.riskLevel}
                   onValueChange={v => { updateField("riskLevel", v); setRiskManual(true); }}
                 >
-                  <SelectTrigger data-testid="select-risk-level" className="flex-1">
+                  <SelectTrigger data-testid="select-risk-level" className="flex-1 h-9">
                     <SelectValue placeholder="위험수준 선택" />
                   </SelectTrigger>
                   <SelectContent>
@@ -734,20 +734,21 @@ export default function MusculoskeletalDisease() {
                 </Select>
                 {riskManual && form.burdenWorkChecklist.length > 0 && (
                   <Button
-                    variant="outline" size="sm" className="shrink-0 text-xs"
+                    variant="outline" size="sm" className="shrink-0 text-xs h-9"
                     onClick={() => { setRiskManual(false); updateField("riskLevel", calcRiskFromChecklist(form.burdenWorkChecklist)); }}
                   >자동</Button>
                 )}
               </div>
             </div>
 
-            <div className="sm:col-span-2 space-y-2">
-              <Label>작업내용 *</Label>
+            <div className="sm:col-span-2 space-y-1.5">
+              <Label className="text-sm">작업내용 *</Label>
               <Input
                 list="task-suggestions-list"
                 value={form.task}
                 onChange={e => updateField("task", e.target.value)}
                 placeholder="작업내용 입력 (자동완성 지원)"
+                className="h-9"
                 data-testid="input-task"
               />
               <datalist id="task-suggestions-list">
@@ -755,13 +756,14 @@ export default function MusculoskeletalDisease() {
               </datalist>
             </div>
 
-            <div className="sm:col-span-2 space-y-2">
-              <Label>유해요인 *</Label>
+            <div className="sm:col-span-2 space-y-1.5">
+              <Label className="text-sm">유해요인 *</Label>
               <Input
                 list="hazard-suggestions-list"
                 value={form.hazardFactor}
                 onChange={e => updateField("hazardFactor", e.target.value)}
                 placeholder="유해요인 입력 (자동완성 지원)"
+                className="h-9"
                 data-testid="input-hazard-factor"
               />
               <datalist id="hazard-suggestions-list">
@@ -769,60 +771,67 @@ export default function MusculoskeletalDisease() {
               </datalist>
             </div>
 
-            <div className="sm:col-span-2 space-y-2">
-              <Label>현재 조치사항</Label>
+            <div className="sm:col-span-2 space-y-1.5">
+              <Label className="text-sm">현재 조치사항</Label>
               <Textarea
                 value={form.currentMeasures}
                 onChange={e => updateField("currentMeasures", e.target.value)}
                 placeholder="현재 시행 중인 조치사항"
+                rows={2}
+                className="resize-none"
                 data-testid="input-current-measures"
               />
             </div>
 
-            <div className="sm:col-span-2 space-y-2">
-              <Label>개선계획</Label>
+            <div className="sm:col-span-2 space-y-1.5">
+              <Label className="text-sm">개선계획</Label>
               <Textarea
                 value={form.improvementPlan}
                 onChange={e => updateField("improvementPlan", e.target.value)}
                 placeholder="개선계획을 입력하세요"
+                rows={2}
+                className="resize-none"
                 data-testid="input-improvement-plan"
               />
             </div>
 
-            <div className="space-y-2">
-              <Label>평가자</Label>
-              <Input
-                list="assessor-suggestions-list"
-                value={form.assessor}
-                onChange={e => updateField("assessor", e.target.value)}
-                placeholder="평가자 이름 (자동완성 지원)"
-                data-testid="input-assessor"
-              />
-              <datalist id="assessor-suggestions-list">
-                {assessorSuggestions.map(s => <option key={s} value={s!} />)}
-              </datalist>
-            </div>
-
-            <div className="space-y-2">
-              <Label>평가일</Label>
-              <Input
-                type="date"
-                value={form.assessmentDate}
-                onChange={e => updateField("assessmentDate", e.target.value)}
-                data-testid="input-assessment-date"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>상태</Label>
-              <Select value={form.status} onValueChange={v => updateField("status", v)}>
-                <SelectTrigger data-testid="select-status">
-                  <SelectValue placeholder="상태 선택" />
-                </SelectTrigger>
-                <SelectContent>
-                  {STATUS_OPTIONS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                </SelectContent>
-              </Select>
+            {/* 평가자 / 평가일 / 상태 — 한 줄 */}
+            <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-sm">평가자</Label>
+                <Input
+                  list="assessor-suggestions-list"
+                  value={form.assessor}
+                  onChange={e => updateField("assessor", e.target.value)}
+                  placeholder="평가자 (자동완성)"
+                  className="h-9"
+                  data-testid="input-assessor"
+                />
+                <datalist id="assessor-suggestions-list">
+                  {assessorSuggestions.map(s => <option key={s} value={s!} />)}
+                </datalist>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm">평가일</Label>
+                <Input
+                  type="date"
+                  value={form.assessmentDate}
+                  onChange={e => updateField("assessmentDate", e.target.value)}
+                  className="h-9"
+                  data-testid="input-assessment-date"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm">상태</Label>
+                <Select value={form.status} onValueChange={v => updateField("status", v)}>
+                  <SelectTrigger data-testid="select-status" className="h-9">
+                    <SelectValue placeholder="상태 선택" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STATUS_OPTIONS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
 
