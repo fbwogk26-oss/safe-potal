@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -28,9 +27,10 @@ async function fetchUser(): Promise<AuthUser | null> {
   return response.json();
 }
 
+const PENDING_TOTP_KEY = ["__pendingTotp"];
+
 export function useAuth() {
   const queryClient = useQueryClient();
-  const [pendingTotp, setPendingTotp] = useState(false);
 
   const { data: user, isLoading } = useQuery<AuthUser | null>({
     queryKey: ["/api/auth/user"],
@@ -38,6 +38,17 @@ export function useAuth() {
     retry: false,
     staleTime: 1000 * 60 * 5,
   });
+
+  const { data: pendingTotp } = useQuery<boolean>({
+    queryKey: PENDING_TOTP_KEY,
+    queryFn: () => false,
+    initialData: false,
+    staleTime: Infinity,
+    gcTime: Infinity,
+  });
+
+  const setPendingTotp = (val: boolean) =>
+    queryClient.setQueryData(PENDING_TOTP_KEY, val);
 
   const loginMutation = useMutation({
     mutationFn: async ({ username, password }: { username: string; password: string }) => {
@@ -87,7 +98,7 @@ export function useAuth() {
     isLoading,
     isAuthenticated: !!user,
     mustChangePassword: user?.mustChangePassword ?? false,
-    pendingTotp,
+    pendingTotp: !!pendingTotp,
     clearMustChangePassword,
     login: loginMutation.mutateAsync,
     loginError: loginMutation.error,
