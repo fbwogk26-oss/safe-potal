@@ -13,9 +13,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Bone, Plus, Trash2, Pencil, Search, CheckSquare, X,
-  ChevronDown, ChevronUp, History, Save, AlertTriangle, Layers
+  ChevronDown, ChevronUp, History, Save, AlertTriangle, Layers,
+  FileDown, FileUp, Paperclip, Clock, LayoutGrid, List, ImageIcon
 } from "lucide-react";
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
@@ -302,6 +303,17 @@ export default function MusculoskeletalDisease() {
   const [bulkRows, setBulkRows]           = useState<BulkRow[]>([defaultBulkRow()]);
   const [riskManual, setRiskManual]       = useState(false);
 
+  // ── Stage 2: 데이터 관리 상태 ─────────────────────────────────────────
+  const [showImport, setShowImport]       = useState(false);
+  const [importFile, setImportFile]       = useState<File | null>(null);
+  const [importPending, setImportPending] = useState(false);
+  const [historyId, setHistoryId]         = useState<number | null>(null);
+  const [groupView, setGroupView]         = useState(false);
+  const [groupBy, setGroupBy]             = useState<"dept" | "year">("dept");
+  const [attachUploadId, setAttachUploadId] = useState<number | null>(null);
+  const importFileRef = useRef<HTMLInputElement>(null);
+  const attachFileRef = useRef<HTMLInputElement>(null);
+
   // ── 필터/정렬 ────────────────────────────────────────────────────────
   const [filterRisk,   setFilterRisk]   = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
@@ -365,6 +377,64 @@ export default function MusculoskeletalDisease() {
     },
     onError: () => toast({ variant: "destructive", title: "삭제 실패" }),
   });
+
+  // ── Stage 2: 변경이력 쿼리 ──────────────────────────────────────────
+  const { data: historyData, isLoading: historyLoading } = useQuery<any[]>({
+    queryKey: ["/api/musculoskeletal-assessments", historyId, "history"],
+    queryFn: () =>
+      fetch(`/api/musculoskeletal-assessments/${historyId}/history`, { credentials: "include" })
+        .then(r => r.json()),
+    enabled: historyId !== null,
+  });
+
+  // ── Stage 2: 엑셀 임포트 ────────────────────────────────────────────
+  async function handleImport() {
+    if (!importFile) return;
+    setImportPending(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", importFile);
+      const res = await fetch(
+        `/api/musculoskeletal-assessments/import?headquarters=${encodeURIComponent(headquarters)}`,
+        { method: "POST", body: fd, credentials: "include" }
+      );
+      const data = await res.json();
+      queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments"] });
+      toast({ title: `${data.imported}건 임포트 완료 (오류 ${data.errors}건)` });
+      setShowImport(false);
+      setImportFile(null);
+    } catch {
+      toast({ variant: "destructive", title: "임포트 실패" });
+    } finally {
+      setImportPending(false);
+    }
+  }
+
+  // ── Stage 2: 첨부파일 업로드 ─────────────────────────────────────────
+  async function handleAttachUpload(id: number, files: FileList) {
+    const fd = new FormData();
+    Array.from(files).forEach(f => fd.append("files", f));
+    try {
+      const res = await fetch(`/api/musculoskeletal-assessments/${id}/attachments`,
+        { method: "POST", body: fd, credentials: "include" });
+      if (!res.ok) throw new Error();
+      queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments"] });
+      toast({ title: "첨부파일이 업로드되었습니다." });
+    } catch {
+      toast({ variant: "destructive", title: "업로드 실패" });
+    }
+  }
+
+  async function handleAttachDelete(id: number, index: number) {
+    try {
+      await fetch(`/api/musculoskeletal-assessments/${id}/attachments/${index}`,
+        { method: "DELETE", credentials: "include" });
+      queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments"] });
+      toast({ title: "첨부파일이 삭제되었습니다." });
+    } catch {
+      toast({ variant: "destructive", title: "삭제 실패" });
+    }
+  }
 
   // ── 임시저장 ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -500,6 +570,19 @@ export default function MusculoskeletalDisease() {
     return list;
   }, [assessments, searchQuery, filterRisk, filterStatus, sortBy]);
 
+  // ── Stage 2: 그룹뷰 데이터 ──────────────────────────────────────────
+  const groupedAssessments = useMemo(() => {
+    const groups: Record<string, MusculoskeletalAssessment[]> = {};
+    for (const item of filteredAssessments) {
+      const key = groupBy === "dept"
+        ? (item.department || "기타")
+        : ((item.assessmentDate || "")?.slice(0, 4) || "연도미상");
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(item);
+    }
+    return groups;
+  }, [filteredAssessments, groupBy]);
+
   const riskStats = useMemo(() => {
     if (!assessments || assessments.length === 0) return null;
     const counts = { "높음": 0, "중간": 0, "낮음": 0 };
@@ -557,38 +640,70 @@ export default function MusculoskeletalDisease() {
             <p className="text-xs sm:text-sm text-muted-foreground">산업안전보건법 기준 부담작업 판정 및 유해요인 조사 관리</p>
           </div>
         </div>
-        {canEdit && (
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant={selectionMode ? "default" : "outline"} size="sm"
-              className={`gap-1.5 ${selectionMode ? "bg-red-500 hover:bg-red-600 text-white" : ""}`}
-              onClick={() => { setSelectionMode(v => !v); setSelectedIds(new Set()); }}
-              data-testid="button-toggle-selection"
-            >
-              <CheckSquare className="w-4 h-4" />
-              {selectionMode ? "취소" : "선택"}
-            </Button>
-            <Button
-              variant="outline" size="sm" className="gap-1.5"
-              onClick={() => setShowBulk(true)}
-              data-testid="button-bulk-add"
-            >
-              <Layers className="w-4 h-4" />
-              일괄 등록
-            </Button>
-            <Button
-              onClick={() => { setForm(defaultForm()); setEditingId(null); setRiskManual(false); setShowForm(true); }}
-              className="bg-purple-600 text-white gap-2"
-              data-testid="button-add-assessment"
-            >
-              <Plus className="w-4 h-4" />
-              새 조사 등록
-              {hasDraft && (
-                <span className="ml-1 w-2 h-2 rounded-full bg-yellow-300 inline-block" title="임시저장 있음" />
-              )}
-            </Button>
-          </div>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {/* 엑셀 다운로드 */}
+          <Button
+            variant="outline" size="sm" className="gap-1.5"
+            onClick={() => {
+              const url = `/api/musculoskeletal-assessments/excel?headquarters=${encodeURIComponent(headquarters)}`;
+              window.open(url, "_blank");
+            }}
+            data-testid="button-excel-download"
+          >
+            <FileDown className="w-4 h-4" />
+            엑셀
+          </Button>
+          {canEdit && (
+            <>
+              {/* 엑셀 업로드 */}
+              <Button
+                variant="outline" size="sm" className="gap-1.5"
+                onClick={() => setShowImport(true)}
+                data-testid="button-excel-import"
+              >
+                <FileUp className="w-4 h-4" />
+                가져오기
+              </Button>
+              {/* 그룹뷰 토글 */}
+              <Button
+                variant={groupView ? "default" : "outline"} size="sm" className="gap-1.5"
+                onClick={() => setGroupView(v => !v)}
+                data-testid="button-group-view"
+              >
+                {groupView ? <List className="w-4 h-4" /> : <LayoutGrid className="w-4 h-4" />}
+                {groupView ? "목록" : "그룹"}
+              </Button>
+              <Button
+                variant={selectionMode ? "default" : "outline"} size="sm"
+                className={`gap-1.5 ${selectionMode ? "bg-red-500 hover:bg-red-600 text-white" : ""}`}
+                onClick={() => { setSelectionMode(v => !v); setSelectedIds(new Set()); }}
+                data-testid="button-toggle-selection"
+              >
+                <CheckSquare className="w-4 h-4" />
+                {selectionMode ? "취소" : "선택"}
+              </Button>
+              <Button
+                variant="outline" size="sm" className="gap-1.5"
+                onClick={() => setShowBulk(true)}
+                data-testid="button-bulk-add"
+              >
+                <Layers className="w-4 h-4" />
+                일괄 등록
+              </Button>
+              <Button
+                onClick={() => { setForm(defaultForm()); setEditingId(null); setRiskManual(false); setShowForm(true); }}
+                className="bg-purple-600 text-white gap-2"
+                data-testid="button-add-assessment"
+              >
+                <Plus className="w-4 h-4" />
+                새 조사 등록
+                {hasDraft && (
+                  <span className="ml-1 w-2 h-2 rounded-full bg-yellow-300 inline-block" title="임시저장 있음" />
+                )}
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* ─── 통계 배지 ─────────────────────────────────────────────── */}
@@ -659,7 +774,18 @@ export default function MusculoskeletalDisease() {
         )}
       </div>
 
-      {/* ─── 목록 테이블 ───────────────────────────────────────────── */}
+      {/* ─── 그룹뷰 / 테이블 토글 (필터 줄 오른쪽 추가) ─────────────── */}
+      {groupView && filteredAssessments.length > 0 && (
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-xs text-muted-foreground">그룹 기준:</span>
+          <Button size="sm" variant={groupBy === "dept" ? "default" : "outline"} className="h-7 text-xs"
+            onClick={() => setGroupBy("dept")}>부서별</Button>
+          <Button size="sm" variant={groupBy === "year" ? "default" : "outline"} className="h-7 text-xs"
+            onClick={() => setGroupBy("year")}>연도별</Button>
+        </div>
+      )}
+
+      {/* ─── 목록 (그룹뷰 또는 테이블) ────────────────────────────── */}
       {isLoading ? (
         <div className="text-center py-8 text-muted-foreground">로딩 중...</div>
       ) : !filteredAssessments || filteredAssessments.length === 0 ? (
@@ -670,7 +796,89 @@ export default function MusculoskeletalDisease() {
               : "등록된 유해요인조사가 없습니다."}
           </CardContent>
         </Card>
+      ) : groupView ? (
+        /* ─── 그룹카드뷰 ─────────────────────────────────────────── */
+        <div className="space-y-4">
+          {Object.entries(groupedAssessments).sort(([a], [b]) => a.localeCompare(b)).map(([groupKey, items]) => (
+            <Card key={groupKey}>
+              <div className="px-4 py-2.5 bg-purple-50 dark:bg-purple-900/20 border-b border-purple-200 dark:border-purple-800 flex items-center justify-between">
+                <span className="font-semibold text-purple-800 dark:text-purple-200 text-sm">
+                  {groupKey}
+                  <Badge className="ml-2 bg-purple-200 text-purple-800 dark:bg-purple-800 dark:text-purple-200 text-xs no-default-hover-elevate no-default-active-elevate">
+                    {items.length}건
+                  </Badge>
+                </span>
+                <div className="flex gap-1">
+                  {(["높음","중간","낮음"] as const).map(lvl => {
+                    const n = items.filter(i => i.riskLevel === lvl).length;
+                    if (!n) return null;
+                    return <Badge key={lvl} className={`${getRiskBadgeClass(lvl)} text-xs no-default-hover-elevate no-default-active-elevate`}>{lvl} {n}</Badge>;
+                  })}
+                </div>
+              </div>
+              <CardContent className="p-0">
+                <div className="divide-y divide-border">
+                  {items.map(item => {
+                    const checklist = parseChecklist((item as any).burdenWorkChecklist);
+                    const attachments: any[] = (item as any).attachments ? JSON.parse((item as any).attachments) : [];
+                    return (
+                      <div key={item.id} className="flex items-start gap-3 p-3 hover:bg-muted/30 transition-colors">
+                        <Badge className={`${getRiskBadgeClass(item.riskLevel)} no-default-hover-elevate no-default-active-elevate text-xs shrink-0 mt-0.5`}>
+                          {item.riskLevel}
+                        </Badge>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{item.task}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {item.hazardFactor}
+                            {item.assessor ? ` · ${item.assessor}` : ""}
+                            {item.assessmentDate ? ` · ${item.assessmentDate}` : ""}
+                            {checklist.length > 0 ? ` · ${checklist.map(n => `${n}호`).join(",")}` : ""}
+                          </p>
+                          {attachments.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {attachments.map((att, i) => (
+                                <a key={i} href={att.url} target="_blank" rel="noreferrer"
+                                  className="text-xs flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline">
+                                  <Paperclip className="w-3 h-3" />{att.name}
+                                </a>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Badge className={`${getStatusBadgeClass(item.status)} no-default-hover-elevate no-default-active-elevate text-xs`}>{item.status}</Badge>
+                          {canEdit && (
+                            <>
+                              <Button variant="ghost" size="icon" className="h-7 w-7"
+                                onClick={() => setHistoryId(item.id)} title="변경이력"
+                                data-testid={`button-history-${item.id}`}>
+                                <Clock className="w-3.5 h-3.5 text-muted-foreground" />
+                              </Button>
+                              {isOwner(item.createdBy) && (
+                                <>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7"
+                                    onClick={() => handleEdit(item)} data-testid={`button-edit-group-${item.id}`}>
+                                    <Pencil className="w-3.5 h-3.5" />
+                                  </Button>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7"
+                                    onClick={() => handleDelete(item.id)} data-testid={`button-delete-group-${item.id}`}>
+                                    <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                                  </Button>
+                                </>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       ) : (
+        /* ─── 기본 테이블뷰 ──────────────────────────────────────── */
         <Card>
           <CardContent className="p-0 overflow-x-auto">
             <Table data-testid="table-assessments">
@@ -692,20 +900,21 @@ export default function MusculoskeletalDisease() {
                   <TableHead className="min-w-[90px]">부서</TableHead>
                   <TableHead className="min-w-[120px]">작업내용</TableHead>
                   <TableHead className="min-w-[110px]">유해요인</TableHead>
-                  <TableHead className="min-w-[100px]">부담작업 해당호</TableHead>
+                  <TableHead className="min-w-[80px]">부담작업</TableHead>
                   <TableHead className="w-20">위험수준</TableHead>
-                  <TableHead className="min-w-[120px]">현재 조치사항</TableHead>
-                  <TableHead className="min-w-[120px]">개선계획</TableHead>
+                  <TableHead className="min-w-[110px]">현재 조치사항</TableHead>
+                  <TableHead className="min-w-[110px]">개선계획</TableHead>
                   <TableHead className="w-20">평가자</TableHead>
                   <TableHead className="w-24">평가일</TableHead>
                   <TableHead className="w-16">상태</TableHead>
-                  {canEdit && <TableHead className="w-20">관리</TableHead>}
+                  <TableHead className="w-28">관리</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 <AnimatePresence>
                   {filteredAssessments.map((item, idx) => {
                     const checklist = parseChecklist((item as any).burdenWorkChecklist);
+                    const attachments: any[] = (() => { try { return JSON.parse((item as any).attachments || "[]"); } catch { return []; } })();
                     return (
                       <motion.tr
                         key={item.id}
@@ -727,10 +936,7 @@ export default function MusculoskeletalDisease() {
                         <TableCell className="text-sm">{item.hazardFactor}</TableCell>
                         <TableCell>
                           {checklist.length > 0 ? (
-                            <span
-                              className="text-xs font-medium text-purple-700 dark:text-purple-300"
-                              title={checklist.map(n => `${n}호`).join(", ")}
-                            >
+                            <span className="text-xs font-medium text-purple-700 dark:text-purple-300" title={checklist.map(n => `${n}호`).join(", ")}>
                               {checklist.map(n => `${n}호`).join(", ")}
                             </span>
                           ) : <span className="text-xs text-muted-foreground">-</span>}
@@ -740,8 +946,8 @@ export default function MusculoskeletalDisease() {
                             {item.riskLevel}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-sm">{item.currentMeasures || "-"}</TableCell>
-                        <TableCell className="text-sm">{item.improvementPlan || "-"}</TableCell>
+                        <TableCell className="text-sm max-w-[120px] truncate" title={item.currentMeasures || ""}>{item.currentMeasures || "-"}</TableCell>
+                        <TableCell className="text-sm max-w-[120px] truncate" title={item.improvementPlan || ""}>{item.improvementPlan || "-"}</TableCell>
                         <TableCell className="text-sm">{item.assessor || "-"}</TableCell>
                         <TableCell className="text-sm">{item.assessmentDate || "-"}</TableCell>
                         <TableCell>
@@ -749,22 +955,41 @@ export default function MusculoskeletalDisease() {
                             {item.status}
                           </Badge>
                         </TableCell>
-                        {canEdit && (
-                          <TableCell>
-                            <div className="flex gap-1">
-                              {isOwner(item.createdBy) && (
-                                <>
-                                  <Button variant="ghost" size="icon" onClick={() => handleEdit(item)} data-testid={`button-edit-${item.id}`}>
-                                    <Pencil className="w-4 h-4" />
-                                  </Button>
-                                  <Button variant="ghost" size="icon" onClick={() => handleDelete(item.id)} data-testid={`button-delete-${item.id}`}>
-                                    <Trash2 className="w-4 h-4 text-red-500" />
-                                  </Button>
-                                </>
-                              )}
-                            </div>
-                          </TableCell>
-                        )}
+                        <TableCell>
+                          <div className="flex gap-0.5 items-center" onClick={e => e.stopPropagation()}>
+                            {/* 첨부파일 */}
+                            {attachments.length > 0 && (
+                              <span className="text-xs text-blue-500 flex items-center gap-0.5 mr-1" title={attachments.map((a:any)=>a.name).join(", ")}>
+                                <Paperclip className="w-3 h-3" />{attachments.length}
+                              </span>
+                            )}
+                            {/* 변경이력 */}
+                            <Button variant="ghost" size="icon" className="h-7 w-7"
+                              onClick={() => setHistoryId(item.id)} title="변경이력"
+                              data-testid={`button-history-${item.id}`}>
+                              <Clock className="w-3.5 h-3.5 text-muted-foreground" />
+                            </Button>
+                            {/* 첨부파일 추가 (owner) */}
+                            {canEdit && isOwner(item.createdBy) && (
+                              <>
+                                <Button variant="ghost" size="icon" className="h-7 w-7"
+                                  onClick={() => { setAttachUploadId(item.id); attachFileRef.current?.click(); }}
+                                  title="첨부파일 추가"
+                                  data-testid={`button-attach-${item.id}`}>
+                                  <ImageIcon className="w-3.5 h-3.5 text-muted-foreground" />
+                                </Button>
+                                <Button variant="ghost" size="icon" className="h-7 w-7"
+                                  onClick={() => handleEdit(item)} data-testid={`button-edit-${item.id}`}>
+                                  <Pencil className="w-4 h-4" />
+                                </Button>
+                                <Button variant="ghost" size="icon" className="h-7 w-7"
+                                  onClick={() => handleDelete(item.id)} data-testid={`button-delete-${item.id}`}>
+                                  <Trash2 className="w-4 h-4 text-red-500" />
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </TableCell>
                       </motion.tr>
                     );
                   })}
@@ -774,6 +999,21 @@ export default function MusculoskeletalDisease() {
           </CardContent>
         </Card>
       )}
+
+      {/* 숨겨진 첨부파일 input */}
+      <input
+        ref={attachFileRef}
+        type="file"
+        multiple
+        accept="image/*,application/pdf,.docx,.xlsx"
+        className="hidden"
+        onChange={e => {
+          if (e.target.files && attachUploadId !== null) {
+            handleAttachUpload(attachUploadId, e.target.files);
+            e.target.value = "";
+          }
+        }}
+      />
 
       {/* ─── 새 조사 등록 / 수정 다이얼로그 ───────────────────────── */}
       <Dialog open={showForm} onOpenChange={open => { if (!open) resetForm(); }}>
@@ -1004,6 +1244,60 @@ export default function MusculoskeletalDisease() {
             </div>
           </div>
 
+          {/* ── 수정 모드일 때: 첨부파일 섹션 ─────────────────────── */}
+          {editingId && (() => {
+            const editingItem = (assessments || []).find(a => a.id === editingId);
+            const attachments: { url: string; name: string; type?: string }[] = (() => {
+              try { return JSON.parse((editingItem as any)?.attachments || "[]"); } catch { return []; }
+            })();
+            return (
+              <div className="border-t border-border pt-3 mt-1">
+                <div className="flex items-center justify-between mb-2">
+                  <Label className="text-sm font-medium flex items-center gap-1.5">
+                    <Paperclip className="w-3.5 h-3.5 text-muted-foreground" />
+                    첨부파일
+                    {attachments.length > 0 && (
+                      <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 text-xs no-default-hover-elevate no-default-active-elevate ml-1">
+                        {attachments.length}
+                      </Badge>
+                    )}
+                  </Label>
+                  <Button
+                    variant="outline" size="sm" className="h-7 text-xs gap-1"
+                    onClick={() => { setAttachUploadId(editingId); attachFileRef.current?.click(); }}
+                    type="button"
+                    data-testid="button-attach-in-form"
+                  >
+                    <Plus className="w-3 h-3" />추가
+                  </Button>
+                </div>
+                {attachments.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">첨부된 파일이 없습니다.</p>
+                ) : (
+                  <div className="space-y-1">
+                    {attachments.map((att, i) => (
+                      <div key={i} className="flex items-center gap-2 bg-muted/40 rounded px-2 py-1.5">
+                        <Paperclip className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                        <a href={att.url} target="_blank" rel="noreferrer"
+                          className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex-1 truncate">
+                          {att.name}
+                        </a>
+                        <Button
+                          variant="ghost" size="icon" className="h-5 w-5 shrink-0"
+                          onClick={() => handleAttachDelete(editingId, i)}
+                          type="button"
+                          data-testid={`button-detach-${i}`}
+                        >
+                          <X className="w-3 h-3 text-red-500" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
           <DialogFooter className="gap-2 pt-2">
             {!editingId && (
               <Button
@@ -1229,6 +1523,101 @@ export default function MusculoskeletalDisease() {
           </Button>
         </div>
       )}
+
+      {/* ─── 엑셀 가져오기 다이얼로그 ───────────────────────────────── */}
+      <Dialog open={showImport} onOpenChange={o => { if (!o) { setShowImport(false); setImportFile(null); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>엑셀 가져오기</DialogTitle>
+            <DialogDescription>
+              다운로드한 양식과 동일한 컬럼 구조의 xlsx 파일을 업로드하면 자동으로 등록됩니다.
+              헤더 행(1번 행)은 건너뜁니다.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div
+              className="border-2 border-dashed border-border rounded-lg p-8 text-center cursor-pointer hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/10 transition-colors"
+              onClick={() => importFileRef.current?.click()}
+            >
+              <FileUp className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
+              {importFile ? (
+                <p className="text-sm font-medium">{importFile.name}</p>
+              ) : (
+                <p className="text-sm text-muted-foreground">클릭하여 xlsx 파일 선택</p>
+              )}
+            </div>
+            <input
+              ref={importFileRef}
+              type="file"
+              accept=".xlsx,.xls"
+              className="hidden"
+              onChange={e => setImportFile(e.target.files?.[0] ?? null)}
+            />
+            <div className="text-xs text-muted-foreground bg-muted rounded-lg p-3 space-y-1">
+              <p className="font-medium">필수 컬럼 (엑셀 헤더명):</p>
+              <p>부서, 작업명, 유해요인, 위험수준, 현재 조치사항, 개선계획, 평가일, 평가자, 상태</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowImport(false); setImportFile(null); }}>취소</Button>
+            <Button
+              className="bg-purple-600 text-white"
+              disabled={!importFile || importPending}
+              onClick={handleImport}
+              data-testid="button-import-submit"
+            >
+              {importPending ? "가져오는 중..." : "가져오기"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── 변경이력 다이얼로그 ────────────────────────────────────── */}
+      <Dialog open={historyId !== null} onOpenChange={o => { if (!o) setHistoryId(null); }}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Clock className="w-4 h-4 text-purple-600" />
+              변경이력
+            </DialogTitle>
+            <DialogDescription>이 항목의 수정 이력입니다.</DialogDescription>
+          </DialogHeader>
+          {historyLoading ? (
+            <div className="py-8 text-center text-muted-foreground text-sm">로딩 중...</div>
+          ) : !historyData || historyData.length === 0 ? (
+            <div className="py-8 text-center text-muted-foreground text-sm">변경이력이 없습니다.</div>
+          ) : (
+            <div className="space-y-3 mt-2">
+              {historyData.map((h: any, i: number) => {
+                let changes: Record<string, { before: any; after: any }> = {};
+                try { changes = JSON.parse(h.changes || "{}"); } catch {}
+                return (
+                  <div key={i} className="border border-border rounded-lg p-3 text-sm">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-medium text-foreground">
+                        {h.changed_by || "알 수 없음"}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {h.changed_at ? new Date(h.changed_at).toLocaleString("ko-KR") : "-"}
+                      </span>
+                    </div>
+                    <div className="space-y-1">
+                      {Object.entries(changes).map(([field, { before, after }]) => (
+                        <div key={field} className="text-xs">
+                          <span className="font-medium text-purple-700 dark:text-purple-300">{field}</span>
+                          <span className="text-muted-foreground">: </span>
+                          <span className="line-through text-red-500/70 mr-1">{String(before ?? "-")}</span>
+                          <span className="text-green-600 dark:text-green-400">→ {String(after ?? "-")}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

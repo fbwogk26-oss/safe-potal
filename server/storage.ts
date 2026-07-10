@@ -202,6 +202,8 @@ export interface IStorage {
   createMusculoskeletalAssessment(data: InsertMusculoskeletalAssessment): Promise<MusculoskeletalAssessment>;
   updateMusculoskeletalAssessment(id: number, data: Partial<InsertMusculoskeletalAssessment>): Promise<MusculoskeletalAssessment>;
   deleteMusculoskeletalAssessment(id: number): Promise<void>;
+  getMusculoskeletalHistory(assessmentId: number): Promise<any[]>;
+  addMusculoskeletalHistory(assessmentId: number, changedBy: string | undefined, changes: string): Promise<void>;
 
   // Vehicles
   getVehicles(headquarters?: string): Promise<any[]>;
@@ -764,6 +766,23 @@ export class DatabaseStorage implements IStorage {
 
   async deleteMusculoskeletalAssessment(id: number): Promise<void> {
     await db.delete(musculoskeletalAssessments).where(eq(musculoskeletalAssessments.id, id));
+  }
+
+  async getMusculoskeletalHistory(assessmentId: number): Promise<any[]> {
+    const result = await db.execute(sql`
+      SELECT * FROM musculoskeletal_assessment_history
+      WHERE assessment_id = ${assessmentId}
+      ORDER BY changed_at DESC
+      LIMIT 50
+    `);
+    return result.rows as any[];
+  }
+
+  async addMusculoskeletalHistory(assessmentId: number, changedBy: string | undefined, changes: string): Promise<void> {
+    await db.execute(sql`
+      INSERT INTO musculoskeletal_assessment_history (assessment_id, changed_by, changes)
+      VALUES (${assessmentId}, ${changedBy ?? null}, ${changes})
+    `);
   }
 
   // === TRAFFIC FINES ===

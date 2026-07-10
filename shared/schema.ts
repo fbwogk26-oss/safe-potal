@@ -296,6 +296,15 @@ export const musculoskeletalAssessments = pgTable("musculoskeletal_assessments",
   createdBy: text("created_by"),
   createdAt: timestamp("created_at").defaultNow(),
   burdenWorkChecklist: text("burden_work_checklist"),
+  attachments: text("attachments"),
+});
+
+export const musculoskeletalAssessmentHistory = pgTable("musculoskeletal_assessment_history", {
+  id: serial("id").primaryKey(),
+  assessmentId: integer("assessment_id").notNull(),
+  changedBy: text("changed_by"),
+  changedAt: timestamp("changed_at").defaultNow(),
+  changes: text("changes"),
 });
 
 export const insertMusculoskeletalAssessmentSchema = createInsertSchema(musculoskeletalAssessments).omit({ id: true, createdAt: true });

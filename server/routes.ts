@@ -4333,19 +4333,6 @@ ${buildEmailFooter()}
     }
   });
 
-  app.put('/api/musculoskeletal-assessments/:id', requireEditor, async (req: any, res) => {
-    try {
-      const id = Number(req.params.id);
-      const existing = await storage.getMusculoskeletalAssessment(id);
-      if (!existing) return res.status(404).json({ message: "Not found" });
-      if (!isOwnerOrAdmin(req, existing.createdBy)) return res.status(403).json({ message: "본인이 등록한 항목만 수정할 수 있습니다" });
-      const updated = await storage.updateMusculoskeletalAssessment(id, req.body);
-      res.json(updated);
-    } catch (error) {
-      res.status(500).json({ message: "근골격계 유해요인조사 수정에 실패했습니다" });
-    }
-  });
-
   app.delete('/api/musculoskeletal-assessments/:id', requireEditor, async (req: any, res) => {
     try {
       const id = Number(req.params.id);
@@ -4365,6 +4352,224 @@ ${buildEmailFooter()}
     let deleted = 0;
     for (const id of ids) { try { await storage.deleteMusculoskeletalAssessment(Number(id)); deleted++; } catch {} }
     res.json({ deleted });
+  });
+
+  // PUT — 변경이력 자동 기록
+  app.put('/api/musculoskeletal-assessments/:id', requireEditor, async (req: any, res) => {
+    try {
+      const id = Number(req.params.id);
+      const existing = await storage.getMusculoskeletalAssessment(id);
+      if (!existing) return res.status(404).json({ message: "Not found" });
+      if (!isOwnerOrAdmin(req, existing.createdBy)) return res.status(403).json({ message: "본인이 등록한 항목만 수정할 수 있습니다" });
+
+      // 변경된 필드 추적
+      const changed: Record<string, { before: any; after: any }> = {};
+      const labelMap: Record<string, string> = {
+        department: "부서", task: "작업명", hazardFactor: "유해요인",
+        riskLevel: "위험수준", currentMeasures: "현재조치", improvementPlan: "개선계획",
+        assessmentDate: "평가일", assessor: "평가자", status: "상태",
+        burdenWorkChecklist: "부담작업체크", attachments: "첨부파일",
+      };
+      for (const key of Object.keys(req.body)) {
+        const before = (existing as any)[key];
+        const after = req.body[key];
+        if (before !== after) changed[labelMap[key] ?? key] = { before, after };
+      }
+
+      const updated = await storage.updateMusculoskeletalAssessment(id, req.body);
+
+      if (Object.keys(changed).length > 0) {
+        await storage.addMusculoskeletalHistory(id, req.user?.username, JSON.stringify(changed));
+      }
+
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ message: "근골격계 유해요인조사 수정에 실패했습니다" });
+    }
+  });
+
+  // 변경이력 조회
+  app.get('/api/musculoskeletal-assessments/:id/history', isAuthenticated, async (req: any, res) => {
+    try {
+      const id = Number(req.params.id);
+      const history = await storage.getMusculoskeletalHistory(id);
+      res.json(history);
+    } catch {
+      res.status(500).json({ message: "이력 조회 실패" });
+    }
+  });
+
+  // 첨부파일 업로드
+  const musculoUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 }, fileFilter: blockDangerousExtFilter });
+  app.post('/api/musculoskeletal-assessments/:id/attachments', requireEditor, musculoUpload.array('files', 5), async (req: any, res) => {
+    try {
+      const id = Number(req.params.id);
+      const record = await storage.getMusculoskeletalAssessment(id);
+      if (!record) return res.status(404).json({ message: "Not found" });
+      if (!isOwnerOrAdmin(req, record.createdBy)) return res.status(403).json({ message: "권한 없음" });
+
+      const existing: any[] = record.attachments ? JSON.parse(record.attachments) : [];
+      const newFiles: any[] = [];
+
+      for (const file of (req.files as Express.Multer.File[]) || []) {
+        const ext = path.extname(file.originalname);
+        const fname = `musculo_${id}_${Date.now()}_${Math.random().toString(36).slice(2,7)}${ext}`;
+        const fpath = path.join(process.cwd(), "uploads", fname);
+        fs.writeFileSync(fpath, file.buffer);
+        newFiles.push({ url: `/uploads/${fname}`, name: file.originalname, type: file.mimetype });
+      }
+
+      const allAttachments = [...existing, ...newFiles].slice(-10);
+      await storage.updateMusculoskeletalAssessment(id, { attachments: JSON.stringify(allAttachments) } as any);
+      res.json({ attachments: allAttachments });
+    } catch (error) {
+      res.status(500).json({ message: "첨부파일 업로드 실패" });
+    }
+  });
+
+  // 첨부파일 삭제
+  app.delete('/api/musculoskeletal-assessments/:id/attachments/:index', requireEditor, async (req: any, res) => {
+    try {
+      const id = Number(req.params.id);
+      const index = Number(req.params.index);
+      const record = await storage.getMusculoskeletalAssessment(id);
+      if (!record) return res.status(404).json({ message: "Not found" });
+      if (!isOwnerOrAdmin(req, record.createdBy)) return res.status(403).json({ message: "권한 없음" });
+      const list: any[] = record.attachments ? JSON.parse(record.attachments) : [];
+      list.splice(index, 1);
+      await storage.updateMusculoskeletalAssessment(id, { attachments: JSON.stringify(list) } as any);
+      res.json({ attachments: list });
+    } catch {
+      res.status(500).json({ message: "첨부파일 삭제 실패" });
+    }
+  });
+
+  // 엑셀 다운로드
+  app.get('/api/musculoskeletal-assessments/excel', isAuthenticated, async (req: any, res) => {
+    try {
+      const hq = req.query.headquarters as string | undefined;
+      const records = await storage.getMusculoskeletalAssessments(hq);
+
+      const wb = new ExcelJS.Workbook();
+      wb.creator = 'SafeBoard';
+      const ws = wb.addWorksheet('근골격계유해요인조사');
+
+      ws.columns = [
+        { header: 'No', key: 'no', width: 6 },
+        { header: '부서', key: 'department', width: 14 },
+        { header: '작업명', key: 'task', width: 20 },
+        { header: '유해요인', key: 'hazardFactor', width: 24 },
+        { header: '위험수준', key: 'riskLevel', width: 10 },
+        { header: '현재 조치사항', key: 'currentMeasures', width: 26 },
+        { header: '개선계획', key: 'improvementPlan', width: 26 },
+        { header: '부담작업(호수)', key: 'burdenWorkChecklist', width: 18 },
+        { header: '평가일', key: 'assessmentDate', width: 13 },
+        { header: '평가자', key: 'assessor', width: 12 },
+        { header: '상태', key: 'status', width: 10 },
+        { header: '등록자', key: 'createdBy', width: 10 },
+        { header: '등록일', key: 'createdAt', width: 15 },
+      ];
+
+      const hdrRow = ws.getRow(1);
+      hdrRow.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 };
+      hdrRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F46E5' } };
+      hdrRow.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+      hdrRow.height = 26;
+
+      const riskColor: Record<string, string> = { '높음': 'FFEF4444', '중간': 'FFF59E0B', '낮음': 'FF22C55E' };
+      const statusColor: Record<string, string> = { '완료': 'FF22C55E', '진행중': 'FF3B82F6', '보류': 'FF94A3B8' };
+
+      records.forEach((r, i) => {
+        const checklist: number[] = r.burdenWorkChecklist ? JSON.parse(r.burdenWorkChecklist) : [];
+        const row = ws.addRow({
+          no: i + 1,
+          department: r.department,
+          task: r.task,
+          hazardFactor: r.hazardFactor,
+          riskLevel: r.riskLevel,
+          currentMeasures: r.currentMeasures ?? '',
+          improvementPlan: r.improvementPlan ?? '',
+          burdenWorkChecklist: checklist.length > 0 ? checklist.map(n => `${n}호`).join(', ') : '-',
+          assessmentDate: r.assessmentDate ?? '',
+          assessor: r.assessor ?? '',
+          status: r.status,
+          createdBy: r.createdBy ?? '',
+          createdAt: r.createdAt ? new Date(r.createdAt).toLocaleDateString('ko-KR') : '',
+        });
+
+        row.height = 18;
+        row.alignment = { vertical: 'middle', wrapText: true };
+        row.eachCell(cell => {
+          cell.border = { top:{style:'thin'}, bottom:{style:'thin'}, left:{style:'thin'}, right:{style:'thin'} };
+          if ((i % 2) === 1) cell.fill = { type:'pattern', pattern:'solid', fgColor:{ argb:'FFF8F8FF' } };
+        });
+
+        // 위험수준 셀 색상
+        const rlCell = row.getCell('riskLevel');
+        if (riskColor[r.riskLevel]) rlCell.font = { bold: true, color: { argb: riskColor[r.riskLevel] } };
+
+        // 상태 셀 색상
+        const stCell = row.getCell('status');
+        if (statusColor[r.status]) stCell.font = { bold: true, color: { argb: statusColor[r.status] } };
+      });
+
+      ws.autoFilter = { from: 'A1', to: 'M1' };
+
+      const buf = await wb.xlsx.writeBuffer();
+      const filename = encodeURIComponent(`근골격계유해요인조사_${new Date().toISOString().slice(0,10)}.xlsx`);
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${filename}`);
+      res.send(buf);
+    } catch (error) {
+      res.status(500).json({ message: "엑셀 다운로드 실패" });
+    }
+  });
+
+  // 엑셀 업로드(임포트)
+  const musculoImportUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 }, fileFilter: blockDangerousExtFilter });
+  app.post('/api/musculoskeletal-assessments/import', requireEditor, musculoImportUpload.single('file'), async (req: any, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: "파일이 없습니다" });
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.load(req.file.buffer);
+      const ws = wb.worksheets[0];
+      if (!ws) return res.status(400).json({ message: "시트 없음" });
+
+      const colMap: Record<string, string> = {};
+      const hdrRow = ws.getRow(1);
+      hdrRow.eachCell((cell, colNum) => {
+        const v = String(cell.value ?? '').trim();
+        const mapping: Record<string, string> = {
+          '부서': 'department', '작업명': 'task', '유해요인': 'hazardFactor',
+          '위험수준': 'riskLevel', '현재 조치사항': 'currentMeasures', '개선계획': 'improvementPlan',
+          '평가일': 'assessmentDate', '평가자': 'assessor', '상태': 'status',
+        };
+        if (mapping[v]) colMap[colNum] = mapping[v];
+      });
+
+      let imported = 0, errors = 0;
+      const hq = (req.query.headquarters as string) || '대구본부';
+
+      for (let rn = 2; rn <= ws.rowCount; rn++) {
+        const row = ws.getRow(rn);
+        const obj: any = { headquarters: hq, createdBy: req.user?.username };
+        row.eachCell((cell, colNum) => {
+          const field = colMap[colNum];
+          if (field) obj[field] = String(cell.value ?? '').trim();
+        });
+        if (!obj.department || !obj.task || !obj.hazardFactor) continue;
+        if (!obj.riskLevel) obj.riskLevel = '낮음';
+        if (!obj.status) obj.status = '진행중';
+        try {
+          await storage.createMusculoskeletalAssessment(obj);
+          imported++;
+        } catch { errors++; }
+      }
+
+      res.json({ imported, errors });
+    } catch (error) {
+      res.status(500).json({ message: "엑셀 가져오기 실패" });
+    }
   });
 
   // === RISK ASSESSMENTS ===
