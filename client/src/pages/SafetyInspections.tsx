@@ -23,6 +23,27 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { useAuth } from "@/hooks/use-auth";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LabelList } from "recharts";
 
+// 작업내용 끝 (점검유형) 접미사에서 점검유형 자동 감지
+// 예: "BMS 보드 불량(안전점검)" → { type: "안전점검", content: "BMS 보드 불량" }
+const WORK_CONTENT_TYPE_MAP: Record<string, string> = {
+  '안전점검': '안전점검',
+  '동행점검': '동행점검',
+  '현장경영팀점검': '현장경영팀 점검',
+  '현장경영팀 점검': '현장경영팀 점검',
+  '본사점검': '본사 점검',
+  '본사 점검': '본사 점검',
+  'kt점검': 'KT 점검',
+  'kt 점검': 'KT 점검',
+};
+function detectTypeFromContent(val: string): { type: string; content: string } | null {
+  const m = val.match(/\(([^)]+)\)\s*$/);
+  if (!m) return null;
+  const key = m[1].trim().replace(/\s/g, '').toLowerCase();
+  const found = Object.entries(WORK_CONTENT_TYPE_MAP).find(([k]) => k.replace(/\s/g, '').toLowerCase() === key);
+  if (!found) return null;
+  return { type: found[1], content: val.slice(0, val.lastIndexOf('(')).trim() };
+}
+
 type ChecklistStatus = '양호' | '미흡' | '미점검';
 
 interface ChecklistItem {
@@ -1839,7 +1860,15 @@ export default function SafetyInspections() {
                         <TableCell className="text-xs">
                           <Input
                             value={row.workContent}
-                            onChange={e => setBulkRows(prev => prev.map((r, i) => i === idx ? { ...r, workContent: e.target.value } : r))}
+                            onChange={e => {
+                              const val = e.target.value;
+                              const detected = detectTypeFromContent(val);
+                              setBulkRows(prev => prev.map((r, i) => i === idx ? {
+                                ...r,
+                                workContent: detected ? detected.content : val,
+                                inspectionType: detected ? detected.type : r.inspectionType,
+                              } : r));
+                            }}
                             className="h-7 text-xs min-w-[150px]"
                             placeholder="작업내용 입력"
                           />

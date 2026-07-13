@@ -1660,10 +1660,32 @@ export async function registerRoutes(
             // 점검자: 엑셀 우선, 없으면 PDF 텍스트 추출값
             const finalInspector = inspectorFromExcel || inspectorFromPdf;
 
-            // 점검유형: 엑셀 점검수행시점조직 우선, 없으면 기본 안전점검
-            const finalInspectionType = inspectionTypeFromExcel || '안전점검';
+            // ── 작업내용 끝 (점검유형) 접미사에서 점검유형 자동 감지 ──
+            // 예: "BMS 보드 불량(안전점검)" → type="안전점검", content="BMS 보드 불량"
+            //     "무선국 점검(동행점검)"   → type="동행점검", content="무선국 점검"
+            const CONTENT_TYPE_MAP: Record<string, string> = {
+              '안전점검': '안전점검',
+              '동행점검': '동행점검',
+              '현장경영팀점검': '현장경영팀 점검',
+              '현장경영팀 점검': '현장경영팀 점검',
+              '본사점검': '본사 점검',
+              '본사 점검': '본사 점검',
+              'kt점검': 'KT 점검',
+              'kt 점검': 'KT 점검',
+            };
+            const suffixMatch = finalWorkContent.match(/\(([^)]+)\)\s*$/);
+            let resolvedWorkContent = finalWorkContent;
+            let resolvedInspectionType = inspectionTypeFromExcel || '안전점검';
+            if (suffixMatch) {
+              const key = suffixMatch[1].trim().replace(/\s/g, '').toLowerCase();
+              const found = Object.entries(CONTENT_TYPE_MAP).find(([k]) => k.replace(/\s/g, '').toLowerCase() === key);
+              if (found) {
+                resolvedInspectionType = found[1]; // 접미사 감지가 최우선
+                resolvedWorkContent = finalWorkContent.slice(0, finalWorkContent.lastIndexOf('(')).trim();
+              }
+            }
 
-            return { fileName: f.originalname, inspectionDate, team, location, workDateTime, workNo, workContent: finalWorkContent, workType, inspectionMethod, inspectionResult, defectCount, imageUrls, inspector: finalInspector, workerName: workerFromExcel, overallComment, inspectionType: finalInspectionType };
+            return { fileName: f.originalname, inspectionDate, team, location, workDateTime, workNo, workContent: resolvedWorkContent, workType, inspectionMethod, inspectionResult, defectCount, imageUrls, inspector: finalInspector, workerName: workerFromExcel, overallComment, inspectionType: resolvedInspectionType };
           } catch (e: any) {
             console.error('[bulk-parse] 파일 처리 오류:', f.originalname, e.message);
             return { fileName: f.originalname, error: e.message, inspectionDate: '', team: '', location: '', workDateTime: '', workNo: '', workContent: '', workType: '', inspectionMethod: '', inspectionResult: '양호', defectCount: 0, imageUrls: [], inspector: '', workerName: '', overallComment: '' };
