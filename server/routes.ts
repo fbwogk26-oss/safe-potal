@@ -1413,7 +1413,7 @@ export async function registerRoutes(
                                               cols.find(c => keys.some(k => normalize(c).includes(normalize(k))));
           const teamDetailCol  = findCol(['점검대상조직(상세)', '점검대상조직상세']);
           const teamCol        = teamDetailCol || findCol(['운용팀','팀명','소속팀','점검대상조직','점검대상']);
-          const inspectionOrgCol = findCol(['점검수행시점조직', '점검수행조직', '점검조직', '수행조직']);
+          const inspectionOrgCol = findCol(['점검조직유형', '점검수행시점조직', '점검수행조직', '점검조직', '수행조직']);
           const inspectorCol   = findCol(['점검자']);
           const workerCol      = findCol(['작업자']);
           const workContentCol = findCol(['작업내용']);
