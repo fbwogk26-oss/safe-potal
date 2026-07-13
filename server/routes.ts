@@ -1461,10 +1461,32 @@ export async function registerRoutes(
             let workContentFromPdf = '';
 
             // 점검일자 (PDF에서 임시 추출 — 엑셀 매칭용. 최종 날짜는 엑셀에서 덮어씀)
+            // 날짜 형식 정규화 헬퍼: "2026.06.12" / "2026-06-12" / "2026년 6월 12일" → "2026-06-12"
+            const normalizeDateStr = (raw: string): string => {
+              const mHyphen = raw.match(/(\d{4})-(\d{2})-(\d{2})/);
+              if (mHyphen) return `${mHyphen[1]}-${mHyphen[2]}-${mHyphen[3]}`;
+              const mDot = raw.match(/(\d{4})\.(\d{1,2})\.(\d{1,2})/);
+              if (mDot) return `${mDot[1]}-${mDot[2].padStart(2,'0')}-${mDot[3].padStart(2,'0')}`;
+              const mKo = raw.match(/(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일/);
+              if (mKo) return `${mKo[1]}-${mKo[2].padStart(2,'0')}-${mKo[3].padStart(2,'0')}`;
+              return '';
+            };
             const dateLine = lines.find((l: string) => l.includes('점검일자'));
-            if (dateLine) { const m = dateLine.match(/(\d{4}-\d{2}-\d{2})/); if (m) inspectionDate = m[1]; }
-            if (!inspectionDate) { const m = fullText.match(/점검일자\s*[:\uff1a]?\s*(\d{4}-\d{2}-\d{2})/); if (m) inspectionDate = m[1]; }
-            if (!inspectionDate) { const m = fullText.match(/(\d{4}-\d{2}-\d{2})/); if (m) inspectionDate = m[1]; }
+            if (dateLine) {
+              const mH = dateLine.match(/(\d{4}-\d{2}-\d{2})/); if (mH) inspectionDate = mH[1];
+              if (!inspectionDate) { const d = normalizeDateStr(dateLine); if (d) inspectionDate = d; }
+            }
+            if (!inspectionDate) {
+              const m = fullText.match(/점검일자\s*[:\uff1a]?\s*([\d년월일.\-\s]+)/);
+              if (m) { const d = normalizeDateStr(m[1]); if (d) inspectionDate = d; }
+            }
+            // 폴백: fullText에서 첫 번째 날짜 (YYYY-MM-DD / YYYY.MM.DD / YYYY년MM월DD일)
+            if (!inspectionDate) {
+              for (const pat of [/(\d{4}-\d{2}-\d{2})/, /(\d{4}\.\d{1,2}\.\d{1,2})/, /(\d{4}년\s*\d{1,2}월\s*\d{1,2}일)/]) {
+                const m = fullText.match(pat);
+                if (m) { const d = normalizeDateStr(m[1]); if (d) { inspectionDate = d; break; } }
+              }
+            }
 
             // 점검방법
             const methodLine = lines.find((l: string) => l.includes('점검방법'));
@@ -1660,35 +1682,34 @@ export async function registerRoutes(
               if (m) inspectionDate = m[1];
             }
 
-            // 작업국소: 엑셀의 작업주소가 우선. 엑셀 매칭 없으면 PDF에서 장소 추출 (datetime 형식 제외)
+            // 작업국소: 엑셀의 작업주소가 우선.
+            // 엑셀 매칭 없으면 PDF의 "작업일시 장소" 데이터 줄에서 datetime 제거 후 주소 추출
             let locationFromPdf = '';
-            const locPdfPatterns = [
-              /점검장소\s*[:\uff1a]\s*(.+?)(?=\s{2,}|$)/,
-              /작업장소\s*[:\uff1a]\s*(.+?)(?=\s{2,}|$)/,
-              /장소\s*[:\uff1a]\s*(.+?)(?=\s{2,}|$)/,
-              /현장\s*[:\uff1a]\s*(.+?)(?=\s{2,}|$)/,
-            ];
-            for (const pat of locPdfPatterns) {
-              const m = fullText.match(pat);
-              if (m) {
-                const candidate = m[1].trim().slice(0, 100);
-                if (!/^\d{4}-\d{2}-\d{2}/.test(candidate) && candidate.length > 1) {
-                  locationFromPdf = candidate;
-                  break;
-                }
+            // 1) "작업일시 장소" 헤더 다음 줄에서 "datetime 주소" 형태인 경우 datetime 제거
+            const dtLocHeaderIdx = lines.findIndex((l: string) => {
+              const nl = l.replace(/\s/g, '');
+              return nl === '작업일시장소' || (nl.includes('작업일시') && nl.includes('장소') && nl.length < 20);
+            });
+            if (dtLocHeaderIdx >= 0 && dtLocHeaderIdx + 1 < lines.length) {
+              const dataLine = lines[dtLocHeaderIdx + 1].trim();
+              // "2026-06-12T10:30 대구..." 또는 "/ 2026-06-12T10:30 대구..." 형태에서 주소만 추출
+              const locAfterDt = dataLine.replace(/^\/?\s*\d{4}[-./]\d{1,2}[-./]\d{1,2}[T\s]\d{2}:\d{2}\s*/, '').trim();
+              if (locAfterDt && locAfterDt.length > 3 && !/^\d{4}/.test(locAfterDt)) {
+                locationFromPdf = locAfterDt.slice(0, 150);
               }
             }
-            // 줄 단위 폴백: "장소" 레이블 바로 다음 줄에 값이 있는 경우
+            // 2) 명시적 장소 레이블 패턴 (콜론 있는 경우)
             if (!locationFromPdf) {
-              const locLabels = ['점검장소', '작업장소', '장소', '현장주소'];
-              for (let li = 0; li < lines.length - 1; li++) {
-                const label = lines[li].replace(/\s/g, '');
-                if (locLabels.some(l => label === l || label.endsWith(l))) {
-                  const nextLine = lines[li + 1].trim();
-                  if (nextLine && !/^\d{4}-\d{2}-\d{2}/.test(nextLine) && nextLine.length > 1) {
-                    locationFromPdf = nextLine.slice(0, 100);
-                    break;
-                  }
+              const locPdfPatterns = [
+                /점검장소\s*[:\uff1a]\s*(.+?)(?=\s{2,}|$)/,
+                /작업장소\s*[:\uff1a]\s*(.+?)(?=\s{2,}|$)/,
+                /현장주소\s*[:\uff1a]\s*(.+?)(?=\s{2,}|$)/,
+              ];
+              for (const pat of locPdfPatterns) {
+                const m = fullText.match(pat);
+                if (m) {
+                  const c = m[1].trim().replace(/^\/?\s*\d{4}[-./]\d{1,2}[-./]\d{1,2}[T\s]\d{2}:\d{2}\s*/, '').trim().slice(0, 150);
+                  if (c && c.length > 3 && !/^\d{4}/.test(c)) { locationFromPdf = c; break; }
                 }
               }
             }
