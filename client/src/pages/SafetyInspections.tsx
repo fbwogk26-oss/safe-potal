@@ -297,8 +297,8 @@ export default function SafetyInspections() {
         }
         const formData = new FormData();
         batch.forEach(f => formData.append('pdfs', f));
-        // 엑셀은 첫 번째 배치에만 포함 (컬럼 구조 감지 용)
-        if (batchIdx === 0 && bulkExcelFile) formData.append('excel', bulkExcelFile);
+        // 엑셀은 모든 배치에 포함 (각 배치마다 엑셀 매칭 필요)
+        if (bulkExcelFile) formData.append('excel', bulkExcelFile);
 
         const res = await fetch('/api/safety-inspections/bulk-parse', {
           method: 'POST',
