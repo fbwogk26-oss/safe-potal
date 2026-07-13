@@ -1521,6 +1521,17 @@ export async function registerRoutes(
               const m = fullText.match(pat);
               if (m) { inspectorFromPdf = m[1].trim(); break; }
             }
+            // 줄 단위 폴백: "점검자" 레이블 바로 다음 줄에 이름만 있는 경우
+            if (!inspectorFromPdf) {
+              const inspectorLabels = ['점검자', '안전담당자', '안전관리자', '담당자', '점검인', '작성자'];
+              for (let li = 0; li < lines.length - 1; li++) {
+                const label = lines[li].replace(/\s/g, '');
+                if (inspectorLabels.some(l => label === l || label.endsWith(l))) {
+                  const nextLine = lines[li + 1].trim();
+                  if (/^[가-힣]{2,5}$/.test(nextLine)) { inspectorFromPdf = nextLine; break; }
+                }
+              }
+            }
 
             // 작업내용 — PDF 텍스트에서 추출 (엑셀 없을 때 폴백)
             const workContentPatterns = [
@@ -1649,8 +1660,39 @@ export async function registerRoutes(
               if (m) inspectionDate = m[1];
             }
 
-            // 작업국소: 엑셀의 작업주소가 항상 우선. 엑셀 매칭 없으면 빈칸 (잘못된 datetime 형식 방지)
-            const location = locationFromExcel;
+            // 작업국소: 엑셀의 작업주소가 우선. 엑셀 매칭 없으면 PDF에서 장소 추출 (datetime 형식 제외)
+            let locationFromPdf = '';
+            const locPdfPatterns = [
+              /점검장소\s*[:\uff1a]\s*(.+?)(?=\s{2,}|$)/,
+              /작업장소\s*[:\uff1a]\s*(.+?)(?=\s{2,}|$)/,
+              /장소\s*[:\uff1a]\s*(.+?)(?=\s{2,}|$)/,
+              /현장\s*[:\uff1a]\s*(.+?)(?=\s{2,}|$)/,
+            ];
+            for (const pat of locPdfPatterns) {
+              const m = fullText.match(pat);
+              if (m) {
+                const candidate = m[1].trim().slice(0, 100);
+                if (!/^\d{4}-\d{2}-\d{2}/.test(candidate) && candidate.length > 1) {
+                  locationFromPdf = candidate;
+                  break;
+                }
+              }
+            }
+            // 줄 단위 폴백: "장소" 레이블 바로 다음 줄에 값이 있는 경우
+            if (!locationFromPdf) {
+              const locLabels = ['점검장소', '작업장소', '장소', '현장주소'];
+              for (let li = 0; li < lines.length - 1; li++) {
+                const label = lines[li].replace(/\s/g, '');
+                if (locLabels.some(l => label === l || label.endsWith(l))) {
+                  const nextLine = lines[li + 1].trim();
+                  if (nextLine && !/^\d{4}-\d{2}-\d{2}/.test(nextLine) && nextLine.length > 1) {
+                    locationFromPdf = nextLine.slice(0, 100);
+                    break;
+                  }
+                }
+              }
+            }
+            const location = locationFromExcel || locationFromPdf;
 
             // 작업번호
             if (!workNo && workNoFromExcel) workNo = workNoFromExcel;
