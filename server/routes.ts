@@ -1430,8 +1430,9 @@ export async function registerRoutes(
           // 점검수행시점조직 → 점검유형 매핑
           const detectInspectionType = (orgVal: string): string => {
             const v = orgVal.replace(/\s/g, '').toLowerCase();
+            if (v.includes('현장안전이행tf') || v.includes('현장안전이행')) return 'KT 점검';
             if (v.includes('kt') || v.includes('kt안전') || v.includes('kt본사')) return 'KT 점검';
-            if (v.includes('본사')) return '본사 점검';
+            if (v.includes('안전보건팀') || v.includes('안전관리팀') || v.includes('본사')) return '본사 점검';
             if (v.includes('현장경영') || v.includes('현경')) return '현장경영팀 점검';
             if (v.includes('동행')) return '동행점검';
             return '안전점검';
