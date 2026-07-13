@@ -186,7 +186,9 @@ export interface IStorage {
   deleteAisSafetyRecordsByUpload(uploadId: number): Promise<void>;
   getAllAisTbmBadNotes(): Promise<AisTbmBadNote[]>;
   getAisTbmBadNote(recordId: number): Promise<AisTbmBadNote | null>;
-  upsertAisTbmBadNote(recordId: number, data: { noteType?: string; reason?: string; photoUrl?: string; photoFileName?: string; photoUrls?: string[]; photoFileNames?: string[]; createdBy?: string; }): Promise<AisTbmBadNote>;
+  upsertAisTbmBadNote(recordId: number, data: { noteType?: string; reason?: string; photoUrl?: string; photoFileName?: string; photoUrls?: string[]; photoFileNames?: string[]; createdBy?: string; pendingReview?: boolean; }): Promise<AisTbmBadNote>;
+  getPendingReviewNotes(): Promise<(AisTbmBadNote & { record?: AisSafetyRecord })[]>;
+  dismissPendingReview(noteId: number): Promise<void>;
   deleteAisTbmBadNote(recordId: number): Promise<void>;
   updateAisTbmJustification(recordId: number, justificationStatus: string | null, justificationReason: string | null, justificationBy: string | null): Promise<void>;
 
@@ -1569,7 +1571,7 @@ export class DatabaseStorage implements IStorage {
     const [row] = await db.select().from(aisTbmBadNotes).where(eq(aisTbmBadNotes.recordId, recordId));
     return row ?? null;
   }
-  async upsertAisTbmBadNote(recordId: number, data: { noteType?: string; reason?: string; photoUrl?: string; photoFileName?: string; photoUrls?: string[]; photoFileNames?: string[]; createdBy?: string; }): Promise<AisTbmBadNote> {
+  async upsertAisTbmBadNote(recordId: number, data: { noteType?: string; reason?: string; photoUrl?: string; photoFileName?: string; photoUrls?: string[]; photoFileNames?: string[]; createdBy?: string; pendingReview?: boolean; }): Promise<AisTbmBadNote> {
     const existing = await this.getAisTbmBadNote(recordId);
     const MAX_PHOTOS = 3;
     if (existing) {
@@ -1586,9 +1588,10 @@ export class DatabaseStorage implements IStorage {
       }
       const finalPhotoUrl = photoUrls ? (photoUrls[0] ?? null) : (data.photoUrl ?? null);
       const finalPhotoFileName = photoFileNames ? (photoFileNames[0] ?? null) : (data.photoFileName ?? null);
+      const pendingVal = data.pendingReview !== undefined ? data.pendingReview : null;
       await pool.query(
-        `UPDATE ais_tbm_bad_notes SET note_type = COALESCE($1, note_type), reason = COALESCE($2, reason), photo_url = COALESCE($3, photo_url), photo_file_name = COALESCE($4, photo_file_name), photo_urls = COALESCE($5, photo_urls), photo_file_names = COALESCE($6, photo_file_names), created_by = COALESCE($7, created_by), updated_at = NOW() WHERE record_id = $8`,
-        [data.noteType ?? null, data.reason ?? null, finalPhotoUrl, finalPhotoFileName, photoUrls ?? null, photoFileNames ?? null, data.createdBy ?? null, recordId]
+        `UPDATE ais_tbm_bad_notes SET note_type = COALESCE($1, note_type), reason = COALESCE($2, reason), photo_url = COALESCE($3, photo_url), photo_file_name = COALESCE($4, photo_file_name), photo_urls = COALESCE($5, photo_urls), photo_file_names = COALESCE($6, photo_file_names), created_by = COALESCE($7, created_by), pending_review = CASE WHEN $9::boolean IS NULL THEN pending_review ELSE $9 END, updated_at = NOW() WHERE record_id = $8`,
+        [data.noteType ?? null, data.reason ?? null, finalPhotoUrl, finalPhotoFileName, photoUrls ?? null, photoFileNames ?? null, data.createdBy ?? null, recordId, pendingVal]
       );
       return (await this.getAisTbmBadNote(recordId))!;
     }
@@ -1603,8 +1606,23 @@ export class DatabaseStorage implements IStorage {
       photoUrls: photoUrls.length > 0 ? photoUrls : undefined,
       photoFileNames: photoFileNames.length > 0 ? photoFileNames : undefined,
       createdBy: data.createdBy,
+      pendingReview: data.pendingReview ?? false,
     }).returning();
     return row;
+  }
+
+  async getPendingReviewNotes(): Promise<(AisTbmBadNote & { record?: AisSafetyRecord })[]> {
+    const notes = await db.select().from(aisTbmBadNotes).where(eq(aisTbmBadNotes.pendingReview, true));
+    const result: (AisTbmBadNote & { record?: AisSafetyRecord })[] = [];
+    for (const note of notes) {
+      const [rec] = await db.select().from(aisSafetyRecords).where(eq(aisSafetyRecords.id, note.recordId));
+      result.push({ ...note, record: rec });
+    }
+    return result;
+  }
+
+  async dismissPendingReview(noteId: number): Promise<void> {
+    await pool.query(`UPDATE ais_tbm_bad_notes SET pending_review = false, updated_at = NOW() WHERE id = $1`, [noteId]);
   }
 
   async deleteAisTbmBadNote(recordId: number): Promise<void> {

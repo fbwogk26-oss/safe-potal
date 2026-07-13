@@ -63,6 +63,7 @@ import TotpVerify from "@/components/TotpVerify";
 import { MusicPlayer } from "@/components/MusicPlayer";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useIdleTimeout } from "@/hooks/use-idle-timeout";
+import { TbmAutoReviewPopup } from "@/components/TbmAutoReviewPopup";
 import { ShieldOff } from "lucide-react";
 import { HeadquartersProvider } from "@/contexts/HeadquartersContext";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -179,6 +180,7 @@ function MainLayout() {
         </div>
       </main>
       <MusicPlayer />
+      <TbmAutoReviewPopup />
     </div>
   );
 }

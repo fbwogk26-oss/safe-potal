@@ -210,6 +210,7 @@ export async function runAisInboxEmailJob(): Promise<void> {
                 photoUrls: mergedUrls,
                 photoFileNames: mergedNames,
                 createdBy: `email:${fromAddr}`,
+                pendingReview: true,
               });
             } catch (e: any) {
               console.error(`[AisInboxEmail] 기록(${rec.id}) 저장 실패:`, e?.message);

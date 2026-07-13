@@ -10763,6 +10763,27 @@ ${htmlDraft}
     res.json({ message: "수동 확인 시작됨", status: getAisInboxJobStatus() });
   });
 
+  // 소명 팝업 자동 알림: 미검토 목록 조회
+  app.get('/api/ais-inbox-email/pending-reviews', isAuthenticated, async (_req, res) => {
+    try {
+      const notes = await storage.getPendingReviewNotes();
+      res.json(notes);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // 소명 팝업 자동 알림: 검토 완료(dismiss) — pendingReview 플래그 해제
+  app.put('/api/ais-inbox-email/pending-reviews/:id/dismiss', isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.dismissPendingReview(id);
+      res.json({ ok: true });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   // === EDUCATION TASKS (교육업무 관리) ===
 
   // 교육일지 서명률 → 업무 완료율 자동 동기화 헬퍼

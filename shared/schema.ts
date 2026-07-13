@@ -1109,6 +1109,7 @@ export const aisTbmBadNotes = pgTable("ais_tbm_bad_notes", {
   justificationStatus: text("justification_status"),
   justificationReason: text("justification_reason"),
   justificationBy: text("justification_by"),
+  pendingReview: boolean("pending_review").default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
