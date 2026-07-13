@@ -958,7 +958,7 @@ export default function SafetyInspections() {
                 </Button>
               )}
               {canEditInspections && (
-                <Button variant="outline" onClick={() => setShowBulkImport(true)} className="gap-2 border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-400 dark:hover:bg-blue-950" data-testid="button-bulk-import">
+                <Button variant="outline" onClick={() => { setShowBulkImport(true); setSelectionMode(false); setSelectedIds(new Set()); }} className="gap-2 border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-400 dark:hover:bg-blue-950" data-testid="button-bulk-import">
                   <Upload className="w-4 h-4" />
                   일괄 가져오기
                 </Button>
