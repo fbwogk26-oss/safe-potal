@@ -221,6 +221,8 @@ export default function SafetyInspections() {
     e.target.value = '';
   };
 
+  const BATCH_SIZE = 10; // 한 번에 업로드할 PDF 개수 (서버 부하/크기 제한 방지)
+
   const handleBulkParse = async () => {
     if (bulkPdfFiles.length === 0) {
       toast({ variant: 'destructive', title: 'PDF 파일을 선택하세요' });
@@ -229,23 +231,55 @@ export default function SafetyInspections() {
     setIsBulkParsing(true);
     setBulkRows([]);
     try {
-      const formData = new FormData();
-      bulkPdfFiles.forEach(f => formData.append('pdfs', f));
-      if (bulkExcelFile) formData.append('excel', bulkExcelFile);
-      const res = await fetch('/api/safety-inspections/bulk-parse', {
-        method: 'POST',
-        body: formData,
-        credentials: 'include',
-      });
-      if (!res.ok) throw new Error((await res.json()).message);
-      const data = await res.json();
-      setBulkExcelData(data.excelData || []);
+      const allResults: any[] = [];
+      let combinedExcelData: Record<string, any>[] = [];
+      let combinedExcelHeaders: string[] = [];
+
+      // PDF를 BATCH_SIZE개씩 나눠 순차 요청 (대용량 파일도 안정적으로 처리)
+      const batches: File[][] = [];
+      for (let i = 0; i < bulkPdfFiles.length; i += BATCH_SIZE) {
+        batches.push(bulkPdfFiles.slice(i, i + BATCH_SIZE));
+      }
+
+      for (let batchIdx = 0; batchIdx < batches.length; batchIdx++) {
+        const batch = batches[batchIdx];
+        if (batches.length > 1) {
+          toast({ title: `처리 중... (${batchIdx + 1}/${batches.length} 배치)`, description: `${batch.length}개 PDF 분석 중` });
+        }
+        const formData = new FormData();
+        batch.forEach(f => formData.append('pdfs', f));
+        // 엑셀은 첫 번째 배치에만 포함 (컬럼 구조 감지 용)
+        if (batchIdx === 0 && bulkExcelFile) formData.append('excel', bulkExcelFile);
+
+        const res = await fetch('/api/safety-inspections/bulk-parse', {
+          method: 'POST',
+          body: formData,
+          credentials: 'include',
+        });
+        if (!res.ok) {
+          const ct = res.headers.get('content-type') || '';
+          if (ct.includes('application/json')) {
+            const err = await res.json();
+            throw new Error(err.message || `서버 오류 (${res.status})`);
+          } else {
+            throw new Error(`서버 오류 (${res.status}) — 파일이 너무 크거나 서버가 응답하지 않습니다.`);
+          }
+        }
+        const data = await res.json();
+        allResults.push(...(data.results || []));
+        if (batchIdx === 0) {
+          combinedExcelData = data.excelData || [];
+          combinedExcelHeaders = data.excelHeaders || [];
+        }
+      }
+
+      setBulkExcelData(combinedExcelData);
       setBulkRows(
-        (data.results || [])
+        allResults
           .map((r: any) => ({ ...r, workerName: r.workerName || r.team || '', selected: !r.error }))
           .sort((a: any, b: any) => (a.inspectionDate || '').localeCompare(b.inspectionDate || ''))
       );
-      toast({ title: `${data.results.length}개 PDF 파싱 완료`, description: '이미지 포함 데이터를 확인 후 등록하세요.' });
+      toast({ title: `${allResults.length}개 PDF 파싱 완료`, description: '이미지 포함 데이터를 확인 후 등록하세요.' });
     } catch (err: any) {
       toast({ variant: 'destructive', title: 'PDF 파싱 실패', description: err.message });
     } finally {

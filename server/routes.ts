@@ -1358,7 +1358,15 @@ export async function registerRoutes(
   });
 
   app.post('/api/safety-inspections/bulk-parse', isAuthenticated,
-    bulkInspUpload.fields([{ name: 'pdfs', maxCount: 50 }, { name: 'excel', maxCount: 1 }]),
+    (req: any, res: any, next: any) => {
+      bulkInspUpload.fields([{ name: 'pdfs', maxCount: 50 }, { name: 'excel', maxCount: 1 }])(req, res, (err: any) => {
+        if (err) {
+          console.error('[bulk-parse] multer 오류:', err.message);
+          return res.status(400).json({ message: `파일 업로드 오류: ${err.message}` });
+        }
+        next();
+      });
+    },
     async (req: any, res: any) => {
       try {
         const pdfFiles: any[] = req.files?.['pdfs'] || [];
