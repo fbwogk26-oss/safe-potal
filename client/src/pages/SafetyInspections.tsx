@@ -325,7 +325,7 @@ export default function SafetyInspections() {
       setBulkExcelData(combinedExcelData);
       setBulkRows(
         allResults
-          .map((r: any) => ({ ...r, workerName: r.workerName || r.team || '', inspectionType: r.inspectionType || '안전점검', selected: !r.error }))
+          .map((r: any) => ({ ...r, workerName: r.workerName || r.team || '', inspectionType: '안전점검', selected: !r.error }))
           .sort((a: any, b: any) => (a.inspectionDate || '').localeCompare(b.inspectionDate || ''))
       );
       toast({ title: `${allResults.length}개 PDF 파싱 완료`, description: '이미지 포함 데이터를 확인 후 등록하세요.' });
