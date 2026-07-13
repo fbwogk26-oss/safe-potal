@@ -2612,8 +2612,11 @@ ${L("감사합니다.")}`;
       const cidCounter = { n: 0 };
       const imagesArr: string[] = Array.isArray(images) ? images : [];
 
+      // 부서명만 추출 (예: "남대구운용팀 - 대구건설국_B_T2(900M) / ..." → "남대구운용팀")
+      const teamOnly = (department as string).split(/\s*[-–]\s*/)[0].trim() || (department as string);
+
       // 사진이 표 안 3번째 행에 들어가는 표 생성
-      const photoLabel = `${department}<br>점검결과`;
+      const photoLabel = `${teamOnly}<br>점검결과`;
       const inspectionTable = await buildInspectionTable(
         checklistArr, imagesArr, photoLabel, allAttachments, cidCounter
       );
@@ -2640,7 +2643,7 @@ ${L(`<span style="color:#888;">════════════════�
 ${L(`${m}월 ${d}일 현장경영팀에서 진행한 <b style="color:#c0392b;">현장 안전점검 결과</b>에 대해서`)}
 ${L(`아래와 같이 공유하여 드리오니 작업 시 <b>보호구 착용</b>과 <b>안전수칙 준수</b>를 생활화하여 주시기 바랍니다.`)}
 <br>
-${L(`<b>■ 점검일자 : ${mm}.${dd}(${dayKr}) / 점검지역 : ${department}${workerPart}</b>`)}
+${L(`<b>■ 점검일자 : ${mm}.${dd}(${dayKr}) / 점검지역 : ${teamOnly}${workerPart}</b>`)}
 ${L(`<b>■ 점검결과 : ${resultHtml}</b>`)}
 ${workContent ? L(`■ 작업내용 : ${workContent}`) : ""}
 ${notes       ? L(`■ 비고 : ${notes}`) : ""}
@@ -2710,7 +2713,9 @@ ${buildEmailFooter()}
         const dd = String(dn).padStart(2, "0");
         dateLabels.push(`${mm}.${dd}(${dy})`);
 
-        const dept = insp.department || insp.title?.split(" - ")[0] || insp.title || "";
+        const deptFull = insp.department || insp.title?.split(" - ")[0] || insp.title || "";
+        // 부서명만 추출 (예: "남대구운용팀 - 작업내용..." → "남대구운용팀")
+        const dept = deptFull.split(/\s*[-–]\s*/)[0].trim() || deptFull;
         regionLabels.push(dept);
 
         const clArr: any[] = Array.isArray(insp.checklist) ? insp.checklist : [];
@@ -2746,7 +2751,9 @@ ${buildEmailFooter()}
 
       for (let i = 0; i < rows.length; i++) {
         const insp = rows[i];
-        const dept = insp.department || insp.title?.split(" - ")[0] || insp.title || "";
+        const deptRaw = insp.department || insp.title?.split(" - ")[0] || insp.title || "";
+        // 부서명만 추출 (예: "남대구운용팀 - 대구건설국_B_T2(900M) / ..." → "남대구운용팀")
+        const dept = deptRaw.split(/\s*[-–]\s*/)[0].trim() || deptRaw;
         const clArr: Array<{ item: string; status: string }> =
           Array.isArray(insp.checklist) ? insp.checklist : [];
         const imgsArr: string[] = Array.isArray(insp.images) ? insp.images : [];
