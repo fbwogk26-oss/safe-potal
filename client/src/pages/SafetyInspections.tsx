@@ -323,9 +323,38 @@ export default function SafetyInspections() {
       }
 
       setBulkExcelData(combinedExcelData);
+      // 점검자 기반 점검유형 자동 감지
+      const INSPECTOR_SAFETY   = ['맹찬섭','윤수호','편광열','김철현','김홍석','홍성국','곽영구','권승현','김일영','권재은','김상대','예승희'];
+      const INSPECTOR_HQ_TEAM  = ['류재하','이연태'];
+      const INSPECTOR_HQ       = ['손성태','이훈휘','김용주','이옥재'];
+      const CONTENT_TYPE_MAP: Record<string,string> = {
+        '안전점검':'안전점검', '동행점검':'동행점검',
+        '현장경영팀점검':'현장경영팀 점검', '현장경영팀 점검':'현장경영팀 점검',
+        '본사점검':'본사 점검', '본사 점검':'본사 점검',
+      };
+      const detectBulkType = (inspector: string, workContent: string): string => {
+        // 작업내용 끝 괄호 "(동행점검)" 등 우선 적용 (안전점검 그룹 점검자인 경우)
+        if (INSPECTOR_SAFETY.includes(inspector)) {
+          const m = workContent.match(/[（(]([^）)]+)[）)][\s]*$/);
+          if (m) {
+            const mapped = CONTENT_TYPE_MAP[m[1].replace(/\s/g,'')];
+            if (mapped) return mapped;
+          }
+          return '안전점검';
+        }
+        if (INSPECTOR_HQ_TEAM.includes(inspector)) return '현장경영팀 점검';
+        if (INSPECTOR_HQ.includes(inspector))      return '본사 점검';
+        return '안전점검';
+      };
+
       setBulkRows(
         allResults
-          .map((r: any) => ({ ...r, workerName: r.workerName || r.team || '', inspectionType: '안전점검', selected: !r.error }))
+          .map((r: any) => ({
+            ...r,
+            workerName: r.workerName || r.team || '',
+            inspectionType: detectBulkType(r.inspector || '', r.workContent || ''),
+            selected: !r.error,
+          }))
           .sort((a: any, b: any) => (a.inspectionDate || '').localeCompare(b.inspectionDate || ''))
       );
       toast({ title: `${allResults.length}개 PDF 파싱 완료`, description: '이미지 포함 데이터를 확인 후 등록하세요.' });
