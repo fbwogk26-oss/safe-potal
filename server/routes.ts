@@ -1439,7 +1439,6 @@ export async function registerRoutes(
 
             let inspectionDate = '';
             let team = '';
-            let location = '';
             let workDateTime = '';
             let workNo = '';
             let inspectionMethod = '';
@@ -1448,7 +1447,7 @@ export async function registerRoutes(
             let inspectorFromPdf = '';
             let workContentFromPdf = '';
 
-            // 점검일자
+            // 점검일자 (PDF에서 임시 추출 — 엑셀 매칭용. 최종 날짜는 엑셀에서 덮어씀)
             const dateLine = lines.find((l: string) => l.includes('점검일자'));
             if (dateLine) { const m = dateLine.match(/(\d{4}-\d{2}-\d{2})/); if (m) inspectionDate = m[1]; }
             if (!inspectionDate) { const m = fullText.match(/점검일자\s*[:\uff1a]?\s*(\d{4}-\d{2}-\d{2})/); if (m) inspectionDate = m[1]; }
@@ -1466,37 +1465,37 @@ export async function registerRoutes(
             }
             if (!team) { const m = fullText.match(/점검대상\s*[:\uff1a]\s*(.+?)\s{2,}/); if (m) { const p = m[1].split('>'); team = p[p.length-1].trim(); } }
 
-            // 작업일시 + 장소 (ISO datetime / 주소 형식)
+            // ── 작업일시(시간) 추출 — 엑셀 날짜+시간 매칭의 핵심 ──
+            // 1) "작업일시 장소" 한 줄에 있는 경우
             const dtLine = lines.find((l: string) => l.includes('작업일시') && l.includes('장소'));
             if (dtLine) {
-              const mDt = dtLine.match(/(\d{4}-\d{2}-\d{2}T[\d:]+)/);
+              const mDt = dtLine.match(/(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})/);
               if (mDt) workDateTime = mDt[1];
-              const mLoc = dtLine.match(/\d{4}-\d{2}-\d{2}T[\d:]+\s*\/\s*(.+)/);
-              if (mLoc) location = mLoc[1].trim();
+            }
+            // 2) "작업일시" 줄 단독
+            if (!workDateTime) {
+              const dtOnlyLine = lines.find((l: string) => l.includes('작업일시'));
+              if (dtOnlyLine) { const m = dtOnlyLine.match(/(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})/); if (m) workDateTime = m[1]; }
+            }
+            // 3) fullText 전체에서 ISO datetime 탐색 (가장 넓은 폴백)
+            if (!workDateTime) {
+              const m = fullText.match(/(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})/);
+              if (m) workDateTime = m[1];
             }
 
-            // 작업장소/주소 — 다양한 패턴 시도
-            if (!location) {
-              const patterns = [
-                /작업장소\s*[:\uff1a]\s*(.+)/,
-                /작업국소\s*[:\uff1a]\s*(.+)/,
-                /작업주소\s*[:\uff1a]\s*(.+)/,
-                /현장주소\s*[:\uff1a]\s*(.+)/,
-                /주\s*소\s*[:\uff1a]\s*(.+)/,
-                /장\s*소\s*[:\uff1a]\s*(.+)/,
-              ];
-              for (const pat of patterns) {
-                const m = fullText.match(pat);
-                if (m) { location = m[1].replace(/\s{2,}.+/, '').trim(); break; }
-              }
-            }
-            // ISO datetime / 주소 형식 (날짜T시간 / 주소)
-            if (!location) {
-              const m = fullText.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}\s*\/\s*([^○\n]+?)(?=\s*○|\s*$)/);
-              if (m) location = m[1].trim();
+            // 작업번호 (PDF 본문 + 파일명에서 추출)
+            const noLine = lines.find((l: string) => l.includes('직영') && /[\w]+-\d{8}-\d+/.test(l));
+            if (noLine) { const m = noLine.match(/(직영[-–][가-힣A-Za-z0-9]+[-–]\d{8}[-–]\d+)/); if (m) workNo = m[1].trim(); }
+            if (!workNo) { const m = fullText.match(/(직영[-–][가-힣A-Za-z0-9]+[-–]\d{8}[-–]\d+)/); if (m) workNo = m[1]; }
+            // 파일명에서도 작업번호 추출
+            if (!workNo) {
+              const fnm = f.originalname.replace(/\.pdf$/i, '');
+              const fnMatch = fnm.match(/(직영[-–][가-힣A-Za-z0-9]+[-–]\d{8}[-–]\d+)/);
+              if (fnMatch) workNo = fnMatch[1];
+              else if (/^[가-힣A-Za-z]+-\d{8}-\d+/.test(fnm)) workNo = fnm; // 파일명 자체가 작업번호
             }
 
-            // 점검자 — PDF 텍스트에서 추출
+            // 점검자 — PDF 텍스트에서 추출 (엑셀 없을 때 폴백)
             const inspectorPatterns = [
               /점검자\s*[:\uff1a]\s*([가-힣]{2,5})/,
               /안전담당자\s*[:\uff1a]\s*([가-힣]{2,5})/,
@@ -1510,7 +1509,7 @@ export async function registerRoutes(
               if (m) { inspectorFromPdf = m[1].trim(); break; }
             }
 
-            // 작업내용 — PDF 텍스트에서 추출
+            // 작업내용 — PDF 텍스트에서 추출 (엑셀 없을 때 폴백)
             const workContentPatterns = [
               /작업내용\s*[:\uff1a]\s*(.+?)(?=\s{2,}|$)/,
               /작업유형\s*[:\uff1a]\s*(.+?)(?=\s{2,}|$)/,
@@ -1520,15 +1519,9 @@ export async function registerRoutes(
               const m = fullText.match(pat);
               if (m) { workContentFromPdf = m[1].trim().slice(0, 100); break; }
             }
-
-            // 작업번호
-            const noLine = lines.find((l: string) => l.includes('직영') && l.includes('/') && /[\w]+-\d{8}-\d+/.test(l));
-            if (noLine) { const m = noLine.match(/((?:직영-)?(?:무선기지국|전원기지국|선로기지국)-[\w-]+)/); if (m) workNo = m[1].trim(); }
-            if (!workNo) { const m = fullText.match(/(직영-[가-힣A-Za-z0-9]+-\d{8}-\d+)/); if (m) workNo = m[1]; }
-
             // 작업내용 폴백: 작업번호 중간 부분
             if (!workContentFromPdf && workNo) {
-              const wm = workNo.match(/직영-([가-힣A-Za-z0-9]+)-/);
+              const wm = workNo.match(/직영[-–]([가-힣A-Za-z0-9]+)[-–]/);
               if (wm) workContentFromPdf = wm[1];
             }
 
@@ -1633,21 +1626,32 @@ export async function registerRoutes(
               }
             }
 
-            // 최종 병합: 엑셀 > PDF 텍스트 순서로 우선순위
+            // ── 최종 병합: 엑셀 매칭 성공 시 엑셀 값이 무조건 우선 ──
+            // 팀명
             if (teamFromExcel) team = teamFromExcel;
-            if (!inspectionDate && inspectionDateFromExcel) {
-              const m = inspectionDateFromExcel.match(/(\d{4}-\d{2}-\d{2})/); if (m) inspectionDate = m[1];
+
+            // 점검일자: 엑셀 점검일시에서 날짜 추출 (엑셀이 있으면 PDF 날짜 덮어씀)
+            if (inspectionDateFromExcel) {
+              const m = inspectionDateFromExcel.match(/(\d{4}-\d{2}-\d{2})/);
+              if (m) inspectionDate = m[1];
             }
-            if (!location && locationFromExcel) location = locationFromExcel;
+
+            // 작업국소: 엑셀의 작업주소가 항상 우선. 엑셀 매칭 없으면 빈칸 (잘못된 datetime 형식 방지)
+            const location = locationFromExcel;
+
+            // 작업번호
             if (!workNo && workNoFromExcel) workNo = workNoFromExcel;
+
             // 작업내용: 엑셀 우선, 없으면 PDF 텍스트 추출값
-            if (!workContent && workContentFromPdf) workContent = workContentFromPdf;
+            const finalWorkContent = workContent || workContentFromPdf;
+
             // 점검자: 엑셀 우선, 없으면 PDF 텍스트 추출값
             const finalInspector = inspectorFromExcel || inspectorFromPdf;
+
             // 점검유형: 엑셀 점검수행시점조직 우선, 없으면 기본 안전점검
             const finalInspectionType = inspectionTypeFromExcel || '안전점검';
 
-            return { fileName: f.originalname, inspectionDate, team, location, workDateTime, workNo, workContent, workType, inspectionMethod, inspectionResult, defectCount, imageUrls, inspector: finalInspector, workerName: workerFromExcel, overallComment, inspectionType: finalInspectionType };
+            return { fileName: f.originalname, inspectionDate, team, location, workDateTime, workNo, workContent: finalWorkContent, workType, inspectionMethod, inspectionResult, defectCount, imageUrls, inspector: finalInspector, workerName: workerFromExcel, overallComment, inspectionType: finalInspectionType };
           } catch (e: any) {
             console.error('[bulk-parse] 파일 처리 오류:', f.originalname, e.message);
             return { fileName: f.originalname, error: e.message, inspectionDate: '', team: '', location: '', workDateTime: '', workNo: '', workContent: '', workType: '', inspectionMethod: '', inspectionResult: '양호', defectCount: 0, imageUrls: [], inspector: '', workerName: '', overallComment: '' };
