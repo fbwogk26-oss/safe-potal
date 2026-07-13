@@ -327,12 +327,16 @@ export default function SafetyInspections() {
       const INSPECTOR_SAFETY   = ['맹찬섭','윤수호','편광열','김철현','김홍석','홍성국','곽영구','권승현','김일영','권재은','김상대','예승희'];
       const INSPECTOR_HQ_TEAM  = ['류재하','이연태'];
       const INSPECTOR_HQ       = ['손성태','이훈휘','김용주','이옥재'];
+      const INSPECTOR_KT       = ['현장안전이행TF','현장안전이행tf'];
       const CONTENT_TYPE_MAP: Record<string,string> = {
         '안전점검':'안전점검', '동행점검':'동행점검',
         '현장경영팀점검':'현장경영팀 점검', '현장경영팀 점검':'현장경영팀 점검',
         '본사점검':'본사 점검', '본사 점검':'본사 점검',
       };
       const detectBulkType = (inspector: string, workContent: string): string => {
+        const inspNorm = inspector.replace(/\s/g,'').toLowerCase();
+        // 현장안전이행TF → KT 점검
+        if (INSPECTOR_KT.some(k => inspNorm.includes(k.replace(/\s/g,'').toLowerCase()))) return 'KT 점검';
         // 작업내용 끝 괄호 "(동행점검)" 등 우선 적용 (안전점검 그룹 점검자인 경우)
         if (INSPECTOR_SAFETY.includes(inspector)) {
           const m = workContent.match(/[（(]([^）)]+)[）)][\s]*$/);
