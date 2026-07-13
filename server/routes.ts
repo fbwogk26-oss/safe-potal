@@ -1384,7 +1384,18 @@ export async function registerRoutes(
               if (ri === 1) { row.eachCell((c: any, ci: number) => { hdrs[ci] = String(c.value ?? '').trim(); }); }
               else {
                 const obj: Record<string, any> = {};
-                row.eachCell((c: any, ci: number) => { if (hdrs[ci]) obj[hdrs[ci]] = String(c.value ?? '').trim(); });
+                row.eachCell((c: any, ci: number) => {
+                  if (!hdrs[ci]) return;
+                  const v = c.value;
+                  // 날짜 셀은 JS Date 객체로 읽힘 → ISO 문자열로 변환 (YYYY-MM-DDTHH:MM)
+                  if (v instanceof Date) {
+                    // UTC 보정 없이 로컬 ISO 형식으로 (엑셀에 저장된 시간 그대로)
+                    const pad = (n: number) => String(n).padStart(2, '0');
+                    obj[hdrs[ci]] = `${v.getFullYear()}-${pad(v.getMonth()+1)}-${pad(v.getDate())}T${pad(v.getHours())}:${pad(v.getMinutes())}`;
+                  } else {
+                    obj[hdrs[ci]] = String(v ?? '').trim();
+                  }
+                });
                 if (Object.values(obj).some(v => v)) excelData.push(obj);
               }
             });
@@ -1413,8 +1424,9 @@ export async function registerRoutes(
           const dateCol        = findCol(['점검일시', '점검일', '일시']);
           const resultCol      = findCol(['점검결과']);
           const extractTeam    = (val: string) => val.includes('>') ? val.split('>').pop()!.trim() : val.trim();
-          const extractTime    = (val: string) => { const m = val.match(/(\d{2}):(\d{2})/); return m ? m[1] + m[2] : ''; };
-          const extractDate8   = (val: string) => val.replace(/[^0-9]/g, '').slice(0, 8);
+          const extractTime    = (val: string) => { const m = val.match(/T?(\d{2}):(\d{2})/); return m ? m[1] + m[2] : ''; };
+          // YYYY-MM-DD 또는 YYYY/MM/DD 형식 우선 파싱 (Date객체→String 변환 시 "Thu Jun 12..." 오류 방지)
+          const extractDate8   = (val: string) => { const m = val.match(/(\d{4})[-\/](\d{2})[-\/](\d{2})/); if (m) return m[1]+m[2]+m[3]; return val.replace(/[^0-9]/g,'').slice(0,8); };
           // 점검수행시점조직 → 점검유형 매핑
           const detectInspectionType = (orgVal: string): string => {
             const v = orgVal.replace(/\s/g, '').toLowerCase();
