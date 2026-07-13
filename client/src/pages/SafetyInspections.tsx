@@ -1452,6 +1452,25 @@ export default function SafetyInspections() {
           </div>
           <div className="flex items-center gap-2">
             <span className="text-[11px] text-muted-foreground hidden sm:block">위 그래프 월 필터와 연동</span>
+            {canEditInspections && selectionMode && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1 h-7 text-xs px-2.5"
+                onClick={() => {
+                  const allIds = filteredInspections.map(i => i.id);
+                  const allSelected = allIds.every(id => selectedIds.has(id));
+                  setSelectedIds(allSelected ? new Set() : new Set(allIds));
+                }}
+                data-testid="button-select-all-inspections"
+              >
+                <Checkbox
+                  checked={filteredInspections.length > 0 && filteredInspections.every(i => selectedIds.has(i.id))}
+                  className="w-3.5 h-3.5 pointer-events-none"
+                />
+                {filteredInspections.every(i => selectedIds.has(i.id)) && filteredInspections.length > 0 ? "전체 해제" : "전체 선택"}
+              </Button>
+            )}
             {canEditInspections && (
               <Button
                 variant={selectionMode ? "default" : "outline"}
