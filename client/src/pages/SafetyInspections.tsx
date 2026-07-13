@@ -878,8 +878,7 @@ export default function SafetyInspections() {
       return { name: shortName, 안전점검: s.안전점검, 동행점검: s.동행점검, 현장경영팀: s.현장경영팀, 본사: s.본사, KT: s.KT, 진행율: pct };
     });
 
-    const multiplierVal = dashboardPeriod === "year" ? 12 : 1;
-    const totalTarget = (inspectionTargets?.totalTarget || 0) * multiplierVal;
+    const totalTarget = inspectionTargets?.totalTarget || 0;
     return {
       total: filtered.length,
       totalSafety, totalAccompany, totalHQ, totalHQ2, totalKT,
@@ -1668,15 +1667,12 @@ export default function SafetyInspections() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Settings className="w-5 h-5 text-green-600" />
-              월 목표건수 설정
+              목표건수 설정
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-2">
-            <p className="text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
-              월 목표를 입력하면 연간 보기 시 <strong>×12</strong>로 자동 계산됩니다.
-            </p>
             <div className="space-y-2">
-              <Label className="font-semibold">총 점검 목표 건수 (월)</Label>
+              <Label className="font-semibold">총 점검 목표 건수</Label>
               <Input
                 type="number"
                 min={0}
@@ -1685,11 +1681,6 @@ export default function SafetyInspections() {
                 placeholder="0"
                 data-testid="input-total-target"
               />
-              {Number(editTotalTarget) > 0 && (
-                <p className="text-[11px] text-muted-foreground">
-                  연간 환산: <strong>{(Number(editTotalTarget) || 0) * 12}건</strong>
-                </p>
-              )}
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" onClick={() => setShowTargetDialog(false)}>
