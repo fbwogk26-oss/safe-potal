@@ -1719,8 +1719,15 @@ export default function AisSafetyRate() {
                             r.tbmResult === '등록' &&
                             (!r.tbmAiResult || r.tbmAiResult === '분석전' || r.tbmAiResult === '분석중')
                           ).length;
+                          // 부적합: 명시적으로 tbmAiResult=부적합인 건만 (잔여값 방식 금지 — 미등록/분석전 레코드가 오분류됨)
+                          const fail = tbmBase.filter(r => r.tbmAiResult === '부적합' && !justifiedRecordIds.has(r.id)).length;
+                          // 미등록: tbmResult=미등록이고 소명되지 않았으며 AI결과가 부적합이 아닌 건
+                          const unreg = tbmBase.filter(r =>
+                            r.tbmResult === '미등록' &&
+                            !justifiedRecordIds.has(r.id) &&
+                            r.tbmAiResult !== '부적합'
+                          ).length;
                           const total = tbmBase.length;
-                          const fail = Math.max(0, total - purePass - justified - pending);
                           const rate = total === 0 ? 100 : Math.round(((purePass + justified) / total) * 100);
                           const donutData = total === 0
                             ? [{ name: '데이터없음', value: 1, color: '#6366f1' }]
@@ -1728,6 +1735,7 @@ export default function AisSafetyRate() {
                                 { name: '이행', value: purePass, color: '#22c55e' },
                                 { name: '소명완료', value: justified, color: '#f59e0b' },
                                 { name: '분석전', value: pending, color: '#94a3b8' },
+                                { name: '미등록', value: unreg, color: '#f97316' },
                                 { name: '부적합', value: fail, color: '#ef4444' },
                               ].filter(d => d.value > 0);
                           return (
