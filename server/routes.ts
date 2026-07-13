@@ -1877,20 +1877,20 @@ export async function registerRoutes(
     const safetyTeamjang = await storage.getSetting('inspection_target_safety_teamjang');
     const accompanyBujang = await storage.getSetting('inspection_target_accompany_bujang');
     const accompanyTeamjang = await storage.getSetting('inspection_target_accompany_teamjang');
-    const legacySafety = await storage.getSetting('inspection_target_safety');
-    const legacyAccompany = await storage.getSetting('inspection_target_accompany');
+    const totalTarget = await storage.getSetting('inspection_target_total');
     res.json({
       safetyBujang: safetyBujang?.value ? Number(safetyBujang.value) : 0,
       safetyTeamjang: safetyTeamjang?.value ? Number(safetyTeamjang.value) : 0,
       accompanyBujang: accompanyBujang?.value ? Number(accompanyBujang.value) : 0,
       accompanyTeamjang: accompanyTeamjang?.value ? Number(accompanyTeamjang.value) : 0,
-      safetyTarget: legacySafety?.value ? Number(legacySafety.value) : 0,
-      accompanyTarget: legacyAccompany?.value ? Number(legacyAccompany.value) : 0,
+      safetyTarget: 0,
+      accompanyTarget: 0,
+      totalTarget: totalTarget?.value ? Number(totalTarget.value) : 0,
     });
   });
 
   app.post("/api/settings/inspection-targets", requireAdmin, async (req: any, res) => {
-    const { safetyBujang, safetyTeamjang, accompanyBujang, accompanyTeamjang } = req.body;
+    const { safetyBujang, safetyTeamjang, accompanyBujang, accompanyTeamjang, totalTarget } = req.body;
     if (safetyBujang !== undefined) {
       await storage.setSetting('inspection_target_safety_bujang', String(safetyBujang));
     }
@@ -1902,6 +1902,9 @@ export async function registerRoutes(
     }
     if (accompanyTeamjang !== undefined) {
       await storage.setSetting('inspection_target_accompany_teamjang', String(accompanyTeamjang));
+    }
+    if (totalTarget !== undefined) {
+      await storage.setSetting('inspection_target_total', String(totalTarget));
     }
     res.json({ success: true });
   });

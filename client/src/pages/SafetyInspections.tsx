@@ -105,6 +105,7 @@ export default function SafetyInspections() {
     safetyBujang: number; safetyTeamjang: number;
     accompanyBujang: number; accompanyTeamjang: number;
     safetyTarget: number; accompanyTarget: number;
+    totalTarget: number;
   }>({
     queryKey: ["/api/settings/inspection-targets"],
   });
@@ -221,10 +222,7 @@ export default function SafetyInspections() {
   const [showForm, setShowForm] = useState(false);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [showTargetDialog, setShowTargetDialog] = useState(false);
-  const [editSafetyBujang, setEditSafetyBujang] = useState("");
-  const [editSafetyTeamjang, setEditSafetyTeamjang] = useState("");
-  const [editAccompanyBujang, setEditAccompanyBujang] = useState("");
-  const [editAccompanyTeamjang, setEditAccompanyTeamjang] = useState("");
+  const [editTotalTarget, setEditTotalTarget] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pdfFileInputRef = useRef<HTMLInputElement>(null);
   const [isPdfParsing, setIsPdfParsing] = useState(false);
@@ -827,11 +825,14 @@ export default function SafetyInspections() {
       return { name: shortName, 안전점검: s.안전점검, 동행점검: s.동행점검, 현장경영팀: s.현장경영팀, 본사: s.본사, KT: s.KT, 진행율: pct };
     });
 
+    const multiplierVal = dashboardPeriod === "year" ? 12 : 1;
+    const totalTarget = (inspectionTargets?.totalTarget || 0) * multiplierVal;
     return {
       total: filtered.length,
       totalSafety, totalAccompany, totalHQ, totalHQ2, totalKT,
       safetyBujang, safetyTeamjang, accompanyBujang, accompanyTeamjang,
       safetyTotal, accompanyTotal, safetyPerDept, accompanyPerDept, combinedPerDept,
+      totalTarget,
       chartData,
       periodLabel: dashboardPeriod === "month" ? `${selectedMonth}월` : `${now.getFullYear()}년`,
     };
@@ -1011,10 +1012,7 @@ export default function SafetyInspections() {
                     size="icon"
                     onClick={(e) => {
                       e.stopPropagation();
-                      setEditSafetyBujang(String(inspectionTargets?.safetyBujang || ""));
-                      setEditSafetyTeamjang(String(inspectionTargets?.safetyTeamjang || ""));
-                      setEditAccompanyBujang(String(inspectionTargets?.accompanyBujang || ""));
-                      setEditAccompanyTeamjang(String(inspectionTargets?.accompanyTeamjang || ""));
+                      setEditTotalTarget(String(inspectionTargets?.totalTarget || ""));
                       setShowTargetDialog(true);
                     }}
                     data-testid="button-target-settings"
@@ -1056,66 +1054,65 @@ export default function SafetyInspections() {
                     )}
                   </div>
 
-                  {/* 통합 통계 카드 — 2행 3열 */}
+                  {/* 통합 통계 카드 — 배너 + 6칸 그리드 */}
+                  {/* 배너: 총점검 요약 */}
+                  <div className="rounded-xl p-3 bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900/60 dark:to-slate-800/40 border border-slate-200 dark:border-slate-700/50 flex items-center gap-4">
+                    <div className="shrink-0">
+                      <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-0.5">📋 총 점검</p>
+                      <p className="text-3xl font-black text-slate-700 dark:text-slate-200" data-testid="text-total-inspections">
+                        {inspectionStats.total}<span className="text-sm font-normal ml-1">건</span>
+                      </p>
+                    </div>
+                    <div className="flex-1 grid grid-cols-5 gap-2 min-w-0">
+                      {[
+                        { label: "안전점검", val: inspectionStats.totalSafety, color: "text-blue-600 dark:text-blue-400" },
+                        { label: "동행점검", val: inspectionStats.totalAccompany, color: "text-emerald-600 dark:text-emerald-400" },
+                        { label: "현장경영팀", val: inspectionStats.totalHQ, color: "text-orange-600 dark:text-orange-400" },
+                        { label: "본사점검", val: inspectionStats.totalHQ2, color: "text-purple-600 dark:text-purple-400" },
+                        { label: "KT점검", val: inspectionStats.totalKT, color: "text-sky-600 dark:text-sky-400" },
+                      ].map(({ label, val, color }) => (
+                        <div key={label} className="text-center">
+                          <p className={`text-lg font-bold ${color}`}>{val}</p>
+                          <p className="text-[10px] text-muted-foreground leading-tight">{label}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 6칸 카드 그리드 */}
                   <div className="grid grid-cols-3 gap-2 sm:gap-3">
                     {/* 총 점검 */}
-                    <div className="col-span-3 rounded-xl p-3 bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900/60 dark:to-slate-800/40 border border-slate-200 dark:border-slate-700/50 flex items-center gap-4">
-                      <div>
-                        <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-0.5">📋 총 점검</p>
-                        <p className="text-3xl font-black text-slate-700 dark:text-slate-200" data-testid="text-total-inspections">
-                          {inspectionStats.total}<span className="text-sm font-normal ml-1">건</span>
-                        </p>
-                      </div>
-                      <div className="flex-1 grid grid-cols-5 gap-2">
-                        {[
-                          { label: "안전점검", val: inspectionStats.totalSafety, color: "text-blue-600 dark:text-blue-400" },
-                          { label: "동행점검", val: inspectionStats.totalAccompany, color: "text-emerald-600 dark:text-emerald-400" },
-                          { label: "현장경영팀", val: inspectionStats.totalHQ, color: "text-orange-600 dark:text-orange-400" },
-                          { label: "본사점검", val: inspectionStats.totalHQ2, color: "text-purple-600 dark:text-purple-400" },
-                          { label: "KT점검", val: inspectionStats.totalKT, color: "text-sky-600 dark:text-sky-400" },
-                        ].map(({ label, val, color }) => (
-                          <div key={label} className="text-center">
-                            <p className={`text-lg font-bold ${color}`}>{val}</p>
-                            <p className="text-[10px] text-muted-foreground leading-tight">{label}</p>
+                    <div className="rounded-xl p-3 bg-gradient-to-br from-slate-50 to-gray-100 dark:from-slate-900/60 dark:to-gray-800/40 border border-slate-200 dark:border-slate-700/50">
+                      <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">📋 총점검</p>
+                      <p className="text-2xl font-black text-slate-700 dark:text-slate-200" data-testid="text-total-card">
+                        {inspectionStats.total}
+                        {inspectionStats.totalTarget > 0 && <span className="text-xs font-semibold text-muted-foreground ml-0.5">/{inspectionStats.totalTarget}</span>}
+                        <span className="text-xs font-normal ml-0.5">건</span>
+                      </p>
+                      {inspectionStats.totalTarget > 0 && (
+                        <div className="mt-1.5">
+                          <div className="h-1.5 w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                            <div className="h-full bg-slate-500 rounded-full transition-all" style={{ width: `${Math.min(100, Math.round(inspectionStats.total / inspectionStats.totalTarget * 100))}%` }} />
                           </div>
-                        ))}
-                      </div>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 font-semibold">{Math.round(inspectionStats.total / inspectionStats.totalTarget * 100)}% 달성</p>
+                        </div>
+                      )}
                     </div>
 
                     {/* 안전점검 */}
                     <div className="rounded-xl p-3 bg-gradient-to-br from-blue-50 to-sky-50 dark:from-blue-950/40 dark:to-sky-950/20 border border-blue-100 dark:border-blue-900/30">
                       <p className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 mb-1">🛡 안전점검</p>
                       <p className="text-2xl font-black text-blue-700 dark:text-blue-300" data-testid="text-safety-count">
-                        {inspectionStats.totalSafety}
-                        {inspectionStats.safetyTotal > 0 && <span className="text-xs font-semibold text-muted-foreground ml-0.5">/{inspectionStats.safetyTotal}</span>}
-                        <span className="text-xs font-normal ml-0.5">건</span>
+                        {inspectionStats.totalSafety}<span className="text-xs font-normal ml-0.5">건</span>
                       </p>
-                      {inspectionStats.safetyTotal > 0 && (
-                        <div className="mt-1.5">
-                          <div className="h-1.5 w-full bg-blue-100 dark:bg-blue-900/40 rounded-full overflow-hidden">
-                            <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${Math.min(100, Math.round(inspectionStats.totalSafety / inspectionStats.safetyTotal * 100))}%` }} />
-                          </div>
-                          <p className="text-[10px] text-blue-500 dark:text-blue-400 mt-0.5 font-semibold">{Math.round(inspectionStats.totalSafety / inspectionStats.safetyTotal * 100)}% 달성</p>
-                        </div>
-                      )}
                     </div>
 
                     {/* 동행점검 */}
                     <div className="rounded-xl p-3 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/40 dark:to-teal-950/20 border border-emerald-100 dark:border-emerald-900/30">
                       <p className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 mb-1">🤝 동행점검</p>
                       <p className="text-2xl font-black text-emerald-700 dark:text-emerald-300" data-testid="text-accompany-count">
-                        {inspectionStats.totalAccompany}
-                        {inspectionStats.accompanyTotal > 0 && <span className="text-xs font-semibold text-muted-foreground ml-0.5">/{inspectionStats.accompanyTotal}</span>}
-                        <span className="text-xs font-normal ml-0.5">건</span>
+                        {inspectionStats.totalAccompany}<span className="text-xs font-normal ml-0.5">건</span>
                       </p>
-                      {inspectionStats.accompanyTotal > 0 && (
-                        <div className="mt-1.5">
-                          <div className="h-1.5 w-full bg-emerald-100 dark:bg-emerald-900/40 rounded-full overflow-hidden">
-                            <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${Math.min(100, Math.round(inspectionStats.totalAccompany / inspectionStats.accompanyTotal * 100))}%` }} />
-                          </div>
-                          <p className="text-[10px] text-emerald-500 dark:text-emerald-400 mt-0.5 font-semibold">{Math.round(inspectionStats.totalAccompany / inspectionStats.accompanyTotal * 100)}% 달성</p>
-                        </div>
-                      )}
                     </div>
 
                     {/* 현장경영팀 점검 */}
@@ -1646,67 +1643,21 @@ export default function SafetyInspections() {
             <p className="text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
               월 목표를 입력하면 연간 보기 시 <strong>×12</strong>로 자동 계산됩니다.
             </p>
-            <div className="space-y-3">
-              <Label className="text-blue-600 font-semibold">안전점검</Label>
-              <div className="grid grid-cols-2 gap-3 pl-2">
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">운용부장 월 목표</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={editSafetyBujang}
-                    onChange={e => setEditSafetyBujang(e.target.value)}
-                    placeholder="0"
-                    data-testid="input-safety-bujang"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">운용팀장 월 목표</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={editSafetyTeamjang}
-                    onChange={e => setEditSafetyTeamjang(e.target.value)}
-                    placeholder="0"
-                    data-testid="input-safety-teamjang"
-                  />
-                </div>
-              </div>
-              <p className="text-[11px] text-muted-foreground pl-2">
-                월 합계: <strong>{(Number(editSafetyBujang) || 0) + (Number(editSafetyTeamjang) || 0)}건</strong>
-                &nbsp;→ 연간: <strong>{((Number(editSafetyBujang) || 0) + (Number(editSafetyTeamjang) || 0)) * 12}건</strong>
-              </p>
-            </div>
-            <div className="space-y-3">
-              <Label className="text-emerald-600 font-semibold">동행점검</Label>
-              <div className="grid grid-cols-2 gap-3 pl-2">
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">운용부장 월 목표</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={editAccompanyBujang}
-                    onChange={e => setEditAccompanyBujang(e.target.value)}
-                    placeholder="0"
-                    data-testid="input-accompany-bujang"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">운용팀장 월 목표</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={editAccompanyTeamjang}
-                    onChange={e => setEditAccompanyTeamjang(e.target.value)}
-                    placeholder="0"
-                    data-testid="input-accompany-teamjang"
-                  />
-                </div>
-              </div>
-              <p className="text-[11px] text-muted-foreground pl-2">
-                월 합계: <strong>{(Number(editAccompanyBujang) || 0) + (Number(editAccompanyTeamjang) || 0)}건</strong>
-                &nbsp;→ 연간: <strong>{((Number(editAccompanyBujang) || 0) + (Number(editAccompanyTeamjang) || 0)) * 12}건</strong>
-              </p>
+            <div className="space-y-2">
+              <Label className="font-semibold">총 점검 목표 건수 (월)</Label>
+              <Input
+                type="number"
+                min={0}
+                value={editTotalTarget}
+                onChange={e => setEditTotalTarget(e.target.value)}
+                placeholder="0"
+                data-testid="input-total-target"
+              />
+              {Number(editTotalTarget) > 0 && (
+                <p className="text-[11px] text-muted-foreground">
+                  연간 환산: <strong>{(Number(editTotalTarget) || 0) * 12}건</strong>
+                </p>
+              )}
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" onClick={() => setShowTargetDialog(false)}>
@@ -1714,12 +1665,7 @@ export default function SafetyInspections() {
               </Button>
               <Button
                 onClick={() => {
-                  saveTargetsMutation.mutate({
-                    safetyBujang: Number(editSafetyBujang) || 0,
-                    safetyTeamjang: Number(editSafetyTeamjang) || 0,
-                    accompanyBujang: Number(editAccompanyBujang) || 0,
-                    accompanyTeamjang: Number(editAccompanyTeamjang) || 0,
-                  });
+                  saveTargetsMutation.mutate({ totalTarget: Number(editTotalTarget) || 0 } as any);
                 }}
                 disabled={saveTargetsMutation.isPending}
                 className="bg-green-600 text-white gap-2"
