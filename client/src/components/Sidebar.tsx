@@ -89,14 +89,7 @@ const NAV_SECTIONS: NavSection[] = [
           { label: "사고보고/통계", href: "/accidents", icon: AlertTriangle, permissionKey: "canViewAccidents" },
           { label: "아차사고 관리", href: "/near-miss", icon: AlertTriangle, permissionKey: "canViewNearMiss" },
           { label: "위험성평가", href: "/risk-assessment", icon: ShieldAlert, permissionKey: "canViewRiskAssessment" },
-          {
-            label: "안전점검",
-            icon: ClipboardCheck,
-            children: [
-              { label: "자체 안전점검", href: "/inspections", icon: ClipboardCheck, permissionKey: "canViewInspections" as const },
-              { label: "기타 안전점검", href: "/inspections/other", icon: ClipboardList, permissionKey: "canViewInspections" as const },
-            ],
-          },
+          { label: "안전점검", href: "/inspections", icon: ClipboardCheck, permissionKey: "canViewInspections" as const },
           { label: "교육업무 관리", href: "/education-management", icon: ClipboardList, permissionKey: "canViewEducationOrLogs" },
           { label: "보호구 현황", href: "/equipment/status", icon: ShieldCheck, permissionKey: "canViewEquipmentStatus" },
           { label: "안전용품 신청", href: "/equipment", icon: ShoppingCart, permissionKey: "canViewEquipment" },

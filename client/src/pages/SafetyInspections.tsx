@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ClipboardCheck, Plus, Trash2, ImagePlus, X, Calendar, MapPin, User, ChevronDown, ChevronUp, Download, Check, AlertCircle, BarChart3, Settings, FileText, Loader2, Pencil, CheckSquare, Upload, Eye } from "lucide-react";
+import { ClipboardCheck, ClipboardList, Plus, Trash2, ImagePlus, X, Calendar, MapPin, User, ChevronDown, ChevronUp, Download, Check, AlertCircle, BarChart3, Settings, FileText, Loader2, Pencil, CheckSquare, Upload, Eye, Mail } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -74,8 +74,13 @@ export default function SafetyInspections() {
   const EXTRA_DEPARTMENTS = departments.slice(0, 3);
   const { canEditInspections, canDownloadInspectionExcel, canUploadInspectionPhotos } = usePermissions();
   const { user } = useAuth();
-  // 기타 안전점검 타입은 OtherSafetyInspections 페이지에서만 표시
-  const OTHER_INSPECTION_TYPES = ["KT 점검", "본사 점검", "현장경영팀 점검"];
+  const OTHER_INSPECTION_TYPES = ["KT 점검", "본사 점검", "현장경영팀 점검"] as const;
+  type OtherSubType = typeof OTHER_INSPECTION_TYPES[number];
+  const SUBTYPE_COLORS: Record<OtherSubType, string> = {
+    "KT 점검": "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 border-blue-200 dark:border-blue-800",
+    "본사 점검": "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 border-purple-200 dark:border-purple-800",
+    "현장경영팀 점검": "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300 border-orange-200 dark:border-orange-800",
+  };
 
   const { data: rawInspections, isLoading } = useQuery<SafetyInspection[]>({
     queryKey: ["/api/safety-inspections", headquarters],
@@ -84,8 +89,12 @@ export default function SafetyInspections() {
 
   // 자체 안전점검만 표시 (기타 안전점검 타입 제외)
   const inspections = rawInspections?.filter(
-    i => !OTHER_INSPECTION_TYPES.includes(i.inspectionType ?? "")
+    i => !(OTHER_INSPECTION_TYPES as readonly string[]).includes(i.inspectionType ?? "")
   );
+  // 기타 안전점검 (KT/본사/현장경영팀)
+  const otherInspections = rawInspections?.filter(
+    i => (OTHER_INSPECTION_TYPES as readonly string[]).includes(i.inspectionType ?? "")
+  ) ?? [];
   
   const { data: teams } = useQuery<Team[]>({
     queryKey: ["/api/teams", headquarters],
@@ -148,10 +157,30 @@ export default function SafetyInspections() {
     }) => {
       return apiRequest("POST", "/api/safety-inspections", data);
     },
-    onSuccess: () => {
+    onSuccess: async (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/safety-inspections"] });
+      const shouldEmail = pendingSendEmail.current;
+      pendingSendEmail.current = false;
+      const capturedDept = department;
+      const capturedWorkContent = workContent;
       resetForm();
-      toast({ title: "점검 등록 완료" });
+      if (shouldEmail && variables.inspectionType === "현장경영팀 점검") {
+        toast({ title: "점검 등록 완료 — 이메일 발송 중..." });
+        await sendEmailAfterCreate({
+          inspectionDate: variables.inspectionDate,
+          department: capturedDept,
+          inspector: variables.inspector || "",
+          workerName: variables.workerName || "",
+          location: variables.location || "",
+          workContent: capturedWorkContent,
+          checklist: variables.checklist,
+          notes: variables.notes || "",
+          images: variables.images,
+          subType: variables.inspectionType,
+        });
+      } else {
+        toast({ title: "점검 등록 완료" });
+      }
     },
   });
 
@@ -327,7 +356,7 @@ export default function SafetyInspections() {
   };
 
   const resetForm = () => {
-    setInspectionType("안전점검");
+    setInspectionType(activeTab === "기타" ? "현장경영팀 점검" : "안전점검");
     setDepartment("");
     setWorkContent("");
     setLocation("");
@@ -339,6 +368,16 @@ export default function SafetyInspections() {
     setImages([]);
     setShowForm(false);
     setEditingId(null);
+  };
+
+  const handleSubmitOnly = () => {
+    pendingSendEmail.current = false;
+    handleSubmit();
+  };
+
+  const handleSubmitAndEmail = () => {
+    pendingSendEmail.current = true;
+    handleSubmit();
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -360,8 +399,8 @@ export default function SafetyInspections() {
       for (let i = 0; i < filesToUpload.length; i++) {
         const file = filesToUpload[i];
 
-        // 첫 번째 사진: 서버 경유 업로드 + GPT-4o Vision 자동 분석
-        if (i === 0 && isFirstPhoto) {
+        // 첫 번째 사진: 자체 안전점검만 AI 분석 (기타는 presigned URL 직접 업로드)
+        if (i === 0 && isFirstPhoto && activeTab === "자체") {
           const fd = new FormData();
           fd.append("photo", file);
           const analyzeRes = await fetch('/api/safety-inspections/analyze-photo', {
@@ -494,10 +533,12 @@ export default function SafetyInspections() {
   };
 
   const handleEdit = (inspection: any) => {
+    const isOtherType = (OTHER_INSPECTION_TYPES as readonly string[]).includes(inspection.inspectionType ?? "");
+    setActiveTab(isOtherType ? "기타" : "자체");
     const titleParts = inspection.title?.split(" - ") || [];
     const dept = titleParts[0] || "";
     const work = titleParts.slice(1).join(" - ") || "";
-    setInspectionType(inspection.inspectionType || "안전점검");
+    setInspectionType(inspection.inspectionType || (isOtherType ? "현장경영팀 점검" : "안전점검"));
     setDepartment(inspection.department || dept);
     setWorkContent(inspection.workContent || work);
     setLocation(inspection.location || "");
@@ -829,63 +870,181 @@ export default function SafetyInspections() {
 
   const [showInspDashboard, setShowInspDashboard] = useState(true);
 
+  // ── 탭 통합 (자체/기타) ──────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState<"자체" | "기타">("자체");
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [isSendingBulkEmail, setIsSendingBulkEmail] = useState(false);
+  const pendingSendEmail = useRef(false);
+  const [otherSelectionMode, setOtherSelectionMode] = useState(false);
+  const [otherSelectedIds, setOtherSelectedIds] = useState<Set<number>>(new Set());
+  const [otherExpandedId, setOtherExpandedId] = useState<number | null>(null);
+  const [otherShowDashboard, setOtherShowDashboard] = useState(true);
+
+  const otherInspectionStats = useMemo(() => {
+    if (!otherInspections || otherInspections.length === 0 || !teams) return null;
+    const now = new Date();
+    const currentYear = format(now, "yyyy");
+    const monthStr = String(selectedMonth).padStart(2, "0");
+    const targetMonth = `${currentYear}-${monthStr}`;
+    const filtered = otherInspections.filter(insp => {
+      if (dashboardPeriod === "month") return insp.inspectionDate.startsWith(targetMonth);
+      return insp.inspectionDate.startsWith(currentYear);
+    });
+    const allDepts = teams.map(t => t.name);
+    const byType = {
+      "KT 점검": filtered.filter(i => i.inspectionType === "KT 점검").length,
+      "본사 점검": filtered.filter(i => i.inspectionType === "본사 점검").length,
+      "현장경영팀 점검": filtered.filter(i => i.inspectionType === "현장경영팀 점검").length,
+    };
+    const chartData = allDepts.map(dept => {
+      const di = filtered.filter(i => i.title.startsWith(dept));
+      const shortName = dept.replace("운용팀", "").replace("팀", "");
+      return {
+        name: shortName,
+        "KT": di.filter(i => i.inspectionType === "KT 점검").length,
+        "본사": di.filter(i => i.inspectionType === "본사 점검").length,
+        "현장경영팀": di.filter(i => i.inspectionType === "현장경영팀 점검").length,
+      };
+    });
+    return {
+      total: filtered.length, byType, chartData,
+      periodLabel: dashboardPeriod === "month" ? `${selectedMonth}월` : `${now.getFullYear()}년`,
+    };
+  }, [otherInspections, teams, dashboardPeriod, selectedMonth]);
+
+  const sendEmailAfterCreate = async (payload: {
+    inspectionDate: string; department: string; inspector: string; workerName: string;
+    location: string; workContent: string; checklist: ChecklistItem[]; notes: string;
+    images: string[]; subType: string;
+  }) => {
+    setIsSendingEmail(true);
+    try {
+      const res = await fetch("/api/other-inspections/send-email", {
+        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast({ title: "이메일 초안 발송 완료", description: "fbwogk26@gmail.com으로 발송됐습니다. Gmail에서 jaeha.ryu@ktmos.com으로 전달하세요." });
+      } else {
+        toast({ variant: "destructive", title: "이메일 발송 실패", description: data.message });
+      }
+    } catch {
+      toast({ variant: "destructive", title: "이메일 발송 실패", description: "네트워크 오류가 발생했습니다." });
+    } finally {
+      setIsSendingEmail(false);
+    }
+  };
+
+  const handleBulkEmail = async () => {
+    const ids = Array.from(otherSelectedIds);
+    const selected = otherInspections.filter(i => ids.includes(i.id));
+    const eligible = selected.filter(i => i.inspectionType === "현장경영팀 점검");
+    if (eligible.length === 0) {
+      toast({ variant: "destructive", title: "현장경영팀 점검 항목이 없습니다", description: "메일 발송은 현장경영팀 점검만 가능합니다." });
+      return;
+    }
+    if (eligible.length < selected.length) toast({ title: `${selected.length - eligible.length}건 제외됨`, description: "현장경영팀 점검만 발송됩니다." });
+    setIsSendingBulkEmail(true);
+    try {
+      const res = await fetch("/api/other-inspections/send-email-bulk", {
+        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+        body: JSON.stringify({ ids: eligible.map(i => i.id) }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast({ title: `이메일 발송 완료 (${eligible.length}건)`, description: "fbwogk26@gmail.com · jaeha.ryu@ktmos.co.kr 로 발송되었습니다." });
+        setOtherSelectedIds(new Set()); setOtherSelectionMode(false);
+      } else {
+        toast({ variant: "destructive", title: "발송 실패", description: data.message });
+      }
+    } catch {
+      toast({ variant: "destructive", title: "발송 실패", description: "네트워크 오류가 발생했습니다." });
+    } finally {
+      setIsSendingBulkEmail(false);
+    }
+  };
+
   return (
     <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6 md:space-y-8">
       <div className="flex items-center justify-between gap-2 sm:gap-3">
         <div className="flex items-center gap-2 sm:gap-3">
-          <div className="bg-green-100 p-2 sm:p-2.5 rounded-lg sm:rounded-xl text-green-600 dark:bg-green-900/30 dark:text-green-400">
-            <ClipboardCheck className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8" />
+          <div className={`p-2 sm:p-2.5 rounded-lg sm:rounded-xl ${activeTab === "자체" ? "bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400" : "bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400"}`}>
+            {activeTab === "자체" ? <ClipboardCheck className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8" /> : <ClipboardList className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8" />}
           </div>
           <div>
             <h2 className="text-xl sm:text-2xl md:text-3xl font-display font-bold text-foreground">
               안전점검
             </h2>
-            <p className="text-xs sm:text-sm text-muted-foreground">점검 내역 관리</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">{activeTab === "자체" ? "자체·동행 점검 내역 관리" : "KT/본사/현장경영팀 점검 · 이메일 발송"}</p>
           </div>
         </div>
         <div className="flex gap-2">
-          {canDownloadInspectionExcel && (
-            <Button
-              variant="outline"
-              onClick={handleExcelDownload}
-              disabled={!inspections || inspections.length === 0}
-              className="gap-2"
-              data-testid="button-excel-download"
-            >
-              <Download className="w-4 h-4" />
-              엑셀 다운로드
-            </Button>
-          )}
-          {canEditInspections && (
-            <Button
-              variant="outline"
-              onClick={() => setShowBulkImport(true)}
-              className="gap-2 border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-400 dark:hover:bg-blue-950"
-              data-testid="button-bulk-import"
-            >
-              <Upload className="w-4 h-4" />
-              일괄 가져오기
-            </Button>
-          )}
-          {canEditInspections && (
-            <Button
-              onClick={() => {
-                if (!showForm) {
-                  setInspector(user?.name || user?.username || "");
-                }
-                setShowForm(!showForm);
-              }}
-              className="bg-green-600 hover:bg-green-700 text-white gap-2"
-              data-testid="button-toggle-form"
-            >
-              <Plus className="w-4 h-4" />
-              새 점검 등록
-            </Button>
+          {activeTab === "자체" ? (
+            <>
+              {canDownloadInspectionExcel && (
+                <Button variant="outline" onClick={handleExcelDownload} disabled={!inspections || inspections.length === 0} className="gap-2" data-testid="button-excel-download">
+                  <Download className="w-4 h-4" />
+                  엑셀 다운로드
+                </Button>
+              )}
+              {canEditInspections && (
+                <Button variant="outline" onClick={() => setShowBulkImport(true)} className="gap-2 border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-400 dark:hover:bg-blue-950" data-testid="button-bulk-import">
+                  <Upload className="w-4 h-4" />
+                  일괄 가져오기
+                </Button>
+              )}
+              {canEditInspections && (
+                <Button onClick={() => { if (!showForm) setInspector(user?.name || user?.username || ""); setShowForm(!showForm); }} className="bg-green-600 hover:bg-green-700 text-white gap-2" data-testid="button-toggle-form">
+                  <Plus className="w-4 h-4" />
+                  새 점검 등록
+                </Button>
+              )}
+            </>
+          ) : (
+            <>
+              {canEditInspections && otherSelectionMode && otherSelectedIds.size > 0 && (
+                <Button onClick={handleBulkEmail} disabled={isSendingBulkEmail} className="bg-blue-600 hover:bg-blue-700 text-white gap-2" data-testid="button-bulk-email">
+                  {isSendingBulkEmail ? <><Loader2 className="w-4 h-4 animate-spin" />발송 중...</> : <><Mail className="w-4 h-4" />선택 메일 발송 ({otherSelectedIds.size})</>}
+                </Button>
+              )}
+              {canEditInspections && (
+                <Button variant={otherSelectionMode ? "default" : "outline"} size="sm" className={`gap-1 h-9 text-xs px-2.5 ${otherSelectionMode ? "bg-red-500 hover:bg-red-600 text-white" : ""}`}
+                  onClick={() => { setOtherSelectionMode(v => !v); setOtherSelectedIds(new Set()); }} data-testid="button-toggle-other-selection">
+                  <CheckSquare className="w-3.5 h-3.5" />
+                  {otherSelectionMode ? "취소" : "선택"}
+                </Button>
+              )}
+              {canEditInspections && (
+                <Button onClick={() => { if (!showForm) { setInspector(user?.name || user?.username || ""); setInspectionType("현장경영팀 점검"); } setShowForm(!showForm); }} className="bg-orange-600 hover:bg-orange-700 text-white gap-2" data-testid="button-toggle-form">
+                  <Plus className="w-4 h-4" />
+                  새 점검 등록
+                </Button>
+              )}
+            </>
           )}
         </div>
       </div>
 
-      {inspectionStats && (
+      {/* ── 탭 버튼 ── */}
+      <div className="flex border-b border-border -mt-2">
+        <button
+          onClick={() => { setActiveTab("자체"); if (activeTab !== "자체") { resetForm(); setSelectionMode(false); setSelectedIds(new Set()); } }}
+          className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors ${activeTab === "자체" ? "border-green-500 text-green-600 dark:text-green-400" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+          data-testid="tab-self-inspection"
+        >
+          자체 안전점검
+        </button>
+        <button
+          onClick={() => { setActiveTab("기타"); if (activeTab !== "기타") { setInspectionType("현장경영팀 점검"); resetForm(); setOtherSelectionMode(false); setOtherSelectedIds(new Set()); } }}
+          className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors ${activeTab === "기타" ? "border-orange-500 text-orange-600 dark:text-orange-400" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+          data-testid="tab-other-inspection"
+        >
+          기타 안전점검
+        </button>
+      </div>
+
+      {activeTab === "자체" && inspectionStats && (
         <Card>
           <CardHeader
             className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-b p-3 sm:p-4 cursor-pointer"
@@ -1073,6 +1232,69 @@ export default function SafetyInspections() {
         </Card>
       )}
 
+      {activeTab === "기타" && otherInspectionStats && (
+        <Card>
+          <CardHeader
+            className="bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20 border-b p-3 sm:p-4 cursor-pointer"
+            onClick={() => setOtherShowDashboard(!otherShowDashboard)}
+          >
+            <CardTitle className="text-sm sm:text-base flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <BarChart3 className="w-4 h-4 text-orange-600" />
+                기타 점검 현황 ({otherInspectionStats.periodLabel})
+              </div>
+              {otherShowDashboard ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+            </CardTitle>
+          </CardHeader>
+          <AnimatePresence>
+            {otherShowDashboard && (
+              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
+                <CardContent className="p-3 sm:p-4 space-y-4">
+                  <div className="flex items-center gap-1 flex-wrap">
+                    <Button variant={dashboardPeriod === "month" ? "default" : "outline"} size="sm" onClick={() => setDashboardPeriod("month")} className="h-7 text-xs px-2">
+                      {selectedMonth}월
+                    </Button>
+                    <Button variant={dashboardPeriod === "year" ? "default" : "outline"} size="sm" onClick={() => setDashboardPeriod("year")} className="h-7 text-xs px-2">
+                      연간
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    {Object.entries(otherInspectionStats.byType).map(([type, cnt]) => {
+                      const cls = SUBTYPE_COLORS[type as keyof typeof SUBTYPE_COLORS] || "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 border-gray-200";
+                      return (
+                        <div key={type} className={`${cls.split(' ').filter(c => c.startsWith('bg-') && !c.includes('dark')).join(' ')} rounded-lg p-3 text-center`}>
+                          <div className={`text-2xl font-bold ${cls.split(' ').filter(c => c.startsWith('text-') && !c.includes('dark')).join(' ')}`}>{cnt as number}</div>
+                          <div className={`text-xs ${cls.split(' ').filter(c => c.startsWith('text-') && !c.includes('dark')).join(' ')} opacity-80 mt-0.5`}>{type}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {otherInspectionStats.chartData.some(d => (d["KT"] + d["본사"] + d["현장경영팀"]) > 0) && (
+                    <div>
+                      <div className="text-xs font-medium text-muted-foreground mb-2">운용팀별 점검 현황</div>
+                      <div className="h-48">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={otherInspectionStats.chartData} margin={{ top: 5, right: 10, left: -25, bottom: 5 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                            <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                            <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
+                            <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid hsl(var(--border))", background: "hsl(var(--popover))", color: "hsl(var(--popover-foreground))", fontSize: 12 }} cursor={{ fill: "hsl(var(--muted))", opacity: 0.4 }} />
+                            <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} iconType="circle" iconSize={8} />
+                            <Bar dataKey="KT" stackId="a" fill="#3b82f6" radius={[0,0,0,0]}><LabelList dataKey="KT" position="inside" style={{ fontSize: 10, fontWeight: 700, fill: "#fff" }} formatter={(v: number) => v > 0 ? v : ""} /></Bar>
+                            <Bar dataKey="본사" stackId="a" fill="#8b5cf6" radius={[0,0,0,0]}><LabelList dataKey="본사" position="inside" style={{ fontSize: 10, fontWeight: 700, fill: "#fff" }} formatter={(v: number) => v > 0 ? v : ""} /></Bar>
+                            <Bar dataKey="현장경영팀" stackId="a" fill="#f97316" radius={[4,4,0,0]}><LabelList dataKey="현장경영팀" position="inside" style={{ fontSize: 10, fontWeight: 700, fill: "#fff" }} formatter={(v: number) => v > 0 ? v : ""} /></Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </Card>
+      )}
+
       <AnimatePresence>
         {showForm && (
           <motion.div
@@ -1080,7 +1302,7 @@ export default function SafetyInspections() {
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
           >
-            <Card className="glass-card overflow-hidden border-green-200 dark:border-green-900/30">
+            <Card className={`glass-card overflow-hidden ${activeTab === "기타" ? "border-orange-200 dark:border-orange-900/30" : "border-green-200 dark:border-green-900/30"}`}>
               <CardHeader className="pb-4">
                 <div className="flex items-center justify-between gap-3">
                   <CardTitle className="text-lg">{editingId !== null ? "점검 수정" : "점검 등록"}</CardTitle>
@@ -1117,8 +1339,18 @@ export default function SafetyInspections() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="안전점검">안전점검</SelectItem>
-                        <SelectItem value="동행점검">동행점검</SelectItem>
+                        {activeTab === "자체" ? (
+                          <>
+                            <SelectItem value="안전점검">안전점검</SelectItem>
+                            <SelectItem value="동행점검">동행점검</SelectItem>
+                          </>
+                        ) : (
+                          <>
+                            <SelectItem value="현장경영팀 점검">현장경영팀 점검</SelectItem>
+                            <SelectItem value="KT 점검">KT 점검</SelectItem>
+                            <SelectItem value="본사 점검">본사 점검</SelectItem>
+                          </>
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
@@ -1307,14 +1539,36 @@ export default function SafetyInspections() {
                   <Button variant="outline" onClick={resetForm} data-testid="button-cancel">
                     취소
                   </Button>
-                  <Button
-                    onClick={handleSubmit}
-                    disabled={createMutation.isPending || updateMutation.isPending || !department}
-                    className="bg-green-600 hover:bg-green-700 text-white"
-                    data-testid="button-submit-inspection"
-                  >
-                    {(createMutation.isPending || updateMutation.isPending) ? "처리 중..." : editingId !== null ? "수정 완료" : "점검 등록"}
-                  </Button>
+                  {activeTab === "기타" && !editingId && inspectionType === "현장경영팀 점검" ? (
+                    <>
+                      <Button
+                        onClick={handleSubmitOnly}
+                        disabled={createMutation.isPending || updateMutation.isPending || !department}
+                        variant="outline"
+                        className="border-orange-300 text-orange-700 hover:bg-orange-50 dark:border-orange-700 dark:text-orange-400 dark:hover:bg-orange-950"
+                        data-testid="button-submit-only"
+                      >
+                        {(createMutation.isPending || updateMutation.isPending) && !pendingSendEmail.current ? "처리 중..." : "등록만"}
+                      </Button>
+                      <Button
+                        onClick={handleSubmitAndEmail}
+                        disabled={createMutation.isPending || updateMutation.isPending || !department || isSendingEmail}
+                        className="bg-orange-600 hover:bg-orange-700 text-white gap-2"
+                        data-testid="button-submit-and-email"
+                      >
+                        {isSendingEmail ? <><Loader2 className="w-4 h-4 animate-spin" />발송 중...</> : (createMutation.isPending || updateMutation.isPending) ? "처리 중..." : <><Mail className="w-4 h-4" />등록+메일 발송</>}
+                      </Button>
+                    </>
+                  ) : (
+                    <Button
+                      onClick={handleSubmit}
+                      disabled={createMutation.isPending || updateMutation.isPending || !department}
+                      className={activeTab === "기타" ? "bg-orange-600 hover:bg-orange-700 text-white" : "bg-green-600 hover:bg-green-700 text-white"}
+                      data-testid="button-submit-inspection"
+                    >
+                      {(createMutation.isPending || updateMutation.isPending) ? "처리 중..." : editingId !== null ? "수정 완료" : "점검 등록"}
+                    </Button>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -1322,7 +1576,7 @@ export default function SafetyInspections() {
         )}
       </AnimatePresence>
 
-      <div className="space-y-1">
+      {activeTab === "자체" && <div className="space-y-1">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <Calendar className="w-4 h-4 text-muted-foreground" />
@@ -1503,7 +1757,147 @@ export default function SafetyInspections() {
             </CardContent>
           </Card>
         )}
-      </div>
+      </div>}
+
+      {activeTab === "기타" && (
+        <div className="space-y-1">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <ClipboardList className="w-4 h-4 text-muted-foreground" />
+              <span className="text-sm font-medium text-muted-foreground">기타 점검 목록</span>
+              <span className="text-xs text-muted-foreground">{otherInspections.length}건</span>
+            </div>
+          </div>
+          {isLoading ? (
+            <div className="text-center py-8 text-muted-foreground">로딩 중...</div>
+          ) : otherInspections.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">등록된 기타 점검 내역이 없습니다.</div>
+          ) : (
+            <Card>
+              <CardContent className="p-0 divide-y">
+                {otherInspections.map((inspection) => {
+                  const checklistItems = normalizeChecklist(inspection.checklist);
+                  const goodItems = checklistItems.filter(c => c.status === '양호').length;
+                  const poorItems = checklistItems.filter(c => c.status === '미흡').length;
+                  const isExpanded = otherExpandedId === inspection.id;
+                  const subtypeCls = SUBTYPE_COLORS[inspection.inspectionType as keyof typeof SUBTYPE_COLORS] || "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 border-gray-200";
+
+                  return (
+                    <div key={inspection.id} data-testid={`card-other-inspection-${inspection.id}`}
+                      className={otherSelectionMode && otherSelectedIds.has(inspection.id) ? "bg-blue-50 dark:bg-blue-900/20" : ""}>
+                      <div
+                        className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 cursor-pointer hover:bg-muted/30 transition-colors group"
+                        onClick={() => otherSelectionMode ? setOtherSelectedIds(prev => { const n = new Set(prev); n.has(inspection.id) ? n.delete(inspection.id) : n.add(inspection.id); return n; }) : setOtherExpandedId(isExpanded ? null : inspection.id)}
+                      >
+                        {otherSelectionMode && (
+                          <Checkbox
+                            checked={otherSelectedIds.has(inspection.id)}
+                            onCheckedChange={() => setOtherSelectedIds(prev => { const n = new Set(prev); n.has(inspection.id) ? n.delete(inspection.id) : n.add(inspection.id); return n; })}
+                            onClick={e => e.stopPropagation()}
+                            data-testid={`checkbox-other-inspection-${inspection.id}`}
+                          />
+                        )}
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 font-bold border ${subtypeCls}`}>
+                          {inspection.inspectionType === "현장경영팀 점검" ? "현장경영팀" : inspection.inspectionType === "KT 점검" ? "KT" : "본사"}
+                        </span>
+                        <span className="text-xs text-muted-foreground shrink-0 w-[72px]">{inspection.inspectionDate}</span>
+                        <span className="text-sm font-medium truncate flex-1 min-w-0">{inspection.title}</span>
+                        {inspection.inspector && (
+                          <span className="text-xs font-medium text-foreground/70 shrink-0 flex items-center gap-0.5">
+                            <User className="w-3 h-3 text-muted-foreground" />
+                            {inspection.inspector}
+                          </span>
+                        )}
+                        <span className="text-xs text-muted-foreground truncate max-w-[70px] hidden sm:block">{inspection.department}</span>
+                        <div className="flex items-center gap-1.5 shrink-0 text-[10px]">
+                          <span className="text-green-600 dark:text-green-400">{goodItems}</span>
+                          <span className="text-muted-foreground">/</span>
+                          <span className="text-red-600 dark:text-red-400">{poorItems}</span>
+                        </div>
+                        {inspection.images && inspection.images.length > 0 && (
+                          <span className="text-[10px] text-muted-foreground shrink-0">{inspection.images.length}장</span>
+                        )}
+                        <div className="flex items-center gap-0.5 shrink-0">
+                          {isExpanded ? <ChevronUp className="w-3.5 h-3.5 text-muted-foreground" /> : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />}
+                          {canEditInspections && (!inspection.createdBy || user?.role === "admin" || user?.username === inspection.createdBy) && (
+                            <>
+                              <Button variant="ghost" size="icon" className="h-7 w-7 opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+                                onClick={(e) => { e.stopPropagation(); handleEdit(inspection); }} data-testid={`button-edit-other-${inspection.id}`}>
+                                <Pencil className="w-3.5 h-3.5 text-blue-500" />
+                              </Button>
+                              <Button variant="ghost" size="icon" className="h-7 w-7 opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+                                onClick={(e) => { e.stopPropagation(); handleDelete(inspection.id); }} data-testid={`button-delete-other-${inspection.id}`}>
+                                <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      <AnimatePresence>
+                        {isExpanded && (
+                          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="border-t bg-muted/10">
+                            <div className="p-4 space-y-3">
+                              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                                {inspection.inspector && <span>점검자: {inspection.inspector}</span>}
+                                {inspection.workerName && <span>작업자: {inspection.workerName}</span>}
+                                {inspection.workContent && <span>작업내용: {inspection.workContent}</span>}
+                                {inspection.location && <span>위치: {inspection.location}</span>}
+                              </div>
+                              {checklistItems.length > 0 && (
+                                <div className="space-y-2">
+                                  <Label className="text-sm">체크리스트</Label>
+                                  <div className="bg-muted/50 rounded-lg p-3 space-y-2">
+                                    {checklistItems.map((item, idx) => (
+                                      <div key={idx} className="flex items-center justify-between gap-2">
+                                        <span className="text-sm">{item.item}</span>
+                                        <span className={`text-xs px-2 py-0.5 rounded-full ${getStatusColor(item.status)}`}>{item.status}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              {inspection.notes && (
+                                <div className="space-y-1">
+                                  <Label className="text-sm">비고</Label>
+                                  <p className="text-sm text-muted-foreground bg-muted/50 rounded-lg p-3">{inspection.notes}</p>
+                                </div>
+                              )}
+                              {inspection.images && inspection.images.length > 0 && (
+                                <div className="space-y-1">
+                                  <Label className="text-sm">첨부 사진 ({inspection.images.length}장)</Label>
+                                  <div className="flex flex-wrap gap-2">
+                                    {inspection.images.map((img, idx) => (
+                                      <img key={idx} src={img} alt={`점검 사진 ${idx + 1}`} className="h-24 w-24 object-cover rounded-lg border cursor-pointer hover:opacity-80"
+                                        onClick={() => setLightboxImages({ urls: inspection.images!, index: idx })} />
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              {inspection.inspectionType === "현장경영팀 점검" && canEditInspections && (
+                                <div className="flex justify-end">
+                                  <Button size="sm" className="bg-orange-600 hover:bg-orange-700 text-white gap-2" onClick={() => sendEmailAfterCreate({
+                                    inspectionDate: inspection.inspectionDate, department: inspection.department || inspection.title,
+                                    inspector: inspection.inspector || "", workerName: inspection.workerName || "",
+                                    location: inspection.location || "", workContent: inspection.workContent || "",
+                                    checklist: checklistItems, notes: inspection.notes || "",
+                                    images: inspection.images || [], subType: inspection.inspectionType,
+                                  })} disabled={isSendingEmail}>
+                                    {isSendingEmail ? <><Loader2 className="w-4 h-4 animate-spin" />발송 중...</> : <><Mail className="w-4 h-4" />메일 발송</>}
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
 
       <Dialog open={showTargetDialog} onOpenChange={setShowTargetDialog}>
         <DialogContent className="sm:max-w-sm">
