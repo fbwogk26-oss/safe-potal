@@ -354,7 +354,7 @@ export default function SafetyInspections() {
   };
 
   const resetForm = () => {
-    setInspectionType(activeTab === "기타" ? "현장경영팀 점검" : "안전점검");
+    setInspectionType("안전점검");
     setDepartment("");
     setWorkContent("");
     setLocation("");
@@ -854,8 +854,7 @@ export default function SafetyInspections() {
 
   const [showInspDashboard, setShowInspDashboard] = useState(true);
 
-  // ── 탭 통합 (자체/기타) ──────────────────────────────────────────────
-  const [activeTab, setActiveTab] = useState<"자체" | "기타">("자체");
+  const [activeTab, setActiveTab] = useState<"자체">("자체");
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [isSendingBulkEmail, setIsSendingBulkEmail] = useState(false);
   const pendingSendEmail = useRef(false);
@@ -983,13 +982,6 @@ export default function SafetyInspections() {
         >
           자체 안전점검
         </button>
-        <button
-          onClick={() => { setActiveTab("기타"); if (activeTab !== "기타") { setInspectionType("현장경영팀 점검"); resetForm(); setOtherSelectionMode(false); setOtherSelectedIds(new Set()); } }}
-          className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors ${activeTab === "기타" ? "border-orange-500 text-orange-600 dark:text-orange-400" : "border-transparent text-muted-foreground hover:text-foreground"}`}
-          data-testid="tab-other-inspection"
-        >
-          기타 안전점검
-        </button>
       </div>
 
       {inspectionStats && (
@@ -1052,31 +1044,6 @@ export default function SafetyInspections() {
                         </SelectContent>
                       </Select>
                     )}
-                  </div>
-
-                  {/* 통합 통계 카드 — 배너 + 6칸 그리드 */}
-                  {/* 배너: 총점검 요약 */}
-                  <div className="rounded-xl p-3 bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900/60 dark:to-slate-800/40 border border-slate-200 dark:border-slate-700/50 flex items-center gap-4">
-                    <div className="shrink-0">
-                      <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-0.5">📋 총 점검</p>
-                      <p className="text-3xl font-black text-slate-700 dark:text-slate-200" data-testid="text-total-inspections">
-                        {inspectionStats.total}<span className="text-sm font-normal ml-1">건</span>
-                      </p>
-                    </div>
-                    <div className="flex-1 grid grid-cols-5 gap-2 min-w-0">
-                      {[
-                        { label: "안전점검", val: inspectionStats.totalSafety, color: "text-blue-600 dark:text-blue-400" },
-                        { label: "동행점검", val: inspectionStats.totalAccompany, color: "text-emerald-600 dark:text-emerald-400" },
-                        { label: "현장경영팀", val: inspectionStats.totalHQ, color: "text-orange-600 dark:text-orange-400" },
-                        { label: "본사점검", val: inspectionStats.totalHQ2, color: "text-purple-600 dark:text-purple-400" },
-                        { label: "KT점검", val: inspectionStats.totalKT, color: "text-sky-600 dark:text-sky-400" },
-                      ].map(({ label, val, color }) => (
-                        <div key={label} className="text-center">
-                          <p className={`text-lg font-bold ${color}`}>{val}</p>
-                          <p className="text-[10px] text-muted-foreground leading-tight">{label}</p>
-                        </div>
-                      ))}
-                    </div>
                   </div>
 
                   {/* 6칸 카드 그리드 */}
@@ -1183,7 +1150,7 @@ export default function SafetyInspections() {
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
           >
-            <Card className={`glass-card overflow-hidden ${activeTab === "기타" ? "border-orange-200 dark:border-orange-900/30" : "border-green-200 dark:border-green-900/30"}`}>
+            <Card className="glass-card overflow-hidden border-green-200 dark:border-green-900/30">
               <CardHeader className="pb-4">
                 <div className="flex items-center justify-between gap-3">
                   <CardTitle className="text-lg">{editingId !== null ? "점검 수정" : "점검 등록"}</CardTitle>
@@ -1420,7 +1387,7 @@ export default function SafetyInspections() {
                   <Button variant="outline" onClick={resetForm} data-testid="button-cancel">
                     취소
                   </Button>
-                  {activeTab === "기타" && !editingId && inspectionType === "현장경영팀 점검" ? (
+                  {!editingId && inspectionType === "현장경영팀 점검" ? (
                     <>
                       <Button
                         onClick={handleSubmitOnly}
@@ -1444,7 +1411,7 @@ export default function SafetyInspections() {
                     <Button
                       onClick={handleSubmit}
                       disabled={createMutation.isPending || updateMutation.isPending || !department}
-                      className={activeTab === "기타" ? "bg-orange-600 hover:bg-orange-700 text-white" : "bg-green-600 hover:bg-green-700 text-white"}
+                      className="bg-green-600 hover:bg-green-700 text-white"
                       data-testid="button-submit-inspection"
                     >
                       {(createMutation.isPending || updateMutation.isPending) ? "처리 중..." : editingId !== null ? "수정 완료" : "점검 등록"}
