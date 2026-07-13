@@ -323,29 +323,22 @@ export default function SafetyInspections() {
       }
 
       setBulkExcelData(combinedExcelData);
-      // 점검자·엑셀 점검조직 기반 점검유형 자동 감지
-      const INSPECTOR_SAFETY   = ['맹찬섭','윤수호','편광열','김철현','김홍석','홍성국','곽영구','권승현','김일영','권재은','김상대','예승희'];
+      // 점검자 이름 그룹 (조직 규칙 명시 그룹만)
       const INSPECTOR_HQ_TEAM  = ['류재하','이연태'];
       const INSPECTOR_HQ       = ['손성태','이훈휘','김용주','이옥재'];
-      const CONTENT_TYPE_MAP: Record<string,string> = {
-        '안전점검':'안전점검', '동행점검':'동행점검',
-        '현장경영팀점검':'현장경영팀 점검', '현장경영팀 점검':'현장경영팀 점검',
-        '본사점검':'본사 점검', '본사 점검':'본사 점검',
-      };
-      const detectBulkType = (serverType: string, inspector: string, workContent: string): string => {
-        // 서버가 엑셀 점검조직 컬럼에서 KT 점검 감지한 경우 우선 유지
+      // 점검자·서버감지 유형 기반 점검유형 결정
+      // 서버는 이미 작업내용 접미사(안전점검/동행점검 등)를 감지해 inspectionType 반환 + workContent에서 접미사 제거
+      // 따라서 프론트에서 workContent 재파싱 불필요 — serverType을 기본값으로 활용
+      const detectBulkType = (serverType: string, inspector: string): string => {
+        // 1순위: 점검조직유형 컬럼에서 KT 점검 감지 → 항상 유지
         if (serverType === 'KT 점검') return 'KT 점검';
-        // 작업내용 끝 괄호 "(동행점검)" 등 우선 적용 (안전점검 그룹 점검자인 경우)
-        if (INSPECTOR_SAFETY.includes(inspector)) {
-          const m = workContent.match(/[（(]([^）)]+)[）)][\s]*$/);
-          if (m) {
-            const mapped = CONTENT_TYPE_MAP[m[1].replace(/\s/g,'')];
-            if (mapped) return mapped;
-          }
-          return '안전점검';
-        }
+        // 2순위: 점검자 이름 그룹 규칙 (명시적 조직 규칙 우선)
         if (INSPECTOR_HQ_TEAM.includes(inspector)) return '현장경영팀 점검';
         if (INSPECTOR_HQ.includes(inspector))      return '본사 점검';
+        // 3순위: 서버가 작업내용 접미사에서 감지한 유형 (동행점검, 현장경영팀 점검 등)
+        //        INSPECTOR_SAFETY 그룹 또는 기타 점검자 모두 해당
+        if (serverType && serverType !== '안전점검') return serverType;
+        // 기본값
         return '안전점검';
       };
 
@@ -354,7 +347,7 @@ export default function SafetyInspections() {
           .map((r: any) => ({
             ...r,
             workerName: r.workerName || r.team || '',
-            inspectionType: detectBulkType(r.inspectionType || '', r.inspector || '', r.workContent || ''),
+            inspectionType: detectBulkType(r.inspectionType || '', r.inspector || ''),
             selected: !r.error,
           }))
           .sort((a: any, b: any) => (a.inspectionDate || '').localeCompare(b.inspectionDate || ''))
