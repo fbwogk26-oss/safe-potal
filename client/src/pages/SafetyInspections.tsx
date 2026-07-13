@@ -779,16 +779,14 @@ export default function SafetyInspections() {
   const totalCount = checklist.length;
 
   const inspectionStats = useMemo(() => {
-    if (!inspections || inspections.length === 0 || !teams) return null;
+    if (!rawInspections || rawInspections.length === 0 || !teams) return null;
     const now = new Date();
     const currentYear = format(now, "yyyy");
     const monthStr = String(selectedMonth).padStart(2, "0");
     const targetMonth = `${currentYear}-${monthStr}`;
 
-    const filtered = inspections.filter(insp => {
-      if (dashboardPeriod === "month") {
-        return insp.inspectionDate.startsWith(targetMonth);
-      }
+    const filtered = rawInspections.filter(insp => {
+      if (dashboardPeriod === "month") return insp.inspectionDate.startsWith(targetMonth);
       return insp.inspectionDate.startsWith(currentYear);
     });
 
@@ -801,24 +799,19 @@ export default function SafetyInspections() {
     const safetyTotal = (safetyBujang + safetyTeamjang) * multiplier;
     const accompanyTotal = (accompanyBujang + accompanyTeamjang) * multiplier;
 
-    const deptMap = new Map<string, { safetyCount: number; accompanyCount: number }>();
+    const deptMap = new Map<string, { 안전점검: number; 동행점검: number; 현장경영팀: number; 본사: number; KT: number }>();
     for (const dept of allDepts) {
-      deptMap.set(dept, { safetyCount: 0, accompanyCount: 0 });
+      deptMap.set(dept, { 안전점검: 0, 동행점검: 0, 현장경영팀: 0, 본사: 0, KT: 0 });
     }
-    let totalSafety = 0;
-    let totalAccompany = 0;
+    let totalSafety = 0, totalAccompany = 0, totalHQ = 0, totalHQ2 = 0, totalKT = 0;
     for (const insp of filtered) {
-      const matchedDept = allDepts.find(d => insp.title.startsWith(d));
+      const matchedDept = allDepts.find(d => insp.title.startsWith(d) || (insp.department || "").startsWith(d));
       const entry = matchedDept ? deptMap.get(matchedDept) : null;
-      if (entry) {
-        if (insp.inspectionType === "동행점검") {
-          entry.accompanyCount++;
-          totalAccompany++;
-        } else {
-          entry.safetyCount++;
-          totalSafety++;
-        }
-      }
+      if (insp.inspectionType === "동행점검") { totalAccompany++; if (entry) entry.동행점검++; }
+      else if (insp.inspectionType === "현장경영팀 점검") { totalHQ++; if (entry) entry.현장경영팀++; }
+      else if (insp.inspectionType === "본사 점검") { totalHQ2++; if (entry) entry.본사++; }
+      else if (insp.inspectionType === "KT 점검") { totalKT++; if (entry) entry.KT++; }
+      else { totalSafety++; if (entry) entry.안전점검++; }
     }
 
     const numDepts = allDepts.length || 1;
@@ -827,46 +820,36 @@ export default function SafetyInspections() {
     const combinedPerDept = safetyPerDept + accompanyPerDept;
 
     const chartData = allDepts.map(dept => {
-      const stats = deptMap.get(dept)!;
+      const s = deptMap.get(dept)!;
       const shortName = dept.replace("운용팀", "").replace("팀", "");
-      const total = stats.safetyCount + stats.accompanyCount;
+      const total = s.안전점검 + s.동행점검 + s.현장경영팀 + s.본사 + s.KT;
       const pct = combinedPerDept > 0 ? Math.round(total / combinedPerDept * 100) : null;
-      return {
-        name: shortName,
-        안전점검: stats.safetyCount,
-        동행점검: stats.accompanyCount,
-        진행율: pct,
-      };
+      return { name: shortName, 안전점검: s.안전점검, 동행점검: s.동행점검, 현장경영팀: s.현장경영팀, 본사: s.본사, KT: s.KT, 진행율: pct };
     });
 
     return {
       total: filtered.length,
-      totalSafety,
-      totalAccompany,
-      safetyBujang,
-      safetyTeamjang,
-      accompanyBujang,
-      accompanyTeamjang,
-      safetyTotal,
-      accompanyTotal,
-      safetyPerDept,
-      accompanyPerDept,
-      combinedPerDept,
+      totalSafety, totalAccompany, totalHQ, totalHQ2, totalKT,
+      safetyBujang, safetyTeamjang, accompanyBujang, accompanyTeamjang,
+      safetyTotal, accompanyTotal, safetyPerDept, accompanyPerDept, combinedPerDept,
       chartData,
       periodLabel: dashboardPeriod === "month" ? `${selectedMonth}월` : `${now.getFullYear()}년`,
     };
-  }, [inspections, teams, inspectionTargets, dashboardPeriod, selectedMonth]);
+  }, [rawInspections, teams, inspectionTargets, dashboardPeriod, selectedMonth]);
 
   const filteredInspections = useMemo(() => {
-    if (!inspections) return [];
+    if (!rawInspections) return [];
     const currentYear = format(new Date(), "yyyy");
+    let result: typeof rawInspections;
     if (dashboardPeriod === "year") {
-      return inspections.filter(i => i.inspectionDate.startsWith(currentYear));
+      result = rawInspections.filter(i => i.inspectionDate.startsWith(currentYear));
+    } else {
+      const monthStr = String(selectedMonth).padStart(2, "0");
+      const prefix = `${currentYear}-${monthStr}`;
+      result = rawInspections.filter(i => i.inspectionDate.startsWith(prefix));
     }
-    const monthStr = String(selectedMonth).padStart(2, "0");
-    const prefix = `${currentYear}-${monthStr}`;
-    return inspections.filter(i => i.inspectionDate.startsWith(prefix));
-  }, [inspections, selectedMonth, dashboardPeriod]);
+    return [...result].sort((a, b) => b.inspectionDate.localeCompare(a.inspectionDate));
+  }, [rawInspections, selectedMonth, dashboardPeriod]);
 
   const [showInspDashboard, setShowInspDashboard] = useState(true);
 
@@ -875,42 +858,6 @@ export default function SafetyInspections() {
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [isSendingBulkEmail, setIsSendingBulkEmail] = useState(false);
   const pendingSendEmail = useRef(false);
-  const [otherSelectionMode, setOtherSelectionMode] = useState(false);
-  const [otherSelectedIds, setOtherSelectedIds] = useState<Set<number>>(new Set());
-  const [otherExpandedId, setOtherExpandedId] = useState<number | null>(null);
-  const [otherShowDashboard, setOtherShowDashboard] = useState(true);
-
-  const otherInspectionStats = useMemo(() => {
-    if (!otherInspections || otherInspections.length === 0 || !teams) return null;
-    const now = new Date();
-    const currentYear = format(now, "yyyy");
-    const monthStr = String(selectedMonth).padStart(2, "0");
-    const targetMonth = `${currentYear}-${monthStr}`;
-    const filtered = otherInspections.filter(insp => {
-      if (dashboardPeriod === "month") return insp.inspectionDate.startsWith(targetMonth);
-      return insp.inspectionDate.startsWith(currentYear);
-    });
-    const allDepts = teams.map(t => t.name);
-    const byType = {
-      "KT 점검": filtered.filter(i => i.inspectionType === "KT 점검").length,
-      "본사 점검": filtered.filter(i => i.inspectionType === "본사 점검").length,
-      "현장경영팀 점검": filtered.filter(i => i.inspectionType === "현장경영팀 점검").length,
-    };
-    const chartData = allDepts.map(dept => {
-      const di = filtered.filter(i => i.title.startsWith(dept));
-      const shortName = dept.replace("운용팀", "").replace("팀", "");
-      return {
-        name: shortName,
-        "KT": di.filter(i => i.inspectionType === "KT 점검").length,
-        "본사": di.filter(i => i.inspectionType === "본사 점검").length,
-        "현장경영팀": di.filter(i => i.inspectionType === "현장경영팀 점검").length,
-      };
-    });
-    return {
-      total: filtered.length, byType, chartData,
-      periodLabel: dashboardPeriod === "month" ? `${selectedMonth}월` : `${now.getFullYear()}년`,
-    };
-  }, [otherInspections, teams, dashboardPeriod, selectedMonth]);
 
   const sendEmailAfterCreate = async (payload: {
     inspectionDate: string; department: string; inspector: string; workerName: string;
@@ -937,8 +884,8 @@ export default function SafetyInspections() {
   };
 
   const handleBulkEmail = async () => {
-    const ids = Array.from(otherSelectedIds);
-    const selected = otherInspections.filter(i => ids.includes(i.id));
+    const ids = Array.from(selectedIds);
+    const selected = (rawInspections || []).filter(i => ids.includes(i.id));
     const eligible = selected.filter(i => i.inspectionType === "현장경영팀 점검");
     if (eligible.length === 0) {
       toast({ variant: "destructive", title: "현장경영팀 점검 항목이 없습니다", description: "메일 발송은 현장경영팀 점검만 가능합니다." });
@@ -954,7 +901,7 @@ export default function SafetyInspections() {
       const data = await res.json();
       if (res.ok) {
         toast({ title: `이메일 발송 완료 (${eligible.length}건)`, description: "fbwogk26@gmail.com · jaeha.ryu@ktmos.co.kr 로 발송되었습니다." });
-        setOtherSelectedIds(new Set()); setOtherSelectionMode(false);
+        setSelectedIds(new Set()); setSelectionMode(false);
       } else {
         toast({ variant: "destructive", title: "발송 실패", description: data.message });
       }
@@ -1003,16 +950,16 @@ export default function SafetyInspections() {
             </>
           ) : (
             <>
-              {canEditInspections && otherSelectionMode && otherSelectedIds.size > 0 && (
+              {canEditInspections && selectionMode && selectedIds.size > 0 && (
                 <Button onClick={handleBulkEmail} disabled={isSendingBulkEmail} className="bg-blue-600 hover:bg-blue-700 text-white gap-2" data-testid="button-bulk-email">
-                  {isSendingBulkEmail ? <><Loader2 className="w-4 h-4 animate-spin" />발송 중...</> : <><Mail className="w-4 h-4" />선택 메일 발송 ({otherSelectedIds.size})</>}
+                  {isSendingBulkEmail ? <><Loader2 className="w-4 h-4 animate-spin" />발송 중...</> : <><Mail className="w-4 h-4" />선택 메일 발송 ({selectedIds.size})</>}
                 </Button>
               )}
               {canEditInspections && (
-                <Button variant={otherSelectionMode ? "default" : "outline"} size="sm" className={`gap-1 h-9 text-xs px-2.5 ${otherSelectionMode ? "bg-red-500 hover:bg-red-600 text-white" : ""}`}
-                  onClick={() => { setOtherSelectionMode(v => !v); setOtherSelectedIds(new Set()); }} data-testid="button-toggle-other-selection">
+                <Button variant={selectionMode ? "default" : "outline"} size="sm" className={`gap-1 h-9 text-xs px-2.5 ${selectionMode ? "bg-red-500 hover:bg-red-600 text-white" : ""}`}
+                  onClick={() => { setSelectionMode(v => !v); setSelectedIds(new Set()); }} data-testid="button-toggle-other-selection">
                   <CheckSquare className="w-3.5 h-3.5" />
-                  {otherSelectionMode ? "취소" : "선택"}
+                  {selectionMode ? "취소" : "선택"}
                 </Button>
               )}
               {canEditInspections && (
@@ -1044,17 +991,18 @@ export default function SafetyInspections() {
         </button>
       </div>
 
-      {activeTab === "자체" && inspectionStats && (
+      {inspectionStats && (
         <Card>
           <CardHeader
-            className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-b p-3 sm:p-4 cursor-pointer"
+            className="bg-gradient-to-r from-slate-50 to-blue-50 dark:from-slate-900/40 dark:to-blue-900/20 border-b p-3 sm:p-4 cursor-pointer"
             onClick={() => setShowInspDashboard(!showInspDashboard)}
             data-testid="button-toggle-dashboard"
           >
             <CardTitle className="text-sm sm:text-base flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <BarChart3 className="w-4 h-4 text-green-600" />
+                <BarChart3 className="w-4 h-4 text-blue-600" />
                 점검 진행 현황
+                <Badge variant="secondary" className="text-xs font-normal">{inspectionStats.periodLabel}</Badge>
               </div>
               <div className="flex items-center gap-1">
                 {isAdmin && (
@@ -1088,206 +1036,142 @@ export default function SafetyInspections() {
                 className="overflow-hidden"
               >
                 <CardContent className="p-3 sm:p-4 space-y-4">
-                  <div className="flex items-center justify-between gap-2 flex-wrap">
-                    <div className="flex items-center gap-1 flex-wrap">
-                      <Button
-                        variant={dashboardPeriod === "month" ? "default" : "outline"}
-                        size="sm"
-                        onClick={(e) => { e.stopPropagation(); setDashboardPeriod("month"); }}
-                        data-testid="button-period-month"
-                      >
-                        월별
-                      </Button>
-                      <Button
-                        variant={dashboardPeriod === "year" ? "default" : "outline"}
-                        size="sm"
-                        onClick={(e) => { e.stopPropagation(); setDashboardPeriod("year"); }}
-                        data-testid="button-period-year"
-                      >
-                        연간
-                      </Button>
-                      {dashboardPeriod === "month" && (
-                        <Select value={String(selectedMonth)} onValueChange={(v) => { setSelectedMonth(Number(v)); }}>
-                          <SelectTrigger className="w-[80px] h-8" data-testid="select-dashboard-month" onClick={(e) => e.stopPropagation()}>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
-                              <SelectItem key={m} value={String(m)}>{m}월</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                    </div>
-                    <Badge variant="secondary" className="text-xs">{inspectionStats.periodLabel} 현황</Badge>
+                  {/* 기간 선택 */}
+                  <div className="flex items-center gap-1 flex-wrap">
+                    <Button variant={dashboardPeriod === "month" ? "default" : "outline"} size="sm" className="h-7 text-xs px-2.5"
+                      onClick={(e) => { e.stopPropagation(); setDashboardPeriod("month"); }} data-testid="button-period-month">월별</Button>
+                    <Button variant={dashboardPeriod === "year" ? "default" : "outline"} size="sm" className="h-7 text-xs px-2.5"
+                      onClick={(e) => { e.stopPropagation(); setDashboardPeriod("year"); }} data-testid="button-period-year">연간</Button>
+                    {dashboardPeriod === "month" && (
+                      <Select value={String(selectedMonth)} onValueChange={(v) => setSelectedMonth(Number(v))}>
+                        <SelectTrigger className="w-[72px] h-7 text-xs" data-testid="select-dashboard-month" onClick={(e) => e.stopPropagation()}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                            <SelectItem key={m} value={String(m)}>{m}월</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                   </div>
-                  <div className="grid grid-cols-3 gap-3">
+
+                  {/* 통합 통계 카드 — 2행 3열 */}
+                  <div className="grid grid-cols-3 gap-2 sm:gap-3">
                     {/* 총 점검 */}
-                    <div className="rounded-xl p-3 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/40 dark:to-emerald-950/20 border border-green-100 dark:border-green-900/30">
-                      <p className="text-[11px] font-semibold text-green-600 dark:text-green-400 mb-1">📋 총 점검</p>
-                      <p className="text-2xl font-black text-green-700 dark:text-green-300" data-testid="text-total-inspections">
-                        {inspectionStats.total}<span className="text-xs font-normal ml-0.5">건</span>
-                      </p>
-                      <p className="text-[10px] text-muted-foreground mt-1">안전 {inspectionStats.totalSafety} + 동행 {inspectionStats.totalAccompany}</p>
+                    <div className="col-span-3 rounded-xl p-3 bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900/60 dark:to-slate-800/40 border border-slate-200 dark:border-slate-700/50 flex items-center gap-4">
+                      <div>
+                        <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-0.5">📋 총 점검</p>
+                        <p className="text-3xl font-black text-slate-700 dark:text-slate-200" data-testid="text-total-inspections">
+                          {inspectionStats.total}<span className="text-sm font-normal ml-1">건</span>
+                        </p>
+                      </div>
+                      <div className="flex-1 grid grid-cols-5 gap-2">
+                        {[
+                          { label: "안전점검", val: inspectionStats.totalSafety, color: "text-blue-600 dark:text-blue-400" },
+                          { label: "동행점검", val: inspectionStats.totalAccompany, color: "text-emerald-600 dark:text-emerald-400" },
+                          { label: "현장경영팀", val: inspectionStats.totalHQ, color: "text-orange-600 dark:text-orange-400" },
+                          { label: "본사점검", val: inspectionStats.totalHQ2, color: "text-purple-600 dark:text-purple-400" },
+                          { label: "KT점검", val: inspectionStats.totalKT, color: "text-sky-600 dark:text-sky-400" },
+                        ].map(({ label, val, color }) => (
+                          <div key={label} className="text-center">
+                            <p className={`text-lg font-bold ${color}`}>{val}</p>
+                            <p className="text-[10px] text-muted-foreground leading-tight">{label}</p>
+                          </div>
+                        ))}
+                      </div>
                     </div>
+
                     {/* 안전점검 */}
                     <div className="rounded-xl p-3 bg-gradient-to-br from-blue-50 to-sky-50 dark:from-blue-950/40 dark:to-sky-950/20 border border-blue-100 dark:border-blue-900/30">
                       <p className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 mb-1">🛡 안전점검</p>
                       <p className="text-2xl font-black text-blue-700 dark:text-blue-300" data-testid="text-safety-count">
                         {inspectionStats.totalSafety}
-                        {inspectionStats.safetyTotal > 0 && <span className="text-sm font-semibold text-muted-foreground">/{inspectionStats.safetyTotal}</span>}
+                        {inspectionStats.safetyTotal > 0 && <span className="text-xs font-semibold text-muted-foreground ml-0.5">/{inspectionStats.safetyTotal}</span>}
                         <span className="text-xs font-normal ml-0.5">건</span>
                       </p>
                       {inspectionStats.safetyTotal > 0 && (
                         <div className="mt-1.5">
                           <div className="h-1.5 w-full bg-blue-100 dark:bg-blue-900/40 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-blue-500 rounded-full transition-all"
-                              style={{ width: `${Math.min(100, Math.round(inspectionStats.totalSafety / inspectionStats.safetyTotal * 100))}%` }}
-                            />
+                            <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${Math.min(100, Math.round(inspectionStats.totalSafety / inspectionStats.safetyTotal * 100))}%` }} />
                           </div>
-                          <p className="text-[10px] text-blue-500 dark:text-blue-400 mt-0.5 font-semibold">
-                            {Math.round(inspectionStats.totalSafety / inspectionStats.safetyTotal * 100)}% 달성
-                          </p>
+                          <p className="text-[10px] text-blue-500 dark:text-blue-400 mt-0.5 font-semibold">{Math.round(inspectionStats.totalSafety / inspectionStats.safetyTotal * 100)}% 달성</p>
                         </div>
                       )}
                     </div>
+
                     {/* 동행점검 */}
                     <div className="rounded-xl p-3 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/40 dark:to-teal-950/20 border border-emerald-100 dark:border-emerald-900/30">
                       <p className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 mb-1">🤝 동행점검</p>
                       <p className="text-2xl font-black text-emerald-700 dark:text-emerald-300" data-testid="text-accompany-count">
                         {inspectionStats.totalAccompany}
-                        {inspectionStats.accompanyTotal > 0 && <span className="text-sm font-semibold text-muted-foreground">/{inspectionStats.accompanyTotal}</span>}
+                        {inspectionStats.accompanyTotal > 0 && <span className="text-xs font-semibold text-muted-foreground ml-0.5">/{inspectionStats.accompanyTotal}</span>}
                         <span className="text-xs font-normal ml-0.5">건</span>
                       </p>
                       {inspectionStats.accompanyTotal > 0 && (
                         <div className="mt-1.5">
                           <div className="h-1.5 w-full bg-emerald-100 dark:bg-emerald-900/40 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-emerald-500 rounded-full transition-all"
-                              style={{ width: `${Math.min(100, Math.round(inspectionStats.totalAccompany / inspectionStats.accompanyTotal * 100))}%` }}
-                            />
+                            <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${Math.min(100, Math.round(inspectionStats.totalAccompany / inspectionStats.accompanyTotal * 100))}%` }} />
                           </div>
-                          <p className="text-[10px] text-emerald-500 dark:text-emerald-400 mt-0.5 font-semibold">
-                            {Math.round(inspectionStats.totalAccompany / inspectionStats.accompanyTotal * 100)}% 달성
-                          </p>
+                          <p className="text-[10px] text-emerald-500 dark:text-emerald-400 mt-0.5 font-semibold">{Math.round(inspectionStats.totalAccompany / inspectionStats.accompanyTotal * 100)}% 달성</p>
                         </div>
                       )}
                     </div>
+
+                    {/* 현장경영팀 점검 */}
+                    <div className="rounded-xl p-3 bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-950/40 dark:to-amber-950/20 border border-orange-100 dark:border-orange-900/30">
+                      <p className="text-[11px] font-semibold text-orange-600 dark:text-orange-400 mb-1">🏗 현장경영팀</p>
+                      <p className="text-2xl font-black text-orange-700 dark:text-orange-300">
+                        {inspectionStats.totalHQ}<span className="text-xs font-normal ml-0.5">건</span>
+                      </p>
+                    </div>
+
+                    {/* 본사 점검 */}
+                    <div className="rounded-xl p-3 bg-gradient-to-br from-purple-50 to-violet-50 dark:from-purple-950/40 dark:to-violet-950/20 border border-purple-100 dark:border-purple-900/30">
+                      <p className="text-[11px] font-semibold text-purple-600 dark:text-purple-400 mb-1">🏢 본사점검</p>
+                      <p className="text-2xl font-black text-purple-700 dark:text-purple-300">
+                        {inspectionStats.totalHQ2}<span className="text-xs font-normal ml-0.5">건</span>
+                      </p>
+                    </div>
+
+                    {/* KT 점검 */}
+                    <div className="rounded-xl p-3 bg-gradient-to-br from-sky-50 to-cyan-50 dark:from-sky-950/40 dark:to-cyan-950/20 border border-sky-100 dark:border-sky-900/30">
+                      <p className="text-[11px] font-semibold text-sky-600 dark:text-sky-400 mb-1">📡 KT점검</p>
+                      <p className="text-2xl font-black text-sky-700 dark:text-sky-300">
+                        {inspectionStats.totalKT}<span className="text-xs font-normal ml-0.5">건</span>
+                      </p>
+                    </div>
                   </div>
+
+                  {/* 운용팀별 통합 막대 차트 */}
                   <div className="w-full overflow-x-auto">
-                    <div style={{ minWidth: Math.max(500, (inspectionStats.chartData.length * 52) + 60), height: 280 }}>
+                    <div style={{ minWidth: Math.max(500, (inspectionStats.chartData.length * 64) + 60), height: 280 }}>
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart
-                          data={inspectionStats.chartData}
-                          margin={{ top: 20, right: 10, left: -10, bottom: 5 }}
-                          barCategoryGap="30%"
-                          barGap={2}
-                        >
+                        <BarChart data={inspectionStats.chartData} margin={{ top: 20, right: 10, left: -10, bottom: 5 }} barCategoryGap="28%" barGap={1}>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.5} />
-                          <XAxis
-                            dataKey="name"
-                            tick={{ fontSize: 11, fontWeight: 500, fill: "hsl(var(--muted-foreground))" }}
-                            axisLine={false}
-                            tickLine={false}
-                            interval={0}
-                          />
-                          <YAxis
-                            tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-                            axisLine={false}
-                            tickLine={false}
-                            allowDecimals={false}
-                            width={28}
-                          />
-                          <Tooltip
-                            contentStyle={{
-                              borderRadius: "8px",
-                              border: "1px solid hsl(var(--border))",
-                              background: "hsl(var(--popover))",
-                              color: "hsl(var(--popover-foreground))",
-                              fontSize: 12,
-                              boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-                            }}
-                            cursor={{ fill: "hsl(var(--muted))", opacity: 0.4 }}
-                          />
-                          <Legend
-                            wrapperStyle={{ fontSize: 12, paddingTop: 8 }}
-                            iconType="circle"
-                            iconSize={8}
-                          />
-                          <Bar dataKey="안전점검" stackId="a" fill="#3b82f6" radius={[0, 0, 0, 0]}>
-                            <LabelList dataKey="안전점검" position="inside" style={{ fontSize: 10, fontWeight: 700, fill: "#fff" }} formatter={(v: number) => v > 0 ? v : ""} />
+                          <XAxis dataKey="name" tick={{ fontSize: 11, fontWeight: 500, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} interval={0} />
+                          <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} allowDecimals={false} width={28} />
+                          <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid hsl(var(--border))", background: "hsl(var(--popover))", color: "hsl(var(--popover-foreground))", fontSize: 12, boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }} cursor={{ fill: "hsl(var(--muted))", opacity: 0.4 }} />
+                          <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} iconType="circle" iconSize={7} />
+                          <Bar dataKey="안전점검" stackId="a" fill="#3b82f6" radius={[0,0,0,0]}>
+                            <LabelList dataKey="안전점검" position="inside" style={{ fontSize: 9, fontWeight: 700, fill: "#fff" }} formatter={(v: number) => v > 0 ? v : ""} />
                           </Bar>
-                          <Bar dataKey="동행점검" stackId="a" fill="#10b981" radius={[4, 4, 0, 0]}>
-                            <LabelList dataKey="동행점검" position="inside" style={{ fontSize: 10, fontWeight: 700, fill: "#fff" }} formatter={(v: number) => v > 0 ? v : ""} />
+                          <Bar dataKey="동행점검" stackId="a" fill="#10b981" radius={[0,0,0,0]}>
+                            <LabelList dataKey="동행점검" position="inside" style={{ fontSize: 9, fontWeight: 700, fill: "#fff" }} formatter={(v: number) => v > 0 ? v : ""} />
+                          </Bar>
+                          <Bar dataKey="현장경영팀" stackId="a" fill="#f97316" radius={[0,0,0,0]}>
+                            <LabelList dataKey="현장경영팀" position="inside" style={{ fontSize: 9, fontWeight: 700, fill: "#fff" }} formatter={(v: number) => v > 0 ? v : ""} />
+                          </Bar>
+                          <Bar dataKey="본사" stackId="a" fill="#8b5cf6" radius={[0,0,0,0]}>
+                            <LabelList dataKey="본사" position="inside" style={{ fontSize: 9, fontWeight: 700, fill: "#fff" }} formatter={(v: number) => v > 0 ? v : ""} />
+                          </Bar>
+                          <Bar dataKey="KT" stackId="a" fill="#0ea5e9" radius={[4,4,0,0]}>
+                            <LabelList dataKey="KT" position="inside" style={{ fontSize: 9, fontWeight: 700, fill: "#fff" }} formatter={(v: number) => v > 0 ? v : ""} />
                           </Bar>
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
                   </div>
-                </CardContent>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </Card>
-      )}
-
-      {activeTab === "기타" && otherInspectionStats && (
-        <Card>
-          <CardHeader
-            className="bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20 border-b p-3 sm:p-4 cursor-pointer"
-            onClick={() => setOtherShowDashboard(!otherShowDashboard)}
-          >
-            <CardTitle className="text-sm sm:text-base flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <BarChart3 className="w-4 h-4 text-orange-600" />
-                기타 점검 현황 ({otherInspectionStats.periodLabel})
-              </div>
-              {otherShowDashboard ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
-            </CardTitle>
-          </CardHeader>
-          <AnimatePresence>
-            {otherShowDashboard && (
-              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
-                <CardContent className="p-3 sm:p-4 space-y-4">
-                  <div className="flex items-center gap-1 flex-wrap">
-                    <Button variant={dashboardPeriod === "month" ? "default" : "outline"} size="sm" onClick={() => setDashboardPeriod("month")} className="h-7 text-xs px-2">
-                      {selectedMonth}월
-                    </Button>
-                    <Button variant={dashboardPeriod === "year" ? "default" : "outline"} size="sm" onClick={() => setDashboardPeriod("year")} className="h-7 text-xs px-2">
-                      연간
-                    </Button>
-                  </div>
-                  <div className="grid grid-cols-3 gap-3">
-                    {Object.entries(otherInspectionStats.byType).map(([type, cnt]) => {
-                      const cls = SUBTYPE_COLORS[type as keyof typeof SUBTYPE_COLORS] || "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 border-gray-200";
-                      return (
-                        <div key={type} className={`${cls.split(' ').filter(c => c.startsWith('bg-') && !c.includes('dark')).join(' ')} rounded-lg p-3 text-center`}>
-                          <div className={`text-2xl font-bold ${cls.split(' ').filter(c => c.startsWith('text-') && !c.includes('dark')).join(' ')}`}>{cnt as number}</div>
-                          <div className={`text-xs ${cls.split(' ').filter(c => c.startsWith('text-') && !c.includes('dark')).join(' ')} opacity-80 mt-0.5`}>{type}</div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  {otherInspectionStats.chartData.some(d => (d["KT"] + d["본사"] + d["현장경영팀"]) > 0) && (
-                    <div>
-                      <div className="text-xs font-medium text-muted-foreground mb-2">운용팀별 점검 현황</div>
-                      <div className="h-48">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={otherInspectionStats.chartData} margin={{ top: 5, right: 10, left: -25, bottom: 5 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                            <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                            <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
-                            <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid hsl(var(--border))", background: "hsl(var(--popover))", color: "hsl(var(--popover-foreground))", fontSize: 12 }} cursor={{ fill: "hsl(var(--muted))", opacity: 0.4 }} />
-                            <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} iconType="circle" iconSize={8} />
-                            <Bar dataKey="KT" stackId="a" fill="#3b82f6" radius={[0,0,0,0]}><LabelList dataKey="KT" position="inside" style={{ fontSize: 10, fontWeight: 700, fill: "#fff" }} formatter={(v: number) => v > 0 ? v : ""} /></Bar>
-                            <Bar dataKey="본사" stackId="a" fill="#8b5cf6" radius={[0,0,0,0]}><LabelList dataKey="본사" position="inside" style={{ fontSize: 10, fontWeight: 700, fill: "#fff" }} formatter={(v: number) => v > 0 ? v : ""} /></Bar>
-                            <Bar dataKey="현장경영팀" stackId="a" fill="#f97316" radius={[4,4,0,0]}><LabelList dataKey="현장경영팀" position="inside" style={{ fontSize: 10, fontWeight: 700, fill: "#fff" }} formatter={(v: number) => v > 0 ? v : ""} /></Bar>
-                          </BarChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </div>
-                  )}
                 </CardContent>
               </motion.div>
             )}
@@ -1576,9 +1460,10 @@ export default function SafetyInspections() {
         )}
       </AnimatePresence>
 
-      {activeTab === "자체" && <div className="space-y-1">
+      {/* 통합 점검 목록 — 탭과 무관하게 항상 표시, 날짜순 정렬 */}
+      <div className="space-y-1">
         <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Calendar className="w-4 h-4 text-muted-foreground" />
             <span className="text-sm font-medium text-muted-foreground">점검 목록</span>
             <Badge variant="secondary" className="text-xs">
@@ -1587,7 +1472,7 @@ export default function SafetyInspections() {
             <span className="text-xs text-muted-foreground">{filteredInspections.length}건</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-[11px] text-muted-foreground">위 그래프 월 필터와 연동</span>
+            <span className="text-[11px] text-muted-foreground hidden sm:block">위 그래프 월 필터와 연동</span>
             {canEditInspections && (
               <Button
                 variant={selectionMode ? "default" : "outline"}
@@ -1616,9 +1501,22 @@ export default function SafetyInspections() {
                 const goodItems = checklistItems.filter(c => c.status === '양호').length;
                 const poorItems = checklistItems.filter(c => c.status === '미흡').length;
                 const isExpanded = expandedId === inspection.id;
+                const isOther = OTHER_INSPECTION_TYPES.includes(inspection.inspectionType as any);
+
+                const typeBadge = (() => {
+                  switch (inspection.inspectionType) {
+                    case "안전점검": return <span className="text-[10px] px-1.5 py-0.5 rounded shrink-0 font-bold border bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800">안전</span>;
+                    case "동행점검": return <span className="text-[10px] px-1.5 py-0.5 rounded shrink-0 font-bold border bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800">동행</span>;
+                    case "현장경영팀 점검": return <span className="text-[10px] px-1.5 py-0.5 rounded shrink-0 font-bold border bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-800">현장경영팀</span>;
+                    case "본사 점검": return <span className="text-[10px] px-1.5 py-0.5 rounded shrink-0 font-bold border bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800">본사</span>;
+                    case "KT 점검": return <span className="text-[10px] px-1.5 py-0.5 rounded shrink-0 font-bold border bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800">KT</span>;
+                    default: return <span className="text-[10px] px-1.5 py-0.5 rounded shrink-0 font-bold border bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200">{inspection.inspectionType}</span>;
+                  }
+                })();
 
                 return (
-                  <div key={inspection.id} data-testid={`card-inspection-${inspection.id}`} className={selectionMode && selectedIds.has(inspection.id) ? "bg-red-50 dark:bg-red-900/20" : ""}>
+                  <div key={inspection.id} data-testid={`card-inspection-${inspection.id}`}
+                    className={selectionMode && selectedIds.has(inspection.id) ? "bg-red-50 dark:bg-red-900/20" : ""}>
                     <div
                       className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 cursor-pointer hover:bg-muted/30 transition-colors group"
                       onClick={() => selectionMode ? toggleSelect(inspection.id) : setExpandedId(isExpanded ? null : inspection.id)}
@@ -1631,15 +1529,7 @@ export default function SafetyInspections() {
                           data-testid={`checkbox-inspection-${inspection.id}`}
                         />
                       )}
-                      {inspection.inspectionType === "안전점검" ? (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 shrink-0 font-bold border border-blue-200 dark:border-blue-800">
-                          안전
-                        </span>
-                      ) : (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 shrink-0 font-bold border border-orange-200 dark:border-orange-800">
-                          동행
-                        </span>
-                      )}
+                      {typeBadge}
                       <span className="text-xs text-muted-foreground shrink-0 w-[72px]">{inspection.inspectionDate}</span>
                       <span className="text-sm font-medium truncate flex-1 min-w-0">{inspection.title}</span>
                       {inspection.inspector && (
@@ -1649,42 +1539,28 @@ export default function SafetyInspections() {
                         </span>
                       )}
                       <span className="text-xs text-muted-foreground truncate max-w-[70px] hidden sm:block">{inspection.department}</span>
-                      <div className="flex items-center gap-1.5 shrink-0 text-[10px]">
-                        <span className="text-green-600 dark:text-green-400">{goodItems}</span>
-                        <span className="text-muted-foreground">/</span>
-                        <span className="text-red-600 dark:text-red-400">{poorItems}</span>
-                      </div>
+                      {!isOther && (
+                        <div className="flex items-center gap-1.5 shrink-0 text-[10px]">
+                          <span className="text-green-600 dark:text-green-400">{goodItems}</span>
+                          <span className="text-muted-foreground">/</span>
+                          <span className="text-red-600 dark:text-red-400">{poorItems}</span>
+                        </div>
+                      )}
                       {inspection.images && inspection.images.length > 0 && (
-                        <span className="text-[10px] text-muted-foreground shrink-0">
-                          {inspection.images.length}장
-                        </span>
+                        <span className="text-[10px] text-muted-foreground shrink-0">{inspection.images.length}장</span>
                       )}
                       <div className="flex items-center gap-0.5 shrink-0">
                         {isExpanded ? <ChevronUp className="w-3.5 h-3.5 text-muted-foreground" /> : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />}
                         {canEditInspections && (!inspection.createdBy || user?.role === "admin" || user?.username === inspection.createdBy) && (
                           <>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleEdit(inspection);
-                              }}
-                              data-testid={`button-edit-${inspection.id}`}
-                            >
+                            <Button variant="ghost" size="icon" className="h-7 w-7 opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+                              onClick={(e) => { e.stopPropagation(); handleEdit(inspection); }}
+                              data-testid={`button-edit-${inspection.id}`}>
                               <Pencil className="w-3.5 h-3.5 text-blue-500" />
                             </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDelete(inspection.id);
-                              }}
-                              data-testid={`button-delete-${inspection.id}`}
-                            >
+                            <Button variant="ghost" size="icon" className="h-7 w-7 opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+                              onClick={(e) => { e.stopPropagation(); handleDelete(inspection.id); }}
+                              data-testid={`button-delete-${inspection.id}`}>
                               <Trash2 className="w-3.5 h-3.5 text-destructive" />
                             </Button>
                           </>
@@ -1693,17 +1569,13 @@ export default function SafetyInspections() {
                     </div>
                     <AnimatePresence>
                       {isExpanded && (
-                        <motion.div
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: "auto" }}
-                          exit={{ opacity: 0, height: 0 }}
-                          className="border-t bg-muted/10"
-                        >
+                        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="border-t bg-muted/10">
                           <div className="p-4 space-y-3">
                             <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                               {inspection.inspector && <span>점검자: {inspection.inspector}</span>}
                               {inspection.workerName && <span>작업자: {inspection.workerName}</span>}
                               {inspection.workContent && <span>작업내용: {inspection.workContent}</span>}
+                              {inspection.location && <span>위치: {inspection.location}</span>}
                             </div>
                             {checklistItems.length > 0 && (
                               <div className="space-y-2">
@@ -1712,9 +1584,7 @@ export default function SafetyInspections() {
                                   {checklistItems.map((item, idx) => (
                                     <div key={idx} className="flex items-center justify-between gap-2">
                                       <span className="text-sm">{item.item}</span>
-                                      <span className={`text-xs px-2 py-0.5 rounded-full ${getStatusColor(item.status)}`}>
-                                        {item.status}
-                                      </span>
+                                      <span className={`text-xs px-2 py-0.5 rounded-full ${getStatusColor(item.status)}`}>{item.status}</span>
                                     </div>
                                   ))}
                                 </div>
@@ -1723,9 +1593,7 @@ export default function SafetyInspections() {
                             {inspection.notes && (
                               <div className="space-y-1">
                                 <Label className="text-sm">비고</Label>
-                                <p className="text-sm text-muted-foreground bg-muted/50 rounded-lg p-3">
-                                  {inspection.notes}
-                                </p>
+                                <p className="text-sm text-muted-foreground bg-muted/50 rounded-lg p-3">{inspection.notes}</p>
                               </div>
                             )}
                             {inspection.images && inspection.images.length > 0 && (
@@ -1733,18 +1601,25 @@ export default function SafetyInspections() {
                                 <Label className="text-sm">첨부 사진 ({inspection.images.length}장)</Label>
                                 <div className="flex flex-wrap gap-2">
                                   {inspection.images.map((img, idx) => (
-                                    <img
-                                      key={idx}
-                                      src={img}
-                                      alt={`점검 사진 ${idx + 1}`}
+                                    <img key={idx} src={img} alt={`점검 사진 ${idx + 1}`}
                                       className="h-24 w-24 object-cover rounded-lg border cursor-pointer hover:opacity-80"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        window.open(img, "_blank");
-                                      }}
-                                    />
+                                      onClick={() => setLightboxImages({ urls: inspection.images!, index: idx })} />
                                   ))}
                                 </div>
+                              </div>
+                            )}
+                            {inspection.inspectionType === "현장경영팀 점검" && canEditInspections && (
+                              <div className="flex justify-end">
+                                <Button size="sm" className="bg-orange-600 hover:bg-orange-700 text-white gap-2"
+                                  onClick={() => sendEmailAfterCreate({
+                                    inspectionDate: inspection.inspectionDate, department: inspection.department || inspection.title,
+                                    inspector: inspection.inspector || "", workerName: inspection.workerName || "",
+                                    location: inspection.location || "", workContent: inspection.workContent || "",
+                                    checklist: checklistItems, notes: inspection.notes || "",
+                                    images: inspection.images || [], subType: inspection.inspectionType,
+                                  })} disabled={isSendingEmail}>
+                                  {isSendingEmail ? <><Loader2 className="w-4 h-4 animate-spin" />발송 중...</> : <><Mail className="w-4 h-4" />메일 발송</>}
+                                </Button>
                               </div>
                             )}
                           </div>
@@ -1757,147 +1632,7 @@ export default function SafetyInspections() {
             </CardContent>
           </Card>
         )}
-      </div>}
-
-      {activeTab === "기타" && (
-        <div className="space-y-1">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <ClipboardList className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm font-medium text-muted-foreground">기타 점검 목록</span>
-              <span className="text-xs text-muted-foreground">{otherInspections.length}건</span>
-            </div>
-          </div>
-          {isLoading ? (
-            <div className="text-center py-8 text-muted-foreground">로딩 중...</div>
-          ) : otherInspections.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">등록된 기타 점검 내역이 없습니다.</div>
-          ) : (
-            <Card>
-              <CardContent className="p-0 divide-y">
-                {otherInspections.map((inspection) => {
-                  const checklistItems = normalizeChecklist(inspection.checklist);
-                  const goodItems = checklistItems.filter(c => c.status === '양호').length;
-                  const poorItems = checklistItems.filter(c => c.status === '미흡').length;
-                  const isExpanded = otherExpandedId === inspection.id;
-                  const subtypeCls = SUBTYPE_COLORS[inspection.inspectionType as keyof typeof SUBTYPE_COLORS] || "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 border-gray-200";
-
-                  return (
-                    <div key={inspection.id} data-testid={`card-other-inspection-${inspection.id}`}
-                      className={otherSelectionMode && otherSelectedIds.has(inspection.id) ? "bg-blue-50 dark:bg-blue-900/20" : ""}>
-                      <div
-                        className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 cursor-pointer hover:bg-muted/30 transition-colors group"
-                        onClick={() => otherSelectionMode ? setOtherSelectedIds(prev => { const n = new Set(prev); n.has(inspection.id) ? n.delete(inspection.id) : n.add(inspection.id); return n; }) : setOtherExpandedId(isExpanded ? null : inspection.id)}
-                      >
-                        {otherSelectionMode && (
-                          <Checkbox
-                            checked={otherSelectedIds.has(inspection.id)}
-                            onCheckedChange={() => setOtherSelectedIds(prev => { const n = new Set(prev); n.has(inspection.id) ? n.delete(inspection.id) : n.add(inspection.id); return n; })}
-                            onClick={e => e.stopPropagation()}
-                            data-testid={`checkbox-other-inspection-${inspection.id}`}
-                          />
-                        )}
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 font-bold border ${subtypeCls}`}>
-                          {inspection.inspectionType === "현장경영팀 점검" ? "현장경영팀" : inspection.inspectionType === "KT 점검" ? "KT" : "본사"}
-                        </span>
-                        <span className="text-xs text-muted-foreground shrink-0 w-[72px]">{inspection.inspectionDate}</span>
-                        <span className="text-sm font-medium truncate flex-1 min-w-0">{inspection.title}</span>
-                        {inspection.inspector && (
-                          <span className="text-xs font-medium text-foreground/70 shrink-0 flex items-center gap-0.5">
-                            <User className="w-3 h-3 text-muted-foreground" />
-                            {inspection.inspector}
-                          </span>
-                        )}
-                        <span className="text-xs text-muted-foreground truncate max-w-[70px] hidden sm:block">{inspection.department}</span>
-                        <div className="flex items-center gap-1.5 shrink-0 text-[10px]">
-                          <span className="text-green-600 dark:text-green-400">{goodItems}</span>
-                          <span className="text-muted-foreground">/</span>
-                          <span className="text-red-600 dark:text-red-400">{poorItems}</span>
-                        </div>
-                        {inspection.images && inspection.images.length > 0 && (
-                          <span className="text-[10px] text-muted-foreground shrink-0">{inspection.images.length}장</span>
-                        )}
-                        <div className="flex items-center gap-0.5 shrink-0">
-                          {isExpanded ? <ChevronUp className="w-3.5 h-3.5 text-muted-foreground" /> : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />}
-                          {canEditInspections && (!inspection.createdBy || user?.role === "admin" || user?.username === inspection.createdBy) && (
-                            <>
-                              <Button variant="ghost" size="icon" className="h-7 w-7 opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
-                                onClick={(e) => { e.stopPropagation(); handleEdit(inspection); }} data-testid={`button-edit-other-${inspection.id}`}>
-                                <Pencil className="w-3.5 h-3.5 text-blue-500" />
-                              </Button>
-                              <Button variant="ghost" size="icon" className="h-7 w-7 opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
-                                onClick={(e) => { e.stopPropagation(); handleDelete(inspection.id); }} data-testid={`button-delete-other-${inspection.id}`}>
-                                <Trash2 className="w-3.5 h-3.5 text-red-500" />
-                              </Button>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                      <AnimatePresence>
-                        {isExpanded && (
-                          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="border-t bg-muted/10">
-                            <div className="p-4 space-y-3">
-                              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                                {inspection.inspector && <span>점검자: {inspection.inspector}</span>}
-                                {inspection.workerName && <span>작업자: {inspection.workerName}</span>}
-                                {inspection.workContent && <span>작업내용: {inspection.workContent}</span>}
-                                {inspection.location && <span>위치: {inspection.location}</span>}
-                              </div>
-                              {checklistItems.length > 0 && (
-                                <div className="space-y-2">
-                                  <Label className="text-sm">체크리스트</Label>
-                                  <div className="bg-muted/50 rounded-lg p-3 space-y-2">
-                                    {checklistItems.map((item, idx) => (
-                                      <div key={idx} className="flex items-center justify-between gap-2">
-                                        <span className="text-sm">{item.item}</span>
-                                        <span className={`text-xs px-2 py-0.5 rounded-full ${getStatusColor(item.status)}`}>{item.status}</span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                              {inspection.notes && (
-                                <div className="space-y-1">
-                                  <Label className="text-sm">비고</Label>
-                                  <p className="text-sm text-muted-foreground bg-muted/50 rounded-lg p-3">{inspection.notes}</p>
-                                </div>
-                              )}
-                              {inspection.images && inspection.images.length > 0 && (
-                                <div className="space-y-1">
-                                  <Label className="text-sm">첨부 사진 ({inspection.images.length}장)</Label>
-                                  <div className="flex flex-wrap gap-2">
-                                    {inspection.images.map((img, idx) => (
-                                      <img key={idx} src={img} alt={`점검 사진 ${idx + 1}`} className="h-24 w-24 object-cover rounded-lg border cursor-pointer hover:opacity-80"
-                                        onClick={() => setLightboxImages({ urls: inspection.images!, index: idx })} />
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                              {inspection.inspectionType === "현장경영팀 점검" && canEditInspections && (
-                                <div className="flex justify-end">
-                                  <Button size="sm" className="bg-orange-600 hover:bg-orange-700 text-white gap-2" onClick={() => sendEmailAfterCreate({
-                                    inspectionDate: inspection.inspectionDate, department: inspection.department || inspection.title,
-                                    inspector: inspection.inspector || "", workerName: inspection.workerName || "",
-                                    location: inspection.location || "", workContent: inspection.workContent || "",
-                                    checklist: checklistItems, notes: inspection.notes || "",
-                                    images: inspection.images || [], subType: inspection.inspectionType,
-                                  })} disabled={isSendingEmail}>
-                                    {isSendingEmail ? <><Loader2 className="w-4 h-4 animate-spin" />발송 중...</> : <><Mail className="w-4 h-4" />메일 발송</>}
-                                  </Button>
-                                </div>
-                              )}
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  );
-                })}
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      )}
+      </div>
 
       <Dialog open={showTargetDialog} onOpenChange={setShowTargetDialog}>
         <DialogContent className="sm:max-w-sm">
