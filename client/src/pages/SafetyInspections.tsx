@@ -46,6 +46,7 @@ interface BulkRow {
   inspector: string;
   workerName: string;
   overallComment: string;
+  inspectionType: string;
   selected: boolean;
   error?: string;
 }
@@ -303,7 +304,7 @@ export default function SafetyInspections() {
       setBulkExcelData(combinedExcelData);
       setBulkRows(
         allResults
-          .map((r: any) => ({ ...r, workerName: r.workerName || r.team || '', selected: !r.error }))
+          .map((r: any) => ({ ...r, workerName: r.workerName || r.team || '', inspectionType: r.inspectionType || '안전점검', selected: !r.error }))
           .sort((a: any, b: any) => (a.inspectionDate || '').localeCompare(b.inspectionDate || ''))
       );
       toast({ title: `${allResults.length}개 PDF 파싱 완료`, description: '이미지 포함 데이터를 확인 후 등록하세요.' });
@@ -323,7 +324,7 @@ export default function SafetyInspections() {
     setIsBulkCreating(true);
     try {
       const payload = selected.map(r => ({
-        inspectionType: '안전점검',
+        inspectionType: r.inspectionType || '안전점검',
         title: r.team + (r.workContent ? ' - ' + r.workContent : r.workNo ? ' - ' + r.workNo : ''),
         location: r.location || undefined,
         inspector: r.inspector || user?.name || user?.username || undefined,
@@ -1187,18 +1188,11 @@ export default function SafetyInspections() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {activeTab === "자체" ? (
-                          <>
-                            <SelectItem value="안전점검">안전점검</SelectItem>
-                            <SelectItem value="동행점검">동행점검</SelectItem>
-                          </>
-                        ) : (
-                          <>
-                            <SelectItem value="현장경영팀 점검">현장경영팀 점검</SelectItem>
-                            <SelectItem value="KT 점검">KT 점검</SelectItem>
-                            <SelectItem value="본사 점검">본사 점검</SelectItem>
-                          </>
-                        )}
+                        <SelectItem value="안전점검">안전점검</SelectItem>
+                        <SelectItem value="동행점검">동행점검</SelectItem>
+                        <SelectItem value="현장경영팀 점검">현장경영팀 점검</SelectItem>
+                        <SelectItem value="본사 점검">본사 점검</SelectItem>
+                        <SelectItem value="KT 점검">KT 점검</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -1772,6 +1766,7 @@ export default function SafetyInspections() {
                     <TableRow className="text-xs">
                       <TableHead className="w-10 text-center">선택</TableHead>
                       <TableHead className="min-w-[90px]">점검일자</TableHead>
+                      <TableHead className="min-w-[110px]">점검유형</TableHead>
                       <TableHead className="min-w-[90px]">팀명</TableHead>
                       <TableHead className="min-w-[80px]">점검자</TableHead>
                       <TableHead className="min-w-[80px]">작업자</TableHead>
@@ -1803,6 +1798,20 @@ export default function SafetyInspections() {
                             onChange={e => setBulkRows(prev => prev.map((r, i) => i === idx ? { ...r, inspectionDate: e.target.value } : r))}
                             className="h-7 text-xs min-w-[90px]"
                           />
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          <select
+                            value={row.inspectionType || '안전점검'}
+                            onChange={e => setBulkRows(prev => prev.map((r, i) => i === idx ? { ...r, inspectionType: e.target.value } : r))}
+                            className="h-7 text-xs min-w-[100px] w-full rounded-md border border-input bg-background px-2 py-0.5"
+                            data-testid={`select-bulk-inspection-type-${idx}`}
+                          >
+                            <option value="안전점검">안전점검</option>
+                            <option value="동행점검">동행점검</option>
+                            <option value="현장경영팀 점검">현장경영팀 점검</option>
+                            <option value="본사 점검">본사 점검</option>
+                            <option value="KT 점검">KT 점검</option>
+                          </select>
                         </TableCell>
                         <TableCell className="text-xs">
                           <Input

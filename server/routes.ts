@@ -1400,8 +1400,9 @@ export async function registerRoutes(
           const normalize = (s: string) => s.replace(/\s/g, '').toLowerCase();
           const findCol = (keys: string[]) => cols.find(c => keys.some(k => normalize(c) === normalize(k))) ||
                                               cols.find(c => keys.some(k => normalize(c).includes(normalize(k))));
-          const teamDetailCol  = findCol(['점검대상조직(상세)', '점검수행시점조직', '점검대상조직상세']);
+          const teamDetailCol  = findCol(['점검대상조직(상세)', '점검대상조직상세']);
           const teamCol        = teamDetailCol || findCol(['운용팀','팀명','소속팀','점검대상조직','점검대상']);
+          const inspectionOrgCol = findCol(['점검수행시점조직', '점검수행조직', '점검조직', '수행조직']);
           const inspectorCol   = findCol(['점검자']);
           const workerCol      = findCol(['작업자']);
           const workContentCol = findCol(['작업내용']);
@@ -1414,7 +1415,16 @@ export async function registerRoutes(
           const extractTeam    = (val: string) => val.includes('>') ? val.split('>').pop()!.trim() : val.trim();
           const extractTime    = (val: string) => { const m = val.match(/(\d{2}):(\d{2})/); return m ? m[1] + m[2] : ''; };
           const extractDate8   = (val: string) => val.replace(/[^0-9]/g, '').slice(0, 8);
-          return { cols, normalize, teamCol, inspectorCol, workerCol, workContentCol, workTypeCol, workNoCol, locationCol, commentCol, dateCol, resultCol, extractTeam, extractTime, extractDate8 };
+          // 점검수행시점조직 → 점검유형 매핑
+          const detectInspectionType = (orgVal: string): string => {
+            const v = orgVal.replace(/\s/g, '').toLowerCase();
+            if (v.includes('kt') || v.includes('kt안전') || v.includes('kt본사')) return 'KT 점검';
+            if (v.includes('본사')) return '본사 점검';
+            if (v.includes('현장경영') || v.includes('현경')) return '현장경영팀 점검';
+            if (v.includes('동행')) return '동행점검';
+            return '안전점검';
+          };
+          return { cols, normalize, teamCol, inspectionOrgCol, inspectorCol, workerCol, workContentCol, workTypeCol, workNoCol, locationCol, commentCol, dateCol, resultCol, extractTeam, extractTime, extractDate8, detectInspectionType };
         };
 
         const excelMatcher = buildExcelMatcher(excelData);
@@ -1555,10 +1565,11 @@ export async function registerRoutes(
             // 엑셀 매칭
             let workContent = '', workType = '', inspectorFromExcel = '', workerFromExcel = '';
             let teamFromExcel = '', locationFromExcel = '', overallComment = '', inspectionDateFromExcel = '', workNoFromExcel = '';
+            let inspectionTypeFromExcel = '';
 
             if (excelMatcher) {
-              const { normalize, teamCol, inspectorCol, workerCol, workContentCol, workTypeCol, workNoCol,
-                      locationCol, commentCol, dateCol, resultCol, extractTeam, extractTime, extractDate8 } = excelMatcher;
+              const { normalize, teamCol, inspectionOrgCol, inspectorCol, workerCol, workContentCol, workTypeCol, workNoCol,
+                      locationCol, commentCol, dateCol, resultCol, extractTeam, extractTime, extractDate8, detectInspectionType } = excelMatcher;
               const pdfDate8 = extractDate8(inspectionDate);
               const pdfTime  = extractTime(workDateTime);
               const pdfTeam  = normalize(team);
@@ -1608,16 +1619,17 @@ export async function registerRoutes(
               if (!matchedRow && pdfIndex < excelData.length) matchedRow = excelData[pdfIndex];
 
               if (matchedRow) {
-                if (workContentCol) workContent        = String(matchedRow[workContentCol] || '');
-                if (workTypeCol)    workType           = String(matchedRow[workTypeCol] || '');
-                if (inspectorCol)   inspectorFromExcel = String(matchedRow[inspectorCol] || '');
-                if (workerCol)      workerFromExcel    = String(matchedRow[workerCol] || '');
-                if (teamCol)        teamFromExcel      = extractTeam(String(matchedRow[teamCol] || ''));
-                if (locationCol)    locationFromExcel  = String(matchedRow[locationCol] || '');
-                if (commentCol)     overallComment     = String(matchedRow[commentCol] || '');
-                if (dateCol)        inspectionDateFromExcel = String(matchedRow[dateCol] || '');
-                if (workNoCol)      workNoFromExcel    = String(matchedRow[workNoCol] || '');
-                if (resultCol)      inspectionResult   = String(matchedRow[resultCol] || '') || inspectionResult;
+                if (workContentCol)   workContent           = String(matchedRow[workContentCol] || '');
+                if (workTypeCol)      workType              = String(matchedRow[workTypeCol] || '');
+                if (inspectorCol)     inspectorFromExcel    = String(matchedRow[inspectorCol] || '');
+                if (workerCol)        workerFromExcel       = String(matchedRow[workerCol] || '');
+                if (teamCol)          teamFromExcel         = extractTeam(String(matchedRow[teamCol] || ''));
+                if (locationCol)      locationFromExcel     = String(matchedRow[locationCol] || '');
+                if (commentCol)       overallComment        = String(matchedRow[commentCol] || '');
+                if (dateCol)          inspectionDateFromExcel = String(matchedRow[dateCol] || '');
+                if (workNoCol)        workNoFromExcel       = String(matchedRow[workNoCol] || '');
+                if (resultCol)        inspectionResult      = String(matchedRow[resultCol] || '') || inspectionResult;
+                if (inspectionOrgCol) inspectionTypeFromExcel = detectInspectionType(String(matchedRow[inspectionOrgCol] || ''));
               }
             }
 
@@ -1632,8 +1644,10 @@ export async function registerRoutes(
             if (!workContent && workContentFromPdf) workContent = workContentFromPdf;
             // 점검자: 엑셀 우선, 없으면 PDF 텍스트 추출값
             const finalInspector = inspectorFromExcel || inspectorFromPdf;
+            // 점검유형: 엑셀 점검수행시점조직 우선, 없으면 기본 안전점검
+            const finalInspectionType = inspectionTypeFromExcel || '안전점검';
 
-            return { fileName: f.originalname, inspectionDate, team, location, workDateTime, workNo, workContent, workType, inspectionMethod, inspectionResult, defectCount, imageUrls, inspector: finalInspector, workerName: workerFromExcel, overallComment };
+            return { fileName: f.originalname, inspectionDate, team, location, workDateTime, workNo, workContent, workType, inspectionMethod, inspectionResult, defectCount, imageUrls, inspector: finalInspector, workerName: workerFromExcel, overallComment, inspectionType: finalInspectionType };
           } catch (e: any) {
             console.error('[bulk-parse] 파일 처리 오류:', f.originalname, e.message);
             return { fileName: f.originalname, error: e.message, inspectionDate: '', team: '', location: '', workDateTime: '', workNo: '', workContent: '', workType: '', inspectionMethod: '', inspectionResult: '양호', defectCount: 0, imageUrls: [], inspector: '', workerName: '', overallComment: '' };
