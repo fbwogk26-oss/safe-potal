@@ -328,7 +328,7 @@ function getTodayDateKST(): string {
 }
 
 export async function generateAisDailyPreview(targetDate?: string) {
-  const date = targetDate || getTodayDateKST();
+  const date = targetDate || getTargetDate(); // 미리보기도 전일 기준
   const [allRecords, badNotes] = await Promise.all([
     storage.getAllAisSafetyRecords(),
     storage.getAllAisTbmBadNotes(),
@@ -342,8 +342,8 @@ export async function runAisDailyEmailJob(opts?: { force?: boolean; targetDate?:
     return;
   }
 
-  // 수동 강제 발송(force)은 오늘 날짜까지 최신 데이터를 반영, 자동 스케줄 발송은 전일 기준 유지
-  const targetDate = opts?.targetDate || (opts?.force ? getTodayDateKST() : getTargetDate());
+  // 항상 전일(어제) 기준 — 수동 발송도 스케줄 발송과 동일하게 전날까지 데이터만 포함
+  const targetDate = opts?.targetDate || getTargetDate();
 
   if (!opts?.force) {
     try {
