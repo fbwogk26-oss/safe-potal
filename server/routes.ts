@@ -6418,12 +6418,40 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
 
   // === NEAR MISS REPORTS (아차사고) ===
 
+  // 아차사고 전용 업로드 — HEIC/HEIF 포함 모든 이미지, 20MB 허용
+  const nearMissUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 20 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+      const cleanName = String(file.originalname || '').replace(/\0/g, '');
+      const ext = path.extname(cleanName).toLowerCase();
+      // 위험 확장자만 차단 (화이트리스트 대신 블랙리스트: HEIC/HEIF 포함 모든 이미지 허용)
+      if (DANGEROUS_UPLOAD_EXTS.has(ext)) return cb(new Error('허용되지 않는 파일 형식입니다'));
+      const isImage = file.mimetype.startsWith('image/') || ext === '' || ['.heic','.heif','.jpg','.jpeg','.png','.gif','.webp','.bmp','.tiff','.tif'].includes(ext);
+      if (!isImage) return cb(new Error('이미지 파일만 업로드할 수 있습니다'));
+      cb(null, true);
+    },
+  });
+
   // AI 사진 분석 (로그인 불필요 — 공개 등록 폼에서도 사용)
-  app.post('/api/near-miss/ai/analyze-photo', upload.single('photo'), async (req: any, res) => {
+  app.post('/api/near-miss/ai/analyze-photo', nearMissUpload.single('photo'), async (req: any, res) => {
     try {
       if (!req.file) return res.status(400).json({ message: "사진이 없습니다" });
-      const base64Image = req.file.buffer.toString('base64');
-      const mimeType = req.file.mimetype || 'image/jpeg';
+
+      // HEIC/HEIF → JPEG 변환 (OpenAI Vision API는 HEIC 미지원)
+      let imageBuffer = req.file.buffer;
+      let mimeType = req.file.mimetype || 'image/jpeg';
+      const isHeic = mimeType.includes('heic') || mimeType.includes('heif') ||
+        path.extname(req.file.originalname || '').toLowerCase().includes('heic') ||
+        path.extname(req.file.originalname || '').toLowerCase().includes('heif');
+      if (isHeic || !['image/jpeg','image/jpg','image/png','image/gif','image/webp'].includes(mimeType)) {
+        try {
+          const { default: sharp } = await import('sharp');
+          imageBuffer = await sharp(imageBuffer).jpeg({ quality: 85 }).toBuffer();
+          mimeType = 'image/jpeg';
+        } catch { /* 변환 실패 시 원본 그대로 시도 */ }
+      }
+      const base64Image = imageBuffer.toString('base64');
 
       const OpenAI = (await import("openai")).default;
       const aiClient = new OpenAI({
@@ -6472,7 +6500,7 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
   });
 
   // 공개 등록 (로그인 불필요)
-  app.post('/api/near-miss/public', upload.array('images', 5), async (req: any, res) => {
+  app.post('/api/near-miss/public', nearMissUpload.array('images', 5), async (req: any, res) => {
     try {
       const { occurredAt, location, team, reporter, isAnonymous, accidentType, riskFactor, riskDetail, description, immediateAction, preventionIdea } = req.body;
       if (!occurredAt || !location || !accidentType || !riskFactor) return res.status(400).json({ message: "필수 항목을 입력해주세요" });
