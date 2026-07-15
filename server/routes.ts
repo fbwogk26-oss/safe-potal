@@ -652,8 +652,6 @@ export async function registerRoutes(
         });
       }
 
-      fs.unlinkSync(filePath);
-
       let successCount = 0;
       let skipCount = 0;
 
