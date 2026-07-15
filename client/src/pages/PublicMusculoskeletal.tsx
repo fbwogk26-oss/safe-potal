@@ -6,6 +6,27 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Bone, CheckCircle2, ChevronRight, Loader2, User, Briefcase, Activity } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import burdenWorksImg from "@assets/image_1784095906882.png";
+
+/**
+ * 부담작업 삽화 스프라이트 컴포넌트
+ * 원본 이미지: 837 × 1102 px, 11개 항목 균등 배치 (항목당 100.18px)
+ * 표시 크기: 100 × 72px, backgroundSize: auto 792px (= 11 × 72)
+ */
+const BurdenWorkIllus = ({ no }: { no: number }) => (
+  <div
+    className="flex-shrink-0 rounded-xl overflow-hidden border border-purple-100 dark:border-purple-900/40 bg-white"
+    style={{
+      width: 100,
+      height: 72,
+      backgroundImage: `url(${burdenWorksImg})`,
+      backgroundRepeat: "no-repeat",
+      backgroundSize: `auto ${11 * 72}px`,
+      backgroundPosition: `0 -${(no - 1) * 72}px`,
+    }}
+    aria-hidden="true"
+  />
+);
 
 const BURDEN_WORKS = [
   { no: 1, short: "키보드·마우스 조작", desc: "하루 4시간 이상 집중적으로 키보드·마우스를 사용하는 작업" },
@@ -233,37 +254,41 @@ export default function PublicMusculoskeletal() {
                 </p>
 
                 <div className="space-y-2 mt-1">
-                  {BURDEN_WORKS.map(bw => (
-                    <button
-                      key={bw.no}
-                      onClick={() => toggleWork(bw.no)}
-                      className={`w-full text-left px-3 py-3 rounded-xl border transition-all ${
-                        form.burdenWorkChecklist.includes(bw.no)
-                          ? "border-purple-500 bg-purple-50 dark:bg-purple-900/30"
-                          : "border-border hover:border-purple-300 hover:bg-purple-50/30"
-                      }`}
-                      data-testid={`button-burden-${bw.no}`}
-                    >
-                      <div className="flex items-start gap-2.5">
-                        <div className={`mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-                          form.burdenWorkChecklist.includes(bw.no)
-                            ? "border-purple-500 bg-purple-500"
-                            : "border-border"
-                        }`}>
-                          {form.burdenWorkChecklist.includes(bw.no) && (
-                            <CheckCircle2 className="w-3.5 h-3.5 text-white" />
-                          )}
-                        </div>
-                        <div>
-                          <div className="text-sm font-medium">
-                            <span className="text-purple-600 dark:text-purple-400 mr-1">{bw.no}호.</span>
-                            {bw.short}
+                  {BURDEN_WORKS.map(bw => {
+                    const selected = form.burdenWorkChecklist.includes(bw.no);
+                    return (
+                      <button
+                        key={bw.no}
+                        onClick={() => toggleWork(bw.no)}
+                        className={`w-full text-left rounded-xl border transition-all overflow-hidden ${
+                          selected
+                            ? "border-purple-500 bg-purple-50 dark:bg-purple-900/30"
+                            : "border-border hover:border-purple-300 hover:bg-purple-50/30"
+                        }`}
+                        data-testid={`button-burden-${bw.no}`}
+                      >
+                        <div className="flex items-stretch gap-0">
+                          {/* 삽화 */}
+                          <BurdenWorkIllus no={bw.no} />
+                          {/* 텍스트 + 체크 */}
+                          <div className="flex items-start gap-2.5 px-3 py-3 flex-1 min-w-0">
+                            <div className={`mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                              selected ? "border-purple-500 bg-purple-500" : "border-border"
+                            }`}>
+                              {selected && <CheckCircle2 className="w-3.5 h-3.5 text-white" />}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-sm font-medium leading-snug">
+                                <span className="text-purple-600 dark:text-purple-400 mr-1">{bw.no}호.</span>
+                                {bw.short}
+                              </div>
+                              <div className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{bw.desc}</div>
+                            </div>
                           </div>
-                          <div className="text-xs text-muted-foreground mt-0.5">{bw.desc}</div>
                         </div>
-                      </div>
-                    </button>
-                  ))}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
