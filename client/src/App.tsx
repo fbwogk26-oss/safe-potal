@@ -33,6 +33,7 @@ import RiskAssessment from "@/pages/RiskAssessment";
 import AccidentReports from "@/pages/AccidentReports";
 import NearMiss from "@/pages/NearMiss";
 import PublicNearMiss from "@/pages/PublicNearMiss";
+import PublicMusculoskeletal from "@/pages/PublicMusculoskeletal";
 import MusculoskeletalDisease from "@/pages/MusculoskeletalDisease";
 import NewEquipmentRequest from "@/pages/NewEquipmentRequest";
 import SafetySupplySurvey from "@/pages/SafetySupplySurvey";
@@ -189,6 +190,9 @@ function AppContent() {
 
   if (location.startsWith("/near-miss/submit")) {
     return <Switch><Route path="/near-miss/submit" component={PublicNearMiss} /></Switch>;
+  }
+  if (location.startsWith("/musculoskeletal/submit")) {
+    return <Switch><Route path="/musculoskeletal/submit" component={PublicMusculoskeletal} /></Switch>;
   }
   if (location.startsWith("/sign/equip/")) {
     return <Switch><Route path="/sign/equip/:id" component={PublicEquipSign} /></Switch>;

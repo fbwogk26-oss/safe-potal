@@ -29,7 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Plus, Trash2, Eye, Thermometer, Sun, Mail, Loader2, PenLine, RotateCcw, FileDown, FileText } from "lucide-react";
+import { Plus, Trash2, Eye, Thermometer, Sun, Mail, Loader2, PenLine, RotateCcw, FileDown, FileText, Pencil } from "lucide-react";
 import type { HeatWaveChecklist } from "@shared/schema";
 import { format } from "date-fns";
 
@@ -1015,6 +1015,16 @@ export default function HeatWaveChecklist() {
                         data-testid={`button-view-${r.id}`}
                       >
                         <Eye className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-orange-500 hover:text-orange-700"
+                        onClick={() => setEditing(r)}
+                        title="수정"
+                        data-testid={`button-edit-${r.id}`}
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
                       </Button>
                       <Button
                         variant="ghost"

@@ -4600,6 +4600,34 @@ ${buildEmailFooter()}
     }
   });
 
+  app.post('/api/musculoskeletal-assessments/public', async (req: any, res) => {
+    try {
+      const { name, department, task, burdenWorkChecklist, headquarters } = req.body;
+      if (!department || !task) {
+        return res.status(400).json({ message: "부서와 작업명은 필수입니다" });
+      }
+      const checklist = Array.isArray(burdenWorkChecklist) ? burdenWorkChecklist : [];
+      const riskLevel = checklist.length >= 3 ? "높음" : checklist.length >= 1 ? "중간" : "낮음";
+      const created = await storage.createMusculoskeletalAssessment({
+        department,
+        task,
+        hazardFactor: checklist.length > 0 ? `부담작업 ${checklist.length}가지 해당` : "추가 확인 필요",
+        riskLevel,
+        currentMeasures: "",
+        improvementPlan: "",
+        assessmentDate: new Date().toISOString().slice(0, 10),
+        assessor: name ? `${name}(공개등록)` : "익명(공개등록)",
+        status: "진행중",
+        headquarters: headquarters || "",
+        burdenWorkChecklist: JSON.stringify(checklist),
+        createdBy: null,
+      });
+      res.status(201).json({ success: true, id: created.id });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "등록에 실패했습니다" });
+    }
+  });
+
   app.post('/api/musculoskeletal-assessments', requireEditor, async (req: any, res) => {
     try {
       const created = await storage.createMusculoskeletalAssessment({ ...req.body, createdBy: req.user?.username || null });

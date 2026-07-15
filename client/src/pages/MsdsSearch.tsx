@@ -47,6 +47,7 @@ import {
   FileText,
   Upload,
   Download,
+  Eye,
   Loader2,
   X,
   CheckSquare,
@@ -116,6 +117,9 @@ export default function MsdsSearch() {
   const [isUploading, setIsUploading] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isBulkDownloading, setIsBulkDownloading] = useState(false);
+  const [previewChemical, setPreviewChemical] = useState<Chemical | null>(null);
+  const [previewBlobUrl, setPreviewBlobUrl] = useState<string | null>(null);
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [bulkDownloadProgress, setBulkDownloadProgress] = useState<{ done: number; total: number } | null>(null);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -302,6 +306,32 @@ export default function MsdsSearch() {
     setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
   };
 
+  const handlePreviewPdf = async (chemical: Chemical, e?: React.MouseEvent) => {
+    e?.preventDefault();
+    e?.stopPropagation();
+    setPreviewChemical(chemical);
+    setIsPreviewLoading(true);
+    setPreviewBlobUrl(null);
+    try {
+      const res = await fetch(chemical.pdfUrl!, { credentials: "include" });
+      if (!res.ok) throw new Error("로드 실패");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      setPreviewBlobUrl(url);
+    } catch {
+      toast({ variant: "destructive", title: "미리보기 실패", description: "PDF를 불러올 수 없습니다." });
+      setPreviewChemical(null);
+    } finally {
+      setIsPreviewLoading(false);
+    }
+  };
+
+  const closePreview = () => {
+    if (previewBlobUrl) URL.revokeObjectURL(previewBlobUrl);
+    setPreviewBlobUrl(null);
+    setPreviewChemical(null);
+  };
+
   const handleDownloadPdf = async (pdfUrl: string, pdfFileName: string, e?: React.MouseEvent) => {
     e?.preventDefault();
     e?.stopPropagation();
@@ -475,11 +505,11 @@ export default function MsdsSearch() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={(e) => handleDownloadPdf(chemical.pdfUrl!, chemical.pdfFileName || 'MSDS.pdf', e)}
-                              disabled={isDownloading}
-                              data-testid={`button-download-pdf-${chemical.id}`}
+                              onClick={(e) => handlePreviewPdf(chemical, e)}
+                              title="PDF 미리보기"
+                              data-testid={`button-preview-pdf-${chemical.id}`}
                             >
-                              <Download className="w-4 h-4 text-red-500" />
+                              <Eye className="w-4 h-4 text-red-500" />
                             </Button>
                           )}
                           {canEdit && isOwner(chemical.createdBy) && (
@@ -536,12 +566,11 @@ export default function MsdsSearch() {
                               <Button
                                 variant="outline"
                                 className="w-full gap-2"
-                                onClick={() => handleDownloadPdf(chemical.pdfUrl!, chemical.pdfFileName || 'MSDS.pdf')}
-                                disabled={isDownloading}
-                                data-testid={`button-download-pdf-detail-${chemical.id}`}
+                                onClick={() => handlePreviewPdf(chemical)}
+                                data-testid={`button-preview-pdf-detail-${chemical.id}`}
                               >
-                                <FileText className="w-4 h-4 text-red-500" />
-                                {isDownloading ? '다운로드 중...' : `${chemical.pdfFileName || 'MSDS.pdf'} 다운로드`}
+                                <Eye className="w-4 h-4 text-red-500" />
+                                {`${chemical.pdfFileName || 'MSDS.pdf'} 미리보기`}
                               </Button>
                             )}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -752,6 +781,57 @@ export default function MsdsSearch() {
               {deleteMutation.isPending ? "삭제 중..." : "삭제"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* PDF 미리보기 다이얼로그 */}
+      <Dialog open={!!previewChemical} onOpenChange={open => { if (!open) closePreview(); }}>
+        <DialogContent className="max-w-4xl w-[95vw] h-[90vh] flex flex-col p-0 gap-0">
+          <DialogHeader className="px-5 pt-4 pb-3 border-b flex-shrink-0">
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <FileText className="w-4 h-4 text-red-500" />
+              {previewChemical?.pdfFileName || 'MSDS.pdf'}
+              <span className="text-muted-foreground font-normal text-sm ml-1">— {previewChemical?.name}</span>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-hidden flex flex-col">
+            {isPreviewLoading ? (
+              <div className="flex-1 flex items-center justify-center gap-2 text-muted-foreground">
+                <Loader2 className="w-5 h-5 animate-spin" />
+                <span>PDF 불러오는 중...</span>
+              </div>
+            ) : previewBlobUrl ? (
+              <iframe
+                src={previewBlobUrl}
+                className="flex-1 w-full border-0"
+                title="PDF 미리보기"
+              />
+            ) : null}
+          </div>
+          <div className="px-5 py-3 border-t flex justify-between items-center flex-shrink-0 gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              disabled={!previewBlobUrl}
+              onClick={() => {
+                if (!previewBlobUrl || !previewChemical) return;
+                const a = document.createElement("a");
+                a.href = previewBlobUrl;
+                a.download = previewChemical.pdfFileName || "MSDS.pdf";
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+              }}
+              data-testid="button-preview-download"
+            >
+              <Download className="w-4 h-4" />
+              다운로드
+            </Button>
+            <Button variant="outline" size="sm" onClick={closePreview} data-testid="button-preview-close">
+              닫기
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 

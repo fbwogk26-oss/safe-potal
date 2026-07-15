@@ -14,7 +14,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import {
   Bone, Plus, Trash2, Pencil, Search, CheckSquare, X,
   ChevronDown, ChevronUp, History, Save, AlertTriangle,
-  FileDown, FileUp, Paperclip, Clock, LayoutGrid, List, Wrench, ImageIcon, CheckCircle2
+  FileDown, FileUp, Paperclip, Clock, LayoutGrid, List, Wrench, ImageIcon, CheckCircle2, QrCode
 } from "lucide-react";
 import img1 from "@assets/그림1_1783672853543.png";
 import img2 from "@assets/그림2_1783672853544.png";
@@ -321,6 +321,7 @@ export default function MusculoskeletalDisease() {
 
   // ── 메인 상태 ────────────────────────────────────────────────────────
   const [showForm, setShowForm]       = useState(false);
+  const [showQrDialog, setShowQrDialog] = useState(false);
   const [editingId, setEditingId]     = useState<number | null>(null);
   const [form, setForm]               = useState<FormState>(defaultForm());
   const [searchQuery, setSearchQuery] = useState("");
@@ -769,6 +770,15 @@ export default function MusculoskeletalDisease() {
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
+          {/* QR 등록링크 */}
+          <Button
+            variant="outline" size="sm" className="gap-1.5"
+            onClick={() => setShowQrDialog(true)}
+            data-testid="button-qr-link"
+          >
+            <QrCode className="w-4 h-4" />
+            QR 등록링크
+          </Button>
           {/* 엑셀 다운로드 */}
           <Button
             variant="outline" size="sm" className="gap-1.5"
@@ -1877,6 +1887,48 @@ export default function MusculoskeletalDisease() {
           })()}
         </DialogContent>
       </Dialog>
+
+      {/* ─── QR 등록링크 다이얼로그 ─────────────────────────────────────── */}
+      {(() => {
+        const publicUrl = typeof window !== "undefined" ? `${window.location.origin}/musculoskeletal/submit` : "";
+        return (
+          <Dialog open={showQrDialog} onOpenChange={setShowQrDialog}>
+            <DialogContent className="w-[95vw] max-w-sm">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <QrCode className="w-5 h-5 text-purple-600" />
+                  근골격계 자가진단 QR
+                </DialogTitle>
+                <DialogDescription>
+                  직원이 QR을 스캔하거나 링크로 접속해 유해요인을 직접 등록합니다.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex flex-col items-center gap-4 py-2">
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(publicUrl)}`}
+                  alt="QR Code"
+                  className="w-48 h-48 rounded-lg border"
+                />
+                <div className="text-xs text-muted-foreground break-all bg-muted/40 rounded-lg p-2.5 w-full text-center">
+                  {publicUrl}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full gap-2"
+                  onClick={() => {
+                    navigator.clipboard.writeText(publicUrl);
+                    toast({ title: "링크가 복사되었습니다" });
+                  }}
+                  data-testid="button-copy-qr-link"
+                >
+                  링크 복사
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
 
       {/* ─── 변경이력 다이얼로그 ────────────────────────────────────── */}
       <Dialog open={historyId !== null} onOpenChange={o => { if (!o) setHistoryId(null); }}>
