@@ -6,26 +6,29 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Bone, CheckCircle2, ChevronRight, Loader2, User, Briefcase, Activity } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import burdenWorksImg from "@assets/image_1784095906882.png";
+import bw01 from "@assets/burden_works/item_01.png";
+import bw02 from "@assets/burden_works/item_02.png";
+import bw03 from "@assets/burden_works/item_03.png";
+import bw04 from "@assets/burden_works/item_04.png";
+import bw05 from "@assets/burden_works/item_05.png";
+import bw06 from "@assets/burden_works/item_06.png";
+import bw07 from "@assets/burden_works/item_07.png";
+import bw08 from "@assets/burden_works/item_08.png";
+import bw09 from "@assets/burden_works/item_09.png";
+import bw10 from "@assets/burden_works/item_10.png";
+import bw11 from "@assets/burden_works/item_11.png";
 
-/**
- * 부담작업 삽화 스프라이트 컴포넌트
- * 원본 이미지: 837 × 1102 px, 11개 항목 균등 배치 (항목당 100.18px)
- * 표시 크기: 100 × 72px, backgroundSize: auto 792px (= 11 × 72)
- */
+const BURDEN_ILLUS = [bw01, bw02, bw03, bw04, bw05, bw06, bw07, bw08, bw09, bw10, bw11];
+
 const BurdenWorkIllus = ({ no }: { no: number }) => (
-  <div
-    className="flex-shrink-0 rounded-xl overflow-hidden border border-purple-100 dark:border-purple-900/40 bg-white"
-    style={{
-      width: 100,
-      height: 72,
-      backgroundImage: `url(${burdenWorksImg})`,
-      backgroundRepeat: "no-repeat",
-      backgroundSize: `auto ${11 * 72}px`,
-      backgroundPosition: `0 -${(no - 1) * 72}px`,
-    }}
-    aria-hidden="true"
-  />
+  <div className="flex-shrink-0 rounded-xl overflow-hidden border border-purple-100 dark:border-purple-900/40 bg-white flex items-center justify-center" style={{ width: 72, height: 72 }}>
+    <img
+      src={BURDEN_ILLUS[no - 1]}
+      alt={`부담작업 ${no}호`}
+      className="w-full h-full object-cover"
+      aria-hidden="true"
+    />
+  </div>
 );
 
 const BURDEN_WORKS = [
