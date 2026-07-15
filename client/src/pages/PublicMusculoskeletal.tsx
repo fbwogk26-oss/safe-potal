@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Bone, CheckCircle2, ChevronRight, Loader2, User, Briefcase, Building2 } from "lucide-react";
+import { Bone, CheckCircle2, ChevronRight, Loader2, User, Briefcase, Activity } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 const BURDEN_WORKS = [
@@ -21,7 +21,16 @@ const BURDEN_WORKS = [
   { no: 11, short: "손·무릎 충격 (10회↑/시간)", desc: "하루 2시간 이상, 시간당 10회 이상 손·무릎을 반복 충격하는 작업" },
 ];
 
-type Step = "info" | "work" | "done";
+const BODY_PARTS = ["목", "어깨", "팔/팔꿈치", "손/손목/손가락", "허리", "다리/발"];
+const SEVERITY_OPTIONS = ["약함", "보통", "심함"] as const;
+const DURATION_OPTIONS = ["1개월 미만", "1~6개월", "6개월 이상"] as const;
+
+type Severity = typeof SEVERITY_OPTIONS[number];
+type Duration = typeof DURATION_OPTIONS[number];
+type SymptomDetail = { severity: Severity; duration: Duration };
+type Symptoms = Record<string, SymptomDetail>;
+
+type Step = "info" | "work" | "symptoms" | "done";
 
 /** 공개 자가진단 폼에 추가로 표시할 조직 단위 */
 const EXTRA_DEPTS = ["대구본부", "동대구운용부", "서대구운용부", "운용지원부"];
@@ -36,6 +45,7 @@ export default function PublicMusculoskeletal() {
     department: "",
     burdenWorkChecklist: [] as number[],
   });
+  const [symptoms, setSymptoms] = useState<Symptoms>({});
 
   const allDepts = DEPARTMENTS.length > 0
     ? [...new Set([...DEPARTMENTS, ...EXTRA_DEPTS])]
@@ -50,6 +60,41 @@ export default function PublicMusculoskeletal() {
     }));
   };
 
+  const toggleBodyPart = (part: string) => {
+    setSymptoms(prev => {
+      const next = { ...prev };
+      if (next[part]) {
+        delete next[part];
+      } else {
+        next[part] = { severity: "보통", duration: "1개월 미만" };
+      }
+      return next;
+    });
+  };
+
+  const updateSymptom = (part: string, field: keyof SymptomDetail, value: string) => {
+    setSymptoms(prev => ({
+      ...prev,
+      [part]: { ...prev[part], [field]: value },
+    }));
+  };
+
+  const buildSymptomText = (): string => {
+    const entries = Object.entries(symptoms);
+    if (entries.length === 0) return "";
+    return entries
+      .map(([part, detail]) => `${part}(강도:${detail.severity}, 기간:${detail.duration})`)
+      .join(", ");
+  };
+
+  const handleNextFromWork = () => {
+    if (form.burdenWorkChecklist.length > 0) {
+      setStep("symptoms");
+    } else {
+      handleSubmit();
+    }
+  };
+
   const handleSubmit = async () => {
     if (!form.department) {
       toast({ variant: "destructive", title: "부서를 선택하세요" });
@@ -57,10 +102,15 @@ export default function PublicMusculoskeletal() {
     }
     setSubmitting(true);
     try {
+      const symptomText = buildSymptomText();
       const res = await fetch("/api/musculoskeletal-assessments/public", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, headquarters }),
+        body: JSON.stringify({
+          ...form,
+          headquarters,
+          symptomSurvey: symptomText,
+        }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -72,6 +122,12 @@ export default function PublicMusculoskeletal() {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const resetAll = () => {
+    setStep("info");
+    setForm({ name: "", department: "", burdenWorkChecklist: [] });
+    setSymptoms({});
   };
 
   return (
@@ -90,7 +146,25 @@ export default function PublicMusculoskeletal() {
           </div>
         </div>
 
+        {/* 단계 표시 */}
+        <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+          {(["info", "work", "symptoms"] as Step[]).map((s, i) => (
+            <div key={s} className="flex items-center gap-2">
+              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
+                step === s ? "bg-purple-600 text-white" :
+                (step === "done" || (i < ["info","work","symptoms"].indexOf(step))) ? "bg-purple-200 text-purple-700" :
+                "bg-muted text-muted-foreground"
+              }`}>{i + 1}</div>
+              <span className={step === s ? "text-purple-700 font-medium" : ""}>
+                {s === "info" ? "기본정보" : s === "work" ? "부담작업" : "증상조사"}
+              </span>
+              {i < 2 && <ChevronRight className="w-3 h-3" />}
+            </div>
+          ))}
+        </div>
+
         <AnimatePresence mode="wait">
+          {/* ── STEP 1: 기본 정보 ── */}
           {step === "info" && (
             <motion.div key="info"
               initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -30 }}
@@ -143,6 +217,7 @@ export default function PublicMusculoskeletal() {
             </motion.div>
           )}
 
+          {/* ── STEP 2: 부담작업 선택 ── */}
           {step === "work" && (
             <motion.div key="work"
               initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -30 }}
@@ -152,7 +227,10 @@ export default function PublicMusculoskeletal() {
                 <h2 className="font-semibold text-base flex items-center gap-2 text-purple-700 dark:text-purple-400">
                   <Briefcase className="w-4 h-4" /> 해당하는 부담작업 선택
                 </h2>
-                <p className="text-xs text-muted-foreground">여러 항목을 중복 선택할 수 있습니다. 없으면 선택 없이 제출하세요.</p>
+                <p className="text-xs text-muted-foreground">
+                  여러 항목을 중복 선택할 수 있습니다.<br />
+                  1개 이상 선택하면 증상조사로 이동합니다. 없으면 선택 없이 제출하세요.
+                </p>
 
                 <div className="space-y-2 mt-1">
                   {BURDEN_WORKS.map(bw => (
@@ -192,12 +270,127 @@ export default function PublicMusculoskeletal() {
               {form.burdenWorkChecklist.length > 0 && (
                 <div className="bg-purple-50 dark:bg-purple-900/20 rounded-xl border border-purple-200 dark:border-purple-800 px-4 py-2.5 text-sm text-purple-700 dark:text-purple-300">
                   선택된 부담작업: <span className="font-bold">{form.burdenWorkChecklist.length}가지</span>
-                  {form.burdenWorkChecklist.length >= 3 ? " → 위험수준 높음" : form.burdenWorkChecklist.length >= 1 ? " → 위험수준 중간" : ""}
+                  {" → "}증상조사로 이동합니다
                 </div>
               )}
 
               <div className="flex gap-2">
                 <Button variant="outline" className="flex-1" onClick={() => setStep("info")}>
+                  이전
+                </Button>
+                <Button
+                  className="flex-1 bg-purple-600 hover:bg-purple-700 text-white gap-2"
+                  onClick={handleNextFromWork}
+                  disabled={submitting}
+                  data-testid="button-next-or-submit"
+                >
+                  {submitting ? (
+                    <><Loader2 className="w-4 h-4 animate-spin" /> 등록 중...</>
+                  ) : form.burdenWorkChecklist.length > 0 ? (
+                    <>다음 — 증상조사 <ChevronRight className="w-4 h-4" /></>
+                  ) : (
+                    <><CheckCircle2 className="w-4 h-4" /> 제출하기</>
+                  )}
+                </Button>
+              </div>
+            </motion.div>
+          )}
+
+          {/* ── STEP 3: 증상조사 ── */}
+          {step === "symptoms" && (
+            <motion.div key="symptoms"
+              initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -30 }}
+              className="space-y-4"
+            >
+              <div className="bg-card rounded-2xl border shadow-sm p-5 space-y-4">
+                <h2 className="font-semibold text-base flex items-center gap-2 text-purple-700 dark:text-purple-400">
+                  <Activity className="w-4 h-4" /> 증상조사
+                </h2>
+                <p className="text-xs text-muted-foreground">
+                  현재 통증·불편감이 있는 신체 부위를 선택하고 증상을 입력하세요.
+                  증상이 없으면 선택 없이 제출하세요.
+                </p>
+
+                <div className="space-y-3">
+                  {BODY_PARTS.map(part => {
+                    const selected = !!symptoms[part];
+                    return (
+                      <div key={part} className={`rounded-xl border transition-all overflow-hidden ${
+                        selected ? "border-purple-400 bg-purple-50 dark:bg-purple-900/20" : "border-border"
+                      }`}>
+                        {/* 부위 선택 버튼 */}
+                        <button
+                          className="w-full flex items-center gap-3 px-4 py-3 text-left"
+                          onClick={() => toggleBodyPart(part)}
+                          data-testid={`button-bodypart-${part}`}
+                        >
+                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                            selected ? "border-purple-500 bg-purple-500" : "border-border"
+                          }`}>
+                            {selected && <CheckCircle2 className="w-3.5 h-3.5 text-white" />}
+                          </div>
+                          <span className={`text-sm font-medium ${selected ? "text-purple-700 dark:text-purple-300" : ""}`}>
+                            {part}
+                          </span>
+                        </button>
+
+                        {/* 세부 증상 입력 (선택된 경우만) */}
+                        {selected && (
+                          <div className="px-4 pb-4 space-y-3 border-t border-purple-200 dark:border-purple-700 pt-3">
+                            <div className="space-y-1.5">
+                              <p className="text-xs font-medium text-muted-foreground">증상 강도</p>
+                              <div className="flex gap-2">
+                                {SEVERITY_OPTIONS.map(opt => (
+                                  <button
+                                    key={opt}
+                                    onClick={() => updateSymptom(part, "severity", opt)}
+                                    className={`flex-1 py-1.5 text-xs rounded-lg border transition-colors font-medium ${
+                                      symptoms[part]?.severity === opt
+                                        ? "border-purple-500 bg-purple-500 text-white"
+                                        : "border-border hover:border-purple-300"
+                                    }`}
+                                    data-testid={`button-severity-${part}-${opt}`}
+                                  >
+                                    {opt}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                            <div className="space-y-1.5">
+                              <p className="text-xs font-medium text-muted-foreground">지속 기간</p>
+                              <div className="flex gap-2">
+                                {DURATION_OPTIONS.map(opt => (
+                                  <button
+                                    key={opt}
+                                    onClick={() => updateSymptom(part, "duration", opt)}
+                                    className={`flex-1 py-1.5 text-xs rounded-lg border transition-colors font-medium ${
+                                      symptoms[part]?.duration === opt
+                                        ? "border-purple-500 bg-purple-500 text-white"
+                                        : "border-border hover:border-purple-300"
+                                    }`}
+                                    data-testid={`button-duration-${part}-${opt}`}
+                                  >
+                                    {opt}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {Object.keys(symptoms).length > 0 && (
+                <div className="bg-purple-50 dark:bg-purple-900/20 rounded-xl border border-purple-200 dark:border-purple-800 px-4 py-2.5 text-sm text-purple-700 dark:text-purple-300">
+                  증상 부위: <span className="font-bold">{Object.keys(symptoms).join(", ")}</span>
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1" onClick={() => setStep("work")}>
                   이전
                 </Button>
                 <Button
@@ -213,6 +406,7 @@ export default function PublicMusculoskeletal() {
             </motion.div>
           )}
 
+          {/* ── STEP 4: 완료 ── */}
           {step === "done" && (
             <motion.div key="done"
               initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
@@ -236,11 +430,14 @@ export default function PublicMusculoskeletal() {
                   <span className="text-muted-foreground">부담작업:</span>{" "}
                   {form.burdenWorkChecklist.length === 0 ? "해당 없음" : `${form.burdenWorkChecklist.join("호, ")}호`}
                 </div>
+                {Object.keys(symptoms).length > 0 && (
+                  <div className="text-sm">
+                    <span className="text-muted-foreground">증상 부위:</span>{" "}
+                    {Object.keys(symptoms).join(", ")}
+                  </div>
+                )}
               </div>
-              <Button
-                variant="outline"
-                onClick={() => { setStep("info"); setForm({ name: "", department: "", burdenWorkChecklist: [] }); }}
-              >
+              <Button variant="outline" onClick={resetAll}>
                 새로 작성하기
               </Button>
             </motion.div>
