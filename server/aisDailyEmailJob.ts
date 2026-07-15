@@ -1,7 +1,7 @@
 /**
  * AIS 안전이행률 일일 보고 메일 자동 발송
- * 매일 09:30 KST에 실행되며, 대상월(전일이 속한 달) 1일부터 전일까지
- * 월 누적 데이터를 집계하여 지정된 수신자(GMAIL_RECIPIENTS)에게 자동 발송
+ * 매일 08:40 KST에 실행되며, 대상월(전일이 속한 달) 1일부터 전일까지
+ * 월 누적 데이터를 집계하여 지정된 수신자(GMAIL_RECIPIENTS + 고정 수신자)에게 자동 발송
  */
 import cron from "node-cron";
 import { storage } from "./storage";
@@ -10,14 +10,25 @@ import type { AisSafetyRecord, AisTbmBadNote } from "@shared/schema";
 const AIS_DAILY_EMAIL_SETTING_KEY = "ais_daily_email_sent_date";
 const AIS_DAILY_EMAIL_RECIPIENTS_KEY = "ais_daily_email_recipients";
 
+/** 일일 보고 메일을 항상 받을 고정 수신자 */
+const FIXED_DAILY_RECIPIENT = "jaeha.ryu@ktmos.co.kr";
+
 export async function getAisDailyEmailRecipients(): Promise<string> {
+  let base = "";
   try {
     const setting = await storage.getSetting(AIS_DAILY_EMAIL_RECIPIENTS_KEY);
-    if (setting?.value && setting.value.trim()) return setting.value.trim();
+    if (setting?.value && setting.value.trim()) {
+      base = setting.value.trim();
+    }
   } catch (e) {
     console.warn("[AisDailyEmail] 수신자 설정 조회 오류:", e);
   }
-  return (process.env.GMAIL_RECIPIENTS || "").trim();
+  if (!base) base = (process.env.GMAIL_RECIPIENTS || "").trim();
+
+  // 고정 수신자를 항상 포함 (중복 방지)
+  const list = base ? base.split(",").map(s => s.trim()).filter(Boolean) : [];
+  if (!list.includes(FIXED_DAILY_RECIPIENT)) list.push(FIXED_DAILY_RECIPIENT);
+  return list.join(", ");
 }
 
 export async function setAisDailyEmailRecipients(value: string): Promise<string> {
@@ -55,11 +66,12 @@ const status: AisDailyEmailStatus = {
 function computeNextRun(): string {
   const now = new Date();
   const kstNow = new Date(now.getTime() + 9 * 3600 * 1000);
-  const target = new Date(Date.UTC(
-    kstNow.getUTCFullYear(), kstNow.getUTCMonth(), kstNow.getUTCDate(),
-    0, 30, 0, 0 // 00:30 UTC = 09:30 KST
-  ));
-  if (now >= target) target.setUTCDate(target.getUTCDate() + 1);
+  const kstDateStr = kstNow.toISOString().slice(0, 10);
+  // 08:40 KST = 23:40 UTC 전날
+  let target = new Date(`${kstDateStr}T08:40:00+09:00`);
+  if (now >= target) {
+    target = new Date(target.getTime() + 24 * 3600 * 1000);
+  }
   return target.toISOString();
 }
 
@@ -451,13 +463,13 @@ ${html}
   }
 }
 
-// 매일 09:30 KST 자동 실행
+// 매일 08:40 KST 자동 실행
 cron.schedule(
-  "30 9 * * *",
+  "40 8 * * *",
   () => {
     runAisDailyEmailJob().catch(console.error);
   },
   { timezone: "Asia/Seoul" }
 );
 
-console.log("[AisDailyEmail] AIS 일일 보고 메일 자동 발송 스케줄러 시작 (매일 09:30 KST)");
+console.log("[AisDailyEmail] AIS 일일 보고 메일 자동 발송 스케줄러 시작 (매일 08:40 KST)");

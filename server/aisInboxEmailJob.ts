@@ -1,11 +1,13 @@
 /**
  * AIS TBM 부적합 소명 메일 자동 접수
- * Gmail INBOX(GMAIL_SENDER/GMAIL_APP_PASSWORD)를 주기적으로 확인하여,
+ * Gmail INBOX(GMAIL_SENDER/GMAIL_APP_PASSWORD)를 매일 08:30 KST에 확인하여,
  * 제목 또는 본문에 작업지시번호가 포함된 메일을 받으면
  * 첨부 사진과 본문 내용을 해당 AIS 기록의 TBM 부적합 사유/사진으로 자동 등록한다.
  *
  * 소명완료 처리는 자동으로 하지 않는다 — 담당자가 화면에서 사진/사유를 확인한 뒤
  * 직접 소명완료 처리해야 한다.
+ *
+ * 새 부적합 소명 건이 접수되면 ALERT_RECIPIENT으로 알림 이메일을 발송한다.
  */
 import cron from "node-cron";
 import path from "path";
@@ -17,6 +19,9 @@ const LAST_UID_SETTING_KEY = "ais_inbox_last_uid";
 const ALLOWED_IMG_EXTS = ["jpeg", "jpg", "png", "gif", "webp"];
 const uploadDir = path.join(process.cwd(), "uploads");
 const MAX_AUTO_PHOTOS = 3;
+
+/** 부적합 소명 접수 알림을 항상 받을 고정 수신자 */
+const ALERT_RECIPIENT = "jaeha.ryu@ktmos.co.kr";
 
 export interface AisInboxJobStatus {
   lastRun: string | null;
@@ -73,6 +78,38 @@ async function uploadAttachmentBuffer(buffer: Buffer, filename: string, contentT
   if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
   fs.writeFileSync(path.join(uploadDir, filename), buffer);
   return `/uploads/${filename}`;
+}
+
+async function sendAlertEmail(matchedCount: number, matchedRecordIds: number[]): Promise<void> {
+  if (!GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) return;
+  try {
+    const nodemailer = (await import("nodemailer")).default;
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: { user: GMAIL_USER, pass: process.env.GMAIL_APP_PASSWORD },
+    });
+    const now = new Date().toLocaleString("ko-KR", { timeZone: "Asia/Seoul" });
+    const subject = `[SafeBoard 알림] AIS TBM 부적합 소명 ${matchedCount}건 자동 접수`;
+    const html = `
+<div style="font-family:맑은고딕,Arial,sans-serif;font-size:11pt;line-height:1.7;color:#111;max-width:560px">
+  <p style="margin:0 0 12px;font-size:13pt;font-weight:700;color:#1e3a8a">📬 AIS TBM 부적합 소명 자동 접수 알림</p>
+  <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:14px 18px;margin-bottom:14px">
+    <p style="margin:0 0 6px"><strong style="color:#dc2626">부적합 소명 ${matchedCount}건</strong>이 Gmail에서 자동 접수되었습니다.</p>
+    <p style="margin:0;font-size:10pt;color:#64748b">접수 시각: ${now}</p>
+  </div>
+  <p style="margin:0 0 6px;font-size:10pt;color:#374151">SafeBoard → <strong>AIS 안전이행률</strong> → 부적합 목록에서 소명 처리하세요.</p>
+  <p style="margin:12px 0 0;font-size:9pt;color:#94a3b8">이 메일은 SafeBoard 시스템이 자동 발송한 알림입니다.</p>
+</div>`;
+    await transporter.sendMail({
+      from: `"SafeBoard 알림" <${GMAIL_USER}>`,
+      to: ALERT_RECIPIENT,
+      subject,
+      html,
+    });
+    console.log(`[AisInboxEmail] 알림 메일 발송 완료 → ${ALERT_RECIPIENT}`);
+  } catch (alertErr: any) {
+    console.warn("[AisInboxEmail] 알림 메일 발송 실패:", alertErr?.message);
+  }
 }
 
 export async function runAisInboxEmailJob(): Promise<void> {
@@ -243,6 +280,11 @@ export async function runAisInboxEmailJob(): Promise<void> {
     status.lastScannedCount = scannedCount;
     status.lastMatchedCount = matchedCount;
     console.log(`[AisInboxEmail] ${status.lastMessage}`);
+
+    // 새 소명 건 접수 시 알림 이메일 발송
+    if (matchedCount > 0) {
+      await sendAlertEmail(matchedCount, status.lastMatchedRecordIds);
+    }
   } catch (e: any) {
     status.lastResult = "error";
     status.lastMessage = `오류: ${e.message}`;
@@ -252,13 +294,13 @@ export async function runAisInboxEmailJob(): Promise<void> {
   }
 }
 
-// 10분마다 자동 실행
+// 매일 08:30 KST 자동 실행
 cron.schedule(
-  "*/10 * * * *",
+  "30 8 * * *",
   () => {
     runAisInboxEmailJob().catch(console.error);
   },
   { timezone: "Asia/Seoul" }
 );
 
-console.log("[AisInboxEmail] AIS TBM 소명 메일 자동 접수 스케줄러 시작 (10분 간격)");
+console.log("[AisInboxEmail] AIS TBM 소명 메일 자동 접수 스케줄러 시작 (매일 08:30 KST)");
