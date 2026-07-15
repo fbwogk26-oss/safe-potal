@@ -10438,9 +10438,9 @@ ${htmlDraft}
       const composites: any[] = [];
       for (let i = 0; i < 3; i++) {
         if (!sigBufs[i]) continue;
-        // 셀의 65%로 축소 후 셀 중앙 배치 (여백 확보)
-        const maxW = Math.round(cells[i].w * 0.65);
-        const maxH = Math.round(cells[i].h * 0.65);
+        // 셀의 50%로 축소 후 셀 중앙 배치 (충분한 여백으로 경계 이탈 방지)
+        const maxW = Math.round(cells[i].w * 0.50);
+        const maxH = Math.round(cells[i].h * 0.50);
         const resized = await sharp(sigBufs[i]!)
           .resize({ width: maxW, height: maxH, fit: 'inside' })
           .png().toBuffer();
@@ -10470,9 +10470,9 @@ ${htmlDraft}
       }));
       for (let i = 0; i < 3; i++) {
         if (!sigBufs[i]) continue;
-        // 셀의 75%로 제한하여 여백 확보
-        const maxW = cells[i].w * 0.75;
-        const maxH = cells[i].h * 0.75;
+        // 셀의 55%로 제한하여 충분한 여백 확보 (경계 이탈 방지)
+        const maxW = cells[i].w * 0.55;
+        const maxH = cells[i].h * 0.55;
         const drawImg = async (image: any) => {
           const { width: iw, height: ih } = image.size();
           const scale = Math.min(maxW / iw, maxH / ih);
