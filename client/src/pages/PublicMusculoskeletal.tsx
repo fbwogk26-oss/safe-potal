@@ -21,11 +21,11 @@ import bw11 from "@assets/burden_works/item_11.png";
 const BURDEN_ILLUS = [bw01, bw02, bw03, bw04, bw05, bw06, bw07, bw08, bw09, bw10, bw11];
 
 const BurdenWorkIllus = ({ no }: { no: number }) => (
-  <div className="flex-shrink-0 rounded-xl overflow-hidden border border-purple-100 dark:border-purple-900/40 bg-white flex items-center justify-center" style={{ width: 72, height: 72 }}>
+  <div className="flex-shrink-0 rounded-xl overflow-hidden border border-purple-100 dark:border-purple-900/40 bg-white flex items-center justify-center p-1" style={{ width: 80, height: 68 }}>
     <img
       src={BURDEN_ILLUS[no - 1]}
       alt={`부담작업 ${no}호`}
-      className="w-full h-full object-cover"
+      className="w-full h-full object-contain"
       aria-hidden="true"
     />
   </div>
