@@ -4603,14 +4603,14 @@ ${buildEmailFooter()}
   app.post('/api/musculoskeletal-assessments/public', async (req: any, res) => {
     try {
       const { name, department, task, burdenWorkChecklist, headquarters } = req.body;
-      if (!department || !task) {
-        return res.status(400).json({ message: "부서와 작업명은 필수입니다" });
+      if (!department) {
+        return res.status(400).json({ message: "부서는 필수입니다" });
       }
       const checklist = Array.isArray(burdenWorkChecklist) ? burdenWorkChecklist : [];
       const riskLevel = checklist.length >= 3 ? "높음" : checklist.length >= 1 ? "중간" : "낮음";
       const created = await storage.createMusculoskeletalAssessment({
         department,
-        task,
+        task: task || "자가진단",
         hazardFactor: checklist.length > 0 ? `부담작업 ${checklist.length}가지 해당` : "추가 확인 필요",
         riskLevel,
         currentMeasures: "",

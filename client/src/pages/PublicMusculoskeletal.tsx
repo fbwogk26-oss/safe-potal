@@ -23,6 +23,9 @@ const BURDEN_WORKS = [
 
 type Step = "info" | "work" | "done";
 
+/** 공개 자가진단 폼에 추가로 표시할 조직 단위 */
+const EXTRA_DEPTS = ["대구본부", "동대구운용부", "서대구운용부", "운용지원부"];
+
 export default function PublicMusculoskeletal() {
   const { departments: DEPARTMENTS, headquarters } = useHeadquarters();
   const { toast } = useToast();
@@ -31,9 +34,12 @@ export default function PublicMusculoskeletal() {
   const [form, setForm] = useState({
     name: "",
     department: "",
-    task: "",
     burdenWorkChecklist: [] as number[],
   });
+
+  const allDepts = DEPARTMENTS.length > 0
+    ? [...new Set([...DEPARTMENTS, ...EXTRA_DEPTS])]
+    : EXTRA_DEPTS;
 
   const toggleWork = (no: number) => {
     setForm(f => ({
@@ -45,8 +51,8 @@ export default function PublicMusculoskeletal() {
   };
 
   const handleSubmit = async () => {
-    if (!form.department || !form.task) {
-      toast({ variant: "destructive", title: "부서와 작업명을 입력하세요" });
+    if (!form.department) {
+      toast({ variant: "destructive", title: "부서를 선택하세요" });
       return;
     }
     setSubmitting(true);
@@ -107,46 +113,28 @@ export default function PublicMusculoskeletal() {
 
                 <div className="space-y-1.5">
                   <Label>부서 <span className="text-xs text-red-500">*</span></Label>
-                  {DEPARTMENTS.length > 0 ? (
-                    <div className="grid grid-cols-2 gap-2">
-                      {DEPARTMENTS.map(dept => (
-                        <button
-                          key={dept}
-                          onClick={() => setForm(f => ({ ...f, department: dept }))}
-                          className={`text-sm text-left px-3 py-2 rounded-lg border transition-colors ${
-                            form.department === dept
-                              ? "border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 font-medium"
-                              : "border-border hover:border-purple-300 hover:bg-purple-50/50"
-                          }`}
-                          data-testid={`button-dept-${dept}`}
-                        >
-                          {dept}
-                        </button>
-                      ))}
-                    </div>
-                  ) : (
-                    <Input
-                      placeholder="소속 부서명"
-                      value={form.department}
-                      onChange={e => setForm(f => ({ ...f, department: e.target.value }))}
-                    />
-                  )}
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label>작업명 <span className="text-xs text-red-500">*</span></Label>
-                  <Input
-                    placeholder="예: 케이블 배선, 장비 점검 등"
-                    value={form.task}
-                    onChange={e => setForm(f => ({ ...f, task: e.target.value }))}
-                    data-testid="input-public-task"
-                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    {allDepts.map(dept => (
+                      <button
+                        key={dept}
+                        onClick={() => setForm(f => ({ ...f, department: dept }))}
+                        className={`text-sm text-left px-3 py-2 rounded-lg border transition-colors ${
+                          form.department === dept
+                            ? "border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 font-medium"
+                            : "border-border hover:border-purple-300 hover:bg-purple-50/50"
+                        }`}
+                        data-testid={`button-dept-${dept}`}
+                      >
+                        {dept}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
               <Button
                 className="w-full bg-purple-600 hover:bg-purple-700 text-white gap-2"
-                disabled={!form.department || !form.task}
+                disabled={!form.department}
                 onClick={() => setStep("work")}
                 data-testid="button-next-step"
               >
@@ -244,7 +232,6 @@ export default function PublicMusculoskeletal() {
                 <div className="text-xs text-muted-foreground">제출 내용</div>
                 <div className="text-sm"><span className="text-muted-foreground">이름:</span> {form.name || "익명"}</div>
                 <div className="text-sm"><span className="text-muted-foreground">부서:</span> {form.department}</div>
-                <div className="text-sm"><span className="text-muted-foreground">작업:</span> {form.task}</div>
                 <div className="text-sm">
                   <span className="text-muted-foreground">부담작업:</span>{" "}
                   {form.burdenWorkChecklist.length === 0 ? "해당 없음" : `${form.burdenWorkChecklist.join("호, ")}호`}
@@ -252,7 +239,7 @@ export default function PublicMusculoskeletal() {
               </div>
               <Button
                 variant="outline"
-                onClick={() => { setStep("info"); setForm({ name: "", department: "", task: "", burdenWorkChecklist: [] }); }}
+                onClick={() => { setStep("info"); setForm({ name: "", department: "", burdenWorkChecklist: [] }); }}
               >
                 새로 작성하기
               </Button>
