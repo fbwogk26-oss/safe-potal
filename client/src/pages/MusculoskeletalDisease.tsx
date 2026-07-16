@@ -1095,13 +1095,13 @@ export default function MusculoskeletalDisease() {
         </div>
       ) : (
         /* ─── 기본 테이블뷰 ──────────────────────────────────────── */
-        <Card>
+        <Card className="overflow-hidden">
           <CardContent className="p-0 overflow-x-auto">
-            <Table data-testid="table-assessments">
-              <TableHeader>
-                <TableRow>
+            <table className="w-full text-sm" data-testid="table-assessments">
+              <thead>
+                <tr className="bg-muted/60 border-b border-border">
                   {selectionMode && (
-                    <TableHead className="w-10">
+                    <th className="w-10 px-3 py-3 text-left">
                       <Checkbox
                         checked={filteredAssessments.length > 0 && filteredAssessments.every(a => selectedIds.has(a.id))}
                         onCheckedChange={() => {
@@ -1110,87 +1110,111 @@ export default function MusculoskeletalDisease() {
                         }}
                         data-testid="checkbox-select-all"
                       />
-                    </TableHead>
+                    </th>
                   )}
-                  <TableHead className="w-10">No</TableHead>
-                  <TableHead className="min-w-[90px]">부서</TableHead>
-                  <TableHead className="min-w-[120px]">작업내용</TableHead>
-                  <TableHead className="min-w-[110px]">유해요인</TableHead>
-                  <TableHead className="min-w-[80px]">부담작업</TableHead>
-                  <TableHead className="w-20">위험수준</TableHead>
-                  <TableHead className="min-w-[110px]">현재 조치사항</TableHead>
-                  <TableHead className="min-w-[110px]">개선계획</TableHead>
-                  <TableHead className="w-20">평가자</TableHead>
-                  <TableHead className="w-24">평가일</TableHead>
-                  <TableHead className="w-16">상태</TableHead>
-                  <TableHead className="w-28">관리</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+                  <th className="w-10 px-3 py-3 text-left text-xs font-semibold text-muted-foreground">No</th>
+                  <th className="px-3 py-3 text-left text-xs font-semibold text-muted-foreground min-w-[80px]">부서</th>
+                  <th className="px-3 py-3 text-left text-xs font-semibold text-muted-foreground min-w-[200px]">작업내용 / 유해요인</th>
+                  <th className="px-3 py-3 text-left text-xs font-semibold text-muted-foreground min-w-[80px]">부담작업</th>
+                  <th className="px-3 py-3 text-left text-xs font-semibold text-muted-foreground w-20">위험수준</th>
+                  <th className="px-3 py-3 text-left text-xs font-semibold text-muted-foreground min-w-[110px]">평가자 / 평가일</th>
+                  <th className="px-3 py-3 text-left text-xs font-semibold text-muted-foreground w-28">상태</th>
+                  <th className="px-3 py-3 text-left text-xs font-semibold text-muted-foreground w-28">관리</th>
+                </tr>
+              </thead>
+              <tbody>
                 <AnimatePresence>
                   {filteredAssessments.map((item, idx) => {
                     const checklist = parseChecklist((item as any).burdenWorkChecklist);
                     const attachments: any[] = (() => { try { return JSON.parse((item as any).attachments || "[]"); } catch { return []; } })();
+                    const isPendingSymptom = ["증상조사 대기", "증상조사 진행중"].includes(item.status);
                     return (
                       <motion.tr
                         key={item.id}
-                        initial={{ opacity: 0, y: 10 }}
+                        initial={{ opacity: 0, y: 8 }}
                         animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
-                        className={`border-b border-border ${selectionMode ? "cursor-pointer" : ""} ${selectionMode && selectedIds.has(item.id) ? "bg-red-50 dark:bg-red-900/20" : ""}`}
+                        exit={{ opacity: 0, y: -8 }}
+                        className={`border-b border-border/60 transition-colors hover:bg-muted/30 ${selectionMode ? "cursor-pointer" : ""} ${selectionMode && selectedIds.has(item.id) ? "bg-red-50 dark:bg-red-900/20" : ""} ${isPendingSymptom ? "bg-orange-50/40 dark:bg-orange-900/10" : ""}`}
                         onClick={() => selectionMode && toggleSelect(item.id)}
                         data-testid={`row-assessment-${item.id}`}
                       >
                         {selectionMode && (
-                          <TableCell onClick={e => e.stopPropagation()}>
+                          <td className="px-3 py-3" onClick={e => e.stopPropagation()}>
                             <Checkbox checked={selectedIds.has(item.id)} onCheckedChange={() => toggleSelect(item.id)} data-testid={`checkbox-assessment-${item.id}`} />
-                          </TableCell>
+                          </td>
                         )}
-                        <TableCell className="text-sm text-muted-foreground">{idx + 1}</TableCell>
-                        <TableCell className="text-sm">{item.department}</TableCell>
-                        <TableCell className="text-sm font-medium">{item.task}</TableCell>
-                        <TableCell className="text-sm">{item.hazardFactor}</TableCell>
-                        <TableCell>
+                        {/* No */}
+                        <td className="px-3 py-3 text-xs text-muted-foreground font-mono">{idx + 1}</td>
+                        {/* 부서 */}
+                        <td className="px-3 py-3">
+                          <span className="text-xs font-semibold text-foreground/80 bg-muted px-2 py-0.5 rounded-md whitespace-nowrap">{item.department}</span>
+                        </td>
+                        {/* 작업내용 / 유해요인 */}
+                        <td className="px-3 py-3">
+                          <p className="text-sm font-semibold text-foreground leading-snug line-clamp-1">{item.task || "-"}</p>
+                          {item.hazardFactor && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{item.hazardFactor}</p>}
+                          {(item.currentMeasures || item.improvementPlan) && (
+                            <div className="mt-1 flex flex-wrap gap-1">
+                              {item.currentMeasures && (
+                                <span className="text-[10px] bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-800 max-w-[120px] truncate" title={item.currentMeasures}>
+                                  조치: {item.currentMeasures}
+                                </span>
+                              )}
+                              {item.improvementPlan && (
+                                <span className="text-[10px] bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800 max-w-[120px] truncate" title={item.improvementPlan}>
+                                  계획: {item.improvementPlan}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                        {/* 부담작업 */}
+                        <td className="px-3 py-3">
                           {checklist.length > 0 ? (
-                            <span className="text-xs font-medium text-purple-700 dark:text-purple-300" title={checklist.map(n => `${n}호`).join(", ")}>
-                              {checklist.map(n => `${n}호`).join(", ")}
-                            </span>
+                            <div className="flex flex-wrap gap-1">
+                              {checklist.map(n => (
+                                <span key={n} className="text-[10px] font-bold bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 px-1.5 py-0.5 rounded-md border border-purple-200 dark:border-purple-700">
+                                  {n}호
+                                </span>
+                              ))}
+                            </div>
                           ) : <span className="text-xs text-muted-foreground">-</span>}
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={`${getRiskBadgeClass(item.riskLevel)} no-default-hover-elevate no-default-active-elevate text-xs`} data-testid={`badge-risk-${item.id}`}>
+                        </td>
+                        {/* 위험수준 */}
+                        <td className="px-3 py-3">
+                          <Badge className={`${getRiskBadgeClass(item.riskLevel)} no-default-hover-elevate no-default-active-elevate text-xs font-bold px-2.5 py-1 rounded-full`} data-testid={`badge-risk-${item.id}`}>
                             {item.riskLevel}
                           </Badge>
-                        </TableCell>
-                        <TableCell className="text-sm max-w-[120px] truncate" title={item.currentMeasures || ""}>{item.currentMeasures || "-"}</TableCell>
-                        <TableCell className="text-sm max-w-[120px] truncate" title={item.improvementPlan || ""}>{item.improvementPlan || "-"}</TableCell>
-                        <TableCell className="text-sm">{item.assessor || "-"}</TableCell>
-                        <TableCell className="text-sm">{item.assessmentDate || "-"}</TableCell>
-                        <TableCell>
-                          <Badge className={`${getStatusBadgeClass(item.status)} no-default-hover-elevate no-default-active-elevate text-xs`} data-testid={`badge-status-${item.id}`}>
+                        </td>
+                        {/* 평가자 / 평가일 */}
+                        <td className="px-3 py-3">
+                          {item.assessor && <p className="text-xs font-medium text-foreground">{item.assessor}</p>}
+                          {item.assessmentDate && <p className="text-[11px] text-muted-foreground mt-0.5">{item.assessmentDate}</p>}
+                          {!item.assessor && !item.assessmentDate && <span className="text-xs text-muted-foreground">-</span>}
+                        </td>
+                        {/* 상태 */}
+                        <td className="px-3 py-3">
+                          <Badge className={`${getStatusBadgeClass(item.status)} no-default-hover-elevate no-default-active-elevate text-xs px-2 py-1 rounded-full whitespace-nowrap`} data-testid={`badge-status-${item.id}`}>
                             {item.status}
                           </Badge>
-                        </TableCell>
-                        <TableCell>
+                        </td>
+                        {/* 관리 */}
+                        <td className="px-3 py-3">
                           <div className="flex gap-0.5 items-center" onClick={e => e.stopPropagation()}>
-                            {/* 첨부파일 */}
                             {attachments.length > 0 && (
                               <span className="text-xs text-blue-500 flex items-center gap-0.5 mr-1" title={attachments.map((a:any)=>a.name).join(", ")}>
                                 <Paperclip className="w-3 h-3" />{attachments.length}
                               </span>
                             )}
-                            {/* 변경이력 */}
                             <Button variant="ghost" size="icon" className="h-7 w-7"
                               onClick={() => setHistoryId(item.id)} title="변경이력"
                               data-testid={`button-history-${item.id}`}>
                               <Clock className="w-3.5 h-3.5 text-muted-foreground" />
                             </Button>
-                            {/* 첨부파일 추가 (owner) */}
-                            {/* 2단계 증상조사 버튼 — 증상조사 대기/진행중 상태일 때 강조 */}
-                            {["증상조사 대기", "증상조사 진행중"].includes(item.status) && (
+                            {isPendingSymptom && (
                               <Button
                                 variant="ghost" size="sm"
-                                className="h-7 text-xs px-2 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20"
+                                className="h-7 text-[11px] px-2 font-semibold text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 whitespace-nowrap"
                                 onClick={() => setSurveyAssessmentId(item.id)}
                                 data-testid={`button-survey-${item.id}`}
                               >
@@ -1216,13 +1240,13 @@ export default function MusculoskeletalDisease() {
                               </>
                             )}
                           </div>
-                        </TableCell>
+                        </td>
                       </motion.tr>
                     );
                   })}
                 </AnimatePresence>
-              </TableBody>
-            </Table>
+              </tbody>
+            </table>
           </CardContent>
         </Card>
       )}

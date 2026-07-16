@@ -1112,7 +1112,7 @@ export default function AisSafetyRate() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="rounded-lg border bg-muted/30 p-3 text-sm space-y-1">
-              <p><span className="font-semibold">자동 발송:</span> 매일 09:30(KST)에 전일자 데이터를 자동 집계하여 지정된 수신자에게 발송합니다.</p>
+              <p><span className="font-semibold">자동 발송:</span> 매일 08:40(KST)에 전일자 데이터를 자동 집계하여 지정된 수신자에게 발송합니다.</p>
               <p className="text-xs text-muted-foreground">메일 발송 시 종합/누적 데이터/부적합 내용/사진내역이 담긴 엑셀 파일이 자동으로 첨부됩니다.</p>
               {emailStatus && (
                 <>
