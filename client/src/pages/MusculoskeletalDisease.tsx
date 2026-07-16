@@ -17,7 +17,7 @@ import {
   Bone, Plus, Trash2, Pencil, Search, CheckSquare, X,
   ChevronDown, ChevronUp, History, Save, AlertTriangle,
   FileDown, FileUp, Paperclip, Clock, LayoutGrid, List, Wrench, ImageIcon, CheckCircle2, QrCode, Settings,
-  User, Briefcase, Activity
+  User, Briefcase, Activity, HeartPulse
 } from "lucide-react";
 import img1 from "@assets/image_1784166150891.png";
 import img2 from "@assets/image_1784166156751.png";
@@ -206,6 +206,13 @@ const BURDEN_ICONS_UNUSED: React.ReactNode[] = [
     <text x="14" y="50" fontSize="6" fill="#ef4444" textAnchor="middle" fontWeight="bold">10회↑/h</text>
   </svg>,
 ];
+
+// ── 증상조사표 I. 일반 문항 선택지 ──────────────────────────────────────────
+const LEISURE_OPTS = ["게임 등 컴퓨터 관련 활동","피아노·악기 연주","뜨개질·붓글씨 등","테니스·축구·골프 등 스포츠","해당사항 없음"];
+const HOUSEWORK_OPTS = ["거의 하지 않는다","1시간 미만","1~2시간 미만","2~3시간 미만","3시간 이상"];
+const MEDICAL_CONDITIONS_HEALTH = ["류머티스 관절염","당뇨병","루프스병","통풍","알코올중독"];
+const INJURY_PARTS_HEALTH = ["손/손가락/손목","팔/팔꿈치","어깨","목","허리","다리/발"];
+const BURDEN_LEVELS_HEALTH = ["전혀 힘들지 않음","견딜만 함","약간 힘듦","힘듦","매우 힘듦"];
 
 // ── 산업안전보건법 고시 근골격계부담작업 11호 ─────────────────────────────────
 const BURDEN_WORKS = [
@@ -414,6 +421,14 @@ export default function MusculoskeletalDisease() {
   const defaultSurveyForm = () => ({
     hasPain: "" as string,
     bodyPartData: {} as Record<string, any>,
+    q1Leisure: [] as string[],
+    q2Housework: "",
+    q3Medical: "",
+    q3Conditions: [] as string[],
+    q3Status: "",
+    q4Injury: "",
+    q4Parts: [] as string[],
+    q5Burden: "",
   });
   const [surveyForm, setSurveyForm] = useState<Record<string, any>>(defaultSurveyForm());
   const resetSurveyForm = () => {
@@ -499,11 +514,20 @@ export default function MusculoskeletalDisease() {
 
   const handleSurveyEdit = (s: any) => {
     setSurveyEditingId(s.id);
+    const gh = (s.generalHealth && typeof s.generalHealth === "object") ? s.generalHealth : {};
     if (s.bodyPartData && typeof s.bodyPartData === "object" && Object.keys(s.bodyPartData).length > 0) {
       // 신형 포맷
       setSurveyForm({
         hasPain: s.hasPain || "예",
         bodyPartData: s.bodyPartData,
+        q1Leisure: gh.q1Leisure || [],
+        q2Housework: gh.q2Housework || "",
+        q3Medical: gh.q3Medical || "",
+        q3Conditions: gh.q3Conditions || [],
+        q3Status: gh.q3Status || "",
+        q4Injury: gh.q4Injury || "",
+        q4Parts: gh.q4Parts || [],
+        q5Burden: gh.q5Burden || "",
       });
     } else {
       // 구형 포맷 → 신형으로 변환
@@ -522,6 +546,14 @@ export default function MusculoskeletalDisease() {
       setSurveyForm({
         hasPain: Object.keys(bodyPartData).length > 0 ? "예" : (s.hasPain || ""),
         bodyPartData,
+        q1Leisure: gh.q1Leisure || [],
+        q2Housework: gh.q2Housework || "",
+        q3Medical: gh.q3Medical || "",
+        q3Conditions: gh.q3Conditions || [],
+        q3Status: gh.q3Status || "",
+        q4Injury: gh.q4Injury || "",
+        q4Parts: gh.q4Parts || [],
+        q5Burden: gh.q5Burden || "",
       });
     }
   };
@@ -600,7 +632,8 @@ export default function MusculoskeletalDisease() {
   const handleSurveySubmit = () => {
     const bpd = surveyForm.bodyPartData || {};
     const payload = {
-      ...surveyForm,
+      hasPain: surveyForm.hasPain,
+      bodyPartData: surveyForm.bodyPartData,
       // 기존 pain 불리언 컬럼 동기화 (목록 표시용)
       neckPain:     !!bpd.neck,
       shoulderPain: !!bpd.shoulder,
@@ -608,6 +641,17 @@ export default function MusculoskeletalDisease() {
       wristPain:    !!bpd.wrist,
       backPain:     !!bpd.back,
       legPain:      !!bpd.leg,
+      // I. 일반 문항 저장
+      generalHealth: {
+        q1Leisure:    surveyForm.q1Leisure || [],
+        q2Housework:  surveyForm.q2Housework || "",
+        q3Medical:    surveyForm.q3Medical || "",
+        q3Conditions: surveyForm.q3Conditions || [],
+        q3Status:     surveyForm.q3Status || "",
+        q4Injury:     surveyForm.q4Injury || "",
+        q4Parts:      surveyForm.q4Parts || [],
+        q5Burden:     surveyForm.q5Burden || "",
+      },
     };
     if (surveyEditingId) {
       updateSurveyMutation.mutate({ id: surveyEditingId, data: payload });
@@ -1870,19 +1914,51 @@ export default function MusculoskeletalDisease() {
 
       {/* ─── 2단계 증상조사표 다이얼로그 ────────────────────────────── */}
       <Dialog open={surveyAssessmentId !== null} onOpenChange={o => { if (!o) { setSurveyAssessmentId(null); resetSurveyForm(); } }}>
-        <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-orange-500" />
-              2단계 근로자별 증상조사표
-            </DialogTitle>
-            <DialogDescription>
-              {(() => {
-                const item = (assessments || []).find(a => a.id === surveyAssessmentId);
-                return item ? `${item.department} — ${item.task}` : "";
-              })()}
-            </DialogDescription>
-          </DialogHeader>
+        <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto p-0">
+          {/* ── 모바일 QR폼과 동일한 상단 헤더 ─────────────────────── */}
+          <div className="bg-gradient-to-b from-purple-50 to-white dark:from-purple-950/20 dark:to-background px-6 pt-8 pb-5 border-b border-purple-100 dark:border-purple-900/30">
+            <div className="flex flex-col items-center gap-3 text-center">
+              <div className="w-16 h-16 rounded-2xl bg-purple-100 dark:bg-purple-900/40 flex items-center justify-center">
+                <Bone className="w-8 h-8 text-purple-600 dark:text-purple-400" />
+              </div>
+              <div>
+                <DialogTitle className="text-xl font-bold whitespace-pre-line leading-snug text-center">
+                  근골격계질환 증상조사
+                </DialogTitle>
+                <p className="text-sm text-muted-foreground mt-1.5">
+                  {(() => {
+                    const item = (assessments || []).find(a => a.id === surveyAssessmentId);
+                    return item ? `${item.department}${item.task ? ` — ${item.task}` : ""}` : "신체 부위별 통증 및 불편 증상을 기입해 주세요";
+                  })()}
+                </p>
+              </div>
+            </div>
+            {/* 스텝바 - 증상조사 단계(index 2) 활성화 */}
+            <div className="mt-5 flex items-center justify-center gap-0.5 sm:gap-2">
+              {([
+                { label: "기본정보", Icon: User },
+                { label: "부담작업", Icon: Briefcase },
+                { label: "증상조사", Icon: Activity },
+                { label: "등록완료", Icon: CheckCircle2 },
+              ] as { label: string; Icon: React.ComponentType<{ className?: string }> }[]).map((s, i) => {
+                const isActive = i === 2;
+                const isDone = i < 2;
+                const Icon = s.Icon;
+                return (
+                  <div key={s.label} className="flex items-center gap-0.5 sm:gap-2">
+                    <div className="flex flex-col items-center gap-1">
+                      <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-colors ${isActive ? "bg-purple-600 text-white" : isDone ? "bg-purple-200 dark:bg-purple-800 text-purple-700 dark:text-purple-300" : "bg-muted text-muted-foreground"}`}>
+                        {isDone ? <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
+                      </div>
+                      <span className={`text-[9px] sm:text-[10px] font-medium ${isActive ? "text-purple-700 dark:text-purple-400" : "text-muted-foreground"}`}>{s.label}</span>
+                    </div>
+                    {i < 3 && <div className={`h-px w-4 sm:w-10 mb-3 transition-colors ${isDone ? "bg-purple-400" : "bg-border"}`} />}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          <div className="px-6 pb-6 pt-5 space-y-4">
 
           {/* ── 이미 입력된 조사표 목록 ── */}
           {surveysLoading ? (
@@ -1937,6 +2013,127 @@ export default function MusculoskeletalDisease() {
             <Label className="text-sm font-semibold">
               {surveyEditingId ? "조사표 수정" : "새 조사표 입력"}
             </Label>
+
+            {/* I. 일반 문항 */}
+            <div className="bg-card rounded-2xl border shadow-sm p-4 space-y-4">
+              <h2 className="font-semibold text-base flex items-center gap-2 text-purple-700 dark:text-purple-400">
+                <HeartPulse className="w-4 h-4" /> I. 일반 문항
+              </h2>
+
+              {/* Q1 */}
+              <div className="space-y-2">
+                <p className="text-sm font-semibold">1. 규칙적인 여가·취미 활동 <span className="text-xs font-normal text-muted-foreground">(30분 이상, 주 2~3회↑ 기준, 중복 가능)</span></p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {LEISURE_OPTS.map(opt => (
+                    <button key={opt} type="button"
+                      onClick={() => setSurveyForm(f => {
+                        const cur: string[] = f.q1Leisure || [];
+                        return { ...f, q1Leisure: cur.includes(opt) ? cur.filter((x: string) => x !== opt) : [...cur, opt] };
+                      })}
+                      className={`py-2 px-3 rounded-lg border text-xs font-medium text-left transition-all ${(surveyForm.q1Leisure || []).includes(opt) ? "border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300" : "border-border hover:border-purple-300"}`}
+                    >{opt}</button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="border-t" />
+
+              {/* Q2 */}
+              <div className="space-y-2">
+                <p className="text-sm font-semibold">2. 하루 평균 가사노동 시간 <span className="text-xs font-normal text-muted-foreground">(밥·빨래·청소·영아 돌봄 등)</span></p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {HOUSEWORK_OPTS.map(opt => (
+                    <button key={opt} type="button"
+                      onClick={() => setSurveyForm(f => ({ ...f, q2Housework: opt }))}
+                      className={`py-2 px-3 rounded-lg border text-xs font-medium text-left transition-all ${surveyForm.q2Housework === opt ? "border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300" : "border-border hover:border-purple-300"}`}
+                    >{opt}</button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="border-t" />
+
+              {/* Q3 */}
+              <div className="space-y-2">
+                <p className="text-sm font-semibold">3. 의사 진단을 받은 질병이 있습니까?</p>
+                <div className="flex gap-2">
+                  {["아니오","예"].map(v => (
+                    <button key={v} type="button"
+                      onClick={() => setSurveyForm(f => ({ ...f, q3Medical: v, q3Conditions: [], q3Status: "" }))}
+                      className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-all ${surveyForm.q3Medical === v ? "border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300" : "border-border hover:border-purple-300"}`}
+                    >{v}</button>
+                  ))}
+                </div>
+                {surveyForm.q3Medical === "예" && (
+                  <div className="pl-3 border-l-2 border-purple-300 space-y-2 mt-1">
+                    <div className="grid grid-cols-2 gap-2">
+                      {MEDICAL_CONDITIONS_HEALTH.map(opt => (
+                        <button key={opt} type="button"
+                          onClick={() => setSurveyForm(f => {
+                            const cur: string[] = f.q3Conditions || [];
+                            return { ...f, q3Conditions: cur.includes(opt) ? cur.filter((x: string) => x !== opt) : [...cur, opt] };
+                          })}
+                          className={`py-1.5 px-2 rounded-lg border text-xs font-medium text-left transition-all ${(surveyForm.q3Conditions || []).includes(opt) ? "border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300" : "border-border hover:border-purple-300"}`}
+                        >{opt}</button>
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      {["완치","치료나 관찰 중"].map(s => (
+                        <button key={s} type="button"
+                          onClick={() => setSurveyForm(f => ({ ...f, q3Status: s }))}
+                          className={`flex-1 py-1.5 rounded-lg border text-xs font-medium transition-all ${surveyForm.q3Status === s ? "border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300" : "border-border hover:border-purple-300"}`}
+                        >{s}</button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="border-t" />
+
+              {/* Q4 */}
+              <div className="space-y-2">
+                <p className="text-sm font-semibold">4. 과거 운동/사고로 부위를 다친 적이 있습니까?</p>
+                <div className="flex gap-2">
+                  {["아니오","예"].map(v => (
+                    <button key={v} type="button"
+                      onClick={() => setSurveyForm(f => ({ ...f, q4Injury: v, q4Parts: [] }))}
+                      className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-all ${surveyForm.q4Injury === v ? "border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300" : "border-border hover:border-purple-300"}`}
+                    >{v}</button>
+                  ))}
+                </div>
+                {surveyForm.q4Injury === "예" && (
+                  <div className="pl-3 border-l-2 border-purple-300 mt-1">
+                    <div className="grid grid-cols-3 gap-2">
+                      {INJURY_PARTS_HEALTH.map(opt => (
+                        <button key={opt} type="button"
+                          onClick={() => setSurveyForm(f => {
+                            const cur: string[] = f.q4Parts || [];
+                            return { ...f, q4Parts: cur.includes(opt) ? cur.filter((x: string) => x !== opt) : [...cur, opt] };
+                          })}
+                          className={`py-1.5 rounded-lg border text-xs font-medium transition-all ${(surveyForm.q4Parts || []).includes(opt) ? "border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300" : "border-border hover:border-purple-300"}`}
+                        >{opt}</button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="border-t" />
+
+              {/* Q5 */}
+              <div className="space-y-2">
+                <p className="text-sm font-semibold">5. 현재 일의 육체적 부담 정도</p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {BURDEN_LEVELS_HEALTH.map(opt => (
+                    <button key={opt} type="button"
+                      onClick={() => setSurveyForm(f => ({ ...f, q5Burden: opt }))}
+                      className={`py-2 px-3 rounded-lg border text-xs font-medium text-left transition-all ${surveyForm.q5Burden === opt ? "border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300" : "border-border hover:border-purple-300"}`}
+                    >{opt}</button>
+                  ))}
+                </div>
+              </div>
+            </div>
 
             {/* II. 신체 부위별 증상조사 */}
             <div className="space-y-3">
@@ -2201,6 +2398,7 @@ export default function MusculoskeletalDisease() {
               </div>
             );
           })()}
+          </div>
         </DialogContent>
       </Dialog>
 

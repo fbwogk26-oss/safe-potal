@@ -370,6 +370,7 @@ export const musculoskeletalSymptomSurveys = pgTable("musculoskeletal_symptom_su
   status: text("status").default("대기"),
   hasPain: text("has_pain"),
   bodyPartData: jsonb("body_part_data"),
+  generalHealth: jsonb("general_health"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
