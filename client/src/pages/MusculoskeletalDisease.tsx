@@ -328,6 +328,92 @@ function parseChecklist(raw: string | null | undefined): number[] {
   try { return JSON.parse(raw); } catch { return []; }
 }
 
+function InterviewSignaturePad({ onSave, onClear, padKey }: { onSave: (data: string) => void; onClear: () => void; padKey?: number }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [hasContent, setHasContent] = useState(false);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width;
+    canvas.height = Math.max(rect.height, 100);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.fillStyle = "#f9fafb";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    setHasContent(false);
+  }, [padKey]);
+
+  const getPos = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+    const rect = canvas.getBoundingClientRect();
+    if ("touches" in e) return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  }, []);
+
+  const startDraw = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
+    setIsDrawing(true);
+    setHasContent(true);
+    const ctx = canvasRef.current?.getContext("2d");
+    if (!ctx) return;
+    const { x, y } = getPos(e);
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+  }, [getPos]);
+
+  const draw = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    if (!isDrawing) return;
+    e.preventDefault();
+    const ctx = canvasRef.current?.getContext("2d");
+    if (!ctx) return;
+    ctx.lineWidth = 2;
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "#1e293b";
+    const { x, y } = getPos(e);
+    ctx.lineTo(x, y);
+    ctx.stroke();
+  }, [isDrawing, getPos]);
+
+  const stopDraw = useCallback(() => setIsDrawing(false), []);
+
+  const handleClear = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.fillStyle = "#f9fafb";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    setHasContent(false);
+    onClear();
+  };
+
+  const handleSave = () => {
+    const c = canvasRef.current;
+    if (c && hasContent) onSave(c.toDataURL("image/png"));
+  };
+
+  return (
+    <div className="space-y-2">
+      <canvas
+        ref={canvasRef}
+        className="w-full h-24 border-2 border-dashed border-purple-300 rounded-lg touch-none cursor-crosshair bg-gray-50"
+        onMouseDown={startDraw} onMouseMove={draw} onMouseUp={stopDraw} onMouseLeave={stopDraw}
+        onTouchStart={startDraw} onTouchMove={draw} onTouchEnd={stopDraw}
+      />
+      <div className="flex gap-2">
+        <Button type="button" size="sm" variant="outline" className="flex-1 text-xs" onClick={handleClear}>지우기</Button>
+        <Button type="button" size="sm" className="flex-1 bg-purple-600 hover:bg-purple-700 text-white text-xs" onClick={handleSave} disabled={!hasContent}>
+          서명 완료
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export default function MusculoskeletalDisease() {
   const { headquarters, departments: DEPARTMENTS } = useHeadquarters();
   const { canEditMusculoskeletal } = usePermissions();
@@ -590,6 +676,8 @@ export default function MusculoskeletalDisease() {
   const [previewExpandedWorker, setPreviewExpandedWorker] = useState<string | null>(null);
   const initPreviewIntForm = () => ({ workerName: "", workerDept: "", workerPosition: "", assignedWork: "", interviewDate: new Date().toISOString().slice(0, 10), hazardDetails: "", mainSymptoms: "", discomfortIssues: "", improvementMeasures: "", requests: "", interviewerName: "" });
   const [previewIntForm, setPreviewIntForm] = useState(initPreviewIntForm);
+  const [previewIntSignature, setPreviewIntSignature] = useState<string>("");
+  const [sigPadKey, setSigPadKey] = useState(0);
   const createPreviewInterviewMutation = useMutation({
     mutationFn: (data: any) =>
       fetch(`/api/musculoskeletal-assessments/${previewAssessmentId}/interviews`, {
@@ -601,6 +689,8 @@ export default function MusculoskeletalDisease() {
       queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments", previewAssessmentId, "interviews"] });
       setShowPreviewInterviewForm(false);
       setPreviewIntForm(initPreviewIntForm());
+      setPreviewIntSignature("");
+      setSigPadKey(k => k + 1);
       toast({ title: "면담일지가 등록되었습니다." });
     },
     onError: () => toast({ variant: "destructive", title: "등록에 실패했습니다." }),
@@ -2514,7 +2604,7 @@ export default function MusculoskeletalDisease() {
 
       {/* ─── 증상조사표 미리보기 다이얼로그 (부서장/관리자) ──────── */}
       {isDeptHead && (
-        <Dialog open={previewAssessmentId !== null} onOpenChange={o => { if (!o) { setPreviewAssessmentId(null); setShowPreviewInterviewForm(false); setPreviewExpandedWorker(null); setPreviewIntForm(initPreviewIntForm()); } }}>
+        <Dialog open={previewAssessmentId !== null} onOpenChange={o => { if (!o) { setPreviewAssessmentId(null); setShowPreviewInterviewForm(false); setPreviewExpandedWorker(null); setPreviewIntForm(initPreviewIntForm()); setPreviewIntSignature(""); setSigPadKey(k => k + 1); } }}>
           <DialogContent className="max-w-2xl max-h-[88vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2 text-purple-700 dark:text-purple-400">
@@ -2560,7 +2650,22 @@ export default function MusculoskeletalDisease() {
                           </div>
                           <Button variant="ghost" size="sm"
                             className={`h-7 px-2 text-xs flex-shrink-0 ${isExpanded ? "text-purple-800 bg-purple-100 dark:bg-purple-900/40" : "text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/30"}`}
-                            onClick={() => setPreviewExpandedWorker(isExpanded ? null : (s.workerName || s.id))}>
+                            onClick={() => {
+                              const willExpand = !isExpanded;
+                              setPreviewExpandedWorker(willExpand ? (s.workerName || s.id) : null);
+                              if (willExpand) {
+                                setShowPreviewInterviewForm(true);
+                                setPreviewIntForm(f => ({
+                                  ...f,
+                                  workerName: s.workerName || "",
+                                  workerDept: s.workerDept || "",
+                                  interviewDate: new Date().toISOString().slice(0, 10),
+                                  interviewerName: user?.name || "",
+                                }));
+                                setSigPadKey(k => k + 1);
+                                setPreviewIntSignature("");
+                              }
+                            }}>
                             면담일지 {workerIvs.length > 0 ? `(${workerIvs.length})` : ""}
                           </Button>
                         </div>
@@ -2654,14 +2759,15 @@ export default function MusculoskeletalDisease() {
                 <p className="text-sm font-semibold text-purple-700 dark:text-purple-400 flex items-center gap-2">
                   <Bone className="w-4 h-4" />면담일지 작성
                 </p>
+                {/* 자동입력 필드 */}
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
-                    <Label className="text-xs">근로자 성명</Label>
-                    <Input className="h-8 text-sm" value={previewIntForm.workerName} onChange={e => setPreviewIntForm(f => ({ ...f, workerName: e.target.value }))} placeholder="성명" />
+                    <Label className="text-xs text-muted-foreground">근로자 성명 <span className="text-purple-500">(자동)</span></Label>
+                    <Input className="h-8 text-sm bg-muted/50" value={previewIntForm.workerName} onChange={e => setPreviewIntForm(f => ({ ...f, workerName: e.target.value }))} placeholder="성명" />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">부서</Label>
-                    <Input className="h-8 text-sm" value={previewIntForm.workerDept} onChange={e => setPreviewIntForm(f => ({ ...f, workerDept: e.target.value }))} placeholder="부서명" />
+                    <Label className="text-xs text-muted-foreground">부서 <span className="text-purple-500">(자동)</span></Label>
+                    <Input className="h-8 text-sm bg-muted/50" value={previewIntForm.workerDept} onChange={e => setPreviewIntForm(f => ({ ...f, workerDept: e.target.value }))} placeholder="부서명" />
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">직위/직종</Label>
@@ -2669,15 +2775,22 @@ export default function MusculoskeletalDisease() {
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">담당 작업</Label>
-                    <Input className="h-8 text-sm" value={previewIntForm.assignedWork} onChange={e => setPreviewIntForm(f => ({ ...f, assignedWork: e.target.value }))} placeholder="담당 작업" />
+                    <Select value={previewIntForm.assignedWork} onValueChange={v => setPreviewIntForm(f => ({ ...f, assignedWork: v }))}>
+                      <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="선택" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="현장운용">현장운용</SelectItem>
+                        <SelectItem value="일반사무">일반사무</SelectItem>
+                        <SelectItem value="기타">기타</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">면담일</Label>
-                    <Input type="date" className="h-8 text-sm" value={previewIntForm.interviewDate} onChange={e => setPreviewIntForm(f => ({ ...f, interviewDate: e.target.value }))} />
+                    <Label className="text-xs text-muted-foreground">면담일 <span className="text-purple-500">(자동)</span></Label>
+                    <Input type="date" className="h-8 text-sm bg-muted/50" value={previewIntForm.interviewDate} onChange={e => setPreviewIntForm(f => ({ ...f, interviewDate: e.target.value }))} />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">면담자</Label>
-                    <Input className="h-8 text-sm" value={previewIntForm.interviewerName} onChange={e => setPreviewIntForm(f => ({ ...f, interviewerName: e.target.value }))} placeholder="면담자 이름" />
+                    <Label className="text-xs text-muted-foreground">면담자 <span className="text-purple-500">(자동)</span></Label>
+                    <Input className="h-8 text-sm bg-muted/50" value={previewIntForm.interviewerName} onChange={e => setPreviewIntForm(f => ({ ...f, interviewerName: e.target.value }))} placeholder="면담자 이름" />
                   </div>
                 </div>
                 <div className="space-y-1">
@@ -2700,11 +2813,29 @@ export default function MusculoskeletalDisease() {
                   <Label className="text-xs">요청 사항</Label>
                   <Textarea className="text-sm min-h-[56px]" value={previewIntForm.requests} onChange={e => setPreviewIntForm(f => ({ ...f, requests: e.target.value }))} placeholder="근로자 요청 사항" />
                 </div>
+                {/* 면담자 서명 */}
+                <div className="space-y-2 border border-purple-200 dark:border-purple-800 rounded-xl p-3 bg-purple-50/40 dark:bg-purple-900/10">
+                  <Label className="text-xs font-semibold text-purple-700 dark:text-purple-400">면담자 서명</Label>
+                  {previewIntSignature
+                    ? (
+                      <div className="space-y-2">
+                        <img src={previewIntSignature} alt="서명" className="h-20 rounded-lg border bg-white object-contain px-2" />
+                        <Button type="button" size="sm" variant="outline" className="w-full text-xs" onClick={() => { setPreviewIntSignature(""); setSigPadKey(k => k + 1); }}>서명 다시 하기</Button>
+                      </div>
+                    ) : (
+                      <InterviewSignaturePad
+                        padKey={sigPadKey}
+                        onSave={data => setPreviewIntSignature(data)}
+                        onClear={() => setPreviewIntSignature("")}
+                      />
+                    )
+                  }
+                </div>
                 <div className="flex justify-end gap-2 pt-1">
-                  <Button variant="outline" size="sm" onClick={() => { setShowPreviewInterviewForm(false); setPreviewIntForm(initPreviewIntForm()); }}>취소</Button>
+                  <Button variant="outline" size="sm" onClick={() => { setShowPreviewInterviewForm(false); setPreviewIntForm(initPreviewIntForm()); setPreviewIntSignature(""); setSigPadKey(k => k + 1); }}>취소</Button>
                   <Button size="sm" className="bg-purple-600 hover:bg-purple-700 text-white"
                     disabled={createPreviewInterviewMutation.isPending}
-                    onClick={() => createPreviewInterviewMutation.mutate(previewIntForm)}>
+                    onClick={() => createPreviewInterviewMutation.mutate({ ...previewIntForm, interviewerSignature: previewIntSignature || null })}>
                     {createPreviewInterviewMutation.isPending ? "저장 중..." : "저장"}
                   </Button>
                 </div>
@@ -2716,7 +2847,19 @@ export default function MusculoskeletalDisease() {
                 <Button
                   variant={showPreviewInterviewForm ? "default" : "outline"}
                   className={showPreviewInterviewForm ? "bg-purple-600 hover:bg-purple-700 text-white" : "border-purple-300 text-purple-700 hover:bg-purple-50"}
-                  onClick={() => setShowPreviewInterviewForm(p => !p)}
+                  onClick={() => {
+                    const opening = !showPreviewInterviewForm;
+                    setShowPreviewInterviewForm(opening);
+                    if (opening) {
+                      setPreviewIntForm(f => ({
+                        ...f,
+                        interviewDate: new Date().toISOString().slice(0, 10),
+                        interviewerName: user?.name || "",
+                      }));
+                      setSigPadKey(k => k + 1);
+                      setPreviewIntSignature("");
+                    }
+                  }}
                 >
                   <Bone className="w-4 h-4 mr-2" />
                   {showPreviewInterviewForm ? "작성 접기" : "면담일지 작성"}

@@ -399,6 +399,7 @@ export const musculoskeletalInterviews = pgTable("musculoskeletal_interviews", {
   improvementMeasures: text("improvement_measures"),
   requests: text("requests"),
   interviewerName: text("interviewer_name"),
+  interviewerSignature: text("interviewer_signature"),
   createdBy: text("created_by"),
   createdAt: timestamp("created_at").defaultNow(),
 });
