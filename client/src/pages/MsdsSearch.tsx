@@ -316,7 +316,8 @@ export default function MsdsSearch() {
       const res = await fetch(chemical.pdfUrl!, { credentials: "include" });
       if (!res.ok) throw new Error("로드 실패");
       const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
+      const pdfBlob = new Blob([blob], { type: "application/pdf" });
+      const url = URL.createObjectURL(pdfBlob);
       setPreviewBlobUrl(url);
     } catch {
       toast({ variant: "destructive", title: "미리보기 실패", description: "PDF를 불러올 수 없습니다." });
