@@ -4620,7 +4620,7 @@ ${buildEmailFooter()}
         currentMeasures: symptomText,
         improvementPlan: "",
         assessmentDate: new Date().toISOString().slice(0, 10),
-        assessor: name ? `${name}(공개등록)` : "익명(공개등록)",
+        assessor: name || "익명",
         status: hasPainYes ? "증상조사 진행중" : "진행중",
         headquarters: headquarters || "",
         burdenWorkChecklist: JSON.stringify(checklist),
