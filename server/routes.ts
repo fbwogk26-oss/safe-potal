@@ -694,7 +694,7 @@ export async function registerRoutes(
       if (position !== undefined) updateData.position = position;
       if (isActive !== undefined) updateData.isActive = !!isActive;
       if (role !== undefined) {
-        if (!["admin", "manager", "user"].includes(role)) {
+        if (!["admin", "manager", "user", "deptHead"].includes(role)) {
           return res.status(400).json({ message: "유효하지 않은 역할입니다" });
         }
         updateData.role = role;
