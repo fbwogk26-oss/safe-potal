@@ -581,6 +581,30 @@ export default function MusculoskeletalDisease() {
     queryFn: () => fetch(`/api/musculoskeletal-assessments/${previewAssessmentId}/symptom-surveys`, { credentials: "include" }).then(r => r.json()),
     enabled: previewAssessmentId !== null,
   });
+  const { data: previewInterviews } = useQuery<any[]>({
+    queryKey: ["/api/musculoskeletal-assessments", previewAssessmentId, "interviews"],
+    queryFn: () => fetch(`/api/musculoskeletal-assessments/${previewAssessmentId}/interviews`, { credentials: "include" }).then(r => r.json()),
+    enabled: previewAssessmentId !== null,
+  });
+  const [showPreviewInterviewForm, setShowPreviewInterviewForm] = useState(false);
+  const [previewExpandedWorker, setPreviewExpandedWorker] = useState<string | null>(null);
+  const initPreviewIntForm = () => ({ workerName: "", workerDept: "", workerPosition: "", assignedWork: "", interviewDate: new Date().toISOString().slice(0, 10), hazardDetails: "", mainSymptoms: "", discomfortIssues: "", improvementMeasures: "", requests: "", interviewerName: "" });
+  const [previewIntForm, setPreviewIntForm] = useState(initPreviewIntForm);
+  const createPreviewInterviewMutation = useMutation({
+    mutationFn: (data: any) =>
+      fetch(`/api/musculoskeletal-assessments/${previewAssessmentId}/interviews`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }).then(async r => { if (!r.ok) throw new Error(await r.text()); return r.json(); }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments", previewAssessmentId, "interviews"] });
+      setShowPreviewInterviewForm(false);
+      setPreviewIntForm(initPreviewIntForm());
+      toast({ title: "면담일지가 등록되었습니다." });
+    },
+    onError: () => toast({ variant: "destructive", title: "등록에 실패했습니다." }),
+  });
 
   // ── 부서장 면담 알림 팝업 ──────────────────────────────────────────────
   const isDeptHead = user?.role === "deptHead" || user?.role === "admin";
@@ -2499,7 +2523,7 @@ export default function MusculoskeletalDisease() {
 
       {/* ─── 증상조사표 미리보기 다이얼로그 (부서장/관리자) ──────── */}
       {isDeptHead && (
-        <Dialog open={previewAssessmentId !== null} onOpenChange={o => { if (!o) setPreviewAssessmentId(null); }}>
+        <Dialog open={previewAssessmentId !== null} onOpenChange={o => { if (!o) { setPreviewAssessmentId(null); setShowPreviewInterviewForm(false); setPreviewExpandedWorker(null); setPreviewIntForm(initPreviewIntForm()); } }}>
           <DialogContent className="max-w-2xl max-h-[88vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2 text-purple-700 dark:text-purple-400">
@@ -2529,25 +2553,45 @@ export default function MusculoskeletalDisease() {
                     const painLabels = bpdKeys.length > 0
                       ? bpdKeys.map(k => BODY_PARTS.find(bp => bp.key === k)?.label ?? k)
                       : legacyParts;
+                    const workerIvs = (previewInterviews || []).filter((iv: any) => iv.workerName === s.workerName);
+                    const isExpanded = previewExpandedWorker === (s.workerName || s.id);
                     return (
-                      <div key={s.id} className={`flex items-center justify-between border rounded-lg px-3 py-2 text-sm gap-2 ${s.hasPain === "예" ? "border-orange-200 bg-orange-50/50 dark:bg-orange-900/10" : "border-border"}`}>
-                        <div className="flex items-center gap-2 flex-wrap min-w-0">
-                          {s.workerName && <span className="font-medium text-sm">{s.workerName}</span>}
-                          {s.workerDept && <span className="text-xs text-muted-foreground">({s.workerDept})</span>}
-                          {painLabels.length > 0
-                            ? <span className="text-xs text-orange-600">통증: {painLabels.join(", ")}</span>
-                            : s.hasPain === "아니오"
-                              ? <span className="text-xs text-green-600">이상 없음</span>
-                              : null}
+                      <div key={s.id} className="space-y-1">
+                        <div className={`flex items-center justify-between border rounded-lg px-3 py-2 text-sm gap-2 ${s.hasPain === "예" ? "border-orange-200 bg-orange-50/50 dark:bg-orange-900/10" : "border-border"}`}>
+                          <div className="flex items-center gap-2 flex-wrap min-w-0">
+                            {s.workerName && <span className="font-medium text-sm">{s.workerName}</span>}
+                            {s.workerDept && <span className="text-xs text-muted-foreground">({s.workerDept})</span>}
+                            {painLabels.length > 0
+                              ? <span className="text-xs text-orange-600">통증: {painLabels.join(", ")}</span>
+                              : s.hasPain === "아니오"
+                                ? <span className="text-xs text-green-600">이상 없음</span>
+                                : null}
+                          </div>
+                          <Button variant="ghost" size="sm"
+                            className={`h-7 px-2 text-xs flex-shrink-0 ${isExpanded ? "text-purple-800 bg-purple-100 dark:bg-purple-900/40" : "text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/30"}`}
+                            onClick={() => setPreviewExpandedWorker(isExpanded ? null : (s.workerName || s.id))}>
+                            면담일지 {workerIvs.length > 0 ? `(${workerIvs.length})` : ""}
+                          </Button>
                         </div>
-                        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/30 flex-shrink-0"
-                          onClick={() => {
-                            setInterviewAssessmentId(previewAssessmentId!);
-                            setInterviewForm((f: any) => ({ ...f, workerName: s.workerName || "", workerDept: s.workerDept || "" }));
-                            setPreviewAssessmentId(null);
-                          }}>
-                          면담일지
-                        </Button>
+                        {isExpanded && (
+                          <div className="ml-3 pl-3 border-l-2 border-purple-200 dark:border-purple-800 space-y-1.5 pb-1">
+                            {workerIvs.length === 0
+                              ? <p className="text-xs text-muted-foreground py-1">작성된 면담일지가 없습니다.</p>
+                              : workerIvs.map((iv: any) => (
+                                <div key={iv.id} className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-2.5 text-xs space-y-1">
+                                  <div className="flex justify-between items-center">
+                                    <span className="font-semibold text-purple-800 dark:text-purple-300">{iv.interviewDate}</span>
+                                    {iv.interviewerName && <span className="text-muted-foreground">면담자: {iv.interviewerName}</span>}
+                                  </div>
+                                  {iv.mainSymptoms && <p><span className="font-medium">주요 증상:</span> {iv.mainSymptoms}</p>}
+                                  {iv.discomfortIssues && <p><span className="font-medium">불편 사항:</span> {iv.discomfortIssues}</p>}
+                                  {iv.improvementMeasures && <p><span className="font-medium">개선 조치:</span> {iv.improvementMeasures}</p>}
+                                  {iv.requests && <p><span className="font-medium">요청 사항:</span> {iv.requests}</p>}
+                                </div>
+                              ))
+                            }
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -2563,15 +2607,10 @@ export default function MusculoskeletalDisease() {
                   return (
                     <div key={s.id} className={`rounded-xl border p-4 space-y-3 ${s.hasPain === "예" ? "border-orange-300 bg-orange-50/50 dark:bg-orange-900/10" : "border-border bg-muted/20"}`}>
                       {/* 헤더 */}
-                      <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-start gap-2">
                         <div>
                           <p className="text-sm font-semibold">{i + 1}{s.workerName ? `. ${s.workerName}` : "."}</p>
                           <p className="text-xs text-muted-foreground">{s.workerDept || ""}</p>
-                        </div>
-                        <div className="flex flex-col items-end gap-1">
-                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${s.hasPain === "예" ? "bg-orange-500 text-white" : "bg-green-600 text-white"}`}>
-                            {s.hasPain === "예" ? "통증 있음 (면담요청)" : "이상 없음"}
-                          </span>
                         </div>
                       </div>
 
@@ -2618,18 +2657,81 @@ export default function MusculoskeletalDisease() {
               </div>
             )}
 
+            {/* ── 인라인 면담일지 작성 폼 ───────────────────────── */}
+            {showPreviewInterviewForm && (
+              <div className="border-t border-border pt-4 space-y-3">
+                <p className="text-sm font-semibold text-purple-700 dark:text-purple-400 flex items-center gap-2">
+                  <Bone className="w-4 h-4" />면담일지 작성
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs">근로자 성명</Label>
+                    <Input className="h-8 text-sm" value={previewIntForm.workerName} onChange={e => setPreviewIntForm(f => ({ ...f, workerName: e.target.value }))} placeholder="성명" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">부서</Label>
+                    <Input className="h-8 text-sm" value={previewIntForm.workerDept} onChange={e => setPreviewIntForm(f => ({ ...f, workerDept: e.target.value }))} placeholder="부서명" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">직위/직종</Label>
+                    <Input className="h-8 text-sm" value={previewIntForm.workerPosition} onChange={e => setPreviewIntForm(f => ({ ...f, workerPosition: e.target.value }))} placeholder="직위" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">담당 작업</Label>
+                    <Input className="h-8 text-sm" value={previewIntForm.assignedWork} onChange={e => setPreviewIntForm(f => ({ ...f, assignedWork: e.target.value }))} placeholder="담당 작업" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">면담일</Label>
+                    <Input type="date" className="h-8 text-sm" value={previewIntForm.interviewDate} onChange={e => setPreviewIntForm(f => ({ ...f, interviewDate: e.target.value }))} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">면담자</Label>
+                    <Input className="h-8 text-sm" value={previewIntForm.interviewerName} onChange={e => setPreviewIntForm(f => ({ ...f, interviewerName: e.target.value }))} placeholder="면담자 이름" />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">유해요인</Label>
+                  <Textarea className="text-sm min-h-[56px]" value={previewIntForm.hazardDetails} onChange={e => setPreviewIntForm(f => ({ ...f, hazardDetails: e.target.value }))} placeholder="작업 관련 유해요인" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">주요 증상</Label>
+                  <Textarea className="text-sm min-h-[56px]" value={previewIntForm.mainSymptoms} onChange={e => setPreviewIntForm(f => ({ ...f, mainSymptoms: e.target.value }))} placeholder="통증 부위 및 증상" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">불편 사항</Label>
+                  <Textarea className="text-sm min-h-[56px]" value={previewIntForm.discomfortIssues} onChange={e => setPreviewIntForm(f => ({ ...f, discomfortIssues: e.target.value }))} placeholder="작업 중 불편한 사항" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">개선 조치</Label>
+                  <Textarea className="text-sm min-h-[56px]" value={previewIntForm.improvementMeasures} onChange={e => setPreviewIntForm(f => ({ ...f, improvementMeasures: e.target.value }))} placeholder="개선 조치 내용" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">요청 사항</Label>
+                  <Textarea className="text-sm min-h-[56px]" value={previewIntForm.requests} onChange={e => setPreviewIntForm(f => ({ ...f, requests: e.target.value }))} placeholder="근로자 요청 사항" />
+                </div>
+                <div className="flex justify-end gap-2 pt-1">
+                  <Button variant="outline" size="sm" onClick={() => { setShowPreviewInterviewForm(false); setPreviewIntForm(initPreviewIntForm()); }}>취소</Button>
+                  <Button size="sm" className="bg-purple-600 hover:bg-purple-700 text-white"
+                    disabled={createPreviewInterviewMutation.isPending}
+                    onClick={() => createPreviewInterviewMutation.mutate(previewIntForm)}>
+                    {createPreviewInterviewMutation.isPending ? "저장 중..." : "저장"}
+                  </Button>
+                </div>
+              </div>
+            )}
+
             <DialogFooter>
               {isDeptHead && previewAssessmentId !== null && (
                 <Button
-                  variant="outline"
-                  className="border-purple-300 text-purple-700 hover:bg-purple-50"
-                  onClick={() => { setInterviewAssessmentId(previewAssessmentId); setPreviewAssessmentId(null); }}
+                  variant={showPreviewInterviewForm ? "default" : "outline"}
+                  className={showPreviewInterviewForm ? "bg-purple-600 hover:bg-purple-700 text-white" : "border-purple-300 text-purple-700 hover:bg-purple-50"}
+                  onClick={() => setShowPreviewInterviewForm(p => !p)}
                 >
                   <Bone className="w-4 h-4 mr-2" />
-                  면담일지 작성
+                  {showPreviewInterviewForm ? "작성 접기" : "면담일지 작성"}
                 </Button>
               )}
-              <Button variant="outline" onClick={() => setPreviewAssessmentId(null)}>닫기</Button>
+              <Button variant="outline" onClick={() => { setPreviewAssessmentId(null); setShowPreviewInterviewForm(false); setPreviewExpandedWorker(null); }}>닫기</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
