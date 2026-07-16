@@ -292,18 +292,26 @@ export default function MsdsSearch() {
     }
   };
 
+  const getSignedUrl = async (objectPath: string): Promise<string> => {
+    if (objectPath.startsWith("/uploads/") || objectPath.startsWith("/public-uploads/")) {
+      return objectPath;
+    }
+    const res = await fetch(`/api/download?path=${encodeURIComponent(objectPath)}&ttl=3600`, { credentials: "include" });
+    if (!res.ok) throw new Error("서명 URL 생성 실패");
+    const { url } = await res.json();
+    return url;
+  };
+
   const downloadFile = async (pdfUrl: string, pdfFileName: string): Promise<void> => {
-    const res = await fetch(pdfUrl, { credentials: "include" });
-    if (!res.ok) throw new Error("다운로드 실패");
-    const blob = await res.blob();
-    const blobUrl = URL.createObjectURL(blob);
+    const url = await getSignedUrl(pdfUrl);
     const a = document.createElement("a");
-    a.href = blobUrl;
+    a.href = url;
     a.download = pdfFileName;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
   };
 
   const handlePreviewPdf = async (chemical: Chemical, e?: React.MouseEvent) => {
@@ -313,12 +321,8 @@ export default function MsdsSearch() {
     setIsPreviewLoading(true);
     setPreviewBlobUrl(null);
     try {
-      const res = await fetch(chemical.pdfUrl!, { credentials: "include" });
-      if (!res.ok) throw new Error("로드 실패");
-      const blob = await res.blob();
-      const pdfBlob = new Blob([blob], { type: "application/pdf" });
-      const url = URL.createObjectURL(pdfBlob);
-      setPreviewBlobUrl(url);
+      const signedUrl = await getSignedUrl(chemical.pdfUrl!);
+      setPreviewBlobUrl(signedUrl);
     } catch {
       toast({ variant: "destructive", title: "미리보기 실패", description: "PDF를 불러올 수 없습니다." });
       setPreviewChemical(null);
@@ -328,7 +332,6 @@ export default function MsdsSearch() {
   };
 
   const closePreview = () => {
-    if (previewBlobUrl) URL.revokeObjectURL(previewBlobUrl);
     setPreviewBlobUrl(null);
     setPreviewChemical(null);
   };

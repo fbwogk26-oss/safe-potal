@@ -9,7 +9,7 @@ import {
   Briefcase, Activity, HeartPulse, CircleAlert,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-const BURDEN_ILLUS: string[] = Array.from({ length: 11 }, (_, i) => `/burden-icons/icon${i + 1}.png`);
+const BURDEN_ILLUS: string[] = Array.from({ length: 11 }, (_, i) => `/burden-icons/icon${i + 1}.png?v=4`);
 
 const BURDEN_WORKS = [
   { no:1,  short:"키보드·마우스 조작",          desc:"하루 4시간 이상 집중적으로 키보드·마우스를 사용하는 작업" },
