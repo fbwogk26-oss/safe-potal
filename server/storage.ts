@@ -216,6 +216,7 @@ export interface IStorage {
   deleteSymptomSurvey(id: number): Promise<void>;
   getPendingSymptomCount(headquarters?: string): Promise<number>;
   getAllSymptomSurveys(headquarters?: string): Promise<MusculoskeletalSymptomSurvey[]>;
+  getPendingInterviewRequests(dept?: string): Promise<Array<{ id: number; department: string; task: string; assessmentDate: string; assessor: string; surveyCount: number; }>>;
   // Interview Logs (면담일지)
   getInterviews(assessmentId: number): Promise<MusculoskeletalInterview[]>;
   getInterview(id: number): Promise<MusculoskeletalInterview | undefined>;
@@ -853,6 +854,21 @@ export class DatabaseStorage implements IStorage {
     }
     return await db.select().from(musculoskeletalSymptomSurveys)
       .orderBy(musculoskeletalSymptomSurveys.assessmentId);
+  }
+
+  async getPendingInterviewRequests(dept?: string) {
+    const result = await db.execute(sql`
+      SELECT a.id, a.department, a.task, a.assessment_date as "assessmentDate", a.assessor,
+        COUNT(DISTINCT s.id)::int as "surveyCount"
+      FROM musculoskeletal_assessments a
+      INNER JOIN musculoskeletal_symptom_surveys s ON s.assessment_id = a.id AND s.has_pain = '예'
+      LEFT JOIN musculoskeletal_interviews i ON i.assessment_id = a.id
+      WHERE i.id IS NULL
+      ${dept ? sql`AND a.department = ${dept}` : sql``}
+      GROUP BY a.id, a.department, a.task, a.assessment_date, a.assessor
+      ORDER BY a.id DESC
+    `);
+    return result.rows as any[];
   }
 
   // === INTERVIEW LOGS (면담일지) ===

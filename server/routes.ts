@@ -4935,6 +4935,16 @@ ${buildEmailFooter()}
     } catch { res.status(500).json({ message: "조회 실패" }); }
   });
 
+  // 면담 대기 목록 (부서장용 알림)
+  app.get('/api/musculoskeletal-assessments/pending-interview-requests', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = req.user as any;
+      const dept = (user?.role === 'deptHead' && user?.department) ? user.department : undefined;
+      const list = await storage.getPendingInterviewRequests(dept);
+      res.json(list);
+    } catch { res.status(500).json({ message: "조회 실패" }); }
+  });
+
   // 특정 조사의 증상조사표 목록
   app.get('/api/musculoskeletal-assessments/:id/symptom-surveys', isAuthenticated, async (req: any, res) => {
     try {

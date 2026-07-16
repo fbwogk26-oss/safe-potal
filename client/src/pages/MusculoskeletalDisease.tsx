@@ -561,6 +561,25 @@ export default function MusculoskeletalDisease() {
   // ── 면담일지 (Interview Log) ─────────────────────────────────────────────
   const [interviewAssessmentId, setInterviewAssessmentId] = useState<number | null>(null);
   const [interviewEditingId, setInterviewEditingId] = useState<number | null>(null);
+
+  // ── 부서장 면담 알림 팝업 ──────────────────────────────────────────────
+  const isDeptHead = user?.role === "deptHead" || user?.role === "admin";
+  const [showInterviewNotif, setShowInterviewNotif] = useState(false);
+  const [interviewNotifDismissed, setInterviewNotifDismissed] = useState(false);
+
+  const { data: pendingInterviewRequests } = useQuery<any[]>({
+    queryKey: ["/api/musculoskeletal-assessments/pending-interview-requests"],
+    queryFn: () => fetch("/api/musculoskeletal-assessments/pending-interview-requests", { credentials: "include" }).then(r => r.json()),
+    enabled: isDeptHead,
+    refetchInterval: 60_000,
+  });
+
+  useEffect(() => {
+    if (isDeptHead && (pendingInterviewRequests?.length ?? 0) > 0 && !interviewNotifDismissed) {
+      setShowInterviewNotif(true);
+    }
+  }, [isDeptHead, pendingInterviewRequests, interviewNotifDismissed]);
+
   const defaultInterviewForm = () => ({
     workerName: "", workerDept: "", workerPosition: "", assignedWork: "",
     interviewDate: new Date().toISOString().split("T")[0],
@@ -2443,6 +2462,56 @@ export default function MusculoskeletalDisease() {
           </Dialog>
         );
       })()}
+
+      {/* ─── 부서장 면담 알림 팝업 ─────────────────────────────────── */}
+      <Dialog open={showInterviewNotif} onOpenChange={open => { if (!open) { setInterviewNotifDismissed(true); setShowInterviewNotif(false); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-purple-700 dark:text-purple-400">
+              <HeartPulse className="w-5 h-5" />
+              면담요청 알림
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-1">
+            <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-xl p-4 text-sm text-purple-800 dark:text-purple-300 leading-relaxed">
+              근골격계 질환 증상조사 관련 면담요청이 들어왔습니다.<br />
+              면담일지를 작성해주세요.
+            </div>
+            <div className="space-y-2">
+              {(Array.isArray(pendingInterviewRequests) ? pendingInterviewRequests : []).map((req: any) => (
+                <div key={req.id} className="flex items-center justify-between gap-2 border rounded-lg px-3 py-2.5 bg-muted/30">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold truncate">{req.department}</p>
+                    {req.task && <p className="text-xs text-muted-foreground truncate">{req.task}</p>}
+                    <p className="text-xs text-orange-600 font-medium">면담 대기 {req.surveyCount}명</p>
+                  </div>
+                  <Button
+                    size="sm"
+                    className="bg-purple-600 hover:bg-purple-700 text-white text-xs shrink-0"
+                    data-testid={`button-notif-interview-${req.id}`}
+                    onClick={() => {
+                      setInterviewAssessmentId(req.id);
+                      setShowInterviewNotif(false);
+                      setInterviewNotifDismissed(true);
+                    }}
+                  >
+                    면담일지 작성
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => { setInterviewNotifDismissed(true); setShowInterviewNotif(false); }}
+            >
+              나중에 작성
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ─── 면담일지 다이얼로그 ────────────────────────────────────────── */}
       <Dialog open={interviewAssessmentId !== null} onOpenChange={o => { if (!o) { setInterviewAssessmentId(null); resetInterviewForm(); } }}>
