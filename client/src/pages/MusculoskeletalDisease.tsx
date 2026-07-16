@@ -805,6 +805,33 @@ export default function MusculoskeletalDisease() {
   const [interviewForm, setInterviewForm] = useState<Record<string, string>>(defaultInterviewForm());
   const resetInterviewForm = () => { setInterviewEditingId(null); setInterviewForm(defaultInterviewForm()); };
 
+  // 면담일지 폼 자동입력: 증상조사 데이터 → 근로자 성명/부서/담당작업/유해요인/주요증상
+  useEffect(() => {
+    if (interviewEditingId !== null) return;
+    if (!interviewSurveys || interviewSurveys.length === 0) return;
+    if (interviewAssessmentId === null) return;
+    const painSurvey = interviewSurveys.find((s: any) => s.hasPain === "예") || interviewSurveys[0];
+    const assessment = (assessments || []).find(a => a.id === interviewAssessmentId);
+    const bpdKeys = painSurvey.bodyPartData && typeof painSurvey.bodyPartData === "object" ? Object.keys(painSurvey.bodyPartData) : [];
+    const legacyParts = BODY_PARTS.filter(bp => painSurvey[`${bp.key}Pain`]).map(bp => bp.label);
+    const painLabels = bpdKeys.length > 0
+      ? bpdKeys.map((k: string) => BODY_PARTS.find(bp => bp.key === k)?.label ?? k)
+      : legacyParts;
+    const checklist = parseChecklist((assessment as any)?.burdenWorkChecklist);
+    const autoHazard = checklist.length > 0
+      ? checklist.map(no => { const bw = (BURDEN_WORKS as readonly any[]).find(b => b.no === no); return bw ? `제${no}호 ${bw.short}` : ""; }).filter(Boolean).join(", ")
+      : (assessment as any)?.hazardFactor || "";
+    setInterviewForm(f => ({
+      ...f,
+      workerName: f.workerName || painSurvey.workerName || "",
+      workerDept: f.workerDept || painSurvey.workerDept || assessment?.department || "",
+      assignedWork: f.assignedWork || (assessment as any)?.task || "",
+      hazardDetails: f.hazardDetails || autoHazard,
+      mainSymptoms: f.mainSymptoms || (painLabels.length > 0 ? painLabels.join(", ") : ""),
+      interviewerName: f.interviewerName || (user as any)?.name || "",
+    }));
+  }, [interviewSurveys, interviewEditingId, interviewAssessmentId]);
+
   const { data: interviewList, isLoading: interviewsLoading } = useQuery<any[]>({
     queryKey: ["/api/musculoskeletal-assessments", interviewAssessmentId, "interviews"],
     queryFn: () => fetch(`/api/musculoskeletal-assessments/${interviewAssessmentId}/interviews`, { credentials: "include" }).then(r => r.json()),
@@ -2945,11 +2972,26 @@ export default function MusculoskeletalDisease() {
                           const _a2 = (assessments || []).find(x => x.id === previewAssessmentId);
                           const _cl2 = parseChecklist((_a2 as any)?.burdenWorkChecklist);
                           const autoHazard2 = _cl2.length > 0
-                            ? _cl2.map(no => { const bw = (BURDEN_WORKS as readonly any[]).find(b => b.no === no); return bw ? `제${no}호 ${bw.short}` : ""; }).filter(Boolean).join("\n")
+                            ? _cl2.map(no => { const bw = (BURDEN_WORKS as readonly any[]).find(b => b.no === no); return bw ? `제${no}호 ${bw.short}` : ""; }).filter(Boolean).join(", ")
                             : (_a2 as any)?.hazardFactor || "";
                           const _validWorks2 = ["현장운용", "일반사무", "기타"];
-                          const autoWork2 = _validWorks2.includes((_a2 as any)?.task || "") ? (_a2 as any).task : "";
-                          setPreviewIntForm(f => ({ ...f, assignedWork: autoWork2 || f.assignedWork || "", interviewDate: new Date().toISOString().slice(0, 10), interviewerName: user?.name || "", hazardDetails: autoHazard2 || f.hazardDetails || "" }));
+                          const autoWork2 = _validWorks2.includes((_a2 as any)?.task || "") ? (_a2 as any).task : ((_a2 as any)?.task || "");
+                          const _painSurvey2 = (previewSurveys || []).find((s: any) => s.hasPain === "예") || (previewSurveys || [])[0];
+                          const _bpdKeys2 = _painSurvey2?.bodyPartData && typeof _painSurvey2.bodyPartData === "object" ? Object.keys(_painSurvey2.bodyPartData) : [];
+                          const _legacyParts2 = _painSurvey2 ? BODY_PARTS.filter(bp => _painSurvey2[`${bp.key}Pain`]).map(bp => bp.label) : [];
+                          const _painLabels2 = _bpdKeys2.length > 0
+                            ? _bpdKeys2.map((k: string) => BODY_PARTS.find(bp => bp.key === k)?.label ?? k)
+                            : _legacyParts2;
+                          setPreviewIntForm(f => ({
+                            ...f,
+                            workerName: f.workerName || _painSurvey2?.workerName || "",
+                            workerDept: f.workerDept || _painSurvey2?.workerDept || _a2?.department || "",
+                            assignedWork: autoWork2 || f.assignedWork || "",
+                            interviewDate: new Date().toISOString().slice(0, 10),
+                            interviewerName: (user as any)?.name || f.interviewerName || "",
+                            hazardDetails: autoHazard2 || f.hazardDetails || "",
+                            mainSymptoms: f.mainSymptoms || (_painLabels2.length > 0 ? _painLabels2.join(", ") : ""),
+                          }));
                           setSigPadKey(k => k + 1);
                           setPreviewIntSignature("");
                           setShowPreviewInterviewForm(true);
