@@ -288,8 +288,6 @@ interface FormState {
   assessor: string;
   status: string;
   burdenWorkChecklist: number[];
-  // 2단계 스크리닝
-  hasSymptoms: boolean | null;   // null = 미선택
 }
 const defaultForm = (): FormState => ({
   department: "",
@@ -302,7 +300,6 @@ const defaultForm = (): FormState => ({
   assessor: "",
   status: "진행중",
   burdenWorkChecklist: [],
-  hasSymptoms: null,
 });
 
 function parseChecklist(raw: string | null | undefined): number[] {
@@ -562,8 +559,6 @@ export default function MusculoskeletalDisease() {
         ...data,
         headquarters,
         burdenWorkChecklist: JSON.stringify(data.burdenWorkChecklist),
-        // hasSymptoms null → false(저장 전 미선택)
-        hasSymptoms: data.hasSymptoms ?? false,
       } as unknown as Record<string, unknown>),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments"] });
@@ -579,7 +574,6 @@ export default function MusculoskeletalDisease() {
       apiRequest("PUT", `/api/musculoskeletal-assessments/${id}`, {
         ...data,
         burdenWorkChecklist: JSON.stringify(data.burdenWorkChecklist),
-        hasSymptoms: data.hasSymptoms ?? false,
       } as unknown as Record<string, unknown>),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments"] });
@@ -700,20 +694,10 @@ export default function MusculoskeletalDisease() {
       toast({ variant: "destructive", title: "부서를 선택하세요." });
       return;
     }
-    // 중간/높음이면 스크리닝 필수
-    if (form.riskLevel !== "낮음" && form.hasSymptoms === null) {
-      toast({ variant: "destructive", title: "1단계 완료 스크리닝을 선택하세요. (예/아니오)" });
-      return;
-    }
-    // 스크리닝 질문에 답했을 때 상태 자동 전이
     let finalForm = { ...form };
-    if (form.hasSymptoms === false) {
-      // 증상 없음 → 종결
-      finalForm.status = "조사완료(증상없음)";
-    } else if (form.hasSymptoms === true) {
-      // 증상 있음 → 증상조사 대기 (이미 증상조사가 진행된 경우는 유지)
-      const currentStatus = form.status;
-      if (!["증상조사 진행중", "종결"].includes(currentStatus)) {
+    if (!editingId) {
+      // 신규 등록: 부담작업 체크항목이 있으면 자동으로 증상조사 대기
+      if (finalForm.burdenWorkChecklist.length > 0) {
         finalForm.status = "증상조사 대기";
       }
     }
@@ -736,7 +720,6 @@ export default function MusculoskeletalDisease() {
       assessor:            item.assessor || "",
       status:              item.status,
       burdenWorkChecklist: parseChecklist((item as any).burdenWorkChecklist),
-      hasSymptoms:         (item as any).hasSymptoms ?? null,
     });
     setEditingId(item.id);
     setRiskManual(true);
@@ -755,7 +738,6 @@ export default function MusculoskeletalDisease() {
       assessor:            item.assessor || "",
       status:              "진행중",
       burdenWorkChecklist: parseChecklist((item as any).burdenWorkChecklist),
-      hasSymptoms:         null,
     });
     setEditingId(null);
     setRiskManual(false);
@@ -1461,8 +1443,6 @@ export default function MusculoskeletalDisease() {
                     setForm(prev => ({
                       ...prev,
                       riskLevel: v,
-                      // 낮음이면 자동으로 증상없음, 중간/높음이면 자동 설정 해제
-                      hasSymptoms: v === "낮음" ? false : (prev.hasSymptoms === false && prev.riskLevel === "낮음" ? null : prev.hasSymptoms),
                     }));
                   }}
                 >
@@ -1511,58 +1491,14 @@ export default function MusculoskeletalDisease() {
             </div>
           </div>
 
-          {/* ── 1단계 완료 스크리닝 질문 ─────────────────────────────── */}
-          <div className="border-t border-border pt-3 mt-1 space-y-3">
-            <Label className="text-sm font-semibold flex items-center gap-2">
-              <AlertTriangle className={`w-4 h-4 ${form.riskLevel === "낮음" ? "text-green-500" : "text-orange-500"}`} />
-              1단계 완료 스크리닝
-              {form.riskLevel === "낮음" ? (
-                <span className="text-xs font-normal text-green-600 dark:text-green-400">(위험수준 낮음 — 자동 종결)</span>
-              ) : (
-                <span className="text-xs font-normal text-red-500">* 필수</span>
-              )}
-            </Label>
-            <p className="text-xs text-muted-foreground">
-              해당 작업 근로자 중 근골격계 증상(통증·저림 등)을 호소하는 인원이 있습니까?
-            </p>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant={form.hasSymptoms === false ? "default" : "outline"}
-                className={`h-8 text-xs px-4 ${form.hasSymptoms === false ? "bg-green-600 text-white" : ""}`}
-                onClick={() => updateField("hasSymptoms", false)}
-                disabled={form.riskLevel === "낮음"}
-                data-testid="button-no-symptoms"
-              >
-                아니오 (증상 없음 → 종결)
-              </Button>
-              {form.riskLevel !== "낮음" && (
-                <Button
-                  type="button"
-                  variant={form.hasSymptoms === true ? "default" : "outline"}
-                  className={`h-8 text-xs px-4 ${form.hasSymptoms === true ? "bg-orange-600 text-white" : ""}`}
-                  onClick={() => updateField("hasSymptoms", true)}
-                  data-testid="button-has-symptoms"
-                >
-                  예 (증상 있음 → 2단계 진행)
-                </Button>
-              )}
-              {form.hasSymptoms !== null && form.riskLevel !== "낮음" && (
-                <Button type="button" variant="ghost" className="h-8 text-xs"
-                  onClick={() => updateField("hasSymptoms", null)}>
-                  <X className="w-3.5 h-3.5 mr-1" />미선택
-                </Button>
-              )}
-            </div>
-            {/* 미리보기 상태 전이 안내 */}
-            {form.hasSymptoms !== null && (
-              <p className="text-xs rounded px-2 py-1 bg-muted text-muted-foreground">
-                {form.hasSymptoms === false
-                  ? "저장 시 상태: 조사완료(증상없음) — 바로 종결됩니다."
-                  : "저장 시 상태: 증상조사 대기 — 2단계 증상조사표 입력이 필요합니다."}
+          {/* 부담작업 체크 시 자동 안내 */}
+          {!editingId && form.burdenWorkChecklist.length > 0 && (
+            <div className="border-t border-border pt-3 mt-1">
+              <p className="text-xs rounded px-2 py-1 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-800">
+                ⚠ 부담작업 {form.burdenWorkChecklist.length}개 선택됨 — 저장 시 <strong>증상조사 대기</strong> 상태로 자동 등록됩니다.
               </p>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* ── 수정 모드일 때: 첨부파일 섹션 ─────────────────────── */}
           {editingId && (() => {
