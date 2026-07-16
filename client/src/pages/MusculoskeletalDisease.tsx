@@ -821,9 +821,10 @@ export default function MusculoskeletalDisease() {
     const autoHazard = checklist.length > 0
       ? checklist.map(no => { const bw = (BURDEN_WORKS as readonly any[]).find(b => b.no === no); return bw ? `제${no}호 ${bw.short}` : ""; }).filter(Boolean).join(", ")
       : (assessment as any)?.hazardFactor || "";
+    const fallbackName = (assessment as any)?.assessor && (assessment as any)?.assessor !== "익명" ? (assessment as any).assessor : "";
     setInterviewForm(f => ({
       ...f,
-      workerName: f.workerName || painSurvey.workerName || "",
+      workerName: f.workerName || painSurvey.workerName || fallbackName,
       workerDept: f.workerDept || painSurvey.workerDept || assessment?.department || "",
       assignedWork: f.assignedWork || (assessment as any)?.task || "",
       hazardDetails: f.hazardDetails || autoHazard,
@@ -1625,7 +1626,7 @@ export default function MusculoskeletalDisease() {
                   <th className="px-2 py-3 text-left text-xs font-semibold text-muted-foreground w-44">부담작업</th>
                   <th className="px-2 py-3 text-left text-xs font-semibold text-muted-foreground w-16">위험수준</th>
                   <th className="px-2 py-3 text-left text-xs font-semibold text-muted-foreground w-32">상태</th>
-                  <th className="px-2 py-3 text-left text-xs font-semibold text-muted-foreground w-10">관리</th>
+                  <th className="px-2 py-3 text-left text-xs font-semibold text-muted-foreground w-16 sticky right-0 bg-muted/60 z-10">관리</th>
                 </tr>
               </thead>
               <tbody>
@@ -1728,7 +1729,7 @@ export default function MusculoskeletalDisease() {
                           )}
                         </td>
                         {/* 관리 */}
-                        <td className="px-2 py-3" onClick={e => e.stopPropagation()}>
+                        <td className="px-2 py-3 sticky right-0 bg-background z-10 shadow-[-4px_0_8px_-2px_rgba(0,0,0,0.06)]" onClick={e => e.stopPropagation()}>
                           <div className="flex items-center gap-1">
                           {isDeptHead && (
                             <Button
@@ -2982,9 +2983,10 @@ export default function MusculoskeletalDisease() {
                           const _painLabels2 = _bpdKeys2.length > 0
                             ? _bpdKeys2.map((k: string) => BODY_PARTS.find(bp => bp.key === k)?.label ?? k)
                             : _legacyParts2;
+                          const _fallbackName2 = _a2?.assessor && _a2.assessor !== "익명" ? _a2.assessor : "";
                           setPreviewIntForm(f => ({
                             ...f,
-                            workerName: f.workerName || _painSurvey2?.workerName || "",
+                            workerName: f.workerName || _painSurvey2?.workerName || _fallbackName2,
                             workerDept: f.workerDept || _painSurvey2?.workerDept || _a2?.department || "",
                             assignedWork: autoWork2 || f.assignedWork || "",
                             interviewDate: new Date().toISOString().slice(0, 10),
@@ -3080,14 +3082,7 @@ export default function MusculoskeletalDisease() {
                         </div>
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">담당 작업</Label>
-                          <Select value={previewIntForm.assignedWork} onValueChange={v => setPreviewIntForm(f => ({ ...f, assignedWork: v }))}>
-                            <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="선택" /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="현장운용">현장운용</SelectItem>
-                              <SelectItem value="일반사무">일반사무</SelectItem>
-                              <SelectItem value="기타">기타</SelectItem>
-                            </SelectContent>
-                          </Select>
+                          <Input className="h-8 text-sm" value={previewIntForm.assignedWork} onChange={e => setPreviewIntForm(f => ({ ...f, assignedWork: e.target.value }))} placeholder="예) 기지국 유지보수" />
                         </div>
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">면담일</Label>
