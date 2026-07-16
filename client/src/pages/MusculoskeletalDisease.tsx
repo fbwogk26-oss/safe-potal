@@ -568,6 +568,11 @@ export default function MusculoskeletalDisease() {
   // ── 면담일지 (Interview Log) ─────────────────────────────────────────────
   const [interviewAssessmentId, setInterviewAssessmentId] = useState<number | null>(null);
   const [interviewEditingId, setInterviewEditingId] = useState<number | null>(null);
+  const { data: interviewSurveys } = useQuery<any[]>({
+    queryKey: ["/api/musculoskeletal-assessments", interviewAssessmentId, "symptom-surveys"],
+    queryFn: () => fetch(`/api/musculoskeletal-assessments/${interviewAssessmentId}/symptom-surveys`, { credentials: "include" }).then(r => r.json()),
+    enabled: interviewAssessmentId !== null,
+  });
 
   // ── 증상조사표 미리보기 (부서장/관리자용) ──────────────────────────────
   const [previewAssessmentId, setPreviewAssessmentId] = useState<number | null>(null);
@@ -2515,7 +2520,42 @@ export default function MusculoskeletalDisease() {
               <div className="py-8 text-center text-muted-foreground text-sm">등록된 증상조사표가 없습니다.</div>
             ) : (
               <div className="space-y-3">
-                <p className="text-xs text-muted-foreground font-medium">총 {previewSurveys.length}건</p>
+                {/* ── 조사표 목록 (간략) ─────────────────────────── */}
+                <div className="space-y-1.5">
+                  <p className="text-xs font-semibold text-muted-foreground">등록된 조사표 ({previewSurveys.length}건)</p>
+                  {previewSurveys.map((s: any) => {
+                    const bpdKeys = s.bodyPartData && typeof s.bodyPartData === "object" ? Object.keys(s.bodyPartData) : [];
+                    const legacyParts = BODY_PARTS.filter(bp => s[`${bp.key}Pain`]).map(bp => bp.label);
+                    const painLabels = bpdKeys.length > 0
+                      ? bpdKeys.map(k => BODY_PARTS.find(bp => bp.key === k)?.label ?? k)
+                      : legacyParts;
+                    return (
+                      <div key={s.id} className={`flex items-center justify-between border rounded-lg px-3 py-2 text-sm gap-2 ${s.hasPain === "예" ? "border-orange-200 bg-orange-50/50 dark:bg-orange-900/10" : "border-border"}`}>
+                        <div className="flex items-center gap-2 flex-wrap min-w-0">
+                          {s.workerName && <span className="font-medium text-sm">{s.workerName}</span>}
+                          {s.workerDept && <span className="text-xs text-muted-foreground">({s.workerDept})</span>}
+                          {painLabels.length > 0
+                            ? <span className="text-xs text-orange-600">통증: {painLabels.join(", ")}</span>
+                            : s.hasPain === "아니오"
+                              ? <span className="text-xs text-green-600">이상 없음</span>
+                              : null}
+                        </div>
+                        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/30 flex-shrink-0"
+                          onClick={() => {
+                            setInterviewAssessmentId(previewAssessmentId!);
+                            setInterviewForm((f: any) => ({ ...f, workerName: s.workerName || "", workerDept: s.workerDept || "" }));
+                            setPreviewAssessmentId(null);
+                          }}>
+                          면담일지
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* ── 상세 카드 ───────────────────────────────────── */}
+                <div className="border-t border-border pt-3 space-y-3">
+                  <p className="text-xs font-semibold text-muted-foreground">상세 내용</p>
                 {previewSurveys.map((s: any, i: number) => {
                   const bpd: Record<string, any> = (s.bodyPartData && typeof s.bodyPartData === "object") ? s.bodyPartData : {};
                   const painParts = Object.keys(bpd);
@@ -2574,6 +2614,7 @@ export default function MusculoskeletalDisease() {
                     </div>
                   );
                 })}
+                </div>
               </div>
             )}
 
@@ -2654,6 +2695,57 @@ export default function MusculoskeletalDisease() {
             </DialogTitle>
             <DialogDescription>증상조사를 마친 근로자와의 면담 내용을 기록합니다.</DialogDescription>
           </DialogHeader>
+
+          {/* ── 증상조사 참고 (면담 중 참고용) ─────────────────── */}
+          {(interviewSurveys || []).length > 0 && (
+            <div className="bg-orange-50/60 dark:bg-orange-900/10 border border-orange-200 dark:border-orange-800 rounded-xl p-3 space-y-2">
+              <p className="text-xs font-semibold text-orange-700 dark:text-orange-400 flex items-center gap-1.5">
+                <HeartPulse className="w-3.5 h-3.5" />
+                증상조사 내용 참고 ({(interviewSurveys || []).filter((s: any) => s.hasPain === "예").length}명 통증 호소)
+              </p>
+              <div className="space-y-1.5">
+                {(interviewSurveys || []).map((s: any) => {
+                  const bpdKeys = s.bodyPartData && typeof s.bodyPartData === "object" ? Object.keys(s.bodyPartData) : [];
+                  const legacyParts = BODY_PARTS.filter(bp => s[`${bp.key}Pain`]).map(bp => bp.label);
+                  const painLabels = bpdKeys.length > 0
+                    ? bpdKeys.map((k: string) => BODY_PARTS.find(bp => bp.key === k)?.label ?? k)
+                    : legacyParts;
+                  const bpd: Record<string, any> = s.bodyPartData && typeof s.bodyPartData === "object" ? s.bodyPartData : {};
+                  return (
+                    <div key={s.id} className={`rounded-lg border px-3 py-2 text-xs space-y-1 ${s.hasPain === "예" ? "border-orange-300 bg-white dark:bg-orange-900/20" : "border-border bg-white/50 dark:bg-background/30"}`}>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {s.workerName && <span className="font-semibold text-sm">{s.workerName}</span>}
+                          {s.workerDept && <span className="text-muted-foreground">({s.workerDept})</span>}
+                        </div>
+                        <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full shrink-0 ${s.hasPain === "예" ? "bg-orange-500 text-white" : "bg-green-600 text-white"}`}>
+                          {s.hasPain === "예" ? "통증" : "이상없음"}
+                        </span>
+                      </div>
+                      {painLabels.length > 0 && (
+                        <div className="flex flex-wrap gap-1 pt-0.5">
+                          {bpdKeys.length > 0
+                            ? bpdKeys.map((k: string) => {
+                                const d = bpd[k] || {};
+                                const lbl = BODY_PARTS.find(bp => bp.key === k)?.label ?? k;
+                                return (
+                                  <span key={k} className="bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-400 px-1.5 py-0.5 rounded text-[10px]">
+                                    {lbl}{d.intensity ? ` (${d.intensity})` : ""}
+                                  </span>
+                                );
+                              })
+                            : painLabels.map((lbl: string) => (
+                                <span key={lbl} className="bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-400 px-1.5 py-0.5 rounded text-[10px]">{lbl}</span>
+                              ))
+                          }
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {interviewsLoading ? (
             <div className="py-4 text-center text-muted-foreground text-sm">로딩 중...</div>
