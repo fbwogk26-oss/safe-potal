@@ -1597,7 +1597,7 @@ export default function MusculoskeletalDisease() {
                         className="mt-1 shrink-0"
                         data-testid={`checkbox-burden-${bw.no}`}
                       />
-                      <div className={`w-10 h-12 shrink-0 rounded p-0.5 ${checked ? "bg-purple-100 dark:bg-purple-800/40" : "bg-gray-100 dark:bg-gray-800/40"}`}>
+                      <div className={`w-16 h-20 shrink-0 rounded p-0.5 ${checked ? "bg-purple-100 dark:bg-purple-800/40" : "bg-gray-100 dark:bg-gray-800/40"}`}>
                         <img src={BURDEN_IMAGES[bw.no - 1]} alt={`${bw.no}호`} className="w-full h-full object-contain" />
                       </div>
                       <div className="flex-1 min-w-0">
