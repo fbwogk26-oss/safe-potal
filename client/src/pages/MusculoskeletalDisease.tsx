@@ -10,7 +10,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -336,7 +335,7 @@ export default function MusculoskeletalDisease() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
   // ── 새 기능 상태 ─────────────────────────────────────────────────────
-  const [checklistOpen, setChecklistOpen] = useState(true);
+  const [showChecklist, setShowChecklist] = useState(false);
   const [hasDraft, setHasDraft]           = useState(false);
   const [showLoadPrev, setShowLoadPrev]   = useState(false);
   const [riskManual, setRiskManual]       = useState(false);
@@ -408,10 +407,8 @@ export default function MusculoskeletalDisease() {
   // 증상조사 다이얼로그 내부 상태
   const [surveyEditingId, setSurveyEditingId] = useState<number | null>(null);
   const defaultSurveyForm = () => ({
-    workerName: "", workerDept: "", surveyDate: new Date().toISOString().split("T")[0],
     hasPain: "" as string,
     bodyPartData: {} as Record<string, any>,
-    workRelated: "", notes: "", completed: false,
   });
   const [surveyForm, setSurveyForm] = useState<Record<string, any>>(defaultSurveyForm());
   const resetSurveyForm = () => {
@@ -486,14 +483,8 @@ export default function MusculoskeletalDisease() {
     if (s.bodyPartData && typeof s.bodyPartData === "object" && Object.keys(s.bodyPartData).length > 0) {
       // 신형 포맷
       setSurveyForm({
-        workerName: s.workerName || "",
-        workerDept: s.workerDept || "",
-        surveyDate: s.surveyDate || new Date().toISOString().split("T")[0],
         hasPain: s.hasPain || "예",
         bodyPartData: s.bodyPartData,
-        workRelated: s.workRelated || "",
-        notes: s.notes || "",
-        completed: s.completed || false,
       });
     } else {
       // 구형 포맷 → 신형으로 변환
@@ -510,14 +501,8 @@ export default function MusculoskeletalDisease() {
         }
       });
       setSurveyForm({
-        workerName: s.workerName || "",
-        workerDept: s.workerDept || "",
-        surveyDate: s.surveyDate || new Date().toISOString().split("T")[0],
         hasPain: Object.keys(bodyPartData).length > 0 ? "예" : (s.hasPain || ""),
         bodyPartData,
-        workRelated: s.workRelated || "",
-        notes: s.notes || "",
-        completed: s.completed || false,
       });
     }
   };
@@ -594,10 +579,6 @@ export default function MusculoskeletalDisease() {
   };
 
   const handleSurveySubmit = () => {
-    if (!surveyForm.workerName) {
-      toast({ variant: "destructive", title: "근로자명을 입력하세요." });
-      return;
-    }
     const bpd = surveyForm.bodyPartData || {};
     const payload = {
       ...surveyForm,
@@ -630,8 +611,7 @@ export default function MusculoskeletalDisease() {
       // 부담작업 항목이 있으면 목록 갱신 후 바로 증상조사표 입력으로 이동
       if (variables.burdenWorkChecklist.length > 0 && response?.id) {
         await queryClient.refetchQueries({ queryKey: ["/api/musculoskeletal-assessments"] });
-        setSurveyForm(f => ({ ...f, workerName: response.assessor || "", workerDept: response.department || "" }));
-        setSurveyAssessmentId(response.id);
+            setSurveyAssessmentId(response.id);
       } else {
         queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments"] });
       }
@@ -757,6 +737,7 @@ export default function MusculoskeletalDisease() {
     setEditingId(null);
     setShowForm(false);
     setRiskManual(false);
+    setShowChecklist(false);
   };
 
   const handleSubmit = () => {
@@ -796,6 +777,7 @@ export default function MusculoskeletalDisease() {
     });
     setEditingId(item.id);
     setRiskManual(true);
+    setShowChecklist(true);
     setShowForm(true);
   };
 
@@ -1478,34 +1460,6 @@ export default function MusculoskeletalDisease() {
               </div>
             </div>
 
-            {/* 위험수준 */}
-            <div className="space-y-1.5">
-              <Label className="text-sm font-medium flex items-center gap-1.5">
-                위험수준 *
-                {!riskManual && form.burdenWorkChecklist.length > 0 && (
-                  <span className="text-xs font-normal text-purple-600 dark:text-purple-400">(자동 산출)</span>
-                )}
-              </Label>
-              <div className="flex gap-1.5">
-                <Select
-                  value={form.riskLevel}
-                  onValueChange={v => { setRiskManual(true); setForm(prev => ({ ...prev, riskLevel: v })); }}
-                >
-                  <SelectTrigger data-testid="select-risk-level" className="flex-1 h-9 bg-white dark:bg-background">
-                    <SelectValue placeholder="위험수준 선택" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {RISK_LEVELS.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                {riskManual && form.burdenWorkChecklist.length > 0 && (
-                  <Button
-                    variant="outline" size="sm" className="shrink-0 text-xs h-9"
-                    onClick={() => { setRiskManual(false); updateField("riskLevel", calcRiskFromChecklist(form.burdenWorkChecklist)); }}
-                  >자동</Button>
-                )}
-              </div>
-            </div>
 
             {/* 현재 작업 유형 — 버튼 2개 */}
             <div className="space-y-2">
@@ -1588,14 +1542,23 @@ export default function MusculoskeletalDisease() {
             </div>
           </div>
 
-          {/* ─── 부담작업 체크리스트 (기본정보 이후) ──────────────── */}
-          <Collapsible open={checklistOpen} onOpenChange={setChecklistOpen}>
-            <CollapsibleTrigger asChild>
-              <button
-                className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 text-sm font-medium text-purple-800 dark:text-purple-200 hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors"
-                data-testid="button-toggle-checklist"
+          {/* ─── 다음 버튼 → 체크리스트 ──────────────────────────── */}
+          {!showChecklist ? (
+            <div className="flex justify-end pt-1">
+              <Button
+                type="button"
+                onClick={() => setShowChecklist(true)}
+                className="bg-purple-600 hover:bg-purple-700 text-white gap-2"
+                data-testid="button-next-to-checklist"
               >
-                <span className="flex items-center gap-2">
+                다음 — 부담작업 체크리스트
+                <ChevronDown className="w-4 h-4" />
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800">
+                <span className="flex items-center gap-2 text-sm font-medium text-purple-800 dark:text-purple-200">
                   <AlertTriangle className="w-4 h-4 shrink-0" />
                   법정 근골격계 부담작업 판정 체크리스트 (11호)
                   {form.burdenWorkChecklist.length > 0 && (
@@ -1604,11 +1567,8 @@ export default function MusculoskeletalDisease() {
                     </Badge>
                   )}
                 </span>
-                {checklistOpen ? <ChevronUp className="w-4 h-4 shrink-0" /> : <ChevronDown className="w-4 h-4 shrink-0" />}
-              </button>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <div className="mt-1.5 rounded-lg border border-purple-200 dark:border-purple-800 overflow-hidden">
+              </div>
+              <div className="rounded-lg border border-purple-200 dark:border-purple-800 overflow-hidden">
                 {BURDEN_WORKS.map((bw) => {
                   const checked = form.burdenWorkChecklist.includes(bw.no);
                   return (
@@ -1639,15 +1599,15 @@ export default function MusculoskeletalDisease() {
                 <div className="px-3 py-2 bg-purple-50 dark:bg-purple-900/20 border-t border-purple-200 dark:border-purple-800 flex flex-wrap items-center gap-3">
                   <span className="text-xs text-purple-800 dark:text-purple-200">
                     해당 항목: <strong>{form.burdenWorkChecklist.length}개</strong>
-                    {form.burdenWorkChecklist.length > 0 && !riskManual && (
-                      <span className="ml-2">→ 자동 위험수준: <strong>{calcRiskFromChecklist(form.burdenWorkChecklist)}</strong></span>
+                    {form.burdenWorkChecklist.length > 0 && (
+                      <span className="ml-2">→ 판정: <strong>{calcRiskFromChecklist(form.burdenWorkChecklist)}</strong></span>
                     )}
                   </span>
                   <span className="text-xs text-muted-foreground">(3개↑=높음 / 1~2개=중간 / 0개=낮음)</span>
                 </div>
               </div>
-            </CollapsibleContent>
-          </Collapsible>
+            </div>
+          )}
 
           {/* 부담작업 체크 시 자동 안내 */}
           {!editingId && form.burdenWorkChecklist.length > 0 && (
@@ -1869,39 +1829,6 @@ export default function MusculoskeletalDisease() {
               {surveyEditingId ? "조사표 수정" : "새 조사표 입력"}
             </Label>
 
-            {/* 근로자 정보 */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs">근로자명 *</Label>
-                <Select
-                  value={surveyForm.workerName}
-                  onValueChange={val => {
-                    const found = (users || []).find((u: any) => u.name === val);
-                    setSurveyForm(f => ({ ...f, workerName: val, workerDept: found?.department || f.workerDept }));
-                  }}
-                >
-                  <SelectTrigger className="h-8 text-sm" data-testid="input-survey-worker-name">
-                    <SelectValue placeholder="근로자 선택" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(users || []).map((u: any) => (
-                      <SelectItem key={u.id} value={u.name}>{u.name} ({u.department || "부서없음"})</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">소속부서</Label>
-                <Input value={surveyForm.workerDept} onChange={e => setSurveyForm(f => ({ ...f, workerDept: e.target.value }))}
-                  className="h-8 text-sm" placeholder="부서" data-testid="input-survey-worker-dept" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">조사일</Label>
-                <Input type="date" value={surveyForm.surveyDate} onChange={e => setSurveyForm(f => ({ ...f, surveyDate: e.target.value }))}
-                  className="h-8 text-sm" data-testid="input-survey-date" />
-              </div>
-            </div>
-
             {/* II. 신체 부위별 증상조사 */}
             <div className="space-y-3">
               <Label className="text-xs font-semibold flex items-center gap-1.5">
@@ -2052,42 +1979,6 @@ export default function MusculoskeletalDisease() {
               )}
             </div>
 
-            {/* 업무관련성 소견 */}
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold flex items-center gap-1.5">
-                <span className="text-purple-600">III.</span> 업무관련성 소견
-              </Label>
-              <div className="flex gap-2">
-                {["관련있음","관련없음","판단불가"].map(v => (
-                  <button key={v} type="button"
-                    onClick={() => setSurveyForm(f => ({ ...f, workRelated: v }))}
-                    className={`flex-1 py-2 text-xs rounded-xl border font-semibold transition-all ${surveyForm.workRelated === v ? "border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300" : "border-border hover:border-purple-300"}`}
-                    data-testid={`button-workrelated-${v}`}
-                  >{v}</button>
-                ))}
-              </div>
-            </div>
-
-            {/* 비고 */}
-            <div className="space-y-1">
-              <Label className="text-xs">비고</Label>
-              <Input value={surveyForm.notes || ""} onChange={e => setSurveyForm(f => ({ ...f, notes: e.target.value }))}
-                className="h-8 text-sm" placeholder="특이사항" data-testid="input-survey-notes" />
-            </div>
-
-            {/* 조사 완료 여부 */}
-            <div className="flex items-center gap-2">
-              <button type="button"
-                onClick={() => setSurveyForm(f => ({ ...f, completed: !f.completed }))}
-                className={`w-8 h-8 rounded border-2 flex items-center justify-center transition-colors ${surveyForm.completed ? "border-green-500 bg-green-500 text-white" : "border-border"}`}
-                data-testid="checkbox-survey-completed"
-              >
-                {surveyForm.completed && <span className="text-xs font-bold">✓</span>}
-              </button>
-              <Label className="text-sm cursor-pointer" onClick={() => setSurveyForm(f => ({ ...f, completed: !f.completed }))}>
-                조사 완료 (모든 신체부위 확인 완료 시 체크)
-              </Label>
-            </div>
           </div>
 
           <DialogFooter className="flex-col-reverse sm:flex-row gap-2 pt-2">
