@@ -2726,12 +2726,32 @@ export default function MusculoskeletalDisease() {
                               setPreviewExpandedWorker(willExpand ? (s.workerName || s.id) : null);
                               if (willExpand) {
                                 setShowPreviewInterviewForm(true);
+                                const _a = (assessments || []).find(x => x.id === previewAssessmentId);
+                                const _cl = parseChecklist((_a as any)?.burdenWorkChecklist);
+                                const autoHazard = _cl.length > 0
+                                  ? _cl.map(no => (BURDEN_WORKS as readonly any[]).find(b => b.no === no)?.short || "").filter(Boolean).join(", ")
+                                  : (_a as any)?.hazardFactor || "";
+                                const _bpd = s.bodyPartData && typeof s.bodyPartData === "object" ? s.bodyPartData as Record<string, any> : {};
+                                const _bpdKeys = Object.keys(_bpd);
+                                const _legacy = (BODY_PARTS as readonly any[]).filter(bp => s[`${bp.key}Pain`]).map(bp => bp.label);
+                                const autoSymptoms = _bpdKeys.length > 0
+                                  ? _bpdKeys.map(k => {
+                                      const d = _bpd[k];
+                                      const lbl = (BODY_PARTS as readonly any[]).find(bp => bp.key === k)?.label || k;
+                                      const det = [d?.side, d?.intensity, d?.frequency].filter(Boolean).join(", ");
+                                      return det ? `${lbl}(${det})` : lbl;
+                                    }).join(" / ")
+                                  : _legacy.join(", ");
+                                const _matched = (users || []).find((u: any) => u.name === s.workerName);
                                 setPreviewIntForm(f => ({
                                   ...f,
                                   workerName: s.workerName || "",
                                   workerDept: s.workerDept || "",
+                                  workerPosition: _matched?.position || f.workerPosition || "",
                                   interviewDate: new Date().toISOString().slice(0, 10),
                                   interviewerName: user?.name || "",
+                                  hazardDetails: autoHazard || f.hazardDetails || "",
+                                  mainSymptoms: autoSymptoms || f.mainSymptoms || "",
                                 }));
                                 setSigPadKey(k => k + 1);
                                 setPreviewIntSignature("");
@@ -2993,10 +3013,16 @@ export default function MusculoskeletalDisease() {
                     const opening = !showPreviewInterviewForm;
                     setShowPreviewInterviewForm(opening);
                     if (opening) {
+                      const _a2 = (assessments || []).find(x => x.id === previewAssessmentId);
+                      const _cl2 = parseChecklist((_a2 as any)?.burdenWorkChecklist);
+                      const autoHazard2 = _cl2.length > 0
+                        ? _cl2.map(no => (BURDEN_WORKS as readonly any[]).find(b => b.no === no)?.short || "").filter(Boolean).join(", ")
+                        : (_a2 as any)?.hazardFactor || "";
                       setPreviewIntForm(f => ({
                         ...f,
                         interviewDate: new Date().toISOString().slice(0, 10),
                         interviewerName: user?.name || "",
+                        hazardDetails: autoHazard2 || f.hazardDetails || "",
                       }));
                       setSigPadKey(k => k + 1);
                       setPreviewIntSignature("");

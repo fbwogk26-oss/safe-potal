@@ -578,7 +578,7 @@ export async function registerRoutes(
   // Admin: Create new user
   app.post("/api/users", requireAdmin, async (req: any, res) => {
     try {
-      const { username, password, name, department, role } = req.body;
+      const { username, password, name, department, role, position } = req.body;
       if (!username || !password) {
         return res.status(400).json({ message: "아이디와 비밀번호는 필수입니다" });
       }
@@ -594,7 +594,7 @@ export async function registerRoutes(
           presetPerms = JSON.parse(preset.value);
         }
       }
-      const user = await authStorage.createUser(username, password, name || username, userRole, department, presetPerms);
+      const user = await authStorage.createUser(username, password, name || username, userRole, department, presetPerms, position);
       res.status(201).json({
         id: user.id,
         username: user.username,
@@ -616,7 +616,7 @@ export async function registerRoutes(
       }
 
       const ext = path.extname(req.file.originalname).toLowerCase();
-      let users: Array<{ department: string; name: string; username: string; password: string }> = [];
+      let users: Array<{ department: string; name: string; username: string; password: string; position: string }> = [];
 
       if (ext === ".csv") {
         const content = req.file.buffer.toString("utf-8");
@@ -630,6 +630,7 @@ export async function registerRoutes(
               name: cols[1] || cols[2],
               username: cols[2],
               password: cols[3],
+              position: cols[4] || "",
             });
           }
         }
@@ -644,9 +645,10 @@ export async function registerRoutes(
             const name = String(row.getCell(2).value || "").trim();
             const username = String(row.getCell(3).value || "").trim();
             const password = String(row.getCell(4).value || "").trim();
+            const position = String(row.getCell(5).value || "").trim();
             
             if (username && password) {
-              users.push({ department, name: name || username, username, password });
+              users.push({ department, name: name || username, username, password, position });
             }
           }
         });
@@ -664,7 +666,7 @@ export async function registerRoutes(
           }
           const userPreset = await storage.getSetting('role_preset_user');
           const presetPerms = userPreset?.value ? JSON.parse(userPreset.value) : undefined;
-          await authStorage.createUser(userData.username, userData.password, userData.name, "user", userData.department, presetPerms);
+          await authStorage.createUser(userData.username, userData.password, userData.name, "user", userData.department, presetPerms, userData.position || undefined);
           successCount++;
         } catch (err) {
           skipCount++;
@@ -682,13 +684,14 @@ export async function registerRoutes(
   // Admin: Update user
   app.put("/api/users/:id", requireAdmin, async (req: any, res) => {
     try {
-      const { name, department, role, password, permissions, isActive } = req.body;
+      const { name, department, role, password, permissions, isActive, position } = req.body;
       if (isActive === false && req.params.id === req.session?.userId) {
         return res.status(400).json({ message: "자기 자신은 비활성화할 수 없습니다" });
       }
       const updateData: any = {};
       if (name !== undefined) updateData.name = name;
       if (department !== undefined) updateData.department = department;
+      if (position !== undefined) updateData.position = position;
       if (isActive !== undefined) updateData.isActive = !!isActive;
       if (role !== undefined) {
         if (!["admin", "manager", "user"].includes(role)) {
@@ -764,6 +767,7 @@ export async function registerRoutes(
         name: isAdmin ? (u.name || u.username) : maskName(u.name || u.username),
         username: u.username,
         department: isAdmin ? (u.department || "") : maskDept(u.department || ""),
+        position: u.position || "",
       }));
       res.json(names);
     } catch (error) {

@@ -946,7 +946,7 @@ function ExcelUploadDialog() {
   };
 
   const downloadTemplate = () => {
-    const csvContent = "부서명,이름,아이디,비밀번호\n네트워크팀,홍길동,hong123,password123\n안전관리팀,김철수,kim456,password456";
+    const csvContent = "부서명,이름,아이디,비밀번호,직위\n네트워크팀,홍길동,hong123,password123,대리\n안전관리팀,김철수,kim456,password456,과장";
     const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -1043,6 +1043,7 @@ function CreateUserDialog() {
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [department, setDepartment] = useState("");
+  const [position, setPosition] = useState("");
   const [role, setRole] = useState("user");
   const [showPassword, setShowPassword] = useState(false);
   const [successInfo, setSuccessInfo] = useState<{ username: string; password: string; name: string } | null>(null);
@@ -1062,7 +1063,7 @@ function CreateUserDialog() {
   };
 
   const createUserMutation = useMutation({
-    mutationFn: async (data: { username: string; password: string; name: string; department: string; role: string }) => {
+    mutationFn: async (data: { username: string; password: string; name: string; department: string; role: string; position?: string }) => {
       return apiRequest("POST", "/api/users", data);
     },
     onSuccess: () => {
@@ -1085,7 +1086,7 @@ function CreateUserDialog() {
       toast({ variant: "destructive", title: "아이디와 비밀번호는 필수입니다." });
       return;
     }
-    createUserMutation.mutate({ username, password, name: name || username, department, role });
+    createUserMutation.mutate({ username, password, name: name || username, department, role, position: position || undefined });
   };
 
   const handleCopyCredentials = () => {
@@ -1101,6 +1102,7 @@ function CreateUserDialog() {
     setPassword("");
     setName("");
     setDepartment("");
+    setPosition("");
     setRole("user");
   };
 
@@ -1128,6 +1130,15 @@ function CreateUserDialog() {
                 onChange={(e) => setDepartment(e.target.value)}
                 placeholder="소속 부서"
                 data-testid="input-new-department"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">직위</label>
+              <Input
+                value={position}
+                onChange={(e) => setPosition(e.target.value)}
+                placeholder="직위 (예: 대리, 과장)"
+                data-testid="input-new-position"
               />
             </div>
             <div className="space-y-2">

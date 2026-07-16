@@ -224,6 +224,7 @@ export const users = pgTable("users", {
   failedLoginAttempts: integer("failed_login_attempts").notNull().default(0),
   lockedUntil: timestamp("locked_until"),
   lastLoginAt: timestamp("last_login_at"),
+  position: varchar("position"),
   isActive: boolean("is_active").notNull().default(true),
   // 2차 인증 (TOTP)
   totpSecret: varchar("totp_secret", { length: 64 }),

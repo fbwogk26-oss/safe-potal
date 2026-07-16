@@ -7,7 +7,7 @@ import bcrypt from "bcryptjs";
 export interface IAuthStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(username: string, password: string, name: string, role?: string, department?: string, permissions?: UserPermissions): Promise<User>;
+  createUser(username: string, password: string, name: string, role?: string, department?: string, permissions?: UserPermissions, position?: string): Promise<User>;
   updateUser(id: string, data: Partial<{ name: string; role: string; password: string; department: string; permissions: UserPermissions; mustChangePassword: boolean; isActive: boolean; totpSecret: string | null; totpEnabled: boolean; resignedAt: Date | null; deactivationReason: string | null }>): Promise<User | undefined>;
   deleteUser(id: string): Promise<void>;
   getAllUsers(): Promise<User[]>;
@@ -28,7 +28,7 @@ class AuthStorage implements IAuthStorage {
     return user;
   }
 
-  async createUser(username: string, password: string, name: string, role: string = "user", department?: string, permissions?: UserPermissions): Promise<User> {
+  async createUser(username: string, password: string, name: string, role: string = "user", department?: string, permissions?: UserPermissions, position?: string): Promise<User> {
     const hashedPassword = await bcrypt.hash(password, 10);
     const perms = role === "admin" ? ALL_PERMISSIONS : (permissions || DEFAULT_PERMISSIONS);
     const [user] = await db
@@ -39,13 +39,14 @@ class AuthStorage implements IAuthStorage {
         name,
         role,
         department: department || null,
+        position: position || null,
         permissions: perms,
       })
       .returning();
     return user;
   }
 
-  async updateUser(id: string, data: Partial<{ name: string; role: string; password: string; department: string; permissions: UserPermissions; mustChangePassword: boolean; isActive: boolean; totpSecret: string | null; totpEnabled: boolean; resignedAt: Date | null; deactivationReason: string | null }>): Promise<User | undefined> {
+  async updateUser(id: string, data: Partial<{ name: string; role: string; password: string; department: string; position: string; permissions: UserPermissions; mustChangePassword: boolean; isActive: boolean; totpSecret: string | null; totpEnabled: boolean; resignedAt: Date | null; deactivationReason: string | null }>): Promise<User | undefined> {
     const updateData: any = { updatedAt: new Date() };
     if (data.name !== undefined) updateData.name = data.name;
     if (data.isActive !== undefined) updateData.isActive = data.isActive;
@@ -56,6 +57,7 @@ class AuthStorage implements IAuthStorage {
       }
     }
     if (data.department !== undefined) updateData.department = data.department;
+    if (data.position !== undefined) updateData.position = data.position;
     if (data.permissions !== undefined) updateData.permissions = data.permissions;
     if (data.mustChangePassword !== undefined) updateData.mustChangePassword = data.mustChangePassword;
     if (data.password !== undefined) {
