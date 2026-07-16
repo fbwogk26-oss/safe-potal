@@ -562,15 +562,17 @@ export default function MusculoskeletalDisease() {
         ...data,
         headquarters,
         burdenWorkChecklist: JSON.stringify(data.burdenWorkChecklist),
-      } as unknown as Record<string, unknown>),
-    onSuccess: (response: any, variables: FormState) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments"] });
+      } as unknown as Record<string, unknown>).then(r => r.json()),
+    onSuccess: async (response: any, variables: FormState) => {
       clearDraft();
       resetForm();
       toast({ title: "근골격계 유해요인조사가 등록되었습니다." });
-      // 부담작업 항목이 있으면 바로 증상조사표 입력으로 이동
+      // 부담작업 항목이 있으면 목록 갱신 후 바로 증상조사표 입력으로 이동
       if (variables.burdenWorkChecklist.length > 0 && response?.id) {
+        await queryClient.refetchQueries({ queryKey: ["/api/musculoskeletal-assessments"] });
         setSurveyAssessmentId(response.id);
+      } else {
+        queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments"] });
       }
     },
     onError: () => toast({ variant: "destructive", title: "등록 실패" }),
