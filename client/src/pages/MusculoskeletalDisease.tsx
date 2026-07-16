@@ -687,6 +687,16 @@ export default function MusculoskeletalDisease() {
   const [previewIntForm, setPreviewIntForm] = useState(initPreviewIntForm);
   const [previewIntSignature, setPreviewIntSignature] = useState<string>("");
   const [sigPadKey, setSigPadKey] = useState(0);
+  const [previewInterviewEditingId, setPreviewInterviewEditingId] = useState<number | null>(null);
+
+  const resetPreviewIntForm = () => {
+    setShowPreviewInterviewForm(false);
+    setPreviewIntForm(initPreviewIntForm());
+    setPreviewIntSignature("");
+    setSigPadKey(k => k + 1);
+    setPreviewInterviewEditingId(null);
+  };
+
   const createPreviewInterviewMutation = useMutation({
     mutationFn: (data: any) =>
       fetch(`/api/musculoskeletal-assessments/${previewAssessmentId}/interviews`, {
@@ -697,14 +707,73 @@ export default function MusculoskeletalDisease() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments", previewAssessmentId, "interviews"] });
       queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments"] });
-      setShowPreviewInterviewForm(false);
-      setPreviewIntForm(initPreviewIntForm());
-      setPreviewIntSignature("");
-      setSigPadKey(k => k + 1);
+      resetPreviewIntForm();
       toast({ title: "면담일지가 등록되었습니다." });
     },
     onError: () => toast({ variant: "destructive", title: "등록에 실패했습니다." }),
   });
+
+  const updatePreviewInterviewMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: any }) =>
+      fetch(`/api/musculoskeletal-interviews/${id}`, {
+        method: "PUT", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }).then(async r => { if (!r.ok) throw new Error(await r.text()); return r.json(); }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments", previewAssessmentId, "interviews"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments"] });
+      resetPreviewIntForm();
+      toast({ title: "면담일지가 수정되었습니다." });
+    },
+    onError: () => toast({ variant: "destructive", title: "수정에 실패했습니다." }),
+  });
+
+  const deletePreviewInterviewMutation = useMutation({
+    mutationFn: (id: number) =>
+      fetch(`/api/musculoskeletal-interviews/${id}`, { method: "DELETE", credentials: "include" })
+        .then(async r => { if (!r.ok) throw new Error(await r.text()); }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments", previewAssessmentId, "interviews"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments"] });
+      toast({ title: "면담일지가 삭제되었습니다." });
+    },
+    onError: () => toast({ variant: "destructive", title: "삭제에 실패했습니다." }),
+  });
+
+  const deletePreviewSurveyMutation = useMutation({
+    mutationFn: (id: number) =>
+      fetch(`/api/symptom-surveys/${id}`, { method: "DELETE", credentials: "include" })
+        .then(async r => { if (!r.ok) throw new Error(await r.text()); }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments", previewAssessmentId, "symptom-surveys"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments/pending-symptom-count"] });
+      toast({ title: "증상조사표가 삭제되었습니다." });
+    },
+    onError: () => toast({ variant: "destructive", title: "삭제에 실패했습니다." }),
+  });
+
+  const handlePreviewInterviewEdit = (iv: any) => {
+    setPreviewInterviewEditingId(iv.id);
+    setPreviewIntForm({
+      workerName: iv.workerName || "",
+      workerDept: iv.workerDept || "",
+      workerPosition: iv.workerPosition || "",
+      assignedWork: iv.assignedWork || "",
+      interviewDate: iv.interviewDate || new Date().toISOString().slice(0, 10),
+      hazardDetails: iv.hazardDetails || "",
+      mainSymptoms: iv.mainSymptoms || "",
+      discomfortIssues: iv.discomfortIssues || "",
+      improvementMeasures: iv.improvementMeasures || "",
+      requests: iv.requests || "",
+      interviewerName: iv.interviewerName || "",
+    });
+    setPreviewIntSignature(iv.interviewerSignature || "");
+    setSigPadKey(k => k + 1);
+    setPreviewExpandedWorker(null);
+    setShowPreviewInterviewForm(true);
+  };
 
   // ── 부서장 면담 알림 팝업 ──────────────────────────────────────────────
   const isDeptHead = user?.role === "deptHead" || user?.role === "admin";
@@ -2678,244 +2747,401 @@ export default function MusculoskeletalDisease() {
 
       {/* ─── 증상조사표 미리보기 다이얼로그 (부서장/관리자) ──────── */}
       {isDeptHead && (
-        <Dialog open={previewAssessmentId !== null} onOpenChange={o => { if (!o) { setPreviewAssessmentId(null); setShowPreviewInterviewForm(false); setPreviewExpandedWorker(null); setPreviewIntForm(initPreviewIntForm()); setPreviewIntSignature(""); setSigPadKey(k => k + 1); } }}>
-          <DialogContent className="max-w-2xl max-h-[88vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2 text-purple-700 dark:text-purple-400">
-                <Eye className="w-4 h-4" />
-                증상조사표 작성내역
-              </DialogTitle>
-              <DialogDescription>
-                {(() => {
-                  const a = (assessments || []).find(x => x.id === previewAssessmentId);
-                  return a ? `${a.department} · ${a.assessor || ""} · ${a.assessmentDate || ""}` : "";
-                })()}
-              </DialogDescription>
-            </DialogHeader>
-
-            {previewLoading ? (
-              <div className="py-8 text-center text-muted-foreground text-sm">불러오는 중...</div>
-            ) : !previewSurveys || previewSurveys.length === 0 ? (
-              <div className="py-8 text-center text-muted-foreground text-sm">등록된 증상조사표가 없습니다.</div>
-            ) : (
-              <div className="space-y-3">
-                {/* ── ① 상세 내용 ─────────────────────────────────── */}
-                <div className="space-y-3">
-                  <p className="text-xs font-semibold text-muted-foreground">상세 내용</p>
-
-                  {/* 평가자 유해요인조사 체크 항목 */}
+        <Dialog open={previewAssessmentId !== null} onOpenChange={o => { if (!o) { setPreviewAssessmentId(null); resetPreviewIntForm(); setPreviewExpandedWorker(null); setPreviewInterviewEditingId(null); } }}>
+          <DialogContent className="max-w-2xl max-h-[88vh] overflow-y-auto p-0">
+            {/* 헤더 */}
+            <div className="bg-gradient-to-r from-purple-600 to-purple-700 px-5 py-4 rounded-t-lg">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-white text-base">
+                  <Eye className="w-4 h-4" />
+                  증상조사표 작성내역
+                </DialogTitle>
+                <DialogDescription className="text-purple-200 text-xs mt-0.5">
                   {(() => {
                     const a = (assessments || []).find(x => x.id === previewAssessmentId);
-                    const checklist = parseChecklist((a as any)?.burdenWorkChecklist);
-                    const hazardFactor = (a as any)?.hazardFactor;
-                    const hasContent = checklist.length > 0 || hazardFactor;
-                    if (!hasContent) return null;
-                    return (
-                      <div className="rounded-xl border border-purple-200 dark:border-purple-800 bg-purple-50/50 dark:bg-purple-900/10 p-4 space-y-2">
-                        <p className="text-xs font-semibold text-purple-700 dark:text-purple-400 flex items-center gap-1.5">
-                          <Wrench className="w-3.5 h-3.5" />
-                          평가자 유해요인조사 체크 항목
-                        </p>
+                    return a ? `${a.department} · ${a.assessor || ""} · ${a.assessmentDate || ""}` : "";
+                  })()}
+                </DialogDescription>
+              </DialogHeader>
+            </div>
+            <div className="px-5 pb-5 pt-4 space-y-4">
+
+            {previewLoading ? (
+              <div className="py-10 text-center text-muted-foreground text-sm">불러오는 중...</div>
+            ) : (
+              <div className="space-y-4">
+
+                {/* ── ① 평가자 유해요인 체크항목 ──────────────────────── */}
+                {(() => {
+                  const a = (assessments || []).find(x => x.id === previewAssessmentId);
+                  const checklist = parseChecklist((a as any)?.burdenWorkChecklist);
+                  const hazardFactor = (a as any)?.hazardFactor;
+                  if (!checklist.length && !hazardFactor) return null;
+                  return (
+                    <div className="rounded-xl overflow-hidden border border-purple-200 dark:border-purple-800">
+                      <div className="flex items-center gap-2 px-4 py-2.5 bg-purple-100 dark:bg-purple-900/40 border-b border-purple-200 dark:border-purple-800">
+                        <Wrench className="w-3.5 h-3.5 text-purple-700 dark:text-purple-400" />
+                        <span className="text-xs font-bold text-purple-700 dark:text-purple-400">평가자 유해요인조사 체크 항목</span>
+                      </div>
+                      <div className="px-4 py-3 bg-purple-50/40 dark:bg-purple-900/10 space-y-2">
                         {hazardFactor && (
                           <p className="text-xs text-muted-foreground">· 유해요인: <span className="font-medium text-foreground">{hazardFactor}</span></p>
                         )}
-                        {checklist.length > 0 && (
-                          <div className="space-y-2 mt-1">
-                            {checklist.map(no => {
-                              const bw = BURDEN_WORKS.find(b => b.no === no);
-                              if (!bw) return null;
-                              return (
-                                <div key={no} className="flex items-start gap-2">
-                                  <span className="shrink-0 text-[10px] font-bold bg-purple-600 text-white rounded-full w-5 h-5 flex items-center justify-center mt-0.5">{no}호</span>
-                                  <div>
-                                    <p className="text-xs font-medium text-foreground">{bw.short}</p>
-                                    <p className="text-[11px] text-muted-foreground leading-snug">{bw.desc}</p>
+                        {checklist.map(no => {
+                          const bw = BURDEN_WORKS.find(b => b.no === no);
+                          if (!bw) return null;
+                          return (
+                            <div key={no} className="flex items-start gap-2">
+                              <span className="shrink-0 text-[10px] font-bold bg-purple-600 text-white rounded-full w-5 h-5 flex items-center justify-center mt-0.5">{no}호</span>
+                              <div>
+                                <p className="text-xs font-semibold text-foreground">{bw.short}</p>
+                                <p className="text-[11px] text-muted-foreground leading-snug">{bw.desc}</p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* ── ② 증상조사표 목록 (수정/삭제 포함) ──────────────── */}
+                {(previewSurveys || []).length > 0 && (
+                  <div className="rounded-xl overflow-hidden border border-orange-200 dark:border-orange-800">
+                    <div className="flex items-center justify-between px-4 py-2.5 bg-orange-50 dark:bg-orange-900/20 border-b border-orange-200 dark:border-orange-800">
+                      <div className="flex items-center gap-2">
+                        <Activity className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />
+                        <span className="text-xs font-bold text-orange-700 dark:text-orange-400">증상조사표</span>
+                        <span className="text-[11px] text-orange-500 dark:text-orange-500">({(previewSurveys || []).length}건)</span>
+                      </div>
+                    </div>
+                    <div className="divide-y divide-border">
+                      {(previewSurveys || []).map((s: any) => {
+                        const bpd: Record<string, any> = (s.bodyPartData && typeof s.bodyPartData === "object") ? s.bodyPartData : {};
+                        const painParts = Object.keys(bpd);
+                        const legacyParts = BODY_PARTS.filter(bp => s[`${bp.key}Pain`]).map(bp => bp.label);
+                        const painLabels = painParts.length > 0
+                          ? painParts.map(k => BODY_PARTS.find(bp => bp.key === k)?.label ?? k)
+                          : legacyParts;
+                        const gh = (s.generalHealth && typeof s.generalHealth === "object") ? s.generalHealth : {};
+                        const hasGeneralHealth = gh.q5Burden || gh.q2Housework || gh.q3Medical || gh.q4Injury || (gh.q1Leisure || []).length > 0;
+                        const isExpanded = previewExpandedWorker === `survey-${s.id}`;
+                        return (
+                          <div key={s.id} className="bg-white dark:bg-background">
+                            <div className="flex items-center justify-between px-4 py-2.5 gap-2">
+                              <div className="flex items-center gap-2 flex-wrap min-w-0">
+                                <span className="font-semibold text-sm">{s.workerName || "(이름없음)"}</span>
+                                {s.workerDept && <span className="text-xs text-muted-foreground">({s.workerDept})</span>}
+                                {painLabels.length > 0
+                                  ? <span className="text-xs font-medium text-orange-600 bg-orange-50 dark:bg-orange-900/20 px-1.5 py-0.5 rounded-full">통증: {painLabels.join(", ")}</span>
+                                  : s.hasPain === "아니오"
+                                    ? <span className="text-xs font-medium text-green-600 bg-green-50 dark:bg-green-900/20 px-1.5 py-0.5 rounded-full">이상 없음</span>
+                                    : null}
+                              </div>
+                              <div className="flex items-center gap-1 shrink-0">
+                                <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                                  onClick={() => setPreviewExpandedWorker(isExpanded ? null : `survey-${s.id}`)}>
+                                  {isExpanded ? "접기" : "상세"}
+                                </Button>
+                                <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                                  title="조사표 수정"
+                                  onClick={() => { handleSurveyEdit(s); setSurveyAssessmentId(previewAssessmentId); }}>
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </Button>
+                                <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                  title="조사표 삭제"
+                                  onClick={() => { if (confirm("이 증상조사표를 삭제하시겠습니까?")) deletePreviewSurveyMutation.mutate(s.id); }}>
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </Button>
+                              </div>
+                            </div>
+                            {isExpanded && (
+                              <div className="px-4 pb-3 space-y-3 bg-muted/10 border-t border-border">
+                                {hasGeneralHealth && (
+                                  <div className="pt-2 space-y-1.5">
+                                    <p className="text-xs font-semibold flex items-center gap-1 text-foreground/70"><HeartPulse className="w-3 h-3" /> 일반 문항</p>
+                                    <div className="pl-3 space-y-1 border-l-2 border-muted">
+                                      {(gh.q1Leisure || []).length > 0 && <div className="flex gap-2 text-xs"><span className="text-muted-foreground w-20 shrink-0">여가활동</span><span className="font-medium">{(gh.q1Leisure as string[]).join(", ")}</span></div>}
+                                      {gh.q2Housework && <div className="flex gap-2 text-xs"><span className="text-muted-foreground w-20 shrink-0">가사노동</span><span className="font-medium">{gh.q2Housework}</span></div>}
+                                      {gh.q3Medical && <div className="flex gap-2 text-xs"><span className="text-muted-foreground w-20 shrink-0">진단 질병</span><span className="font-medium">{gh.q3Medical}{(gh.q3Conditions || []).length > 0 ? ` (${(gh.q3Conditions as string[]).join(", ")})` : ""}</span></div>}
+                                      {gh.q4Injury && <div className="flex gap-2 text-xs"><span className="text-muted-foreground w-20 shrink-0">과거 부상</span><span className="font-medium">{gh.q4Injury}{(gh.q4Parts || []).length > 0 ? ` (${(gh.q4Parts as string[]).join(", ")})` : ""}</span></div>}
+                                      {gh.q5Burden && <div className="flex gap-2 text-xs"><span className="text-muted-foreground w-20 shrink-0">육체적 부담</span><span className="font-medium">{gh.q5Burden}</span></div>}
+                                    </div>
                                   </div>
+                                )}
+                                {painParts.length > 0 && (
+                                  <div className="space-y-2">
+                                    <p className="text-xs font-semibold flex items-center gap-1 text-foreground/70"><Activity className="w-3 h-3" /> 신체 부위별 증상</p>
+                                    <div className="space-y-2">
+                                      {painParts.map(key => {
+                                        const d = bpd[key] || {};
+                                        const label = BODY_PARTS.find(bp => bp.key === key)?.label || key;
+                                        const rows = [
+                                          d.side && ["부위", d.side],
+                                          d.intensity && ["강도", d.intensity],
+                                          d.duration && ["기간", d.duration],
+                                          d.frequency && ["빈도", d.frequency],
+                                          d.pastWeek && ["지난 1주", d.pastWeek],
+                                          (d.treatments || []).length > 0 && ["조치", (d.treatments as string[]).join(", ")],
+                                        ].filter(Boolean) as [string, string][];
+                                        return (
+                                          <div key={key} className="pl-3 border-l-2 border-rose-300 dark:border-rose-700 space-y-1">
+                                            <p className="text-xs font-bold text-rose-600 dark:text-rose-400">{label}</p>
+                                            <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
+                                              {rows.map(([k, v]) => (
+                                                <div key={k} className="flex gap-1.5 text-xs">
+                                                  <span className="text-muted-foreground shrink-0">{k}</span>
+                                                  <span className="font-medium">{v}</span>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
+                                {painParts.length === 0 && s.hasPain === "아니오" && (
+                                  <p className="text-xs text-muted-foreground pt-2">신체 부위별 증상 없음</p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* ── ③ 면담일지 목록 (수정/삭제/새 작성 포함) ────────── */}
+                <div className="rounded-xl overflow-hidden border border-purple-200 dark:border-purple-800">
+                  <div className="flex items-center justify-between px-4 py-2.5 bg-purple-50 dark:bg-purple-900/20 border-b border-purple-200 dark:border-purple-800">
+                    <div className="flex items-center gap-2">
+                      <Bone className="w-3.5 h-3.5 text-purple-700 dark:text-purple-400" />
+                      <span className="text-xs font-bold text-purple-700 dark:text-purple-400">면담일지</span>
+                      <span className="text-[11px] text-purple-500">({(previewInterviews || []).length}건)</span>
+                    </div>
+                    {!showPreviewInterviewForm && (
+                      <Button size="sm" variant="ghost"
+                        className="h-6 px-2 text-xs text-purple-700 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/40"
+                        onClick={() => {
+                          setPreviewInterviewEditingId(null);
+                          const _a2 = (assessments || []).find(x => x.id === previewAssessmentId);
+                          const _cl2 = parseChecklist((_a2 as any)?.burdenWorkChecklist);
+                          const autoHazard2 = _cl2.length > 0
+                            ? _cl2.map(no => { const bw = (BURDEN_WORKS as readonly any[]).find(b => b.no === no); return bw ? `제${no}호 ${bw.short}` : ""; }).filter(Boolean).join("\n")
+                            : (_a2 as any)?.hazardFactor || "";
+                          const _validWorks2 = ["현장운용", "일반사무", "기타"];
+                          const autoWork2 = _validWorks2.includes((_a2 as any)?.task || "") ? (_a2 as any).task : "";
+                          setPreviewIntForm(f => ({ ...f, assignedWork: autoWork2 || f.assignedWork || "", interviewDate: new Date().toISOString().slice(0, 10), interviewerName: user?.name || "", hazardDetails: autoHazard2 || f.hazardDetails || "" }));
+                          setSigPadKey(k => k + 1);
+                          setPreviewIntSignature("");
+                          setShowPreviewInterviewForm(true);
+                        }}>
+                        <Pencil className="w-3 h-3 mr-1" />새 작성
+                      </Button>
+                    )}
+                  </div>
+                  {(previewInterviews || []).length === 0 && !showPreviewInterviewForm && (
+                    <div className="px-4 py-4 text-center text-xs text-muted-foreground">면담일지가 없습니다.</div>
+                  )}
+                  {(previewInterviews || []).length > 0 && (
+                    <div className="divide-y divide-border">
+                      {(previewInterviews || []).map((iv: any) => {
+                        const isIvExpanded = previewExpandedWorker === `iv-${iv.id}`;
+                        return (
+                          <div key={iv.id} className="bg-white dark:bg-background">
+                            <div className="flex items-center justify-between px-4 py-2.5 gap-2">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-semibold text-sm">{iv.workerName || "(이름없음)"}</span>
+                                  {iv.workerDept && <span className="text-xs text-muted-foreground">({iv.workerDept})</span>}
+                                  {iv.workerPosition && <span className="text-xs text-muted-foreground">· {iv.workerPosition}</span>}
+                                </div>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  <span className="text-[11px] text-muted-foreground">{iv.interviewDate}</span>
+                                  {iv.interviewerName && <span className="text-[11px] text-muted-foreground">· 면담자: {iv.interviewerName}</span>}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1 shrink-0">
+                                <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                                  onClick={() => setPreviewExpandedWorker(isIvExpanded ? null : `iv-${iv.id}`)}>
+                                  {isIvExpanded ? "접기" : "상세"}
+                                </Button>
+                                <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                                  title="면담일지 수정"
+                                  onClick={() => handlePreviewInterviewEdit(iv)}>
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </Button>
+                                <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                  title="면담일지 삭제"
+                                  onClick={() => { if (confirm("이 면담일지를 삭제하시겠습니까?")) deletePreviewInterviewMutation.mutate(iv.id); }}>
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </Button>
+                              </div>
+                            </div>
+                            {isIvExpanded && (
+                              <div className="px-4 pb-3 pt-1 space-y-1.5 bg-purple-50/30 dark:bg-purple-900/10 border-t border-border text-xs">
+                                {iv.mainSymptoms && <p><span className="font-semibold text-foreground/70 mr-1">주요 증상:</span>{iv.mainSymptoms}</p>}
+                                {iv.discomfortIssues && <p><span className="font-semibold text-foreground/70 mr-1">불편 사항:</span>{iv.discomfortIssues}</p>}
+                                {iv.improvementMeasures && <p><span className="font-semibold text-blue-600 mr-1">개선 조치:</span>{iv.improvementMeasures}</p>}
+                                {iv.requests && <p><span className="font-semibold text-foreground/70 mr-1">요청 사항:</span>{iv.requests}</p>}
+                                {iv.interviewerSignature && (
+                                  <div className="pt-1 border-t border-purple-100 dark:border-purple-800 mt-1">
+                                    <span className="text-muted-foreground block mb-1">면담자 서명</span>
+                                    <img src={iv.interviewerSignature} alt="서명" className="h-14 rounded border bg-white object-contain px-1" />
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* ── 인라인 면담일지 작성/수정 폼 ── */}
+                  {showPreviewInterviewForm && (
+                    <div className="px-4 py-4 border-t border-purple-200 dark:border-purple-800 bg-purple-50/30 dark:bg-purple-900/10 space-y-3">
+                      <p className="text-xs font-bold text-purple-700 dark:text-purple-400 flex items-center gap-1.5">
+                        <Bone className="w-3.5 h-3.5" />
+                        {previewInterviewEditingId ? "면담일지 수정" : "새 면담일지 작성"}
+                      </p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">근로자 성명</Label>
+                          <Input className="h-8 text-sm" value={previewIntForm.workerName} onChange={e => setPreviewIntForm(f => ({ ...f, workerName: e.target.value }))} placeholder="성명" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">부서</Label>
+                          <Input className="h-8 text-sm" value={previewIntForm.workerDept} onChange={e => setPreviewIntForm(f => ({ ...f, workerDept: e.target.value }))} placeholder="부서명" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">직위/직종</Label>
+                          <Input className="h-8 text-sm" value={previewIntForm.workerPosition} onChange={e => setPreviewIntForm(f => ({ ...f, workerPosition: e.target.value }))} placeholder="직위" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">담당 작업</Label>
+                          <Select value={previewIntForm.assignedWork} onValueChange={v => setPreviewIntForm(f => ({ ...f, assignedWork: v }))}>
+                            <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="선택" /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="현장운용">현장운용</SelectItem>
+                              <SelectItem value="일반사무">일반사무</SelectItem>
+                              <SelectItem value="기타">기타</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">면담일</Label>
+                          <Input type="date" className="h-8 text-sm" value={previewIntForm.interviewDate} onChange={e => setPreviewIntForm(f => ({ ...f, interviewDate: e.target.value }))} />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">면담자</Label>
+                          <Input className="h-8 text-sm" value={previewIntForm.interviewerName} onChange={e => setPreviewIntForm(f => ({ ...f, interviewerName: e.target.value }))} placeholder="면담자 이름" />
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">유해요인</Label>
+                        <Textarea className="text-sm min-h-[48px]" value={previewIntForm.hazardDetails} onChange={e => setPreviewIntForm(f => ({ ...f, hazardDetails: e.target.value }))} placeholder="작업 관련 유해요인" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">주요 증상</Label>
+                        <Textarea className="text-sm min-h-[48px]" value={previewIntForm.mainSymptoms} onChange={e => setPreviewIntForm(f => ({ ...f, mainSymptoms: e.target.value }))} placeholder="통증 부위 및 증상" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">불편 사항</Label>
+                        <Textarea className="text-sm min-h-[48px]" value={previewIntForm.discomfortIssues} onChange={e => setPreviewIntForm(f => ({ ...f, discomfortIssues: e.target.value }))} placeholder="작업 중 불편한 사항" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">개선 조치</Label>
+                        <Textarea className="text-sm min-h-[48px]" value={previewIntForm.improvementMeasures} onChange={e => setPreviewIntForm(f => ({ ...f, improvementMeasures: e.target.value }))} placeholder="개선 조치 내용" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">요청 사항</Label>
+                        <Textarea className="text-sm min-h-[48px]" value={previewIntForm.requests} onChange={e => setPreviewIntForm(f => ({ ...f, requests: e.target.value }))} placeholder="근로자 요청 사항" />
+                      </div>
+                      <div className="space-y-2 border border-purple-200 dark:border-purple-800 rounded-xl p-3 bg-white dark:bg-background">
+                        <Label className="text-xs font-semibold text-purple-700 dark:text-purple-400">면담자 서명</Label>
+                        {previewIntSignature ? (
+                          <div className="space-y-2">
+                            <img src={previewIntSignature} alt="서명" className="h-20 rounded-lg border bg-white object-contain px-2" />
+                            <Button type="button" size="sm" variant="outline" className="w-full text-xs" onClick={() => { setPreviewIntSignature(""); setSigPadKey(k => k + 1); }}>서명 다시 하기</Button>
+                          </div>
+                        ) : (
+                          <InterviewSignaturePad padKey={sigPadKey} onSave={data => setPreviewIntSignature(data)} onClear={() => setPreviewIntSignature("")} />
+                        )}
+                      </div>
+                      <div className="flex justify-end gap-2 pt-1">
+                        <Button variant="outline" size="sm" onClick={resetPreviewIntForm}>취소</Button>
+                        <Button size="sm" className="bg-purple-600 hover:bg-purple-700 text-white"
+                          disabled={createPreviewInterviewMutation.isPending || updatePreviewInterviewMutation.isPending}
+                          onClick={() => {
+                            const data = { ...previewIntForm, interviewerSignature: previewIntSignature || null };
+                            if (previewInterviewEditingId) {
+                              updatePreviewInterviewMutation.mutate({ id: previewInterviewEditingId, data });
+                            } else {
+                              createPreviewInterviewMutation.mutate(data);
+                            }
+                          }}>
+                          {(createPreviewInterviewMutation.isPending || updatePreviewInterviewMutation.isPending)
+                            ? "저장 중..."
+                            : previewInterviewEditingId ? "수정 저장" : "저장"}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* ── ④ 조사완료 종합 요약 ──────────────────────────────── */}
+                {(() => {
+                  const a = (assessments || []).find(x => x.id === previewAssessmentId);
+                  if (a?.status !== "조사완료") return null;
+                  return (
+                    <div className="rounded-xl overflow-hidden border border-green-300 dark:border-green-700">
+                      <div className="flex items-center gap-2 px-4 py-2.5 bg-green-100 dark:bg-green-900/30 border-b border-green-200 dark:border-green-700">
+                        <CheckSquare className="w-3.5 h-3.5 text-green-700 dark:text-green-400" />
+                        <span className="text-xs font-bold text-green-700 dark:text-green-400">조사 완료 — 종합 현황</span>
+                      </div>
+                      <div className="px-4 py-3 bg-green-50/40 dark:bg-green-900/10 space-y-3">
+                        {(previewSurveys || []).length > 0 && (
+                          <div className="space-y-1.5">
+                            <p className="text-xs font-semibold text-muted-foreground">증상조사표 ({(previewSurveys || []).length}건)</p>
+                            {(previewSurveys || []).map((s: any) => {
+                              const bpd2Keys = s.bodyPartData ? Object.keys(s.bodyPartData) : [];
+                              const leg2 = BODY_PARTS.filter(bp => s[`${bp.key}Pain`]).map(bp => bp.label);
+                              const pain2 = bpd2Keys.length > 0 ? bpd2Keys.map(k => BODY_PARTS.find(bp => bp.key === k)?.label ?? k) : leg2;
+                              return (
+                                <div key={s.id} className="flex items-center gap-2 text-xs bg-white dark:bg-white/5 rounded-lg px-3 py-1.5 border border-green-100 dark:border-green-800">
+                                  {s.workerName && <span className="font-medium">{s.workerName}</span>}
+                                  {s.workerDept && <span className="text-muted-foreground">({s.workerDept})</span>}
+                                  {pain2.length > 0 ? <span className="text-orange-600">통증: {pain2.join(", ")}</span> : <span className="text-green-600">이상 없음</span>}
                                 </div>
                               );
                             })}
                           </div>
                         )}
-                      </div>
-                    );
-                  })()}
-
-                  {/* 증상조사표 작성내역 상세 카드 */}
-                  {previewSurveys.map((s: any, i: number) => {
-                    const bpd: Record<string, any> = (s.bodyPartData && typeof s.bodyPartData === "object") ? s.bodyPartData : {};
-                    const painParts = Object.keys(bpd);
-                    const gh = (s.generalHealth && typeof s.generalHealth === "object") ? s.generalHealth : {};
-                    const hasGeneralHealth = gh.q5Burden || gh.q2Housework || gh.q3Medical || gh.q4Injury || (gh.q1Leisure || []).length > 0;
-                    return (
-                      <div key={s.id} className="rounded-xl border border-border bg-muted/10 overflow-hidden">
-                        <div className="flex items-center justify-between px-4 py-2.5 bg-muted/30 border-b border-border">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-semibold text-muted-foreground">증상조사표 작성내역</span>
-                            {s.workerName && <span className="text-sm font-semibold">{s.workerName}</span>}
-                            {s.workerDept && <span className="text-xs text-muted-foreground">· {s.workerDept}</span>}
-                          </div>
-                          {s.hasPain === "예"
-                            ? <span className="text-[10px] font-semibold text-rose-600 dark:text-rose-400">통증 있음</span>
-                            : s.hasPain === "아니오"
-                              ? <span className="text-[10px] font-semibold text-green-600 dark:text-green-400">이상 없음</span>
-                              : null}
-                        </div>
-                        <div className="px-4 py-3 space-y-3">
-                          {hasGeneralHealth && (
-                            <div className="space-y-1.5">
-                              <p className="text-xs font-semibold flex items-center gap-1 text-foreground/70">
-                                <HeartPulse className="w-3 h-3" /> 일반 문항
-                              </p>
-                              <div className="pl-4 space-y-1 border-l-2 border-muted">
-                                {(gh.q1Leisure || []).length > 0 && (
-                                  <div className="flex gap-2 text-xs"><span className="text-muted-foreground w-20 shrink-0">여가활동</span><span className="font-medium">{(gh.q1Leisure as string[]).join(", ")}</span></div>
-                                )}
-                                {gh.q2Housework && <div className="flex gap-2 text-xs"><span className="text-muted-foreground w-20 shrink-0">가사노동</span><span className="font-medium">{gh.q2Housework}</span></div>}
-                                {gh.q3Medical && <div className="flex gap-2 text-xs"><span className="text-muted-foreground w-20 shrink-0">진단 질병</span><span className="font-medium">{gh.q3Medical}{(gh.q3Conditions || []).length > 0 ? ` (${(gh.q3Conditions as string[]).join(", ")})` : ""}</span></div>}
-                                {gh.q4Injury && <div className="flex gap-2 text-xs"><span className="text-muted-foreground w-20 shrink-0">과거 부상</span><span className="font-medium">{gh.q4Injury}{(gh.q4Parts || []).length > 0 ? ` (${(gh.q4Parts as string[]).join(", ")})` : ""}</span></div>}
-                                {gh.q5Burden && <div className="flex gap-2 text-xs"><span className="text-muted-foreground w-20 shrink-0">육체적 부담</span><span className="font-medium">{gh.q5Burden}</span></div>}
-                              </div>
-                            </div>
-                          )}
-                          {painParts.length > 0 && (
-                            <div className="space-y-2">
-                              <p className="text-xs font-semibold flex items-center gap-1 text-foreground/70">
-                                <Activity className="w-3 h-3" /> 신체 부위별 증상
-                              </p>
-                              <div className="space-y-2">
-                                {painParts.map(key => {
-                                  const d = bpd[key] || {};
-                                  const label = BODY_PARTS.find(bp => bp.key === key)?.label || key;
-                                  const rows = [
-                                    d.side && ["부위", d.side],
-                                    d.intensity && ["강도", d.intensity],
-                                    d.duration && ["기간", d.duration],
-                                    d.frequency && ["빈도", d.frequency],
-                                    d.pastWeek && ["지난 1주", d.pastWeek],
-                                    (d.treatments || []).length > 0 && ["조치", (d.treatments as string[]).join(", ")],
-                                  ].filter(Boolean) as [string, string][];
-                                  return (
-                                    <div key={key} className="pl-4 border-l-2 border-rose-300 dark:border-rose-700 space-y-1">
-                                      <p className="text-xs font-bold text-rose-600 dark:text-rose-400">{label}</p>
-                                      <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
-                                        {rows.map(([k, v]) => (
-                                          <div key={k} className="flex gap-1.5 text-xs">
-                                            <span className="text-muted-foreground shrink-0">{k}</span>
-                                            <span className="font-medium">{v}</span>
-                                          </div>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          )}
-                          {painParts.length === 0 && s.hasPain === "아니오" && (
-                            <p className="text-xs text-muted-foreground py-1">신체 부위별 증상 없음</p>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* ── ② 등록된 조사표 목록 ──────────────────────────── */}
-                <div className="border-t border-border pt-3 space-y-1.5">
-                  <p className="text-xs font-semibold text-muted-foreground">등록된 조사표 ({previewSurveys.length}건)</p>
-                  {previewSurveys.map((s: any) => {
-                    const bpdKeys = s.bodyPartData && typeof s.bodyPartData === "object" ? Object.keys(s.bodyPartData) : [];
-                    const legacyParts = BODY_PARTS.filter(bp => s[`${bp.key}Pain`]).map(bp => bp.label);
-                    const painLabels = bpdKeys.length > 0
-                      ? bpdKeys.map(k => BODY_PARTS.find(bp => bp.key === k)?.label ?? k)
-                      : legacyParts;
-                    const normName = (n: string | null | undefined) => (n || "").trim();
-                    const workerIvs = (previewInterviews || []).filter((iv: any) => normName(iv.workerName) === normName(s.workerName));
-                    const isExpanded = previewExpandedWorker === (s.workerName || s.id);
-                    return (
-                      <div key={s.id} className="space-y-1">
-                        <div className={`flex items-center justify-between border rounded-lg px-3 py-2 text-sm gap-2 ${s.hasPain === "예" ? "border-orange-200 bg-orange-50/50 dark:bg-orange-900/10" : "border-border"}`}>
-                          <div className="flex items-center gap-2 flex-wrap min-w-0">
-                            {s.workerName && <span className="font-medium text-sm">{s.workerName}</span>}
-                            {s.workerDept && <span className="text-xs text-muted-foreground">({s.workerDept})</span>}
-                            {painLabels.length > 0
-                              ? <span className="text-xs text-orange-600">통증: {painLabels.join(", ")}</span>
-                              : s.hasPain === "아니오"
-                                ? <span className="text-xs text-green-600">이상 없음</span>
-                                : null}
-                            {workerIvs.length > 0 && (
-                              <span className="text-[10px] font-semibold text-purple-600 dark:text-purple-400 bg-purple-100 dark:bg-purple-900/40 px-1.5 py-0.5 rounded-full">
-                                면담완료
-                              </span>
-                            )}
-                          </div>
-                          <Button variant="ghost" size="sm"
-                            className={`h-7 px-2 text-xs flex-shrink-0 ${isExpanded ? "text-purple-800 bg-purple-100 dark:bg-purple-900/40" : "text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/30"}`}
-                            onClick={() => {
-                              const willExpand = !isExpanded;
-                              setPreviewExpandedWorker(willExpand ? (s.workerName || s.id) : null);
-                              if (willExpand) {
-                                if (workerIvs.length === 0) {
-                                  setShowPreviewInterviewForm(true);
-                                  const _a = (assessments || []).find(x => x.id === previewAssessmentId);
-                                  const _cl = parseChecklist((_a as any)?.burdenWorkChecklist);
-                                  const autoHazard = _cl.length > 0
-                                    ? _cl.map(no => { const bw = (BURDEN_WORKS as readonly any[]).find(b => b.no === no); return bw ? `제${no}호 ${bw.short}` : ""; }).filter(Boolean).join("\n")
-                                    : (_a as any)?.hazardFactor || "";
-                                  const _bpd = s.bodyPartData && typeof s.bodyPartData === "object" ? s.bodyPartData as Record<string, any> : {};
-                                  const _bpdKeys = Object.keys(_bpd);
-                                  const _legacy = (BODY_PARTS as readonly any[]).filter(bp => s[`${bp.key}Pain`]).map(bp => bp.label);
-                                  const autoSymptoms = _bpdKeys.length > 0
-                                    ? _bpdKeys.map(k => {
-                                        const d = _bpd[k];
-                                        const lbl = (BODY_PARTS as readonly any[]).find(bp => bp.key === k)?.label || k;
-                                        const det = [d?.side, d?.intensity, d?.frequency].filter(Boolean).join(", ");
-                                        return det ? `${lbl}(${det})` : lbl;
-                                      }).join(" / ")
-                                    : _legacy.join(", ");
-                                  const _matched = (users || []).find((u: any) => u.name === s.workerName);
-                                  const _validWorks = ["현장운용", "일반사무", "기타"];
-                                  const autoWork = _validWorks.includes((_a as any)?.task || "") ? (_a as any).task : "";
-                                  setPreviewIntForm(f => ({
-                                    ...f,
-                                    workerName: s.workerName || "",
-                                    workerDept: s.workerDept || "",
-                                    workerPosition: _matched?.position || f.workerPosition || "",
-                                    assignedWork: autoWork || f.assignedWork || "",
-                                    interviewDate: new Date().toISOString().slice(0, 10),
-                                    interviewerName: user?.name || "",
-                                    hazardDetails: autoHazard || f.hazardDetails || "",
-                                    mainSymptoms: autoSymptoms || f.mainSymptoms || "",
-                                  }));
-                                  setSigPadKey(k => k + 1);
-                                  setPreviewIntSignature("");
-                                } else {
-                                  setShowPreviewInterviewForm(false);
-                                }
-                              } else {
-                                setShowPreviewInterviewForm(false);
-                              }
-                            }}>
-                            {workerIvs.length > 0 ? `면담일지 (${workerIvs.length})` : "면담일지 작성"}
-                          </Button>
-                        </div>
-                        {isExpanded && workerIvs.length > 0 && (
-                          <div className="ml-3 pl-3 border-l-2 border-purple-200 dark:border-purple-800 space-y-1.5 pb-1">
-                            {workerIvs.map((iv: any) => (
-                              <div key={iv.id} className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-2.5 text-xs space-y-1">
-                                <div className="flex justify-between items-center">
-                                  <span className="font-semibold text-purple-800 dark:text-purple-300">{iv.interviewDate}</span>
-                                  {iv.interviewerName && <span className="text-muted-foreground">면담자: {iv.interviewerName}</span>}
+                        {(previewInterviews || []).length > 0 && (
+                          <div className="space-y-1.5">
+                            <p className="text-xs font-semibold text-muted-foreground">면담일지 ({(previewInterviews || []).length}건)</p>
+                            {(previewInterviews || []).map((iv: any) => (
+                              <div key={iv.id} className="bg-white dark:bg-white/5 rounded-lg px-3 py-2 text-xs space-y-1 border border-green-100 dark:border-green-800">
+                                <div className="flex items-center justify-between gap-2 flex-wrap">
+                                  <div className="flex items-center gap-2">
+                                    {iv.workerName && <span className="font-semibold">{iv.workerName}</span>}
+                                    {iv.workerDept && <span className="text-muted-foreground">({iv.workerDept})</span>}
+                                  </div>
+                                  <div className="flex items-center gap-2 text-muted-foreground">
+                                    <span>{iv.interviewDate}</span>
+                                    {iv.interviewerName && <span>면담자: {iv.interviewerName}</span>}
+                                  </div>
                                 </div>
-                                {iv.workerName && <p><span className="font-medium">근로자:</span> {iv.workerName}{iv.workerDept ? ` (${iv.workerDept})` : ""}{iv.workerPosition ? ` · ${iv.workerPosition}` : ""}</p>}
                                 {iv.mainSymptoms && <p><span className="font-medium">주요 증상:</span> {iv.mainSymptoms}</p>}
-                                {iv.discomfortIssues && <p><span className="font-medium">불편 사항:</span> {iv.discomfortIssues}</p>}
-                                {iv.improvementMeasures && <p><span className="font-medium">개선 조치:</span> {iv.improvementMeasures}</p>}
+                                {iv.improvementMeasures && <p><span className="font-medium text-blue-600">개선 조치:</span> {iv.improvementMeasures}</p>}
                                 {iv.requests && <p><span className="font-medium">요청 사항:</span> {iv.requests}</p>}
                                 {iv.interviewerSignature && (
-                                  <div className="pt-1 border-t border-purple-200 dark:border-purple-700 mt-1">
-                                    <span className="text-muted-foreground block mb-1">면담자 서명</span>
-                                    <img src={iv.interviewerSignature} alt="서명" className="h-14 rounded border bg-white object-contain px-1" />
+                                  <div className="pt-1 border-t border-green-100 dark:border-green-800 mt-1 flex items-center gap-2">
+                                    <span className="text-muted-foreground shrink-0">서명</span>
+                                    <img src={iv.interviewerSignature} alt="서명" className="h-10 rounded border bg-white object-contain px-1" />
                                   </div>
                                 )}
                               </div>
@@ -2923,205 +3149,17 @@ export default function MusculoskeletalDisease() {
                           </div>
                         )}
                       </div>
-                    );
-                  })}
-                </div>
-
-                {/* ── ③ 조사완료 종합 요약 (최하단) ──────────────────── */}
-                {(() => {
-                  const a = (assessments || []).find(x => x.id === previewAssessmentId);
-                  if (a?.status !== "조사완료") return null;
-                  return (
-                    <div className="bg-green-50 dark:bg-green-900/10 border border-green-300 dark:border-green-700 rounded-xl p-4 space-y-3">
-                      <div className="flex items-center gap-2">
-                        <CheckSquare className="w-4 h-4 text-green-600" />
-                        <span className="text-sm font-bold text-green-700 dark:text-green-400">조사 완료 — 종합 현황</span>
-                      </div>
-                      {(previewSurveys || []).length > 0 && (
-                        <div className="space-y-1.5">
-                          <p className="text-xs font-semibold text-muted-foreground">증상조사표 ({(previewSurveys || []).length}건)</p>
-                          {(previewSurveys || []).map((s: any) => {
-                            const bpd2Keys = s.bodyPartData ? Object.keys(s.bodyPartData) : [];
-                            const leg2 = BODY_PARTS.filter(bp => s[`${bp.key}Pain`]).map(bp => bp.label);
-                            const pain2 = bpd2Keys.length > 0 ? bpd2Keys.map(k => BODY_PARTS.find(bp => bp.key === k)?.label ?? k) : leg2;
-                            return (
-                              <div key={s.id} className="flex items-center gap-2 text-xs bg-white dark:bg-white/5 rounded-lg px-3 py-1.5 border border-green-100 dark:border-green-800">
-                                {s.workerName && <span className="font-medium">{s.workerName}</span>}
-                                {s.workerDept && <span className="text-muted-foreground">({s.workerDept})</span>}
-                                {pain2.length > 0
-                                  ? <span className="text-orange-600">통증: {pain2.join(", ")}</span>
-                                  : <span className="text-green-600">이상 없음</span>}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                      {(previewInterviews || []).length > 0 && (
-                        <div className="space-y-1.5">
-                          <p className="text-xs font-semibold text-muted-foreground">면담일지 ({(previewInterviews || []).length}건)</p>
-                          {(previewInterviews || []).map((iv: any) => (
-                            <div key={iv.id} className="bg-white dark:bg-white/5 rounded-lg px-3 py-2 text-xs space-y-1 border border-green-100 dark:border-green-800">
-                              <div className="flex items-center justify-between gap-2 flex-wrap">
-                                <div className="flex items-center gap-2">
-                                  {iv.workerName && <span className="font-semibold">{iv.workerName}</span>}
-                                  {iv.workerDept && <span className="text-muted-foreground">({iv.workerDept})</span>}
-                                  {iv.workerPosition && <span className="text-muted-foreground">· {iv.workerPosition}</span>}
-                                </div>
-                                <div className="flex items-center gap-2 text-muted-foreground">
-                                  <span>{iv.interviewDate}</span>
-                                  {iv.interviewerName && <span>면담자: {iv.interviewerName}</span>}
-                                </div>
-                              </div>
-                              {iv.mainSymptoms && <p><span className="font-medium">주요 증상:</span> {iv.mainSymptoms}</p>}
-                              {iv.improvementMeasures && <p><span className="font-medium text-blue-600">개선 조치:</span> {iv.improvementMeasures}</p>}
-                              {iv.requests && <p><span className="font-medium">요청 사항:</span> {iv.requests}</p>}
-                              {iv.interviewerSignature && (
-                                <div className="pt-1 border-t border-green-100 dark:border-green-800 mt-1 flex items-center gap-2">
-                                  <span className="text-muted-foreground shrink-0">서명</span>
-                                  <img src={iv.interviewerSignature} alt="서명" className="h-10 rounded border bg-white object-contain px-1" />
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      )}
                     </div>
                   );
                 })()}
+
               </div>
             )}
+            </div>
 
-            {/* ── 인라인 면담일지 작성 폼 ───────────────────────── */}
-            {showPreviewInterviewForm && (
-              <div className="border-t border-border pt-4 space-y-3">
-                <p className="text-sm font-semibold text-purple-700 dark:text-purple-400 flex items-center gap-2">
-                  <Bone className="w-4 h-4" />면담일지 작성
-                </p>
-                {/* 자동입력 필드 */}
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">근로자 성명 <span className="text-purple-500">(자동)</span></Label>
-                    <Input className="h-8 text-sm bg-muted/50" value={previewIntForm.workerName} onChange={e => setPreviewIntForm(f => ({ ...f, workerName: e.target.value }))} placeholder="성명" />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">부서 <span className="text-purple-500">(자동)</span></Label>
-                    <Input className="h-8 text-sm bg-muted/50" value={previewIntForm.workerDept} onChange={e => setPreviewIntForm(f => ({ ...f, workerDept: e.target.value }))} placeholder="부서명" />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">직위/직종 <span className="text-purple-500">(자동)</span></Label>
-                    <Input className="h-8 text-sm bg-muted/50" value={previewIntForm.workerPosition} onChange={e => setPreviewIntForm(f => ({ ...f, workerPosition: e.target.value }))} placeholder="직위" />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">담당 작업 <span className="text-purple-500">(자동)</span></Label>
-                    <Select value={previewIntForm.assignedWork} onValueChange={v => setPreviewIntForm(f => ({ ...f, assignedWork: v }))}>
-                      <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="선택" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="현장운용">현장운용</SelectItem>
-                        <SelectItem value="일반사무">일반사무</SelectItem>
-                        <SelectItem value="기타">기타</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">면담일 <span className="text-purple-500">(자동)</span></Label>
-                    <Input type="date" className="h-8 text-sm bg-muted/50" value={previewIntForm.interviewDate} onChange={e => setPreviewIntForm(f => ({ ...f, interviewDate: e.target.value }))} />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">면담자 <span className="text-purple-500">(자동)</span></Label>
-                    <Input className="h-8 text-sm bg-muted/50" value={previewIntForm.interviewerName} onChange={e => setPreviewIntForm(f => ({ ...f, interviewerName: e.target.value }))} placeholder="면담자 이름" />
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">유해요인</Label>
-                  <Textarea className="text-sm min-h-[56px]" value={previewIntForm.hazardDetails} onChange={e => setPreviewIntForm(f => ({ ...f, hazardDetails: e.target.value }))} placeholder="작업 관련 유해요인" />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">주요 증상</Label>
-                  <Textarea className="text-sm min-h-[56px]" value={previewIntForm.mainSymptoms} onChange={e => setPreviewIntForm(f => ({ ...f, mainSymptoms: e.target.value }))} placeholder="통증 부위 및 증상" />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">불편 사항</Label>
-                  <Textarea className="text-sm min-h-[56px]" value={previewIntForm.discomfortIssues} onChange={e => setPreviewIntForm(f => ({ ...f, discomfortIssues: e.target.value }))} placeholder="작업 중 불편한 사항" />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">개선 조치</Label>
-                  <Textarea className="text-sm min-h-[56px]" value={previewIntForm.improvementMeasures} onChange={e => setPreviewIntForm(f => ({ ...f, improvementMeasures: e.target.value }))} placeholder="개선 조치 내용" />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">요청 사항</Label>
-                  <Textarea className="text-sm min-h-[56px]" value={previewIntForm.requests} onChange={e => setPreviewIntForm(f => ({ ...f, requests: e.target.value }))} placeholder="근로자 요청 사항" />
-                </div>
-                {/* 면담자 서명 */}
-                <div className="space-y-2 border border-purple-200 dark:border-purple-800 rounded-xl p-3 bg-purple-50/40 dark:bg-purple-900/10">
-                  <Label className="text-xs font-semibold text-purple-700 dark:text-purple-400">면담자 서명</Label>
-                  {previewIntSignature
-                    ? (
-                      <div className="space-y-2">
-                        <img src={previewIntSignature} alt="서명" className="h-20 rounded-lg border bg-white object-contain px-2" />
-                        <Button type="button" size="sm" variant="outline" className="w-full text-xs" onClick={() => { setPreviewIntSignature(""); setSigPadKey(k => k + 1); }}>서명 다시 하기</Button>
-                      </div>
-                    ) : (
-                      <InterviewSignaturePad
-                        padKey={sigPadKey}
-                        onSave={data => setPreviewIntSignature(data)}
-                        onClear={() => setPreviewIntSignature("")}
-                      />
-                    )
-                  }
-                </div>
-                <div className="flex justify-end gap-2 pt-1">
-                  <Button variant="outline" size="sm" onClick={() => { setShowPreviewInterviewForm(false); setPreviewIntForm(initPreviewIntForm()); setPreviewIntSignature(""); setSigPadKey(k => k + 1); }}>취소</Button>
-                  <Button size="sm" className="bg-purple-600 hover:bg-purple-700 text-white"
-                    disabled={createPreviewInterviewMutation.isPending}
-                    onClick={() => createPreviewInterviewMutation.mutate({ ...previewIntForm, interviewerSignature: previewIntSignature || null })}>
-                    {createPreviewInterviewMutation.isPending ? "저장 중..." : "저장"}
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            <DialogFooter>
-              {isDeptHead && previewAssessmentId !== null && (() => {
-                const normName = (n: string | null | undefined) => (n || "").trim();
-                const allDone = (previewSurveys || []).length > 0 &&
-                  (previewSurveys || []).every((s: any) =>
-                    (previewInterviews || []).some((iv: any) => normName(iv.workerName) === normName(s.workerName))
-                  );
-                if (allDone) return null;
-                return (
-                <Button
-                  variant={showPreviewInterviewForm ? "default" : "outline"}
-                  className={showPreviewInterviewForm ? "bg-purple-600 hover:bg-purple-700 text-white" : "border-purple-300 text-purple-700 hover:bg-purple-50"}
-                  onClick={() => {
-                    const opening = !showPreviewInterviewForm;
-                    setShowPreviewInterviewForm(opening);
-                    if (opening) {
-                      const _a2 = (assessments || []).find(x => x.id === previewAssessmentId);
-                      const _cl2 = parseChecklist((_a2 as any)?.burdenWorkChecklist);
-                      const autoHazard2 = _cl2.length > 0
-                        ? _cl2.map(no => { const bw = (BURDEN_WORKS as readonly any[]).find(b => b.no === no); return bw ? `제${no}호 ${bw.short}` : ""; }).filter(Boolean).join("\n")
-                        : (_a2 as any)?.hazardFactor || "";
-                      const _validWorks2 = ["현장운용", "일반사무", "기타"];
-                      const autoWork2 = _validWorks2.includes((_a2 as any)?.task || "") ? (_a2 as any).task : "";
-                      setPreviewIntForm(f => ({
-                        ...f,
-                        assignedWork: autoWork2 || f.assignedWork || "",
-                        interviewDate: new Date().toISOString().slice(0, 10),
-                        interviewerName: user?.name || "",
-                        hazardDetails: autoHazard2 || f.hazardDetails || "",
-                      }));
-                      setSigPadKey(k => k + 1);
-                      setPreviewIntSignature("");
-                    }
-                  }}
-                >
-                  <Bone className="w-4 h-4 mr-2" />
-                  {showPreviewInterviewForm ? "작성 접기" : "면담일지 작성"}
-                </Button>
-                );
-              })()}
-              <Button variant="outline" onClick={() => { setPreviewAssessmentId(null); setShowPreviewInterviewForm(false); setPreviewExpandedWorker(null); }}>닫기</Button>
-            </DialogFooter>
+            <div className="px-5 pb-4 flex justify-end gap-2 border-t border-border pt-3">
+              <Button variant="outline" onClick={() => { setPreviewAssessmentId(null); resetPreviewIntForm(); setPreviewExpandedWorker(null); setPreviewInterviewEditingId(null); }}>닫기</Button>
+            </div>
           </DialogContent>
         </Dialog>
       )}
