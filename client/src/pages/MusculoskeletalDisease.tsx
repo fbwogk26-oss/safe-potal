@@ -2525,7 +2525,7 @@ export default function MusculoskeletalDisease() {
                       {/* 헤더 */}
                       <div className="flex items-start justify-between gap-2">
                         <div>
-                          <p className="text-sm font-semibold">{i + 1}. {s.workerName || "(이름 없음)"}</p>
+                          <p className="text-sm font-semibold">{i + 1}{s.workerName ? `. ${s.workerName}` : "."}</p>
                           <p className="text-xs text-muted-foreground">{s.workerDept || ""}</p>
                         </div>
                         <div className="flex flex-col items-end gap-1">
