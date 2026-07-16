@@ -1418,125 +1418,165 @@ export default function MusculoskeletalDisease() {
           </DialogHeader>
 
           {/* ─── 기본 정보 (먼저) ─────────────────────────────────── */}
-          <div className="space-y-3">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">기본 정보</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {/* 부서 */}
-              <div className="space-y-1.5">
-                <Label className="text-sm flex items-center gap-1.5">
-                  부서 *
-                  {form.department && !editingId && (
-                    <span className="text-xs font-normal text-purple-600 dark:text-purple-400">(자동입력)</span>
-                  )}
-                </Label>
-                <Select value={form.department} onValueChange={v => updateField("department", v)}>
-                  <SelectTrigger data-testid="select-department" className="h-9">
-                    <SelectValue placeholder="부서 선택" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {DEPARTMENTS.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
+          <div className="rounded-xl border border-purple-100 dark:border-purple-900/50 bg-purple-50/40 dark:bg-purple-900/10 p-4 space-y-4">
+            <p className="text-sm font-semibold text-purple-800 dark:text-purple-200 flex items-center gap-1.5">
+              <span className="text-base">👤</span> Ⅰ. 기본 정보
+            </p>
 
-              {/* 위험수준 */}
+            {/* 평가자 / 평가일 */}
+            <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label className="text-sm flex items-center gap-1.5">
-                  위험수준 *
-                  {!riskManual && form.burdenWorkChecklist.length > 0 && (
-                    <span className="text-xs font-normal text-purple-600 dark:text-purple-400">(자동 산출)</span>
-                  )}
-                </Label>
-                <div className="flex gap-1.5">
-                  <Select
-                    value={form.riskLevel}
-                    onValueChange={v => {
-                      setRiskManual(true);
-                      setForm(prev => ({ ...prev, riskLevel: v }));
-                    }}
-                  >
-                    <SelectTrigger data-testid="select-risk-level" className="flex-1 h-9">
-                      <SelectValue placeholder="위험수준 선택" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {RISK_LEVELS.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                  {riskManual && form.burdenWorkChecklist.length > 0 && (
-                    <Button
-                      variant="outline" size="sm" className="shrink-0 text-xs h-9"
-                      onClick={() => { setRiskManual(false); updateField("riskLevel", calcRiskFromChecklist(form.burdenWorkChecklist)); }}
-                    >자동</Button>
-                  )}
-                </div>
-              </div>
-
-              {/* 평가자 */}
-              <div className="space-y-1.5">
-                <Label className="text-sm">평가자</Label>
+                <Label className="text-sm font-medium">평가자</Label>
                 <Input
                   list="assessor-suggestions-list"
                   value={form.assessor}
                   onChange={e => updateField("assessor", e.target.value)}
-                  placeholder="평가자 (자동완성)"
-                  className="h-9"
+                  placeholder="평가자명"
+                  className="h-9 bg-white dark:bg-background"
                   data-testid="input-assessor"
                 />
                 <datalist id="assessor-suggestions-list">
                   {assessorSuggestions.map(s => <option key={s} value={s!} />)}
                 </datalist>
               </div>
-
-              {/* 평가일 */}
               <div className="space-y-1.5">
-                <Label className="text-sm">평가일</Label>
+                <Label className="text-sm font-medium">평가일</Label>
                 <Input
                   type="date"
                   value={form.assessmentDate}
                   onChange={e => updateField("assessmentDate", e.target.value)}
-                  className="h-9"
+                  className="h-9 bg-white dark:bg-background"
                   data-testid="input-assessment-date"
                 />
               </div>
+            </div>
 
-              {/* 현재 작업방식 */}
-              <div className="space-y-1.5">
-                <Label className="text-sm">현재 작업방식</Label>
-                <Select value={form.currentWorkMethod} onValueChange={v => updateField("currentWorkMethod", v)}>
-                  <SelectTrigger data-testid="select-work-method" className="h-9">
-                    <SelectValue placeholder="작업방식 선택" />
+            {/* 작업부서 — 버튼 칩 그리드 */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">
+                작업부서 *
+                {form.department && !editingId && (
+                  <span className="ml-1.5 text-xs font-normal text-purple-600 dark:text-purple-400">(자동입력)</span>
+                )}
+              </Label>
+              <div className="flex flex-wrap gap-2">
+                {DEPARTMENTS.map(d => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => updateField("department", d)}
+                    className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
+                      form.department === d
+                        ? "bg-purple-600 text-white border-purple-600"
+                        : "border-border bg-white dark:bg-background text-foreground hover:bg-purple-50 dark:hover:bg-purple-900/20"
+                    }`}
+                    data-testid={`button-dept-${d}`}
+                  >
+                    {d}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 위험수준 */}
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium flex items-center gap-1.5">
+                위험수준 *
+                {!riskManual && form.burdenWorkChecklist.length > 0 && (
+                  <span className="text-xs font-normal text-purple-600 dark:text-purple-400">(자동 산출)</span>
+                )}
+              </Label>
+              <div className="flex gap-1.5">
+                <Select
+                  value={form.riskLevel}
+                  onValueChange={v => { setRiskManual(true); setForm(prev => ({ ...prev, riskLevel: v })); }}
+                >
+                  <SelectTrigger data-testid="select-risk-level" className="flex-1 h-9 bg-white dark:bg-background">
+                    <SelectValue placeholder="위험수준 선택" />
                   </SelectTrigger>
                   <SelectContent>
-                    {["수작업", "기계작업", "혼합작업"].map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                    {RISK_LEVELS.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
                   </SelectContent>
                 </Select>
+                {riskManual && form.burdenWorkChecklist.length > 0 && (
+                  <Button
+                    variant="outline" size="sm" className="shrink-0 text-xs h-9"
+                    onClick={() => { setRiskManual(false); updateField("riskLevel", calcRiskFromChecklist(form.burdenWorkChecklist)); }}
+                  >자동</Button>
+                )}
+              </div>
+            </div>
+
+            {/* 현재 작업 유형 — 버튼 2개 */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">현재 작업 유형</Label>
+              <div className="flex gap-2">
+                {["현장운용", "일반사무"].map(opt => (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => updateField("currentWorkMethod", form.currentWorkMethod === opt ? "" : opt)}
+                    className={`flex-1 h-10 rounded-lg border text-sm font-medium transition-colors ${
+                      form.currentWorkMethod === opt
+                        ? "bg-purple-600 text-white border-purple-600"
+                        : "border-border bg-white dark:bg-background text-foreground hover:bg-purple-50 dark:hover:bg-purple-900/20"
+                    }`}
+                    data-testid={`button-work-method-${opt}`}
+                  >
+                    {opt}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 현직장 경력 / 결혼여부 */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">현 직장 경력</Label>
+                <div className="flex items-center gap-1.5">
+                  <Input
+                    type="number"
+                    min={0}
+                    max={50}
+                    value={(() => { const m = (form.workCareer || "").match(/(\d+)년/); return m ? m[1] : "0"; })()}
+                    onChange={e => {
+                      const yrs = e.target.value;
+                      const mos = (form.workCareer || "").match(/(\d+)개월/)?.[1] ?? "0";
+                      updateField("workCareer", `${yrs}년 ${mos}개월`);
+                    }}
+                    className="w-16 h-9 text-center bg-white dark:bg-background"
+                    data-testid="input-career-years"
+                  />
+                  <span className="text-sm text-muted-foreground shrink-0">년</span>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={11}
+                    value={(() => { const m = (form.workCareer || "").match(/(\d+)개월/); return m ? m[1] : "0"; })()}
+                    onChange={e => {
+                      const mos = e.target.value;
+                      const yrs = (form.workCareer || "").match(/(\d+)년/)?.[1] ?? "0";
+                      updateField("workCareer", `${yrs}년 ${mos}개월`);
+                    }}
+                    className="w-16 h-9 text-center bg-white dark:bg-background"
+                    data-testid="input-career-months"
+                  />
+                  <span className="text-sm text-muted-foreground shrink-0">개월</span>
+                </div>
               </div>
 
-              {/* 현직장 경력 */}
-              <div className="space-y-1.5">
-                <Label className="text-sm">현직장 경력</Label>
-                <Input
-                  value={form.workCareer}
-                  onChange={e => updateField("workCareer", e.target.value)}
-                  placeholder="예: 3년 2개월"
-                  className="h-9"
-                  data-testid="input-work-career"
-                />
-              </div>
-
-              {/* 결혼여부 */}
-              <div className="space-y-1.5">
-                <Label className="text-sm">결혼여부</Label>
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">결혼 여부</Label>
                 <div className="flex gap-2">
                   {["기혼", "미혼"].map(opt => (
                     <button
                       key={opt}
                       type="button"
                       onClick={() => updateField("maritalStatus", form.maritalStatus === opt ? "" : opt)}
-                      className={`flex-1 h-9 rounded-md border text-sm font-medium transition-colors ${
+                      className={`flex-1 h-9 rounded-lg border text-sm font-medium transition-colors ${
                         form.maritalStatus === opt
                           ? "bg-purple-600 text-white border-purple-600"
-                          : "border-border bg-background text-foreground hover:bg-muted"
+                          : "border-border bg-white dark:bg-background text-foreground hover:bg-purple-50 dark:hover:bg-purple-900/20"
                       }`}
                       data-testid={`button-marital-${opt}`}
                     >
@@ -2062,11 +2102,16 @@ export default function MusculoskeletalDisease() {
             <Button
               onClick={handleSurveySubmit}
               disabled={createSurveyMutation.isPending || updateSurveyMutation.isPending}
+              className={!surveyEditingId && surveyForm.hasPain === "예" ? "bg-orange-500 hover:bg-orange-600 text-white" : ""}
               data-testid="button-survey-submit"
             >
               {createSurveyMutation.isPending || updateSurveyMutation.isPending
                 ? "저장 중..."
-                : surveyEditingId ? "수정 저장" : "조사표 등록"}
+                : surveyEditingId
+                  ? "수정 저장"
+                  : surveyForm.hasPain === "예"
+                    ? "면담요청"
+                    : "조사표 등록"}
             </Button>
           </DialogFooter>
 
