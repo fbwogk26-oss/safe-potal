@@ -5067,21 +5067,16 @@ ${buildEmailFooter()}
     } catch { res.status(500).json({ message: "등록 실패" }); }
   });
 
-  app.put('/api/musculoskeletal-interviews/:id', requireEditor, async (req: any, res) => {
+  app.put('/api/musculoskeletal-interviews/:id', isAuthenticated, async (req: any, res) => {
+    if (req.user?.role !== 'admin') return res.status(403).json({ message: "관리자만 면담일지를 수정할 수 있습니다." });
     try {
       const updated = await storage.updateInterview(Number(req.params.id), req.body);
-      // 면담일지 수정 완료 → 상태를 "조사완료"로 업데이트
-      if (updated?.assessmentId) {
-        const assessment = await storage.getMusculoskeletalAssessment(updated.assessmentId);
-        if (assessment && ['증상조사 진행중', '증상조사 대기', '진행중'].includes(assessment.status || '')) {
-          await storage.updateMusculoskeletalAssessment(updated.assessmentId, { status: '조사완료' } as any);
-        }
-      }
       res.json(updated);
     } catch { res.status(500).json({ message: "수정 실패" }); }
   });
 
-  app.delete('/api/musculoskeletal-interviews/:id', requireEditor, async (req: any, res) => {
+  app.delete('/api/musculoskeletal-interviews/:id', isAuthenticated, async (req: any, res) => {
+    if (req.user?.role !== 'admin') return res.status(403).json({ message: "관리자만 면담일지를 삭제할 수 있습니다." });
     try {
       const interview = await storage.getInterview(Number(req.params.id));
       await storage.deleteInterview(Number(req.params.id));

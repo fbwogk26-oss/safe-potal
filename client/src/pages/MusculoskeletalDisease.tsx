@@ -2693,6 +2693,70 @@ export default function MusculoskeletalDisease() {
               </DialogDescription>
             </DialogHeader>
 
+            {/* ── 조사완료 종합 요약 ───────────────────────────────── */}
+            {(() => {
+              const a = (assessments || []).find(x => x.id === previewAssessmentId);
+              if (a?.status !== "조사완료") return null;
+              return (
+                <div className="bg-green-50 dark:bg-green-900/10 border border-green-300 dark:border-green-700 rounded-xl p-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <CheckSquare className="w-4 h-4 text-green-600" />
+                    <span className="text-sm font-bold text-green-700 dark:text-green-400">조사 완료 — 종합 현황</span>
+                  </div>
+                  {/* 증상조사표 요약 */}
+                  {(previewSurveys || []).length > 0 && (
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-semibold text-muted-foreground">증상조사표 ({(previewSurveys || []).length}건)</p>
+                      {(previewSurveys || []).map((s: any) => {
+                        const bpd2Keys = s.bodyPartData ? Object.keys(s.bodyPartData) : [];
+                        const leg2 = BODY_PARTS.filter(bp => s[`${bp.key}Pain`]).map(bp => bp.label);
+                        const pain2 = bpd2Keys.length > 0 ? bpd2Keys.map(k => BODY_PARTS.find(bp => bp.key === k)?.label ?? k) : leg2;
+                        return (
+                          <div key={s.id} className="flex items-center gap-2 text-xs bg-white dark:bg-white/5 rounded-lg px-3 py-1.5 border border-green-100 dark:border-green-800">
+                            {s.workerName && <span className="font-medium">{s.workerName}</span>}
+                            {s.workerDept && <span className="text-muted-foreground">({s.workerDept})</span>}
+                            {pain2.length > 0
+                              ? <span className="text-orange-600">통증: {pain2.join(", ")}</span>
+                              : <span className="text-green-600">이상 없음</span>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {/* 면담일지 요약 */}
+                  {(previewInterviews || []).length > 0 && (
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-semibold text-muted-foreground">면담일지 ({(previewInterviews || []).length}건)</p>
+                      {(previewInterviews || []).map((iv: any) => (
+                        <div key={iv.id} className="bg-white dark:bg-white/5 rounded-lg px-3 py-2 text-xs space-y-1 border border-green-100 dark:border-green-800">
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <div className="flex items-center gap-2">
+                              {iv.workerName && <span className="font-semibold">{iv.workerName}</span>}
+                              {iv.workerDept && <span className="text-muted-foreground">({iv.workerDept})</span>}
+                              {iv.workerPosition && <span className="text-muted-foreground">· {iv.workerPosition}</span>}
+                            </div>
+                            <div className="flex items-center gap-2 text-muted-foreground">
+                              <span>{iv.interviewDate}</span>
+                              {iv.interviewerName && <span>면담자: {iv.interviewerName}</span>}
+                            </div>
+                          </div>
+                          {iv.mainSymptoms && <p><span className="font-medium">주요 증상:</span> {iv.mainSymptoms}</p>}
+                          {iv.improvementMeasures && <p><span className="font-medium text-blue-600">개선 조치:</span> {iv.improvementMeasures}</p>}
+                          {iv.requests && <p><span className="font-medium">요청 사항:</span> {iv.requests}</p>}
+                          {iv.interviewerSignature && (
+                            <div className="pt-1 border-t border-green-100 dark:border-green-800 mt-1 flex items-center gap-2">
+                              <span className="text-muted-foreground shrink-0">서명</span>
+                              <img src={iv.interviewerSignature} alt="서명" className="h-10 rounded border bg-white object-contain px-1" />
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
             {previewLoading ? (
               <div className="py-8 text-center text-muted-foreground text-sm">불러오는 중...</div>
             ) : !previewSurveys || previewSurveys.length === 0 ? (
@@ -2708,7 +2772,8 @@ export default function MusculoskeletalDisease() {
                     const painLabels = bpdKeys.length > 0
                       ? bpdKeys.map(k => BODY_PARTS.find(bp => bp.key === k)?.label ?? k)
                       : legacyParts;
-                    const workerIvs = (previewInterviews || []).filter((iv: any) => iv.workerName === s.workerName);
+                    const normName = (n: string | null | undefined) => (n || "").trim();
+                    const workerIvs = (previewInterviews || []).filter((iv: any) => normName(iv.workerName) === normName(s.workerName));
                     const isExpanded = previewExpandedWorker === (s.workerName || s.id);
                     return (
                       <div key={s.id} className="space-y-1">
@@ -2721,6 +2786,11 @@ export default function MusculoskeletalDisease() {
                               : s.hasPain === "아니오"
                                 ? <span className="text-xs text-green-600">이상 없음</span>
                                 : null}
+                            {workerIvs.length > 0 && (
+                              <span className="text-[10px] font-semibold text-purple-600 dark:text-purple-400 bg-purple-100 dark:bg-purple-900/40 px-1.5 py-0.5 rounded-full">
+                                면담완료
+                              </span>
+                            )}
                           </div>
                           <Button variant="ghost" size="sm"
                             className={`h-7 px-2 text-xs flex-shrink-0 ${isExpanded ? "text-purple-800 bg-purple-100 dark:bg-purple-900/40" : "text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/30"}`}
@@ -2728,67 +2798,72 @@ export default function MusculoskeletalDisease() {
                               const willExpand = !isExpanded;
                               setPreviewExpandedWorker(willExpand ? (s.workerName || s.id) : null);
                               if (willExpand) {
-                                setShowPreviewInterviewForm(true);
-                                const _a = (assessments || []).find(x => x.id === previewAssessmentId);
-                                const _cl = parseChecklist((_a as any)?.burdenWorkChecklist);
-                                const autoHazard = _cl.length > 0
-                                  ? _cl.map(no => { const bw = (BURDEN_WORKS as readonly any[]).find(b => b.no === no); return bw ? `제${no}호 ${bw.short}` : ""; }).filter(Boolean).join("\n")
-                                  : (_a as any)?.hazardFactor || "";
-                                const _bpd = s.bodyPartData && typeof s.bodyPartData === "object" ? s.bodyPartData as Record<string, any> : {};
-                                const _bpdKeys = Object.keys(_bpd);
-                                const _legacy = (BODY_PARTS as readonly any[]).filter(bp => s[`${bp.key}Pain`]).map(bp => bp.label);
-                                const autoSymptoms = _bpdKeys.length > 0
-                                  ? _bpdKeys.map(k => {
-                                      const d = _bpd[k];
-                                      const lbl = (BODY_PARTS as readonly any[]).find(bp => bp.key === k)?.label || k;
-                                      const det = [d?.side, d?.intensity, d?.frequency].filter(Boolean).join(", ");
-                                      return det ? `${lbl}(${det})` : lbl;
-                                    }).join(" / ")
-                                  : _legacy.join(", ");
-                                const _matched = (users || []).find((u: any) => u.name === s.workerName);
-                                const _validWorks = ["현장운용", "일반사무", "기타"];
-                                const autoWork = _validWorks.includes((_a as any)?.task || "") ? (_a as any).task : "";
-                                setPreviewIntForm(f => ({
-                                  ...f,
-                                  workerName: s.workerName || "",
-                                  workerDept: s.workerDept || "",
-                                  workerPosition: _matched?.position || f.workerPosition || "",
-                                  assignedWork: autoWork || f.assignedWork || "",
-                                  interviewDate: new Date().toISOString().slice(0, 10),
-                                  interviewerName: user?.name || "",
-                                  hazardDetails: autoHazard || f.hazardDetails || "",
-                                  mainSymptoms: autoSymptoms || f.mainSymptoms || "",
-                                }));
-                                setSigPadKey(k => k + 1);
-                                setPreviewIntSignature("");
+                                // 기존 면담일지가 없을 때만 새 작성 폼 열기
+                                if (workerIvs.length === 0) {
+                                  setShowPreviewInterviewForm(true);
+                                  const _a = (assessments || []).find(x => x.id === previewAssessmentId);
+                                  const _cl = parseChecklist((_a as any)?.burdenWorkChecklist);
+                                  const autoHazard = _cl.length > 0
+                                    ? _cl.map(no => { const bw = (BURDEN_WORKS as readonly any[]).find(b => b.no === no); return bw ? `제${no}호 ${bw.short}` : ""; }).filter(Boolean).join("\n")
+                                    : (_a as any)?.hazardFactor || "";
+                                  const _bpd = s.bodyPartData && typeof s.bodyPartData === "object" ? s.bodyPartData as Record<string, any> : {};
+                                  const _bpdKeys = Object.keys(_bpd);
+                                  const _legacy = (BODY_PARTS as readonly any[]).filter(bp => s[`${bp.key}Pain`]).map(bp => bp.label);
+                                  const autoSymptoms = _bpdKeys.length > 0
+                                    ? _bpdKeys.map(k => {
+                                        const d = _bpd[k];
+                                        const lbl = (BODY_PARTS as readonly any[]).find(bp => bp.key === k)?.label || k;
+                                        const det = [d?.side, d?.intensity, d?.frequency].filter(Boolean).join(", ");
+                                        return det ? `${lbl}(${det})` : lbl;
+                                      }).join(" / ")
+                                    : _legacy.join(", ");
+                                  const _matched = (users || []).find((u: any) => u.name === s.workerName);
+                                  const _validWorks = ["현장운용", "일반사무", "기타"];
+                                  const autoWork = _validWorks.includes((_a as any)?.task || "") ? (_a as any).task : "";
+                                  setPreviewIntForm(f => ({
+                                    ...f,
+                                    workerName: s.workerName || "",
+                                    workerDept: s.workerDept || "",
+                                    workerPosition: _matched?.position || f.workerPosition || "",
+                                    assignedWork: autoWork || f.assignedWork || "",
+                                    interviewDate: new Date().toISOString().slice(0, 10),
+                                    interviewerName: user?.name || "",
+                                    hazardDetails: autoHazard || f.hazardDetails || "",
+                                    mainSymptoms: autoSymptoms || f.mainSymptoms || "",
+                                  }));
+                                  setSigPadKey(k => k + 1);
+                                  setPreviewIntSignature("");
+                                } else {
+                                  setShowPreviewInterviewForm(false);
+                                }
+                              } else {
+                                setShowPreviewInterviewForm(false);
                               }
                             }}>
-                            면담일지 {workerIvs.length > 0 ? `(${workerIvs.length})` : ""}
+                            {workerIvs.length > 0 ? `면담일지 (${workerIvs.length})` : "면담일지 작성"}
                           </Button>
                         </div>
-                        {isExpanded && (
+                        {isExpanded && workerIvs.length > 0 && (
                           <div className="ml-3 pl-3 border-l-2 border-purple-200 dark:border-purple-800 space-y-1.5 pb-1">
-                            {workerIvs.length === 0
-                              ? <p className="text-xs text-muted-foreground py-1">작성된 면담일지가 없습니다.</p>
-                              : workerIvs.map((iv: any) => (
-                                <div key={iv.id} className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-2.5 text-xs space-y-1">
-                                  <div className="flex justify-between items-center">
-                                    <span className="font-semibold text-purple-800 dark:text-purple-300">{iv.interviewDate}</span>
-                                    {iv.interviewerName && <span className="text-muted-foreground">면담자: {iv.interviewerName}</span>}
-                                  </div>
-                                  {iv.mainSymptoms && <p><span className="font-medium">주요 증상:</span> {iv.mainSymptoms}</p>}
-                                  {iv.discomfortIssues && <p><span className="font-medium">불편 사항:</span> {iv.discomfortIssues}</p>}
-                                  {iv.improvementMeasures && <p><span className="font-medium">개선 조치:</span> {iv.improvementMeasures}</p>}
-                                  {iv.requests && <p><span className="font-medium">요청 사항:</span> {iv.requests}</p>}
-                                  {iv.interviewerSignature && (
-                                    <div className="pt-1 border-t border-purple-200 dark:border-purple-700 mt-1">
-                                      <span className="text-muted-foreground block mb-1">면담자 서명</span>
-                                      <img src={iv.interviewerSignature} alt="서명" className="h-14 rounded border bg-white object-contain px-1" />
-                                    </div>
-                                  )}
+                            {workerIvs.map((iv: any) => (
+                              <div key={iv.id} className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-2.5 text-xs space-y-1">
+                                <div className="flex justify-between items-center">
+                                  <span className="font-semibold text-purple-800 dark:text-purple-300">{iv.interviewDate}</span>
+                                  {iv.interviewerName && <span className="text-muted-foreground">면담자: {iv.interviewerName}</span>}
                                 </div>
-                              ))
-                            }
+                                {iv.workerName && <p><span className="font-medium">근로자:</span> {iv.workerName}{iv.workerDept ? ` (${iv.workerDept})` : ""}{iv.workerPosition ? ` · ${iv.workerPosition}` : ""}</p>}
+                                {iv.mainSymptoms && <p><span className="font-medium">주요 증상:</span> {iv.mainSymptoms}</p>}
+                                {iv.discomfortIssues && <p><span className="font-medium">불편 사항:</span> {iv.discomfortIssues}</p>}
+                                {iv.improvementMeasures && <p><span className="font-medium">개선 조치:</span> {iv.improvementMeasures}</p>}
+                                {iv.requests && <p><span className="font-medium">요청 사항:</span> {iv.requests}</p>}
+                                {iv.interviewerSignature && (
+                                  <div className="pt-1 border-t border-purple-200 dark:border-purple-700 mt-1">
+                                    <span className="text-muted-foreground block mb-1">면담자 서명</span>
+                                    <img src={iv.interviewerSignature} alt="서명" className="h-14 rounded border bg-white object-contain px-1" />
+                                  </div>
+                                )}
+                              </div>
+                            ))}
                           </div>
                         )}
                       </div>
@@ -3182,18 +3257,20 @@ export default function MusculoskeletalDisease() {
                     {iv.mainSymptoms && <p className="text-xs text-orange-600">주요 증상: {iv.mainSymptoms}</p>}
                     {iv.interviewerName && <p className="text-xs text-muted-foreground">면담자: {iv.interviewerName}</p>}
                   </div>
-                  <div className="flex gap-1 flex-shrink-0">
-                    <Button variant="ghost" size="icon" className="h-7 w-7"
-                      onClick={() => { setInterviewEditingId(iv.id); setInterviewForm({ workerName: iv.workerName || "", workerDept: iv.workerDept || "", workerPosition: iv.workerPosition || "", assignedWork: iv.assignedWork || "", interviewDate: iv.interviewDate || "", hazardDetails: iv.hazardDetails || "", mainSymptoms: iv.mainSymptoms || "", discomfortIssues: iv.discomfortIssues || "", improvementMeasures: iv.improvementMeasures || "", requests: iv.requests || "", interviewerName: iv.interviewerName || "" }); }}
-                      data-testid={`button-interview-edit-${iv.id}`}>
-                      <Pencil className="w-3.5 h-3.5" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7"
-                      onClick={() => { if (confirm("삭제하시겠습니까?")) deleteInterviewMutation.mutate(iv.id); }}
-                      data-testid={`button-interview-delete-${iv.id}`}>
-                      <Trash2 className="w-3.5 h-3.5 text-red-500" />
-                    </Button>
-                  </div>
+                  {user?.role === "admin" && (
+                    <div className="flex gap-1 flex-shrink-0">
+                      <Button variant="ghost" size="icon" className="h-7 w-7"
+                        onClick={() => { setInterviewEditingId(iv.id); setInterviewForm({ workerName: iv.workerName || "", workerDept: iv.workerDept || "", workerPosition: iv.workerPosition || "", assignedWork: iv.assignedWork || "", interviewDate: iv.interviewDate || "", hazardDetails: iv.hazardDetails || "", mainSymptoms: iv.mainSymptoms || "", discomfortIssues: iv.discomfortIssues || "", improvementMeasures: iv.improvementMeasures || "", requests: iv.requests || "", interviewerName: iv.interviewerName || "" }); }}
+                        data-testid={`button-interview-edit-${iv.id}`}>
+                        <Pencil className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7"
+                        onClick={() => { if (confirm("삭제하시겠습니까?")) deleteInterviewMutation.mutate(iv.id); }}
+                        data-testid={`button-interview-delete-${iv.id}`}>
+                        <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
