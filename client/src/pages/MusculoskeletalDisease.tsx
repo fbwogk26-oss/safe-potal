@@ -570,6 +570,7 @@ export default function MusculoskeletalDisease() {
       // 부담작업 항목이 있으면 목록 갱신 후 바로 증상조사표 입력으로 이동
       if (variables.burdenWorkChecklist.length > 0 && response?.id) {
         await queryClient.refetchQueries({ queryKey: ["/api/musculoskeletal-assessments"] });
+        setSurveyForm(f => ({ ...f, workerName: response.assessor || "", workerDept: response.department || "" }));
         setSurveyAssessmentId(response.id);
       } else {
         queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments"] });
@@ -1242,7 +1243,7 @@ export default function MusculoskeletalDisease() {
                           {isPendingSymptom ? (
                             <button
                               type="button"
-                              onClick={() => setSurveyAssessmentId(item.id)}
+                              onClick={() => { setSurveyForm(f => ({ ...f, workerName: item.assessor || "", workerDept: item.department || "" })); setSurveyAssessmentId(item.id); }}
                               data-testid={`button-survey-${item.id}`}
                               className="group relative flex flex-col items-start gap-1 w-full text-left focus:outline-none"
                             >
