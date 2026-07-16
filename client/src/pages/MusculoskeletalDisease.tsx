@@ -2198,44 +2198,6 @@ export default function MusculoskeletalDisease() {
           </div>
           <div className="px-6 pb-6 pt-5 space-y-4">
 
-          {/* ── 이미 입력된 조사표 목록 ── */}
-          {surveysLoading ? (
-            <div className="py-4 text-center text-muted-foreground text-sm">로딩 중...</div>
-          ) : (surveyList || []).length === 0 ? (
-            <div className="py-4 text-center text-muted-foreground text-sm">아직 등록된 증상조사표가 없습니다.</div>
-          ) : (
-            <div className="space-y-2 mb-4">
-              <Label className="text-sm font-semibold">등록된 조사표 ({surveyList!.length}건)</Label>
-              {surveyList!.map((s: any) => {
-                const painParts = BODY_PARTS.filter(bp => s[`${bp.key}Pain`]).map(bp => bp.label);
-                return (
-                  <div key={s.id} className={`flex items-center justify-between border rounded-lg px-3 py-2 text-sm ${s.completed ? "border-green-300 bg-green-50 dark:bg-green-900/10" : "border-border"}`}>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium">{s.workerName}</span>
-                      {s.workerDept && <span className="text-muted-foreground text-xs">({s.workerDept})</span>}
-                      <span className="text-xs text-muted-foreground">{s.surveyDate}</span>
-                      {painParts.length > 0 && (
-                        <span className="text-xs text-orange-600">통증: {painParts.join(", ")}</span>
-                      )}
-                      {s.completed && (
-                        <Badge className="bg-green-600 text-white text-xs no-default-hover-elevate no-default-active-elevate">완료</Badge>
-                      )}
-                    </div>
-                    <div className="flex gap-1">
-                      <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/30"
-                        onClick={() => {
-                          setInterviewAssessmentId(surveyAssessmentId);
-                          setInterviewForm(f => ({ ...f, workerName: s.workerName, workerDept: s.workerDept || "" }));
-                        }}
-                        data-testid={`button-interview-${s.id}`}>
-                        면담일지
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
 
           {/* ── 새 조사표 / 수정 폼 ── */}
           <div className="border-t border-border pt-4 space-y-4">
@@ -2777,6 +2739,12 @@ export default function MusculoskeletalDisease() {
                                   {iv.discomfortIssues && <p><span className="font-medium">불편 사항:</span> {iv.discomfortIssues}</p>}
                                   {iv.improvementMeasures && <p><span className="font-medium">개선 조치:</span> {iv.improvementMeasures}</p>}
                                   {iv.requests && <p><span className="font-medium">요청 사항:</span> {iv.requests}</p>}
+                                  {iv.interviewerSignature && (
+                                    <div className="pt-1 border-t border-purple-200 dark:border-purple-700 mt-1">
+                                      <span className="text-muted-foreground block mb-1">면담자 서명</span>
+                                      <img src={iv.interviewerSignature} alt="서명" className="h-14 rounded border bg-white object-contain px-1" />
+                                    </div>
+                                  )}
                                 </div>
                               ))
                             }
