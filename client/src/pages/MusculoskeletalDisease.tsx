@@ -2198,6 +2198,43 @@ export default function MusculoskeletalDisease() {
           </div>
           <div className="px-6 pb-6 pt-5 space-y-4">
 
+          {/* ── 이미 입력된 조사표 목록 ── */}
+          {!surveysLoading && (surveyList || []).length > 0 && (
+            <div className="space-y-2 mb-2">
+              <Label className="text-sm font-semibold">등록된 조사표 ({surveyList!.length}건)</Label>
+              {surveyList!.map((s: any) => {
+                const painParts = BODY_PARTS.filter(bp => s[`${bp.key}Pain`] || (s.bodyPartData && s.bodyPartData[bp.key])).map(bp => bp.label);
+                return (
+                  <div key={s.id} className={`flex items-center justify-between border rounded-lg px-3 py-2 text-sm ${s.completed ? "border-green-300 bg-green-50 dark:bg-green-900/10" : "border-border"}`}>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium">{s.workerName || "(이름 없음)"}</span>
+                      {s.workerDept && <span className="text-muted-foreground text-xs">({s.workerDept})</span>}
+                      <span className="text-xs text-muted-foreground">{s.surveyDate}</span>
+                      {painParts.length > 0 && (
+                        <span className="text-xs text-orange-600">통증: {painParts.join(", ")}</span>
+                      )}
+                      {s.completed && (
+                        <Badge className="bg-green-600 text-white text-xs no-default-hover-elevate no-default-active-elevate">완료</Badge>
+                      )}
+                    </div>
+                    <div className="flex gap-1">
+                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30"
+                        onClick={() => handleSurveyEdit(s)}
+                        data-testid={`button-survey-edit-${s.id}`}>
+                        <Pencil className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30"
+                        onClick={() => { if (confirm("조사표를 삭제하시겠습니까?")) deleteSurveyMutation.mutate(s.id); }}
+                        data-testid={`button-survey-delete-${s.id}`}>
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+              <div className="border-t border-border pt-3" />
+            </div>
+          )}
 
           {/* ── 새 조사표 / 수정 폼 ── */}
           <div className="border-t border-border pt-4 space-y-4">
