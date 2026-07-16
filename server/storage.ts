@@ -876,7 +876,7 @@ export class DatabaseStorage implements IStorage {
       `);
       return result.rows as any[];
     }
-    // deptHead: 본인 부서의 조사 중 일반 사용자(비부서장)가 제출한 통증 건
+    // deptHead: 본인 부서의 조사 중 통증 있음이고 면담이 없는 건 모두 표시
     if (dept) {
       const result = await db.execute(sql`
         SELECT a.id, a.department, a.task, a.assessment_date as "assessmentDate", a.assessor,
@@ -884,10 +884,8 @@ export class DatabaseStorage implements IStorage {
         FROM musculoskeletal_assessments a
         INNER JOIN musculoskeletal_symptom_surveys s ON s.assessment_id = a.id AND s.has_pain = '예'
         LEFT JOIN musculoskeletal_interviews i ON i.assessment_id = a.id
-        LEFT JOIN users creator ON creator.username = s.created_by
         WHERE i.id IS NULL
           AND a.department = ${dept}
-          AND (creator.role IS NULL OR creator.role != 'deptHead')
         GROUP BY a.id, a.department, a.task, a.assessment_date, a.assessor
         ORDER BY a.id DESC
       `);

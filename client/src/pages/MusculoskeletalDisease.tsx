@@ -514,6 +514,7 @@ export default function MusculoskeletalDisease() {
   // 증상조사 다이얼로그 내부 상태
   const [surveyEditingId, setSurveyEditingId] = useState<number | null>(null);
   const defaultSurveyForm = () => ({
+    workerName: "",
     hasPain: "" as string,
     bodyPartData: {} as Record<string, any>,
     q1Leisure: [] as string[],
@@ -620,6 +621,7 @@ export default function MusculoskeletalDisease() {
     if (s.bodyPartData && typeof s.bodyPartData === "object" && Object.keys(s.bodyPartData).length > 0) {
       // 신형 포맷
       setSurveyForm({
+        workerName: s.workerName || "",
         hasPain: s.hasPain || "예",
         bodyPartData: s.bodyPartData,
         q1Leisure: gh.q1Leisure || [],
@@ -646,6 +648,7 @@ export default function MusculoskeletalDisease() {
         }
       });
       setSurveyForm({
+        workerName: s.workerName || "",
         hasPain: Object.keys(bodyPartData).length > 0 ? "예" : (s.hasPain || ""),
         bodyPartData,
         q1Leisure: gh.q1Leisure || [],
@@ -867,6 +870,7 @@ export default function MusculoskeletalDisease() {
   const handleSurveySubmit = () => {
     const bpd = surveyForm.bodyPartData || {};
     const payload = {
+      workerName: surveyForm.workerName || "",
       hasPain: surveyForm.hasPain,
       bodyPartData: surveyForm.bodyPartData,
       // 기존 pain 불리언 컬럼 동기화 (목록 표시용)
@@ -2314,6 +2318,18 @@ export default function MusculoskeletalDisease() {
             <Label className="text-sm font-semibold">
               {surveyEditingId ? "조사표 수정" : "새 조사표 입력"}
             </Label>
+
+            {/* 작업자 성명 */}
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">성명 <span className="text-xs text-muted-foreground font-normal">(선택)</span></Label>
+              <Input
+                value={surveyForm.workerName || ""}
+                onChange={e => setSurveyForm(f => ({ ...f, workerName: e.target.value }))}
+                placeholder="홍길동"
+                className="h-9"
+                data-testid="input-survey-worker-name"
+              />
+            </div>
 
             {/* I. 일반 문항 */}
             <div className="bg-card rounded-2xl border shadow-sm p-4 space-y-4">
