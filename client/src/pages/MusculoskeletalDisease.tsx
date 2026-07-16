@@ -17,7 +17,7 @@ import {
   Bone, Plus, Trash2, Pencil, Search, CheckSquare, X,
   ChevronDown, ChevronUp, History, Save, AlertTriangle,
   FileDown, FileUp, Paperclip, Clock, LayoutGrid, List, Wrench, ImageIcon, CheckCircle2, QrCode, Settings,
-  User, Briefcase, Activity, HeartPulse
+  User, Briefcase, Activity, HeartPulse, Eye
 } from "lucide-react";
 import img1 from "@assets/image_1784166150891.png";
 import img2 from "@assets/image_1784166156751.png";
@@ -472,12 +472,19 @@ export default function MusculoskeletalDisease() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       }).then(async r => { if (!r.ok) throw new Error(await r.text()); return r.json(); }),
-    onSuccess: () => {
+    onSuccess: (_result, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments", surveyAssessmentId, "symptom-surveys"] });
       queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments"] });
       queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments/pending-symptom-count"] });
       resetSurveyForm();
-      toast({ title: "증상조사표가 등록되었습니다." });
+      if (variables.hasPain === "예") {
+        setSurveyAssessmentId(null);
+        queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments/pending-interview-requests"] });
+        setInterviewNotifDismissed(false);
+        toast({ title: "면담요청이 접수되었습니다. 부서장에게 알림이 전송됩니다." });
+      } else {
+        toast({ title: "증상조사표가 등록되었습니다." });
+      }
     },
     onError: () => toast({ variant: "destructive", title: "등록에 실패했습니다." }),
   });
@@ -561,6 +568,14 @@ export default function MusculoskeletalDisease() {
   // ── 면담일지 (Interview Log) ─────────────────────────────────────────────
   const [interviewAssessmentId, setInterviewAssessmentId] = useState<number | null>(null);
   const [interviewEditingId, setInterviewEditingId] = useState<number | null>(null);
+
+  // ── 증상조사표 미리보기 (부서장/관리자용) ──────────────────────────────
+  const [previewAssessmentId, setPreviewAssessmentId] = useState<number | null>(null);
+  const { data: previewSurveys, isLoading: previewLoading } = useQuery<any[]>({
+    queryKey: ["/api/musculoskeletal-assessments", previewAssessmentId, "symptom-surveys"],
+    queryFn: () => fetch(`/api/musculoskeletal-assessments/${previewAssessmentId}/symptom-surveys`, { credentials: "include" }).then(r => r.json()),
+    enabled: previewAssessmentId !== null,
+  });
 
   // ── 부서장 면담 알림 팝업 ──────────────────────────────────────────────
   const isDeptHead = user?.role === "deptHead" || user?.role === "admin";
@@ -1420,6 +1435,19 @@ export default function MusculoskeletalDisease() {
                         </td>
                         {/* 관리 */}
                         <td className="px-2 py-3" onClick={e => e.stopPropagation()}>
+                          <div className="flex items-center gap-1">
+                          {isDeptHead && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-purple-600 hover:text-purple-800 hover:bg-purple-50 dark:hover:bg-purple-900/30"
+                              title="증상조사표 미리보기"
+                              data-testid={`button-preview-${item.id}`}
+                              onClick={() => setPreviewAssessmentId(item.id)}
+                            >
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                          )}
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" size="icon" className="h-7 w-7 relative" data-testid={`button-manage-${item.id}`}>
@@ -1451,6 +1479,7 @@ export default function MusculoskeletalDisease() {
                               )}
                             </DropdownMenuContent>
                           </DropdownMenu>
+                          </div>
                         </td>
                       </motion.tr>
                     );
@@ -2462,6 +2491,108 @@ export default function MusculoskeletalDisease() {
           </Dialog>
         );
       })()}
+
+      {/* ─── 증상조사표 미리보기 다이얼로그 (부서장/관리자) ──────── */}
+      {isDeptHead && (
+        <Dialog open={previewAssessmentId !== null} onOpenChange={o => { if (!o) setPreviewAssessmentId(null); }}>
+          <DialogContent className="max-w-2xl max-h-[88vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-purple-700 dark:text-purple-400">
+                <Eye className="w-4 h-4" />
+                증상조사표 작성내역
+              </DialogTitle>
+              <DialogDescription>
+                {(() => {
+                  const a = (assessments || []).find(x => x.id === previewAssessmentId);
+                  return a ? `${a.department} · ${a.assessor || ""} · ${a.assessmentDate || ""}` : "";
+                })()}
+              </DialogDescription>
+            </DialogHeader>
+
+            {previewLoading ? (
+              <div className="py-8 text-center text-muted-foreground text-sm">불러오는 중...</div>
+            ) : !previewSurveys || previewSurveys.length === 0 ? (
+              <div className="py-8 text-center text-muted-foreground text-sm">등록된 증상조사표가 없습니다.</div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-xs text-muted-foreground font-medium">총 {previewSurveys.length}건</p>
+                {previewSurveys.map((s: any, i: number) => {
+                  const bpd: Record<string, any> = (s.bodyPartData && typeof s.bodyPartData === "object") ? s.bodyPartData : {};
+                  const painParts = Object.keys(bpd);
+                  const gh = (s.generalHealth && typeof s.generalHealth === "object") ? s.generalHealth : {};
+                  return (
+                    <div key={s.id} className={`rounded-xl border p-4 space-y-3 ${s.hasPain === "예" ? "border-orange-300 bg-orange-50/50 dark:bg-orange-900/10" : "border-border bg-muted/20"}`}>
+                      {/* 헤더 */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-semibold">{i + 1}. {s.workerName || "(이름 없음)"}</p>
+                          <p className="text-xs text-muted-foreground">{s.workerDept || ""}</p>
+                        </div>
+                        <div className="flex flex-col items-end gap-1">
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${s.hasPain === "예" ? "bg-orange-500 text-white" : "bg-green-600 text-white"}`}>
+                            {s.hasPain === "예" ? "통증 있음 (면담요청)" : "이상 없음"}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* 일반 문항 요약 */}
+                      {(gh.q5Burden || gh.q2Housework || gh.q3Medical) && (
+                        <div className="bg-muted/40 rounded-lg p-3 space-y-1">
+                          <p className="text-xs font-semibold text-muted-foreground mb-1">일반 문항</p>
+                          {gh.q5Burden && <p className="text-xs">· 육체적 부담: <span className="font-medium">{gh.q5Burden}</span></p>}
+                          {gh.q2Housework && <p className="text-xs">· 가사노동: <span className="font-medium">{gh.q2Housework}</span></p>}
+                          {gh.q3Medical && <p className="text-xs">· 진단 질병: <span className="font-medium">{gh.q3Medical}{(gh.q3Conditions || []).length > 0 ? ` (${gh.q3Conditions.join(", ")})` : ""}</span></p>}
+                          {gh.q4Injury && <p className="text-xs">· 과거 부상: <span className="font-medium">{gh.q4Injury}{(gh.q4Parts || []).length > 0 ? ` (${gh.q4Parts.join(", ")})` : ""}</span></p>}
+                        </div>
+                      )}
+
+                      {/* 통증 부위 */}
+                      {painParts.length > 0 && (
+                        <div className="space-y-2">
+                          <p className="text-xs font-semibold text-muted-foreground">신체 부위별 증상</p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {painParts.map(key => {
+                              const d = bpd[key] || {};
+                              const label = BODY_PARTS.find(bp => bp.key === key)?.label || key;
+                              return (
+                                <div key={key} className="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-2.5 space-y-1">
+                                  <p className="text-xs font-bold text-orange-700 dark:text-orange-400">{label}</p>
+                                  {d.side && <p className="text-xs text-muted-foreground">부위: {d.side}</p>}
+                                  {d.intensity && <p className="text-xs text-muted-foreground">강도: {d.intensity}</p>}
+                                  {d.duration && <p className="text-xs text-muted-foreground">기간: {d.duration}</p>}
+                                  {d.frequency && <p className="text-xs text-muted-foreground">빈도: {d.frequency}</p>}
+                                  {d.pastWeek && <p className="text-xs text-muted-foreground">지난 1주: {d.pastWeek}</p>}
+                                  {(d.treatments || []).length > 0 && (
+                                    <p className="text-xs text-muted-foreground">조치: {d.treatments.join(", ")}</p>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <DialogFooter>
+              {isDeptHead && previewAssessmentId !== null && (
+                <Button
+                  variant="outline"
+                  className="border-purple-300 text-purple-700 hover:bg-purple-50"
+                  onClick={() => { setInterviewAssessmentId(previewAssessmentId); setPreviewAssessmentId(null); }}
+                >
+                  <Bone className="w-4 h-4 mr-2" />
+                  면담일지 작성
+                </Button>
+              )}
+              <Button variant="outline" onClick={() => setPreviewAssessmentId(null)}>닫기</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* ─── 부서장 면담 알림 팝업 ─────────────────────────────────── */}
       <Dialog open={showInterviewNotif} onOpenChange={open => { if (!open) { setInterviewNotifDismissed(true); setShowInterviewNotif(false); } }}>
