@@ -2811,72 +2811,83 @@ export default function MusculoskeletalDisease() {
                   const gh = (s.generalHealth && typeof s.generalHealth === "object") ? s.generalHealth : {};
                   const hasGeneralHealth = gh.q5Burden || gh.q2Housework || gh.q3Medical || gh.q4Injury || (gh.q1Leisure || []).length > 0;
                   return (
-                    <div key={s.id} className={`rounded-xl border p-4 space-y-3 ${s.hasPain === "예" ? "border-orange-300 bg-orange-50/50 dark:bg-orange-900/10" : "border-border bg-muted/20"}`}>
+                    <div key={s.id} className="rounded-xl border border-border bg-muted/10 overflow-hidden">
                       {/* 헤더 */}
-                      <div className="flex items-start gap-2">
-                        <div>
-                          <p className="text-sm font-semibold">{i + 1}{s.workerName ? `. ${s.workerName}` : "."}</p>
-                          <p className="text-xs text-muted-foreground">{s.workerDept || ""}</p>
+                      <div className="flex items-center justify-between px-4 py-2.5 bg-muted/30 border-b border-border">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-muted-foreground w-5 text-center">{i + 1}</span>
+                          {s.workerName && <span className="text-sm font-semibold">{s.workerName}</span>}
+                          {s.workerDept && <span className="text-xs text-muted-foreground">· {s.workerDept}</span>}
                         </div>
-                        <div className="ml-auto">
-                          {s.hasPain === "예"
-                            ? <span className="text-[10px] font-semibold text-orange-600 bg-orange-100 dark:bg-orange-900/30 rounded-full px-2 py-0.5">통증 있음</span>
-                            : s.hasPain === "아니오"
-                              ? <span className="text-[10px] font-semibold text-green-700 bg-green-100 dark:bg-green-900/30 rounded-full px-2 py-0.5">이상 없음</span>
-                              : null}
-                        </div>
+                        {s.hasPain === "예"
+                          ? <span className="text-[10px] font-semibold text-rose-600 dark:text-rose-400">통증 있음</span>
+                          : s.hasPain === "아니오"
+                            ? <span className="text-[10px] font-semibold text-green-600 dark:text-green-400">이상 없음</span>
+                            : null}
                       </div>
 
-                      {/* 증상조사표 작성내역 섹션 제목 */}
-                      <p className="text-[11px] font-semibold text-muted-foreground border-b border-border pb-1">증상조사표 작성내역</p>
+                      <div className="px-4 py-3 space-y-3">
+                        {/* 증상조사표 작성내역 제목 */}
+                        <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">증상조사표 작성내역</p>
 
-                      {/* 일반 문항 요약 */}
-                      {hasGeneralHealth && (
-                        <div className="bg-muted/40 rounded-lg p-3 space-y-1">
-                          <p className="text-xs font-semibold text-muted-foreground mb-1.5 flex items-center gap-1">
-                            <HeartPulse className="w-3 h-3" /> 일반 문항
-                          </p>
-                          {(gh.q1Leisure || []).length > 0 && (
-                            <p className="text-xs">· 여가활동: <span className="font-medium">{(gh.q1Leisure as string[]).join(", ")}</span></p>
-                          )}
-                          {gh.q2Housework && <p className="text-xs">· 가사노동: <span className="font-medium">{gh.q2Housework}</span></p>}
-                          {gh.q3Medical && <p className="text-xs">· 진단 질병: <span className="font-medium">{gh.q3Medical}{(gh.q3Conditions || []).length > 0 ? ` (${(gh.q3Conditions as string[]).join(", ")})` : ""}</span></p>}
-                          {gh.q4Injury && <p className="text-xs">· 과거 부상: <span className="font-medium">{gh.q4Injury}{(gh.q4Parts || []).length > 0 ? ` (${(gh.q4Parts as string[]).join(", ")})` : ""}</span></p>}
-                          {gh.q5Burden && <p className="text-xs">· 육체적 부담: <span className="font-medium">{gh.q5Burden}</span></p>}
-                        </div>
-                      )}
-
-                      {/* 신체 부위별 증상 */}
-                      {painParts.length > 0 && (
-                        <div className="space-y-2">
-                          <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
-                            <Activity className="w-3 h-3" /> 신체 부위별 증상
-                          </p>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            {painParts.map(key => {
-                              const d = bpd[key] || {};
-                              const label = BODY_PARTS.find(bp => bp.key === key)?.label || key;
-                              return (
-                                <div key={key} className="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-2.5 space-y-1">
-                                  <p className="text-xs font-bold text-orange-700 dark:text-orange-400">{label}</p>
-                                  {d.side && <p className="text-xs text-muted-foreground">부위: {d.side}</p>}
-                                  {d.intensity && <p className="text-xs text-muted-foreground">강도: {d.intensity}</p>}
-                                  {d.duration && <p className="text-xs text-muted-foreground">기간: {d.duration}</p>}
-                                  {d.frequency && <p className="text-xs text-muted-foreground">빈도: {d.frequency}</p>}
-                                  {d.pastWeek && <p className="text-xs text-muted-foreground">지난 1주: {d.pastWeek}</p>}
-                                  {(d.treatments || []).length > 0 && (
-                                    <p className="text-xs text-muted-foreground">조치: {(d.treatments as string[]).join(", ")}</p>
-                                  )}
-                                </div>
-                              );
-                            })}
+                        {/* 일반 문항 */}
+                        {hasGeneralHealth && (
+                          <div className="space-y-1.5">
+                            <p className="text-xs font-semibold flex items-center gap-1 text-foreground/70">
+                              <HeartPulse className="w-3 h-3" /> 일반 문항
+                            </p>
+                            <div className="pl-4 space-y-1 border-l-2 border-muted">
+                              {(gh.q1Leisure || []).length > 0 && (
+                                <div className="flex gap-2 text-xs"><span className="text-muted-foreground w-20 shrink-0">여가활동</span><span className="font-medium">{(gh.q1Leisure as string[]).join(", ")}</span></div>
+                              )}
+                              {gh.q2Housework && <div className="flex gap-2 text-xs"><span className="text-muted-foreground w-20 shrink-0">가사노동</span><span className="font-medium">{gh.q2Housework}</span></div>}
+                              {gh.q3Medical && <div className="flex gap-2 text-xs"><span className="text-muted-foreground w-20 shrink-0">진단 질병</span><span className="font-medium">{gh.q3Medical}{(gh.q3Conditions || []).length > 0 ? ` (${(gh.q3Conditions as string[]).join(", ")})` : ""}</span></div>}
+                              {gh.q4Injury && <div className="flex gap-2 text-xs"><span className="text-muted-foreground w-20 shrink-0">과거 부상</span><span className="font-medium">{gh.q4Injury}{(gh.q4Parts || []).length > 0 ? ` (${(gh.q4Parts as string[]).join(", ")})` : ""}</span></div>}
+                              {gh.q5Burden && <div className="flex gap-2 text-xs"><span className="text-muted-foreground w-20 shrink-0">육체적 부담</span><span className="font-medium">{gh.q5Burden}</span></div>}
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        )}
 
-                      {painParts.length === 0 && s.hasPain === "아니오" && (
-                        <p className="text-xs text-muted-foreground text-center py-2">신체 부위별 증상 없음</p>
-                      )}
+                        {/* 신체 부위별 증상 */}
+                        {painParts.length > 0 && (
+                          <div className="space-y-2">
+                            <p className="text-xs font-semibold flex items-center gap-1 text-foreground/70">
+                              <Activity className="w-3 h-3" /> 신체 부위별 증상
+                            </p>
+                            <div className="space-y-2">
+                              {painParts.map(key => {
+                                const d = bpd[key] || {};
+                                const label = BODY_PARTS.find(bp => bp.key === key)?.label || key;
+                                const rows = [
+                                  d.side && ["부위", d.side],
+                                  d.intensity && ["강도", d.intensity],
+                                  d.duration && ["기간", d.duration],
+                                  d.frequency && ["빈도", d.frequency],
+                                  d.pastWeek && ["지난 1주", d.pastWeek],
+                                  (d.treatments || []).length > 0 && ["조치", (d.treatments as string[]).join(", ")],
+                                ].filter(Boolean) as [string, string][];
+                                return (
+                                  <div key={key} className="pl-4 border-l-2 border-rose-300 dark:border-rose-700 space-y-1">
+                                    <p className="text-xs font-bold text-rose-600 dark:text-rose-400">{label}</p>
+                                    <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
+                                      {rows.map(([k, v]) => (
+                                        <div key={k} className="flex gap-1.5 text-xs">
+                                          <span className="text-muted-foreground shrink-0">{k}</span>
+                                          <span className="font-medium">{v}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {painParts.length === 0 && s.hasPain === "아니오" && (
+                          <p className="text-xs text-muted-foreground py-1">신체 부위별 증상 없음</p>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
