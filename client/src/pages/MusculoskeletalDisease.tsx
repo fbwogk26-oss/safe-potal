@@ -2767,10 +2767,49 @@ export default function MusculoskeletalDisease() {
                 {/* ── 상세 카드 ───────────────────────────────────── */}
                 <div className="border-t border-border pt-3 space-y-3">
                   <p className="text-xs font-semibold text-muted-foreground">상세 내용</p>
+
+                  {/* 평가자 유해요인조사 체크 항목 */}
+                  {(() => {
+                    const a = (assessments || []).find(x => x.id === previewAssessmentId);
+                    const checklist = parseChecklist((a as any)?.burdenWorkChecklist);
+                    const hazardFactor = (a as any)?.hazardFactor;
+                    const hasContent = checklist.length > 0 || hazardFactor;
+                    if (!hasContent) return null;
+                    return (
+                      <div className="rounded-xl border border-purple-200 dark:border-purple-800 bg-purple-50/50 dark:bg-purple-900/10 p-4 space-y-2">
+                        <p className="text-xs font-semibold text-purple-700 dark:text-purple-400 flex items-center gap-1.5">
+                          <Wrench className="w-3.5 h-3.5" />
+                          평가자 유해요인조사 체크 항목
+                        </p>
+                        {hazardFactor && (
+                          <p className="text-xs text-muted-foreground">· 유해요인: <span className="font-medium text-foreground">{hazardFactor}</span></p>
+                        )}
+                        {checklist.length > 0 && (
+                          <div className="space-y-2 mt-1">
+                            {checklist.map(no => {
+                              const bw = BURDEN_WORKS.find(b => b.no === no);
+                              if (!bw) return null;
+                              return (
+                                <div key={no} className="flex items-start gap-2">
+                                  <span className="shrink-0 text-[10px] font-bold bg-purple-600 text-white rounded-full w-5 h-5 flex items-center justify-center mt-0.5">{no}호</span>
+                                  <div>
+                                    <p className="text-xs font-medium text-foreground">{bw.short}</p>
+                                    <p className="text-[11px] text-muted-foreground leading-snug">{bw.desc}</p>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
                 {previewSurveys.map((s: any, i: number) => {
                   const bpd: Record<string, any> = (s.bodyPartData && typeof s.bodyPartData === "object") ? s.bodyPartData : {};
                   const painParts = Object.keys(bpd);
                   const gh = (s.generalHealth && typeof s.generalHealth === "object") ? s.generalHealth : {};
+                  const hasGeneralHealth = gh.q5Burden || gh.q2Housework || gh.q3Medical || gh.q4Injury || (gh.q1Leisure || []).length > 0;
                   return (
                     <div key={s.id} className={`rounded-xl border p-4 space-y-3 ${s.hasPain === "예" ? "border-orange-300 bg-orange-50/50 dark:bg-orange-900/10" : "border-border bg-muted/20"}`}>
                       {/* 헤더 */}
@@ -2779,23 +2818,40 @@ export default function MusculoskeletalDisease() {
                           <p className="text-sm font-semibold">{i + 1}{s.workerName ? `. ${s.workerName}` : "."}</p>
                           <p className="text-xs text-muted-foreground">{s.workerDept || ""}</p>
                         </div>
+                        <div className="ml-auto">
+                          {s.hasPain === "예"
+                            ? <span className="text-[10px] font-semibold text-orange-600 bg-orange-100 dark:bg-orange-900/30 rounded-full px-2 py-0.5">통증 있음</span>
+                            : s.hasPain === "아니오"
+                              ? <span className="text-[10px] font-semibold text-green-700 bg-green-100 dark:bg-green-900/30 rounded-full px-2 py-0.5">이상 없음</span>
+                              : null}
+                        </div>
                       </div>
 
+                      {/* 증상조사표 작성내역 섹션 제목 */}
+                      <p className="text-[11px] font-semibold text-muted-foreground border-b border-border pb-1">증상조사표 작성내역</p>
+
                       {/* 일반 문항 요약 */}
-                      {(gh.q5Burden || gh.q2Housework || gh.q3Medical) && (
+                      {hasGeneralHealth && (
                         <div className="bg-muted/40 rounded-lg p-3 space-y-1">
-                          <p className="text-xs font-semibold text-muted-foreground mb-1">일반 문항</p>
-                          {gh.q5Burden && <p className="text-xs">· 육체적 부담: <span className="font-medium">{gh.q5Burden}</span></p>}
+                          <p className="text-xs font-semibold text-muted-foreground mb-1.5 flex items-center gap-1">
+                            <HeartPulse className="w-3 h-3" /> 일반 문항
+                          </p>
+                          {(gh.q1Leisure || []).length > 0 && (
+                            <p className="text-xs">· 여가활동: <span className="font-medium">{(gh.q1Leisure as string[]).join(", ")}</span></p>
+                          )}
                           {gh.q2Housework && <p className="text-xs">· 가사노동: <span className="font-medium">{gh.q2Housework}</span></p>}
-                          {gh.q3Medical && <p className="text-xs">· 진단 질병: <span className="font-medium">{gh.q3Medical}{(gh.q3Conditions || []).length > 0 ? ` (${gh.q3Conditions.join(", ")})` : ""}</span></p>}
-                          {gh.q4Injury && <p className="text-xs">· 과거 부상: <span className="font-medium">{gh.q4Injury}{(gh.q4Parts || []).length > 0 ? ` (${gh.q4Parts.join(", ")})` : ""}</span></p>}
+                          {gh.q3Medical && <p className="text-xs">· 진단 질병: <span className="font-medium">{gh.q3Medical}{(gh.q3Conditions || []).length > 0 ? ` (${(gh.q3Conditions as string[]).join(", ")})` : ""}</span></p>}
+                          {gh.q4Injury && <p className="text-xs">· 과거 부상: <span className="font-medium">{gh.q4Injury}{(gh.q4Parts || []).length > 0 ? ` (${(gh.q4Parts as string[]).join(", ")})` : ""}</span></p>}
+                          {gh.q5Burden && <p className="text-xs">· 육체적 부담: <span className="font-medium">{gh.q5Burden}</span></p>}
                         </div>
                       )}
 
-                      {/* 통증 부위 */}
+                      {/* 신체 부위별 증상 */}
                       {painParts.length > 0 && (
                         <div className="space-y-2">
-                          <p className="text-xs font-semibold text-muted-foreground">신체 부위별 증상</p>
+                          <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
+                            <Activity className="w-3 h-3" /> 신체 부위별 증상
+                          </p>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             {painParts.map(key => {
                               const d = bpd[key] || {};
@@ -2809,13 +2865,17 @@ export default function MusculoskeletalDisease() {
                                   {d.frequency && <p className="text-xs text-muted-foreground">빈도: {d.frequency}</p>}
                                   {d.pastWeek && <p className="text-xs text-muted-foreground">지난 1주: {d.pastWeek}</p>}
                                   {(d.treatments || []).length > 0 && (
-                                    <p className="text-xs text-muted-foreground">조치: {d.treatments.join(", ")}</p>
+                                    <p className="text-xs text-muted-foreground">조치: {(d.treatments as string[]).join(", ")}</p>
                                   )}
                                 </div>
                               );
                             })}
                           </div>
                         </div>
+                      )}
+
+                      {painParts.length === 0 && s.hasPain === "아니오" && (
+                        <p className="text-xs text-muted-foreground text-center py-2">신체 부위별 증상 없음</p>
                       )}
                     </div>
                   );
