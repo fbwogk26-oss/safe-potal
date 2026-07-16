@@ -2069,15 +2069,6 @@ export default function MusculoskeletalDisease() {
                         data-testid={`button-interview-${s.id}`}>
                         면담일지
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7"
-                        onClick={() => handleSurveyEdit(s)} data-testid={`button-survey-edit-${s.id}`}>
-                        <Pencil className="w-3.5 h-3.5" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7"
-                        onClick={() => { if (confirm("삭제하시겠습니까?")) deleteSurveyMutation.mutate(s.id); }}
-                        data-testid={`button-survey-delete-${s.id}`}>
-                        <Trash2 className="w-3.5 h-3.5 text-red-500" />
-                      </Button>
                     </div>
                   </div>
                 );
