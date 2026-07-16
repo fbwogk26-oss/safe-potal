@@ -309,6 +309,8 @@ export const musculoskeletalAssessments = pgTable("musculoskeletal_assessments",
   currentWorkMethod: text("current_work_method"),
   workCareer: text("work_career"),
   maritalStatus: text("marital_status"),
+  workerAge: text("worker_age"),
+  workerGender: text("worker_gender"),
 });
 
 export const musculoskeletalAssessmentHistory = pgTable("musculoskeletal_assessment_history", {
@@ -323,7 +325,7 @@ export const musculoskeletalAssessmentHistory = pgTable("musculoskeletal_assessm
 export const musculoskeletalSymptomSurveys = pgTable("musculoskeletal_symptom_surveys", {
   id: serial("id").primaryKey(),
   assessmentId: integer("assessment_id").notNull(),
-  workerName: text("worker_name").notNull(),
+  workerName: text("worker_name"),
   // 신체부위별 통증유무
   neckPain: boolean("neck_pain").default(false),
   shoulderPain: boolean("shoulder_pain").default(false),

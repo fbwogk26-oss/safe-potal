@@ -294,6 +294,8 @@ interface FormState {
   currentWorkMethod: string;
   workCareer: string;
   maritalStatus: string;
+  workerAge: string;
+  workerGender: string;
 }
 const defaultForm = (): FormState => ({
   department: "",
@@ -309,6 +311,8 @@ const defaultForm = (): FormState => ({
   currentWorkMethod: "",
   workCareer: "",
   maritalStatus: "",
+  workerAge: "",
+  workerGender: "",
 });
 
 function parseChecklist(raw: string | null | undefined): number[] {
@@ -788,6 +792,8 @@ export default function MusculoskeletalDisease() {
       currentWorkMethod:   (item as any).currentWorkMethod || "",
       workCareer:          (item as any).workCareer || "",
       maritalStatus:       (item as any).maritalStatus || "",
+      workerAge:           (item as any).workerAge || "",
+      workerGender:        (item as any).workerGender || "",
     });
     setEditingId(item.id);
     setRiskManual(true);
@@ -807,6 +813,11 @@ export default function MusculoskeletalDisease() {
       assessor:            item.assessor || "",
       status:              "진행중",
       burdenWorkChecklist: parseChecklist((item as any).burdenWorkChecklist),
+      currentWorkMethod:   (item as any).currentWorkMethod || "",
+      workCareer:          (item as any).workCareer || "",
+      maritalStatus:       (item as any).maritalStatus || "",
+      workerAge:           (item as any).workerAge || "",
+      workerGender:        (item as any).workerGender || "",
     });
     setEditingId(null);
     setRiskManual(false);
@@ -1411,6 +1422,36 @@ export default function MusculoskeletalDisease() {
                 </div>
               )}
             </div>
+            {/* 스텝 인디케이터 */}
+            {!editingId && (
+              <div className="flex items-center justify-center gap-0 mt-2 pt-2 border-t border-border">
+                {[
+                  { icon: "👤", label: "기본정보", step: 0 },
+                  { icon: "⚠️", label: "부담작업", step: 1 },
+                  { icon: "📋", label: "증상조사", step: 2 },
+                  { icon: "✅", label: "등록완료", step: 3 },
+                ].map((s, i) => {
+                  const currentStep = !showChecklist ? 0 : 1;
+                  const active = currentStep === s.step;
+                  const done = currentStep > s.step;
+                  return (
+                    <div key={s.step} className="flex items-center">
+                      <div className="flex flex-col items-center gap-0.5">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm transition-all ${active ? "bg-purple-600 text-white shadow-sm" : done ? "bg-purple-200 dark:bg-purple-800 text-purple-700 dark:text-purple-300" : "bg-muted text-muted-foreground"}`}>
+                          {s.icon}
+                        </div>
+                        <span className={`text-[10px] font-medium ${active ? "text-purple-700 dark:text-purple-300" : "text-muted-foreground"}`}>
+                          {s.label}
+                        </span>
+                      </div>
+                      {i < 3 && (
+                        <div className={`w-10 h-px mx-1 mb-4 ${done ? "bg-purple-400" : "bg-border"}`} />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </DialogHeader>
 
           {/* ─── 기본 정보 (먼저) ─────────────────────────────────── */}
@@ -1419,15 +1460,15 @@ export default function MusculoskeletalDisease() {
               <span className="text-base">👤</span> Ⅰ. 기본 정보
             </p>
 
-            {/* 평가자 / 평가일 */}
+            {/* 성명 / 평가일 */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label className="text-sm font-medium">평가자</Label>
+                <Label className="text-sm font-medium">성명 (선택)</Label>
                 <Input
                   list="assessor-suggestions-list"
                   value={form.assessor}
                   onChange={e => updateField("assessor", e.target.value)}
-                  placeholder="평가자명"
+                  placeholder="홍길동"
                   className="h-9 bg-white dark:bg-background"
                   data-testid="input-assessor"
                 />
@@ -1444,6 +1485,38 @@ export default function MusculoskeletalDisease() {
                   className="h-9 bg-white dark:bg-background"
                   data-testid="input-assessment-date"
                 />
+              </div>
+            </div>
+
+            {/* 연령 / 성별 */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">연령</Label>
+                <Input
+                  value={form.workerAge}
+                  onChange={e => updateField("workerAge", e.target.value)}
+                  placeholder="만 ○○ 세"
+                  className="h-9 bg-white dark:bg-background"
+                  data-testid="input-worker-age"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">성별</Label>
+                <div className="flex gap-2">
+                  {["남", "여"].map(g => (
+                    <button
+                      key={g}
+                      type="button"
+                      onClick={() => updateField("workerGender", form.workerGender === g ? "" : g)}
+                      className={`flex-1 h-9 rounded-lg border text-sm font-medium transition-colors ${
+                        form.workerGender === g
+                          ? "bg-purple-600 text-white border-purple-600"
+                          : "border-border bg-white dark:bg-background text-foreground hover:bg-purple-50 dark:hover:bg-purple-900/20"
+                      }`}
+                      data-testid={`button-gender-${g}`}
+                    >{g}</button>
+                  ))}
+                </div>
               </div>
             </div>
 
@@ -1558,15 +1631,14 @@ export default function MusculoskeletalDisease() {
 
           {/* ─── 다음 버튼 → 체크리스트 ──────────────────────────── */}
           {!showChecklist ? (
-            <div className="flex justify-end pt-1">
+            <div className="pt-1">
               <Button
                 type="button"
                 onClick={() => setShowChecklist(true)}
-                className="bg-purple-600 hover:bg-purple-700 text-white gap-2"
+                className="w-full bg-purple-600 hover:bg-purple-700 text-white gap-2 h-12 text-base font-semibold"
                 data-testid="button-next-to-checklist"
               >
-                다음 — 부담작업 체크리스트
-                <ChevronDown className="w-4 h-4" />
+                다음 — 부담작업 선택 &gt;
               </Button>
             </div>
           ) : (
