@@ -416,10 +416,24 @@ export default function MusculoskeletalDisease() {
     setSurveyForm(defaultSurveyForm());
   };
 
+  const [activeBpTab, setActiveBpTab] = useState<string | null>(null);
   const toggleBodyPart = (key: string) => {
     setSurveyForm(f => {
       const bpd = { ...(f.bodyPartData || {}) };
-      if (bpd[key]) { delete bpd[key]; } else { bpd[key] = { treatments: [] }; }
+      if (bpd[key]) {
+        delete bpd[key];
+        // 삭제된 탭이 현재 활성이면 다른 남은 탭으로 이동
+        setActiveBpTab(prev => {
+          if (prev === key) {
+            const remaining = Object.keys(bpd);
+            return remaining.length > 0 ? remaining[0] : null;
+          }
+          return prev;
+        });
+      } else {
+        bpd[key] = { treatments: [] };
+        setActiveBpTab(key); // 새로 추가된 탭 자동 선택
+      }
       return { ...f, bodyPartData: bpd };
     });
   };
@@ -1869,112 +1883,140 @@ export default function MusculoskeletalDisease() {
                     </div>
                   </div>
 
-                  {/* 선택된 부위별 상세 */}
-                  {BODY_PARTS.filter(bp => (surveyForm.bodyPartData || {})[bp.key]).map(bp => {
+                  {/* 선택된 부위별 상세 — 탭 UI */}
+                  {(() => {
+                    const selectedParts = BODY_PARTS.filter(bp => (surveyForm.bodyPartData || {})[bp.key]);
+                    if (selectedParts.length === 0) return null;
+                    const currentTab = activeBpTab && (surveyForm.bodyPartData || {})[activeBpTab]
+                      ? activeBpTab
+                      : selectedParts[0]?.key;
+                    const bp = BODY_PARTS.find(b => b.key === currentTab);
+                    if (!bp) return null;
                     const bpData = getBpData(bp.key);
                     const treatments: string[] = bpData.treatments || [];
                     const n = bp.hasSide ? 1 : 0;
                     return (
-                      <div key={bp.key} className="rounded-xl border border-purple-300 dark:border-purple-700 overflow-hidden">
-                        <div className="bg-purple-50 dark:bg-purple-900/30 px-4 py-2.5 flex items-center justify-between">
-                          <span className="text-sm font-bold text-purple-700 dark:text-purple-300">{bp.label}</span>
-                          <button type="button" onClick={() => toggleBodyPart(bp.key)} className="text-xs text-muted-foreground hover:text-destructive">제거</button>
+                      <div className="space-y-0">
+                        {/* 탭 헤더 */}
+                        <div className="flex gap-1 flex-wrap">
+                          {selectedParts.map(part => (
+                            <button
+                              key={part.key}
+                              type="button"
+                              onClick={() => setActiveBpTab(part.key)}
+                              className={`px-3 py-1.5 text-xs font-semibold rounded-t-lg border-t border-x transition-all ${
+                                currentTab === part.key
+                                  ? "bg-purple-600 text-white border-purple-600"
+                                  : "bg-muted/50 text-muted-foreground border-border hover:bg-muted"
+                              }`}
+                              data-testid={`tab-bodypart-${part.key}`}
+                            >
+                              {part.label}
+                              {(() => {
+                                const d = getBpData(part.key);
+                                const filled = [d.duration, d.intensity, d.frequency, d.pastWeek].filter(Boolean).length;
+                                return filled > 0 ? <span className="ml-1 opacity-70">✓</span> : null;
+                              })()}
+                            </button>
+                          ))}
                         </div>
-                        <div className="p-4 space-y-3.5">
-
-                          {bp.hasSide && (
+                        {/* 탭 콘텐츠 */}
+                        <div className="rounded-b-xl rounded-tr-xl border border-purple-300 dark:border-purple-700 overflow-hidden">
+                          <div className="bg-purple-50 dark:bg-purple-900/30 px-4 py-2 flex items-center justify-between">
+                            <span className="text-sm font-bold text-purple-700 dark:text-purple-300">{bp.label} 부위 증상 상세</span>
+                            <button type="button" onClick={() => toggleBodyPart(bp.key)} className="text-xs text-muted-foreground hover:text-destructive">
+                              선택 해제
+                            </button>
+                          </div>
+                          <div className="p-4 space-y-3.5">
+                            {bp.hasSide && (
+                              <div className="space-y-1.5">
+                                <p className="text-xs font-semibold text-muted-foreground">1. 구체적 부위</p>
+                                <div className="flex gap-2">
+                                  {SIDE_OPTS.map(s => (
+                                    <button key={s} type="button" onClick={() => setBpData(bp.key, { side: s })}
+                                      className={`flex-1 py-1.5 text-xs rounded-lg border font-medium transition-all ${bpData.side === s ? "border-purple-500 bg-purple-500 text-white" : "border-border hover:border-purple-300"}`}
+                                      data-testid={`button-side-${bp.key}-${s}`}
+                                    >{s}</button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                             <div className="space-y-1.5">
-                              <p className="text-xs font-semibold text-muted-foreground">1. 구체적 부위</p>
-                              <div className="flex gap-2">
-                                {SIDE_OPTS.map(s => (
-                                  <button key={s} type="button" onClick={() => setBpData(bp.key, { side: s })}
-                                    className={`flex-1 py-1.5 text-xs rounded-lg border font-medium transition-all ${bpData.side === s ? "border-purple-500 bg-purple-500 text-white" : "border-border hover:border-purple-300"}`}
-                                    data-testid={`button-side-${bp.key}-${s}`}
-                                  >{s}</button>
+                              <p className="text-xs font-semibold text-muted-foreground">{n + 1}. 통증 지속 기간</p>
+                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                                {DURATION_OPTS.map(d => (
+                                  <button key={d} type="button" onClick={() => setBpData(bp.key, { duration: d })}
+                                    className={`py-1.5 text-xs rounded-lg border font-medium transition-all ${bpData.duration === d ? "border-purple-500 bg-purple-500 text-white" : "border-border hover:border-purple-300"}`}
+                                    data-testid={`button-duration-${bp.key}-${d}`}
+                                  >{d}</button>
                                 ))}
                               </div>
                             </div>
-                          )}
-
-                          <div className="space-y-1.5">
-                            <p className="text-xs font-semibold text-muted-foreground">{n + 1}. 통증 지속 기간</p>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-                              {DURATION_OPTS.map(d => (
-                                <button key={d} type="button" onClick={() => setBpData(bp.key, { duration: d })}
-                                  className={`py-1.5 text-xs rounded-lg border font-medium transition-all ${bpData.duration === d ? "border-purple-500 bg-purple-500 text-white" : "border-border hover:border-purple-300"}`}
-                                  data-testid={`button-duration-${bp.key}-${d}`}
-                                >{d}</button>
-                              ))}
+                            <div className="space-y-1.5">
+                              <p className="text-xs font-semibold text-muted-foreground">{n + 2}. 통증 강도</p>
+                              <div className="grid grid-cols-2 gap-1.5">
+                                {INTENSITY_OPTS.map(it => (
+                                  <button key={it} type="button" onClick={() => setBpData(bp.key, { intensity: it })}
+                                    className={`py-1.5 text-xs rounded-lg border font-medium transition-all ${bpData.intensity === it ? "border-purple-500 bg-purple-500 text-white" : "border-border hover:border-purple-300"}`}
+                                    data-testid={`button-intensity-${bp.key}-${it}`}
+                                  >{it}</button>
+                                ))}
+                              </div>
+                              <div className="bg-muted/60 rounded-lg p-2 text-[10px] text-muted-foreground space-y-0.5">
+                                <p>· 약한: 약간 불편하나 작업 집중 시 못 느낀다</p>
+                                <p>· 중간: 통증 있으나 귀가 후 휴식하면 괜찮다</p>
+                                <p>· 심한: 귀가 후에도 통증이 계속된다</p>
+                                <p>· 매우 심한: 통증으로 일상생활이 어렵다</p>
+                              </div>
+                            </div>
+                            <div className="space-y-1.5">
+                              <p className="text-xs font-semibold text-muted-foreground">{n + 3}. 지난 1년간 경험 빈도</p>
+                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                                {FREQUENCY_OPTS.map(fr => (
+                                  <button key={fr} type="button" onClick={() => setBpData(bp.key, { frequency: fr })}
+                                    className={`py-1.5 text-xs rounded-lg border font-medium transition-all ${bpData.frequency === fr ? "border-purple-500 bg-purple-500 text-white" : "border-border hover:border-purple-300"}`}
+                                    data-testid={`button-freq-${bp.key}-${fr}`}
+                                  >{fr}</button>
+                                ))}
+                              </div>
+                            </div>
+                            <div className="space-y-1.5">
+                              <p className="text-xs font-semibold text-muted-foreground">{n + 4}. 지난 1주일에도 증상이 있었습니까?</p>
+                              <div className="flex gap-2">
+                                {["예","아니오"].map(v => (
+                                  <button key={v} type="button" onClick={() => setBpData(bp.key, { pastWeek: v })}
+                                    className={`flex-1 py-1.5 text-xs rounded-lg border font-semibold transition-all ${bpData.pastWeek === v ? "border-purple-500 bg-purple-500 text-white" : "border-border hover:border-purple-300"}`}
+                                    data-testid={`button-pastweek-${bp.key}-${v}`}
+                                  >{v}</button>
+                                ))}
+                              </div>
+                            </div>
+                            <div className="space-y-1.5">
+                              <p className="text-xs font-semibold text-muted-foreground">{n + 5}. 지난 1년간 이 통증으로 어떤 일이 있었습니까? <span className="font-normal">(중복 가능)</span></p>
+                              <div className="grid grid-cols-2 gap-1.5">
+                                {TREATMENT_OPTS.map(t => {
+                                  const selected = treatments.includes(t);
+                                  return (
+                                    <button key={t} type="button"
+                                      onClick={() => setBpData(bp.key, { treatments: selected ? treatments.filter(x => x !== t) : [...treatments, t] })}
+                                      className={`text-left py-1.5 px-2 text-xs rounded-lg border font-medium transition-all ${selected ? "border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300" : "border-border hover:border-purple-300"}`}
+                                      data-testid={`button-treatment-${bp.key}-${t}`}
+                                    >
+                                      <span className="flex items-center gap-1.5">
+                                        <span className={`w-3 h-3 rounded flex-shrink-0 border ${selected ? "bg-purple-500 border-purple-500" : "border-muted-foreground/40"}`} />
+                                        {t}
+                                      </span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
                             </div>
                           </div>
-
-                          <div className="space-y-1.5">
-                            <p className="text-xs font-semibold text-muted-foreground">{n + 2}. 통증 강도</p>
-                            <div className="grid grid-cols-2 gap-1.5">
-                              {INTENSITY_OPTS.map(it => (
-                                <button key={it} type="button" onClick={() => setBpData(bp.key, { intensity: it })}
-                                  className={`py-1.5 text-xs rounded-lg border font-medium transition-all ${bpData.intensity === it ? "border-purple-500 bg-purple-500 text-white" : "border-border hover:border-purple-300"}`}
-                                  data-testid={`button-intensity-${bp.key}-${it}`}
-                                >{it}</button>
-                              ))}
-                            </div>
-                            <div className="bg-muted/60 rounded-lg p-2 text-[10px] text-muted-foreground space-y-0.5">
-                              <p>· 약한: 약간 불편하나 작업 집중 시 못 느낀다</p>
-                              <p>· 중간: 통증 있으나 귀가 후 휴식하면 괜찮다</p>
-                              <p>· 심한: 귀가 후에도 통증이 계속된다</p>
-                              <p>· 매우 심한: 통증으로 일상생활이 어렵다</p>
-                            </div>
-                          </div>
-
-                          <div className="space-y-1.5">
-                            <p className="text-xs font-semibold text-muted-foreground">{n + 3}. 지난 1년간 경험 빈도</p>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-                              {FREQUENCY_OPTS.map(fr => (
-                                <button key={fr} type="button" onClick={() => setBpData(bp.key, { frequency: fr })}
-                                  className={`py-1.5 text-xs rounded-lg border font-medium transition-all ${bpData.frequency === fr ? "border-purple-500 bg-purple-500 text-white" : "border-border hover:border-purple-300"}`}
-                                  data-testid={`button-freq-${bp.key}-${fr}`}
-                                >{fr}</button>
-                              ))}
-                            </div>
-                          </div>
-
-                          <div className="space-y-1.5">
-                            <p className="text-xs font-semibold text-muted-foreground">{n + 4}. 지난 1주일에도 증상이 있었습니까?</p>
-                            <div className="flex gap-2">
-                              {["예","아니오"].map(v => (
-                                <button key={v} type="button" onClick={() => setBpData(bp.key, { pastWeek: v })}
-                                  className={`flex-1 py-1.5 text-xs rounded-lg border font-semibold transition-all ${bpData.pastWeek === v ? "border-purple-500 bg-purple-500 text-white" : "border-border hover:border-purple-300"}`}
-                                  data-testid={`button-pastweek-${bp.key}-${v}`}
-                                >{v}</button>
-                              ))}
-                            </div>
-                          </div>
-
-                          <div className="space-y-1.5">
-                            <p className="text-xs font-semibold text-muted-foreground">{n + 5}. 지난 1년간 이 통증으로 어떤 일이 있었습니까? <span className="font-normal">(중복 가능)</span></p>
-                            <div className="grid grid-cols-2 gap-1.5">
-                              {TREATMENT_OPTS.map(t => {
-                                const selected = treatments.includes(t);
-                                return (
-                                  <button key={t} type="button"
-                                    onClick={() => setBpData(bp.key, { treatments: selected ? treatments.filter(x => x !== t) : [...treatments, t] })}
-                                    className={`text-left py-1.5 px-2 text-xs rounded-lg border font-medium transition-all ${selected ? "border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300" : "border-border hover:border-purple-300"}`}
-                                    data-testid={`button-treatment-${bp.key}-${t}`}
-                                  >
-                                    <span className="flex items-center gap-1.5">
-                                      <span className={`w-3 h-3 rounded flex-shrink-0 border ${selected ? "bg-purple-500 border-purple-500" : "border-muted-foreground/40"}`} />
-                                      {t}
-                                    </span>
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </div>
-
                         </div>
                       </div>
                     );
-                  })}
+                  })()}
                 </div>
               )}
             </div>
