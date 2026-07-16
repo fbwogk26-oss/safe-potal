@@ -2729,7 +2729,7 @@ export default function MusculoskeletalDisease() {
                                 const _a = (assessments || []).find(x => x.id === previewAssessmentId);
                                 const _cl = parseChecklist((_a as any)?.burdenWorkChecklist);
                                 const autoHazard = _cl.length > 0
-                                  ? _cl.map(no => (BURDEN_WORKS as readonly any[]).find(b => b.no === no)?.short || "").filter(Boolean).join(", ")
+                                  ? _cl.map(no => { const bw = (BURDEN_WORKS as readonly any[]).find(b => b.no === no); return bw ? `제${no}호 ${bw.short}` : ""; }).filter(Boolean).join("\n")
                                   : (_a as any)?.hazardFactor || "";
                                 const _bpd = s.bodyPartData && typeof s.bodyPartData === "object" ? s.bodyPartData as Record<string, any> : {};
                                 const _bpdKeys = Object.keys(_bpd);
@@ -2743,11 +2743,14 @@ export default function MusculoskeletalDisease() {
                                     }).join(" / ")
                                   : _legacy.join(", ");
                                 const _matched = (users || []).find((u: any) => u.name === s.workerName);
+                                const _validWorks = ["현장운용", "일반사무", "기타"];
+                                const autoWork = _validWorks.includes((_a as any)?.task || "") ? (_a as any).task : "";
                                 setPreviewIntForm(f => ({
                                   ...f,
                                   workerName: s.workerName || "",
                                   workerDept: s.workerDept || "",
                                   workerPosition: _matched?.position || f.workerPosition || "",
+                                  assignedWork: autoWork || f.assignedWork || "",
                                   interviewDate: new Date().toISOString().slice(0, 10),
                                   interviewerName: user?.name || "",
                                   hazardDetails: autoHazard || f.hazardDetails || "",
@@ -2835,7 +2838,7 @@ export default function MusculoskeletalDisease() {
                       {/* 헤더 */}
                       <div className="flex items-center justify-between px-4 py-2.5 bg-muted/30 border-b border-border">
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-muted-foreground w-5 text-center">{i + 1}</span>
+                          <span className="text-xs font-semibold text-muted-foreground">증상조사표 작성내역</span>
                           {s.workerName && <span className="text-sm font-semibold">{s.workerName}</span>}
                           {s.workerDept && <span className="text-xs text-muted-foreground">· {s.workerDept}</span>}
                         </div>
@@ -2847,9 +2850,6 @@ export default function MusculoskeletalDisease() {
                       </div>
 
                       <div className="px-4 py-3 space-y-3">
-                        {/* 증상조사표 작성내역 제목 */}
-                        <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">증상조사표 작성내역</p>
-
                         {/* 일반 문항 */}
                         {hasGeneralHealth && (
                           <div className="space-y-1.5">
@@ -2932,11 +2932,11 @@ export default function MusculoskeletalDisease() {
                     <Input className="h-8 text-sm bg-muted/50" value={previewIntForm.workerDept} onChange={e => setPreviewIntForm(f => ({ ...f, workerDept: e.target.value }))} placeholder="부서명" />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">직위/직종</Label>
-                    <Input className="h-8 text-sm" value={previewIntForm.workerPosition} onChange={e => setPreviewIntForm(f => ({ ...f, workerPosition: e.target.value }))} placeholder="직위" />
+                    <Label className="text-xs text-muted-foreground">직위/직종 <span className="text-purple-500">(자동)</span></Label>
+                    <Input className="h-8 text-sm bg-muted/50" value={previewIntForm.workerPosition} onChange={e => setPreviewIntForm(f => ({ ...f, workerPosition: e.target.value }))} placeholder="직위" />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">담당 작업</Label>
+                    <Label className="text-xs text-muted-foreground">담당 작업 <span className="text-purple-500">(자동)</span></Label>
                     <Select value={previewIntForm.assignedWork} onValueChange={v => setPreviewIntForm(f => ({ ...f, assignedWork: v }))}>
                       <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="선택" /></SelectTrigger>
                       <SelectContent>
@@ -3016,10 +3016,13 @@ export default function MusculoskeletalDisease() {
                       const _a2 = (assessments || []).find(x => x.id === previewAssessmentId);
                       const _cl2 = parseChecklist((_a2 as any)?.burdenWorkChecklist);
                       const autoHazard2 = _cl2.length > 0
-                        ? _cl2.map(no => (BURDEN_WORKS as readonly any[]).find(b => b.no === no)?.short || "").filter(Boolean).join(", ")
+                        ? _cl2.map(no => { const bw = (BURDEN_WORKS as readonly any[]).find(b => b.no === no); return bw ? `제${no}호 ${bw.short}` : ""; }).filter(Boolean).join("\n")
                         : (_a2 as any)?.hazardFactor || "";
+                      const _validWorks2 = ["현장운용", "일반사무", "기타"];
+                      const autoWork2 = _validWorks2.includes((_a2 as any)?.task || "") ? (_a2 as any).task : "";
                       setPreviewIntForm(f => ({
                         ...f,
+                        assignedWork: autoWork2 || f.assignedWork || "",
                         interviewDate: new Date().toISOString().slice(0, 10),
                         interviewerName: user?.name || "",
                         hazardDetails: autoHazard2 || f.hazardDetails || "",
