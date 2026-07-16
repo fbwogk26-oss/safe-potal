@@ -4600,13 +4600,14 @@ ${buildEmailFooter()}
 
   app.post('/api/musculoskeletal-assessments/public', async (req: any, res) => {
     try {
-      const { name, department, task, burdenWorkChecklist, headquarters, symptomSurvey } = req.body;
+      const { name, department, task, burdenWorkChecklist, headquarters, symptomSurvey, hasPain, bodyPartData, generalHealth } = req.body;
       if (!department) {
         return res.status(400).json({ message: "부서는 필수입니다" });
       }
       const checklist = Array.isArray(burdenWorkChecklist) ? burdenWorkChecklist : [];
       const riskLevel = checklist.length >= 3 ? "높음" : checklist.length >= 1 ? "중간" : "낮음";
       const symptomText = typeof symptomSurvey === "string" && symptomSurvey.trim() ? `[증상조사] ${symptomSurvey.trim()}` : "";
+      const hasPainYes = hasPain === "예";
       const created = await storage.createMusculoskeletalAssessment({
         department,
         task: task || "자가진단",
@@ -4616,11 +4617,24 @@ ${buildEmailFooter()}
         improvementPlan: "",
         assessmentDate: new Date().toISOString().slice(0, 10),
         assessor: name ? `${name}(공개등록)` : "익명(공개등록)",
-        status: "진행중",
+        status: hasPainYes ? "증상조사 진행중" : "진행중",
         headquarters: headquarters || "",
         burdenWorkChecklist: JSON.stringify(checklist),
         createdBy: null,
       });
+      // 통증이 있는 경우 symptom survey 레코드 생성 → 부서장 알림 팝업 트리거
+      if (hasPainYes) {
+        await storage.createSymptomSurvey({
+          assessmentId: created.id,
+          workerName: name || "익명",
+          workerDept: department,
+          hasPain: "예",
+          bodyPartData: bodyPartData && typeof bodyPartData === "object" ? bodyPartData : {},
+          generalHealth: generalHealth && typeof generalHealth === "object" ? generalHealth : {},
+          createdBy: null,
+          status: "대기",
+        } as any);
+      }
       res.status(201).json({ success: true, id: created.id });
     } catch (error: any) {
       res.status(500).json({ message: error.message || "등록에 실패했습니다" });

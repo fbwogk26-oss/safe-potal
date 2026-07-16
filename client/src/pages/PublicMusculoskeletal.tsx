@@ -239,6 +239,9 @@ export default function PublicMusculoskeletal() {
           burdenWorkChecklist: burdenList,
           headquarters,
           symptomSurvey: JSON.stringify(symptomSurveyData),
+          hasPain,
+          bodyPartData: hasPain === "예" ? symptoms : {},
+          generalHealth: health,
         }),
       });
       if (!res.ok) { const err = await res.json().catch(()=>({})); throw new Error(err.message||"등록 실패"); }
@@ -649,7 +652,7 @@ export default function PublicMusculoskeletal() {
                   disabled={submitting || hasPain === ""}
                   data-testid="button-submit"
                 >
-                  {submitting ? <><Loader2 className="w-4 h-4 animate-spin" />등록 중...</> : <><CheckCircle2 className="w-4 h-4" />제출하기</>}
+                  {submitting ? <><Loader2 className="w-4 h-4 animate-spin" />등록 중...</> : hasPain === "예" ? <><HeartPulse className="w-4 h-4" />면담요청</> : <><CheckCircle2 className="w-4 h-4" />제출하기</>}
                 </Button>
               </div>
             </motion.div>
@@ -658,12 +661,20 @@ export default function PublicMusculoskeletal() {
           {/* ══════ DONE ══════ */}
           {step === "done" && (
             <motion.div key="done" initial={{ opacity:0, scale:0.95 }} animate={{ opacity:1, scale:1 }} className="flex flex-col items-center gap-6 text-center py-8">
-              <div className="w-20 h-20 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-                <CheckCircle2 className="w-10 h-10 text-green-600 dark:text-green-400" />
+              <div className={`w-20 h-20 rounded-full flex items-center justify-center ${hasPain === "예" ? "bg-orange-100 dark:bg-orange-900/30" : "bg-green-100 dark:bg-green-900/30"}`}>
+                {hasPain === "예"
+                  ? <HeartPulse className="w-10 h-10 text-orange-500 dark:text-orange-400" />
+                  : <CheckCircle2 className="w-10 h-10 text-green-600 dark:text-green-400" />}
               </div>
               <div className="space-y-2">
-                <h2 className="text-xl font-bold">등록이 완료되었습니다!</h2>
-                <p className="text-sm text-muted-foreground">안전담당자가 검토 후 연락드릴 예정입니다.<br />불편사항이 있으시면 안전담당자에게 문의하세요.</p>
+                <h2 className="text-xl font-bold">
+                  {hasPain === "예" ? "면담요청이 접수되었습니다!" : "등록이 완료되었습니다!"}
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  {hasPain === "예"
+                    ? <>부서장에게 면담 요청이 전달되었습니다.<br />담당자가 면담 일정을 안내드릴 예정입니다.</>
+                    : <>안전담당자가 검토 후 연락드릴 예정입니다.<br />불편사항이 있으시면 안전담당자에게 문의하세요.</>}
+                </p>
               </div>
               <div className="bg-muted/50 rounded-xl border px-5 py-4 text-left space-y-2 w-full max-w-sm">
                 <p className="text-xs font-semibold text-muted-foreground">제출 내용 요약</p>
