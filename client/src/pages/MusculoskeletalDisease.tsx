@@ -474,6 +474,15 @@ export default function MusculoskeletalDisease() {
     refetchInterval: 30000,
   });
 
+  const { data: dashStats } = useQuery<{
+    totalSurveys: number; painSurveys: number; normalSurveys: number;
+    totalInterviews: number; interviewedWorkers: number; painWithInterview: number;
+  }>({
+    queryKey: ["/api/musculoskeletal-assessments/dashboard-stats", headquarters],
+    queryFn: () => fetch(`/api/musculoskeletal-assessments/dashboard-stats?headquarters=${encodeURIComponent(headquarters)}`, { credentials: "include" }).then(r => r.json()),
+    refetchInterval: 30000,
+  });
+
   const { data: surveyList, isLoading: surveysLoading } = useQuery<any[]>({
     queryKey: ["/api/musculoskeletal-assessments", surveyAssessmentId, "symptom-surveys"],
     queryFn: () => fetch(`/api/musculoskeletal-assessments/${surveyAssessmentId}/symptom-surveys`, { credentials: "include" }).then(r => r.json()),
@@ -1171,7 +1180,7 @@ export default function MusculoskeletalDisease() {
         }
         const topDepts = Object.entries(deptCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
         return (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 xl:grid-cols-5 gap-3">
             <Card className="border-purple-200 dark:border-purple-800">
               <CardContent className="pt-4 pb-3 px-4">
                 <div className="text-xs text-muted-foreground mb-1 font-medium">위험수준별</div>
@@ -1234,6 +1243,68 @@ export default function MusculoskeletalDisease() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* 증상조사 현황 */}
+            {dashStats && (
+              <Card className="border-rose-200 dark:border-rose-800">
+                <CardContent className="pt-4 pb-3 px-4">
+                  <div className="text-xs text-muted-foreground mb-1 font-medium">증상조사 현황</div>
+                  <div className="flex items-end gap-3 flex-wrap">
+                    <div className="text-center">
+                      <div className="text-xl font-bold text-rose-600">{dashStats.painSurveys}</div>
+                      <div className="text-[10px] text-rose-500">통증있음</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-xl font-bold text-emerald-600">{dashStats.normalSurveys}</div>
+                      <div className="text-[10px] text-emerald-500">정상</div>
+                    </div>
+                    <div className="ml-auto text-right">
+                      <div className="text-2xl font-bold text-foreground">{dashStats.totalSurveys}</div>
+                      <div className="text-[10px] text-muted-foreground">전체</div>
+                    </div>
+                  </div>
+                  <div className="mt-2 flex gap-0.5 h-2 rounded-full overflow-hidden bg-muted">
+                    {dashStats.totalSurveys > 0 && dashStats.painSurveys > 0 && (
+                      <div className="bg-rose-500 rounded-full transition-all" style={{ width: `${(dashStats.painSurveys / dashStats.totalSurveys) * 100}%` }} />
+                    )}
+                    {dashStats.totalSurveys > 0 && dashStats.normalSurveys > 0 && (
+                      <div className="bg-emerald-500 rounded-full transition-all" style={{ width: `${(dashStats.normalSurveys / dashStats.totalSurveys) * 100}%` }} />
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* 면담일지 현황 */}
+            {dashStats && (
+              <Card className="border-indigo-200 dark:border-indigo-800">
+                <CardContent className="pt-4 pb-3 px-4">
+                  <div className="text-xs text-muted-foreground mb-1 font-medium">면담일지 현황</div>
+                  <div className="flex items-end gap-3 flex-wrap">
+                    <div className="text-center">
+                      <div className="text-xl font-bold text-indigo-600">{dashStats.totalInterviews}</div>
+                      <div className="text-[10px] text-indigo-500">면담건수</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-xl font-bold text-slate-600">{dashStats.interviewedWorkers}</div>
+                      <div className="text-[10px] text-slate-500">면담자수</div>
+                    </div>
+                    <div className="ml-auto text-right">
+                      <div className="text-2xl font-bold text-foreground">
+                        {dashStats.painSurveys > 0 ? Math.round((dashStats.painWithInterview / dashStats.painSurveys) * 100) : 0}%
+                      </div>
+                      <div className="text-[10px] text-muted-foreground">통증자 면담율</div>
+                    </div>
+                  </div>
+                  <div className="mt-2 h-2 rounded-full overflow-hidden bg-muted">
+                    <div
+                      className="h-full bg-indigo-500 rounded-full transition-all"
+                      style={{ width: `${dashStats.painSurveys > 0 ? (dashStats.painWithInterview / dashStats.painSurveys) * 100 : 0}%` }}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
         );
       })()}

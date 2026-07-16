@@ -223,6 +223,10 @@ export interface IStorage {
   createInterview(data: InsertMusculoskeletalInterview): Promise<MusculoskeletalInterview>;
   updateInterview(id: number, data: Partial<InsertMusculoskeletalInterview>): Promise<MusculoskeletalInterview>;
   deleteInterview(id: number): Promise<void>;
+  getMusculoskeletalDashboardStats(headquarters?: string): Promise<{
+    totalSurveys: number; painSurveys: number; normalSurveys: number;
+    totalInterviews: number; interviewedWorkers: number; painWithInterview: number;
+  }>;
 
   // Vehicles
   getVehicles(headquarters?: string): Promise<any[]>;
@@ -920,6 +924,50 @@ export class DatabaseStorage implements IStorage {
 
   async deleteInterview(id: number): Promise<void> {
     await db.delete(musculoskeletalInterviews).where(eq(musculoskeletalInterviews.id, id));
+  }
+
+  async getMusculoskeletalDashboardStats(headquarters?: string): Promise<{
+    totalSurveys: number; painSurveys: number; normalSurveys: number;
+    totalInterviews: number; interviewedWorkers: number; painWithInterview: number;
+  }> {
+    const hqFilter = (headquarters && headquarters !== '전체')
+      ? sql`AND a.headquarters = ${headquarters}`
+      : sql``;
+    const surveyResult = await db.execute(sql`
+      SELECT
+        COUNT(*) as total,
+        COUNT(*) FILTER (WHERE s.has_pain = '예') as pain,
+        COUNT(*) FILTER (WHERE s.has_pain = '아니오') as normal
+      FROM musculoskeletal_symptom_surveys s
+      JOIN musculoskeletal_assessments a ON a.id = s.assessment_id
+      WHERE 1=1 ${hqFilter}
+    `);
+    const interviewResult = await db.execute(sql`
+      SELECT
+        COUNT(*) as total,
+        COUNT(DISTINCT i.worker_name) as workers
+      FROM musculoskeletal_interviews i
+      JOIN musculoskeletal_assessments a ON a.id = i.assessment_id
+      WHERE 1=1 ${hqFilter}
+    `);
+    const painWithInterviewResult = await db.execute(sql`
+      SELECT COUNT(DISTINCT s.id) as cnt
+      FROM musculoskeletal_symptom_surveys s
+      JOIN musculoskeletal_assessments a ON a.id = s.assessment_id
+      JOIN musculoskeletal_interviews i ON i.assessment_id = s.assessment_id AND i.worker_name = s.worker_name
+      WHERE s.has_pain = '예' ${hqFilter}
+    `);
+    const sr = surveyResult.rows[0] as any;
+    const ir = interviewResult.rows[0] as any;
+    const pr = painWithInterviewResult.rows[0] as any;
+    return {
+      totalSurveys: Number(sr?.total ?? 0),
+      painSurveys: Number(sr?.pain ?? 0),
+      normalSurveys: Number(sr?.normal ?? 0),
+      totalInterviews: Number(ir?.total ?? 0),
+      interviewedWorkers: Number(ir?.workers ?? 0),
+      painWithInterview: Number(pr?.cnt ?? 0),
+    };
   }
 
   // === TRAFFIC FINES ===

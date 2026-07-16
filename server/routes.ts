@@ -4940,6 +4940,15 @@ ${buildEmailFooter()}
     }
   });
 
+  // 대시보드 통합 통계
+  app.get('/api/musculoskeletal-assessments/dashboard-stats', isAuthenticated, async (req: any, res) => {
+    try {
+      const hq = req.query.headquarters as string | undefined;
+      const stats = await storage.getMusculoskeletalDashboardStats(hq);
+      res.json(stats);
+    } catch { res.status(500).json({ message: "조회 실패" }); }
+  });
+
   // 증상조사 대기 건수
   app.get('/api/musculoskeletal-assessments/pending-symptom-count', isAuthenticated, async (req: any, res) => {
     try {
