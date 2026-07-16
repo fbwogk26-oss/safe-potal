@@ -1167,10 +1167,10 @@ export default function MusculoskeletalDisease() {
                   )}
                   <th className="w-10 px-3 py-3 text-left text-xs font-semibold text-muted-foreground">No</th>
                   <th className="px-3 py-3 text-left text-xs font-semibold text-muted-foreground min-w-[80px]">부서</th>
-                  <th className="px-3 py-3 text-left text-xs font-semibold text-muted-foreground min-w-[200px]">작업내용 / 유해요인</th>
+                  <th className="px-3 py-3 text-left text-xs font-semibold text-muted-foreground min-w-[90px]">평가자</th>
+                  <th className="px-3 py-3 text-left text-xs font-semibold text-muted-foreground w-24">평가일</th>
                   <th className="px-3 py-3 text-left text-xs font-semibold text-muted-foreground min-w-[80px]">부담작업</th>
                   <th className="px-3 py-3 text-left text-xs font-semibold text-muted-foreground w-20">위험수준</th>
-                  <th className="px-3 py-3 text-left text-xs font-semibold text-muted-foreground min-w-[110px]">평가자 / 평가일</th>
                   <th className="px-3 py-3 text-left text-xs font-semibold text-muted-foreground w-28">상태</th>
                   <th className="px-3 py-3 text-left text-xs font-semibold text-muted-foreground w-28">관리</th>
                 </tr>
@@ -1202,10 +1202,13 @@ export default function MusculoskeletalDisease() {
                         <td className="px-3 py-3">
                           <span className="text-xs font-semibold text-foreground/80 bg-muted px-2 py-0.5 rounded-md whitespace-nowrap">{item.department}</span>
                         </td>
-                        {/* 작업내용 / 유해요인 */}
+                        {/* 평가자 */}
                         <td className="px-3 py-3">
-                          <p className="text-sm font-semibold text-foreground leading-snug line-clamp-1">{item.task || "-"}</p>
-                          {item.hazardFactor && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{item.hazardFactor}</p>}
+                          <span className="text-xs font-medium text-foreground">{item.assessor || "-"}</span>
+                        </td>
+                        {/* 평가일 */}
+                        <td className="px-3 py-3">
+                          <span className="text-[11px] text-muted-foreground whitespace-nowrap">{item.assessmentDate || "-"}</span>
                         </td>
                         {/* 부담작업 */}
                         <td className="px-3 py-3">
@@ -1224,12 +1227,6 @@ export default function MusculoskeletalDisease() {
                           <Badge className={`${getRiskBadgeClass(item.riskLevel)} no-default-hover-elevate no-default-active-elevate text-xs font-bold px-2.5 py-1 rounded-full`} data-testid={`badge-risk-${item.id}`}>
                             {item.riskLevel}
                           </Badge>
-                        </td>
-                        {/* 평가자 / 평가일 */}
-                        <td className="px-3 py-3">
-                          {item.assessor && <p className="text-xs font-medium text-foreground">{item.assessor}</p>}
-                          {item.assessmentDate && <p className="text-[11px] text-muted-foreground mt-0.5">{item.assessmentDate}</p>}
-                          {!item.assessor && !item.assessmentDate && <span className="text-xs text-muted-foreground">-</span>}
                         </td>
                         {/* 상태 */}
                         <td className="px-3 py-3" onClick={e => e.stopPropagation()}>
