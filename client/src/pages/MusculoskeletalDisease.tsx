@@ -12,9 +12,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Bone, Plus, Trash2, Pencil, Search, CheckSquare, X,
   ChevronDown, ChevronUp, History, Save, AlertTriangle,
-  FileDown, FileUp, Paperclip, Clock, LayoutGrid, List, Wrench, ImageIcon, CheckCircle2, QrCode
+  FileDown, FileUp, Paperclip, Clock, LayoutGrid, List, Wrench, ImageIcon, CheckCircle2, QrCode, Settings
 } from "lucide-react";
 import img1 from "@assets/image_1784166150891.png";
 import img2 from "@assets/image_1784166156751.png";
@@ -1165,14 +1168,14 @@ export default function MusculoskeletalDisease() {
                       />
                     </th>
                   )}
-                  <th className="w-10 px-3 py-3 text-left text-xs font-semibold text-muted-foreground">No</th>
-                  <th className="px-3 py-3 text-left text-xs font-semibold text-muted-foreground min-w-[80px]">부서</th>
-                  <th className="px-3 py-3 text-left text-xs font-semibold text-muted-foreground min-w-[90px]">평가자</th>
-                  <th className="px-3 py-3 text-left text-xs font-semibold text-muted-foreground w-24">평가일</th>
-                  <th className="px-3 py-3 text-left text-xs font-semibold text-muted-foreground min-w-[80px]">부담작업</th>
-                  <th className="px-3 py-3 text-left text-xs font-semibold text-muted-foreground w-20">위험수준</th>
-                  <th className="px-3 py-3 text-left text-xs font-semibold text-muted-foreground w-28">상태</th>
-                  <th className="px-3 py-3 text-left text-xs font-semibold text-muted-foreground w-28">관리</th>
+                  <th className="w-8 px-2 py-3 text-left text-xs font-semibold text-muted-foreground">No</th>
+                  <th className="px-2 py-3 text-left text-xs font-semibold text-muted-foreground w-20">부서</th>
+                  <th className="px-2 py-3 text-left text-xs font-semibold text-muted-foreground w-20">평가자</th>
+                  <th className="px-2 py-3 text-left text-xs font-semibold text-muted-foreground w-20">평가일</th>
+                  <th className="px-2 py-3 text-left text-xs font-semibold text-muted-foreground min-w-[80px]">부담작업</th>
+                  <th className="px-2 py-3 text-left text-xs font-semibold text-muted-foreground w-16">위험수준</th>
+                  <th className="px-2 py-3 text-left text-xs font-semibold text-muted-foreground w-32">상태</th>
+                  <th className="px-2 py-3 text-left text-xs font-semibold text-muted-foreground w-10">관리</th>
                 </tr>
               </thead>
               <tbody>
@@ -1197,17 +1200,17 @@ export default function MusculoskeletalDisease() {
                           </td>
                         )}
                         {/* No */}
-                        <td className="px-3 py-3 text-xs text-muted-foreground font-mono">{idx + 1}</td>
+                        <td className="px-2 py-3 text-xs text-muted-foreground font-mono">{idx + 1}</td>
                         {/* 부서 */}
-                        <td className="px-3 py-3">
-                          <span className="text-xs font-semibold text-foreground/80 bg-muted px-2 py-0.5 rounded-md whitespace-nowrap">{item.department}</span>
+                        <td className="px-2 py-3">
+                          <span className="text-xs font-semibold text-foreground/80 bg-muted px-1.5 py-0.5 rounded-md whitespace-nowrap">{item.department}</span>
                         </td>
                         {/* 평가자 */}
-                        <td className="px-3 py-3">
-                          <span className="text-xs font-medium text-foreground">{item.assessor || "-"}</span>
+                        <td className="px-2 py-3">
+                          <span className="text-xs font-medium text-foreground line-clamp-1">{item.assessor || "-"}</span>
                         </td>
                         {/* 평가일 */}
-                        <td className="px-3 py-3">
+                        <td className="px-2 py-3">
                           <span className="text-[11px] text-muted-foreground whitespace-nowrap">{item.assessmentDate || "-"}</span>
                         </td>
                         {/* 부담작업 */}
@@ -1256,37 +1259,38 @@ export default function MusculoskeletalDisease() {
                           )}
                         </td>
                         {/* 관리 */}
-                        <td className="px-3 py-3">
-                          <div className="flex gap-0.5 items-center" onClick={e => e.stopPropagation()}>
-                            {attachments.length > 0 && (
-                              <span className="text-xs text-blue-500 flex items-center gap-0.5 mr-1" title={attachments.map((a:any)=>a.name).join(", ")}>
-                                <Paperclip className="w-3 h-3" />{attachments.length}
-                              </span>
-                            )}
-                            <Button variant="ghost" size="icon" className="h-7 w-7"
-                              onClick={() => setHistoryId(item.id)} title="변경이력"
-                              data-testid={`button-history-${item.id}`}>
-                              <Clock className="w-3.5 h-3.5 text-muted-foreground" />
-                            </Button>
-                            {canEdit && isOwner(item.createdBy) && (
-                              <>
-                                <Button variant="ghost" size="icon" className="h-7 w-7"
-                                  onClick={() => { setAttachUploadId(item.id); attachFileRef.current?.click(); }}
-                                  title="첨부파일 추가"
-                                  data-testid={`button-attach-${item.id}`}>
-                                  <ImageIcon className="w-3.5 h-3.5 text-muted-foreground" />
-                                </Button>
-                                <Button variant="ghost" size="icon" className="h-7 w-7"
-                                  onClick={() => handleEdit(item)} data-testid={`button-edit-${item.id}`}>
-                                  <Pencil className="w-4 h-4" />
-                                </Button>
-                                <Button variant="ghost" size="icon" className="h-7 w-7"
-                                  onClick={() => handleDelete(item.id)} data-testid={`button-delete-${item.id}`}>
-                                  <Trash2 className="w-4 h-4 text-red-500" />
-                                </Button>
-                              </>
-                            )}
-                          </div>
+                        <td className="px-2 py-3" onClick={e => e.stopPropagation()}>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-7 w-7 relative" data-testid={`button-manage-${item.id}`}>
+                                <Settings className="w-4 h-4 text-muted-foreground" />
+                                {attachments.length > 0 && (
+                                  <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-blue-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                                    {attachments.length}
+                                  </span>
+                                )}
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-36">
+                              <DropdownMenuItem onClick={() => setHistoryId(item.id)} data-testid={`menu-history-${item.id}`}>
+                                <Clock className="w-3.5 h-3.5 mr-2" />변경이력
+                              </DropdownMenuItem>
+                              {canEdit && isOwner(item.createdBy) && (
+                                <>
+                                  <DropdownMenuItem onClick={() => { setAttachUploadId(item.id); attachFileRef.current?.click(); }} data-testid={`menu-attach-${item.id}`}>
+                                    <Paperclip className="w-3.5 h-3.5 mr-2" />첨부파일
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handleEdit(item)} data-testid={`menu-edit-${item.id}`}>
+                                    <Pencil className="w-3.5 h-3.5 mr-2" />수정
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem onClick={() => handleDelete(item.id)} className="text-red-600 focus:text-red-600" data-testid={`menu-delete-${item.id}`}>
+                                    <Trash2 className="w-3.5 h-3.5 mr-2" />삭제
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </td>
                       </motion.tr>
                     );
