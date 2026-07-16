@@ -1455,13 +1455,13 @@ export default function MusculoskeletalDisease() {
                   <span className="ml-1.5 text-xs font-normal text-purple-600 dark:text-purple-400">(자동입력)</span>
                 )}
               </Label>
-              <div className="flex flex-wrap gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 {DEPARTMENTS.map(d => (
                   <button
                     key={d}
                     type="button"
                     onClick={() => updateField("department", d)}
-                    className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
+                    className={`w-full py-2 rounded-lg border text-sm font-medium transition-colors text-center ${
                       form.department === d
                         ? "bg-purple-600 text-white border-purple-600"
                         : "border-border bg-white dark:bg-background text-foreground hover:bg-purple-50 dark:hover:bg-purple-900/20"
