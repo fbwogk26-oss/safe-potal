@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,6 +27,7 @@ import {
   Settings,
   ChevronDown,
   ChevronUp,
+  ChevronRight,
   Check,
   X,
   Save,
@@ -38,6 +39,12 @@ import {
   UserX,
   Clock,
   UserCheck,
+  FolderOpen,
+  Folder,
+  User,
+  ChevronsDownUp,
+  ChevronsUpDown,
+  Search,
 } from "lucide-react";
 import { Link } from "wouter";
 import {
@@ -94,6 +101,9 @@ export default function AdminUsers() {
   const [expandedUser, setExpandedUser] = useState<string | null>(null);
   const [presetTab, setPresetTab] = useState<"user" | "manager" | "deptHead">("user");
   const [mainTab, setMainTab] = useState<"users" | "permissions" | "dormant">("users");
+  const [expandedDepts, setExpandedDepts] = useState<Set<string>>(new Set());
+  const [allExpanded, setAllExpanded] = useState(false);
+  const [userSearch, setUserSearch] = useState("");
 
   const { data: users, isLoading } = useQuery<UserData[]>({
     queryKey: ["/api/users"],
@@ -224,6 +234,51 @@ export default function AdminUsers() {
     return days >= 90;
   };
 
+  const filteredUsers = useMemo(() => {
+    if (!users) return [];
+    const q = userSearch.trim().toLowerCase();
+    if (!q) return users;
+    return users.filter(u =>
+      (u.name || "").toLowerCase().includes(q) ||
+      (u.username || "").toLowerCase().includes(q) ||
+      (u.department || "").toLowerCase().includes(q)
+    );
+  }, [users, userSearch]);
+
+  const deptGroups = useMemo(() => {
+    const map = new Map<string, UserData[]>();
+    (filteredUsers || []).forEach(u => {
+      const dept = u.department?.trim() || "(부서 미지정)";
+      if (!map.has(dept)) map.set(dept, []);
+      map.get(dept)!.push(u);
+    });
+    const sorted = Array.from(map.entries()).sort((a, b) => {
+      if (a[0] === "(부서 미지정)") return 1;
+      if (b[0] === "(부서 미지정)") return -1;
+      return a[0].localeCompare(b[0], "ko");
+    });
+    return sorted;
+  }, [filteredUsers]);
+
+  const toggleDept = (dept: string) => {
+    setExpandedDepts(prev => {
+      const next = new Set(prev);
+      if (next.has(dept)) next.delete(dept);
+      else next.add(dept);
+      return next;
+    });
+  };
+
+  const toggleAllDepts = () => {
+    if (allExpanded) {
+      setExpandedDepts(new Set());
+      setAllExpanded(false);
+    } else {
+      setExpandedDepts(new Set(deptGroups.map(([dept]) => dept)));
+      setAllExpanded(true);
+    }
+  };
+
   const togglePermission = (user: UserData, permKey: keyof UserPermissions) => {
     const current = user.permissions || DEFAULT_PERMISSIONS;
     const updated = { ...DEFAULT_PERMISSIONS, ...current, [permKey]: !current[permKey] };
@@ -309,287 +364,248 @@ export default function AdminUsers() {
         </TabsList>
 
         <TabsContent value="users">
-          <div className="flex justify-end gap-2 mb-4 flex-wrap">
+          {/* 상단 툴바 */}
+          <div className="flex items-center gap-2 mb-4 flex-wrap">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="이름, 아이디, 부서 검색..."
+                value={userSearch}
+                onChange={e => setUserSearch(e.target.value)}
+                className="w-full h-9 pl-8 pr-3 text-sm border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+            <Button variant="outline" size="sm" className="gap-1.5 h-9 shrink-0" onClick={toggleAllDepts}>
+              {allExpanded ? <ChevronsDownUp className="w-3.5 h-3.5" /> : <ChevronsUpDown className="w-3.5 h-3.5" />}
+              {allExpanded ? "모두 접기" : "모두 펼치기"}
+            </Button>
             <ExcelUploadDialog />
             <CreateUserDialog />
           </div>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between gap-2">
-              <CardTitle className="text-lg">등록된 사용자 ({users?.length || 0}명)</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <div className="py-8 text-center text-muted-foreground">로딩 중...</div>
-              ) : !users || users.length === 0 ? (
-                <div className="py-8 text-center text-muted-foreground">등록된 사용자가 없습니다.</div>
-              ) : (
-                <div className="space-y-2">
-                  {users.map((user) => {
-                const isExpanded = expandedUser === user.id;
-                const isCurrentUser = user.id === currentUser?.id;
-                const isUserAdmin = user.role === "admin";
-                const userPerms = user.permissions || DEFAULT_PERMISSIONS;
+          {/* 전체 인원 요약 */}
+          <div className="flex items-center gap-2 mb-3 px-1">
+            <Users className="w-4 h-4 text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">
+              전체 <span className="font-semibold text-foreground">{users?.length || 0}</span>명
+              {userSearch && filteredUsers.length !== users?.length && (
+                <span className="ml-1">· 검색결과 <span className="font-semibold text-primary">{filteredUsers.length}</span>명</span>
+              )}
+              · <span className="font-semibold text-foreground">{deptGroups.length}</span>개 부서
+            </span>
+          </div>
 
+          {isLoading ? (
+            <div className="py-16 text-center text-muted-foreground">로딩 중...</div>
+          ) : !users || users.length === 0 ? (
+            <div className="py-16 text-center text-muted-foreground">등록된 사용자가 없습니다.</div>
+          ) : (
+            <div className="space-y-1.5">
+              {deptGroups.map(([dept, deptUsers]) => {
+                const isOpen = expandedDepts.has(dept);
+                const isUnassigned = dept === "(부서 미지정)";
                 return (
-                  <div
-                    key={user.id}
-                    className="rounded-lg border bg-card overflow-visible"
-                    data-testid={`user-row-${user.id}`}
-                  >
-                    <div className="p-3 sm:p-4">
-                      {/* 상단: 아바타 + 이름 + 뱃지 */}
-                      <div className="flex items-center gap-3 mb-2">
-                        <Avatar className="h-9 w-9 shrink-0">
-                          <AvatarFallback className="bg-primary/10 text-primary text-sm">
-                            {(user.name?.[0] || user.username?.[0] || "U").toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className="font-medium text-sm truncate">
-                              {user.name || user.username}
-                              {isCurrentUser && (
-                                <span className="ml-1.5 text-xs text-muted-foreground">(나)</span>
-                              )}
-                            </p>
-                            <Badge variant={getRoleVariant(user.role)} className="text-xs shrink-0">
-                              {getRoleLabel(user.role)}
-                            </Badge>
-                            {user.lockedUntil && new Date(user.lockedUntil) > new Date() && (
-                              <Badge variant="destructive" className="gap-1 text-xs shrink-0">
-                                <Lock className="w-3 h-3" />잠김
-                              </Badge>
-                            )}
-                            {user.isActive === false && (
-                              <Badge variant="secondary" className="gap-1 text-xs shrink-0 bg-muted text-muted-foreground">
-                                비활성
-                              </Badge>
-                            )}
-                            {isDormant(user) && (
-                              <Badge variant="outline" className="gap-1 text-xs shrink-0 text-amber-600 border-amber-300">
-                                휴면계정
-                              </Badge>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap mt-0.5">
-                            <span>@{user.username}</span>
-                            {user.department && (
-                              <span className="flex items-center gap-1">
-                                <Building2 className="w-3 h-3" />
-                                {user.department}
-                              </span>
-                            )}
-                          </div>
-                        </div>
+                  <div key={dept} className="rounded-xl border bg-card overflow-hidden">
+                    {/* 부서 헤더 */}
+                    <button
+                      onClick={() => toggleDept(dept)}
+                      className="w-full flex items-center gap-2.5 px-4 py-2.5 hover:bg-muted/50 transition-colors text-left"
+                    >
+                      <div className={`flex items-center justify-center w-6 h-6 rounded-md shrink-0 ${isUnassigned ? "bg-muted" : "bg-blue-100 dark:bg-blue-900/40"}`}>
+                        {isOpen
+                          ? <FolderOpen className={`w-3.5 h-3.5 ${isUnassigned ? "text-muted-foreground" : "text-blue-600 dark:text-blue-400"}`} />
+                          : <Folder className={`w-3.5 h-3.5 ${isUnassigned ? "text-muted-foreground" : "text-blue-600 dark:text-blue-400"}`} />
+                        }
                       </div>
-                      {/* 하단: 역할 선택 + 버튼들 */}
-                      {!isCurrentUser && (
-                        <div className="flex items-center gap-1.5 flex-wrap pl-0 sm:pl-12">
-                          <Select
-                            value={user.role}
-                            onValueChange={(newRole) =>
-                              updateRoleMutation.mutate({ userId: user.id, role: newRole })
-                            }
-                            disabled={updateRoleMutation.isPending}
-                          >
-                            <SelectTrigger className="w-[110px] h-7 text-xs" data-testid={`select-role-${user.id}`}>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="admin">관리자</SelectItem>
-                              <SelectItem value="deptHead">부서장</SelectItem>
-                              <SelectItem value="manager">담당자</SelectItem>
-                              <SelectItem value="user">일반 사용자</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          {!isUserAdmin && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="gap-1 h-7 text-xs px-2"
-                              onClick={() => setExpandedUser(isExpanded ? null : user.id)}
-                              data-testid={`button-permissions-${user.id}`}
-                            >
-                              <Settings className="w-3 h-3" />
-                              권한설정
-                              {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                            </Button>
-                          )}
-                          <ResetPasswordDialog user={user} />
-                          {!isUserAdmin && (
-                            <div className="flex items-center gap-1 h-7 px-1.5 rounded-md border">
-                              <Switch
-                                checked={user.isActive !== false}
-                                onCheckedChange={(checked) =>
-                                  toggleActiveMutation.mutate({ userId: user.id, isActive: checked })
-                                }
-                                disabled={toggleActiveMutation.isPending}
-                                className="scale-75"
-                                data-testid={`switch-active-${user.id}`}
-                              />
-                              <span className="text-[11px] text-muted-foreground whitespace-nowrap">
-                                {user.isActive !== false ? "활성" : "비활성"}
-                              </span>
-                            </div>
-                          )}
-                          {user.lockedUntil && new Date(user.lockedUntil) > new Date() && (
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              className="h-7 w-7 text-orange-600 border-orange-300 hover:bg-orange-50"
-                              onClick={() => unlockUserMutation.mutate(user.id)}
-                              disabled={unlockUserMutation.isPending}
-                              title="계정 잠금 해제"
-                              data-testid={`button-unlock-${user.id}`}
-                            >
-                              <Unlock className="w-3 h-3" />
-                            </Button>
-                          )}
-                          {user.totpEnabled && (
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              className="h-7 w-7 text-blue-600 border-blue-300 hover:bg-blue-50"
-                              onClick={() => {
-                                if (confirm(`${user.name || user.username}의 2차 인증(PIN)을 초기화하시겠습니까?\n초기화 후 해당 사용자는 2차 인증 없이 로그인할 수 있습니다.`)) {
-                                  resetTotpMutation.mutate(user.id);
-                                }
-                              }}
-                              disabled={resetTotpMutation.isPending}
-                              title="2차 인증 초기화"
-                              data-testid={`button-reset-totp-${user.id}`}
-                            >
-                              <Shield className="w-3 h-3" />
-                            </Button>
-                          )}
-                          {!user.resignedAt && (
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              className="h-7 w-7 text-orange-600 border-orange-300 hover:bg-orange-50"
-                              onClick={() => {
-                                const reason = prompt("퇴사 사유를 입력하세요 (선택사항):", "퇴사");
-                                if (reason !== null) {
-                                  resignMutation.mutate({ userId: user.id, reason: reason || "퇴사 처리" });
-                                }
-                              }}
-                              disabled={resignMutation.isPending}
-                              title="퇴사 처리"
-                              data-testid={`button-resign-${user.id}`}
-                            >
-                              <UserX className="w-3 h-3" />
-                            </Button>
-                          )}
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
-                            onClick={() => {
-                              if (confirm("정말로 이 사용자를 삭제하시겠습니까?")) {
-                                deleteUserMutation.mutate(user.id);
-                              }
-                            }}
-                            disabled={deleteUserMutation.isPending}
-                            data-testid={`button-delete-${user.id}`}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </Button>
-                        </div>
-                      )}
-                    </div>
+                      <span className={`font-semibold text-sm flex-1 ${isUnassigned ? "text-muted-foreground italic" : ""}`}>{dept}</span>
+                      <span className="text-xs font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full shrink-0">{deptUsers.length}명</span>
+                      <ChevronRight className={`w-3.5 h-3.5 text-muted-foreground transition-transform shrink-0 ${isOpen ? "rotate-90" : ""}`} />
+                    </button>
 
-                    {isExpanded && !isUserAdmin && (
-                      <div className="border-t bg-muted/30 p-4">
-                        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-                          <h4 className="text-sm font-semibold flex items-center gap-2">
-                            <Shield className="w-4 h-4 text-primary" />
-                            기능별 권한 설정
-                          </h4>
-                          <div className="flex gap-2 flex-wrap">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="gap-1 text-xs"
-                              onClick={() => applyPresetToUser(user)}
-                              disabled={updatePermissionsMutation.isPending}
-                              data-testid={`button-apply-preset-${user.id}`}
-                            >
-                              <Shield className="w-3 h-3" />
-                              프리셋 적용
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="gap-1 text-xs"
-                              onClick={() => setAllPermissions(user, true)}
-                              disabled={updatePermissionsMutation.isPending}
-                            >
-                              <Check className="w-3 h-3" />
-                              전체 허용
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="gap-1 text-xs"
-                              onClick={() => setAllPermissions(user, false)}
-                              disabled={updatePermissionsMutation.isPending}
-                            >
-                              <X className="w-3 h-3" />
-                              전체 해제
-                            </Button>
-                          </div>
-                        </div>
-                        <div className="space-y-3">
-                          {PERMISSION_CATEGORIES.map((cat) => {
-                            const catEnabled = cat.keys.filter(k => !!userPerms[k]).length;
-                            return (
-                              <div key={cat.label} className="border rounded-lg overflow-hidden">
-                                <div className="flex items-center justify-between px-3 py-2 bg-muted/30">
-                                  <span className="text-xs font-semibold text-muted-foreground">{cat.label} ({catEnabled}/{cat.keys.length})</span>
-                                  <div className="flex gap-1">
-                                    <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2"
-                                      onClick={() => {
-                                        const updated = { ...userPerms };
-                                        cat.keys.forEach(k => { updated[k] = true; });
-                                        updatePermissionsMutation.mutate({ userId: user.id, permissions: updated });
-                                      }}
-                                    >전체</Button>
-                                    <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2"
-                                      onClick={() => {
-                                        const updated = { ...userPerms };
-                                        cat.keys.forEach(k => { updated[k] = false; });
-                                        updatePermissionsMutation.mutate({ userId: user.id, permissions: updated });
-                                      }}
-                                    >해제</Button>
+                    {/* 부서 소속 사용자 목록 */}
+                    {isOpen && (
+                      <div className="border-t divide-y">
+                        {deptUsers.map((user) => {
+                          const isExpanded = expandedUser === user.id;
+                          const isCurrentUser = user.id === currentUser?.id;
+                          const isUserAdmin = user.role === "admin";
+                          const userPerms = user.permissions || DEFAULT_PERMISSIONS;
+                          return (
+                            <div key={user.id} className="bg-background" data-testid={`user-row-${user.id}`}>
+                              <div className="flex items-center gap-3 px-4 py-2.5 pl-12">
+                                {/* 트리 연결선 */}
+                                <div className="absolute left-6 w-5 h-px bg-border" />
+                                <Avatar className="h-8 w-8 shrink-0">
+                                  <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
+                                    {(user.name?.[0] || user.username?.[0] || "U").toUpperCase()}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="font-medium text-sm">
+                                      {user.name || user.username}
+                                      {isCurrentUser && <span className="ml-1 text-xs text-muted-foreground">(나)</span>}
+                                    </span>
+                                    <Badge variant={getRoleVariant(user.role)} className="text-[10px] px-1.5 py-0 h-4 shrink-0">
+                                      {getRoleLabel(user.role)}
+                                    </Badge>
+                                    {user.lockedUntil && new Date(user.lockedUntil) > new Date() && (
+                                      <Badge variant="destructive" className="gap-0.5 text-[10px] px-1.5 py-0 h-4 shrink-0">
+                                        <Lock className="w-2.5 h-2.5" />잠김
+                                      </Badge>
+                                    )}
+                                    {user.isActive === false && (
+                                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 shrink-0 text-muted-foreground">
+                                        비활성
+                                      </Badge>
+                                    )}
+                                    {isDormant(user) && (
+                                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 shrink-0 text-amber-600 border-amber-300">
+                                        휴면
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <p className="text-[11px] text-muted-foreground mt-0.5">@{user.username}</p>
+                                </div>
+                                {/* 액션 버튼들 */}
+                                {!isCurrentUser && (
+                                  <div className="flex items-center gap-1 shrink-0 flex-wrap justify-end">
+                                    <Select
+                                      value={user.role}
+                                      onValueChange={(newRole) => updateRoleMutation.mutate({ userId: user.id, role: newRole })}
+                                      disabled={updateRoleMutation.isPending}
+                                    >
+                                      <SelectTrigger className="w-[90px] h-7 text-xs" data-testid={`select-role-${user.id}`}>
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="admin">관리자</SelectItem>
+                                        <SelectItem value="deptHead">부서장</SelectItem>
+                                        <SelectItem value="manager">담당자</SelectItem>
+                                        <SelectItem value="user">일반사용자</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                    {!isUserAdmin && (
+                                      <Button variant="outline" size="sm" className="gap-1 h-7 text-xs px-2"
+                                        onClick={() => setExpandedUser(isExpanded ? null : user.id)}
+                                        data-testid={`button-permissions-${user.id}`}>
+                                        <Settings className="w-3 h-3" />
+                                        권한
+                                        {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                                      </Button>
+                                    )}
+                                    <ResetPasswordDialog user={user} />
+                                    {!isUserAdmin && (
+                                      <div className="flex items-center gap-1 h-7 px-1.5 rounded-md border">
+                                        <Switch
+                                          checked={user.isActive !== false}
+                                          onCheckedChange={(checked) => toggleActiveMutation.mutate({ userId: user.id, isActive: checked })}
+                                          disabled={toggleActiveMutation.isPending}
+                                          className="scale-75"
+                                          data-testid={`switch-active-${user.id}`}
+                                        />
+                                        <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                                          {user.isActive !== false ? "활성" : "비활성"}
+                                        </span>
+                                      </div>
+                                    )}
+                                    {user.lockedUntil && new Date(user.lockedUntil) > new Date() && (
+                                      <Button variant="outline" size="icon" className="h-7 w-7 text-orange-600 border-orange-300 hover:bg-orange-50"
+                                        onClick={() => unlockUserMutation.mutate(user.id)}
+                                        disabled={unlockUserMutation.isPending} title="계정 잠금 해제"
+                                        data-testid={`button-unlock-${user.id}`}>
+                                        <Unlock className="w-3 h-3" />
+                                      </Button>
+                                    )}
+                                    {user.totpEnabled && (
+                                      <Button variant="outline" size="icon" className="h-7 w-7 text-blue-600 border-blue-300 hover:bg-blue-50"
+                                        onClick={() => { if (confirm(`${user.name || user.username}의 2차 인증(PIN)을 초기화하시겠습니까?`)) resetTotpMutation.mutate(user.id); }}
+                                        disabled={resetTotpMutation.isPending} title="2차 인증 초기화"
+                                        data-testid={`button-reset-totp-${user.id}`}>
+                                        <Shield className="w-3 h-3" />
+                                      </Button>
+                                    )}
+                                    {!user.resignedAt && (
+                                      <Button variant="outline" size="icon" className="h-7 w-7 text-orange-600 border-orange-300 hover:bg-orange-50"
+                                        onClick={() => { const reason = prompt("퇴사 사유를 입력하세요 (선택사항):", "퇴사"); if (reason !== null) resignMutation.mutate({ userId: user.id, reason: reason || "퇴사 처리" }); }}
+                                        disabled={resignMutation.isPending} title="퇴사 처리"
+                                        data-testid={`button-resign-${user.id}`}>
+                                        <UserX className="w-3 h-3" />
+                                      </Button>
+                                    )}
+                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                      onClick={() => { if (confirm("정말로 이 사용자를 삭제하시겠습니까?")) deleteUserMutation.mutate(user.id); }}
+                                      disabled={deleteUserMutation.isPending}
+                                      data-testid={`button-delete-${user.id}`}>
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </Button>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* 권한 설정 패널 */}
+                              {isExpanded && !isUserAdmin && (
+                                <div className="border-t bg-muted/30 px-4 py-4 pl-12">
+                                  <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                                    <h4 className="text-sm font-semibold flex items-center gap-2">
+                                      <Shield className="w-4 h-4 text-primary" />
+                                      기능별 권한 설정
+                                    </h4>
+                                    <div className="flex gap-2 flex-wrap">
+                                      <Button variant="outline" size="sm" className="gap-1 text-xs"
+                                        onClick={() => applyPresetToUser(user)} disabled={updatePermissionsMutation.isPending}
+                                        data-testid={`button-apply-preset-${user.id}`}>
+                                        <Shield className="w-3 h-3" />프리셋 적용
+                                      </Button>
+                                      <Button variant="outline" size="sm" className="gap-1 text-xs"
+                                        onClick={() => setAllPermissions(user, true)} disabled={updatePermissionsMutation.isPending}>
+                                        <Check className="w-3 h-3" />전체 허용
+                                      </Button>
+                                      <Button variant="outline" size="sm" className="gap-1 text-xs"
+                                        onClick={() => setAllPermissions(user, false)} disabled={updatePermissionsMutation.isPending}>
+                                        <X className="w-3 h-3" />전체 해제
+                                      </Button>
+                                    </div>
+                                  </div>
+                                  <div className="space-y-3">
+                                    {PERMISSION_CATEGORIES.map((cat) => {
+                                      const catEnabled = cat.keys.filter(k => !!userPerms[k]).length;
+                                      return (
+                                        <div key={cat.label} className="border rounded-lg overflow-hidden">
+                                          <div className="flex items-center justify-between px-3 py-2 bg-muted/30">
+                                            <span className="text-xs font-semibold text-muted-foreground">{cat.label} ({catEnabled}/{cat.keys.length})</span>
+                                            <div className="flex gap-1">
+                                              <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2" onClick={() => { const updated = { ...userPerms }; cat.keys.forEach(k => { updated[k] = true; }); updatePermissionsMutation.mutate({ userId: user.id, permissions: updated }); }}>전체</Button>
+                                              <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2" onClick={() => { const updated = { ...userPerms }; cat.keys.forEach(k => { updated[k] = false; }); updatePermissionsMutation.mutate({ userId: user.id, permissions: updated }); }}>해제</Button>
+                                            </div>
+                                          </div>
+                                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 p-2">
+                                            {cat.keys.map((permKey) => (
+                                              <div key={permKey} className="flex items-center justify-between py-1.5 px-2.5 rounded bg-background border text-sm">
+                                                <span className="text-xs">{PERMISSION_LABELS[permKey]}</span>
+                                                <Switch checked={!!userPerms[permKey]} onCheckedChange={() => togglePermission(user, permKey)}
+                                                  disabled={updatePermissionsMutation.isPending}
+                                                  data-testid={`switch-perm-${permKey}-${user.id}`} />
+                                              </div>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
                                   </div>
                                 </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 p-2">
-                                  {cat.keys.map((permKey) => (
-                                    <div key={permKey} className="flex items-center justify-between py-1.5 px-2.5 rounded bg-background border text-sm">
-                                      <span className="text-xs">{PERMISSION_LABELS[permKey]}</span>
-                                      <Switch
-                                        checked={!!userPerms[permKey]}
-                                        onCheckedChange={() => togglePermission(user, permKey)}
-                                        disabled={updatePermissionsMutation.isPending}
-                                        data-testid={`switch-perm-${permKey}-${user.id}`}
-                                      />
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
                 );
               })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="dormant">
