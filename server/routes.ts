@@ -4939,8 +4939,9 @@ ${buildEmailFooter()}
   app.get('/api/musculoskeletal-assessments/pending-interview-requests', isAuthenticated, async (req: any, res) => {
     try {
       const user = req.user as any;
-      const dept = (user?.role === 'deptHead' && user?.department) ? user.department : undefined;
-      const list = await storage.getPendingInterviewRequests(dept);
+      const role = user?.role as string | undefined;
+      const dept = (role === 'deptHead' && user?.department) ? user.department : undefined;
+      const list = await storage.getPendingInterviewRequests(dept, role);
       res.json(list);
     } catch { res.status(500).json({ message: "조회 실패" }); }
   });
@@ -4957,7 +4958,7 @@ ${buildEmailFooter()}
   app.post('/api/musculoskeletal-assessments/:id/symptom-surveys', requireEditor, async (req: any, res) => {
     try {
       const assessmentId = Number(req.params.id);
-      const created = await storage.createSymptomSurvey({ ...req.body, assessmentId });
+      const created = await storage.createSymptomSurvey({ ...req.body, assessmentId, createdBy: req.user?.username });
       // 해당 assessment 상태를 증상조사 진행중으로 업데이트
       const surveys = await storage.getSymptomSurveys(assessmentId);
       const allDone = surveys.length > 0 && surveys.every((s: any) => s.completed === true);

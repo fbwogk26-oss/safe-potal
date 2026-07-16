@@ -216,7 +216,7 @@ export interface IStorage {
   deleteSymptomSurvey(id: number): Promise<void>;
   getPendingSymptomCount(headquarters?: string): Promise<number>;
   getAllSymptomSurveys(headquarters?: string): Promise<MusculoskeletalSymptomSurvey[]>;
-  getPendingInterviewRequests(dept?: string): Promise<Array<{ id: number; department: string; task: string; assessmentDate: string; assessor: string; surveyCount: number; }>>;
+  getPendingInterviewRequests(dept?: string, role?: string): Promise<Array<{ id: number; department: string; task: string; assessmentDate: string; assessor: string; surveyCount: number; }>>;
   // Interview Logs (면담일지)
   getInterviews(assessmentId: number): Promise<MusculoskeletalInterview[]>;
   getInterview(id: number): Promise<MusculoskeletalInterview | undefined>;
@@ -856,19 +856,40 @@ export class DatabaseStorage implements IStorage {
       .orderBy(musculoskeletalSymptomSurveys.assessmentId);
   }
 
-  async getPendingInterviewRequests(dept?: string) {
-    const result = await db.execute(sql`
-      SELECT a.id, a.department, a.task, a.assessment_date as "assessmentDate", a.assessor,
-        COUNT(DISTINCT s.id)::int as "surveyCount"
-      FROM musculoskeletal_assessments a
-      INNER JOIN musculoskeletal_symptom_surveys s ON s.assessment_id = a.id AND s.has_pain = '예'
-      LEFT JOIN musculoskeletal_interviews i ON i.assessment_id = a.id
-      WHERE i.id IS NULL
-      ${dept ? sql`AND a.department = ${dept}` : sql``}
-      GROUP BY a.id, a.department, a.task, a.assessment_date, a.assessor
-      ORDER BY a.id DESC
-    `);
-    return result.rows as any[];
+  async getPendingInterviewRequests(dept?: string, role?: string) {
+    // admin/manager: 부서장이 통증 있음으로 제출한 조사만 표시
+    if (role === 'admin' || role === 'manager') {
+      const result = await db.execute(sql`
+        SELECT a.id, a.department, a.task, a.assessment_date as "assessmentDate", a.assessor,
+          COUNT(DISTINCT s.id)::int as "surveyCount"
+        FROM musculoskeletal_assessments a
+        INNER JOIN musculoskeletal_symptom_surveys s ON s.assessment_id = a.id AND s.has_pain = '예'
+        LEFT JOIN musculoskeletal_interviews i ON i.assessment_id = a.id
+        INNER JOIN users creator ON creator.username = s.created_by AND creator.role = 'deptHead'
+        WHERE i.id IS NULL
+        GROUP BY a.id, a.department, a.task, a.assessment_date, a.assessor
+        ORDER BY a.id DESC
+      `);
+      return result.rows as any[];
+    }
+    // deptHead: 본인 부서의 조사 중 일반 사용자(비부서장)가 제출한 통증 건
+    if (dept) {
+      const result = await db.execute(sql`
+        SELECT a.id, a.department, a.task, a.assessment_date as "assessmentDate", a.assessor,
+          COUNT(DISTINCT s.id)::int as "surveyCount"
+        FROM musculoskeletal_assessments a
+        INNER JOIN musculoskeletal_symptom_surveys s ON s.assessment_id = a.id AND s.has_pain = '예'
+        LEFT JOIN musculoskeletal_interviews i ON i.assessment_id = a.id
+        LEFT JOIN users creator ON creator.username = s.created_by
+        WHERE i.id IS NULL
+          AND a.department = ${dept}
+          AND (creator.role IS NULL OR creator.role != 'deptHead')
+        GROUP BY a.id, a.department, a.task, a.assessment_date, a.assessor
+        ORDER BY a.id DESC
+      `);
+      return result.rows as any[];
+    }
+    return [];
   }
 
   // === INTERVIEW LOGS (면담일지) ===

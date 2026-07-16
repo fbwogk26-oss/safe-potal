@@ -371,6 +371,7 @@ export const musculoskeletalSymptomSurveys = pgTable("musculoskeletal_symptom_su
   hasPain: text("has_pain"),
   bodyPartData: jsonb("body_part_data"),
   generalHealth: jsonb("general_health"),
+  createdBy: text("created_by"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
