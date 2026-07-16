@@ -9,7 +9,18 @@ import {
   Briefcase, Activity, HeartPulse, CircleAlert,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-const BURDEN_ILLUS: string[] = Array.from({ length: 11 }, (_, i) => `/burden-icons/icon${i + 1}.png?v=4`);
+import bImg1 from "@assets/image_1784166150891.png";
+import bImg2 from "@assets/image_1784166156751.png";
+import bImg3 from "@assets/image_1784166161213.png";
+import bImg4 from "@assets/image_1784166165979.png";
+import bImg5 from "@assets/image_1784166170155.png";
+import bImg6 from "@assets/image_1784166174449.png";
+import bImg7 from "@assets/image_1784166181439.png";
+import bImg8 from "@assets/image_1784166185512.png";
+import bImg9 from "@assets/image_1784166189177.png";
+import bImg10 from "@assets/image_1784166192887.png";
+import bImg11 from "@assets/image_1784166197700.png";
+const BURDEN_ILLUS = [bImg1, bImg2, bImg3, bImg4, bImg5, bImg6, bImg7, bImg8, bImg9, bImg10, bImg11];
 
 const BURDEN_WORKS = [
   { no:1,  short:"키보드·마우스 조작",          desc:"하루 4시간 이상 집중적으로 키보드·마우스를 사용하는 작업" },

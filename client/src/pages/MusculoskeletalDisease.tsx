@@ -16,17 +16,17 @@ import {
   ChevronDown, ChevronUp, History, Save, AlertTriangle,
   FileDown, FileUp, Paperclip, Clock, LayoutGrid, List, Wrench, ImageIcon, CheckCircle2, QrCode
 } from "lucide-react";
-import img1 from "@assets/그림1_1783672853543.png";
-import img2 from "@assets/그림2_1783672853544.png";
-import img3 from "@assets/그림3_1783672853545.png";
-import img4 from "@assets/그림4_1783672853545.png";
-import img5 from "@assets/그림5_1783672853546.png";
-import img6 from "@assets/그림6_1783672853547.png";
-import img7 from "@assets/그림7_1783672853548.png";
-import img8 from "@assets/그림8_1783672853549.png";
-import img9 from "@assets/그림9_1783672853549.png";
-import img10 from "@assets/그림10_1783672853550.png";
-import img11 from "@assets/그림11_1783672853551.png";
+import img1 from "@assets/image_1784166150891.png";
+import img2 from "@assets/image_1784166156751.png";
+import img3 from "@assets/image_1784166161213.png";
+import img4 from "@assets/image_1784166165979.png";
+import img5 from "@assets/image_1784166170155.png";
+import img6 from "@assets/image_1784166174449.png";
+import img7 from "@assets/image_1784166181439.png";
+import img8 from "@assets/image_1784166185512.png";
+import img9 from "@assets/image_1784166189177.png";
+import img10 from "@assets/image_1784166192887.png";
+import img11 from "@assets/image_1784166197700.png";
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -1224,20 +1224,6 @@ export default function MusculoskeletalDisease() {
                         <td className="px-3 py-3">
                           <p className="text-sm font-semibold text-foreground leading-snug line-clamp-1">{item.task || "-"}</p>
                           {item.hazardFactor && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{item.hazardFactor}</p>}
-                          {(item.currentMeasures || item.improvementPlan) && (
-                            <div className="mt-1 flex flex-wrap gap-1">
-                              {item.currentMeasures && (
-                                <span className="text-[10px] bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-800 max-w-[120px] truncate" title={item.currentMeasures}>
-                                  조치: {item.currentMeasures}
-                                </span>
-                              )}
-                              {item.improvementPlan && (
-                                <span className="text-[10px] bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800 max-w-[120px] truncate" title={item.improvementPlan}>
-                                  계획: {item.improvementPlan}
-                                </span>
-                              )}
-                            </div>
-                          )}
                         </td>
                         {/* 부담작업 */}
                         <td className="px-3 py-3">
