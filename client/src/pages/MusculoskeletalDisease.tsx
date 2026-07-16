@@ -696,6 +696,7 @@ export default function MusculoskeletalDisease() {
       }).then(async r => { if (!r.ok) throw new Error(await r.text()); return r.json(); }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments", previewAssessmentId, "interviews"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments"] });
       setShowPreviewInterviewForm(false);
       setPreviewIntForm(initPreviewIntForm());
       setPreviewIntSignature("");
@@ -747,6 +748,7 @@ export default function MusculoskeletalDisease() {
       }).then(async r => { if (!r.ok) throw new Error(await r.text()); return r.json(); }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments", interviewAssessmentId, "interviews"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments"] });
       resetInterviewForm();
       toast({ title: "면담일지가 등록되었습니다." });
     },
@@ -762,6 +764,7 @@ export default function MusculoskeletalDisease() {
       }).then(async r => { if (!r.ok) throw new Error(await r.text()); return r.json(); }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments", interviewAssessmentId, "interviews"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments"] });
       resetInterviewForm();
       toast({ title: "면담일지가 수정되었습니다." });
     },
@@ -774,6 +777,7 @@ export default function MusculoskeletalDisease() {
         .then(async r => { if (!r.ok) throw new Error(await r.text()); }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments", interviewAssessmentId, "interviews"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments"] });
       toast({ title: "면담일지가 삭제되었습니다." });
     },
     onError: () => toast({ variant: "destructive", title: "삭제에 실패했습니다." }),

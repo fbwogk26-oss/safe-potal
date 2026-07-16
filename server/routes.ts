@@ -5058,6 +5058,11 @@ ${buildEmailFooter()}
     try {
       const assessmentId = Number(req.params.id);
       const created = await storage.createInterview({ ...req.body, assessmentId, createdBy: req.user?.username || null });
+      // 면담일지 등록 완료 → 상태를 "조사완료"로 업데이트
+      const assessment = await storage.getMusculoskeletalAssessment(assessmentId);
+      if (assessment && ['증상조사 진행중', '증상조사 대기', '진행중'].includes(assessment.status || '')) {
+        await storage.updateMusculoskeletalAssessment(assessmentId, { status: '조사완료' } as any);
+      }
       res.status(201).json(created);
     } catch { res.status(500).json({ message: "등록 실패" }); }
   });
@@ -5065,13 +5070,28 @@ ${buildEmailFooter()}
   app.put('/api/musculoskeletal-interviews/:id', requireEditor, async (req: any, res) => {
     try {
       const updated = await storage.updateInterview(Number(req.params.id), req.body);
+      // 면담일지 수정 완료 → 상태를 "조사완료"로 업데이트
+      if (updated?.assessmentId) {
+        const assessment = await storage.getMusculoskeletalAssessment(updated.assessmentId);
+        if (assessment && ['증상조사 진행중', '증상조사 대기', '진행중'].includes(assessment.status || '')) {
+          await storage.updateMusculoskeletalAssessment(updated.assessmentId, { status: '조사완료' } as any);
+        }
+      }
       res.json(updated);
     } catch { res.status(500).json({ message: "수정 실패" }); }
   });
 
   app.delete('/api/musculoskeletal-interviews/:id', requireEditor, async (req: any, res) => {
     try {
+      const interview = await storage.getInterview(Number(req.params.id));
       await storage.deleteInterview(Number(req.params.id));
+      // 면담일지 삭제 후 남은 면담일지가 없으면 상태를 "증상조사 진행중"으로 복원
+      if (interview?.assessmentId) {
+        const remaining = await storage.getInterviews(interview.assessmentId);
+        if (remaining.length === 0) {
+          await storage.updateMusculoskeletalAssessment(interview.assessmentId, { status: '증상조사 진행중' } as any);
+        }
+      }
       res.json({ success: true });
     } catch { res.status(500).json({ message: "삭제 실패" }); }
   });
