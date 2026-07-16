@@ -246,18 +246,19 @@ const STATUS_MANUAL_OPTIONS = ["진행중", "유해요인조사 완료", "보류
 const DRAFT_KEY = "musculoskeletal_draft";
 
 const BODY_PARTS = [
-  { key: "neck",     label: "목" },
-  { key: "shoulder", label: "어깨" },
-  { key: "elbow",    label: "팔꿈치" },
-  { key: "wrist",    label: "손목·손" },
-  { key: "back",     label: "허리" },
-  { key: "leg",      label: "다리·발" },
+  { key: "neck",     label: "목",             hasSide: false },
+  { key: "shoulder", label: "어깨",           hasSide: true  },
+  { key: "elbow",    label: "팔/팔꿈치",      hasSide: true  },
+  { key: "wrist",    label: "손/손목/손가락", hasSide: true  },
+  { key: "back",     label: "허리",           hasSide: false },
+  { key: "leg",      label: "다리/발",        hasSide: true  },
 ] as const;
 
-const FREQUENCY_OPTIONS = ["가끔(월 1회 미만)", "자주(월 1회~주 1회)", "항상(주 1회 이상)"];
-const DURATION_OPTIONS  = ["1주일 미만", "1주~1개월", "1개월~3개월", "3개월 이상"];
-const INTENSITY_LABELS  = ["","약함","약간","보통","심함","매우심함"];
-const INTERFERENCE_OPTIONS = ["없음","약간 지장","심한 지장"];
+const DURATION_OPTS   = ["1일 미만","1일~1주일 미만","1주일~1달 미만","1달~6개월 미만","6개월 이상"];
+const INTENSITY_OPTS  = ["약한 통증","중간 통증","심한 통증","매우 심한 통증"];
+const FREQUENCY_OPTS  = ["6개월에 1번","2~3달에 1번","1달에 1번","1주일에 1번","매일"];
+const TREATMENT_OPTS  = ["병원·한의원 치료","약국치료","병가·산재","작업 전환","해당사항 없음"];
+const SIDE_OPTS       = ["오른쪽","왼쪽","양쪽 모두"];
 
 function getRiskBadgeClass(level: string) {
   switch (level) {
@@ -400,25 +401,31 @@ export default function MusculoskeletalDisease() {
 
   // 증상조사 다이얼로그 내부 상태
   const [surveyEditingId, setSurveyEditingId] = useState<number | null>(null);
-  const [surveyForm, setSurveyForm] = useState<Record<string, any>>({
+  const defaultSurveyForm = () => ({
     workerName: "", workerDept: "", surveyDate: new Date().toISOString().split("T")[0],
-    // 신체부위별 필드 초기값
-    ...Object.fromEntries(BODY_PARTS.flatMap(bp => [
-      [`${bp.key}Pain`, false], [`${bp.key}Intensity`, 0],
-      [`${bp.key}Frequency`, ""], [`${bp.key}Duration`, ""], [`${bp.key}Interference`, ""],
-    ])),
+    hasPain: "" as string,
+    bodyPartData: {} as Record<string, any>,
     workRelated: "", notes: "", completed: false,
   });
+  const [surveyForm, setSurveyForm] = useState<Record<string, any>>(defaultSurveyForm());
   const resetSurveyForm = () => {
     setSurveyEditingId(null);
-    setSurveyForm({
-      workerName: "", workerDept: "", surveyDate: new Date().toISOString().split("T")[0],
-      ...Object.fromEntries(BODY_PARTS.flatMap(bp => [
-        [`${bp.key}Pain`, false], [`${bp.key}Intensity`, 0],
-        [`${bp.key}Frequency`, ""], [`${bp.key}Duration`, ""], [`${bp.key}Interference`, ""],
-      ])),
-      workRelated: "", notes: "", completed: false,
+    setSurveyForm(defaultSurveyForm());
+  };
+
+  const toggleBodyPart = (key: string) => {
+    setSurveyForm(f => {
+      const bpd = { ...(f.bodyPartData || {}) };
+      if (bpd[key]) { delete bpd[key]; } else { bpd[key] = { treatments: [] }; }
+      return { ...f, bodyPartData: bpd };
     });
+  };
+  const getBpData = (key: string) => surveyForm.bodyPartData?.[key] || {};
+  const setBpData = (key: string, update: Record<string, any>) => {
+    setSurveyForm(f => ({
+      ...f,
+      bodyPartData: { ...f.bodyPartData, [key]: { ...(f.bodyPartData?.[key] || {}), ...update } },
+    }));
   };
 
   const createSurveyMutation = useMutation({
@@ -470,7 +477,43 @@ export default function MusculoskeletalDisease() {
 
   const handleSurveyEdit = (s: any) => {
     setSurveyEditingId(s.id);
-    setSurveyForm({ ...s });
+    if (s.bodyPartData && typeof s.bodyPartData === "object" && Object.keys(s.bodyPartData).length > 0) {
+      // 신형 포맷
+      setSurveyForm({
+        workerName: s.workerName || "",
+        workerDept: s.workerDept || "",
+        surveyDate: s.surveyDate || new Date().toISOString().split("T")[0],
+        hasPain: s.hasPain || "예",
+        bodyPartData: s.bodyPartData,
+        workRelated: s.workRelated || "",
+        notes: s.notes || "",
+        completed: s.completed || false,
+      });
+    } else {
+      // 구형 포맷 → 신형으로 변환
+      const bodyPartData: Record<string, any> = {};
+      BODY_PARTS.forEach(bp => {
+        if (s[`${bp.key}Pain`]) {
+          bodyPartData[bp.key] = {
+            intensity: INTENSITY_OPTS[Math.max(0, (s[`${bp.key}Intensity`] || 1) - 1)] || "",
+            frequency: s[`${bp.key}Frequency`] || "",
+            duration: s[`${bp.key}Duration`] || "",
+            pastWeek: "",
+            treatments: [],
+          };
+        }
+      });
+      setSurveyForm({
+        workerName: s.workerName || "",
+        workerDept: s.workerDept || "",
+        surveyDate: s.surveyDate || new Date().toISOString().split("T")[0],
+        hasPain: Object.keys(bodyPartData).length > 0 ? "예" : (s.hasPain || ""),
+        bodyPartData,
+        workRelated: s.workRelated || "",
+        notes: s.notes || "",
+        completed: s.completed || false,
+      });
+    }
   };
 
   // ── 면담일지 (Interview Log) ─────────────────────────────────────────────
@@ -549,10 +592,21 @@ export default function MusculoskeletalDisease() {
       toast({ variant: "destructive", title: "근로자명을 입력하세요." });
       return;
     }
+    const bpd = surveyForm.bodyPartData || {};
+    const payload = {
+      ...surveyForm,
+      // 기존 pain 불리언 컬럼 동기화 (목록 표시용)
+      neckPain:     !!bpd.neck,
+      shoulderPain: !!bpd.shoulder,
+      elbowPain:    !!bpd.elbow,
+      wristPain:    !!bpd.wrist,
+      backPain:     !!bpd.back,
+      legPain:      !!bpd.leg,
+    };
     if (surveyEditingId) {
-      updateSurveyMutation.mutate({ id: surveyEditingId, data: surveyForm });
+      updateSurveyMutation.mutate({ id: surveyEditingId, data: payload });
     } else {
-      createSurveyMutation.mutate(surveyForm);
+      createSurveyMutation.mutate(payload);
     }
   };
 
@@ -1752,88 +1806,177 @@ export default function MusculoskeletalDisease() {
               </div>
             </div>
 
-            {/* 신체부위별 증상 */}
+            {/* II. 신체 부위별 증상조사 */}
             <div className="space-y-3">
-              <Label className="text-xs font-medium text-muted-foreground">신체부위별 증상</Label>
-              {BODY_PARTS.map(bp => (
-                <div key={bp.key} className={`rounded-lg border p-3 space-y-2 transition-colors ${surveyForm[`${bp.key}Pain`] ? "border-orange-300 bg-orange-50/50 dark:bg-orange-900/10" : "border-border"}`}>
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setSurveyForm(f => ({
-                        ...f,
-                        [`${bp.key}Pain`]: !f[`${bp.key}Pain`],
-                        ...(!f[`${bp.key}Pain`] ? {} : { [`${bp.key}Intensity`]: 0, [`${bp.key}Frequency`]: "", [`${bp.key}Duration`]: "", [`${bp.key}Interference`]: "" }),
-                      }))}
-                      className={`w-8 h-8 rounded border-2 flex items-center justify-center transition-colors ${surveyForm[`${bp.key}Pain`] ? "border-orange-500 bg-orange-500 text-white" : "border-border"}`}
-                      data-testid={`checkbox-${bp.key}-pain`}
-                    >
-                      {surveyForm[`${bp.key}Pain`] && <span className="text-xs font-bold">✓</span>}
-                    </button>
-                    <span className="font-medium text-sm w-16">{bp.label}</span>
-                    {!surveyForm[`${bp.key}Pain`] && (
-                      <span className="text-xs text-muted-foreground">통증 없음</span>
-                    )}
+              <Label className="text-xs font-semibold flex items-center gap-1.5">
+                <span className="text-purple-600">II.</span> 신체 부위별 증상조사
+              </Label>
+
+              {/* 통증 유무 */}
+              <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl px-4 py-3 space-y-2">
+                <p className="text-xs font-semibold text-amber-800 dark:text-amber-200">
+                  지난 1년 동안 작업과 관련하여 통증·불편함(통증, 쑤시는 느낌, 뻣뻣함, 화끈거리는 느낌, 무감각, 찌릿찌릿함 등)을 느끼신 적이 있습니까?
+                </p>
+                <div className="flex gap-2">
+                  {["예","아니오"].map(v => (
+                    <button key={v} type="button"
+                      onClick={() => setSurveyForm(f => ({ ...f, hasPain: v, ...(v === "아니오" ? { bodyPartData: {} } : {}) }))}
+                      className={`flex-1 py-2 rounded-xl border text-sm font-semibold transition-all ${surveyForm.hasPain === v ? "border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300" : "border-amber-200 dark:border-amber-700 hover:border-purple-300 bg-white dark:bg-card"}`}
+                      data-testid={`button-haspain-${v}`}
+                    >{v}</button>
+                  ))}
+                </div>
+              </div>
+
+              {surveyForm.hasPain === "예" && (
+                <div className="space-y-4">
+                  {/* 부위 선택 */}
+                  <div className="space-y-1.5">
+                    <p className="text-xs text-muted-foreground">통증 있는 부위를 선택하세요 (중복 가능)</p>
+                    <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                      {BODY_PARTS.map(bp => {
+                        const sel = !!(surveyForm.bodyPartData || {})[bp.key];
+                        return (
+                          <button key={bp.key} type="button" onClick={() => toggleBodyPart(bp.key)}
+                            className={`py-2 px-1 rounded-xl border text-xs font-bold text-center transition-all ${sel ? "border-purple-500 bg-purple-500 text-white shadow-sm" : "border-border hover:border-purple-300 hover:bg-purple-50/30"}`}
+                            data-testid={`button-bodypart-${bp.key}`}
+                          >{bp.label}</button>
+                        );
+                      })}
+                    </div>
                   </div>
-                  {surveyForm[`${bp.key}Pain`] && (
-                    <div className="pl-11 grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      {/* 통증 강도 1~5 */}
-                      <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">강도</Label>
-                        <div className="flex gap-1">
-                          {[1,2,3,4,5].map(n => (
-                            <button key={n} type="button"
-                              onClick={() => setSurveyForm(f => ({ ...f, [`${bp.key}Intensity`]: n }))}
-                              className={`w-6 h-6 text-xs rounded border ${surveyForm[`${bp.key}Intensity`] === n ? "bg-orange-500 border-orange-500 text-white" : "border-border text-muted-foreground"}`}
-                            >{n}</button>
-                          ))}
+
+                  {/* 선택된 부위별 상세 */}
+                  {BODY_PARTS.filter(bp => (surveyForm.bodyPartData || {})[bp.key]).map(bp => {
+                    const bpData = getBpData(bp.key);
+                    const treatments: string[] = bpData.treatments || [];
+                    const n = bp.hasSide ? 1 : 0;
+                    return (
+                      <div key={bp.key} className="rounded-xl border border-purple-300 dark:border-purple-700 overflow-hidden">
+                        <div className="bg-purple-50 dark:bg-purple-900/30 px-4 py-2.5 flex items-center justify-between">
+                          <span className="text-sm font-bold text-purple-700 dark:text-purple-300">{bp.label}</span>
+                          <button type="button" onClick={() => toggleBodyPart(bp.key)} className="text-xs text-muted-foreground hover:text-destructive">제거</button>
+                        </div>
+                        <div className="p-4 space-y-3.5">
+
+                          {bp.hasSide && (
+                            <div className="space-y-1.5">
+                              <p className="text-xs font-semibold text-muted-foreground">1. 구체적 부위</p>
+                              <div className="flex gap-2">
+                                {SIDE_OPTS.map(s => (
+                                  <button key={s} type="button" onClick={() => setBpData(bp.key, { side: s })}
+                                    className={`flex-1 py-1.5 text-xs rounded-lg border font-medium transition-all ${bpData.side === s ? "border-purple-500 bg-purple-500 text-white" : "border-border hover:border-purple-300"}`}
+                                    data-testid={`button-side-${bp.key}-${s}`}
+                                  >{s}</button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="space-y-1.5">
+                            <p className="text-xs font-semibold text-muted-foreground">{n + 1}. 통증 지속 기간</p>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                              {DURATION_OPTS.map(d => (
+                                <button key={d} type="button" onClick={() => setBpData(bp.key, { duration: d })}
+                                  className={`py-1.5 text-xs rounded-lg border font-medium transition-all ${bpData.duration === d ? "border-purple-500 bg-purple-500 text-white" : "border-border hover:border-purple-300"}`}
+                                  data-testid={`button-duration-${bp.key}-${d}`}
+                                >{d}</button>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <p className="text-xs font-semibold text-muted-foreground">{n + 2}. 통증 강도</p>
+                            <div className="grid grid-cols-2 gap-1.5">
+                              {INTENSITY_OPTS.map(it => (
+                                <button key={it} type="button" onClick={() => setBpData(bp.key, { intensity: it })}
+                                  className={`py-1.5 text-xs rounded-lg border font-medium transition-all ${bpData.intensity === it ? "border-purple-500 bg-purple-500 text-white" : "border-border hover:border-purple-300"}`}
+                                  data-testid={`button-intensity-${bp.key}-${it}`}
+                                >{it}</button>
+                              ))}
+                            </div>
+                            <div className="bg-muted/60 rounded-lg p-2 text-[10px] text-muted-foreground space-y-0.5">
+                              <p>· 약한: 약간 불편하나 작업 집중 시 못 느낀다</p>
+                              <p>· 중간: 통증 있으나 귀가 후 휴식하면 괜찮다</p>
+                              <p>· 심한: 귀가 후에도 통증이 계속된다</p>
+                              <p>· 매우 심한: 통증으로 일상생활이 어렵다</p>
+                            </div>
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <p className="text-xs font-semibold text-muted-foreground">{n + 3}. 지난 1년간 경험 빈도</p>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                              {FREQUENCY_OPTS.map(fr => (
+                                <button key={fr} type="button" onClick={() => setBpData(bp.key, { frequency: fr })}
+                                  className={`py-1.5 text-xs rounded-lg border font-medium transition-all ${bpData.frequency === fr ? "border-purple-500 bg-purple-500 text-white" : "border-border hover:border-purple-300"}`}
+                                  data-testid={`button-freq-${bp.key}-${fr}`}
+                                >{fr}</button>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <p className="text-xs font-semibold text-muted-foreground">{n + 4}. 지난 1주일에도 증상이 있었습니까?</p>
+                            <div className="flex gap-2">
+                              {["예","아니오"].map(v => (
+                                <button key={v} type="button" onClick={() => setBpData(bp.key, { pastWeek: v })}
+                                  className={`flex-1 py-1.5 text-xs rounded-lg border font-semibold transition-all ${bpData.pastWeek === v ? "border-purple-500 bg-purple-500 text-white" : "border-border hover:border-purple-300"}`}
+                                  data-testid={`button-pastweek-${bp.key}-${v}`}
+                                >{v}</button>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <p className="text-xs font-semibold text-muted-foreground">{n + 5}. 지난 1년간 이 통증으로 어떤 일이 있었습니까? <span className="font-normal">(중복 가능)</span></p>
+                            <div className="grid grid-cols-2 gap-1.5">
+                              {TREATMENT_OPTS.map(t => {
+                                const selected = treatments.includes(t);
+                                return (
+                                  <button key={t} type="button"
+                                    onClick={() => setBpData(bp.key, { treatments: selected ? treatments.filter(x => x !== t) : [...treatments, t] })}
+                                    className={`text-left py-1.5 px-2 text-xs rounded-lg border font-medium transition-all ${selected ? "border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300" : "border-border hover:border-purple-300"}`}
+                                    data-testid={`button-treatment-${bp.key}-${t}`}
+                                  >
+                                    <span className="flex items-center gap-1.5">
+                                      <span className={`w-3 h-3 rounded flex-shrink-0 border ${selected ? "bg-purple-500 border-purple-500" : "border-muted-foreground/40"}`} />
+                                      {t}
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+
                         </div>
                       </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">빈도</Label>
-                        <Select value={surveyForm[`${bp.key}Frequency`]} onValueChange={v => setSurveyForm(f => ({ ...f, [`${bp.key}Frequency`]: v }))}>
-                          <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="선택" /></SelectTrigger>
-                          <SelectContent>{FREQUENCY_OPTIONS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">지속기간</Label>
-                        <Select value={surveyForm[`${bp.key}Duration`]} onValueChange={v => setSurveyForm(f => ({ ...f, [`${bp.key}Duration`]: v }))}>
-                          <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="선택" /></SelectTrigger>
-                          <SelectContent>{DURATION_OPTIONS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">업무지장</Label>
-                        <Select value={surveyForm[`${bp.key}Interference`]} onValueChange={v => setSurveyForm(f => ({ ...f, [`${bp.key}Interference`]: v }))}>
-                          <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="선택" /></SelectTrigger>
-                          <SelectContent>{INTERFERENCE_OPTIONS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                  )}
+                    );
+                  })}
                 </div>
-              ))}
+              )}
             </div>
 
-            {/* 업무관련성 + 비고 */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs">업무관련성 소견</Label>
-                <Select value={surveyForm.workRelated} onValueChange={v => setSurveyForm(f => ({ ...f, workRelated: v }))}>
-                  <SelectTrigger className="h-8 text-sm" data-testid="select-work-related"><SelectValue placeholder="선택" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="관련있음">관련있음</SelectItem>
-                    <SelectItem value="관련없음">관련없음</SelectItem>
-                    <SelectItem value="판단불가">판단불가</SelectItem>
-                  </SelectContent>
-                </Select>
+            {/* 업무관련성 소견 */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold flex items-center gap-1.5">
+                <span className="text-purple-600">III.</span> 업무관련성 소견
+              </Label>
+              <div className="flex gap-2">
+                {["관련있음","관련없음","판단불가"].map(v => (
+                  <button key={v} type="button"
+                    onClick={() => setSurveyForm(f => ({ ...f, workRelated: v }))}
+                    className={`flex-1 py-2 text-xs rounded-xl border font-semibold transition-all ${surveyForm.workRelated === v ? "border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300" : "border-border hover:border-purple-300"}`}
+                    data-testid={`button-workrelated-${v}`}
+                  >{v}</button>
+                ))}
               </div>
-              <div className="space-y-1">
-                <Label className="text-xs">비고</Label>
-                <Input value={surveyForm.notes || ""} onChange={e => setSurveyForm(f => ({ ...f, notes: e.target.value }))}
-                  className="h-8 text-sm" placeholder="특이사항" data-testid="input-survey-notes" />
-              </div>
+            </div>
+
+            {/* 비고 */}
+            <div className="space-y-1">
+              <Label className="text-xs">비고</Label>
+              <Input value={surveyForm.notes || ""} onChange={e => setSurveyForm(f => ({ ...f, notes: e.target.value }))}
+                className="h-8 text-sm" placeholder="특이사항" data-testid="input-survey-notes" />
             </div>
 
             {/* 조사 완료 여부 */}
