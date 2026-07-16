@@ -292,6 +292,9 @@ interface FormState {
   assessor: string;
   status: string;
   burdenWorkChecklist: number[];
+  currentWorkMethod: string;
+  workCareer: string;
+  maritalStatus: string;
 }
 const defaultForm = (): FormState => ({
   department: "",
@@ -304,6 +307,9 @@ const defaultForm = (): FormState => ({
   assessor: "",
   status: "진행중",
   burdenWorkChecklist: [],
+  currentWorkMethod: "",
+  workCareer: "",
+  maritalStatus: "",
 });
 
 function parseChecklist(raw: string | null | undefined): number[] {
@@ -784,6 +790,9 @@ export default function MusculoskeletalDisease() {
       assessor:            item.assessor || "",
       status:              item.status,
       burdenWorkChecklist: parseChecklist((item as any).burdenWorkChecklist),
+      currentWorkMethod:   (item as any).currentWorkMethod || "",
+      workCareer:          (item as any).workCareer || "",
+      maritalStatus:       (item as any).maritalStatus || "",
     });
     setEditingId(item.id);
     setRiskManual(true);
@@ -1408,7 +1417,138 @@ export default function MusculoskeletalDisease() {
             </div>
           </DialogHeader>
 
-          {/* 부담작업 체크리스트 */}
+          {/* ─── 기본 정보 (먼저) ─────────────────────────────────── */}
+          <div className="space-y-3">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">기본 정보</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* 부서 */}
+              <div className="space-y-1.5">
+                <Label className="text-sm flex items-center gap-1.5">
+                  부서 *
+                  {form.department && !editingId && (
+                    <span className="text-xs font-normal text-purple-600 dark:text-purple-400">(자동입력)</span>
+                  )}
+                </Label>
+                <Select value={form.department} onValueChange={v => updateField("department", v)}>
+                  <SelectTrigger data-testid="select-department" className="h-9">
+                    <SelectValue placeholder="부서 선택" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {DEPARTMENTS.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* 위험수준 */}
+              <div className="space-y-1.5">
+                <Label className="text-sm flex items-center gap-1.5">
+                  위험수준 *
+                  {!riskManual && form.burdenWorkChecklist.length > 0 && (
+                    <span className="text-xs font-normal text-purple-600 dark:text-purple-400">(자동 산출)</span>
+                  )}
+                </Label>
+                <div className="flex gap-1.5">
+                  <Select
+                    value={form.riskLevel}
+                    onValueChange={v => {
+                      setRiskManual(true);
+                      setForm(prev => ({ ...prev, riskLevel: v }));
+                    }}
+                  >
+                    <SelectTrigger data-testid="select-risk-level" className="flex-1 h-9">
+                      <SelectValue placeholder="위험수준 선택" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {RISK_LEVELS.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  {riskManual && form.burdenWorkChecklist.length > 0 && (
+                    <Button
+                      variant="outline" size="sm" className="shrink-0 text-xs h-9"
+                      onClick={() => { setRiskManual(false); updateField("riskLevel", calcRiskFromChecklist(form.burdenWorkChecklist)); }}
+                    >자동</Button>
+                  )}
+                </div>
+              </div>
+
+              {/* 평가자 */}
+              <div className="space-y-1.5">
+                <Label className="text-sm">평가자</Label>
+                <Input
+                  list="assessor-suggestions-list"
+                  value={form.assessor}
+                  onChange={e => updateField("assessor", e.target.value)}
+                  placeholder="평가자 (자동완성)"
+                  className="h-9"
+                  data-testid="input-assessor"
+                />
+                <datalist id="assessor-suggestions-list">
+                  {assessorSuggestions.map(s => <option key={s} value={s!} />)}
+                </datalist>
+              </div>
+
+              {/* 평가일 */}
+              <div className="space-y-1.5">
+                <Label className="text-sm">평가일</Label>
+                <Input
+                  type="date"
+                  value={form.assessmentDate}
+                  onChange={e => updateField("assessmentDate", e.target.value)}
+                  className="h-9"
+                  data-testid="input-assessment-date"
+                />
+              </div>
+
+              {/* 현재 작업방식 */}
+              <div className="space-y-1.5">
+                <Label className="text-sm">현재 작업방식</Label>
+                <Select value={form.currentWorkMethod} onValueChange={v => updateField("currentWorkMethod", v)}>
+                  <SelectTrigger data-testid="select-work-method" className="h-9">
+                    <SelectValue placeholder="작업방식 선택" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {["수작업", "기계작업", "혼합작업"].map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* 현직장 경력 */}
+              <div className="space-y-1.5">
+                <Label className="text-sm">현직장 경력</Label>
+                <Input
+                  value={form.workCareer}
+                  onChange={e => updateField("workCareer", e.target.value)}
+                  placeholder="예: 3년 2개월"
+                  className="h-9"
+                  data-testid="input-work-career"
+                />
+              </div>
+
+              {/* 결혼여부 */}
+              <div className="space-y-1.5">
+                <Label className="text-sm">결혼여부</Label>
+                <div className="flex gap-2">
+                  {["기혼", "미혼"].map(opt => (
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => updateField("maritalStatus", form.maritalStatus === opt ? "" : opt)}
+                      className={`flex-1 h-9 rounded-md border text-sm font-medium transition-colors ${
+                        form.maritalStatus === opt
+                          ? "bg-purple-600 text-white border-purple-600"
+                          : "border-border bg-background text-foreground hover:bg-muted"
+                      }`}
+                      data-testid={`button-marital-${opt}`}
+                    >
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ─── 부담작업 체크리스트 (기본정보 이후) ──────────────── */}
           <Collapsible open={checklistOpen} onOpenChange={setChecklistOpen}>
             <CollapsibleTrigger asChild>
               <button
@@ -1443,7 +1583,6 @@ export default function MusculoskeletalDisease() {
                         className="mt-1 shrink-0"
                         data-testid={`checkbox-burden-${bw.no}`}
                       />
-                      {/* SVG 자세 일러스트 */}
                       <div className={`w-10 h-12 shrink-0 rounded p-0.5 ${checked ? "bg-purple-100 dark:bg-purple-800/40" : "bg-gray-100 dark:bg-gray-800/40"}`}>
                         <img src={BURDEN_IMAGES[bw.no - 1]} alt={`${bw.no}호`} className="w-full h-full object-contain" />
                       </div>
@@ -1457,7 +1596,6 @@ export default function MusculoskeletalDisease() {
                     </label>
                   );
                 })}
-                {/* 판정 요약 */}
                 <div className="px-3 py-2 bg-purple-50 dark:bg-purple-900/20 border-t border-purple-200 dark:border-purple-800 flex flex-wrap items-center gap-3">
                   <span className="text-xs text-purple-800 dark:text-purple-200">
                     해당 항목: <strong>{form.burdenWorkChecklist.length}개</strong>
@@ -1470,88 +1608,6 @@ export default function MusculoskeletalDisease() {
               </div>
             </CollapsibleContent>
           </Collapsible>
-
-          {/* 기본 정보 */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-sm flex items-center gap-1.5">
-                부서 *
-                {form.department && !editingId && (
-                  <span className="text-xs font-normal text-purple-600 dark:text-purple-400">(자동입력)</span>
-                )}
-              </Label>
-              <Select value={form.department} onValueChange={v => updateField("department", v)}>
-                <SelectTrigger data-testid="select-department" className="h-9">
-                  <SelectValue placeholder="부서 선택" />
-                </SelectTrigger>
-                <SelectContent>
-                  {DEPARTMENTS.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-sm flex items-center gap-1.5">
-                위험수준 *
-                {!riskManual && form.burdenWorkChecklist.length > 0 && (
-                  <span className="text-xs font-normal text-purple-600 dark:text-purple-400">(자동 산출)</span>
-                )}
-              </Label>
-              <div className="flex gap-1.5">
-                <Select
-                  value={form.riskLevel}
-                  onValueChange={v => {
-                    setRiskManual(true);
-                    setForm(prev => ({
-                      ...prev,
-                      riskLevel: v,
-                    }));
-                  }}
-                >
-                  <SelectTrigger data-testid="select-risk-level" className="flex-1 h-9">
-                    <SelectValue placeholder="위험수준 선택" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {RISK_LEVELS.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                {riskManual && form.burdenWorkChecklist.length > 0 && (
-                  <Button
-                    variant="outline" size="sm" className="shrink-0 text-xs h-9"
-                    onClick={() => { setRiskManual(false); updateField("riskLevel", calcRiskFromChecklist(form.burdenWorkChecklist)); }}
-                  >자동</Button>
-                )}
-              </div>
-            </div>
-
-            {/* 평가자 / 평가일 — 한 줄 */}
-            <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-sm">평가자</Label>
-                <Input
-                  list="assessor-suggestions-list"
-                  value={form.assessor}
-                  onChange={e => updateField("assessor", e.target.value)}
-                  placeholder="평가자 (자동완성)"
-                  className="h-9"
-                  data-testid="input-assessor"
-                />
-                <datalist id="assessor-suggestions-list">
-                  {assessorSuggestions.map(s => <option key={s} value={s!} />)}
-                </datalist>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-sm">평가일</Label>
-                <Input
-                  type="date"
-                  value={form.assessmentDate}
-                  onChange={e => updateField("assessmentDate", e.target.value)}
-                  className="h-9"
-                  data-testid="input-assessment-date"
-                />
-              </div>
-            </div>
-          </div>
 
           {/* 부담작업 체크 시 자동 안내 */}
           {!editingId && form.burdenWorkChecklist.length > 0 && (

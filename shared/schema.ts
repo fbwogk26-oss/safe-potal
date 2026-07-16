@@ -305,6 +305,10 @@ export const musculoskeletalAssessments = pgTable("musculoskeletal_assessments",
   postImprovementDueDate: text("post_improvement_due_date"),
   postImprovementChecker: text("post_improvement_checker"),
   postImprovementStatus: text("post_improvement_status").default("미완료"),
+  // 작업자 기본 인적사항
+  currentWorkMethod: text("current_work_method"),
+  workCareer: text("work_career"),
+  maritalStatus: text("marital_status"),
 });
 
 export const musculoskeletalAssessmentHistory = pgTable("musculoskeletal_assessment_history", {
