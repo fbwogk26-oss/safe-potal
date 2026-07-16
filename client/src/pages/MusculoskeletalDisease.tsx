@@ -16,7 +16,8 @@ import {
 import {
   Bone, Plus, Trash2, Pencil, Search, CheckSquare, X,
   ChevronDown, ChevronUp, History, Save, AlertTriangle,
-  FileDown, FileUp, Paperclip, Clock, LayoutGrid, List, Wrench, ImageIcon, CheckCircle2, QrCode, Settings
+  FileDown, FileUp, Paperclip, Clock, LayoutGrid, List, Wrench, ImageIcon, CheckCircle2, QrCode, Settings,
+  User, Briefcase, Activity
 } from "lucide-react";
 import img1 from "@assets/image_1784166150891.png";
 import img2 from "@assets/image_1784166156751.png";
@@ -1256,8 +1257,27 @@ export default function MusculoskeletalDisease() {
                 </tr>
               </thead>
               <tbody>
-                <AnimatePresence>
-                  {filteredAssessments.map((item, idx) => {
+                {(() => {
+                  const grouped: Record<string, typeof filteredAssessments> = {};
+                  filteredAssessments.forEach(item => {
+                    if (!grouped[item.department]) grouped[item.department] = [];
+                    grouped[item.department].push(item);
+                  });
+                  const sortedDepts = Object.keys(grouped).sort((a, b) => a.localeCompare(b, 'ko'));
+                  const colSpan = 8 + (selectionMode ? 1 : 0);
+                  let globalIdx = 0;
+                  return sortedDepts.flatMap(dept => [
+                    <tr key={`dept-hdr-${dept}`}>
+                      <td colSpan={colSpan} className="px-3 py-1.5 bg-purple-50/70 dark:bg-purple-900/10 border-y border-purple-100 dark:border-purple-900/30">
+                        <span className="text-xs font-bold text-purple-800 dark:text-purple-200 flex items-center gap-2">
+                          <span className="w-1.5 h-1.5 rounded-full bg-purple-500 inline-block" />
+                          {dept}
+                          <span className="text-purple-500 font-normal">({grouped[dept].length}건)</span>
+                        </span>
+                      </td>
+                    </tr>,
+                    ...grouped[dept].map((item) => {
+                    const idx = globalIdx++;
                     const checklist = parseChecklist((item as any).burdenWorkChecklist);
                     const attachments: any[] = (() => { try { return JSON.parse((item as any).attachments || "[]"); } catch { return []; } })();
                     const isPendingSymptom = ["증상조사 대기", "증상조사 진행중"].includes(item.status);
@@ -1371,8 +1391,9 @@ export default function MusculoskeletalDisease() {
                         </td>
                       </motion.tr>
                     );
-                  })}
-                </AnimatePresence>
+                  })
+                  ]);
+                })()}
               </tbody>
             </table>
           </CardContent>
@@ -1396,63 +1417,64 @@ export default function MusculoskeletalDisease() {
 
       {/* ─── 새 조사 등록 / 수정 다이얼로그 ───────────────────────── */}
       <Dialog open={showForm} onOpenChange={open => { if (!open) resetForm(); }}>
-        <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto">
-          <DialogHeader>
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <DialogTitle data-testid="dialog-title">
-                {editingId ? "유해요인조사 수정" : "새 유해요인조사 등록"}
-              </DialogTitle>
-              {!editingId && (
-                <div className="flex gap-2">
+        <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto p-0">
+          {/* ── 모바일 QR폼과 동일한 상단 헤더 ─────────────────────── */}
+          <div className="bg-gradient-to-b from-purple-50 to-white dark:from-purple-950/20 dark:to-background px-6 pt-8 pb-5 border-b border-purple-100 dark:border-purple-900/30">
+            <div className="flex flex-col items-center gap-3 text-center">
+              <div className="w-16 h-16 rounded-2xl bg-purple-100 dark:bg-purple-900/40 flex items-center justify-center">
+                <Bone className="w-8 h-8 text-purple-600 dark:text-purple-400" />
+              </div>
+              <div>
+                <DialogTitle className="text-xl font-bold whitespace-pre-line leading-snug text-center" data-testid="dialog-title">
+                  {editingId ? "유해요인조사 수정" : (!showChecklist ? "근골격계 유해요인조사\n기본정보 입력" : "근골격계 부담작업 조사")}
+                </DialogTitle>
+                <p className="text-sm text-muted-foreground mt-1.5">
+                  {editingId ? "조사 내용을 수정합니다" : (!showChecklist ? "산업안전보건법에 따른 근골격계 유해요인조사" : "해당되는 부담작업을 모두 선택하세요")}
+                </p>
+              </div>
+            </div>
+            {!editingId && (
+              <div className="mt-5 space-y-3">
+                {/* 스텝바 - 모바일과 동일한 컴포넌트 */}
+                <div className="flex items-center justify-center gap-0.5 sm:gap-2">
+                  {([
+                    { label: "기본정보", Icon: User },
+                    { label: "부담작업", Icon: Briefcase },
+                    { label: "증상조사", Icon: Activity },
+                    { label: "등록완료", Icon: CheckCircle2 },
+                  ] as { label: string; Icon: React.ComponentType<{ className?: string }> }[]).map((s, i) => {
+                    const currentIdx = !showChecklist ? 0 : 1;
+                    const isDone = i < currentIdx;
+                    const isActive = i === currentIdx;
+                    const Icon = s.Icon;
+                    return (
+                      <div key={s.label} className="flex items-center gap-0.5 sm:gap-2">
+                        <div className="flex flex-col items-center gap-1">
+                          <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-colors ${isActive ? "bg-purple-600 text-white" : isDone ? "bg-purple-200 dark:bg-purple-800 text-purple-700 dark:text-purple-300" : "bg-muted text-muted-foreground"}`}>
+                            {isDone ? <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
+                          </div>
+                          <span className={`text-[9px] sm:text-[10px] font-medium ${isActive ? "text-purple-700 dark:text-purple-400" : "text-muted-foreground"}`}>{s.label}</span>
+                        </div>
+                        {i < 3 && <div className={`h-px w-4 sm:w-10 mb-3 transition-colors ${isDone ? "bg-purple-400" : "bg-border"}`} />}
+                      </div>
+                    );
+                  })}
+                </div>
+                {/* 액션 버튼 */}
+                <div className="flex justify-center gap-2">
                   {hasDraft && (
-                    <Button
-                      variant="outline" size="sm"
-                      className="gap-1.5 text-yellow-600 border-yellow-400 dark:border-yellow-600 hover:bg-yellow-50 dark:hover:bg-yellow-900/20"
-                      onClick={restoreDraft} data-testid="button-restore-draft"
-                    >
+                    <Button variant="outline" size="sm" className="gap-1.5 text-yellow-600 border-yellow-400 dark:border-yellow-600 hover:bg-yellow-50 dark:hover:bg-yellow-900/20" onClick={restoreDraft} data-testid="button-restore-draft">
                       <Save className="w-3.5 h-3.5" />임시저장 불러오기
                     </Button>
                   )}
-                  <Button
-                    variant="outline" size="sm" className="gap-1.5"
-                    onClick={() => setShowLoadPrev(true)} data-testid="button-load-prev"
-                  >
+                  <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setShowLoadPrev(true)} data-testid="button-load-prev">
                     <History className="w-3.5 h-3.5" />이전 조사 복사
                   </Button>
                 </div>
-              )}
-            </div>
-            {/* 스텝 인디케이터 */}
-            {!editingId && (
-              <div className="flex items-center justify-center gap-0 mt-2 pt-2 border-t border-border">
-                {[
-                  { icon: "👤", label: "기본정보", step: 0 },
-                  { icon: "⚠️", label: "부담작업", step: 1 },
-                  { icon: "📋", label: "증상조사", step: 2 },
-                  { icon: "✅", label: "등록완료", step: 3 },
-                ].map((s, i) => {
-                  const currentStep = !showChecklist ? 0 : 1;
-                  const active = currentStep === s.step;
-                  const done = currentStep > s.step;
-                  return (
-                    <div key={s.step} className="flex items-center">
-                      <div className="flex flex-col items-center gap-0.5">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm transition-all ${active ? "bg-purple-600 text-white shadow-sm" : done ? "bg-purple-200 dark:bg-purple-800 text-purple-700 dark:text-purple-300" : "bg-muted text-muted-foreground"}`}>
-                          {s.icon}
-                        </div>
-                        <span className={`text-[10px] font-medium ${active ? "text-purple-700 dark:text-purple-300" : "text-muted-foreground"}`}>
-                          {s.label}
-                        </span>
-                      </div>
-                      {i < 3 && (
-                        <div className={`w-10 h-px mx-1 mb-4 ${done ? "bg-purple-400" : "bg-border"}`} />
-                      )}
-                    </div>
-                  );
-                })}
               </div>
             )}
-          </DialogHeader>
+          </div>
+          <div className="px-6 pb-6 pt-5 space-y-4">
 
           {/* ─── 기본 정보 (먼저) ─────────────────────────────────── */}
           <div className="rounded-xl border border-purple-100 dark:border-purple-900/50 bg-purple-50/40 dark:bg-purple-900/10 p-4 space-y-4">
@@ -1460,10 +1482,10 @@ export default function MusculoskeletalDisease() {
               <span className="text-base">👤</span> Ⅰ. 기본 정보
             </p>
 
-            {/* 성명 / 평가일 */}
-            <div className="grid grid-cols-2 gap-3">
+            {/* 성명(선택) / 연령 / 성별 — 3컬럼 (모바일 QR폼과 동일) */}
+            <div className="grid grid-cols-3 gap-3">
               <div className="space-y-1.5">
-                <Label className="text-sm font-medium">성명 (선택)</Label>
+                <Label className="text-sm font-medium">성명 <span className="text-xs text-muted-foreground font-normal">(선택)</span></Label>
                 <Input
                   list="assessor-suggestions-list"
                   value={form.assessor}
@@ -1476,20 +1498,6 @@ export default function MusculoskeletalDisease() {
                   {assessorSuggestions.map(s => <option key={s} value={s!} />)}
                 </datalist>
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-sm font-medium">평가일</Label>
-                <Input
-                  type="date"
-                  value={form.assessmentDate}
-                  onChange={e => updateField("assessmentDate", e.target.value)}
-                  className="h-9 bg-white dark:bg-background"
-                  data-testid="input-assessment-date"
-                />
-              </div>
-            </div>
-
-            {/* 연령 / 성별 */}
-            <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-sm font-medium">연령</Label>
                 <Input
@@ -1517,6 +1525,20 @@ export default function MusculoskeletalDisease() {
                     >{g}</button>
                   ))}
                 </div>
+              </div>
+            </div>
+
+            {/* 평가일 */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">평가일</Label>
+                <Input
+                  type="date"
+                  value={form.assessmentDate}
+                  onChange={e => updateField("assessmentDate", e.target.value)}
+                  className="h-9 bg-white dark:bg-background"
+                  data-testid="input-assessment-date"
+                />
               </div>
             </div>
 
@@ -1758,7 +1780,7 @@ export default function MusculoskeletalDisease() {
             );
           })()}
 
-          <DialogFooter className="gap-2 pt-2">
+          <DialogFooter className="gap-2 px-6 pb-6 pt-2">
             {!editingId && (
               <Button
                 variant="ghost" size="sm" className="mr-auto text-muted-foreground text-xs"
@@ -1779,6 +1801,7 @@ export default function MusculoskeletalDisease() {
               {editingId ? "수정" : "등록"}
             </Button>
           </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
 

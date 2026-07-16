@@ -4818,6 +4818,57 @@ ${buildEmailFooter()}
 
       ws.autoFilter = { from: 'A1', to: 'M1' };
 
+      // ─── 시트2: 증상조사표 결과 ────────────────────────────────────
+      const allSurveys = await storage.getAllSymptomSurveys(hq);
+      const ws2 = wb.addWorksheet('증상조사표 결과');
+      ws2.columns = [
+        { header: 'No', key: 'no', width: 6 },
+        { header: '부서', key: 'dept', width: 14 },
+        { header: '성명', key: 'name', width: 12 },
+        { header: '조사일', key: 'surveyDate', width: 13 },
+        { header: '목', key: 'neck', width: 8 },
+        { header: '어깨', key: 'shoulder', width: 8 },
+        { header: '팔/팔꿈치', key: 'elbow', width: 10 },
+        { header: '손/손목', key: 'wrist', width: 10 },
+        { header: '허리', key: 'back', width: 8 },
+        { header: '다리/발', key: 'leg', width: 10 },
+        { header: '통증있음', key: 'hasPain', width: 10 },
+        { header: '상태', key: 'status', width: 14 },
+      ];
+
+      const hdrRow2 = ws2.getRow(1);
+      hdrRow2.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 };
+      hdrRow2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF7C3AED' } };
+      hdrRow2.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+      hdrRow2.height = 26;
+
+      allSurveys.forEach((s, i) => {
+        const row2 = ws2.addRow({
+          no: i + 1,
+          dept: (s as any).workerDept ?? '',
+          name: (s as any).workerName ?? '익명',
+          surveyDate: (s as any).surveyDate ?? '',
+          neck: (s as any).neckPain ? '○' : '',
+          shoulder: (s as any).shoulderPain ? '○' : '',
+          elbow: (s as any).elbowPain ? '○' : '',
+          wrist: (s as any).wristPain ? '○' : '',
+          back: (s as any).backPain ? '○' : '',
+          leg: (s as any).legPain ? '○' : '',
+          hasPain: (s as any).hasPain === '예' ? '예' : (s as any).hasPain === '아니오' ? '아니오' : '',
+          status: (s as any).status ?? '',
+        });
+        row2.height = 18;
+        row2.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+        row2.eachCell(cell => {
+          cell.border = { top:{style:'thin'}, bottom:{style:'thin'}, left:{style:'thin'}, right:{style:'thin'} };
+          if ((i % 2) === 1) cell.fill = { type:'pattern', pattern:'solid', fgColor:{ argb:'FFF5F3FF' } };
+        });
+        if ((s as any).hasPain === '예') {
+          row2.getCell('hasPain').font = { bold: true, color: { argb: 'FFEF4444' } };
+        }
+      });
+      ws2.autoFilter = { from: 'A1', to: 'L1' };
+
       const buf = await wb.xlsx.writeBuffer();
       const filename = encodeURIComponent(`근골격계유해요인조사_${new Date().toISOString().slice(0,10)}.xlsx`);
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');

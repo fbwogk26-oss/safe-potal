@@ -215,6 +215,7 @@ export interface IStorage {
   updateSymptomSurvey(id: number, data: Partial<InsertMusculoskeletalSymptomSurvey>): Promise<MusculoskeletalSymptomSurvey>;
   deleteSymptomSurvey(id: number): Promise<void>;
   getPendingSymptomCount(headquarters?: string): Promise<number>;
+  getAllSymptomSurveys(headquarters?: string): Promise<MusculoskeletalSymptomSurvey[]>;
   // Interview Logs (면담일지)
   getInterviews(assessmentId: number): Promise<MusculoskeletalInterview[]>;
   getInterview(id: number): Promise<MusculoskeletalInterview | undefined>;
@@ -839,6 +840,19 @@ export class DatabaseStorage implements IStorage {
       ${headquarters ? sql`AND headquarters = ${headquarters}` : sql``}
     `);
     return Number((result.rows[0] as any)?.cnt ?? 0);
+  }
+
+  async getAllSymptomSurveys(headquarters?: string): Promise<MusculoskeletalSymptomSurvey[]> {
+    if (headquarters && headquarters !== '전체') {
+      const assessments = await this.getMusculoskeletalAssessments(headquarters);
+      const ids = assessments.map(a => a.id);
+      if (ids.length === 0) return [];
+      return await db.select().from(musculoskeletalSymptomSurveys)
+        .where(inArray(musculoskeletalSymptomSurveys.assessmentId, ids))
+        .orderBy(musculoskeletalSymptomSurveys.assessmentId);
+    }
+    return await db.select().from(musculoskeletalSymptomSurveys)
+      .orderBy(musculoskeletalSymptomSurveys.assessmentId);
   }
 
   // === INTERVIEW LOGS (면담일지) ===
