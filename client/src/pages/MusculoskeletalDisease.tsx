@@ -1214,7 +1214,7 @@ export default function MusculoskeletalDisease() {
         /* ─── 기본 테이블뷰 ──────────────────────────────────────── */
         <Card className="overflow-hidden">
           <CardContent className="p-0 overflow-x-auto">
-            <table className="w-full text-sm" data-testid="table-assessments">
+            <table className="w-full text-sm table-fixed" data-testid="table-assessments">
               <thead>
                 <tr className="bg-muted/60 border-b border-border">
                   {selectionMode && (
@@ -1233,7 +1233,7 @@ export default function MusculoskeletalDisease() {
                   <th className="px-2 py-3 text-left text-xs font-semibold text-muted-foreground w-20">부서</th>
                   <th className="px-2 py-3 text-left text-xs font-semibold text-muted-foreground w-20">평가자</th>
                   <th className="px-2 py-3 text-left text-xs font-semibold text-muted-foreground w-20">평가일</th>
-                  <th className="px-2 py-3 text-left text-xs font-semibold text-muted-foreground min-w-[80px]">부담작업</th>
+                  <th className="px-2 py-3 text-left text-xs font-semibold text-muted-foreground w-44">부담작업</th>
                   <th className="px-2 py-3 text-left text-xs font-semibold text-muted-foreground w-16">위험수준</th>
                   <th className="px-2 py-3 text-left text-xs font-semibold text-muted-foreground w-32">상태</th>
                   <th className="px-2 py-3 text-left text-xs font-semibold text-muted-foreground w-10">관리</th>
