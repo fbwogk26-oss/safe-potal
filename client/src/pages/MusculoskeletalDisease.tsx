@@ -1193,10 +1193,31 @@ export default function MusculoskeletalDisease() {
                           {!item.assessor && !item.assessmentDate && <span className="text-xs text-muted-foreground">-</span>}
                         </td>
                         {/* 상태 */}
-                        <td className="px-3 py-3">
-                          <Badge className={`${getStatusBadgeClass(item.status)} no-default-hover-elevate no-default-active-elevate text-xs px-2 py-1 rounded-full whitespace-nowrap`} data-testid={`badge-status-${item.id}`}>
-                            {item.status}
-                          </Badge>
+                        <td className="px-3 py-3" onClick={e => e.stopPropagation()}>
+                          {isPendingSymptom ? (
+                            <button
+                              type="button"
+                              onClick={() => setSurveyAssessmentId(item.id)}
+                              data-testid={`button-survey-${item.id}`}
+                              className="group relative flex flex-col items-start gap-1 w-full text-left focus:outline-none"
+                            >
+                              <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1.5 rounded-lg whitespace-nowrap cursor-pointer transition-all shadow-sm
+                                ${item.status === "증상조사 대기"
+                                  ? "bg-orange-500 hover:bg-orange-600 text-white animate-pulse"
+                                  : "bg-purple-600 hover:bg-purple-700 text-white"
+                                }`}>
+                                <History className="w-3 h-3 flex-shrink-0" />
+                                {item.status === "증상조사 대기" ? "증상조사 입력" : "진행중 · 계속"}
+                              </span>
+                              <span className="text-[10px] text-orange-600 dark:text-orange-400 font-medium group-hover:underline">
+                                클릭하여 작성 →
+                              </span>
+                            </button>
+                          ) : (
+                            <Badge className={`${getStatusBadgeClass(item.status)} no-default-hover-elevate no-default-active-elevate text-xs px-2 py-1 rounded-full whitespace-nowrap`} data-testid={`badge-status-${item.id}`}>
+                              {item.status}
+                            </Badge>
+                          )}
                         </td>
                         {/* 관리 */}
                         <td className="px-3 py-3">
@@ -1211,16 +1232,6 @@ export default function MusculoskeletalDisease() {
                               data-testid={`button-history-${item.id}`}>
                               <Clock className="w-3.5 h-3.5 text-muted-foreground" />
                             </Button>
-                            {isPendingSymptom && (
-                              <Button
-                                variant="ghost" size="sm"
-                                className="h-7 text-[11px] px-2 font-semibold text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 whitespace-nowrap"
-                                onClick={() => setSurveyAssessmentId(item.id)}
-                                data-testid={`button-survey-${item.id}`}
-                              >
-                                <History className="w-3 h-3 mr-1" />증상조사
-                              </Button>
-                            )}
                             {canEdit && isOwner(item.createdBy) && (
                               <>
                                 <Button variant="ghost" size="icon" className="h-7 w-7"
