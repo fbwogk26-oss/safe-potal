@@ -47,6 +47,12 @@ const BURDEN_LEVELS = ["전혀 힘들지 않음","견딜만 함","약간 힘듦"
 const WORK_TYPES = ["현장운용","일반사무"];
 
 type Step = "info" | "burden" | "symptoms" | "done";
+const ALL_STEPS: { key: Step; label: string; icon: React.ElementType }[] = [
+  { key:"info",     label:"기본정보",  icon:User },
+  { key:"burden",   label:"부담작업",  icon:Briefcase },
+  { key:"symptoms", label:"증상조사",  icon:Activity },
+  { key:"done",     label:"등록완료",  icon:CheckCircle2 },
+];
 
 interface BodySym {
   side: string;
@@ -97,29 +103,36 @@ function RadioGroup({ opts, value, onChange, cols = 2 }: { opts: string[]; value
   );
 }
 
-const STEPS: { key: Step; label: string; icon: React.ElementType }[] = [
-  { key:"info",     label:"기본정보", icon:User },
-  { key:"burden",   label:"부담작업", icon:Briefcase },
-  { key:"symptoms", label:"증상조사", icon:Activity },
-];
+const STEP_TITLES: Record<Step, string> = {
+  info:     "근골격계 유해요인조사\n기본정보 입력",
+  burden:   "근골격계 부담작업 조사",
+  symptoms: "근골격계질환 증상조사",
+  done:     "등록 완료",
+};
+const STEP_SUBTITLES: Record<Step, string> = {
+  info:     "산업안전보건법에 따른 근골격계 유해요인조사 · 결과는 안전담당자만 열람합니다",
+  burden:   "현재 수행 중인 작업의 유해요인을 파악합니다",
+  symptoms: "신체 부위별 통증 및 불편 증상을 기입해 주세요",
+  done:     "안전담당자가 검토 후 연락드릴 예정입니다",
+};
 
 function StepBar({ current }: { current: Step }) {
-  const idx = STEPS.findIndex(s => s.key === current);
+  const idx = ALL_STEPS.findIndex(s => s.key === current);
   return (
-    <div className="flex items-center justify-center gap-1 sm:gap-2">
-      {STEPS.map((s, i) => {
-        const done = i < idx || current === "done";
-        const active = s.key === current;
+    <div className="flex items-center justify-center gap-0.5 sm:gap-2">
+      {ALL_STEPS.map((s, i) => {
+        const isDone = i < idx;
+        const isActive = s.key === current;
         const Icon = s.icon;
         return (
-          <div key={s.key} className="flex items-center gap-1 sm:gap-2">
+          <div key={s.key} className="flex items-center gap-0.5 sm:gap-2">
             <div className="flex flex-col items-center gap-1">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${active ? "bg-purple-600 text-white" : done ? "bg-purple-200 dark:bg-purple-800 text-purple-700 dark:text-purple-300" : "bg-muted text-muted-foreground"}`}>
-                {done && !active ? <CheckCircle2 className="w-4 h-4" /> : <Icon className="w-4 h-4" />}
+              <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-colors ${isActive ? "bg-purple-600 text-white" : isDone ? "bg-purple-200 dark:bg-purple-800 text-purple-700 dark:text-purple-300" : "bg-muted text-muted-foreground"}`}>
+                {isDone ? <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
               </div>
-              <span className={`text-[10px] hidden sm:block font-medium ${active ? "text-purple-700 dark:text-purple-400" : "text-muted-foreground"}`}>{s.label}</span>
+              <span className={`text-[9px] sm:text-[10px] font-medium ${isActive ? "text-purple-700 dark:text-purple-400" : "text-muted-foreground"}`}>{s.label}</span>
             </div>
-            {i < STEPS.length - 1 && <div className={`h-px w-6 sm:w-10 transition-colors ${i < idx ? "bg-purple-400" : "bg-border"}`} />}
+            {i < ALL_STEPS.length - 1 && <div className={`h-px w-4 sm:w-10 mb-3 transition-colors ${i < idx ? "bg-purple-400" : "bg-border"}`} />}
           </div>
         );
       })}
@@ -243,12 +256,14 @@ export default function PublicMusculoskeletal() {
             <Bone className="w-8 h-8 text-purple-600 dark:text-purple-400" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold">근골격계질환 증상조사표</h1>
-            <p className="text-sm text-muted-foreground mt-1">산업안전보건법에 따른 근골격계 유해요인조사 · 결과는 안전담당자만 열람합니다</p>
+            <h1 className="text-xl sm:text-2xl font-bold whitespace-pre-line leading-tight">
+              {STEP_TITLES[step]}
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1.5">{STEP_SUBTITLES[step]}</p>
           </div>
         </div>
 
-        {step !== "done" && <StepBar current={step} />}
+        <StepBar current={step} />
 
         <AnimatePresence mode="wait">
 
@@ -357,8 +372,8 @@ export default function PublicMusculoskeletal() {
                         className={`w-full text-left rounded-xl border transition-all overflow-hidden ${sel?"border-purple-500 bg-purple-50 dark:bg-purple-900/30":"border-border hover:border-purple-300 hover:bg-purple-50/30"}`}
                         data-testid={`button-burden-${bw.no}`}>
                         <div className="flex items-stretch">
-                          <div className="flex-shrink-0 w-20 h-16 bg-white dark:bg-white/90 flex items-center justify-center p-1 border-r border-border/40">
-                            <img src={BURDEN_ILLUS[bw.no-1]} alt={`${bw.no}호`} className="w-full h-full object-contain" />
+                          <div className="flex-shrink-0 w-16 sm:w-20 bg-white dark:bg-white/90 flex items-center justify-center p-1.5 border-r border-border/40">
+                            <img src={BURDEN_ILLUS[bw.no-1]} alt={`${bw.no}호`} className="w-14 h-14 sm:w-16 sm:h-16 object-contain" />
                           </div>
                           <div className="flex items-center gap-3 px-3 py-2 flex-1 min-w-0">
                             <div className={`w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-colors ${sel?"border-purple-500 bg-purple-500":"border-muted-foreground/40"}`}>

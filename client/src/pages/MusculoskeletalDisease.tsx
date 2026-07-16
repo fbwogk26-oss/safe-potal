@@ -473,6 +473,77 @@ export default function MusculoskeletalDisease() {
     setSurveyForm({ ...s });
   };
 
+  // ── 면담일지 (Interview Log) ─────────────────────────────────────────────
+  const [interviewAssessmentId, setInterviewAssessmentId] = useState<number | null>(null);
+  const [interviewEditingId, setInterviewEditingId] = useState<number | null>(null);
+  const defaultInterviewForm = () => ({
+    workerName: "", workerDept: "", workerPosition: "", assignedWork: "",
+    interviewDate: new Date().toISOString().split("T")[0],
+    hazardDetails: "", mainSymptoms: "", discomfortIssues: "",
+    improvementMeasures: "", requests: "", interviewerName: "",
+  });
+  const [interviewForm, setInterviewForm] = useState<Record<string, string>>(defaultInterviewForm());
+  const resetInterviewForm = () => { setInterviewEditingId(null); setInterviewForm(defaultInterviewForm()); };
+
+  const { data: interviewList, isLoading: interviewsLoading } = useQuery<any[]>({
+    queryKey: ["/api/musculoskeletal-assessments", interviewAssessmentId, "interviews"],
+    queryFn: () => fetch(`/api/musculoskeletal-assessments/${interviewAssessmentId}/interviews`, { credentials: "include" }).then(r => r.json()),
+    enabled: interviewAssessmentId !== null,
+  });
+
+  const createInterviewMutation = useMutation({
+    mutationFn: (data: Record<string, string>) =>
+      fetch(`/api/musculoskeletal-assessments/${interviewAssessmentId}/interviews`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }).then(async r => { if (!r.ok) throw new Error(await r.text()); return r.json(); }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments", interviewAssessmentId, "interviews"] });
+      resetInterviewForm();
+      toast({ title: "면담일지가 등록되었습니다." });
+    },
+    onError: () => toast({ variant: "destructive", title: "등록에 실패했습니다." }),
+  });
+
+  const updateInterviewMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: Record<string, string> }) =>
+      fetch(`/api/musculoskeletal-interviews/${id}`, {
+        method: "PUT", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }).then(async r => { if (!r.ok) throw new Error(await r.text()); return r.json(); }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments", interviewAssessmentId, "interviews"] });
+      resetInterviewForm();
+      toast({ title: "면담일지가 수정되었습니다." });
+    },
+    onError: () => toast({ variant: "destructive", title: "수정에 실패했습니다." }),
+  });
+
+  const deleteInterviewMutation = useMutation({
+    mutationFn: (id: number) =>
+      fetch(`/api/musculoskeletal-interviews/${id}`, { method: "DELETE", credentials: "include" })
+        .then(async r => { if (!r.ok) throw new Error(await r.text()); }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments", interviewAssessmentId, "interviews"] });
+      toast({ title: "면담일지가 삭제되었습니다." });
+    },
+    onError: () => toast({ variant: "destructive", title: "삭제에 실패했습니다." }),
+  });
+
+  const handleInterviewSubmit = () => {
+    if (!interviewForm.workerName.trim()) {
+      toast({ variant: "destructive", title: "성명을 입력하세요." });
+      return;
+    }
+    if (interviewEditingId) {
+      updateInterviewMutation.mutate({ id: interviewEditingId, data: interviewForm });
+    } else {
+      createInterviewMutation.mutate(interviewForm);
+    }
+  };
+
   const handleSurveySubmit = () => {
     if (!surveyForm.workerName) {
       toast({ variant: "destructive", title: "근로자명을 입력하세요." });
@@ -1688,6 +1759,14 @@ export default function MusculoskeletalDisease() {
                       )}
                     </div>
                     <div className="flex gap-1">
+                      <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/30"
+                        onClick={() => {
+                          setInterviewAssessmentId(surveyAssessmentId);
+                          setInterviewForm(f => ({ ...f, workerName: s.workerName, workerDept: s.workerDept || "" }));
+                        }}
+                        data-testid={`button-interview-${s.id}`}>
+                        면담일지
+                      </Button>
                       <Button variant="ghost" size="icon" className="h-7 w-7"
                         onClick={() => handleSurveyEdit(s)} data-testid={`button-survey-edit-${s.id}`}>
                         <Pencil className="w-3.5 h-3.5" />
@@ -1964,6 +2043,155 @@ export default function MusculoskeletalDisease() {
           </Dialog>
         );
       })()}
+
+      {/* ─── 면담일지 다이얼로그 ────────────────────────────────────────── */}
+      <Dialog open={interviewAssessmentId !== null} onOpenChange={o => { if (!o) { setInterviewAssessmentId(null); resetInterviewForm(); } }}>
+        <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Bone className="w-4 h-4 text-purple-600" />
+              근골격계 증상조사자 면담일지
+            </DialogTitle>
+            <DialogDescription>증상조사를 마친 근로자와의 면담 내용을 기록합니다.</DialogDescription>
+          </DialogHeader>
+
+          {interviewsLoading ? (
+            <div className="py-4 text-center text-muted-foreground text-sm">로딩 중...</div>
+          ) : (interviewList || []).length === 0 ? (
+            <div className="py-3 text-center text-muted-foreground text-sm">등록된 면담일지가 없습니다.</div>
+          ) : (
+            <div className="space-y-2 mb-2">
+              <Label className="text-sm font-semibold">등록된 면담일지 ({interviewList!.length}건)</Label>
+              {interviewList!.map((iv: any) => (
+                <div key={iv.id} className="flex items-start justify-between border rounded-lg px-3 py-2.5 text-sm gap-2">
+                  <div className="space-y-0.5 flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium">{iv.workerName}</span>
+                      {iv.workerDept && <span className="text-muted-foreground text-xs">({iv.workerDept})</span>}
+                      {iv.workerPosition && <span className="text-muted-foreground text-xs">· {iv.workerPosition}</span>}
+                      <span className="text-xs text-muted-foreground">{iv.interviewDate}</span>
+                    </div>
+                    {iv.mainSymptoms && <p className="text-xs text-orange-600">주요 증상: {iv.mainSymptoms}</p>}
+                    {iv.interviewerName && <p className="text-xs text-muted-foreground">면담자: {iv.interviewerName}</p>}
+                  </div>
+                  <div className="flex gap-1 flex-shrink-0">
+                    <Button variant="ghost" size="icon" className="h-7 w-7"
+                      onClick={() => { setInterviewEditingId(iv.id); setInterviewForm({ workerName: iv.workerName || "", workerDept: iv.workerDept || "", workerPosition: iv.workerPosition || "", assignedWork: iv.assignedWork || "", interviewDate: iv.interviewDate || "", hazardDetails: iv.hazardDetails || "", mainSymptoms: iv.mainSymptoms || "", discomfortIssues: iv.discomfortIssues || "", improvementMeasures: iv.improvementMeasures || "", requests: iv.requests || "", interviewerName: iv.interviewerName || "" }); }}
+                      data-testid={`button-interview-edit-${iv.id}`}>
+                      <Pencil className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-7 w-7"
+                      onClick={() => { if (confirm("삭제하시겠습니까?")) deleteInterviewMutation.mutate(iv.id); }}
+                      data-testid={`button-interview-delete-${iv.id}`}>
+                      <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="border-t border-border pt-4 space-y-4">
+            <Label className="text-sm font-semibold">{interviewEditingId ? "면담일지 수정" : "새 면담일지 작성"}</Label>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">면담 일자</Label>
+                <Input type="date" value={interviewForm.interviewDate}
+                  onChange={e => setInterviewForm(f => ({ ...f, interviewDate: e.target.value }))}
+                  className="h-8 text-sm" data-testid="input-interview-date" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">부서</Label>
+                <Input value={interviewForm.workerDept}
+                  onChange={e => setInterviewForm(f => ({ ...f, workerDept: e.target.value }))}
+                  className="h-8 text-sm" placeholder="부서명" data-testid="input-interview-dept" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">직책</Label>
+                <Input value={interviewForm.workerPosition}
+                  onChange={e => setInterviewForm(f => ({ ...f, workerPosition: e.target.value }))}
+                  className="h-8 text-sm" placeholder="직책" data-testid="input-interview-position" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">성명 *</Label>
+                <Input value={interviewForm.workerName}
+                  onChange={e => setInterviewForm(f => ({ ...f, workerName: e.target.value }))}
+                  className="h-8 text-sm" placeholder="이름" data-testid="input-interview-name" />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">담당 업무</Label>
+              <Input value={interviewForm.assignedWork}
+                onChange={e => setInterviewForm(f => ({ ...f, assignedWork: e.target.value }))}
+                className="h-8 text-sm" placeholder="예) 기지국 유지보수, 사무업무 등"
+                data-testid="input-interview-work" />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">유해요인 조사내역 (부담작업 해당 호수)</Label>
+                <Input value={interviewForm.hazardDetails}
+                  onChange={e => setInterviewForm(f => ({ ...f, hazardDetails: e.target.value }))}
+                  className="h-8 text-sm" placeholder="예) 1호(손), 2호(목)" data-testid="input-interview-hazard" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">주요 증상 부위</Label>
+                <Input value={interviewForm.mainSymptoms}
+                  onChange={e => setInterviewForm(f => ({ ...f, mainSymptoms: e.target.value }))}
+                  className="h-8 text-sm" placeholder="예) 손, 허리" data-testid="input-interview-symptoms" />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">업무 간 불편사항</Label>
+              <Textarea value={interviewForm.discomfortIssues}
+                onChange={e => setInterviewForm(f => ({ ...f, discomfortIssues: e.target.value }))}
+                placeholder="업무 중 불편한 사항을 기술하세요"
+                className="text-sm min-h-[72px]" data-testid="textarea-interview-discomfort" />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">개선 대책</Label>
+              <Textarea value={interviewForm.improvementMeasures}
+                onChange={e => setInterviewForm(f => ({ ...f, improvementMeasures: e.target.value }))}
+                placeholder="개선 방안 및 조치 계획을 입력하세요"
+                className="text-sm min-h-[72px]" data-testid="textarea-interview-improvement" />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">요청 사항</Label>
+              <Textarea value={interviewForm.requests}
+                onChange={e => setInterviewForm(f => ({ ...f, requests: e.target.value }))}
+                placeholder="근로자 요청 사항을 입력하세요"
+                className="text-sm min-h-[56px]" data-testid="textarea-interview-requests" />
+            </div>
+
+            <div className="space-y-1 max-w-xs">
+              <Label className="text-xs">면담자 성명 (서명)</Label>
+              <Input value={interviewForm.interviewerName}
+                onChange={e => setInterviewForm(f => ({ ...f, interviewerName: e.target.value }))}
+                className="h-8 text-sm" placeholder="부서장 성명" data-testid="input-interview-interviewer" />
+            </div>
+          </div>
+
+          <DialogFooter className="flex-col-reverse sm:flex-row gap-2 pt-2">
+            {interviewEditingId && (
+              <Button variant="outline" onClick={resetInterviewForm} className="sm:mr-auto">취소</Button>
+            )}
+            <Button variant="outline" onClick={() => { setInterviewAssessmentId(null); resetInterviewForm(); }}>닫기</Button>
+            <Button
+              className="bg-purple-600 hover:bg-purple-700 text-white"
+              onClick={handleInterviewSubmit}
+              disabled={createInterviewMutation.isPending || updateInterviewMutation.isPending}
+              data-testid="button-interview-submit"
+            >
+              {createInterviewMutation.isPending || updateInterviewMutation.isPending ? "저장 중..." : interviewEditingId ? "수정 저장" : "면담일지 등록"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ─── 변경이력 다이얼로그 ────────────────────────────────────── */}
       <Dialog open={historyId !== null} onOpenChange={o => { if (!o) setHistoryId(null); }}>

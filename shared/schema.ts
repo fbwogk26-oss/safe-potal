@@ -374,6 +374,29 @@ export const insertMusculoskeletalSymptomSurveySchema = createInsertSchema(muscu
 export type MusculoskeletalSymptomSurvey = typeof musculoskeletalSymptomSurveys.$inferSelect;
 export type InsertMusculoskeletalSymptomSurvey = z.infer<typeof insertMusculoskeletalSymptomSurveySchema>;
 
+// === 근골격계 면담일지 (Musculoskeletal Interview Log) ===
+export const musculoskeletalInterviews = pgTable("musculoskeletal_interviews", {
+  id: serial("id").primaryKey(),
+  assessmentId: integer("assessment_id").notNull(),
+  workerName: text("worker_name").notNull(),
+  workerDept: text("worker_dept"),
+  workerPosition: text("worker_position"),
+  assignedWork: text("assigned_work"),
+  interviewDate: text("interview_date"),
+  hazardDetails: text("hazard_details"),
+  mainSymptoms: text("main_symptoms"),
+  discomfortIssues: text("discomfort_issues"),
+  improvementMeasures: text("improvement_measures"),
+  requests: text("requests"),
+  interviewerName: text("interviewer_name"),
+  createdBy: text("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertMusculoskeletalInterviewSchema = createInsertSchema(musculoskeletalInterviews).omit({ id: true, createdAt: true });
+export type MusculoskeletalInterview = typeof musculoskeletalInterviews.$inferSelect;
+export type InsertMusculoskeletalInterview = z.infer<typeof insertMusculoskeletalInterviewSchema>;
+
 // === 위험성평가 (Risk Assessment - KRAS) ===
 export const riskAssessments = pgTable("risk_assessments", {
   id: serial("id").primaryKey(),

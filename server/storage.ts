@@ -3,7 +3,7 @@ import {
   teams, notices, settings, safetyEquipment, safetyInspections,
   educationSessions, educationSignatures,
   users, vehicles,
-  chemicals, riskAssessments, accidentReports, newEquipmentRequests, musculoskeletalAssessments, musculoskeletalSymptomSurveys, trafficFines,
+  chemicals, riskAssessments, accidentReports, newEquipmentRequests, musculoskeletalAssessments, musculoskeletalSymptomSurveys, musculoskeletalInterviews, trafficFines,
   type Team, type InsertTeam, type UpdateTeamRequest,
   type Notice, type InsertNotice,
   type Setting,
@@ -18,6 +18,7 @@ import {
   type NewEquipmentRequest, type InsertNewEquipmentRequest,
   type MusculoskeletalAssessment, type InsertMusculoskeletalAssessment,
   type MusculoskeletalSymptomSurvey, type InsertMusculoskeletalSymptomSurvey,
+  type MusculoskeletalInterview, type InsertMusculoskeletalInterview,
   type TrafficFine, type InsertTrafficFine,
   drillSessions, drillAssignments,
   type DrillSession, type InsertDrillSession,
@@ -214,6 +215,12 @@ export interface IStorage {
   updateSymptomSurvey(id: number, data: Partial<InsertMusculoskeletalSymptomSurvey>): Promise<MusculoskeletalSymptomSurvey>;
   deleteSymptomSurvey(id: number): Promise<void>;
   getPendingSymptomCount(headquarters?: string): Promise<number>;
+  // Interview Logs (면담일지)
+  getInterviews(assessmentId: number): Promise<MusculoskeletalInterview[]>;
+  getInterview(id: number): Promise<MusculoskeletalInterview | undefined>;
+  createInterview(data: InsertMusculoskeletalInterview): Promise<MusculoskeletalInterview>;
+  updateInterview(id: number, data: Partial<InsertMusculoskeletalInterview>): Promise<MusculoskeletalInterview>;
+  deleteInterview(id: number): Promise<void>;
 
   // Vehicles
   getVehicles(headquarters?: string): Promise<any[]>;
@@ -832,6 +839,36 @@ export class DatabaseStorage implements IStorage {
       ${headquarters ? sql`AND headquarters = ${headquarters}` : sql``}
     `);
     return Number((result.rows[0] as any)?.cnt ?? 0);
+  }
+
+  // === INTERVIEW LOGS (면담일지) ===
+  async getInterviews(assessmentId: number): Promise<MusculoskeletalInterview[]> {
+    return await db.select().from(musculoskeletalInterviews)
+      .where(eq(musculoskeletalInterviews.assessmentId, assessmentId))
+      .orderBy(desc(musculoskeletalInterviews.createdAt));
+  }
+
+  async getInterview(id: number): Promise<MusculoskeletalInterview | undefined> {
+    const [r] = await db.select().from(musculoskeletalInterviews)
+      .where(eq(musculoskeletalInterviews.id, id));
+    return r;
+  }
+
+  async createInterview(data: InsertMusculoskeletalInterview): Promise<MusculoskeletalInterview> {
+    const [created] = await db.insert(musculoskeletalInterviews).values(data).returning();
+    return created;
+  }
+
+  async updateInterview(id: number, data: Partial<InsertMusculoskeletalInterview>): Promise<MusculoskeletalInterview> {
+    const [updated] = await db.update(musculoskeletalInterviews)
+      .set(data)
+      .where(eq(musculoskeletalInterviews.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteInterview(id: number): Promise<void> {
+    await db.delete(musculoskeletalInterviews).where(eq(musculoskeletalInterviews.id, id));
   }
 
   // === TRAFFIC FINES ===

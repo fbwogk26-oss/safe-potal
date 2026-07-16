@@ -4957,6 +4957,36 @@ ${buildEmailFooter()}
     } catch { res.status(500).json({ message: "삭제 실패" }); }
   });
 
+  // ── 면담일지 (Interview Logs) ──
+  app.get('/api/musculoskeletal-assessments/:id/interviews', isAuthenticated, async (req: any, res) => {
+    try {
+      const list = await storage.getInterviews(Number(req.params.id));
+      res.json(list);
+    } catch { res.status(500).json({ message: "조회 실패" }); }
+  });
+
+  app.post('/api/musculoskeletal-assessments/:id/interviews', requireEditor, async (req: any, res) => {
+    try {
+      const assessmentId = Number(req.params.id);
+      const created = await storage.createInterview({ ...req.body, assessmentId, createdBy: req.user?.username || null });
+      res.status(201).json(created);
+    } catch { res.status(500).json({ message: "등록 실패" }); }
+  });
+
+  app.put('/api/musculoskeletal-interviews/:id', requireEditor, async (req: any, res) => {
+    try {
+      const updated = await storage.updateInterview(Number(req.params.id), req.body);
+      res.json(updated);
+    } catch { res.status(500).json({ message: "수정 실패" }); }
+  });
+
+  app.delete('/api/musculoskeletal-interviews/:id', requireEditor, async (req: any, res) => {
+    try {
+      await storage.deleteInterview(Number(req.params.id));
+      res.json({ success: true });
+    } catch { res.status(500).json({ message: "삭제 실패" }); }
+  });
+
   // === RISK ASSESSMENTS ===
 
   // 위험성평가 엑셀 다운로드 (사진 포함)
