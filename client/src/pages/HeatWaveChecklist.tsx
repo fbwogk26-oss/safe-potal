@@ -900,6 +900,7 @@ type ParsedCSVData = {
   avgTemp: number;
   avgHumidity: number;
   dominantHeatLevel: string;
+  selectedRegion?: 'all' | 'daegubuk' | 'chungcheong' | 'honam' | 'buulgyeong';
 };
 
 
@@ -1469,6 +1470,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
         avgTemp: temps.length ? temps.reduce((a,b)=>a+b,0)/temps.length : 0,
         avgHumidity: hums.length ? hums.reduce((a,b)=>a+b,0)/hums.length : 0,
         dominantHeatLevel,
+        selectedRegion,
       });
     }
     if (matched > 0) {
@@ -1550,7 +1552,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
       const stageCounts: Record<string,number> = {};
       regions.forEach(r => { if (r.stage) stageCounts[r.stage] = (stageCounts[r.stage] ?? 0) + 1; });
       const dominantHeatLevel = Object.entries(stageCounts).sort((a,b) => b[1]-a[1])[0]?.[0] ?? '';
-      onDataParsed({ date: regions[0]?.time ?? '', maxFeelsLike: maxFeels, avgTemp, avgHumidity: avgHum, dominantHeatLevel });
+      onDataParsed({ date: regions[0]?.time ?? '', maxFeelsLike: maxFeels, avgTemp, avgHumidity: avgHum, dominantHeatLevel, selectedRegion });
     }
   }
 
@@ -1876,6 +1878,15 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
 
 
 
+// 권역 키 → 체크리스트 대상지역 문자열
+const REGION_TO_TARGET: Record<string, string> = {
+  daegubuk:    '대구 / 경북',
+  chungcheong: '충청권',
+  honam:       '호남권',
+  buulgyeong:  '부산 / 울산 / 경남',
+  all:         '전체',
+};
+
 export default function HeatWaveChecklist() {
   const { toast } = useToast();
   const [showForm, setShowForm] = useState(false);
@@ -1885,6 +1896,9 @@ export default function HeatWaveChecklist() {
   const [pdfViewing, setPdfViewing] = useState<HeatWaveChecklist | null>(null);
   const [isPdfDownloading, setIsPdfDownloading] = useState(false);
   const pdfRef = useRef<HTMLDivElement>(null);
+
+  // 체크리스트 자동작성 확인 다이얼로그
+  const [pendingWeatherData, setPendingWeatherData] = useState<ParsedCSVData | null>(null);
 
   const handleDownloadPDF = async (record: HeatWaveChecklist) => {
     setPdfViewing(record);
@@ -1962,7 +1976,8 @@ export default function HeatWaveChecklist() {
     onError: () => toast({ title: "삭제 실패", variant: "destructive" }),
   });
 
-  const handleCsvParsed = (d: ParsedCSVData) => {
+  // 날씨 데이터로 폼 자동완성 후 폼 열기
+  const applyWeatherToForm = (d: ParsedCSVData) => {
     const hl = d.dominantHeatLevel;
     const heatAlertStatus =
       hl.includes("위험") || hl.includes("경고") ? "폭염경보" :
@@ -1970,10 +1985,12 @@ export default function HeatWaveChecklist() {
       "해당없음";
     const ml = d.maxFeelsLike;
     const now = new Date();
+    const targetArea = REGION_TO_TARGET[d.selectedRegion ?? ''] ?? '대구 / 경북';
     setCsvForm({
       ...emptyForm(),
-      checkDate: d.date || format(now, "yyyy-MM-dd"),
+      checkDate: format(now, "yyyy-MM-dd"),
       checkTime: format(now, "HH:mm"),
+      targetArea,
       heatAlertStatus,
       currentTemperature: d.avgTemp ? d.avgTemp.toFixed(1) : "",
       currentHumidity: d.avgHumidity ? d.avgHumidity.toFixed(0) : "",
@@ -1987,7 +2004,12 @@ export default function HeatWaveChecklist() {
       stopTime38Start: "", stopTime38End: "",
     });
     setShowForm(true);
-    toast({ title: "CSV 데이터로 체크리스트가 자동완성되었습니다", description: `최고 체감온도 ${ml}°C · ${heatAlertStatus}` });
+    toast({ title: "날씨 데이터로 체크리스트가 자동완성되었습니다", description: `${targetArea} · 최고 체감온도 ${ml}°C · ${heatAlertStatus}` });
+  };
+
+  // 날씨 조회 완료 시 → 확인 다이얼로그 표시 (자동 작성 금지)
+  const handleCsvParsed = (d: ParsedCSVData) => {
+    setPendingWeatherData(d);
   };
 
   const handleDelete = (id: number) => {
@@ -2023,6 +2045,72 @@ export default function HeatWaveChecklist() {
 
       {/* 대구·경북 체감온도 지도 */}
       <DaeguGyeongbukHeatMap onDataParsed={handleCsvParsed} />
+
+      {/* ── 체크리스트 자동작성 확인 다이얼로그 ─────────────────────────── */}
+      {pendingWeatherData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" data-testid="dialog-checklist-confirm">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden">
+            {/* 헤더 */}
+            <div className="bg-gradient-to-r from-orange-500 to-red-500 px-5 py-4 flex items-center gap-3">
+              <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
+                <Sun className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <div className="font-bold text-white text-sm">날씨 조회 완료</div>
+                <div className="text-white/80 text-xs mt-0.5">
+                  {REGION_TO_TARGET[pendingWeatherData.selectedRegion ?? ''] ?? '전체'} 기상 데이터
+                </div>
+              </div>
+            </div>
+            {/* 요약 정보 */}
+            <div className="px-5 py-4">
+              <div className="flex gap-2 mb-4">
+                <div className="flex-1 bg-orange-50 dark:bg-orange-950/30 rounded-xl p-3 text-center border border-orange-100 dark:border-orange-900">
+                  <div className="text-xs text-orange-600 dark:text-orange-400 font-medium mb-1">최고 체감온도</div>
+                  <div className="text-2xl font-black text-orange-600 dark:text-orange-400 leading-none">
+                    {pendingWeatherData.maxFeelsLike}<span className="text-base">°C</span>
+                  </div>
+                </div>
+                <div className="flex-1 bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3 text-center border border-slate-100 dark:border-slate-700">
+                  <div className="text-xs text-muted-foreground font-medium mb-1">대상 지역</div>
+                  <div className="text-sm font-bold text-foreground leading-tight mt-1">
+                    {REGION_TO_TARGET[pendingWeatherData.selectedRegion ?? ''] ?? '전체'}
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-3 text-xs text-muted-foreground bg-slate-50 dark:bg-slate-800/50 rounded-lg px-3 py-2.5 mb-4">
+                <span>📅 작성일자/시간 <strong className="text-foreground">자동 입력</strong></span>
+                <span>·</span>
+                <span>✅ 조치사항 <strong className="text-foreground">자동 체크</strong></span>
+              </div>
+              <p className="text-sm text-foreground font-semibold text-center">
+                폭염 일일 체크리스트를 자동으로 작성하시겠습니까?
+              </p>
+            </div>
+            {/* 버튼 */}
+            <div className="flex gap-2 px-5 pb-5">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setPendingWeatherData(null)}
+                data-testid="button-checklist-confirm-no"
+              >
+                아니오
+              </Button>
+              <Button
+                className="flex-1 bg-orange-500 hover:bg-orange-600 text-white"
+                onClick={() => {
+                  applyWeatherToForm(pendingWeatherData);
+                  setPendingWeatherData(null);
+                }}
+                data-testid="button-checklist-confirm-yes"
+              >
+                예, 자동 작성
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 모바일 카드 목록 */}
       <div className="block sm:hidden space-y-2">
