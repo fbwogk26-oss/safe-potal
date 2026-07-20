@@ -14580,6 +14580,17 @@ ${result.value}
     res.json({ ok: true, data: results, updatedAt: new Date().toISOString(), source: '기상청 단기예보' });
   });
 
+  // ── 폭염 기상 자동 수집 수동 트리거 ────────────────────────────────────────
+  app.post('/api/heatwave-map/refresh', isAuthenticated, async (_req, res) => {
+    try {
+      const { fetchAndSaveHeatwaveWeather } = await import('./heatwaveWeatherJob');
+      const result = await fetchAndSaveHeatwaveWeather();
+      res.json(result);
+    } catch (e: any) {
+      res.status(500).json({ ok: false, message: e.message });
+    }
+  });
+
   // ── 폭염 3D 지도 데이터 — 서버 공유 저장 (모든 기기에서 동기화) ─────────
   app.get('/api/heatwave-map/data', isAuthenticated, async (_req, res) => {
     try {

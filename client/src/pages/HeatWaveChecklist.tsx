@@ -1209,6 +1209,8 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
   const [selectedInfo, setSelectedInfo] = useState<{name:string; weather:RegionWeather|null}|null>(null);
   const [showDataTable, setShowDataTable] = useState(false);
   const [weatherData, setWeatherData] = useState<Record<string, RegionWeather>>({});
+  const [autoUpdatedAt, setAutoUpdatedAt] = useState<string | null>(null);
+  const [autoSource, setAutoSource] = useState<string>('');
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -1270,6 +1272,8 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
           setHeatActive(true);
           setWeatherData({...json.data.weather});
           if (json.data.stats) setStats(json.data.stats);
+          if (json.data.autoUpdatedAt) setAutoUpdatedAt(json.data.autoUpdatedAt);
+          if (json.data.source) setAutoSource(json.data.source);
         }
       })
       .catch(() => {});
@@ -1411,7 +1415,10 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
     setStats(statsData);
     setHeatActive(true);
     setWeatherData({...weatherRef.current});
-    fetch('/api/heatwave-map/data', { method:'PUT', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ weather: weatherRef.current, stats: statsData }) }).catch(()=>{});
+    const nowIso = new Date().toISOString();
+    setAutoUpdatedAt(nowIso);
+    setAutoSource('기상청 단기예보 (수동)');
+    fetch('/api/heatwave-map/data', { method:'PUT', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ weather: weatherRef.current, stats: statsData, autoUpdatedAt: nowIso, source: '기상청 단기예보 (수동)' }) }).catch(()=>{});
     if (onDataParsed) {
       const stageCounts: Record<string,number> = {};
       regions.forEach(r => { if (r.stage) stageCounts[r.stage] = (stageCounts[r.stage] ?? 0) + 1; });
@@ -1471,10 +1478,17 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
       <style>{`.tt-sub{display:block;font-size:10px;font-weight:400;color:#9aa5b3;margin-top:1px}.tt-weather{display:block;font-size:11.5px;font-weight:600;color:#ffd9a0;margin-top:5px;line-height:1.55}`}</style>
 
       {/* ─ 헤더 ─ */}
-      <div className="px-3 sm:px-4 py-2.5 flex items-center justify-between border-b bg-gradient-to-r from-orange-50/80 to-amber-50/60 dark:from-orange-950/20 dark:to-amber-950/10">
+      <div className="px-3 sm:px-4 py-2.5 flex flex-wrap items-center justify-between gap-y-1.5 border-b bg-gradient-to-r from-orange-50/80 to-amber-50/60 dark:from-orange-950/20 dark:to-amber-950/10">
         <div className="flex items-center gap-2 min-w-0">
           <Thermometer className="w-4 h-4 text-orange-500 flex-shrink-0" />
           <span className="font-semibold text-xs sm:text-sm truncate">대구·경북 권역별 체감온도</span>
+          {autoUpdatedAt && (
+            <span className="hidden sm:inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 font-medium whitespace-nowrap">
+              {autoSource?.includes('자동') ? '🕘 09:00 자동' : '🔄 수동'}
+              {' · '}
+              {new Date(autoUpdatedAt).toLocaleString('ko-KR',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false})}
+            </span>
+          )}
           {statusMsg && statusErr && <span className="text-xs text-red-500 hidden sm:inline">{statusMsg}</span>}
         </div>
         <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">

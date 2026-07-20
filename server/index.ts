@@ -64,6 +64,7 @@ import { setupSecurity } from "./security";
 import "./autoEmailJob";
 import "./aisDailyEmailJob";
 import "./aisInboxEmailJob";
+import "./heatwaveWeatherJob";
 import { storage } from "./storage";
 
 storage.cleanupOrphanedAisTbmBadNotes()
