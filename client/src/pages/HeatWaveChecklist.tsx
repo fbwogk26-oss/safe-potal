@@ -1328,29 +1328,29 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
       if (selectedRegion === 'all') {
         if (!allRef.current) return;
         newPanels = [
-          initThreePanel(allRef.current, d.all, {height:18,bevel:1.4,radius:2200,theta:Math.PI*0.25,phi:Math.PI*0.27,baseRadius:2200,fogNear:2400,fogFar:6000,sun:[800,1200,550],labels:true,fontSize:26,spin:false}, registryRef.current, tt, weatherRef, handleClick),
+          initThreePanel(allRef.current, d.all, {height:18,bevel:1.4,radius:2200,theta:0,phi:Math.PI*0.27,baseRadius:2200,fogNear:2400,fogFar:6000,sun:[800,1200,550],labels:true,fontSize:26,spin:false}, registryRef.current, tt, weatherRef, handleClick),
         ];
       } else if (selectedRegion === 'daegubuk') {
         if (!daegubukRef.current || !ulleungRef.current) return;
         newPanels = [
-          initThreePanel(daegubukRef.current, d.daegubuk, {height:26,bevel:2.0,radius:1700,theta:Math.PI*0.25,phi:Math.PI*0.27,baseRadius:1700,fogNear:1900,fogFar:5000,sun:[600,900,400],labels:true,fontSize:48,spin:false}, registryRef.current, tt, weatherRef, handleClick),
-          initThreePanel(ulleungRef.current,  d.ulleung,  {height:14,bevel:0.8,radius:320, theta:Math.PI*0.25,phi:Math.PI*0.25,baseRadius:260, fogNear:280, fogFar:900, sun:[140,200,90], labels:true,fontSize:32,spin:false}, registryRef.current, tt, weatherRef, handleClick),
+          initThreePanel(daegubukRef.current, d.daegubuk, {height:26,bevel:2.0,radius:1700,theta:0,phi:Math.PI*0.27,baseRadius:1700,fogNear:1900,fogFar:5000,sun:[600,900,400],labels:true,fontSize:48,spin:false}, registryRef.current, tt, weatherRef, handleClick),
+          initThreePanel(ulleungRef.current,  d.ulleung,  {height:14,bevel:0.8,radius:320, theta:0,phi:Math.PI*0.25,baseRadius:260, fogNear:280, fogFar:900, sun:[140,200,90], labels:true,fontSize:32,spin:false}, registryRef.current, tt, weatherRef, handleClick),
         ];
       } else if (selectedRegion === 'chungcheong') {
         if (!chungcheongRef.current) return;
         newPanels = [
-          initThreePanel(chungcheongRef.current, d.chungcheong, {height:24,bevel:2.0,radius:1200,theta:Math.PI*0.25,phi:Math.PI*0.27,baseRadius:1300,fogNear:1400,fogFar:3800,sun:[420,630,280],labels:true,fontSize:46,spin:false}, registryRef.current, tt, weatherRef, handleClick),
+          initThreePanel(chungcheongRef.current, d.chungcheong, {height:24,bevel:2.0,radius:1200,theta:0,phi:Math.PI*0.27,baseRadius:1300,fogNear:1400,fogFar:3800,sun:[420,630,280],labels:true,fontSize:46,spin:false}, registryRef.current, tt, weatherRef, handleClick),
         ];
       } else if (selectedRegion === 'honam') {
         if (!honamRef.current || !jejuRef.current) return;
         newPanels = [
-          initThreePanel(honamRef.current, d.honam, {height:24,bevel:2.0,radius:1200,theta:Math.PI*0.25,phi:Math.PI*0.27,baseRadius:1300,fogNear:1400,fogFar:3800,sun:[420,630,280],labels:true,fontSize:46,spin:false}, registryRef.current, tt, weatherRef, handleClick),
-          initThreePanel(jejuRef.current,  d.jeju,  {height:18,bevel:1.2,radius:400, theta:Math.PI*0.25,phi:Math.PI*0.25,baseRadius:380, fogNear:400, fogFar:1200,sun:[160,240,100],labels:true,fontSize:36,spin:false}, registryRef.current, tt, weatherRef, handleClick),
+          initThreePanel(honamRef.current, d.honam, {height:24,bevel:2.0,radius:1200,theta:0,phi:Math.PI*0.27,baseRadius:1300,fogNear:1400,fogFar:3800,sun:[420,630,280],labels:true,fontSize:46,spin:false}, registryRef.current, tt, weatherRef, handleClick),
+          initThreePanel(jejuRef.current,  d.jeju,  {height:18,bevel:1.2,radius:400, theta:0,phi:Math.PI*0.25,baseRadius:380, fogNear:400, fogFar:1200,sun:[160,240,100],labels:true,fontSize:36,spin:false}, registryRef.current, tt, weatherRef, handleClick),
         ];
       } else if (selectedRegion === 'buulgyeong') {
         if (!buulgyeongRef.current) return;
         newPanels = [
-          initThreePanel(buulgyeongRef.current, d.buulgyeong, {height:22,bevel:1.8,radius:1200,theta:Math.PI*0.25,phi:Math.PI*0.27,baseRadius:1300,fogNear:1400,fogFar:3800,sun:[420,630,280],labels:true,fontSize:44,spin:false}, registryRef.current, tt, weatherRef, handleClick),
+          initThreePanel(buulgyeongRef.current, d.buulgyeong, {height:22,bevel:1.8,radius:1200,theta:0,phi:Math.PI*0.27,baseRadius:1300,fogNear:1400,fogFar:3800,sun:[420,630,280],labels:true,fontSize:44,spin:false}, registryRef.current, tt, weatherRef, handleClick),
         ];
       }
 
@@ -1556,6 +1556,49 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
     }
   }
 
+  // 현재 선택 권역의 날씨 데이터로 체크리스트 작성 요청
+  function handleWriteChecklistNow() {
+    if (!onDataParsed) return;
+    const wr = weatherRef.current;
+    if (!wr || Object.keys(wr).length === 0) {
+      setStatusErr(true);
+      setStatusMsg('날씨 데이터가 없습니다. 실시간 날씨 조회 또는 CSV 업로드 먼저 해주세요.');
+      return;
+    }
+    // 현재 권역에 해당하는 도시 목록
+    const md = mapDataRef.current;
+    let cityNames: string[] = [];
+    if (selectedRegion === 'all') {
+      cityNames = Object.keys(wr);
+    } else if (selectedRegion === 'daegubuk' && md) {
+      cityNames = [...md.daegubuk, ...md.ulleung].map(r => r.name);
+    } else if (selectedRegion === 'chungcheong' && md) {
+      cityNames = md.chungcheong.map(r => r.name);
+    } else if (selectedRegion === 'honam' && md) {
+      cityNames = [...md.honam, ...md.jeju].map(r => r.name);
+    } else if (selectedRegion === 'buulgyeong' && md) {
+      cityNames = md.buulgyeong.map(r => r.name);
+    }
+    // 해당 권역 도시의 날씨만 필터링 (없으면 전체 사용)
+    const entries = cityNames.length > 0
+      ? cityNames.map(n => wr[n]).filter(Boolean)
+      : Object.values(wr);
+    if (entries.length === 0) {
+      setStatusErr(true);
+      setStatusMsg('해당 권역의 날씨 데이터가 없습니다.');
+      return;
+    }
+    const maxFeelsLike = Math.max(...entries.map(w => w.feels));
+    const temps = entries.map(w => w.temp).filter((v): v is number => v != null);
+    const hums  = entries.map(w => w.hum).filter((v): v is number => v != null);
+    const avgTemp = temps.length ? Math.round(temps.reduce((a,b)=>a+b,0)/temps.length*10)/10 : 0;
+    const avgHumidity = hums.length ? Math.round(hums.reduce((a,b)=>a+b,0)/hums.length) : 0;
+    const stageCounts: Record<string,number> = {};
+    entries.forEach(w => { if (w.stage) stageCounts[w.stage] = (stageCounts[w.stage]??0)+1; });
+    const dominantHeatLevel = Object.entries(stageCounts).sort((a,b)=>b[1]-a[1])[0]?.[0] ?? '';
+    onDataParsed({ date: entries[0]?.time ?? '', maxFeelsLike, avgTemp, avgHumidity, dominantHeatLevel, selectedRegion });
+  }
+
   async function handleSendDailyEmail() {
     if (!weatherRef.current || Object.keys(weatherRef.current).length === 0) {
       setStatusErr(true);
@@ -1722,9 +1765,27 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
             <span className="text-[11px] text-slate-400">평균습도</span>
             <span className="text-sm font-semibold tabular-nums text-sky-400">{stats.avgHum}%</span>
           </div>
-          <div className="ml-auto flex items-center gap-1.5 text-[11px] text-slate-500">
-            <div style={{width:80,height:6,borderRadius:3,background:'linear-gradient(to right,#3aa0a0,#f2d24b 42%,#f7b733 58%,#f2711c 74%,#e0392b 88%,#8b1e1e)'}} />
-            <span className="hidden sm:inline">20→38+°C</span>
+          <div className="ml-auto flex items-center gap-2">
+            <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
+              <div style={{width:60,height:6,borderRadius:3,background:'linear-gradient(to right,#3aa0a0,#f2d24b 42%,#f7b733 58%,#f2711c 74%,#e0392b 88%,#8b1e1e)'}} />
+              <span className="hidden sm:inline">20→38+°C</span>
+            </div>
+            {onDataParsed && (
+              <button
+                onClick={handleWriteChecklistNow}
+                data-testid="button-write-checklist-from-map"
+                style={{
+                  display:'flex', alignItems:'center', gap:4, padding:'3px 10px',
+                  borderRadius:6, border:'1px solid #f97316', background:'rgba(249,115,22,0.12)',
+                  color:'#fb923c', fontSize:11, fontWeight:700, cursor:'pointer',
+                  whiteSpace:'nowrap', transition:'background 0.15s',
+                }}
+                onMouseEnter={e=>(e.currentTarget.style.background='rgba(249,115,22,0.25)')}
+                onMouseLeave={e=>(e.currentTarget.style.background='rgba(249,115,22,0.12)')}
+              >
+                ✏️ 체크리스트 작성
+              </button>
+            )}
           </div>
         </div>
       )}
