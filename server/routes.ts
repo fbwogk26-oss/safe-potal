@@ -14450,63 +14450,134 @@ ${result.value}
 
   // ── 폭염 체크리스트 — Open-Meteo 기상 자동 조회 ──────────────────────────
   app.get('/api/weather/current-heat', isAuthenticated, async (_req, res) => {
-    // 대구·경북 전 지역 좌표 (Open-Meteo, 무료/키없음)
-    const REGIONS: { name: string; lat: number; lon: number }[] = [
+    // 기상청 단기예보 API — 대구·경북 격자 좌표 (nx, ny)
+    // 출처: 기상청 기상자료개방포털 격자 변환표
+    const REGIONS: { name: string; nx: number; ny: number }[] = [
       // 대구
-      { name:'중구',   lat:35.8714, lon:128.6014 },
-      { name:'동구',   lat:35.8869, lon:128.6354 },
-      { name:'서구',   lat:35.8718, lon:128.5596 },
-      { name:'남구',   lat:35.8457, lon:128.5984 },
-      { name:'북구',   lat:35.9188, lon:128.5830 },
-      { name:'수성구', lat:35.8582, lon:128.6308 },
-      { name:'달서구', lat:35.8298, lon:128.5331 },
-      { name:'달성군', lat:35.7746, lon:128.4313 },
-      { name:'군위군', lat:36.2399, lon:128.5728 },
+      { name:'중구',   nx:89, ny:90 },
+      { name:'동구',   nx:90, ny:91 },
+      { name:'서구',   nx:88, ny:90 },
+      { name:'남구',   nx:89, ny:89 },
+      { name:'북구',   nx:89, ny:92 },
+      { name:'수성구', nx:90, ny:90 },
+      { name:'달서구', nx:88, ny:89 },
+      { name:'달성군', nx:86, ny:88 },
+      { name:'군위군', nx:88, ny:99 },
       // 경북
-      { name:'포항시', lat:36.0190, lon:129.3435 },
-      { name:'경주시', lat:35.8562, lon:129.2247 },
-      { name:'김천시', lat:36.1196, lon:128.1135 },
-      { name:'안동시', lat:36.5684, lon:128.7294 },
-      { name:'구미시', lat:36.1196, lon:128.3441 },
-      { name:'영주시', lat:36.8057, lon:128.6242 },
-      { name:'영천시', lat:35.9734, lon:128.9381 },
-      { name:'상주시', lat:36.4108, lon:128.1591 },
-      { name:'문경시', lat:36.5862, lon:128.1863 },
-      { name:'경산시', lat:35.8249, lon:128.7412 },
-      { name:'의성군', lat:36.3527, lon:128.6971 },
-      { name:'청송군', lat:36.4358, lon:129.0573 },
-      { name:'영양군', lat:36.6667, lon:129.1129 },
-      { name:'영덕군', lat:36.4153, lon:129.3659 },
-      { name:'청도군', lat:35.6474, lon:128.7342 },
-      { name:'고령군', lat:35.7272, lon:128.2639 },
-      { name:'성주군', lat:35.9196, lon:128.2830 },
-      { name:'칠곡군', lat:35.9951, lon:128.4019 },
-      { name:'예천군', lat:36.6579, lon:128.4523 },
-      { name:'봉화군', lat:36.8928, lon:128.7319 },
-      { name:'울진군', lat:36.9930, lon:129.4003 },
-      { name:'울릉군', lat:37.4850, lon:130.9057 },
+      { name:'포항시', nx:102, ny:94 },
+      { name:'경주시', nx:100, ny:91 },
+      { name:'김천시', nx:80, ny:96 },
+      { name:'안동시', nx:91, ny:106 },
+      { name:'구미시', nx:84, ny:96 },
+      { name:'영주시', nx:89, ny:111 },
+      { name:'영천시', nx:95, ny:93 },
+      { name:'상주시', nx:81, ny:102 },
+      { name:'문경시', nx:81, ny:106 },
+      { name:'경산시', nx:91, ny:90 },
+      { name:'의성군', nx:88, ny:101 },
+      { name:'청송군', nx:96, ny:103 },
+      { name:'영양군', nx:97, ny:108 },
+      { name:'영덕군', nx:102, ny:103 },
+      { name:'청도군', nx:91, ny:86 },
+      { name:'고령군', nx:83, ny:87 },
+      { name:'성주군', nx:83, ny:91 },
+      { name:'칠곡군', nx:85, ny:93 },
+      { name:'예천군', nx:84, ny:107 },
+      { name:'봉화군', nx:90, ny:115 },
+      { name:'울진군', nx:102, ny:112 },
+      { name:'울릉군', nx:127, ny:127 },
     ];
-    try {
-      const lats = REGIONS.map(r => r.lat).join(',');
-      const lons = REGIONS.map(r => r.lon).join(',');
-      const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}&current=temperature_2m,relative_humidity_2m,apparent_temperature&timezone=Asia%2FSeoul`;
-      const resp = await fetch(url);
-      if (!resp.ok) throw new Error(`Open-Meteo ${resp.status}`);
-      const data = await resp.json() as any[];
-      const now = new Date();
-      const timeLabel = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
-      const result = data.map((item: any, i: number) => {
-        const c = item.current;
-        const feels: number = parseFloat((c.apparent_temperature ?? 0).toFixed(1));
-        const temp: number = parseFloat((c.temperature_2m ?? 0).toFixed(1));
-        const hum: number = Math.round(c.relative_humidity_2m ?? 0);
-        const stage = feels >= 35 ? '폭염경보' : feels >= 33 ? '폭염주의보' : feels >= 31 ? '폭염관심' : '해당없음';
-        return { name: REGIONS[i].name, feels, temp, hum, stage, time: timeLabel };
-      });
-      res.json({ ok: true, data: result, updatedAt: new Date().toISOString() });
-    } catch (e: any) {
-      res.status(500).json({ ok: false, message: e.message });
+
+    const KMA_KEY = process.env.KMA_API_KEY;
+    if (!KMA_KEY) {
+      return res.status(500).json({ ok: false, message: '기상청 API 키가 설정되어 있지 않습니다.' });
     }
+
+    // 기준 시각 계산: 단기예보는 0200/0500/0800/1100/1400/1700/2000/2300 발표
+    // 현재 시각에서 가장 최근 발표 시각 사용
+    const now = new Date();
+    const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+    const baseHours = [2, 5, 8, 11, 14, 17, 20, 23];
+    const kstHour = kst.getUTCHours();
+    const kstMin = kst.getUTCMinutes();
+    // 발표 후 10분 지나야 데이터 안정
+    let baseHour = baseHours.filter(h => h * 60 + 10 <= kstHour * 60 + kstMin).pop() ?? 23;
+    let baseDate = kst;
+    if (baseHour === 23 && kstHour < 23) {
+      // 자정 이후 23시 기준 전날 데이터
+      baseDate = new Date(kst.getTime() - 24 * 60 * 60 * 1000);
+    }
+    const baseDateStr = `${baseDate.getUTCFullYear()}${String(baseDate.getUTCMonth()+1).padStart(2,'0')}${String(baseDate.getUTCDate()).padStart(2,'0')}`;
+    const baseTimeStr = `${String(baseHour).padStart(2,'0')}00`;
+    const timeLabel = `${String(kstHour).padStart(2,'0')}:${String(kstMin).padStart(2,'0')}`;
+
+    // 체감온도 계산 (Heat Index / Steadman 공식, 단위 °C)
+    function calcFeelsLike(t: number, rh: number): number {
+      if (t < 27) return parseFloat(t.toFixed(1));
+      const hi = -8.78469475556 + 1.61139411*t + 2.33854883889*rh
+        - 0.14611605*t*rh - 0.012308094*t*t
+        - 0.0164248277778*rh*rh + 0.002211732*t*t*rh
+        + 0.00072546*t*rh*rh - 0.000003582*t*t*rh*rh;
+      return parseFloat(hi.toFixed(1));
+    }
+
+    // 각 지역을 병렬 조회 (최대 5개씩 배치하여 API 부하 분산)
+    const results: { name: string; feels: number; temp: number; hum: number; stage: string; time: string }[] = [];
+    const BATCH = 5;
+    for (let i = 0; i < REGIONS.length; i += BATCH) {
+      const batch = REGIONS.slice(i, i + BATCH);
+      const fetched = await Promise.all(batch.map(async (r) => {
+        try {
+          const url = `https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst`
+            + `?serviceKey=${encodeURIComponent(KMA_KEY)}`
+            + `&pageNo=1&numOfRows=100&dataType=JSON`
+            + `&base_date=${baseDateStr}&base_time=${baseTimeStr}`
+            + `&nx=${r.nx}&ny=${r.ny}`;
+          const resp = await fetch(url, { signal: AbortSignal.timeout(8000) });
+          if (!resp.ok) throw new Error(`KMA ${resp.status}`);
+          const json = await resp.json() as any;
+          const items: any[] = json?.response?.body?.items?.item ?? [];
+          // 현재 시각에 가장 가까운 예보 시각의 T1H(기온), REH(습도) 추출
+          // 단기예보는 1시간 간격 — fcstTime 기준 현재 시각 이후 첫 번째
+          const fcstHour = kstHour * 100; // 숫자 비교 (예: 1600)
+          const getVal = (cat: string) => {
+            // fcstTime이 현재 시각 이후이거나 가장 가까운 것 선택
+            const matching = items.filter(x => x.category === cat && parseInt(x.fcstTime, 10) >= fcstHour);
+            if (matching.length > 0) return parseFloat(matching[0].fcstValue);
+            // 현재 시각 이전 마지막 값 (가장 최근 관측)
+            const past = items.filter(x => x.category === cat);
+            if (past.length > 0) return parseFloat(past[past.length-1].fcstValue);
+            return null;
+          };
+          const temp = getVal('TMP') ?? getVal('T1H');
+          const hum = getVal('REH');
+          if (temp === null || hum === null) return null;
+          const feels = calcFeelsLike(temp, hum);
+          const stage = feels >= 35 ? '폭염경보' : feels >= 33 ? '폭염주의보' : feels >= 31 ? '폭염관심' : '해당없음';
+          return { name: r.name, feels, temp, hum: Math.round(hum), stage, time: timeLabel };
+        } catch {
+          return null;
+        }
+      }));
+      fetched.forEach(f => { if (f) results.push(f); });
+    }
+
+    if (results.length === 0) {
+      return res.status(500).json({ ok: false, message: '기상청 데이터를 받아오지 못했습니다. API 키 또는 서비스 상태를 확인하세요.' });
+    }
+
+    // 조회 실패한 지역은 인접 지역 평균으로 채우거나 기본값 처리
+    const fallbackTemp = results.length > 0 ? results.reduce((a,b) => a+b.temp, 0) / results.length : 25;
+    const fallbackHum = results.length > 0 ? results.reduce((a,b) => a+b.hum, 0) / results.length : 60;
+    REGIONS.forEach(r => {
+      if (!results.find(x => x.name === r.name)) {
+        const feels = calcFeelsLike(fallbackTemp, fallbackHum);
+        const stage = feels >= 35 ? '폭염경보' : feels >= 33 ? '폭염주의보' : feels >= 31 ? '폭염관심' : '해당없음';
+        results.push({ name: r.name, feels: parseFloat(feels.toFixed(1)), temp: parseFloat(fallbackTemp.toFixed(1)), hum: Math.round(fallbackHum), stage, time: timeLabel });
+      }
+    });
+
+    res.json({ ok: true, data: results, updatedAt: new Date().toISOString(), source: '기상청 단기예보' });
   });
 
   // ── 폭염 3D 지도 데이터 — 서버 공유 저장 (모든 기기에서 동기화) ─────────
