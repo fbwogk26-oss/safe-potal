@@ -286,191 +286,164 @@ function ChecklistPDFView({ record, pdfRef }: { record: HeatWaveChecklist; pdfRe
   const checks33 = (record.checks33 as boolean[]) ?? [];
   const checks35 = (record.checks35 as boolean[]) ?? [];
   const checks38 = (record.checks38 as boolean[]) ?? [];
+  const snap = (record as any).weatherSnapshot as Record<string, { feels: number; temp: number; hum: number; stage?: string; time?: string }> | undefined;
+  const mapImg = (record as any).mapSnapshot as string | undefined;
+  const hasPage2 = !!(snap || mapImg);
+  const sorted = snap ? filterWeatherByTargetArea(snap, record.targetArea ?? '') : [];
+  const regionLabel = REGION_CITIES_BY_TARGET[record.targetArea ?? ''] ? record.targetArea : '전체 권역';
 
-  const CheckRow = ({ done, label }: { done: boolean; label: string }) => (
-    <div style={{ display: "flex", alignItems: "flex-start", gap: "6px", marginBottom: "4px" }}>
-      <span style={{ width: "16px", height: "16px", border: "1.5px solid #555", borderRadius: "3px", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: "1px", background: done ? "#1d4ed8" : "white" }}>
-        {done && <span style={{ color: "white", fontSize: "11px", fontWeight: "bold" }}>✓</span>}
-      </span>
-      <span style={{ fontSize: "12px", lineHeight: "1.4" }}>{label}</span>
-    </div>
-  );
-
-  const SectionHeader = ({ title, temp, color }: { title: string; temp: string; color: string }) => (
-    <div style={{ background: color, padding: "5px 10px", fontWeight: "bold", fontSize: "12px", marginBottom: "6px", borderRadius: "4px 4px 0 0" }}>
-      {title} <span style={{ fontWeight: "normal", fontSize: "11px" }}>({temp})</span>
-    </div>
-  );
-
+  const pdfStyle: React.CSSProperties = {
+    width: "794px", background: "white", padding: "40px",
+    fontFamily: "'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif",
+    color: "#111", boxSizing: "border-box",
+  };
   const alertColor = record.heatAlertStatus === "폭염경보" ? "#fee2e2" : record.heatAlertStatus === "폭염주의보" ? "#fef3c7" : "#f0fdf4";
   const alertTextColor = record.heatAlertStatus === "폭염경보" ? "#dc2626" : record.heatAlertStatus === "폭염주의보" ? "#d97706" : "#16a34a";
 
   return (
-    <div ref={pdfRef} style={{ width: "794px", minHeight: "1123px", background: "white", padding: "40px", fontFamily: "'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif", color: "#111", boxSizing: "border-box" }}>
-      {/* 제목 */}
-      <div style={{ textAlign: "center", marginBottom: "24px", borderBottom: "2.5px solid #1d4ed8", paddingBottom: "16px" }}>
-        <div style={{ fontSize: "10px", color: "#555", letterSpacing: "2px", marginBottom: "4px" }}>산업안전보건법 시행규칙 별지 제95호 서식</div>
-        <h1 style={{ fontSize: "22px", fontWeight: "bold", margin: 0 }}>폭염 일일 체크리스트</h1>
-        <div style={{ fontSize: "11px", color: "#555", marginTop: "4px" }}>Heat Wave Daily Safety Checklist</div>
-      </div>
-
-      {/* 기본 정보 */}
-      <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "16px", fontSize: "12px" }}>
-        <tbody>
-          <tr>
-            <td style={{ border: "1px solid #ddd", padding: "7px 12px", background: "#f8fafc", fontWeight: "bold", width: "22%" }}>작성일자</td>
-            <td style={{ border: "1px solid #ddd", padding: "7px 12px", width: "28%" }}>{record.checkDate}</td>
-            <td style={{ border: "1px solid #ddd", padding: "7px 12px", background: "#f8fafc", fontWeight: "bold", width: "22%" }}>작성시간</td>
-            <td style={{ border: "1px solid #ddd", padding: "7px 12px", width: "28%" }}>{record.checkTime}</td>
-          </tr>
-          <tr>
-            <td style={{ border: "1px solid #ddd", padding: "7px 12px", background: "#f8fafc", fontWeight: "bold" }}>대상 지역</td>
-            <td style={{ border: "1px solid #ddd", padding: "7px 12px" }} colSpan={3}>{record.targetArea}</td>
-          </tr>
-          <tr>
-            <td style={{ border: "1px solid #ddd", padding: "7px 12px", background: "#f8fafc", fontWeight: "bold" }}>폭염특보 현황</td>
-            <td style={{ border: "1px solid #ddd", padding: "7px 12px" }} colSpan={3}>
-              <span style={{ background: alertColor, color: alertTextColor, padding: "2px 10px", borderRadius: "12px", fontWeight: "bold", fontSize: "12px" }}>
-                {record.heatAlertStatus}
-              </span>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-
-      {/* 기상 정보 */}
-      <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: "6px", padding: "12px 16px", marginBottom: "16px" }}>
-        <div style={{ fontWeight: "bold", fontSize: "12px", color: "#1d4ed8", marginBottom: "8px" }}>▶ 현재 기상 정보</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "8px" }}>
-          {[
-            ["현재 기온", record.currentTemperature != null ? `${record.currentTemperature}°C` : "-"],
-            ["현재 습도", record.currentHumidity != null ? `${record.currentHumidity}%` : "-"],
-            ["현재 체감온도", record.currentFeelsLike != null ? `${record.currentFeelsLike}°C` : "-"],
-            ["최고 체감온도 예보", record.maxFeelsLikeForecast != null ? `${record.maxFeelsLikeForecast}°C` : "-"],
-          ].map(([label, value]) => (
-            <div key={label} style={{ textAlign: "center" }}>
-              <div style={{ fontSize: "10px", color: "#555", marginBottom: "2px" }}>{label}</div>
-              <div style={{ fontSize: "16px", fontWeight: "bold", color: "#1d4ed8" }}>{value}</div>
+    <div ref={pdfRef}>
+      {/* ── 1페이지: 체크리스트 + 서명 ── */}
+      <div id="heatwave-pdf-page1" style={{ ...pdfStyle, minHeight: "1123px" }}>
+        <div style={{ textAlign: "center", marginBottom: "24px", borderBottom: "2.5px solid #1d4ed8", paddingBottom: "16px" }}>
+          <div style={{ fontSize: "10px", color: "#555", letterSpacing: "2px", marginBottom: "4px" }}>산업안전보건법 시행규칙 별지 제95호 서식</div>
+          <h1 style={{ fontSize: "22px", fontWeight: "bold", margin: 0 }}>폭염 일일 체크리스트</h1>
+          <div style={{ fontSize: "11px", color: "#555", marginTop: "4px" }}>Heat Wave Daily Safety Checklist</div>
+        </div>
+        <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "16px", fontSize: "12px" }}>
+          <tbody>
+            <tr>
+              <td style={{ border: "1px solid #ddd", padding: "7px 12px", background: "#f8fafc", fontWeight: "bold", width: "22%" }}>작성일자</td>
+              <td style={{ border: "1px solid #ddd", padding: "7px 12px", width: "28%" }}>{record.checkDate}</td>
+              <td style={{ border: "1px solid #ddd", padding: "7px 12px", background: "#f8fafc", fontWeight: "bold", width: "22%" }}>작성시간</td>
+              <td style={{ border: "1px solid #ddd", padding: "7px 12px", width: "28%" }}>{record.checkTime}</td>
+            </tr>
+            <tr>
+              <td style={{ border: "1px solid #ddd", padding: "7px 12px", background: "#f8fafc", fontWeight: "bold" }}>대상 지역</td>
+              <td style={{ border: "1px solid #ddd", padding: "7px 12px" }} colSpan={3}>{record.targetArea}</td>
+            </tr>
+            <tr>
+              <td style={{ border: "1px solid #ddd", padding: "7px 12px", background: "#f8fafc", fontWeight: "bold" }}>폭염특보 현황</td>
+              <td style={{ border: "1px solid #ddd", padding: "7px 12px" }} colSpan={3}>
+                <span style={{ background: alertColor, color: alertTextColor, padding: "2px 10px", borderRadius: "12px", fontWeight: "bold", fontSize: "12px" }}>
+                  {record.heatAlertStatus}
+                </span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: "6px", padding: "12px 16px", marginBottom: "16px" }}>
+          <div style={{ fontWeight: "bold", fontSize: "12px", color: "#1d4ed8", marginBottom: "8px" }}>▶ 현재 기상 정보</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "8px" }}>
+            {([
+              ["현재 기온", record.currentTemperature != null ? `${record.currentTemperature}°C` : "-"],
+              ["현재 습도", record.currentHumidity != null ? `${record.currentHumidity}%` : "-"],
+              ["현재 체감온도", record.currentFeelsLike != null ? `${record.currentFeelsLike}°C` : "-"],
+              ["최고 체감온도 예보", record.maxFeelsLikeForecast != null ? `${record.maxFeelsLikeForecast}°C` : "-"],
+            ] as [string, string][]).map(([label, value]) => (
+              <div key={label} style={{ textAlign: "center" }}>
+                <div style={{ fontSize: "10px", color: "#555", marginBottom: "2px" }}>{label}</div>
+                <div style={{ fontSize: "16px", fontWeight: "bold", color: "#1d4ed8" }}>{value}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div style={{ fontWeight: "bold", fontSize: "13px", marginBottom: "10px", borderLeft: "4px solid #1d4ed8", paddingLeft: "8px" }}>단계별 조치사항 체크리스트</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "16px" }}>
+          {([
+            { title: "폭염 관심", temp: "31°C 이상", color: "#fef9c3", border: "#fde68a", checks: checks31, items: CHECKS_31, stop35: false, stop38: false },
+            { title: "폭염 주의", temp: "33°C 이상", color: "#ffedd5", border: "#fed7aa", checks: checks33, items: CHECKS_33, stop35: false, stop38: false },
+            { title: "폭염 경고", temp: "35°C 이상", color: "#fee2e2", border: "#fca5a5", checks: checks35, items: CHECKS_35, stop35: true, stop38: false },
+            { title: "폭염 위험", temp: "38°C 이상", color: "#fecaca", border: "#f87171", checks: checks38, items: CHECKS_38, stop35: false, stop38: true },
+          ] as Array<{ title: string; temp: string; color: string; border: string; checks: boolean[]; items: string[]; stop35: boolean; stop38: boolean }>).map(({ title, temp, color, border, checks, items, stop35, stop38 }) => (
+            <div key={title} style={{ border: `1px solid ${border}`, borderRadius: "6px", overflow: "hidden" }}>
+              <div style={{ background: color, padding: "5px 10px", fontWeight: "bold", fontSize: "12px", marginBottom: "6px", borderRadius: "4px 4px 0 0" }}>
+                {title} <span style={{ fontWeight: "normal", fontSize: "11px" }}>({temp})</span>
+              </div>
+              <div style={{ padding: "8px 12px" }}>
+                {items.map((item, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: "6px", marginBottom: "4px" }}>
+                    <span style={{ width: "16px", height: "16px", border: "1.5px solid #555", borderRadius: "3px", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: "1px", background: (checks[i] ?? false) ? "#1d4ed8" : "white" }}>
+                      {(checks[i] ?? false) && <span style={{ color: "white", fontSize: "11px", fontWeight: "bold" }}>✓</span>}
+                    </span>
+                    <span style={{ fontSize: "12px", lineHeight: "1.4" }}>{item}</span>
+                  </div>
+                ))}
+                {stop35 && (record.stopTime35Start || record.stopTime35End) && (
+                  <div style={{ fontSize: "11px", color: "#666", marginTop: "4px" }}>작업중지 시간: {record.stopTime35Start ?? ""} ~ {record.stopTime35End ?? ""}</div>
+                )}
+                {stop38 && (record.stopTime38Start || record.stopTime38End) && (
+                  <div style={{ fontSize: "11px", color: "#666", marginTop: "4px" }}>작업중지 시간: {record.stopTime38Start ?? ""} ~ {record.stopTime38End ?? ""}</div>
+                )}
+              </div>
             </div>
           ))}
         </div>
-      </div>
-
-      {/* 단계별 체크리스트 */}
-      <div style={{ fontWeight: "bold", fontSize: "13px", marginBottom: "10px", borderLeft: "4px solid #1d4ed8", paddingLeft: "8px" }}>단계별 조치사항 체크리스트</div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "16px" }}>
-        <div style={{ border: "1px solid #fde68a", borderRadius: "6px", overflow: "hidden" }}>
-          <SectionHeader title="폭염 관심" temp="31°C 이상" color="#fef9c3" />
-          <div style={{ padding: "8px 12px" }}>
-            {CHECKS_31.map((item, i) => <CheckRow key={i} done={checks31[i] ?? false} label={item} />)}
-          </div>
-        </div>
-        <div style={{ border: "1px solid #fed7aa", borderRadius: "6px", overflow: "hidden" }}>
-          <SectionHeader title="폭염 주의" temp="33°C 이상" color="#ffedd5" />
-          <div style={{ padding: "8px 12px" }}>
-            {CHECKS_33.map((item, i) => <CheckRow key={i} done={checks33[i] ?? false} label={item} />)}
-          </div>
-        </div>
-        <div style={{ border: "1px solid #fca5a5", borderRadius: "6px", overflow: "hidden" }}>
-          <SectionHeader title="폭염 경고" temp="35°C 이상" color="#fee2e2" />
-          <div style={{ padding: "8px 12px" }}>
-            {CHECKS_35.map((item, i) => <CheckRow key={i} done={checks35[i] ?? false} label={item} />)}
-            {(record.stopTime35Start || record.stopTime35End) && (
-              <div style={{ fontSize: "11px", color: "#666", marginTop: "4px" }}>
-                작업중지 시간: {record.stopTime35Start ?? ""} ~ {record.stopTime35End ?? ""}
-              </div>
-            )}
-          </div>
-        </div>
-        <div style={{ border: "1px solid #f87171", borderRadius: "6px", overflow: "hidden" }}>
-          <SectionHeader title="폭염 위험" temp="38°C 이상" color="#fecaca" />
-          <div style={{ padding: "8px 12px" }}>
-            {CHECKS_38.map((item, i) => <CheckRow key={i} done={checks38[i] ?? false} label={item} />)}
-            {(record.stopTime38Start || record.stopTime38End) && (
-              <div style={{ fontSize: "11px", color: "#666", marginTop: "4px" }}>
-                작업중지 시간: {record.stopTime38Start ?? ""} ~ {record.stopTime38End ?? ""}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* 서명 영역 */}
-      <div style={{ border: "1.5px solid #ddd", borderRadius: "6px", overflow: "hidden" }}>
-        <div style={{ background: "#f8fafc", padding: "6px 14px", fontWeight: "bold", fontSize: "12px", borderBottom: "1px solid #ddd" }}>서명</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
-          <div style={{ padding: "12px 16px", borderRight: "1px solid #ddd" }}>
-            <div style={{ fontSize: "11px", color: "#555", marginBottom: "6px" }}>작성자</div>
-            <div style={{ fontSize: "13px", fontWeight: "bold", marginBottom: "8px" }}>{record.author ?? ""}</div>
-            {record.authorSignature ? (
-              <img src={record.authorSignature} alt="작성자 서명" style={{ height: "60px", objectFit: "contain" }} />
-            ) : (
-              <div style={{ height: "60px", border: "1px dashed #ccc", borderRadius: "4px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "11px", color: "#aaa" }}>서명 없음</div>
-            )}
-          </div>
-          <div style={{ padding: "12px 16px" }}>
-            <div style={{ fontSize: "11px", color: "#555", marginBottom: "6px" }}>안전보건관리책임자</div>
-            <div style={{ fontSize: "13px", fontWeight: "bold", marginBottom: "8px" }}>{record.safetyManager ?? ""}</div>
-            {record.safetyManagerSignature ? (
-              <img src={record.safetyManagerSignature} alt="안전보건관리책임자 서명" style={{ height: "60px", objectFit: "contain" }} />
-            ) : (
-              <div style={{ height: "60px", border: "1px dashed #ccc", borderRadius: "4px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "11px", color: "#aaa" }}>서명 없음</div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* ── 날씨 스냅샷 페이지 (2페이지) ─────────────────────────────────── */}
-      {((record as any).weatherSnapshot || (record as any).mapSnapshot) && (() => {
-        const snap = (record as any).weatherSnapshot as Record<string, { feels: number; temp: number; hum: number; stage?: string; time?: string }> | undefined;
-        const mapImg = (record as any).mapSnapshot as string | undefined;
-        const sorted = snap ? filterWeatherByTargetArea(snap, record.targetArea ?? '') : [];
-        const regionLabel = REGION_CITIES_BY_TARGET[record.targetArea ?? ''] ? record.targetArea : '전체 권역';
-        return (
-          <div style={{ marginTop: "32px", pageBreakBefore: "always", borderTop: "2.5px solid #f97316", paddingTop: "20px" }}>
-            <div style={{ textAlign: "center", marginBottom: "16px" }}>
-              <h2 style={{ fontSize: "16px", fontWeight: "bold", margin: 0, color: "#ea580c" }}>{regionLabel} 체감온도 현황</h2>
-              <div style={{ fontSize: "10px", color: "#888", marginTop: "3px" }}>실시간 날씨 기준 · {sorted.length}개 지역</div>
+        <div style={{ border: "1.5px solid #ddd", borderRadius: "6px", overflow: "hidden" }}>
+          <div style={{ background: "#f8fafc", padding: "6px 14px", fontWeight: "bold", fontSize: "12px", borderBottom: "1px solid #ddd" }}>서명</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
+            <div style={{ padding: "12px 16px", borderRight: "1px solid #ddd" }}>
+              <div style={{ fontSize: "11px", color: "#555", marginBottom: "6px" }}>작성자</div>
+              <div style={{ fontSize: "13px", fontWeight: "bold", marginBottom: "8px" }}>{record.author ?? ""}</div>
+              {record.authorSignature
+                ? <img src={record.authorSignature} alt="작성자 서명" style={{ height: "60px", objectFit: "contain" }} />
+                : <div style={{ height: "60px", border: "1px dashed #ccc", borderRadius: "4px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "11px", color: "#aaa" }}>서명 없음</div>}
             </div>
-            {mapImg && (
-              <div style={{ textAlign: "center", marginBottom: "16px" }}>
-                <img src={mapImg} alt="폭염 지도" style={{ maxWidth: "100%", height: "300px", objectFit: "contain", borderRadius: "8px", border: "1px solid #fed7aa" }} />
-              </div>
-            )}
-            {sorted.length > 0 && (
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11px" }}>
-                <thead>
-                  <tr style={{ background: "#fff7ed" }}>
-                    <th style={{ border: "1px solid #fde68a", padding: "5px 8px", textAlign: "left" }}>순위</th>
-                    <th style={{ border: "1px solid #fde68a", padding: "5px 8px", textAlign: "left" }}>지역</th>
-                    <th style={{ border: "1px solid #fde68a", padding: "5px 8px", textAlign: "center" }}>체감온도</th>
-                    <th style={{ border: "1px solid #fde68a", padding: "5px 8px", textAlign: "center" }}>기온</th>
-                    <th style={{ border: "1px solid #fde68a", padding: "5px 8px", textAlign: "center" }}>습도</th>
-                    <th style={{ border: "1px solid #fde68a", padding: "5px 8px", textAlign: "center" }}>단계</th>
-                    <th style={{ border: "1px solid #fde68a", padding: "5px 8px", textAlign: "center" }}>기준시각</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sorted.map(([name, w], i) => {
-                    const bg = w.feels >= 38 ? "#fecaca" : w.feels >= 35 ? "#fed7aa" : w.feels >= 33 ? "#fef9c3" : w.feels >= 31 ? "#dcfce7" : "#fff";
-                    return (
-                      <tr key={name} style={{ background: bg }}>
-                        <td style={{ border: "1px solid #e5e7eb", padding: "4px 8px", textAlign: "center", fontWeight: i < 3 ? "bold" : "normal" }}>{i + 1}</td>
-                        <td style={{ border: "1px solid #e5e7eb", padding: "4px 8px", fontWeight: "bold" }}>{name}</td>
-                        <td style={{ border: "1px solid #e5e7eb", padding: "4px 8px", textAlign: "center", fontWeight: "bold", color: w.feels >= 35 ? "#dc2626" : w.feels >= 33 ? "#d97706" : "#111" }}>{w.feels}°C</td>
-                        <td style={{ border: "1px solid #e5e7eb", padding: "4px 8px", textAlign: "center" }}>{w.temp != null ? `${w.temp}°C` : "-"}</td>
-                        <td style={{ border: "1px solid #e5e7eb", padding: "4px 8px", textAlign: "center" }}>{w.hum != null ? `${w.hum}%` : "-"}</td>
-                        <td style={{ border: "1px solid #e5e7eb", padding: "4px 8px", textAlign: "center" }}>{w.stage ?? "-"}</td>
-                        <td style={{ border: "1px solid #e5e7eb", padding: "4px 8px", textAlign: "center" }}>{w.time ?? "-"}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            )}
+            <div style={{ padding: "12px 16px" }}>
+              <div style={{ fontSize: "11px", color: "#555", marginBottom: "6px" }}>안전보건관리책임자</div>
+              <div style={{ fontSize: "13px", fontWeight: "bold", marginBottom: "8px" }}>{record.safetyManager ?? ""}</div>
+              {record.safetyManagerSignature
+                ? <img src={record.safetyManagerSignature} alt="안전보건관리책임자 서명" style={{ height: "60px", objectFit: "contain" }} />
+                : <div style={{ height: "60px", border: "1px dashed #ccc", borderRadius: "4px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "11px", color: "#aaa" }}>서명 없음</div>}
+            </div>
           </div>
-        );
-      })()}
+        </div>
+      </div>
+
+      {/* ── 2페이지: 체감온도 현황 ── */}
+      {hasPage2 && (
+        <div id="heatwave-pdf-page2" style={{ ...pdfStyle }}>
+          <div style={{ textAlign: "center", marginBottom: "20px", borderBottom: "2.5px solid #f97316", paddingBottom: "14px" }}>
+            <h2 style={{ fontSize: "18px", fontWeight: "bold", margin: 0, color: "#ea580c" }}>{regionLabel} 체감온도 현황</h2>
+            <div style={{ fontSize: "10px", color: "#888", marginTop: "4px" }}>실시간 날씨 기준 · {sorted.length}개 지역</div>
+          </div>
+          {mapImg && (
+            <div style={{ textAlign: "center", marginBottom: "20px" }}>
+              <img src={mapImg} alt="폭염 지도" style={{ maxWidth: "100%", height: "280px", objectFit: "contain", borderRadius: "8px", border: "1px solid #fed7aa" }} />
+            </div>
+          )}
+          {sorted.length > 0 && (
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11px" }}>
+              <thead>
+                <tr style={{ background: "#fff7ed" }}>
+                  <th style={{ border: "1px solid #fde68a", padding: "5px 8px", textAlign: "center" }}>순위</th>
+                  <th style={{ border: "1px solid #fde68a", padding: "5px 8px", textAlign: "left" }}>지역</th>
+                  <th style={{ border: "1px solid #fde68a", padding: "5px 8px", textAlign: "center" }}>체감온도</th>
+                  <th style={{ border: "1px solid #fde68a", padding: "5px 8px", textAlign: "center" }}>기온</th>
+                  <th style={{ border: "1px solid #fde68a", padding: "5px 8px", textAlign: "center" }}>습도</th>
+                  <th style={{ border: "1px solid #fde68a", padding: "5px 8px", textAlign: "center" }}>단계</th>
+                  <th style={{ border: "1px solid #fde68a", padding: "5px 8px", textAlign: "center" }}>기준시각</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sorted.map(([name, w], i) => {
+                  const bg = w.feels >= 38 ? "#fecaca" : w.feels >= 35 ? "#fed7aa" : w.feels >= 33 ? "#fef9c3" : w.feels >= 31 ? "#dcfce7" : "#fff";
+                  return (
+                    <tr key={name} style={{ background: bg }}>
+                      <td style={{ border: "1px solid #e5e7eb", padding: "4px 8px", textAlign: "center", fontWeight: i < 3 ? "bold" : "normal" }}>{i + 1}</td>
+                      <td style={{ border: "1px solid #e5e7eb", padding: "4px 8px", fontWeight: "bold" }}>{name}</td>
+                      <td style={{ border: "1px solid #e5e7eb", padding: "4px 8px", textAlign: "center", fontWeight: "bold", color: w.feels >= 35 ? "#dc2626" : w.feels >= 33 ? "#d97706" : "#111" }}>{w.feels}°C</td>
+                      <td style={{ border: "1px solid #e5e7eb", padding: "4px 8px", textAlign: "center" }}>{w.temp != null ? `${w.temp}°C` : "-"}</td>
+                      <td style={{ border: "1px solid #e5e7eb", padding: "4px 8px", textAlign: "center" }}>{w.hum != null ? `${w.hum}%` : "-"}</td>
+                      <td style={{ border: "1px solid #e5e7eb", padding: "4px 8px", textAlign: "center" }}>{w.stage ?? "-"}</td>
+                      <td style={{ border: "1px solid #e5e7eb", padding: "4px 8px", textAlign: "center" }}>{w.time ?? "-"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -907,10 +880,12 @@ type ParsedCSVData = {
 
 
 
-function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEmail, previewLoading, mapCaptureRef }: {
+function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEmail, onSaveMap, mapSaving, previewLoading, mapCaptureRef }: {
   onDataParsed?: (d: ParsedCSVData) => void;
   checklistTriggerRef?: React.MutableRefObject<(() => void) | null>;
   onPreviewEmail?: () => void;
+  onSaveMap?: () => void;
+  mapSaving?: boolean;
   previewLoading?: boolean;
   mapCaptureRef?: React.MutableRefObject<(() => string | null) | null>;
 }) {
@@ -1449,15 +1424,15 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
               <FileDown className="w-3.5 h-3.5" /><span className="hidden sm:inline">엑셀 저장</span>
             </Button>
           )}
-          {heatActive && onPreviewEmail && (
-            <Button size="sm" variant="outline" className="h-7 text-xs gap-1 px-2 sm:px-3 border-purple-400 text-purple-700 hover:bg-purple-50 dark:text-purple-400 dark:hover:bg-purple-950/30" onClick={onPreviewEmail} disabled={previewLoading} data-testid="button-preview-email">
-              {previewLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Eye className="w-3.5 h-3.5" />}
-              <span className="hidden sm:inline">메일 미리보기</span>
+          {heatActive && onSaveMap && (
+            <Button size="sm" variant="outline" className="h-7 text-xs gap-1 px-2 sm:px-3 border-teal-400 text-teal-700 hover:bg-teal-50 dark:text-teal-400 dark:hover:bg-teal-950/30" onClick={onSaveMap} disabled={mapSaving} data-testid="button-save-map">
+              {mapSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileDown className="w-3.5 h-3.5" />}
+              <span className="hidden sm:inline">지도 저장</span>
             </Button>
           )}
-          {heatActive && (
-            <Button size="sm" variant="outline" className="h-7 text-xs gap-1 px-2 sm:px-3 border-orange-400 text-orange-700 hover:bg-orange-50 dark:text-orange-400 dark:hover:bg-orange-950/30" onClick={handleSendDailyEmail} disabled={emailSending} data-testid="button-send-daily-email">
-              {emailSending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5" />}
+          {heatActive && onPreviewEmail && (
+            <Button size="sm" variant="outline" className="h-7 text-xs gap-1 px-2 sm:px-3 border-orange-400 text-orange-700 hover:bg-orange-50 dark:text-orange-400 dark:hover:bg-orange-950/30" onClick={onPreviewEmail} disabled={previewLoading || emailSending} data-testid="button-send-daily-email">
+              {previewLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5" />}
               <span className="hidden sm:inline">메일 발송</span>
             </Button>
           )}
@@ -1736,41 +1711,54 @@ export default function HeatWaveChecklist() {
   const [previewLoading, setPreviewLoading] = useState(false);
   // 현재 지도 날씨 데이터 (미리보기·저장용)
   const [currentWeatherForAction, setCurrentWeatherForAction] = useState<Record<string, any> | null>(null);
+  const [mapSaving, setMapSaving] = useState(false);
 
+  const handleSaveMapData = async () => {
+    if (!currentWeatherForAction || Object.keys(currentWeatherForAction).length === 0) {
+      toast({ title: '저장할 날씨 데이터가 없습니다', description: '실시간 날씨 조회 또는 CSV 업로드 먼저 해주세요.', variant: 'destructive' });
+      return;
+    }
+    setMapSaving(true);
+    try {
+      const resp = await fetch('/api/heatwave-map/data', {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ weather: currentWeatherForAction, savedAt: new Date().toISOString(), source: '수동 저장' }),
+      });
+      if (!resp.ok) throw new Error('저장 실패');
+      toast({ title: '폭염지도 데이터가 저장되었습니다', description: `${Object.keys(currentWeatherForAction).length}개 지역 저장 완료` });
+    } catch (e: any) {
+      toast({ title: '저장 실패', description: e.message, variant: 'destructive' });
+    } finally {
+      setMapSaving(false);
+    }
+  };
 
   const handleDownloadPDF = async (record: HeatWaveChecklist) => {
     setPdfViewing(record);
     setIsPdfDownloading(true);
-    // wait for DOM to render
-    await new Promise((r) => setTimeout(r, 600));
+    await new Promise((r) => setTimeout(r, 700));
     try {
       const html2canvas = (await import("html2canvas")).default;
       const jsPDF = (await import("jspdf")).jsPDF;
-      const el = document.getElementById("heatwave-pdf-capture");
-      if (!el) return;
-      const canvas = await html2canvas(el, { scale: 2, useCORS: true, logging: false, backgroundColor: "#ffffff" });
-      const imgData = canvas.toDataURL("image/jpeg", 0.95);
+      const page1 = document.getElementById("heatwave-pdf-page1");
+      if (!page1) { toast({ title: "PDF 생성 실패", variant: "destructive" }); return; }
       const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const ratio = canvas.height / canvas.width;
-      const imgHeight = pageWidth * ratio;
-      if (imgHeight <= pageHeight) {
-        pdf.addImage(imgData, "JPEG", 0, 0, pageWidth, imgHeight);
-      } else {
-        let y = 0;
-        while (y < canvas.height) {
-          const sliceCanvas = document.createElement("canvas");
-          sliceCanvas.width = canvas.width;
-          sliceCanvas.height = Math.min(canvas.height - y, Math.floor((canvas.width * pageHeight) / pageWidth));
-          const ctx = sliceCanvas.getContext("2d")!;
-          ctx.drawImage(canvas, 0, -y);
-          const sliceData = sliceCanvas.toDataURL("image/jpeg", 0.95);
-          const sliceH = (sliceCanvas.height / canvas.width) * pageWidth;
-          if (y > 0) pdf.addPage();
-          pdf.addImage(sliceData, "JPEG", 0, 0, pageWidth, sliceH);
-          y += sliceCanvas.height;
-        }
+      const pw = pdf.internal.pageSize.getWidth();
+      const ph = pdf.internal.pageSize.getHeight();
+      const opts = { scale: 2, useCORS: true, logging: false, backgroundColor: "#ffffff" };
+      // 1페이지
+      const c1 = await html2canvas(page1, opts);
+      pdf.addImage(c1.toDataURL("image/jpeg", 0.92), "JPEG", 0, 0, pw, ph);
+      // 2페이지 (날씨 현황 - 있을 때만)
+      const page2 = document.getElementById("heatwave-pdf-page2");
+      if (page2) {
+        const c2 = await html2canvas(page2, opts);
+        pdf.addPage();
+        const ratio2 = c2.height / c2.width;
+        const imgH2 = pw * ratio2;
+        pdf.addImage(c2.toDataURL("image/jpeg", 0.92), "JPEG", 0, 0, pw, Math.min(imgH2, ph));
       }
       pdf.save(`폭염체크리스트_${record.checkDate}_${record.checkTime.replace(":", "")}.pdf`);
     } catch (e) {
@@ -1920,6 +1908,8 @@ export default function HeatWaveChecklist() {
         onDataParsed={handleCsvParsed}
         checklistTriggerRef={checklistTriggerRef}
         onPreviewEmail={handlePreviewEmail}
+        onSaveMap={handleSaveMapData}
+        mapSaving={mapSaving}
         previewLoading={previewLoading}
         mapCaptureRef={mapCaptureRef}
       />
