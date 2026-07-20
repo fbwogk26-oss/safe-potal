@@ -1251,6 +1251,19 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
     panelsRef.current = [p1,p2,p3];
     function animate() { rafRef.current=requestAnimationFrame(animate); panelsRef.current.forEach(p=>{p.tick();p.renderer.render(p.scene,p.camera);}); }
     animate();
+    // 이전 CSV 데이터 복원 (다른 메뉴 갔다가 돌아올 때)
+    try {
+      const saved = localStorage.getItem('heatwave_map_data');
+      if (saved) {
+        const { weather, stats: sv } = JSON.parse(saved) as { weather: Record<string,RegionWeather>; stats: any };
+        if (weather && Object.keys(weather).length > 0) {
+          weatherRef.current = weather;
+          Object.entries(weather).forEach(([n, info]) => updateRegionVisual(n, info as RegionWeather));
+          setHeatActive(true);
+          if (sv) setStats(sv);
+        }
+      }
+    } catch {}
     return () => { cancelAnimationFrame(rafRef.current); panelsRef.current.forEach(p=>p.cleanup()); panelsRef.current=[]; };
   }, [mapReady]);
 
@@ -1331,12 +1344,14 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
       const allWeathers2 = Object.values(peak);
       const temps2 = allWeathers2.map(w=>w.temp).filter((v): v is number => v!==null);
       const hums2 = allWeathers2.map(w=>w.hum).filter((v): v is number => v!==null);
-      setStats({
+      const statsData = {
         maxFeels: maxT,
         avgTemp: temps2.length ? Math.round((temps2.reduce((a,b)=>a+b,0)/temps2.length)*10)/10 : 0,
         avgHum: hums2.length ? Math.round(hums2.reduce((a,b)=>a+b,0)/hums2.length) : 0,
         maxLoc, count: matched,
-      });
+      };
+      setStats(statsData);
+      try { localStorage.setItem('heatwave_map_data', JSON.stringify({ weather: weatherRef.current, stats: statsData })); } catch {}
     }
     return { count: matched, maxLoc, maxT };
   }
