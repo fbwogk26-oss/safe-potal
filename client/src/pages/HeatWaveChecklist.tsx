@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import * as THREE from "three";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -902,11 +903,203 @@ type ParsedCSVData = {
 };
 
 
+
+
+// ─── Three.js 3D 지도 타입 & 유틸 ──────────────────────────────
+interface MapRegion { name: string; type: string; color: string; polys: number[][][]; label: number[]; }
+interface PanelOpts {
+  height: number; bevel: number; radius: number; theta: number; phi: number;
+  baseRadius: number; fogNear: number; fogFar: number; sun: [number,number,number];
+  labels: boolean; fontSize: number; spin: number;
+}
+interface ThreePanel { scene: THREE.Scene; camera: THREE.PerspectiveCamera; renderer: THREE.WebGLRenderer; tick: () => void; cleanup: () => void; }
+
+function makeLabelSprite3D(text: string, fontSize: number): THREE.Sprite {
+  const c2 = document.createElement('canvas');
+  const ctx2 = c2.getContext('2d')!;
+  ctx2.font = `700 ${fontSize}px 'Malgun Gothic', sans-serif`;
+  const padX = 16;
+  const tw = Math.ceil(ctx2.measureText(text).width) + padX * 2;
+  const th = fontSize + 20;
+  c2.width = tw * 2; c2.height = th * 2;
+  ctx2.scale(2, 2);
+  ctx2.font = `700 ${fontSize}px 'Malgun Gothic', sans-serif`;
+  ctx2.textBaseline = 'middle'; ctx2.textAlign = 'center';
+  ctx2.fillStyle = 'rgba(12,15,20,0.75)';
+  const rr = 7;
+  ctx2.beginPath();
+  ctx2.moveTo(rr, 0); ctx2.arcTo(tw, 0, tw, th, rr); ctx2.arcTo(tw, th, 0, th, rr);
+  ctx2.arcTo(0, th, 0, 0, rr); ctx2.arcTo(0, 0, tw, 0, rr);
+  ctx2.closePath(); ctx2.fill();
+  ctx2.fillStyle = '#f2f5f8';
+  ctx2.fillText(text, tw / 2, th / 2 + 1);
+  const tex = new THREE.CanvasTexture(c2);
+  tex.minFilter = THREE.LinearFilter;
+  const mat = new THREE.SpriteMaterial({ map: tex, depthTest: true, depthWrite: false, transparent: true });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(tw * 0.28, th * 0.28, 1);
+  return sprite;
+}
+
+function initThreePanel(mount: HTMLElement, regions: MapRegion[], opts: PanelOpts): ThreePanel {
+  const W = () => mount.clientWidth;
+  const H = () => mount.clientHeight;
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0d1117);
+  scene.fog = new THREE.Fog(0x0d1117, opts.fogNear, opts.fogFar);
+  const camera = new THREE.PerspectiveCamera(42, W() / H(), 1, 5000);
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(W(), H());
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  mount.appendChild(renderer.domElement);
+  scene.add(new THREE.HemisphereLight(0xbfd4ff, 0x1a1f28, 0.7));
+  const sun = new THREE.DirectionalLight(0xffffff, 1.05);
+  sun.position.set(...opts.sun); sun.castShadow = true;
+  sun.shadow.mapSize.set(1024, 1024);
+  const fs = opts.fogFar * 0.6;
+  Object.assign(sun.shadow.camera, { left: -fs, right: fs, top: fs, bottom: -fs, near: 10, far: opts.fogFar * 2 });
+  sun.shadow.bias = -0.0018; scene.add(sun);
+  const root = new THREE.Group(); scene.add(root);
+  const base = new THREE.Mesh(new THREE.CircleGeometry(opts.baseRadius, 64), new THREE.MeshStandardMaterial({ color: 0x141a24, roughness: 1 }));
+  base.rotation.x = -Math.PI / 2; base.position.y = -2; base.receiveShadow = true; root.add(base);
+  const grid = new THREE.PolarGridHelper(opts.baseRadius, 8, 5, 48, 0x2a3340, 0x1c2330);
+  (grid as THREE.Object3D).position.y = -1.8; root.add(grid);
+  const raycastTargets: THREE.Mesh[] = [];
+  regions.forEach(region => {
+    const baseColor = new THREE.Color(region.color);
+    const topMat = new THREE.MeshStandardMaterial({ color: baseColor.clone(), roughness: 0.75, metalness: 0.05, side: THREE.DoubleSide });
+    const sideMat = new THREE.MeshStandardMaterial({ color: baseColor.clone().multiplyScalar(0.72), roughness: 0.9, metalness: 0.02, side: THREE.DoubleSide });
+    region.polys.forEach(ring => {
+      if (ring.length < 3) return;
+      const shape = new THREE.Shape();
+      shape.moveTo(ring[0][0], ring[0][1]);
+      for (let i = 1; i < ring.length; i++) shape.lineTo(ring[i][0], ring[i][1]);
+      shape.closePath();
+      const geo = new THREE.ExtrudeGeometry(shape, { depth: opts.height, bevelEnabled: true, bevelThickness: opts.bevel, bevelSize: opts.bevel, bevelSegments: 2, steps: 1 });
+      geo.rotateX(-Math.PI / 2);
+      const mesh = new THREE.Mesh(geo, [topMat, sideMat]);
+      mesh.castShadow = true; mesh.receiveShadow = true;
+      mesh.userData.regionName = region.name; mesh.userData.topMat = topMat; mesh.userData.baseColor = baseColor.clone();
+      root.add(mesh); raycastTargets.push(mesh);
+    });
+    if (opts.labels && region.label) {
+      const sprite = makeLabelSprite3D(region.name, opts.fontSize);
+      sprite.position.set(region.label[0], opts.height + 10, -region.label[1]);
+      sprite.renderOrder = 2; root.add(sprite);
+    }
+  });
+  let radius = opts.radius, theta = opts.theta, phi = opts.phi;
+  const target = new THREE.Vector3(0, 0, 0);
+  function updateCam() {
+    camera.position.x = target.x + radius * Math.sin(phi) * Math.sin(theta);
+    camera.position.y = target.y + radius * Math.cos(phi);
+    camera.position.z = target.z + radius * Math.sin(phi) * Math.cos(theta);
+    camera.lookAt(target);
+  }
+  updateCam();
+  let dragging = false, lastX = 0, lastY = 0, autoRotate = true;
+  const dom = renderer.domElement;
+  const raycaster = new THREE.Raycaster();
+  const mouseNDC = new THREE.Vector2();
+  let hovered: THREE.Mesh | null = null;
+  function setHi(mesh: THREE.Mesh | null, on: boolean) {
+    if (!mesh) return;
+    const c = (mesh.userData.baseColor as THREE.Color).clone();
+    if (on) c.multiplyScalar(1.4);
+    (mesh.userData.topMat as THREE.MeshStandardMaterial).color.copy(c);
+  }
+  function pick(cx: number, cy: number): THREE.Mesh | null {
+    const rect = dom.getBoundingClientRect();
+    mouseNDC.x = ((cx - rect.left) / rect.width) * 2 - 1;
+    mouseNDC.y = -((cy - rect.top) / rect.height) * 2 + 1;
+    raycaster.setFromCamera(mouseNDC, camera);
+    const hits = raycaster.intersectObjects(raycastTargets);
+    return hits.length ? hits[0].object as THREE.Mesh : null;
+  }
+  const tt = document.getElementById('heatmap3d-tooltip');
+  const onPD = (e: PointerEvent) => { dragging = true; lastX = e.clientX; lastY = e.clientY; autoRotate = false; };
+  const onPM = (e: PointerEvent) => {
+    if (dragging) {
+      const dx = e.clientX - lastX, dy = e.clientY - lastY;
+      lastX = e.clientX; lastY = e.clientY;
+      theta -= dx * 0.006; phi -= dy * 0.005;
+      phi = Math.max(0.15, Math.min(1.35, phi)); updateCam();
+      if (tt) tt.style.display = 'none';
+      return;
+    }
+    const obj = pick(e.clientX, e.clientY);
+    if (obj !== hovered) { setHi(hovered, false); hovered = obj; setHi(hovered, true); }
+    if (tt) { if (obj) { tt.style.display = 'block'; tt.style.left = e.clientX + 8 + 'px'; tt.style.top = e.clientY - 32 + 'px'; tt.textContent = obj.userData.regionName; } else tt.style.display = 'none'; }
+  };
+  const onPU = () => { dragging = false; };
+  const onWh = (e: WheelEvent) => { e.preventDefault(); radius += e.deltaY * (opts.radius * 0.0006); radius = Math.max(opts.radius * 0.35, Math.min(opts.radius * 2.2, radius)); updateCam(); };
+  const onRS = () => { camera.aspect = W() / H(); camera.updateProjectionMatrix(); renderer.setSize(W(), H()); };
+  dom.addEventListener('pointerdown', onPD);
+  window.addEventListener('pointermove', onPM);
+  window.addEventListener('pointerup', onPU);
+  dom.addEventListener('wheel', onWh, { passive: false });
+  window.addEventListener('resize', onRS);
+  function tick() { if (autoRotate) { theta += opts.spin; updateCam(); } }
+  function cleanup() {
+    dom.removeEventListener('pointerdown', onPD);
+    window.removeEventListener('pointermove', onPM);
+    window.removeEventListener('pointerup', onPU);
+    dom.removeEventListener('wheel', onWh);
+    window.removeEventListener('resize', onRS);
+    renderer.dispose();
+    if (dom.parentElement) dom.parentElement.removeChild(dom);
+  }
+  return { scene, camera, renderer, tick, cleanup };
+}
+
+function applyHeatToRegions(regions: MapRegion[], heatData: Record<string, CityHeat>): MapRegion[] {
+  if (Object.keys(heatData).length === 0) return regions;
+  return regions.map(r => {
+    const bare = r.name.replace(/[시군구]$/, '');
+    const d = heatData[r.name] ?? heatData[bare];
+    if (!d) return { ...r, color: '#6b7280' };
+    return { ...r, color: getHeatFill(d.feelsLike) };
+  });
+}
+
 function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVData) => void }) {
   const [heatData, setHeatData] = useState<Record<string, CityHeat>>({});
   const [dataDate, setDataDate] = useState("");
   const [loading, setLoading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const daeguRef = useRef<HTMLDivElement>(null);
+  const gbRef = useRef<HTMLDivElement>(null);
+  const ulleungRef = useRef<HTMLDivElement>(null);
+  const panelsRef = useRef<ThreePanel[]>([]);
+  const rafRef = useRef<number>(0);
+  const mapDataRef = useRef<{ gb: MapRegion[]; daegu: MapRegion[]; ulleung: MapRegion[] } | null>(null);
+  const [mapReady, setMapReady] = useState(false);
+
+  useEffect(() => {
+    Promise.all([
+      fetch('/map-data-gb.json').then(r => r.json()),
+      fetch('/map-data-daegu.json').then(r => r.json()),
+      fetch('/map-data-ulleung.json').then(r => r.json()),
+    ]).then(([gb, daegu, ulleung]) => { mapDataRef.current = { gb, daegu, ulleung }; setMapReady(true); });
+  }, []);
+
+  useEffect(() => {
+    if (!mapReady || !daeguRef.current || !gbRef.current || !ulleungRef.current) return;
+    cancelAnimationFrame(rafRef.current);
+    panelsRef.current.forEach(p => p.cleanup());
+    panelsRef.current = [];
+    const { gb, daegu, ulleung } = mapDataRef.current!;
+    const p1 = initThreePanel(daeguRef.current, applyHeatToRegions(daegu, heatData), { height: 14, bevel: 1.0, radius: 1150, theta: Math.PI * 0.25, phi: Math.PI * 0.34, baseRadius: 900, fogNear: 700, fogFar: 1900, sun: [320, 480, 220], labels: true, fontSize: 26, spin: 0.0018 });
+    const p2 = initThreePanel(gbRef.current, applyHeatToRegions(gb, heatData), { height: 16, bevel: 1.3, radius: 1500, theta: Math.PI * 0.25, phi: Math.PI * 0.34, baseRadius: 1200, fogNear: 900, fogFar: 2500, sun: [420, 620, 280], labels: true, fontSize: 28, spin: 0.0014 });
+    const p3 = initThreePanel(ulleungRef.current, applyHeatToRegions(ulleung, heatData), { height: 12, bevel: 0.8, radius: 900, theta: Math.PI * 0.25, phi: Math.PI * 0.3, baseRadius: 800, fogNear: 500, fogFar: 1600, sun: [280, 380, 180], labels: true, fontSize: 24, spin: 0.0022 });
+    panelsRef.current = [p1, p2, p3];
+    function animate() { rafRef.current = requestAnimationFrame(animate); panelsRef.current.forEach(p => { p.tick(); p.renderer.render(p.scene, p.camera); }); }
+    animate();
+    return () => { cancelAnimationFrame(rafRef.current); panelsRef.current.forEach(p => p.cleanup()); panelsRef.current = []; };
+  }, [mapReady, heatData]);
 
   const parseCSV = (buffer: ArrayBuffer) => {
     const decoder = new TextDecoder("euc-kr");
@@ -914,10 +1107,8 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
     const lines = text.split(/\r?\n/).filter(l => l.trim());
     const result: Record<string, CityHeat> = {};
     let date = "";
-    const temps: number[] = [];
-    const humids: number[] = [];
+    const temps: number[] = [], humids: number[] = [];
     const heatLevelCounts: Record<string, number> = {};
-
     for (let i = 1; i < lines.length; i++) {
       const cols = lines[i].split("\t");
       if (cols.length < 8) continue;
@@ -934,15 +1125,9 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
       if (!isNaN(temp)) temps.push(temp);
       if (!isNaN(humid)) humids.push(humid);
       if (heatLevel) heatLevelCounts[heatLevel] = (heatLevelCounts[heatLevel] ?? 0) + 1;
-      if (!result[city] || feelsLike > result[city].feelsLike) {
-        result[city] = { feelsLike, heatLevel };
-      }
+      if (!result[city] || feelsLike > result[city].feelsLike) result[city] = { feelsLike, heatLevel };
     }
-
-    setHeatData(result);
-    setDataDate(date);
-    setLoading(false);
-
+    setHeatData(result); setDataDate(date); setLoading(false);
     if (onDataParsed && Object.keys(result).length > 0) {
       const maxFeelsLike = Math.max(...Object.values(result).map(v => v.feelsLike));
       const avgTemp = temps.length ? temps.reduce((a, b) => a + b, 0) / temps.length : 0;
@@ -953,8 +1138,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
   };
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const file = e.target.files?.[0]; if (!file) return;
     setLoading(true);
     const reader = new FileReader();
     reader.onload = ev => parseCSV(ev.target?.result as ArrayBuffer);
@@ -970,12 +1154,14 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
     { label: "경고 35°C 이상", fill: "#f97316" },
     { label: "주의 33°C 이상", fill: "#fde047" },
     { label: "관심 31°C 이상", fill: "#7dd3fc" },
-    { label: "해당없음 31°C 미만", fill: "#dbeafe" },
-    { label: "미조회", fill: "#e5e7eb" },
+    { label: "해당없음", fill: "#dbeafe" },
+    { label: "미조회", fill: "#6b7280" },
   ];
 
   return (
     <div className="border rounded-xl bg-card shadow-sm overflow-hidden">
+      {/* 툴팁 */}
+      <div id="heatmap3d-tooltip" style={{ position: 'fixed', pointerEvents: 'none', zIndex: 9999, background: 'rgba(15,20,30,0.92)', color: '#f0f3f7', padding: '5px 12px', borderRadius: 7, fontSize: 13, fontWeight: 700, border: '1px solid rgba(255,255,255,0.12)', display: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.4)' }} />
       {/* Header */}
       <div className="px-4 py-2.5 flex items-center justify-between border-b bg-gradient-to-r from-orange-50/80 to-amber-50/60 dark:from-orange-950/20 dark:to-amber-950/10">
         <div className="flex items-center gap-2 flex-wrap">
@@ -986,82 +1172,75 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
         </div>
         <div className="flex items-center gap-2">
           {loading && <Loader2 className="w-4 h-4 animate-spin text-orange-500" />}
-          <Button size="sm" variant="outline" className="h-7 text-xs gap-1"
-            onClick={() => fileRef.current?.click()} data-testid="button-upload-heatmap-csv">
-            <FileDown className="w-3.5 h-3.5" />
-            CSV 업로드
+          <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => fileRef.current?.click()} data-testid="button-upload-heatmap-csv">
+            <FileDown className="w-3.5 h-3.5" />CSV 업로드
           </Button>
           <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={handleFile} />
         </div>
       </div>
-
-      {/* Body — 지도가 전체 너비, 범례는 하단 */}
-      <div className="p-3 flex flex-col gap-3">
-        {/* SVG Map — 실제 행정지도 640×622 위에 체감온도 원 오버레이 */}
-        <div className="w-full">
-          <svg viewBox="0 0 640 622" className="w-full">
-            {/* 실제 대구경북 행정지도 이미지 (축척바 제거 크롭본) */}
-            <image href="/daegu-gyeongbuk-map.png" x="0" y="0" width="640" height="622" preserveAspectRatio="xMidYMid meet" />
-
-            {/* City circles */}
-            {DGKB_CITIES.map(city => {
-              const d = heatData[city.name];
-              const fill = getHeatFill(d?.feelsLike);
-              const stroke = getHeatStroke(d?.feelsLike);
-              const textColor = getHeatText(d?.feelsLike);
-              const r = city.r ?? 22;
-              return (
-                <g key={city.name} transform={`translate(${city.x},${city.y})`}>
-                  <circle cx="0" cy="0" r={r} fill={fill} fillOpacity="0.88" stroke={stroke} strokeWidth="1.8" />
-                  <text x="0" y="-4" textAnchor="middle" dominantBaseline="middle" fontSize={r < 20 ? "7.5" : "8.5"} fontWeight="700" fill={textColor}>{city.name}</text>
-                  <text x="0" y="7.5" textAnchor="middle" dominantBaseline="middle" fontSize={r < 20 ? "8" : "9"} fontWeight="700" fill={textColor}>
-                    {d ? `${d.feelsLike}°` : "─"}
-                  </text>
-                </g>
-              );
-            })}
-          </svg>
+      {/* 3D 지도 패널 */}
+      <div className="p-3 flex flex-col gap-3" style={{ background: '#0a0d12' }}>
+        <p className="text-[11px] text-slate-400">드래그 회전 · 휠 확대 · {cityCount > 0 ? '체감온도 색상 반영' : 'CSV 업로드 시 색상 자동 변경'}</p>
+        {/* 대구 */}
+        <div className="rounded-xl border border-[#232a35] overflow-hidden" style={{ background: '#11151c' }}>
+          <div className="px-3 py-1.5 flex items-center justify-between border-b border-[#232a35]">
+            <span className="text-xs font-semibold text-slate-300">대구광역시</span>
+            <span className="text-[10px] text-slate-500">7구 1군</span>
+          </div>
+          <div ref={daeguRef} style={{ height: 280 }} />
         </div>
-
-        {/* Bottom panel — 범례 + TOP 도시 가로 배치 */}
-        <div className="flex flex-wrap gap-4 items-start border-t pt-2.5">
-          {/* 범례 */}
+        {/* 경북 */}
+        <div className="rounded-xl border border-[#232a35] overflow-hidden" style={{ background: '#11151c' }}>
+          <div className="px-3 py-1.5 flex items-center justify-between border-b border-[#232a35]">
+            <span className="text-xs font-semibold text-slate-300">경상북도</span>
+            <span className="text-[10px] text-slate-500">10시 11군 (울릉 제외)</span>
+          </div>
+          <div ref={gbRef} style={{ height: 500 }} />
+        </div>
+        {/* 울릉 */}
+        <div className="flex justify-center">
+          <div className="rounded-xl border-2 border-dashed border-[#3d4757] overflow-hidden w-72" style={{ background: '#11151c' }}>
+            <div className="px-3 py-1.5 flex items-center justify-between border-b border-[#3d4757]">
+              <span className="text-xs font-semibold text-slate-300">울릉군</span>
+              <span className="text-[10px] text-slate-500">별도 축척</span>
+            </div>
+            <div ref={ulleungRef} style={{ height: 220 }} />
+          </div>
+        </div>
+        {/* 범례 + TOP */}
+        <div className="flex flex-wrap gap-4 items-start border-t border-[#232a35] pt-2.5">
           <div>
-            <p className="text-[11px] font-semibold text-muted-foreground mb-1.5">폭염 단계 (체감온도 기준)</p>
+            <p className="text-[11px] font-semibold text-slate-400 mb-1.5">폭염 단계 (체감온도)</p>
             <div className="flex flex-wrap gap-x-4 gap-y-1">
               {LEGEND.map(l => (
                 <div key={l.label} className="flex items-center gap-1.5">
-                  <div className="w-3 h-3 rounded-full flex-shrink-0 border border-black/10" style={{ background: l.fill }} />
-                  <span className="text-[11px] text-muted-foreground leading-none">{l.label}</span>
+                  <div className="w-3 h-3 rounded-sm flex-shrink-0" style={{ background: l.fill }} />
+                  <span className="text-[11px] text-slate-400">{l.label}</span>
                 </div>
               ))}
             </div>
           </div>
-
-          {/* TOP 도시 */}
           {topCities.length > 0 && (
-            <div className="border rounded-lg px-3 py-2 bg-muted/30">
-              <p className="text-[11px] font-semibold text-muted-foreground mb-1">최고 체감온도 TOP</p>
+            <div className="border border-[#232a35] rounded-lg px-3 py-2" style={{ background: '#0d1117' }}>
+              <p className="text-[11px] font-semibold text-slate-400 mb-1">최고 체감온도 TOP</p>
               <div className="flex flex-wrap gap-x-4 gap-y-0.5">
                 {topCities.map(([city, d]) => (
                   <div key={city} className="flex items-center gap-1.5 text-xs">
-                    <span className="text-muted-foreground">{city}</span>
+                    <span className="text-slate-400">{city}</span>
                     <span className="font-bold tabular-nums" style={{ color: getHeatStroke(d.feelsLike) }}>{d.feelsLike}°C</span>
                   </div>
                 ))}
               </div>
-              {onDataParsed && <p className="text-[10px] text-green-600 mt-1">✓ 체크리스트 자동완성됨</p>}
+              {onDataParsed && <p className="text-[10px] text-green-400 mt-1">✓ 체크리스트 자동완성됨</p>}
             </div>
           )}
-
-          {topCities.length === 0 && (
-            <p className="text-[11px] text-muted-foreground py-1">CSV 업로드 시 지도에 표시 &amp; 체크리스트 자동완성</p>
-          )}
+          {topCities.length === 0 && <p className="text-[11px] text-slate-500 py-1">CSV 업로드 시 3D 지도 색상 변경 &amp; 체크리스트 자동완성</p>}
         </div>
       </div>
     </div>
   );
 }
+
 
 export default function HeatWaveChecklist() {
   const { toast } = useToast();
