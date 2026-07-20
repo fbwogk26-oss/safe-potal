@@ -1979,18 +1979,66 @@ export default function HeatWaveChecklist() {
       {/* 대구·경북 체감온도 지도 */}
       <DaeguGyeongbukHeatMap onDataParsed={handleCsvParsed} />
 
-      {/* 목록 테이블 */}
-      <div className="border rounded-lg overflow-hidden bg-card">
+      {/* 모바일 카드 목록 */}
+      <div className="block sm:hidden space-y-2">
+        {isLoading ? (
+          <div className="text-center py-10 text-muted-foreground text-sm">불러오는 중...</div>
+        ) : records.length === 0 ? (
+          <div className="text-center py-14 text-muted-foreground border rounded-lg">
+            <Sun className="w-10 h-10 mx-auto mb-2 opacity-20" />
+            <p className="text-sm">등록된 체크리스트가 없습니다</p>
+            <p className="text-xs mt-1">상단 버튼으로 작성하세요</p>
+          </div>
+        ) : (
+          records.map((r) => (
+            <div key={r.id} className="border rounded-xl p-3 bg-card shadow-sm" data-testid={`row-checklist-${r.id}`}>
+              <div className="flex items-start justify-between gap-2 mb-2">
+                <div>
+                  <div className="font-semibold text-sm">{r.checkDate} <span className="text-muted-foreground font-normal">{r.checkTime}</span></div>
+                  {r.targetArea && <div className="text-xs text-muted-foreground mt-0.5">{r.targetArea}</div>}
+                </div>
+                <Badge variant={alertBadgeVariant(r.heatAlertStatus)} className="flex-shrink-0 text-xs" data-testid={`badge-alert-${r.id}`}>
+                  {r.heatAlertStatus}
+                </Badge>
+              </div>
+              <div className="flex items-center justify-between text-xs text-muted-foreground mb-3">
+                <span>
+                  {r.currentTemperature != null ? `기온 ${r.currentTemperature}°C` : ''}
+                  {r.currentFeelsLike != null ? ` · 체감 ${r.currentFeelsLike}°C` : ''}
+                </span>
+                <span>조치 <strong className="text-foreground">{totalChecks(r)}</strong>/{totalPossible} · {r.author ?? '-'}</span>
+              </div>
+              <div className="grid grid-cols-4 gap-1 border-t pt-2">
+                <Button variant="ghost" size="sm" className="h-9 text-xs flex-col gap-0.5 px-1" onClick={() => setViewing(r)} data-testid={`button-view-${r.id}`}>
+                  <Eye className="w-4 h-4" /><span>보기</span>
+                </Button>
+                <Button variant="ghost" size="sm" className="h-9 text-xs flex-col gap-0.5 px-1 text-orange-500" onClick={() => setEditing(r)} data-testid={`button-edit-${r.id}`}>
+                  <Pencil className="w-4 h-4" /><span>수정</span>
+                </Button>
+                <Button variant="ghost" size="sm" className="h-9 text-xs flex-col gap-0.5 px-1 text-blue-600" onClick={() => setPdfViewing(r)} data-testid={`button-pdf-${r.id}`}>
+                  <FileText className="w-4 h-4" /><span>PDF</span>
+                </Button>
+                <Button variant="ghost" size="sm" className="h-9 text-xs flex-col gap-0.5 px-1 text-destructive" onClick={() => handleDelete(r.id)} disabled={deleteMutation.isPending} data-testid={`button-delete-${r.id}`}>
+                  <Trash2 className="w-4 h-4" /><span>삭제</span>
+                </Button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* 데스크탑 테이블 목록 */}
+      <div className="hidden sm:block border rounded-lg overflow-hidden bg-card">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>작성일시</TableHead>
-              <TableHead className="hidden sm:table-cell">대상지역</TableHead>
+              <TableHead>대상지역</TableHead>
               <TableHead>폭염특보</TableHead>
-              <TableHead className="text-center hidden sm:table-cell">기온 / 체감</TableHead>
+              <TableHead className="text-center hidden md:table-cell">기온 / 체감</TableHead>
               <TableHead className="text-center">조치 완료</TableHead>
               <TableHead className="hidden md:table-cell">작성자</TableHead>
-              <TableHead className="w-20 text-right">관리</TableHead>
+              <TableHead className="w-24 text-right">관리</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -2013,13 +2061,13 @@ export default function HeatWaveChecklist() {
                     {r.checkDate}<br />
                     <span className="text-xs text-muted-foreground">{r.checkTime}</span>
                   </TableCell>
-                  <TableCell className="text-sm hidden sm:table-cell">{r.targetArea}</TableCell>
+                  <TableCell className="text-sm">{r.targetArea}</TableCell>
                   <TableCell>
                     <Badge variant={alertBadgeVariant(r.heatAlertStatus)} data-testid={`badge-alert-${r.id}`}>
                       {r.heatAlertStatus}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-center text-sm hidden sm:table-cell">
+                  <TableCell className="text-center text-sm hidden md:table-cell">
                     {r.currentTemperature != null ? `${r.currentTemperature}°C` : "-"}
                     {r.currentFeelsLike != null && (
                       <span className="text-muted-foreground"> / {r.currentFeelsLike}°C</span>
@@ -2032,43 +2080,16 @@ export default function HeatWaveChecklist() {
                   <TableCell className="text-sm hidden md:table-cell">{r.author ?? "-"}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7"
-                        onClick={() => setViewing(r)}
-                        data-testid={`button-view-${r.id}`}
-                      >
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewing(r)} data-testid={`button-view-${r.id}`}>
                         <Eye className="w-3.5 h-3.5" />
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-orange-500 hover:text-orange-700"
-                        onClick={() => setEditing(r)}
-                        title="수정"
-                        data-testid={`button-edit-${r.id}`}
-                      >
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-orange-500 hover:text-orange-700" onClick={() => setEditing(r)} data-testid={`button-edit-${r.id}`}>
                         <Pencil className="w-3.5 h-3.5" />
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-blue-600 hover:text-blue-700"
-                        onClick={() => setPdfViewing(r)}
-                        title="PDF 미리보기"
-                        data-testid={`button-pdf-${r.id}`}
-                      >
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-600 hover:text-blue-700" onClick={() => setPdfViewing(r)} data-testid={`button-pdf-${r.id}`}>
                         <FileText className="w-3.5 h-3.5" />
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-destructive hover:text-destructive"
-                        onClick={() => handleDelete(r.id)}
-                        disabled={deleteMutation.isPending}
-                        data-testid={`button-delete-${r.id}`}
-                      >
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDelete(r.id)} disabled={deleteMutation.isPending} data-testid={`button-delete-${r.id}`}>
                         <Trash2 className="w-3.5 h-3.5" />
                       </Button>
                     </div>
@@ -2082,43 +2103,45 @@ export default function HeatWaveChecklist() {
 
       {/* 작성 다이얼로그 */}
       <Dialog open={showForm} onOpenChange={(open) => { setShowForm(open); if (!open) setCsvForm(null); }}>
-        <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Sun className="w-5 h-5 text-orange-500" />
+        <DialogContent className="w-full max-w-none sm:w-[95vw] sm:max-w-2xl h-[100dvh] sm:h-auto sm:max-h-[90vh] rounded-none sm:rounded-lg p-0 flex flex-col gap-0">
+          <DialogHeader className="px-4 pt-4 pb-3 sm:px-6 sm:pt-5 border-b flex-shrink-0">
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <Sun className="w-4 h-4 text-orange-500" />
               폭염 일일 체크리스트 작성
               {csvForm && <Badge variant="outline" className="text-xs text-green-600 border-green-400">CSV 자동완성</Badge>}
             </DialogTitle>
           </DialogHeader>
-          <ChecklistForm
-            key={csvForm ? "csv" : "empty"}
-            initial={csvForm ?? emptyForm()}
-            onSubmit={(data) => createMutation.mutate(formToPayload(data))}
-            isPending={createMutation.isPending}
-          />
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+            <ChecklistForm
+              key={csvForm ? "csv" : "empty"}
+              initial={csvForm ?? emptyForm()}
+              onSubmit={(data) => createMutation.mutate(formToPayload(data))}
+              isPending={createMutation.isPending}
+            />
+          </div>
         </DialogContent>
       </Dialog>
 
       {/* 상세보기 다이얼로그 */}
       <Dialog open={!!viewing} onOpenChange={() => setViewing(null)}>
-        <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Sun className="w-5 h-5 text-orange-500" />
-              폭염 일일 체크리스트 — {viewing?.checkDate} {viewing?.checkTime}
+        <DialogContent className="w-full max-w-none sm:w-[95vw] sm:max-w-2xl h-[100dvh] sm:h-auto sm:max-h-[90vh] rounded-none sm:rounded-lg p-0 flex flex-col gap-0">
+          <DialogHeader className="px-4 pt-4 pb-3 sm:px-6 sm:pt-5 border-b flex-shrink-0">
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <Sun className="w-4 h-4 text-orange-500" />
+              <span className="truncate">{viewing?.checkDate} {viewing?.checkTime}</span>
             </DialogTitle>
           </DialogHeader>
           {viewing && (
-            <div className="space-y-4">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
               <ChecklistForm initial={formFromRecord(viewing)} readOnly />
-              <div className="flex flex-wrap gap-2 justify-end pt-2">
-                <Button variant="outline" onClick={() => { setPdfViewing(viewing); }}>
-                  <FileText className="w-4 h-4 mr-1" /> PDF 미리보기
+              <div className="flex flex-wrap gap-2 justify-end pt-2 border-t">
+                <Button variant="outline" size="sm" onClick={() => { setPdfViewing(viewing); }}>
+                  <FileText className="w-4 h-4 mr-1" /> PDF
                 </Button>
-                <Button variant="outline" onClick={() => { setEditing(viewing); setViewing(null); }}>
-                  수정
+                <Button variant="outline" size="sm" onClick={() => { setEditing(viewing); setViewing(null); }}>
+                  <Pencil className="w-4 h-4 mr-1" /> 수정
                 </Button>
-                <Button variant="ghost" onClick={() => setViewing(null)}>닫기</Button>
+                <Button variant="ghost" size="sm" onClick={() => setViewing(null)}>닫기</Button>
               </div>
             </div>
           )}
@@ -2127,50 +2150,51 @@ export default function HeatWaveChecklist() {
 
       {/* 수정 다이얼로그 */}
       <Dialog open={!!editing} onOpenChange={() => setEditing(null)}>
-        <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Sun className="w-5 h-5 text-orange-500" /> 체크리스트 수정
+        <DialogContent className="w-full max-w-none sm:w-[95vw] sm:max-w-2xl h-[100dvh] sm:h-auto sm:max-h-[90vh] rounded-none sm:rounded-lg p-0 flex flex-col gap-0">
+          <DialogHeader className="px-4 pt-4 pb-3 sm:px-6 sm:pt-5 border-b flex-shrink-0">
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <Sun className="w-4 h-4 text-orange-500" /> 체크리스트 수정
             </DialogTitle>
           </DialogHeader>
           {editing && (
-            <ChecklistForm
-              initial={formFromRecord(editing)}
-              onSubmit={(data) =>
-                updateMutation.mutate({ id: editing.id, data: formToPayload(data) })
-              }
-              isPending={updateMutation.isPending}
-            />
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+              <ChecklistForm
+                initial={formFromRecord(editing)}
+                onSubmit={(data) =>
+                  updateMutation.mutate({ id: editing.id, data: formToPayload(data) })
+                }
+                isPending={updateMutation.isPending}
+              />
+            </div>
           )}
         </DialogContent>
       </Dialog>
 
       {/* PDF 미리보기 다이얼로그 */}
       <Dialog open={!!pdfViewing} onOpenChange={() => { setPdfViewing(null); setIsPdfDownloading(false); }}>
-        <DialogContent className="max-w-[900px] w-[95vw] max-h-[95vh] overflow-y-auto p-0">
-          <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-5 pb-3 border-b sticky top-0 bg-background z-10">
-            <div className="flex items-center justify-between">
-              <DialogTitle className="flex items-center gap-2">
-                <FileText className="w-5 h-5 text-blue-600" />
-                PDF 미리보기 — {pdfViewing?.checkDate} {pdfViewing?.checkTime}
+        <DialogContent className="w-full max-w-none sm:max-w-[900px] sm:w-[95vw] h-[100dvh] sm:h-auto sm:max-h-[95vh] rounded-none sm:rounded-lg p-0 flex flex-col gap-0">
+          <DialogHeader className="px-4 pt-4 pb-3 sm:px-6 sm:pt-5 border-b flex-shrink-0">
+            <div className="flex items-center justify-between pr-8">
+              <DialogTitle className="flex items-center gap-2 text-sm sm:text-base">
+                <FileText className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                <span className="truncate">PDF — {pdfViewing?.checkDate} {pdfViewing?.checkTime}</span>
               </DialogTitle>
               <Button
                 size="sm"
                 onClick={() => pdfViewing && handleDownloadPDF(pdfViewing)}
                 disabled={isPdfDownloading}
-                className="mr-8"
                 data-testid="button-download-pdf"
               >
                 {isPdfDownloading ? (
-                  <><Loader2 className="w-4 h-4 sm:mr-1 animate-spin" /><span className="hidden sm:inline">생성 중...</span></>
+                  <><Loader2 className="w-4 h-4 animate-spin sm:mr-1" /><span className="hidden sm:inline">생성 중...</span></>
                 ) : (
                   <><FileDown className="w-4 h-4 sm:mr-1" /><span className="hidden sm:inline">PDF 다운로드</span></>
                 )}
               </Button>
             </div>
           </DialogHeader>
-          <div className="overflow-auto bg-gray-100 p-2 sm:p-6 flex justify-center">
-            <div id="heatwave-pdf-capture" className="shadow-xl">
+          <div className="flex-1 overflow-auto bg-gray-100 p-2 sm:p-6 flex justify-center">
+            <div id="heatwave-pdf-capture" className="shadow-xl self-start">
               {pdfViewing && <ChecklistPDFView record={pdfViewing} pdfRef={pdfRef} />}
             </div>
           </div>
