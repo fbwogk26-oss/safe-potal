@@ -1143,7 +1143,7 @@ function initThreePanel(
       if (obj) {
         tooltipEl.style.display='block';
         tooltipEl.style.left=e.clientX+'px'; tooltipEl.style.top=e.clientY+'px';
-        const typeLabel = obj.userData.type==='daegu' ? '대구광역시' : (obj.userData.type==='si' ? '경북 · 시' : '경북 · 군');
+        const typeLabel = obj.userData.type==='metro' ? '(광역시)' : (obj.userData.type==='si' ? '(시)' : obj.userData.type==='gun' ? '(군)' : '');
         const w = weatherRef.current[obj.userData.name];
         let html = `<strong>${obj.userData.name}</strong><span class="tt-sub">${typeLabel}</span>`;
         if (w) html += `<span class="tt-weather">체감 ${w.feels}°C · 기온 ${w.temp??'-'}°C · 습도 ${w.hum??'-'}%${w.stage?'<br>'+w.stage:''}${w.time?' ('+w.time+' 기준)':''}</span>`;
@@ -1247,41 +1247,46 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
   const [mapReady, setMapReady] = useState(false);
 
   const CSV_NAME_MAP: Record<string, string[]> = {
-    // 대구·경북
-    '포항':['포항시'],'경주':['경주시'],'김천':['김천시'],'안동':['안동시'],'구미':['구미시'],
-    '영주':['영주시'],'영천':['영천시'],'상주':['상주시'],'문경':['문경시'],'경산':['경산시'],
-    '의성':['의성군'],'청송':['청송군'],'영양':['영양군'],'영덕':['영덕군'],'청도':['청도군'],
-    '고령':['고령군'],'성주':['성주군'],'칠곡':['칠곡군'],'예천':['예천군'],'봉화':['봉화군'],
-    '울진':['울진군'],'울릉':['울릉군'],'군위':['군위군'],
-    '대구':['중구','동구','서구','남구','북구','수성구','달서구','달성군'],
+    // 대구·경북 — 서버 REGION_SETS와 일치 (시/군 접미사 없음)
+    '대구':['대구'],
+    // 구형 CSV에서 구 단위로 올라오는 경우 대구 전체를 색칠
+    '중구':['대구'],'동구':['대구'],'서구':['대구'],'남구':['대구'],
+    '북구':['대구'],'수성구':['대구'],'달서구':['대구'],'달성군':['대구'],
+    '군위':['군위'],
+    '포항':['포항'],'경주':['경주'],'김천':['김천'],'안동':['안동'],'구미':['구미'],
+    '영주':['영주'],'영천':['영천'],'상주':['상주'],'문경':['문경'],'경산':['경산'],
+    '의성':['의성'],'청송':['청송'],'영양':['영양'],'영덕':['영덕'],'청도':['청도'],
+    '고령':['고령'],'성주':['성주'],'칠곡':['칠곡'],'예천':['예천'],'봉화':['봉화'],
+    '울진':['울진'],'울릉':['울릉'],
     // 충청권
     '대전':['대전'],'세종':['세종'],
-    '청주':['청주시'],'충주':['충주시'],'제천':['제천시'],
-    '보은':['보은군'],'옥천':['옥천군'],'영동':['영동군'],'증평':['증평군'],
-    '진천':['진천군'],'괴산':['괴산군'],'음성':['음성군'],'단양':['단양군'],
-    '천안':['천안시'],'공주':['공주시'],'보령':['보령시'],'아산':['아산시'],
-    '서산':['서산시'],'논산':['논산시'],'계룡':['계룡시'],'당진':['당진시'],
-    '금산':['금산군'],'부여':['부여군'],'서천':['서천군'],'청양':['청양군'],
-    '홍성':['홍성군'],'예산':['예산군'],'태안':['태안군'],
+    '청주':['청주'],'충주':['충주'],'제천':['제천'],
+    '보은':['보은'],'옥천':['옥천'],'영동':['영동'],'증평':['증평'],
+    '진천':['진천'],'괴산':['괴산'],'음성':['음성'],'단양':['단양'],
+    '천안':['천안'],'공주':['공주'],'보령':['보령'],'아산':['아산'],
+    '서산':['서산'],'논산':['논산'],'계룡':['계룡'],'당진':['당진'],
+    '금산':['금산'],'부여':['부여'],'서천':['서천'],'청양':['청양'],
+    '홍성':['홍성'],'예산':['예산'],'태안':['태안'],
     // 호남권
     '광주':['광주'],
-    '전주':['전주시'],'군산':['군산시'],'익산':['익산시'],'정읍':['정읍시'],
-    '남원':['남원시'],'김제':['김제시'],
-    '완주':['완주군'],'진안':['진안군'],'무주':['무주군'],'장수':['장수군'],
-    '임실':['임실군'],'순창':['순창군'],'고창':['고창군'],'부안':['부안군'],
-    '목포':['목포시'],'여수':['여수시'],'순천':['순천시'],'나주':['나주시'],'광양':['광양시'],
-    '담양':['담양군'],'곡성':['곡성군'],'구례':['구례군'],'고흥':['고흥군'],
-    '보성':['보성군'],'화순':['화순군'],'장흥':['장흥군'],'강진':['강진군'],
-    '해남':['해남군'],'영암':['영암군'],'무안':['무안군'],'함평':['함평군'],
-    '영광':['영광군'],'장성':['장성군'],'완도':['완도군'],'진도':['진도군'],'신안':['신안군'],
-    '제주':['제주시'],'서귀포':['서귀포시'],
-    // 부울경
-    '부산':['부산'],'울산':['울산'],'창원':['창원시'],
-    '진주':['진주시'],'통영':['통영시'],'사천':['사천시'],'김해':['김해시'],
-    '밀양':['밀양시'],'거제':['거제시'],'양산':['양산시'],
-    '의령':['의령군'],'함안':['함안군'],'창녕':['창녕군'],
-    '고성':['고성군'],'남해':['남해군'],'하동':['하동군'],
-    '산청':['산청군'],'함양':['함양군'],'거창':['거창군'],'합천':['합천군'],
+    '전주':['전주'],'군산':['군산'],'익산':['익산'],'정읍':['정읍'],
+    '남원':['남원'],'김제':['김제'],
+    '완주':['완주'],'진안':['진안'],'무주':['무주'],'장수':['장수'],
+    '임실':['임실'],'순창':['순창'],'고창':['고창'],'부안':['부안'],
+    '목포':['목포'],'여수':['여수'],'순천':['순천'],'나주':['나주'],'광양':['광양'],
+    '담양':['담양'],'곡성':['곡성'],'구례':['구례'],'고흥':['고흥'],
+    '보성':['보성'],'화순':['화순'],'장흥':['장흥'],'강진':['강진'],
+    '해남':['해남'],'영암':['영암'],'무안':['무안'],'함평':['함평'],
+    '영광':['영광'],'장성':['장성'],'완도':['완도'],'진도':['진도'],'신안':['신안'],
+    '제주시':['제주시'],'서귀포':['서귀포'],
+    // 부산권
+    '부산':['부산'],'울산':['울산'],
+    '창원':['창원','진해','마산'],  // 창원시 = 구 창원+진해+마산
+    '진주':['진주'],'통영':['통영'],'사천':['사천'],'김해':['김해'],
+    '밀양':['밀양'],'거제':['거제'],'양산':['양산'],
+    '의령':['의령'],'함안':['함안'],'창녕':['창녕'],
+    '고성':['고성'],'남해':['남해'],'하동':['하동'],
+    '산청':['산청'],'함양':['함양'],'거창':['거창'],'합천':['합천'],
   };
 
   useEffect(() => {
@@ -1321,25 +1326,25 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
       if (selectedRegion === 'daegubuk') {
         if (!daeguRef.current || !gbRef.current || !ulleungRef.current) return;
         newPanels = [
-          initThreePanel(daeguRef.current,   d.daegu,   {height:22,bevel:1.8,radius:900, theta:Math.PI*0.25,phi:Math.PI*0.27,baseRadius:900, fogNear:1200,fogFar:3000,sun:[320,480,220],labels:true,fontSize:28,spin:false}, registryRef.current, tt, weatherRef, handleClick),
-          initThreePanel(gbRef.current,      d.gb,      {height:28,bevel:2.2,radius:1180,theta:Math.PI*0.25,phi:Math.PI*0.27,baseRadius:1200,fogNear:1500,fogFar:3800,sun:[420,620,280],labels:true,fontSize:38,spin:false}, registryRef.current, tt, weatherRef, handleClick),
+          initThreePanel(daeguRef.current,   d.daegu,   {height:22,bevel:1.8,radius:680, theta:Math.PI*0.25,phi:Math.PI*0.27,baseRadius:600, fogNear:700, fogFar:2000,sun:[250,380,180],labels:true,fontSize:28,spin:false}, registryRef.current, tt, weatherRef, handleClick),
+          initThreePanel(gbRef.current,      d.gb,      {height:28,bevel:2.2,radius:1600,theta:Math.PI*0.25,phi:Math.PI*0.27,baseRadius:1600,fogNear:1800,fogFar:4500,sun:[560,840,380],labels:true,fontSize:38,spin:false}, registryRef.current, tt, weatherRef, handleClick),
           initThreePanel(ulleungRef.current, d.ulleung, {height:14,bevel:0.8,radius:320, theta:Math.PI*0.25,phi:Math.PI*0.25,baseRadius:260, fogNear:280, fogFar:900, sun:[140,200,90], labels:true,fontSize:26,spin:false}, registryRef.current, tt, weatherRef, handleClick),
         ];
       } else if (selectedRegion === 'chungcheong') {
         if (!chungcheongRef.current) return;
         newPanels = [
-          initThreePanel(chungcheongRef.current, d.chungcheong, {height:24,bevel:2.0,radius:1150,theta:Math.PI*0.25,phi:Math.PI*0.27,baseRadius:1150,fogNear:1400,fogFar:3500,sun:[380,570,260],labels:true,fontSize:34,spin:false}, registryRef.current, tt, weatherRef, handleClick),
+          initThreePanel(chungcheongRef.current, d.chungcheong, {height:24,bevel:2.0,radius:1200,theta:Math.PI*0.25,phi:Math.PI*0.27,baseRadius:1300,fogNear:1400,fogFar:3800,sun:[420,630,280],labels:true,fontSize:34,spin:false}, registryRef.current, tt, weatherRef, handleClick),
         ];
       } else if (selectedRegion === 'honam') {
         if (!honamRef.current || !jejuRef.current) return;
         newPanels = [
-          initThreePanel(honamRef.current, d.honam, {height:24,bevel:2.0,radius:1150,theta:Math.PI*0.25,phi:Math.PI*0.27,baseRadius:1150,fogNear:1400,fogFar:3500,sun:[380,570,260],labels:true,fontSize:34,spin:false}, registryRef.current, tt, weatherRef, handleClick),
-          initThreePanel(jejuRef.current,  d.jeju,  {height:18,bevel:1.2,radius:320, theta:Math.PI*0.25,phi:Math.PI*0.25,baseRadius:300, fogNear:350, fogFar:900, sun:[140,200,90], labels:true,fontSize:28,spin:false}, registryRef.current, tt, weatherRef, handleClick),
+          initThreePanel(honamRef.current, d.honam, {height:24,bevel:2.0,radius:1200,theta:Math.PI*0.25,phi:Math.PI*0.27,baseRadius:1300,fogNear:1400,fogFar:3800,sun:[420,630,280],labels:true,fontSize:34,spin:false}, registryRef.current, tt, weatherRef, handleClick),
+          initThreePanel(jejuRef.current,  d.jeju,  {height:18,bevel:1.2,radius:400, theta:Math.PI*0.25,phi:Math.PI*0.25,baseRadius:380, fogNear:400, fogFar:1200,sun:[160,240,100],labels:true,fontSize:28,spin:false}, registryRef.current, tt, weatherRef, handleClick),
         ];
       } else if (selectedRegion === 'buulgyeong') {
         if (!buulgyeongRef.current) return;
         newPanels = [
-          initThreePanel(buulgyeongRef.current, d.buulgyeong, {height:22,bevel:1.8,radius:950,theta:Math.PI*0.25,phi:Math.PI*0.27,baseRadius:950,fogNear:1200,fogFar:3000,sun:[320,480,220],labels:true,fontSize:32,spin:false}, registryRef.current, tt, weatherRef, handleClick),
+          initThreePanel(buulgyeongRef.current, d.buulgyeong, {height:22,bevel:1.8,radius:1200,theta:Math.PI*0.25,phi:Math.PI*0.27,baseRadius:1300,fogNear:1400,fogFar:3800,sun:[420,630,280],labels:true,fontSize:32,spin:false}, registryRef.current, tt, weatherRef, handleClick),
         ];
       }
 
@@ -1679,7 +1684,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
             </div>
             <div style={{position:'relative', flex:1, minHeight:0}}>
               <div ref={daeguRef} style={{position:'absolute',inset:0}} />
-              {selectedInfo && ['중구','동구','서구','남구','북구','수성구','달서구','달성군'].includes(selectedInfo.name) && (
+              {selectedInfo && selectedInfo.name === '대구' && (
                 <RegionInfoCard info={selectedInfo} onClose={()=>setSelectedInfo(null)} heatColorFn={heatColorHex} />
               )}
             </div>
@@ -1699,7 +1704,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
                 <span style={{position:'absolute',top:5,left:9,zIndex:2,fontSize:10.5,fontWeight:700,color:'#e8ecf1',textShadow:'0 1px 3px rgba(0,0,0,0.6)',pointerEvents:'none'}}>울릉군</span>
                 <div ref={ulleungRef} style={{position:'absolute',inset:0}} />
               </div>
-              {selectedInfo && !['중구','동구','서구','남구','북구','수성구','달서구','달성군'].includes(selectedInfo.name) && (
+              {selectedInfo && selectedInfo.name !== '대구' && (
                 <RegionInfoCard info={selectedInfo} onClose={()=>setSelectedInfo(null)} heatColorFn={heatColorHex} />
               )}
             </div>
