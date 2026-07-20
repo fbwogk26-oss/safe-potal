@@ -14,10 +14,10 @@ export interface RegionWeather { feels: number; temp: number | null; hum: number
 export type RegionKey = 'all' | 'daegubuk' | 'chungcheong' | 'honam' | 'buulgyeong';
 export const REGION_TABS: { key: RegionKey; label: string; sub: string }[] = [
   { key: 'all',         label: '전체 지도', sub: '전체 권역' },
-  { key: 'daegubuk',    label: '대구본부',  sub: '대구·경북' },
   { key: 'chungcheong', label: '충청본부',  sub: '대전·세종·충북·충남' },
   { key: 'honam',       label: '호남본부',  sub: '광주·전북·전남·제주' },
   { key: 'buulgyeong',  label: '부산본부',  sub: '부산·울산·경남' },
+  { key: 'daegubuk',    label: '대구본부',  sub: '대구·경북' },
 ];
 
 // ─── Color helpers ──────────────────────────────────────────────────────────
