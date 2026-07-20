@@ -222,6 +222,67 @@ export function buildHtmlEmail(weather: Record<string, WeatherEntry>, dateStr: s
     ${legendItems}
   </div>
 
+  <!-- 체감온도 안내 -->
+  <div style="margin:0 12px 12px;border-radius:12px;overflow:hidden;border:1px solid #fed7aa">
+
+    <!-- 단계별 기준 -->
+    <div style="background:linear-gradient(135deg,#fff7ed,#fef3c7);padding:14px 16px 10px">
+      <div style="font-size:12px;font-weight:800;color:#92400e;margin-bottom:10px;display:flex;align-items:center;gap:6px">
+        <span style="display:inline-block;width:4px;height:14px;background:#ea580c;border-radius:2px;vertical-align:middle"></span>
+        ※ 체감온도 단계별 기준
+      </div>
+      <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;border-spacing:4px">
+        <tr>
+          <td style="background:#fef9c3;border:1px solid #fde047;border-radius:8px;padding:8px 6px;text-align:center;width:25%">
+            <div style="font-size:11px;font-weight:800;color:#854d0e">🟡 관심</div>
+            <div style="font-size:17px;font-weight:900;color:#92400e;line-height:1.1;margin:3px 0">31°C</div>
+            <div style="font-size:9px;color:#a16207">이상</div>
+          </td>
+          <td style="background:#ffedd5;border:1px solid #fdba74;border-radius:8px;padding:8px 6px;text-align:center;width:25%">
+            <div style="font-size:11px;font-weight:800;color:#9a3412">🟠 주의</div>
+            <div style="font-size:17px;font-weight:900;color:#c2410c;line-height:1.1;margin:3px 0">33°C</div>
+            <div style="font-size:9px;color:#9a3412">이상 (주의보)</div>
+          </td>
+          <td style="background:#fee2e2;border:1px solid #fca5a5;border-radius:8px;padding:8px 6px;text-align:center;width:25%">
+            <div style="font-size:11px;font-weight:800;color:#991b1b">🔴 경고</div>
+            <div style="font-size:17px;font-weight:900;color:#dc2626;line-height:1.1;margin:3px 0">35°C</div>
+            <div style="font-size:9px;color:#991b1b">이상 (경보)</div>
+          </td>
+          <td style="background:#ffe4e6;border:1px solid #fda4af;border-radius:8px;padding:8px 6px;text-align:center;width:25%">
+            <div style="font-size:11px;font-weight:800;color:#881337">🚨 위험</div>
+            <div style="font-size:17px;font-weight:900;color:#be123c;line-height:1.1;margin:3px 0">38°C</div>
+            <div style="font-size:9px;color:#881337">이상 (중대경보)</div>
+          </td>
+        </tr>
+      </table>
+    </div>
+
+    <!-- 구분선 -->
+    <div style="height:1px;background:#fed7aa"></div>
+
+    <!-- 행동 요령 -->
+    <div style="background:linear-gradient(135deg,#f0fdf4,#ecfdf5);padding:12px 16px">
+      <div style="font-size:12px;font-weight:800;color:#14532d;margin-bottom:8px;display:flex;align-items:center;gap:6px">
+        <span style="display:inline-block;width:4px;height:14px;background:#16a34a;border-radius:2px;vertical-align:middle"></span>
+        ※ 단계별 행동 요령
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;align-items:flex-start;gap:8px;background:#dcfce7;border-radius:8px;padding:8px 10px;border:1px solid #bbf7d0">
+          <span style="font-size:16px;line-height:1;flex-shrink:0">⏱️</span>
+          <div style="font-size:11px;color:#166534;line-height:1.5"><strong>매시간</strong> 10분 이상 시원한 곳에서 <strong>휴식</strong></div>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:8px;background:#e0f2fe;border-radius:8px;padding:8px 10px;border:1px solid #bae6fd">
+          <span style="font-size:16px;line-height:1;flex-shrink:0">💧</span>
+          <div style="font-size:11px;color:#0c4a6e;line-height:1.5">시원하고 깨끗한 <strong>물을 충분히</strong> 제공</div>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:8px;background:#fefce8;border-radius:8px;padding:8px 10px;border:1px solid #fef08a">
+          <span style="font-size:16px;line-height:1;flex-shrink:0">🧂</span>
+          <div style="font-size:11px;color:#713f12;line-height:1.5">필요 시 <strong>식염(소금)</strong> 섭취 등 전해질 보충</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- 푸터 -->
   <div style="padding:12px 18px;background:#f8fafc;border-top:1px solid #e5e7eb;text-align:center;font-size:10px;color:#9ca3af;line-height:1.8">
     이 메일은 <strong>SafeBoard</strong> 시스템에서 매일 <strong>08:30</strong>에 자동 발송됩니다.<br>
