@@ -424,16 +424,17 @@ function ChecklistPDFView({ record, pdfRef }: { record: HeatWaveChecklist; pdfRe
       {((record as any).weatherSnapshot || (record as any).mapSnapshot) && (() => {
         const snap = (record as any).weatherSnapshot as Record<string, { feels: number; temp: number; hum: number; stage?: string; time?: string }> | undefined;
         const mapImg = (record as any).mapSnapshot as string | undefined;
-        const sorted = snap ? Object.entries(snap).sort((a, b) => b[1].feels - a[1].feels) : [];
+        const sorted = snap ? filterWeatherByTargetArea(snap, record.targetArea ?? '') : [];
+        const regionLabel = REGION_CITIES_BY_TARGET[record.targetArea ?? ''] ? record.targetArea : '전체 권역';
         return (
           <div style={{ marginTop: "32px", pageBreakBefore: "always", borderTop: "2.5px solid #f97316", paddingTop: "20px" }}>
             <div style={{ textAlign: "center", marginBottom: "16px" }}>
-              <h2 style={{ fontSize: "16px", fontWeight: "bold", margin: 0, color: "#ea580c" }}>권역별 체감온도 현황 지도</h2>
-              <div style={{ fontSize: "10px", color: "#888", marginTop: "3px" }}>실시간 날씨 기준 · {snap ? Object.keys(snap).length : 0}개 지역</div>
+              <h2 style={{ fontSize: "16px", fontWeight: "bold", margin: 0, color: "#ea580c" }}>{regionLabel} 체감온도 현황</h2>
+              <div style={{ fontSize: "10px", color: "#888", marginTop: "3px" }}>실시간 날씨 기준 · {sorted.length}개 지역</div>
             </div>
             {mapImg && (
               <div style={{ textAlign: "center", marginBottom: "16px" }}>
-                <img src={mapImg} alt="폭염 지도" style={{ maxWidth: "100%", height: "280px", objectFit: "contain", borderRadius: "8px", border: "1px solid #fed7aa" }} />
+                <img src={mapImg} alt="폭염 지도" style={{ maxWidth: "100%", height: "300px", objectFit: "contain", borderRadius: "8px", border: "1px solid #fed7aa" }} />
               </div>
             )}
             {sorted.length > 0 && (
@@ -895,6 +896,25 @@ function ChecklistForm({
       )}
     </div>
   );
+}
+
+// ─── 권역별 도시 목록 (날씨 데이터 필터링용) ──────────────────
+const REGION_CITIES_BY_TARGET: Record<string, string[]> = {
+  '대구 / 경북': ['대구','군위','포항','경주','김천','안동','구미','영주','영천','상주','문경','경산','의성','청송','영양','영덕','청도','고령','성주','칠곡','예천','봉화','울진','울릉'],
+  '충청권': ['대전','세종','청주','충주','제천','보은','옥천','영동','증평','진천','괴산','음성','단양','천안','공주','보령','아산','서산','논산','계룡','당진','금산','부여','서천','청양','홍성','예산','태안'],
+  '호남권': ['광주','전주','군산','익산','정읍','남원','김제','완주','진안','무주','장수','임실','순창','고창','부안','목포','여수','순천','나주','광양','담양','곡성','구례','고흥','보성','화순','장흥','강진','해남','영암','무안','함평','영광','장성','완도','진도','신안','제주시','서귀포'],
+  '부산 / 울산 / 경남': ['부산','울산','창원','마산','진해','진주','통영','사천','김해','밀양','거제','양산','의령','함안','창녕','고성','남해','하동','산청','함양','거창','합천'],
+};
+
+function filterWeatherByTargetArea(
+  snap: Record<string, { feels: number; temp: number; hum: number; stage?: string; time?: string }>,
+  targetArea: string
+): [string, { feels: number; temp: number; hum: number; stage?: string; time?: string }][] {
+  const cities = REGION_CITIES_BY_TARGET[targetArea];
+  const entries = Object.entries(snap).sort((a, b) => b[1].feels - a[1].feels);
+  if (!cities) return entries; // 전체 표시 (targetArea 불일치)
+  const filtered = entries.filter(([name]) => cities.includes(name));
+  return filtered.length > 0 ? filtered : entries; // 필터 결과 없으면 전체 표시
 }
 
 // ─── 대구·경북 체감온도 지도 ──────────────────────────────────
@@ -1917,11 +1937,19 @@ export default function HeatWaveChecklist() {
     toast({ title: "날씨 데이터로 체크리스트가 자동완성되었습니다", description: `${targetArea} · 최고 체감온도 ${ml}°C · ${heatAlertStatus}` });
   };
 
-  // 날씨 조회 완료 시 → 확인 다이얼로그 표시 + 현재 날씨 저장 + 지도 캡처
+  // 날씨 조회 완료 시 → 확인 다이얼로그 표시 + 현재 날씨 저장 + 지도 캡처 (rAF 2프레임 후)
   const handleCsvParsed = (d: ParsedCSVData) => {
-    const mapImg = mapCaptureRef.current?.() ?? undefined;
-    setPendingWeatherData({ ...d, mapSnapshot: mapImg });
+    setPendingWeatherData(d);
     if (d.weatherSnapshot) setCurrentWeatherForAction(d.weatherSnapshot);
+    // Three.js 렌더루프가 새 데이터를 반영한 뒤 캡처 (2 rAF 대기)
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const mapImg = mapCaptureRef.current?.() ?? undefined;
+        if (mapImg) {
+          setPendingWeatherData(prev => prev ? { ...prev, mapSnapshot: mapImg } : { ...d, mapSnapshot: mapImg });
+        }
+      });
+    });
   };
 
   // 메일 미리보기
@@ -2383,11 +2411,11 @@ export default function HeatWaveChecklist() {
                 </div>
               )}
               {viewingWeather.weatherSnapshot && (() => {
-                const sorted = Object.entries(viewingWeather.weatherSnapshot as Record<string, { feels: number; temp: number; hum: number; stage?: string; time?: string }>)
-                  .sort((a, b) => b[1].feels - a[1].feels);
+                const snap = viewingWeather.weatherSnapshot as Record<string, { feels: number; temp: number; hum: number; stage?: string; time?: string }>;
+                const sorted = filterWeatherByTargetArea(snap, viewingWeather.targetArea ?? '');
                 return (
                   <div>
-                    <div className="text-xs font-semibold text-muted-foreground mb-2">{sorted.length}개 지역 · 체감온도 높은 순</div>
+                    <div className="text-xs font-semibold text-muted-foreground mb-2">{sorted.length}개 지역 · 체감온도 높은 순 {REGION_CITIES_BY_TARGET[viewingWeather.targetArea ?? ''] ? `(${viewingWeather.targetArea})` : '(전체)'}</div>
                     <div className="rounded-lg overflow-hidden border text-xs">
                       <table className="w-full">
                         <thead>
