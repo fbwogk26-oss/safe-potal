@@ -31,7 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Plus, Trash2, Eye, Thermometer, Sun, Mail, Loader2, PenLine, RotateCcw, FileDown, FileText, Pencil, RefreshCw } from "lucide-react";
+import { Plus, Trash2, Eye, Thermometer, Sun, Mail, Loader2, PenLine, RotateCcw, FileDown, FileText, Pencil, RefreshCw, Save, X, Send } from "lucide-react";
 import type { HeatWaveChecklist } from "@shared/schema";
 import { format } from "date-fns";
 
@@ -87,6 +87,7 @@ type FormData = {
   safetyManager: string;
   authorSignature: string;
   safetyManagerSignature: string;
+  weatherSnapshot?: Record<string, any>;
 };
 
 function emptyForm(): FormData {
@@ -137,6 +138,7 @@ function formFromRecord(r: HeatWaveChecklist): FormData {
     safetyManager: r.safetyManager ?? "",
     authorSignature: r.authorSignature ?? "",
     safetyManagerSignature: r.safetyManagerSignature ?? "",
+    weatherSnapshot: (r as any).weatherSnapshot ?? undefined,
   };
 }
 
@@ -162,6 +164,7 @@ function formToPayload(f: FormData) {
     safetyManager: f.safetyManager || null,
     authorSignature: f.authorSignature || null,
     safetyManagerSignature: f.safetyManagerSignature || null,
+    weatherSnapshot: f.weatherSnapshot ?? null,
   };
 }
 
@@ -902,6 +905,7 @@ type ParsedCSVData = {
   avgHumidity: number;
   dominantHeatLevel: string;
   selectedRegion?: 'all' | 'daegubuk' | 'chungcheong' | 'honam' | 'buulgyeong';
+  weatherSnapshot?: Record<string, any>;
 };
 
 
@@ -909,7 +913,14 @@ type ParsedCSVData = {
 
 
 
-function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef }: { onDataParsed?: (d: ParsedCSVData) => void; checklistTriggerRef?: React.MutableRefObject<(() => void) | null> }) {
+function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEmail, onSaveMap, mapSaving, previewLoading }: {
+  onDataParsed?: (d: ParsedCSVData) => void;
+  checklistTriggerRef?: React.MutableRefObject<(() => void) | null>;
+  onPreviewEmail?: () => void;
+  onSaveMap?: () => void;
+  mapSaving?: boolean;
+  previewLoading?: boolean;
+}) {
   const [selectedRegion, setSelectedRegion] = useState<RegionKey>('daegubuk');
   const [statusMsg, setStatusMsg] = useState("");
   const [statusErr, setStatusErr] = useState(false);
@@ -1259,7 +1270,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef }: { onDataPa
       const stageCounts: Record<string,number> = {};
       regions.forEach(r => { if (r.stage) stageCounts[r.stage] = (stageCounts[r.stage] ?? 0) + 1; });
       const dominantHeatLevel = Object.entries(stageCounts).sort((a,b) => b[1]-a[1])[0]?.[0] ?? '';
-      onDataParsed({ date: regions[0]?.time ?? '', maxFeelsLike: maxFeels, avgTemp, avgHumidity: avgHum, dominantHeatLevel, selectedRegion });
+      onDataParsed({ date: regions[0]?.time ?? '', maxFeelsLike: maxFeels, avgTemp, avgHumidity: avgHum, dominantHeatLevel, selectedRegion, weatherSnapshot: { ...weatherRef.current } });
     }
   }
 
@@ -1303,7 +1314,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef }: { onDataPa
     const stageCounts: Record<string,number> = {};
     entries.forEach(w => { if (w.stage) stageCounts[w.stage] = (stageCounts[w.stage]??0)+1; });
     const dominantHeatLevel = Object.entries(stageCounts).sort((a,b)=>b[1]-a[1])[0]?.[0] ?? '';
-    onDataParsed({ date: entries[0]?.time ?? '', maxFeelsLike, avgTemp, avgHumidity, dominantHeatLevel, selectedRegion });
+    onDataParsed({ date: entries[0]?.time ?? '', maxFeelsLike, avgTemp, avgHumidity, dominantHeatLevel, selectedRegion, weatherSnapshot: { ...wr } });
   }
 
   // 외부에서 현재 권역 체크리스트 작성 함수를 호출할 수 있도록 ref 업데이트
@@ -1432,6 +1443,18 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef }: { onDataPa
           {heatActive && (
             <Button size="sm" variant="outline" className="h-7 text-xs gap-1 px-2 sm:px-3 border-emerald-400 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30" onClick={handleDownloadWeather} disabled={loading} data-testid="button-download-weather">
               <FileDown className="w-3.5 h-3.5" /><span className="hidden sm:inline">엑셀 저장</span>
+            </Button>
+          )}
+          {heatActive && onSaveMap && (
+            <Button size="sm" variant="outline" className="h-7 text-xs gap-1 px-2 sm:px-3 border-teal-400 text-teal-700 hover:bg-teal-50 dark:text-teal-400 dark:hover:bg-teal-950/30" onClick={onSaveMap} disabled={mapSaving} data-testid="button-save-map">
+              {mapSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+              <span className="hidden sm:inline">지도 저장</span>
+            </Button>
+          )}
+          {heatActive && onPreviewEmail && (
+            <Button size="sm" variant="outline" className="h-7 text-xs gap-1 px-2 sm:px-3 border-purple-400 text-purple-700 hover:bg-purple-50 dark:text-purple-400 dark:hover:bg-purple-950/30" onClick={onPreviewEmail} disabled={previewLoading} data-testid="button-preview-email">
+              {previewLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Eye className="w-3.5 h-3.5" />}
+              <span className="hidden sm:inline">메일 미리보기</span>
             </Button>
           )}
           {heatActive && (
@@ -1706,6 +1729,15 @@ export default function HeatWaveChecklist() {
   // 체크리스트 자동작성 확인 다이얼로그
   const [pendingWeatherData, setPendingWeatherData] = useState<ParsedCSVData | null>(null);
 
+  // 메일 미리보기
+  const [showEmailPreview, setShowEmailPreview] = useState(false);
+  const [previewHtml, setPreviewHtml] = useState('');
+  const [previewLoading, setPreviewLoading] = useState(false);
+  // 현재 지도 날씨 데이터 (미리보기·저장용)
+  const [currentWeatherForAction, setCurrentWeatherForAction] = useState<Record<string, any> | null>(null);
+  // 지도 저장 중
+  const [mapSaving, setMapSaving] = useState(false);
+
   const handleDownloadPDF = async (record: HeatWaveChecklist) => {
     setPdfViewing(record);
     setIsPdfDownloading(true);
@@ -1808,14 +1840,64 @@ export default function HeatWaveChecklist() {
       stopTime35Start: "", stopTime35End: "",
       checks38: ml >= 38 ? [true] : [false],
       stopTime38Start: "", stopTime38End: "",
+      weatherSnapshot: d.weatherSnapshot,
     });
     setShowForm(true);
     toast({ title: "날씨 데이터로 체크리스트가 자동완성되었습니다", description: `${targetArea} · 최고 체감온도 ${ml}°C · ${heatAlertStatus}` });
   };
 
-  // 날씨 조회 완료 시 → 확인 다이얼로그 표시 (자동 작성 금지)
+  // 날씨 조회 완료 시 → 확인 다이얼로그 표시 + 현재 날씨 저장
   const handleCsvParsed = (d: ParsedCSVData) => {
     setPendingWeatherData(d);
+    if (d.weatherSnapshot) setCurrentWeatherForAction(d.weatherSnapshot);
+  };
+
+  // 메일 미리보기
+  const handlePreviewEmail = async () => {
+    if (!currentWeatherForAction || Object.keys(currentWeatherForAction).length === 0) {
+      toast({ title: '날씨 데이터가 없습니다', description: '실시간 날씨 조회 또는 CSV 업로드 먼저 해주세요.', variant: 'destructive' });
+      return;
+    }
+    setPreviewLoading(true);
+    try {
+      const resp = await fetch('/api/heatwave-daily-email/preview', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ weather: currentWeatherForAction }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(data.message || '미리보기 생성 실패');
+      setPreviewHtml(data.html || '');
+      setShowEmailPreview(true);
+    } catch (e: any) {
+      toast({ title: '미리보기 실패', description: e.message, variant: 'destructive' });
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  // 현재 폭염지도 저장
+  const handleSaveMapData = async () => {
+    if (!currentWeatherForAction || Object.keys(currentWeatherForAction).length === 0) {
+      toast({ title: '저장할 날씨 데이터가 없습니다', description: '실시간 날씨 조회 또는 CSV 업로드 먼저 해주세요.', variant: 'destructive' });
+      return;
+    }
+    setMapSaving(true);
+    try {
+      const resp = await fetch('/api/heatwave-map/data', {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ weather: currentWeatherForAction, savedAt: new Date().toISOString(), source: '수동 저장' }),
+      });
+      if (!resp.ok) throw new Error('저장 실패');
+      toast({ title: '폭염지도 데이터가 저장되었습니다', description: `${Object.keys(currentWeatherForAction).length}개 지역 저장 완료` });
+    } catch (e: any) {
+      toast({ title: '저장 실패', description: e.message, variant: 'destructive' });
+    } finally {
+      setMapSaving(false);
+    }
   };
 
   const handleDelete = (id: number) => {
@@ -1847,7 +1929,14 @@ export default function HeatWaveChecklist() {
       </div>
 
       {/* 대구·경북 체감온도 지도 */}
-      <DaeguGyeongbukHeatMap onDataParsed={handleCsvParsed} checklistTriggerRef={checklistTriggerRef} />
+      <DaeguGyeongbukHeatMap
+        onDataParsed={handleCsvParsed}
+        checklistTriggerRef={checklistTriggerRef}
+        onPreviewEmail={handlePreviewEmail}
+        onSaveMap={handleSaveMapData}
+        mapSaving={mapSaving}
+        previewLoading={previewLoading}
+      />
 
       {/* ── 체크리스트 자동작성 확인 다이얼로그 ─────────────────────────── */}
       {pendingWeatherData && (
@@ -1909,6 +1998,71 @@ export default function HeatWaveChecklist() {
                 data-testid="button-checklist-confirm-yes"
               >
                 예, 자동 작성
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 메일 미리보기 모달 ─────────────────────────────────────────────── */}
+      {showEmailPreview && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm" data-testid="dialog-email-preview">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-3xl mx-4 flex flex-col" style={{ maxHeight: '90vh' }}>
+            {/* 헤더 */}
+            <div className="flex items-center justify-between px-5 py-3.5 border-b bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-950/20 dark:to-blue-950/20 rounded-t-2xl flex-shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900/40 flex items-center justify-center">
+                  <Mail className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                </div>
+                <div>
+                  <div className="font-bold text-sm text-foreground">메일 발송 미리보기</div>
+                  <div className="text-xs text-muted-foreground">실제 발송될 이메일 내용을 확인하세요</div>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowEmailPreview(false)}
+                className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                data-testid="button-close-email-preview"
+              >
+                <X className="w-4 h-4 text-muted-foreground" />
+              </button>
+            </div>
+            {/* 미리보기 iframe */}
+            <div className="flex-1 overflow-hidden rounded-b-2xl" style={{ minHeight: 0 }}>
+              <iframe
+                srcDoc={previewHtml}
+                sandbox="allow-same-origin"
+                style={{ width: '100%', height: '100%', border: 'none', minHeight: '60vh' }}
+                title="이메일 미리보기"
+              />
+            </div>
+            {/* 하단 버튼 */}
+            <div className="flex gap-2 px-5 py-3.5 border-t flex-shrink-0 bg-white dark:bg-zinc-900 rounded-b-2xl">
+              <Button variant="outline" className="flex-1" onClick={() => setShowEmailPreview(false)} data-testid="button-preview-cancel">
+                닫기
+              </Button>
+              <Button
+                className="flex-1 bg-orange-500 hover:bg-orange-600 text-white gap-1.5"
+                onClick={async () => {
+                  setShowEmailPreview(false);
+                  if (!currentWeatherForAction) return;
+                  const resp = await fetch('/api/heatwave-daily-email/send-now', {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ weather: currentWeatherForAction }),
+                  });
+                  const data = await resp.json().catch(() => ({}));
+                  if (resp.ok) {
+                    toast({ title: `✉️ ${data.message || '메일 발송 완료'}` });
+                  } else {
+                    toast({ title: '발송 실패', description: data.message, variant: 'destructive' });
+                  }
+                }}
+                data-testid="button-preview-send"
+              >
+                <Send className="w-3.5 h-3.5" />
+                이대로 발송
               </Button>
             </div>
           </div>

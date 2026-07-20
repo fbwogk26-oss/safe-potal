@@ -14848,6 +14848,23 @@ ${result.value}
     }
   });
 
+  // 이메일 HTML 미리보기
+  app.post('/api/heatwave-daily-email/preview', isAuthenticated, async (req, res) => {
+    try {
+      const { buildHtmlEmail } = await import('./heatwaveDailyEmailJob');
+      const weather = req.body?.weather;
+      if (!weather || typeof weather !== 'object' || Object.keys(weather).length === 0) {
+        return res.status(422).json({ message: '날씨 데이터가 없습니다.' });
+      }
+      const now = new Date();
+      const dateStr = now.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' });
+      const html = buildHtmlEmail(weather, dateStr, undefined);
+      res.json({ html });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   // 메일 첨부와 동일한 포맷의 엑셀 다운로드
   app.post('/api/heatwave-daily-email/export-excel', isAuthenticated, async (req, res) => {
     try {

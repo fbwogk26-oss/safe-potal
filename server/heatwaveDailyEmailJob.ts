@@ -91,7 +91,7 @@ function tileBg(feels: number): string {
 }
 
 // ── HTML 이메일 빌드 ─────────────────────────────────────────────────────────
-function buildHtmlEmail(weather: Record<string, WeatherEntry>, dateStr: string, reportUrl?: string): string {
+export function buildHtmlEmail(weather: Record<string, WeatherEntry>, dateStr: string, reportUrl?: string): string {
   const entries = Object.entries(weather).sort((a, b) => b[1].feels - a[1].feels);
   if (!entries.length) return '<p>날씨 데이터가 없습니다.</p>';
 
