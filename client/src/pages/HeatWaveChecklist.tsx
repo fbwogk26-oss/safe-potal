@@ -1512,7 +1512,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
       <div className="p-2 sm:p-3 flex gap-2 sm:gap-3"
         style={{
           background:'#0a0d12',
-          height: isMobile ? 'auto' : 680,
+          height: isMobile ? 560 : 680,
           flexDirection: isMobile ? 'column' : 'row',
         }}>
 
@@ -1520,7 +1520,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
         {/* 전체 지도 */}
         {selectedRegion === 'all' && (
           <div className="flex flex-col rounded-xl border border-[#232a35] overflow-hidden"
-            style={{ background:'#11151c', flex:'1 1 0', height: isMobile ? 560 : undefined, minWidth: 0 }}>
+            style={{ background:'#11151c', flex:'1 1 0', minWidth: 0 }}>
             <div className="px-3 py-1.5 flex items-center justify-between border-b border-[#232a35] flex-shrink-0">
               <span className="text-xs font-semibold text-slate-300">전체 권역 (대구본부·충청본부·호남본부·부산본부)</span>
               <span className="text-[10px] text-slate-500">클릭하면 상세 보기</span>
@@ -1546,7 +1546,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
 
         {selectedRegion === 'daegubuk' && (
           <div className="flex flex-col rounded-xl border border-[#232a35] overflow-hidden"
-            style={{ background:'#11151c', flex:'1 1 0', height: isMobile ? 480 : undefined, minWidth: 0 }}>
+            style={{ background:'#11151c', flex:'1 1 0', minWidth: 0 }}>
             <div className="px-3 py-1.5 flex items-center justify-between border-b border-[#232a35] flex-shrink-0">
               <span className="text-xs font-semibold text-slate-300">대구광역시 · 경상북도</span>
               <span className="text-[10px] text-slate-500">클릭하면 상세 보기</span>
@@ -1568,7 +1568,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
         {/* 충청권 */}
         {selectedRegion === 'chungcheong' && (
           <div className="flex flex-col rounded-xl border border-[#232a35] overflow-hidden"
-            style={{ background:'#11151c', flex:'1 1 0', height: isMobile ? 480 : undefined, minWidth: 0 }}>
+            style={{ background:'#11151c', flex:'1 1 0', minWidth: 0 }}>
             <div className="px-3 py-1.5 flex items-center justify-between border-b border-[#232a35] flex-shrink-0">
               <span className="text-xs font-semibold text-slate-300">충청권 (대전·세종·충북·충남)</span>
               <span className="text-[10px] text-slate-500">클릭하면 상세 보기</span>
@@ -1583,7 +1583,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
         {/* 호남권 (전남북·광주 + 제주 인셋) */}
         {selectedRegion === 'honam' && (
           <div className="flex flex-col rounded-xl border border-[#232a35] overflow-hidden"
-            style={{ background:'#11151c', flex:'1 1 0', height: isMobile ? 500 : undefined, minWidth: 0 }}>
+            style={{ background:'#11151c', flex:'1 1 0', minWidth: 0 }}>
             <div className="px-3 py-1.5 flex items-center justify-between border-b border-[#232a35] flex-shrink-0">
               <span className="text-xs font-semibold text-slate-300">호남권 (광주·전북·전남·제주)</span>
               <span className="text-[10px] text-slate-500">클릭하면 상세 보기</span>
@@ -1604,7 +1604,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
         {/* 부울경 */}
         {selectedRegion === 'buulgyeong' && (
           <div className="flex flex-col rounded-xl border border-[#232a35] overflow-hidden"
-            style={{ background:'#11151c', flex:'1 1 0', height: isMobile ? 450 : undefined, minWidth: 0 }}>
+            style={{ background:'#11151c', flex:'1 1 0', minWidth: 0 }}>
             <div className="px-3 py-1.5 flex items-center justify-between border-b border-[#232a35] flex-shrink-0">
               <span className="text-xs font-semibold text-slate-300">부산권 (부산·울산·경남)</span>
               <span className="text-[10px] text-slate-500">클릭하면 상세 보기</span>
@@ -1709,6 +1709,7 @@ export default function HeatWaveChecklist() {
   const [showEmailPreview, setShowEmailPreview] = useState(false);
   const [previewHtml, setPreviewHtml] = useState('');
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [mainTab, setMainTab] = useState<'map' | 'records'>('map');
   // 현재 지도 날씨 데이터 (미리보기·저장용)
   const [currentWeatherForAction, setCurrentWeatherForAction] = useState<Record<string, any> | null>(null);
   const [mapSaving, setMapSaving] = useState(false);
@@ -1892,27 +1893,51 @@ export default function HeatWaveChecklist() {
   const totalPossible = CHECKS_31.length + CHECKS_33.length + CHECKS_35.length + CHECKS_38.length;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
-            <Sun className="w-6 h-6 text-orange-500" />
-            폭염 일일 체크리스트
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1 hidden sm:block">폭염 단계별 조치사항을 일별로 기록·관리합니다</p>
+    <div className="space-y-4">
+      {/* ── 헤더 + 탭 바 ─────────────────────────────────────────────────── */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
+              <Sun className="w-6 h-6 text-orange-500" />
+              폭염 일일 체크리스트
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1 hidden sm:block">폭염 단계별 조치사항을 일별로 기록·관리합니다</p>
+          </div>
+        </div>
+        <div className="flex border-b border-border">
+          <button
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap ${mainTab === 'map' ? 'border-orange-500 text-orange-600 dark:text-orange-400' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+            onClick={() => setMainTab('map')}
+            data-testid="tab-map"
+          >
+            🌡️ 지도 / 날씨
+          </button>
+          <button
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-1.5 whitespace-nowrap ${mainTab === 'records' ? 'border-orange-500 text-orange-600 dark:text-orange-400' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+            onClick={() => setMainTab('records')}
+            data-testid="tab-records"
+          >
+            📋 체크리스트 기록
+            {!isLoading && records.length > 0 && (
+              <span className="bg-orange-100 dark:bg-orange-900/40 text-orange-600 dark:text-orange-400 text-xs px-1.5 py-0.5 rounded-full font-semibold">{records.length}</span>
+            )}
+          </button>
         </div>
       </div>
 
-      {/* 대구·경북 체감온도 지도 */}
-      <DaeguGyeongbukHeatMap
-        onDataParsed={handleCsvParsed}
-        checklistTriggerRef={checklistTriggerRef}
-        onPreviewEmail={handlePreviewEmail}
-        onSaveMap={handleSaveMapData}
-        mapSaving={mapSaving}
-        previewLoading={previewLoading}
-        mapCaptureRef={mapCaptureRef}
-      />
+      {/* ── 지도 / 날씨 탭 ─ Three.js 유지를 위해 display:none 숨김 ── */}
+      <div style={{ display: mainTab === 'map' ? 'block' : 'none' }}>
+        <DaeguGyeongbukHeatMap
+          onDataParsed={handleCsvParsed}
+          checklistTriggerRef={checklistTriggerRef}
+          onPreviewEmail={handlePreviewEmail}
+          onSaveMap={handleSaveMapData}
+          mapSaving={mapSaving}
+          previewLoading={previewLoading}
+          mapCaptureRef={mapCaptureRef}
+        />
+      </div>
 
       {/* ── 체크리스트 자동작성 확인 다이얼로그 ─────────────────────────── */}
       {pendingWeatherData && (
@@ -2044,6 +2069,21 @@ export default function HeatWaveChecklist() {
           </div>
         </div>
       )}
+
+      {/* ── 체크리스트 기록 탭 ─────────────────────────────────────────── */}
+      {mainTab === 'records' && (
+      <div className="space-y-4">
+        <div className="flex justify-end">
+          <Button
+            size="sm"
+            className="gap-1.5 bg-orange-500 hover:bg-orange-600 text-white"
+            onClick={() => setShowForm(true)}
+            data-testid="button-add-checklist"
+          >
+            <Plus className="w-4 h-4" />
+            체크리스트 작성
+          </Button>
+        </div>
 
       {/* 모바일 카드 목록 */}
       <div className="block sm:hidden space-y-2">
@@ -2191,6 +2231,7 @@ export default function HeatWaveChecklist() {
           </TableBody>
         </Table>
       </div>
+      </div>)}
 
       {/* 작성 다이얼로그 */}
       <Dialog open={showForm} onOpenChange={(open) => { setShowForm(open); if (!open) setCsvForm(null); }}>
