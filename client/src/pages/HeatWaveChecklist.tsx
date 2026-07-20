@@ -938,6 +938,69 @@ function heatHeightScale(t: number, base: number): number {
   return Math.max(8, Math.min(95, h)) / base;
 }
 
+function RegionInfoCard({
+  info,
+  onClose,
+  heatColorFn,
+}: {
+  info: { name: string; weather: RegionWeather | null };
+  onClose: () => void;
+  heatColorFn: (t: number) => string;
+}) {
+  const w = info.weather;
+  return (
+    <div style={{
+      position:'absolute', top:8, left:8, zIndex:20,
+      background:'rgba(10,14,22,0.93)',
+      border:'1px solid rgba(255,255,255,0.13)',
+      borderRadius:12, padding:'10px 14px',
+      backdropFilter:'blur(6px)',
+      WebkitBackdropFilter:'blur(6px)',
+      minWidth:160, maxWidth:220,
+      boxShadow:'0 8px 24px rgba(0,0,0,0.5)',
+      pointerEvents:'auto',
+    }}>
+      <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8}}>
+        <span style={{fontSize:15, fontWeight:700, color:'#e8ecf1', lineHeight:1.2}}>{info.name}</span>
+        <button
+          onClick={onClose}
+          style={{background:'none',border:'none',color:'#697384',cursor:'pointer',fontSize:16,padding:'0 0 0 8px',lineHeight:1,flexShrink:0}}
+        >✕</button>
+      </div>
+      {w ? (
+        <>
+          <div style={{display:'flex', alignItems:'baseline', gap:4, marginBottom:6}}>
+            <span style={{fontSize:32, fontWeight:800, color: heatColorFn(w.feels), lineHeight:1}}>{w.feels}</span>
+            <span style={{fontSize:14, color: heatColorFn(w.feels), fontWeight:600}}>°C</span>
+            <span style={{fontSize:11, color:'#9aa5b3', marginLeft:2}}>체감</span>
+          </div>
+          <div style={{display:'grid', gridTemplateColumns:'auto 1fr', columnGap:10, rowGap:4, fontSize:12}}>
+            <span style={{color:'#697384'}}>기온</span>
+            <span style={{color:'#c5cdd7', fontWeight:600}}>{w.temp != null ? `${w.temp}°C` : '-'}</span>
+            <span style={{color:'#697384'}}>습도</span>
+            <span style={{color:'#7dd3fc', fontWeight:600}}>{w.hum != null ? `${w.hum}%` : '-'}</span>
+          </div>
+          {w.stage && (
+            <div style={{marginTop:8, fontSize:11, fontWeight:600, color:'#ffd9a0',
+              background:'rgba(255,200,100,0.08)', borderRadius:5, padding:'3px 7px',
+              display:'inline-block'}}>
+              {w.stage}
+            </div>
+          )}
+          {w.time && (
+            <div style={{marginTop:4, fontSize:10, color:'#4a5568'}}>{w.time} 기준</div>
+          )}
+        </>
+      ) : (
+        <div style={{fontSize:12, color:'#697384'}}>
+          데이터 없음
+          <div style={{fontSize:10, marginTop:4, color:'#4a5568'}}>CSV를 업로드하면 표시됩니다</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function makeLabelSprite3D(text: string, fontSize: number): THREE.Sprite {
   const c2 = document.createElement('canvas');
   const ctx2 = c2.getContext('2d')!;
@@ -969,7 +1032,8 @@ function initThreePanel(
   opts: PanelOpts,
   registry: Record<string, RegionEntry>,
   tooltipEl: HTMLElement | null,
-  weatherRef: React.MutableRefObject<Record<string, RegionWeather>>
+  weatherRef: React.MutableRefObject<Record<string, RegionWeather>>,
+  onRegionClick?: (name: string, weather: RegionWeather | null) => void
 ): ThreePanel {
   const W = () => mount.clientWidth, H = () => mount.clientHeight;
   const scene = new THREE.Scene();
@@ -1049,7 +1113,8 @@ function initThreePanel(
     const hits = raycaster.intersectObjects(raycastTargets);
     return hits.length ? hits[0].object as THREE.Mesh : null;
   }
-  const onPD = (e: PointerEvent) => { dragging=true; lastX=e.clientX; lastY=e.clientY; autoRotate=false; };
+  let downX = 0, downY = 0;
+  const onPD = (e: PointerEvent) => { dragging=true; lastX=e.clientX; lastY=e.clientY; downX=e.clientX; downY=e.clientY; autoRotate=false; };
   const onPM = (e: PointerEvent) => {
     if (dragging) {
       const dx=e.clientX-lastX, dy=e.clientY-lastY;
@@ -1074,7 +1139,13 @@ function initThreePanel(
     }
   };
   const onPL = () => { if (tooltipEl) tooltipEl.style.display='none'; };
-  const onPU = () => { dragging=false; };
+  const onPU = (e: PointerEvent) => {
+    dragging=false;
+    if (Math.abs(e.clientX-downX) < 5 && Math.abs(e.clientY-downY) < 5) {
+      const obj = pick(e.clientX, e.clientY);
+      if (obj && onRegionClick) onRegionClick(obj.userData.name, weatherRef.current[obj.userData.name] ?? null);
+    }
+  };
   const onWh = (e: WheelEvent) => { e.preventDefault(); radius+=e.deltaY*(opts.radius*0.0006); radius=Math.max(opts.radius*0.35,Math.min(opts.radius*2.2,radius)); updateCam(); };
   const onRS = () => { camera.aspect=W()/H(); camera.updateProjectionMatrix(); renderer.setSize(W(),H()); };
   dom.addEventListener('pointerdown',onPD);
@@ -1104,6 +1175,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState<{maxFeels:number;avgTemp:number;avgHum:number;maxLoc:string;count:number}|null>(null);
   const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 640);
+  const [selectedInfo, setSelectedInfo] = useState<{name:string; weather:RegionWeather|null}|null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -1148,9 +1220,10 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
     registryRef.current = {};
     const {gb,daegu,ulleung} = mapDataRef.current!;
     const tt = tooltipRef.current;
-    const p1 = initThreePanel(daeguRef.current, daegu, {height:14,bevel:1.0,radius:1150,theta:Math.PI*0.25,phi:Math.PI*0.34,baseRadius:900,fogNear:700,fogFar:1900,sun:[320,480,220],labels:true,fontSize:44,spin:false}, registryRef.current, tt, weatherRef);
-    const p2 = initThreePanel(gbRef.current, gb, {height:16,bevel:1.3,radius:1500,theta:Math.PI*0.25,phi:Math.PI*0.34,baseRadius:1200,fogNear:900,fogFar:2500,sun:[420,620,280],labels:true,fontSize:46,spin:false}, registryRef.current, tt, weatherRef);
-    const p3 = initThreePanel(ulleungRef.current, ulleung, {height:9,bevel:0.5,radius:380,theta:Math.PI*0.25,phi:Math.PI*0.3,baseRadius:260,fogNear:200,fogFar:700,sun:[140,200,90],labels:true,fontSize:26,spin:false}, registryRef.current, tt, weatherRef);
+    const handleClick = (name: string, weather: RegionWeather | null) => setSelectedInfo({name, weather});
+    const p1 = initThreePanel(daeguRef.current, daegu, {height:14,bevel:1.0,radius:1150,theta:Math.PI*0.25,phi:Math.PI*0.34,baseRadius:900,fogNear:700,fogFar:1900,sun:[320,480,220],labels:true,fontSize:44,spin:false}, registryRef.current, tt, weatherRef, handleClick);
+    const p2 = initThreePanel(gbRef.current, gb, {height:16,bevel:1.3,radius:1500,theta:Math.PI*0.25,phi:Math.PI*0.34,baseRadius:1200,fogNear:900,fogFar:2500,sun:[420,620,280],labels:true,fontSize:46,spin:false}, registryRef.current, tt, weatherRef, handleClick);
+    const p3 = initThreePanel(ulleungRef.current, ulleung, {height:9,bevel:0.5,radius:380,theta:Math.PI*0.25,phi:Math.PI*0.3,baseRadius:260,fogNear:200,fogFar:700,sun:[140,200,90],labels:true,fontSize:26,spin:false}, registryRef.current, tt, weatherRef, handleClick);
     panelsRef.current = [p1,p2,p3];
     function animate() { rafRef.current=requestAnimationFrame(animate); panelsRef.current.forEach(p=>{p.tick();p.renderer.render(p.scene,p.camera);}); }
     animate();
@@ -1334,28 +1407,20 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
           style={{
             background:'#11151c',
             flex: isMobile ? 'none' : '0 0 38%',
-            height: isMobile ? 230 : undefined,
+            height: isMobile ? 260 : undefined,
             minWidth: 0,
           }}>
           <div className="px-3 py-1.5 flex items-center justify-between border-b border-[#232a35] flex-shrink-0">
             <span className="text-xs font-semibold text-slate-300">대구광역시</span>
-            <span className="text-[10px] text-slate-500">8구·군</span>
+            <span className="text-[10px] text-slate-500">클릭하면 상세 보기</span>
           </div>
-          <div ref={daeguRef} style={{flex:1, minHeight:0}} />
-          {stats && (
-            <div className="px-2 sm:px-3 py-1.5 border-t border-[#232a35] flex-shrink-0 grid grid-cols-4 sm:grid-cols-3 gap-1">
-              {['중구','동구','서구','남구','북구','수성구','달서구','달성군'].map(n=>{
-                const w = weatherRef.current[n];
-                return w ? (
-                  <div key={n} className="flex items-center justify-between text-[10px]">
-                    <span className="text-slate-500 truncate">{n.replace(/[광역시구군]/g,'')}</span>
-                    <span className="font-bold ml-1 tabular-nums flex-shrink-0" style={{color:heatColorHex(w.feels)}}>{w.feels}°</span>
-                  </div>
-                ) : null;
-              }).filter(Boolean)}
-            </div>
-          )}
-          {!stats && <div className="px-3 py-1.5 border-t border-[#232a35] flex-shrink-0 text-[10px] text-slate-600 text-center">드래그 회전 · 휠 확대</div>}
+          <div style={{position:'relative', flex:1, minHeight:0}}>
+            <div ref={daeguRef} style={{position:'absolute',inset:0}} />
+            {/* 대구 선택 카드 */}
+            {selectedInfo && ['중구','동구','서구','남구','북구','수성구','달서구','달성군'].includes(selectedInfo.name) && (
+              <RegionInfoCard info={selectedInfo} onClose={()=>setSelectedInfo(null)} heatColorFn={heatColorHex} />
+            )}
+          </div>
         </div>
 
         {/* 경북 (울릉 인셋 포함) */}
@@ -1363,12 +1428,12 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
           style={{
             background:'#11151c',
             flex: isMobile ? 'none' : '1 1 0',
-            height: isMobile ? 340 : undefined,
+            height: isMobile ? 360 : undefined,
             minWidth: 0,
           }}>
           <div className="px-3 py-1.5 flex items-center justify-between border-b border-[#232a35] flex-shrink-0">
             <span className="text-xs font-semibold text-slate-300">경상북도</span>
-            <span className="text-[10px] text-slate-500">21개 시·군</span>
+            <span className="text-[10px] text-slate-500">클릭하면 상세 보기</span>
           </div>
           <div style={{position:'relative', flex:1, minHeight:0, background:'#0d1117'}}>
             <div ref={gbRef} style={{position:'absolute',inset:0}} />
@@ -1378,28 +1443,9 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
               <span style={{position:'absolute',top:5,left:9,zIndex:2,fontSize:10.5,fontWeight:700,color:'#e8ecf1',textShadow:'0 1px 3px rgba(0,0,0,0.6)',pointerEvents:'none'}}>울릉군</span>
               <div ref={ulleungRef} style={{position:'absolute',inset:0}} />
             </div>
-          </div>
-          {/* 경북 하단 */}
-          <div className="px-2 sm:px-3 py-2 border-t border-[#232a35] flex-shrink-0">
-            {!stats && (
-              <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
-                <div className="flex items-center gap-1.5 text-[11px] text-slate-400"><div className="w-2.5 h-2.5 rounded-sm" style={{background:'#d97a5a'}} />시</div>
-                <div className="flex items-center gap-1.5 text-[11px] text-slate-400"><div className="w-2.5 h-2.5 rounded-sm" style={{background:'#6fae74'}} />군</div>
-                <span className="text-[10px] text-slate-600 ml-auto hidden sm:inline">드래그 회전 · 휠 확대</span>
-              </div>
-            )}
-            {stats && (
-              <div className="grid grid-cols-3 sm:grid-cols-4 gap-x-2 sm:gap-x-3 gap-y-0.5">
-                {Object.entries(weatherRef.current)
-                  .filter(([n]) => !['중구','동구','서구','남구','북구','수성구','달서구','달성군'].includes(n))
-                  .sort((a,b) => b[1].feels - a[1].feels)
-                  .map(([name, w]) => (
-                    <div key={name} className="flex items-center justify-between text-[10px]">
-                      <span className="text-slate-500 truncate">{name}</span>
-                      <span className="font-bold ml-1 tabular-nums flex-shrink-0" style={{color:heatColorHex(w.feels)}}>{w.feels}°</span>
-                    </div>
-                  ))}
-              </div>
+            {/* 경북 선택 카드 */}
+            {selectedInfo && !['중구','동구','서구','남구','북구','수성구','달서구','달성군'].includes(selectedInfo.name) && (
+              <RegionInfoCard info={selectedInfo} onClose={()=>setSelectedInfo(null)} heatColorFn={heatColorHex} />
             )}
           </div>
         </div>
