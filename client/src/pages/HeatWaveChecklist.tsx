@@ -1330,7 +1330,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef }: { onDataPa
       if (selectedRegion === 'all') {
         if (!allRef.current || !ulleungAllRef.current || !jejuAllRef.current) return;
         newPanels = [
-          initThreePanel(allRef.current,      d.all,    {height:18,bevel:1.4,radius:2200,theta:0,phi:Math.PI*0.27,baseRadius:2200,fogNear:2400,fogFar:6000,sun:[800,1200,550],labels:true,fontSize:26,spin:false}, registryRef.current, tt, weatherRef, handleClick),
+          initThreePanel(allRef.current, d.all.filter((r: MapRegion) => r.name !== '제주시' && r.name !== '서귀포'), {height:18,bevel:1.4,radius:2200,theta:0,phi:Math.PI*0.27,baseRadius:2200,fogNear:2400,fogFar:6000,sun:[800,1200,550],labels:true,fontSize:26,spin:false}, registryRef.current, tt, weatherRef, handleClick),
           initThreePanel(ulleungAllRef.current,d.ulleung,{height:14,bevel:0.8,radius:320, theta:0,phi:Math.PI*0.25,baseRadius:260, fogNear:280, fogFar:900, sun:[140,200,90], labels:true,fontSize:32,spin:false}, registryRef.current, tt, weatherRef, handleClick),
           initThreePanel(jejuAllRef.current,   d.jeju,   {height:18,bevel:1.2,radius:400, theta:0,phi:Math.PI*0.25,baseRadius:380, fogNear:400, fogFar:1200,sun:[160,240,100],labels:true,fontSize:28,spin:false}, registryRef.current, tt, weatherRef, handleClick),
         ];
@@ -1821,13 +1821,13 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef }: { onDataPa
             <div style={{position:'relative', flex:1, minHeight:0, background:'#0d1117'}}>
               <div ref={allRef} style={{position:'absolute',inset:0}} />
               {/* 울릉도 인셋 — 우하단 */}
-              <div style={{position:'absolute',bottom:8,right:8,zIndex:4,width:isMobile?120:165,height:isMobile?100:140,border:'2px dashed #3d4757',borderRadius:10,background:'#0d1117',overflow:'hidden'}}>
+              <div style={{position:'absolute',bottom:8,right:8,zIndex:4,width:isMobile?130:180,height:isMobile?105:140,border:'2px dashed #3d4757',borderRadius:10,background:'#0d1117',overflow:'hidden'}}>
                 <div style={{position:'absolute',top:-8,left:8,zIndex:2,background:'#11151c',padding:'0 5px',fontSize:8,letterSpacing:'1.5px',color:'#697384'}}>INSET</div>
                 <span style={{position:'absolute',top:5,left:9,zIndex:2,fontSize:10,fontWeight:700,color:'#e8ecf1',textShadow:'0 1px 3px rgba(0,0,0,0.6)',pointerEvents:'none'}}>울릉군</span>
                 <div ref={ulleungAllRef} style={{position:'absolute',inset:0}} />
               </div>
               {/* 제주도 인셋 — 울릉도 위 */}
-              <div style={{position:'absolute',bottom:isMobile?116:156,right:8,zIndex:4,width:isMobile?160:215,height:isMobile?105:140,border:'2px dashed #3d4757',borderRadius:10,background:'#0d1117',overflow:'hidden'}}>
+              <div style={{position:'absolute',bottom:isMobile?121:156,right:8,zIndex:4,width:isMobile?130:180,height:isMobile?105:140,border:'2px dashed #3d4757',borderRadius:10,background:'#0d1117',overflow:'hidden'}}>
                 <div style={{position:'absolute',top:-8,left:8,zIndex:2,background:'#11151c',padding:'0 5px',fontSize:8,letterSpacing:'1.5px',color:'#697384'}}>INSET</div>
                 <span style={{position:'absolute',top:5,left:9,zIndex:2,fontSize:10,fontWeight:700,color:'#e8ecf1',textShadow:'0 1px 3px rgba(0,0,0,0.6)',pointerEvents:'none'}}>제주도</span>
                 <div ref={jejuAllRef} style={{position:'absolute',inset:0}} />
