@@ -9,15 +9,8 @@ import { storage } from "./storage";
 
 const REGION_SETS: Record<string, { name: string; nx: number; ny: number }[]> = {
   daegubuk: [
-    // 대구 구 단위
-    { name: '중구',   nx: 89,  ny: 90  },
-    { name: '동구',   nx: 90,  ny: 91  },
-    { name: '서구',   nx: 88,  ny: 90  },
-    { name: '남구',   nx: 89,  ny: 89  },
-    { name: '북구',   nx: 89,  ny: 92  },
-    { name: '수성구', nx: 90,  ny: 90  },
-    { name: '달서구', nx: 88,  ny: 89  },
-    { name: '달성군', nx: 86,  ny: 88  },
+    // 대구
+    { name: '대구',   nx: 89,  ny: 90  },
     { name: '군위',   nx: 88,  ny: 99  },
     // 경북
     { name: '포항',   nx: 102, ny: 94  },

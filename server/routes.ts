@@ -14454,10 +14454,7 @@ ${result.value}
     // 출처: 기상청 기상자료개방포털 격자 변환표
     const ALL_REGION_SETS: Record<string, { name: string; nx: number; ny: number }[]> = {
       daegubuk: [
-        { name:'중구',   nx:89,  ny:90  }, { name:'동구',   nx:90,  ny:91  },
-        { name:'서구',   nx:88,  ny:90  }, { name:'남구',   nx:89,  ny:89  },
-        { name:'북구',   nx:89,  ny:92  }, { name:'수성구', nx:90,  ny:90  },
-        { name:'달서구', nx:88,  ny:89  }, { name:'달성군', nx:86,  ny:88  },
+        { name:'대구',   nx:89,  ny:90  },
         { name:'군위',   nx:88,  ny:99  },
         { name:'포항',   nx:102, ny:94  }, { name:'경주',   nx:100, ny:91  },
         { name:'김천',   nx:80,  ny:96  }, { name:'안동',   nx:91,  ny:106 },

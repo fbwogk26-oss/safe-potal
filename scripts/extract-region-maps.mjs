@@ -215,17 +215,16 @@ const busanRegions = GR.filter(r => r.region === '부산(경남)');
 const chungcheongRegions = GR.filter(r => r.region === '충청');
 const honamRegions = GR.filter(r => r.region === '호남');
 
-const gbOnly = daeguRegions.filter(r => r.name !== '대구');
 const ulleungInset = INSET.filter(r => r.name === '울릉');
 const jejuInset = INSET.filter(r => r.name === '제주시' || r.name === '서귀포');
 
-console.log(`\n대구 구 단위: ${DAEGU_DISTRICT_DEFS.length}개, 경북: ${gbOnly.length}개`);
+console.log(`\n대구+경북 통합: ${daeguRegions.length}개`);
 console.log(`충청: ${chungcheongRegions.length}개, 호남: ${honamRegions.length}개, 부산(경남): ${busanRegions.length}개`);
 console.log(`울릉: ${ulleungInset.length}개, 제주: ${jejuInset.length}개`);
 
 // JSON 생성
-const daeguJSON        = buildDaeguDistricts(500);
-const gbJSON           = buildGroup(gbOnly, 1200);
+// 대구+경북 통합 (대구 단일 블록 + 경북 22개 시/군) — target=1400
+const daegubukJSON     = buildGroup(daeguRegions, 1400);
 const ulleungJSON      = buildInset(ulleungInset, 220);
 const chungcheongJSON  = buildGroup(chungcheongRegions, 900);
 const honamJSON        = buildGroup(honamRegions, 900);
@@ -235,8 +234,7 @@ const allJSON          = buildAllMap(1800);
 
 // 파일 저장
 const files = [
-  ['map-data-daegu.json',        daeguJSON],
-  ['map-data-gb.json',           gbJSON],
+  ['map-data-daegubuk.json',     daegubukJSON],
   ['map-data-ulleung.json',      ulleungJSON],
   ['map-data-chungcheong.json',  chungcheongJSON],
   ['map-data-honam.json',        honamJSON],
