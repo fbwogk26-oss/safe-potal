@@ -1045,8 +1045,8 @@ function initThreePanel(
   renderer.setSize(W(), H());
   renderer.shadowMap.enabled = true;
   mount.appendChild(renderer.domElement);
-  scene.add(new THREE.HemisphereLight(0xbfd4ff, 0x1a1f28, 0.7));
-  const sun = new THREE.DirectionalLight(0xffffff, 1.05);
+  scene.add(new THREE.HemisphereLight(0xd4e8ff, 0x1a1f28, 1.2));
+  const sun = new THREE.DirectionalLight(0xfff8f0, 1.6);
   sun.position.set(...opts.sun); sun.castShadow = true;
   sun.shadow.mapSize.set(1024,1024);
   const fs = opts.fogFar*0.6;
@@ -1055,15 +1055,15 @@ function initThreePanel(
   (sun.shadow.camera as any).near=10; (sun.shadow.camera as any).far=opts.fogFar*2;
   sun.shadow.bias=-0.0018; scene.add(sun);
   const root = new THREE.Group(); scene.add(root);
-  const base = new THREE.Mesh(new THREE.CircleGeometry(opts.baseRadius,64), new THREE.MeshStandardMaterial({color:0x141a24,roughness:1}));
+  const base = new THREE.Mesh(new THREE.CircleGeometry(opts.baseRadius,64), new THREE.MeshStandardMaterial({color:0x0c1018,roughness:0.9,metalness:0.12}));
   base.rotation.x = -Math.PI/2; base.position.y = -2; base.receiveShadow = true; root.add(base);
-  const grid = new THREE.PolarGridHelper(opts.baseRadius,8,5,48,0x2a3340,0x1c2330);
+  const grid = new THREE.GridHelper(opts.baseRadius*2, 28, 0x1e2535, 0x141b26);
   (grid as any).position.y = -1.8; root.add(grid);
   const HEIGHT = opts.height, raycastTargets: THREE.Mesh[] = [];
   regions.forEach(region => {
     const baseColor = new THREE.Color(region.color);
-    const topMat = new THREE.MeshStandardMaterial({color:baseColor.clone(),roughness:0.75,metalness:0.05,side:THREE.DoubleSide});
-    const sideMat = new THREE.MeshStandardMaterial({color:baseColor.clone().multiplyScalar(0.72),roughness:0.9,metalness:0.02,side:THREE.DoubleSide});
+    const topMat = new THREE.MeshStandardMaterial({color:baseColor.clone(),roughness:0.6,metalness:0.12,side:THREE.DoubleSide});
+    const sideMat = new THREE.MeshStandardMaterial({color:baseColor.clone().multiplyScalar(0.65),roughness:0.85,metalness:0.06,side:THREE.DoubleSide});
     const entry: RegionEntry = { meshes: [], topMat, sideMat, baseColor, baseDepth: HEIGHT, sprite: null };
     registry[region.name] = entry;
     region.polys.forEach(ring => {
@@ -1218,9 +1218,9 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
     const {gb,daegu,ulleung} = mapDataRef.current!;
     const tt = tooltipRef.current;
     const handleClick = (name: string, weather: RegionWeather | null) => setSelectedInfo({name, weather});
-    const p1 = initThreePanel(daeguRef.current, daegu, {height:14,bevel:1.0,radius:1150,theta:Math.PI*0.25,phi:Math.PI*0.34,baseRadius:900,fogNear:700,fogFar:1900,sun:[320,480,220],labels:true,fontSize:44,spin:false}, registryRef.current, tt, weatherRef, handleClick);
-    const p2 = initThreePanel(gbRef.current, gb, {height:16,bevel:1.3,radius:1500,theta:Math.PI*0.25,phi:Math.PI*0.34,baseRadius:1200,fogNear:900,fogFar:2500,sun:[420,620,280],labels:true,fontSize:46,spin:false}, registryRef.current, tt, weatherRef, handleClick);
-    const p3 = initThreePanel(ulleungRef.current, ulleung, {height:9,bevel:0.5,radius:380,theta:Math.PI*0.25,phi:Math.PI*0.3,baseRadius:260,fogNear:200,fogFar:700,sun:[140,200,90],labels:true,fontSize:26,spin:false}, registryRef.current, tt, weatherRef, handleClick);
+    const p1 = initThreePanel(daeguRef.current, daegu, {height:22,bevel:1.8,radius:900,theta:Math.PI*0.25,phi:Math.PI*0.27,baseRadius:900,fogNear:1200,fogFar:3000,sun:[320,480,220],labels:true,fontSize:44,spin:false}, registryRef.current, tt, weatherRef, handleClick);
+    const p2 = initThreePanel(gbRef.current, gb, {height:28,bevel:2.2,radius:1180,theta:Math.PI*0.25,phi:Math.PI*0.27,baseRadius:1200,fogNear:1500,fogFar:3800,sun:[420,620,280],labels:true,fontSize:46,spin:false}, registryRef.current, tt, weatherRef, handleClick);
+    const p3 = initThreePanel(ulleungRef.current, ulleung, {height:14,bevel:0.8,radius:320,theta:Math.PI*0.25,phi:Math.PI*0.25,baseRadius:260,fogNear:280,fogFar:900,sun:[140,200,90],labels:true,fontSize:26,spin:false}, registryRef.current, tt, weatherRef, handleClick);
     panelsRef.current = [p1,p2,p3];
     function animate() { rafRef.current=requestAnimationFrame(animate); panelsRef.current.forEach(p=>{p.tick();p.renderer.render(p.scene,p.camera);}); }
     animate();
