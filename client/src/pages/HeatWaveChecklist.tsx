@@ -1204,7 +1204,7 @@ const REGION_TABS: { key: RegionKey; label: string; sub: string }[] = [
   { key: 'daegubuk',    label: '대구·경북', sub: '대구·경북' },
   { key: 'chungcheong', label: '충청권',    sub: '대전·세종·충북·충남' },
   { key: 'honam',       label: '호남권',    sub: '광주·전북·전남·제주' },
-  { key: 'buulgyeong',  label: '부울경',    sub: '부산·울산·경남' },
+  { key: 'buulgyeong',  label: '부산권',    sub: '부산·울산·경남' },
 ];
 
 function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVData) => void }) {
@@ -1305,61 +1305,77 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
     panelsRef.current.forEach(p=>p.cleanup());
     panelsRef.current = [];
     registryRef.current = {};
-    const d = mapDataRef.current!;
-    const tt = tooltipRef.current;
-    const handleClick = (name: string, weather: RegionWeather | null) => setSelectedInfo({name, weather});
 
-    let newPanels: ThreePanel[] = [];
+    let destroyed = false;
+    let initRafId: number;
 
-    if (selectedRegion === 'daegubuk') {
-      if (!daeguRef.current || !gbRef.current || !ulleungRef.current) return;
-      newPanels = [
-        initThreePanel(daeguRef.current,   d.daegu,   {height:22,bevel:1.8,radius:900, theta:Math.PI*0.25,phi:Math.PI*0.27,baseRadius:900, fogNear:1200,fogFar:3000,sun:[320,480,220],labels:true,fontSize:28,spin:false}, registryRef.current, tt, weatherRef, handleClick),
-        initThreePanel(gbRef.current,      d.gb,      {height:28,bevel:2.2,radius:1180,theta:Math.PI*0.25,phi:Math.PI*0.27,baseRadius:1200,fogNear:1500,fogFar:3800,sun:[420,620,280],labels:true,fontSize:38,spin:false}, registryRef.current, tt, weatherRef, handleClick),
-        initThreePanel(ulleungRef.current, d.ulleung, {height:14,bevel:0.8,radius:320, theta:Math.PI*0.25,phi:Math.PI*0.25,baseRadius:260, fogNear:280, fogFar:900, sun:[140,200,90], labels:true,fontSize:26,spin:false}, registryRef.current, tt, weatherRef, handleClick),
-      ];
-    } else if (selectedRegion === 'chungcheong') {
-      if (!chungcheongRef.current) return;
-      newPanels = [
-        initThreePanel(chungcheongRef.current, d.chungcheong, {height:24,bevel:2.0,radius:1150,theta:Math.PI*0.25,phi:Math.PI*0.27,baseRadius:1150,fogNear:1400,fogFar:3500,sun:[380,570,260],labels:true,fontSize:34,spin:false}, registryRef.current, tt, weatherRef, handleClick),
-      ];
-    } else if (selectedRegion === 'honam') {
-      if (!honamRef.current || !jejuRef.current) return;
-      newPanels = [
-        initThreePanel(honamRef.current, d.honam, {height:24,bevel:2.0,radius:1150,theta:Math.PI*0.25,phi:Math.PI*0.27,baseRadius:1150,fogNear:1400,fogFar:3500,sun:[380,570,260],labels:true,fontSize:34,spin:false}, registryRef.current, tt, weatherRef, handleClick),
-        initThreePanel(jejuRef.current,  d.jeju,  {height:18,bevel:1.2,radius:320, theta:Math.PI*0.25,phi:Math.PI*0.25,baseRadius:300, fogNear:350, fogFar:900, sun:[140,200,90], labels:true,fontSize:28,spin:false}, registryRef.current, tt, weatherRef, handleClick),
-      ];
-    } else if (selectedRegion === 'buulgyeong') {
-      if (!buulgyeongRef.current) return;
-      newPanels = [
-        initThreePanel(buulgyeongRef.current, d.buulgyeong, {height:22,bevel:1.8,radius:950,theta:Math.PI*0.25,phi:Math.PI*0.27,baseRadius:950,fogNear:1200,fogFar:3000,sun:[320,480,220],labels:true,fontSize:32,spin:false}, registryRef.current, tt, weatherRef, handleClick),
-      ];
-    }
+    // rAF으로 1프레임 지연 — 브라우저 레이아웃 완료 후 Three.js가 컨테이너 크기를 올바르게 읽도록
+    initRafId = requestAnimationFrame(() => {
+      if (destroyed) return;
+      const d = mapDataRef.current!;
+      const tt = tooltipRef.current;
+      const handleClick = (name: string, weather: RegionWeather | null) => setSelectedInfo({name, weather});
 
-    panelsRef.current = newPanels;
-    function animate() { rafRef.current=requestAnimationFrame(animate); panelsRef.current.forEach(p=>{p.tick();p.renderer.render(p.scene,p.camera);}); }
-    animate();
+      let newPanels: ThreePanel[] = [];
 
-    // 이전 데이터 복원 — 서버(DB)에서 로드
-    fetch('/api/heatwave-map/data', { credentials: 'include' })
-      .then(r => r.json())
-      .then(json => {
-        if (json?.data?.weather && Object.keys(json.data.weather).length > 0) {
-          weatherRef.current = json.data.weather;
-          Object.entries(json.data.weather).forEach(([n, info]) => updateRegionVisual(n, info as RegionWeather));
-          // 현재 권역의 데이터만 stats 계산
-          const regionEntries = Object.entries(json.data.weather).filter(([n]) => !!registryRef.current[n]);
-          if (regionEntries.length > 0) {
-            setHeatActive(true);
-            setWeatherData({...json.data.weather});
-            if (json.data.stats) setStats(json.data.stats);
-            if (json.data.autoUpdatedAt) setAutoUpdatedAt(json.data.autoUpdatedAt);
-            if (json.data.source) setAutoSource(json.data.source);
+      if (selectedRegion === 'daegubuk') {
+        if (!daeguRef.current || !gbRef.current || !ulleungRef.current) return;
+        newPanels = [
+          initThreePanel(daeguRef.current,   d.daegu,   {height:22,bevel:1.8,radius:900, theta:Math.PI*0.25,phi:Math.PI*0.27,baseRadius:900, fogNear:1200,fogFar:3000,sun:[320,480,220],labels:true,fontSize:28,spin:false}, registryRef.current, tt, weatherRef, handleClick),
+          initThreePanel(gbRef.current,      d.gb,      {height:28,bevel:2.2,radius:1180,theta:Math.PI*0.25,phi:Math.PI*0.27,baseRadius:1200,fogNear:1500,fogFar:3800,sun:[420,620,280],labels:true,fontSize:38,spin:false}, registryRef.current, tt, weatherRef, handleClick),
+          initThreePanel(ulleungRef.current, d.ulleung, {height:14,bevel:0.8,radius:320, theta:Math.PI*0.25,phi:Math.PI*0.25,baseRadius:260, fogNear:280, fogFar:900, sun:[140,200,90], labels:true,fontSize:26,spin:false}, registryRef.current, tt, weatherRef, handleClick),
+        ];
+      } else if (selectedRegion === 'chungcheong') {
+        if (!chungcheongRef.current) return;
+        newPanels = [
+          initThreePanel(chungcheongRef.current, d.chungcheong, {height:24,bevel:2.0,radius:1150,theta:Math.PI*0.25,phi:Math.PI*0.27,baseRadius:1150,fogNear:1400,fogFar:3500,sun:[380,570,260],labels:true,fontSize:34,spin:false}, registryRef.current, tt, weatherRef, handleClick),
+        ];
+      } else if (selectedRegion === 'honam') {
+        if (!honamRef.current || !jejuRef.current) return;
+        newPanels = [
+          initThreePanel(honamRef.current, d.honam, {height:24,bevel:2.0,radius:1150,theta:Math.PI*0.25,phi:Math.PI*0.27,baseRadius:1150,fogNear:1400,fogFar:3500,sun:[380,570,260],labels:true,fontSize:34,spin:false}, registryRef.current, tt, weatherRef, handleClick),
+          initThreePanel(jejuRef.current,  d.jeju,  {height:18,bevel:1.2,radius:320, theta:Math.PI*0.25,phi:Math.PI*0.25,baseRadius:300, fogNear:350, fogFar:900, sun:[140,200,90], labels:true,fontSize:28,spin:false}, registryRef.current, tt, weatherRef, handleClick),
+        ];
+      } else if (selectedRegion === 'buulgyeong') {
+        if (!buulgyeongRef.current) return;
+        newPanels = [
+          initThreePanel(buulgyeongRef.current, d.buulgyeong, {height:22,bevel:1.8,radius:950,theta:Math.PI*0.25,phi:Math.PI*0.27,baseRadius:950,fogNear:1200,fogFar:3000,sun:[320,480,220],labels:true,fontSize:32,spin:false}, registryRef.current, tt, weatherRef, handleClick),
+        ];
+      }
+
+      if (destroyed) return;
+      panelsRef.current = newPanels;
+      function animate() { rafRef.current=requestAnimationFrame(animate); panelsRef.current.forEach(p=>{p.tick();p.renderer.render(p.scene,p.camera);}); }
+      animate();
+
+      // 이전 데이터 복원 — 서버(DB)에서 로드
+      fetch('/api/heatwave-map/data', { credentials: 'include' })
+        .then(r => r.json())
+        .then(json => {
+          if (destroyed) return;
+          if (json?.data?.weather && Object.keys(json.data.weather).length > 0) {
+            weatherRef.current = json.data.weather;
+            Object.entries(json.data.weather).forEach(([n, info]) => updateRegionVisual(n, info as RegionWeather));
+            const regionEntries = Object.entries(json.data.weather).filter(([n]) => !!registryRef.current[n]);
+            if (regionEntries.length > 0) {
+              setHeatActive(true);
+              setWeatherData({...json.data.weather});
+              if (json.data.stats) setStats(json.data.stats);
+              if (json.data.autoUpdatedAt) setAutoUpdatedAt(json.data.autoUpdatedAt);
+              if (json.data.source) setAutoSource(json.data.source);
+            }
           }
-        }
-      })
-      .catch(() => {});
-    return () => { cancelAnimationFrame(rafRef.current); panelsRef.current.forEach(p=>p.cleanup()); panelsRef.current=[]; };
+        })
+        .catch(() => {});
+    });
+
+    return () => {
+      destroyed = true;
+      cancelAnimationFrame(initRafId);
+      cancelAnimationFrame(rafRef.current);
+      panelsRef.current.forEach(p=>p.cleanup());
+      panelsRef.current = [];
+    };
   }, [mapReady, selectedRegion]);
 
   function updateRegionVisual(name: string, info: RegionWeather) {
@@ -1731,7 +1747,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
           <div className="flex flex-col rounded-xl border border-[#232a35] overflow-hidden"
             style={{ background:'#11151c', flex:'1 1 0', height: isMobile ? 450 : undefined, minWidth: 0 }}>
             <div className="px-3 py-1.5 flex items-center justify-between border-b border-[#232a35] flex-shrink-0">
-              <span className="text-xs font-semibold text-slate-300">부울경 (부산·울산·경남)</span>
+              <span className="text-xs font-semibold text-slate-300">부산권 (부산·울산·경남)</span>
               <span className="text-[10px] text-slate-500">클릭하면 상세 보기</span>
             </div>
             <div style={{position:'relative', flex:1, minHeight:0, background:'#0d1117'}}>
