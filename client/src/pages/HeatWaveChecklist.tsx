@@ -1526,7 +1526,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef }: { onDataPa
           <div className="flex flex-col rounded-xl border border-[#232a35] overflow-hidden"
             style={{ background:'#11151c', flex:'1 1 0', height: isMobile ? 560 : undefined, minWidth: 0 }}>
             <div className="px-3 py-1.5 flex items-center justify-between border-b border-[#232a35] flex-shrink-0">
-              <span className="text-xs font-semibold text-slate-300">전체 권역 (대구경북·충청·호남·부산권)</span>
+              <span className="text-xs font-semibold text-slate-300">전체 권역 (대구본부·충청본부·호남본부·부산본부)</span>
               <span className="text-[10px] text-slate-500">클릭하면 상세 보기</span>
             </div>
             <div style={{position:'relative', flex:1, minHeight:0, background:'#0d1117'}}>

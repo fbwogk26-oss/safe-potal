@@ -14,10 +14,10 @@ export interface RegionWeather { feels: number; temp: number | null; hum: number
 export type RegionKey = 'all' | 'daegubuk' | 'chungcheong' | 'honam' | 'buulgyeong';
 export const REGION_TABS: { key: RegionKey; label: string; sub: string }[] = [
   { key: 'all',         label: '전체 지도', sub: '전체 권역' },
-  { key: 'daegubuk',    label: '대구·경북', sub: '대구·경북' },
-  { key: 'chungcheong', label: '충청권',    sub: '대전·세종·충북·충남' },
-  { key: 'honam',       label: '호남권',    sub: '광주·전북·전남·제주' },
-  { key: 'buulgyeong',  label: '부산권',    sub: '부산·울산·경남' },
+  { key: 'daegubuk',    label: '대구본부',  sub: '대구·경북' },
+  { key: 'chungcheong', label: '충청본부',  sub: '대전·세종·충북·충남' },
+  { key: 'honam',       label: '호남본부',  sub: '광주·전북·전남·제주' },
+  { key: 'buulgyeong',  label: '부산본부',  sub: '부산·울산·경남' },
 ];
 
 // ─── Color helpers ──────────────────────────────────────────────────────────
@@ -133,6 +133,19 @@ export function initThreePanel(
       const sprite = makeLabelSprite3D(region.name, opts.fontSize);
       sprite.position.set(region.label[0], HEIGHT+10, -region.label[1]);
       sprite.renderOrder = 2; root.add(sprite); entry.sprite = sprite;
+    }
+    // 면적이 작은 지역(계룡·증평 등)을 위한 투명 히트박스 구체
+    // — visible=true + opacity=0 이어야 Raycaster가 감지함
+    if (region.label) {
+      const hitGeo = new THREE.SphereGeometry(48, 8, 8);
+      const hitMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false });
+      const hitMesh = new THREE.Mesh(hitGeo, hitMat);
+      hitMesh.position.set(region.label[0], HEIGHT * 0.5, -region.label[1]);
+      hitMesh.userData.name = region.name;
+      hitMesh.userData.type = region.type;
+      hitMesh.userData.topMat = entry.topMat;
+      hitMesh.userData.baseColor = entry.baseColor;
+      root.add(hitMesh); raycastTargets.push(hitMesh);
     }
   });
   let radius = opts.radius, theta = opts.theta, phi = opts.phi;

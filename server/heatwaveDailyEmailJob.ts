@@ -7,42 +7,42 @@ import { storage } from "./storage";
 
 // ── 권역 분류 (이메일 HTML/Excel 공통) ─────────────────────────────────────
 const CITY_TO_ZONE: Record<string, string> = {
-  // 대구·경북
-  '대구': '대구·경북', '군위': '대구·경북',
-  '포항': '대구·경북', '경주': '대구·경북', '김천': '대구·경북', '안동': '대구·경북',
-  '구미': '대구·경북', '영주': '대구·경북', '영천': '대구·경북', '상주': '대구·경북',
-  '문경': '대구·경북', '경산': '대구·경북', '의성': '대구·경북', '청송': '대구·경북',
-  '영양': '대구·경북', '영덕': '대구·경북', '청도': '대구·경북', '고령': '대구·경북',
-  '성주': '대구·경북', '칠곡': '대구·경북', '예천': '대구·경북', '봉화': '대구·경북',
-  '울진': '대구·경북', '울릉': '대구·경북',
-  // 부산·울산·경남
-  '부산': '부산·울산·경남', '울산': '부산·울산·경남',
-  '창원': '부산·울산·경남', '마산': '부산·울산·경남', '진해': '부산·울산·경남',
-  '진주': '부산·울산·경남', '통영': '부산·울산·경남', '사천': '부산·울산·경남',
-  '김해': '부산·울산·경남', '밀양': '부산·울산·경남', '거제': '부산·울산·경남',
-  '양산': '부산·울산·경남', '의령': '부산·울산·경남', '함안': '부산·울산·경남',
-  '창녕': '부산·울산·경남', '고성': '부산·울산·경남', '남해': '부산·울산·경남',
-  '하동': '부산·울산·경남', '산청': '부산·울산·경남', '함양': '부산·울산·경남',
-  '거창': '부산·울산·경남', '합천': '부산·울산·경남',
-  // 충청
-  '대전': '충청권', '세종': '충청권', '청주': '충청권', '충주': '충청권', '제천': '충청권',
-  '보은': '충청권', '옥천': '충청권', '영동': '충청권', '증평': '충청권', '진천': '충청권',
-  '괴산': '충청권', '음성': '충청권', '단양': '충청권',
-  '천안': '충청권', '공주': '충청권', '보령': '충청권', '아산': '충청권', '서산': '충청권',
-  '논산': '충청권', '계룡': '충청권', '당진': '충청권', '금산': '충청권', '부여': '충청권',
-  '서천': '충청권', '청양': '충청권', '홍성': '충청권', '예산': '충청권', '태안': '충청권',
-  // 호남
-  '광주': '호남권', '전주': '호남권', '군산': '호남권', '익산': '호남권', '정읍': '호남권',
-  '남원': '호남권', '김제': '호남권', '완주': '호남권', '진안': '호남권', '무주': '호남권',
-  '장수': '호남권', '임실': '호남권', '순창': '호남권', '고창': '호남권', '부안': '호남권',
-  '목포': '호남권', '여수': '호남권', '순천': '호남권', '나주': '호남권', '광양': '호남권',
-  '담양': '호남권', '곡성': '호남권', '구례': '호남권', '고흥': '호남권', '보성': '호남권',
-  '화순': '호남권', '장흥': '호남권', '강진': '호남권', '해남': '호남권', '영암': '호남권',
-  '무안': '호남권', '함평': '호남권', '영광': '호남권', '장성': '호남권', '완도': '호남권',
-  '진도': '호남권', '신안': '호남권', '제주시': '호남권', '서귀포': '호남권',
+  // 대구본부
+  '대구': '대구본부', '군위': '대구본부',
+  '포항': '대구본부', '경주': '대구본부', '김천': '대구본부', '안동': '대구본부',
+  '구미': '대구본부', '영주': '대구본부', '영천': '대구본부', '상주': '대구본부',
+  '문경': '대구본부', '경산': '대구본부', '의성': '대구본부', '청송': '대구본부',
+  '영양': '대구본부', '영덕': '대구본부', '청도': '대구본부', '고령': '대구본부',
+  '성주': '대구본부', '칠곡': '대구본부', '예천': '대구본부', '봉화': '대구본부',
+  '울진': '대구본부', '울릉': '대구본부',
+  // 부산본부
+  '부산': '부산본부', '울산': '부산본부',
+  '창원': '부산본부', '마산': '부산본부', '진해': '부산본부',
+  '진주': '부산본부', '통영': '부산본부', '사천': '부산본부',
+  '김해': '부산본부', '밀양': '부산본부', '거제': '부산본부',
+  '양산': '부산본부', '의령': '부산본부', '함안': '부산본부',
+  '창녕': '부산본부', '고성': '부산본부', '남해': '부산본부',
+  '하동': '부산본부', '산청': '부산본부', '함양': '부산본부',
+  '거창': '부산본부', '합천': '부산본부',
+  // 충청본부
+  '대전': '충청본부', '세종': '충청본부', '청주': '충청본부', '충주': '충청본부', '제천': '충청본부',
+  '보은': '충청본부', '옥천': '충청본부', '영동': '충청본부', '증평': '충청본부', '진천': '충청본부',
+  '괴산': '충청본부', '음성': '충청본부', '단양': '충청본부',
+  '천안': '충청본부', '공주': '충청본부', '보령': '충청본부', '아산': '충청본부', '서산': '충청본부',
+  '논산': '충청본부', '계룡': '충청본부', '당진': '충청본부', '금산': '충청본부', '부여': '충청본부',
+  '서천': '충청본부', '청양': '충청본부', '홍성': '충청본부', '예산': '충청본부', '태안': '충청본부',
+  // 호남본부
+  '광주': '호남본부', '전주': '호남본부', '군산': '호남본부', '익산': '호남본부', '정읍': '호남본부',
+  '남원': '호남본부', '김제': '호남본부', '완주': '호남본부', '진안': '호남본부', '무주': '호남본부',
+  '장수': '호남본부', '임실': '호남본부', '순창': '호남본부', '고창': '호남본부', '부안': '호남본부',
+  '목포': '호남본부', '여수': '호남본부', '순천': '호남본부', '나주': '호남본부', '광양': '호남본부',
+  '담양': '호남본부', '곡성': '호남본부', '구례': '호남본부', '고흥': '호남본부', '보성': '호남본부',
+  '화순': '호남본부', '장흥': '호남본부', '강진': '호남본부', '해남': '호남본부', '영암': '호남본부',
+  '무안': '호남본부', '함평': '호남본부', '영광': '호남본부', '장성': '호남본부', '완도': '호남본부',
+  '진도': '호남본부', '신안': '호남본부', '제주시': '호남본부', '서귀포': '호남본부',
 };
 
-const ZONE_ORDER = ['대구·경북', '부산·울산·경남', '충청권', '호남권'];
+const ZONE_ORDER = ['대구본부', '부산본부', '충청본부', '호남본부'];
 
 // Excel 상세 권역 분류
 const CITY_TO_DETAIL: Record<string, string> = {
@@ -110,11 +110,11 @@ function buildHtmlEmail(weather: Record<string, WeatherEntry>, dateStr: string, 
 
   // ── 권역별 앵커 ID 매핑 ─────────────────────────────────────────────────
   const ZONE_ID: Record<string, string> = {
-    '대구·경북': 'zone-daegubuk', '부산·울산·경남': 'zone-buulgyeong',
-    '충청권': 'zone-chungcheong', '호남권': 'zone-honam',
+    '대구본부': 'zone-daegubuk', '부산본부': 'zone-buulgyeong',
+    '충청본부': 'zone-chungcheong', '호남본부': 'zone-honam',
   };
   const ZONE_ICON: Record<string, string> = {
-    '대구·경북': '🏔', '부산·울산·경남': '⚓', '충청권': '🌾', '호남권': '🌊',
+    '대구본부': '🏔', '부산본부': '⚓', '충청본부': '🌾', '호남본부': '🌊',
   };
 
   // ── 권역별 타일 섹션 ────────────────────────────────────────────────────
@@ -164,7 +164,7 @@ function buildHtmlEmail(weather: Record<string, WeatherEntry>, dateStr: string, 
     <a href="${reportUrl}" style="display:inline-block;padding:10px 28px;background:linear-gradient(135deg,#ea580c 0%,#dc2626 100%);color:#fff;text-decoration:none;border-radius:9px;font-size:13px;font-weight:800;letter-spacing:0.3px;box-shadow:0 4px 12px rgba(234,88,12,0.35)">
       🗺️&nbsp; 3D 지도로 보기
     </a>
-    <div style="margin-top:7px;font-size:10px;color:#6b7280">전체·대구경북·충청권·호남권·부산권 &nbsp;|&nbsp; 클릭 → 온도 확인 &nbsp;|&nbsp; 스크롤 → 확대/축소 &nbsp;|&nbsp; 링크 유효기간 7일</div>
+    <div style="margin-top:7px;font-size:10px;color:#6b7280">전체·대구본부·충청본부·호남본부·부산본부 &nbsp;|&nbsp; 클릭 → 온도 확인 &nbsp;|&nbsp; 스크롤 → 확대/축소 &nbsp;|&nbsp; 링크 유효기간 7일</div>
   </div>
   ` : ''}
 
@@ -173,10 +173,10 @@ function buildHtmlEmail(weather: Record<string, WeatherEntry>, dateStr: string, 
     <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">
       <tr>
         <td style="text-align:center;padding:0"><a href="#zone-summary" style="display:block;padding:11px 4px;font-size:11px;font-weight:700;color:#f9fafb;text-decoration:none;border-right:1px solid #374151;background:#374151">📊<br>전체</a></td>
-        <td style="text-align:center;padding:0"><a href="#zone-daegubuk" style="display:block;padding:11px 4px;font-size:11px;font-weight:700;color:#d1d5db;text-decoration:none;border-right:1px solid #374151">🏔<br>대구·경북</a></td>
-        <td style="text-align:center;padding:0"><a href="#zone-chungcheong" style="display:block;padding:11px 4px;font-size:11px;font-weight:700;color:#d1d5db;text-decoration:none;border-right:1px solid #374151">🌾<br>충청권</a></td>
-        <td style="text-align:center;padding:0"><a href="#zone-honam" style="display:block;padding:11px 4px;font-size:11px;font-weight:700;color:#d1d5db;text-decoration:none;border-right:1px solid #374151">🌊<br>호남권</a></td>
-        <td style="text-align:center;padding:0"><a href="#zone-buulgyeong" style="display:block;padding:11px 4px;font-size:11px;font-weight:700;color:#d1d5db;text-decoration:none">⚓<br>부산권</a></td>
+        <td style="text-align:center;padding:0"><a href="#zone-daegubuk" style="display:block;padding:11px 4px;font-size:11px;font-weight:700;color:#d1d5db;text-decoration:none;border-right:1px solid #374151">🏔<br>대구본부</a></td>
+        <td style="text-align:center;padding:0"><a href="#zone-chungcheong" style="display:block;padding:11px 4px;font-size:11px;font-weight:700;color:#d1d5db;text-decoration:none;border-right:1px solid #374151">🌾<br>충청본부</a></td>
+        <td style="text-align:center;padding:0"><a href="#zone-honam" style="display:block;padding:11px 4px;font-size:11px;font-weight:700;color:#d1d5db;text-decoration:none;border-right:1px solid #374151">🌊<br>호남본부</a></td>
+        <td style="text-align:center;padding:0"><a href="#zone-buulgyeong" style="display:block;padding:11px 4px;font-size:11px;font-weight:700;color:#d1d5db;text-decoration:none">⚓<br>부산본부</a></td>
       </tr>
     </table>
   </div>
@@ -233,10 +233,10 @@ function buildHtmlEmail(weather: Record<string, WeatherEntry>, dateStr: string, 
 
 // ── 권역명 CSV 형식 매핑 (호남, 대구(경북), 부산(경남), 충청) ─────────────
 const ZONE_TO_CSV: Record<string, string> = {
-  '대구·경북':     '대구(경북)',
-  '부산·울산·경남': '부산(경남)',
-  '충청권':        '충청',
-  '호남권':        '호남',
+  '대구본부': '대구본부',
+  '부산본부': '부산본부',
+  '충청본부': '충청본부',
+  '호남본부': '호남본부',
 };
 
 // ── Excel 첨부 빌드 (CSV 형식: 권역/지역/예보일자/예보시간/기온/습도/체감온도/폭염단계) ──
