@@ -890,8 +890,28 @@ function getHeatStroke(t: number | undefined): string {
 }
 
 type CityHeat = { feelsLike: number; heatLevel: string };
+type ParsedCSVData = {
+  date: string;
+  maxFeelsLike: number;
+  avgTemp: number;
+  avgHumidity: number;
+  dominantHeatLevel: string;
+};
 
-function DaeguGyeongbukHeatMap() {
+/* 경북 외곽 윤곽선 (SVG 500×325 좌표계) */
+const GYEONGBUK_PATH =
+  "M 62,60 L 98,38 L 158,20 L 250,12 L 328,10 L 360,10 " +
+  "L 408,12 L 462,40 L 494,82 L 496,132 L 496,182 " +
+  "L 478,228 L 462,270 L 440,316 L 370,322 L 298,324 " +
+  "L 248,324 L 162,320 L 95,316 L 62,308 " +
+  "L 36,258 L 36,128 Z";
+
+/* 대구광역시 내곽 윤곽선 */
+const DAEGU_PATH =
+  "M 212,232 L 258,220 L 302,234 L 325,258 " +
+  "L 310,298 L 252,306 L 190,300 L 175,272 Z";
+
+function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVData) => void }) {
   const [heatData, setHeatData] = useState<Record<string, CityHeat>>({});
   const [dataDate, setDataDate] = useState("");
   const [loading, setLoading] = useState(false);
@@ -903,24 +923,42 @@ function DaeguGyeongbukHeatMap() {
     const lines = text.split(/\r?\n/).filter(l => l.trim());
     const result: Record<string, CityHeat> = {};
     let date = "";
+    const temps: number[] = [];
+    const humids: number[] = [];
+    const heatLevelCounts: Record<string, number> = {};
+
     for (let i = 1; i < lines.length; i++) {
       const cols = lines[i].split("\t");
       if (cols.length < 8) continue;
       const kwon = cols[0]?.trim() ?? "";
       const city = cols[1]?.trim() ?? "";
       const rowDate = cols[2]?.trim() ?? "";
+      const temp = parseFloat(cols[4]);
+      const humid = parseFloat(cols[5]);
       const feelsLike = parseFloat(cols[6]);
       const heatLevel = cols[7]?.trim() ?? "";
       if (!kwon.includes("대구") && !kwon.includes("경북")) continue;
       if (!city || isNaN(feelsLike)) continue;
       if (!date && rowDate) date = rowDate;
+      if (!isNaN(temp)) temps.push(temp);
+      if (!isNaN(humid)) humids.push(humid);
+      if (heatLevel) heatLevelCounts[heatLevel] = (heatLevelCounts[heatLevel] ?? 0) + 1;
       if (!result[city] || feelsLike > result[city].feelsLike) {
         result[city] = { feelsLike, heatLevel };
       }
     }
+
     setHeatData(result);
     setDataDate(date);
     setLoading(false);
+
+    if (onDataParsed && Object.keys(result).length > 0) {
+      const maxFeelsLike = Math.max(...Object.values(result).map(v => v.feelsLike));
+      const avgTemp = temps.length ? temps.reduce((a, b) => a + b, 0) / temps.length : 0;
+      const avgHumidity = humids.length ? humids.reduce((a, b) => a + b, 0) / humids.length : 0;
+      const dominantHeatLevel = Object.entries(heatLevelCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "";
+      onDataParsed({ date, maxFeelsLike, avgTemp, avgHumidity, dominantHeatLevel });
+    }
   };
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -937,12 +975,12 @@ function DaeguGyeongbukHeatMap() {
   const topCities = Object.entries(heatData).sort((a, b) => b[1].feelsLike - a[1].feelsLike).slice(0, 6);
 
   const LEGEND = [
-    { label: "위험 38°C 이상", fill: "#ef4444", text: "#fff" },
-    { label: "경고 35°C 이상", fill: "#f97316", text: "#fff" },
-    { label: "주의 33°C 이상", fill: "#fde047", text: "#713f12" },
-    { label: "관심 31°C 이상", fill: "#7dd3fc", text: "#075985" },
-    { label: "해당없음 31°C 미만", fill: "#dbeafe", text: "#075985" },
-    { label: "미조회", fill: "#e5e7eb", text: "#9ca3af" },
+    { label: "위험 38°C 이상", fill: "#ef4444" },
+    { label: "경고 35°C 이상", fill: "#f97316" },
+    { label: "주의 33°C 이상", fill: "#fde047" },
+    { label: "관심 31°C 이상", fill: "#7dd3fc" },
+    { label: "해당없음 31°C 미만", fill: "#dbeafe" },
+    { label: "미조회", fill: "#e5e7eb" },
   ];
 
   return (
@@ -953,19 +991,12 @@ function DaeguGyeongbukHeatMap() {
           <Thermometer className="w-4 h-4 text-orange-500 flex-shrink-0" />
           <span className="font-semibold text-sm">대구·경북 권역별 체감온도 현황</span>
           {dataDate && <span className="text-xs text-muted-foreground">({dataDate} 기준)</span>}
-          {cityCount > 0 && (
-            <Badge variant="outline" className="text-xs h-5">{cityCount}개 지역 반영</Badge>
-          )}
+          {cityCount > 0 && <Badge variant="outline" className="text-xs h-5">{cityCount}개 지역 반영</Badge>}
         </div>
         <div className="flex items-center gap-2">
           {loading && <Loader2 className="w-4 h-4 animate-spin text-orange-500" />}
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-7 text-xs gap-1"
-            onClick={() => fileRef.current?.click()}
-            data-testid="button-upload-heatmap-csv"
-          >
+          <Button size="sm" variant="outline" className="h-7 text-xs gap-1"
+            onClick={() => fileRef.current?.click()} data-testid="button-upload-heatmap-csv">
             <FileDown className="w-3.5 h-3.5" />
             CSV 업로드
           </Button>
@@ -977,69 +1008,95 @@ function DaeguGyeongbukHeatMap() {
       <div className="p-3 flex flex-col lg:flex-row gap-4 items-start">
         {/* SVG Map */}
         <div className="w-full lg:flex-1 overflow-x-auto">
-          <svg viewBox="0 0 500 320" className="w-full" style={{ minWidth: 300 }}>
-            {/* subtle region boundary hint */}
-            <rect x="60" y="15" width="420" height="310" rx="8" fill="#f9fafb" stroke="#e5e7eb" strokeWidth="1" />
-            {/* compass hint */}
-            <text x="68" y="30" fontSize="8" fill="#d1d5db" fontWeight="500">북</text>
-            <text x="68" y="308" fontSize="8" fill="#d1d5db" fontWeight="500">남</text>
-            <text x="462" y="175" fontSize="8" fill="#d1d5db" fontWeight="500">동</text>
-            {/* City circles */}
-            {DGKB_CITIES.map(city => {
+          <svg viewBox="0 0 530 340" className="w-full" style={{ minWidth: 300 }}>
+            <defs>
+              <filter id="map-shadow" x="-10%" y="-10%" width="120%" height="120%">
+                <feDropShadow dx="2" dy="2" stdDeviation="3" floodColor="#00000018" />
+              </filter>
+            </defs>
+            {/* 동해 바다 배경 */}
+            <rect x="0" y="0" width="530" height="340" rx="8" fill="#e0f2fe" />
+            {/* 경북 육지 */}
+            <path d={GYEONGBUK_PATH} fill="#ecfdf5" stroke="#86efac" strokeWidth="2" filter="url(#map-shadow)" />
+            {/* 경북 내부 격자 느낌 */}
+            <path d={GYEONGBUK_PATH} fill="none" stroke="#bbf7d0" strokeWidth="0.5" strokeDasharray="4 3" />
+            {/* 대구광역시 */}
+            <path d={DAEGU_PATH} fill="#eff6ff" stroke="#93c5fd" strokeWidth="1.5" />
+            {/* 울릉도 섬 */}
+            <ellipse cx="478" cy="22" rx="16" ry="12" fill="#ecfdf5" stroke="#86efac" strokeWidth="1.5" />
+            {/* 동해 라벨 */}
+            <text x="510" y="80" fontSize="9" fill="#7dd3fc" fontWeight="600" textAnchor="middle" transform="rotate(90,510,80)">동 해</text>
+            {/* 방위 */}
+            <text x="20" y="22" fontSize="9" fill="#94a3b8" fontWeight="600">↑</text>
+            <text x="16" y="32" fontSize="7" fill="#94a3b8">북</text>
+            {/* 대구 라벨 */}
+            <text x="248" y="268" fontSize="6" fill="#3b82f6" textAnchor="middle" opacity="0.6">대구광역시</text>
+
+            {/* City circles (울릉 제외하고 별도 처리) */}
+            {DGKB_CITIES.filter(c => c.name !== "울릉").map(city => {
               const d = heatData[city.name];
               const fill = getHeatFill(d?.feelsLike);
               const stroke = getHeatStroke(d?.feelsLike);
-              const text = getHeatText(d?.feelsLike);
+              const textColor = getHeatText(d?.feelsLike);
               return (
                 <g key={city.name} transform={`translate(${city.x},${city.y})`}>
-                  <circle cx="0" cy="0" r="20" fill={fill} stroke={stroke} strokeWidth="1.5" />
-                  <text x="0" y="-4" textAnchor="middle" dominantBaseline="middle" fontSize="7.5" fontWeight="700" fill={text}>
-                    {city.name}
-                  </text>
-                  <text x="0" y="7" textAnchor="middle" dominantBaseline="middle" fontSize="8" fontWeight="600" fill={text}>
+                  <circle cx="0" cy="0" r="19" fill={fill} stroke={stroke} strokeWidth="1.5" />
+                  <text x="0" y="-3.5" textAnchor="middle" dominantBaseline="middle" fontSize="7" fontWeight="700" fill={textColor}>{city.name}</text>
+                  <text x="0" y="6.5" textAnchor="middle" dominantBaseline="middle" fontSize="7.5" fontWeight="700" fill={textColor}>
                     {d ? `${d.feelsLike}°` : "─"}
                   </text>
                 </g>
               );
             })}
+            {/* 울릉도 circle */}
+            {(() => {
+              const uleungCity = DGKB_CITIES.find(c => c.name === "울릉")!;
+              const d = heatData["울릉"];
+              return (
+                <g transform={`translate(${uleungCity.x},${uleungCity.y})`}>
+                  <circle cx="0" cy="0" r="13" fill={getHeatFill(d?.feelsLike)} stroke={getHeatStroke(d?.feelsLike)} strokeWidth="1.2" />
+                  <text x="0" y="-2" textAnchor="middle" dominantBaseline="middle" fontSize="6" fontWeight="700" fill={getHeatText(d?.feelsLike)}>울릉</text>
+                  <text x="0" y="5.5" textAnchor="middle" dominantBaseline="middle" fontSize="6.5" fontWeight="700" fill={getHeatText(d?.feelsLike)}>
+                    {d ? `${d.feelsLike}°` : "─"}
+                  </text>
+                </g>
+              );
+            })()}
           </svg>
         </div>
 
-        {/* Right panel: legend + top temps */}
-        <div className="flex flex-col gap-3 min-w-[148px] w-full lg:w-auto">
-          {/* Legend */}
+        {/* Right panel */}
+        <div className="flex flex-col gap-3 min-w-[152px] w-full lg:w-auto">
           <div>
             <p className="text-[11px] font-semibold text-muted-foreground mb-1.5">폭염 단계 (체감온도 기준)</p>
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               {LEGEND.map(l => (
                 <div key={l.label} className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded-full flex-shrink-0 border border-black/10" style={{ background: l.fill }} />
+                  <div className="w-3.5 h-3.5 rounded-full flex-shrink-0 border border-black/10" style={{ background: l.fill }} />
                   <span className="text-[11px] text-muted-foreground leading-none">{l.label}</span>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Top cities */}
-          {topCities.length > 0 && (
-            <div className="border rounded-lg p-2 bg-muted/30">
+          {topCities.length > 0 ? (
+            <div className="border rounded-lg p-2.5 bg-muted/30">
               <p className="text-[11px] font-semibold text-muted-foreground mb-1.5">최고 체감온도 TOP</p>
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 {topCities.map(([city, d]) => (
-                  <div key={city} className="flex items-center justify-between text-xs gap-3">
+                  <div key={city} className="flex items-center justify-between text-xs gap-2">
                     <span className="text-muted-foreground">{city}</span>
-                    <span className="font-bold" style={{ color: getHeatStroke(d.feelsLike) }}>
-                      {d.feelsLike}°C
-                    </span>
+                    <span className="font-bold tabular-nums" style={{ color: getHeatStroke(d.feelsLike) }}>{d.feelsLike}°C</span>
                   </div>
                 ))}
               </div>
+              {onDataParsed && (
+                <p className="text-[10px] text-green-600 mt-2">✓ 체크리스트 자동완성됨</p>
+              )}
             </div>
-          )}
-
-          {!cityCount && (
+          ) : (
             <p className="text-[11px] text-muted-foreground text-center py-2 leading-relaxed">
-              CSV 파일 업로드 시<br />체감온도가 지도에 표시됩니다
+              CSV 업로드 시<br />지도에 표시 &<br />체크리스트 자동완성
             </p>
           )}
         </div>
@@ -1051,6 +1108,7 @@ function DaeguGyeongbukHeatMap() {
 export default function HeatWaveChecklist() {
   const { toast } = useToast();
   const [showForm, setShowForm] = useState(false);
+  const [csvForm, setCsvForm] = useState<FormData | null>(null);
   const [viewing, setViewing] = useState<HeatWaveChecklist | null>(null);
   const [editing, setEditing] = useState<HeatWaveChecklist | null>(null);
   const [pdfViewing, setPdfViewing] = useState<HeatWaveChecklist | null>(null);
@@ -1133,6 +1191,34 @@ export default function HeatWaveChecklist() {
     onError: () => toast({ title: "삭제 실패", variant: "destructive" }),
   });
 
+  const handleCsvParsed = (d: ParsedCSVData) => {
+    const hl = d.dominantHeatLevel;
+    const heatAlertStatus =
+      hl.includes("위험") || hl.includes("경고") ? "폭염경보" :
+      hl.includes("주의") || hl.includes("관심") ? "폭염주의보" :
+      "해당없음";
+    const ml = d.maxFeelsLike;
+    const now = new Date();
+    setCsvForm({
+      ...emptyForm(),
+      checkDate: d.date || format(now, "yyyy-MM-dd"),
+      checkTime: format(now, "HH:mm"),
+      heatAlertStatus,
+      currentTemperature: d.avgTemp ? d.avgTemp.toFixed(1) : "",
+      currentHumidity: d.avgHumidity ? d.avgHumidity.toFixed(0) : "",
+      currentFeelsLike: ml ? ml.toFixed(1) : "",
+      maxFeelsLikeForecast: ml ? ml.toFixed(1) : "",
+      checks31: ml >= 31 ? [true, true, true] : [false, false, false],
+      checks33: ml >= 33 ? [true, true, true, true] : [false, false, false, false],
+      checks35: ml >= 35 ? [true, true, true] : [false, false, false],
+      stopTime35Start: "", stopTime35End: "",
+      checks38: ml >= 38 ? [true] : [false],
+      stopTime38Start: "", stopTime38End: "",
+    });
+    setShowForm(true);
+    toast({ title: "CSV 데이터로 체크리스트가 자동완성되었습니다", description: `최고 체감온도 ${ml}°C · ${heatAlertStatus}` });
+  };
+
   const handleDelete = (id: number) => {
     if (confirm("이 체크리스트를 삭제하시겠습니까?")) {
       deleteMutation.mutate(id);
@@ -1165,7 +1251,7 @@ export default function HeatWaveChecklist() {
       </div>
 
       {/* 대구·경북 체감온도 지도 */}
-      <DaeguGyeongbukHeatMap />
+      <DaeguGyeongbukHeatMap onDataParsed={handleCsvParsed} />
 
       {/* 목록 테이블 */}
       <div className="border rounded-lg overflow-hidden bg-card">
@@ -1269,15 +1355,18 @@ export default function HeatWaveChecklist() {
       </div>
 
       {/* 작성 다이얼로그 */}
-      <Dialog open={showForm} onOpenChange={setShowForm}>
+      <Dialog open={showForm} onOpenChange={(open) => { setShowForm(open); if (!open) setCsvForm(null); }}>
         <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Sun className="w-5 h-5 text-orange-500" /> 폭염 일일 체크리스트 작성
+              <Sun className="w-5 h-5 text-orange-500" />
+              폭염 일일 체크리스트 작성
+              {csvForm && <Badge variant="outline" className="text-xs text-green-600 border-green-400">CSV 자동완성</Badge>}
             </DialogTitle>
           </DialogHeader>
           <ChecklistForm
-            initial={emptyForm()}
+            key={csvForm ? "csv" : "empty"}
+            initial={csvForm ?? emptyForm()}
             onSubmit={(data) => createMutation.mutate(formToPayload(data))}
             isPending={createMutation.isPending}
           />
