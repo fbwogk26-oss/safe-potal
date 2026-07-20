@@ -1209,7 +1209,7 @@ const REGION_TABS: { key: RegionKey; label: string; sub: string }[] = [
   { key: 'buulgyeong',  label: '부산권',    sub: '부산·울산·경남' },
 ];
 
-function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVData) => void }) {
+function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef }: { onDataParsed?: (d: ParsedCSVData) => void; checklistTriggerRef?: React.MutableRefObject<(() => void) | null> }) {
   const [selectedRegion, setSelectedRegion] = useState<RegionKey>('daegubuk');
   const [statusMsg, setStatusMsg] = useState("");
   const [statusErr, setStatusErr] = useState(false);
@@ -1232,6 +1232,8 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
   }, []);
 
   const allRef = useRef<HTMLDivElement>(null);
+  const ulleungAllRef = useRef<HTMLDivElement>(null);
+  const jejuAllRef = useRef<HTMLDivElement>(null);
   const daegubukRef = useRef<HTMLDivElement>(null);
   const ulleungRef = useRef<HTMLDivElement>(null);
   const chungcheongRef = useRef<HTMLDivElement>(null);
@@ -1326,9 +1328,11 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
       let newPanels: ThreePanel[] = [];
 
       if (selectedRegion === 'all') {
-        if (!allRef.current) return;
+        if (!allRef.current || !ulleungAllRef.current || !jejuAllRef.current) return;
         newPanels = [
-          initThreePanel(allRef.current, d.all, {height:18,bevel:1.4,radius:2200,theta:0,phi:Math.PI*0.27,baseRadius:2200,fogNear:2400,fogFar:6000,sun:[800,1200,550],labels:true,fontSize:26,spin:false}, registryRef.current, tt, weatherRef, handleClick),
+          initThreePanel(allRef.current,      d.all,    {height:18,bevel:1.4,radius:2200,theta:0,phi:Math.PI*0.27,baseRadius:2200,fogNear:2400,fogFar:6000,sun:[800,1200,550],labels:true,fontSize:26,spin:false}, registryRef.current, tt, weatherRef, handleClick),
+          initThreePanel(ulleungAllRef.current,d.ulleung,{height:14,bevel:0.8,radius:320, theta:0,phi:Math.PI*0.25,baseRadius:260, fogNear:280, fogFar:900, sun:[140,200,90], labels:true,fontSize:32,spin:false}, registryRef.current, tt, weatherRef, handleClick),
+          initThreePanel(jejuAllRef.current,   d.jeju,   {height:18,bevel:1.2,radius:400, theta:0,phi:Math.PI*0.25,baseRadius:380, fogNear:400, fogFar:1200,sun:[160,240,100],labels:true,fontSize:28,spin:false}, registryRef.current, tt, weatherRef, handleClick),
         ];
       } else if (selectedRegion === 'daegubuk') {
         if (!daegubukRef.current || !ulleungRef.current) return;
@@ -1599,6 +1603,13 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
     onDataParsed({ date: entries[0]?.time ?? '', maxFeelsLike, avgTemp, avgHumidity, dominantHeatLevel, selectedRegion });
   }
 
+  // 외부에서 현재 권역 체크리스트 작성 함수를 호출할 수 있도록 ref 업데이트
+  useEffect(() => {
+    if (checklistTriggerRef) {
+      checklistTriggerRef.current = handleWriteChecklistNow;
+    }
+  });
+
   async function handleSendDailyEmail() {
     if (!weatherRef.current || Object.keys(weatherRef.current).length === 0) {
       setStatusErr(true);
@@ -1794,7 +1805,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
       <div className="p-2 sm:p-3 flex gap-2 sm:gap-3"
         style={{
           background:'#0a0d12',
-          height: isMobile ? 'auto' : 580,
+          height: isMobile ? 'auto' : 680,
           flexDirection: isMobile ? 'column' : 'row',
         }}>
 
@@ -1802,13 +1813,25 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
         {/* 전체 지도 */}
         {selectedRegion === 'all' && (
           <div className="flex flex-col rounded-xl border border-[#232a35] overflow-hidden"
-            style={{ background:'#11151c', flex:'1 1 0', height: isMobile ? 520 : undefined, minWidth: 0 }}>
+            style={{ background:'#11151c', flex:'1 1 0', height: isMobile ? 560 : undefined, minWidth: 0 }}>
             <div className="px-3 py-1.5 flex items-center justify-between border-b border-[#232a35] flex-shrink-0">
               <span className="text-xs font-semibold text-slate-300">전체 권역 (대구경북·충청·호남·부산권)</span>
               <span className="text-[10px] text-slate-500">클릭하면 상세 보기</span>
             </div>
             <div style={{position:'relative', flex:1, minHeight:0, background:'#0d1117'}}>
               <div ref={allRef} style={{position:'absolute',inset:0}} />
+              {/* 울릉도 인셋 — 우하단 */}
+              <div style={{position:'absolute',bottom:8,right:8,zIndex:4,width:isMobile?120:165,height:isMobile?100:140,border:'2px dashed #3d4757',borderRadius:10,background:'#0d1117',overflow:'hidden'}}>
+                <div style={{position:'absolute',top:-8,left:8,zIndex:2,background:'#11151c',padding:'0 5px',fontSize:8,letterSpacing:'1.5px',color:'#697384'}}>INSET</div>
+                <span style={{position:'absolute',top:5,left:9,zIndex:2,fontSize:10,fontWeight:700,color:'#e8ecf1',textShadow:'0 1px 3px rgba(0,0,0,0.6)',pointerEvents:'none'}}>울릉군</span>
+                <div ref={ulleungAllRef} style={{position:'absolute',inset:0}} />
+              </div>
+              {/* 제주도 인셋 — 울릉도 위 */}
+              <div style={{position:'absolute',bottom:isMobile?116:156,right:8,zIndex:4,width:isMobile?160:215,height:isMobile?105:140,border:'2px dashed #3d4757',borderRadius:10,background:'#0d1117',overflow:'hidden'}}>
+                <div style={{position:'absolute',top:-8,left:8,zIndex:2,background:'#11151c',padding:'0 5px',fontSize:8,letterSpacing:'1.5px',color:'#697384'}}>INSET</div>
+                <span style={{position:'absolute',top:5,left:9,zIndex:2,fontSize:10,fontWeight:700,color:'#e8ecf1',textShadow:'0 1px 3px rgba(0,0,0,0.6)',pointerEvents:'none'}}>제주도</span>
+                <div ref={jejuAllRef} style={{position:'absolute',inset:0}} />
+              </div>
               {selectedInfo && <RegionInfoCard info={selectedInfo} onClose={()=>setSelectedInfo(null)} heatColorFn={heatColorHex} />}
             </div>
           </div>
@@ -1957,6 +1980,8 @@ export default function HeatWaveChecklist() {
   const [pdfViewing, setPdfViewing] = useState<HeatWaveChecklist | null>(null);
   const [isPdfDownloading, setIsPdfDownloading] = useState(false);
   const pdfRef = useRef<HTMLDivElement>(null);
+  // 지도 컴포넌트에서 "현재 권역 체크리스트 작성" 함수를 외부 버튼으로 호출하기 위한 ref
+  const checklistTriggerRef = useRef<(() => void) | null>(null);
 
   // 체크리스트 자동작성 확인 다이얼로그
   const [pendingWeatherData, setPendingWeatherData] = useState<ParsedCSVData | null>(null);
@@ -2099,13 +2124,22 @@ export default function HeatWaveChecklist() {
           </h1>
           <p className="text-sm text-muted-foreground mt-1 hidden sm:block">폭염 단계별 조치사항을 일별로 기록·관리합니다</p>
         </div>
-        <Button onClick={() => setShowForm(true)} data-testid="button-new-checklist">
+        <Button
+          onClick={() => {
+            if (checklistTriggerRef.current) {
+              checklistTriggerRef.current();
+            } else {
+              setShowForm(true);
+            }
+          }}
+          data-testid="button-new-checklist"
+        >
           <Plus className="w-4 h-4 sm:mr-1" /><span className="hidden sm:inline"> 체크리스트 작성</span>
         </Button>
       </div>
 
       {/* 대구·경북 체감온도 지도 */}
-      <DaeguGyeongbukHeatMap onDataParsed={handleCsvParsed} />
+      <DaeguGyeongbukHeatMap onDataParsed={handleCsvParsed} checklistTriggerRef={checklistTriggerRef} />
 
       {/* ── 체크리스트 자동작성 확인 다이얼로그 ─────────────────────────── */}
       {pendingWeatherData && (
