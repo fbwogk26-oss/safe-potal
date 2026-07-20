@@ -421,11 +421,10 @@ export async function runHeatwaveDailyEmail(
 ): Promise<void> {
   const sender      = process.env.GMAIL_SENDER;
   const appPassword = process.env.GMAIL_APP_PASSWORD;
-  const recipients  = (process.env.GMAIL_RECIPIENTS || '').trim();
 
-  if (!sender || !appPassword || !recipients) {
+  if (!sender || !appPassword) {
     status.lastResult  = 'error';
-    status.lastMessage = 'GMAIL_SENDER / GMAIL_APP_PASSWORD / GMAIL_RECIPIENTS 환경변수 미설정';
+    status.lastMessage = 'GMAIL_SENDER / GMAIL_APP_PASSWORD 환경변수 미설정';
     console.warn('[HeatwaveEmail]', status.lastMessage);
     return;
   }
@@ -520,7 +519,7 @@ export async function runHeatwaveDailyEmail(
 
     status.lastRun     = now.toISOString();
     status.lastResult  = 'sent';
-    status.lastMessage = `${recipients}로 발송 완료 (${Object.keys(weather).length}개 지역${excelBuffer ? ', 엑셀 첨부' : ''})`;
+    status.lastMessage = `${toList}로 발송 완료 (${Object.keys(weather).length}개 지역${excelBuffer ? ', 엑셀 첨부' : ''})`;
     console.log('[HeatwaveEmail]', status.lastMessage);
 
     // ── 체크리스트 자동 작성 ──────────────────────────────────────────────
