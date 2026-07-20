@@ -176,8 +176,35 @@ export function initThreePanel(
     return hits.length ? hits[0].object as THREE.Mesh : null;
   }
   let downX = 0, downY = 0;
-  const onPD = (e: PointerEvent) => { downX=e.clientX; downY=e.clientY; if (!opts.lockView) { dragging=true; lastX=e.clientX; lastY=e.clientY; } };
+  // 멀티 터치(핀치줌) 추적
+  const activePointers = new Map<number, {x:number,y:number}>();
+  let lastPinchDist = 0;
+  const onPD = (e: PointerEvent) => {
+    activePointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
+    downX=e.clientX; downY=e.clientY;
+    const isTouch = e.pointerType === 'touch';
+    // 터치는 lockView 무시하고 드래그 허용
+    if (!opts.lockView || isTouch) {
+      if (activePointers.size === 1) { dragging=true; lastX=e.clientX; lastY=e.clientY; }
+      else { dragging=false; } // 두 손가락이면 드래그 중단
+    }
+  };
   const onPM = (e: PointerEvent) => {
+    activePointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
+    // 핀치줌: 두 포인터
+    if (activePointers.size >= 2) {
+      dragging = false;
+      const pts = [...activePointers.values()];
+      const dist = Math.hypot(pts[1].x-pts[0].x, pts[1].y-pts[0].y);
+      if (lastPinchDist > 0) {
+        const delta = lastPinchDist - dist;
+        radius = Math.max(opts.radius*0.35, Math.min(opts.radius*2.2, radius + delta*(opts.radius*0.004)));
+        updateCam();
+      }
+      lastPinchDist = dist;
+      return;
+    }
+    lastPinchDist = 0;
     if (dragging) {
       const dx=e.clientX-lastX, dy=e.clientY-lastY;
       lastX=e.clientX; lastY=e.clientY;
@@ -207,10 +234,16 @@ export function initThreePanel(
   };
   const onPL = () => { if (tooltipEl) tooltipEl.style.display='none'; };
   const onPU = (e: PointerEvent) => {
-    dragging=false;
-    if (Math.abs(e.clientX-downX) < 5 && Math.abs(e.clientY-downY) < 5) {
-      const obj = pick(e.clientX, e.clientY);
-      if (obj && onRegionClick) onRegionClick(obj.userData.name, weatherRef.current[obj.userData.name] ?? null);
+    activePointers.delete(e.pointerId);
+    lastPinchDist = 0;
+    if (activePointers.size === 0) {
+      dragging=false;
+      if (Math.abs(e.clientX-downX) < 8 && Math.abs(e.clientY-downY) < 8) {
+        const obj = pick(e.clientX, e.clientY);
+        if (obj && onRegionClick) onRegionClick(obj.userData.name, weatherRef.current[obj.userData.name] ?? null);
+      }
+    } else {
+      dragging = false;
     }
   };
   const onWh = (e: WheelEvent) => {
@@ -233,6 +266,7 @@ export function initThreePanel(
   };
   const onRS = () => { camera.aspect=W()/H(); camera.updateProjectionMatrix(); renderer.setSize(W(),H()); };
   dom.addEventListener('pointerdown',onPD);
+  dom.style.touchAction = 'none'; // 브라우저 기본 터치 스크롤 방지
   window.addEventListener('pointermove',onPM as any);
   window.addEventListener('pointerup',onPU);
   dom.addEventListener('pointerleave',onPL);

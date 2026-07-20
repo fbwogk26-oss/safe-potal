@@ -291,33 +291,89 @@ export default function HeatWaveMapReport() {
       )}
 
       {/* 지도 영역 */}
-      <div style={{ position: "relative", flex: isMobile ? "none" : 1, height: isMobile ? "52vw" : undefined, minHeight: isMobile ? 220 : undefined, overflow: "hidden", flexShrink: 0 }}>
-        {/* 전체 */}
-        <div style={{ position: "absolute", inset: 0, display: selectedRegion === "all" ? "flex" : "none", gap: 4, padding: 4 }}>
-          <div ref={allRef} style={{ flex: 1, borderRadius: 8, overflow: "hidden" }} />
-          <div style={{ display: "flex", flexDirection: "column", gap: 4, width: sideW }}>
-            <div ref={ulleungAllRef} style={{ flex: 1, borderRadius: 8, overflow: "hidden" }} />
-            <div ref={jejuAllRef} style={{ flex: 1, borderRadius: 8, overflow: "hidden" }} />
-          </div>
-        </div>
-        {/* 대구경북 */}
-        <div style={{ position: "absolute", inset: 0, display: selectedRegion === "daegubuk" ? "flex" : "none", gap: 4, padding: 4 }}>
-          <div ref={daegubukRef} style={{ flex: 1, borderRadius: 8, overflow: "hidden" }} />
-          <div ref={ulleungRef} style={{ width: sideW, borderRadius: 8, overflow: "hidden" }} />
-        </div>
+      <div style={{ position: "relative", flex: isMobile ? "none" : 1, overflow: "hidden", flexShrink: 0 }}>
+
+        {/* 전체 — 모바일: 메인+인셋 세로 배치 */}
+        {selectedRegion === "all" && (
+          isMobile ? (
+            <div style={{ display: "flex", flexDirection: "column", height: "62vw", minHeight: 250 }}>
+              <div style={{ display: "flex", flex: 1, gap: 3, padding: "3px 3px 2px" }}>
+                <div ref={allRef} style={{ flex: 1, borderRadius: 8, overflow: "hidden" }} />
+              </div>
+              <div style={{ display: "flex", height: "22%", gap: 3, padding: "0 3px 3px" }}>
+                <div ref={ulleungAllRef} style={{ flex: 1, borderRadius: 8, overflow: "hidden" }} />
+                <div ref={jejuAllRef} style={{ flex: 1, borderRadius: 8, overflow: "hidden" }} />
+              </div>
+            </div>
+          ) : (
+            <div style={{ position: "absolute", inset: 0, display: "flex", gap: 4, padding: 4 }}>
+              <div ref={allRef} style={{ flex: 1, borderRadius: 8, overflow: "hidden" }} />
+              <div style={{ display: "flex", flexDirection: "column", gap: 4, width: "22%" }}>
+                <div ref={ulleungAllRef} style={{ flex: 1, borderRadius: 8, overflow: "hidden" }} />
+                <div ref={jejuAllRef} style={{ flex: 1, borderRadius: 8, overflow: "hidden" }} />
+              </div>
+            </div>
+          )
+        )}
+
+        {/* 대구경북 — 모바일: 울릉 하단 배치 */}
+        {selectedRegion === "daegubuk" && (
+          isMobile ? (
+            <div style={{ display: "flex", flexDirection: "column", height: "62vw", minHeight: 250 }}>
+              <div style={{ display: "flex", flex: 1, gap: 3, padding: "3px 3px 2px" }}>
+                <div ref={daegubukRef} style={{ flex: 1, borderRadius: 8, overflow: "hidden" }} />
+              </div>
+              <div style={{ display: "flex", height: "18%", padding: "0 3px 3px" }}>
+                <div ref={ulleungRef} style={{ width: "30%", borderRadius: 8, overflow: "hidden" }} />
+                <div style={{ flex: 1 }} />
+              </div>
+            </div>
+          ) : (
+            <div style={{ position: "absolute", inset: 0, display: "flex", gap: 4, padding: 4 }}>
+              <div ref={daegubukRef} style={{ flex: 1, borderRadius: 8, overflow: "hidden" }} />
+              <div ref={ulleungRef} style={{ width: "22%", borderRadius: 8, overflow: "hidden" }} />
+            </div>
+          )
+        )}
+
         {/* 충청권 */}
-        <div style={{ position: "absolute", inset: 0, display: selectedRegion === "chungcheong" ? "flex" : "none", padding: 4 }}>
-          <div ref={chungcheongRef} style={{ flex: 1, borderRadius: 8, overflow: "hidden" }} />
-        </div>
-        {/* 호남권 */}
-        <div style={{ position: "absolute", inset: 0, display: selectedRegion === "honam" ? "flex" : "none", gap: 4, padding: 4 }}>
-          <div ref={honamRef} style={{ flex: 1, borderRadius: 8, overflow: "hidden" }} />
-          <div ref={jejuRef} style={{ width: sideW, borderRadius: 8, overflow: "hidden" }} />
-        </div>
+        {selectedRegion === "chungcheong" && (
+          <div style={{ ...(isMobile ? { height: "62vw", minHeight: 250 } : { position: "absolute", inset: 0 }), padding: 4 }}>
+            <div ref={chungcheongRef} style={{ width: "100%", height: "100%", borderRadius: 8, overflow: "hidden" }} />
+          </div>
+        )}
+
+        {/* 호남권 — 모바일: 제주 하단 배치 */}
+        {selectedRegion === "honam" && (
+          isMobile ? (
+            <div style={{ display: "flex", flexDirection: "column", height: "62vw", minHeight: 250 }}>
+              <div style={{ display: "flex", flex: 1, gap: 3, padding: "3px 3px 2px" }}>
+                <div ref={honamRef} style={{ flex: 1, borderRadius: 8, overflow: "hidden" }} />
+              </div>
+              <div style={{ display: "flex", height: "18%", padding: "0 3px 3px" }}>
+                <div ref={jejuRef} style={{ width: "40%", borderRadius: 8, overflow: "hidden" }} />
+                <div style={{ flex: 1 }} />
+              </div>
+            </div>
+          ) : (
+            <div style={{ position: "absolute", inset: 0, display: "flex", gap: 4, padding: 4 }}>
+              <div ref={honamRef} style={{ flex: 1, borderRadius: 8, overflow: "hidden" }} />
+              <div ref={jejuRef} style={{ width: "22%", borderRadius: 8, overflow: "hidden" }} />
+            </div>
+          )
+        )}
+
         {/* 부산권 */}
-        <div style={{ position: "absolute", inset: 0, display: selectedRegion === "buulgyeong" ? "flex" : "none", padding: 4 }}>
-          <div ref={buulgyeongRef} style={{ flex: 1, borderRadius: 8, overflow: "hidden" }} />
-        </div>
+        {selectedRegion === "buulgyeong" && (
+          <div style={{ ...(isMobile ? { height: "62vw", minHeight: 250 } : { position: "absolute", inset: 0 }), padding: 4 }}>
+            <div ref={buulgyeongRef} style={{ width: "100%", height: "100%", borderRadius: 8, overflow: "hidden" }} />
+          </div>
+        )}
+
+        {/* 데스크탑 전용 빈 영역 (non-mobile absolute positioning 위한 spacer) */}
+        {!isMobile && (
+          <div style={{ height: "calc(100vh - 130px)" }} />
+        )}
 
         {/* 클릭 정보 카드 */}
         {selectedInfo && (
