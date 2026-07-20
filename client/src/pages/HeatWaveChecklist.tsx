@@ -995,8 +995,8 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
       {/* Body */}
       <div className="p-3 flex flex-col lg:flex-row gap-4 items-start">
         {/* SVG Map — 실제 행정지도 640×784 위에 체감온도 원 오버레이 */}
-        <div className="w-full lg:flex-1">
-          <svg viewBox="0 0 640 784" className="w-full" style={{ maxWidth: 420 }}>
+        <div className="w-full lg:flex-1 min-w-0">
+          <svg viewBox="0 0 640 784" className="w-full" style={{ maxWidth: 640 }}>
             {/* 실제 대구경북 행정지도 이미지 */}
             <image href="/daegu-gyeongbuk-map.png" x="0" y="0" width="640" height="784" preserveAspectRatio="xMidYMid meet" />
 
