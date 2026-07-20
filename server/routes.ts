@@ -14589,12 +14589,26 @@ ${result.value}
             if (past.length > 0) return parseFloat(past[past.length-1].fcstValue);
             return null;
           };
+          const getValStr = (cat: string): string | null => {
+            const matching = items.filter(x => x.category === cat && parseInt(x.fcstTime, 10) >= fcstHour);
+            if (matching.length > 0) return String(matching[0].fcstValue);
+            const past = items.filter(x => x.category === cat);
+            if (past.length > 0) return String(past[past.length - 1].fcstValue);
+            return null;
+          };
+          const PTY_LABEL: Record<string, string> = { '0':'없음','1':'비','2':'비/눈','3':'눈','4':'소나기','5':'빗방울','6':'빗방울/눈','7':'눈날림' };
           const temp = getVal('TMP') ?? getVal('T1H');
           const hum = getVal('REH');
           if (temp === null || hum === null) return null;
           const feels = calcFeelsLike(temp, hum);
           const stage = feels >= 35 ? '폭염경보' : feels >= 33 ? '폭염주의보' : feels >= 31 ? '폭염관심' : '해당없음';
-          return { name: r.name, feels, temp, hum: Math.round(hum), stage, time: timeLabel };
+          const ptyCode = getVal('PTY') ?? 0;
+          const rainType = PTY_LABEL[String(Math.round(ptyCode))] ?? '없음';
+          const pcpRaw = getValStr('PCP') ?? '강수없음';
+          const rain = (pcpRaw === '0' || pcpRaw === '강수없음') ? '강수없음' : pcpRaw.replace('mm', '') + 'mm';
+          const wind = getVal('WSD');
+          const windLevel = wind == null ? '정상' : wind >= 14 ? '위험' : wind >= 9 ? '경계' : wind >= 4 ? '주의' : '정상';
+          return { name: r.name, feels, temp, hum: Math.round(hum), stage, time: timeLabel, rainType, rain, wind: wind != null ? parseFloat(wind.toFixed(1)) : null, windLevel };
         } catch {
           return null;
         }

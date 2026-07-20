@@ -77,7 +77,7 @@ const DETAIL_ORDER: Record<string, number> = {
   '광주': 10, '전북': 11, '전남': 12, '제주': 13,
 };
 
-type WeatherEntry = { feels: number; temp: number | null; hum: number | null; stage: string; time: string };
+type WeatherEntry = { feels: number; temp: number | null; hum: number | null; stage: string; time: string; rainType?: string; rain?: string; wind?: number | null; windLevel?: string };
 
 // ── 색상 유틸 ──────────────────────────────────────────────────────────────
 function tileBg(feels: number): string {
@@ -246,8 +246,8 @@ async function buildExcelBuffer(weather: Record<string, WeatherEntry>, dateStr: 
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('폭염현황');
 
-    // 제목 행 (8컬럼)
-    ws.mergeCells('A1:H1');
+    // 제목 행 (12컬럼)
+    ws.mergeCells('A1:L1');
     const titleCell = ws.getCell('A1');
     titleCell.value = `폭염 일일 현황 (${dateStr})`;
     titleCell.font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } };
@@ -255,21 +255,25 @@ async function buildExcelBuffer(weather: Record<string, WeatherEntry>, dateStr: 
     titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
     ws.getRow(1).height = 30;
 
-    // 컬럼 정의 (CSV 형식과 동일한 순서)
+    // 컬럼 정의 (12개)
     ws.columns = [
       { key: '권역',    width: 12 },
       { key: '지역',    width: 12 },
       { key: '예보일자', width: 14 },
       { key: '예보시간', width: 12 },
-      { key: '기온',    width: 12 },
+      { key: '기온',    width: 10 },
       { key: '습도',    width: 10 },
-      { key: '체감온도', width: 14 },
-      { key: '폭염단계', width: 14 },
+      { key: '체감온도', width: 13 },
+      { key: '폭염단계', width: 13 },
+      { key: '강수형태', width: 12 },
+      { key: '강수량',  width: 14 },
+      { key: '풍속',    width: 13 },
+      { key: '풍속단계', width: 12 },
     ];
 
     // 헤더 행
     const hdrRow = ws.getRow(2);
-    hdrRow.values = ['권역', '지역', '예보일자', '예보시간', '기온(°C)', '습도(%)', '체감온도(°C)', '폭염단계'];
+    hdrRow.values = ['권역', '지역', '예보일자', '예보시간', '기온(°C)', '습도(%)', '체감온도(°C)', '폭염단계', '강수형태', '강수량(mm)', '풍속(m/s)', '풍속단계'];
     hdrRow.eachCell(cell => {
       cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE06000' } };
@@ -278,7 +282,7 @@ async function buildExcelBuffer(weather: Record<string, WeatherEntry>, dateStr: 
     });
     hdrRow.height = 22;
 
-    // 데이터 행 — 체감온도 내림차순 정렬 (CSV 파일과 동일)
+    // 데이터 행 — 체감온도 내림차순 정렬
     const rows = Object.entries(weather)
       .map(([name, d]) => {
         const zone = CITY_TO_ZONE[name] ?? '기타';
@@ -291,6 +295,10 @@ async function buildExcelBuffer(weather: Record<string, WeatherEntry>, dateStr: 
           습도:    d.hum,
           체감온도: d.feels,
           폭염단계: d.stage ?? '해당없음',
+          강수형태: d.rainType ?? '없음',
+          강수량:  d.rain ?? '강수없음',
+          풍속:    d.wind ?? '',
+          풍속단계: d.windLevel ?? '정상',
         };
       })
       .sort((a, b) => b.체감온도 - a.체감온도);

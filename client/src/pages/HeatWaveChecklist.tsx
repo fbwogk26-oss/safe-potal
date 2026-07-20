@@ -916,7 +916,7 @@ interface PanelOpts {
 }
 interface RegionEntry { meshes: THREE.Mesh[]; topMat: THREE.MeshStandardMaterial; sideMat: THREE.MeshStandardMaterial; baseColor: THREE.Color; baseDepth: number; sprite: THREE.Sprite | null; }
 interface ThreePanel { scene: THREE.Scene; camera: THREE.PerspectiveCamera; renderer: THREE.WebGLRenderer; tick: () => void; cleanup: () => void; }
-interface RegionWeather { feels: number; temp: number | null; hum: number | null; stage: string; time: string; }
+interface RegionWeather { feels: number; temp: number | null; hum: number | null; stage: string; time: string; rainType?: string; rain?: string; wind?: number | null; windLevel?: string; }
 
 function heatColorHex(t: number): string {
   const stops: [number, [number,number,number]][] = [
@@ -1444,6 +1444,8 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef }: { onDataPa
     const kTemp = findKey(headers,['기온']); const kHum = findKey(headers,['습도']);
     const kStage = findKey(headers,['폭염단계']); const kTime = findKey(headers,['예보시간','관측시간','시간']);
     const kGroup = findKey(headers,['권역']);
+    const kRainType = findKey(headers,['강수형태']); const kRain = findKey(headers,['강수량']);
+    const kWind = findKey(headers,['풍속']); const kWindLevel = findKey(headers,['풍속단계']);
     if (!kLoc || !kFeels) return { count: 0, error: '지역/체감온도 컬럼을 찾을 수 없어요' };
     const filtered = rows;
     const peak: Record<string, RegionWeather> = {};
@@ -1451,7 +1453,8 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef }: { onDataPa
       const loc=r[kLoc], t=parseFloat(r[kFeels]);
       if (!loc||isNaN(t)) return;
       if (!peak[loc] || t > peak[loc].feels) {
-        peak[loc]={feels:t,temp:kTemp?parseFloat(r[kTemp]):null,hum:kHum?parseFloat(r[kHum]):null,stage:kStage?r[kStage]:'',time:kTime?r[kTime]:''};
+        const wRaw = kWind ? parseFloat(r[kWind]) : NaN;
+        peak[loc]={feels:t,temp:kTemp?parseFloat(r[kTemp]):null,hum:kHum?parseFloat(r[kHum]):null,stage:kStage?r[kStage]:'',time:kTime?r[kTime]:'',rainType:kRainType?r[kRainType]:'없음',rain:kRain?r[kRain]:'강수없음',wind:!isNaN(wRaw)?wRaw:null,windLevel:kWindLevel?r[kWindLevel]:'정상'};
       }
     });
     let matched=0, maxLoc='', maxT=-999;
@@ -1523,10 +1526,10 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef }: { onDataPa
     e.target.value = "";
   };
 
-  function applyAutoWeatherData(regions: {name:string;feels:number;temp:number;hum:number;stage:string;time:string}[]) {
+  function applyAutoWeatherData(regions: {name:string;feels:number;temp:number;hum:number;stage:string;time:string;rainType?:string;rain?:string;wind?:number|null;windLevel?:string}[]) {
     weatherRef.current = {};
     regions.forEach(r => {
-      const info: RegionWeather = { feels: r.feels, temp: r.temp, hum: r.hum, stage: r.stage, time: r.time };
+      const info: RegionWeather = { feels: r.feels, temp: r.temp, hum: r.hum, stage: r.stage, time: r.time, rainType: r.rainType, rain: r.rain, wind: r.wind, windLevel: r.windLevel };
       weatherRef.current[r.name] = info;
       updateRegionVisual(r.name, info);
     });
@@ -1918,7 +1921,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef }: { onDataPa
           <table style={{width:'100%', borderCollapse:'collapse', fontSize: 12}}>
             <thead>
               <tr style={{background:'#141b26', position:'sticky', top:0, zIndex:2}}>
-                {['지역','체감온도','기온','습도','폭염단계','기준시간'].map(h => (
+                {['지역','체감온도','기온','습도','폭염단계','강수형태','강수량','풍속(m/s)','풍속단계','기준시간'].map(h => (
                   <th key={h} style={{padding:'7px 10px', textAlign: h==='지역' ? 'left' : 'center', color:'#9aa5b3', fontWeight:600, borderBottom:'1px solid #232a35', whiteSpace:'nowrap'}}>{h}</th>
                 ))}
               </tr>
@@ -1939,7 +1942,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef }: { onDataPa
                   .map(([name, w]) => (
                   <tr key={name} style={{borderBottom:'1px solid #1a2030'}}>
                     <td style={{padding:'6px 10px', color:'#e8ecf1', fontWeight:600, whiteSpace:'nowrap'}}>{name}</td>
-                    <td style={{padding:'6px 10px', textAlign:'center', fontWeight:700, color: heatColorHex(w.feels), tabularNums: 'all', fontVariantNumeric:'tabular-nums' as any}}>{w.feels}°C</td>
+                    <td style={{padding:'6px 10px', textAlign:'center', fontWeight:700, color: heatColorHex(w.feels), fontVariantNumeric:'tabular-nums' as any}}>{w.feels}°C</td>
                     <td style={{padding:'6px 10px', textAlign:'center', color:'#c5cdd7', fontVariantNumeric:'tabular-nums' as any}}>{w.temp != null ? `${w.temp}°C` : '-'}</td>
                     <td style={{padding:'6px 10px', textAlign:'center', color:'#7dd3fc', fontVariantNumeric:'tabular-nums' as any}}>{w.hum != null ? `${w.hum}%` : '-'}</td>
                     <td style={{padding:'6px 10px', textAlign:'center'}}>
@@ -1948,6 +1951,15 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef }: { onDataPa
                         background: w.stage === '폭염경보' ? '#7f1d1d' : w.stage === '폭염주의보' ? '#7c2d12' : w.stage === '폭염관심' ? '#713f12' : '#1e293b',
                         color: w.stage === '해당없음' ? '#64748b' : '#ffd9a0',
                       }}>{w.stage || '해당없음'}</span>
+                    </td>
+                    <td style={{padding:'6px 10px', textAlign:'center', color: (w.rainType && w.rainType !== '없음') ? '#7dd3fc' : '#4a5568', whiteSpace:'nowrap'}}>{w.rainType || '없음'}</td>
+                    <td style={{padding:'6px 10px', textAlign:'center', color: (w.rain && w.rain !== '강수없음') ? '#38bdf8' : '#4a5568', whiteSpace:'nowrap', fontVariantNumeric:'tabular-nums' as any}}>{w.rain || '강수없음'}</td>
+                    <td style={{padding:'6px 10px', textAlign:'center', color:'#a3e635', fontVariantNumeric:'tabular-nums' as any}}>{w.wind != null ? w.wind : '-'}</td>
+                    <td style={{padding:'6px 10px', textAlign:'center'}}>
+                      <span style={{fontSize:10, fontWeight:600, padding:'2px 6px', borderRadius:4, whiteSpace:'nowrap',
+                        background: w.windLevel === '위험' ? '#7f1d1d' : w.windLevel === '경계' ? '#78350f' : w.windLevel === '주의' ? '#1e3a5f' : '#1e293b',
+                        color: w.windLevel === '위험' ? '#fca5a5' : w.windLevel === '경계' ? '#fde68a' : w.windLevel === '주의' ? '#7dd3fc' : '#64748b',
+                      }}>{w.windLevel || '정상'}</span>
                     </td>
                     <td style={{padding:'6px 10px', textAlign:'center', color:'#4a5568', fontSize:11, fontVariantNumeric:'tabular-nums' as any}}>{w.time || '-'}</td>
                   </tr>
