@@ -839,9 +839,10 @@ function ChecklistForm({
 }
 
 // ─── 대구·경북 체감온도 지도 ──────────────────────────────────
-// 좌표계: 640×784 (실제 지도 이미지 크기)
+// 좌표계: 640×622 (축척바 제거 후 크롭된 이미지)
 const DGKB_CITIES: { name: string; x: number; y: number; r?: number }[] = [
-  { name: "울릉", x: 560, y: 700, r: 18 }, // 울릉도 인셋 위치
+  // 울릉도는 메인 지도 밖이므로 상단 우측 주석 영역에 배치
+  { name: "울릉", x: 608, y: 38, r: 20 },
   { name: "봉화", x: 352, y: 112 },
   { name: "울진", x: 512, y: 96 },
   { name: "영주", x: 238, y: 192 },
@@ -992,13 +993,13 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
         </div>
       </div>
 
-      {/* Body */}
-      <div className="p-3 flex flex-col lg:flex-row gap-4 items-start">
-        {/* SVG Map — 실제 행정지도 640×784 위에 체감온도 원 오버레이 */}
-        <div className="w-full lg:flex-1 min-w-0">
-          <svg viewBox="0 0 640 784" className="w-full" style={{ maxWidth: 640 }}>
-            {/* 실제 대구경북 행정지도 이미지 */}
-            <image href="/daegu-gyeongbuk-map.png" x="0" y="0" width="640" height="784" preserveAspectRatio="xMidYMid meet" />
+      {/* Body — 지도가 전체 너비, 범례는 하단 */}
+      <div className="p-3 flex flex-col gap-3">
+        {/* SVG Map — 실제 행정지도 640×622 위에 체감온도 원 오버레이 */}
+        <div className="w-full">
+          <svg viewBox="0 0 640 622" className="w-full">
+            {/* 실제 대구경북 행정지도 이미지 (축척바 제거 크롭본) */}
+            <image href="/daegu-gyeongbuk-map.png" x="0" y="0" width="640" height="622" preserveAspectRatio="xMidYMid meet" />
 
             {/* City circles */}
             {DGKB_CITIES.map(city => {
@@ -1020,39 +1021,39 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
           </svg>
         </div>
 
-        {/* Right panel */}
-        <div className="flex flex-col gap-3 min-w-[152px] w-full lg:w-auto">
+        {/* Bottom panel — 범례 + TOP 도시 가로 배치 */}
+        <div className="flex flex-wrap gap-4 items-start border-t pt-2.5">
+          {/* 범례 */}
           <div>
             <p className="text-[11px] font-semibold text-muted-foreground mb-1.5">폭염 단계 (체감온도 기준)</p>
-            <div className="space-y-1.5">
+            <div className="flex flex-wrap gap-x-4 gap-y-1">
               {LEGEND.map(l => (
-                <div key={l.label} className="flex items-center gap-2">
-                  <div className="w-3.5 h-3.5 rounded-full flex-shrink-0 border border-black/10" style={{ background: l.fill }} />
+                <div key={l.label} className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 rounded-full flex-shrink-0 border border-black/10" style={{ background: l.fill }} />
                   <span className="text-[11px] text-muted-foreground leading-none">{l.label}</span>
                 </div>
               ))}
             </div>
           </div>
 
-          {topCities.length > 0 ? (
-            <div className="border rounded-lg p-2.5 bg-muted/30">
-              <p className="text-[11px] font-semibold text-muted-foreground mb-1.5">최고 체감온도 TOP</p>
-              <div className="space-y-1.5">
+          {/* TOP 도시 */}
+          {topCities.length > 0 && (
+            <div className="border rounded-lg px-3 py-2 bg-muted/30">
+              <p className="text-[11px] font-semibold text-muted-foreground mb-1">최고 체감온도 TOP</p>
+              <div className="flex flex-wrap gap-x-4 gap-y-0.5">
                 {topCities.map(([city, d]) => (
-                  <div key={city} className="flex items-center justify-between text-xs gap-2">
+                  <div key={city} className="flex items-center gap-1.5 text-xs">
                     <span className="text-muted-foreground">{city}</span>
                     <span className="font-bold tabular-nums" style={{ color: getHeatStroke(d.feelsLike) }}>{d.feelsLike}°C</span>
                   </div>
                 ))}
               </div>
-              {onDataParsed && (
-                <p className="text-[10px] text-green-600 mt-2">✓ 체크리스트 자동완성됨</p>
-              )}
+              {onDataParsed && <p className="text-[10px] text-green-600 mt-1">✓ 체크리스트 자동완성됨</p>}
             </div>
-          ) : (
-            <p className="text-[11px] text-muted-foreground text-center py-2 leading-relaxed">
-              CSV 업로드 시<br />지도에 표시 &<br />체크리스트 자동완성
-            </p>
+          )}
+
+          {topCities.length === 0 && (
+            <p className="text-[11px] text-muted-foreground py-1">CSV 업로드 시 지도에 표시 &amp; 체크리스트 자동완성</p>
           )}
         </div>
       </div>
