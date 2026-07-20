@@ -14529,6 +14529,112 @@ ${result.value}
     }
   });
 
+  // ── 폭염 지도 데이터 Excel 다운로드 ────────────────────────────────────────
+  app.get('/api/heatwave-map/export', isAuthenticated, async (_req, res) => {
+    try {
+      const s = await storage.getSetting('heatwave_map_data');
+      if (!s) return res.status(404).json({ message: '저장된 날씨 데이터가 없습니다. 먼저 실시간 날씨를 조회해 주세요.' });
+      const { weather } = JSON.parse(s.value) as { weather: Record<string, { feels: number; temp: number; hum: number; stage: string; time: string }> };
+      if (!weather || Object.keys(weather).length === 0) {
+        return res.status(404).json({ message: '저장된 날씨 데이터가 없습니다.' });
+      }
+
+      const DAEGU = new Set(['중구','동구','서구','남구','북구','수성구','달서구','달성군','군위군']);
+      const ULLEUNG = new Set(['울릉군']);
+
+      const rows = Object.entries(weather).map(([name, d]) => ({
+        구분: ULLEUNG.has(name) ? '울릉도' : DAEGU.has(name) ? '대구' : '경북',
+        지역: name,
+        기온: d.temp,
+        체감온도: d.feels,
+        습도: d.hum,
+        폭염단계: d.stage,
+        조회시간: d.time ?? '',
+      }));
+      // 구분(대구→경북→울릉) 순서로 정렬
+      const ORDER: Record<string,number> = { '대구': 0, '경북': 1, '울릉도': 2 };
+      rows.sort((a, b) => (ORDER[a.구분] ?? 9) - (ORDER[b.구분] ?? 9));
+
+      const wb = new ExcelJS.Workbook();
+      const ws = wb.addWorksheet('폭염현황');
+
+      const STAGE_FILL: Record<string, string> = {
+        '폭염경보': 'FFE0E0',
+        '폭염주의보': 'FFE8CC',
+        '폭염관심': 'FFF5CC',
+        '해당없음': 'FFFFFF',
+      };
+      const STAGE_FONT: Record<string, string> = {
+        '폭염경보': 'CC0000',
+        '폭염주의보': 'D05000',
+        '폭염관심': 'A07000',
+        '해당없음': '666666',
+      };
+
+      // 헤더
+      ws.columns = [
+        { header: '구분',    key: '구분',    width: 10 },
+        { header: '지역',    key: '지역',    width: 12 },
+        { header: '기온(°C)',    key: '기온',    width: 12 },
+        { header: '체감온도(°C)', key: '체감온도', width: 14 },
+        { header: '습도(%)',  key: '습도',    width: 10 },
+        { header: '폭염단계', key: '폭염단계', width: 14 },
+        { header: '조회시간', key: '조회시간', width: 22 },
+      ];
+      const hdrRow = ws.getRow(1);
+      hdrRow.eachCell(cell => {
+        cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE06000' } };
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        cell.border = { bottom: { style: 'thin', color: { argb: 'FFCCCCCC' } } };
+      });
+      hdrRow.height = 22;
+
+      rows.forEach(r => {
+        const row = ws.addRow(r);
+        const fill = STAGE_FILL[r.폭염단계] ?? 'FFFFFF';
+        const fontColor = STAGE_FONT[r.폭염단계] ?? '333333';
+        row.eachCell(cell => {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + fill } };
+          cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          cell.border = { bottom: { style: 'hair', color: { argb: 'FFDDDDDD' } } };
+        });
+        const stageCell = row.getCell(6);
+        stageCell.font = { bold: true, color: { argb: 'FF' + fontColor } };
+        row.height = 18;
+      });
+
+      // 요약 행
+      ws.addRow([]);
+      const tempVals = rows.map(r => r.기온);
+      const feelsVals = rows.map(r => r.체감온도);
+      const humVals = rows.map(r => r.습도);
+      const sumRow = ws.addRow({
+        구분: '요약',
+        지역: `${rows.length}개 지역`,
+        기온: Math.round(tempVals.reduce((a,b)=>a+b,0)/tempVals.length*10)/10,
+        체감온도: Math.max(...feelsVals),
+        습도: Math.round(humVals.reduce((a,b)=>a+b,0)/humVals.length),
+        폭염단계: `최고체감 ${Math.max(...feelsVals)}°C`,
+        조회시간: rows[0]?.조회시간 ?? '',
+      });
+      sumRow.eachCell(cell => {
+        cell.font = { bold: true };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F0F0' } };
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      });
+      sumRow.height = 20;
+
+      const dateStr = new Date().toLocaleDateString('ko-KR',{year:'numeric',month:'2-digit',day:'2-digit'}).replace(/\. /g,'-').replace('.','');
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(`폭염현황_${dateStr}.xlsx`)}`);
+      const buf = await wb.xlsx.writeBuffer();
+      res.send(buf);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   // 정의되지 않은 /api 경로 → SPA index.html로 폴백되지 않도록 명시적 JSON 404 반환
   app.use('/api', (req, res) => {
     res.status(404).json({ message: '요청하신 API를 찾을 수 없습니다' });

@@ -1407,6 +1407,32 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
     }
   }
 
+  async function handleDownloadWeather() {
+    setLoading(true);
+    try {
+      const resp = await fetch('/api/heatwave-map/export', { credentials: 'include' });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ message: '다운로드 실패' }));
+        throw new Error(err.message);
+      }
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const dateStr = new Date().toLocaleDateString('ko-KR',{year:'numeric',month:'2-digit',day:'2-digit'}).replace(/\.\s*/g,'-').replace(/-$/,'');
+      a.download = `폭염현황_${dateStr}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e: any) {
+      setStatusErr(true);
+      setStatusMsg(e.message || '다운로드 실패');
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function handleAutoWeather() {
     setLoading(true);
     setStatusMsg('');
@@ -1441,6 +1467,11 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
         <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
           {loading && <Loader2 className="w-4 h-4 animate-spin text-orange-500" />}
           {heatActive && <Button size="sm" variant="ghost" className="h-7 text-xs text-slate-500 px-2" onClick={resetVisuals}>초기화</Button>}
+          {heatActive && (
+            <Button size="sm" variant="outline" className="h-7 text-xs gap-1 px-2 sm:px-3 border-emerald-400 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30" onClick={handleDownloadWeather} disabled={loading} data-testid="button-download-weather">
+              <FileDown className="w-3.5 h-3.5" /><span className="hidden sm:inline">엑셀 저장</span>
+            </Button>
+          )}
           <Button size="sm" variant="default" className="h-7 text-xs gap-1 px-2 sm:px-3 bg-sky-600 hover:bg-sky-700 text-white" onClick={handleAutoWeather} disabled={loading} data-testid="button-auto-weather">
             <RefreshCw className="w-3.5 h-3.5" /><span className="hidden sm:inline">실시간 날씨</span>
           </Button>
