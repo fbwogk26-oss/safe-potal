@@ -43,14 +43,17 @@ const REGIONS: { name: string; nx: number; ny: number }[] = [
   { name: '울릉군', nx: 127, ny: 127 },
 ];
 
+// 기상청 여름 체감온도 공식 (습구온도 Stull 2011 + Steadman AT)
+// 기상청 동일 공식: AT = -0.2442 + 0.55399*Tw + 0.45535*T - 0.0022*Tw² + 0.00278*T*Tw + 3.0
 function calcFeelsLike(t: number, rh: number): number {
-  if (t < 27) return parseFloat(t.toFixed(1));
-  const hi =
-    -8.78469475556 + 1.61139411 * t + 2.33854883889 * rh
-    - 0.14611605 * t * rh - 0.012308094 * t * t
-    - 0.0164248277778 * rh * rh + 0.002211732 * t * t * rh
-    + 0.00072546 * t * rh * rh - 0.000003582 * t * t * rh * rh;
-  return parseFloat(hi.toFixed(1));
+  if (t < 25) return parseFloat(t.toFixed(1));
+  const Tw = t * Math.atan(0.151977 * Math.sqrt(rh + 8.313659))
+    + Math.atan(t + rh)
+    - Math.atan(rh - 1.676331)
+    + 0.00391838 * Math.pow(rh, 1.5) * Math.atan(0.023101 * rh)
+    - 4.686035;
+  const at = -0.2442 + 0.55399 * Tw + 0.45535 * t - 0.0022 * Tw * Tw + 0.00278 * t * Tw + 3.0;
+  return parseFloat(at.toFixed(1));
 }
 
 export async function fetchAndSaveHeatwaveWeather(): Promise<{ ok: boolean; count: number; message?: string }> {
