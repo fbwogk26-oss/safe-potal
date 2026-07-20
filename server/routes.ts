@@ -14852,14 +14852,21 @@ ${result.value}
   app.post('/api/heatwave-daily-email/preview', isAuthenticated, async (req, res) => {
     try {
       const { buildHtmlEmail } = await import('./heatwaveDailyEmailJob');
-      const weather = req.body?.weather;
+      let weather = req.body?.weather;
+      // weather 없으면 DB에 저장된 최신 날씨 데이터 자동 조회
       if (!weather || typeof weather !== 'object' || Object.keys(weather).length === 0) {
-        return res.status(422).json({ message: '날씨 데이터가 없습니다.' });
+        const s = await storage.getSetting('heatwave_map_data');
+        if (s) {
+          try { weather = JSON.parse(s.value)?.weather; } catch {}
+        }
+      }
+      if (!weather || typeof weather !== 'object' || Object.keys(weather).length === 0) {
+        return res.status(422).json({ message: '날씨 데이터가 없습니다. 실시간 날씨 조회 후 다시 시도해 주세요.' });
       }
       const now = new Date();
       const dateStr = now.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' });
       const html = buildHtmlEmail(weather, dateStr, undefined);
-      res.json({ html });
+      res.json({ html, weather });
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }

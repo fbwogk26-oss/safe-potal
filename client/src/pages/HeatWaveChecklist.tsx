@@ -1430,7 +1430,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
               <span className="hidden sm:inline">지도 저장</span>
             </Button>
           )}
-          {heatActive && onPreviewEmail && (
+          {onPreviewEmail && (
             <Button size="sm" variant="outline" className="h-7 text-xs gap-1 px-2 sm:px-3 border-orange-400 text-orange-700 hover:bg-orange-50 dark:text-orange-400 dark:hover:bg-orange-950/30" onClick={onPreviewEmail} disabled={previewLoading || emailSending} data-testid="button-send-daily-email">
               {previewLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5" />}
               <span className="hidden sm:inline">메일 발송</span>
@@ -1853,21 +1853,22 @@ export default function HeatWaveChecklist() {
 
   // 메일 미리보기
   const handlePreviewEmail = async () => {
-    if (!currentWeatherForAction || Object.keys(currentWeatherForAction).length === 0) {
-      toast({ title: '날씨 데이터가 없습니다', description: '실시간 날씨 조회 또는 CSV 업로드 먼저 해주세요.', variant: 'destructive' });
-      return;
-    }
     setPreviewLoading(true);
     try {
       const resp = await fetch('/api/heatwave-daily-email/preview', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ weather: currentWeatherForAction }),
+        // currentWeatherForAction이 있으면 전달, 없으면 서버가 DB에서 자동 조회
+        body: JSON.stringify({ weather: currentWeatherForAction || {} }),
       });
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok) throw new Error(data.message || '미리보기 생성 실패');
       setPreviewHtml(data.html || '');
+      // 서버 응답의 weather로 currentWeatherForAction 동기화 (이대로 발송 시 사용)
+      if (data.weather && Object.keys(data.weather).length > 0) {
+        setCurrentWeatherForAction(data.weather);
+      }
       setShowEmailPreview(true);
     } catch (e: any) {
       toast({ title: '미리보기 실패', description: e.message, variant: 'destructive' });
