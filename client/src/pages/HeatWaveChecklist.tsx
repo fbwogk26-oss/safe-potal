@@ -1117,10 +1117,7 @@ function initThreePanel(
   const onPD = (e: PointerEvent) => { dragging=true; lastX=e.clientX; lastY=e.clientY; downX=e.clientX; downY=e.clientY; autoRotate=false; };
   const onPM = (e: PointerEvent) => {
     if (dragging) {
-      const dx=e.clientX-lastX, dy=e.clientY-lastY;
       lastX=e.clientX; lastY=e.clientY;
-      theta-=dx*0.006; phi-=dy*0.005;
-      phi=Math.max(0.15,Math.min(1.35,phi)); updateCam();
       if (tooltipEl) tooltipEl.style.display='none';
       return;
     }
