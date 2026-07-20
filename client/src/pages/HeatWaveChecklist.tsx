@@ -1337,24 +1337,24 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef }: { onDataPa
       } else if (selectedRegion === 'daegubuk') {
         if (!daegubukRef.current || !ulleungRef.current) return;
         newPanels = [
-          initThreePanel(daegubukRef.current, d.daegubuk, {height:26,bevel:2.0,radius:1700,theta:0,phi:Math.PI*0.27,baseRadius:1700,fogNear:1900,fogFar:5000,sun:[600,900,400],labels:true,fontSize:48,spin:false}, registryRef.current, tt, weatherRef, handleClick),
-          initThreePanel(ulleungRef.current,  d.ulleung,  {height:14,bevel:0.8,radius:320, theta:0,phi:Math.PI*0.25,baseRadius:260, fogNear:280, fogFar:900, sun:[140,200,90], labels:true,fontSize:32,spin:false}, registryRef.current, tt, weatherRef, handleClick),
+          initThreePanel(daegubukRef.current, d.daegubuk, {height:26,bevel:2.0,radius:1700,theta:0,phi:Math.PI*0.27,baseRadius:1700,fogNear:1900,fogFar:5000,sun:[600,900,400],labels:true,fontSize:48,spin:false,lockView:true}, registryRef.current, tt, weatherRef, handleClick),
+          initThreePanel(ulleungRef.current,  d.ulleung,  {height:14,bevel:0.8,radius:320, theta:0,phi:Math.PI*0.25,baseRadius:260, fogNear:280, fogFar:900, sun:[140,200,90], labels:true,fontSize:32,spin:false,lockView:true}, registryRef.current, tt, weatherRef, handleClick),
         ];
       } else if (selectedRegion === 'chungcheong') {
         if (!chungcheongRef.current) return;
         newPanels = [
-          initThreePanel(chungcheongRef.current, d.chungcheong, {height:24,bevel:2.0,radius:1200,theta:0,phi:Math.PI*0.27,baseRadius:1300,fogNear:1400,fogFar:3800,sun:[420,630,280],labels:true,fontSize:46,spin:false}, registryRef.current, tt, weatherRef, handleClick),
+          initThreePanel(chungcheongRef.current, d.chungcheong, {height:24,bevel:2.0,radius:1200,theta:0,phi:Math.PI*0.27,baseRadius:1300,fogNear:1400,fogFar:3800,sun:[420,630,280],labels:true,fontSize:46,spin:false,lockView:true}, registryRef.current, tt, weatherRef, handleClick),
         ];
       } else if (selectedRegion === 'honam') {
         if (!honamRef.current || !jejuRef.current) return;
         newPanels = [
-          initThreePanel(honamRef.current, d.honam, {height:24,bevel:2.0,radius:1200,theta:0,phi:Math.PI*0.27,baseRadius:1300,fogNear:1400,fogFar:3800,sun:[420,630,280],labels:true,fontSize:46,spin:false}, registryRef.current, tt, weatherRef, handleClick),
-          initThreePanel(jejuRef.current,  d.jeju,  {height:18,bevel:1.2,radius:400, theta:0,phi:Math.PI*0.25,baseRadius:380, fogNear:400, fogFar:1200,sun:[160,240,100],labels:true,fontSize:36,spin:false}, registryRef.current, tt, weatherRef, handleClick),
+          initThreePanel(honamRef.current, d.honam, {height:24,bevel:2.0,radius:1200,theta:0,phi:Math.PI*0.27,baseRadius:1300,fogNear:1400,fogFar:3800,sun:[420,630,280],labels:true,fontSize:46,spin:false,lockView:true}, registryRef.current, tt, weatherRef, handleClick),
+          initThreePanel(jejuRef.current,  d.jeju,  {height:18,bevel:1.2,radius:400, theta:0,phi:Math.PI*0.25,baseRadius:380, fogNear:400, fogFar:1200,sun:[160,240,100],labels:true,fontSize:36,spin:false,lockView:true}, registryRef.current, tt, weatherRef, handleClick),
         ];
       } else if (selectedRegion === 'buulgyeong') {
         if (!buulgyeongRef.current) return;
         newPanels = [
-          initThreePanel(buulgyeongRef.current, d.buulgyeong, {height:22,bevel:1.8,radius:1200,theta:0,phi:Math.PI*0.27,baseRadius:1300,fogNear:1400,fogFar:3800,sun:[420,630,280],labels:true,fontSize:44,spin:false}, registryRef.current, tt, weatherRef, handleClick),
+          initThreePanel(buulgyeongRef.current, d.buulgyeong, {height:22,bevel:1.8,radius:1200,theta:0,phi:Math.PI*0.27,baseRadius:1300,fogNear:1400,fogFar:3800,sun:[420,630,280],labels:true,fontSize:44,spin:false,lockView:true}, registryRef.current, tt, weatherRef, handleClick),
         ];
       }
 
