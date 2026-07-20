@@ -14800,7 +14800,10 @@ ${result.value}
   app.post('/api/heatwave-daily-email/send-now', isAuthenticated, async (req, res) => {
     try {
       const { runHeatwaveDailyEmail, getHeatwaveDailyEmailStatus } = await import('./heatwaveDailyEmailJob');
-      await runHeatwaveDailyEmail();
+      // 프론트엔드에서 현재 화면의 날씨 데이터를 직접 전달받으면 사용 (DB 타이밍 이슈 방지)
+      const weatherFromClient = req.body?.weather && typeof req.body.weather === 'object'
+        ? req.body.weather : undefined;
+      await runHeatwaveDailyEmail(weatherFromClient);
       const status = getHeatwaveDailyEmailStatus();
       if (status.lastResult === 'error') {
         return res.status(500).json({ message: status.lastMessage });

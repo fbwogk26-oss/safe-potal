@@ -1555,11 +1555,18 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
   }
 
   async function handleSendDailyEmail() {
+    if (!weatherRef.current || Object.keys(weatherRef.current).length === 0) {
+      setStatusErr(true);
+      setStatusMsg('지도에 날씨 데이터가 없어요. 실시간 날씨 또는 CSV 업로드 후 발송해 주세요.');
+      return;
+    }
     setEmailSending(true);
     try {
       const resp = await fetch('/api/heatwave-daily-email/send-now', {
         method: 'POST',
         credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ weather: weatherRef.current }),
       });
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok) throw new Error(data.message || '발송 실패');
