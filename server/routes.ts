@@ -14509,6 +14509,26 @@ ${result.value}
     }
   });
 
+  // ── 폭염 3D 지도 데이터 — 서버 공유 저장 (모든 기기에서 동기화) ─────────
+  app.get('/api/heatwave-map/data', isAuthenticated, async (_req, res) => {
+    try {
+      const s = await storage.getSetting('heatwave_map_data');
+      if (!s) return res.json({ ok: true, data: null });
+      res.json({ ok: true, data: JSON.parse(s.value) });
+    } catch {
+      res.json({ ok: true, data: null });
+    }
+  });
+
+  app.put('/api/heatwave-map/data', isAuthenticated, async (req, res) => {
+    try {
+      await storage.setSetting('heatwave_map_data', JSON.stringify(req.body));
+      res.json({ ok: true });
+    } catch (e: any) {
+      res.status(500).json({ ok: false, message: e.message });
+    }
+  });
+
   // 정의되지 않은 /api 경로 → SPA index.html로 폴백되지 않도록 명시적 JSON 404 반환
   app.use('/api', (req, res) => {
     res.status(404).json({ message: '요청하신 API를 찾을 수 없습니다' });

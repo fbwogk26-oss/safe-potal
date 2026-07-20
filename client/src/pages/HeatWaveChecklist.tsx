@@ -1251,19 +1251,18 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
     panelsRef.current = [p1,p2,p3];
     function animate() { rafRef.current=requestAnimationFrame(animate); panelsRef.current.forEach(p=>{p.tick();p.renderer.render(p.scene,p.camera);}); }
     animate();
-    // 이전 CSV 데이터 복원 (다른 메뉴 갔다가 돌아올 때)
-    try {
-      const saved = localStorage.getItem('heatwave_map_data');
-      if (saved) {
-        const { weather, stats: sv } = JSON.parse(saved) as { weather: Record<string,RegionWeather>; stats: any };
-        if (weather && Object.keys(weather).length > 0) {
-          weatherRef.current = weather;
-          Object.entries(weather).forEach(([n, info]) => updateRegionVisual(n, info as RegionWeather));
+    // 이전 데이터 복원 — 서버(DB)에서 로드 (기기 간 공유)
+    fetch('/api/heatwave-map/data', { credentials: 'include' })
+      .then(r => r.json())
+      .then(json => {
+        if (json?.data?.weather && Object.keys(json.data.weather).length > 0) {
+          weatherRef.current = json.data.weather;
+          Object.entries(json.data.weather).forEach(([n, info]) => updateRegionVisual(n, info as RegionWeather));
           setHeatActive(true);
-          if (sv) setStats(sv);
+          if (json.data.stats) setStats(json.data.stats);
         }
-      }
-    } catch {}
+      })
+      .catch(() => {});
     return () => { cancelAnimationFrame(rafRef.current); panelsRef.current.forEach(p=>p.cleanup()); panelsRef.current=[]; };
   }, [mapReady]);
 
@@ -1351,7 +1350,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
         maxLoc, count: matched,
       };
       setStats(statsData);
-      try { localStorage.setItem('heatwave_map_data', JSON.stringify({ weather: weatherRef.current, stats: statsData })); } catch {}
+      fetch('/api/heatwave-map/data', { method:'PUT', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ weather: weatherRef.current, stats: statsData }) }).catch(()=>{});
     }
     return { count: matched, maxLoc, maxT };
   }
@@ -1399,7 +1398,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
     const statsData = { maxFeels, avgTemp, avgHum, maxLoc, count: regions.length };
     setStats(statsData);
     setHeatActive(true);
-    try { localStorage.setItem('heatwave_map_data', JSON.stringify({ weather: weatherRef.current, stats: statsData })); } catch {}
+    fetch('/api/heatwave-map/data', { method:'PUT', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ weather: weatherRef.current, stats: statsData }) }).catch(()=>{});
     if (onDataParsed) {
       const stageCounts: Record<string,number> = {};
       regions.forEach(r => { if (r.stage) stageCounts[r.stage] = (stageCounts[r.stage] ?? 0) + 1; });
