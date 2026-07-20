@@ -30,7 +30,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Plus, Trash2, Eye, Thermometer, Sun, Mail, Loader2, PenLine, RotateCcw, FileDown, FileText, Pencil } from "lucide-react";
+import { Plus, Trash2, Eye, Thermometer, Sun, Mail, Loader2, PenLine, RotateCcw, FileDown, FileText, Pencil, RefreshCw } from "lucide-react";
 import type { HeatWaveChecklist } from "@shared/schema";
 import { format } from "date-fns";
 
@@ -1385,6 +1385,47 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
     e.target.value = "";
   };
 
+  function applyAutoWeatherData(regions: {name:string;feels:number;temp:number;hum:number;stage:string;time:string}[]) {
+    weatherRef.current = {};
+    regions.forEach(r => {
+      const info: RegionWeather = { feels: r.feels, temp: r.temp, hum: r.hum, stage: r.stage, time: r.time };
+      weatherRef.current[r.name] = info;
+      updateRegionVisual(r.name, info);
+    });
+    const maxFeels = Math.max(...regions.map(r => r.feels));
+    const maxLoc = regions.find(r => r.feels === maxFeels)?.name ?? '';
+    const avgTemp = Math.round(regions.map(r => r.temp).reduce((a,b) => a+b, 0) / regions.length * 10) / 10;
+    const avgHum = Math.round(regions.map(r => r.hum).reduce((a,b) => a+b, 0) / regions.length);
+    const statsData = { maxFeels, avgTemp, avgHum, maxLoc, count: regions.length };
+    setStats(statsData);
+    setHeatActive(true);
+    try { localStorage.setItem('heatwave_map_data', JSON.stringify({ weather: weatherRef.current, stats: statsData })); } catch {}
+    if (onDataParsed) {
+      const stageCounts: Record<string,number> = {};
+      regions.forEach(r => { if (r.stage) stageCounts[r.stage] = (stageCounts[r.stage] ?? 0) + 1; });
+      const dominantHeatLevel = Object.entries(stageCounts).sort((a,b) => b[1]-a[1])[0]?.[0] ?? '';
+      onDataParsed({ date: regions[0]?.time ?? '', maxFeelsLike: maxFeels, avgTemp, avgHumidity: avgHum, dominantHeatLevel });
+    }
+  }
+
+  async function handleAutoWeather() {
+    setLoading(true);
+    setStatusMsg('');
+    try {
+      const resp = await fetch('/api/weather/current-heat', { credentials: 'include' });
+      const json = await resp.json();
+      if (!json.ok) throw new Error(json.message);
+      applyAutoWeatherData(json.data);
+      setStatusErr(false);
+      setStatusMsg(`실시간 ${json.data.length}개 지역 반영`);
+    } catch (e: any) {
+      setStatusErr(true);
+      setStatusMsg(e.message || '기상 데이터 수신 실패');
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <div className="border rounded-xl bg-card shadow-sm overflow-hidden">
       {/* 툴팁 */}
@@ -1401,6 +1442,9 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
         <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
           {loading && <Loader2 className="w-4 h-4 animate-spin text-orange-500" />}
           {heatActive && <Button size="sm" variant="ghost" className="h-7 text-xs text-slate-500 px-2" onClick={resetVisuals}>초기화</Button>}
+          <Button size="sm" variant="default" className="h-7 text-xs gap-1 px-2 sm:px-3 bg-sky-600 hover:bg-sky-700 text-white" onClick={handleAutoWeather} disabled={loading} data-testid="button-auto-weather">
+            <RefreshCw className="w-3.5 h-3.5" /><span className="hidden sm:inline">실시간 날씨</span>
+          </Button>
           <Button size="sm" variant="outline" className="h-7 text-xs gap-1 px-2 sm:px-3" onClick={()=>fileRef.current?.click()} data-testid="button-upload-heatmap-csv">
             <FileDown className="w-3.5 h-3.5" /><span className="hidden sm:inline">CSV 업로드</span>
           </Button>

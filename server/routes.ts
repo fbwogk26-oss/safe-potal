@@ -14448,6 +14448,67 @@ ${result.value}
     }
   });
 
+  // ── 폭염 체크리스트 — Open-Meteo 기상 자동 조회 ──────────────────────────
+  app.get('/api/weather/current-heat', isAuthenticated, async (_req, res) => {
+    // 대구·경북 전 지역 좌표 (Open-Meteo, 무료/키없음)
+    const REGIONS: { name: string; lat: number; lon: number }[] = [
+      // 대구
+      { name:'중구',   lat:35.8714, lon:128.6014 },
+      { name:'동구',   lat:35.8869, lon:128.6354 },
+      { name:'서구',   lat:35.8718, lon:128.5596 },
+      { name:'남구',   lat:35.8457, lon:128.5984 },
+      { name:'북구',   lat:35.9188, lon:128.5830 },
+      { name:'수성구', lat:35.8582, lon:128.6308 },
+      { name:'달서구', lat:35.8298, lon:128.5331 },
+      { name:'달성군', lat:35.7746, lon:128.4313 },
+      { name:'군위군', lat:36.2399, lon:128.5728 },
+      // 경북
+      { name:'포항시', lat:36.0190, lon:129.3435 },
+      { name:'경주시', lat:35.8562, lon:129.2247 },
+      { name:'김천시', lat:36.1196, lon:128.1135 },
+      { name:'안동시', lat:36.5684, lon:128.7294 },
+      { name:'구미시', lat:36.1196, lon:128.3441 },
+      { name:'영주시', lat:36.8057, lon:128.6242 },
+      { name:'영천시', lat:35.9734, lon:128.9381 },
+      { name:'상주시', lat:36.4108, lon:128.1591 },
+      { name:'문경시', lat:36.5862, lon:128.1863 },
+      { name:'경산시', lat:35.8249, lon:128.7412 },
+      { name:'의성군', lat:36.3527, lon:128.6971 },
+      { name:'청송군', lat:36.4358, lon:129.0573 },
+      { name:'영양군', lat:36.6667, lon:129.1129 },
+      { name:'영덕군', lat:36.4153, lon:129.3659 },
+      { name:'청도군', lat:35.6474, lon:128.7342 },
+      { name:'고령군', lat:35.7272, lon:128.2639 },
+      { name:'성주군', lat:35.9196, lon:128.2830 },
+      { name:'칠곡군', lat:35.9951, lon:128.4019 },
+      { name:'예천군', lat:36.6579, lon:128.4523 },
+      { name:'봉화군', lat:36.8928, lon:128.7319 },
+      { name:'울진군', lat:36.9930, lon:129.4003 },
+      { name:'울릉군', lat:37.4850, lon:130.9057 },
+    ];
+    try {
+      const lats = REGIONS.map(r => r.lat).join(',');
+      const lons = REGIONS.map(r => r.lon).join(',');
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}&current=temperature_2m,relative_humidity_2m,apparent_temperature&timezone=Asia%2FSeoul`;
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`Open-Meteo ${resp.status}`);
+      const data = await resp.json() as any[];
+      const now = new Date();
+      const timeLabel = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
+      const result = data.map((item: any, i: number) => {
+        const c = item.current;
+        const feels: number = parseFloat((c.apparent_temperature ?? 0).toFixed(1));
+        const temp: number = parseFloat((c.temperature_2m ?? 0).toFixed(1));
+        const hum: number = Math.round(c.relative_humidity_2m ?? 0);
+        const stage = feels >= 35 ? '폭염경보' : feels >= 33 ? '폭염주의보' : feels >= 31 ? '폭염관심' : '해당없음';
+        return { name: REGIONS[i].name, feels, temp, hum, stage, time: timeLabel };
+      });
+      res.json({ ok: true, data: result, updatedAt: new Date().toISOString() });
+    } catch (e: any) {
+      res.status(500).json({ ok: false, message: e.message });
+    }
+  });
+
   // 정의되지 않은 /api 경로 → SPA index.html로 폴백되지 않도록 명시적 JSON 404 반환
   app.use('/api', (req, res) => {
     res.status(404).json({ message: '요청하신 API를 찾을 수 없습니다' });
