@@ -1509,11 +1509,19 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
       )}
 
       {/* ─ 지도 패널 ─ */}
+      {isMobile && (
+        <div style={{ background: '#0a0d12', padding: '4px 12px', display: 'flex', gap: 12, alignItems: 'center', fontSize: 10, color: '#6b7280' }}>
+          <span>👆 탭 — 상세 정보</span>
+          <span>☝️ 드래그 — 이동</span>
+          <span>🤏 핀치 — 확대/축소</span>
+        </div>
+      )}
       <div className="p-2 sm:p-3 flex gap-2 sm:gap-3"
         style={{
           background:'#0a0d12',
           height: isMobile ? 560 : 680,
           flexDirection: isMobile ? 'column' : 'row',
+          touchAction: isMobile ? 'none' : undefined,
         }}>
 
         {/* 대구·경북 */}
@@ -1523,7 +1531,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
             style={{ background:'#11151c', flex:'1 1 0', minWidth: 0 }}>
             <div className="px-3 py-1.5 flex items-center justify-between border-b border-[#232a35] flex-shrink-0">
               <span className="text-xs font-semibold text-slate-300">전체 권역 (대구본부·충청본부·호남본부·부산본부)</span>
-              <span className="text-[10px] text-slate-500">클릭하면 상세 보기</span>
+              {!isMobile && <span className="text-[10px] text-slate-500">클릭하면 상세 보기</span>}
             </div>
             <div style={{position:'relative', flex:1, minHeight:0, background:'#0d1117'}}>
               <div ref={allRef} style={{position:'absolute',inset:0}} />
@@ -1549,7 +1557,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
             style={{ background:'#11151c', flex:'1 1 0', minWidth: 0 }}>
             <div className="px-3 py-1.5 flex items-center justify-between border-b border-[#232a35] flex-shrink-0">
               <span className="text-xs font-semibold text-slate-300">대구광역시 · 경상북도</span>
-              <span className="text-[10px] text-slate-500">클릭하면 상세 보기</span>
+              {!isMobile && <span className="text-[10px] text-slate-500">클릭하면 상세 보기</span>}
             </div>
             <div style={{position:'relative', flex:1, minHeight:0, background:'#0d1117'}}>
               <div ref={daegubukRef} style={{position:'absolute',inset:0}} />
@@ -1571,7 +1579,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
             style={{ background:'#11151c', flex:'1 1 0', minWidth: 0 }}>
             <div className="px-3 py-1.5 flex items-center justify-between border-b border-[#232a35] flex-shrink-0">
               <span className="text-xs font-semibold text-slate-300">충청권 (대전·세종·충북·충남)</span>
-              <span className="text-[10px] text-slate-500">클릭하면 상세 보기</span>
+              {!isMobile && <span className="text-[10px] text-slate-500">클릭하면 상세 보기</span>}
             </div>
             <div style={{position:'relative', flex:1, minHeight:0, background:'#0d1117'}}>
               <div ref={chungcheongRef} style={{position:'absolute',inset:0}} />
@@ -1586,7 +1594,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
             style={{ background:'#11151c', flex:'1 1 0', minWidth: 0 }}>
             <div className="px-3 py-1.5 flex items-center justify-between border-b border-[#232a35] flex-shrink-0">
               <span className="text-xs font-semibold text-slate-300">호남권 (광주·전북·전남·제주)</span>
-              <span className="text-[10px] text-slate-500">클릭하면 상세 보기</span>
+              {!isMobile && <span className="text-[10px] text-slate-500">클릭하면 상세 보기</span>}
             </div>
             <div style={{position:'relative', flex:1, minHeight:0, background:'#0d1117'}}>
               <div ref={honamRef} style={{position:'absolute',inset:0}} />
@@ -1607,7 +1615,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
             style={{ background:'#11151c', flex:'1 1 0', minWidth: 0 }}>
             <div className="px-3 py-1.5 flex items-center justify-between border-b border-[#232a35] flex-shrink-0">
               <span className="text-xs font-semibold text-slate-300">부산권 (부산·울산·경남)</span>
-              <span className="text-[10px] text-slate-500">클릭하면 상세 보기</span>
+              {!isMobile && <span className="text-[10px] text-slate-500">클릭하면 상세 보기</span>}
             </div>
             <div style={{position:'relative', flex:1, minHeight:0, background:'#0d1117'}}>
               <div ref={buulgyeongRef} style={{position:'absolute',inset:0}} />
