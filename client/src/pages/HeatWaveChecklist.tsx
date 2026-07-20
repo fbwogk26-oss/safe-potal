@@ -912,7 +912,7 @@ interface MapRegion { name: string; type: string; color: string; polys: number[]
 interface PanelOpts {
   height: number; bevel: number; radius: number; theta: number; phi: number;
   baseRadius: number; fogNear: number; fogFar: number; sun: [number,number,number];
-  labels: boolean; fontSize: number; spin: boolean;
+  labels: boolean; fontSize: number; spin: boolean; lockView?: boolean;
 }
 interface RegionEntry { meshes: THREE.Mesh[]; topMat: THREE.MeshStandardMaterial; sideMat: THREE.MeshStandardMaterial; baseColor: THREE.Color; baseDepth: number; sprite: THREE.Sprite | null; }
 interface ThreePanel { scene: THREE.Scene; camera: THREE.PerspectiveCamera; renderer: THREE.WebGLRenderer; tick: () => void; cleanup: () => void; }
@@ -1122,7 +1122,7 @@ function initThreePanel(
     return hits.length ? hits[0].object as THREE.Mesh : null;
   }
   let downX = 0, downY = 0;
-  const onPD = (e: PointerEvent) => { dragging=true; lastX=e.clientX; lastY=e.clientY; downX=e.clientX; downY=e.clientY; autoRotate=false; };
+  const onPD = (e: PointerEvent) => { downX=e.clientX; downY=e.clientY; if (!opts.lockView) { dragging=true; lastX=e.clientX; lastY=e.clientY; autoRotate=false; } };
   const onPM = (e: PointerEvent) => {
     if (dragging) {
       const dx=e.clientX-lastX, dy=e.clientY-lastY;
@@ -1330,9 +1330,9 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef }: { onDataPa
       if (selectedRegion === 'all') {
         if (!allRef.current || !ulleungAllRef.current || !jejuAllRef.current) return;
         newPanels = [
-          initThreePanel(allRef.current, d.all.filter((r: MapRegion) => r.name !== '제주시' && r.name !== '서귀포'), {height:18,bevel:1.4,radius:2200,theta:0,phi:Math.PI*0.27,baseRadius:2200,fogNear:2400,fogFar:6000,sun:[800,1200,550],labels:true,fontSize:26,spin:false}, registryRef.current, tt, weatherRef, handleClick),
-          initThreePanel(ulleungAllRef.current,d.ulleung,{height:14,bevel:0.8,radius:320, theta:0,phi:Math.PI*0.25,baseRadius:260, fogNear:280, fogFar:900, sun:[140,200,90], labels:true,fontSize:32,spin:false}, registryRef.current, tt, weatherRef, handleClick),
-          initThreePanel(jejuAllRef.current,   d.jeju,   {height:18,bevel:1.2,radius:400, theta:0,phi:Math.PI*0.25,baseRadius:380, fogNear:400, fogFar:1200,sun:[160,240,100],labels:true,fontSize:28,spin:false}, registryRef.current, tt, weatherRef, handleClick),
+          initThreePanel(allRef.current, d.all.filter((r: MapRegion) => r.name !== '제주시' && r.name !== '서귀포'), {height:18,bevel:1.4,radius:2200,theta:0,phi:Math.PI*0.27,baseRadius:2200,fogNear:2400,fogFar:6000,sun:[800,1200,550],labels:true,fontSize:38,spin:false,lockView:true}, registryRef.current, tt, weatherRef, handleClick),
+          initThreePanel(ulleungAllRef.current,d.ulleung,{height:14,bevel:0.8,radius:320, theta:0,phi:Math.PI*0.25,baseRadius:260, fogNear:280, fogFar:900, sun:[140,200,90], labels:true,fontSize:42,spin:false}, registryRef.current, tt, weatherRef, handleClick),
+          initThreePanel(jejuAllRef.current,   d.jeju,   {height:18,bevel:1.2,radius:400, theta:0,phi:Math.PI*0.25,baseRadius:380, fogNear:400, fogFar:1200,sun:[160,240,100],labels:true,fontSize:38,spin:false}, registryRef.current, tt, weatherRef, handleClick),
         ];
       } else if (selectedRegion === 'daegubuk') {
         if (!daegubukRef.current || !ulleungRef.current) return;
@@ -1750,6 +1750,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef }: { onDataPa
               borderBottom: selectedRegion === tab.key ? '2px solid #f97316' : '2px solid transparent',
               background:'transparent', cursor:'pointer', transition:'color 0.15s',
               whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis',
+              outline:'none',
             }}
           >
             <span className="block">{tab.label}</span>
@@ -1822,14 +1823,14 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef }: { onDataPa
               <div ref={allRef} style={{position:'absolute',inset:0}} />
               {/* 울릉도 인셋 — 우하단 */}
               <div style={{position:'absolute',bottom:8,right:8,zIndex:4,width:isMobile?130:180,height:isMobile?105:140,border:'2px dashed #3d4757',borderRadius:10,background:'#0d1117',overflow:'hidden'}}>
-                <div style={{position:'absolute',top:-8,left:8,zIndex:2,background:'#11151c',padding:'0 5px',fontSize:8,letterSpacing:'1.5px',color:'#697384'}}>INSET</div>
-                <span style={{position:'absolute',top:5,left:9,zIndex:2,fontSize:10,fontWeight:700,color:'#e8ecf1',textShadow:'0 1px 3px rgba(0,0,0,0.6)',pointerEvents:'none'}}>울릉군</span>
+                <div style={{position:'absolute',top:-8,left:8,zIndex:2,background:'#11151c',padding:'0 5px',fontSize:9,letterSpacing:'1.5px',color:'#697384'}}>INSET</div>
+                <span style={{position:'absolute',top:5,left:9,zIndex:2,fontSize:13,fontWeight:700,color:'#e8ecf1',textShadow:'0 1px 3px rgba(0,0,0,0.8)',pointerEvents:'none'}}>울릉군</span>
                 <div ref={ulleungAllRef} style={{position:'absolute',inset:0}} />
               </div>
               {/* 제주도 인셋 — 울릉도 위 */}
               <div style={{position:'absolute',bottom:isMobile?121:156,right:8,zIndex:4,width:isMobile?130:180,height:isMobile?105:140,border:'2px dashed #3d4757',borderRadius:10,background:'#0d1117',overflow:'hidden'}}>
-                <div style={{position:'absolute',top:-8,left:8,zIndex:2,background:'#11151c',padding:'0 5px',fontSize:8,letterSpacing:'1.5px',color:'#697384'}}>INSET</div>
-                <span style={{position:'absolute',top:5,left:9,zIndex:2,fontSize:10,fontWeight:700,color:'#e8ecf1',textShadow:'0 1px 3px rgba(0,0,0,0.6)',pointerEvents:'none'}}>제주도</span>
+                <div style={{position:'absolute',top:-8,left:8,zIndex:2,background:'#11151c',padding:'0 5px',fontSize:9,letterSpacing:'1.5px',color:'#697384'}}>INSET</div>
+                <span style={{position:'absolute',top:5,left:9,zIndex:2,fontSize:13,fontWeight:700,color:'#e8ecf1',textShadow:'0 1px 3px rgba(0,0,0,0.8)',pointerEvents:'none'}}>제주도</span>
                 <div ref={jejuAllRef} style={{position:'absolute',inset:0}} />
               </div>
               {selectedInfo && <RegionInfoCard info={selectedInfo} onClose={()=>setSelectedInfo(null)} heatColorFn={heatColorHex} />}
