@@ -1076,6 +1076,7 @@ export const heatWaveChecklists = pgTable("heat_wave_checklists", {
   authorSignature: text("author_signature"),
   safetyManagerSignature: text("safety_manager_signature"),
   weatherSnapshot: jsonb("weather_snapshot"),
+  mapSnapshot: text("map_snapshot"),
   createdBy: text("created_by"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

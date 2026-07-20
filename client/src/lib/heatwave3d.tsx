@@ -83,7 +83,7 @@ export function initThreePanel(
   scene.background = new THREE.Color(0x0d1117);
   scene.fog = new THREE.Fog(0x0d1117, opts.fogNear, opts.fogFar);
   const camera = new THREE.PerspectiveCamera(42, W()/H(), 1, 5000);
-  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
   renderer.setSize(W(), H());
   renderer.shadowMap.enabled = true;

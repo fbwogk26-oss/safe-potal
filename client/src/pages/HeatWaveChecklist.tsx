@@ -88,6 +88,7 @@ type FormData = {
   authorSignature: string;
   safetyManagerSignature: string;
   weatherSnapshot?: Record<string, any>;
+  mapSnapshot?: string;
 };
 
 function emptyForm(): FormData {
@@ -139,6 +140,7 @@ function formFromRecord(r: HeatWaveChecklist): FormData {
     authorSignature: r.authorSignature ?? "",
     safetyManagerSignature: r.safetyManagerSignature ?? "",
     weatherSnapshot: (r as any).weatherSnapshot ?? undefined,
+    mapSnapshot: (r as any).mapSnapshot ?? undefined,
   };
 }
 
@@ -165,6 +167,7 @@ function formToPayload(f: FormData) {
     authorSignature: f.authorSignature || null,
     safetyManagerSignature: f.safetyManagerSignature || null,
     weatherSnapshot: f.weatherSnapshot ?? null,
+    mapSnapshot: f.mapSnapshot ?? null,
   };
 }
 
@@ -416,6 +419,57 @@ function ChecklistPDFView({ record, pdfRef }: { record: HeatWaveChecklist; pdfRe
           </div>
         </div>
       </div>
+
+      {/* ── 날씨 스냅샷 페이지 (2페이지) ─────────────────────────────────── */}
+      {((record as any).weatherSnapshot || (record as any).mapSnapshot) && (() => {
+        const snap = (record as any).weatherSnapshot as Record<string, { feels: number; temp: number; hum: number; stage?: string; time?: string }> | undefined;
+        const mapImg = (record as any).mapSnapshot as string | undefined;
+        const sorted = snap ? Object.entries(snap).sort((a, b) => b[1].feels - a[1].feels) : [];
+        return (
+          <div style={{ marginTop: "32px", pageBreakBefore: "always", borderTop: "2.5px solid #f97316", paddingTop: "20px" }}>
+            <div style={{ textAlign: "center", marginBottom: "16px" }}>
+              <h2 style={{ fontSize: "16px", fontWeight: "bold", margin: 0, color: "#ea580c" }}>권역별 체감온도 현황 지도</h2>
+              <div style={{ fontSize: "10px", color: "#888", marginTop: "3px" }}>실시간 날씨 기준 · {snap ? Object.keys(snap).length : 0}개 지역</div>
+            </div>
+            {mapImg && (
+              <div style={{ textAlign: "center", marginBottom: "16px" }}>
+                <img src={mapImg} alt="폭염 지도" style={{ maxWidth: "100%", height: "280px", objectFit: "contain", borderRadius: "8px", border: "1px solid #fed7aa" }} />
+              </div>
+            )}
+            {sorted.length > 0 && (
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11px" }}>
+                <thead>
+                  <tr style={{ background: "#fff7ed" }}>
+                    <th style={{ border: "1px solid #fde68a", padding: "5px 8px", textAlign: "left" }}>순위</th>
+                    <th style={{ border: "1px solid #fde68a", padding: "5px 8px", textAlign: "left" }}>지역</th>
+                    <th style={{ border: "1px solid #fde68a", padding: "5px 8px", textAlign: "center" }}>체감온도</th>
+                    <th style={{ border: "1px solid #fde68a", padding: "5px 8px", textAlign: "center" }}>기온</th>
+                    <th style={{ border: "1px solid #fde68a", padding: "5px 8px", textAlign: "center" }}>습도</th>
+                    <th style={{ border: "1px solid #fde68a", padding: "5px 8px", textAlign: "center" }}>단계</th>
+                    <th style={{ border: "1px solid #fde68a", padding: "5px 8px", textAlign: "center" }}>기준시각</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sorted.map(([name, w], i) => {
+                    const bg = w.feels >= 38 ? "#fecaca" : w.feels >= 35 ? "#fed7aa" : w.feels >= 33 ? "#fef9c3" : w.feels >= 31 ? "#dcfce7" : "#fff";
+                    return (
+                      <tr key={name} style={{ background: bg }}>
+                        <td style={{ border: "1px solid #e5e7eb", padding: "4px 8px", textAlign: "center", fontWeight: i < 3 ? "bold" : "normal" }}>{i + 1}</td>
+                        <td style={{ border: "1px solid #e5e7eb", padding: "4px 8px", fontWeight: "bold" }}>{name}</td>
+                        <td style={{ border: "1px solid #e5e7eb", padding: "4px 8px", textAlign: "center", fontWeight: "bold", color: w.feels >= 35 ? "#dc2626" : w.feels >= 33 ? "#d97706" : "#111" }}>{w.feels}°C</td>
+                        <td style={{ border: "1px solid #e5e7eb", padding: "4px 8px", textAlign: "center" }}>{w.temp != null ? `${w.temp}°C` : "-"}</td>
+                        <td style={{ border: "1px solid #e5e7eb", padding: "4px 8px", textAlign: "center" }}>{w.hum != null ? `${w.hum}%` : "-"}</td>
+                        <td style={{ border: "1px solid #e5e7eb", padding: "4px 8px", textAlign: "center" }}>{w.stage ?? "-"}</td>
+                        <td style={{ border: "1px solid #e5e7eb", padding: "4px 8px", textAlign: "center" }}>{w.time ?? "-"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -906,6 +960,7 @@ type ParsedCSVData = {
   dominantHeatLevel: string;
   selectedRegion?: 'all' | 'daegubuk' | 'chungcheong' | 'honam' | 'buulgyeong';
   weatherSnapshot?: Record<string, any>;
+  mapSnapshot?: string;
 };
 
 
@@ -913,13 +968,14 @@ type ParsedCSVData = {
 
 
 
-function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEmail, onSaveMap, mapSaving, previewLoading }: {
+function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEmail, onSaveMap, mapSaving, previewLoading, mapCaptureRef }: {
   onDataParsed?: (d: ParsedCSVData) => void;
   checklistTriggerRef?: React.MutableRefObject<(() => void) | null>;
   onPreviewEmail?: () => void;
   onSaveMap?: () => void;
   mapSaving?: boolean;
   previewLoading?: boolean;
+  mapCaptureRef?: React.MutableRefObject<(() => string | null) | null>;
 }) {
   const [selectedRegion, setSelectedRegion] = useState<RegionKey>('daegubuk');
   const [statusMsg, setStatusMsg] = useState("");
@@ -1322,6 +1378,17 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
     if (checklistTriggerRef) {
       checklistTriggerRef.current = handleWriteChecklistNow;
     }
+    if (mapCaptureRef) {
+      mapCaptureRef.current = () => {
+        try {
+          const canvas = panelsRef.current[0]?.renderer?.domElement;
+          if (!canvas) return null;
+          // 렌더 한 프레임 후 즉시 캡처
+          panelsRef.current.forEach(p => p.renderer.render(p.scene, p.camera));
+          return canvas.toDataURL('image/jpeg', 0.85);
+        } catch { return null; }
+      };
+    }
   });
 
   async function handleSendDailyEmail() {
@@ -1723,8 +1790,11 @@ export default function HeatWaveChecklist() {
   const [pdfViewing, setPdfViewing] = useState<HeatWaveChecklist | null>(null);
   const [isPdfDownloading, setIsPdfDownloading] = useState(false);
   const pdfRef = useRef<HTMLDivElement>(null);
+  const [viewingWeather, setViewingWeather] = useState<{ weatherSnapshot?: Record<string, any>; mapSnapshot?: string; checkDate?: string; targetArea?: string } | null>(null);
   // 지도 컴포넌트에서 "현재 권역 체크리스트 작성" 함수를 외부 버튼으로 호출하기 위한 ref
   const checklistTriggerRef = useRef<(() => void) | null>(null);
+  // 지도 캡처 함수 ref
+  const mapCaptureRef = useRef<(() => string | null) | null>(null);
 
   // 체크리스트 자동작성 확인 다이얼로그
   const [pendingWeatherData, setPendingWeatherData] = useState<ParsedCSVData | null>(null);
@@ -1841,14 +1911,16 @@ export default function HeatWaveChecklist() {
       checks38: ml >= 38 ? [true] : [false],
       stopTime38Start: "", stopTime38End: "",
       weatherSnapshot: d.weatherSnapshot,
+      mapSnapshot: d.mapSnapshot,
     });
     setShowForm(true);
     toast({ title: "날씨 데이터로 체크리스트가 자동완성되었습니다", description: `${targetArea} · 최고 체감온도 ${ml}°C · ${heatAlertStatus}` });
   };
 
-  // 날씨 조회 완료 시 → 확인 다이얼로그 표시 + 현재 날씨 저장
+  // 날씨 조회 완료 시 → 확인 다이얼로그 표시 + 현재 날씨 저장 + 지도 캡처
   const handleCsvParsed = (d: ParsedCSVData) => {
-    setPendingWeatherData(d);
+    const mapImg = mapCaptureRef.current?.() ?? undefined;
+    setPendingWeatherData({ ...d, mapSnapshot: mapImg });
     if (d.weatherSnapshot) setCurrentWeatherForAction(d.weatherSnapshot);
   };
 
@@ -1936,6 +2008,7 @@ export default function HeatWaveChecklist() {
         onSaveMap={handleSaveMapData}
         mapSaving={mapSaving}
         previewLoading={previewLoading}
+        mapCaptureRef={mapCaptureRef}
       />
 
       {/* ── 체크리스트 자동작성 확인 다이얼로그 ─────────────────────────── */}
@@ -2091,13 +2164,24 @@ export default function HeatWaveChecklist() {
                   {r.heatAlertStatus}
                 </Badge>
               </div>
-              <div className="flex items-center justify-between text-xs text-muted-foreground mb-3">
+              <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
                 <span>
                   {r.currentTemperature != null ? `기온 ${r.currentTemperature}°C` : ''}
                   {r.currentFeelsLike != null ? ` · 체감 ${r.currentFeelsLike}°C` : ''}
                 </span>
                 <span>조치 <strong className="text-foreground">{totalChecks(r)}</strong>/{totalPossible} · {r.author ?? '-'}</span>
               </div>
+              {(r as any).weatherSnapshot && (
+                <div className="flex items-center gap-1 mb-2">
+                  <button
+                    className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-orange-50 dark:bg-orange-950/30 text-orange-600 dark:text-orange-400 border border-orange-200 dark:border-orange-800 hover:bg-orange-100 transition-colors"
+                    onClick={() => setViewingWeather(r as any)}
+                    data-testid={`button-weather-${r.id}`}
+                  >
+                    <Thermometer className="w-3 h-3" />날씨 첨부
+                  </button>
+                </div>
+              )}
               <div className="grid grid-cols-4 gap-1 border-t pt-2">
                 <Button variant="ghost" size="sm" className="h-9 text-xs flex-col gap-0.5 px-1" onClick={() => setViewing(r)} data-testid={`button-view-${r.id}`}>
                   <Eye className="w-4 h-4" /><span>보기</span>
@@ -2167,7 +2251,21 @@ export default function HeatWaveChecklist() {
                     <span className="font-medium">{totalChecks(r)}</span>
                     <span className="text-muted-foreground">/{totalPossible}</span>
                   </TableCell>
-                  <TableCell className="text-sm hidden md:table-cell">{r.author ?? "-"}</TableCell>
+                  <TableCell className="text-sm hidden md:table-cell">
+                    <div className="flex items-center gap-1.5">
+                      {r.author ?? "-"}
+                      {(r as any).weatherSnapshot && (
+                        <button
+                          className="flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded-full bg-orange-50 dark:bg-orange-950/30 text-orange-600 dark:text-orange-400 border border-orange-200 dark:border-orange-800 hover:bg-orange-100 transition-colors whitespace-nowrap"
+                          onClick={() => setViewingWeather(r as any)}
+                          data-testid={`button-weather-${r.id}`}
+                          title="날씨 데이터 보기"
+                        >
+                          <Thermometer className="w-2.5 h-2.5" />날씨
+                        </button>
+                      )}
+                    </div>
+                  </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewing(r)} data-testid={`button-view-${r.id}`}>
@@ -2259,6 +2357,70 @@ export default function HeatWaveChecklist() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* 날씨 첨부 상세 모달 */}
+      {viewingWeather && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm" data-testid="dialog-weather-view">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-2xl mx-4 flex flex-col overflow-hidden" style={{ maxHeight: '90vh' }}>
+            <div className="flex items-center justify-between px-5 py-3.5 border-b bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-950/20 dark:to-amber-950/20 flex-shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-full bg-orange-100 dark:bg-orange-900/40 flex items-center justify-center">
+                  <Thermometer className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+                </div>
+                <div>
+                  <div className="font-bold text-sm text-foreground">날씨 첨부 데이터</div>
+                  <div className="text-xs text-muted-foreground">{viewingWeather.checkDate} · {viewingWeather.targetArea}</div>
+                </div>
+              </div>
+              <button onClick={() => setViewingWeather(null)} className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors" data-testid="button-close-weather">
+                <X className="w-4 h-4 text-muted-foreground" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {viewingWeather.mapSnapshot && (
+                <div className="rounded-xl overflow-hidden border border-orange-100 dark:border-orange-900">
+                  <img src={viewingWeather.mapSnapshot} alt="폭염 지도 스냅샷" className="w-full object-contain max-h-72" />
+                </div>
+              )}
+              {viewingWeather.weatherSnapshot && (() => {
+                const sorted = Object.entries(viewingWeather.weatherSnapshot as Record<string, { feels: number; temp: number; hum: number; stage?: string; time?: string }>)
+                  .sort((a, b) => b[1].feels - a[1].feels);
+                return (
+                  <div>
+                    <div className="text-xs font-semibold text-muted-foreground mb-2">{sorted.length}개 지역 · 체감온도 높은 순</div>
+                    <div className="rounded-lg overflow-hidden border text-xs">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="bg-orange-50 dark:bg-orange-950/30 text-muted-foreground">
+                            <th className="px-3 py-2 text-left">지역</th>
+                            <th className="px-3 py-2 text-center">체감</th>
+                            <th className="px-3 py-2 text-center">기온</th>
+                            <th className="px-3 py-2 text-center">습도</th>
+                            <th className="px-3 py-2 text-center">단계</th>
+                            <th className="px-3 py-2 text-center">기준시각</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border">
+                          {sorted.map(([name, w], i) => (
+                            <tr key={name} className={i % 2 === 0 ? "bg-background" : "bg-muted/30"}>
+                              <td className="px-3 py-1.5 font-medium">{name}</td>
+                              <td className={`px-3 py-1.5 text-center font-bold ${w.feels >= 38 ? 'text-red-600' : w.feels >= 35 ? 'text-orange-500' : w.feels >= 33 ? 'text-yellow-600' : ''}`}>{w.feels}°C</td>
+                              <td className="px-3 py-1.5 text-center text-muted-foreground">{w.temp != null ? `${w.temp}°C` : '-'}</td>
+                              <td className="px-3 py-1.5 text-center text-muted-foreground">{w.hum != null ? `${w.hum}%` : '-'}</td>
+                              <td className="px-3 py-1.5 text-center">{w.stage ?? '-'}</td>
+                              <td className="px-3 py-1.5 text-center text-muted-foreground">{w.time ?? '-'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* PDF 미리보기 다이얼로그 */}
       <Dialog open={!!pdfViewing} onOpenChange={() => { setPdfViewing(null); setIsPdfDownloading(false); }}>
