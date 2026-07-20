@@ -12,6 +12,13 @@ interface MapDataStore {
   chungcheong: MapRegion[]; honam: MapRegion[]; jeju: MapRegion[]; buulgyeong: MapRegion[];
 }
 
+function stageLabel(feels: number) {
+  if (feels >= 38) return { text: "폭염경보", color: "#dc2626" };
+  if (feels >= 35) return { text: "폭염주의보", color: "#ea580c" };
+  if (feels >= 33) return { text: "폭염관심", color: "#d97706" };
+  return { text: "해당없음", color: "#6b7280" };
+}
+
 export default function HeatWaveMapReport() {
   const [, navigate] = useLocation();
   const token = new URLSearchParams(window.location.search).get("token");
@@ -68,7 +75,7 @@ export default function HeatWaveMapReport() {
 
   // 2) 토큰으로 날씨 데이터 로드
   useEffect(() => {
-    if (!token) { setError("토큰이 없습니다. 이메일의 '지도로 보기' 링크를 다시 클릭해 주세요."); setLoading(false); return; }
+    if (!token) { setError("토큰이 없습니다. 이메일의 링크를 다시 클릭해 주세요."); setLoading(false); return; }
     fetch(`/api/heatwave-report-data?token=${encodeURIComponent(token)}`)
       .then(async r => {
         if (!r.ok) {
@@ -93,7 +100,7 @@ export default function HeatWaveMapReport() {
       });
   }, [token]);
 
-  // 3) Three.js 패널 초기화 (지도 + 날씨 준비 후)
+  // 3) Three.js 패널 초기화
   useEffect(() => {
     if (!mapReady) return;
     cancelAnimationFrame(rafRef.current);
@@ -150,7 +157,6 @@ export default function HeatWaveMapReport() {
       }
       animate();
 
-      // 탭 전환 시 날씨 색상 즉시 복원
       if (Object.keys(weatherRef.current).length > 0) {
         Object.entries(weatherRef.current).forEach(([n, info]) => updateRegionVisual(n, info));
       }
@@ -177,8 +183,7 @@ export default function HeatWaveMapReport() {
     if (entry.sprite) entry.sprite.position.y = entry.baseDepth * scale + 10;
   }
 
-  const mapH = isMobile ? "calc(100vh - 130px)" : "calc(100vh - 110px)";
-  const sideW = isMobile ? "25%" : "22%";
+  const sideW = isMobile ? "16%" : "22%";
 
   if (loading) {
     return (
@@ -204,39 +209,51 @@ export default function HeatWaveMapReport() {
   const watchCnt = Object.values(weatherData).filter(w => w.feels >= 33 && w.feels < 35).length;
   const maxEntry = Object.entries(weatherData).sort((a, b) => b[1].feels - a[1].feels)[0];
 
+  // 현재 선택 권역 지역 필터링
+  const REGION_KEY_MAP: Record<RegionKey, string[]> = {
+    all: [],
+    daegubuk: ["대구","경산","경주","구미","군위","김천","문경","봉화","상주","성주","안동","영덕","영양","영주","영천","예천","울릉","울진","의성","청도","청송","칠곡","포항"],
+    chungcheong: ["계룡","공주","금산","논산","당진","보령","부여","서산","서천","아산","예산","천안","청양","태안","홍성","괴산","단양","보은","영동","옥천","음성","제천","증평","진천","청주","충주"],
+    honam: ["광주","강진","고흥","곡성","광양","구례","나주","담양","목포","무안","보성","순천","신안","여수","영광","영암","완도","장성","장흥","진도","함평","해남","화순","고창","군산","김제","남원","무주","부안","순창","완주","익산","임실","장수","전주","정읍","진안","제주시","서귀포"],
+    buulgyeong: ["부산","거제","거창","고성","김해","남해","밀양","사천","산청","양산","의령","진주","창녕","창원","통영","하동","함안","함양","합천","경주","울산"],
+  };
+
+  const regionWeatherList = Object.entries(weatherData)
+    .filter(([name]) => {
+      if (selectedRegion === "all") return true;
+      return (REGION_KEY_MAP[selectedRegion] || []).some(r => name.includes(r) || r.includes(name));
+    })
+    .sort((a, b) => b[1].feels - a[1].feels);
+
   return (
-    <div style={{ minHeight: "100vh", background: "#0d1117", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+    <div style={{ minHeight: "100vh", background: "#0d1117", display: "flex", flexDirection: "column", overflow: isMobile ? "auto" : "hidden" }}>
       {/* 헤더 */}
-      <div style={{ background: "linear-gradient(135deg,#1a0a00,#2d1000)", borderBottom: "1px solid rgba(234,88,12,0.3)", padding: "8px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0, minHeight: 52 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontSize: 20 }}>🌡</span>
+      <div style={{ background: "linear-gradient(135deg,#1a0a00,#2d1000)", borderBottom: "1px solid rgba(234,88,12,0.3)", padding: isMobile ? "8px 12px" : "8px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: isMobile ? 16 : 20 }}>🌡</span>
           <div>
-            <div style={{ fontSize: 14, fontWeight: 800, color: "#fff", lineHeight: 1.2 }}>폭염 현황 보고서</div>
-            {dateStr && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.55)", marginTop: 1 }}>{dateStr}</div>}
+            <div style={{ fontSize: isMobile ? 13 : 14, fontWeight: 800, color: "#fff", lineHeight: 1.2 }}>폭염 현황 보고서</div>
+            {dateStr && <div style={{ fontSize: 10, color: "rgba(255,255,255,0.55)", marginTop: 1 }}>{dateStr}</div>}
           </div>
         </div>
-        {/* 핵심 지표 */}
-        <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: isMobile ? 10 : 16, alignItems: "center" }}>
           {maxEntry && (
             <div style={{ textAlign: "center" }}>
               <div style={{ fontSize: 9, color: "#9ca3af", fontWeight: 600 }}>최고 체감</div>
-              <div style={{ fontSize: 16, fontWeight: 900, color: "#ef4444", lineHeight: 1 }}>{maxEntry[1].feels}°<span style={{ fontSize: 10 }}>{maxEntry[0]}</span></div>
+              <div style={{ fontSize: isMobile ? 14 : 16, fontWeight: 900, color: "#ef4444", lineHeight: 1 }}>{maxEntry[1].feels}°<span style={{ fontSize: 10 }}>{maxEntry[0]}</span></div>
             </div>
           )}
           {alertCnt > 0 && (
             <div style={{ textAlign: "center" }}>
               <div style={{ fontSize: 9, color: "#9ca3af", fontWeight: 600 }}>폭염경보</div>
-              <div style={{ fontSize: 16, fontWeight: 900, color: "#dc2626", lineHeight: 1 }}>{alertCnt}<span style={{ fontSize: 10 }}>개소</span></div>
+              <div style={{ fontSize: isMobile ? 14 : 16, fontWeight: 900, color: "#dc2626", lineHeight: 1 }}>{alertCnt}<span style={{ fontSize: 10 }}>개소</span></div>
             </div>
           )}
           {watchCnt > 0 && (
             <div style={{ textAlign: "center" }}>
               <div style={{ fontSize: 9, color: "#9ca3af", fontWeight: 600 }}>주의보</div>
-              <div style={{ fontSize: 16, fontWeight: 900, color: "#ea580c", lineHeight: 1 }}>{watchCnt}<span style={{ fontSize: 10 }}>개소</span></div>
+              <div style={{ fontSize: isMobile ? 14 : 16, fontWeight: 900, color: "#ea580c", lineHeight: 1 }}>{watchCnt}<span style={{ fontSize: 10 }}>개소</span></div>
             </div>
-          )}
-          {!heatActive && (
-            <div style={{ fontSize: 12, color: "#6b7280" }}>날씨 데이터 없음</div>
           )}
         </div>
       </div>
@@ -249,22 +266,22 @@ export default function HeatWaveMapReport() {
               key={tab.key}
               onClick={() => { setSelectedRegion(tab.key); setSelectedInfo(null); }}
               style={{
-                flex: "1 0 auto", minWidth: 64, padding: isMobile ? "8px 4px" : "10px 6px",
+                flex: "1 0 auto", minWidth: isMobile ? 56 : 64, padding: isMobile ? "6px 2px" : "10px 6px",
                 background: selectedRegion === tab.key ? "#374151" : "transparent",
                 border: "none", borderBottom: selectedRegion === tab.key ? "2px solid #ea580c" : "2px solid transparent",
                 color: selectedRegion === tab.key ? "#f9fafb" : "#9ca3af",
-                fontSize: isMobile ? 10 : 11, fontWeight: 700, cursor: "pointer",
+                fontSize: isMobile ? 9 : 11, fontWeight: 700, cursor: "pointer",
                 transition: "all 0.15s", whiteSpace: "nowrap",
               }}
             >
               {tab.label}<br />
-              <span style={{ fontSize: 9, fontWeight: 400, opacity: 0.7 }}>{tab.sub}</span>
+              <span style={{ fontSize: 8, fontWeight: 400, opacity: 0.7 }}>{tab.sub}</span>
             </button>
           ))}
         </div>
       </div>
 
-      {/* 안내 */}
+      {/* 안내 (데스크탑만) */}
       {!isMobile && (
         <div style={{ background: "#111827", padding: "4px 14px", fontSize: 10, color: "#6b7280", display: "flex", gap: 12, alignItems: "center", flexShrink: 0 }}>
           <span>🖱️ 클릭 — 상세 정보</span>
@@ -274,7 +291,7 @@ export default function HeatWaveMapReport() {
       )}
 
       {/* 지도 영역 */}
-      <div style={{ position: "relative", flex: 1, overflow: "hidden" }}>
+      <div style={{ position: "relative", flex: isMobile ? "none" : 1, height: isMobile ? "52vw" : undefined, minHeight: isMobile ? 220 : undefined, overflow: "hidden", flexShrink: 0 }}>
         {/* 전체 */}
         <div style={{ position: "absolute", inset: 0, display: selectedRegion === "all" ? "flex" : "none", gap: 4, padding: 4 }}>
           <div ref={allRef} style={{ flex: 1, borderRadius: 8, overflow: "hidden" }} />
@@ -312,6 +329,40 @@ export default function HeatWaveMapReport() {
         )}
       </div>
 
+      {/* 모바일: 날씨 데이터 카드 목록 */}
+      {isMobile && heatActive && (
+        <div style={{ background: "#111827", borderTop: "1px solid #1f2937", padding: "8px 10px", flexShrink: 0 }}>
+          <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 6, fontWeight: 600 }}>
+            {selectedRegion === "all" ? "전체" : REGION_TABS.find(t => t.key === selectedRegion)?.label} 지역 체감온도 순위
+            <span style={{ color: "#4b5563", fontWeight: 400 }}> (탭하면 지도에서 확인)</span>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+            {regionWeatherList.slice(0, 12).map(([name, w]) => {
+              const { text, color } = stageLabel(w.feels);
+              return (
+                <div
+                  key={name}
+                  style={{ background: "#1f2937", borderRadius: 8, padding: "8px 10px", display: "flex", alignItems: "center", justifyContent: "space-between", border: `1px solid ${color}33`, cursor: "pointer" }}
+                  onClick={() => setSelectedInfo({ name, weather: w })}
+                >
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "#f9fafb" }}>{name}</div>
+                    <div style={{ fontSize: 10, color, fontWeight: 600 }}>{text}</div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontSize: 16, fontWeight: 900, color: heatColorHex(w.feels), lineHeight: 1 }}>{w.feels}°</div>
+                    <div style={{ fontSize: 9, color: "#9ca3af" }}>{w.temp}°/{w.hum}%</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {regionWeatherList.length > 12 && (
+            <div style={{ fontSize: 10, color: "#4b5563", textAlign: "center", marginTop: 6 }}>외 {regionWeatherList.length - 12}개 지역</div>
+          )}
+        </div>
+      )}
+
       {/* 고정 툴팁 */}
       <div
         ref={tooltipRef}
@@ -327,14 +378,14 @@ export default function HeatWaveMapReport() {
       <style>{`.tt-sub{display:block;font-size:10px;font-weight:400;color:#9aa5b3;margin-top:1px}.tt-weather{display:block;font-size:11.5px;font-weight:600;color:#ffd9a0;margin-top:5px;line-height:1.55}`}</style>
 
       {/* 범례 + 푸터 */}
-      <div style={{ background: "#111827", borderTop: "1px solid #1f2937", padding: "4px 12px", display: "flex", flexWrap: "wrap", alignItems: "center", gap: 4, flexShrink: 0 }}>
-        <span style={{ fontSize: 10, color: "#6b7280", marginRight: 4 }}>범례:</span>
-        {[["#1e40af","~24°C"],["#3f6212","25~27°C"],["#a16207","28~30°C"],["#b45309","31~32°C"],["#c2410c","33~34°C"],["#991b1b","35~37°C"],["#7f1d1d","38°C↑"]].map(([c,l]) => (
-          <span key={l} style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10, color: "#9ca3af", whiteSpace: "nowrap" }}>
-            <span style={{ width: 10, height: 10, borderRadius: 2, background: c, display: "inline-block" }} />{l}
+      <div style={{ background: "#111827", borderTop: "1px solid #1f2937", padding: "4px 10px", display: "flex", flexWrap: "wrap", alignItems: "center", gap: 4, flexShrink: 0 }}>
+        <span style={{ fontSize: 10, color: "#6b7280", marginRight: 2 }}>범례:</span>
+        {[["#1e40af","~24°"],["#3f6212","25~27°"],["#a16207","28~30°"],["#b45309","31~32°"],["#c2410c","33~34°"],["#991b1b","35~37°"],["#7f1d1d","38°↑"]].map(([c,l]) => (
+          <span key={l} style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 9, color: "#9ca3af", whiteSpace: "nowrap" }}>
+            <span style={{ width: 9, height: 9, borderRadius: 2, background: c, display: "inline-block" }} />{l}
           </span>
         ))}
-        <span style={{ marginLeft: "auto", fontSize: 10, color: "#4b5563" }}>SafeBoard 폭염 현황 보고서 · {dateStr}</span>
+        {!isMobile && <span style={{ marginLeft: "auto", fontSize: 10, color: "#4b5563" }}>SafeBoard 폭염 현황 보고서 · {dateStr}</span>}
       </div>
     </div>
   );

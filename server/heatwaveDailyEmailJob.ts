@@ -162,7 +162,7 @@ export function buildHtmlEmail(weather: Record<string, WeatherEntry>, dateStr: s
   <!-- 인터랙티브 3D 지도 보기 버튼 -->
   <div style="background:#111827;padding:14px 20px;text-align:center;border-bottom:1px solid #1f2937">
     <a href="${reportUrl}" style="display:inline-block;padding:10px 28px;background:linear-gradient(135deg,#ea580c 0%,#dc2626 100%);color:#fff;text-decoration:none;border-radius:9px;font-size:13px;font-weight:800;letter-spacing:0.3px;box-shadow:0 4px 12px rgba(234,88,12,0.35)">
-      🗺️&nbsp; 3D 지도로 보기
+      🌡️&nbsp; 내 지역 폭염정보 보기
     </a>
     <div style="margin-top:7px;font-size:10px;color:#6b7280">전체·대구본부·충청본부·호남본부·부산본부 &nbsp;|&nbsp; 클릭 → 온도 확인 &nbsp;|&nbsp; 스크롤 → 확대/축소 &nbsp;|&nbsp; 링크 유효기간 7일</div>
   </div>
