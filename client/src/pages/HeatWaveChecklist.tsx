@@ -1117,8 +1117,17 @@ function initThreePanel(
   const onPD = (e: PointerEvent) => { dragging=true; lastX=e.clientX; lastY=e.clientY; downX=e.clientX; downY=e.clientY; autoRotate=false; };
   const onPM = (e: PointerEvent) => {
     if (dragging) {
+      const dx=e.clientX-lastX, dy=e.clientY-lastY;
       lastX=e.clientX; lastY=e.clientY;
       if (tooltipEl) tooltipEl.style.display='none';
+      // 팬: 카메라의 right/up 벡터 방향으로 target 이동
+      const camDir=new THREE.Vector3(target.x-camera.position.x,target.y-camera.position.y,target.z-camera.position.z).normalize();
+      const right=new THREE.Vector3().crossVectors(camDir,new THREE.Vector3(0,1,0)).normalize();
+      const up=new THREE.Vector3().crossVectors(right,camDir).normalize();
+      const panScale=radius*0.0015;
+      target.addScaledVector(right,-dx*panScale);
+      target.addScaledVector(up,dy*panScale);
+      updateCam();
       return;
     }
     const obj = pick(e.clientX, e.clientY);
@@ -1143,7 +1152,25 @@ function initThreePanel(
       if (obj && onRegionClick) onRegionClick(obj.userData.name, weatherRef.current[obj.userData.name] ?? null);
     }
   };
-  const onWh = (e: WheelEvent) => { e.preventDefault(); radius+=e.deltaY*(opts.radius*0.0006); radius=Math.max(opts.radius*0.35,Math.min(opts.radius*2.2,radius)); updateCam(); };
+  const onWh = (e: WheelEvent) => {
+    e.preventDefault();
+    const rect=dom.getBoundingClientRect();
+    const ndcX=((e.clientX-rect.left)/rect.width)*2-1;
+    const ndcY=-((e.clientY-rect.top)/rect.height)*2+1;
+    const oldRadius=radius;
+    radius=Math.max(opts.radius*0.35,Math.min(opts.radius*2.2,radius+e.deltaY*(opts.radius*0.0006)));
+    const moved=oldRadius-radius; // 양수=확대(카메라 가까워짐)
+    if (Math.abs(moved)>0.01) {
+      // 커서가 가리키는 방향으로 target 보정 → 커서 위치 중심 확대/축소
+      const camDir=new THREE.Vector3(target.x-camera.position.x,target.y-camera.position.y,target.z-camera.position.z).normalize();
+      const right=new THREE.Vector3().crossVectors(camDir,new THREE.Vector3(0,1,0)).normalize();
+      const up=new THREE.Vector3().crossVectors(right,camDir).normalize();
+      const shift=moved*0.38;
+      target.addScaledVector(right,ndcX*shift);
+      target.addScaledVector(up,ndcY*shift);
+    }
+    updateCam();
+  };
   const onRS = () => { camera.aspect=W()/H(); camera.updateProjectionMatrix(); renderer.setSize(W(),H()); };
   dom.addEventListener('pointerdown',onPD);
   window.addEventListener('pointermove',onPM as any);
