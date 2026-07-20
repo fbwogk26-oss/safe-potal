@@ -1214,6 +1214,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
   const [statusErr, setStatusErr] = useState(false);
   const [heatActive, setHeatActive] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [emailSending, setEmailSending] = useState(false);
   const [stats, setStats] = useState<{maxFeels:number;avgTemp:number;avgHum:number;maxLoc:string;count:number}|null>(null);
   const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 640);
   const [selectedInfo, setSelectedInfo] = useState<{name:string; weather:RegionWeather|null}|null>(null);
@@ -1279,7 +1280,9 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
     '제주시':['제주시'],'서귀포':['서귀포'],
     // 부산권
     '부산':['부산'],'울산':['울산'],
-    '창원':['창원','진해','마산'],  // 창원시 = 구 창원+진해+마산
+    '창원':['창원'],
+    '마산':['마산'],   // 구 마산시 → 창원시 통합, 지도에 별도 폴리곤
+    '진해':['진해'],   // 구 진해시 → 창원시 통합, 지도에 별도 폴리곤
     '진주':['진주'],'통영':['통영'],'사천':['사천'],'김해':['김해'],
     '밀양':['밀양'],'거제':['거제'],'양산':['양산'],
     '의령':['의령'],'함안':['함안'],'창녕':['창녕'],
@@ -1505,7 +1508,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
           rows.push(obj);
         }
         const result = applyCSVRows(rows);
-        if (!result.count) { setStatusErr(true); setStatusMsg((result as any).error||'반영할 대구·경북 지점을 찾지 못했어요'); }
+        if (!result.count) { setStatusErr(true); setStatusMsg((result as any).error||'반영할 지점을 찾지 못했어요. 권역별 체감온도 CSV 파일인지 확인해 주세요.'); }
         else { setStatusErr(false); setStatusMsg(`${result.count}개 지점 반영됨 · 최고 체감 ${result.maxT}°C (${result.maxLoc})`); setHeatActive(true); }
       } catch(err) { setStatusErr(true); setStatusMsg('파일을 읽는 중 오류가 발생했어요'); }
       setLoading(false);
@@ -1521,6 +1524,16 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
       weatherRef.current[r.name] = info;
       updateRegionVisual(r.name, info);
     });
+    // 창원 데이터를 마산·진해에도 적용 (기상청 API는 창원 단일 좌표만 제공)
+    if (weatherRef.current['창원']) {
+      const wonData = weatherRef.current['창원'];
+      ['마산', '진해'].forEach(alias => {
+        if (!weatherRef.current[alias]) {
+          weatherRef.current[alias] = wonData;
+          updateRegionVisual(alias, wonData);
+        }
+      });
+    }
     const maxFeels = Math.max(...regions.map(r => r.feels));
     const maxLoc = regions.find(r => r.feels === maxFeels)?.name ?? '';
     const avgTemp = Math.round(regions.map(r => r.temp).reduce((a,b) => a+b, 0) / regions.length * 10) / 10;
@@ -1538,6 +1551,25 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
       regions.forEach(r => { if (r.stage) stageCounts[r.stage] = (stageCounts[r.stage] ?? 0) + 1; });
       const dominantHeatLevel = Object.entries(stageCounts).sort((a,b) => b[1]-a[1])[0]?.[0] ?? '';
       onDataParsed({ date: regions[0]?.time ?? '', maxFeelsLike: maxFeels, avgTemp, avgHumidity: avgHum, dominantHeatLevel });
+    }
+  }
+
+  async function handleSendDailyEmail() {
+    setEmailSending(true);
+    try {
+      const resp = await fetch('/api/heatwave-daily-email/send-now', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(data.message || '발송 실패');
+      setStatusErr(false);
+      setStatusMsg(`✉️ ${data.message || '메일 발송 완료'}`);
+    } catch (e: any) {
+      setStatusErr(true);
+      setStatusMsg(e.message || '메일 발송 중 오류가 발생했어요');
+    } finally {
+      setEmailSending(false);
     }
   }
 
@@ -1624,6 +1656,12 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
           {heatActive && (
             <Button size="sm" variant="outline" className="h-7 text-xs gap-1 px-2 sm:px-3 border-emerald-400 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30" onClick={handleDownloadWeather} disabled={loading} data-testid="button-download-weather">
               <FileDown className="w-3.5 h-3.5" /><span className="hidden sm:inline">엑셀 저장</span>
+            </Button>
+          )}
+          {heatActive && (
+            <Button size="sm" variant="outline" className="h-7 text-xs gap-1 px-2 sm:px-3 border-orange-400 text-orange-700 hover:bg-orange-50 dark:text-orange-400 dark:hover:bg-orange-950/30" onClick={handleSendDailyEmail} disabled={emailSending} data-testid="button-send-daily-email">
+              {emailSending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5" />}
+              <span className="hidden sm:inline">메일 발송</span>
             </Button>
           )}
           <Button size="sm" variant="default" className="h-7 text-xs gap-1 px-2 sm:px-3 bg-sky-600 hover:bg-sky-700 text-white" onClick={handleAutoWeather} disabled={loading} data-testid="button-auto-weather">

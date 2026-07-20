@@ -65,6 +65,7 @@ import "./autoEmailJob";
 import "./aisDailyEmailJob";
 import "./aisInboxEmailJob";
 import "./heatwaveWeatherJob";
+import "./heatwaveDailyEmailJob";
 import { storage } from "./storage";
 
 storage.cleanupOrphanedAisTbmBadNotes()

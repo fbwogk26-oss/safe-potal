@@ -4216,30 +4216,32 @@ ${buildEmailFooter()}
         });
       }
 
-      // Filter 대구(경북) rows
-      const daeguRows = rows.filter((r: any) => r.region.includes('대구'));
-      if (daeguRows.length === 0) return res.status(422).json({ message: "대구(경북) 데이터를 찾을 수 없습니다. 이메일에 대구/경북 권역 데이터가 포함되어 있는지 확인해 주세요" });
+      // 대구(경북) + 부산(경남) 권역 우선 필터; 없으면 전체 사용
+      const targetRows = rows.filter((r: any) => r.region.includes('대구') || r.region.includes('부산'));
+      const parseRows = targetRows.length > 0 ? targetRows : rows;
+      if (parseRows.length === 0) return res.status(422).json({ message: "데이터를 찾을 수 없습니다. 올바른 체감온도 안내 이메일인지 확인해 주세요" });
 
-      // Determine max feels-like (최고 체감온도 예보)
-      const maxFeelsLike = Math.max(...daeguRows.map((r: any) => r.feelsLike));
-      // Representative row: highest feels-like
-      const repRow = daeguRows.find((r: any) => r.feelsLike === maxFeelsLike) || daeguRows[0];
+      // Determine max feels-like
+      const maxFeelsLike = Math.max(...parseRows.map((r: any) => r.feelsLike));
+      const repRow = parseRows.find((r: any) => r.feelsLike === maxFeelsLike) || parseRows[0];
 
       // Alert level mapping
-      const levels = daeguRows.map((r: any) => r.level);
+      const levels = parseRows.map((r: any) => r.level);
       let heatAlertStatus = "해당없음";
       if (levels.some((l: string) => l === '경보' || l === '위험')) heatAlertStatus = "폭염경보";
       else if (levels.some((l: string) => l === '주의')) heatAlertStatus = "폭염주의보";
+      else if (levels.some((l: string) => l === '관심')) heatAlertStatus = "폭염관심";
 
+      const regionNames = [...new Set(parseRows.map((r: any) => r.region))].join(' / ');
       res.json({
         checkDate: repRow.date,
-        targetArea: "대구 / 경북",
+        targetArea: regionNames || "전체 권역",
         currentTemperature: repRow.temp,
         currentHumidity: repRow.humidity,
         currentFeelsLike: repRow.feelsLike,
         maxFeelsLikeForecast: maxFeelsLike,
         heatAlertStatus,
-        summary: `대구(경북) ${daeguRows.length}개 지점 분석 — 최고 체감온도 ${maxFeelsLike}°C (${repRow.area} ${repRow.time})`
+        summary: `${parseRows.length}개 지점 분석 (${regionNames}) — 최고 체감온도 ${maxFeelsLike}°C (${repRow.area} ${repRow.time})`
       });
     } catch (error) {
       res.status(500).json({ message: "이메일 파싱에 실패했습니다" });
@@ -14659,11 +14661,42 @@ ${result.value}
         return res.status(404).json({ message: '저장된 날씨 데이터가 없습니다.' });
       }
 
-      const DAEGU = new Set(['중구','동구','서구','남구','북구','수성구','달서구','달성군','군위군']);
-      const ULLEUNG = new Set(['울릉군']);
+      const CITY_REGION: Record<string, string> = {
+        '대구': '대구', '군위': '경북',
+        '포항': '경북', '경주': '경북', '김천': '경북', '안동': '경북', '구미': '경북',
+        '영주': '경북', '영천': '경북', '상주': '경북', '문경': '경북', '경산': '경북',
+        '의성': '경북', '청송': '경북', '영양': '경북', '영덕': '경북', '청도': '경북',
+        '고령': '경북', '성주': '경북', '칠곡': '경북', '예천': '경북', '봉화': '경북',
+        '울진': '경북', '울릉': '울릉도',
+        '부산': '부산', '울산': '울산', '창원': '경남', '진주': '경남', '통영': '경남',
+        '사천': '경남', '김해': '경남', '밀양': '경남', '거제': '경남', '양산': '경남',
+        '의령': '경남', '함안': '경남', '창녕': '경남', '고성': '경남', '남해': '경남',
+        '하동': '경남', '산청': '경남', '함양': '경남', '거창': '경남', '합천': '경남',
+        '마산': '경남', '진해': '경남',
+        '대전': '대전', '세종': '세종', '청주': '충북', '충주': '충북', '제천': '충북',
+        '보은': '충북', '옥천': '충북', '영동': '충북', '증평': '충북', '진천': '충북',
+        '괴산': '충북', '음성': '충북', '단양': '충북',
+        '천안': '충남', '공주': '충남', '보령': '충남', '아산': '충남', '서산': '충남',
+        '논산': '충남', '계룡': '충남', '당진': '충남', '금산': '충남', '부여': '충남',
+        '서천': '충남', '청양': '충남', '홍성': '충남', '예산': '충남', '태안': '충남',
+        '광주': '광주', '전주': '전북', '군산': '전북', '익산': '전북', '정읍': '전북',
+        '남원': '전북', '김제': '전북', '완주': '전북', '진안': '전북', '무주': '전북',
+        '장수': '전북', '임실': '전북', '순창': '전북', '고창': '전북', '부안': '전북',
+        '목포': '전남', '여수': '전남', '순천': '전남', '나주': '전남', '광양': '전남',
+        '담양': '전남', '곡성': '전남', '구례': '전남', '고흥': '전남', '보성': '전남',
+        '화순': '전남', '장흥': '전남', '강진': '전남', '해남': '전남', '영암': '전남',
+        '무안': '전남', '함평': '전남', '영광': '전남', '장성': '전남', '완도': '전남',
+        '진도': '전남', '신안': '전남', '제주시': '제주', '서귀포': '제주',
+      };
+      const REGION_ORDER: Record<string,number> = {
+        '대구': 0, '경북': 1, '울릉도': 2,
+        '부산': 3, '울산': 4, '경남': 5,
+        '대전': 6, '세종': 7, '충북': 8, '충남': 9,
+        '광주': 10, '전북': 11, '전남': 12, '제주': 13,
+      };
 
       const rows = Object.entries(weather).map(([name, d]) => ({
-        구분: ULLEUNG.has(name) ? '울릉도' : DAEGU.has(name) ? '대구' : '경북',
+        구분: CITY_REGION[name] ?? '기타',
         지역: name,
         기온: d.temp,
         체감온도: d.feels,
@@ -14671,9 +14704,7 @@ ${result.value}
         폭염단계: d.stage,
         조회시간: d.time ?? '',
       }));
-      // 구분(대구→경북→울릉) 순서로 정렬
-      const ORDER: Record<string,number> = { '대구': 0, '경북': 1, '울릉도': 2 };
-      rows.sort((a, b) => (ORDER[a.구분] ?? 9) - (ORDER[b.구분] ?? 9));
+      rows.sort((a, b) => (REGION_ORDER[a.구분] ?? 99) - (REGION_ORDER[b.구분] ?? 99));
 
       const wb = new ExcelJS.Workbook();
       const ws = wb.addWorksheet('폭염현황');
@@ -14750,6 +14781,34 @@ ${result.value}
       res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(`폭염현황_${dateStr}.xlsx`)}`);
       const buf = await wb.xlsx.writeBuffer();
       res.send(buf);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // ─── 폭염 일일 이메일 상태 조회 ──────────────────────────────────────────
+  app.get('/api/heatwave-daily-email/status', isAuthenticated, async (_req, res) => {
+    try {
+      const { getHeatwaveDailyEmailStatus } = await import('./heatwaveDailyEmailJob');
+      res.json(getHeatwaveDailyEmailStatus());
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // ─── 폭염 일일 이메일 수동 발송 ──────────────────────────────────────────
+  app.post('/api/heatwave-daily-email/send-now', isAuthenticated, async (req, res) => {
+    try {
+      const { runHeatwaveDailyEmail, getHeatwaveDailyEmailStatus } = await import('./heatwaveDailyEmailJob');
+      await runHeatwaveDailyEmail();
+      const status = getHeatwaveDailyEmailStatus();
+      if (status.lastResult === 'error') {
+        return res.status(500).json({ message: status.lastMessage });
+      }
+      if (status.lastResult === 'no_data') {
+        return res.status(422).json({ message: status.lastMessage });
+      }
+      res.json({ ok: true, message: status.lastMessage });
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }
