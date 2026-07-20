@@ -1199,8 +1199,9 @@ function initThreePanel(
   return { scene, camera, renderer, tick, cleanup };
 }
 
-type RegionKey = 'daegubuk' | 'chungcheong' | 'honam' | 'buulgyeong';
+type RegionKey = 'all' | 'daegubuk' | 'chungcheong' | 'honam' | 'buulgyeong';
 const REGION_TABS: { key: RegionKey; label: string; sub: string }[] = [
+  { key: 'all',         label: '전체 지도', sub: '전체 권역' },
   { key: 'daegubuk',    label: '대구·경북', sub: '대구·경북' },
   { key: 'chungcheong', label: '충청권',    sub: '대전·세종·충북·충남' },
   { key: 'honam',       label: '호남권',    sub: '광주·전북·전남·제주' },
@@ -1228,6 +1229,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
     return () => window.removeEventListener('resize', handler);
   }, []);
 
+  const allRef = useRef<HTMLDivElement>(null);
   const daeguRef = useRef<HTMLDivElement>(null);
   const gbRef = useRef<HTMLDivElement>(null);
   const ulleungRef = useRef<HTMLDivElement>(null);
@@ -1241,17 +1243,17 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
   const registryRef = useRef<Record<string, RegionEntry>>({});
   const weatherRef = useRef<Record<string, RegionWeather>>({});
   const mapDataRef = useRef<{
-    gb: MapRegion[]; daegu: MapRegion[]; ulleung: MapRegion[];
+    all: MapRegion[]; gb: MapRegion[]; daegu: MapRegion[]; ulleung: MapRegion[];
     chungcheong: MapRegion[]; honam: MapRegion[]; jeju: MapRegion[]; buulgyeong: MapRegion[];
   } | null>(null);
   const [mapReady, setMapReady] = useState(false);
 
   const CSV_NAME_MAP: Record<string, string[]> = {
-    // 대구·경북 — 서버 REGION_SETS와 일치 (시/군 접미사 없음)
-    '대구':['대구'],
-    // 구형 CSV에서 구 단위로 올라오는 경우 대구 전체를 색칠
-    '중구':['대구'],'동구':['대구'],'서구':['대구'],'남구':['대구'],
-    '북구':['대구'],'수성구':['대구'],'달서구':['대구'],'달성군':['대구'],
+    // 대구 구 단위 — 직접 매핑
+    '중구':['중구'],'동구':['동구'],'서구':['서구'],'남구':['남구'],
+    '북구':['북구'],'수성구':['수성구'],'달서구':['달서구'],'달성군':['달성군'],
+    // 도시 레벨 "대구" CSV → 모든 구에 색칠
+    '대구':['중구','동구','서구','남구','북구','수성구','달서구','달성군'],
     '군위':['군위'],
     '포항':['포항'],'경주':['경주'],'김천':['김천'],'안동':['안동'],'구미':['구미'],
     '영주':['영주'],'영천':['영천'],'상주':['상주'],'문경':['문경'],'경산':['경산'],
@@ -1291,6 +1293,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
 
   useEffect(() => {
     Promise.all([
+      fetch('/map-data-all.json').then(r=>r.json()),
       fetch('/map-data-gb.json').then(r=>r.json()),
       fetch('/map-data-daegu.json').then(r=>r.json()),
       fetch('/map-data-ulleung.json').then(r=>r.json()),
@@ -1298,8 +1301,8 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
       fetch('/map-data-honam.json').then(r=>r.json()),
       fetch('/map-data-jeju.json').then(r=>r.json()),
       fetch('/map-data-buulgyeong.json').then(r=>r.json()),
-    ]).then(([gb,daegu,ulleung,chungcheong,honam,jeju,buulgyeong]) => {
-      mapDataRef.current={gb,daegu,ulleung,chungcheong,honam,jeju,buulgyeong};
+    ]).then(([all,gb,daegu,ulleung,chungcheong,honam,jeju,buulgyeong]) => {
+      mapDataRef.current={all,gb,daegu,ulleung,chungcheong,honam,jeju,buulgyeong};
       setMapReady(true);
     });
   }, []);
@@ -1323,28 +1326,33 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
 
       let newPanels: ThreePanel[] = [];
 
-      if (selectedRegion === 'daegubuk') {
+      if (selectedRegion === 'all') {
+        if (!allRef.current) return;
+        newPanels = [
+          initThreePanel(allRef.current, d.all, {height:18,bevel:1.4,radius:2200,theta:Math.PI*0.25,phi:Math.PI*0.27,baseRadius:2200,fogNear:2400,fogFar:6000,sun:[800,1200,550],labels:true,fontSize:26,spin:false}, registryRef.current, tt, weatherRef, handleClick),
+        ];
+      } else if (selectedRegion === 'daegubuk') {
         if (!daeguRef.current || !gbRef.current || !ulleungRef.current) return;
         newPanels = [
-          initThreePanel(daeguRef.current,   d.daegu,   {height:22,bevel:1.8,radius:680, theta:Math.PI*0.25,phi:Math.PI*0.27,baseRadius:600, fogNear:700, fogFar:2000,sun:[250,380,180],labels:true,fontSize:28,spin:false}, registryRef.current, tt, weatherRef, handleClick),
-          initThreePanel(gbRef.current,      d.gb,      {height:28,bevel:2.2,radius:1600,theta:Math.PI*0.25,phi:Math.PI*0.27,baseRadius:1600,fogNear:1800,fogFar:4500,sun:[560,840,380],labels:true,fontSize:38,spin:false}, registryRef.current, tt, weatherRef, handleClick),
-          initThreePanel(ulleungRef.current, d.ulleung, {height:14,bevel:0.8,radius:320, theta:Math.PI*0.25,phi:Math.PI*0.25,baseRadius:260, fogNear:280, fogFar:900, sun:[140,200,90], labels:true,fontSize:26,spin:false}, registryRef.current, tt, weatherRef, handleClick),
+          initThreePanel(daeguRef.current,   d.daegu,   {height:22,bevel:1.8,radius:680, theta:Math.PI*0.25,phi:Math.PI*0.27,baseRadius:600, fogNear:700, fogFar:2000,sun:[250,380,180],labels:true,fontSize:40,spin:false}, registryRef.current, tt, weatherRef, handleClick),
+          initThreePanel(gbRef.current,      d.gb,      {height:28,bevel:2.2,radius:1600,theta:Math.PI*0.25,phi:Math.PI*0.27,baseRadius:1600,fogNear:1800,fogFar:4500,sun:[560,840,380],labels:true,fontSize:52,spin:false}, registryRef.current, tt, weatherRef, handleClick),
+          initThreePanel(ulleungRef.current, d.ulleung, {height:14,bevel:0.8,radius:320, theta:Math.PI*0.25,phi:Math.PI*0.25,baseRadius:260, fogNear:280, fogFar:900, sun:[140,200,90], labels:true,fontSize:32,spin:false}, registryRef.current, tt, weatherRef, handleClick),
         ];
       } else if (selectedRegion === 'chungcheong') {
         if (!chungcheongRef.current) return;
         newPanels = [
-          initThreePanel(chungcheongRef.current, d.chungcheong, {height:24,bevel:2.0,radius:1200,theta:Math.PI*0.25,phi:Math.PI*0.27,baseRadius:1300,fogNear:1400,fogFar:3800,sun:[420,630,280],labels:true,fontSize:34,spin:false}, registryRef.current, tt, weatherRef, handleClick),
+          initThreePanel(chungcheongRef.current, d.chungcheong, {height:24,bevel:2.0,radius:1200,theta:Math.PI*0.25,phi:Math.PI*0.27,baseRadius:1300,fogNear:1400,fogFar:3800,sun:[420,630,280],labels:true,fontSize:46,spin:false}, registryRef.current, tt, weatherRef, handleClick),
         ];
       } else if (selectedRegion === 'honam') {
         if (!honamRef.current || !jejuRef.current) return;
         newPanels = [
-          initThreePanel(honamRef.current, d.honam, {height:24,bevel:2.0,radius:1200,theta:Math.PI*0.25,phi:Math.PI*0.27,baseRadius:1300,fogNear:1400,fogFar:3800,sun:[420,630,280],labels:true,fontSize:34,spin:false}, registryRef.current, tt, weatherRef, handleClick),
-          initThreePanel(jejuRef.current,  d.jeju,  {height:18,bevel:1.2,radius:400, theta:Math.PI*0.25,phi:Math.PI*0.25,baseRadius:380, fogNear:400, fogFar:1200,sun:[160,240,100],labels:true,fontSize:28,spin:false}, registryRef.current, tt, weatherRef, handleClick),
+          initThreePanel(honamRef.current, d.honam, {height:24,bevel:2.0,radius:1200,theta:Math.PI*0.25,phi:Math.PI*0.27,baseRadius:1300,fogNear:1400,fogFar:3800,sun:[420,630,280],labels:true,fontSize:46,spin:false}, registryRef.current, tt, weatherRef, handleClick),
+          initThreePanel(jejuRef.current,  d.jeju,  {height:18,bevel:1.2,radius:400, theta:Math.PI*0.25,phi:Math.PI*0.25,baseRadius:380, fogNear:400, fogFar:1200,sun:[160,240,100],labels:true,fontSize:36,spin:false}, registryRef.current, tt, weatherRef, handleClick),
         ];
       } else if (selectedRegion === 'buulgyeong') {
         if (!buulgyeongRef.current) return;
         newPanels = [
-          initThreePanel(buulgyeongRef.current, d.buulgyeong, {height:22,bevel:1.8,radius:1200,theta:Math.PI*0.25,phi:Math.PI*0.27,baseRadius:1300,fogNear:1400,fogFar:3800,sun:[420,630,280],labels:true,fontSize:32,spin:false}, registryRef.current, tt, weatherRef, handleClick),
+          initThreePanel(buulgyeongRef.current, d.buulgyeong, {height:22,bevel:1.8,radius:1200,theta:Math.PI*0.25,phi:Math.PI*0.27,baseRadius:1300,fogNear:1400,fogFar:3800,sun:[420,630,280],labels:true,fontSize:44,spin:false}, registryRef.current, tt, weatherRef, handleClick),
         ];
       }
 
@@ -1398,7 +1406,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
   function resetVisuals() {
     if (!mapDataRef.current) return;
     const d = mapDataRef.current;
-    const allRegions = [...d.daegu, ...d.gb, ...d.ulleung, ...d.chungcheong, ...d.honam, ...d.jeju, ...d.buulgyeong];
+    const allRegions = [...d.all, ...d.daegu, ...d.gb, ...d.ulleung, ...d.chungcheong, ...d.honam, ...d.jeju, ...d.buulgyeong];
     allRegions.forEach(region => {
       const entry = registryRef.current[region.name];
       if (!entry) return;
@@ -1674,6 +1682,21 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
         }}>
 
         {/* 대구·경북 */}
+        {/* 전체 지도 */}
+        {selectedRegion === 'all' && (
+          <div className="flex flex-col rounded-xl border border-[#232a35] overflow-hidden"
+            style={{ background:'#11151c', flex:'1 1 0', height: isMobile ? 520 : undefined, minWidth: 0 }}>
+            <div className="px-3 py-1.5 flex items-center justify-between border-b border-[#232a35] flex-shrink-0">
+              <span className="text-xs font-semibold text-slate-300">전체 권역 (대구경북·충청·호남·부산권)</span>
+              <span className="text-[10px] text-slate-500">클릭하면 상세 보기</span>
+            </div>
+            <div style={{position:'relative', flex:1, minHeight:0, background:'#0d1117'}}>
+              <div ref={allRef} style={{position:'absolute',inset:0}} />
+              {selectedInfo && <RegionInfoCard info={selectedInfo} onClose={()=>setSelectedInfo(null)} heatColorFn={heatColorHex} />}
+            </div>
+          </div>
+        )}
+
         {selectedRegion === 'daegubuk' && (<>
           {/* 대구 */}
           <div className="flex flex-col rounded-xl border border-[#232a35] overflow-hidden"
@@ -1684,7 +1707,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
             </div>
             <div style={{position:'relative', flex:1, minHeight:0}}>
               <div ref={daeguRef} style={{position:'absolute',inset:0}} />
-              {selectedInfo && selectedInfo.name === '대구' && (
+              {selectedInfo && ['중구','동구','서구','남구','북구','수성구','달서구','달성군'].includes(selectedInfo.name) && (
                 <RegionInfoCard info={selectedInfo} onClose={()=>setSelectedInfo(null)} heatColorFn={heatColorHex} />
               )}
             </div>
@@ -1704,7 +1727,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
                 <span style={{position:'absolute',top:5,left:9,zIndex:2,fontSize:10.5,fontWeight:700,color:'#e8ecf1',textShadow:'0 1px 3px rgba(0,0,0,0.6)',pointerEvents:'none'}}>울릉군</span>
                 <div ref={ulleungRef} style={{position:'absolute',inset:0}} />
               </div>
-              {selectedInfo && selectedInfo.name !== '대구' && (
+              {selectedInfo && !['중구','동구','서구','남구','북구','수성구','달서구','달성군'].includes(selectedInfo.name) && (
                 <RegionInfoCard info={selectedInfo} onClose={()=>setSelectedInfo(null)} heatColorFn={heatColorHex} />
               )}
             </div>
@@ -1776,9 +1799,19 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
               </tr>
             </thead>
             <tbody>
-              {Object.entries(weatherData)
-                .sort((a,b) => b[1].feels - a[1].feels)
-                .map(([name, w]) => (
+              {(() => {
+                const md = mapDataRef.current;
+                const tabNames: Set<string> = new Set(
+                  selectedRegion === 'all'         ? (md ? [...md.daegu,...md.gb,...md.ulleung,...md.chungcheong,...md.honam,...md.jeju,...md.buulgyeong] : []).map(r=>r.name) :
+                  selectedRegion === 'daegubuk'    ? (md ? [...md.daegu,...md.gb,...md.ulleung] : []).map(r=>r.name) :
+                  selectedRegion === 'chungcheong' ? (md ? md.chungcheong : []).map(r=>r.name) :
+                  selectedRegion === 'honam'       ? (md ? [...md.honam,...md.jeju] : []).map(r=>r.name) :
+                  selectedRegion === 'buulgyeong'  ? (md ? md.buulgyeong : []).map(r=>r.name) : []
+                );
+                return Object.entries(weatherData)
+                  .filter(([name]) => tabNames.size === 0 || tabNames.has(name))
+                  .sort((a,b) => b[1].feels - a[1].feels)
+                  .map(([name, w]) => (
                   <tr key={name} style={{borderBottom:'1px solid #1a2030'}}>
                     <td style={{padding:'6px 10px', color:'#e8ecf1', fontWeight:600, whiteSpace:'nowrap'}}>{name}</td>
                     <td style={{padding:'6px 10px', textAlign:'center', fontWeight:700, color: heatColorHex(w.feels), tabularNums: 'all', fontVariantNumeric:'tabular-nums' as any}}>{w.feels}°C</td>
@@ -1793,8 +1826,8 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
                     </td>
                     <td style={{padding:'6px 10px', textAlign:'center', color:'#4a5568', fontSize:11, fontVariantNumeric:'tabular-nums' as any}}>{w.time || '-'}</td>
                   </tr>
-                ))
-              }
+                ));
+              })()}
             </tbody>
           </table>
         </div>
