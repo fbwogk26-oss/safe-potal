@@ -108,20 +108,35 @@ function buildHtmlEmail(weather: Record<string, WeatherEntry>, dateStr: string):
     byZone[z].push([name, w]);
   });
 
+  // ── 권역별 앵커 ID 매핑 ─────────────────────────────────────────────────
+  const ZONE_ID: Record<string, string> = {
+    '대구·경북': 'zone-daegubuk', '부산·울산·경남': 'zone-buulgyeong',
+    '충청권': 'zone-chungcheong', '호남권': 'zone-honam',
+  };
+  const ZONE_ICON: Record<string, string> = {
+    '대구·경북': '🏔', '부산·울산·경남': '⚓', '충청권': '🌾', '호남권': '🌊',
+  };
+
   // ── 권역별 타일 섹션 ────────────────────────────────────────────────────
   const zoneSections = ZONE_ORDER.filter(z => byZone[z]).map(zone => {
     const cities = byZone[zone]; // 이미 feels 내림차순 정렬됨
+    const zoneMax = cities[0]?.[1].feels ?? 0;
     const tiles = cities.map(([name, w]) => {
       const bg = tileBg(w.feels);
       const stageLabel = w.stage && w.stage !== '해당없음' ? w.stage : '해당없음';
       return `<!--[if mso]><td style="width:74px;padding:0"><![endif]--><div style="display:inline-block;vertical-align:top;margin:3px;width:68px;background:${bg};border-radius:7px;padding:7px 4px;text-align:center;box-sizing:border-box"><div style="font-size:11px;font-weight:700;color:rgba(255,255,255,0.95);line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${name}</div><div style="font-size:20px;font-weight:900;color:#fff;line-height:1.15;margin:3px 0 2px">${w.feels}<span style="font-size:12px">°</span></div><div style="font-size:9px;color:rgba(255,255,255,0.8);line-height:1.2">${stageLabel}</div></div><!--[if mso]></td><![endif]-->`;
     }).join('');
 
+    const zid = ZONE_ID[zone] ?? '';
+    const icon = ZONE_ICON[zone] ?? '🌡';
     return `
-      <tr><td style="padding:12px 0 4px;font-size:13px;font-weight:700;color:#1f2937;border-top:1px solid #f3f4f6">
-        🌡 ${zone} &nbsp;<span style="font-size:11px;font-weight:400;color:#9ca3af">${cities.length}개 지역</span>
+      <tr><td id="${zid}" style="padding:14px 0 4px;border-top:2px solid #e5e7eb">
+        <table width="100%" cellpadding="0" cellspacing="0"><tr>
+          <td style="font-size:14px;font-weight:800;color:#111827">${icon} ${zone}</td>
+          <td style="text-align:right;font-size:11px;color:#9ca3af">${cities.length}개 지역 &nbsp;·&nbsp; 최고체감 <strong style="color:${tileBg(zoneMax)}">${zoneMax}°C</strong></td>
+        </tr></table>
       </td></tr>
-      <tr><td style="padding:0;font-size:0;line-height:0">${tiles}</td></tr>`;
+      <tr><td style="padding:4px 0 0;font-size:0;line-height:0">${tiles}</td></tr>`;
   }).join('');
 
   // ── 범례 ────────────────────────────────────────────────────────────────
@@ -143,8 +158,21 @@ function buildHtmlEmail(weather: Record<string, WeatherEntry>, dateStr: string):
     <div style="font-size:12px;color:rgba(255,255,255,0.80)">${dateStr} 기준 &nbsp;·&nbsp; 기상청 단기예보 기반</div>
   </div>
 
+  <!-- 권역 탭 네비게이션 -->
+  <div style="background:#1f2937;padding:0">
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">
+      <tr>
+        <td style="text-align:center;padding:0"><a href="#zone-summary" style="display:block;padding:11px 4px;font-size:11px;font-weight:700;color:#f9fafb;text-decoration:none;border-right:1px solid #374151;background:#374151">📊<br>전체</a></td>
+        <td style="text-align:center;padding:0"><a href="#zone-daegubuk" style="display:block;padding:11px 4px;font-size:11px;font-weight:700;color:#d1d5db;text-decoration:none;border-right:1px solid #374151">🏔<br>대구·경북</a></td>
+        <td style="text-align:center;padding:0"><a href="#zone-chungcheong" style="display:block;padding:11px 4px;font-size:11px;font-weight:700;color:#d1d5db;text-decoration:none;border-right:1px solid #374151">🌾<br>충청권</a></td>
+        <td style="text-align:center;padding:0"><a href="#zone-honam" style="display:block;padding:11px 4px;font-size:11px;font-weight:700;color:#d1d5db;text-decoration:none;border-right:1px solid #374151">🌊<br>호남권</a></td>
+        <td style="text-align:center;padding:0"><a href="#zone-buulgyeong" style="display:block;padding:11px 4px;font-size:11px;font-weight:700;color:#d1d5db;text-decoration:none">⚓<br>부산권</a></td>
+      </tr>
+    </table>
+  </div>
+
   <!-- 핵심 지표 -->
-  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border-bottom:1px solid #f3f4f6">
+  <table id="zone-summary" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border-bottom:1px solid #f3f4f6">
     <tr>
       <td width="25%" style="padding:14px 10px;text-align:center;border-right:1px solid #f3f4f6">
         <div style="font-size:10px;font-weight:700;color:#9a3412;margin-bottom:4px">최고 체감온도</div>
@@ -193,8 +221,16 @@ function buildHtmlEmail(weather: Record<string, WeatherEntry>, dateStr: string):
 </body></html>`;
 }
 
-// ── Excel 첨부 빌드 ────────────────────────────────────────────────────────
-async function buildExcelBuffer(weather: Record<string, WeatherEntry>, dateStr: string): Promise<Buffer | null> {
+// ── 권역명 CSV 형식 매핑 (호남, 대구(경북), 부산(경남), 충청) ─────────────
+const ZONE_TO_CSV: Record<string, string> = {
+  '대구·경북':     '대구(경북)',
+  '부산·울산·경남': '부산(경남)',
+  '충청권':        '충청',
+  '호남권':        '호남',
+};
+
+// ── Excel 첨부 빌드 (CSV 형식: 권역/지역/예보일자/예보시간/기온/습도/체감온도/폭염단계) ──
+async function buildExcelBuffer(weather: Record<string, WeatherEntry>, dateStr: string, dateDash: string): Promise<Buffer | null> {
   try {
     const ExcelJS = (await import('exceljs')).default;
 
@@ -210,7 +246,8 @@ async function buildExcelBuffer(weather: Record<string, WeatherEntry>, dateStr: 
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('폭염현황');
 
-    ws.mergeCells('A1:G1');
+    // 제목 행 (8컬럼)
+    ws.mergeCells('A1:H1');
     const titleCell = ws.getCell('A1');
     titleCell.value = `폭염 일일 현황 (${dateStr})`;
     titleCell.font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } };
@@ -218,18 +255,21 @@ async function buildExcelBuffer(weather: Record<string, WeatherEntry>, dateStr: 
     titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
     ws.getRow(1).height = 30;
 
+    // 컬럼 정의 (CSV 형식과 동일한 순서)
     ws.columns = [
-      { key: '구분',    width: 10 },
+      { key: '권역',    width: 12 },
       { key: '지역',    width: 12 },
+      { key: '예보일자', width: 14 },
+      { key: '예보시간', width: 12 },
       { key: '기온',    width: 12 },
-      { key: '체감온도', width: 14 },
       { key: '습도',    width: 10 },
+      { key: '체감온도', width: 14 },
       { key: '폭염단계', width: 14 },
-      { key: '조회시간', width: 22 },
     ];
 
+    // 헤더 행
     const hdrRow = ws.getRow(2);
-    hdrRow.values = ['구분', '지역', '기온(°C)', '체감온도(°C)', '습도(%)', '폭염단계', '조회시간'];
+    hdrRow.values = ['권역', '지역', '예보일자', '예보시간', '기온(°C)', '습도(%)', '체감온도(°C)', '폭염단계'];
     hdrRow.eachCell(cell => {
       cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE06000' } };
@@ -238,16 +278,22 @@ async function buildExcelBuffer(weather: Record<string, WeatherEntry>, dateStr: 
     });
     hdrRow.height = 22;
 
-    const rows = Object.entries(weather).map(([name, d]) => ({
-      구분: CITY_TO_DETAIL[name] ?? '기타',
-      지역: name,
-      기온: d.temp,
-      체감온도: d.feels,
-      습도: d.hum,
-      폭염단계: d.stage ?? '해당없음',
-      조회시간: d.time ?? '',
-    }));
-    rows.sort((a, b) => (DETAIL_ORDER[a.구분] ?? 99) - (DETAIL_ORDER[b.구분] ?? 99));
+    // 데이터 행 — 체감온도 내림차순 정렬 (CSV 파일과 동일)
+    const rows = Object.entries(weather)
+      .map(([name, d]) => {
+        const zone = CITY_TO_ZONE[name] ?? '기타';
+        return {
+          권역:    ZONE_TO_CSV[zone] ?? zone,
+          지역:    name,
+          예보일자: dateDash,
+          예보시간: d.time ?? '',
+          기온:    d.temp,
+          습도:    d.hum,
+          체감온도: d.feels,
+          폭염단계: d.stage ?? '해당없음',
+        };
+      })
+      .sort((a, b) => b.체감온도 - a.체감온도);
 
     rows.forEach(r => {
       const row = ws.addRow(r);
@@ -259,30 +305,10 @@ async function buildExcelBuffer(weather: Record<string, WeatherEntry>, dateStr: 
         cell.alignment = { horizontal: 'center', vertical: 'middle' };
         cell.border = { bottom: { style: 'hair', color: { argb: 'FFDDDDDD' } } };
       });
-      row.getCell(6).font = { bold: true, color: { argb: 'FF' + fontColor } };
+      // 폭염단계 컬럼(8번째)만 굵은 색상 폰트
+      row.getCell(8).font = { bold: true, color: { argb: 'FF' + fontColor } };
       row.height = 18;
     });
-
-    ws.addRow([]);
-    if (rows.length > 0) {
-      const feels   = rows.map(r => r.체감온도);
-      const temps   = rows.map(r => r.기온).filter((v): v is number => v != null);
-      const hums    = rows.map(r => r.습도).filter((v): v is number => v != null);
-      const sumRow  = ws.addRow({
-        구분: '요약', 지역: `${rows.length}개 지역`,
-        기온: temps.length ? Math.round(temps.reduce((a,b)=>a+b,0)/temps.length*10)/10 : '',
-        체감온도: Math.max(...feels),
-        습도: hums.length ? Math.round(hums.reduce((a,b)=>a+b,0)/hums.length) : '',
-        폭염단계: `최고체감 ${Math.max(...feels)}°C`,
-        조회시간: rows[0]?.조회시간 ?? '',
-      });
-      sumRow.eachCell(cell => {
-        cell.font = { bold: true };
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F0F0' } };
-        cell.alignment = { horizontal: 'center', vertical: 'middle' };
-      });
-      sumRow.height = 20;
-    }
 
     return await wb.xlsx.writeBuffer() as Buffer;
   } catch (e) {
@@ -351,8 +377,9 @@ export async function runHeatwaveDailyEmail(
     const dateStr  = `${y}년 ${m}월 ${d}일 (${day})`;
     const fileDate = `${y}${String(m).padStart(2,'0')}${String(d).padStart(2,'0')}`;
 
+    const dateDash    = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const html        = buildHtmlEmail(weather, dateStr);
-    const excelBuffer = await buildExcelBuffer(weather, dateStr);
+    const excelBuffer = await buildExcelBuffer(weather, dateStr, dateDash);
 
     const allEntries  = Object.entries(weather).sort((a, b) => b[1].feels - a[1].feels);
     const maxEntry    = allEntries[0];
