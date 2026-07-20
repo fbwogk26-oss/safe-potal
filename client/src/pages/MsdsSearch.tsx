@@ -322,8 +322,8 @@ export default function MsdsSearch() {
     setIsPreviewLoading(true);
     setPreviewBlobUrl(null);
     try {
-      const signedUrl = await getSignedUrl(chemical.pdfUrl!);
-      const resp = await fetch(signedUrl, { credentials: "include" });
+      const path = chemical.pdfUrl!;
+      const resp = await fetch(path, { credentials: "include" });
       if (!resp.ok) throw new Error("파일 로드 실패");
       const blob = await resp.blob();
       const blobUrl = URL.createObjectURL(blob);

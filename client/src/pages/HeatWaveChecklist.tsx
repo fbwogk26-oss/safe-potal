@@ -1079,6 +1079,13 @@ function initThreePanel(
       mesh.userData.name = region.name; mesh.userData.type = region.type;
       mesh.userData.topMat = topMat; mesh.userData.baseColor = baseColor;
       root.add(mesh); raycastTargets.push(mesh); entry.meshes.push(mesh);
+      // 경계선 — 상면 윤곽 (흰색 반투명 엣지)
+      const edgePts = [...ring, ring[0]].map(([x,y]) => new THREE.Vector3(x, HEIGHT + opts.bevel + 0.8, -y));
+      const edgeGeo2 = new THREE.BufferGeometry().setFromPoints(edgePts);
+      const edgeMat2 = new THREE.LineBasicMaterial({ color: 0xffffff, opacity: 0.35, transparent: true });
+      const edgeLine2 = new THREE.Line(edgeGeo2, edgeMat2);
+      edgeLine2.renderOrder = 1;
+      root.add(edgeLine2);
     });
     if (opts.labels && region.label) {
       const sprite = makeLabelSprite3D(region.name, opts.fontSize);
@@ -1200,6 +1207,8 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
   const [stats, setStats] = useState<{maxFeels:number;avgTemp:number;avgHum:number;maxLoc:string;count:number}|null>(null);
   const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 640);
   const [selectedInfo, setSelectedInfo] = useState<{name:string; weather:RegionWeather|null}|null>(null);
+  const [showDataTable, setShowDataTable] = useState(false);
+  const [weatherData, setWeatherData] = useState<Record<string, RegionWeather>>({});
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -1245,8 +1254,8 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
     const {gb,daegu,ulleung} = mapDataRef.current!;
     const tt = tooltipRef.current;
     const handleClick = (name: string, weather: RegionWeather | null) => setSelectedInfo({name, weather});
-    const p1 = initThreePanel(daeguRef.current, daegu, {height:22,bevel:1.8,radius:900,theta:Math.PI*0.25,phi:Math.PI*0.27,baseRadius:900,fogNear:1200,fogFar:3000,sun:[320,480,220],labels:true,fontSize:44,spin:false}, registryRef.current, tt, weatherRef, handleClick);
-    const p2 = initThreePanel(gbRef.current, gb, {height:28,bevel:2.2,radius:1180,theta:Math.PI*0.25,phi:Math.PI*0.27,baseRadius:1200,fogNear:1500,fogFar:3800,sun:[420,620,280],labels:true,fontSize:46,spin:false}, registryRef.current, tt, weatherRef, handleClick);
+    const p1 = initThreePanel(daeguRef.current, daegu, {height:22,bevel:1.8,radius:900,theta:Math.PI*0.25,phi:Math.PI*0.27,baseRadius:900,fogNear:1200,fogFar:3000,sun:[320,480,220],labels:true,fontSize:28,spin:false}, registryRef.current, tt, weatherRef, handleClick);
+    const p2 = initThreePanel(gbRef.current, gb, {height:28,bevel:2.2,radius:1180,theta:Math.PI*0.25,phi:Math.PI*0.27,baseRadius:1200,fogNear:1500,fogFar:3800,sun:[420,620,280],labels:true,fontSize:38,spin:false}, registryRef.current, tt, weatherRef, handleClick);
     const p3 = initThreePanel(ulleungRef.current, ulleung, {height:14,bevel:0.8,radius:320,theta:Math.PI*0.25,phi:Math.PI*0.25,baseRadius:260,fogNear:280,fogFar:900,sun:[140,200,90],labels:true,fontSize:26,spin:false}, registryRef.current, tt, weatherRef, handleClick);
     panelsRef.current = [p1,p2,p3];
     function animate() { rafRef.current=requestAnimationFrame(animate); panelsRef.current.forEach(p=>{p.tick();p.renderer.render(p.scene,p.camera);}); }
@@ -1259,6 +1268,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
           weatherRef.current = json.data.weather;
           Object.entries(json.data.weather).forEach(([n, info]) => updateRegionVisual(n, info as RegionWeather));
           setHeatActive(true);
+          setWeatherData({...json.data.weather});
           if (json.data.stats) setStats(json.data.stats);
         }
       })
@@ -1292,6 +1302,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
     });
     weatherRef.current = {};
     setHeatActive(false); setStatusMsg(""); setStatusErr(false); setStats(null);
+    setWeatherData({}); setShowDataTable(false);
     if (fileRef.current) fileRef.current.value = "";
   }
 
@@ -1350,6 +1361,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
         maxLoc, count: matched,
       };
       setStats(statsData);
+      setWeatherData({...weatherRef.current});
       fetch('/api/heatwave-map/data', { method:'PUT', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ weather: weatherRef.current, stats: statsData }) }).catch(()=>{});
     }
     return { count: matched, maxLoc, maxT };
@@ -1398,6 +1410,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
     const statsData = { maxFeels, avgTemp, avgHum, maxLoc, count: regions.length };
     setStats(statsData);
     setHeatActive(true);
+    setWeatherData({...weatherRef.current});
     fetch('/api/heatwave-map/data', { method:'PUT', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ weather: weatherRef.current, stats: statsData }) }).catch(()=>{});
     if (onDataParsed) {
       const stageCounts: Record<string,number> = {};
@@ -1467,6 +1480,11 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
         <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
           {loading && <Loader2 className="w-4 h-4 animate-spin text-orange-500" />}
           {heatActive && <Button size="sm" variant="ghost" className="h-7 text-xs text-slate-500 px-2" onClick={resetVisuals}>초기화</Button>}
+          {heatActive && (
+            <Button size="sm" variant="ghost" className={`h-7 text-xs gap-1 px-2 ${showDataTable ? 'text-sky-400' : 'text-slate-400 hover:text-slate-200'}`} onClick={() => setShowDataTable(v => !v)} data-testid="button-toggle-data-table">
+              <Eye className="w-3.5 h-3.5" /><span className="hidden sm:inline">{showDataTable ? '테이블 숨기기' : '데이터 보기'}</span>
+            </Button>
+          )}
           {heatActive && (
             <Button size="sm" variant="outline" className="h-7 text-xs gap-1 px-2 sm:px-3 border-emerald-400 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30" onClick={handleDownloadWeather} disabled={loading} data-testid="button-download-weather">
               <FileDown className="w-3.5 h-3.5" /><span className="hidden sm:inline">엑셀 저장</span>
@@ -1564,6 +1582,42 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
         </div>
 
       </div>
+
+      {/* ─ 날씨 데이터 테이블 ─ */}
+      {heatActive && showDataTable && Object.keys(weatherData).length > 0 && (
+        <div className="border-t border-[#232a35] overflow-auto" style={{background:'#0d1117', maxHeight: 320}}>
+          <table style={{width:'100%', borderCollapse:'collapse', fontSize: 12}}>
+            <thead>
+              <tr style={{background:'#141b26', position:'sticky', top:0, zIndex:2}}>
+                {['지역','체감온도','기온','습도','폭염단계','기준시간'].map(h => (
+                  <th key={h} style={{padding:'7px 10px', textAlign: h==='지역' ? 'left' : 'center', color:'#9aa5b3', fontWeight:600, borderBottom:'1px solid #232a35', whiteSpace:'nowrap'}}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {Object.entries(weatherData)
+                .sort((a,b) => b[1].feels - a[1].feels)
+                .map(([name, w]) => (
+                  <tr key={name} style={{borderBottom:'1px solid #1a2030'}}>
+                    <td style={{padding:'6px 10px', color:'#e8ecf1', fontWeight:600, whiteSpace:'nowrap'}}>{name}</td>
+                    <td style={{padding:'6px 10px', textAlign:'center', fontWeight:700, color: heatColorHex(w.feels), tabularNums: 'all', fontVariantNumeric:'tabular-nums' as any}}>{w.feels}°C</td>
+                    <td style={{padding:'6px 10px', textAlign:'center', color:'#c5cdd7', fontVariantNumeric:'tabular-nums' as any}}>{w.temp != null ? `${w.temp}°C` : '-'}</td>
+                    <td style={{padding:'6px 10px', textAlign:'center', color:'#7dd3fc', fontVariantNumeric:'tabular-nums' as any}}>{w.hum != null ? `${w.hum}%` : '-'}</td>
+                    <td style={{padding:'6px 10px', textAlign:'center'}}>
+                      <span style={{
+                        fontSize:10, fontWeight:600, padding:'2px 8px', borderRadius:4, whiteSpace:'nowrap',
+                        background: w.stage === '폭염경보' ? '#7f1d1d' : w.stage === '폭염주의보' ? '#7c2d12' : w.stage === '폭염관심' ? '#713f12' : '#1e293b',
+                        color: w.stage === '해당없음' ? '#64748b' : '#ffd9a0',
+                      }}>{w.stage || '해당없음'}</span>
+                    </td>
+                    <td style={{padding:'6px 10px', textAlign:'center', color:'#4a5568', fontSize:11, fontVariantNumeric:'tabular-nums' as any}}>{w.time || '-'}</td>
+                  </tr>
+                ))
+              }
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
