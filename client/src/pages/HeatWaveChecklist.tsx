@@ -839,31 +839,31 @@ function ChecklistForm({
 }
 
 // ─── 대구·경북 체감온도 지도 ──────────────────────────────────
-const DGKB_CITIES: { name: string; x: number; y: number }[] = [
-  { name: "울릉", x: 478, y: 22 },
-  { name: "봉화", x: 358, y: 30 },
-  { name: "울진", x: 458, y: 82 },
-  { name: "영주", x: 262, y: 42 },
-  { name: "영양", x: 402, y: 60 },
-  { name: "문경", x: 95, y: 80 },
-  { name: "예천", x: 188, y: 80 },
-  { name: "안동", x: 292, y: 80 },
-  { name: "청송", x: 378, y: 108 },
-  { name: "영덕", x: 458, y: 132 },
-  { name: "상주", x: 95, y: 140 },
-  { name: "의성", x: 262, y: 142 },
-  { name: "구미", x: 95, y: 198 },
-  { name: "군위", x: 212, y: 188 },
-  { name: "칠곡", x: 150, y: 225 },
-  { name: "영천", x: 318, y: 200 },
-  { name: "경주", x: 402, y: 228 },
-  { name: "포항", x: 458, y: 182 },
-  { name: "고령", x: 85, y: 272 },
-  { name: "성주", x: 140, y: 260 },
-  { name: "달성", x: 190, y: 268 },
-  { name: "대구", x: 248, y: 255 },
-  { name: "경산", x: 308, y: 262 },
-  { name: "청도", x: 312, y: 298 },
+// 좌표계: 640×784 (실제 지도 이미지 크기)
+const DGKB_CITIES: { name: string; x: number; y: number; r?: number }[] = [
+  { name: "울릉", x: 560, y: 700, r: 18 }, // 울릉도 인셋 위치
+  { name: "봉화", x: 352, y: 112 },
+  { name: "울진", x: 512, y: 96 },
+  { name: "영주", x: 238, y: 192 },
+  { name: "영양", x: 452, y: 215 },
+  { name: "문경", x: 98, y: 300 },
+  { name: "예천", x: 205, y: 282 },
+  { name: "안동", x: 314, y: 262 },
+  { name: "청송", x: 425, y: 355 },
+  { name: "영덕", x: 512, y: 332 },
+  { name: "상주", x: 116, y: 372 },
+  { name: "의성", x: 288, y: 380 },
+  { name: "구미", x: 222, y: 450 },
+  { name: "군위", x: 282, y: 432 },
+  { name: "포항", x: 506, y: 402 },
+  { name: "영천", x: 382, y: 472 },
+  { name: "칠곡", x: 218, y: 502 },
+  { name: "경주", x: 452, y: 538 },
+  { name: "성주", x: 150, y: 528 },
+  { name: "고령", x: 145, y: 582 },
+  { name: "대구", x: 258, y: 518 },
+  { name: "경산", x: 326, y: 538 },
+  { name: "청도", x: 295, y: 618 },
 ];
 
 function getHeatFill(t: number | undefined): string {
@@ -898,18 +898,6 @@ type ParsedCSVData = {
   dominantHeatLevel: string;
 };
 
-/* 경북 외곽 윤곽선 (SVG 500×325 좌표계) */
-const GYEONGBUK_PATH =
-  "M 62,60 L 98,38 L 158,20 L 250,12 L 328,10 L 360,10 " +
-  "L 408,12 L 462,40 L 494,82 L 496,132 L 496,182 " +
-  "L 478,228 L 462,270 L 440,316 L 370,322 L 298,324 " +
-  "L 248,324 L 162,320 L 95,316 L 62,308 " +
-  "L 36,258 L 36,128 Z";
-
-/* 대구광역시 내곽 윤곽선 */
-const DAEGU_PATH =
-  "M 212,232 L 258,220 L 302,234 L 325,258 " +
-  "L 310,298 L 252,306 L 190,300 L 175,272 Z";
 
 function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVData) => void }) {
   const [heatData, setHeatData] = useState<Record<string, CityHeat>>({});
@@ -1006,62 +994,29 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
 
       {/* Body */}
       <div className="p-3 flex flex-col lg:flex-row gap-4 items-start">
-        {/* SVG Map */}
-        <div className="w-full lg:flex-1 overflow-x-auto">
-          <svg viewBox="0 0 530 340" className="w-full" style={{ minWidth: 300 }}>
-            <defs>
-              <filter id="map-shadow" x="-10%" y="-10%" width="120%" height="120%">
-                <feDropShadow dx="2" dy="2" stdDeviation="3" floodColor="#00000018" />
-              </filter>
-            </defs>
-            {/* 동해 바다 배경 */}
-            <rect x="0" y="0" width="530" height="340" rx="8" fill="#e0f2fe" />
-            {/* 경북 육지 */}
-            <path d={GYEONGBUK_PATH} fill="#ecfdf5" stroke="#86efac" strokeWidth="2" filter="url(#map-shadow)" />
-            {/* 경북 내부 격자 느낌 */}
-            <path d={GYEONGBUK_PATH} fill="none" stroke="#bbf7d0" strokeWidth="0.5" strokeDasharray="4 3" />
-            {/* 대구광역시 */}
-            <path d={DAEGU_PATH} fill="#eff6ff" stroke="#93c5fd" strokeWidth="1.5" />
-            {/* 울릉도 섬 */}
-            <ellipse cx="478" cy="22" rx="16" ry="12" fill="#ecfdf5" stroke="#86efac" strokeWidth="1.5" />
-            {/* 동해 라벨 */}
-            <text x="510" y="80" fontSize="9" fill="#7dd3fc" fontWeight="600" textAnchor="middle" transform="rotate(90,510,80)">동 해</text>
-            {/* 방위 */}
-            <text x="20" y="22" fontSize="9" fill="#94a3b8" fontWeight="600">↑</text>
-            <text x="16" y="32" fontSize="7" fill="#94a3b8">북</text>
-            {/* 대구 라벨 */}
-            <text x="248" y="268" fontSize="6" fill="#3b82f6" textAnchor="middle" opacity="0.6">대구광역시</text>
+        {/* SVG Map — 실제 행정지도 640×784 위에 체감온도 원 오버레이 */}
+        <div className="w-full lg:flex-1">
+          <svg viewBox="0 0 640 784" className="w-full" style={{ maxWidth: 420 }}>
+            {/* 실제 대구경북 행정지도 이미지 */}
+            <image href="/daegu-gyeongbuk-map.png" x="0" y="0" width="640" height="784" preserveAspectRatio="xMidYMid meet" />
 
-            {/* City circles (울릉 제외하고 별도 처리) */}
-            {DGKB_CITIES.filter(c => c.name !== "울릉").map(city => {
+            {/* City circles */}
+            {DGKB_CITIES.map(city => {
               const d = heatData[city.name];
               const fill = getHeatFill(d?.feelsLike);
               const stroke = getHeatStroke(d?.feelsLike);
               const textColor = getHeatText(d?.feelsLike);
+              const r = city.r ?? 22;
               return (
                 <g key={city.name} transform={`translate(${city.x},${city.y})`}>
-                  <circle cx="0" cy="0" r="19" fill={fill} stroke={stroke} strokeWidth="1.5" />
-                  <text x="0" y="-3.5" textAnchor="middle" dominantBaseline="middle" fontSize="7" fontWeight="700" fill={textColor}>{city.name}</text>
-                  <text x="0" y="6.5" textAnchor="middle" dominantBaseline="middle" fontSize="7.5" fontWeight="700" fill={textColor}>
+                  <circle cx="0" cy="0" r={r} fill={fill} fillOpacity="0.88" stroke={stroke} strokeWidth="1.8" />
+                  <text x="0" y="-4" textAnchor="middle" dominantBaseline="middle" fontSize={r < 20 ? "7.5" : "8.5"} fontWeight="700" fill={textColor}>{city.name}</text>
+                  <text x="0" y="7.5" textAnchor="middle" dominantBaseline="middle" fontSize={r < 20 ? "8" : "9"} fontWeight="700" fill={textColor}>
                     {d ? `${d.feelsLike}°` : "─"}
                   </text>
                 </g>
               );
             })}
-            {/* 울릉도 circle */}
-            {(() => {
-              const uleungCity = DGKB_CITIES.find(c => c.name === "울릉")!;
-              const d = heatData["울릉"];
-              return (
-                <g transform={`translate(${uleungCity.x},${uleungCity.y})`}>
-                  <circle cx="0" cy="0" r="13" fill={getHeatFill(d?.feelsLike)} stroke={getHeatStroke(d?.feelsLike)} strokeWidth="1.2" />
-                  <text x="0" y="-2" textAnchor="middle" dominantBaseline="middle" fontSize="6" fontWeight="700" fill={getHeatText(d?.feelsLike)}>울릉</text>
-                  <text x="0" y="5.5" textAnchor="middle" dominantBaseline="middle" fontSize="6.5" fontWeight="700" fill={getHeatText(d?.feelsLike)}>
-                    {d ? `${d.feelsLike}°` : "─"}
-                  </text>
-                </g>
-              );
-            })()}
           </svg>
         </div>
 
