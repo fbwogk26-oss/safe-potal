@@ -838,6 +838,216 @@ function ChecklistForm({
   );
 }
 
+// ─── 대구·경북 체감온도 지도 ──────────────────────────────────
+const DGKB_CITIES: { name: string; x: number; y: number }[] = [
+  { name: "울릉", x: 478, y: 22 },
+  { name: "봉화", x: 358, y: 30 },
+  { name: "울진", x: 458, y: 82 },
+  { name: "영주", x: 262, y: 42 },
+  { name: "영양", x: 402, y: 60 },
+  { name: "문경", x: 95, y: 80 },
+  { name: "예천", x: 188, y: 80 },
+  { name: "안동", x: 292, y: 80 },
+  { name: "청송", x: 378, y: 108 },
+  { name: "영덕", x: 458, y: 132 },
+  { name: "상주", x: 95, y: 140 },
+  { name: "의성", x: 262, y: 142 },
+  { name: "구미", x: 95, y: 198 },
+  { name: "군위", x: 212, y: 188 },
+  { name: "칠곡", x: 150, y: 225 },
+  { name: "영천", x: 318, y: 200 },
+  { name: "경주", x: 402, y: 228 },
+  { name: "포항", x: 458, y: 182 },
+  { name: "고령", x: 85, y: 272 },
+  { name: "성주", x: 140, y: 260 },
+  { name: "달성", x: 190, y: 268 },
+  { name: "대구", x: 248, y: 255 },
+  { name: "경산", x: 308, y: 262 },
+  { name: "청도", x: 312, y: 298 },
+];
+
+function getHeatFill(t: number | undefined): string {
+  if (t === undefined) return "#e5e7eb";
+  if (t >= 38) return "#ef4444";
+  if (t >= 35) return "#f97316";
+  if (t >= 33) return "#fde047";
+  if (t >= 31) return "#7dd3fc";
+  return "#dbeafe";
+}
+function getHeatText(t: number | undefined): string {
+  if (t === undefined) return "#9ca3af";
+  if (t >= 38 || t >= 35) return "#fff";
+  if (t >= 33) return "#713f12";
+  return "#075985";
+}
+function getHeatStroke(t: number | undefined): string {
+  if (t === undefined) return "#d1d5db";
+  if (t >= 38) return "#dc2626";
+  if (t >= 35) return "#ea580c";
+  if (t >= 33) return "#ca8a04";
+  if (t >= 31) return "#0284c7";
+  return "#3b82f6";
+}
+
+type CityHeat = { feelsLike: number; heatLevel: string };
+
+function DaeguGyeongbukHeatMap() {
+  const [heatData, setHeatData] = useState<Record<string, CityHeat>>({});
+  const [dataDate, setDataDate] = useState("");
+  const [loading, setLoading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const parseCSV = (buffer: ArrayBuffer) => {
+    const decoder = new TextDecoder("euc-kr");
+    const text = decoder.decode(buffer);
+    const lines = text.split(/\r?\n/).filter(l => l.trim());
+    const result: Record<string, CityHeat> = {};
+    let date = "";
+    for (let i = 1; i < lines.length; i++) {
+      const cols = lines[i].split("\t");
+      if (cols.length < 8) continue;
+      const kwon = cols[0]?.trim() ?? "";
+      const city = cols[1]?.trim() ?? "";
+      const rowDate = cols[2]?.trim() ?? "";
+      const feelsLike = parseFloat(cols[6]);
+      const heatLevel = cols[7]?.trim() ?? "";
+      if (!kwon.includes("대구") && !kwon.includes("경북")) continue;
+      if (!city || isNaN(feelsLike)) continue;
+      if (!date && rowDate) date = rowDate;
+      if (!result[city] || feelsLike > result[city].feelsLike) {
+        result[city] = { feelsLike, heatLevel };
+      }
+    }
+    setHeatData(result);
+    setDataDate(date);
+    setLoading(false);
+  };
+
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLoading(true);
+    const reader = new FileReader();
+    reader.onload = ev => parseCSV(ev.target?.result as ArrayBuffer);
+    reader.readAsArrayBuffer(file);
+    e.target.value = "";
+  };
+
+  const cityCount = Object.keys(heatData).length;
+  const topCities = Object.entries(heatData).sort((a, b) => b[1].feelsLike - a[1].feelsLike).slice(0, 6);
+
+  const LEGEND = [
+    { label: "위험 38°C 이상", fill: "#ef4444", text: "#fff" },
+    { label: "경고 35°C 이상", fill: "#f97316", text: "#fff" },
+    { label: "주의 33°C 이상", fill: "#fde047", text: "#713f12" },
+    { label: "관심 31°C 이상", fill: "#7dd3fc", text: "#075985" },
+    { label: "해당없음 31°C 미만", fill: "#dbeafe", text: "#075985" },
+    { label: "미조회", fill: "#e5e7eb", text: "#9ca3af" },
+  ];
+
+  return (
+    <div className="border rounded-xl bg-card shadow-sm overflow-hidden">
+      {/* Header */}
+      <div className="px-4 py-2.5 flex items-center justify-between border-b bg-gradient-to-r from-orange-50/80 to-amber-50/60 dark:from-orange-950/20 dark:to-amber-950/10">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Thermometer className="w-4 h-4 text-orange-500 flex-shrink-0" />
+          <span className="font-semibold text-sm">대구·경북 권역별 체감온도 현황</span>
+          {dataDate && <span className="text-xs text-muted-foreground">({dataDate} 기준)</span>}
+          {cityCount > 0 && (
+            <Badge variant="outline" className="text-xs h-5">{cityCount}개 지역 반영</Badge>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {loading && <Loader2 className="w-4 h-4 animate-spin text-orange-500" />}
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs gap-1"
+            onClick={() => fileRef.current?.click()}
+            data-testid="button-upload-heatmap-csv"
+          >
+            <FileDown className="w-3.5 h-3.5" />
+            CSV 업로드
+          </Button>
+          <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={handleFile} />
+        </div>
+      </div>
+
+      {/* Body */}
+      <div className="p-3 flex flex-col lg:flex-row gap-4 items-start">
+        {/* SVG Map */}
+        <div className="w-full lg:flex-1 overflow-x-auto">
+          <svg viewBox="0 0 500 320" className="w-full" style={{ minWidth: 300 }}>
+            {/* subtle region boundary hint */}
+            <rect x="60" y="15" width="420" height="310" rx="8" fill="#f9fafb" stroke="#e5e7eb" strokeWidth="1" />
+            {/* compass hint */}
+            <text x="68" y="30" fontSize="8" fill="#d1d5db" fontWeight="500">북</text>
+            <text x="68" y="308" fontSize="8" fill="#d1d5db" fontWeight="500">남</text>
+            <text x="462" y="175" fontSize="8" fill="#d1d5db" fontWeight="500">동</text>
+            {/* City circles */}
+            {DGKB_CITIES.map(city => {
+              const d = heatData[city.name];
+              const fill = getHeatFill(d?.feelsLike);
+              const stroke = getHeatStroke(d?.feelsLike);
+              const text = getHeatText(d?.feelsLike);
+              return (
+                <g key={city.name} transform={`translate(${city.x},${city.y})`}>
+                  <circle cx="0" cy="0" r="20" fill={fill} stroke={stroke} strokeWidth="1.5" />
+                  <text x="0" y="-4" textAnchor="middle" dominantBaseline="middle" fontSize="7.5" fontWeight="700" fill={text}>
+                    {city.name}
+                  </text>
+                  <text x="0" y="7" textAnchor="middle" dominantBaseline="middle" fontSize="8" fontWeight="600" fill={text}>
+                    {d ? `${d.feelsLike}°` : "─"}
+                  </text>
+                </g>
+              );
+            })}
+          </svg>
+        </div>
+
+        {/* Right panel: legend + top temps */}
+        <div className="flex flex-col gap-3 min-w-[148px] w-full lg:w-auto">
+          {/* Legend */}
+          <div>
+            <p className="text-[11px] font-semibold text-muted-foreground mb-1.5">폭염 단계 (체감온도 기준)</p>
+            <div className="space-y-1">
+              {LEGEND.map(l => (
+                <div key={l.label} className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded-full flex-shrink-0 border border-black/10" style={{ background: l.fill }} />
+                  <span className="text-[11px] text-muted-foreground leading-none">{l.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Top cities */}
+          {topCities.length > 0 && (
+            <div className="border rounded-lg p-2 bg-muted/30">
+              <p className="text-[11px] font-semibold text-muted-foreground mb-1.5">최고 체감온도 TOP</p>
+              <div className="space-y-1">
+                {topCities.map(([city, d]) => (
+                  <div key={city} className="flex items-center justify-between text-xs gap-3">
+                    <span className="text-muted-foreground">{city}</span>
+                    <span className="font-bold" style={{ color: getHeatStroke(d.feelsLike) }}>
+                      {d.feelsLike}°C
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {!cityCount && (
+            <p className="text-[11px] text-muted-foreground text-center py-2 leading-relaxed">
+              CSV 파일 업로드 시<br />체감온도가 지도에 표시됩니다
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function HeatWaveChecklist() {
   const { toast } = useToast();
   const [showForm, setShowForm] = useState(false);
@@ -953,6 +1163,9 @@ export default function HeatWaveChecklist() {
           <Plus className="w-4 h-4 sm:mr-1" /><span className="hidden sm:inline"> 체크리스트 작성</span>
         </Button>
       </div>
+
+      {/* 대구·경북 체감온도 지도 */}
+      <DaeguGyeongbukHeatMap />
 
       {/* 목록 테이블 */}
       <div className="border rounded-lg overflow-hidden bg-card">
