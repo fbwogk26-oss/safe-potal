@@ -1,9 +1,10 @@
 /**
  * 폭염 일일 현황 메일 자동 발송
- * 매일 08:30 KST에 실행. 수동 발송 시 클라이언트가 현재 화면 데이터를 직접 전달.
+ * 매일 08:30, 12:30 KST에 실행. 수동 발송 시 클라이언트가 현재 화면 데이터를 직접 전달.
  */
 import cron from "node-cron";
 import { storage } from "./storage";
+import { fetchAndSaveHeatwaveWeather } from "./heatwaveWeatherJob";
 
 // ── 권역 분류 (이메일 HTML/Excel 공통) ─────────────────────────────────────
 const CITY_TO_ZONE: Record<string, string> = {
@@ -433,7 +434,16 @@ export async function runHeatwaveDailyEmail(
     let weather = weatherOverride;
 
     if (!weather || Object.keys(weather).length === 0) {
-      // 수동 발송 시 클라이언트 데이터가 없거나, 자동 발송 시 DB에서 읽음
+      // 실시간 날씨 자동 수집 시도
+      console.log('[HeatwaveEmail] 실시간 날씨 자동 수집 시작...');
+      const collectResult = await fetchAndSaveHeatwaveWeather().catch(e => {
+        console.warn('[HeatwaveEmail] 날씨 수집 실패, DB 데이터 사용:', e?.message ?? e);
+        return { ok: false, count: 0 };
+      });
+      if (collectResult.ok) {
+        console.log(`[HeatwaveEmail] 날씨 수집 완료 (${collectResult.count}개 지역)`);
+      }
+      // 수집 후 DB에서 읽기
       const setting = await storage.getSetting('heatwave_map_data');
       if (setting?.value) {
         const parsed = JSON.parse(setting.value);
@@ -517,6 +527,47 @@ export async function runHeatwaveDailyEmail(
     status.lastMessage = `${recipients}로 발송 완료 (${Object.keys(weather).length}개 지역${excelBuffer ? ', 엑셀 첨부' : ''})`;
     console.log('[HeatwaveEmail]', status.lastMessage);
 
+    // ── 체크리스트 자동 작성 ──────────────────────────────────────────────
+    try {
+      const checkTimeStr = `${String(kst.getUTCHours()).padStart(2,'0')}:${String(kst.getUTCMinutes()).padStart(2,'0')}`;
+
+      // 대구 기준 날씨 (없으면 전체 평균)
+      const daegu = weather['대구'] ?? Object.values(weather)[0];
+      const allFeels = Object.values(weather).map(w => w.feels);
+      const maxFeelsAll = Math.max(...allFeels);
+
+      const heatAlertStatus =
+        maxFeelsAll >= 38 ? '폭염경보' :
+        maxFeelsAll >= 35 ? '폭염경보' :
+        maxFeelsAll >= 33 ? '폭염주의보' :
+        maxFeelsAll >= 31 ? '폭염관심' : '해당없음';
+
+      await storage.createHeatWaveChecklist({
+        checkDate: dateDash,
+        checkTime: checkTimeStr,
+        targetArea: '대구 / 경북',
+        heatAlertStatus,
+        currentTemperature: daegu?.temp ?? null,
+        currentHumidity: daegu?.hum ?? null,
+        currentFeelsLike: daegu?.feels ?? null,
+        maxFeelsLikeForecast: maxFeelsAll,
+        checks31: [false, false, false],
+        checks33: [false, false, false, false],
+        checks35: [false, false, false],
+        checks38: [false],
+        author: null,
+        safetyManager: null,
+        authorSignature: null,
+        safetyManagerSignature: null,
+        weatherSnapshot: weather as any,
+        mapSnapshot: null,
+        createdBy: 'system',
+      });
+      console.log(`[HeatwaveEmail] ✅ 체크리스트 자동 생성 완료 (${dateDash} ${checkTimeStr})`);
+    } catch (ce: any) {
+      console.warn('[HeatwaveEmail] 체크리스트 자동 생성 실패:', ce?.message ?? ce);
+    }
+
   } catch (e: any) {
     status.lastRun     = new Date().toISOString();
     status.lastResult  = 'error';
@@ -528,8 +579,21 @@ export async function runHeatwaveDailyEmail(
 // ── 자동 발송 스케줄 (매일 08:30 KST) ────────────────────────────────────
 cron.schedule(
   '30 8 * * *',
-  () => { runHeatwaveDailyEmail().catch(console.error); },
+  () => {
+    console.log('[HeatwaveEmail] 🌅 08:30 자동 발송 시작');
+    runHeatwaveDailyEmail().catch(console.error);
+  },
   { timezone: 'Asia/Seoul' }
 );
 
-console.log('[HeatwaveEmail] 폭염 일일 메일 스케줄러 시작 (매일 08:30 KST)');
+// ── 자동 발송 스케줄 (매일 12:30 KST) ────────────────────────────────────
+cron.schedule(
+  '30 12 * * *',
+  () => {
+    console.log('[HeatwaveEmail] ☀️ 12:30 자동 발송 시작');
+    runHeatwaveDailyEmail().catch(console.error);
+  },
+  { timezone: 'Asia/Seoul' }
+);
+
+console.log('[HeatwaveEmail] 폭염 일일 메일 스케줄러 시작 (매일 08:30 · 12:30 KST) → jaeha.ryu@ktmos.co.kr');
