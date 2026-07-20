@@ -51,6 +51,7 @@ import {
   Loader2,
   X,
   CheckSquare,
+  ExternalLink,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { motion, AnimatePresence } from "framer-motion";
@@ -322,7 +323,11 @@ export default function MsdsSearch() {
     setPreviewBlobUrl(null);
     try {
       const signedUrl = await getSignedUrl(chemical.pdfUrl!);
-      setPreviewBlobUrl(signedUrl);
+      const resp = await fetch(signedUrl, { credentials: "include" });
+      if (!resp.ok) throw new Error("파일 로드 실패");
+      const blob = await resp.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      setPreviewBlobUrl(blobUrl);
     } catch {
       toast({ variant: "destructive", title: "미리보기 실패", description: "PDF를 불러올 수 없습니다." });
       setPreviewChemical(null);
@@ -332,7 +337,7 @@ export default function MsdsSearch() {
   };
 
   const closePreview = () => {
-    setPreviewBlobUrl(null);
+    setPreviewBlobUrl(prev => { if (prev) URL.revokeObjectURL(prev); return null; });
     setPreviewChemical(null);
   };
 
@@ -798,40 +803,60 @@ export default function MsdsSearch() {
               <span className="text-muted-foreground font-normal text-sm ml-1">— {previewChemical?.name}</span>
             </DialogTitle>
           </DialogHeader>
-          <div className="flex-1 overflow-hidden flex flex-col">
+          <div className="flex-1 overflow-hidden flex flex-col min-h-0">
             {isPreviewLoading ? (
               <div className="flex-1 flex items-center justify-center gap-2 text-muted-foreground">
                 <Loader2 className="w-5 h-5 animate-spin" />
-                <span>PDF 불러오는 중...</span>
+                <span>파일 불러오는 중...</span>
               </div>
             ) : previewBlobUrl ? (
-              <iframe
-                src={previewBlobUrl}
-                className="flex-1 w-full border-0"
-                title="PDF 미리보기"
-              />
+              previewChemical?.pdfFileType?.startsWith("image/") ? (
+                <div className="flex-1 overflow-auto flex items-center justify-center p-4 bg-muted/30">
+                  <img src={previewBlobUrl} alt={previewChemical?.pdfFileName || "MSDS"} className="max-w-full max-h-full object-contain rounded" />
+                </div>
+              ) : (
+                <iframe
+                  src={previewBlobUrl}
+                  className="flex-1 w-full border-0"
+                  title="파일 미리보기"
+                  style={{ minHeight: 0 }}
+                />
+              )
             ) : null}
           </div>
           <div className="px-5 py-3 border-t flex justify-between items-center flex-shrink-0 gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5"
-              disabled={!previewBlobUrl}
-              onClick={() => {
-                if (!previewBlobUrl || !previewChemical) return;
-                const a = document.createElement("a");
-                a.href = previewBlobUrl;
-                a.download = previewChemical.pdfFileName || "MSDS.pdf";
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-              }}
-              data-testid="button-preview-download"
-            >
-              <Download className="w-4 h-4" />
-              다운로드
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                disabled={!previewBlobUrl}
+                onClick={() => {
+                  if (!previewBlobUrl || !previewChemical) return;
+                  const a = document.createElement("a");
+                  a.href = previewBlobUrl;
+                  a.download = previewChemical.pdfFileName || "MSDS.pdf";
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                }}
+                data-testid="button-preview-download"
+              >
+                <Download className="w-4 h-4" />
+                다운로드
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                disabled={!previewBlobUrl}
+                onClick={() => { if (previewBlobUrl) window.open(previewBlobUrl, "_blank", "noopener,noreferrer"); }}
+                data-testid="button-preview-newtab"
+              >
+                <ExternalLink className="w-4 h-4" />
+                새 탭
+              </Button>
+            </div>
             <Button variant="outline" size="sm" onClick={closePreview} data-testid="button-preview-close">
               닫기
             </Button>
