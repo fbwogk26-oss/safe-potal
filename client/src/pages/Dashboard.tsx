@@ -268,6 +268,11 @@ export default function Dashboard() {
         windowHeight: fullH,
         ignoreElements: (el) => el.hasAttribute("data-copy-ignore"),
         onclone: (_doc, el) => {
+          // data-copy-ignore 요소는 layout에서도 제거
+          el.querySelectorAll<HTMLElement>("[data-copy-ignore]").forEach(node => {
+            node.style.display = "none";
+          });
+
           // backdropFilter 제거 (렌더링 오류 방지)
           el.querySelectorAll<HTMLElement>("*").forEach(node => {
             node.style.backdropFilter = "none";
@@ -367,7 +372,7 @@ export default function Dashboard() {
               className="space-y-4"
             >
               {/* Controls */}
-              <Card className="p-3 sm:p-4">
+              <Card className="p-3 sm:p-4" data-copy-ignore>
                 <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                   <Select value={String(year)} onValueChange={(v) => setYear(Number(v))}>
                     <SelectTrigger className="h-8 w-20 sm:w-24 text-xs sm:text-sm">
@@ -565,42 +570,43 @@ export default function Dashboard() {
                         <span>80미만</span>
                       </div>
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className={cn("gap-1.5 transition-all", copied ? "border-green-500 text-green-600 bg-green-50 dark:bg-green-900/20" : "border-primary/30 text-primary")}
-                      onClick={handleCopyAll}
-                      disabled={isCopying || !teams}
-                      data-testid="button-copy-all"
-                      data-copy-ignore
-                    >
-                      {copied ? <Check className="w-3.5 h-3.5" /> : isCopying ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Copy className="w-3.5 h-3.5" />}
-                      {copied ? "복사됨" : "복사"}
-                    </Button>
-                    <Button
-                      variant={showDetailTable ? "default" : "outline"}
-                      size="sm"
-                      className="gap-1.5 border-primary/30 text-primary"
-                      onClick={() => setShowDetailTable(!showDetailTable)}
-                      data-testid="button-toggle-detail"
-                    >
-                      <Settings2 className="w-3.5 h-3.5" />
-                      현황관리
-                    </Button>
-                    {canEditSafetyScores && (
+                    <div className="flex items-center gap-2" data-copy-ignore>
                       <Button
                         variant="outline"
                         size="sm"
-                        className="gap-1.5 border-blue-300 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20"
-                        onClick={handleSyncFromRecords}
-                        disabled={isSyncing}
-                        title="과태료·사고 현황에서 팀 점수 자동 동기화"
-                        data-testid="button-sync-from-records"
+                        className={cn("gap-1.5 transition-all", copied ? "border-green-500 text-green-600 bg-green-50 dark:bg-green-900/20" : "border-primary/30 text-primary")}
+                        onClick={handleCopyAll}
+                        disabled={isCopying || !teams}
+                        data-testid="button-copy-all"
                       >
-                        {isSyncing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <DatabaseZap className="w-3.5 h-3.5" />}
-                        데이터 연동
+                        {copied ? <Check className="w-3.5 h-3.5" /> : isCopying ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Copy className="w-3.5 h-3.5" />}
+                        {copied ? "복사됨" : "복사"}
                       </Button>
-                    )}
+                      <Button
+                        variant={showDetailTable ? "default" : "outline"}
+                        size="sm"
+                        className="gap-1.5 border-primary/30 text-primary"
+                        onClick={() => setShowDetailTable(!showDetailTable)}
+                        data-testid="button-toggle-detail"
+                      >
+                        <Settings2 className="w-3.5 h-3.5" />
+                        현황관리
+                      </Button>
+                      {canEditSafetyScores && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1.5 border-blue-300 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                          onClick={handleSyncFromRecords}
+                          disabled={isSyncing}
+                          title="과태료·사고 현황에서 팀 점수 자동 동기화"
+                          data-testid="button-sync-from-records"
+                        >
+                          {isSyncing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <DatabaseZap className="w-3.5 h-3.5" />}
+                          데이터 연동
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </CardHeader>
               <CardContent className="p-2 sm:p-4 md:p-6 pt-2">
@@ -744,7 +750,7 @@ export default function Dashboard() {
                           <TableHead className="text-center font-black text-primary text-xs sm:text-sm py-3 px-2 bg-primary/5 min-w-[52px] border-l border-border">
                             점수
                           </TableHead>
-                          <TableHead className="min-w-[56px] py-3 bg-muted/60"></TableHead>
+                          <TableHead className="min-w-[56px] py-3 bg-muted/60" data-copy-ignore></TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -792,7 +798,7 @@ export default function Dashboard() {
                                 {team.totalScore}
                               </span>
                             </TableCell>
-                            <TableCell className="pr-2 py-2.5">
+                            <TableCell className="pr-2 py-2.5" data-copy-ignore>
                               <div className="flex items-center justify-end gap-0.5">
                               {canEditSafetyScores && (
                                 <>
