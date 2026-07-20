@@ -1102,6 +1102,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
   const [statusErr, setStatusErr] = useState(false);
   const [heatActive, setHeatActive] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [stats, setStats] = useState<{maxFeels:number;avgTemp:number;avgHum:number;maxLoc:string;count:number}|null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const daeguRef = useRef<HTMLDivElement>(null);
@@ -1174,7 +1175,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
       if (entry.sprite) entry.sprite.position.y = entry.baseDepth + 10;
     });
     weatherRef.current = {};
-    setHeatActive(false); setStatusMsg(""); setStatusErr(false);
+    setHeatActive(false); setStatusMsg(""); setStatusErr(false); setStats(null);
     if (fileRef.current) fileRef.current.value = "";
   }
 
@@ -1222,6 +1223,17 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
         dominantHeatLevel,
       });
     }
+    if (matched > 0) {
+      const allWeathers2 = Object.values(peak);
+      const temps2 = allWeathers2.map(w=>w.temp).filter((v): v is number => v!==null);
+      const hums2 = allWeathers2.map(w=>w.hum).filter((v): v is number => v!==null);
+      setStats({
+        maxFeels: maxT,
+        avgTemp: temps2.length ? Math.round((temps2.reduce((a,b)=>a+b,0)/temps2.length)*10)/10 : 0,
+        avgHum: hums2.length ? Math.round(hums2.reduce((a,b)=>a+b,0)/hums2.length) : 0,
+        maxLoc, count: matched,
+      });
+    }
     return { count: matched, maxLoc, maxT };
   }
 
@@ -1257,64 +1269,121 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
   return (
     <div className="border rounded-xl bg-card shadow-sm overflow-hidden">
       {/* 툴팁 */}
-      <div ref={tooltipRef} style={{position:'fixed',pointerEvents:'none',zIndex:9999,background:'rgba(18,22,30,0.96)',color:'#f0f3f7',padding:'8px 12px',borderRadius:7,fontSize:13,fontWeight:600,border:'1px solid rgba(255,255,255,0.12)',display:'none',transform:'translate(-50%,-130%)',boxShadow:'0 6px 16px rgba(0,0,0,0.35)',maxWidth:240,lineHeight:1.5}} />
-      <style>{`.tt-sub{display:block;font-size:10px;font-weight:400;color:#9aa5b3;margin-top:2px}.tt-weather{display:block;font-size:11px;font-weight:600;color:#ffd9a0;margin-top:4px}`}</style>
-      {/* 헤더 */}
+      <div ref={tooltipRef} style={{position:'fixed',pointerEvents:'none',zIndex:9999,background:'rgba(18,22,30,0.96)',color:'#f0f3f7',padding:'8px 14px',borderRadius:8,fontSize:13,fontWeight:600,border:'1px solid rgba(255,255,255,0.12)',display:'none',transform:'translate(-50%,-130%)',boxShadow:'0 6px 18px rgba(0,0,0,0.4)',maxWidth:260,lineHeight:1.6}} />
+      <style>{`.tt-sub{display:block;font-size:10px;font-weight:400;color:#9aa5b3;margin-top:1px}.tt-weather{display:block;font-size:11.5px;font-weight:600;color:#ffd9a0;margin-top:5px;line-height:1.55}`}</style>
+
+      {/* ─ 헤더 ─ */}
       <div className="px-4 py-2.5 flex items-center justify-between border-b bg-gradient-to-r from-orange-50/80 to-amber-50/60 dark:from-orange-950/20 dark:to-amber-950/10">
         <div className="flex items-center gap-2 flex-wrap">
           <Thermometer className="w-4 h-4 text-orange-500 flex-shrink-0" />
           <span className="font-semibold text-sm">대구·경북 권역별 체감온도 현황</span>
-          {statusMsg && !statusErr && <span className="text-xs text-emerald-600 dark:text-emerald-400">{statusMsg}</span>}
           {statusMsg && statusErr && <span className="text-xs text-red-500">{statusMsg}</span>}
         </div>
         <div className="flex items-center gap-2">
           {loading && <Loader2 className="w-4 h-4 animate-spin text-orange-500" />}
-          {heatActive && <Button size="sm" variant="ghost" className="h-7 text-xs text-slate-400" onClick={resetVisuals}>초기화</Button>}
+          {heatActive && <Button size="sm" variant="ghost" className="h-7 text-xs text-slate-500" onClick={resetVisuals}>초기화</Button>}
           <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={()=>fileRef.current?.click()} data-testid="button-upload-heatmap-csv">
             <FileDown className="w-3.5 h-3.5" />CSV 업로드
           </Button>
           <input ref={fileRef} type="file" accept=".csv,.txt" className="hidden" onChange={handleFile} />
         </div>
       </div>
-      {/* 3D 패널들 */}
-      <div className="flex flex-col gap-3 p-3" style={{background:'#0a0d12'}}>
-        <p className="text-[11px] text-slate-400">드래그 회전 · 휠 확대 · CSV 업로드 시 색상·높이 자동 반영</p>
-        {/* 대구 */}
-        <div className="rounded-xl border border-[#232a35] overflow-hidden" style={{background:'#11151c'}}>
-          <div className="px-3 py-1.5 flex items-center justify-between border-b border-[#232a35]">
-            <span className="text-xs font-semibold text-slate-300">대구광역시</span>
-            <span className="text-[10px] text-slate-500">7구 1군 + 군위군</span>
+
+      {/* ─ 온도·습도 통계 바 (CSV 반영 후) ─ */}
+      {stats && (
+        <div className="px-4 py-2 flex items-center gap-3 flex-wrap border-b" style={{background:'#0f141c'}}>
+          <span className="text-[11px] text-slate-500">{stats.count}개 지역 반영</span>
+          <div className="h-3 w-px bg-slate-700" />
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] text-slate-400">최고 체감온도</span>
+            <span className="text-sm font-bold tabular-nums" style={{color: heatColorHex(stats.maxFeels)}}>{stats.maxFeels}°C</span>
+            <span className="text-[10px] text-slate-500">({stats.maxLoc})</span>
           </div>
-          <div ref={daeguRef} style={{height:380}} />
+          <div className="h-3 w-px bg-slate-700" />
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] text-slate-400">평균 기온</span>
+            <span className="text-sm font-semibold tabular-nums text-amber-400">{stats.avgTemp}°C</span>
+          </div>
+          <div className="h-3 w-px bg-slate-700" />
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] text-slate-400">평균 습도</span>
+            <span className="text-sm font-semibold tabular-nums text-sky-400">{stats.avgHum}%</span>
+          </div>
+          <div className="ml-auto flex items-center gap-2 text-[11px] text-slate-500">
+            <span>체감온도</span>
+            <div style={{width:120,height:8,borderRadius:4,background:'linear-gradient(to right,#3aa0a0,#f2d24b 42%,#f7b733 58%,#f2711c 74%,#e0392b 88%,#8b1e1e)'}} />
+            <span>20→38+°C</span>
+          </div>
         </div>
-        {/* 경북 (울릉 인셋 포함) */}
-        <div className="rounded-xl border border-[#232a35] overflow-hidden" style={{background:'#11151c'}}>
-          <div className="px-3 py-1.5 flex items-center justify-between border-b border-[#232a35]">
-            <span className="text-xs font-semibold text-slate-300">경상북도</span>
-            <span className="text-[10px] text-slate-500">10시 11군 + 울릉군(우측 하단)</span>
+      )}
+
+      {/* ─ 지도 패널 (가로 배치) ─ */}
+      <div className="p-3 flex gap-3" style={{background:'#0a0d12', height:580}}>
+
+        {/* 대구 (왼쪽 ~38%) */}
+        <div className="flex flex-col rounded-xl border border-[#232a35] overflow-hidden" style={{background:'#11151c', flex:'0 0 38%', minWidth:0}}>
+          <div className="px-3 py-1.5 flex items-center justify-between border-b border-[#232a35] flex-shrink-0">
+            <span className="text-xs font-semibold text-slate-300">대구광역시</span>
+            <span className="text-[10px] text-slate-500">8구·군</span>
           </div>
-          <div style={{position:'relative',height:760,background:'#0d1117'}}>
+          <div ref={daeguRef} style={{flex:1, minHeight:0}} />
+          {/* 대구 통계 */}
+          {stats && (
+            <div className="px-3 py-1.5 border-t border-[#232a35] flex-shrink-0 grid grid-cols-3 gap-1">
+              {['중구','동구','서구','남구','북구','수성구','달서구','달성군'].map(n=>{
+                const w = weatherRef.current[n];
+                return w ? (
+                  <div key={n} className="flex items-center justify-between text-[10px]">
+                    <span className="text-slate-500 truncate">{n.replace(/[광역시구군]/g,'')}</span>
+                    <span className="font-bold ml-1 tabular-nums flex-shrink-0" style={{color:heatColorHex(w.feels)}}>{w.feels}°</span>
+                  </div>
+                ) : null;
+              }).filter(Boolean)}
+            </div>
+          )}
+          {!stats && <div className="px-3 py-1.5 border-t border-[#232a35] flex-shrink-0 text-[10px] text-slate-600 text-center">드래그 회전 · 휠 확대</div>}
+        </div>
+
+        {/* 경북 (오른쪽 ~62%, 울릉 인셋 포함) */}
+        <div className="flex flex-col rounded-xl border border-[#232a35] overflow-hidden" style={{background:'#11151c', flex:'1 1 0', minWidth:0}}>
+          <div className="px-3 py-1.5 flex items-center justify-between border-b border-[#232a35] flex-shrink-0">
+            <span className="text-xs font-semibold text-slate-300">경상북도</span>
+            <span className="text-[10px] text-slate-500">21개 시·군 (울릉 인셋)</span>
+          </div>
+          <div style={{position:'relative', flex:1, minHeight:0, background:'#0d1117'}}>
             <div ref={gbRef} style={{position:'absolute',inset:0}} />
             {/* 울릉 인셋 */}
-            <div style={{position:'absolute',bottom:14,right:14,zIndex:4,width:210,height:180,border:'2px dashed #3d4757',borderRadius:10,background:'#0d1117',overflow:'hidden'}}>
-              <div style={{position:'absolute',top:-9,left:10,zIndex:2,background:'#11151c',padding:'0 6px',fontSize:8.5,letterSpacing:'1.5px',color:'#697384'}}>INSET</div>
-              <span style={{position:'absolute',top:6,left:10,zIndex:2,fontSize:11.5,fontWeight:700,color:'#e8ecf1',textShadow:'0 1px 3px rgba(0,0,0,0.6)',pointerEvents:'none'}}>울릉군</span>
+            <div style={{position:'absolute',bottom:12,right:12,zIndex:4,width:190,height:165,border:'2px dashed #3d4757',borderRadius:10,background:'#0d1117',overflow:'hidden'}}>
+              <div style={{position:'absolute',top:-8,left:8,zIndex:2,background:'#11151c',padding:'0 5px',fontSize:8,letterSpacing:'1.5px',color:'#697384'}}>INSET</div>
+              <span style={{position:'absolute',top:5,left:9,zIndex:2,fontSize:10.5,fontWeight:700,color:'#e8ecf1',textShadow:'0 1px 3px rgba(0,0,0,0.6)',pointerEvents:'none'}}>울릉군</span>
               <div ref={ulleungRef} style={{position:'absolute',inset:0}} />
             </div>
           </div>
-          {/* 범례 */}
-          <div className="px-3 py-2 flex items-center gap-4 flex-wrap border-t border-[#232a35]">
-            {!heatActive && <>
-              <div className="flex items-center gap-1.5 text-[11px] text-slate-400"><div className="w-2.5 h-2.5 rounded-sm" style={{background:'#d97a5a'}} />시</div>
-              <div className="flex items-center gap-1.5 text-[11px] text-slate-400"><div className="w-2.5 h-2.5 rounded-sm" style={{background:'#6fae74'}} />군</div>
-            </>}
-            {heatActive && <div className="flex items-center gap-2 text-[11px] text-slate-400">
-              <span>체감온도(°C)</span>
-              <div style={{width:200,height:10,borderRadius:5,background:'linear-gradient(to right,#3aa0a0,#f2d24b 42%,#f7b733 58%,#f2711c 74%,#e0392b 88%,#8b1e1e)'}} />
-              <span>20 → 38+</span>
-            </div>}
+          {/* 경북 하단: 범례 + 주요지역 통계 */}
+          <div className="px-3 py-2 border-t border-[#232a35] flex-shrink-0">
+            {!stats && (
+              <div className="flex items-center gap-4 flex-wrap">
+                <div className="flex items-center gap-1.5 text-[11px] text-slate-400"><div className="w-2.5 h-2.5 rounded-sm" style={{background:'#d97a5a'}} />시</div>
+                <div className="flex items-center gap-1.5 text-[11px] text-slate-400"><div className="w-2.5 h-2.5 rounded-sm" style={{background:'#6fae74'}} />군</div>
+                <span className="text-[10px] text-slate-600 ml-auto">드래그 회전 · 휠 확대</span>
+              </div>
+            )}
+            {stats && (
+              <div className="grid grid-cols-4 gap-x-3 gap-y-0.5">
+                {Object.entries(weatherRef.current)
+                  .filter(([n]) => !['중구','동구','서구','남구','북구','수성구','달서구','달성군'].includes(n))
+                  .sort((a,b) => b[1].feels - a[1].feels)
+                  .map(([name, w]) => (
+                    <div key={name} className="flex items-center justify-between text-[10px]">
+                      <span className="text-slate-500 truncate">{name}</span>
+                      <span className="font-bold ml-1 tabular-nums flex-shrink-0" style={{color:heatColorHex(w.feels)}}>{w.feels}°</span>
+                    </div>
+                  ))}
+              </div>
+            )}
           </div>
         </div>
+
       </div>
     </div>
   );
