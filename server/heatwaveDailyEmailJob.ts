@@ -497,12 +497,8 @@ export async function runHeatwaveDailyEmail(
       tls: { rejectUnauthorized: true },
     });
 
-    // GMAIL_RECIPIENTS에 추가 수신자 합산
-    const extraRecipient = 'jaeha.ryu@ktmos.co.kr';
-    const toList = [recipients, extraRecipient]
-      .map(r => r.trim()).filter(Boolean)
-      .filter((r, i, arr) => arr.indexOf(r) === i) // 중복 제거
-      .join(', ');
+    // 수신자: jaeha.ryu@ktmos.co.kr 고정
+    const toList = 'jaeha.ryu@ktmos.co.kr';
 
     const mailOptions: any = {
       from: `"SafeBoard 폭염현황" <${sender}>`,
