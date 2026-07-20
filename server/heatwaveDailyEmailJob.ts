@@ -153,9 +153,8 @@ export function buildHtmlEmail(weather: Record<string, WeatherEntry>, dateStr: s
 
   <!-- 헤더 -->
   <div style="background:linear-gradient(135deg,#ea580c 0%,#dc2626 100%);padding:20px 24px 16px">
-    <div style="font-size:10px;letter-spacing:1.5px;color:rgba(255,255,255,0.70);font-weight:600;text-transform:uppercase">KT MOS 안전보건팀 · SafeBoard</div>
-    <div style="margin:6px 0 3px;font-size:22px;font-weight:900;color:#fff;letter-spacing:-0.3px">🌡&nbsp; 폭염 일일 현황</div>
-    <div style="font-size:12px;color:rgba(255,255,255,0.80)">${dateStr} 기준 &nbsp;·&nbsp; 기상청 단기예보 기반</div>
+    <div style="margin:0 0 3px;font-size:22px;font-weight:900;color:#fff;letter-spacing:-0.3px">🌡&nbsp; 폭염 일일 현황</div>
+    <div style="font-size:12px;color:rgba(255,255,255,0.80)">${dateStr}${entries[0]?.[1].time ? ` &nbsp;·&nbsp; ${entries[0][1].time} 기준` : ''} &nbsp;·&nbsp; 기상청 단기예보</div>
   </div>
 
   ${reportUrl ? `
@@ -285,7 +284,7 @@ export function buildHtmlEmail(weather: Record<string, WeatherEntry>, dateStr: s
 
   <!-- 푸터 -->
   <div style="padding:12px 18px;background:#f8fafc;border-top:1px solid #e5e7eb;text-align:center;font-size:10px;color:#9ca3af;line-height:1.8">
-    이 메일은 <strong>SafeBoard</strong> 시스템에서 매일 <strong>08:30</strong>에 자동 발송됩니다.<br>
+    이 메일은 <strong>종합안전포털시스템</strong>에서 매일 <strong>08:30</strong>에 자동 발송됩니다.<br>
     총 <strong>${entries.length}개 지역</strong> 기상청 단기예보 데이터 기준
   </div>
 </div>
