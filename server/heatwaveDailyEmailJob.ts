@@ -230,7 +230,7 @@ const ZONE_TO_CSV: Record<string, string> = {
 };
 
 // ── Excel 첨부 빌드 (CSV 형식: 권역/지역/예보일자/예보시간/기온/습도/체감온도/폭염단계) ──
-async function buildExcelBuffer(weather: Record<string, WeatherEntry>, dateStr: string, dateDash: string): Promise<Buffer | null> {
+export async function buildExcelBuffer(weather: Record<string, WeatherEntry>, dateStr: string, dateDash: string): Promise<Buffer | null> {
   try {
     const ExcelJS = (await import('exceljs')).default;
 

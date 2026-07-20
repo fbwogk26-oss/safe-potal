@@ -1641,9 +1641,19 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef }: { onDataPa
   }
 
   async function handleDownloadWeather() {
+    if (!weatherRef.current || Object.keys(weatherRef.current).length === 0) {
+      setStatusErr(true);
+      setStatusMsg('날씨 데이터가 없습니다. 실시간 날씨 또는 CSV 업로드 후 저장해 주세요.');
+      return;
+    }
     setLoading(true);
     try {
-      const resp = await fetch('/api/heatwave-map/export', { credentials: 'include' });
+      const resp = await fetch('/api/heatwave-daily-email/export-excel', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ weather: weatherRef.current }),
+      });
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({ message: '다운로드 실패' }));
         throw new Error(err.message);
@@ -1733,9 +1743,6 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef }: { onDataPa
           )}
           <Button size="sm" variant="default" className="h-7 text-xs gap-1 px-2 sm:px-3 bg-sky-600 hover:bg-sky-700 text-white" onClick={handleAutoWeather} disabled={loading} data-testid="button-auto-weather">
             <RefreshCw className="w-3.5 h-3.5" /><span className="hidden sm:inline">실시간 날씨</span>
-          </Button>
-          <Button size="sm" variant="outline" className="h-7 text-xs gap-1 px-2 sm:px-3" onClick={()=>fileRef.current?.click()} data-testid="button-upload-heatmap-csv">
-            <FileDown className="w-3.5 h-3.5" /><span className="hidden sm:inline">CSV 업로드</span>
           </Button>
           <input ref={fileRef} type="file" accept=".csv,.txt" className="hidden" onChange={handleFile} />
         </div>
@@ -2138,18 +2145,6 @@ export default function HeatWaveChecklist() {
           </h1>
           <p className="text-sm text-muted-foreground mt-1 hidden sm:block">폭염 단계별 조치사항을 일별로 기록·관리합니다</p>
         </div>
-        <Button
-          onClick={() => {
-            if (checklistTriggerRef.current) {
-              checklistTriggerRef.current();
-            } else {
-              setShowForm(true);
-            }
-          }}
-          data-testid="button-new-checklist"
-        >
-          <Plus className="w-4 h-4 sm:mr-1" /><span className="hidden sm:inline"> 체크리스트 작성</span>
-        </Button>
       </div>
 
       {/* 대구·경북 체감온도 지도 */}

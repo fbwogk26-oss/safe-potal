@@ -14831,6 +14831,28 @@ ${result.value}
     }
   });
 
+  // 메일 첨부와 동일한 포맷의 엑셀 다운로드
+  app.post('/api/heatwave-daily-email/export-excel', isAuthenticated, async (req, res) => {
+    try {
+      const { buildExcelBuffer } = await import('./heatwaveDailyEmailJob');
+      const weather = req.body?.weather;
+      if (!weather || typeof weather !== 'object' || Object.keys(weather).length === 0) {
+        return res.status(422).json({ message: '날씨 데이터가 없습니다. 실시간 날씨 또는 CSV 업로드 후 시도해 주세요.' });
+      }
+      const now = new Date();
+      const dateStr = now.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' });
+      const dateDash = now.toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\.\s*/g, '-').replace(/-$/, '');
+      const buf = await buildExcelBuffer(weather, dateStr, dateDash);
+      if (!buf) return res.status(500).json({ message: '엑셀 생성 실패' });
+      const fileDate = dateDash.replace(/-/g, '');
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''%ED%8F%AD%EC%97%BC%ED%98%84%ED%99%A9_${fileDate}.xlsx`);
+      res.send(buf);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   // 정의되지 않은 /api 경로 → SPA index.html로 폴백되지 않도록 명시적 JSON 404 반환
   app.use('/api', (req, res) => {
     res.status(404).json({ message: '요청하신 API를 찾을 수 없습니다' });
