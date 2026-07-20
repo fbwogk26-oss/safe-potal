@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "xsSPDisKLnaPll79_UhCo"
+uri = "file://SafeBoard_사용설명서.pptx"
+type = "slides"
+title = "SafeBoard 사용설명서.pptx"
