@@ -31,7 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Plus, Trash2, Eye, Thermometer, Sun, Mail, Loader2, PenLine, RotateCcw, FileDown, FileText, Pencil, RefreshCw, Save, X, Send } from "lucide-react";
+import { Plus, Trash2, Eye, Thermometer, Sun, Mail, Loader2, PenLine, RotateCcw, FileDown, FileText, Pencil, RefreshCw, X, Send } from "lucide-react";
 import type { HeatWaveChecklist } from "@shared/schema";
 import { format } from "date-fns";
 
@@ -568,10 +568,6 @@ function ChecklistForm({
 }) {
   const { toast } = useToast();
   const [form, setForm] = useState<FormData>(initial);
-  const [emlParsing, setEmlParsing] = useState(false);
-  const [emlSummary, setEmlSummary] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
   const set = (k: keyof FormData, v: any) => setForm((f) => ({ ...f, [k]: v }));
 
   const setCheck = (field: "checks31" | "checks33" | "checks35" | "checks38", idx: number, val: boolean) => {
@@ -582,85 +578,8 @@ function ChecklistForm({
     });
   };
 
-  const handleEmlFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.name.toLowerCase().endsWith('.eml')) {
-      toast({ title: ".eml 파일만 업로드 가능합니다", variant: "destructive" });
-      return;
-    }
-    setEmlParsing(true);
-    setEmlSummary(null);
-    try {
-      const fd = new FormData();
-      fd.append("eml", file);
-      const resp = await fetch("/api/heat-wave-checklists/parse-email", {
-        method: "POST",
-        body: fd,
-        credentials: "include",
-      });
-      const data = await resp.json();
-      if (!resp.ok) throw new Error(data.message || "파싱 실패");
-      setForm((f) => ({
-        ...f,
-        checkDate: data.checkDate || f.checkDate,
-        targetArea: data.targetArea || f.targetArea,
-        currentTemperature: data.currentTemperature?.toString() ?? f.currentTemperature,
-        currentHumidity: data.currentHumidity?.toString() ?? f.currentHumidity,
-        currentFeelsLike: data.currentFeelsLike?.toString() ?? f.currentFeelsLike,
-        maxFeelsLikeForecast: data.maxFeelsLikeForecast?.toString() ?? f.maxFeelsLikeForecast,
-        heatAlertStatus: data.heatAlertStatus || f.heatAlertStatus,
-      }));
-      setEmlSummary(data.summary || "기상 데이터가 자동으로 입력되었습니다");
-      toast({ title: "이메일에서 기상 데이터를 불러왔습니다" });
-    } catch (err: any) {
-      toast({ title: err.message || "이메일 파싱 실패", variant: "destructive" });
-    } finally {
-      setEmlParsing(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    }
-  };
-
   return (
     <div className="space-y-4">
-      {/* 이메일에서 불러오기 */}
-      {!readOnly && (
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 p-3 rounded-lg border border-dashed border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-950/20">
-          <Mail className="w-4 h-4 text-blue-500 flex-shrink-0" />
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium text-blue-700 dark:text-blue-300">이메일에서 기상 데이터 자동 입력</p>
-            {emlSummary ? (
-              <p className="text-xs text-blue-600 dark:text-blue-400 mt-0.5 truncate">{emlSummary}</p>
-            ) : (
-              <p className="text-xs text-muted-foreground mt-0.5">「권역별 체감온도 안내」 .eml 파일을 올리면 기온·습도·체감온도를 자동으로 채웁니다</p>
-            )}
-          </div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".eml"
-            className="hidden"
-            onChange={handleEmlFile}
-            data-testid="input-eml-file"
-          />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={emlParsing}
-            onClick={() => fileInputRef.current?.click()}
-            className="flex-shrink-0 w-full sm:w-auto text-blue-600 border-blue-300 hover:bg-blue-50 dark:text-blue-400 dark:border-blue-700"
-            data-testid="button-load-email"
-          >
-            {emlParsing ? (
-              <><Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> 분석 중...</>
-            ) : (
-              <><Mail className="w-3.5 h-3.5 mr-1" /> .eml 불러오기</>
-            )}
-          </Button>
-        </div>
-      )}
-
       {/* 기본 정보 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="space-y-1">
@@ -988,12 +907,10 @@ type ParsedCSVData = {
 
 
 
-function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEmail, onSaveMap, mapSaving, previewLoading, mapCaptureRef }: {
+function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEmail, previewLoading, mapCaptureRef }: {
   onDataParsed?: (d: ParsedCSVData) => void;
   checklistTriggerRef?: React.MutableRefObject<(() => void) | null>;
   onPreviewEmail?: () => void;
-  onSaveMap?: () => void;
-  mapSaving?: boolean;
   previewLoading?: boolean;
   mapCaptureRef?: React.MutableRefObject<(() => string | null) | null>;
 }) {
@@ -1532,12 +1449,6 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
               <FileDown className="w-3.5 h-3.5" /><span className="hidden sm:inline">엑셀 저장</span>
             </Button>
           )}
-          {heatActive && onSaveMap && (
-            <Button size="sm" variant="outline" className="h-7 text-xs gap-1 px-2 sm:px-3 border-teal-400 text-teal-700 hover:bg-teal-50 dark:text-teal-400 dark:hover:bg-teal-950/30" onClick={onSaveMap} disabled={mapSaving} data-testid="button-save-map">
-              {mapSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-              <span className="hidden sm:inline">지도 저장</span>
-            </Button>
-          )}
           {heatActive && onPreviewEmail && (
             <Button size="sm" variant="outline" className="h-7 text-xs gap-1 px-2 sm:px-3 border-purple-400 text-purple-700 hover:bg-purple-50 dark:text-purple-400 dark:hover:bg-purple-950/30" onClick={onPreviewEmail} disabled={previewLoading} data-testid="button-preview-email">
               {previewLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Eye className="w-3.5 h-3.5" />}
@@ -1825,8 +1736,7 @@ export default function HeatWaveChecklist() {
   const [previewLoading, setPreviewLoading] = useState(false);
   // 현재 지도 날씨 데이터 (미리보기·저장용)
   const [currentWeatherForAction, setCurrentWeatherForAction] = useState<Record<string, any> | null>(null);
-  // 지도 저장 중
-  const [mapSaving, setMapSaving] = useState(false);
+
 
   const handleDownloadPDF = async (record: HeatWaveChecklist) => {
     setPdfViewing(record);
@@ -1977,29 +1887,6 @@ export default function HeatWaveChecklist() {
     }
   };
 
-  // 현재 폭염지도 저장
-  const handleSaveMapData = async () => {
-    if (!currentWeatherForAction || Object.keys(currentWeatherForAction).length === 0) {
-      toast({ title: '저장할 날씨 데이터가 없습니다', description: '실시간 날씨 조회 또는 CSV 업로드 먼저 해주세요.', variant: 'destructive' });
-      return;
-    }
-    setMapSaving(true);
-    try {
-      const resp = await fetch('/api/heatwave-map/data', {
-        method: 'PUT',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ weather: currentWeatherForAction, savedAt: new Date().toISOString(), source: '수동 저장' }),
-      });
-      if (!resp.ok) throw new Error('저장 실패');
-      toast({ title: '폭염지도 데이터가 저장되었습니다', description: `${Object.keys(currentWeatherForAction).length}개 지역 저장 완료` });
-    } catch (e: any) {
-      toast({ title: '저장 실패', description: e.message, variant: 'destructive' });
-    } finally {
-      setMapSaving(false);
-    }
-  };
-
   const handleDelete = (id: number) => {
     if (confirm("이 체크리스트를 삭제하시겠습니까?")) {
       deleteMutation.mutate(id);
@@ -2033,8 +1920,6 @@ export default function HeatWaveChecklist() {
         onDataParsed={handleCsvParsed}
         checklistTriggerRef={checklistTriggerRef}
         onPreviewEmail={handlePreviewEmail}
-        onSaveMap={handleSaveMapData}
-        mapSaving={mapSaving}
         previewLoading={previewLoading}
         mapCaptureRef={mapCaptureRef}
       />
