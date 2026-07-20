@@ -1199,7 +1199,16 @@ function initThreePanel(
   return { scene, camera, renderer, tick, cleanup };
 }
 
+type RegionKey = 'daegubuk' | 'chungcheong' | 'honam' | 'buulgyeong';
+const REGION_TABS: { key: RegionKey; label: string; sub: string }[] = [
+  { key: 'daegubuk',    label: '대구·경북', sub: '대구·경북' },
+  { key: 'chungcheong', label: '충청권',    sub: '대전·세종·충북·충남' },
+  { key: 'honam',       label: '호남권',    sub: '광주·전북·전남·제주' },
+  { key: 'buulgyeong',  label: '부울경',    sub: '부산·울산·경남' },
+];
+
 function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVData) => void }) {
+  const [selectedRegion, setSelectedRegion] = useState<RegionKey>('daegubuk');
   const [statusMsg, setStatusMsg] = useState("");
   const [statusErr, setStatusErr] = useState(false);
   const [heatActive, setHeatActive] = useState(false);
@@ -1222,21 +1231,57 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
   const daeguRef = useRef<HTMLDivElement>(null);
   const gbRef = useRef<HTMLDivElement>(null);
   const ulleungRef = useRef<HTMLDivElement>(null);
+  const chungcheongRef = useRef<HTMLDivElement>(null);
+  const honamRef = useRef<HTMLDivElement>(null);
+  const jejuRef = useRef<HTMLDivElement>(null);
+  const buulgyeongRef = useRef<HTMLDivElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const panelsRef = useRef<ThreePanel[]>([]);
   const rafRef = useRef<number>(0);
   const registryRef = useRef<Record<string, RegionEntry>>({});
   const weatherRef = useRef<Record<string, RegionWeather>>({});
-  const mapDataRef = useRef<{ gb: MapRegion[]; daegu: MapRegion[]; ulleung: MapRegion[] } | null>(null);
+  const mapDataRef = useRef<{
+    gb: MapRegion[]; daegu: MapRegion[]; ulleung: MapRegion[];
+    chungcheong: MapRegion[]; honam: MapRegion[]; jeju: MapRegion[]; buulgyeong: MapRegion[];
+  } | null>(null);
   const [mapReady, setMapReady] = useState(false);
 
   const CSV_NAME_MAP: Record<string, string[]> = {
+    // 대구·경북
     '포항':['포항시'],'경주':['경주시'],'김천':['김천시'],'안동':['안동시'],'구미':['구미시'],
     '영주':['영주시'],'영천':['영천시'],'상주':['상주시'],'문경':['문경시'],'경산':['경산시'],
     '의성':['의성군'],'청송':['청송군'],'영양':['영양군'],'영덕':['영덕군'],'청도':['청도군'],
     '고령':['고령군'],'성주':['성주군'],'칠곡':['칠곡군'],'예천':['예천군'],'봉화':['봉화군'],
     '울진':['울진군'],'울릉':['울릉군'],'군위':['군위군'],
     '대구':['중구','동구','서구','남구','북구','수성구','달서구','달성군'],
+    // 충청권
+    '대전':['대전'],'세종':['세종'],
+    '청주':['청주시'],'충주':['충주시'],'제천':['제천시'],
+    '보은':['보은군'],'옥천':['옥천군'],'영동':['영동군'],'증평':['증평군'],
+    '진천':['진천군'],'괴산':['괴산군'],'음성':['음성군'],'단양':['단양군'],
+    '천안':['천안시'],'공주':['공주시'],'보령':['보령시'],'아산':['아산시'],
+    '서산':['서산시'],'논산':['논산시'],'계룡':['계룡시'],'당진':['당진시'],
+    '금산':['금산군'],'부여':['부여군'],'서천':['서천군'],'청양':['청양군'],
+    '홍성':['홍성군'],'예산':['예산군'],'태안':['태안군'],
+    // 호남권
+    '광주':['광주'],
+    '전주':['전주시'],'군산':['군산시'],'익산':['익산시'],'정읍':['정읍시'],
+    '남원':['남원시'],'김제':['김제시'],
+    '완주':['완주군'],'진안':['진안군'],'무주':['무주군'],'장수':['장수군'],
+    '임실':['임실군'],'순창':['순창군'],'고창':['고창군'],'부안':['부안군'],
+    '목포':['목포시'],'여수':['여수시'],'순천':['순천시'],'나주':['나주시'],'광양':['광양시'],
+    '담양':['담양군'],'곡성':['곡성군'],'구례':['구례군'],'고흥':['고흥군'],
+    '보성':['보성군'],'화순':['화순군'],'장흥':['장흥군'],'강진':['강진군'],
+    '해남':['해남군'],'영암':['영암군'],'무안':['무안군'],'함평':['함평군'],
+    '영광':['영광군'],'장성':['장성군'],'완도':['완도군'],'진도':['진도군'],'신안':['신안군'],
+    '제주':['제주시'],'서귀포':['서귀포시'],
+    // 부울경
+    '부산':['부산'],'울산':['울산'],'창원':['창원시'],
+    '진주':['진주시'],'통영':['통영시'],'사천':['사천시'],'김해':['김해시'],
+    '밀양':['밀양시'],'거제':['거제시'],'양산':['양산시'],
+    '의령':['의령군'],'함안':['함안군'],'창녕':['창녕군'],
+    '고성':['고성군'],'남해':['남해군'],'하동':['하동군'],
+    '산청':['산청군'],'함양':['함양군'],'거창':['거창군'],'합천':['합천군'],
   };
 
   useEffect(() => {
@@ -1244,41 +1289,78 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
       fetch('/map-data-gb.json').then(r=>r.json()),
       fetch('/map-data-daegu.json').then(r=>r.json()),
       fetch('/map-data-ulleung.json').then(r=>r.json()),
-    ]).then(([gb,daegu,ulleung]) => { mapDataRef.current={gb,daegu,ulleung}; setMapReady(true); });
+      fetch('/map-data-chungcheong.json').then(r=>r.json()),
+      fetch('/map-data-honam.json').then(r=>r.json()),
+      fetch('/map-data-jeju.json').then(r=>r.json()),
+      fetch('/map-data-buulgyeong.json').then(r=>r.json()),
+    ]).then(([gb,daegu,ulleung,chungcheong,honam,jeju,buulgyeong]) => {
+      mapDataRef.current={gb,daegu,ulleung,chungcheong,honam,jeju,buulgyeong};
+      setMapReady(true);
+    });
   }, []);
 
   useEffect(() => {
-    if (!mapReady || !daeguRef.current || !gbRef.current || !ulleungRef.current) return;
+    if (!mapReady) return;
     cancelAnimationFrame(rafRef.current);
     panelsRef.current.forEach(p=>p.cleanup());
     panelsRef.current = [];
     registryRef.current = {};
-    const {gb,daegu,ulleung} = mapDataRef.current!;
+    const d = mapDataRef.current!;
     const tt = tooltipRef.current;
     const handleClick = (name: string, weather: RegionWeather | null) => setSelectedInfo({name, weather});
-    const p1 = initThreePanel(daeguRef.current, daegu, {height:22,bevel:1.8,radius:900,theta:Math.PI*0.25,phi:Math.PI*0.27,baseRadius:900,fogNear:1200,fogFar:3000,sun:[320,480,220],labels:true,fontSize:28,spin:false}, registryRef.current, tt, weatherRef, handleClick);
-    const p2 = initThreePanel(gbRef.current, gb, {height:28,bevel:2.2,radius:1180,theta:Math.PI*0.25,phi:Math.PI*0.27,baseRadius:1200,fogNear:1500,fogFar:3800,sun:[420,620,280],labels:true,fontSize:38,spin:false}, registryRef.current, tt, weatherRef, handleClick);
-    const p3 = initThreePanel(ulleungRef.current, ulleung, {height:14,bevel:0.8,radius:320,theta:Math.PI*0.25,phi:Math.PI*0.25,baseRadius:260,fogNear:280,fogFar:900,sun:[140,200,90],labels:true,fontSize:26,spin:false}, registryRef.current, tt, weatherRef, handleClick);
-    panelsRef.current = [p1,p2,p3];
+
+    let newPanels: ThreePanel[] = [];
+
+    if (selectedRegion === 'daegubuk') {
+      if (!daeguRef.current || !gbRef.current || !ulleungRef.current) return;
+      newPanels = [
+        initThreePanel(daeguRef.current,   d.daegu,   {height:22,bevel:1.8,radius:900, theta:Math.PI*0.25,phi:Math.PI*0.27,baseRadius:900, fogNear:1200,fogFar:3000,sun:[320,480,220],labels:true,fontSize:28,spin:false}, registryRef.current, tt, weatherRef, handleClick),
+        initThreePanel(gbRef.current,      d.gb,      {height:28,bevel:2.2,radius:1180,theta:Math.PI*0.25,phi:Math.PI*0.27,baseRadius:1200,fogNear:1500,fogFar:3800,sun:[420,620,280],labels:true,fontSize:38,spin:false}, registryRef.current, tt, weatherRef, handleClick),
+        initThreePanel(ulleungRef.current, d.ulleung, {height:14,bevel:0.8,radius:320, theta:Math.PI*0.25,phi:Math.PI*0.25,baseRadius:260, fogNear:280, fogFar:900, sun:[140,200,90], labels:true,fontSize:26,spin:false}, registryRef.current, tt, weatherRef, handleClick),
+      ];
+    } else if (selectedRegion === 'chungcheong') {
+      if (!chungcheongRef.current) return;
+      newPanels = [
+        initThreePanel(chungcheongRef.current, d.chungcheong, {height:24,bevel:2.0,radius:1150,theta:Math.PI*0.25,phi:Math.PI*0.27,baseRadius:1150,fogNear:1400,fogFar:3500,sun:[380,570,260],labels:true,fontSize:34,spin:false}, registryRef.current, tt, weatherRef, handleClick),
+      ];
+    } else if (selectedRegion === 'honam') {
+      if (!honamRef.current || !jejuRef.current) return;
+      newPanels = [
+        initThreePanel(honamRef.current, d.honam, {height:24,bevel:2.0,radius:1150,theta:Math.PI*0.25,phi:Math.PI*0.27,baseRadius:1150,fogNear:1400,fogFar:3500,sun:[380,570,260],labels:true,fontSize:34,spin:false}, registryRef.current, tt, weatherRef, handleClick),
+        initThreePanel(jejuRef.current,  d.jeju,  {height:18,bevel:1.2,radius:320, theta:Math.PI*0.25,phi:Math.PI*0.25,baseRadius:300, fogNear:350, fogFar:900, sun:[140,200,90], labels:true,fontSize:28,spin:false}, registryRef.current, tt, weatherRef, handleClick),
+      ];
+    } else if (selectedRegion === 'buulgyeong') {
+      if (!buulgyeongRef.current) return;
+      newPanels = [
+        initThreePanel(buulgyeongRef.current, d.buulgyeong, {height:22,bevel:1.8,radius:950,theta:Math.PI*0.25,phi:Math.PI*0.27,baseRadius:950,fogNear:1200,fogFar:3000,sun:[320,480,220],labels:true,fontSize:32,spin:false}, registryRef.current, tt, weatherRef, handleClick),
+      ];
+    }
+
+    panelsRef.current = newPanels;
     function animate() { rafRef.current=requestAnimationFrame(animate); panelsRef.current.forEach(p=>{p.tick();p.renderer.render(p.scene,p.camera);}); }
     animate();
-    // 이전 데이터 복원 — 서버(DB)에서 로드 (기기 간 공유)
+
+    // 이전 데이터 복원 — 서버(DB)에서 로드
     fetch('/api/heatwave-map/data', { credentials: 'include' })
       .then(r => r.json())
       .then(json => {
         if (json?.data?.weather && Object.keys(json.data.weather).length > 0) {
           weatherRef.current = json.data.weather;
           Object.entries(json.data.weather).forEach(([n, info]) => updateRegionVisual(n, info as RegionWeather));
-          setHeatActive(true);
-          setWeatherData({...json.data.weather});
-          if (json.data.stats) setStats(json.data.stats);
-          if (json.data.autoUpdatedAt) setAutoUpdatedAt(json.data.autoUpdatedAt);
-          if (json.data.source) setAutoSource(json.data.source);
+          // 현재 권역의 데이터만 stats 계산
+          const regionEntries = Object.entries(json.data.weather).filter(([n]) => !!registryRef.current[n]);
+          if (regionEntries.length > 0) {
+            setHeatActive(true);
+            setWeatherData({...json.data.weather});
+            if (json.data.stats) setStats(json.data.stats);
+            if (json.data.autoUpdatedAt) setAutoUpdatedAt(json.data.autoUpdatedAt);
+            if (json.data.source) setAutoSource(json.data.source);
+          }
         }
       })
       .catch(() => {});
     return () => { cancelAnimationFrame(rafRef.current); panelsRef.current.forEach(p=>p.cleanup()); panelsRef.current=[]; };
-  }, [mapReady]);
+  }, [mapReady, selectedRegion]);
 
   function updateRegionVisual(name: string, info: RegionWeather) {
     const entry = registryRef.current[name];
@@ -1294,7 +1376,9 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
 
   function resetVisuals() {
     if (!mapDataRef.current) return;
-    [...mapDataRef.current.daegu, ...mapDataRef.current.gb, ...mapDataRef.current.ulleung].forEach(region => {
+    const d = mapDataRef.current;
+    const allRegions = [...d.daegu, ...d.gb, ...d.ulleung, ...d.chungcheong, ...d.honam, ...d.jeju, ...d.buulgyeong];
+    allRegions.forEach(region => {
       const entry = registryRef.current[region.name];
       if (!entry) return;
       const col = new THREE.Color(region.color);
@@ -1323,7 +1407,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
     const kStage = findKey(headers,['폭염단계']); const kTime = findKey(headers,['예보시간','관측시간','시간']);
     const kGroup = findKey(headers,['권역']);
     if (!kLoc || !kFeels) return { count: 0, error: '지역/체감온도 컬럼을 찾을 수 없어요' };
-    const filtered = kGroup ? rows.filter(r=>(r[kGroup]||'').includes('대구')||(r[kGroup]||'').includes('경북')) : rows;
+    const filtered = rows;
     const peak: Record<string, RegionWeather> = {};
     filtered.forEach(r => {
       const loc=r[kLoc], t=parseFloat(r[kFeels]);
@@ -1457,7 +1541,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
     setLoading(true);
     setStatusMsg('');
     try {
-      const resp = await fetch('/api/weather/current-heat', { credentials: 'include' });
+      const resp = await fetch(`/api/weather/current-heat?region=${selectedRegion}`, { credentials: 'include' });
       const json = await resp.json();
       if (!json.ok) throw new Error(json.message);
       applyAutoWeatherData(json.data);
@@ -1481,7 +1565,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
       <div className="px-3 sm:px-4 py-2.5 flex flex-wrap items-center justify-between gap-y-1.5 border-b bg-gradient-to-r from-orange-50/80 to-amber-50/60 dark:from-orange-950/20 dark:to-amber-950/10">
         <div className="flex items-center gap-2 min-w-0">
           <Thermometer className="w-4 h-4 text-orange-500 flex-shrink-0" />
-          <span className="font-semibold text-xs sm:text-sm truncate">대구·경북 권역별 체감온도</span>
+          <span className="font-semibold text-xs sm:text-sm truncate">권역별 체감온도 3D 지도</span>
           {autoUpdatedAt && (
             <span className="hidden sm:inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 font-medium whitespace-nowrap">
               {autoSource?.includes('자동') ? '🕘 09:00 자동' : '🔄 수동'}
@@ -1514,7 +1598,28 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
         </div>
       </div>
 
-      {/* ─ 온도·습도 통계 바 (CSV 반영 후) ─ */}
+      {/* ─ 권역 탭 ─ */}
+      <div className="flex border-b" style={{background:'#0d1117'}}>
+        {REGION_TABS.map(tab => (
+          <button
+            key={tab.key}
+            onClick={() => { setSelectedRegion(tab.key); setSelectedInfo(null); setStatusMsg(''); }}
+            data-testid={`tab-region-${tab.key}`}
+            style={{
+              flex:1, padding:'8px 4px', fontSize:12, fontWeight:600,
+              color: selectedRegion === tab.key ? '#f97316' : '#6b7280',
+              borderBottom: selectedRegion === tab.key ? '2px solid #f97316' : '2px solid transparent',
+              background:'transparent', cursor:'pointer', transition:'color 0.15s',
+              whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis',
+            }}
+          >
+            <span className="block">{tab.label}</span>
+            <span style={{display:'block',fontSize:9,fontWeight:400,color: selectedRegion===tab.key ? '#fb923c' : '#4b5563',marginTop:1}}>{tab.sub}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* ─ 온도·습도 통계 바 (데이터 반영 후) ─ */}
       {stats && (
         <div className="px-3 sm:px-4 py-2 flex flex-wrap items-center gap-x-3 gap-y-1 border-b" style={{background:'#0f141c'}}>
           <div className="flex items-center gap-1.5">
@@ -1547,53 +1652,94 @@ function DaeguGyeongbukHeatMap({ onDataParsed }: { onDataParsed?: (d: ParsedCSVD
           flexDirection: isMobile ? 'column' : 'row',
         }}>
 
-        {/* 대구 */}
-        <div className="flex flex-col rounded-xl border border-[#232a35] overflow-hidden"
-          style={{
-            background:'#11151c',
-            flex: isMobile ? 'none' : '0 0 38%',
-            height: isMobile ? 260 : undefined,
-            minWidth: 0,
-          }}>
-          <div className="px-3 py-1.5 flex items-center justify-between border-b border-[#232a35] flex-shrink-0">
-            <span className="text-xs font-semibold text-slate-300">대구광역시</span>
-            <span className="text-[10px] text-slate-500">클릭하면 상세 보기</span>
-          </div>
-          <div style={{position:'relative', flex:1, minHeight:0}}>
-            <div ref={daeguRef} style={{position:'absolute',inset:0}} />
-            {/* 대구 선택 카드 */}
-            {selectedInfo && ['중구','동구','서구','남구','북구','수성구','달서구','달성군'].includes(selectedInfo.name) && (
-              <RegionInfoCard info={selectedInfo} onClose={()=>setSelectedInfo(null)} heatColorFn={heatColorHex} />
-            )}
-          </div>
-        </div>
-
-        {/* 경북 (울릉 인셋 포함) */}
-        <div className="flex flex-col rounded-xl border border-[#232a35] overflow-hidden"
-          style={{
-            background:'#11151c',
-            flex: isMobile ? 'none' : '1 1 0',
-            height: isMobile ? 360 : undefined,
-            minWidth: 0,
-          }}>
-          <div className="px-3 py-1.5 flex items-center justify-between border-b border-[#232a35] flex-shrink-0">
-            <span className="text-xs font-semibold text-slate-300">경상북도</span>
-            <span className="text-[10px] text-slate-500">클릭하면 상세 보기</span>
-          </div>
-          <div style={{position:'relative', flex:1, minHeight:0, background:'#0d1117'}}>
-            <div ref={gbRef} style={{position:'absolute',inset:0}} />
-            {/* 울릉 인셋 */}
-            <div style={{position:'absolute',bottom:8,right:8,zIndex:4,width: isMobile ? 130 : 190,height: isMobile ? 115 : 165,border:'2px dashed #3d4757',borderRadius:10,background:'#0d1117',overflow:'hidden'}}>
-              <div style={{position:'absolute',top:-8,left:8,zIndex:2,background:'#11151c',padding:'0 5px',fontSize:8,letterSpacing:'1.5px',color:'#697384'}}>INSET</div>
-              <span style={{position:'absolute',top:5,left:9,zIndex:2,fontSize:10.5,fontWeight:700,color:'#e8ecf1',textShadow:'0 1px 3px rgba(0,0,0,0.6)',pointerEvents:'none'}}>울릉군</span>
-              <div ref={ulleungRef} style={{position:'absolute',inset:0}} />
+        {/* 대구·경북 */}
+        {selectedRegion === 'daegubuk' && (<>
+          {/* 대구 */}
+          <div className="flex flex-col rounded-xl border border-[#232a35] overflow-hidden"
+            style={{ background:'#11151c', flex: isMobile ? 'none' : '0 0 38%', height: isMobile ? 260 : undefined, minWidth: 0 }}>
+            <div className="px-3 py-1.5 flex items-center justify-between border-b border-[#232a35] flex-shrink-0">
+              <span className="text-xs font-semibold text-slate-300">대구광역시</span>
+              <span className="text-[10px] text-slate-500">클릭하면 상세 보기</span>
             </div>
-            {/* 경북 선택 카드 */}
-            {selectedInfo && !['중구','동구','서구','남구','북구','수성구','달서구','달성군'].includes(selectedInfo.name) && (
-              <RegionInfoCard info={selectedInfo} onClose={()=>setSelectedInfo(null)} heatColorFn={heatColorHex} />
-            )}
+            <div style={{position:'relative', flex:1, minHeight:0}}>
+              <div ref={daeguRef} style={{position:'absolute',inset:0}} />
+              {selectedInfo && ['중구','동구','서구','남구','북구','수성구','달서구','달성군'].includes(selectedInfo.name) && (
+                <RegionInfoCard info={selectedInfo} onClose={()=>setSelectedInfo(null)} heatColorFn={heatColorHex} />
+              )}
+            </div>
           </div>
-        </div>
+
+          {/* 경북 (울릉 인셋 포함) */}
+          <div className="flex flex-col rounded-xl border border-[#232a35] overflow-hidden"
+            style={{ background:'#11151c', flex: isMobile ? 'none' : '1 1 0', height: isMobile ? 360 : undefined, minWidth: 0 }}>
+            <div className="px-3 py-1.5 flex items-center justify-between border-b border-[#232a35] flex-shrink-0">
+              <span className="text-xs font-semibold text-slate-300">경상북도</span>
+              <span className="text-[10px] text-slate-500">클릭하면 상세 보기</span>
+            </div>
+            <div style={{position:'relative', flex:1, minHeight:0, background:'#0d1117'}}>
+              <div ref={gbRef} style={{position:'absolute',inset:0}} />
+              <div style={{position:'absolute',bottom:8,right:8,zIndex:4,width: isMobile ? 130 : 190,height: isMobile ? 115 : 165,border:'2px dashed #3d4757',borderRadius:10,background:'#0d1117',overflow:'hidden'}}>
+                <div style={{position:'absolute',top:-8,left:8,zIndex:2,background:'#11151c',padding:'0 5px',fontSize:8,letterSpacing:'1.5px',color:'#697384'}}>INSET</div>
+                <span style={{position:'absolute',top:5,left:9,zIndex:2,fontSize:10.5,fontWeight:700,color:'#e8ecf1',textShadow:'0 1px 3px rgba(0,0,0,0.6)',pointerEvents:'none'}}>울릉군</span>
+                <div ref={ulleungRef} style={{position:'absolute',inset:0}} />
+              </div>
+              {selectedInfo && !['중구','동구','서구','남구','북구','수성구','달서구','달성군'].includes(selectedInfo.name) && (
+                <RegionInfoCard info={selectedInfo} onClose={()=>setSelectedInfo(null)} heatColorFn={heatColorHex} />
+              )}
+            </div>
+          </div>
+        </>)}
+
+        {/* 충청권 */}
+        {selectedRegion === 'chungcheong' && (
+          <div className="flex flex-col rounded-xl border border-[#232a35] overflow-hidden"
+            style={{ background:'#11151c', flex:'1 1 0', height: isMobile ? 480 : undefined, minWidth: 0 }}>
+            <div className="px-3 py-1.5 flex items-center justify-between border-b border-[#232a35] flex-shrink-0">
+              <span className="text-xs font-semibold text-slate-300">충청권 (대전·세종·충북·충남)</span>
+              <span className="text-[10px] text-slate-500">클릭하면 상세 보기</span>
+            </div>
+            <div style={{position:'relative', flex:1, minHeight:0, background:'#0d1117'}}>
+              <div ref={chungcheongRef} style={{position:'absolute',inset:0}} />
+              {selectedInfo && <RegionInfoCard info={selectedInfo} onClose={()=>setSelectedInfo(null)} heatColorFn={heatColorHex} />}
+            </div>
+          </div>
+        )}
+
+        {/* 호남권 (전남북·광주 + 제주 인셋) */}
+        {selectedRegion === 'honam' && (
+          <div className="flex flex-col rounded-xl border border-[#232a35] overflow-hidden"
+            style={{ background:'#11151c', flex:'1 1 0', height: isMobile ? 500 : undefined, minWidth: 0 }}>
+            <div className="px-3 py-1.5 flex items-center justify-between border-b border-[#232a35] flex-shrink-0">
+              <span className="text-xs font-semibold text-slate-300">호남권 (광주·전북·전남·제주)</span>
+              <span className="text-[10px] text-slate-500">클릭하면 상세 보기</span>
+            </div>
+            <div style={{position:'relative', flex:1, minHeight:0, background:'#0d1117'}}>
+              <div ref={honamRef} style={{position:'absolute',inset:0}} />
+              {/* 제주 인셋 */}
+              <div style={{position:'absolute',bottom:8,right:8,zIndex:4,width: isMobile ? 140 : 200,height: isMobile ? 100 : 145,border:'2px dashed #3d4757',borderRadius:10,background:'#0d1117',overflow:'hidden'}}>
+                <div style={{position:'absolute',top:-8,left:8,zIndex:2,background:'#11151c',padding:'0 5px',fontSize:8,letterSpacing:'1.5px',color:'#697384'}}>INSET</div>
+                <span style={{position:'absolute',top:5,left:9,zIndex:2,fontSize:10.5,fontWeight:700,color:'#e8ecf1',textShadow:'0 1px 3px rgba(0,0,0,0.6)',pointerEvents:'none'}}>제주도</span>
+                <div ref={jejuRef} style={{position:'absolute',inset:0}} />
+              </div>
+              {selectedInfo && <RegionInfoCard info={selectedInfo} onClose={()=>setSelectedInfo(null)} heatColorFn={heatColorHex} />}
+            </div>
+          </div>
+        )}
+
+        {/* 부울경 */}
+        {selectedRegion === 'buulgyeong' && (
+          <div className="flex flex-col rounded-xl border border-[#232a35] overflow-hidden"
+            style={{ background:'#11151c', flex:'1 1 0', height: isMobile ? 450 : undefined, minWidth: 0 }}>
+            <div className="px-3 py-1.5 flex items-center justify-between border-b border-[#232a35] flex-shrink-0">
+              <span className="text-xs font-semibold text-slate-300">부울경 (부산·울산·경남)</span>
+              <span className="text-[10px] text-slate-500">클릭하면 상세 보기</span>
+            </div>
+            <div style={{position:'relative', flex:1, minHeight:0, background:'#0d1117'}}>
+              <div ref={buulgyeongRef} style={{position:'absolute',inset:0}} />
+              {selectedInfo && <RegionInfoCard info={selectedInfo} onClose={()=>setSelectedInfo(null)} heatColorFn={heatColorHex} />}
+            </div>
+          </div>
+        )}
 
       </div>
 
