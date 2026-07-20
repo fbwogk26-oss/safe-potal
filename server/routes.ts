@@ -14645,6 +14645,22 @@ ${result.value}
     }
   });
 
+  // ── 폭염 보고서 데이터 — 토큰 기반 공개 조회 (이메일 링크 클릭 시 사용) ──
+  app.get('/api/heatwave-report-data', async (req, res) => {
+    try {
+      const token = (req.query.token as string ?? '').trim();
+      if (!token) return res.status(400).json({ message: '토큰이 필요합니다' });
+      const s = await storage.getSetting('heatwave_report_token');
+      if (!s) return res.status(404).json({ message: '보고서를 찾을 수 없습니다' });
+      const data = JSON.parse(s.value);
+      if (data.token !== token) return res.status(403).json({ message: '유효하지 않은 토큰입니다' });
+      if (new Date(data.expiresAt) < new Date()) return res.status(410).json({ message: '만료된 보고서입니다 (7일 경과)' });
+      res.json({ ok: true, weather: data.weather, dateStr: data.dateStr });
+    } catch {
+      res.status(500).json({ message: '서버 오류가 발생했습니다' });
+    }
+  });
+
   // ── 폭염 3D 지도 데이터 — 서버 공유 저장 (모든 기기에서 동기화) ─────────
   app.get('/api/heatwave-map/data', isAuthenticated, async (_req, res) => {
     try {
@@ -14817,7 +14833,8 @@ ${result.value}
       // 프론트엔드에서 현재 화면의 날씨 데이터를 직접 전달받으면 사용 (DB 타이밍 이슈 방지)
       const weatherFromClient = req.body?.weather && typeof req.body.weather === 'object'
         ? req.body.weather : undefined;
-      await runHeatwaveDailyEmail(weatherFromClient);
+      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      await runHeatwaveDailyEmail(weatherFromClient, baseUrl);
       const status = getHeatwaveDailyEmailStatus();
       if (status.lastResult === 'error') {
         return res.status(500).json({ message: status.lastMessage });

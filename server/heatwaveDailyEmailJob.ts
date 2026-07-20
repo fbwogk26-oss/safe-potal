@@ -91,7 +91,7 @@ function tileBg(feels: number): string {
 }
 
 // ── HTML 이메일 빌드 ─────────────────────────────────────────────────────────
-function buildHtmlEmail(weather: Record<string, WeatherEntry>, dateStr: string): string {
+function buildHtmlEmail(weather: Record<string, WeatherEntry>, dateStr: string, reportUrl?: string): string {
   const entries = Object.entries(weather).sort((a, b) => b[1].feels - a[1].feels);
   if (!entries.length) return '<p>날씨 데이터가 없습니다.</p>';
 
@@ -157,6 +157,16 @@ function buildHtmlEmail(weather: Record<string, WeatherEntry>, dateStr: string):
     <div style="margin:6px 0 3px;font-size:22px;font-weight:900;color:#fff;letter-spacing:-0.3px">🌡&nbsp; 폭염 일일 현황</div>
     <div style="font-size:12px;color:rgba(255,255,255,0.80)">${dateStr} 기준 &nbsp;·&nbsp; 기상청 단기예보 기반</div>
   </div>
+
+  ${reportUrl ? `
+  <!-- 인터랙티브 3D 지도 보기 버튼 -->
+  <div style="background:#111827;padding:14px 20px;text-align:center;border-bottom:1px solid #1f2937">
+    <a href="${reportUrl}" style="display:inline-block;padding:10px 28px;background:linear-gradient(135deg,#ea580c 0%,#dc2626 100%);color:#fff;text-decoration:none;border-radius:9px;font-size:13px;font-weight:800;letter-spacing:0.3px;box-shadow:0 4px 12px rgba(234,88,12,0.35)">
+      🗺️&nbsp; 3D 지도로 보기
+    </a>
+    <div style="margin-top:7px;font-size:10px;color:#6b7280">전체·대구경북·충청권·호남권·부산권 &nbsp;|&nbsp; 클릭 → 온도 확인 &nbsp;|&nbsp; 스크롤 → 확대/축소 &nbsp;|&nbsp; 링크 유효기간 7일</div>
+  </div>
+  ` : ''}
 
   <!-- 권역 탭 네비게이션 -->
   <div style="background:#1f2937;padding:0">
@@ -343,8 +353,10 @@ export function getHeatwaveDailyEmailStatus(): HeatwaveDailyEmailStatus {
 
 // ── 메인 발송 함수 ─────────────────────────────────────────────────────────
 // weatherOverride: 클라이언트가 현재 화면 데이터를 직접 전달할 때 사용 (수동 발송)
+// baseUrl: 배포 URL (예: https://xxx.replit.app). 없으면 env에서 추출 시도.
 export async function runHeatwaveDailyEmail(
-  weatherOverride?: Record<string, WeatherEntry>
+  weatherOverride?: Record<string, WeatherEntry>,
+  baseUrl?: string
 ): Promise<void> {
   const sender      = process.env.GMAIL_SENDER;
   const appPassword = process.env.GMAIL_APP_PASSWORD;
@@ -386,7 +398,22 @@ export async function runHeatwaveDailyEmail(
     const fileDate = `${y}${String(m).padStart(2,'0')}${String(d).padStart(2,'0')}`;
 
     const dateDash    = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const html        = buildHtmlEmail(weather, dateStr);
+
+    // 토큰 생성 및 저장 (7일 유효)
+    const { randomUUID } = await import('crypto');
+    const reportToken = randomUUID();
+    const reportExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    await storage.setSetting('heatwave_report_token', JSON.stringify({
+      token: reportToken, weather, dateStr, expiresAt: reportExpiresAt,
+    })).catch(() => {});
+
+    // 보고서 URL 조합 (baseUrl 우선, 그 다음 Replit 환경변수)
+    const resolvedBase = baseUrl
+      ?? (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : null)
+      ?? null;
+    const reportUrl = resolvedBase ? `${resolvedBase}/heatwave-report?token=${reportToken}` : undefined;
+
+    const html        = buildHtmlEmail(weather, dateStr, reportUrl);
     const excelBuffer = await buildExcelBuffer(weather, dateStr, dateDash);
 
     const allEntries  = Object.entries(weather).sort((a, b) => b[1].feels - a[1].feels);

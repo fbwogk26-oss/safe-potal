@@ -49,6 +49,7 @@ import FuelCosts from "@/pages/FuelCosts";
 import SafetyManagerReports from "@/pages/SafetyManagerReports";
 import HealthManagerReports from "@/pages/HealthManagerReports";
 import HeatWaveChecklist from "@/pages/HeatWaveChecklist";
+import HeatWaveMapReport from "@/pages/HeatWaveMapReport";
 import AisSafetyRate from "@/pages/AisSafetyRate";
 import SafetyCostBudget from "@/pages/SafetyCostBudget";
 import SafetyScoreItems from "@/pages/SafetyScoreItems";
@@ -202,6 +203,9 @@ function AppContent() {
   }
   if (location.startsWith("/sign/")) {
     return <Switch><Route path="/sign/:id" component={PublicSign} /></Switch>;
+  }
+  if (location.startsWith("/heatwave-report")) {
+    return <Switch><Route path="/heatwave-report" component={HeatWaveMapReport} /></Switch>;
   }
 
   if (isLoading) {
