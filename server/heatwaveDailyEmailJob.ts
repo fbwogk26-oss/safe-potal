@@ -549,6 +549,8 @@ export async function runHeatwaveDailyEmail(
     const fileDate = `${y}${String(m).padStart(2,'0')}${String(d).padStart(2,'0')}`;
 
     const dateDash    = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const kstHour     = kst.getUTCHours();
+    const excelFilename = `폭염작업_권역별_시간별예보_${dateDash}(${kstHour}시).xlsx`;
 
     // 토큰 생성 및 저장 (7일 유효)
     const { randomUUID } = await import('crypto');
@@ -572,7 +574,44 @@ export async function runHeatwaveDailyEmail(
     } catch {}
 
     const html        = buildHtmlEmail(weather, dateStr, reportUrl, warnings, selectedZones);
-    const excelBuffer = await buildExcelBuffer(weather, dateStr, dateDash);
+
+    // Excel용 hourly 보완: weatherOverride에 hourly가 없으면 DB → 기상청 재수집 순으로 시도
+    let excelWeather: Record<string, any> = weather;
+    const hasHourlyData = Object.values(weather).some((w: any) => Array.isArray(w?.hourly) && w.hourly.length > 0);
+    if (!hasHourlyData) {
+      try {
+        const mapSetting = await storage.getSetting('heatwave_map_data');
+        const dbMap: Record<string, any> = mapSetting?.value ? (JSON.parse(mapSetting.value)?.weather ?? {}) : {};
+        const dbHasHourly = Object.values(dbMap).some((w: any) => Array.isArray(w?.hourly) && w.hourly.length > 0);
+        if (dbHasHourly) {
+          excelWeather = { ...weather };
+          for (const city of Object.keys(excelWeather)) {
+            if (dbMap[city]?.hourly?.length > 0) {
+              excelWeather[city] = { ...excelWeather[city], hourly: dbMap[city].hourly };
+            }
+          }
+          console.log('[HeatwaveEmail] Excel hourly — DB에서 보완');
+        } else {
+          console.log('[HeatwaveEmail] hourly 없음 — 기상청 재수집 시도');
+          await fetchAndSaveHeatwaveWeather().catch(() => {});
+          const freshSetting = await storage.getSetting('heatwave_map_data');
+          const freshMap: Record<string, any> = freshSetting?.value ? (JSON.parse(freshSetting.value)?.weather ?? {}) : {};
+          if (Object.keys(freshMap).length > 0) {
+            excelWeather = { ...weather };
+            for (const city of Object.keys(excelWeather)) {
+              if (freshMap[city]?.hourly?.length > 0) {
+                excelWeather[city] = { ...excelWeather[city], hourly: freshMap[city].hourly };
+              }
+            }
+            console.log('[HeatwaveEmail] Excel hourly — 기상청 재수집 후 보완');
+          }
+        }
+      } catch (e) {
+        console.warn('[HeatwaveEmail] hourly 보완 실패:', e);
+      }
+    }
+
+    const excelBuffer = await buildExcelBuffer(excelWeather, dateStr, dateDash);
 
     const allEntries  = Object.entries(weather).sort((a, b) => b[1].feels - a[1].feels);
     const maxEntry    = allEntries[0];
@@ -598,7 +637,7 @@ export async function runHeatwaveDailyEmail(
 
     if (excelBuffer) {
       mailOptions.attachments.push({
-        filename: `폭염현황_${fileDate}.xlsx`,
+        filename: excelFilename,
         content: excelBuffer,
         contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       });

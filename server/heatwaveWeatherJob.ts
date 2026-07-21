@@ -279,9 +279,9 @@ export async function fetchAndSaveHeatwaveWeather(): Promise<{ ok: boolean; coun
   const avgTemp  = Math.round(results.reduce((a, b) => a + b.temp, 0) / results.length * 10) / 10;
   const avgHum   = Math.round(results.reduce((a, b) => a + b.hum,  0) / results.length);
 
-  // weather 맵으로 변환 (기존 프론트엔드 형식과 동일)
-  const weather: Record<string, { feels: number; temp: number; hum: number; stage: string; time: string; rainType: string; rain: string; wind: number | null; windLevel: string }> = {};
-  results.forEach(r => { weather[r.name] = { feels: r.feels, temp: r.temp, hum: r.hum, stage: r.stage, time: r.time, rainType: r.rainType, rain: r.rain, wind: r.wind, windLevel: r.windLevel }; });
+  // weather 맵으로 변환 (hourly 포함 — Excel 시간별 데이터에 사용)
+  const weather: Record<string, any> = {};
+  results.forEach(r => { weather[r.name] = { feels: r.feels, temp: r.temp, hum: r.hum, stage: r.stage, time: r.time, rainType: r.rainType, rain: r.rain, wind: r.wind, windLevel: r.windLevel, hourly: r.hourly ?? [] }; });
 
   const statsData = { maxFeels, avgTemp, avgHum, maxLoc, count: results.length };
 

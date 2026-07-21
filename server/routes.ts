@@ -14865,7 +14865,11 @@ ${result.value}
 
       const dateStr = new Date().toLocaleDateString('ko-KR',{year:'numeric',month:'2-digit',day:'2-digit'}).replace(/\. /g,'-').replace('.','');
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-      res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(`폭염현황_${dateStr}.xlsx`)}`);
+      const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
+      const kstH = kstNow.getUTCHours();
+      const kstDateStr = `${kstNow.getUTCFullYear()}-${String(kstNow.getUTCMonth()+1).padStart(2,'0')}-${String(kstNow.getUTCDate()).padStart(2,'0')}`;
+      const excelFn = `폭염작업_권역별_시간별예보_${kstDateStr}(${kstH}시).xlsx`;
+      res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(excelFn)}`);
       const buf = await wb.xlsx.writeBuffer();
       res.send(buf);
     } catch (e: any) {
@@ -14951,9 +14955,11 @@ ${result.value}
       const dateDash = now.toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\.\s*/g, '-').replace(/-$/, '');
       const buf = await buildExcelBuffer(weather, dateStr, dateDash);
       if (!buf) return res.status(500).json({ message: '엑셀 생성 실패' });
-      const fileDate = dateDash.replace(/-/g, '');
+      const kstNow2 = new Date(Date.now() + 9 * 60 * 60 * 1000);
+      const kstH2 = kstNow2.getUTCHours();
+      const excelFn2 = `폭염작업_권역별_시간별예보_${dateDash}(${kstH2}시).xlsx`;
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-      res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''%ED%8F%AD%EC%97%BC%ED%98%84%ED%99%A9_${fileDate}.xlsx`);
+      res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(excelFn2)}`);
       res.send(buf);
     } catch (e: any) {
       res.status(500).json({ message: e.message });
