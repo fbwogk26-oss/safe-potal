@@ -43,7 +43,7 @@ const CITY_TO_ZONE: Record<string, string> = {
   '진도': '호남본부', '신안': '호남본부', '제주시': '호남본부', '서귀포': '호남본부',
 };
 
-const ZONE_ORDER = ['대구본부', '부산본부', '충청본부', '호남본부'];
+const ZONE_ORDER = ['충청본부', '호남본부', '부산본부', '대구본부'];
 
 // Excel 상세 권역 분류
 const CITY_TO_DETAIL: Record<string, string> = {
@@ -173,10 +173,10 @@ export function buildHtmlEmail(weather: Record<string, WeatherEntry>, dateStr: s
     <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">
       <tr>
         <td style="text-align:center;padding:0"><a href="#zone-summary" style="display:block;padding:11px 4px;font-size:11px;font-weight:700;color:#f9fafb;text-decoration:none;border-right:1px solid #374151;background:#374151">📊<br>전체</a></td>
-        <td style="text-align:center;padding:0"><a href="#zone-daegubuk" style="display:block;padding:11px 4px;font-size:11px;font-weight:700;color:#d1d5db;text-decoration:none;border-right:1px solid #374151">🏔<br>대구본부</a></td>
         <td style="text-align:center;padding:0"><a href="#zone-chungcheong" style="display:block;padding:11px 4px;font-size:11px;font-weight:700;color:#d1d5db;text-decoration:none;border-right:1px solid #374151">🌾<br>충청본부</a></td>
         <td style="text-align:center;padding:0"><a href="#zone-honam" style="display:block;padding:11px 4px;font-size:11px;font-weight:700;color:#d1d5db;text-decoration:none;border-right:1px solid #374151">🌊<br>호남본부</a></td>
-        <td style="text-align:center;padding:0"><a href="#zone-buulgyeong" style="display:block;padding:11px 4px;font-size:11px;font-weight:700;color:#d1d5db;text-decoration:none">⚓<br>부산본부</a></td>
+        <td style="text-align:center;padding:0"><a href="#zone-buulgyeong" style="display:block;padding:11px 4px;font-size:11px;font-weight:700;color:#d1d5db;text-decoration:none;border-right:1px solid #374151">⚓<br>부산본부</a></td>
+        <td style="text-align:center;padding:0"><a href="#zone-daegubuk" style="display:block;padding:11px 4px;font-size:11px;font-weight:700;color:#d1d5db;text-decoration:none">🏔<br>대구본부</a></td>
       </tr>
     </table>
   </div>
