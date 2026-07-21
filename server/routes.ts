@@ -14641,7 +14641,28 @@ ${result.value}
       const data = JSON.parse(s.value);
       if (data.token !== token) return res.status(403).json({ message: '유효하지 않은 토큰입니다' });
       if (new Date(data.expiresAt) < new Date()) return res.status(410).json({ message: '만료된 보고서입니다 (7일 경과)' });
-      res.json({ ok: true, weather: data.weather, dateStr: data.dateStr });
+
+      // 현재 실시간 날씨 데이터 우선 반환 (토큰 스냅샷 대신)
+      let weather = data.weather;
+      let dateStr = data.dateStr;
+      let stats: any = null;
+      try {
+        const mapSetting = await storage.getSetting('heatwave_map_data');
+        if (mapSetting?.value) {
+          const mapData = JSON.parse(mapSetting.value);
+          if (mapData.weather && Object.keys(mapData.weather).length > 0) {
+            weather = mapData.weather;
+            if (mapData.stats) stats = mapData.stats;
+            // dateStr은 현재 KST 날짜로 갱신
+            const kst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+            const y = kst.getUTCFullYear(), m = kst.getUTCMonth() + 1, d = kst.getUTCDate();
+            const day = ['일','월','화','수','목','금','토'][kst.getUTCDay()];
+            dateStr = `${y}년 ${m}월 ${d}일 (${day})`;
+          }
+        }
+      } catch {}
+
+      res.json({ ok: true, weather, dateStr, stats });
     } catch {
       res.status(500).json({ message: '서버 오류가 발생했습니다' });
     }
