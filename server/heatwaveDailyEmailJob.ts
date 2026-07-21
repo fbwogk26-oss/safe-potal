@@ -142,11 +142,6 @@ export function buildHtmlEmail(
   const entries = Object.entries(weather).sort((a, b) => b[1].feels - a[1].feels);
   if (!entries.length) return '<p>날씨 데이터가 없습니다.</p>';
 
-  const maxEntry  = entries[0];
-  const alertCnt  = entries.filter(([, w]) => w.feels >= 35).length;
-  const watchCnt  = entries.filter(([, w]) => w.feels >= 33 && w.feels < 35).length;
-  const careCnt   = entries.filter(([, w]) => w.feels >= 31 && w.feels < 33).length;
-
   // 권역별 그룹화 (정렬 유지)
   const byZone: Record<string, [string, WeatherEntry][]> = {};
   entries.forEach(([name, w]) => {
@@ -167,6 +162,14 @@ export function buildHtmlEmail(
   // ── 권역별 타일 섹션 (selectedZones 필터 적용) ──────────────────────────
   const activeZones = ZONE_ORDER.filter(z => byZone[z])
     .filter(z => !selectedZones || selectedZones.length === 0 || selectedZones.includes(z));
+
+  // 선택된 권역 entries만으로 통계 계산
+  const activeEntries = activeZones.flatMap(z => byZone[z] ?? []);
+  const statEntries = activeEntries.length > 0 ? activeEntries : entries;
+  const maxEntry  = statEntries[0];
+  const alertCnt  = statEntries.filter(([, w]) => w.feels >= 35).length;
+  const watchCnt  = statEntries.filter(([, w]) => w.feels >= 33 && w.feels < 35).length;
+  const careCnt   = statEntries.filter(([, w]) => w.feels >= 31 && w.feels < 33).length;
   const zoneSections = activeZones.map(zone => {
     const cities = byZone[zone]; // 이미 feels 내림차순 정렬됨
     const zoneMax = cities[0]?.[1].feels ?? 0;
@@ -250,11 +253,8 @@ export function buildHtmlEmail(
   <div style="background:#1f2937;padding:0">
     <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">
       <tr>
-        <td style="text-align:center;padding:0"><a href="#zone-summary" style="display:block;padding:11px 4px;font-size:11px;font-weight:700;color:#f9fafb;text-decoration:none;border-right:1px solid #374151;background:#374151">📊<br>전체</a></td>
-        <td style="text-align:center;padding:0"><a href="#zone-chungcheong" style="display:block;padding:11px 4px;font-size:11px;font-weight:700;color:#d1d5db;text-decoration:none;border-right:1px solid #374151">🌾<br>충청본부</a></td>
-        <td style="text-align:center;padding:0"><a href="#zone-honam" style="display:block;padding:11px 4px;font-size:11px;font-weight:700;color:#d1d5db;text-decoration:none;border-right:1px solid #374151">🌊<br>호남본부</a></td>
-        <td style="text-align:center;padding:0"><a href="#zone-buulgyeong" style="display:block;padding:11px 4px;font-size:11px;font-weight:700;color:#d1d5db;text-decoration:none;border-right:1px solid #374151">⚓<br>부산본부</a></td>
-        <td style="text-align:center;padding:0"><a href="#zone-daegubuk" style="display:block;padding:11px 4px;font-size:11px;font-weight:700;color:#d1d5db;text-decoration:none">🏔<br>대구본부</a></td>
+        ${activeZones.length > 1 ? `<td style="text-align:center;padding:0"><a href="#zone-summary" style="display:block;padding:11px 4px;font-size:11px;font-weight:700;color:#f9fafb;text-decoration:none;border-right:1px solid #374151;background:#374151">📊<br>전체</a></td>` : ''}
+        ${activeZones.map((z, i) => `<td style="text-align:center;padding:0"><a href="#${ZONE_ID[z]??''}" style="display:block;padding:11px 4px;font-size:11px;font-weight:700;color:#d1d5db;text-decoration:none${i < activeZones.length - 1 ? ';border-right:1px solid #374151' : ''}">${ZONE_ICON[z]??'🌡'}<br>${z}</a></td>`).join('')}
       </tr>
     </table>
   </div>
