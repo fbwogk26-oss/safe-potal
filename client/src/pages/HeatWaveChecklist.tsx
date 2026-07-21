@@ -1551,7 +1551,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
               {!selectedInfo && warnings.length > 0 && (()=>{
                 const fw = warnings;
                 return (
-                  <div style={{position:'absolute',top:8,left:8,right:8,zIndex:20,background:'rgba(12,2,2,0.94)',border:'1.5px solid #dc2626',borderRadius:6,padding:'5px 8px',pointerEvents:'none',boxShadow:'0 2px 12px rgba(220,38,38,0.2)'}}>
+                  <div style={{position:'absolute',top:8,left:8,right:8,zIndex:20,background:'rgba(12,2,2,0.94)',border:'1.5px solid #dc2626',borderRadius:6,padding:'5px 8px',pointerEvents:'none',boxShadow:'0 2px 12px rgba(220,38,38,0.2)',maxHeight:160,overflowY:'auto'}}>
                     <div style={{display:'flex',alignItems:'center',gap:5,marginBottom:4,borderBottom:'1px solid rgba(220,38,38,0.2)',paddingBottom:3}}>
                       <span style={{fontSize:11}}>🚨</span>
                       <span style={{fontSize:10,fontWeight:800,color:'#f87171'}}>기상청 특보 {fw.length}건 발효 중</span>
@@ -1591,7 +1591,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
                 const fw=warnings.filter(w=>['대구','경상북도','경북','울릉'].some(k=>w.regions.includes(k)));
                 if(!fw.length) return null;
                 return(
-                  <div style={{position:'absolute',top:8,left:8,right:8,zIndex:20,background:'rgba(12,2,2,0.94)',border:'1.5px solid #dc2626',borderRadius:6,padding:'5px 8px',pointerEvents:'none',boxShadow:'0 2px 12px rgba(220,38,38,0.2)'}}>
+                  <div style={{position:'absolute',top:8,left:8,right:8,zIndex:20,background:'rgba(12,2,2,0.94)',border:'1.5px solid #dc2626',borderRadius:6,padding:'5px 8px',pointerEvents:'none',boxShadow:'0 2px 12px rgba(220,38,38,0.2)',maxHeight:160,overflowY:'auto'}}>
                     <div style={{display:'flex',alignItems:'center',gap:5,marginBottom:4,borderBottom:'1px solid rgba(220,38,38,0.2)',paddingBottom:3}}>
                       <span style={{fontSize:11}}>🚨</span>
                       <span style={{fontSize:10,fontWeight:800,color:'#f87171'}}>대구·경북 특보 {fw.length}건</span>
@@ -1629,7 +1629,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
                 const fw=warnings.filter(w=>['충청','충북','충남','대전','세종'].some(k=>w.regions.includes(k)));
                 if(!fw.length) return null;
                 return(
-                  <div style={{position:'absolute',top:8,left:8,right:8,zIndex:20,background:'rgba(12,2,2,0.94)',border:'1.5px solid #dc2626',borderRadius:6,padding:'5px 8px',pointerEvents:'none',boxShadow:'0 2px 12px rgba(220,38,38,0.2)'}}>
+                  <div style={{position:'absolute',top:8,left:8,right:8,zIndex:20,background:'rgba(12,2,2,0.94)',border:'1.5px solid #dc2626',borderRadius:6,padding:'5px 8px',pointerEvents:'none',boxShadow:'0 2px 12px rgba(220,38,38,0.2)',maxHeight:160,overflowY:'auto'}}>
                     <div style={{display:'flex',alignItems:'center',gap:5,marginBottom:4,borderBottom:'1px solid rgba(220,38,38,0.2)',paddingBottom:3}}>
                       <span style={{fontSize:11}}>🚨</span>
                       <span style={{fontSize:10,fontWeight:800,color:'#f87171'}}>충청권 특보 {fw.length}건</span>
@@ -1671,7 +1671,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
                 const fw=warnings.filter(w=>['전라남도','전라북도','전북자치도','광주','제주'].some(k=>w.regions.includes(k)));
                 if(!fw.length) return null;
                 return(
-                  <div style={{position:'absolute',top:8,left:8,right:8,zIndex:20,background:'rgba(12,2,2,0.94)',border:'1.5px solid #dc2626',borderRadius:6,padding:'5px 8px',pointerEvents:'none',boxShadow:'0 2px 12px rgba(220,38,38,0.2)'}}>
+                  <div style={{position:'absolute',top:8,left:8,right:8,zIndex:20,background:'rgba(12,2,2,0.94)',border:'1.5px solid #dc2626',borderRadius:6,padding:'5px 8px',pointerEvents:'none',boxShadow:'0 2px 12px rgba(220,38,38,0.2)',maxHeight:160,overflowY:'auto'}}>
                     <div style={{display:'flex',alignItems:'center',gap:5,marginBottom:4,borderBottom:'1px solid rgba(220,38,38,0.2)',paddingBottom:3}}>
                       <span style={{fontSize:11}}>🚨</span>
                       <span style={{fontSize:10,fontWeight:800,color:'#f87171'}}>호남·제주 특보 {fw.length}건</span>
@@ -1707,7 +1707,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
                 const fw=warnings.filter(w=>['부산','울산','경상남도','경남'].some(k=>w.regions.includes(k)));
                 if(!fw.length) return null;
                 return(
-                  <div style={{position:'absolute',top:8,left:8,right:8,zIndex:20,background:'rgba(12,2,2,0.94)',border:'1.5px solid #dc2626',borderRadius:6,padding:'5px 8px',pointerEvents:'none',boxShadow:'0 2px 12px rgba(220,38,38,0.2)'}}>
+                  <div style={{position:'absolute',top:8,left:8,right:8,zIndex:20,background:'rgba(12,2,2,0.94)',border:'1.5px solid #dc2626',borderRadius:6,padding:'5px 8px',pointerEvents:'none',boxShadow:'0 2px 12px rgba(220,38,38,0.2)',maxHeight:160,overflowY:'auto'}}>
                     <div style={{display:'flex',alignItems:'center',gap:5,marginBottom:4,borderBottom:'1px solid rgba(220,38,38,0.2)',paddingBottom:3}}>
                       <span style={{fontSize:11}}>🚨</span>
                       <span style={{fontSize:10,fontWeight:800,color:'#f87171'}}>부산·경남 특보 {fw.length}건</span>
@@ -1831,9 +1831,8 @@ function extractRegionClause(regions: string, keywords: string[]): string {
   const last = regions.slice(start).trim();
   if (last) parts.push(last);
   const matched = parts.filter(p => keywords.some(k => p.includes(k)));
-  if (!matched.length) return regions.length > 45 ? regions.slice(0, 45) + '…' : regions;
-  const joined = matched.join(', ');
-  return joined.length > 55 ? joined.slice(0, 55) + '…' : joined;
+  if (!matched.length) return regions;
+  return matched.join(', ');
 }
 
 export default function HeatWaveChecklist() {
