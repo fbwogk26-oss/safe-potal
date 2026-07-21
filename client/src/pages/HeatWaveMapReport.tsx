@@ -328,51 +328,60 @@ export default function HeatWaveMapReport() {
       </div>
 
       {/* ── 기상특보 패널 ────────────────────────────────── */}
-      {warnings.length > 0 && (
-        <div style={{
-          background: "#090e14",
-          borderBottom: "1px solid #232a35",
-          padding: isMobile ? "8px 10px" : "8px 14px",
-          flexShrink: 0,
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-            <span style={{ fontSize: isMobile ? 10 : 11, fontWeight: 700, color: "#f87171", background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.4)", padding: "1px 8px", borderRadius: 10, lineHeight: "18px" }}>
-              🚨 기상특보 {warnings.length}건
-            </span>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-            {warnings.map((w, i) => {
-              const isJungdae = w.type.includes("중대경보");
-              const isKyungbo = w.type.includes("경보") && !w.type.includes("주의");
-              const isJuibo   = w.type.includes("주의") && !w.type.includes("경보");
-              const bc = isKyungbo ? "#ef4444" : isJuibo ? "#f97316" : "#3b82f6";
-              const desc = isJungdae ? "[체감 38도 이상]"
-                : (w.type.includes("폭염") && isKyungbo) ? "[체감 35도 이상]"
-                : (w.type.includes("폭염") && isJuibo)   ? "[체감 33도 이상]"
-                : w.type.includes("관심")                 ? "[체감 31도 이상]"
-                : null;
-              return (
-                <div key={i} style={{
-                  borderTop: i === 0 ? "none" : "1px solid rgba(255,255,255,0.06)",
-                  paddingTop: i === 0 ? 0 : 6,
-                }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 3 }}>
-                    <span style={{
-                      fontSize: isMobile ? 9 : 10, fontWeight: 700, color: bc,
-                      background: `${bc}22`, border: `1px solid ${bc}44`,
-                      padding: "1px 6px", borderRadius: 3, lineHeight: "16px", display: "inline-block",
-                    }}>{w.type}</span>
-                    {desc && <span style={{ fontSize: isMobile ? 8 : 9, color: "#94a3b8" }}>{desc}</span>}
+      {(() => {
+        // 현재 탭 권역 도시 목록으로 필터링 (all이면 전체 표시)
+        const zoneCities = selectedRegion === "all" ? null : REGION_KEY_MAP[selectedRegion];
+        const visibleWarnings = warnings.filter(w => {
+          if (!zoneCities || zoneCities.length === 0) return true;
+          return zoneCities.some(city => w.regions.includes(city));
+        });
+        if (visibleWarnings.length === 0) return null;
+        return (
+          <div style={{
+            background: "#090e14",
+            borderBottom: "1px solid #232a35",
+            padding: isMobile ? "8px 10px" : "8px 14px",
+            flexShrink: 0,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+              <span style={{ fontSize: isMobile ? 10 : 11, fontWeight: 700, color: "#f87171", background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.4)", padding: "1px 8px", borderRadius: 10, lineHeight: "18px" }}>
+                🚨 기상특보 {visibleWarnings.length}건
+              </span>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+              {visibleWarnings.map((w, i) => {
+                const isJungdae = w.type.includes("중대경보");
+                const isKyungbo = w.type.includes("경보") && !w.type.includes("주의");
+                const isJuibo   = w.type.includes("주의") && !w.type.includes("경보");
+                const bc = isKyungbo ? "#ef4444" : isJuibo ? "#f97316" : "#3b82f6";
+                const desc = isJungdae ? "[체감 38도 이상]"
+                  : (w.type.includes("폭염") && isKyungbo) ? "[체감 35도 이상]"
+                  : (w.type.includes("폭염") && isJuibo)   ? "[체감 33도 이상]"
+                  : w.type.includes("관심")                 ? "[체감 31도 이상]"
+                  : null;
+                return (
+                  <div key={i} style={{
+                    borderTop: i === 0 ? "none" : "1px solid rgba(255,255,255,0.06)",
+                    paddingTop: i === 0 ? 0 : 6,
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 3 }}>
+                      <span style={{
+                        fontSize: isMobile ? 9 : 10, fontWeight: 700, color: bc,
+                        background: `${bc}22`, border: `1px solid ${bc}44`,
+                        padding: "1px 6px", borderRadius: 3, lineHeight: "16px", display: "inline-block",
+                      }}>{w.type}</span>
+                      {desc && <span style={{ fontSize: isMobile ? 8 : 9, color: "#94a3b8" }}>{desc}</span>}
+                    </div>
+                    <div style={{ fontSize: isMobile ? 9 : 10, color: "#fca5a5", lineHeight: 1.6 }}>
+                      {w.regions}
+                    </div>
                   </div>
-                  <div style={{ fontSize: isMobile ? 9 : 10, color: "#fca5a5", lineHeight: 1.6 }}>
-                    {w.regions}
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ── 조작 안내 (데스크탑만) ─────────────────────── */}
       {!isMobile && (
