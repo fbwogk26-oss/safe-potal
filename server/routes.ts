@@ -14662,7 +14662,17 @@ ${result.value}
         }
       } catch {}
 
-      res.json({ ok: true, weather, dateStr, stats });
+      // 기상특보 데이터 추가
+      let warnings: { type: string; regions: string }[] = [];
+      try {
+        const warnSetting = await storage.getSetting('heatwave_warnings');
+        if (warnSetting?.value) {
+          const warnData = JSON.parse(warnSetting.value);
+          warnings = Array.isArray(warnData.items) ? warnData.items : [];
+        }
+      } catch {}
+
+      res.json({ ok: true, weather, dateStr, stats, warnings });
     } catch {
       res.status(500).json({ message: '서버 오류가 발생했습니다' });
     }

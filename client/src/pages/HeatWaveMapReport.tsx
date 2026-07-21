@@ -40,6 +40,7 @@ export default function HeatWaveMapReport() {
   const [stats, setStats] = useState<{ maxFeels: number; avgTemp: number; avgHum: number; maxLoc: string; count: number } | null>(null);
   const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.innerWidth < 768);
   const [showAllCards, setShowAllCards] = useState(false);
+  const [warnings, setWarnings] = useState<{ type: string; regions: string }[]>([]);
 
   const allRef = useRef<HTMLDivElement>(null);
   const ulleungAllRef = useRef<HTMLDivElement>(null);
@@ -97,6 +98,7 @@ export default function HeatWaveMapReport() {
           setWeatherData({ ...json.weather });
           if (json.dateStr) setDateStr(json.dateStr);
           if (json.stats) setStats(json.stats);
+          if (Array.isArray(json.warnings)) setWarnings(json.warnings);
           setHeatActive(true);
         }
         setLoading(false);
@@ -310,6 +312,44 @@ export default function HeatWaveMapReport() {
           ))}
         </div>
       </div>
+
+      {/* ── 기상특보 패널 ────────────────────────────────── */}
+      {warnings.length > 0 && (
+        <div style={{
+          background: "rgba(127,29,29,0.18)",
+          borderBottom: "1px solid rgba(239,68,68,0.25)",
+          padding: isMobile ? "6px 10px" : "5px 14px",
+          flexShrink: 0,
+          overflowX: "auto",
+          scrollbarWidth: "none",
+        }}>
+          <div style={{ display: "flex", gap: 6, alignItems: "flex-start", minWidth: "max-content" }}>
+            <span style={{ fontSize: isMobile ? 10 : 11, color: "#fca5a5", fontWeight: 800, flexShrink: 0, paddingTop: 1 }}>🚨 기상특보</span>
+            <div style={{ display: "flex", flexWrap: isMobile ? "nowrap" : "wrap", gap: 5 }}>
+              {warnings.map((w, i) => {
+                const isEmergency = w.type.includes("경보");
+                return (
+                  <div key={i} style={{
+                    display: "flex", gap: 4, alignItems: "baseline",
+                    background: isEmergency ? "rgba(220,38,38,0.18)" : "rgba(234,88,12,0.15)",
+                    border: `1px solid ${isEmergency ? "rgba(220,38,38,0.4)" : "rgba(234,88,12,0.3)"}`,
+                    borderRadius: 6,
+                    padding: isMobile ? "3px 7px" : "2px 8px",
+                    flexShrink: 0,
+                  }}>
+                    <span style={{ fontSize: isMobile ? 10 : 11, fontWeight: 800, color: isEmergency ? "#f87171" : "#fb923c", whiteSpace: "nowrap" }}>
+                      {w.type}
+                    </span>
+                    <span style={{ fontSize: isMobile ? 9 : 10, color: "#d1d5db", maxWidth: isMobile ? 180 : 320, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {w.regions}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── 조작 안내 (데스크탑만) ─────────────────────── */}
       {!isMobile && (
