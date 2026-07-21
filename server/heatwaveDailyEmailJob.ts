@@ -515,20 +515,39 @@ export async function runHeatwaveDailyEmail(
     let weather = weatherOverride;
 
     if (!weather || Object.keys(weather).length === 0) {
-      // 실시간 날씨 자동 수집 시도
-      console.log('[HeatwaveEmail] 실시간 날씨 자동 수집 시작...');
-      const collectResult = await fetchAndSaveHeatwaveWeather().catch(e => {
-        console.warn('[HeatwaveEmail] 날씨 수집 실패, DB 데이터 사용:', e?.message ?? e);
-        return { ok: false, count: 0 };
-      });
-      if (collectResult.ok) {
-        console.log(`[HeatwaveEmail] 날씨 수집 완료 (${collectResult.count}개 지역)`);
+      // DB에서 먼저 읽기 (빠름)
+      const existingSetting = await storage.getSetting('heatwave_map_data');
+      if (existingSetting?.value) {
+        const parsed = JSON.parse(existingSetting.value);
+        if (parsed.weather && Object.keys(parsed.weather).length > 0) {
+          weather = parsed.weather;
+          console.log(`[HeatwaveEmail] DB 날씨 데이터 사용 (${Object.keys(weather!).length}개 지역)`);
+        }
       }
-      // 수집 후 DB에서 읽기
-      const setting = await storage.getSetting('heatwave_map_data');
-      if (setting?.value) {
-        const parsed = JSON.parse(setting.value);
-        weather = parsed.weather;
+
+      // DB 데이터도 없을 때만 실시간 수집 — 최대 90초 제한
+      if (!weather || Object.keys(weather).length === 0) {
+        console.log('[HeatwaveEmail] 실시간 날씨 자동 수집 시작 (최대 90초)...');
+        const TIMEOUT_MS = 90_000;
+        const collectResult = await Promise.race([
+          fetchAndSaveHeatwaveWeather(),
+          new Promise<{ ok: boolean; count: number }>(resolve =>
+            setTimeout(() => resolve({ ok: false, count: 0 }), TIMEOUT_MS)
+          ),
+        ]).catch(e => {
+          console.warn('[HeatwaveEmail] 날씨 수집 실패, DB 데이터 사용:', e?.message ?? e);
+          return { ok: false, count: 0 };
+        });
+        if (collectResult.ok) {
+          console.log(`[HeatwaveEmail] 날씨 수집 완료 (${collectResult.count}개 지역)`);
+        } else {
+          console.warn('[HeatwaveEmail] 날씨 수집 타임아웃 또는 실패 — DB 재시도');
+        }
+        const setting = await storage.getSetting('heatwave_map_data');
+        if (setting?.value) {
+          const parsed = JSON.parse(setting.value);
+          weather = parsed.weather;
+        }
       }
     }
 
@@ -575,7 +594,7 @@ export async function runHeatwaveDailyEmail(
 
     const html        = buildHtmlEmail(weather, dateStr, reportUrl, warnings, selectedZones);
 
-    // Excel용 hourly 보완: weatherOverride에 hourly가 없으면 DB → 기상청 재수집 순으로 시도
+    // Excel용 hourly 보완: DB에서만 시도 (기상청 재수집은 메일 발송 지연 원인이므로 제거)
     let excelWeather: Record<string, any> = weather;
     const hasHourlyData = Object.values(weather).some((w: any) => Array.isArray(w?.hourly) && w.hourly.length > 0);
     if (!hasHourlyData) {
@@ -592,19 +611,7 @@ export async function runHeatwaveDailyEmail(
           }
           console.log('[HeatwaveEmail] Excel hourly — DB에서 보완');
         } else {
-          console.log('[HeatwaveEmail] hourly 없음 — 기상청 재수집 시도');
-          await fetchAndSaveHeatwaveWeather().catch(() => {});
-          const freshSetting = await storage.getSetting('heatwave_map_data');
-          const freshMap: Record<string, any> = freshSetting?.value ? (JSON.parse(freshSetting.value)?.weather ?? {}) : {};
-          if (Object.keys(freshMap).length > 0) {
-            excelWeather = { ...weather };
-            for (const city of Object.keys(excelWeather)) {
-              if (freshMap[city]?.hourly?.length > 0) {
-                excelWeather[city] = { ...excelWeather[city], hourly: freshMap[city].hourly };
-              }
-            }
-            console.log('[HeatwaveEmail] Excel hourly — 기상청 재수집 후 보완');
-          }
+          console.log('[HeatwaveEmail] hourly 없음 — 현재 스냅샷으로 발송 (매시 자동수집 후에는 hourly 포함됨)');
         }
       } catch (e) {
         console.warn('[HeatwaveEmail] hourly 보완 실패:', e);
@@ -622,6 +629,9 @@ export async function runHeatwaveDailyEmail(
       host: 'smtp.gmail.com', port: 587, secure: false,
       auth: { user: sender, pass: appPassword },
       tls: { rejectUnauthorized: true },
+      connectionTimeout: 15_000,   // SMTP 연결 최대 15초
+      greetingTimeout:   10_000,   // 서버 인사 응답 최대 10초
+      socketTimeout:     30_000,   // 소켓 비활성 최대 30초
     });
 
     // 수신자: jaeha.ryu@ktmos.co.kr 고정
