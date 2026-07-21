@@ -1599,7 +1599,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
                     {fw.map((w,i)=>{
                       const isKyungbo=w.type.includes('경보')&&!w.type.includes('주의');
                       const bc=isKyungbo?'#ef4444':w.type.includes('주의')&&!w.type.includes('경보')?'#f97316':'#3b82f6';
-                      const rs=w.regions.length>40?w.regions.slice(0,40)+'…':w.regions;
+                      const rs=extractRegionClause(w.regions,['대구','경상북도','경북','울릉']);
                       return(<div key={i} style={{display:'flex',alignItems:'flex-start',gap:5,marginTop:i===0?0:2}}>
                         <span style={{fontSize:9,fontWeight:700,color:bc,background:`${bc}22`,border:`1px solid ${bc}44`,padding:'0 4px',borderRadius:3,whiteSpace:'nowrap',flexShrink:0,lineHeight:'15px'}}>{w.type}</span>
                         <span style={{fontSize:9,color:'#fca5a5',lineHeight:'15px'}}>{rs}</span>
@@ -1637,7 +1637,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
                     {fw.map((w,i)=>{
                       const isKyungbo=w.type.includes('경보')&&!w.type.includes('주의');
                       const bc=isKyungbo?'#ef4444':w.type.includes('주의')&&!w.type.includes('경보')?'#f97316':'#3b82f6';
-                      const rs=w.regions.length>40?w.regions.slice(0,40)+'…':w.regions;
+                      const rs=extractRegionClause(w.regions,['충청','충북','충남','대전','세종']);
                       return(<div key={i} style={{display:'flex',alignItems:'flex-start',gap:5,marginTop:i===0?0:2}}>
                         <span style={{fontSize:9,fontWeight:700,color:bc,background:`${bc}22`,border:`1px solid ${bc}44`,padding:'0 4px',borderRadius:3,whiteSpace:'nowrap',flexShrink:0,lineHeight:'15px'}}>{w.type}</span>
                         <span style={{fontSize:9,color:'#fca5a5',lineHeight:'15px'}}>{rs}</span>
@@ -1679,7 +1679,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
                     {fw.map((w,i)=>{
                       const isKyungbo=w.type.includes('경보')&&!w.type.includes('주의');
                       const bc=isKyungbo?'#ef4444':w.type.includes('주의')&&!w.type.includes('경보')?'#f97316':'#3b82f6';
-                      const rs=w.regions.length>40?w.regions.slice(0,40)+'…':w.regions;
+                      const rs=extractRegionClause(w.regions,['전라남도','전라북도','전북자치도','광주','제주']);
                       return(<div key={i} style={{display:'flex',alignItems:'flex-start',gap:5,marginTop:i===0?0:2}}>
                         <span style={{fontSize:9,fontWeight:700,color:bc,background:`${bc}22`,border:`1px solid ${bc}44`,padding:'0 4px',borderRadius:3,whiteSpace:'nowrap',flexShrink:0,lineHeight:'15px'}}>{w.type}</span>
                         <span style={{fontSize:9,color:'#fca5a5',lineHeight:'15px'}}>{rs}</span>
@@ -1715,7 +1715,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
                     {fw.map((w,i)=>{
                       const isKyungbo=w.type.includes('경보')&&!w.type.includes('주의');
                       const bc=isKyungbo?'#ef4444':w.type.includes('주의')&&!w.type.includes('경보')?'#f97316':'#3b82f6';
-                      const rs=w.regions.length>40?w.regions.slice(0,40)+'…':w.regions;
+                      const rs=extractRegionClause(w.regions,['부산','울산','경상남도','경남']);
                       return(<div key={i} style={{display:'flex',alignItems:'flex-start',gap:5,marginTop:i===0?0:2}}>
                         <span style={{fontSize:9,fontWeight:700,color:bc,background:`${bc}22`,border:`1px solid ${bc}44`,padding:'0 4px',borderRadius:3,whiteSpace:'nowrap',flexShrink:0,lineHeight:'15px'}}>{w.type}</span>
                         <span style={{fontSize:9,color:'#fca5a5',lineHeight:'15px'}}>{rs}</span>
@@ -1815,6 +1815,26 @@ const REGION_TO_TARGET: Record<string, string> = {
   buulgyeong:  '부산 / 울산 / 경남',
   all:         '전체',
 };
+
+function extractRegionClause(regions: string, keywords: string[]): string {
+  const parts: string[] = [];
+  let depth = 0, start = 0;
+  for (let i = 0; i < regions.length; i++) {
+    if (regions[i] === '(') depth++;
+    else if (regions[i] === ')') depth--;
+    else if (regions[i] === ',' && depth === 0) {
+      const p = regions.slice(start, i).trim();
+      if (p) parts.push(p);
+      start = i + 1;
+    }
+  }
+  const last = regions.slice(start).trim();
+  if (last) parts.push(last);
+  const matched = parts.filter(p => keywords.some(k => p.includes(k)));
+  if (!matched.length) return regions.length > 45 ? regions.slice(0, 45) + '…' : regions;
+  const joined = matched.join(', ');
+  return joined.length > 55 ? joined.slice(0, 55) + '…' : joined;
+}
 
 export default function HeatWaveChecklist() {
   const { toast } = useToast();
