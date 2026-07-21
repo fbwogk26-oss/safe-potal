@@ -1560,9 +1560,9 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
                       const isKyungbo=w.type.includes('경보')&&!w.type.includes('주의');
                       const bc=isKyungbo?'#ef4444':w.type.includes('주의')&&!w.type.includes('경보')?'#f97316':'#3b82f6';
                       const rs=w.regions;
-                      return(<div key={i} style={{display:'flex',alignItems:'flex-start',gap:5,marginTop:i===0?0:2}}>
-                        <span style={{fontSize:9,fontWeight:700,color:bc,background:`${bc}22`,border:`1px solid ${bc}44`,padding:'0 4px',borderRadius:3,whiteSpace:'nowrap',flexShrink:0,lineHeight:'15px'}}>{w.type}</span>
-                        <span style={{fontSize:9,color:'#fca5a5',lineHeight:'15px'}}>{rs}</span>
+                      return(<div key={i} style={{marginTop:i===0?0:7,borderTop:i===0?'none':'1px solid rgba(220,38,38,0.12)',paddingTop:i===0?0:5}}>
+                        <span style={{fontSize:9,fontWeight:700,color:bc,background:`${bc}22`,border:`1px solid ${bc}44`,padding:'1px 5px',borderRadius:3,lineHeight:'15px',display:'inline-block'}}>{w.type}</span>
+                        <div style={{fontSize:9,color:'#fca5a5',lineHeight:1.5,marginTop:3,wordBreak:'keep-all'}}>{rs}</div>
                       </div>);
                     })}
                   </div>
@@ -1600,9 +1600,9 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
                       const isKyungbo=w.type.includes('경보')&&!w.type.includes('주의');
                       const bc=isKyungbo?'#ef4444':w.type.includes('주의')&&!w.type.includes('경보')?'#f97316':'#3b82f6';
                       const rs=extractRegionClause(w.regions,['대구','경상북도','경북','울릉']);
-                      return(<div key={i} style={{display:'flex',alignItems:'flex-start',gap:5,marginTop:i===0?0:2}}>
-                        <span style={{fontSize:9,fontWeight:700,color:bc,background:`${bc}22`,border:`1px solid ${bc}44`,padding:'0 4px',borderRadius:3,whiteSpace:'nowrap',flexShrink:0,lineHeight:'15px'}}>{w.type}</span>
-                        <span style={{fontSize:9,color:'#fca5a5',lineHeight:'15px'}}>{rs}</span>
+                      return(<div key={i} style={{marginTop:i===0?0:7,borderTop:i===0?'none':'1px solid rgba(220,38,38,0.12)',paddingTop:i===0?0:5}}>
+                        <span style={{fontSize:9,fontWeight:700,color:bc,background:`${bc}22`,border:`1px solid ${bc}44`,padding:'1px 5px',borderRadius:3,lineHeight:'15px',display:'inline-block'}}>{w.type}</span>
+                        <div style={{fontSize:9,color:'#fca5a5',lineHeight:1.5,marginTop:3,wordBreak:'keep-all'}}>{rs}</div>
                       </div>);
                     })}
                   </div>
@@ -1638,9 +1638,9 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
                       const isKyungbo=w.type.includes('경보')&&!w.type.includes('주의');
                       const bc=isKyungbo?'#ef4444':w.type.includes('주의')&&!w.type.includes('경보')?'#f97316':'#3b82f6';
                       const rs=extractRegionClause(w.regions,['충청','충북','충남','대전','세종']);
-                      return(<div key={i} style={{display:'flex',alignItems:'flex-start',gap:5,marginTop:i===0?0:2}}>
-                        <span style={{fontSize:9,fontWeight:700,color:bc,background:`${bc}22`,border:`1px solid ${bc}44`,padding:'0 4px',borderRadius:3,whiteSpace:'nowrap',flexShrink:0,lineHeight:'15px'}}>{w.type}</span>
-                        <span style={{fontSize:9,color:'#fca5a5',lineHeight:'15px'}}>{rs}</span>
+                      return(<div key={i} style={{marginTop:i===0?0:7,borderTop:i===0?'none':'1px solid rgba(220,38,38,0.12)',paddingTop:i===0?0:5}}>
+                        <span style={{fontSize:9,fontWeight:700,color:bc,background:`${bc}22`,border:`1px solid ${bc}44`,padding:'1px 5px',borderRadius:3,lineHeight:'15px',display:'inline-block'}}>{w.type}</span>
+                        <div style={{fontSize:9,color:'#fca5a5',lineHeight:1.5,marginTop:3,wordBreak:'keep-all'}}>{rs}</div>
                       </div>);
                     })}
                   </div>
@@ -1680,9 +1680,9 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
                       const isKyungbo=w.type.includes('경보')&&!w.type.includes('주의');
                       const bc=isKyungbo?'#ef4444':w.type.includes('주의')&&!w.type.includes('경보')?'#f97316':'#3b82f6';
                       const rs=extractRegionClause(w.regions,['전라남도','전라북도','전북자치도','광주','제주']);
-                      return(<div key={i} style={{display:'flex',alignItems:'flex-start',gap:5,marginTop:i===0?0:2}}>
-                        <span style={{fontSize:9,fontWeight:700,color:bc,background:`${bc}22`,border:`1px solid ${bc}44`,padding:'0 4px',borderRadius:3,whiteSpace:'nowrap',flexShrink:0,lineHeight:'15px'}}>{w.type}</span>
-                        <span style={{fontSize:9,color:'#fca5a5',lineHeight:'15px'}}>{rs}</span>
+                      return(<div key={i} style={{marginTop:i===0?0:7,borderTop:i===0?'none':'1px solid rgba(220,38,38,0.12)',paddingTop:i===0?0:5}}>
+                        <span style={{fontSize:9,fontWeight:700,color:bc,background:`${bc}22`,border:`1px solid ${bc}44`,padding:'1px 5px',borderRadius:3,lineHeight:'15px',display:'inline-block'}}>{w.type}</span>
+                        <div style={{fontSize:9,color:'#fca5a5',lineHeight:1.5,marginTop:3,wordBreak:'keep-all'}}>{rs}</div>
                       </div>);
                     })}
                   </div>
@@ -1716,9 +1716,9 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
                       const isKyungbo=w.type.includes('경보')&&!w.type.includes('주의');
                       const bc=isKyungbo?'#ef4444':w.type.includes('주의')&&!w.type.includes('경보')?'#f97316':'#3b82f6';
                       const rs=extractRegionClause(w.regions,['부산','울산','경상남도','경남']);
-                      return(<div key={i} style={{display:'flex',alignItems:'flex-start',gap:5,marginTop:i===0?0:2}}>
-                        <span style={{fontSize:9,fontWeight:700,color:bc,background:`${bc}22`,border:`1px solid ${bc}44`,padding:'0 4px',borderRadius:3,whiteSpace:'nowrap',flexShrink:0,lineHeight:'15px'}}>{w.type}</span>
-                        <span style={{fontSize:9,color:'#fca5a5',lineHeight:'15px'}}>{rs}</span>
+                      return(<div key={i} style={{marginTop:i===0?0:7,borderTop:i===0?'none':'1px solid rgba(220,38,38,0.12)',paddingTop:i===0?0:5}}>
+                        <span style={{fontSize:9,fontWeight:700,color:bc,background:`${bc}22`,border:`1px solid ${bc}44`,padding:'1px 5px',borderRadius:3,lineHeight:'15px',display:'inline-block'}}>{w.type}</span>
+                        <div style={{fontSize:9,color:'#fca5a5',lineHeight:1.5,marginTop:3,wordBreak:'keep-all'}}>{rs}</div>
                       </div>);
                     })}
                   </div>
