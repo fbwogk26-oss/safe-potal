@@ -880,7 +880,7 @@ type ParsedCSVData = {
 
 
 
-function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEmail, onSaveMap, mapSaving, previewLoading, mapCaptureRef, warnings }: {
+function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEmail, onSaveMap, mapSaving, previewLoading, mapCaptureRef, warnings, onWarningsChange }: {
   onDataParsed?: (d: ParsedCSVData) => void;
   checklistTriggerRef?: React.MutableRefObject<(() => void) | null>;
   onPreviewEmail?: () => void;
@@ -1398,6 +1398,28 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
     }
   }
 
+  const handleAddWarning = async () => {
+    if (!addWarnRegion.trim()) return;
+    setAddWarnSaving(true);
+    try {
+      const r = await fetch('/api/heatwave-warnings/items', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: addWarnType, regions: addWarnRegion.trim() }),
+      });
+      const j = await r.json();
+      if (j?.data?.items) { onWarningsChange?.(j.data.items); setAddWarnRegion(''); setAddWarnOpen(false); }
+    } catch {} finally { setAddWarnSaving(false); }
+  };
+
+  const handleDeleteWarning = async (idx: number) => {
+    try {
+      const r = await fetch(`/api/heatwave-warnings/items/${idx}`, { method: 'DELETE', credentials: 'include' });
+      const j = await r.json();
+      if (j?.data?.items) onWarningsChange?.(j.data.items);
+    } catch {}
+  };
+
   return (
     <div className="border rounded-xl bg-card shadow-sm overflow-hidden">
       {/* 툴팁 */}
@@ -1866,28 +1888,6 @@ export default function HeatWaveChecklist() {
     } catch (e: any) {
       toast({ title: '특보 조회 실패', description: e.message, variant: 'destructive' });
     } finally { setWarningRefreshing(false); }
-  };
-
-  const handleAddWarning = async () => {
-    if (!addWarnRegion.trim()) return;
-    setAddWarnSaving(true);
-    try {
-      const r = await fetch('/api/heatwave-warnings/items', {
-        method: 'POST', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: addWarnType, regions: addWarnRegion.trim() }),
-      });
-      const j = await r.json();
-      if (j?.data?.items) { onWarningsChange?.(j.data.items); setAddWarnRegion(''); setAddWarnOpen(false); }
-    } catch {} finally { setAddWarnSaving(false); }
-  };
-
-  const handleDeleteWarning = async (idx: number) => {
-    try {
-      const r = await fetch(`/api/heatwave-warnings/items/${idx}`, { method: 'DELETE', credentials: 'include' });
-      const j = await r.json();
-      if (j?.data?.items) onWarningsChange?.(j.data.items);
-    } catch {}
   };
 
   // 페이지 마운트 시 특보 데이터 로드
