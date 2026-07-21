@@ -14929,7 +14929,9 @@ ${result.value}
         const ws = await storage.getSetting('heatwave_warnings');
         if (ws) warnings = JSON.parse(ws.value)?.items;
       } catch {}
-      const html = buildHtmlEmail(weather, dateStr, undefined, warnings);
+      const selectedZones: string[] | undefined = Array.isArray(req.body?.selectedZones) && req.body.selectedZones.length > 0
+        ? req.body.selectedZones : undefined;
+      const html = buildHtmlEmail(weather, dateStr, undefined, warnings, selectedZones);
       res.json({ html, weather });
     } catch (e: any) {
       res.status(500).json({ message: e.message });

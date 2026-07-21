@@ -2091,29 +2091,31 @@ export default function HeatWaveChecklist() {
   };
 
   // 메일 미리보기
-  const handlePreviewEmail = async () => {
+  const fetchPreviewHtml = async (zones: string[]) => {
     setPreviewLoading(true);
     try {
       const resp = await fetch('/api/heatwave-daily-email/preview', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        // currentWeatherForAction이 있으면 전달, 없으면 서버가 DB에서 자동 조회
-        body: JSON.stringify({ weather: currentWeatherForAction || {} }),
+        body: JSON.stringify({ weather: currentWeatherForAction || {}, selectedZones: zones }),
       });
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok) throw new Error(data.message || '미리보기 생성 실패');
       setPreviewHtml(data.html || '');
-      // 서버 응답의 weather로 currentWeatherForAction 동기화 (이대로 발송 시 사용)
       if (data.weather && Object.keys(data.weather).length > 0) {
         setCurrentWeatherForAction(data.weather);
       }
-      setShowEmailPreview(true);
     } catch (e: any) {
       toast({ title: '미리보기 실패', description: e.message, variant: 'destructive' });
     } finally {
       setPreviewLoading(false);
     }
+  };
+
+  const handlePreviewEmail = async () => {
+    await fetchPreviewHtml(selectedEmailZones);
+    setShowEmailPreview(true);
   };
 
   const handleDelete = (id: number) => {
@@ -2293,7 +2295,13 @@ export default function HeatWaveChecklist() {
                         type="checkbox"
                         className="sr-only"
                         checked={checked}
-                        onChange={e => setSelectedEmailZones(prev => e.target.checked ? [...prev, zone] : prev.filter(z => z !== zone))}
+                        onChange={e => {
+                          const next = e.target.checked
+                            ? [...selectedEmailZones, zone]
+                            : selectedEmailZones.filter(z => z !== zone);
+                          setSelectedEmailZones(next);
+                          if (next.length > 0) fetchPreviewHtml(next);
+                        }}
                         data-testid={`checkbox-zone-${zone}`}
                       />
                       {icons[zone]} {zone}
