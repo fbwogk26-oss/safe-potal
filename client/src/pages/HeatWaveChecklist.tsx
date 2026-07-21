@@ -1548,17 +1548,26 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
                 <span style={{position:'absolute',top:5,left:9,zIndex:2,fontSize:13,fontWeight:700,color:'#e8ecf1',textShadow:'0 1px 3px rgba(0,0,0,0.8)',pointerEvents:'none'}}>제주도</span>
                 <div ref={jejuAllRef} style={{position:'absolute',inset:0}} />
               </div>
-              {!selectedInfo && warnings.length > 0 && (
-                <div style={{position:'absolute',top:8,left:8,right:8,zIndex:20,background:'rgba(100,0,0,0.92)',border:'2px solid #ef4444',borderRadius:8,padding:'8px 12px',pointerEvents:'none'}}>
-                  <div style={{fontSize:11,fontWeight:800,color:'#fca5a5',marginBottom:4}}>📢 기상청 특보 발효 중</div>
-                  {warnings.map((w,i)=>(
-                    <div key={i} style={{fontSize:10,color:'#fecaca',lineHeight:1.6}}>
-                      <span style={{fontWeight:700}}>{w.type}</span>
-                      <span style={{color:'#fda4af',marginLeft:6,fontSize:9}}>{w.regions}</span>
+              {!selectedInfo && warnings.length > 0 && (()=>{
+                const fw = warnings;
+                return (
+                  <div style={{position:'absolute',top:8,left:8,right:8,zIndex:20,background:'rgba(12,2,2,0.94)',border:'1.5px solid #dc2626',borderRadius:6,padding:'5px 8px',pointerEvents:'none',boxShadow:'0 2px 12px rgba(220,38,38,0.2)'}}>
+                    <div style={{display:'flex',alignItems:'center',gap:5,marginBottom:4,borderBottom:'1px solid rgba(220,38,38,0.2)',paddingBottom:3}}>
+                      <span style={{fontSize:11}}>🚨</span>
+                      <span style={{fontSize:10,fontWeight:800,color:'#f87171'}}>기상청 특보 {fw.length}건 발효 중</span>
                     </div>
-                  ))}
-                </div>
-              )}
+                    {fw.map((w,i)=>{
+                      const isKyungbo=w.type.includes('경보')&&!w.type.includes('주의');
+                      const bc=isKyungbo?'#ef4444':w.type.includes('주의')&&!w.type.includes('경보')?'#f97316':'#3b82f6';
+                      const rs=w.regions.length>40?w.regions.slice(0,40)+'…':w.regions;
+                      return(<div key={i} style={{display:'flex',alignItems:'flex-start',gap:5,marginTop:i===0?0:2}}>
+                        <span style={{fontSize:9,fontWeight:700,color:bc,background:`${bc}22`,border:`1px solid ${bc}44`,padding:'0 4px',borderRadius:3,whiteSpace:'nowrap',flexShrink:0,lineHeight:'15px'}}>{w.type}</span>
+                        <span style={{fontSize:9,color:'#fca5a5',lineHeight:'15px'}}>{rs}</span>
+                      </div>);
+                    })}
+                  </div>
+                );
+              })()}
               {selectedInfo && <RegionInfoCard info={selectedInfo} onClose={()=>setSelectedInfo(null)} heatColorFn={heatColorHex} warnings={warnings} />}
             </div>
           </div>
@@ -1578,17 +1587,27 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
                 <span style={{position:'absolute',top:5,left:9,zIndex:2,fontSize:10.5,fontWeight:700,color:'#e8ecf1',textShadow:'0 1px 3px rgba(0,0,0,0.6)',pointerEvents:'none'}}>울릉군</span>
                 <div ref={ulleungRef} style={{position:'absolute',inset:0}} />
               </div>
-              {!selectedInfo && warnings.length > 0 && (
-                <div style={{position:'absolute',top:8,left:8,right:8,zIndex:20,background:'rgba(100,0,0,0.92)',border:'2px solid #ef4444',borderRadius:8,padding:'8px 12px',pointerEvents:'none'}}>
-                  <div style={{fontSize:11,fontWeight:800,color:'#fca5a5',marginBottom:4}}>📢 기상청 특보 발효 중</div>
-                  {warnings.map((w,i)=>(
-                    <div key={i} style={{fontSize:10,color:'#fecaca',lineHeight:1.6}}>
-                      <span style={{fontWeight:700}}>{w.type}</span>
-                      <span style={{color:'#fda4af',marginLeft:6,fontSize:9}}>{w.regions}</span>
+              {!selectedInfo && (()=>{
+                const fw=warnings.filter(w=>['대구','경상북도','경북','울릉'].some(k=>w.regions.includes(k)));
+                if(!fw.length) return null;
+                return(
+                  <div style={{position:'absolute',top:8,left:8,right:8,zIndex:20,background:'rgba(12,2,2,0.94)',border:'1.5px solid #dc2626',borderRadius:6,padding:'5px 8px',pointerEvents:'none',boxShadow:'0 2px 12px rgba(220,38,38,0.2)'}}>
+                    <div style={{display:'flex',alignItems:'center',gap:5,marginBottom:4,borderBottom:'1px solid rgba(220,38,38,0.2)',paddingBottom:3}}>
+                      <span style={{fontSize:11}}>🚨</span>
+                      <span style={{fontSize:10,fontWeight:800,color:'#f87171'}}>대구·경북 특보 {fw.length}건</span>
                     </div>
-                  ))}
-                </div>
-              )}
+                    {fw.map((w,i)=>{
+                      const isKyungbo=w.type.includes('경보')&&!w.type.includes('주의');
+                      const bc=isKyungbo?'#ef4444':w.type.includes('주의')&&!w.type.includes('경보')?'#f97316':'#3b82f6';
+                      const rs=w.regions.length>40?w.regions.slice(0,40)+'…':w.regions;
+                      return(<div key={i} style={{display:'flex',alignItems:'flex-start',gap:5,marginTop:i===0?0:2}}>
+                        <span style={{fontSize:9,fontWeight:700,color:bc,background:`${bc}22`,border:`1px solid ${bc}44`,padding:'0 4px',borderRadius:3,whiteSpace:'nowrap',flexShrink:0,lineHeight:'15px'}}>{w.type}</span>
+                        <span style={{fontSize:9,color:'#fca5a5',lineHeight:'15px'}}>{rs}</span>
+                      </div>);
+                    })}
+                  </div>
+                );
+              })()}
               {selectedInfo && (
                 <RegionInfoCard info={selectedInfo} onClose={()=>setSelectedInfo(null)} heatColorFn={heatColorHex} warnings={warnings} />
               )}
@@ -1606,17 +1625,27 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
             </div>
             <div style={{position:'relative', flex:1, minHeight:0, background:'#0d1117'}}>
               <div ref={chungcheongRef} style={{position:'absolute',inset:0}} />
-              {!selectedInfo && warnings.length > 0 && (
-                <div style={{position:'absolute',top:8,left:8,right:8,zIndex:20,background:'rgba(100,0,0,0.92)',border:'2px solid #ef4444',borderRadius:8,padding:'8px 12px',pointerEvents:'none'}}>
-                  <div style={{fontSize:11,fontWeight:800,color:'#fca5a5',marginBottom:4}}>📢 기상청 특보 발효 중</div>
-                  {warnings.map((w,i)=>(
-                    <div key={i} style={{fontSize:10,color:'#fecaca',lineHeight:1.6}}>
-                      <span style={{fontWeight:700}}>{w.type}</span>
-                      <span style={{color:'#fda4af',marginLeft:6,fontSize:9}}>{w.regions}</span>
+              {!selectedInfo && (()=>{
+                const fw=warnings.filter(w=>['충청','충북','충남','대전','세종'].some(k=>w.regions.includes(k)));
+                if(!fw.length) return null;
+                return(
+                  <div style={{position:'absolute',top:8,left:8,right:8,zIndex:20,background:'rgba(12,2,2,0.94)',border:'1.5px solid #dc2626',borderRadius:6,padding:'5px 8px',pointerEvents:'none',boxShadow:'0 2px 12px rgba(220,38,38,0.2)'}}>
+                    <div style={{display:'flex',alignItems:'center',gap:5,marginBottom:4,borderBottom:'1px solid rgba(220,38,38,0.2)',paddingBottom:3}}>
+                      <span style={{fontSize:11}}>🚨</span>
+                      <span style={{fontSize:10,fontWeight:800,color:'#f87171'}}>충청권 특보 {fw.length}건</span>
                     </div>
-                  ))}
-                </div>
-              )}
+                    {fw.map((w,i)=>{
+                      const isKyungbo=w.type.includes('경보')&&!w.type.includes('주의');
+                      const bc=isKyungbo?'#ef4444':w.type.includes('주의')&&!w.type.includes('경보')?'#f97316':'#3b82f6';
+                      const rs=w.regions.length>40?w.regions.slice(0,40)+'…':w.regions;
+                      return(<div key={i} style={{display:'flex',alignItems:'flex-start',gap:5,marginTop:i===0?0:2}}>
+                        <span style={{fontSize:9,fontWeight:700,color:bc,background:`${bc}22`,border:`1px solid ${bc}44`,padding:'0 4px',borderRadius:3,whiteSpace:'nowrap',flexShrink:0,lineHeight:'15px'}}>{w.type}</span>
+                        <span style={{fontSize:9,color:'#fca5a5',lineHeight:'15px'}}>{rs}</span>
+                      </div>);
+                    })}
+                  </div>
+                );
+              })()}
               {selectedInfo && <RegionInfoCard info={selectedInfo} onClose={()=>setSelectedInfo(null)} heatColorFn={heatColorHex} warnings={warnings} />}
             </div>
           </div>
@@ -1638,17 +1667,27 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
                 <span style={{position:'absolute',top:5,left:9,zIndex:2,fontSize:10.5,fontWeight:700,color:'#e8ecf1',textShadow:'0 1px 3px rgba(0,0,0,0.6)',pointerEvents:'none'}}>제주도</span>
                 <div ref={jejuRef} style={{position:'absolute',inset:0}} />
               </div>
-              {!selectedInfo && warnings.length > 0 && (
-                <div style={{position:'absolute',top:8,left:8,right:8,zIndex:20,background:'rgba(100,0,0,0.92)',border:'2px solid #ef4444',borderRadius:8,padding:'8px 12px',pointerEvents:'none'}}>
-                  <div style={{fontSize:11,fontWeight:800,color:'#fca5a5',marginBottom:4}}>📢 기상청 특보 발효 중</div>
-                  {warnings.map((w,i)=>(
-                    <div key={i} style={{fontSize:10,color:'#fecaca',lineHeight:1.6}}>
-                      <span style={{fontWeight:700}}>{w.type}</span>
-                      <span style={{color:'#fda4af',marginLeft:6,fontSize:9}}>{w.regions}</span>
+              {!selectedInfo && (()=>{
+                const fw=warnings.filter(w=>['전라남도','전라북도','전북자치도','광주','제주'].some(k=>w.regions.includes(k)));
+                if(!fw.length) return null;
+                return(
+                  <div style={{position:'absolute',top:8,left:8,right:8,zIndex:20,background:'rgba(12,2,2,0.94)',border:'1.5px solid #dc2626',borderRadius:6,padding:'5px 8px',pointerEvents:'none',boxShadow:'0 2px 12px rgba(220,38,38,0.2)'}}>
+                    <div style={{display:'flex',alignItems:'center',gap:5,marginBottom:4,borderBottom:'1px solid rgba(220,38,38,0.2)',paddingBottom:3}}>
+                      <span style={{fontSize:11}}>🚨</span>
+                      <span style={{fontSize:10,fontWeight:800,color:'#f87171'}}>호남·제주 특보 {fw.length}건</span>
                     </div>
-                  ))}
-                </div>
-              )}
+                    {fw.map((w,i)=>{
+                      const isKyungbo=w.type.includes('경보')&&!w.type.includes('주의');
+                      const bc=isKyungbo?'#ef4444':w.type.includes('주의')&&!w.type.includes('경보')?'#f97316':'#3b82f6';
+                      const rs=w.regions.length>40?w.regions.slice(0,40)+'…':w.regions;
+                      return(<div key={i} style={{display:'flex',alignItems:'flex-start',gap:5,marginTop:i===0?0:2}}>
+                        <span style={{fontSize:9,fontWeight:700,color:bc,background:`${bc}22`,border:`1px solid ${bc}44`,padding:'0 4px',borderRadius:3,whiteSpace:'nowrap',flexShrink:0,lineHeight:'15px'}}>{w.type}</span>
+                        <span style={{fontSize:9,color:'#fca5a5',lineHeight:'15px'}}>{rs}</span>
+                      </div>);
+                    })}
+                  </div>
+                );
+              })()}
               {selectedInfo && <RegionInfoCard info={selectedInfo} onClose={()=>setSelectedInfo(null)} heatColorFn={heatColorHex} warnings={warnings} />}
             </div>
           </div>
@@ -1664,17 +1703,27 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
             </div>
             <div style={{position:'relative', flex:1, minHeight:0, background:'#0d1117'}}>
               <div ref={buulgyeongRef} style={{position:'absolute',inset:0}} />
-              {!selectedInfo && warnings.length > 0 && (
-                <div style={{position:'absolute',top:8,left:8,right:8,zIndex:20,background:'rgba(100,0,0,0.92)',border:'2px solid #ef4444',borderRadius:8,padding:'8px 12px',pointerEvents:'none'}}>
-                  <div style={{fontSize:11,fontWeight:800,color:'#fca5a5',marginBottom:4}}>📢 기상청 특보 발효 중</div>
-                  {warnings.map((w,i)=>(
-                    <div key={i} style={{fontSize:10,color:'#fecaca',lineHeight:1.6}}>
-                      <span style={{fontWeight:700}}>{w.type}</span>
-                      <span style={{color:'#fda4af',marginLeft:6,fontSize:9}}>{w.regions}</span>
+              {!selectedInfo && (()=>{
+                const fw=warnings.filter(w=>['부산','울산','경상남도','경남'].some(k=>w.regions.includes(k)));
+                if(!fw.length) return null;
+                return(
+                  <div style={{position:'absolute',top:8,left:8,right:8,zIndex:20,background:'rgba(12,2,2,0.94)',border:'1.5px solid #dc2626',borderRadius:6,padding:'5px 8px',pointerEvents:'none',boxShadow:'0 2px 12px rgba(220,38,38,0.2)'}}>
+                    <div style={{display:'flex',alignItems:'center',gap:5,marginBottom:4,borderBottom:'1px solid rgba(220,38,38,0.2)',paddingBottom:3}}>
+                      <span style={{fontSize:11}}>🚨</span>
+                      <span style={{fontSize:10,fontWeight:800,color:'#f87171'}}>부산·경남 특보 {fw.length}건</span>
                     </div>
-                  ))}
-                </div>
-              )}
+                    {fw.map((w,i)=>{
+                      const isKyungbo=w.type.includes('경보')&&!w.type.includes('주의');
+                      const bc=isKyungbo?'#ef4444':w.type.includes('주의')&&!w.type.includes('경보')?'#f97316':'#3b82f6';
+                      const rs=w.regions.length>40?w.regions.slice(0,40)+'…':w.regions;
+                      return(<div key={i} style={{display:'flex',alignItems:'flex-start',gap:5,marginTop:i===0?0:2}}>
+                        <span style={{fontSize:9,fontWeight:700,color:bc,background:`${bc}22`,border:`1px solid ${bc}44`,padding:'0 4px',borderRadius:3,whiteSpace:'nowrap',flexShrink:0,lineHeight:'15px'}}>{w.type}</span>
+                        <span style={{fontSize:9,color:'#fca5a5',lineHeight:'15px'}}>{rs}</span>
+                      </div>);
+                    })}
+                  </div>
+                );
+              })()}
               {selectedInfo && <RegionInfoCard info={selectedInfo} onClose={()=>setSelectedInfo(null)} heatColorFn={heatColorHex} warnings={warnings} />}
             </div>
           </div>
