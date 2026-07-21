@@ -329,22 +329,39 @@ export default function HeatWaveMapReport() {
 
       {/* ── 기상특보 패널 ────────────────────────────────── */}
       {(() => {
-        // 광역 키워드 + 도시명 양방향 매칭 (전체 탭이면 전국 표시)
+        // 탭별 광역 키워드 (토큰 startsWith 매칭용)
         const WARN_KEYWORDS: Partial<Record<RegionKey, string[]>> = {
           daegubuk:    ['대구', '경상북도', '경북'],
           buulgyeong:  ['부산', '울산', '경상남도', '경남'],
           chungcheong: ['대전', '세종', '충청남도', '충남', '충청북도', '충북'],
           honam:       ['광주', '전라남도', '전남', '전북자치도', '전북', '제주도', '제주시', '서귀포'],
         };
-        const provinceKeys = selectedRegion !== "all" ? (WARN_KEYWORDS[selectedRegion] ?? []) : [];
-        const zoneCities   = selectedRegion !== "all" ? (REGION_KEY_MAP[selectedRegion] ?? []) : [];
-        const visibleWarnings = warnings.filter(w => {
-          if (selectedRegion === "all") return true;
-          // 1) 광역명 시작 매칭 (경상북도, 충청남도 등)
-          if (provinceKeys.some(k => w.regions.includes(k))) return true;
-          // 2) 도시명 포함 매칭 (parentheses 내 개별 시군 표기 대비)
-          return zoneCities.some(city => w.regions.includes(city));
-        });
+
+        /** 최상위 쉼표(괄호 밖)로만 분리하는 파서 */
+        function splitRegions(s: string): string[] {
+          const tokens: string[] = [];
+          let depth = 0, cur = '';
+          for (const ch of s) {
+            if (ch === '(') depth++;
+            else if (ch === ')') depth--;
+            if (ch === ',' && depth === 0) { if (cur.trim()) tokens.push(cur.trim()); cur = ''; }
+            else cur += ch;
+          }
+          if (cur.trim()) tokens.push(cur.trim());
+          return tokens;
+        }
+
+        const keys = selectedRegion !== "all" ? (WARN_KEYWORDS[selectedRegion] ?? []) : [];
+
+        // 탭별로 해당 지역 토큰만 남기고 나머지는 제거
+        const visibleWarnings: { type: string; regions: string }[] = selectedRegion === "all"
+          ? warnings
+          : warnings.map(w => {
+              const tokens = splitRegions(w.regions);
+              const kept = tokens.filter(t => keys.some(k => t.startsWith(k)));
+              if (!kept.length) return null;
+              return { type: w.type, regions: kept.join(', ') };
+            }).filter(Boolean) as { type: string; regions: string }[];
         if (visibleWarnings.length === 0) return null;
         return (
           <div style={{
