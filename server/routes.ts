@@ -14681,6 +14681,27 @@ ${result.value}
     }
   });
 
+  // ── 기상청 특보 현황 조회 & 즉시 수집 ────────────────────────────────────────
+  app.get('/api/heatwave-warnings', isAuthenticated, async (_req, res) => {
+    try {
+      const s = await storage.getSetting('heatwave_warnings');
+      if (!s) return res.json({ ok: true, data: null });
+      res.json({ ok: true, data: JSON.parse(s.value) });
+    } catch {
+      res.json({ ok: true, data: null });
+    }
+  });
+
+  app.post('/api/heatwave-warnings/refresh', isAuthenticated, async (_req, res) => {
+    try {
+      const { fetchAndSaveHeatwaveWarnings } = await import('./heatwaveWeatherJob');
+      const result = await fetchAndSaveHeatwaveWarnings();
+      res.json({ ok: true, data: result });
+    } catch (e: any) {
+      res.status(500).json({ ok: false, message: e.message });
+    }
+  });
+
   // ── 폭염 지도 데이터 Excel 다운로드 ────────────────────────────────────────
   app.get('/api/heatwave-map/export', isAuthenticated, async (_req, res) => {
     try {
@@ -14865,7 +14886,12 @@ ${result.value}
       }
       const now = new Date();
       const dateStr = now.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' });
-      const html = buildHtmlEmail(weather, dateStr, undefined);
+      let warnings: { type: string; regions: string }[] | undefined;
+      try {
+        const ws = await storage.getSetting('heatwave_warnings');
+        if (ws) warnings = JSON.parse(ws.value)?.items;
+      } catch {}
+      const html = buildHtmlEmail(weather, dateStr, undefined, warnings);
       res.json({ html, weather });
     } catch (e: any) {
       res.status(500).json({ message: e.message });

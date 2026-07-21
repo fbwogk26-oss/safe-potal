@@ -92,7 +92,12 @@ function tileBg(feels: number): string {
 }
 
 // ── HTML 이메일 빌드 ─────────────────────────────────────────────────────────
-export function buildHtmlEmail(weather: Record<string, WeatherEntry>, dateStr: string, reportUrl?: string): string {
+export function buildHtmlEmail(
+  weather: Record<string, WeatherEntry>,
+  dateStr: string,
+  reportUrl?: string,
+  warnings?: { type: string; regions: string }[],
+): string {
   const entries = Object.entries(weather).sort((a, b) => b[1].feels - a[1].feels);
   if (!entries.length) return '<p>날씨 데이터가 없습니다.</p>';
 
@@ -157,6 +162,18 @@ export function buildHtmlEmail(weather: Record<string, WeatherEntry>, dateStr: s
     <div style="margin:0 0 3px;font-size:22px;font-weight:900;color:#fff;letter-spacing:-0.3px">🌡&nbsp; 폭염 일일 현황</div>
     <div style="font-size:12px;color:rgba(255,255,255,0.80)">${dateStr}${entries[0]?.[1].time ? ` &nbsp;·&nbsp; ${entries[0][1].time} 기준` : ''} &nbsp;·&nbsp; 기상청 단기예보</div>
   </div>
+
+  ${warnings && warnings.length > 0 ? `
+  <!-- 기상청 특보 현황 -->
+  <div style="margin:0;padding:12px 20px;background:#fef3c7;border-bottom:2px solid #f59e0b">
+    <div style="font-size:11px;font-weight:800;color:#92400e;margin-bottom:7px;letter-spacing:0.2px">📢 기상청 특보 현황 (기상청 공식)</div>
+    ${warnings.map((w: { type: string; regions: string }) => {
+      const color = w.type === '폭염경보' ? '#991b1b' : w.type === '폭염주의보' ? '#c2410c' : '#6d28d9';
+      const bg    = w.type === '폭염경보' ? '#fee2e2' : w.type === '폭염주의보' ? '#ffedd5' : '#ede9fe';
+      return `<div style="display:table;width:100%;margin-bottom:5px"><div style="display:table-cell;vertical-align:top;padding-right:8px;width:70px"><span style="display:inline-block;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:800;color:${color};background:${bg};white-space:nowrap">${w.type}</span></div><div style="display:table-cell;vertical-align:top;font-size:10px;color:#374151;line-height:1.55">${w.regions}</div></div>`;
+    }).join('')}
+  </div>
+  ` : ''}
 
   ${reportUrl ? `
   <!-- 인터랙티브 3D 지도 보기 버튼 -->
@@ -481,7 +498,14 @@ export async function runHeatwaveDailyEmail(
       ?? null;
     const reportUrl = resolvedBase ? `${resolvedBase}/heatwave-report?token=${reportToken}` : undefined;
 
-    const html        = buildHtmlEmail(weather, dateStr, reportUrl);
+    // 기상청 특보 데이터 읽기
+    let warnings: { type: string; regions: string }[] | undefined;
+    try {
+      const ws = await storage.getSetting('heatwave_warnings');
+      if (ws) warnings = JSON.parse(ws.value)?.items;
+    } catch {}
+
+    const html        = buildHtmlEmail(weather, dateStr, reportUrl, warnings);
     const excelBuffer = await buildExcelBuffer(weather, dateStr, dateDash);
 
     const allEntries  = Object.entries(weather).sort((a, b) => b[1].feels - a[1].feels);

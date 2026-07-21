@@ -1722,6 +1722,36 @@ export default function HeatWaveChecklist() {
   const [currentWeatherForAction, setCurrentWeatherForAction] = useState<Record<string, any> | null>(null);
   const [mapSaving, setMapSaving] = useState(false);
 
+  // 기상청 특보
+  const [warnings, setWarnings] = useState<{ type: string; regions: string }[]>([]);
+  const [warningFetchedAt, setWarningFetchedAt] = useState<string | null>(null);
+  const [warningRefreshing, setWarningRefreshing] = useState(false);
+
+  const loadWarnings = async () => {
+    try {
+      const r = await fetch('/api/heatwave-warnings', { credentials: 'include' });
+      if (!r.ok) return;
+      const j = await r.json();
+      if (j?.data?.items) { setWarnings(j.data.items); setWarningFetchedAt(j.data.fetchedAt ?? null); }
+    } catch {}
+  };
+
+  const refreshWarnings = async () => {
+    setWarningRefreshing(true);
+    try {
+      const r = await fetch('/api/heatwave-warnings/refresh', { method: 'POST', credentials: 'include' });
+      if (!r.ok) { toast({ title: '특보 조회 실패', variant: 'destructive' }); return; }
+      const j = await r.json();
+      if (j?.data?.items) { setWarnings(j.data.items); setWarningFetchedAt(j.data.fetchedAt ?? null); }
+      toast({ title: '기상청 특보 현황 갱신 완료', description: `폭염관련 특보 ${j?.data?.items?.length ?? 0}건` });
+    } catch (e: any) {
+      toast({ title: '특보 조회 실패', description: e.message, variant: 'destructive' });
+    } finally { setWarningRefreshing(false); }
+  };
+
+  // 페이지 마운트 시 특보 데이터 로드
+  useEffect(() => { loadWarnings(); }, []);
+
   const handleSaveMapData = async () => {
     if (!currentWeatherForAction || Object.keys(currentWeatherForAction).length === 0) {
       toast({ title: '저장할 날씨 데이터가 없습니다', description: '실시간 날씨 조회 또는 CSV 업로드 먼저 해주세요.', variant: 'destructive' });
@@ -1934,6 +1964,68 @@ export default function HeatWaveChecklist() {
           </button>
         </div>
       </div>
+
+      {/* ── 기상청 특보 배너 ──────────────────────────────────────────────── */}
+      {warnings.length > 0 && (
+        <div className="rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 overflow-hidden">
+          <div className="flex items-center justify-between px-3 py-2 border-b border-amber-200 dark:border-amber-800 bg-amber-100/70 dark:bg-amber-900/40">
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm">📢</span>
+              <span className="text-xs font-bold text-amber-800 dark:text-amber-300">기상청 특보 현황</span>
+              {warningFetchedAt && (
+                <span className="text-[10px] text-amber-600 dark:text-amber-500">
+                  · {new Date(warningFetchedAt).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })} 기준
+                </span>
+              )}
+            </div>
+            <button
+              onClick={refreshWarnings}
+              disabled={warningRefreshing}
+              className="flex items-center gap-1 text-[10px] text-amber-700 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-200 disabled:opacity-50 transition-colors"
+              data-testid="button-refresh-warnings"
+            >
+              {warningRefreshing
+                ? <span className="inline-block w-3 h-3 border border-amber-500 border-t-transparent rounded-full animate-spin" />
+                : <RefreshCw className="w-3 h-3" />}
+              <span>새로고침</span>
+            </button>
+          </div>
+          <div className="px-3 py-2 space-y-1.5">
+            {warnings.map((w, i) => {
+              const isAlert = w.type === '폭염경보';
+              const isWatch = w.type === '폭염주의보';
+              const badgeClass = isAlert
+                ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800'
+                : isWatch
+                  ? 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-800'
+                  : 'bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-800';
+              return (
+                <div key={i} className="flex items-start gap-2 text-xs">
+                  <span className={`flex-shrink-0 px-1.5 py-0.5 rounded text-[10px] font-bold whitespace-nowrap ${badgeClass}`}>{w.type}</span>
+                  <span className="text-amber-900 dark:text-amber-200 leading-relaxed">{w.regions}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      {warnings.length === 0 && !warningRefreshing && (
+        <div className="flex items-center justify-between rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/30 px-3 py-2">
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm">☀️</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">현재 발효 중인 폭염·열대야 특보 없음 (기상청)</span>
+          </div>
+          <button
+            onClick={refreshWarnings}
+            disabled={warningRefreshing}
+            className="flex items-center gap-1 text-[10px] text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
+            data-testid="button-refresh-warnings-empty"
+          >
+            <RefreshCw className="w-3 h-3" />
+            <span>특보 조회</span>
+          </button>
+        </div>
+      )}
 
       {/* ── 지도 / 날씨 탭 ─ Three.js 유지를 위해 display:none 숨김 ── */}
       <div style={{ display: mainTab === 'map' ? 'block' : 'none' }}>

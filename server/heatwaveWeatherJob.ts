@@ -275,3 +275,77 @@ cron.schedule("0 9 * * *", async () => {
 }, { timezone: "Asia/Seoul" });
 
 console.log("[HeatwaveJob] 폭염 기상 자동 수집 Cron 등록 완료 (매일 09:00 KST)");
+
+// ── 기상청 특보 수집 ─────────────────────────────────────────────────────────
+export interface HeatwaveWarningItem {
+  type: string;    // 폭염경보 | 폭염주의보 | 열대야경보 | 열대야주의보
+  regions: string;
+}
+
+export interface HeatwaveWarningResult {
+  ok: boolean;
+  items: HeatwaveWarningItem[];
+  rawText: string | null;
+  issuedAt: string | null;
+  fetchedAt: string;
+}
+
+function parseWarningText(t6: string): HeatwaveWarningItem[] {
+  if (!t6) return [];
+  const types = ['폭염경보', '폭염주의보', '열대야경보', '열대야주의보'];
+  const result: HeatwaveWarningItem[] = [];
+  for (const type of types) {
+    const regex = new RegExp('o\\s+' + type + '\\s*:\\s*([^\n]+)');
+    const m = t6.match(regex);
+    if (m) {
+      const regionStr = m[1].trim();
+      if (regionStr && regionStr !== '없음') {
+        result.push({ type, regions: regionStr });
+      }
+    }
+  }
+  return result;
+}
+
+export async function fetchAndSaveHeatwaveWarnings(): Promise<HeatwaveWarningResult> {
+  const KMA_KEY = process.env.KMA_API_KEY;
+  const fallback: HeatwaveWarningResult = { ok: false, items: [], rawText: null, issuedAt: null, fetchedAt: new Date().toISOString() };
+  if (!KMA_KEY) { console.warn('[HeatwaveWarning] KMA_API_KEY 미설정'); return fallback; }
+
+  try {
+    // Step 1: 최신 특보 목록에서 tmFc, tmSeq, stnId 조회 (stnId=108 서울기상청)
+    const listUrl = `https://apis.data.go.kr/1360000/WthrWrnInfoService/getWthrWrnList?serviceKey=${encodeURIComponent(KMA_KEY)}&pageNo=1&numOfRows=5&dataType=JSON&stnId=108`;
+    const r1 = await fetch(listUrl, { signal: AbortSignal.timeout(10000) });
+    if (!r1.ok) throw new Error(`KMA list ${r1.status}`);
+    const j1 = await r1.json() as any;
+    const listItems: any[] = j1?.response?.body?.items?.item ?? [];
+    if (!listItems.length) {
+      const empty: HeatwaveWarningResult = { ok: true, items: [], rawText: null, issuedAt: null, fetchedAt: new Date().toISOString() };
+      await storage.setSetting('heatwave_warnings', JSON.stringify(empty));
+      return empty;
+    }
+    const latest = listItems[0];
+
+    // Step 2: 해당 특보 발표문 상세 조회 (t6 필드에 현재 발효 중인 전체 특보 텍스트 포함)
+    const tmFc = String(latest.tmFc);
+    const tmSeq = String(latest.tmSeq);
+    const stnId = String(latest.stnId);
+    const msgUrl = `https://apis.data.go.kr/1360000/WthrWrnInfoService/getWthrWrnMsg?serviceKey=${encodeURIComponent(KMA_KEY)}&pageNo=1&numOfRows=5&dataType=JSON&stnId=${stnId}&tmFc=${tmFc}&tmSeq=${tmSeq}`;
+    const r2 = await fetch(msgUrl, { signal: AbortSignal.timeout(10000) });
+    if (!r2.ok) throw new Error(`KMA msg ${r2.status}`);
+    const j2 = await r2.json() as any;
+    const msgItems: any[] = j2?.response?.body?.items?.item ?? [];
+
+    const latestMsg = msgItems.find((i: any) => i.stnId === '108') ?? msgItems[0];
+    const t6: string = latestMsg?.t6 ?? '';
+    const issuedAt = tmFc;
+    const items = parseWarningText(t6);
+    const result: HeatwaveWarningResult = { ok: true, items, rawText: t6, issuedAt, fetchedAt: new Date().toISOString() };
+    await storage.setSetting('heatwave_warnings', JSON.stringify(result));
+    console.log(`[HeatwaveWarning] ✅ 특보 수집 완료 — 폭염관련 ${items.length}건 (tmSeq=${tmSeq})`);
+    return result;
+  } catch (e: any) {
+    console.warn('[HeatwaveWarning] 특보 조회 실패:', e?.message);
+    return fallback;
+  }
+}
