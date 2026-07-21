@@ -634,8 +634,12 @@ export async function runHeatwaveDailyEmail(
       socketTimeout:     30_000,   // 소켓 비활성 최대 30초
     });
 
-    // 수신자: jaeha.ryu@ktmos.co.kr 고정
-    const toList = 'jaeha.ryu@ktmos.co.kr';
+    // 수신자 목록: 고정 수신자 + 발신자 본인(GMAIL_SENDER) + GMAIL_RECIPIENTS 환경변수
+    const fixedRecipients = ['jaeha.ryu@ktmos.co.kr'];
+    const envRecipients = (process.env.GMAIL_RECIPIENTS ?? '')
+      .split(',').map(s => s.trim()).filter(Boolean);
+    const toSet = new Set([...fixedRecipients, sender, ...envRecipients]);
+    const toList = [...toSet].join(', ');
 
     const mailOptions: any = {
       from: `"SafeBoard 폭염현황" <${sender}>`,
