@@ -78,7 +78,8 @@ const DETAIL_ORDER: Record<string, number> = {
   '광주': 10, '전북': 11, '전남': 12, '제주': 13,
 };
 
-type WeatherEntry = { feels: number; temp: number | null; hum: number | null; stage: string; time: string; rainType?: string; rain?: string; wind?: number | null; windLevel?: string };
+type HourlyEntry = { time: string; temp: number | null; hum: number | null; feels: number; stage: string; rainType: string; rain: string; wind: number | null; windLevel: string };
+type WeatherEntry = { feels: number; temp: number | null; hum: number | null; stage: string; time: string; rainType?: string; rain?: string; wind?: number | null; windLevel?: string; hourly?: HourlyEntry[] };
 
 // ── 색상 유틸 ──────────────────────────────────────────────────────────────
 function tileBg(feels: number): string {
@@ -386,24 +387,28 @@ export async function buildExcelBuffer(weather: Record<string, WeatherEntry>, da
     });
     hdrRow.height = 22;
 
-    // 데이터 행 — 체감온도 내림차순 정렬
+    // 데이터 행 — hourly 있으면 시간별 다중 행, 없으면 단일 행
+    const toRow = (name: string, zone: string, h: { time: string; temp: number | null; hum: number | null; feels: number; stage: string; rainType: string; rain: string; wind: number | null; windLevel: string }) => ({
+      권역:    ZONE_TO_CSV[zone] ?? zone,
+      지역:    name,
+      예보일자: dateDash,
+      예보시간: h.time,
+      기온:    h.temp,
+      습도:    h.hum,
+      체감온도: h.feels,
+      폭염단계: h.stage || '해당없음',
+      강수형태: h.rainType || '없음',
+      강수량:  h.rain || '강수없음',
+      풍속:    h.wind ?? '',
+      풍속단계: h.windLevel || '정상',
+    });
     const rows = Object.entries(weather)
-      .map(([name, d]) => {
+      .flatMap(([name, d]) => {
         const zone = CITY_TO_ZONE[name] ?? '기타';
-        return {
-          권역:    ZONE_TO_CSV[zone] ?? zone,
-          지역:    name,
-          예보일자: dateDash,
-          예보시간: d.time ?? '',
-          기온:    d.temp,
-          습도:    d.hum,
-          체감온도: d.feels,
-          폭염단계: d.stage ?? '해당없음',
-          강수형태: d.rainType ?? '없음',
-          강수량:  d.rain ?? '강수없음',
-          풍속:    d.wind ?? '',
-          풍속단계: d.windLevel ?? '정상',
-        };
+        if (d.hourly && d.hourly.length > 0) {
+          return d.hourly.map(h => toRow(name, zone, h));
+        }
+        return [toRow(name, zone, { time: d.time ?? '', temp: d.temp, hum: d.hum, feels: d.feels, stage: d.stage ?? '해당없음', rainType: d.rainType ?? '없음', rain: d.rain ?? '강수없음', wind: d.wind ?? null, windLevel: d.windLevel ?? '정상' })];
       })
       .sort((a, b) => b.체감온도 - a.체감온도);
 

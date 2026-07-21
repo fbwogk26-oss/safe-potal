@@ -10,7 +10,8 @@ export interface PanelOpts {
 }
 export interface RegionEntry { meshes: THREE.Mesh[]; topMat: THREE.MeshStandardMaterial; sideMat: THREE.MeshStandardMaterial; baseColor: THREE.Color; baseDepth: number; sprite: THREE.Sprite | null; }
 export interface ThreePanel { scene: THREE.Scene; camera: THREE.PerspectiveCamera; renderer: THREE.WebGLRenderer; tick: () => void; cleanup: () => void; }
-export interface RegionWeather { feels: number; temp: number | null; hum: number | null; stage: string; time: string; rainType?: string; rain?: string; wind?: number | null; windLevel?: string; }
+export type HourlyWeather = { time: string; temp: number | null; hum: number | null; feels: number; stage: string; rainType: string; rain: string; wind: number | null; windLevel: string };
+export interface RegionWeather { feels: number; temp: number | null; hum: number | null; stage: string; time: string; rainType?: string; rain?: string; wind?: number | null; windLevel?: string; hourly?: HourlyWeather[]; }
 export type RegionKey = 'all' | 'daegubuk' | 'chungcheong' | 'honam' | 'buulgyeong';
 export const REGION_TABS: { key: RegionKey; label: string; sub: string }[] = [
   { key: 'all',         label: '전체 지도', sub: '전체 권역' },

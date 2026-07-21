@@ -179,7 +179,8 @@ export async function fetchAndSaveHeatwaveWeather(): Promise<{ ok: boolean; coun
   const PTY_LABEL: Record<string, string> = {
     '0': '없음', '1': '비', '2': '비/눈', '3': '눈', '4': '소나기', '5': '빗방울', '6': '빗방울/눈', '7': '눈날림',
   };
-  const results: { name: string; feels: number; temp: number; hum: number; stage: string; time: string; rainType: string; rain: string; wind: number | null; windLevel: string }[] = [];
+  type HourlyEntry = { time: string; temp: number; hum: number; feels: number; stage: string; rainType: string; rain: string; wind: number | null; windLevel: string };
+  const results: { name: string; feels: number; temp: number; hum: number; stage: string; time: string; rainType: string; rain: string; wind: number | null; windLevel: string; hourly: HourlyEntry[] }[] = [];
   const BATCH = 5;
 
   for (let i = 0; i < REGIONS.length; i += BATCH) {
@@ -188,7 +189,7 @@ export async function fetchAndSaveHeatwaveWeather(): Promise<{ ok: boolean; coun
       try {
         const url = `https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst`
           + `?serviceKey=${encodeURIComponent(KMA_KEY)}`
-          + `&pageNo=1&numOfRows=100&dataType=JSON`
+          + `&pageNo=1&numOfRows=400&dataType=JSON`
           + `&base_date=${baseDateStr}&base_time=${baseTimeStr}`
           + `&nx=${r.nx}&ny=${r.ny}`;
         const resp = await fetch(url, { signal: AbortSignal.timeout(10000) });
@@ -221,7 +222,34 @@ export async function fetchAndSaveHeatwaveWeather(): Promise<{ ok: boolean; coun
         const rain = (pcpRaw === '0' || pcpRaw === '강수없음') ? '강수없음' : pcpRaw.replace('mm', '') + 'mm';
         const wind = getVal('WSD');
         const windLevel = wind == null ? '정상' : wind >= 14 ? '위험' : wind >= 9 ? '경계' : wind >= 4 ? '주의' : '정상';
-        return { name: r.name, feels, temp, hum: Math.round(hum), stage, time: timeLabel, rainType, rain, wind: wind != null ? parseFloat(wind.toFixed(1)) : null, windLevel };
+
+        // 시간별(09~18시) 예보 추출
+        const TARGET_HOURS = [900, 1000, 1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800];
+        const hourly: HourlyEntry[] = TARGET_HOURS.map(h => {
+          const getH = (cat: string) => {
+            const m = items.find((x: any) => x.category === cat && parseInt(x.fcstTime, 10) === h);
+            return m ? parseFloat(m.fcstValue) : null;
+          };
+          const getHStr = (cat: string): string | null => {
+            const m = items.find((x: any) => x.category === cat && parseInt(x.fcstTime, 10) === h);
+            return m ? String(m.fcstValue) : null;
+          };
+          const ht = getH('TMP') ?? getH('T1H');
+          const hrh = getH('REH');
+          if (ht === null || hrh === null) return null;
+          const hf = calcFeelsLike(ht, hrh);
+          const hs = hf >= 35 ? '폭염경보' : hf >= 33 ? '폭염주의보' : hf >= 31 ? '폭염관심' : '해당없음';
+          const hptyCode = getH('PTY') ?? 0;
+          const hRainType = PTY_LABEL[String(Math.round(hptyCode))] ?? '없음';
+          const hPcpRaw = getHStr('PCP') ?? '강수없음';
+          const hRain = (hPcpRaw === '0' || hPcpRaw === '강수없음') ? '강수없음' : hPcpRaw.replace('mm', '') + 'mm';
+          const hw = getH('WSD');
+          const hwl = hw == null ? '정상' : hw >= 14 ? '위험' : hw >= 9 ? '경계' : hw >= 4 ? '주의' : '정상';
+          const timeStr = `${String(Math.floor(h / 100)).padStart(2, '0')}:00`;
+          return { time: timeStr, temp: ht, hum: Math.round(hrh), feels: parseFloat(hf.toFixed(1)), stage: hs, rainType: hRainType, rain: hRain, wind: hw != null ? parseFloat(hw.toFixed(1)) : null, windLevel: hwl };
+        }).filter(Boolean) as HourlyEntry[];
+
+        return { name: r.name, feels, temp, hum: Math.round(hum), stage, time: timeLabel, rainType, rain, wind: wind != null ? parseFloat(wind.toFixed(1)) : null, windLevel, hourly };
       } catch {
         return null;
       }

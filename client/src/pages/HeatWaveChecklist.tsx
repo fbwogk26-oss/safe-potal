@@ -1548,6 +1548,17 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
                 <span style={{position:'absolute',top:5,left:9,zIndex:2,fontSize:13,fontWeight:700,color:'#e8ecf1',textShadow:'0 1px 3px rgba(0,0,0,0.8)',pointerEvents:'none'}}>제주도</span>
                 <div ref={jejuAllRef} style={{position:'absolute',inset:0}} />
               </div>
+              {!selectedInfo && warnings.length > 0 && (
+                <div style={{position:'absolute',top:8,left:8,right:8,zIndex:20,background:'rgba(100,0,0,0.92)',border:'2px solid #ef4444',borderRadius:8,padding:'8px 12px',pointerEvents:'none'}}>
+                  <div style={{fontSize:11,fontWeight:800,color:'#fca5a5',marginBottom:4}}>📢 기상청 특보 발효 중</div>
+                  {warnings.map((w,i)=>(
+                    <div key={i} style={{fontSize:10,color:'#fecaca',lineHeight:1.6}}>
+                      <span style={{fontWeight:700}}>{w.type}</span>
+                      <span style={{color:'#fda4af',marginLeft:6,fontSize:9}}>{w.regions}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
               {selectedInfo && <RegionInfoCard info={selectedInfo} onClose={()=>setSelectedInfo(null)} heatColorFn={heatColorHex} warnings={warnings} />}
             </div>
           </div>
@@ -1567,6 +1578,17 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
                 <span style={{position:'absolute',top:5,left:9,zIndex:2,fontSize:10.5,fontWeight:700,color:'#e8ecf1',textShadow:'0 1px 3px rgba(0,0,0,0.6)',pointerEvents:'none'}}>울릉군</span>
                 <div ref={ulleungRef} style={{position:'absolute',inset:0}} />
               </div>
+              {!selectedInfo && warnings.length > 0 && (
+                <div style={{position:'absolute',top:8,left:8,right:8,zIndex:20,background:'rgba(100,0,0,0.92)',border:'2px solid #ef4444',borderRadius:8,padding:'8px 12px',pointerEvents:'none'}}>
+                  <div style={{fontSize:11,fontWeight:800,color:'#fca5a5',marginBottom:4}}>📢 기상청 특보 발효 중</div>
+                  {warnings.map((w,i)=>(
+                    <div key={i} style={{fontSize:10,color:'#fecaca',lineHeight:1.6}}>
+                      <span style={{fontWeight:700}}>{w.type}</span>
+                      <span style={{color:'#fda4af',marginLeft:6,fontSize:9}}>{w.regions}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
               {selectedInfo && (
                 <RegionInfoCard info={selectedInfo} onClose={()=>setSelectedInfo(null)} heatColorFn={heatColorHex} warnings={warnings} />
               )}
@@ -1584,6 +1606,17 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
             </div>
             <div style={{position:'relative', flex:1, minHeight:0, background:'#0d1117'}}>
               <div ref={chungcheongRef} style={{position:'absolute',inset:0}} />
+              {!selectedInfo && warnings.length > 0 && (
+                <div style={{position:'absolute',top:8,left:8,right:8,zIndex:20,background:'rgba(100,0,0,0.92)',border:'2px solid #ef4444',borderRadius:8,padding:'8px 12px',pointerEvents:'none'}}>
+                  <div style={{fontSize:11,fontWeight:800,color:'#fca5a5',marginBottom:4}}>📢 기상청 특보 발효 중</div>
+                  {warnings.map((w,i)=>(
+                    <div key={i} style={{fontSize:10,color:'#fecaca',lineHeight:1.6}}>
+                      <span style={{fontWeight:700}}>{w.type}</span>
+                      <span style={{color:'#fda4af',marginLeft:6,fontSize:9}}>{w.regions}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
               {selectedInfo && <RegionInfoCard info={selectedInfo} onClose={()=>setSelectedInfo(null)} heatColorFn={heatColorHex} warnings={warnings} />}
             </div>
           </div>
@@ -1605,6 +1638,17 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
                 <span style={{position:'absolute',top:5,left:9,zIndex:2,fontSize:10.5,fontWeight:700,color:'#e8ecf1',textShadow:'0 1px 3px rgba(0,0,0,0.6)',pointerEvents:'none'}}>제주도</span>
                 <div ref={jejuRef} style={{position:'absolute',inset:0}} />
               </div>
+              {!selectedInfo && warnings.length > 0 && (
+                <div style={{position:'absolute',top:8,left:8,right:8,zIndex:20,background:'rgba(100,0,0,0.92)',border:'2px solid #ef4444',borderRadius:8,padding:'8px 12px',pointerEvents:'none'}}>
+                  <div style={{fontSize:11,fontWeight:800,color:'#fca5a5',marginBottom:4}}>📢 기상청 특보 발효 중</div>
+                  {warnings.map((w,i)=>(
+                    <div key={i} style={{fontSize:10,color:'#fecaca',lineHeight:1.6}}>
+                      <span style={{fontWeight:700}}>{w.type}</span>
+                      <span style={{color:'#fda4af',marginLeft:6,fontSize:9}}>{w.regions}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
               {selectedInfo && <RegionInfoCard info={selectedInfo} onClose={()=>setSelectedInfo(null)} heatColorFn={heatColorHex} warnings={warnings} />}
             </div>
           </div>
@@ -1620,6 +1664,17 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
             </div>
             <div style={{position:'relative', flex:1, minHeight:0, background:'#0d1117'}}>
               <div ref={buulgyeongRef} style={{position:'absolute',inset:0}} />
+              {!selectedInfo && warnings.length > 0 && (
+                <div style={{position:'absolute',top:8,left:8,right:8,zIndex:20,background:'rgba(100,0,0,0.92)',border:'2px solid #ef4444',borderRadius:8,padding:'8px 12px',pointerEvents:'none'}}>
+                  <div style={{fontSize:11,fontWeight:800,color:'#fca5a5',marginBottom:4}}>📢 기상청 특보 발효 중</div>
+                  {warnings.map((w,i)=>(
+                    <div key={i} style={{fontSize:10,color:'#fecaca',lineHeight:1.6}}>
+                      <span style={{fontWeight:700}}>{w.type}</span>
+                      <span style={{color:'#fda4af',marginLeft:6,fontSize:9}}>{w.regions}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
               {selectedInfo && <RegionInfoCard info={selectedInfo} onClose={()=>setSelectedInfo(null)} heatColorFn={heatColorHex} warnings={warnings} />}
             </div>
           </div>
@@ -1629,12 +1684,12 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
 
       {/* ─ 날씨 데이터 테이블 ─ */}
       {heatActive && showDataTable && Object.keys(weatherData).length > 0 && (
-        <div className="border-t border-[#232a35] overflow-auto" style={{background:'#0d1117', maxHeight: 320}}>
+        <div className="border-t border-[#232a35] overflow-auto" style={{background:'#0d1117', maxHeight: 400}}>
           <table style={{width:'100%', borderCollapse:'collapse', fontSize: 12}}>
             <thead>
               <tr style={{background:'#141b26', position:'sticky', top:0, zIndex:2}}>
-                {['지역','체감온도','기온','습도','폭염단계','강수형태','강수량','풍속(m/s)','풍속단계','기준시간'].map(h => (
-                  <th key={h} style={{padding:'7px 10px', textAlign: h==='지역' ? 'left' : 'center', color:'#9aa5b3', fontWeight:600, borderBottom:'1px solid #232a35', whiteSpace:'nowrap'}}>{h}</th>
+                {['권역','지역','예보시간','체감온도','기온','습도','폭염단계','강수형태','강수량','풍속(m/s)','풍속단계'].map(h => (
+                  <th key={h} style={{padding:'7px 10px', textAlign: (h==='권역'||h==='지역') ? 'left' : 'center', color:'#9aa5b3', fontWeight:600, borderBottom:'1px solid #232a35', whiteSpace:'nowrap'}}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -1648,32 +1703,48 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
                   selectedRegion === 'honam'       ? (md ? [...md.honam,...md.jeju] : []).map(r=>r.name) :
                   selectedRegion === 'buulgyeong'  ? (md ? md.buulgyeong : []).map(r=>r.name) : []
                 );
-                return Object.entries(weatherData)
+                // 지역 → 권역 매핑
+                const zoneMap = new Map<string, string>();
+                if (md) {
+                  [...(md.daegubuk||[]),...(md.ulleung||[])].forEach(r=>zoneMap.set(r.name,'대구본부'));
+                  (md.chungcheong||[]).forEach(r=>zoneMap.set(r.name,'충청본부'));
+                  [...(md.honam||[]),...(md.jeju||[])].forEach(r=>zoneMap.set(r.name,'호남본부'));
+                  (md.buulgyeong||[]).forEach(r=>zoneMap.set(r.name,'부산본부'));
+                }
+                type RowData = { key:string; zone:string; name:string; time:string; feels:number; temp:number|null; hum:number|null; stage:string; rainType:string; rain:string; wind:number|null; windLevel:string; };
+                const tableRows: RowData[] = Object.entries(weatherData)
                   .filter(([name]) => tabNames.size === 0 || tabNames.has(name))
-                  .sort((a,b) => b[1].feels - a[1].feels)
-                  .map(([name, w]) => (
-                  <tr key={name} style={{borderBottom:'1px solid #1a2030'}}>
-                    <td style={{padding:'6px 10px', color:'#e8ecf1', fontWeight:600, whiteSpace:'nowrap'}}>{name}</td>
-                    <td style={{padding:'6px 10px', textAlign:'center', fontWeight:700, color: heatColorHex(w.feels), fontVariantNumeric:'tabular-nums' as any}}>{w.feels}°C</td>
-                    <td style={{padding:'6px 10px', textAlign:'center', color:'#c5cdd7', fontVariantNumeric:'tabular-nums' as any}}>{w.temp != null ? `${w.temp}°C` : '-'}</td>
-                    <td style={{padding:'6px 10px', textAlign:'center', color:'#7dd3fc', fontVariantNumeric:'tabular-nums' as any}}>{w.hum != null ? `${w.hum}%` : '-'}</td>
+                  .flatMap(([name, w]) => {
+                    const zone = zoneMap.get(name) || '';
+                    if (w.hourly && w.hourly.length > 0) {
+                      return w.hourly.map((h, i) => ({ key:`${name}-${h.time}-${i}`, zone, name, time:h.time, feels:h.feels, temp:h.temp, hum:h.hum, stage:h.stage, rainType:h.rainType, rain:h.rain, wind:h.wind, windLevel:h.windLevel }));
+                    }
+                    return [{ key:name, zone, name, time:w.time||'-', feels:w.feels, temp:w.temp, hum:w.hum, stage:w.stage||'해당없음', rainType:w.rainType||'없음', rain:w.rain||'강수없음', wind:w.wind??null, windLevel:w.windLevel||'정상' }];
+                  })
+                  .sort((a,b) => b.feels - a.feels);
+                return tableRows.map(row => (
+                  <tr key={row.key} style={{borderBottom:'1px solid #1a2030'}}>
+                    <td style={{padding:'6px 10px', color:'#697384', fontSize:11, whiteSpace:'nowrap'}}>{row.zone}</td>
+                    <td style={{padding:'6px 10px', color:'#e8ecf1', fontWeight:600, whiteSpace:'nowrap'}}>{row.name}</td>
+                    <td style={{padding:'6px 10px', textAlign:'center', color:'#94a3b8', fontVariantNumeric:'tabular-nums' as any, whiteSpace:'nowrap'}}>{row.time}</td>
+                    <td style={{padding:'6px 10px', textAlign:'center', fontWeight:700, color: heatColorHex(row.feels), fontVariantNumeric:'tabular-nums' as any}}>{row.feels}°C</td>
+                    <td style={{padding:'6px 10px', textAlign:'center', color:'#c5cdd7', fontVariantNumeric:'tabular-nums' as any}}>{row.temp != null ? `${row.temp}°C` : '-'}</td>
+                    <td style={{padding:'6px 10px', textAlign:'center', color:'#7dd3fc', fontVariantNumeric:'tabular-nums' as any}}>{row.hum != null ? `${row.hum}%` : '-'}</td>
                     <td style={{padding:'6px 10px', textAlign:'center'}}>
-                      <span style={{
-                        fontSize:10, fontWeight:600, padding:'2px 8px', borderRadius:4, whiteSpace:'nowrap',
-                        background: w.stage === '폭염경보' ? '#7f1d1d' : w.stage === '폭염주의보' ? '#7c2d12' : w.stage === '폭염관심' ? '#713f12' : '#1e293b',
-                        color: w.stage === '해당없음' ? '#64748b' : '#ffd9a0',
-                      }}>{w.stage || '해당없음'}</span>
+                      <span style={{fontSize:10, fontWeight:600, padding:'2px 8px', borderRadius:4, whiteSpace:'nowrap',
+                        background: row.stage==='폭염경보' ? '#7f1d1d' : row.stage==='폭염주의보' ? '#7c2d12' : row.stage==='폭염관심' ? '#713f12' : '#1e293b',
+                        color: row.stage==='해당없음' ? '#64748b' : '#ffd9a0',
+                      }}>{row.stage}</span>
                     </td>
-                    <td style={{padding:'6px 10px', textAlign:'center', color: (w.rainType && w.rainType !== '없음') ? '#7dd3fc' : '#4a5568', whiteSpace:'nowrap'}}>{w.rainType || '없음'}</td>
-                    <td style={{padding:'6px 10px', textAlign:'center', color: (w.rain && w.rain !== '강수없음') ? '#38bdf8' : '#4a5568', whiteSpace:'nowrap', fontVariantNumeric:'tabular-nums' as any}}>{w.rain || '강수없음'}</td>
-                    <td style={{padding:'6px 10px', textAlign:'center', color:'#a3e635', fontVariantNumeric:'tabular-nums' as any}}>{w.wind != null ? w.wind : '-'}</td>
+                    <td style={{padding:'6px 10px', textAlign:'center', color:(row.rainType&&row.rainType!=='없음')?'#7dd3fc':'#4a5568', whiteSpace:'nowrap'}}>{row.rainType}</td>
+                    <td style={{padding:'6px 10px', textAlign:'center', color:(row.rain&&row.rain!=='강수없음')?'#38bdf8':'#4a5568', whiteSpace:'nowrap', fontVariantNumeric:'tabular-nums' as any}}>{row.rain}</td>
+                    <td style={{padding:'6px 10px', textAlign:'center', color:'#a3e635', fontVariantNumeric:'tabular-nums' as any}}>{row.wind != null ? row.wind : '-'}</td>
                     <td style={{padding:'6px 10px', textAlign:'center'}}>
                       <span style={{fontSize:10, fontWeight:600, padding:'2px 6px', borderRadius:4, whiteSpace:'nowrap',
-                        background: w.windLevel === '위험' ? '#7f1d1d' : w.windLevel === '경계' ? '#78350f' : w.windLevel === '주의' ? '#1e3a5f' : '#1e293b',
-                        color: w.windLevel === '위험' ? '#fca5a5' : w.windLevel === '경계' ? '#fde68a' : w.windLevel === '주의' ? '#7dd3fc' : '#64748b',
-                      }}>{w.windLevel || '정상'}</span>
+                        background: row.windLevel==='위험'?'#7f1d1d':row.windLevel==='경계'?'#78350f':row.windLevel==='주의'?'#1e3a5f':'#1e293b',
+                        color: row.windLevel==='위험'?'#fca5a5':row.windLevel==='경계'?'#fde68a':row.windLevel==='주의'?'#7dd3fc':'#64748b',
+                      }}>{row.windLevel}</span>
                     </td>
-                    <td style={{padding:'6px 10px', textAlign:'center', color:'#4a5568', fontSize:11, fontVariantNumeric:'tabular-nums' as any}}>{w.time || '-'}</td>
                   </tr>
                 ));
               })()}
