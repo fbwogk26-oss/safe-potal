@@ -1596,7 +1596,6 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
                       🚨 기상특보 {warnings.length}건{warningOpen?' ▲':' ▼'}
                     </button>
                   )}
-                  <button onClick={()=>{setAddWarnOpen(v=>!v);setPasteWarnOpen(false);setWarningOpen(true);}} style={{fontSize:9,color:'#94a3b8',background:'rgba(148,163,184,0.08)',border:'1px solid rgba(148,163,184,0.2)',padding:'1px 6px',borderRadius:10,cursor:'pointer',lineHeight:'16px'}}>＋ 개별 추가</button>
                   <button onClick={()=>{setPasteWarnOpen(v=>!v);setAddWarnOpen(false);setWarningOpen(true);}} style={{fontSize:9,color:'#60a5fa',background:'rgba(96,165,250,0.08)',border:'1px solid rgba(96,165,250,0.25)',padding:'1px 6px',borderRadius:10,cursor:'pointer',lineHeight:'16px'}}>📋 텍스트 붙여넣기</button>
                 </div>
               </div>
