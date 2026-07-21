@@ -889,9 +889,14 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
   previewLoading?: boolean;
   mapCaptureRef?: React.MutableRefObject<(() => string | null) | null>;
   warnings?: { type: string; regions: string }[];
+  onWarningsChange?: (items: { type: string; regions: string }[]) => void;
 }) {
   const [selectedRegion, setSelectedRegion] = useState<RegionKey>('daegubuk');
   const [warningOpen, setWarningOpen] = useState(false);
+  const [addWarnOpen, setAddWarnOpen] = useState(false);
+  const [addWarnType, setAddWarnType] = useState('호우주의보');
+  const [addWarnRegion, setAddWarnRegion] = useState('');
+  const [addWarnSaving, setAddWarnSaving] = useState(false);
   const [statusMsg, setStatusMsg] = useState("");
   const [statusErr, setStatusErr] = useState(false);
   const [heatActive, setHeatActive] = useState(false);
@@ -1534,17 +1539,30 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
             <div className="px-3 py-1.5 flex items-center justify-between border-b border-[#232a35] flex-shrink-0">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-semibold text-slate-300">전체 권역 (대구본부·충청본부·호남본부·부산본부)</span>
-                {warnings.length > 0 && (
-                  <button onClick={()=>setWarningOpen(v=>!v)} style={{fontSize:9,fontWeight:700,color:'#f87171',background:'rgba(239,68,68,0.15)',border:'1px solid rgba(239,68,68,0.4)',padding:'1px 6px',borderRadius:10,cursor:'pointer',lineHeight:'16px'}}>
-                    🚨 기상특보 {warnings.length}건{warningOpen?' ▲':' ▼'}
-                  </button>
-                )}
+                <div style={{display:'flex',alignItems:'center',gap:4}}>
+                  {warnings.length > 0 && (
+                    <button onClick={()=>setWarningOpen(v=>!v)} style={{fontSize:9,fontWeight:700,color:'#f87171',background:'rgba(239,68,68,0.15)',border:'1px solid rgba(239,68,68,0.4)',padding:'1px 6px',borderRadius:10,cursor:'pointer',lineHeight:'16px'}}>
+                      🚨 기상특보 {warnings.length}건{warningOpen?' ▲':' ▼'}
+                    </button>
+                  )}
+                  <button onClick={()=>{setAddWarnOpen(v=>!v);setWarningOpen(true);}} style={{fontSize:9,color:'#94a3b8',background:'rgba(148,163,184,0.08)',border:'1px solid rgba(148,163,184,0.2)',padding:'1px 6px',borderRadius:10,cursor:'pointer',lineHeight:'16px'}}>＋ 특보 추가</button>
+                </div>
               </div>
               {!isMobile && <span className="text-[10px] text-slate-500">클릭하면 상세 보기</span>}
             </div>
-            {warningOpen && warnings.length > 0 && (
+            {warningOpen && (
               <div style={{background:'#090e14',borderBottom:'1px solid #232a35',padding:'8px 12px',flexShrink:0}}>
-                {warnings.map((w,i)=>{const isKyungbo=w.type.includes('경보')&&!w.type.includes('주의');const bc=isKyungbo?'#ef4444':w.type.includes('주의')&&!w.type.includes('경보')?'#f97316':'#3b82f6';return(<div key={i} style={{marginTop:i===0?0:7,borderTop:i===0?'none':'1px solid rgba(255,255,255,0.06)',paddingTop:i===0?0:5}}><span style={{fontSize:9,fontWeight:700,color:bc,background:`${bc}22`,border:`1px solid ${bc}44`,padding:'1px 5px',borderRadius:3,lineHeight:'15px',display:'inline-block'}}>{w.type}</span>{w.type.includes('폭염')&&w.type.includes('중대경보')?<span style={{fontSize:8,color:'#94a3b8',marginLeft:4}}>[체감 38도 이상]</span>:w.type.includes('폭염')&&w.type.includes('경보')&&!w.type.includes('주의')&&!w.type.includes('중대')?<span style={{fontSize:8,color:'#94a3b8',marginLeft:4}}>[체감 35도 이상]</span>:w.type.includes('폭염')&&w.type.includes('주의')?<span style={{fontSize:8,color:'#94a3b8',marginLeft:4}}>[체감 33도 이상]</span>:w.type.includes('폭염')&&w.type.includes('관심')?<span style={{fontSize:8,color:'#94a3b8',marginLeft:4}}>[체감 31도 이상]</span>:null}<div style={{fontSize:9,color:'#fca5a5',lineHeight:1.5,marginTop:3}}>{w.regions}</div></div>);})}
+                {addWarnOpen && (
+                  <div style={{marginBottom:8,padding:'7px 8px',background:'#111827',border:'1px solid #374151',borderRadius:6,display:'flex',flexWrap:'wrap',gap:5,alignItems:'center'}}>
+                    <select value={addWarnType} onChange={e=>setAddWarnType(e.target.value)} style={{fontSize:10,background:'#1f2937',color:'#e5e7eb',border:'1px solid #374151',borderRadius:4,padding:'2px 4px',cursor:'pointer'}}>
+                      {['폭염중대경보','폭염경보','폭염주의보','폭염관심','열대야경보','열대야주의보','호우경보','호우주의보','태풍경보','태풍주의보','강풍경보','강풍주의보','대설경보','대설주의보','한파경보','한파주의보','풍랑경보','풍랑주의보','황사경보','황사주의보','건조경보','건조주의보','안개경보','안개주의보'].map(t=><option key={t} value={t}>{t}</option>)}
+                    </select>
+                    <input value={addWarnRegion} onChange={e=>setAddWarnRegion(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')handleAddWarning();}} placeholder="지역 입력 (예: 충청남도(태안, 서산))" style={{flex:1,minWidth:160,fontSize:10,background:'#1f2937',color:'#e5e7eb',border:'1px solid #374151',borderRadius:4,padding:'2px 6px'}} />
+                    <button onClick={handleAddWarning} disabled={addWarnSaving||!addWarnRegion.trim()} style={{fontSize:10,color:'#fff',background:'#2563eb',border:'none',borderRadius:4,padding:'2px 8px',cursor:'pointer',opacity:addWarnRegion.trim()?1:0.5}}>저장</button>
+                    <button onClick={()=>{setAddWarnOpen(false);setAddWarnRegion('');}} style={{fontSize:10,color:'#9ca3af',background:'none',border:'none',cursor:'pointer'}}>취소</button>
+                  </div>
+                )}
+                {warnings.map((w,i)=>{const isKyungbo=w.type.includes('경보')&&!w.type.includes('주의');const bc=isKyungbo?'#ef4444':w.type.includes('주의')&&!w.type.includes('경보')?'#f97316':'#3b82f6';return(<div key={i} style={{marginTop:i===0?0:7,borderTop:i===0?'none':'1px solid rgba(255,255,255,0.06)',paddingTop:i===0?0:5,display:'flex',alignItems:'flex-start',gap:4}}><div style={{flex:1}}><span style={{fontSize:9,fontWeight:700,color:bc,background:`${bc}22`,border:`1px solid ${bc}44`,padding:'1px 5px',borderRadius:3,lineHeight:'15px',display:'inline-block'}}>{w.type}</span>{w.type.includes('폭염')&&w.type.includes('중대경보')?<span style={{fontSize:8,color:'#94a3b8',marginLeft:4}}>[체감 38도 이상]</span>:w.type.includes('폭염')&&w.type.includes('경보')&&!w.type.includes('주의')&&!w.type.includes('중대')?<span style={{fontSize:8,color:'#94a3b8',marginLeft:4}}>[체감 35도 이상]</span>:w.type.includes('폭염')&&w.type.includes('주의')?<span style={{fontSize:8,color:'#94a3b8',marginLeft:4}}>[체감 33도 이상]</span>:w.type.includes('폭염')&&w.type.includes('관심')?<span style={{fontSize:8,color:'#94a3b8',marginLeft:4}}>[체감 31도 이상]</span>:null}<div style={{fontSize:9,color:'#fca5a5',lineHeight:1.5,marginTop:3}}>{w.regions}</div></div><button onClick={()=>handleDeleteWarning(i)} title="삭제" style={{fontSize:12,color:'#6b7280',background:'none',border:'none',cursor:'pointer',padding:'0 2px',flexShrink:0,lineHeight:1}}>×</button></div>);})}
               </div>
             )}
             <div style={{position:'relative', flex:1, minHeight:0, background:'#0d1117'}}>
@@ -1582,7 +1600,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
             </div>
             {warningOpen && warnings.filter(w=>['대구','경상북도','경북','울릉'].some(k=>w.regions.includes(k))).length > 0 && (
               <div style={{background:'#090e14',borderBottom:'1px solid #232a35',padding:'8px 12px',flexShrink:0}}>
-                {warnings.filter(w=>['대구','경상북도','경북','울릉'].some(k=>w.regions.includes(k))).map((w,i)=>{const isKyungbo=w.type.includes('경보')&&!w.type.includes('주의');const bc=isKyungbo?'#ef4444':w.type.includes('주의')&&!w.type.includes('경보')?'#f97316':'#3b82f6';const rs=extractRegionClause(w.regions,['대구','경상북도','경북','울릉']);return(<div key={i} style={{marginTop:i===0?0:7,borderTop:i===0?'none':'1px solid rgba(255,255,255,0.06)',paddingTop:i===0?0:5}}><span style={{fontSize:9,fontWeight:700,color:bc,background:`${bc}22`,border:`1px solid ${bc}44`,padding:'1px 5px',borderRadius:3,lineHeight:'15px',display:'inline-block'}}>{w.type}</span>{w.type.includes('폭염')&&w.type.includes('중대경보')?<span style={{fontSize:8,color:'#94a3b8',marginLeft:4}}>[체감 38도 이상]</span>:w.type.includes('폭염')&&w.type.includes('경보')&&!w.type.includes('주의')&&!w.type.includes('중대')?<span style={{fontSize:8,color:'#94a3b8',marginLeft:4}}>[체감 35도 이상]</span>:w.type.includes('폭염')&&w.type.includes('주의')?<span style={{fontSize:8,color:'#94a3b8',marginLeft:4}}>[체감 33도 이상]</span>:w.type.includes('폭염')&&w.type.includes('관심')?<span style={{fontSize:8,color:'#94a3b8',marginLeft:4}}>[체감 31도 이상]</span>:null}<div style={{fontSize:9,color:'#fca5a5',lineHeight:1.5,marginTop:3}}>{rs}</div></div>);})}
+                {warnings.filter(w=>['대구','경상북도','경북','울릉'].some(k=>w.regions.includes(k))).map((w,i)=>{const isKyungbo=w.type.includes('경보')&&!w.type.includes('주의');const bc=isKyungbo?'#ef4444':w.type.includes('주의')&&!w.type.includes('경보')?'#f97316':'#3b82f6';const rs=extractRegionClause(w.regions,['대구','경상북도','경북','울릉']);return(<div key={i} style={{marginTop:i===0?0:7,borderTop:i===0?'none':'1px solid rgba(255,255,255,0.06)',paddingTop:i===0?0:5,display:'flex',alignItems:'flex-start',gap:4}}><div style={{flex:1}}><span style={{fontSize:9,fontWeight:700,color:bc,background:`${bc}22`,border:`1px solid ${bc}44`,padding:'1px 5px',borderRadius:3,lineHeight:'15px',display:'inline-block'}}>{w.type}</span>{w.type.includes('폭염')&&w.type.includes('중대경보')?<span style={{fontSize:8,color:'#94a3b8',marginLeft:4}}>[체감 38도 이상]</span>:w.type.includes('폭염')&&w.type.includes('경보')&&!w.type.includes('주의')&&!w.type.includes('중대')?<span style={{fontSize:8,color:'#94a3b8',marginLeft:4}}>[체감 35도 이상]</span>:w.type.includes('폭염')&&w.type.includes('주의')?<span style={{fontSize:8,color:'#94a3b8',marginLeft:4}}>[체감 33도 이상]</span>:w.type.includes('폭염')&&w.type.includes('관심')?<span style={{fontSize:8,color:'#94a3b8',marginLeft:4}}>[체감 31도 이상]</span>:null}<div style={{fontSize:9,color:'#fca5a5',lineHeight:1.5,marginTop:3}}>{rs}</div></div><button onClick={()=>handleDeleteWarning(warnings.indexOf(w))} title="삭제" style={{fontSize:12,color:'#6b7280',background:'none',border:'none',cursor:'pointer',padding:'0 2px',flexShrink:0,lineHeight:1}}>×</button></div>);})}
               </div>
             )}
             <div style={{position:'relative', flex:1, minHeight:0, background:'#0d1117'}}>
@@ -1616,7 +1634,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
             </div>
             {warningOpen && warnings.filter(w=>['충청','충북','충남','대전','세종'].some(k=>w.regions.includes(k))).length > 0 && (
               <div style={{background:'#090e14',borderBottom:'1px solid #232a35',padding:'8px 12px',flexShrink:0}}>
-                {warnings.filter(w=>['충청','충북','충남','대전','세종'].some(k=>w.regions.includes(k))).map((w,i)=>{const isKyungbo=w.type.includes('경보')&&!w.type.includes('주의');const bc=isKyungbo?'#ef4444':w.type.includes('주의')&&!w.type.includes('경보')?'#f97316':'#3b82f6';const rs=extractRegionClause(w.regions,['충청','충북','충남','대전','세종']);return(<div key={i} style={{marginTop:i===0?0:7,borderTop:i===0?'none':'1px solid rgba(255,255,255,0.06)',paddingTop:i===0?0:5}}><span style={{fontSize:9,fontWeight:700,color:bc,background:`${bc}22`,border:`1px solid ${bc}44`,padding:'1px 5px',borderRadius:3,lineHeight:'15px',display:'inline-block'}}>{w.type}</span>{w.type.includes('폭염')&&w.type.includes('중대경보')?<span style={{fontSize:8,color:'#94a3b8',marginLeft:4}}>[체감 38도 이상]</span>:w.type.includes('폭염')&&w.type.includes('경보')&&!w.type.includes('주의')&&!w.type.includes('중대')?<span style={{fontSize:8,color:'#94a3b8',marginLeft:4}}>[체감 35도 이상]</span>:w.type.includes('폭염')&&w.type.includes('주의')?<span style={{fontSize:8,color:'#94a3b8',marginLeft:4}}>[체감 33도 이상]</span>:w.type.includes('폭염')&&w.type.includes('관심')?<span style={{fontSize:8,color:'#94a3b8',marginLeft:4}}>[체감 31도 이상]</span>:null}<div style={{fontSize:9,color:'#fca5a5',lineHeight:1.5,marginTop:3}}>{rs}</div></div>);})}
+                {warnings.filter(w=>['충청','충북','충남','대전','세종'].some(k=>w.regions.includes(k))).map((w,i)=>{const isKyungbo=w.type.includes('경보')&&!w.type.includes('주의');const bc=isKyungbo?'#ef4444':w.type.includes('주의')&&!w.type.includes('경보')?'#f97316':'#3b82f6';const rs=extractRegionClause(w.regions,['충청','충북','충남','대전','세종']);return(<div key={i} style={{marginTop:i===0?0:7,borderTop:i===0?'none':'1px solid rgba(255,255,255,0.06)',paddingTop:i===0?0:5,display:'flex',alignItems:'flex-start',gap:4}}><div style={{flex:1}}><span style={{fontSize:9,fontWeight:700,color:bc,background:`${bc}22`,border:`1px solid ${bc}44`,padding:'1px 5px',borderRadius:3,lineHeight:'15px',display:'inline-block'}}>{w.type}</span>{w.type.includes('폭염')&&w.type.includes('중대경보')?<span style={{fontSize:8,color:'#94a3b8',marginLeft:4}}>[체감 38도 이상]</span>:w.type.includes('폭염')&&w.type.includes('경보')&&!w.type.includes('주의')&&!w.type.includes('중대')?<span style={{fontSize:8,color:'#94a3b8',marginLeft:4}}>[체감 35도 이상]</span>:w.type.includes('폭염')&&w.type.includes('주의')?<span style={{fontSize:8,color:'#94a3b8',marginLeft:4}}>[체감 33도 이상]</span>:w.type.includes('폭염')&&w.type.includes('관심')?<span style={{fontSize:8,color:'#94a3b8',marginLeft:4}}>[체감 31도 이상]</span>:null}<div style={{fontSize:9,color:'#fca5a5',lineHeight:1.5,marginTop:3}}>{rs}</div></div><button onClick={()=>handleDeleteWarning(warnings.indexOf(w))} title="삭제" style={{fontSize:12,color:'#6b7280',background:'none',border:'none',cursor:'pointer',padding:'0 2px',flexShrink:0,lineHeight:1}}>×</button></div>);})}
               </div>
             )}
             <div style={{position:'relative', flex:1, minHeight:0, background:'#0d1117'}}>
@@ -1643,7 +1661,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
             </div>
             {warningOpen && warnings.filter(w=>['전라남도','전라북도','전북자치도','광주','제주'].some(k=>w.regions.includes(k))).length > 0 && (
               <div style={{background:'#090e14',borderBottom:'1px solid #232a35',padding:'8px 12px',flexShrink:0}}>
-                {warnings.filter(w=>['전라남도','전라북도','전북자치도','광주','제주'].some(k=>w.regions.includes(k))).map((w,i)=>{const isKyungbo=w.type.includes('경보')&&!w.type.includes('주의');const bc=isKyungbo?'#ef4444':w.type.includes('주의')&&!w.type.includes('경보')?'#f97316':'#3b82f6';const rs=extractRegionClause(w.regions,['전라남도','전라북도','전북자치도','광주','제주']);return(<div key={i} style={{marginTop:i===0?0:7,borderTop:i===0?'none':'1px solid rgba(255,255,255,0.06)',paddingTop:i===0?0:5}}><span style={{fontSize:9,fontWeight:700,color:bc,background:`${bc}22`,border:`1px solid ${bc}44`,padding:'1px 5px',borderRadius:3,lineHeight:'15px',display:'inline-block'}}>{w.type}</span>{w.type.includes('폭염')&&w.type.includes('중대경보')?<span style={{fontSize:8,color:'#94a3b8',marginLeft:4}}>[체감 38도 이상]</span>:w.type.includes('폭염')&&w.type.includes('경보')&&!w.type.includes('주의')&&!w.type.includes('중대')?<span style={{fontSize:8,color:'#94a3b8',marginLeft:4}}>[체감 35도 이상]</span>:w.type.includes('폭염')&&w.type.includes('주의')?<span style={{fontSize:8,color:'#94a3b8',marginLeft:4}}>[체감 33도 이상]</span>:w.type.includes('폭염')&&w.type.includes('관심')?<span style={{fontSize:8,color:'#94a3b8',marginLeft:4}}>[체감 31도 이상]</span>:null}<div style={{fontSize:9,color:'#fca5a5',lineHeight:1.5,marginTop:3}}>{rs}</div></div>);})}
+                {warnings.filter(w=>['전라남도','전라북도','전북자치도','광주','제주'].some(k=>w.regions.includes(k))).map((w,i)=>{const isKyungbo=w.type.includes('경보')&&!w.type.includes('주의');const bc=isKyungbo?'#ef4444':w.type.includes('주의')&&!w.type.includes('경보')?'#f97316':'#3b82f6';const rs=extractRegionClause(w.regions,['전라남도','전라북도','전북자치도','광주','제주']);return(<div key={i} style={{marginTop:i===0?0:7,borderTop:i===0?'none':'1px solid rgba(255,255,255,0.06)',paddingTop:i===0?0:5,display:'flex',alignItems:'flex-start',gap:4}}><div style={{flex:1}}><span style={{fontSize:9,fontWeight:700,color:bc,background:`${bc}22`,border:`1px solid ${bc}44`,padding:'1px 5px',borderRadius:3,lineHeight:'15px',display:'inline-block'}}>{w.type}</span>{w.type.includes('폭염')&&w.type.includes('중대경보')?<span style={{fontSize:8,color:'#94a3b8',marginLeft:4}}>[체감 38도 이상]</span>:w.type.includes('폭염')&&w.type.includes('경보')&&!w.type.includes('주의')&&!w.type.includes('중대')?<span style={{fontSize:8,color:'#94a3b8',marginLeft:4}}>[체감 35도 이상]</span>:w.type.includes('폭염')&&w.type.includes('주의')?<span style={{fontSize:8,color:'#94a3b8',marginLeft:4}}>[체감 33도 이상]</span>:w.type.includes('폭염')&&w.type.includes('관심')?<span style={{fontSize:8,color:'#94a3b8',marginLeft:4}}>[체감 31도 이상]</span>:null}<div style={{fontSize:9,color:'#fca5a5',lineHeight:1.5,marginTop:3}}>{rs}</div></div><button onClick={()=>handleDeleteWarning(warnings.indexOf(w))} title="삭제" style={{fontSize:12,color:'#6b7280',background:'none',border:'none',cursor:'pointer',padding:'0 2px',flexShrink:0,lineHeight:1}}>×</button></div>);})}
               </div>
             )}
             <div style={{position:'relative', flex:1, minHeight:0, background:'#0d1117'}}>
@@ -1676,7 +1694,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
             </div>
             {warningOpen && warnings.filter(w=>['부산','울산','경상남도','경남'].some(k=>w.regions.includes(k))).length > 0 && (
               <div style={{background:'#090e14',borderBottom:'1px solid #232a35',padding:'8px 12px',flexShrink:0}}>
-                {warnings.filter(w=>['부산','울산','경상남도','경남'].some(k=>w.regions.includes(k))).map((w,i)=>{const isKyungbo=w.type.includes('경보')&&!w.type.includes('주의');const bc=isKyungbo?'#ef4444':w.type.includes('주의')&&!w.type.includes('경보')?'#f97316':'#3b82f6';const rs=extractRegionClause(w.regions,['부산','울산','경상남도','경남']);return(<div key={i} style={{marginTop:i===0?0:7,borderTop:i===0?'none':'1px solid rgba(255,255,255,0.06)',paddingTop:i===0?0:5}}><span style={{fontSize:9,fontWeight:700,color:bc,background:`${bc}22`,border:`1px solid ${bc}44`,padding:'1px 5px',borderRadius:3,lineHeight:'15px',display:'inline-block'}}>{w.type}</span>{w.type.includes('폭염')&&w.type.includes('중대경보')?<span style={{fontSize:8,color:'#94a3b8',marginLeft:4}}>[체감 38도 이상]</span>:w.type.includes('폭염')&&w.type.includes('경보')&&!w.type.includes('주의')&&!w.type.includes('중대')?<span style={{fontSize:8,color:'#94a3b8',marginLeft:4}}>[체감 35도 이상]</span>:w.type.includes('폭염')&&w.type.includes('주의')?<span style={{fontSize:8,color:'#94a3b8',marginLeft:4}}>[체감 33도 이상]</span>:w.type.includes('폭염')&&w.type.includes('관심')?<span style={{fontSize:8,color:'#94a3b8',marginLeft:4}}>[체감 31도 이상]</span>:null}<div style={{fontSize:9,color:'#fca5a5',lineHeight:1.5,marginTop:3}}>{rs}</div></div>);})}
+                {warnings.filter(w=>['부산','울산','경상남도','경남'].some(k=>w.regions.includes(k))).map((w,i)=>{const isKyungbo=w.type.includes('경보')&&!w.type.includes('주의');const bc=isKyungbo?'#ef4444':w.type.includes('주의')&&!w.type.includes('경보')?'#f97316':'#3b82f6';const rs=extractRegionClause(w.regions,['부산','울산','경상남도','경남']);return(<div key={i} style={{marginTop:i===0?0:7,borderTop:i===0?'none':'1px solid rgba(255,255,255,0.06)',paddingTop:i===0?0:5,display:'flex',alignItems:'flex-start',gap:4}}><div style={{flex:1}}><span style={{fontSize:9,fontWeight:700,color:bc,background:`${bc}22`,border:`1px solid ${bc}44`,padding:'1px 5px',borderRadius:3,lineHeight:'15px',display:'inline-block'}}>{w.type}</span>{w.type.includes('폭염')&&w.type.includes('중대경보')?<span style={{fontSize:8,color:'#94a3b8',marginLeft:4}}>[체감 38도 이상]</span>:w.type.includes('폭염')&&w.type.includes('경보')&&!w.type.includes('주의')&&!w.type.includes('중대')?<span style={{fontSize:8,color:'#94a3b8',marginLeft:4}}>[체감 35도 이상]</span>:w.type.includes('폭염')&&w.type.includes('주의')?<span style={{fontSize:8,color:'#94a3b8',marginLeft:4}}>[체감 33도 이상]</span>:w.type.includes('폭염')&&w.type.includes('관심')?<span style={{fontSize:8,color:'#94a3b8',marginLeft:4}}>[체감 31도 이상]</span>:null}<div style={{fontSize:9,color:'#fca5a5',lineHeight:1.5,marginTop:3}}>{rs}</div></div><button onClick={()=>handleDeleteWarning(warnings.indexOf(w))} title="삭제" style={{fontSize:12,color:'#6b7280',background:'none',border:'none',cursor:'pointer',padding:'0 2px',flexShrink:0,lineHeight:1}}>×</button></div>);})}
               </div>
             )}
             <div style={{position:'relative', flex:1, minHeight:0, background:'#0d1117'}}>
@@ -1848,6 +1866,28 @@ export default function HeatWaveChecklist() {
     } catch (e: any) {
       toast({ title: '특보 조회 실패', description: e.message, variant: 'destructive' });
     } finally { setWarningRefreshing(false); }
+  };
+
+  const handleAddWarning = async () => {
+    if (!addWarnRegion.trim()) return;
+    setAddWarnSaving(true);
+    try {
+      const r = await fetch('/api/heatwave-warnings/items', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: addWarnType, regions: addWarnRegion.trim() }),
+      });
+      const j = await r.json();
+      if (j?.data?.items) { onWarningsChange?.(j.data.items); setAddWarnRegion(''); setAddWarnOpen(false); }
+    } catch {} finally { setAddWarnSaving(false); }
+  };
+
+  const handleDeleteWarning = async (idx: number) => {
+    try {
+      const r = await fetch(`/api/heatwave-warnings/items/${idx}`, { method: 'DELETE', credentials: 'include' });
+      const j = await r.json();
+      if (j?.data?.items) onWarningsChange?.(j.data.items);
+    } catch {}
   };
 
   // 페이지 마운트 시 특보 데이터 로드
@@ -2078,6 +2118,7 @@ export default function HeatWaveChecklist() {
           previewLoading={previewLoading}
           mapCaptureRef={mapCaptureRef}
           warnings={warnings}
+          onWarningsChange={setWarnings}
         />
       </div>
 

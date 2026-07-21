@@ -14688,6 +14688,40 @@ ${result.value}
     }
   });
 
+  // 특보 항목 수동 추가
+  app.post('/api/heatwave-warnings/items', isAuthenticated, async (req, res) => {
+    try {
+      const { type, regions } = req.body as { type: string; regions: string };
+      if (!type || !regions) return res.status(400).json({ ok: false, message: '특보 유형과 지역을 입력하세요.' });
+      const s = await storage.getSetting('heatwave_warnings');
+      const current = s ? JSON.parse(s.value) : { ok: true, items: [], rawText: null, issuedAt: null, fetchedAt: new Date().toISOString() };
+      if (!Array.isArray(current.items)) current.items = [];
+      current.items.push({ type: type.trim(), regions: regions.trim() });
+      await storage.setSetting('heatwave_warnings', JSON.stringify(current));
+      res.json({ ok: true, data: current });
+    } catch (e: any) {
+      res.status(500).json({ ok: false, message: e.message });
+    }
+  });
+
+  // 특보 항목 수동 삭제 (원본 warnings 배열 인덱스 기준)
+  app.delete('/api/heatwave-warnings/items/:index', isAuthenticated, async (req, res) => {
+    try {
+      const idx = parseInt(req.params.index, 10);
+      const s = await storage.getSetting('heatwave_warnings');
+      if (!s) return res.status(404).json({ ok: false, message: '특보 데이터 없음' });
+      const current = JSON.parse(s.value);
+      if (!Array.isArray(current.items) || idx < 0 || idx >= current.items.length) {
+        return res.status(400).json({ ok: false, message: '유효하지 않은 인덱스' });
+      }
+      current.items.splice(idx, 1);
+      await storage.setSetting('heatwave_warnings', JSON.stringify(current));
+      res.json({ ok: true, data: current });
+    } catch (e: any) {
+      res.status(500).json({ ok: false, message: e.message });
+    }
+  });
+
   // ── 폭염 지도 데이터 Excel 다운로드 ────────────────────────────────────────
   app.get('/api/heatwave-map/export', isAuthenticated, async (_req, res) => {
     try {
