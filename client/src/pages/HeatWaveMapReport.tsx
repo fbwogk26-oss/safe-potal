@@ -147,14 +147,14 @@ export default function HeatWaveMapReport() {
         if (!allRef.current || !ulleungAllRef.current || !jejuAllRef.current) return;
         newPanels = [
           initThreePanel(allRef.current, d.all.filter((r: MapRegion) => r.name !== "제주시" && r.name !== "서귀포"), { height: 18, bevel: 1.4, radius: 2200, theta: 0, phi: Math.PI * 0.27, baseRadius: 2200, fogNear: 2400, fogFar: 6000, sun: [800, 1200, 550], labels: true, fontSize: 38, spin: false, lockView: true }, registryRef.current, tt, weatherRef, handleClick),
-          initThreePanel(ulleungAllRef.current, d.ulleung, { height: 14, bevel: 0.8, radius: 320, theta: 0, phi: Math.PI * 0.25, baseRadius: 260, fogNear: 280, fogFar: 900, sun: [140, 200, 90], labels: true, fontSize: 42, spin: false }, registryRef.current, tt, weatherRef, handleClick),
+          initThreePanel(ulleungAllRef.current, d.ulleung, { height: 14, bevel: 0.8, radius: 600, theta: 0, phi: Math.PI * 0.25, baseRadius: 450, fogNear: 600, fogFar: 1800, sun: [200, 300, 130], labels: true, fontSize: 42, spin: false }, registryRef.current, tt, weatherRef, handleClick),
           initThreePanel(jejuAllRef.current, d.jeju, { height: 18, bevel: 1.2, radius: 400, theta: 0, phi: Math.PI * 0.25, baseRadius: 380, fogNear: 400, fogFar: 1200, sun: [160, 240, 100], labels: true, fontSize: 38, spin: false }, registryRef.current, tt, weatherRef, handleClick),
         ];
       } else if (selectedRegion === "daegubuk") {
         if (!daegubukRef.current || !ulleungRef.current) return;
         newPanels = [
           initThreePanel(daegubukRef.current, d.daegubuk, { height: 26, bevel: 2.0, radius: 1700, theta: 0, phi: Math.PI * 0.27, baseRadius: 1700, fogNear: 1900, fogFar: 5000, sun: [600, 900, 400], labels: true, fontSize: 48, spin: false, lockView: true, ty: -70, tz: 60 }, registryRef.current, tt, weatherRef, handleClick),
-          initThreePanel(ulleungRef.current, d.ulleung, { height: 14, bevel: 0.8, radius: 320, theta: 0, phi: Math.PI * 0.25, baseRadius: 260, fogNear: 280, fogFar: 900, sun: [140, 200, 90], labels: true, fontSize: 32, spin: false, lockView: true }, registryRef.current, tt, weatherRef, handleClick),
+          initThreePanel(ulleungRef.current, d.ulleung, { height: 14, bevel: 0.8, radius: 600, theta: 0, phi: Math.PI * 0.25, baseRadius: 450, fogNear: 600, fogFar: 1800, sun: [200, 300, 130], labels: true, fontSize: 32, spin: false, lockView: true }, registryRef.current, tt, weatherRef, handleClick),
         ];
       } else if (selectedRegion === "chungcheong") {
         if (!chungcheongRef.current) return;
@@ -329,10 +329,20 @@ export default function HeatWaveMapReport() {
 
       {/* ── 기상특보 패널 ────────────────────────────────── */}
       {(() => {
-        // 현재 탭 권역 도시 목록으로 필터링 (all이면 전체 표시)
-        const zoneCities = selectedRegion === "all" ? null : REGION_KEY_MAP[selectedRegion];
+        // 광역 키워드 + 도시명 양방향 매칭 (전체 탭이면 전국 표시)
+        const WARN_KEYWORDS: Partial<Record<RegionKey, string[]>> = {
+          daegubuk:    ['대구', '경상북도', '경북'],
+          buulgyeong:  ['부산', '울산', '경상남도', '경남'],
+          chungcheong: ['대전', '세종', '충청남도', '충남', '충청북도', '충북'],
+          honam:       ['광주', '전라남도', '전남', '전북자치도', '전북', '제주도', '제주시', '서귀포'],
+        };
+        const provinceKeys = selectedRegion !== "all" ? (WARN_KEYWORDS[selectedRegion] ?? []) : [];
+        const zoneCities   = selectedRegion !== "all" ? (REGION_KEY_MAP[selectedRegion] ?? []) : [];
         const visibleWarnings = warnings.filter(w => {
-          if (!zoneCities || zoneCities.length === 0) return true;
+          if (selectedRegion === "all") return true;
+          // 1) 광역명 시작 매칭 (경상북도, 충청남도 등)
+          if (provinceKeys.some(k => w.regions.includes(k))) return true;
+          // 2) 도시명 포함 매칭 (parentheses 내 개별 시군 표기 대비)
           return zoneCities.some(city => w.regions.includes(city));
         });
         if (visibleWarnings.length === 0) return null;

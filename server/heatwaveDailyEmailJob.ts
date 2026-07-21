@@ -109,9 +109,9 @@ function filterWarningsByZones(
   warnings: { type: string; regions: string }[],
   selectedZones: string[],
 ): { type: string; regions: string }[] {
-  const allZones = Object.keys(ZONE_WARNING_KEYWORDS);
-  if (!selectedZones || selectedZones.length === 0 || selectedZones.length >= allZones.length) return warnings;
+  if (!selectedZones || selectedZones.length === 0) return warnings;
   const keywords: string[] = selectedZones.flatMap(z => ZONE_WARNING_KEYWORDS[z] ?? []);
+  if (keywords.length === 0) return warnings;
   return warnings.map(w => {
     const tokens = splitRegions(w.regions);
     const kept = tokens.filter(t => keywords.some(k => t.startsWith(k)));
