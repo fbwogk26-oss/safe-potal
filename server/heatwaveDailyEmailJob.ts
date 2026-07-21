@@ -145,7 +145,7 @@ export function buildHtmlEmail(weather: Record<string, WeatherEntry>, dateStr: s
     ['#1e40af','~24°C'],['#3f6212','25~27°C'],['#a16207','28~30°C'],
     ['#b45309','31~32°C 관심'],['#c2410c','33~34°C 주의'],
     ['#991b1b','35~37°C 경보'],['#7f1d1d','38°C↑'],
-  ].map(([c,l]) => `<span style="display:inline-flex;align-items:center;gap:3px;white-space:nowrap;margin:2px 8px 2px 0;font-size:10px;color:#374151"><span style="width:12px;height:12px;border-radius:3px;background:${c};display:inline-block;flex-shrink:0"></span>${l}</span>`).join('');
+  ].map(([c,l]) => `<span style="display:inline-block;white-space:nowrap;margin:3px 10px 3px 0;font-size:10px;color:#374151;vertical-align:middle"><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:${c};vertical-align:middle;margin-right:3px"></span><span style="vertical-align:middle">${l}</span></span>`).join('');
 
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -217,9 +217,8 @@ export function buildHtmlEmail(weather: Record<string, WeatherEntry>, dateStr: s
   </div>
 
   <!-- 범례 -->
-  <div style="padding:8px 18px 16px;display:flex;flex-wrap:wrap;align-items:center">
-    <span style="font-size:10px;font-weight:700;color:#6b7280;margin-right:4px">범례:</span>
-    ${legendItems}
+  <div style="padding:8px 18px 16px">
+    <span style="font-size:10px;font-weight:700;color:#6b7280;margin-right:6px;vertical-align:middle">범례:</span>${legendItems}
   </div>
 
   <!-- 체감온도 안내 -->
