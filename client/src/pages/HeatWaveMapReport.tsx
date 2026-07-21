@@ -330,37 +330,46 @@ export default function HeatWaveMapReport() {
       {/* ── 기상특보 패널 ────────────────────────────────── */}
       {warnings.length > 0 && (
         <div style={{
-          background: "rgba(127,29,29,0.18)",
-          borderBottom: "1px solid rgba(239,68,68,0.25)",
-          padding: isMobile ? "6px 10px" : "5px 14px",
+          background: "#090e14",
+          borderBottom: "1px solid #232a35",
+          padding: isMobile ? "8px 10px" : "8px 14px",
           flexShrink: 0,
-          overflowX: "auto",
-          scrollbarWidth: "none",
         }}>
-          <div style={{ display: "flex", gap: 6, alignItems: "flex-start", minWidth: "max-content" }}>
-            <span style={{ fontSize: isMobile ? 10 : 11, color: "#fca5a5", fontWeight: 800, flexShrink: 0, paddingTop: 1 }}>🚨 기상특보</span>
-            <div style={{ display: "flex", flexWrap: isMobile ? "nowrap" : "wrap", gap: 5 }}>
-              {warnings.map((w, i) => {
-                const isEmergency = w.type.includes("경보");
-                return (
-                  <div key={i} style={{
-                    display: "flex", gap: 4, alignItems: "baseline",
-                    background: isEmergency ? "rgba(220,38,38,0.18)" : "rgba(234,88,12,0.15)",
-                    border: `1px solid ${isEmergency ? "rgba(220,38,38,0.4)" : "rgba(234,88,12,0.3)"}`,
-                    borderRadius: 6,
-                    padding: isMobile ? "3px 7px" : "2px 8px",
-                    flexShrink: 0,
-                  }}>
-                    <span style={{ fontSize: isMobile ? 10 : 11, fontWeight: 800, color: isEmergency ? "#f87171" : "#fb923c", whiteSpace: "nowrap" }}>
-                      {w.type}
-                    </span>
-                    <span style={{ fontSize: isMobile ? 9 : 10, color: "#d1d5db", maxWidth: isMobile ? 180 : 320, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {w.regions}
-                    </span>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+            <span style={{ fontSize: isMobile ? 10 : 11, fontWeight: 700, color: "#f87171", background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.4)", padding: "1px 8px", borderRadius: 10, lineHeight: "18px" }}>
+              🚨 기상특보 {warnings.length}건
+            </span>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+            {warnings.map((w, i) => {
+              const isJungdae = w.type.includes("중대경보");
+              const isKyungbo = w.type.includes("경보") && !w.type.includes("주의");
+              const isJuibo   = w.type.includes("주의") && !w.type.includes("경보");
+              const bc = isKyungbo ? "#ef4444" : isJuibo ? "#f97316" : "#3b82f6";
+              const desc = isJungdae ? "[체감 38도 이상]"
+                : (w.type.includes("폭염") && isKyungbo) ? "[체감 35도 이상]"
+                : (w.type.includes("폭염") && isJuibo)   ? "[체감 33도 이상]"
+                : w.type.includes("관심")                 ? "[체감 31도 이상]"
+                : null;
+              return (
+                <div key={i} style={{
+                  borderTop: i === 0 ? "none" : "1px solid rgba(255,255,255,0.06)",
+                  paddingTop: i === 0 ? 0 : 6,
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 3 }}>
+                    <span style={{
+                      fontSize: isMobile ? 9 : 10, fontWeight: 700, color: bc,
+                      background: `${bc}22`, border: `1px solid ${bc}44`,
+                      padding: "1px 6px", borderRadius: 3, lineHeight: "16px", display: "inline-block",
+                    }}>{w.type}</span>
+                    {desc && <span style={{ fontSize: isMobile ? 8 : 9, color: "#94a3b8" }}>{desc}</span>}
                   </div>
-                );
-              })}
-            </div>
+                  <div style={{ fontSize: isMobile ? 9 : 10, color: "#fca5a5", lineHeight: 1.6 }}>
+                    {w.regions}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
