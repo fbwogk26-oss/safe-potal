@@ -300,6 +300,7 @@ export async function fetchAndSaveHeatwaveWeather(): Promise<{ ok: boolean; coun
 cron.schedule("0 9 * * *", async () => {
   console.log("[HeatwaveJob] 🌡️ 폭염 기상 자동 수집 시작 (09:00 KST)");
   await fetchAndSaveHeatwaveWeather();
+  await fetchAndSaveHeatwaveWarnings();
 }, { timezone: "Asia/Seoul" });
 
 console.log("[HeatwaveJob] 폭염 기상 자동 수집 Cron 등록 완료 (매일 09:00 KST)");

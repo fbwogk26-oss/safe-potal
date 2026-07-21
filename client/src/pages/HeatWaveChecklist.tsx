@@ -1559,7 +1559,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
                     {fw.map((w,i)=>{
                       const isKyungbo=w.type.includes('경보')&&!w.type.includes('주의');
                       const bc=isKyungbo?'#ef4444':w.type.includes('주의')&&!w.type.includes('경보')?'#f97316':'#3b82f6';
-                      const rs=w.regions.length>40?w.regions.slice(0,40)+'…':w.regions;
+                      const rs=w.regions;
                       return(<div key={i} style={{display:'flex',alignItems:'flex-start',gap:5,marginTop:i===0?0:2}}>
                         <span style={{fontSize:9,fontWeight:700,color:bc,background:`${bc}22`,border:`1px solid ${bc}44`,padding:'0 4px',borderRadius:3,whiteSpace:'nowrap',flexShrink:0,lineHeight:'15px'}}>{w.type}</span>
                         <span style={{fontSize:9,color:'#fca5a5',lineHeight:'15px'}}>{rs}</span>
@@ -2109,76 +2109,6 @@ export default function HeatWaveChecklist() {
         </div>
       </div>
 
-      {/* ── 기상청 특보 배너 ──────────────────────────────────────────────── */}
-      {warnings.length > 0 && (
-        <div className="rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 overflow-hidden">
-          <div className="flex items-center justify-between px-3 py-2 border-b border-amber-200 dark:border-amber-800 bg-amber-100/70 dark:bg-amber-900/40">
-            <div className="flex items-center gap-1.5">
-              <span className="text-sm">📢</span>
-              <span className="text-xs font-bold text-amber-800 dark:text-amber-300">기상청 특보 현황</span>
-              {warningFetchedAt && (
-                <span className="text-[10px] text-amber-600 dark:text-amber-500">
-                  · {new Date(warningFetchedAt).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })} 기준
-                </span>
-              )}
-            </div>
-            <button
-              onClick={refreshWarnings}
-              disabled={warningRefreshing}
-              className="flex items-center gap-1 text-[10px] text-amber-700 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-200 disabled:opacity-50 transition-colors"
-              data-testid="button-refresh-warnings"
-            >
-              {warningRefreshing
-                ? <span className="inline-block w-3 h-3 border border-amber-500 border-t-transparent rounded-full animate-spin" />
-                : <RefreshCw className="w-3 h-3" />}
-              <span>새로고침</span>
-            </button>
-          </div>
-          <div className="px-3 py-2 space-y-1.5">
-            {warnings.map((w, i) => {
-              let badgeClass = 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700';
-              if (w.type.includes('태풍')) badgeClass = 'bg-purple-100 dark:bg-purple-900/40 text-purple-800 dark:text-purple-300 border border-purple-200 dark:border-purple-700';
-              else if (w.type.includes('호우') && w.type.includes('경보')) badgeClass = 'bg-blue-100 dark:bg-blue-900/40 text-blue-900 dark:text-blue-200 border border-blue-300 dark:border-blue-700';
-              else if (w.type.includes('호우')) badgeClass = 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800';
-              else if (w.type.includes('강풍') && w.type.includes('경보')) badgeClass = 'bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-600';
-              else if (w.type.includes('강풍')) badgeClass = 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700';
-              else if (w.type.includes('폭염') && w.type.includes('경보')) badgeClass = 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800';
-              else if (w.type.includes('폭염')) badgeClass = 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-800';
-              else if (w.type.includes('열대야') && w.type.includes('경보')) badgeClass = 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800';
-              else if (w.type.includes('열대야')) badgeClass = 'bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-800';
-              else if (w.type.includes('대설') && w.type.includes('경보')) badgeClass = 'bg-cyan-100 dark:bg-cyan-900/40 text-cyan-900 dark:text-cyan-200 border border-cyan-300 dark:border-cyan-700';
-              else if (w.type.includes('대설')) badgeClass = 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800';
-              else if (w.type.includes('한파') && w.type.includes('경보')) badgeClass = 'bg-teal-100 dark:bg-teal-900/40 text-teal-800 dark:text-teal-200 border border-teal-300 dark:border-teal-700';
-              else if (w.type.includes('한파')) badgeClass = 'bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800';
-              else if (w.type.includes('경보')) badgeClass = 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800';
-              else if (w.type.includes('주의보')) badgeClass = 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-700';
-              return (
-                <div key={i} className="flex items-start gap-2 text-xs">
-                  <span className={`flex-shrink-0 px-1.5 py-0.5 rounded text-[10px] font-bold whitespace-nowrap ${badgeClass}`}>{w.type}</span>
-                  <span className="text-amber-900 dark:text-amber-200 leading-relaxed">{w.regions}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-      {warnings.length === 0 && !warningRefreshing && (
-        <div className="flex items-center justify-between rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/30 px-3 py-2">
-          <div className="flex items-center gap-1.5">
-            <span className="text-sm">☀️</span>
-            <span className="text-xs text-slate-500 dark:text-slate-400">현재 발효 중인 기상청 특보 없음</span>
-          </div>
-          <button
-            onClick={refreshWarnings}
-            disabled={warningRefreshing}
-            className="flex items-center gap-1 text-[10px] text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
-            data-testid="button-refresh-warnings-empty"
-          >
-            <RefreshCw className="w-3 h-3" />
-            <span>특보 조회</span>
-          </button>
-        </div>
-      )}
 
       {/* ── 지도 / 날씨 탭 ─ Three.js 유지를 위해 display:none 숨김 ── */}
       <div style={{ display: mainTab === 'map' ? 'block' : 'none' }}>
