@@ -897,6 +897,9 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
   const [addWarnType, setAddWarnType] = useState('호우주의보');
   const [addWarnRegion, setAddWarnRegion] = useState('');
   const [addWarnSaving, setAddWarnSaving] = useState(false);
+  const [pasteWarnOpen, setPasteWarnOpen] = useState(false);
+  const [pasteWarnText, setPasteWarnText] = useState('');
+  const [pasteWarnSaving, setPasteWarnSaving] = useState(false);
   const [statusMsg, setStatusMsg] = useState("");
   const [statusErr, setStatusErr] = useState(false);
   const [heatActive, setHeatActive] = useState(false);
@@ -1398,6 +1401,32 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
     }
   }
 
+  const parsePastedWarnings = (text: string) => {
+    const items: { type: string; regions: string }[] = [];
+    for (const raw of text.split('\n')) {
+      const line = raw.trim();
+      if (!line) continue;
+      const m = line.match(/^[oO°•·\-*]\s*(.+?)\s*[:：]\s*(.+)$/);
+      if (m) items.push({ type: m[1].trim(), regions: m[2].trim() });
+    }
+    return items;
+  };
+
+  const handlePasteWarning = async () => {
+    const items = parsePastedWarnings(pasteWarnText);
+    if (items.length === 0) return;
+    setPasteWarnSaving(true);
+    try {
+      const r = await fetch('/api/heatwave-warnings/items/bulk', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items }),
+      });
+      const j = await r.json();
+      if (j?.data?.items) { onWarningsChange?.(j.data.items); setPasteWarnText(''); setPasteWarnOpen(false); }
+    } catch {} finally { setPasteWarnSaving(false); }
+  };
+
   const handleAddWarning = async () => {
     if (!addWarnRegion.trim()) return;
     setAddWarnSaving(true);
@@ -1567,13 +1596,45 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
                       🚨 기상특보 {warnings.length}건{warningOpen?' ▲':' ▼'}
                     </button>
                   )}
-                  <button onClick={()=>{setAddWarnOpen(v=>!v);setWarningOpen(true);}} style={{fontSize:9,color:'#94a3b8',background:'rgba(148,163,184,0.08)',border:'1px solid rgba(148,163,184,0.2)',padding:'1px 6px',borderRadius:10,cursor:'pointer',lineHeight:'16px'}}>＋ 특보 추가</button>
+                  <button onClick={()=>{setAddWarnOpen(v=>!v);setPasteWarnOpen(false);setWarningOpen(true);}} style={{fontSize:9,color:'#94a3b8',background:'rgba(148,163,184,0.08)',border:'1px solid rgba(148,163,184,0.2)',padding:'1px 6px',borderRadius:10,cursor:'pointer',lineHeight:'16px'}}>＋ 개별 추가</button>
+                  <button onClick={()=>{setPasteWarnOpen(v=>!v);setAddWarnOpen(false);setWarningOpen(true);}} style={{fontSize:9,color:'#60a5fa',background:'rgba(96,165,250,0.08)',border:'1px solid rgba(96,165,250,0.25)',padding:'1px 6px',borderRadius:10,cursor:'pointer',lineHeight:'16px'}}>📋 텍스트 붙여넣기</button>
                 </div>
               </div>
               {!isMobile && <span className="text-[10px] text-slate-500">클릭하면 상세 보기</span>}
             </div>
             {warningOpen && (
               <div style={{background:'#090e14',borderBottom:'1px solid #232a35',padding:'8px 12px',flexShrink:0}}>
+                {pasteWarnOpen && (
+                  <div style={{marginBottom:8,padding:'8px 10px',background:'#0f172a',border:'1px solid #1d4ed8',borderRadius:6}}>
+                    <div style={{fontSize:10,color:'#93c5fd',marginBottom:5,lineHeight:1.5}}>
+                      기상청 특보 문자를 그대로 붙여넣으세요. <span style={{color:'#64748b'}}>→ 기존 특보는 전체 교체됩니다.</span>
+                    </div>
+                    <div style={{fontSize:9,color:'#475569',marginBottom:6,fontFamily:'monospace',lineHeight:1.6,background:'#1e293b',padding:'4px 6px',borderRadius:3}}>
+                      형식: <span style={{color:'#94a3b8'}}>o 호우경보 : 경기도(연천, 파주서북부), 인천(강화)</span>
+                    </div>
+                    <textarea
+                      value={pasteWarnText}
+                      onChange={e=>setPasteWarnText(e.target.value)}
+                      rows={8}
+                      placeholder={'o 호우경보 : 경기도(연천, 파주서북부), 인천(강화)\no 폭염경보 : 대구, 경상북도(구미, 영천)\no 폭염주의보 : 경상남도(진주, 통영, 사천)'}
+                      style={{width:'100%',boxSizing:'border-box',fontSize:10,background:'#1e293b',color:'#e2e8f0',border:'1px solid #334155',borderRadius:4,padding:'6px 8px',resize:'vertical',fontFamily:'monospace',lineHeight:1.6}}
+                    />
+                    {pasteWarnText.trim() && (
+                      <div style={{fontSize:9,color:'#64748b',marginTop:4}}>
+                        인식된 특보: <span style={{color:'#60a5fa',fontWeight:700}}>{parsePastedWarnings(pasteWarnText).length}건</span>
+                        {parsePastedWarnings(pasteWarnText).map((it,i)=>(
+                          <span key={i} style={{display:'inline-block',margin:'2px 3px 0',background:'rgba(96,165,250,0.12)',border:'1px solid rgba(96,165,250,0.25)',borderRadius:3,padding:'0 4px',color:'#93c5fd'}}>{it.type}</span>
+                        ))}
+                      </div>
+                    )}
+                    <div style={{display:'flex',gap:6,marginTop:7}}>
+                      <button onClick={handlePasteWarning} disabled={pasteWarnSaving||parsePastedWarnings(pasteWarnText).length===0} style={{fontSize:10,color:'#fff',background:'#1d4ed8',border:'none',borderRadius:4,padding:'3px 12px',cursor:'pointer',opacity:parsePastedWarnings(pasteWarnText).length>0?1:0.4}}>
+                        {pasteWarnSaving?'저장 중...':'저장 (전체 교체)'}
+                      </button>
+                      <button onClick={()=>{setPasteWarnOpen(false);setPasteWarnText('');}} style={{fontSize:10,color:'#9ca3af',background:'none',border:'none',cursor:'pointer'}}>취소</button>
+                    </div>
+                  </div>
+                )}
                 {addWarnOpen && (
                   <div style={{marginBottom:8,padding:'7px 8px',background:'#111827',border:'1px solid #374151',borderRadius:6,display:'flex',flexWrap:'wrap',gap:5,alignItems:'center'}}>
                     <select value={addWarnType} onChange={e=>setAddWarnType(e.target.value)} style={{fontSize:10,background:'#1f2937',color:'#e5e7eb',border:'1px solid #374151',borderRadius:4,padding:'2px 4px',cursor:'pointer'}}>

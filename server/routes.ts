@@ -14688,6 +14688,22 @@ ${result.value}
     }
   });
 
+  // 특보 일괄 교체 (텍스트 붙여넣기용)
+  app.post('/api/heatwave-warnings/items/bulk', isAuthenticated, async (req, res) => {
+    try {
+      const { items } = req.body as { items: { type: string; regions: string }[] };
+      if (!Array.isArray(items)) return res.status(400).json({ ok: false, message: 'items 배열 필요' });
+      const s = await storage.getSetting('heatwave_warnings');
+      const current = s ? JSON.parse(s.value) : { ok: true, rawText: null, issuedAt: null, fetchedAt: new Date().toISOString() };
+      current.items = items.filter(i => i.type && i.regions);
+      current.fetchedAt = new Date().toISOString();
+      await storage.setSetting('heatwave_warnings', JSON.stringify(current));
+      res.json({ ok: true, data: current });
+    } catch (e: any) {
+      res.status(500).json({ ok: false, message: e.message });
+    }
+  });
+
   // 특보 항목 수동 추가
   app.post('/api/heatwave-warnings/items', isAuthenticated, async (req, res) => {
     try {
