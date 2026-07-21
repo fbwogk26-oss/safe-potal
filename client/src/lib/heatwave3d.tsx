@@ -286,17 +286,47 @@ export function initThreePanel(
   return { scene, camera, renderer, tick, cleanup };
 }
 
+// ─── Warning badge helper ────────────────────────────────────────────────────
+function warningBadgeStyle(type: string): { bg: string; color: string; border: string } {
+  if (type.includes('태풍')) return { bg: '#4a1d96', color: '#c4b5fd', border: '#6d28d9' };
+  if (type.includes('호우') && type.includes('경보')) return { bg: '#1e3a5f', color: '#93c5fd', border: '#1d4ed8' };
+  if (type.includes('호우')) return { bg: '#1e3799', color: '#bfdbfe', border: '#3b82f6' };
+  if (type.includes('강풍') && type.includes('경보')) return { bg: '#374151', color: '#e5e7eb', border: '#6b7280' };
+  if (type.includes('강풍')) return { bg: '#1f2937', color: '#d1d5db', border: '#9ca3af' };
+  if (type.includes('폭염') && type.includes('경보')) return { bg: '#7f1d1d', color: '#fca5a5', border: '#dc2626' };
+  if (type.includes('폭염')) return { bg: '#7c2d12', color: '#fdba74', border: '#ea580c' };
+  if (type.includes('열대야') && type.includes('경보')) return { bg: '#3b0764', color: '#e9d5ff', border: '#7c3aed' };
+  if (type.includes('열대야')) return { bg: '#4c1d95', color: '#ddd6fe', border: '#8b5cf6' };
+  if (type.includes('대설') && type.includes('경보')) return { bg: '#1e3a5f', color: '#bae6fd', border: '#0284c7' };
+  if (type.includes('대설')) return { bg: '#0c4a6e', color: '#e0f2fe', border: '#0ea5e9' };
+  if (type.includes('한파') && type.includes('경보')) return { bg: '#1e3a5f', color: '#a5f3fc', border: '#06b6d4' };
+  if (type.includes('한파')) return { bg: '#164e63', color: '#cffafe', border: '#22d3ee' };
+  if (type.includes('경보')) return { bg: '#7f1d1d', color: '#fca5a5', border: '#dc2626' };
+  if (type.includes('주의보')) return { bg: '#78350f', color: '#fde68a', border: '#d97706' };
+  return { bg: '#374151', color: '#e5e7eb', border: '#6b7280' };
+}
+
 // ─── Region Info Card ────────────────────────────────────────────────────────
 export function RegionInfoCard({
   info,
   onClose,
   heatColorFn,
+  warnings,
 }: {
   info: { name: string; weather: RegionWeather | null };
   onClose: () => void;
   heatColorFn: (t: number) => string;
+  warnings?: { type: string; regions: string }[];
 }) {
   const w = info.weather;
+
+  // 이 지역에 해당하는 특보 필터링 (regions 텍스트에 도시명 포함 여부)
+  const cityWarnings = (warnings ?? []).filter(wn => {
+    if (!wn.regions) return false;
+    // 단순 포함 여부 (예: '대구' → '대구중부, 달성남부' 등도 매칭)
+    return wn.regions.includes(info.name);
+  });
+
   return (
     <div style={{
       position:'absolute', top:8, left:8, zIndex:20,
@@ -305,7 +335,7 @@ export function RegionInfoCard({
       borderRadius:12, padding:'10px 14px',
       backdropFilter:'blur(6px)',
       WebkitBackdropFilter:'blur(6px)',
-      minWidth:160, maxWidth:220,
+      minWidth:160, maxWidth:240,
       boxShadow:'0 8px 24px rgba(0,0,0,0.5)',
       pointerEvents:'auto',
     }}>
@@ -346,6 +376,23 @@ export function RegionInfoCard({
         </>
       ) : (
         <div style={{fontSize:12, color:'#697384'}}>데이터 없음</div>
+      )}
+      {/* 기상청 특보 배지 */}
+      {cityWarnings.length > 0 && (
+        <div style={{marginTop:8, display:'flex', flexDirection:'column', gap:3}}>
+          <div style={{fontSize:9, color:'#697384', letterSpacing:'0.5px', marginBottom:1}}>📢 기상청 특보</div>
+          {cityWarnings.map((wn, i) => {
+            const st = warningBadgeStyle(wn.type);
+            return (
+              <span key={i} style={{
+                display:'inline-block', fontSize:10, fontWeight:700,
+                padding:'2px 6px', borderRadius:4,
+                background:st.bg, color:st.color,
+                border:`1px solid ${st.border}`,
+              }}>{wn.type}</span>
+            );
+          })}
+        </div>
       )}
     </div>
   );

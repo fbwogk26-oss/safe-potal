@@ -97,6 +97,7 @@ export function buildHtmlEmail(
   dateStr: string,
   reportUrl?: string,
   warnings?: { type: string; regions: string }[],
+  selectedZones?: string[],
 ): string {
   const entries = Object.entries(weather).sort((a, b) => b[1].feels - a[1].feels);
   if (!entries.length) return '<p>날씨 데이터가 없습니다.</p>';
@@ -123,8 +124,10 @@ export function buildHtmlEmail(
     '대구본부': '🏔', '부산본부': '⚓', '충청본부': '🌾', '호남본부': '🌊',
   };
 
-  // ── 권역별 타일 섹션 ────────────────────────────────────────────────────
-  const zoneSections = ZONE_ORDER.filter(z => byZone[z]).map(zone => {
+  // ── 권역별 타일 섹션 (selectedZones 필터 적용) ──────────────────────────
+  const activeZones = ZONE_ORDER.filter(z => byZone[z])
+    .filter(z => !selectedZones || selectedZones.length === 0 || selectedZones.includes(z));
+  const zoneSections = activeZones.map(zone => {
     const cities = byZone[zone]; // 이미 feels 내림차순 정렬됨
     const zoneMax = cities[0]?.[1].feels ?? 0;
     const tiles = cities.map(([name, w]) => {
@@ -168,9 +171,23 @@ export function buildHtmlEmail(
   <div style="margin:0;padding:12px 20px;background:#fef3c7;border-bottom:2px solid #f59e0b">
     <div style="font-size:11px;font-weight:800;color:#92400e;margin-bottom:7px;letter-spacing:0.2px">📢 기상청 특보 현황 (기상청 공식)</div>
     ${warnings.map((w: { type: string; regions: string }) => {
-      const color = w.type === '폭염경보' ? '#991b1b' : w.type === '폭염주의보' ? '#c2410c' : '#6d28d9';
-      const bg    = w.type === '폭염경보' ? '#fee2e2' : w.type === '폭염주의보' ? '#ffedd5' : '#ede9fe';
-      return `<div style="display:table;width:100%;margin-bottom:5px"><div style="display:table-cell;vertical-align:top;padding-right:8px;width:70px"><span style="display:inline-block;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:800;color:${color};background:${bg};white-space:nowrap">${w.type}</span></div><div style="display:table-cell;vertical-align:top;font-size:10px;color:#374151;line-height:1.55">${w.regions}</div></div>`;
+      let color = '#6d28d9', bg = '#ede9fe';
+      if (w.type.includes('태풍')) { color='#5b21b6'; bg='#f5f3ff'; }
+      else if (w.type.includes('호우') && w.type.includes('경보')) { color='#1e3a8a'; bg='#dbeafe'; }
+      else if (w.type.includes('호우')) { color='#1d4ed8'; bg='#eff6ff'; }
+      else if (w.type.includes('강풍') && w.type.includes('경보')) { color='#374151'; bg='#f3f4f6'; }
+      else if (w.type.includes('강풍')) { color='#6b7280'; bg='#f9fafb'; }
+      else if (w.type.includes('폭염') && w.type.includes('경보')) { color='#991b1b'; bg='#fee2e2'; }
+      else if (w.type.includes('폭염')) { color='#c2410c'; bg='#ffedd5'; }
+      else if (w.type.includes('열대야') && w.type.includes('경보')) { color='#4c1d95'; bg='#ede9fe'; }
+      else if (w.type.includes('열대야')) { color='#6d28d9'; bg='#f5f3ff'; }
+      else if (w.type.includes('대설') && w.type.includes('경보')) { color='#075985'; bg='#e0f2fe'; }
+      else if (w.type.includes('대설')) { color='#0284c7'; bg='#f0f9ff'; }
+      else if (w.type.includes('한파') && w.type.includes('경보')) { color='#164e63'; bg='#ecfeff'; }
+      else if (w.type.includes('한파')) { color='#0e7490'; bg='#f0fdfa'; }
+      else if (w.type.includes('경보')) { color='#991b1b'; bg='#fee2e2'; }
+      else if (w.type.includes('주의보')) { color='#92400e'; bg='#fef3c7'; }
+      return `<div style="display:table;width:100%;margin-bottom:5px"><div style="display:table-cell;vertical-align:top;padding-right:8px;width:76px"><span style="display:inline-block;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:800;color:${color};background:${bg};white-space:nowrap">${w.type}</span></div><div style="display:table-cell;vertical-align:top;font-size:10px;color:#374151;line-height:1.55">${w.regions}</div></div>`;
     }).join('')}
   </div>
   ` : ''}
@@ -433,7 +450,8 @@ export function getHeatwaveDailyEmailStatus(): HeatwaveDailyEmailStatus {
 // baseUrl: 배포 URL (예: https://xxx.replit.app). 없으면 env에서 추출 시도.
 export async function runHeatwaveDailyEmail(
   weatherOverride?: Record<string, WeatherEntry>,
-  baseUrl?: string
+  baseUrl?: string,
+  selectedZones?: string[]
 ): Promise<void> {
   const sender      = process.env.GMAIL_SENDER;
   const appPassword = process.env.GMAIL_APP_PASSWORD;
@@ -505,7 +523,7 @@ export async function runHeatwaveDailyEmail(
       if (ws) warnings = JSON.parse(ws.value)?.items;
     } catch {}
 
-    const html        = buildHtmlEmail(weather, dateStr, reportUrl, warnings);
+    const html        = buildHtmlEmail(weather, dateStr, reportUrl, warnings, selectedZones);
     const excelBuffer = await buildExcelBuffer(weather, dateStr, dateDash);
 
     const allEntries  = Object.entries(weather).sort((a, b) => b[1].feels - a[1].feels);

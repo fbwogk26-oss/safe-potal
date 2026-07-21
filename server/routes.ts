@@ -14854,8 +14854,10 @@ ${result.value}
       // 프론트엔드에서 현재 화면의 날씨 데이터를 직접 전달받으면 사용 (DB 타이밍 이슈 방지)
       const weatherFromClient = req.body?.weather && typeof req.body.weather === 'object'
         ? req.body.weather : undefined;
+      const selectedZones: string[] | undefined = Array.isArray(req.body?.selectedZones)
+        ? req.body.selectedZones : undefined;
       const baseUrl = `${req.protocol}://${req.get('host')}`;
-      await runHeatwaveDailyEmail(weatherFromClient, baseUrl);
+      await runHeatwaveDailyEmail(weatherFromClient, baseUrl, selectedZones);
       const status = getHeatwaveDailyEmailStatus();
       if (status.lastResult === 'error') {
         return res.status(500).json({ message: status.lastMessage });

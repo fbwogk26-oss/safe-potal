@@ -292,16 +292,14 @@ export interface HeatwaveWarningResult {
 
 function parseWarningText(t6: string): HeatwaveWarningItem[] {
   if (!t6) return [];
-  const types = ['폭염경보', '폭염주의보', '열대야경보', '열대야주의보'];
   const result: HeatwaveWarningItem[] = [];
-  for (const type of types) {
-    const regex = new RegExp('o\\s+' + type + '\\s*:\\s*([^\n]+)');
-    const m = t6.match(regex);
-    if (m) {
-      const regionStr = m[1].trim();
-      if (regionStr && regionStr !== '없음') {
-        result.push({ type, regions: regionStr });
-      }
+  const lineRegex = /o\s+([\uAC00-\uD7A3·\s]+?)\s*:\s*([^\r\n]+)/g;
+  let m: RegExpExecArray | null;
+  while ((m = lineRegex.exec(t6)) !== null) {
+    const type = m[1].trim();
+    const regionStr = m[2].trim().replace(/\r/g, '');
+    if (type && regionStr && regionStr !== '없음' && !type.includes('없음')) {
+      result.push({ type, regions: regionStr });
     }
   }
   return result;

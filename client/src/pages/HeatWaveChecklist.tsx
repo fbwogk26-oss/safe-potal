@@ -880,7 +880,7 @@ type ParsedCSVData = {
 
 
 
-function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEmail, onSaveMap, mapSaving, previewLoading, mapCaptureRef }: {
+function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEmail, onSaveMap, mapSaving, previewLoading, mapCaptureRef, warnings }: {
   onDataParsed?: (d: ParsedCSVData) => void;
   checklistTriggerRef?: React.MutableRefObject<(() => void) | null>;
   onPreviewEmail?: () => void;
@@ -888,6 +888,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
   mapSaving?: boolean;
   previewLoading?: boolean;
   mapCaptureRef?: React.MutableRefObject<(() => string | null) | null>;
+  warnings?: { type: string; regions: string }[];
 }) {
   const [selectedRegion, setSelectedRegion] = useState<RegionKey>('daegubuk');
   const [statusMsg, setStatusMsg] = useState("");
@@ -1547,7 +1548,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
                 <span style={{position:'absolute',top:5,left:9,zIndex:2,fontSize:13,fontWeight:700,color:'#e8ecf1',textShadow:'0 1px 3px rgba(0,0,0,0.8)',pointerEvents:'none'}}>제주도</span>
                 <div ref={jejuAllRef} style={{position:'absolute',inset:0}} />
               </div>
-              {selectedInfo && <RegionInfoCard info={selectedInfo} onClose={()=>setSelectedInfo(null)} heatColorFn={heatColorHex} />}
+              {selectedInfo && <RegionInfoCard info={selectedInfo} onClose={()=>setSelectedInfo(null)} heatColorFn={heatColorHex} warnings={warnings} />}
             </div>
           </div>
         )}
@@ -1567,7 +1568,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
                 <div ref={ulleungRef} style={{position:'absolute',inset:0}} />
               </div>
               {selectedInfo && (
-                <RegionInfoCard info={selectedInfo} onClose={()=>setSelectedInfo(null)} heatColorFn={heatColorHex} />
+                <RegionInfoCard info={selectedInfo} onClose={()=>setSelectedInfo(null)} heatColorFn={heatColorHex} warnings={warnings} />
               )}
             </div>
           </div>
@@ -1583,7 +1584,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
             </div>
             <div style={{position:'relative', flex:1, minHeight:0, background:'#0d1117'}}>
               <div ref={chungcheongRef} style={{position:'absolute',inset:0}} />
-              {selectedInfo && <RegionInfoCard info={selectedInfo} onClose={()=>setSelectedInfo(null)} heatColorFn={heatColorHex} />}
+              {selectedInfo && <RegionInfoCard info={selectedInfo} onClose={()=>setSelectedInfo(null)} heatColorFn={heatColorHex} warnings={warnings} />}
             </div>
           </div>
         )}
@@ -1604,7 +1605,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
                 <span style={{position:'absolute',top:5,left:9,zIndex:2,fontSize:10.5,fontWeight:700,color:'#e8ecf1',textShadow:'0 1px 3px rgba(0,0,0,0.6)',pointerEvents:'none'}}>제주도</span>
                 <div ref={jejuRef} style={{position:'absolute',inset:0}} />
               </div>
-              {selectedInfo && <RegionInfoCard info={selectedInfo} onClose={()=>setSelectedInfo(null)} heatColorFn={heatColorHex} />}
+              {selectedInfo && <RegionInfoCard info={selectedInfo} onClose={()=>setSelectedInfo(null)} heatColorFn={heatColorHex} warnings={warnings} />}
             </div>
           </div>
         )}
@@ -1619,7 +1620,7 @@ function DaeguGyeongbukHeatMap({ onDataParsed, checklistTriggerRef, onPreviewEma
             </div>
             <div style={{position:'relative', flex:1, minHeight:0, background:'#0d1117'}}>
               <div ref={buulgyeongRef} style={{position:'absolute',inset:0}} />
-              {selectedInfo && <RegionInfoCard info={selectedInfo} onClose={()=>setSelectedInfo(null)} heatColorFn={heatColorHex} />}
+              {selectedInfo && <RegionInfoCard info={selectedInfo} onClose={()=>setSelectedInfo(null)} heatColorFn={heatColorHex} warnings={warnings} />}
             </div>
           </div>
         )}
@@ -1726,6 +1727,10 @@ export default function HeatWaveChecklist() {
   const [warnings, setWarnings] = useState<{ type: string; regions: string }[]>([]);
   const [warningFetchedAt, setWarningFetchedAt] = useState<string | null>(null);
   const [warningRefreshing, setWarningRefreshing] = useState(false);
+
+  // 이메일 권역 선택 (기본: 전체 선택)
+  const ALL_EMAIL_ZONES = ['충청본부', '호남본부', '부산본부', '대구본부'];
+  const [selectedEmailZones, setSelectedEmailZones] = useState<string[]>([...ALL_EMAIL_ZONES]);
 
   const loadWarnings = async () => {
     try {
@@ -1992,13 +1997,22 @@ export default function HeatWaveChecklist() {
           </div>
           <div className="px-3 py-2 space-y-1.5">
             {warnings.map((w, i) => {
-              const isAlert = w.type === '폭염경보';
-              const isWatch = w.type === '폭염주의보';
-              const badgeClass = isAlert
-                ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800'
-                : isWatch
-                  ? 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-800'
-                  : 'bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-800';
+              let badgeClass = 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700';
+              if (w.type.includes('태풍')) badgeClass = 'bg-purple-100 dark:bg-purple-900/40 text-purple-800 dark:text-purple-300 border border-purple-200 dark:border-purple-700';
+              else if (w.type.includes('호우') && w.type.includes('경보')) badgeClass = 'bg-blue-100 dark:bg-blue-900/40 text-blue-900 dark:text-blue-200 border border-blue-300 dark:border-blue-700';
+              else if (w.type.includes('호우')) badgeClass = 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800';
+              else if (w.type.includes('강풍') && w.type.includes('경보')) badgeClass = 'bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-600';
+              else if (w.type.includes('강풍')) badgeClass = 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700';
+              else if (w.type.includes('폭염') && w.type.includes('경보')) badgeClass = 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800';
+              else if (w.type.includes('폭염')) badgeClass = 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-800';
+              else if (w.type.includes('열대야') && w.type.includes('경보')) badgeClass = 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800';
+              else if (w.type.includes('열대야')) badgeClass = 'bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-800';
+              else if (w.type.includes('대설') && w.type.includes('경보')) badgeClass = 'bg-cyan-100 dark:bg-cyan-900/40 text-cyan-900 dark:text-cyan-200 border border-cyan-300 dark:border-cyan-700';
+              else if (w.type.includes('대설')) badgeClass = 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800';
+              else if (w.type.includes('한파') && w.type.includes('경보')) badgeClass = 'bg-teal-100 dark:bg-teal-900/40 text-teal-800 dark:text-teal-200 border border-teal-300 dark:border-teal-700';
+              else if (w.type.includes('한파')) badgeClass = 'bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800';
+              else if (w.type.includes('경보')) badgeClass = 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800';
+              else if (w.type.includes('주의보')) badgeClass = 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-700';
               return (
                 <div key={i} className="flex items-start gap-2 text-xs">
                   <span className={`flex-shrink-0 px-1.5 py-0.5 rounded text-[10px] font-bold whitespace-nowrap ${badgeClass}`}>{w.type}</span>
@@ -2013,7 +2027,7 @@ export default function HeatWaveChecklist() {
         <div className="flex items-center justify-between rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/30 px-3 py-2">
           <div className="flex items-center gap-1.5">
             <span className="text-sm">☀️</span>
-            <span className="text-xs text-slate-500 dark:text-slate-400">현재 발효 중인 폭염·열대야 특보 없음 (기상청)</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">현재 발효 중인 기상청 특보 없음</span>
           </div>
           <button
             onClick={refreshWarnings}
@@ -2037,6 +2051,7 @@ export default function HeatWaveChecklist() {
           mapSaving={mapSaving}
           previewLoading={previewLoading}
           mapCaptureRef={mapCaptureRef}
+          warnings={warnings}
         />
       </div>
 
@@ -2138,6 +2153,29 @@ export default function HeatWaveChecklist() {
                 title="이메일 미리보기"
               />
             </div>
+            {/* 권역 선택 */}
+            <div className="px-5 py-2.5 border-t bg-slate-50 dark:bg-zinc-800/50 flex-shrink-0">
+              <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1.5">발송 권역 선택</div>
+              <div className="flex flex-wrap gap-2">
+                {ALL_EMAIL_ZONES.map(zone => {
+                  const checked = selectedEmailZones.includes(zone);
+                  const icons: Record<string,string> = { '충청본부':'🌾', '호남본부':'🌊', '부산본부':'⚓', '대구본부':'🏔' };
+                  return (
+                    <label key={zone} className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border cursor-pointer text-xs font-medium transition-colors select-none ${checked ? 'bg-orange-100 dark:bg-orange-900/40 border-orange-400 text-orange-700 dark:text-orange-300' : 'bg-white dark:bg-zinc-800 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400'}`}>
+                      <input
+                        type="checkbox"
+                        className="sr-only"
+                        checked={checked}
+                        onChange={e => setSelectedEmailZones(prev => e.target.checked ? [...prev, zone] : prev.filter(z => z !== zone))}
+                        data-testid={`checkbox-zone-${zone}`}
+                      />
+                      {icons[zone]} {zone}
+                    </label>
+                  );
+                })}
+              </div>
+              {selectedEmailZones.length === 0 && <p className="text-[10px] text-red-500 mt-1">⚠ 최소 1개 권역을 선택하세요</p>}
+            </div>
             {/* 하단 버튼 */}
             <div className="flex gap-2 px-5 py-3.5 border-t flex-shrink-0 bg-white dark:bg-zinc-900 rounded-b-2xl">
               <Button variant="outline" className="flex-1" onClick={() => setShowEmailPreview(false)} data-testid="button-preview-cancel">
@@ -2145,6 +2183,7 @@ export default function HeatWaveChecklist() {
               </Button>
               <Button
                 className="flex-1 bg-orange-500 hover:bg-orange-600 text-white gap-1.5"
+                disabled={selectedEmailZones.length === 0}
                 onClick={async () => {
                   setShowEmailPreview(false);
                   if (!currentWeatherForAction) return;
@@ -2152,7 +2191,7 @@ export default function HeatWaveChecklist() {
                     method: 'POST',
                     credentials: 'include',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ weather: currentWeatherForAction }),
+                    body: JSON.stringify({ weather: currentWeatherForAction, selectedZones: selectedEmailZones }),
                   });
                   const data = await resp.json().catch(() => ({}));
                   if (resp.ok) {
