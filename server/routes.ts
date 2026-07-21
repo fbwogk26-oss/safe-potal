@@ -3551,6 +3551,46 @@ ${buildEmailFooter()}
     }
   });
 
+  // GET /api/admin/backup/excel - 전체 DB Excel 내보내기 (수동 다운로드)
+  app.get("/api/admin/backup/excel", isAuthenticated, async (req: any, res) => {
+    if (req.user?.role !== "admin") return res.status(403).json({ message: "관리자만 접근 가능합니다." });
+    try {
+      const { buildDbExcelBuffer } = await import("./dbExcelExport");
+      const buffer = await buildDbExcelBuffer();
+      if (!buffer) return res.status(500).json({ message: "Excel 생성 실패" });
+      const now = new Date();
+      const kst = new Date(now.getTime() + 9 * 3600 * 1000);
+      const stamp = `${kst.getUTCFullYear()}${String(kst.getUTCMonth()+1).padStart(2,"0")}${String(kst.getUTCDate()).padStart(2,"0")}`;
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader("Content-Disposition", `attachment; filename*=UTF-8''SafeBoard_DB_${stamp}.xlsx`);
+      res.send(buffer);
+    } catch (err: any) {
+      console.error("DB Excel 내보내기 실패:", err?.message);
+      if (!res.headersSent) res.status(500).json({ message: "Excel 내보내기 실패" });
+    }
+  });
+
+  // GET /api/admin/backup/monthly-status - 월별 자동 백업 상태
+  app.get("/api/admin/backup/monthly-status", isAuthenticated, async (req: any, res) => {
+    if (req.user?.role !== "admin") return res.status(403).json({ message: "관리자만 접근 가능합니다." });
+    try {
+      const { getDbBackupJobStatus } = await import("./dbMonthlyBackupJob");
+      res.json(getDbBackupJobStatus());
+    } catch { res.json({ lastRun: null, lastResult: null, lastMessage: null, nextRun: "매월 1일 09:00 KST" }); }
+  });
+
+  // POST /api/admin/backup/monthly-send-now - 월별 백업 메일 수동 발송
+  app.post("/api/admin/backup/monthly-send-now", isAuthenticated, async (req: any, res) => {
+    if (req.user?.role !== "admin") return res.status(403).json({ message: "관리자만 접근 가능합니다." });
+    try {
+      const { runDbMonthlyBackup, getDbBackupJobStatus } = await import("./dbMonthlyBackupJob");
+      res.json({ message: "백업 메일 발송 시작됨" });
+      runDbMonthlyBackup().catch(console.error);
+    } catch (err: any) {
+      res.status(500).json({ message: err?.message ?? "실패" });
+    }
+  });
+
   // POST /api/admin/fix-broken-images - 로컬 /uploads/ 경로 사진 복구/정리
   app.post("/api/admin/fix-broken-images", requireAdmin, async (req: any, res) => {
     try {

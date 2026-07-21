@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,7 +8,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { useToast } from "@/hooks/use-toast";
 import {
   Database, Images, Download, CheckCircle, AlertCircle, Loader2,
-  HardDrive, RefreshCw, Trash2, Eye, FileImage, FileVideo, File, FileText, ImageOff, WandSparkles, KeyRound, ShieldCheck
+  HardDrive, RefreshCw, Trash2, Eye, FileImage, FileVideo, File, FileText, ImageOff, WandSparkles, KeyRound, ShieldCheck,
+  FileSpreadsheet, CalendarClock, Mail, Send
 } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -66,6 +67,8 @@ export default function AdminBackup() {
   const { toast } = useToast();
   const [dbDownloading, setDbDownloading] = useState(false);
   const [filesDownloading, setFilesDownloading] = useState(false);
+  const [excelDownloading, setExcelDownloading] = useState(false);
+  const [monthlySending, setMonthlySending] = useState(false);
   const [showOrphans, setShowOrphans] = useState(false);
   const [dbPasswordOpen, setDbPasswordOpen] = useState(false);
   const [dbPassword, setDbPassword] = useState("");
@@ -78,6 +81,51 @@ export default function AdminBackup() {
     queryKey: ["/api/admin/backup/orphans"],
     enabled: showOrphans,
   });
+
+  const { data: monthlyStatus, refetch: refetchMonthly } = useQuery<{
+    lastRun: string | null; lastResult: string | null; lastMessage: string | null; nextRun: string;
+  }>({ queryKey: ["/api/admin/backup/monthly-status"] });
+
+  async function downloadExcel() {
+    setExcelDownloading(true);
+    try {
+      const res = await fetch("/api/admin/backup/excel", { credentials: "include" });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: "오류 발생" }));
+        throw new Error(err.message || "다운로드 실패");
+      }
+      const blob = await res.blob();
+      const now2 = new Date();
+      const st = `${now2.getFullYear()}${String(now2.getMonth()+1).padStart(2,"0")}${String(now2.getDate()).padStart(2,"0")}`;
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `SafeBoard_DB_${st}.xlsx`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(a.href);
+      toast({ title: "Excel 다운로드 완료", description: "전체 DB가 Excel 파일로 저장됐습니다." });
+    } catch (e: any) {
+      toast({ title: "다운로드 실패", description: e.message, variant: "destructive" });
+    } finally {
+      setExcelDownloading(false);
+    }
+  }
+
+  async function sendMonthlyNow() {
+    setMonthlySending(true);
+    try {
+      const res = await fetch("/api/admin/backup/monthly-send-now", {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!res.ok) throw new Error("발송 요청 실패");
+      toast({ title: "백업 메일 발송 시작", description: "Excel 생성 후 메일로 발송됩니다. 잠시 후 메일을 확인해 주세요." });
+      setTimeout(() => refetchMonthly(), 5000);
+    } catch (e: any) {
+      toast({ title: "발송 실패", description: e.message, variant: "destructive" });
+    } finally {
+      setMonthlySending(false);
+    }
+  }
 
   const [fixResult, setFixResult] = useState<{ recovered: number; removed: number; slides_deleted: number; message: string } | null>(null);
 
@@ -361,6 +409,93 @@ export default function AdminBackup() {
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
+        </CardContent>
+      </Card>
+
+      {/* Excel 전체 내보내기 */}
+      <Card className="border-emerald-200 dark:border-emerald-800">
+        <CardHeader className="bg-emerald-50/60 dark:bg-emerald-900/10">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
+              <CardTitle className="text-emerald-800 dark:text-emerald-200">Excel 전체 내보내기</CardTitle>
+            </div>
+            <Badge variant="outline" className="border-emerald-400 text-emerald-700 dark:text-emerald-300">Excel (.xlsx)</Badge>
+          </div>
+          <CardDescription>
+            모든 테이블(교육일지·위험성평가·사고보고·MSDS·과태료·산업안전보건관리비 등)을 시트별로 나눠 Excel 파일로 저장합니다.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-4 space-y-3">
+          <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg p-3 text-sm flex gap-2">
+            <CheckCircle className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+            <span className="text-emerald-700 dark:text-emerald-300">
+              비밀번호·토큰 컬럼은 자동 제외됩니다. 파일명에 날짜가 포함됩니다.
+            </span>
+          </div>
+          <Button
+            data-testid="button-excel-export"
+            onClick={downloadExcel}
+            disabled={excelDownloading}
+            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+          >
+            {excelDownloading ? (
+              <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Excel 생성 중... (수십 초 소요)</>
+            ) : (
+              <><FileSpreadsheet className="w-4 h-4 mr-2" /> Excel 전체 내보내기 다운로드</>
+            )}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* 월별 자동 백업 메일 */}
+      <Card className="border-indigo-200 dark:border-indigo-800">
+        <CardHeader className="bg-indigo-50/60 dark:bg-indigo-900/10">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <CalendarClock className="w-5 h-5 text-indigo-600" />
+              <CardTitle className="text-indigo-800 dark:text-indigo-200">월별 자동 백업 메일</CardTitle>
+            </div>
+            <Badge variant="outline" className="border-indigo-400 text-indigo-700 dark:text-indigo-300">
+              매월 1일 09:00 KST
+            </Badge>
+          </div>
+          <CardDescription>
+            매월 1일 오전 9시에 전체 DB Excel을 자동 생성해 설정된 메일 주소로 발송합니다.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-4 space-y-3">
+          {monthlyStatus?.lastRun && (
+            <div className={`flex items-start gap-2 text-sm rounded-lg px-3 py-2 ${
+              monthlyStatus.lastResult === "sent"
+                ? "bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300"
+                : "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300"
+            }`}>
+              {monthlyStatus.lastResult === "sent"
+                ? <CheckCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                : <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />}
+              <span>{monthlyStatus.lastMessage ?? "-"}</span>
+            </div>
+          )}
+          {!monthlyStatus?.lastRun && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Mail className="w-4 h-4" />
+              아직 자동 발송 기록 없음 (다음 발송: 매월 1일 09:00 KST)
+            </div>
+          )}
+          <Button
+            data-testid="button-monthly-send-now"
+            onClick={sendMonthlyNow}
+            disabled={monthlySending}
+            variant="outline"
+            className="w-full border-indigo-300 text-indigo-700 hover:bg-indigo-50 dark:text-indigo-300 dark:hover:bg-indigo-900/20"
+          >
+            {monthlySending ? (
+              <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> 메일 발송 중...</>
+            ) : (
+              <><Send className="w-4 h-4 mr-2" /> 지금 백업 메일 발송 (수동)</>
+            )}
+          </Button>
         </CardContent>
       </Card>
 
