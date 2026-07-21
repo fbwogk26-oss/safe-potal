@@ -14452,104 +14452,86 @@ ${result.value}
 
   // ── 폭염 체크리스트 — Open-Meteo 기상 자동 조회 ──────────────────────────
   app.get('/api/weather/current-heat', isAuthenticated, async (req, res) => {
-    // 기상청 단기예보 API — 대구·경북 격자 좌표 (nx, ny)
-    // 출처: 기상청 기상자료개방포털 격자 변환표
-    const ALL_REGION_SETS: Record<string, { name: string; nx: number; ny: number }[]> = {
+    // Open-Meteo API — 위도/경도 좌표 기반 (기상청 API 대체, 해외 서버에서도 접근 가능)
+    const ALL_REGION_SETS: Record<string, { name: string; lat: number; lon: number }[]> = {
       daegubuk: [
-        { name:'대구',   nx:89,  ny:90  },
-        { name:'군위',   nx:88,  ny:99  },
-        { name:'포항',   nx:102, ny:94  }, { name:'경주',   nx:100, ny:91  },
-        { name:'김천',   nx:80,  ny:96  }, { name:'안동',   nx:91,  ny:106 },
-        { name:'구미',   nx:84,  ny:96  }, { name:'영주',   nx:89,  ny:111 },
-        { name:'영천',   nx:95,  ny:93  }, { name:'상주',   nx:81,  ny:102 },
-        { name:'문경',   nx:81,  ny:106 }, { name:'경산',   nx:91,  ny:90  },
-        { name:'의성',   nx:88,  ny:101 }, { name:'청송',   nx:96,  ny:103 },
-        { name:'영양',   nx:97,  ny:108 }, { name:'영덕',   nx:102, ny:103 },
-        { name:'청도',   nx:91,  ny:86  }, { name:'고령',   nx:83,  ny:87  },
-        { name:'성주',   nx:83,  ny:91  }, { name:'칠곡',   nx:85,  ny:93  },
-        { name:'예천',   nx:84,  ny:107 }, { name:'봉화',   nx:90,  ny:115 },
-        { name:'울진',   nx:102, ny:112 }, { name:'울릉',   nx:127, ny:127 },
+        { name:'대구',  lat:35.8714, lon:128.6014 }, { name:'군위',  lat:36.2403, lon:128.5728 },
+        { name:'포항',  lat:36.0190, lon:129.3435 }, { name:'경주',  lat:35.8562, lon:129.2245 },
+        { name:'김천',  lat:36.1398, lon:128.1134 }, { name:'안동',  lat:36.5684, lon:128.7294 },
+        { name:'구미',  lat:36.1197, lon:128.3445 }, { name:'영주',  lat:36.8057, lon:128.6239 },
+        { name:'영천',  lat:35.9733, lon:128.9384 }, { name:'상주',  lat:36.4106, lon:128.1591 },
+        { name:'문경',  lat:36.5866, lon:128.1859 }, { name:'경산',  lat:35.8253, lon:128.7414 },
+        { name:'의성',  lat:36.3527, lon:128.6972 }, { name:'청송',  lat:36.4358, lon:129.0573 },
+        { name:'영양',  lat:36.6667, lon:129.1129 }, { name:'영덕',  lat:36.4153, lon:129.3655 },
+        { name:'청도',  lat:35.6473, lon:128.7340 }, { name:'고령',  lat:35.7271, lon:128.2640 },
+        { name:'성주',  lat:35.9193, lon:128.2829 }, { name:'칠곡',  lat:35.9952, lon:128.4014 },
+        { name:'예천',  lat:36.6574, lon:128.4524 }, { name:'봉화',  lat:36.8930, lon:128.7322 },
+        { name:'울진',  lat:36.9929, lon:129.4003 }, { name:'울릉',  lat:37.4855, lon:130.9058 },
       ],
       chungcheong: [
-        { name:'대전',   nx:67, ny:100 }, { name:'세종',   nx:66, ny:103 },
-        { name:'청주',   nx:69, ny:107 }, { name:'충주',   nx:76, ny:114 },
-        { name:'제천',   nx:81, ny:118 }, { name:'보은',   nx:74, ny:105 },
-        { name:'옥천',   nx:71, ny:99  }, { name:'영동',   nx:74, ny:97  },
-        { name:'증평',   nx:71, ny:110 }, { name:'진천',   nx:68, ny:111 },
-        { name:'괴산',   nx:76, ny:110 }, { name:'음성',   nx:73, ny:114 },
-        { name:'단양',   nx:84, ny:115 },
-        { name:'천안',   nx:63, ny:110 }, { name:'공주',   nx:63, ny:102 },
-        { name:'보령',   nx:54, ny:100 }, { name:'아산',   nx:60, ny:110 },
-        { name:'서산',   nx:51, ny:110 }, { name:'논산',   nx:62, ny:97  },
-        { name:'계룡',   nx:65, ny:100 }, { name:'당진',   nx:54, ny:112 },
-        { name:'금산',   nx:69, ny:95  }, { name:'부여',   nx:59, ny:99  },
-        { name:'서천',   nx:56, ny:94  }, { name:'청양',   nx:59, ny:103 },
-        { name:'홍성',   nx:55, ny:106 }, { name:'예산',   nx:58, ny:108 },
-        { name:'태안',   nx:48, ny:108 },
+        { name:'대전',  lat:36.3504, lon:127.3845 }, { name:'세종',  lat:36.5040, lon:127.2495 },
+        { name:'청주',  lat:36.6424, lon:127.4890 }, { name:'충주',  lat:36.9910, lon:127.9259 },
+        { name:'제천',  lat:37.1326, lon:128.1911 }, { name:'보은',  lat:36.4894, lon:127.7293 },
+        { name:'옥천',  lat:36.3058, lon:127.5713 }, { name:'영동',  lat:36.1749, lon:127.7786 },
+        { name:'증평',  lat:36.7847, lon:127.5813 }, { name:'진천',  lat:36.8556, lon:127.4358 },
+        { name:'괴산',  lat:36.8153, lon:127.7874 }, { name:'음성',  lat:36.9396, lon:127.6915 },
+        { name:'단양',  lat:36.9846, lon:128.3654 }, { name:'천안',  lat:36.8151, lon:127.1139 },
+        { name:'공주',  lat:36.4465, lon:127.1190 }, { name:'보령',  lat:36.3332, lon:126.6129 },
+        { name:'아산',  lat:36.7898, lon:126.9970 }, { name:'서산',  lat:36.7847, lon:126.4506 },
+        { name:'논산',  lat:36.1870, lon:127.0990 }, { name:'계룡',  lat:36.2742, lon:127.2490 },
+        { name:'당진',  lat:36.8934, lon:126.6295 }, { name:'금산',  lat:36.1085, lon:127.4877 },
+        { name:'부여',  lat:36.2755, lon:126.9098 }, { name:'서천',  lat:36.0807, lon:126.6916 },
+        { name:'청양',  lat:36.4577, lon:126.8022 }, { name:'홍성',  lat:36.6011, lon:126.6607 },
+        { name:'예산',  lat:36.6799, lon:126.8497 }, { name:'태안',  lat:36.7452, lon:126.2983 },
       ],
       honam: [
-        { name:'광주',   nx:58, ny:74  },
-        { name:'전주',   nx:63, ny:89  }, { name:'군산',   nx:56, ny:92  },
-        { name:'익산',   nx:60, ny:91  }, { name:'정읍',   nx:58, ny:83  },
-        { name:'남원',   nx:68, ny:80  }, { name:'김제',   nx:59, ny:88  },
-        { name:'완주',   nx:63, ny:90  }, { name:'진안',   nx:68, ny:88  },
-        { name:'무주',   nx:72, ny:90  }, { name:'장수',   nx:70, ny:85  },
-        { name:'임실',   nx:66, ny:83  }, { name:'순창',   nx:63, ny:79  },
-        { name:'고창',   nx:56, ny:81  }, { name:'부안',   nx:55, ny:87  },
-        { name:'목포',   nx:50, ny:67  }, { name:'여수',   nx:73, ny:66  },
-        { name:'순천',   nx:70, ny:70  }, { name:'나주',   nx:56, ny:71  },
-        { name:'광양',   nx:74, ny:67  }, { name:'담양',   nx:61, ny:78  },
-        { name:'곡성',   nx:65, ny:74  }, { name:'구례',   nx:69, ny:72  },
-        { name:'고흥',   nx:66, ny:62  }, { name:'보성',   nx:62, ny:66  },
-        { name:'화순',   nx:61, ny:72  }, { name:'장흥',   nx:59, ny:63  },
-        { name:'강진',   nx:57, ny:60  }, { name:'해남',   nx:54, ny:56  },
-        { name:'영암',   nx:55, ny:65  }, { name:'무안',   nx:52, ny:68  },
-        { name:'함평',   nx:54, ny:72  }, { name:'영광',   nx:52, ny:76  },
-        { name:'장성',   nx:57, ny:77  }, { name:'완도',   nx:57, ny:52  },
-        { name:'진도',   nx:48, ny:55  }, { name:'신안',   nx:45, ny:63  },
-        { name:'제주시',  nx:53, ny:38  }, { name:'서귀포',  nx:52, ny:33 },
+        { name:'광주',  lat:35.1595, lon:126.8526 }, { name:'전주',  lat:35.8242, lon:127.1480 },
+        { name:'군산',  lat:35.9678, lon:126.7368 }, { name:'익산',  lat:35.9483, lon:126.9574 },
+        { name:'정읍',  lat:35.5697, lon:126.8561 }, { name:'남원',  lat:35.4163, lon:127.3903 },
+        { name:'김제',  lat:35.8032, lon:126.8807 }, { name:'완주',  lat:35.9063, lon:127.1622 },
+        { name:'진안',  lat:35.7912, lon:127.4245 }, { name:'무주',  lat:35.9041, lon:127.6603 },
+        { name:'장수',  lat:35.6474, lon:127.5213 }, { name:'임실',  lat:35.6127, lon:127.2876 },
+        { name:'순창',  lat:35.3748, lon:127.1378 }, { name:'고창',  lat:35.4354, lon:126.7022 },
+        { name:'부안',  lat:35.7317, lon:126.7328 }, { name:'목포',  lat:34.8118, lon:126.3922 },
+        { name:'여수',  lat:34.7604, lon:127.6622 }, { name:'순천',  lat:34.9506, lon:127.4873 },
+        { name:'나주',  lat:35.0160, lon:126.7104 }, { name:'광양',  lat:34.9406, lon:127.6957 },
+        { name:'담양',  lat:35.3213, lon:126.9882 }, { name:'곡성',  lat:35.2821, lon:127.2916 },
+        { name:'구례',  lat:35.2023, lon:127.4628 }, { name:'고흥',  lat:34.6038, lon:127.2779 },
+        { name:'보성',  lat:34.7713, lon:127.0797 }, { name:'화순',  lat:35.0648, lon:126.9865 },
+        { name:'장흥',  lat:34.6822, lon:126.9072 }, { name:'강진',  lat:34.6422, lon:126.7672 },
+        { name:'해남',  lat:34.5736, lon:126.5994 }, { name:'영암',  lat:34.8004, lon:126.6967 },
+        { name:'무안',  lat:34.9908, lon:126.4820 }, { name:'함평',  lat:35.0660, lon:126.5173 },
+        { name:'영광',  lat:35.2773, lon:126.5121 }, { name:'장성',  lat:35.3016, lon:126.7847 },
+        { name:'완도',  lat:34.3140, lon:126.7556 }, { name:'진도',  lat:34.4869, lon:126.2634 },
+        { name:'신안',  lat:34.8396, lon:126.1020 }, { name:'제주시', lat:33.5097, lon:126.5219 },
+        { name:'서귀포', lat:33.2541, lon:126.5600 },
       ],
       buulgyeong: [
-        { name:'부산',   nx:98,  ny:76  }, { name:'울산',   nx:102, ny:84  },
-        { name:'창원',   nx:90,  ny:77  }, { name:'진주',   nx:81,  ny:75  },
-        { name:'통영',   nx:87,  ny:68  }, { name:'사천',   nx:82,  ny:71  },
-        { name:'김해',   nx:95,  ny:77  }, { name:'밀양',   nx:96,  ny:86  },
-        { name:'거제',   nx:90,  ny:68  }, { name:'양산',   nx:97,  ny:80  },
-        { name:'의령',   nx:87,  ny:77  }, { name:'함안',   nx:89,  ny:78  },
-        { name:'창녕',   nx:92,  ny:84  }, { name:'고성',   nx:85,  ny:71  },
-        { name:'남해',   nx:80,  ny:68  }, { name:'하동',   nx:76,  ny:72  },
-        { name:'산청',   nx:80,  ny:78  }, { name:'함양',   nx:77,  ny:83  },
-        { name:'거창',   nx:80,  ny:87  }, { name:'합천',   nx:85,  ny:84  },
+        { name:'부산',  lat:35.1796, lon:129.0756 }, { name:'울산',  lat:35.5384, lon:129.3114 },
+        { name:'창원',  lat:35.2280, lon:128.6811 }, { name:'진주',  lat:35.1800, lon:128.1076 },
+        { name:'통영',  lat:34.8544, lon:128.4332 }, { name:'사천',  lat:35.0040, lon:128.0642 },
+        { name:'김해',  lat:35.2341, lon:128.8789 }, { name:'밀양',  lat:35.5038, lon:128.7463 },
+        { name:'거제',  lat:34.8804, lon:128.6210 }, { name:'양산',  lat:35.3350, lon:129.0378 },
+        { name:'의령',  lat:35.3225, lon:128.2618 }, { name:'함안',  lat:35.2725, lon:128.4054 },
+        { name:'창녕',  lat:35.5453, lon:128.4921 }, { name:'고성',  lat:34.9777, lon:128.3232 },
+        { name:'남해',  lat:34.8376, lon:127.8923 }, { name:'하동',  lat:35.0672, lon:127.7513 },
+        { name:'산청',  lat:35.4139, lon:127.8737 }, { name:'함양',  lat:35.5208, lon:127.7259 },
+        { name:'거창',  lat:35.6870, lon:127.9095 }, { name:'합천',  lat:35.5666, lon:128.1662 },
       ],
     };
     const regionKey = (req.query.region as string) || 'daegubuk';
     const REGIONS = ALL_REGION_SETS[regionKey] ?? ALL_REGION_SETS.daegubuk;
 
-    const KMA_KEY = process.env.KMA_API_KEY;
-    if (!KMA_KEY) {
-      return res.status(500).json({ ok: false, message: '기상청 API 키가 설정되어 있지 않습니다.' });
-    }
-
-    // 기준 시각 계산: 단기예보는 0200/0500/0800/1100/1400/1700/2000/2300 발표
-    // 현재 시각에서 가장 최근 발표 시각 사용
+    // 현재 KST 시각
     const now = new Date();
     const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-    const baseHours = [2, 5, 8, 11, 14, 17, 20, 23];
     const kstHour = kst.getUTCHours();
     const kstMin = kst.getUTCMinutes();
-    // 발표 후 10분 지나야 데이터 안정
-    let baseHour = baseHours.filter(h => h * 60 + 10 <= kstHour * 60 + kstMin).pop() ?? 23;
-    let baseDate = kst;
-    if (baseHour === 23 && kstHour < 23) {
-      // 자정 이후 23시 기준 전날 데이터
-      baseDate = new Date(kst.getTime() - 24 * 60 * 60 * 1000);
-    }
-    const baseDateStr = `${baseDate.getUTCFullYear()}${String(baseDate.getUTCMonth()+1).padStart(2,'0')}${String(baseDate.getUTCDate()).padStart(2,'0')}`;
-    const baseTimeStr = `${String(baseHour).padStart(2,'0')}00`;
     const timeLabel = `${String(kstHour).padStart(2,'0')}:${String(kstMin).padStart(2,'0')}`;
+    const kstDateStr = kst.toISOString().slice(0, 10); // YYYY-MM-DD
+    const kstHourStr = `${kstDateStr}T${String(kstHour).padStart(2,'0')}:00`;
 
     // 기상청 여름 체감온도 공식 (습구온도 Stull 2011 + Steadman AT)
-    // AT = -0.2442 + 0.55399*Tw + 0.45535*T - 0.0022*Tw² + 0.00278*T*Tw + 3.0
     function calcFeelsLike(t: number, rh: number): number {
       if (t < 25) return parseFloat(t.toFixed(1));
       const Tw = t * Math.atan(0.151977 * Math.sqrt(rh + 8.313659))
@@ -14561,54 +14543,58 @@ ${result.value}
       return parseFloat(at.toFixed(1));
     }
 
-    // 각 지역을 병렬 조회 (최대 5개씩 배치하여 API 부하 분산)
-    const results: { name: string; feels: number; temp: number; hum: number; stage: string; time: string }[] = [];
-    const BATCH = 5;
+    // WMO weather code → 강수형태 한국어
+    function wmoToRainType(code: number): string {
+      if (code === 0 || code === 1 || code === 2 || code === 3) return '없음';
+      if (code >= 51 && code <= 55) return '이슬비';
+      if (code >= 61 && code <= 65) return '비';
+      if (code >= 66 && code <= 67) return '비/눈';
+      if (code >= 71 && code <= 77) return '눈';
+      if (code >= 80 && code <= 82) return '소나기';
+      if (code >= 85 && code <= 86) return '눈소나기';
+      if (code >= 95) return '뇌우';
+      return '없음';
+    }
+
+    // Open-Meteo API 병렬 호출 (최대 8개씩 배치)
+    const results: { name: string; feels: number; temp: number; hum: number; stage: string; time: string; rainType: string; rain: string; wind: number | null; windLevel: string }[] = [];
+    const BATCH = 8;
     for (let i = 0; i < REGIONS.length; i += BATCH) {
       const batch = REGIONS.slice(i, i + BATCH);
       const fetched = await Promise.all(batch.map(async (r) => {
         try {
-          const url = `https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst`
-            + `?serviceKey=${encodeURIComponent(KMA_KEY)}`
-            + `&pageNo=1&numOfRows=100&dataType=JSON`
-            + `&base_date=${baseDateStr}&base_time=${baseTimeStr}`
-            + `&nx=${r.nx}&ny=${r.ny}`;
-          const resp = await fetch(url, { signal: AbortSignal.timeout(8000) });
-          if (!resp.ok) throw new Error(`KMA ${resp.status}`);
+          const url = `https://api.open-meteo.com/v1/forecast`
+            + `?latitude=${r.lat}&longitude=${r.lon}`
+            + `&hourly=temperature_2m,relative_humidity_2m,wind_speed_10m,precipitation,weather_code`
+            + `&timezone=Asia%2FSeoul&forecast_days=2`;
+          const resp = await fetch(url, {
+            headers: { 'User-Agent': 'SafeBoard/1.0' },
+            signal: AbortSignal.timeout(8000),
+          });
+          if (!resp.ok) throw new Error(`OpenMeteo ${resp.status}`);
           const json = await resp.json() as any;
-          const items: any[] = json?.response?.body?.items?.item ?? [];
-          // 현재 시각에 가장 가까운 예보 시각의 T1H(기온), REH(습도) 추출
-          // 단기예보는 1시간 간격 — fcstTime 기준 현재 시각 이후 첫 번째
-          const fcstHour = kstHour * 100; // 숫자 비교 (예: 1600)
-          const getVal = (cat: string) => {
-            // fcstTime이 현재 시각 이후이거나 가장 가까운 것 선택
-            const matching = items.filter(x => x.category === cat && parseInt(x.fcstTime, 10) >= fcstHour);
-            if (matching.length > 0) return parseFloat(matching[0].fcstValue);
-            // 현재 시각 이전 마지막 값 (가장 최근 관측)
-            const past = items.filter(x => x.category === cat);
-            if (past.length > 0) return parseFloat(past[past.length-1].fcstValue);
-            return null;
-          };
-          const getValStr = (cat: string): string | null => {
-            const matching = items.filter(x => x.category === cat && parseInt(x.fcstTime, 10) >= fcstHour);
-            if (matching.length > 0) return String(matching[0].fcstValue);
-            const past = items.filter(x => x.category === cat);
-            if (past.length > 0) return String(past[past.length - 1].fcstValue);
-            return null;
-          };
-          const PTY_LABEL: Record<string, string> = { '0':'없음','1':'비','2':'비/눈','3':'눈','4':'소나기','5':'빗방울','6':'빗방울/눈','7':'눈날림' };
-          const temp = getVal('TMP') ?? getVal('T1H');
-          const hum = getVal('REH');
-          if (temp === null || hum === null) return null;
+          const times: string[] = json?.hourly?.time ?? [];
+          const temps: number[] = json?.hourly?.temperature_2m ?? [];
+          const hums: number[] = json?.hourly?.relative_humidity_2m ?? [];
+          const winds: number[] = json?.hourly?.wind_speed_10m ?? [];
+          const precs: number[] = json?.hourly?.precipitation ?? [];
+          const codes: number[] = json?.hourly?.weather_code ?? [];
+
+          // 현재 시각 인덱스 (정시 일치, 없으면 가장 가까운 이전 시각)
+          let idx = times.findIndex(t => t === kstHourStr);
+          if (idx < 0) idx = times.reduce((best, t, j) => t <= kstHourStr ? j : best, 0);
+          if (idx < 0 || temps[idx] == null || hums[idx] == null) return null;
+
+          const temp = temps[idx];
+          const hum = hums[idx];
           const feels = calcFeelsLike(temp, hum);
           const stage = feels >= 35 ? '폭염경보' : feels >= 33 ? '폭염주의보' : feels >= 31 ? '폭염관심' : '해당없음';
-          const ptyCode = getVal('PTY') ?? 0;
-          const rainType = PTY_LABEL[String(Math.round(ptyCode))] ?? '없음';
-          const pcpRaw = getValStr('PCP') ?? '강수없음';
-          const rain = (pcpRaw === '0' || pcpRaw === '강수없음') ? '강수없음' : pcpRaw.replace('mm', '') + 'mm';
-          const wind = getVal('WSD');
+          const wind = winds[idx] != null ? parseFloat((winds[idx] * 1000 / 3600).toFixed(1)) : null; // km/h → m/s
           const windLevel = wind == null ? '정상' : wind >= 14 ? '위험' : wind >= 9 ? '경계' : wind >= 4 ? '주의' : '정상';
-          return { name: r.name, feels, temp, hum: Math.round(hum), stage, time: timeLabel, rainType, rain, wind: wind != null ? parseFloat(wind.toFixed(1)) : null, windLevel };
+          const rainType = wmoToRainType(codes[idx] ?? 0);
+          const precVal = precs[idx] ?? 0;
+          const rain = precVal > 0 ? `${precVal.toFixed(1)}mm` : '강수없음';
+          return { name: r.name, feels, temp, hum: Math.round(hum), stage, time: timeLabel, rainType, rain, wind, windLevel };
         } catch {
           return null;
         }
@@ -14617,21 +14603,21 @@ ${result.value}
     }
 
     if (results.length === 0) {
-      return res.status(500).json({ ok: false, message: '기상청 데이터를 받아오지 못했습니다. API 키 또는 서비스 상태를 확인하세요.' });
+      return res.status(500).json({ ok: false, message: '날씨 데이터를 받아오지 못했습니다. 잠시 후 다시 시도해주세요.' });
     }
 
-    // 조회 실패한 지역은 인접 지역 평균으로 채우거나 기본값 처리
-    const fallbackTemp = results.length > 0 ? results.reduce((a,b) => a+b.temp, 0) / results.length : 25;
-    const fallbackHum = results.length > 0 ? results.reduce((a,b) => a+b.hum, 0) / results.length : 60;
+    // 조회 실패한 지역은 인접 지역 평균으로 채움
+    const fallbackTemp = results.reduce((a,b) => a+b.temp, 0) / results.length;
+    const fallbackHum  = results.reduce((a,b) => a+b.hum,  0) / results.length;
     REGIONS.forEach(r => {
       if (!results.find(x => x.name === r.name)) {
         const feels = calcFeelsLike(fallbackTemp, fallbackHum);
         const stage = feels >= 35 ? '폭염경보' : feels >= 33 ? '폭염주의보' : feels >= 31 ? '폭염관심' : '해당없음';
-        results.push({ name: r.name, feels: parseFloat(feels.toFixed(1)), temp: parseFloat(fallbackTemp.toFixed(1)), hum: Math.round(fallbackHum), stage, time: timeLabel });
+        results.push({ name: r.name, feels: parseFloat(feels.toFixed(1)), temp: parseFloat(fallbackTemp.toFixed(1)), hum: Math.round(fallbackHum), stage, time: timeLabel, rainType: '없음', rain: '강수없음', wind: null, windLevel: '정상' });
       }
     });
 
-    res.json({ ok: true, data: results, updatedAt: new Date().toISOString(), source: '기상청 단기예보' });
+    res.json({ ok: true, data: results, updatedAt: new Date().toISOString(), source: 'Open-Meteo' });
   });
 
   // ── 폭염 기상 자동 수집 수동 트리거 ────────────────────────────────────────
