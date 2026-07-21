@@ -594,28 +594,54 @@ export async function runHeatwaveDailyEmail(
 
     const html        = buildHtmlEmail(weather, dateStr, reportUrl, warnings, selectedZones);
 
-    // Excel용 hourly 보완: DB에서만 시도 (기상청 재수집은 메일 발송 지연 원인이므로 제거)
+    // Excel hourly 보완: DB 우선 → 없으면 기상청 재수집(60초 제한)
     let excelWeather: Record<string, any> = weather;
-    const hasHourlyData = Object.values(weather).some((w: any) => Array.isArray(w?.hourly) && w.hourly.length > 0);
-    if (!hasHourlyData) {
-      try {
-        const mapSetting = await storage.getSetting('heatwave_map_data');
-        const dbMap: Record<string, any> = mapSetting?.value ? (JSON.parse(mapSetting.value)?.weather ?? {}) : {};
-        const dbHasHourly = Object.values(dbMap).some((w: any) => Array.isArray(w?.hourly) && w.hourly.length > 0);
-        if (dbHasHourly) {
-          excelWeather = { ...weather };
-          for (const city of Object.keys(excelWeather)) {
-            if (dbMap[city]?.hourly?.length > 0) {
-              excelWeather[city] = { ...excelWeather[city], hourly: dbMap[city].hourly };
-            }
-          }
-          console.log('[HeatwaveEmail] Excel hourly — DB에서 보완');
-        } else {
-          console.log('[HeatwaveEmail] hourly 없음 — 현재 스냅샷으로 발송 (매시 자동수집 후에는 hourly 포함됨)');
+    try {
+      const mapSetting = await storage.getSetting('heatwave_map_data');
+      const dbMap: Record<string, any> = mapSetting?.value ? (JSON.parse(mapSetting.value)?.weather ?? {}) : {};
+      const dbHasHourly = Object.values(dbMap).some((w: any) => Array.isArray(w?.hourly) && w.hourly.length > 0);
+
+      if (dbHasHourly) {
+        // DB hourly가 있으면 DB 전체 weather 기반으로 사용 (클라이언트 체감/온도로 override)
+        excelWeather = {};
+        for (const city of Object.keys(dbMap)) {
+          excelWeather[city] = {
+            ...dbMap[city],
+            ...(weather[city] ? {
+              feels: weather[city].feels,
+              temp: weather[city].temp,
+              hum: weather[city].hum,
+              stage: weather[city].stage,
+              time: weather[city].time,
+            } : {}),
+            hourly: dbMap[city].hourly ?? [],
+          };
         }
-      } catch (e) {
-        console.warn('[HeatwaveEmail] hourly 보완 실패:', e);
+        const hourlyCnt = Object.values(excelWeather).filter((w: any) => (w.hourly?.length ?? 0) > 0).length;
+        console.log(`[HeatwaveEmail] Excel hourly — DB 기반 (${hourlyCnt}개 도시 시간별 포함)`);
+      } else {
+        // DB hourly 없음 → 기상청 재수집 시도 (60초)
+        console.log('[HeatwaveEmail] DB hourly 없음 — 기상청 hourly 재수집 시도 (최대 60초)...');
+        const freshResult = await Promise.race([
+          fetchAndSaveHeatwaveWeather(),
+          new Promise<{ ok: boolean; count: number }>(r => setTimeout(() => r({ ok: false, count: 0 }), 60_000)),
+        ]).catch(() => ({ ok: false, count: 0 }));
+
+        if (freshResult.ok) {
+          const freshSetting = await storage.getSetting('heatwave_map_data');
+          const freshMap: Record<string, any> = freshSetting?.value ? (JSON.parse(freshSetting.value)?.weather ?? {}) : {};
+          if (Object.values(freshMap).some((w: any) => Array.isArray(w?.hourly) && w.hourly.length > 0)) {
+            excelWeather = freshMap;
+            console.log('[HeatwaveEmail] Excel hourly — 기상청 재수집 완료 (시간별 데이터 포함)');
+          } else {
+            console.log('[HeatwaveEmail] hourly 없음 — 현재 스냅샷으로 발송');
+          }
+        } else {
+          console.log('[HeatwaveEmail] hourly 수집 실패 — 현재 스냅샷으로 발송');
+        }
       }
+    } catch (e) {
+      console.warn('[HeatwaveEmail] hourly 보완 실패:', e);
     }
 
     const excelBuffer = await buildExcelBuffer(excelWeather, dateStr, dateDash);

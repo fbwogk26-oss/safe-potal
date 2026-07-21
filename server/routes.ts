@@ -14731,7 +14731,23 @@ ${result.value}
 
   app.put('/api/heatwave-map/data', isAuthenticated, async (req, res) => {
     try {
-      await storage.setSetting('heatwave_map_data', JSON.stringify(req.body));
+      // 기존 hourly 데이터 보존: 클라이언트가 hourly 없이 PUT할 때 기존 DB hourly 유지
+      const existing = await storage.getSetting('heatwave_map_data');
+      const existingWeather: Record<string, any> = existing?.value
+        ? (JSON.parse(existing.value)?.weather ?? {}) : {};
+      const newWeather: Record<string, any> = req.body.weather ?? {};
+      const mergedWeather: Record<string, any> = {};
+      for (const [city, data] of Object.entries(newWeather)) {
+        const d = data as any;
+        const existingHourly = existingWeather[city]?.hourly;
+        mergedWeather[city] = {
+          ...d,
+          hourly: (Array.isArray(d.hourly) && d.hourly.length > 0)
+            ? d.hourly
+            : (Array.isArray(existingHourly) && existingHourly.length > 0 ? existingHourly : []),
+        };
+      }
+      await storage.setSetting('heatwave_map_data', JSON.stringify({ ...req.body, weather: mergedWeather }));
       res.json({ ok: true });
     } catch (e: any) {
       res.status(500).json({ ok: false, message: e.message });
