@@ -26,6 +26,19 @@ const REGION_KEY_MAP: Record<RegionKey, string[]> = {
   buulgyeong: ["부산","거제","거창","고성","김해","남해","밀양","사천","산청","양산","의령","진주","창녕","창원","통영","하동","함안","함양","합천","경주","울산"],
 };
 
+// 통합창원시(2010년 창원·마산·진해 통합) — 기상청은 '창원' 하나만 제공하므로 별칭 처리
+const CITY_ALIASES: Record<string, string> = {
+  '마산': '창원',
+  '진해': '창원',
+};
+function applyAliases(weather: Record<string, RegionWeather>): Record<string, RegionWeather> {
+  const out = { ...weather };
+  Object.entries(CITY_ALIASES).forEach(([alias, source]) => {
+    if (out[source] && !out[alias]) out[alias] = out[source];
+  });
+  return out;
+}
+
 export default function HeatWaveMapReport() {
   const token = new URLSearchParams(window.location.search).get("token");
 
@@ -94,8 +107,9 @@ export default function HeatWaveMapReport() {
       })
       .then(json => {
         if (json.ok && json.weather) {
-          weatherRef.current = json.weather;
-          setWeatherData({ ...json.weather });
+          const aliased = applyAliases(json.weather);
+          weatherRef.current = aliased;
+          setWeatherData(aliased);
           if (json.dateStr) setDateStr(json.dateStr);
           if (json.stats) setStats(json.stats);
           if (Array.isArray(json.warnings)) setWarnings(json.warnings);
