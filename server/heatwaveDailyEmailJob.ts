@@ -45,6 +45,14 @@ const CITY_TO_ZONE: Record<string, string> = {
 
 const ZONE_ORDER = ['충청본부', '호남본부', '부산본부', '대구본부'];
 
+// 권역별 기상청 특보 관할 키워드 (지역명 시작 기준)
+const ZONE_WARNING_KEYWORDS: Record<string, string[]> = {
+  '대구본부': ['대구', '경상북도', '경북'],
+  '부산본부': ['부산', '울산', '경상남도', '경남'],
+  '충청본부': ['대전', '세종', '충청남도', '충남', '충청북도', '충북'],
+  '호남본부': ['광주', '전라남도', '전남', '전북자치도', '전북', '제주도', '제주시', '서귀포'],
+};
+
 // Excel 상세 권역 분류
 const CITY_TO_DETAIL: Record<string, string> = {
   '대구': '대구', '군위': '경북', '포항': '경북', '경주': '경북', '김천': '경북',
@@ -80,6 +88,37 @@ const DETAIL_ORDER: Record<string, number> = {
 
 type HourlyEntry = { time: string; temp: number | null; hum: number | null; feels: number; stage: string; rainType: string; rain: string; wind: number | null; windLevel: string };
 type WeatherEntry = { feels: number; temp: number | null; hum: number | null; stage: string; time: string; rainType?: string; rain?: string; wind?: number | null; windLevel?: string; hourly?: HourlyEntry[] };
+
+// ── 특보 지역 파싱 / 권역 필터 ───────────────────────────────────────────────
+/** 최상위 쉼표 기준으로 지역 토큰 분리 (괄호 내부 쉼표는 무시) */
+function splitRegions(regions: string): string[] {
+  const tokens: string[] = [];
+  let depth = 0, cur = '';
+  for (const ch of regions) {
+    if (ch === '(') depth++;
+    else if (ch === ')') depth--;
+    if (ch === ',' && depth === 0) { if (cur.trim()) tokens.push(cur.trim()); cur = ''; }
+    else cur += ch;
+  }
+  if (cur.trim()) tokens.push(cur.trim());
+  return tokens;
+}
+
+/** 선택된 권역에 해당하는 시도 키워드를 포함한 지역만 남겨 특보 필터링 */
+function filterWarningsByZones(
+  warnings: { type: string; regions: string }[],
+  selectedZones: string[],
+): { type: string; regions: string }[] {
+  const allZones = Object.keys(ZONE_WARNING_KEYWORDS);
+  if (!selectedZones || selectedZones.length === 0 || selectedZones.length >= allZones.length) return warnings;
+  const keywords: string[] = selectedZones.flatMap(z => ZONE_WARNING_KEYWORDS[z] ?? []);
+  return warnings.map(w => {
+    const tokens = splitRegions(w.regions);
+    const kept = tokens.filter(t => keywords.some(k => t.startsWith(k)));
+    if (!kept.length) return null;
+    return { type: w.type, regions: kept.join(', ') };
+  }).filter(Boolean) as { type: string; regions: string }[];
+}
 
 // ── 색상 유틸 ──────────────────────────────────────────────────────────────
 function tileBg(feels: number): string {
@@ -167,11 +206,11 @@ export function buildHtmlEmail(
     <div style="font-size:12px;color:rgba(255,255,255,0.80)">${dateStr}${entries[0]?.[1].time ? ` &nbsp;·&nbsp; ${entries[0][1].time} 기준` : ''} &nbsp;·&nbsp; 기상청 단기예보</div>
   </div>
 
-  ${warnings && warnings.length > 0 ? `
+  ${(() => { const filteredWarnings = warnings ? filterWarningsByZones(warnings, selectedZones ?? []) : []; return filteredWarnings.length > 0 ? `
   <!-- 기상청 특보 현황 -->
   <div style="margin:0;padding:12px 20px;background:#fef3c7;border-bottom:2px solid #f59e0b">
     <div style="font-size:11px;font-weight:800;color:#92400e;margin-bottom:7px;letter-spacing:0.2px">📢 기상청 특보 현황 (기상청 공식)</div>
-    ${warnings.map((w: { type: string; regions: string }) => {
+    ${filteredWarnings.map((w: { type: string; regions: string }) => {
       let color = '#6d28d9', bg = '#ede9fe';
       if (w.type.includes('태풍')) { color='#5b21b6'; bg='#f5f3ff'; }
       else if (w.type.includes('호우') && w.type.includes('경보')) { color='#1e3a8a'; bg='#dbeafe'; }
@@ -195,7 +234,7 @@ export function buildHtmlEmail(
       return `<div style="display:table;width:100%;margin-bottom:6px"><div style="display:table-cell;vertical-align:top;padding-right:8px;width:90px"><span style="display:inline-block;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:800;color:${color};background:${bg};white-space:nowrap">${w.type}</span>${std ? `<div style="font-size:9px;color:#6b7280;margin-top:2px;white-space:nowrap">[${std}]</div>` : ''}</div><div style="display:table-cell;vertical-align:top;font-size:10px;color:#374151;line-height:1.55">${w.regions}</div></div>`;
     }).join('')}
   </div>
-  ` : ''}
+  ` : ''; })()}
 
   ${reportUrl ? `
   <!-- 인터랙티브 3D 지도 보기 버튼 -->
