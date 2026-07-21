@@ -188,7 +188,11 @@ export function buildHtmlEmail(
       else if (w.type.includes('한파')) { color='#0e7490'; bg='#f0fdfa'; }
       else if (w.type.includes('경보')) { color='#991b1b'; bg='#fee2e2'; }
       else if (w.type.includes('주의보')) { color='#92400e'; bg='#fef3c7'; }
-      return `<div style="display:table;width:100%;margin-bottom:5px"><div style="display:table-cell;vertical-align:top;padding-right:8px;width:76px"><span style="display:inline-block;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:800;color:${color};background:${bg};white-space:nowrap">${w.type}</span></div><div style="display:table-cell;vertical-align:top;font-size:10px;color:#374151;line-height:1.55">${w.regions}</div></div>`;
+      const std = w.type.includes('폭염') && w.type.includes('중대경보') ? '체감 38도 이상' :
+                  w.type.includes('폭염') && w.type.includes('경보') && !w.type.includes('주의') && !w.type.includes('중대') ? '체감 35도 이상' :
+                  w.type.includes('폭염') && w.type.includes('주의') ? '체감 33도 이상' :
+                  w.type.includes('폭염') && w.type.includes('관심') ? '체감 31도 이상' : '';
+      return `<div style="display:table;width:100%;margin-bottom:6px"><div style="display:table-cell;vertical-align:top;padding-right:8px;width:90px"><span style="display:inline-block;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:800;color:${color};background:${bg};white-space:nowrap">${w.type}</span>${std ? `<div style="font-size:9px;color:#6b7280;margin-top:2px;white-space:nowrap">[${std}]</div>` : ''}</div><div style="display:table-cell;vertical-align:top;font-size:10px;color:#374151;line-height:1.55">${w.regions}</div></div>`;
     }).join('')}
   </div>
   ` : ''}
