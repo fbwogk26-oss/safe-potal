@@ -6,6 +6,7 @@
  */
 import cron from "node-cron";
 import { storage } from "./storage";
+import type { InsertHeatWaveChecklist } from "../shared/schema";
 
 const REGION_SETS: Record<string, { name: string; nx: number; ny: number }[]> = {
   daegubuk: [
@@ -296,14 +297,145 @@ export async function fetchAndSaveHeatwaveWeather(): Promise<{ ok: boolean; coun
   return { ok: true, count: results.length };
 }
 
-// 매일 09:00 KST (timezone: "Asia/Seoul" 옵션으로 직접 KST 기준 지정)
-cron.schedule("0 9 * * *", async () => {
-  console.log("[HeatwaveJob] 🌡️ 폭염 기상 자동 수집 시작 (09:00 KST)");
-  await fetchAndSaveHeatwaveWeather();
-  await fetchAndSaveHeatwaveWarnings();
+// ── 권역별 도시 목록 (체크리스트 자동 생성용) ────────────────────────────
+const AUTO_CHECKLIST_REGIONS = [
+  {
+    label: '대구 / 경북',
+    cities: ['대구','군위','포항','경주','김천','안동','구미','영주','영천','상주','문경','경산','의성','청송','영양','영덕','청도','고령','성주','칠곡','예천','봉화','울진','울릉'],
+  },
+  {
+    label: '충청권',
+    cities: ['대전','세종','청주','충주','제천','보은','옥천','영동','증평','진천','괴산','음성','단양','천안','공주','보령','아산','서산','논산','계룡','당진','금산','부여','서천','청양','홍성','예산','태안'],
+  },
+  {
+    label: '호남권',
+    cities: ['광주','전주','군산','익산','정읍','남원','김제','완주','진안','무주','장수','임실','순창','고창','부안','목포','여수','순천','나주','광양','담양','곡성','구례','고흥','보성','화순','장흥','강진','해남','영암','무안','함평','영광','장성','완도','진도','신안','제주시','서귀포'],
+  },
+  {
+    label: '부산 / 경남',
+    cities: ['부산','울산','창원','진주','통영','사천','김해','밀양','거제','양산','의령','함안','창녕','고성','남해','하동','산청','함양','거창','합천'],
+  },
+];
+
+async function autoCreateHeatwaveChecklists(weather: Record<string, any>, kst: Date) {
+  const checkDate = `${kst.getUTCFullYear()}-${String(kst.getUTCMonth()+1).padStart(2,'0')}-${String(kst.getUTCDate()).padStart(2,'0')}`;
+  const checkHour = kst.getUTCHours();
+  const checkTime = `${String(checkHour).padStart(2,'0')}:00`;
+
+  // 오늘 자동생성 체크리스트만 가져와 중복 체크
+  let todayAuto: any[] = [];
+  try {
+    const all = await storage.getHeatWaveChecklists();
+    todayAuto = all.filter(c => c.checkDate === checkDate && c.createdBy === 'system');
+  } catch {}
+
+  for (const region of AUTO_CHECKLIST_REGIONS) {
+    // 같은 날짜·시각·권역의 자동 생성 항목이 이미 있으면 건너뜀
+    const dup = todayAuto.find(c =>
+      c.targetArea === region.label &&
+      c.checkTime.startsWith(String(checkHour).padStart(2,'0') + ':')
+    );
+    if (dup) continue;
+
+    // 권역에 속한 도시 날씨 추출
+    const entries = Object.entries(weather).filter(([name]) =>
+      region.cities.some(c => name === c || name.includes(c) || c.includes(name))
+    );
+    if (entries.length === 0) continue;
+
+    const feels  = entries.map(([, w]: any) => w.feels ?? 0);
+    const temps  = entries.map(([, w]: any) => w.temp  ?? 0);
+    const hums   = entries.map(([, w]: any) => w.hum   ?? 0);
+    const maxFeels = Math.max(...feels);
+    const avgTemp  = temps.reduce((a, b) => a + b, 0) / temps.length;
+    const avgHum   = hums.reduce((a, b) => a + b, 0)  / hums.length;
+
+    // 시간별 예보 중 최고 체감
+    const hourlyFeels = entries.flatMap(([, w]: any) =>
+      (w.hourly ?? []).map((h: any) => h.feels ?? 0)
+    );
+    const maxHourlyFeels = hourlyFeels.length > 0 ? Math.max(...hourlyFeels, maxFeels) : maxFeels;
+
+    // 폭염 단계 결정
+    const heatAlertStatus = maxFeels >= 35 ? '폭염경보'
+      : maxFeels >= 33 ? '폭염주의보' : '해당없음';
+
+    // 단계별 체크 자동 설정
+    const checks31: boolean[] = maxFeels >= 31
+      ? [true, true, true] : [false, false, false];
+    const checks33: boolean[] = maxFeels >= 33
+      ? [true, true, true, true] : [false, false, false, false];
+    const checks35: boolean[] = maxFeels >= 35
+      ? [true, true, true] : [false, false, false];
+    const checks38: boolean[] = maxFeels >= 38
+      ? [true] : [false];
+
+    const payload: InsertHeatWaveChecklist = {
+      checkDate,
+      checkTime,
+      targetArea: region.label,
+      heatAlertStatus,
+      currentTemperature: parseFloat(avgTemp.toFixed(1)),
+      currentHumidity: Math.round(avgHum),
+      currentFeelsLike: parseFloat(maxFeels.toFixed(1)),
+      maxFeelsLikeForecast: parseFloat(maxHourlyFeels.toFixed(1)),
+      checks31,
+      checks33,
+      checks35,
+      stopTime35Start: null,
+      stopTime35End: null,
+      checks38,
+      stopTime38Start: null,
+      stopTime38End: null,
+      author: null,
+      safetyManager: null,
+      authorSignature: null,
+      safetyManagerSignature: null,
+      weatherSnapshot: weather,
+      mapSnapshot: null,
+      createdBy: 'system',
+    };
+
+    try {
+      await storage.createHeatWaveChecklist(payload);
+      console.log(`[HeatwaveJob] ✅ 체크리스트 자동 생성: ${region.label} ${checkDate} ${checkTime} (체감 ${maxFeels}°C → ${heatAlertStatus})`);
+    } catch (e: any) {
+      console.error(`[HeatwaveJob] 체크리스트 자동 생성 실패 (${region.label}):`, e?.message);
+    }
+  }
+}
+
+// 09:00~18:00 KST 매시 정각 자동 수집 + 체크리스트 자동 생성
+cron.schedule("0 9-18 * * *", async () => {
+  const now = new Date();
+  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  const kstHour = kst.getUTCHours();
+  console.log(`[HeatwaveJob] 🌡️ 폭염 기상 자동 수집 시작 (${kstHour}:00 KST)`);
+
+  const result = await fetchAndSaveHeatwaveWeather();
+
+  // 기상청 특보는 09시와 13시에 갱신
+  if (kstHour === 9 || kstHour === 13) {
+    await fetchAndSaveHeatwaveWarnings();
+  }
+
+  // 날씨 수집 성공 시 체크리스트 자동 생성
+  if (result.ok) {
+    try {
+      const mapSetting = await storage.getSetting('heatwave_map_data');
+      if (mapSetting?.value) {
+        const { weather } = JSON.parse(mapSetting.value);
+        if (weather && Object.keys(weather).length > 0) {
+          await autoCreateHeatwaveChecklists(weather, kst);
+        }
+      }
+    } catch (e: any) {
+      console.error('[HeatwaveJob] 체크리스트 자동 생성 전처리 실패:', e?.message);
+    }
+  }
 }, { timezone: "Asia/Seoul" });
 
-console.log("[HeatwaveJob] 폭염 기상 자동 수집 Cron 등록 완료 (매일 09:00 KST)");
+console.log("[HeatwaveJob] 폭염 기상 자동 수집 Cron 등록 완료 (매시 09:00~18:00 KST, 체크리스트 자동 생성 포함)");
 
 // ── 기상청 특보 수집 ─────────────────────────────────────────────────────────
 export interface HeatwaveWarningItem {

@@ -2452,6 +2452,9 @@ export default function HeatWaveChecklist() {
                   <TableCell className="font-medium text-sm">
                     {r.checkDate}<br />
                     <span className="text-xs text-muted-foreground">{r.checkTime}</span>
+                    {(r as any).createdBy === 'system' && (
+                      <span className="ml-1 inline-flex items-center px-1 py-0 rounded text-[9px] font-semibold bg-blue-100 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400 border border-blue-200 dark:border-blue-800">자동</span>
+                    )}
                   </TableCell>
                   <TableCell className="text-sm">{r.targetArea}</TableCell>
                   <TableCell>
