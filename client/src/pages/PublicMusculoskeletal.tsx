@@ -6,9 +6,10 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import {
   Bone, CheckCircle2, ChevronRight, ChevronLeft, Loader2, User,
-  Briefcase, Activity, HeartPulse, CircleAlert,
+  Briefcase, Activity, HeartPulse, CircleAlert, Dumbbell,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import PostureAnalysisDialog from "@/components/PostureAnalysisDialog";
 import bImg1 from "@assets/image_1784166150891.png";
 import bImg2 from "@assets/image_1784166156751.png";
 import bImg3 from "@assets/image_1784166161213.png";
@@ -156,6 +157,7 @@ export default function PublicMusculoskeletal() {
   const { toast } = useToast();
   const [step, setStep] = useState<Step>("info");
   const [submitting, setSubmitting] = useState(false);
+  const [showPostureDialog, setShowPostureDialog] = useState(false);
 
   const allDepts = DEPARTMENTS.length > 0
     ? [...new Set([...DEPARTMENTS, ...EXTRA_DEPTS])]
@@ -691,11 +693,25 @@ export default function PublicMusculoskeletal() {
                   </div>
                 ))}
               </div>
-              <Button variant="outline" onClick={resetAll} data-testid="button-reset">새로 작성하기</Button>
+              <div className="flex flex-col gap-2 w-full max-w-sm">
+                {hasPain === "예" && (
+                  <Button
+                    className="w-full bg-purple-600 hover:bg-purple-700 text-white gap-2"
+                    onClick={() => setShowPostureDialog(true)}
+                    data-testid="button-posture-analysis"
+                  >
+                    <Dumbbell className="w-4 h-4" />
+                    추천운동 확인하기
+                  </Button>
+                )}
+                <Button variant="outline" onClick={resetAll} data-testid="button-reset">새로 작성하기</Button>
+              </div>
             </motion.div>
           )}
 
         </AnimatePresence>
+
+        <PostureAnalysisDialog open={showPostureDialog} onClose={() => setShowPostureDialog(false)} />
 
         {step !== "done" && (
           <div className="text-center text-[10px] text-muted-foreground/60 space-y-0.5 pb-4">

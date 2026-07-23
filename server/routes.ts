@@ -5133,6 +5133,88 @@ ${buildEmailFooter()}
     } catch { res.status(500).json({ message: "삭제 실패" }); }
   });
 
+  // === 자세 분석 & 추천운동 (근골격계) ===
+  const postureUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 }, fileFilter: blockDangerousExtFilter });
+
+  app.post('/api/musculoskeletal/analyze-posture', postureUpload.fields([
+    { name: 'front', maxCount: 1 },
+    { name: 'spread', maxCount: 1 },
+    { name: 'side', maxCount: 1 },
+  ]), async (req: any, res) => {
+    try {
+      const files = req.files as Record<string, Express.Multer.File[]>;
+      const frontFile = files?.front?.[0];
+      const spreadFile = files?.spread?.[0];
+      const sideFile = files?.side?.[0];
+      if (!frontFile || !spreadFile || !sideFile) {
+        return res.status(400).json({ message: "3가지 자세 사진이 모두 필요합니다 (front, spread, side)" });
+      }
+
+      const toBase64 = (file: Express.Multer.File) => {
+        let buf = file.buffer;
+        const mime = file.mimetype?.startsWith('image/') ? file.mimetype : 'image/jpeg';
+        return { b64: buf.toString('base64'), mime };
+      };
+      const f = toBase64(frontFile);
+      const sp = toBase64(spreadFile);
+      const si = toBase64(sideFile);
+
+      const OpenAI = (await import("openai")).default;
+      const aiClient = new OpenAI({
+        apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+        baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+      });
+
+      const response = await aiClient.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          {
+            role: "system",
+            content: `당신은 물리치료사 및 운동처방사 자격을 갖춘 근골격계 전문가입니다.
+사용자가 제공한 3가지 자세 사진(정자세, 양팔 벌리기, 옆모습)을 분석하여 자세 문제를 평가하고 맞춤 운동을 추천합니다.
+반드시 아래 JSON 형식으로만 응답하세요 (코드블록 없이):
+{
+  "overallScore": 1~100 사이의 자세 점수(숫자),
+  "summary": "전체적인 자세 평가 요약 (2~3문장)",
+  "issues": [
+    { "area": "신체부위명(예: 목, 어깨, 허리, 골반, 무릎 등)", "severity": "주의|경고|양호", "description": "문제 설명 1~2문장" }
+  ],
+  "exercises": [
+    {
+      "name": "운동명",
+      "targetArea": "대상 부위",
+      "description": "운동 방법 설명 (2~4문장, 횟수/세트 포함)",
+      "frequency": "하루 몇 회/세트 권장",
+      "caution": "주의사항 (없으면 빈 문자열)"
+    }
+  ],
+  "lifestyleAdvice": "일상생활 자세 개선 팁 (2~3가지, 줄바꿈으로 구분)"
+}
+issues는 1~5개, exercises는 3~6개 추천. 모든 텍스트는 한국어로 작성.`,
+          },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: "다음 3장의 자세 사진을 분석해주세요.\n사진 1: 정자세 (정면)\n사진 2: 양팔 벌리기 (정면)\n사진 3: 옆모습" },
+              { type: "image_url", image_url: { url: `data:${f.mime};base64,${f.b64}`, detail: "high" } },
+              { type: "image_url", image_url: { url: `data:${sp.mime};base64,${sp.b64}`, detail: "high" } },
+              { type: "image_url", image_url: { url: `data:${si.mime};base64,${si.b64}`, detail: "high" } },
+            ] as any,
+          },
+        ],
+        max_tokens: 2000,
+      });
+
+      const raw = response.choices[0]?.message?.content || "{}";
+      let result: any = {};
+      try { result = JSON.parse(raw); } catch { result = { summary: raw, exercises: [], issues: [] }; }
+      res.json(result);
+    } catch (err: any) {
+      console.error("자세 분석 오류:", err?.message);
+      res.status(500).json({ message: "자세 분석 중 오류가 발생했습니다." });
+    }
+  });
+
   // === RISK ASSESSMENTS ===
 
   // 위험성평가 엑셀 다운로드 (사진 포함)

@@ -17,8 +17,9 @@ import {
   Bone, Plus, Trash2, Pencil, Search, CheckSquare, X,
   ChevronDown, ChevronUp, History, Save, AlertTriangle,
   FileDown, FileUp, Paperclip, Clock, LayoutGrid, List, Wrench, ImageIcon, CheckCircle2, QrCode, Settings,
-  User, Briefcase, Activity, HeartPulse, Eye
+  User, Briefcase, Activity, HeartPulse, Eye, Dumbbell
 } from "lucide-react";
+import PostureAnalysisDialog from "@/components/PostureAnalysisDialog";
 import img1 from "@assets/image_1784166150891.png";
 import img2 from "@assets/image_1784166156751.png";
 import img3 from "@assets/image_1784166161213.png";
@@ -437,6 +438,7 @@ export default function MusculoskeletalDisease() {
   const [hasDraft, setHasDraft]           = useState(false);
   const [showLoadPrev, setShowLoadPrev]   = useState(false);
   const [riskManual, setRiskManual]       = useState(false);
+  const [showPostureDialog, setShowPostureDialog] = useState(false);
 
   // ── Stage 2: 데이터 관리 상태 ─────────────────────────────────────────
   const [historyId, setHistoryId]         = useState<number | null>(null);
@@ -1215,6 +1217,15 @@ export default function MusculoskeletalDisease() {
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
+          {/* 추천운동 분석 */}
+          <Button
+            variant="outline" size="sm" className="gap-1.5 border-purple-300 text-purple-700 hover:bg-purple-50 dark:border-purple-700 dark:text-purple-400 dark:hover:bg-purple-950"
+            onClick={() => setShowPostureDialog(true)}
+            data-testid="button-posture-analysis"
+          >
+            <Dumbbell className="w-4 h-4" />
+            추천운동 분석
+          </Button>
           {/* QR 등록링크 */}
           <Button
             variant="outline" size="sm" className="gap-1.5"
@@ -3515,6 +3526,9 @@ export default function MusculoskeletalDisease() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* 자세 분석 & 추천운동 다이얼로그 */}
+      <PostureAnalysisDialog open={showPostureDialog} onClose={() => setShowPostureDialog(false)} />
     </div>
   );
 }
