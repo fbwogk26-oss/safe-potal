@@ -472,7 +472,7 @@ export default function PostureAnalysisDialog({ open, onClose }: Props) {
 
               {/* 숨겨진 유틸 요소 - 항상 DOM에 존재 */}
               <canvas ref={canvasRef} className="hidden" />
-              <input ref={fileInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFileUpload} />
+              <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
 
               {/* ── 카메라 영상 컨테이너 (video는 항상 DOM에 마운트, display로만 토글) ── */}
               <div
