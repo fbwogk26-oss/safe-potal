@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import {
   Camera, ChevronRight, ChevronLeft, Loader2, CheckCircle2,
-  AlertTriangle, AlertCircle, Dumbbell, RefreshCw, Upload,
+  AlertTriangle, AlertCircle, Dumbbell, RefreshCw, Upload, SwitchCamera,
 } from "lucide-react";
 
 // ─── SVG 인체 실루엣 ────────────────────────────────────────────────────────
@@ -202,7 +202,8 @@ export default function PostureAnalysisDialog({ open, onClose }: Props) {
   const [result, setResult] = useState<PostureResult | null>(null);
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState(false);
-  const [cameraRequested, setCameraRequested] = useState(false); // 사용자가 카메라 버튼 클릭했는지
+  const [cameraRequested, setCameraRequested] = useState(false);
+  const [facingMode, setFacingMode] = useState<"user" | "environment">("environment");
   const [captured, setCaptured] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -222,21 +223,22 @@ export default function PostureAnalysisDialog({ open, onClose }: Props) {
     setCameraActive(false);
   }, []);
 
-  const startCamera = useCallback(async () => {
+  const startCamera = useCallback(async (facing?: "user" | "environment") => {
     setCameraError(false);
     setCaptured(false);
 
-    // getUserMedia가 없는 환경(비HTTPS 등) 즉시 폴백
     if (!navigator?.mediaDevices?.getUserMedia) {
       setCameraError(true);
       return;
     }
 
-    // 1차 시도: 전면 카메라
+    // 지정된 방향 우선, 없으면 기본값(environment) → 반대 방향 → 제약 없음
+    const preferred = facing ?? "environment";
+    const fallback = preferred === "environment" ? "user" : "environment";
     const constraints: MediaStreamConstraints[] = [
-      { video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } } },
-      { video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } } },
-      { video: true }, // 제약 없이 사용 가능한 카메라
+      { video: { facingMode: preferred, width: { ideal: 1280 }, height: { ideal: 720 } } },
+      { video: { facingMode: fallback, width: { ideal: 1280 }, height: { ideal: 720 } } },
+      { video: true },
     ];
 
     for (const c of constraints) {
@@ -248,14 +250,20 @@ export default function PostureAnalysisDialog({ open, onClose }: Props) {
           await videoRef.current.play();
         }
         setCameraActive(true);
-        return; // 성공 시 즉시 반환
+        return;
       } catch {
         // 다음 제약 조건으로 재시도
       }
     }
-    // 모든 시도 실패
     setCameraError(true);
   }, []);
+
+  const flipCamera = useCallback(async () => {
+    const next = facingMode === "environment" ? "user" : "environment";
+    setFacingMode(next);
+    stopCamera();
+    await startCamera(next);
+  }, [facingMode, stopCamera, startCamera]);
 
   // step이 바뀌면 카메라 정리 + 선택 화면으로 되돌리기 (자동 시작 안 함)
   useEffect(() => {
@@ -309,7 +317,7 @@ export default function PostureAnalysisDialog({ open, onClose }: Props) {
 
   const requestCamera = async () => {
     setCameraRequested(true);
-    await startCamera();
+    await startCamera(facingMode);
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -473,6 +481,14 @@ export default function PostureAnalysisDialog({ open, onClose }: Props) {
               >
                 <video ref={videoRef} autoPlay playsInline muted
                   className="w-full object-cover block" style={{ maxHeight: 300 }} />
+                {/* 전면/후면 카메라 전환 버튼 */}
+                <button
+                  onClick={flipCamera}
+                  className="absolute top-2 right-2 z-20 bg-black/50 hover:bg-black/70 text-white rounded-full p-2 backdrop-blur-sm transition-colors"
+                  title={facingMode === "environment" ? "셀프 카메라로 전환" : "후면 카메라로 전환"}
+                >
+                  <SwitchCamera className="w-5 h-5" />
+                </button>
                 {/* 자세 실루엣 오버레이 */}
                 {currentPose && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none">
