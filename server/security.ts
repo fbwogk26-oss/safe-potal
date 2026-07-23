@@ -65,7 +65,7 @@ export function setupSecurity(app: Express) {
   );
 
   app.use((_req: Request, res: Response, next: NextFunction) => {
-    res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=(), bluetooth=()");
+    res.setHeader("Permissions-Policy", "camera=(self), microphone=(), geolocation=(), payment=(), usb=(), bluetooth=()");
     res.setHeader("Cross-Origin-Resource-Policy", "same-origin");
     res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
     res.setHeader("X-Content-Type-Options", "nosniff");
