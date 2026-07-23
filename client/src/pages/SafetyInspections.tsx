@@ -8,7 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ClipboardCheck, ClipboardList, Plus, Trash2, ImagePlus, X, Calendar, MapPin, User, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Download, Check, AlertCircle, BarChart3, Settings, FileText, Loader2, Pencil, CheckSquare, Upload, Eye, Mail } from "lucide-react";
+import { ClipboardCheck, ClipboardList, Plus, Trash2, ImagePlus, X, Calendar, MapPin, User, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Download, Check, AlertCircle, BarChart3, Settings, FileText, Loader2, Pencil, CheckSquare, Upload, Eye, Mail, ImageOff } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -635,18 +636,38 @@ export default function SafetyInspections() {
     });
   };
 
-  const handleExcelDownload = async () => {
+  // 이미지 Canvas 압축 (용량 절감)
+  const compressImage = async (imageUrl: string, maxW = 320, maxH = 240, quality = 0.65): Promise<string | null> => {
+    try {
+      const absUrl = imageUrl.startsWith('/') ? window.location.origin + imageUrl : imageUrl;
+      return await new Promise<string>((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          const scale = Math.min(maxW / img.width, maxH / img.height, 1);
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.max(1, Math.round(img.width * scale));
+          canvas.height = Math.max(1, Math.round(img.height * scale));
+          canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL('image/jpeg', quality).split(',')[1]);
+        };
+        img.onerror = () => reject(new Error('load fail'));
+        img.src = absUrl;
+      });
+    } catch { return null; }
+  };
+
+  const handleExcelDownload = async (includePhotos = true) => {
     if (!inspections || inspections.length === 0) {
       toast({ variant: "destructive", title: "다운로드할 점검 내역이 없습니다." });
       return;
     }
-
-    toast({ title: "엑셀 파일 생성 중..." });
+    toast({ title: includePhotos ? "엑셀 생성 중... (사진 압축 포함, 잠시 기다려주세요)" : "엑셀 파일 생성 중..." });
 
     const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet('안전점검 내역');
 
-    // Column definitions with better widths
+    // ── 시트 1: 안전점검 내역 ─────────────────────────────
+    const worksheet = workbook.addWorksheet('안전점검 내역');
     worksheet.columns = [
       { header: 'No', key: 'no', width: 6 },
       { header: '점검유형', key: 'type', width: 14 },
@@ -658,169 +679,194 @@ export default function SafetyInspections() {
       { header: '점검일', key: 'date', width: 14 },
       { header: '비고', key: 'notes', width: 25 },
     ];
-
-    // Add checklist item headers
     DEFAULT_CHECKLIST.forEach((item, idx) => {
       worksheet.getColumn(10 + idx).width = 12;
       worksheet.getColumn(10 + idx).key = `check_${idx}`;
     });
-
-    // Add 10 image columns (사진1 ~ 사진10)
     const MAX_IMAGES = 10;
     const firstImageCol = 10 + DEFAULT_CHECKLIST.length;
-    const imageColWidth = 16; // ~2.99cm (Excel width units)
-    
-    for (let i = 0; i < MAX_IMAGES; i++) {
-      worksheet.getColumn(firstImageCol + i).width = imageColWidth;
-      worksheet.getColumn(firstImageCol + i).key = `image_${i}`;
+    if (includePhotos) {
+      for (let i = 0; i < MAX_IMAGES; i++) {
+        worksheet.getColumn(firstImageCol + i).width = 16;
+        worksheet.getColumn(firstImageCol + i).key = `image_${i}`;
+      }
     }
-    const totalCols = firstImageCol + MAX_IMAGES - 1;
+    const totalCols = includePhotos ? firstImageCol + MAX_IMAGES - 1 : firstImageCol - 1;
 
-    // Style header row
     const headerRow = worksheet.getRow(1);
-    DEFAULT_CHECKLIST.forEach((item, idx) => {
-      headerRow.getCell(10 + idx).value = item.item;
-    });
-    
-    // Add image column headers (사진1 ~ 사진10)
-    for (let i = 0; i < MAX_IMAGES; i++) {
-      headerRow.getCell(firstImageCol + i).value = `사진${i + 1}`;
-    }
-    
-    headerRow.font = { bold: true, size: 10 };
-    headerRow.fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: 'FF4472C4' }
-    };
+    DEFAULT_CHECKLIST.forEach((item, idx) => { headerRow.getCell(10 + idx).value = item.item; });
+    if (includePhotos) { for (let i = 0; i < MAX_IMAGES; i++) headerRow.getCell(firstImageCol + i).value = `사진${i + 1}`; }
     headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 };
+    headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } };
     headerRow.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
     headerRow.height = 35;
-
-    // Add borders to header
-    for (let i = 1; i <= totalCols; i++) {
-      headerRow.getCell(i).border = {
-        top: { style: 'thin' },
-        left: { style: 'thin' },
-        bottom: { style: 'thin' },
-        right: { style: 'thin' }
-      };
-    }
+    for (let i = 1; i <= totalCols; i++) headerRow.getCell(i).border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
 
     let rowNum = 1;
     for (const inspection of inspections) {
       const checklistItems = normalizeChecklist(inspection.checklist);
       const titleParts = (inspection.title || '').split(' - ');
-      const deptName = titleParts[0] || '-';
-      const workDesc = titleParts.slice(1).join(' - ') || '-';
-      
       const rowData: Record<string, unknown> = {
-        no: rowNum,
-        type: inspection.inspectionType,
-        department: deptName,
-        workContent: workDesc,
-        location: inspection.location || '-',
-        inspector: inspection.inspector || '-',
-        workerName: inspection.workerName || '-',
-        date: inspection.inspectionDate,
-        notes: inspection.notes || '-',
+        no: rowNum, type: inspection.inspectionType,
+        department: titleParts[0] || '-',
+        workContent: titleParts.slice(1).join(' - ') || '-',
+        location: inspection.location || '-', inspector: inspection.inspector || '-',
+        workerName: inspection.workerName || '-', date: inspection.inspectionDate, notes: inspection.notes || '-',
       };
-
-      // Add checklist statuses
-      checklistItems.forEach((item, idx) => {
-        rowData[`check_${idx}`] = item.status;
-      });
-
+      checklistItems.forEach((item, idx) => { rowData[`check_${idx}`] = item.status; });
       const row = worksheet.addRow(rowData);
       row.height = 22;
       row.alignment = { vertical: 'middle', wrapText: true };
-
-      // Style checklist cells based on status
       checklistItems.forEach((item, idx) => {
         const cell = row.getCell(10 + idx);
         cell.alignment = { horizontal: 'center', vertical: 'middle' };
-        
-        if (item.status === '양호') {
-          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFC6EFCE' } };
-          cell.font = { color: { argb: 'FF006100' } };
-        } else if (item.status === '미흡') {
-          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFC7CE' } };
-          cell.font = { color: { argb: 'FF9C0006' } };
-        } else {
-          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEB9C' } };
-          cell.font = { color: { argb: 'FF9C6500' } };
-        }
+        if (item.status === '양호') { cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFC6EFCE' } }; cell.font = { color: { argb: 'FF006100' } }; }
+        else if (item.status === '미흡') { cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFC7CE' } }; cell.font = { color: { argb: 'FF9C0006' } }; }
+        else { cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEB9C' } }; cell.font = { color: { argb: 'FF9C6500' } }; }
       });
-
-      // Add borders to data cells
-      for (let i = 1; i <= totalCols; i++) {
-        row.getCell(i).border = {
-          top: { style: 'thin' },
-          left: { style: 'thin' },
-          bottom: { style: 'thin' },
-          right: { style: 'thin' }
-        };
-      }
-
-      // Alternate row colors for better readability
+      for (let i = 1; i <= totalCols; i++) row.getCell(i).border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
       if (rowNum % 2 === 0) {
         for (let i = 1; i <= 8; i++) {
           const cell = row.getCell(i);
-          if (!cell.fill || (cell.fill as ExcelJS.FillPattern).fgColor?.argb === undefined) {
+          if (!cell.fill || (cell.fill as ExcelJS.FillPattern).fgColor?.argb === undefined)
             cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2F2F2' } };
+        }
+      }
+      if (includePhotos) {
+        const imgs = inspection.images || [];
+        const numImages = Math.min(imgs.length, MAX_IMAGES);
+        if (numImages > 0) {
+          row.height = 69;
+          for (let i = 0; i < numImages; i++) {
+            try {
+              const b64 = await compressImage(imgs[i]);
+              if (!b64) continue;
+              const imageId = workbook.addImage({ base64: b64, extension: 'jpeg' });
+              worksheet.addImage(imageId, { tl: { col: firstImageCol - 1 + i, row: rowNum + 0.05 }, ext: { width: 113, height: 92 } });
+            } catch (err) { console.error('이미지 로드 실패:', err); }
           }
         }
       }
-
-      // Add images - one per column (사진1 ~ 사진10)
-      const images = inspection.images || [];
-      if (images.length > 0) {
-        const numImages = Math.min(images.length, MAX_IMAGES);
-        row.height = 69; // ~2.43cm
-        
-        for (let i = 0; i < numImages; i++) {
-          try {
-            // Convert relative path to absolute URL
-            const imageUrl = images[i].startsWith('/') 
-              ? window.location.origin + images[i] 
-              : images[i];
-            const response = await fetch(imageUrl);
-            const blob = await response.blob();
-            const base64 = await new Promise<string>((resolve) => {
-              const reader = new FileReader();
-              reader.onloadend = () => resolve(reader.result as string);
-              reader.readAsDataURL(blob);
-            });
-
-            const imageId = workbook.addImage({
-              base64: base64.split(',')[1],
-              extension: 'jpeg',
-            });
-
-            // Place image in its own column (사진1, 사진2, etc.)
-            // Size: width 2.99cm (~113px), height 2.43cm (~92px)
-            worksheet.addImage(imageId, {
-              tl: { col: firstImageCol - 1 + i, row: rowNum + 0.05 },
-              ext: { width: 113, height: 92 },
-            });
-          } catch (err) {
-            console.error('이미지 로드 실패:', err);
-          }
-        }
-      }
-
       rowNum++;
     }
-
-    // Freeze header row
     worksheet.views = [{ state: 'frozen', ySplit: 1 }];
 
+    // ── 시트 2: 기간별 요약 ───────────────────────────────
+    const sumSheet = workbook.addWorksheet('기간별 요약');
+    const allInsp = rawInspections || [];
+    const TYPES = ['안전점검', '동행점검', '현장경영팀 점검', '본사 점검', 'KT 점검'];
+    const TYPE_LABELS = ['안전점검', '동행점검', '현장경영팀', '본사', 'KT'];
+    const getInspType = (insp: SafetyInspection) => {
+      if (insp.inspectionType === '동행점검') return '동행점검';
+      if (insp.inspectionType === '현장경영팀 점검') return '현장경영팀 점검';
+      if (insp.inspectionType === '본사 점검') return '본사 점검';
+      if (insp.inspectionType === 'KT 점검') return 'KT 점검';
+      return '안전점검';
+    };
+    const COL_W = 14;
+    sumSheet.getColumn(1).width = 20;
+    for (let i = 2; i <= 7; i++) sumSheet.getColumn(i).width = COL_W;
+
+    const addSumHeader = (row: ExcelJS.Row, color: string) => {
+      row.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 };
+      row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: color } };
+      row.alignment = { horizontal: 'center', vertical: 'middle' };
+      row.height = 26;
+      for (let i = 1; i <= 7; i++) row.getCell(i).border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
+    };
+    const addSumData = (row: ExcelJS.Row, alt: boolean) => {
+      row.height = 20;
+      row.alignment = { horizontal: 'center', vertical: 'middle' };
+      for (let i = 1; i <= 7; i++) {
+        row.getCell(i).border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
+        if (alt) row.getCell(i).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
+      }
+      row.getCell(1).alignment = { horizontal: 'left', vertical: 'middle' };
+    };
+    const addTitle = (title: string, bgColor: string) => {
+      const r = sumSheet.addRow([title]);
+      r.font = { bold: true, size: 11, color: { argb: 'FFFFFFFF' } };
+      r.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgColor } };
+      r.height = 32;
+      sumSheet.mergeCells(`A${r.number}:G${r.number}`);
+      r.getCell(1).alignment = { horizontal: 'left', vertical: 'middle' };
+      sumSheet.addRow([]);
+    };
+
+    const nowDate = new Date();
+    const curYear = format(nowDate, 'yyyy');
+
+    // 섹션 1: 연간 요약 (월별)
+    addTitle(`📅 연간 요약 — ${curYear}년 월별 집계`, 'FF1D4ED8');
+    const annHdr = sumSheet.addRow(['월', '합계', ...TYPE_LABELS]);
+    addSumHeader(annHdr, 'FF3B82F6');
+    for (let m = 1; m <= 12; m++) {
+      const prefix = `${curYear}-${String(m).padStart(2, '0')}`;
+      const mo = allInsp.filter(i => i.inspectionDate.startsWith(prefix));
+      const r = sumSheet.addRow([`${m}월`, mo.length, ...TYPES.map(t => mo.filter(i => getInspType(i) === t).length)]);
+      addSumData(r, m % 2 === 0);
+      r.getCell(2).font = { bold: true };
+    }
+    const annAll = allInsp.filter(i => i.inspectionDate.startsWith(curYear));
+    const annTotRow = sumSheet.addRow(['연간 합계', annAll.length, ...TYPES.map(t => annAll.filter(i => getInspType(i) === t).length)]);
+    annTotRow.font = { bold: true };
+    annTotRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDBEAFE' } };
+    annTotRow.height = 24;
+    for (let i = 1; i <= 7; i++) annTotRow.getCell(i).border = { top: { style: 'medium' }, left: { style: 'thin' }, bottom: { style: 'medium' }, right: { style: 'thin' } };
+    annTotRow.alignment = { horizontal: 'center', vertical: 'middle' };
+    sumSheet.addRow([]);
+
+    // 섹션 2: 주별 요약 (최근 12주, 월~금)
+    addTitle('📋 주별 요약 — 최근 12주 (월~금)', 'FF047857');
+    const wkHdr = sumSheet.addRow(['주간 (월~금)', '합계', ...TYPE_LABELS]);
+    addSumHeader(wkHdr, 'FF10B981');
+    const day = nowDate.getDay();
+    const diffMon = day === 0 ? -6 : 1 - day;
+    const thisMon = new Date(nowDate);
+    thisMon.setDate(nowDate.getDate() + diffMon);
+    thisMon.setHours(0, 0, 0, 0);
+    for (let w = 0; w < 12; w++) {
+      const ws = new Date(thisMon); ws.setDate(thisMon.getDate() - w * 7);
+      const we = new Date(ws); we.setDate(ws.getDate() + 4);
+      const wsStr = format(ws, 'yyyy-MM-dd'), weStr = format(we, 'yyyy-MM-dd');
+      const wi = allInsp.filter(i => i.inspectionDate >= wsStr && i.inspectionDate <= weStr);
+      const r = sumSheet.addRow([`${format(ws, 'M/d')}~${format(we, 'M/d')}`, wi.length, ...TYPES.map(t => wi.filter(i => getInspType(i) === t).length)]);
+      addSumData(r, w % 2 !== 0);
+      r.getCell(2).font = { bold: true };
+      if (w === 0) { r.font = { bold: true }; r.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1FAE5' } }; }
+    }
+    sumSheet.addRow([]);
+
+    // 섹션 3: 최근 3개월 일별 유건 현황 (데이터 있는 날만)
+    addTitle('📊 최근 3개월 일별 현황 (점검 있는 날만)', 'FF6D28D9');
+    for (let mo = 0; mo < 3; mo++) {
+      const td = new Date(nowDate); td.setMonth(nowDate.getMonth() - mo);
+      const yr = format(td, 'yyyy'), mn = format(td, 'MM');
+      const prefix = `${yr}-${mn}`;
+      const daysInMo = new Date(parseInt(yr), parseInt(mn), 0).getDate();
+      const moHdr = sumSheet.addRow([`${parseInt(mn)}월 일별`, '합계', ...TYPE_LABELS]);
+      addSumHeader(moHdr, 'FF8B5CF6');
+      let hasAny = false;
+      for (let d = 1; d <= daysInMo; d++) {
+        const dStr = `${prefix}-${String(d).padStart(2, '0')}`;
+        const di = allInsp.filter(i => i.inspectionDate === dStr);
+        if (di.length === 0) continue;
+        hasAny = true;
+        const r = sumSheet.addRow([`${parseInt(mn)}/${d}`, di.length, ...TYPES.map(t => di.filter(i => getInspType(i) === t).length)]);
+        addSumData(r, d % 2 === 0);
+        r.getCell(2).font = { bold: true };
+      }
+      if (!hasAny) { const nr = sumSheet.addRow(['점검 내역 없음']); nr.getCell(1).alignment = { horizontal: 'center' }; }
+      sumSheet.addRow([]);
+    }
+
+    // ── 다운로드 ──────────────────────────────────────────
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `안전점검내역_${format(new Date(), 'yyyyMMdd')}.xlsx`;
+    a.download = `안전점검내역_${format(new Date(), 'yyyyMMdd')}${includePhotos ? '' : '_사진제외'}.xlsx`;
     a.click();
     URL.revokeObjectURL(url);
     toast({ title: "엑셀 다운로드 완료" });
@@ -998,10 +1044,32 @@ export default function SafetyInspections() {
           {activeTab === "자체" ? (
             <>
               {canDownloadInspectionExcel && (
-                <Button variant="outline" onClick={handleExcelDownload} disabled={!inspections || inspections.length === 0} className="gap-2" data-testid="button-excel-download">
-                  <Download className="w-4 h-4" />
-                  엑셀 다운로드
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" disabled={!inspections || inspections.length === 0} className="gap-2" data-testid="button-excel-download">
+                      <Download className="w-4 h-4" />
+                      엑셀 다운로드
+                      <ChevronDown className="w-3 h-3" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-52">
+                    <DropdownMenuItem onClick={() => handleExcelDownload(true)} data-testid="button-excel-with-photos">
+                      <Download className="w-4 h-4 mr-2 text-blue-500" />
+                      <div>
+                        <div className="font-medium">사진 포함 다운로드</div>
+                        <div className="text-xs text-muted-foreground">압축 이미지 삽입 (느림)</div>
+                      </div>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => handleExcelDownload(false)} data-testid="button-excel-no-photos">
+                      <ImageOff className="w-4 h-4 mr-2 text-green-500" />
+                      <div>
+                        <div className="font-medium">빠른 다운로드</div>
+                        <div className="text-xs text-muted-foreground">사진 제외, 즉시 완료</div>
+                      </div>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               )}
               {canEditInspections && (
                 <Button variant="outline" onClick={() => { setShowBulkImport(true); setSelectionMode(false); setSelectedIds(new Set()); }} className="gap-2 border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-400 dark:hover:bg-blue-950" data-testid="button-bulk-import">
